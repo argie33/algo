@@ -155,7 +155,10 @@ def run(
                 if exits_recorded > 0:
                     logger.info(f"Recorded {exits_recorded} exits in trade history")
         except Exception as e:
-            logger.warning(f"Failed to record exits: {e}")
+            raise RuntimeError(
+                f"Failed to record exits in trade history: {e}. "
+                "Cannot complete reconciliation without persisting trade exit data."
+            ) from e
 
         # Step 1: Populate signal_trade_performance from closed trades
         stpp_result = {"success": False, "trades_processed": 0}

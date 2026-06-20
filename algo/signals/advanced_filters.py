@@ -295,13 +295,19 @@ class AdvancedFilters:
             subscores["catalyst"] += in_pts
 
             # RISK (15) — these are GOOD when low risk
-            ext_pts = self._extension_risk_score(ext_pct)
-            components["extension_pts"] = round(ext_pts, 1)
-            subscores["risk"] += ext_pts
+            try:
+                ext_pts = self._extension_risk_score(ext_pct)
+                components["extension_pts"] = round(ext_pts, 1)
+                subscores["risk"] += ext_pts
+            except ValueError as e:
+                hard_fail = hard_fail or f"Extension risk assessment failed: {str(e)[:40]}"
 
-            ep_pts = self._earnings_proximity_score(days_to_earnings, block_window)
-            components["earnings_proximity_pts"] = round(ep_pts, 1)
-            subscores["risk"] += ep_pts
+            try:
+                ep_pts = self._earnings_proximity_score(days_to_earnings, block_window)
+                components["earnings_proximity_pts"] = round(ep_pts, 1)
+                subscores["risk"] += ep_pts
+            except ValueError as e:
+                hard_fail = hard_fail or f"Earnings proximity assessment failed: {str(e)[:40]}"
 
             composite_score = min(100.0, sum(subscores.values()))
             return {
@@ -593,7 +599,11 @@ class AdvancedFilters:
         )
         row = cur.fetchone()
         if row is None:
-            return 0.0, {}
+            raise ValueError(
+                f"Growth metrics unavailable for {symbol}. "
+                "growth_metrics table empty or missing data. "
+                "Cannot compute growth catalyst score without 3-year CAGR data."
+            )
         rev_3y = float(row[0]) if row[0] is not None else 0.0
         eps_3y = float(row[1]) if row[1] is not None else 0.0
         mom = float(row[2]) if row[2] is not None else 0.0
@@ -624,7 +634,11 @@ class AdvancedFilters:
         )
         row = cur.fetchone()
         if row is None:
-            return 0.0, 0
+            raise ValueError(
+                f"Analyst sentiment unavailable for {symbol}. "
+                "analyst_upgrade_downgrade table empty or missing data. "
+                "Cannot compute analyst sentiment catalyst score."
+            )
         ups = int(row[0]) if row[0] is not None else 0
         downs = int(row[1]) if row[1] is not None else 0
         net = ups - downs
@@ -650,7 +664,11 @@ class AdvancedFilters:
         )
         row = cur.fetchone()
         if row is None:
-            return 0.0, 0
+            raise ValueError(
+                f"Insider transactions unavailable for {symbol}. "
+                "insider_transactions table empty or missing data. "
+                "Cannot compute insider activity catalyst score."
+            )
         buys = float(row[0]) if row[0] is not None else 0
         sells = float(row[1]) if row[1] is not None else 0
         net = buys - sells
@@ -681,7 +699,10 @@ class AdvancedFilters:
 
     def _extension_risk_score(self, ext_pct):
         if ext_pct is None:
-            return 0.0
+            raise ValueError(
+                "Extension percentage required for risk scoring. "
+                "SMA_50 data unavailable. Cannot assess entry extension risk."
+            )
         if ext_pct < 0:
             return self.W_RISK_EXTENSION * 0.6  # below 50 = OK but not ideal
         if ext_pct <= 5:
@@ -694,7 +715,10 @@ class AdvancedFilters:
 
     def _earnings_proximity_score(self, days_to_earnings, block_window):
         if days_to_earnings is None:
-            return self.W_RISK_EARNINGS_PROX * 0.5
+            raise ValueError(
+                "Days to earnings required for risk scoring. "
+                "Earnings calendar data unavailable. Cannot assess earnings-proximity risk."
+            )
         if days_to_earnings <= block_window:
             return 0.0
         if days_to_earnings >= 30:

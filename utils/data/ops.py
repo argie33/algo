@@ -31,8 +31,11 @@ def load_with_freshness(
 
     freshness = check_freshness(last_updated, data_type, context=context)
     if not freshness["is_fresh"] and not stale_ok:
-        logger.warning(f"Skipping stale {data_type}: {freshness['message']}")
-        return None
+        raise RuntimeError(
+            f"Data freshness check failed for {data_type}: {freshness['message']}. "
+            f"Cannot proceed with stale data ({context}). "
+            f"Set stale_ok=True only for non-critical operations."
+        )
 
     return (data, freshness)
 
@@ -63,12 +66,14 @@ def validate_and_log(
     schema: Dict[str, str],
     context: str = "",
 ) -> Dict[str, Any]:
-    """Validate record against schema and log failures."""
+    """Validate record against schema and raise on failure."""
     try:
         return validate_record(record, schema, context=context)
     except Exception as e:
-        logger.error(f"Record validation failed: {e}")
-        return record
+        raise RuntimeError(
+            f"Record validation failed for {context}: {e}. "
+            "Cannot proceed with invalid data."
+        ) from e
 
 
 def check_data_fresh(

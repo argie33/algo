@@ -525,37 +525,12 @@ class ValueAtRisk:
             logger.info(f"Generating daily risk report for {report_date}")
 
             # Compute all risk metrics (each handles its own connection)
-            # Each metric may raise RuntimeError on critical failures — handle gracefully
-            var_metrics = None
-            cvar_metrics = None
-            stressed_var = None
-            beta = None
-            concentration = None
-
-            try:
-                var_metrics = self.historical_var()
-            except RuntimeError as e:
-                logger.warning(f"VaR calculation skipped: {e}")
-
-            try:
-                cvar_metrics = self.cvar()
-            except RuntimeError as e:
-                logger.warning(f"CVaR calculation skipped: {e}")
-
-            try:
-                stressed_var = self.stressed_var()
-            except RuntimeError as e:
-                logger.warning(f"Stressed VaR calculation skipped: {e}")
-
-            try:
-                beta = self.beta_exposure()
-            except RuntimeError as e:
-                logger.warning(f"Beta exposure calculation skipped: {e}")
-
-            try:
-                concentration = self.concentration_report()
-            except RuntimeError as e:
-                logger.warning(f"Concentration report skipped: {e}")
+            # Failures raise RuntimeError and propagate — don't swallow critical errors
+            var_metrics = self.historical_var()
+            cvar_metrics = self.cvar()
+            stressed_var = self.stressed_var()
+            beta = self.beta_exposure()
+            concentration = self.concentration_report()
 
             logger.debug(
                 f"  VaR: {var_metrics['var_pct']:.3f}%"

@@ -10,7 +10,7 @@ Maps regime to config multipliers that flow into PositionSizer, ExposurePolicy, 
 import logging
 from datetime import date as _date
 from datetime import timedelta
-from typing import Any, Dict, List, Optional
+from typing import Any, ClassVar
 
 from algo.infrastructure.constants import (
     REGIME_HOLD_DAYS_CAUTION,
@@ -44,10 +44,15 @@ class RegimeManager:
     """Market regime detection and parameter adaptation."""
 
     # Regime values from market_exposure_daily
-    REGIMES = ["confirmed_uptrend", "uptrend_under_pressure", "caution", "correction"]
+    REGIMES: ClassVar[list[str]] = [
+        "confirmed_uptrend",
+        "uptrend_under_pressure",
+        "caution",
+        "correction",
+    ]
 
     # Parameter overrides by regime (see algo.infrastructure.constants for values and rationale)
-    REGIME_PARAMS = {
+    REGIME_PARAMS: ClassVar[dict[str, Any]] = {
         "confirmed_uptrend": {
             "position_size_mult": REGIME_POSITION_SIZE_CONFIRMED_UPTREND,
             "max_hold_days_mult": REGIME_HOLD_DAYS_CONFIRMED_UPTREND,
@@ -90,7 +95,7 @@ class RegimeManager:
         },
     }
 
-    def get_current_regime(self, as_of_date: Optional[_date] = None) -> str:
+    def get_current_regime(self, as_of_date: _date | None = None) -> str:
         """
         Get current market regime.
 
@@ -129,21 +134,21 @@ class RegimeManager:
             )
             return "caution"
 
-    def get_regime_params(self, as_of_date: Optional[_date] = None) -> Dict[str, Any]:
+    def get_regime_params(self, as_of_date: _date | None = None) -> dict[str, Any]:
         """Get parameter overrides for current regime."""
         regime = self.get_current_regime(as_of_date)
         return self.REGIME_PARAMS.get(regime, self.REGIME_PARAMS["caution"])
 
-    def get_position_size_multiplier(self, as_of_date: Optional[_date] = None) -> float:
+    def get_position_size_multiplier(self, as_of_date: _date | None = None) -> float:
         """Get position size multiplier (0.0 - 1.0)."""
         params = self.get_regime_params(as_of_date)
         return float(params["position_size_mult"])
 
     def get_adjusted_config(
         self,
-        base_config: Dict[str, Any],
-        as_of_date: Optional[_date] = None,
-    ) -> Dict[str, Any]:
+        base_config: dict[str, Any],
+        as_of_date: _date | None = None,
+    ) -> dict[str, Any]:
         """
         Return modified config dict with regime adjustments applied.
 
@@ -183,7 +188,7 @@ class RegimeManager:
 
         return config
 
-    def regime_history(self, days: int = 30) -> List[Dict[str, Any]]:
+    def regime_history(self, days: int = 30) -> list[dict[str, Any]]:
         """
         Get regime history and transitions.
 
@@ -242,7 +247,7 @@ class RegimeManager:
                 "Cannot compute regime transitions without historical data."
             ) from e
 
-    def get_regime_strength(self, as_of_date: Optional[_date] = None) -> float:
+    def get_regime_strength(self, as_of_date: _date | None = None) -> float:
         """
         Get confidence level (0-1) in current regime classification.
 

@@ -205,9 +205,11 @@ def run(
         try:
             symbol = signal.get("symbol")
             if not symbol:
-                logger.warning("[PHASE 6] Signal missing symbol, skipping")
-                skipped_count += 1
-                continue
+                raise RuntimeError(
+                    "[PHASE 6] Signal missing symbol. "
+                    "Cannot execute trade without stock symbol. "
+                    "Verify signal_generation phase produced valid signals."
+                )
 
             # Re-check halt flag each iteration — this loop can run for minutes
             if check_halt_flag and check_halt_flag():
@@ -236,11 +238,12 @@ def run(
             close = _get_latest_close(str(symbol), run_date)
 
             if not all([atr, sma_50, close]):
-                logger.warning(
-                    f"[PHASE 6] {symbol}: missing ATR/SMA_50/close, skipping"
+                raise RuntimeError(
+                    f"[PHASE 6] {symbol}: missing technical data. "
+                    f"ATR={atr}, SMA_50={sma_50}, close={close}. "
+                    f"Cannot compute stop loss or position size without complete technical indicators. "
+                    f"Verify technical_data_daily loader completed successfully."
                 )
-                skipped_count += 1
-                continue
 
             entry_price = float(close)  # type: ignore[arg-type]
             atr = float(atr)  # type: ignore[arg-type]
@@ -293,9 +296,10 @@ def run(
                     symbol, position_value, portfolio_value, eval_date=run_date
                 )
             except ValueError as e:
-                logger.warning(f"[PHASE 6] {symbol}: pre-trade check critical failure — {e}")
-                skipped_count += 1
-                continue
+                raise RuntimeError(
+                    f"[PHASE 6] {symbol}: pre-trade validation critical failure: {e}. "
+                    f"System cannot proceed with entry execution if pre-trade checks fail."
+                ) from e
             if not pt_ok:
                 logger.info(f"[PHASE 6] {symbol}: pre-trade check — {pt_reason}")
                 skipped_count += 1

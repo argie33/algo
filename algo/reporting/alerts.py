@@ -357,8 +357,11 @@ class AlertManager:
         """Send Slack-compatible webhook."""
         # SECURITY FIX: Validate webhook URL before sending
         if not self.webhook_url or not _validate_webhook_url(self.webhook_url):
-            logger.warning("Webhook URL invalid or not set; skipping webhook send")
-            return
+            raise RuntimeError(
+                "Webhook URL invalid or not set. "
+                "Critical alerts cannot be delivered. "
+                "Configure SLACK_WEBHOOK_URL environment variable."
+            )
 
         try:
             color = "danger" if critical > 0 else "warning"
@@ -392,14 +395,20 @@ class AlertManager:
             requests.post(self.webhook_url, json=payload, timeout=get_webhook_timeout())
             logger.info(f"Webhook sent: {subject}")
         except Exception as e:
-            logger.error(f"Webhook failed: {e}")
+            raise RuntimeError(
+                f"Webhook delivery failed: {e}. "
+                f"Critical alerts cannot reach operators."
+            ) from e
 
     def _send_webhook_simple(self, title, message, alert_type):
         """Send simple Slack webhook for position alerts."""
         # SECURITY FIX: Validate webhook URL before sending
         if not self.webhook_url or not _validate_webhook_url(self.webhook_url):
-            logger.warning("Webhook URL invalid or not set; skipping webhook send")
-            return
+            raise RuntimeError(
+                "Webhook URL invalid or not set. "
+                "Position alerts cannot be delivered. "
+                "Configure SLACK_WEBHOOK_URL environment variable."
+            )
 
         try:
             payload = {
@@ -418,7 +427,10 @@ class AlertManager:
             requests.post(self.webhook_url, json=payload, timeout=get_webhook_timeout())
             logger.info(f"Webhook sent: {title}")
         except Exception as e:
-            logger.error(f"Webhook failed: {e}")
+            raise RuntimeError(
+                f"Position alert webhook delivery failed: {e}. "
+                f"Operators will not be notified."
+            ) from e
 
     def _send_sms(self, message):
         """Send SMS via Twilio to all configured numbers."""

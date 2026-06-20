@@ -44,8 +44,10 @@ class TrendlineSupport:
                 )
                 return cur.fetchall()
         except Exception as e:
-            logger.warning(f"Error fetching price history for {symbol}: {e}")
-            return []
+            raise RuntimeError(
+                f"Failed to fetch price history for {symbol}: {e}. "
+                "Cannot evaluate support trendlines without price data."
+            ) from e
 
     def find_support_line(self, symbol: str, eval_date: date) -> Optional[Dict]:
         """

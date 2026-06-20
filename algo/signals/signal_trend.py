@@ -39,12 +39,12 @@ class SignalTrendMixin:
             (symbol, eval_date, eval_date),
         )
         rows = cur.fetchall()
-        if not rows or len(rows) < 50:
+        if not rows or len(rows) < 200:
             return {
                 "score": 0,
                 "pass": False,
                 "criteria": {},
-                "reason": "Insufficient price history",
+                "reason": "Insufficient price history (need 200+ days for SMA200)",
             }
 
         import numpy as np
@@ -64,12 +64,12 @@ class SignalTrendMixin:
             )
 
         close = close[np.isfinite(close)]
-        if len(close) < 50:
+        if len(close) < 200:
             return {
                 "score": 0,
                 "pass": False,
                 "criteria": {},
-                "reason": "Insufficient price history",
+                "reason": "Insufficient price history (need 200+ days for SMA200)",
             }
 
         def _sma(arr, n):

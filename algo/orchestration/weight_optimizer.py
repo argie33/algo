@@ -102,10 +102,10 @@ class WeightOptimizer:
             # Extract and normalize ICs
             sample_size = ic_values.get(self.COMPONENTS[0], {}).get("sample_size", 0)
             if sample_size < self.MIN_TRADES:
-                logger.warning(
-                    f"Insufficient trades ({sample_size} < {self.MIN_TRADES}) for optimization"
+                raise ValueError(
+                    f"Insufficient trades ({sample_size} < {self.MIN_TRADES}) for weight optimization. "
+                    "Weights cannot be optimized without sufficient closed trade history."
                 )
-                return None
 
             ic_list: List[float] = []
             for comp in self.COMPONENTS:
@@ -126,9 +126,6 @@ class WeightOptimizer:
 
             # Optimize weights
             optimal = self._solve_weights(ic_array)
-            if not optimal:
-                return None
-
             logger.info(f"Optimal weights on {report_date}: {optimal}")
             return optimal
 
@@ -164,8 +161,10 @@ class WeightOptimizer:
             )
 
             if not result.success:
-                logger.warning(f"Weight optimization failed: {result.message}")
-                return None
+                raise RuntimeError(
+                    f"Weight optimization solver failed: {result.message}. "
+                    "Cannot compute optimal portfolio weights."
+                )
 
             # Round to integers while maintaining sum=100
             weights_float = result.x

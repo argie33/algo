@@ -52,7 +52,9 @@ def normalize_to_utc_datetime(dt):
             dt = dt.replace(tzinfo=timezone.utc)
         return dt
 
-    return None
+    raise TypeError(
+        f"normalize_to_utc_datetime requires date or datetime, got {type(dt).__name__}"
+    )
 
 
 def safe_limit(limit_str, max_val=5000, default=500, strict=False):
@@ -584,21 +586,18 @@ def safe_dict_convert(row):
         Logs KeyError/ValueError for debugging schema issues.
     """
     if row is None:
-        return {}
+        raise ValueError("Database row is None — cannot convert None to dict")
 
     try:
         return dict(row)
     except (KeyError, ValueError, TypeError) as e:
         row_keys = list(row.keys()) if hasattr(row, "keys") else "unknown"
-        logger.error(
-            f"Failed to convert row to dict: {type(e).__name__}: {e}\n  Row keys: {row_keys}\n  Row type: {type(row).__name__}\n  Context: DictCursor row conversion (possible schema mismatch)"
-        )
-        try:
-            if hasattr(row, "keys"):
-                return {k: row[k] for k in row.keys() if k is not None}
-        except Exception as fallback_err:
-            logger.error(f"Fallback dict conversion also failed: {fallback_err}")
-        return {}
+        raise RuntimeError(
+            f"Failed to convert database row to dict: {type(e).__name__}: {e}\n"
+            f"  Row keys: {row_keys}\n"
+            f"  Row type: {type(row).__name__}\n"
+            f"  This may indicate a schema mismatch between code and database."
+        ) from e
 
 
 def safe_json_serialize(obj):
