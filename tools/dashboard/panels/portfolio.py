@@ -79,6 +79,8 @@ def panel_portfolio(port, cfg, risk=None, perf=None):
     err_panel = _error_panel("portfolio", port, "PORTFOLIO", border="green")
     if err_panel:
         return err_panel
+    if _error_panel("config", cfg, "PORTFOLIO", border="green"):
+        return _error_panel("config", cfg, "PORTFOLIO", border="green")
 
     pv = safe_float(port.get("total_portfolio_value"), default=None)
     dr = safe_float(port.get("daily_return_pct"), default=None)
@@ -184,6 +186,8 @@ def panel_performance_spark(perf, rec, perf_anl=None, pos=None):
     err_panel = _error_panel("performance", perf, "PERFORMANCE", border="green")
     if err_panel:
         return err_panel
+    if perf_anl and _error_panel("performance analytics", perf_anl, "PERFORMANCE", border="green"):
+        return _error_panel("performance analytics", perf_anl, "PERFORMANCE", border="green")
 
     streak = perf.get("streak") if perf.get("streak") is not None else 0
     str_s = f"+{streak}W" if streak >= 0 else f"{abs(streak)}L"
@@ -347,13 +351,18 @@ def panel_performance_spark(perf, rec, perf_anl=None, pos=None):
 )
 def panel_portfolio_perf_expanded(port, cfg, risk=None, perf=None, perf_anl=None, pos=None):
     """Full-screen portfolio + performance deep dive — all metrics, risk, concentration."""
+    if _error_panel("portfolio", port, "PORTFOLIO", border="green"):
+        return _error_panel("portfolio", port, "PORTFOLIO", border="green")
+    if _error_panel("config", cfg, "PORTFOLIO", border="green"):
+        return _error_panel("config", cfg, "PORTFOLIO", border="green")
+
     rows = [
         Text.from_markup("[dim]press [/][bold green]f[/][dim] to return to dashboard[/]"),
         Rule(style="dim"),
     ]
 
     # ── Portfolio snapshot ────────────────────────────────────────────────────
-    if port and not port.get("_error"):
+    if port:
         pv = safe_float(port.get("total_portfolio_value"), default=None)
         cash = safe_float(port.get("total_cash"), default=None)
         npos_val = port.get("position_count")
@@ -401,7 +410,7 @@ def panel_portfolio_perf_expanded(port, cfg, risk=None, perf=None, perf_anl=None
         rows.append(Text.from_markup("[dim bold]PERFORMANCE METRICS[/]"))
         n = perf.get("n") or 0
         w = perf.get("w") or 0
-        l = perf.get("l") or 0
+        closed_losses = perf.get("l") or 0
         streak = perf.get("streak") or 0
         pnl_val = perf.get("pnl")
         unrlzd_pnl = perf.get("unrealized_pnl")
@@ -414,7 +423,7 @@ def panel_portfolio_perf_expanded(port, cfg, risk=None, perf=None, perf_anl=None
         avg_loss = perf.get("avg_loss")
 
         wr_v, _adj_w, adj_l = _calculate_adjusted_win_rate(perf, pos)
-        losing_open = (adj_l or 0) - (l or 0)
+        losing_open = (adj_l or 0) - (closed_losses or 0)
         wr_label = "Win Rate (adj.):" if losing_open > 0 else "Win Rate:"
 
         wrc = G if wr_v >= 45 else (Y if wr_v >= 40 else R)
@@ -433,7 +442,7 @@ def panel_portfolio_perf_expanded(port, cfg, risk=None, perf=None, perf_anl=None
             "Total Trades:",
             Text(str(n), style="white"),
             "Win/Loss:",
-            Text.from_markup(f"[{G}]{w}W[/][dim]/[/][{R}]{l}L[/]"),
+            Text.from_markup(f"[{G}]{w}W[/][dim]/[/][{R}]{closed_losses}L[/]"),
         )
         perfblk.add_row(
             wr_label,

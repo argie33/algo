@@ -54,6 +54,8 @@ def panel_signals_compact(sig, sig_eval=None, scores=None):
     err_panel = _error_panel("signals", sig, "SIGNALS", border="magenta")
     if err_panel:
         return err_panel
+    if scores and _error_panel("scores", scores, "SIGNALS", border="magenta"):
+        return _error_panel("scores", scores, "SIGNALS", border="magenta")
 
     top_scores = (scores or {}).get("top") or []
     buy_sigs = sig.get("buy_sigs") or []
@@ -353,6 +355,8 @@ def panel_signals_expanded(sig, sig_eval=None, scores=None):
     err_panel = _error_panel("signals", sig, "SIGNALS", border="magenta")
     if err_panel:
         return err_panel
+    if scores and _error_panel("scores", scores, "SIGNALS", border="magenta"):
+        return _error_panel("scores", scores, "SIGNALS", border="magenta")
 
     top_scores = (scores or {}).get("top") or []
     buy_sigs = sig.get("buy_sigs") or []

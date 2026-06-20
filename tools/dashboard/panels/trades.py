@@ -24,6 +24,7 @@ from rich.rule import Rule
 from rich.table import Table
 from rich.text import Text
 
+from .. import error_boundary
 from ..formatters import (
     fmt_age,
     sign,
@@ -54,6 +55,15 @@ def _extract_items(data: Any) -> list:
 )
 def panel_recent_trades(trades):
     """Closed trade history (open positions are in the POSITIONS panel)."""
+    if error_boundary.has_error(trades):
+        error_msg = error_boundary.get_error_message(trades)
+        return Panel(
+            Text(error_msg or "Data unavailable", style="red"),
+            title="[bold cyan]RECENT TRADES[/]  [dim][t] expand[/]",
+            border_style="red",
+            padding=(0, 1),
+        )
+
     trades_timestamp = None
     if isinstance(trades, dict):
         trades_timestamp = trades.get("timestamp")
@@ -193,7 +203,7 @@ def panel_trades_expanded(trades):
     )
     rows.append(Rule(style="dim"))
 
-    _EXIT_SHORT = {
+    exit_short = {
         "stop_loss": "stop",
         "stop": "stop",
         "t1_target": "T1",
@@ -263,7 +273,7 @@ def panel_trades_expanded(trades):
         trade_date = tr.get("trade_date") or tr.get("signal_date")
         exit_date = tr.get("exit_date")
         exit_rsn_raw = (tr.get("exit_reason") or "").lower().strip()
-        exit_rsn = _EXIT_SHORT.get(exit_rsn_raw, exit_rsn_raw[:4] if exit_rsn_raw else "--")
+        exit_rsn = exit_short.get(exit_rsn_raw, exit_rsn_raw[:4] if exit_rsn_raw else "--")
         exit_rsn_c = R if exit_rsn == "stop" else (G if exit_rsn in ("T1", "T2") else (Y if exit_rsn == "man" else DIM))
 
         pc = G if (pnl_p or 0) > 0 else R

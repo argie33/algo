@@ -9,6 +9,7 @@ logger = logging.getLogger(__name__)
 from rich.panel import Panel
 from rich.text import Text
 
+from .. import error_boundary
 from ..utilities import (
     CY,
     DIM,
@@ -82,7 +83,7 @@ def _best_halt_reason(top_level: str, phase_results: list) -> list[tuple[str, st
     Falls back to top_level if no per-phase detail is found.
     Tries multiple field names so the display is robust to orchestrator schema changes.
     """
-    _FIELDS = (
+    fields = (
         "halt_reason",
         "reason",
         "message",
@@ -109,7 +110,7 @@ def _best_halt_reason(top_level: str, phase_results: list) -> list[tuple[str, st
                 logger.warning(f"Failed to parse phase data JSON: {e}")
                 pdata = {}
         detail = next(
-            (str(pdata[k]) for k in _FIELDS if pdata.get(k) and len(str(pdata.get(k))) > 3),
+            (str(pdata[k]) for k in fields if pdata.get(k) and len(str(pdata.get(k))) > 3),
             "",
         )
         if detail:
@@ -143,7 +144,10 @@ def _fmt_phases_halted(phases_halted) -> str:
 
 
 def _error_panel(data_name: str, data, title: str, border="magenta"):
-    """Create a panel showing granular error info for failed data sources."""
+    """Create a panel showing granular error info for failed data sources.
+
+    Checks for both hard errors (_error) and stale data (_data_stale) using error_boundary.
+    """
     if not data:
         return Panel(
             Text(f"{data_name}: no data", style="dim"),
@@ -152,8 +156,8 @@ def _error_panel(data_name: str, data, title: str, border="magenta"):
             padding=(0, 1),
         )
 
-    if isinstance(data, dict) and data.get("_error"):
-        error_msg = data.get("_error", "Unknown error")
+    if error_boundary.has_error(data):
+        error_msg = error_boundary.get_error_message(data)
         return Panel(
             Text.from_markup(f"[{R}]{data_name}[/] fetch failed:\n[dim]{error_msg}[/]"),
             title=f"[bold]{title}[/]",

@@ -162,7 +162,7 @@ def panel_economic_pulse(eco, econ_cal=None):
     valid_cal = econ_cal_items if econ_cal_items and not econ_cal_error else []
     if valid_cal:
         rows.append(Rule(style="dim"))
-        IMP_C = {"HIGH": "bold bright_red", "MEDIUM": "yellow", "LOW": "dim"}
+        imp_c = {"HIGH": "bold bright_red", "MEDIUM": "yellow", "LOW": "dim"}
         from datetime import date
 
         today = date.today()
@@ -181,7 +181,7 @@ def panel_economic_pulse(eco, econ_cal=None):
                 continue
             seen_keys.add(key)
             imp = (ev.get("importance") or "LOW").upper()
-            ic = IMP_C.get(imp, "dim")
+            ic = imp_c.get(imp, "dim")
             # API fields: forecast, actual, previous (not *_value suffixes)
             f_v = ev.get("forecast") if ev.get("forecast") is not None else ev.get("forecast_value")
             a_v = ev.get("actual") if ev.get("actual") is not None else ev.get("actual_value")
@@ -222,6 +222,10 @@ def panel_economic_pulse(eco, econ_cal=None):
 
 def panel_economic_expanded(eco, econ_cal=None):
     """Full-screen economic inputs — all macro indicators, yield curve, calendar."""
+    err_panel = _error_panel("economic pulse", eco, "ECONOMIC INPUTS", border="bright_magenta")
+    if err_panel:
+        return err_panel
+
     rows = [
         Text.from_markup("[dim]press [/][bold bright_magenta]e[/][dim] to return to dashboard[/]"),
         Rule(style="dim"),
@@ -362,7 +366,7 @@ def panel_economic_expanded(eco, econ_cal=None):
     if valid_cal:
         rows.append(Rule(style="dim"))
         rows.append(Text.from_markup("[dim bold]ECONOMIC CALENDAR (UPCOMING)[/]"))
-        IMP_C = {"HIGH": "bold bright_red", "MEDIUM": "yellow", "LOW": "dim"}
+        imp_c = {"HIGH": "bold bright_red", "MEDIUM": "yellow", "LOW": "dim"}
         from datetime import date
 
         today = date.today()
@@ -379,7 +383,7 @@ def panel_economic_expanded(eco, econ_cal=None):
                 continue
             seen_keys.add(key)
             imp = (ev.get("importance") or "LOW").upper()
-            ic = IMP_C.get(imp, "dim")
+            ic = imp_c.get(imp, "dim")
             if ed == today:
                 when = "TODAY"
             elif ed is not None:

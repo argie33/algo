@@ -755,12 +755,14 @@ def fetch_exp_factors(c):
         inner = data
         if not isinstance(inner, dict):
             return {"_error": "Unexpected response format from markets endpoint"}
-        current = inner.get("current") or {}
+        if "current" not in inner:
+            return {"_error": "Missing 'current' field in markets response"}
+        current = inner.get("current")
         return {
             "exposure_pct": safe_float(current.get("exposure_pct"), default=None),
             "raw_score": safe_float(current.get("raw_score"), default=None),
             "regime": current.get("regime"),
-            "factors": current.get("factors") or {},
+            "factors": current.get("factors", {}),
         }
     except Exception as e:
         error_msg = _format_fetcher_error("exp_factors", e)
@@ -887,8 +889,10 @@ def fetch_sentiment(c):
         if _is_api_error(data):
             return {"_error": _get_error_message(data)}
         d = data
-        fg = safe_float(d.get("fear_greed_index"), default=50)
-        label = d.get("label", "Neutral")
+        if "fear_greed_index" not in d or "label" not in d:
+            return {"_error": "Missing required sentiment fields: fear_greed_index, label"}
+        fg = safe_float(d.get("fear_greed_index"))
+        label = d.get("label")
         c_fg = R if fg <= 25 else (Y if fg <= 45 else (G if fg >= 75 else CY))
         return {
             "fg": round(fg, 1),
@@ -1055,17 +1059,17 @@ def fetch_scores(c):
         top_data = api_call("/api/scores", params={"limit": 50, "sortOrder": "desc"})
 
         if _is_api_error(top_data):
-            return {"_error": _get_error_message(top_data), "top": []}
+            return {"_error": _get_error_message(top_data)}
 
         # API response is unwrapped so items is at top level, not under data
         items = top_data.get("items", [])
         if not items:
-            return {"_error": "No score data available", "top": []}
+            return {"_error": "No score data available"}
         return {"top": items}
     except Exception as e:
         error_msg = _format_fetcher_error("scores", e)
         logger.error(error_msg)
-        return {"_error": error_msg, "top": []}
+        return {"_error": error_msg}
 
 
 def fetch_audit_log(c):
@@ -1092,7 +1096,7 @@ def fetch_circuit(c):
     try:
         data = api_call("/api/algo/circuit-breakers")
         if _is_api_error(data):
-            return {"_error": _get_error_message(data), "bs": [], "any": False, "n": 0}
+            return {"_error": _get_error_message(data)}
         result = data
         bs = result.get("breakers", [])
         formatted_bs = []
@@ -1114,7 +1118,7 @@ def fetch_circuit(c):
     except Exception as e:
         error_msg = _format_fetcher_error("cb", e)
         logger.error(error_msg)
-        return {"_error": error_msg, "bs": [], "any": False, "n": 0}
+        return {"_error": error_msg}
 
 
 FETCHERS = {

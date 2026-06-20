@@ -23,6 +23,7 @@ from rich.table import Table
 from rich.text import Text
 
 from ..data_validation import safe_float
+from ..formatters import sign
 from ..utilities import (
     CY,
     G,
@@ -31,6 +32,7 @@ from ..utilities import (
     compute_sector_agg,
     normalize_positions_data,
 )
+from ._helpers import _error_panel
 
 
 def _rdelta(r, wk="rank_1w_ago", wk4=None):
@@ -54,10 +56,17 @@ def _rdelta(r, wk="rank_1w_ago", wk4=None):
 )
 def panel_sector_compact(srank, pos, port, sec_rot=None, irank=None):
     """Rotation + holdings (max 2) + sector leaders (1 pair) + industries (2 pairs) = 8 lines."""
+    if _error_panel("srank", srank, "SECTORS"):
+        return _error_panel("srank", srank, "SECTORS")
+    if _error_panel("positions", pos, "SECTORS"):
+        return _error_panel("positions", pos, "SECTORS")
+    if _error_panel("portfolio", port, "SECTORS"):
+        return _error_panel("portfolio", port, "SECTORS")
+
     rows = []
 
     # Row 1: Rotation signal
-    if sec_rot and not sec_rot.get("_error") and sec_rot.get("signal"):
+    if sec_rot and not _error_panel("sec_rot", sec_rot, "SECTORS") and sec_rot.get("signal"):
         sig_name = (sec_rot.get("signal") or "").replace("_", " ").title()
         wks = sec_rot.get("weeks", 1)
         def_s = sec_rot.get("def_score")
@@ -178,12 +187,19 @@ def panel_sector_compact(srank, pos, port, sec_rot=None, irank=None):
 
 def panel_sectors_expanded(srank, pos, port, sec_rot=None, irank=None):
     """Full-screen sectors - all sector and industry rankings, full portfolio breakdown."""
+    if _error_panel("srank", srank, "SECTORS"):
+        return _error_panel("srank", srank, "SECTORS")
+    if _error_panel("positions", pos, "SECTORS"):
+        return _error_panel("positions", pos, "SECTORS")
+    if _error_panel("portfolio", port, "SECTORS"):
+        return _error_panel("portfolio", port, "SECTORS")
+
     rows: list = [
         Text.from_markup("[dim]press [/][bold cyan]r[/][dim] to return to dashboard[/]"),
         Rule(style="dim"),
     ]
 
-    if sec_rot and not sec_rot.get("_error") and sec_rot.get("signal"):
+    if sec_rot and not _error_panel("sec_rot", sec_rot, "SECTORS") and sec_rot.get("signal"):
         sig_name = (sec_rot.get("signal") or "").replace("_", " ").title()
         wks = sec_rot.get("weeks", 1)
         def_s = float(sec_rot.get("def_score") or 0)

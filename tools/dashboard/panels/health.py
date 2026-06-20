@@ -39,6 +39,7 @@ from ..utilities import (
 )
 from ._helpers import (
     _best_halt_reason,
+    _error_panel,
     _fmt_phases_halted,
 )
 
@@ -53,6 +54,9 @@ def _var_color(var95: float) -> str:
 
 
 def panel_orch(run, cfg, risk=None):
+    if _error_panel("config", cfg, "ORCHESTRATION"):
+        return _error_panel("config", cfg, "ORCHESTRATION")
+
     next_run = next_run_str()
     mode = cfg.get("mode", "?")
     mc2 = G if "LIVE" in mode else Y
@@ -186,6 +190,11 @@ def panel_status(
     cfg=None,
 ):
     """Algo activity phases + data health + recent notifications + action counts + loader status."""
+    if _error_panel("health", hlth, "STATUS"):
+        return _error_panel("health", hlth, "STATUS")
+    if _error_panel("notifications", notifs, "STATUS"):
+        return _error_panel("notifications", notifs, "STATUS")
+
     rows: list = []
 
     # Extract items from data dicts
@@ -581,10 +590,15 @@ def panel_algo_health(
     risk=None,
 ):
     """Focused 'did the algo work?' panel: run outcome → what it did → system health."""
+    if _error_panel("health", hlth, "HEALTH"):
+        return _error_panel("health", hlth, "HEALTH")
+    if _error_panel("notifications", notifs, "HEALTH"):
+        return _error_panel("notifications", notifs, "HEALTH")
+
     rows: list = []
 
     # ── A: Run outcome ────────────────────────────────────────────────────────
-    run_valid = run and not run.get("_error")
+    run_valid = run and not _error_panel("run", run, "HEALTH")
     act_valid = act and not act.get("_error")
     run_at = run.get("run_at") if run_valid else (act.get("run_at") if act_valid else None)
     age_s = f"  [dim]{fmt_age(run_at)}[/]" if run_at else ""
@@ -896,6 +910,11 @@ def panel_algo_health_expanded(
     risk=None,
 ):
     """Full-screen algo health — dual column: data freshness (left) | run results (right)."""
+    if _error_panel("health", hlth, "HEALTH EXPANDED"):
+        return _error_panel("health", hlth, "HEALTH EXPANDED")
+    if _error_panel("notifications", notifs, "HEALTH EXPANDED"):
+        return _error_panel("notifications", notifs, "HEALTH EXPANDED")
+
     hlth_items = (
         hlth.get("items", [])
         if isinstance(hlth, dict) and "items" in hlth
