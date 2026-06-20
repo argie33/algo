@@ -59,7 +59,8 @@ def panel_market_full(mkt, sentiment=None):
     vc = DIM if mkt.get("vix") is None else (R if mkt.get("vix") >= 30 else (Y if mkt.get("vix") >= 20 else G))
     dist = str(mkt.get("dist") or "--")
     stage = str(mkt.get("stage") or "--")
-    f"${mkt['spy']:.2f}" if mkt.get("spy") else "--"
+    spy_raw = mkt.get("spy")
+    spy_chg = mkt.get("spy_chg")
     trend_s = (mkt.get("trend") or "").upper()
     halts = mkt.get("halts") or []
     halt_s = " ".join(str(h)[:16] for h in halts[:2]) if halts else "none"
@@ -78,8 +79,7 @@ def panel_market_full(mkt, sentiment=None):
     nhnl = (nh - nl) if (nh is not None and nl is not None) else None
     nhnl_c = (G if nhnl is not None and nhnl >= 50 else (Y if nhnl is not None and nhnl >= 0 else R)) if nhnl is not None else DIM
 
-    # SPY is guaranteed by fetcher validation, but spy_chg may be missing
-    spy_s = f"SPY:[white]${float(spy_raw):.2f}[/]"
+    spy_s = f"SPY:[white]${float(spy_raw):.2f}[/]" if spy_raw is not None else "SPY:--"
     if spy_chg is not None:
         spy_chg_s = f" [{G if spy_chg >= 0 else R}]{sign(spy_chg)}{spy_chg:.1f}%[/]"
         spy_s += spy_chg_s

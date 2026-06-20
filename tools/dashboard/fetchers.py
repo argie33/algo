@@ -541,9 +541,10 @@ def fetch_positions(c):
 
 
 def fetch_recent_trades(c):
-    """AWS-only trades data (no local fallback). Returns closed trades only — open positions are in the positions panel.
+    """AWS-only trades data. Fail-fast: error only on failure.
 
-    Note: 503 means no closed trades yet (algo just started) — treat as no data, not an error.
+    Returns closed trades only — open positions are in the positions panel.
+    Note: 503 means no closed trades yet (algo just started) — treat as no data.
     """
     try:
         data = api_call(
@@ -551,18 +552,11 @@ def fetch_recent_trades(c):
             params={"limit": 30, "status": "closed"},
         )
         if _is_api_error(data):
-            # 503 means no trades data yet (algo just started or no closed trades) — not a true error
-            if "503" in str(_get_error_message(data)):
-                return {
-                    "_no_data": True,
-                    "items": [],
-                    "timestamp": datetime.now(ET),
-                }
-            return {
-                "_error": _get_error_message(data),
-                "items": [],
-                "timestamp": datetime.now(ET),
-            }
+            error_msg = _get_error_message(data)
+            # 503 means no trades data yet (algo just started or no closed trades)
+            if "503" in str(error_msg):
+                return {"_no_data": True}
+            return {"_error": error_msg}
         result = data
         trades = result.get("items", []) if isinstance(result, dict) else result if isinstance(result, list) else []
         return {"items": trades, "timestamp": datetime.now(ET)}
@@ -775,74 +769,56 @@ def fetch_exp_factors(c):
 
 
 def fetch_economic_pulse(c):
-    """Fetch economic macro indicators from yield-curve and leading-indicator endpoints.
+    """Fetch economic macro indicators. Fail-fast: error only on failure.
 
-    The eco panel expects treasury yield levels, spreads, CPI, unemployment, etc.
-    These come from FRED data at /api/economic/* — NOT from /api/algo/economic-calendar
-    which returns upcoming calendar events, not macro indicator values.
+    Fetches from /api/economic/yield-curve-full and /api/economic/indicators.
+    Both endpoints must succeed; partial data is not accepted (can't distinguish
+    None from "API error" vs "field missing in successful response").
     """
-    _empty = {
-        "t10": None,
-        "t2": None,
-        "t3m": None,
-        "t6m": None,
-        "yc_10_2": None,
-        "yc_10_3m": None,
-        "hy": None,
-        "ig": None,
-        "oil": None,
-        "nfci": None,
-        "fed_funds": None,
-        "cpi_yoy": None,
-        "unrate": None,
-        "be10": None,
-        "be5": None,
-        "dxy": None,
-        "mortgage": None,
-        "umcsent": None,
-    }
     try:
         # Fetch yield curve (treasury yields + credit spreads + breakevens)
         yc_data = api_call("/api/economic/yield-curve-full")
+        if _is_api_error(yc_data):
+            return {"_error": _get_error_message(yc_data)}
+
         # Fetch macro indicators (CPI, unemployment, fed funds, oil, DXY, etc.)
         ind_data = api_call("/api/economic/indicators")
+        if _is_api_error(ind_data):
+            return {"_error": _get_error_message(ind_data)}
 
-        t10 = t2 = t3m = t6m = yc_10_2 = yc_10_3m = hy = ig = None
-        if not _is_api_error(yc_data):
-            d = yc_data
-            curve = d.get("currentCurve", {}) if isinstance(d, dict) else {}
-            spreads = d.get("spreads", {}) if isinstance(d, dict) else {}
-            credit = d.get("credit", {}) if isinstance(d, dict) else {}
-            credit_latest = credit.get("currentSpreads", {}) if isinstance(credit, dict) else {}
-            t10 = safe_float(curve.get("10Y"), default=None)
-            t2 = safe_float(curve.get("2Y"), default=None)
-            t3m = safe_float(curve.get("3M"), default=None)
-            t6m = safe_float(curve.get("6M"), default=None)
-            yc_10_2 = safe_float(spreads.get("T10Y2Y"), default=None)
-            yc_10_3m = safe_float(spreads.get("T10Y3M"), default=None)
-            hy = safe_float(credit_latest.get("BAMLH0A0HYM2"), default=None)
-            ig = safe_float(credit_latest.get("BAMLH0A0IG") or credit_latest.get("BAMLC0A0CM"), default=None)
+        # Extract yield curve data
+        d = yc_data
+        curve = d.get("currentCurve", {}) if isinstance(d, dict) else {}
+        spreads = d.get("spreads", {}) if isinstance(d, dict) else {}
+        credit = d.get("credit", {}) if isinstance(d, dict) else {}
+        credit_latest = credit.get("currentSpreads", {}) if isinstance(credit, dict) else {}
+        t10 = safe_float(curve.get("10Y"), default=None)
+        t2 = safe_float(curve.get("2Y"), default=None)
+        t3m = safe_float(curve.get("3M"), default=None)
+        t6m = safe_float(curve.get("6M"), default=None)
+        yc_10_2 = safe_float(spreads.get("T10Y2Y"), default=None)
+        yc_10_3m = safe_float(spreads.get("T10Y3M"), default=None)
+        hy = safe_float(credit_latest.get("BAMLH0A0HYM2"), default=None)
+        ig = safe_float(credit_latest.get("BAMLH0A0IG") or credit_latest.get("BAMLC0A0CM"), default=None)
 
-        fed_funds = cpi_yoy = unrate = be10 = be5 = None
-        oil = nfci = dxy = mortgage = umcsent = None
-        if not _is_api_error(ind_data):
-            d2 = ind_data
-            indicators = d2.get("indicators", []) if isinstance(d2, dict) else []
-            by_series = {
-                i["series_id"]: safe_float(i.get("rawValue"), default=None)
-                for i in indicators
-                if isinstance(i, dict) and i.get("series_id")
-            }
-            fed_funds = by_series.get("FEDFUNDS")
-            cpi_yoy = by_series.get("CPIAUCSL")
-            unrate = by_series.get("UNRATE")
-            be10 = by_series.get("T10YIE")
-            be5 = by_series.get("T5YIE")
-            dxy = by_series.get("DTWEXBGS")
-            oil = by_series.get("DCOILWTICO")
-            nfci = by_series.get("ANFCI") if by_series.get("ANFCI") is not None else by_series.get("STLFSI4")
-            umcsent = by_series.get("UMCSENT")
-            mortgage = by_series.get("MORTGAGE30US")
+        # Extract indicators data
+        d2 = ind_data
+        indicators = d2.get("indicators", []) if isinstance(d2, dict) else []
+        by_series = {
+            i["series_id"]: safe_float(i.get("rawValue"), default=None)
+            for i in indicators
+            if isinstance(i, dict) and i.get("series_id")
+        }
+        fed_funds = by_series.get("FEDFUNDS")
+        cpi_yoy = by_series.get("CPIAUCSL")
+        unrate = by_series.get("UNRATE")
+        be10 = by_series.get("T10YIE")
+        be5 = by_series.get("T5YIE")
+        dxy = by_series.get("DTWEXBGS")
+        oil = by_series.get("DCOILWTICO")
+        nfci = by_series.get("ANFCI") if by_series.get("ANFCI") is not None else by_series.get("STLFSI4")
+        umcsent = by_series.get("UMCSENT")
+        mortgage = by_series.get("MORTGAGE30US")
 
         return {
             "t10": t10,
@@ -867,7 +843,7 @@ def fetch_economic_pulse(c):
     except Exception as e:
         error_msg = _format_fetcher_error("eco", e)
         logger.error(error_msg)
-        return {"_error": error_msg, **_empty}
+        return {"_error": error_msg}
 
 
 def fetch_algo_metrics(c):
@@ -943,19 +919,11 @@ def fetch_economic_calendar(c):
 
 
 def fetch_risk_metrics(c):
-    """Issue 3 FIX: API-only risk metrics."""
+    """API-only risk metrics. Fail-fast: error only on failure."""
     try:
         data = api_call(_get_endpoint_path("risk"))
         if _is_api_error(data):
-            return {
-                "_error": _get_error_message(data),
-                "date": None,
-                "var95": None,
-                "cvar95": None,
-                "svar": None,
-                "beta": None,
-                "conc5": None,
-            }
+            return {"_error": _get_error_message(data)}
         d = data
         return {
             "date": d.get("report_date"),
@@ -968,33 +936,15 @@ def fetch_risk_metrics(c):
     except Exception as e:
         error_msg = _format_fetcher_error("risk", e)
         logger.error(error_msg)
-        return {
-            "_error": error_msg,
-            "date": None,
-            "var95": None,
-            "cvar95": None,
-            "svar": None,
-            "beta": None,
-            "conc5": None,
-        }
+        return {"_error": error_msg}
 
 
 def fetch_perf_analytics(c):
-    """Issue 3 FIX: API-only performance analytics."""
+    """API-only performance analytics. Fail-fast: error only on failure."""
     try:
         data = api_call(_get_endpoint_path("perf_anl"))
         if _is_api_error(data):
-            return {
-                "_error": _get_error_message(data),
-                "sharpe252": None,
-                "sortino": None,
-                "calmar": None,
-                "wr50": None,
-                "avg_w_r": None,
-                "avg_l_r": None,
-                "expectancy": None,
-                "maxdd": None,
-            }
+            return {"_error": _get_error_message(data)}
         d = data
         return {
             "sharpe252": safe_float(d.get("rolling_sharpe_252d")),
@@ -1009,17 +959,7 @@ def fetch_perf_analytics(c):
     except Exception as e:
         error_msg = _format_fetcher_error("perf_anl", e)
         logger.error(error_msg)
-        return {
-            "_error": error_msg,
-            "sharpe252": None,
-            "sortino": None,
-            "calmar": None,
-            "wr50": None,
-            "avg_w_r": None,
-            "avg_l_r": None,
-            "expectancy": None,
-            "maxdd": None,
-        }
+        return {"_error": error_msg}
 
 
 def fetch_signal_eval(c):
@@ -1047,34 +987,15 @@ def fetch_signal_eval(c):
 
 
 def fetch_sector_rotation(c):
-    """Fetch sector rotation signal from API."""
+    """Fetch sector rotation signal from API. Fail-fast: error only on failure."""
     try:
         data = api_call(_get_endpoint_path("srank"))
         if _is_api_error(data):
-            return {
-                "_error": _get_error_message(data),
-                "date": None,
-                "signal": "",
-                "strength": None,
-                "weeks": 0,
-                "def_score": 0,
-                "cyc_score": 0,
-            }
-        # API returns {items: [{date, defensive_lead_score, cyclical_weak_score,
-        # spread, signal, weeks_persistent, _is_fallback}], total: N}.
-        # Use the most recent item (index 0).
+            return {"_error": _get_error_message(data)}
         raw = data
         items = raw.get("items", []) if isinstance(raw, dict) else []
         if not items:
-            return {
-                "_error": "No sector rotation data available",
-                "date": None,
-                "signal": "",
-                "strength": None,
-                "weeks": 0,
-                "def_score": 0,
-                "cyc_score": 0,
-            }
+            return {"_error": "No sector rotation data available"}
         row = items[0]
         return {
             "date": row.get("date"),
@@ -1087,15 +1008,7 @@ def fetch_sector_rotation(c):
     except Exception as e:
         error_msg = _format_fetcher_error("sec_rot", e)
         logger.error(error_msg)
-        return {
-            "_error": error_msg,
-            "date": None,
-            "signal": "",
-            "strength": None,
-            "weeks": 0,
-            "def_score": 0,
-            "cyc_score": 0,
-        }
+        return {"_error": error_msg}
 
 
 def fetch_industry_ranking(c):
