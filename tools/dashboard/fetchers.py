@@ -448,36 +448,35 @@ def fetch_perf(c):
     STRICT MODE: Trade counts (total, winning, losing) are critical finance metrics.
     Returns 0 for missing counts is catastrophically misleading.
     """
+    from tools.dashboard.fetcher_validator import FetcherValidator
+
     try:
         data = api_call("/api/algo/performance")
-        if _is_api_error(data):
-            # 503 means no performance data yet (no completed trades) — mark as no data
-            if "503" in str(_get_error_message(data)):
-                return {"_no_data": True}
-            record_data_quality_issue("per", "api_call", "api_error", _get_error_message(data))
-            return data
         perf = data
 
-        # Check data freshness (performance data > 1 hour old is stale)
-        perf_timestamp = perf.get("timestamp") or perf.get("last_updated")
-        is_fresh, freshness_error = _check_data_freshness(
-            perf_timestamp, max_age_seconds=3600, source_name="Performance"
-        )
-        if not is_fresh:
-            logger.warning(freshness_error)
-            record_data_quality_issue("per", "timestamp", "data_stale", freshness_error)
-            return {
-                "_error": freshness_error,
-                "_data_stale": True,
-            }
+        # Check for 503 (no completed trades yet) before standard validation
+        is_error, error_msg = FetcherValidator.check_api_error(perf)
+        if is_error:
+            if "503" in error_msg:
+                return {"_no_data": True}
+            record_data_quality_issue("per", "api_call", "api_error", error_msg)
+            return perf
 
+        # Comprehensive validation using FetcherValidator
         required_fields = ["total_trades", "winning_trades", "losing_trades"]
-        validation_error = _validate_required_fields(perf, required_fields, "fetch_perf")
-        if validation_error:
+        valid, validation_error = FetcherValidator.validate_response(
+            response=perf,
+            required_fields=required_fields,
+            source_name="fetch_perf",
+            max_age_seconds=3600,
+            timestamp_field="timestamp",
+        )
+        if not valid:
+            logger.error(validation_error)
             for field in required_fields:
                 if field not in perf or perf[field] is None:
                     record_data_quality_issue("per", field, "missing_required_field")
-            return validation_error
+            return FetcherValidator.build_error_response(validation_error)
 
         # Strict conversion for critical trade count fields
         try:
@@ -488,7 +487,7 @@ def fetch_perf(c):
             error_msg = f"Performance data conversion failed: {e!s}"
             logger.error(error_msg)
             record_data_quality_issue("per", "type_conversion", "conversion_failed", str(e))
-            return {"_error": error_msg}
+            return FetcherValidator.build_error_response(error_msg)
 
         return {
             "n": n,
