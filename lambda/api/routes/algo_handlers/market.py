@@ -667,6 +667,20 @@ def _get_markets(cur) -> dict:
             mh_row = cur.fetchone()
             if mh_row:
                 market_health = safe_json_serialize(safe_dict_convert(mh_row))
+                # FIX: VIX level must be > 0 (invalid values like 0.0 indicate data quality issue)
+                # Set to NULL if invalid, so downstream fails-fast rather than showing false data
+                vix_val = market_health.get("vix_level")
+                if vix_val is not None:
+                    try:
+                        vix_float = float(vix_val)
+                        if vix_float <= 0:
+                            logger.warning(
+                                f"[MARKETS API] Invalid VIX value {vix_float} in market_health_daily - "
+                                f"VIX must be > 0. Setting to NULL to trigger fail-fast in dashboard."
+                            )
+                            market_health["vix_level"] = None
+                    except (ValueError, TypeError):
+                        pass
             else:
                 return error_response(503, "data_unavailable", "Market health data not available (market_health_daily empty)")
         except (psycopg2.DatabaseError, psycopg2.OperationalError) as mhe:
