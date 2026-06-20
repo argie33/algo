@@ -45,6 +45,9 @@ from ._helpers import (
 from .data_extractors import (
     extract_eval_funnel,
     extract_signal_overview,
+    safe_get_dict,
+    safe_get_field,
+    safe_get_list,
 )
 
 
@@ -90,27 +93,27 @@ def _build_signal_header(sig_data: dict, scores_data: dict | None) -> tuple[list
     rows = []
     overview = extract_signal_overview(sig_data)
 
-    raw = overview.get("n") or 0
-    total = overview.get("total") or 0
-    ds = _format_signal_date(overview.get("date"))
+    raw = safe_get_field(overview, "n") or 0
+    total = safe_get_field(overview, "total") or 0
+    ds = _format_signal_date(safe_get_field(overview, "date"))
 
-    grades = overview.get("grades", {})
-    ga = int(grades.get("a")) if grades.get("a") is not None else None
-    gb = int(grades.get("b")) if grades.get("b") is not None else None
-    gc = int(grades.get("c")) if grades.get("c") is not None else None
-    gd = int(grades.get("d")) if grades.get("d") is not None else None
+    grades = safe_get_dict(safe_get_field(overview, "grades", {}))
+    ga = int(safe_get_field(grades, "a")) if safe_get_field(grades, "a") is not None else None
+    gb = int(safe_get_field(grades, "b")) if safe_get_field(grades, "b") is not None else None
+    gc = int(safe_get_field(grades, "c")) if safe_get_field(grades, "c") is not None else None
+    gd = int(safe_get_field(grades, "d")) if safe_get_field(grades, "d") is not None else None
 
     buy_c = G if raw >= 5 else (Y if raw >= 1 else (DIM if total == 0 else R))
 
     spark_s = ""
-    trend = overview.get("trend", [])
+    trend = safe_get_list(safe_get_field(overview, "trend", []))
     if len(trend) >= 2:
-        counts = [int(t.get("buy_n")) if t.get("buy_n") is not None else 0 for t in reversed(trend)]
+        counts = [int(safe_get_field(t, "buy_n")) if safe_get_field(t, "buy_n") is not None else 0 for t in reversed(trend)]
         max_b = max(counts) if counts else 1
         spark = "".join(SPARKLINE_CHARS[min(7, int(v / max(max_b, 1) * 7.9))] for v in counts)
         spark_s = f"  [{CY}]{spark}[/]"
 
-    near = overview.get("near", [])
+    near = safe_get_list(safe_get_field(overview, "near", []))
     n_near = len(near)
     near_hint = f"  [{CY}]{n_near} near[/]" if n_near else ""
 
@@ -131,27 +134,29 @@ def _build_grade_radar(sig_data: dict) -> list:
     """Build A-grade radar row or near-miss fallback."""
     rows = []
     overview = extract_signal_overview(sig_data)
-    top_a = overview.get("top_a", [])
-    near = overview.get("near", [])
+    top_a = safe_get_list(safe_get_field(overview, "top_a", []))
+    near = safe_get_list(safe_get_field(overview, "near", []))
 
     if top_a:
         parts = []
         for s in top_a[:8]:
-            sc = float(s.get("score")) if s.get("score") is not None else None
+            sc = float(safe_get_field(s, "score")) if safe_get_field(s, "score") is not None else None
             if sc is not None:
                 sc_c = G if sc >= 90 else ("bright_green" if sc >= 85 else "green")
-                parts.append(f"[{sc_c}]{s.get('symbol', '')}[/][dim]{sc:.0f}[/]")
+                parts.append(f"[{sc_c}]{safe_get_field(s, 'symbol', '')}[/][dim]{sc:.0f}[/]")
             else:
-                parts.append(f"[dim]{s.get('symbol', '')}[/][dim]--[/]")
-        ga = overview.get("grades", {}).get("a")
+                parts.append(f"[dim]{safe_get_field(s, 'symbol', '')}[/][dim]--[/]")
+        grades_dict = safe_get_dict(safe_get_field(overview, "grades", {}))
+        ga = safe_get_field(grades_dict, "a")
         extra = f"  [dim]+{ga - min(ga, 8)} more[/]" if ga is not None and ga > 8 else ""
         rows.append(Text.from_markup("[dim]A radar:[/]  " + "  ".join(parts) + extra))
     elif near:
         parts = []
         for a in near[:8]:
-            sc = float(a.get("score")) if a.get("score") is not None else None
+            sc = float(safe_get_field(a, "score")) if safe_get_field(a, "score") is not None else None
             sc_s = f"{sc:.0f}" if sc is not None else "--"
-            parts.append(f"[{CY}]{a['symbol']}[/][dim]{sc_s}[/]")
+            sym = safe_get_field(a, 'symbol', '')
+            parts.append(f"[{CY}]{sym}[/][dim]{sc_s}[/]")
         rows.append(Text.from_markup("[dim]Near threshold:[/]  " + "  ".join(parts)))
 
     return rows
@@ -164,28 +169,28 @@ def _build_funnel_row(sig_eval_data: dict | None) -> list:
         return rows
 
     funnel = extract_eval_funnel(sig_eval_data)
-    ev_tot = funnel.get("total")
-    ev_t1 = funnel.get("t1")
-    ev_t2 = funnel.get("t2")
-    ev_t3 = funnel.get("t3")
-    ev_t4 = funnel.get("t4")
-    ev_t5 = funnel.get("t5")
-    ev_avg = funnel.get("avg_score")
+    ev_tot = safe_get_field(funnel, "total")
+    ev_t1 = safe_get_field(funnel, "t1")
+    ev_t2 = safe_get_field(funnel, "t2")
+    ev_t3 = safe_get_field(funnel, "t3")
+    ev_t4 = safe_get_field(funnel, "t4")
+    ev_t5 = safe_get_field(funnel, "t5")
+    ev_avg = safe_get_field(funnel, "avg_score")
 
     if ev_tot is not None and ev_t5 is not None:
         ev_c = G if ev_t5 >= 20 else (Y if ev_t5 >= 5 else R)
-        rejected = funnel.get("rejected", [])
+        rejected = safe_get_list(safe_get_field(funnel, "rejected", []))
 
         blocks_s = ""
         if rejected:
             block_parts = []
             for rj in rejected[:3]:
-                reason_abbr = _shorten_reason(rj.get("evaluation_reason", ""))
-                description = rj.get("description", "")
+                reason_abbr = _shorten_reason(safe_get_field(rj, "evaluation_reason", ""))
+                description = safe_get_field(rj, "description", "")
                 if description:
-                    block_parts.append(f"[dim]{reason_abbr}:{rj.get('n', 0)}[/] [bright_black]({description})[/]")
+                    block_parts.append(f"[dim]{reason_abbr}:{safe_get_field(rj, 'n', 0)}[/] [bright_black]({description})[/]")
                 else:
-                    block_parts.append(f"[dim]{reason_abbr}:{rj.get('n', 0)}[/]")
+                    block_parts.append(f"[dim]{reason_abbr}:{safe_get_field(rj, 'n', 0)}[/]")
             blocks_s = "  [dim]blocked:[/]  " + "  ".join(block_parts)
 
         has_full_funnel = all(v is not None for v in [ev_t1, ev_t2, ev_t3, ev_t4])
@@ -389,7 +394,8 @@ def panel_signals_compact(sig, sig_eval=None, scores=None):
         for a in near[:8]:
             sc = float(a.get("score")) if a.get("score") is not None else None
             sc_s = f"{sc:.0f}" if sc is not None else "--"
-            parts.append(f"[{CY}]{a['symbol']}[/][dim]{sc_s}[/]")
+            sym = a.get('symbol', '')
+            parts.append(f"[{CY}]{sym}[/][dim]{sc_s}[/]")
         rows.append(Text.from_markup("[dim]Near BUY (55-69):[/]  " + "  ".join(parts)))
 
     age_s = f"  [dim]{fmt_age(overview.get('timestamp'))}[/]" if overview.get("timestamp") is not None else ""

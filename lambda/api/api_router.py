@@ -1,12 +1,16 @@
 """API Router - dispatcher."""
 
+import json
 import logging
+import os
+import threading
 
 # Set up imports for Lambda API - ensures routes and api_utils are importable
 import setup_imports  # noqa: F401
 
 # Import from lambda_function which has TTL-based caching (24hr)
-from lambda_function import fetch_cloudfront_domain_from_secrets  # noqa: F401
+from lambda_function import fetch_cloudfront_domain_from_secrets
+
 
 logger = logging.getLogger(__name__)
 

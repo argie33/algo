@@ -210,3 +210,57 @@ def extract_eval_funnel(sig_eval: dict[str, Any] | None) -> dict[str, Any]:
         "avg_score": sig_eval.get("avg_score"),
         "rejected": sig_eval.get("rejected") or [],
     }
+
+
+def extract_portfolio_metrics(port: dict[str, Any]) -> dict[str, Any]:
+    """Extract portfolio metrics for display (error already checked)."""
+    if not isinstance(port, dict) or has_error(port):
+        return {"_error": "Portfolio data unavailable"}
+    return {
+        "pv": port.get("total_portfolio_value"),
+        "dr": port.get("daily_return_pct"),
+        "urp": port.get("unrealized_pnl_pct"),
+        "cash": port.get("total_cash"),
+        "npos": port.get("position_count"),
+        "cum": port.get("cumulative_return_pct"),
+        "mxdd": port.get("max_drawdown_pct"),
+        "lgpos": port.get("largest_position_pct"),
+        "snap": port.get("snapshot_date"),
+    }
+
+
+def extract_performance_metrics(perf: dict[str, Any]) -> dict[str, Any]:
+    """Extract performance metrics for display (error already checked)."""
+    if not isinstance(perf, dict) or has_error(perf):
+        return {"_error": "Performance data unavailable"}
+    return {
+        "n": perf.get("n"),
+        "w": perf.get("w"),
+        "l": perf.get("l"),
+        "streak": perf.get("streak"),
+        "pnl": perf.get("pnl"),
+        "unrlzd": perf.get("unrealized_pnl"),
+        "pf": perf.get("profit_factor"),
+        "sharpe": perf.get("sharpe"),
+        "exp": perf.get("expectancy"),
+        "avg_win": perf.get("avg_win"),
+        "avg_loss": perf.get("avg_loss"),
+        "equity_vals": perf.get("equity_vals") or [],
+        "recent_rets": perf.get("recent_rets") or [],
+        "open_count": perf.get("open_count"),
+        "maxdd": perf.get("maxdd"),
+    }
+
+
+def extract_risk_data(risk: dict[str, Any]) -> dict[str, Any]:
+    """Extract risk data for display (error already checked)."""
+    if not isinstance(risk, dict) or has_error(risk):
+        return {"_error": "Risk data unavailable"}
+    return {
+        "var95": risk.get("var95"),
+        "cvar95": risk.get("cvar95"),
+        "beta": risk.get("beta"),
+        "conc5": risk.get("conc5"),
+        "svar": risk.get("svar"),
+        "date": risk.get("date"),
+    }
