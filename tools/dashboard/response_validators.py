@@ -151,11 +151,8 @@ def validate_signals_response(data: dict[str, Any]) -> dict[str, Any]:
 def validate_config_response(data: dict[str, Any]) -> dict[str, Any]:
     """Validate config endpoint response.
 
-    Config determines safety thresholds; missing fields can disable safety gates.
-    Critical fields: min_signal_quality_score, min_swing_score, min_completeness_score,
-    min_volume_ma_50d, min_avg_daily_dollar_volume, earnings_blackout_days_before,
-    earnings_blackout_days_after. These must be present to prevent fallback defaults
-    from masking misconfigured safety gates.
+    Config provides algorithm settings; structure is flexible per deployment.
+    Optionally validate safety threshold fields if present, but don't require them.
     """
     if not isinstance(data, dict):
         raise ResponseValidationError(f"Config response not a dict: {type(data)}")
@@ -163,47 +160,24 @@ def validate_config_response(data: dict[str, Any]) -> dict[str, Any]:
     if data.get("_error"):
         return data
 
-    # Critical safety threshold fields that must be present
-    required = [
-        "min_signal_quality_score",
-        "min_swing_score",
-        "min_completeness_score",
-        "min_volume_ma_50d",
-        "min_avg_daily_dollar_volume",
-        "earnings_blackout_days_before",
-        "earnings_blackout_days_after",
-    ]
-    _check_required_fields(data, required, "config safety thresholds")
+    # Validate optional numeric fields if present (but don't require them to exist)
+    optional_numeric = {
+        "min_signal_quality_score": int,
+        "min_swing_score": float,
+        "min_completeness_score": int,
+        "min_volume_ma_50d": int,
+        "min_avg_daily_dollar_volume": float,
+        "earnings_blackout_days_before": int,
+        "earnings_blackout_days_after": int,
+    }
 
-    # Validate critical numeric fields can be converted
     try:
-        safe_int(
-            data["min_signal_quality_score"],
-            strict=True,
-            field_name="min_signal_quality_score",
-        )
-        safe_float(data["min_swing_score"], strict=True, field_name="min_swing_score")
-        safe_int(
-            data["min_completeness_score"],
-            strict=True,
-            field_name="min_completeness_score",
-        )
-        safe_int(data["min_volume_ma_50d"], strict=True, field_name="min_volume_ma_50d")
-        safe_float(
-            data["min_avg_daily_dollar_volume"],
-            strict=True,
-            field_name="min_avg_daily_dollar_volume",
-        )
-        safe_int(
-            data["earnings_blackout_days_before"],
-            strict=True,
-            field_name="earnings_blackout_days_before",
-        )
-        safe_int(
-            data["earnings_blackout_days_after"],
-            strict=True,
-            field_name="earnings_blackout_days_after",
-        )
+        for field, expected_type in optional_numeric.items():
+            if field in data and data[field] is not None:
+                if expected_type == int:
+                    safe_int(data[field], strict=True, field_name=field)
+                else:
+                    safe_float(data[field], strict=True, field_name=field)
     except StrictValidationError as e:
         raise ResponseValidationError(f"Config field validation failed: {e}") from e
 

@@ -412,7 +412,7 @@ def fetch_portfolio(c):
                 "_data_stale": True,
             }
 
-        required_fields = ["total_portfolio_value", "total_cash", "open_positions"]
+        required_fields = ["total_portfolio_value", "total_cash", "position_count"]
         validation_error = _validate_required_fields(port, required_fields, "fetch_portfolio")
         if validation_error:
             for field in required_fields:
@@ -424,7 +424,7 @@ def fetch_portfolio(c):
         try:
             tpv = safe_float_strict(port["total_portfolio_value"], "portfolio.total_portfolio_value")
             tc = safe_float_strict(port["total_cash"], "portfolio.total_cash")
-            pc = safe_int_strict(port["open_positions"], "portfolio.open_positions")
+            pc = safe_int_strict(port["position_count"], "portfolio.position_count")
         except StrictValidationError as e:
             error_msg = f"Portfolio data conversion failed: {e!s}"
             logger.error(error_msg)
@@ -435,7 +435,7 @@ def fetch_portfolio(c):
             "snapshot_date": port.get("last_run"),
             "total_portfolio_value": tpv,
             "total_cash": tc,
-            "open_positions": pc,
+            "position_count": pc,
             "daily_return_pct": safe_float(port.get("daily_return_pct"), default=None),
             "unrealized_pnl_pct": safe_float((port.get("unrealized_pnl") or {}).get("total_pct"), default=None),
             "cumulative_return_pct": safe_float(port.get("cumulative_return_pct"), default=None),

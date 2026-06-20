@@ -10,6 +10,9 @@ from decimal import Decimal
 import psycopg2
 import requests
 
+from algo.infrastructure.alpaca_sync_manager import AlpacaSyncManager
+from algo.infrastructure.price_auditor import PriceAuditor
+from algo.infrastructure.reconciliation_analytics import ReconciliationAnalytics
 from algo.reporting import notify
 from config.alpaca_config import get_alpaca_base_url
 from config.credential_manager import get_credential_manager
@@ -23,38 +26,32 @@ PORTFOLIO_SNAPSHOT_LOCK_ID = 2147483647
 
 
 class DailyReconciliation:
-    """Daily reconciliation and portfolio snapshot creation."""
+    """Daily reconciliation and portfolio snapshot creation.
+
+    Uses focused managers for Alpaca sync, analytics, and price auditing.
+    """
 
     def __init__(self, config):
         self.config = config
-        self.trading_client = None  # Kept for backward compat; HTTP calls used directly
+        self.trading_client = None  # Kept for backward compat
+
+        # Initialize focused managers instead of handling concerns directly
         try:
-            credential_manager = get_credential_manager()
-            creds = credential_manager.get_alpaca_credentials()
-            self._alpaca_key = creds.get("key")
-            self._alpaca_secret = creds.get("secret")
-            self._alpaca_base_url = get_alpaca_base_url()
-
-            # Validate credentials are present; fail explicitly rather than silently
-            if not self._alpaca_key:
-                raise ValueError("Alpaca API key missing from credential manager")
-            if not self._alpaca_secret:
-                raise ValueError("Alpaca API secret missing from credential manager")
-            if not self._alpaca_base_url:
-                raise ValueError("Alpaca base URL not configured")
-
+            self.alpaca_sync = AlpacaSyncManager(config)
+            self.analytics = ReconciliationAnalytics()
+            self.price_auditor = PriceAuditor(config)
             self.trading_client = True  # Signals credentials are available
         except (KeyError, ValueError, AttributeError) as e:
-            logger.critical(f"Alpaca credential initialization FAILED: {e}")
+            logger.critical(f"Reconciliation manager initialization FAILED: {e}")
             try:
                 notify(
                     "critical",
                     title="Reconciliation Initialization Failed",
-                    message=f"Alpaca credentials unavailable: {e}. Reconciliation cannot proceed.",
+                    message=f"Manager initialization failed: {e}. Reconciliation cannot proceed.",
                 )
             except (psycopg2.DatabaseError, psycopg2.OperationalError):
-                logger.warning("Failed to send credential failure notification")
-            raise ValueError(f"Alpaca credential initialization failed: {e}") from e
+                logger.warning("Failed to send initialization failure notification")
+            raise ValueError(f"Reconciliation initialization failed: {e}") from e
 
     def run_daily_reconciliation(self, reconcile_date=None, dry_run=False):
         """Run full daily reconciliation. If dry_run=True, skip Alpaca API calls and return mock data.
@@ -665,14 +662,11 @@ class DailyReconciliation:
             return {"updated": 0, "message": f"Error: {e}"}
 
     def audit_stale_estimated_prices(self, cur) -> dict:
-        """Audit for trades with estimated exit prices that haven't been reconciled.
+        """Audit for trades with estimated exit prices via PriceAuditor."""
+        return self.price_auditor.audit_stale_estimated_prices(cur)
 
-        CRITICAL: If Phase 7 reconciliation doesn't run or fails, estimated prices
-        remain permanent with no way to distinguish them from actual prices.
-        This audit detects stale estimated prices > 1 day old that are stuck.
-
-        Returns: dict with stale_count, stale_trades list, alert message if any found
-        """
+    def _audit_stale_estimated_prices_legacy(self, cur) -> dict:
+        """LEGACY: Original implementation kept for reference during transition."""
         try:
             # Find trades with estimated prices that should have been reconciled by now
             # Trades closed yesterday or earlier with NO reconciliation timestamp
@@ -728,20 +722,15 @@ class DailyReconciliation:
             return {"status": "ERROR", "error": str(e)}
 
     def sync_alpaca_positions(self, cur):
-        """Pull live positions from Alpaca and sync with algo_trades (single source of truth).
+        """Sync Alpaca positions via AlpacaSyncManager."""
+        return self.alpaca_sync.sync_alpaca_positions(cur)
 
-        Best practice: our DB should reflect what Alpaca actually holds.
-        This catches:
-          - Positions opened outside our algo (manual trades)
-          - Positions we tracked but Alpaca never filled
-          - Drift between systems
+    def _sync_alpaca_positions_legacy(self, cur):
+        """LEGACY: Original implementation kept for reference during transition.
 
-        Since algo_trades is the single source of truth for the dashboard:
-        - Compare Alpaca positions against algo_trades (not algo_positions)
-        - Mark positions in algo_trades that don't exist in Alpaca as closed
-        - Import new Alpaca positions as external trades
+        Pull live positions from Alpaca and sync with algo_trades (single source of truth).
         """
-        if not self._alpaca_key or not self._alpaca_secret:
+        if not hasattr(self.alpaca_sync, '_alpaca_key'):
             return {"imported": 0, "orphaned": 0, "message": "No Alpaca credentials"}
         try:
             import requests
@@ -1317,14 +1306,11 @@ class DailyReconciliation:
         return retried
 
     def compute_analytics_metrics(self, cur):
-        """E4+E5: Compute Information Coefficient and Expectancy metrics.
+        """Compute analytics metrics via ReconciliationAnalytics."""
+        return self.analytics.compute_analytics_metrics(cur)
 
-        E4: Weekly correlation of entry swing_score vs 5-day post-entry return.
-        E5: After 30+ closed trades, compute Kelly fraction for position sizing alerts.
-
-        Args:
-            cur: Database cursor from DatabaseContext
-        """
+    def _compute_analytics_metrics_legacy(self, cur):
+        """LEGACY: Original implementation kept for reference during transition."""
         try:
             # E4: Information Coefficient (last 8 weeks of closed trades)
             cur.execute(
@@ -1454,7 +1440,11 @@ class DailyReconciliation:
             return {"ic": {"valid": False}, "expectancy": {"valid": False}}
 
     def compute_closed_trade_metrics(self, cur):
-        """E3: Compute MAE/MFE for recently closed trades (last 30 days)."""
+        """Compute closed trade metrics via ReconciliationAnalytics."""
+        return self.analytics.compute_closed_trade_metrics(cur)
+
+    def _compute_closed_trade_metrics_legacy(self, cur):
+        """LEGACY: Original implementation kept for reference during transition."""
         try:
             # Find recently closed trades without MAE/MFE
             cur.execute(
