@@ -87,11 +87,11 @@ def _build_freshness_panel(hlth_items: list, ready_to_trade: bool | None) -> Pan
             padding=(0, 1),
         )
 
-    stale_count = sum(1 for r in hlth_items if isinstance(r, dict) and r.get("st") != "ok")
-    crit_stale = [r for r in hlth_items if isinstance(r, dict) and r.get("role") == "CRIT" and r.get("st") != "ok"]
+    stale_count = sum(1 for r in hlth_items if isinstance(r, dict) and safe_get_field(r, "st") != "ok")
+    crit_stale = [r for r in hlth_items if isinstance(r, dict) and safe_get_field(r, "role") == "CRIT" and safe_get_field(r, "st") != "ok"]
 
     if crit_stale:
-        crit_names = "  ".join(f"[bold white]{r.get('tbl', '')[:18]}[/]" for r in crit_stale)
+        crit_names = "  ".join(f"[bold white]{safe_get_field(r, 'tbl', '')[:18]}[/]" for r in crit_stale)
         left_rows.append(Text.from_markup(f"[bold {R}]⚠ CRIT STALE:[/]  {crit_names}"))
 
     rtt_part = ""
@@ -110,8 +110,8 @@ def _build_freshness_panel(hlth_items: list, ready_to_trade: bool | None) -> Pan
     )
 
     def _fmt_age(r):
-        ah = r.get("age_hours")
-        ad = r.get("age")
+        ah = safe_get_field(r, "age_hours")
+        ad = safe_get_field(r, "age")
         if ah is not None:
             return f"{ah:.0f}h" if float(ah) < 24 else f"{float(ah) / 24:.1f}d"
         elif ad is not None:
@@ -119,7 +119,7 @@ def _build_freshness_panel(hlth_items: list, ready_to_trade: bool | None) -> Pan
         return "?"
 
     def _fmt_updated(r):
-        lat = r.get("last_updated") or r.get("latest")
+        lat = safe_get_field(r, "last_updated") or safe_get_field(r, "latest")
         if hasattr(lat, "strftime"):
             return lat.strftime("%m/%d")
         if isinstance(lat, str) and len(lat) >= 10:
@@ -129,7 +129,7 @@ def _build_freshness_panel(hlth_items: list, ready_to_trade: bool | None) -> Pan
     _role_order = {"CRIT": 0, "IMP": 1, "NORM": 2}
     sorted_items = sorted(
         [r for r in hlth_items if isinstance(r, dict)],
-        key=lambda r: (_role_order.get(r.get("role") or "NORM", 2), r.get("tbl") or ""),
+        key=lambda r: (_role_order.get(safe_get_field(r, "role") or "NORM", 2), safe_get_field(r, "tbl") or ""),
     )
 
     all_tbl = Table(
@@ -148,14 +148,14 @@ def _build_freshness_panel(hlth_items: list, ready_to_trade: bool | None) -> Pan
     all_tbl.add_column("Status", no_wrap=True, min_width=6)
 
     for r in sorted_items:
-        nm = str(r.get("tbl") or "--")
-        role = str(r.get("role") or "NORM")
-        st = r.get("st", "ok")
+        nm = str(safe_get_field(r, "tbl") or "--")
+        role = str(safe_get_field(r, "role") or "NORM")
+        st = safe_get_field(r, "st", "ok")
         ok = st == "ok"
         ic = G if ok else (Y if st == "empty" else R)
         ii = "✓" if ok else ("-" if st == "empty" else "✗")
         rc = "bold white" if role == "CRIT" else (Y if role == "IMP" else DIM)
-        row_count = r.get("row_count")
+        row_count = safe_get_field(r, "row_count")
         rc_s = f"{row_count:,}" if row_count is not None else "--"
         st_label = "ok" if ok else st.upper()
         all_tbl.add_row(
@@ -202,7 +202,9 @@ def panel_orch(run, cfg, risk=None):
 
     # VaR line — only show if table is populated with real data
     var_line = ""
-    if risk and not has_error(risk) and risk.get("var95") and float(risk["var95"]) > 0:
+    risk_dict = safe_get_dict(risk) if not has_error(risk) else {}
+    var95_check = safe_get_field(risk_dict, "var95") if risk_dict else None
+    if risk_dict and var95_check and float(var95_check) > 0:
         risk_metrics = extract_risk_metrics(risk)
         if risk_metrics:
             var95_val = risk_metrics["var95"]
@@ -226,7 +228,7 @@ def panel_orch(run, cfg, risk=None):
 
     if not run or has_error(run):
         error_msg = (
-            f"[{R}]run fetch failed[/]: {run.get('_error')}"
+            f"[{R}]run fetch failed[/]: {safe_get_field(run, '_error')}"
             if isinstance(run, dict) and has_error(run)
             else "[dim]run: no data[/]"
         )
@@ -237,17 +239,17 @@ def panel_orch(run, cfg, risk=None):
             f"[dim]Next run:[/] [white]{next_run}[/]" + var_line
         )
     else:
-        age = fmt_age(run["run_at"])
+        age = fmt_age(safe_get_field(run, "run_at"))
         sts = (
             "[bold bright_green]✓ COMPLETED[/]"
-            if run["success"] and not run.get("halted")
-            else ("[bold yellow]~ HALTED[/]" if run.get("halted") else "[bold bright_red]✗ ERROR[/]")
+            if safe_get_field(run, "success") and not safe_get_field(run, "halted")
+            else ("[bold yellow]~ HALTED[/]" if safe_get_field(run, "halted") else "[bold bright_red]✗ ERROR[/]")
         )
 
         pbadges = []
         # exec_log source: structured per-phase objects with names + statuses
-        if run.get("_source") == "exec_log":
-            phase_results = run.get("phase_results")
+        if safe_get_field(run, "_source") == "exec_log":
+            phase_results = safe_get_list(safe_get_field(run, "phase_results"))
             if not phase_results:
                 logger.warning(
                     f"[HEALTH] exec_log source missing 'phase_results'. Available keys: {list(run.keys())}. "
@@ -255,26 +257,26 @@ def panel_orch(run, cfg, risk=None):
                 )
                 phase_results = []
             for p in phase_results:
-                raw = (p.get("name") or p.get("phase", "")).lower()
+                raw = (safe_get_field(p, "name") or safe_get_field(p, "phase", "")).lower()
                 parts = raw.split("_")
                 base = "_".join(parts[:2]) if len(parts) >= 2 else raw
                 short = PHASE_NAMES.get(base, base.replace("phase_", "P"))[:9]
-                ps = (p.get("status", "")).lower()
+                ps = (safe_get_field(p, "status", "")).lower()
                 pc = G if ps in ("success", "completed") else (Y if ps in ("halt", "halted", "warn") else R)
                 pi = "✓" if ps in ("success", "completed") else ("~" if ps in ("halt", "halted", "warn") else "✗")
                 pbadges.append(f"[{pc}]{pi}{short}[/]")
             # Show halt reason if halted
-            halt_r = run.get("halt_reason", "")
-            summary = run.get("summary", "")
-            if halt_r or run.get("halted"):
-                _details = _best_halt_reason(halt_r, run.get("phase_results"))
+            halt_r = safe_get_field(run, "halt_reason", "")
+            summary = safe_get_field(run, "summary", "")
+            if halt_r or safe_get_field(run, "halted"):
+                _details = _best_halt_reason(halt_r, safe_get_field(run, "phase_results"))
                 _lines = [f"{lb + ': ' if lb else ''}{dt[:60]}" for lb, dt in _details]
                 extra = ("\n" + "\n".join(f"[{Y}]{ln}[/]" for ln in _lines)) if _lines else ""
             else:
                 extra = f"\n[dim]{summary[:50]}[/]" if summary else ""
         else:
             # audit_log fallback: phase_N or phase_N_name format
-            phases_list = run.get("phase_results") or run.get("phases")
+            phases_list = safe_get_list(safe_get_field(run, "phase_results") or safe_get_field(run, "phases"))
             if not phases_list:
                 logger.warning(
                     f"[HEALTH] audit_log missing both 'phase_results' and 'phases'. Available keys: {list(run.keys())}. "
@@ -282,7 +284,7 @@ def panel_orch(run, cfg, risk=None):
                 )
                 phases_list = []
             for p in phases_list:
-                at = p.get("action_type", "")
+                at = safe_get_field(p, "action_type", "")
                 if not at.startswith("phase_"):
                     continue
                 parts = at.split("_")
@@ -293,7 +295,7 @@ def panel_orch(run, cfg, risk=None):
                 name_parts = parts[2:] if len(parts) > 2 else []
                 default_short = "_".join(name_parts)[:7] if name_parts else f"P{num}"
                 short = PHASE_NAMES.get(phase_key, default_short)[:9]
-                ps = p.get("status", "")
+                ps = safe_get_field(p, "status", "")
                 pc = G if ps == "success" else (Y if ps in ("halt", "warn") else R)
                 pi = "✓" if ps == "success" else ("~" if ps in ("halt", "warn") else "✗")
                 pbadges.append(f"[{pc}]{pi}{short}[/]")
