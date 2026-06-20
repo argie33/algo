@@ -86,9 +86,16 @@ def _get_algo_positions(cur, user_id: str = None) -> dict:
 
     items = []
     sector_risk = {}  # For aggregating sector allocation
+    invalid_positions: list[str] = []
 
     for p in positions:
         d = safe_json_serialize(safe_dict_convert(p))
+
+        # Validate required data before adding to items (Issue #1 fix)
+        pos_val = safe_float(d.get("position_value"))
+        if pos_val is None:
+            invalid_positions.append(d.get("symbol", "unknown"))
+            continue
 
         # Compute ladder_pct_* fields for visualization (Issue #2)
         entry = safe_float(d.get("avg_entry_price"))
@@ -148,18 +155,16 @@ def _get_algo_positions(cur, user_id: str = None) -> dict:
 
         items.append(d)
 
-        # Accumulate sector allocation for aggregation (Issue #1)
-        # Only include positions with valid position_value (don't silently use 0)
+        # Accumulate sector allocation - all added items have valid position_value
         sector = d.get("sector", "Unknown")
-        pos_val = safe_float(d.get("position_value"))
-        if pos_val is None:
-            logger.warning(
-                f"Position missing position_value: symbol={d.get('symbol')}, skipping from sector allocation"
-            )
-            continue
         if sector not in sector_risk:
             sector_risk[sector] = 0
         sector_risk[sector] += pos_val
+
+    if invalid_positions:
+        logger.warning(
+            f"Filtered out {len(invalid_positions)} positions with missing position_value: {', '.join(invalid_positions[:5])}"
+        )
 
     # Compute sector_allocation array after processing all positions (E5 fix)
     # Use absolute values to handle portfolios with shorts: total = sum of |position values|
@@ -176,7 +181,7 @@ def _get_algo_positions(cur, user_id: str = None) -> dict:
         )
     ]
 
-    freshness = check_data_freshness(cur, "algo_trades", "trade_date", warning_days=1)
+    freshness = check_data_freshness(cur, "algo_positions", "modified_at", warning_days=1)
     stale_alerts = []
     if freshness.get("is_stale"):
         stale_alerts.append(f"Position data {freshness.get('data_age_days', '?')}d old")
@@ -225,22 +230,22 @@ def _get_algo_status(cur) -> dict:
         snap = cur.fetchone()
         if snap:
             pv = safe_float(snap["total_portfolio_value"])
+            unrealized_pnl = safe_float(snap["unrealized_pnl_total"])
+            unrealized_pnl_pct = None
+            if pv and pv > 0 and unrealized_pnl is not None:
+                unrealized_pnl_pct = unrealized_pnl / pv * 100
             portfolio = {
                 "total_portfolio_value": format_decimal_string(pv, precision=2, allow_none=True),
                 "total_cash": format_decimal_string(safe_float(snap["total_cash"]) or 0, precision=2),
                 "position_count": safe_int(snap["position_count"]),
                 "daily_return_pct": format_decimal_string(safe_float(snap["daily_return_pct"]), precision=2, allow_none=True),
                 "unrealized_pnl_pct": format_decimal_string(
-                    (
-                        (safe_float(snap["unrealized_pnl_total"]) / pv * 100)
-                        if pv and pv > 0
-                        else 0
-                    ),
+                    unrealized_pnl_pct,
                     precision=2,
-                    allow_none=False,
+                    allow_none=True,
                 ),
                 "unrealized_pnl_dollars": format_decimal_string(
-                    safe_float(snap["unrealized_pnl_total"]) or 0, precision=2
+                    unrealized_pnl, precision=2, allow_none=True
                 ),
             }
     except (
@@ -287,6 +292,7 @@ def _get_algo_trades(
         # Validate status parameter to prevent SQL injection
         valid_statuses = ["open", "closed", "halted", "cancelled"]
         if status not in valid_statuses:
+            logger.warning(f"Invalid trade status requested: {status}, ignoring filter")
             status = None
         else:
             where_parts.append("status = %s")
@@ -377,7 +383,7 @@ def _get_circuit_breakers(cur) -> dict:
             )
 
         # Fetch pre-computed circuit breaker metrics from database
-        cbm_data = None
+        cbm_data = {}
         try:
             cur.execute(
                 "SELECT portfolio_drawdown_pct, daily_loss_pct, weekly_loss_pct, open_risk_pct, consecutive_losses, vix_level, market_stage FROM circuit_breaker_status ORDER BY check_date DESC LIMIT 1"
@@ -795,11 +801,7 @@ def _get_dashboard_signals(cur) -> dict:
         cur.execute("""
                 SELECT s.symbol, t.weinstein_stage AS stage_number, s.score AS signal_quality_score,
                        s.score AS entry_quality_score, p.close,
-                       NULL::numeric AS buylevel, NULL::numeric AS stoplevel,
-                       NULL::numeric AS risk_reward_ratio, NULL::numeric AS volume_surge_pct,
-                       NULL::numeric AS rs_rating, NULL::numeric AS breakout_quality,
-                       NULL::text AS base_type, s.components->>'fail_reason' AS reason,
-                       NULL::text AS signal_type,
+                       s.components->>'fail_reason' AS reason,
                        cp.sector,
                        s.score AS swing_score
                 FROM swing_trader_scores s
@@ -859,7 +861,10 @@ def _get_dashboard_signals(cur) -> dict:
         freshness = check_data_freshness(cur, "swing_trader_scores", "date", warning_days=1)
 
         # Count qualifying buy signals (score >= 70) for the "n BUY" display
-        qualifying_buy_count = sum(1 for s in buy_sigs if (s.get("signal_quality_score") or 0) >= 70)
+        qualifying_buy_count = sum(
+            1 for s in buy_sigs
+            if s.get("signal_quality_score") is not None and s.get("signal_quality_score") >= 70
+        )
         return json_response(
             200,
             {

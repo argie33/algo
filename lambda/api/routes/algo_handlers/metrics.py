@@ -45,12 +45,12 @@ def _ensure_portfolio_fields(data: dict) -> dict:
     if data.get("_error"):
         return data
 
-    # Ensure critical fields exist with valid defaults
-    if "total_portfolio_value" not in data:
+    # Ensure critical fields exist with valid defaults (also handle None values)
+    if "total_portfolio_value" not in data or data["total_portfolio_value"] is None:
         data["total_portfolio_value"] = None
-    if "total_cash" not in data:
+    if "total_cash" not in data or data["total_cash"] is None:
         data["total_cash"] = None
-    if "position_count" not in data:
+    if "position_count" not in data or data["position_count"] is None:
         data["position_count"] = 0
 
     return data
@@ -232,16 +232,24 @@ def _get_algo_performance(cur) -> dict:
                 """)
             recent_trades = cur.fetchall()
             if recent_trades:
-                first_pnl = float(recent_trades[0]["profit_loss_pct"] or 0)
-                is_win_streak = first_pnl > 0
-                for t in recent_trades:
-                    pnl = float(t["profit_loss_pct"] or 0)
-                    if is_win_streak and pnl > 0:
-                        current_streak += 1
-                    elif not is_win_streak and pnl <= 0:
-                        current_streak -= 1
-                    else:
-                        break
+                first_pnl_raw = recent_trades[0]["profit_loss_pct"]
+                if first_pnl_raw is None:
+                    first_pnl = None
+                else:
+                    first_pnl = float(first_pnl_raw)
+                if first_pnl is not None:
+                    is_win_streak = first_pnl > 0
+                    for t in recent_trades:
+                        pnl_raw = t["profit_loss_pct"]
+                        if pnl_raw is None:
+                            break
+                        pnl = float(pnl_raw)
+                        if is_win_streak and pnl > 0:
+                            current_streak += 1
+                        elif not is_win_streak and pnl <= 0:
+                            current_streak -= 1
+                        else:
+                            break
         except (psycopg2.DatabaseError, psycopg2.OperationalError) as ce:
             logger.warning(f"Could not compute current streak: {ce}")
 
