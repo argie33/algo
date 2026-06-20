@@ -10,7 +10,7 @@ Exit hierarchy (checked in order):
 4. T3      — price >= target_3 (4R) → exit final 25%
 5. T2      — price >= target_2 (3R) → exit 25% on pullback, raise stop to T1 area
 6. T1      — price >= target_1 (1.5R) → exit 50% on pullback, raise stop to entry (breakeven)
-7. CHANDELIER TRAIL — 3×ATR from highest high (or 21-EMA after 10d)
+7. CHANDELIER TRAIL — 3xATR from highest high (or 21-EMA after 10d)
 8. TD SEQUENTIAL — 9-count (50%) or 13-count (100%) exhaustion
 9. FIRST RED DAY — after 2.5R+ gain, first big down day on heavy volume → exit 50%
 10. CLIMAX RUN EXHAUSTION — 30+ days, 5R+ gain, 20%+ in last 10d → exit 50%
@@ -21,7 +21,9 @@ State tracked on algo_positions:
   - current_stop_price: trailed stop after T1/T2 hits
 """
 
+import logging
 from datetime import datetime, timezone
+from decimal import ROUND_DOWN, Decimal
 
 import requests
 
@@ -32,7 +34,6 @@ try:
     from trade_performance_auditor import TradePerformanceAuditor
 except ImportError:
     TradePerformanceAuditor = None
-import logging
 from typing import Any, cast
 
 from algo.infrastructure import get_alpaca_timeout
@@ -108,7 +109,7 @@ class ExitEngine:
                         t3_price,
                         trade_date,
                         _position_id,
-                        quantity,
+                        _quantity,
                         target_hits,
                         current_stop,
                         t1_hit_time,
@@ -742,7 +743,7 @@ class ExitEngine:
     def _chandelier_or_ema_stop(
         self, cur, symbol, current_date, days_held
     ) -> float | None:
-        """Trailing stop: chandelier (3×ATR from highest high) for first 10d,
+        """Trailing stop: chandelier (3xATR from highest high) for first 10d,
         then 21-EMA after."""
         switch_val = self.config.get("switch_to_21ema_after_days")
         if switch_val is None:
@@ -763,12 +764,13 @@ class ExitEngine:
             rows = cur.fetchall()
             if len(rows) < 21:
                 raise ValueError(f"Insufficient price data for {symbol} to calculate 21-EMA stop")
-            closes = [float(r[0]) for r in rows]
-            k = 2.0 / 22.0
+            closes = [Decimal(str(r[0])) for r in rows]
+            k = Decimal(2) / Decimal(22)
             ema = closes[0]
             for c in closes[1:]:
-                ema = c * k + ema * (1 - k)
-            return round(ema * 0.99, 2)
+                ema = c * k + ema * (Decimal(1) - k)
+            stop_price = ema * Decimal("0.99")
+            return float(stop_price.quantize(Decimal("0.01"), rounding=ROUND_DOWN))
         else:
             cur.execute(
                 """
@@ -828,13 +830,14 @@ class ExitEngine:
         if row is None:
             return False
         sma_50, ema_21, vol, avg_vol_50 = row
-        sma_50 = float(sma_50) if sma_50 is not None else None
-        ema_21 = float(ema_21) if ema_21 is not None else None
+        sma_50 = Decimal(str(sma_50)) if sma_50 is not None else None
+        ema_21 = Decimal(str(ema_21)) if ema_21 is not None else None
         vol = float(vol) if vol is not None else 0
         avg_vol_50 = float(avg_vol_50) if avg_vol_50 is not None else 0
+        cur_price_decimal = Decimal(str(cur_price))
 
         # Clean break of 50-DMA
-        if sma_50 and cur_price < sma_50 * 0.99:
+        if sma_50 and cur_price_decimal < sma_50 * Decimal("0.99"):
             return True
         # Break of EMA(21) on rising volume (institutional selling)
         if ema_21 and cur_price < ema_21 and avg_vol_50 > 0 and vol > avg_vol_50 * 1.15:

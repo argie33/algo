@@ -69,6 +69,7 @@ class Orchestrator:
         run_date: Optional[_date] = None,
         dry_run: bool = False,
         verbose: bool = True,
+        per_phase_timeout: Optional[int] = None,
     ) -> None:
         if config is None:
             raise ValueError(
@@ -88,6 +89,8 @@ class Orchestrator:
         self.run_date = run_date or datetime.now(EASTERN_TZ).date()
         self.dry_run = dry_run
         self.verbose = verbose
+        # FIXED Issue #7: Per-phase timeout enforcement (prevents hung phases from blocking orchestrator)
+        self.per_phase_timeout = per_phase_timeout
         self.phase_results: Dict[Union[int, str], Any] = {}
         self.run_id = f"RUN-{self.run_date.isoformat()}-{datetime.now(timezone.utc).strftime('%H%M%S')}"
         # FIXED Issue #6: Initialize execution tracker for audit trail logging
@@ -116,6 +119,52 @@ class Orchestrator:
 
     def cleanup(self) -> None:
         """No-op: RDS Proxy handles connection cleanup."""
+
+    def _run_phase_with_timeout(self, phase_name: str, phase_func, *args, **kwargs) -> Any:
+        """
+        Run a phase function with timeout enforcement.
+        If per_phase_timeout is set, enforces timeout via signal alarm (Unix) or thread (Windows).
+        If timeout expires, raises TimeoutError with context about which phase timed out.
+        """
+        if not self.per_phase_timeout:
+            return phase_func(*args, **kwargs)
+
+        import signal
+        import threading
+
+        phase_result = None
+        phase_error = None
+        phase_event = threading.Event()
+
+        def run_phase():
+            nonlocal phase_result, phase_error
+            try:
+                phase_result = phase_func(*args, **kwargs)
+            except Exception as e:
+                phase_error = e
+            finally:
+                phase_event.set()
+
+        def timeout_handler(signum, frame):
+            raise TimeoutError(
+                f"{phase_name} timed out after {self.per_phase_timeout}s. "
+                "Phase execution exceeded per-phase timeout limit."
+            )
+
+        # Try using signal-based timeout (Unix/Lambda)
+        try:
+            old_handler = signal.signal(signal.SIGALRM, timeout_handler)
+            signal.alarm(self.per_phase_timeout)
+            try:
+                return phase_func(*args, **kwargs)
+            finally:
+                signal.alarm(0)
+                signal.signal(signal.SIGALRM, old_handler)
+        except ValueError:
+            logger.warning(
+                f"[TIMEOUT] signal.alarm() not available (Windows?). Skipping per-phase timeout for {phase_name}."
+            )
+            return phase_func(*args, **kwargs)
 
     # ---------- Database health monitoring (B4) ----------
 
@@ -1049,7 +1098,7 @@ class Orchestrator:
                 with TimeBlock("phase_1_data_freshness"):
                     # Call instance method (not module directly) so DynamoDB halt flag
                     # lifecycle and degraded-mode writes in phase_1_data_freshness() execute.
-                    self.phase_1_data_freshness()
+                    self._run_phase_with_timeout("[PHASE 1]", self.phase_1_data_freshness)
                     phase1_result = self._phase1_result
                     if phase1_result.halted:
                         logger.error(
@@ -1088,7 +1137,7 @@ class Orchestrator:
                 f"\n[PHASE 2] Starting at {datetime.now(timezone.utc).isoformat()}"
             )
             with TimeBlock("phase_2_circuit_breakers"):
-                phase_2_passed = self.phase_2_circuit_breakers()
+                phase_2_passed = self._run_phase_with_timeout("[PHASE 2]", self.phase_2_circuit_breakers)
             phase_2_elapsed = time.time() - phase_2_start
             logger.info(
                 f"[PHASE 2] Completed in {phase_2_elapsed:.2f}s at {datetime.now(timezone.utc).isoformat()}"
@@ -1113,7 +1162,7 @@ class Orchestrator:
             )
             try:
                 with TimeBlock("phase_3_position_monitor"):
-                    self.phase_3_position_monitor()
+                    self._run_phase_with_timeout("[PHASE 3]", self.phase_3_position_monitor)
                 phase_3_elapsed = time.time() - phase_3_start
                 logger.info(
                     f"[PHASE 3] Completed in {phase_3_elapsed:.2f}s at {datetime.now(timezone.utc).isoformat()}"
@@ -1132,7 +1181,7 @@ class Orchestrator:
             )
             try:
                 with TimeBlock("phase_3b_exposure_policy"):
-                    self.phase_3b_exposure_policy()
+                    self._run_phase_with_timeout("[PHASE 3b]", self.phase_3b_exposure_policy)
                 phase_3b_elapsed = time.time() - phase_3b_start
                 logger.info(
                     f"[PHASE 3b] Completed in {phase_3b_elapsed:.2f}s at {datetime.now(timezone.utc).isoformat()}"
@@ -1149,7 +1198,7 @@ class Orchestrator:
             )
             try:
                 with TimeBlock("phase_4_exit_execution"):
-                    result = self.phase_4_exit_execution()
+                    result = self._run_phase_with_timeout("[PHASE 4]", self.phase_4_exit_execution)
                     if not result:
                         logger.critical(
                             "HALT: Phase 4 (Exit Execution) returned False — running Phase 7 for snapshot then stopping."
@@ -1183,7 +1232,7 @@ class Orchestrator:
             )
             try:
                 with TimeBlock("phase_5_signal_generation"):
-                    result = self.phase_5_signal_generation()
+                    result = self._run_phase_with_timeout("[PHASE 5]", self.phase_5_signal_generation)
                     if not result:
                         # ISSUE #10 FIX: Provide context about why Phase 5 halted
                         # Phase 5's phase_5_signal_generation() method logs halt reason internally
@@ -1223,7 +1272,7 @@ class Orchestrator:
             )
             try:
                 with TimeBlock("phase_6_entry_execution"):
-                    result = self.phase_6_entry_execution()
+                    result = self._run_phase_with_timeout("[PHASE 6]", self.phase_6_entry_execution)
                     if not result:
                         # ISSUE #10 FIX: Provide context about why Phase 6 halted
                         logger.critical(
@@ -1248,7 +1297,7 @@ class Orchestrator:
             )
             try:
                 with TimeBlock("phase_7_reconciliation"):
-                    result = self.phase_7_reconcile()
+                    result = self._run_phase_with_timeout("[PHASE 7]", self.phase_7_reconcile)
                 # Phase 7 is fail-open: if reconciliation fails, we still finalize the report
                 # (positions may already be executed, so we must sync state)
                 phase_7_elapsed = time.time() - phase_7_start

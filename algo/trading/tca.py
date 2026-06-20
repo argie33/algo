@@ -16,7 +16,7 @@ This is what institutional traders use to validate their edge isn't eroded by fe
 
 import logging
 from datetime import date
-from decimal import Decimal, ROUND_HALF_UP
+from decimal import ROUND_HALF_UP, Decimal
 
 from utils.db import DatabaseContext
 
@@ -138,7 +138,7 @@ class TCAEngine:
         if side == "SELL" and slippage_bps <= 0:
             return None  # Favorable, no alert
 
-        abs_slippage = float(abs(slippage_bps))
+        abs_slippage = abs(float(slippage_bps))
 
         if abs_slippage >= 300:  # 3% adverse
             return {

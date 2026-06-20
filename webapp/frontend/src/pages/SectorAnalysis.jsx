@@ -575,7 +575,12 @@ function RankingTrendChart({ name, type, range }) {
 
   const { data: resp, isLoading } = useQuery({
     queryKey: [`${type}-rank-trend`, name],
-    queryFn: () => api.get(endpoint).then(r => r?.data?.data || r?.data || null).catch(() => null),
+    queryFn: () => api.get(endpoint)
+      .then(r => r?.data?.data || r?.data || null)
+      .catch((err) => {
+        console.error(`[RankingTrendChart] Failed to fetch ${type} trend:`, err?.message || err);
+        throw err;
+      }),
     enabled: !!name,
     staleTime: 1000 * 60 * 10,
     retry: false,

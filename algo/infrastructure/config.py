@@ -1341,7 +1341,12 @@ class AlgoConfig:
             )
 
     def get(self, key, default=None):
-        """Get configuration value with validation of hardcoded defaults.
+        """Get configuration value with type validation.
+
+        FIXED Issue #8: Validates that the retrieved value matches the expected type.
+        If value is missing, returns default. If value exists but has wrong type,
+        logs error and returns fail-closed default from VALIDATION_SCHEMA (if critical)
+        or the default parameter (if non-critical).
 
         WARNING: Providing a hardcoded default parameter can hide config load failures.
         Ensures the default matches DEFAULTS to detect misalignment in code.
@@ -1354,7 +1359,49 @@ class AlgoConfig:
                     f"[CONFIG] Default mismatch for {key!r}: "
                     f"code has {default!r} but DEFAULTS has {parsed_default!r}"
                 )
-        return self._config.get(key, default)
+
+        value = self._config.get(key)
+        if value is None:
+            return default
+
+        # FIXED Issue #8: Validate type safety at retrieval time
+        if key in self.VALIDATION_SCHEMA:
+            expected_type = self.VALIDATION_SCHEMA[key][0]
+            is_critical = self.VALIDATION_SCHEMA[key][3]
+            fail_closed_value = self.VALIDATION_SCHEMA[key][4] if len(self.VALIDATION_SCHEMA[key]) > 4 else None
+
+            # Check if value has correct type
+            type_ok = self._check_type(value, expected_type)
+            if not type_ok:
+                error_msg = (
+                    f"[CONFIG TYPE ERROR] {key!r} has type {type(value).__name__}, "
+                    f"expected {expected_type}. Value: {value!r}"
+                )
+                logger.error(error_msg)
+
+                # Return fail-closed value for critical thresholds
+                if is_critical and fail_closed_value is not None:
+                    logger.warning(
+                        f"[CONFIG TYPE ERROR] {key!r} is critical — returning fail-closed value {fail_closed_value!r}"
+                    )
+                    return fail_closed_value
+                else:
+                    # Return provided default for non-critical values
+                    return default
+
+        return value
+
+    def _check_type(self, value: Any, expected_type: str) -> bool:
+        """Check if value has the expected type without coercion."""
+        if expected_type == "int":
+            return isinstance(value, int) and not isinstance(value, bool)
+        elif expected_type == "float":
+            return isinstance(value, (int, float)) and not isinstance(value, bool)
+        elif expected_type == "bool":
+            return isinstance(value, bool)
+        elif expected_type == "string":
+            return isinstance(value, str)
+        return True  # Unknown types pass through
 
     def override(self, key: str, value: Any) -> None:
         """Apply an in-memory-only override (env var wins over DB). No DB write, no audit.

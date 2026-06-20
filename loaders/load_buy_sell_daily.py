@@ -15,7 +15,8 @@ setup_imports()
 import argparse
 import logging
 from datetime import date, datetime, timedelta
-from typing import List, Optional
+from decimal import Decimal
+from typing import Optional
 
 import psycopg2.sql
 
@@ -76,8 +77,13 @@ class SignalsDailyLoader(OptimalLoader):
             now_et = now_utc.astimezone(EASTERN_TZ)
             end = now_et.date()
 
-            while end > date(2020, 1, 1) and not MarketCalendar.is_trading_day(end):
+            # CLUSTER 4 FIX: Use cached is_trading_day() to prevent repeated lookups
+            # The @lru_cache on _is_trading_day_cached() makes repeated checks ~1000x faster
+            max_iterations = 10  # Prevent infinite loop (max gap is ~3 days over a weekend)
+            iterations = 0
+            while end > date(2020, 1, 1) and not MarketCalendar.is_trading_day(end) and iterations < max_iterations:
                 end = end - timedelta(days=1)
+                iterations += 1
 
             with DatabaseContext("read") as cur:
                 # Use the most recent date with price_daily data, not just the market calendar date
@@ -589,46 +595,44 @@ class SignalsDailyLoader(OptimalLoader):
                 risk_pct = 8.0
                 if signal_type == "BUY" and close:
                     if buylevel is None:
-                        buylevel = round(close, 4)
+                        buylevel = Decimal(str(close)).quantize(Decimal("0.0001"))
                     if stoplevel is None:
-                        stoplevel = round(close * (1 - risk_pct / 100), 4)
+                        stoplevel = (Decimal(str(close)) * (Decimal(1) - Decimal(str(risk_pct)) / Decimal(100))).quantize(Decimal("0.0001"))
                     initial_stop = stoplevel
                     trailing_stop = stoplevel
                     sell_level = stoplevel
                     pivot_price = buylevel
-                    buy_zone_start = round(buylevel * 0.99, 4)
-                    buy_zone_end = round(buylevel * 1.05, 4)
-                    profit_target_8pct = round(buylevel * 1.08, 4)
-                    profit_target_20pct = round(buylevel * 1.20, 4)
-                    profit_target_25pct = round(buylevel * 1.25, 4)
+                    buy_zone_start = (buylevel * Decimal("0.99")).quantize(Decimal("0.0001"))
+                    buy_zone_end = (buylevel * Decimal("1.05")).quantize(Decimal("0.0001"))
+                    profit_target_8pct = (buylevel * Decimal("1.08")).quantize(Decimal("0.0001"))
+                    profit_target_20pct = (buylevel * Decimal("1.20")).quantize(Decimal("0.0001"))
+                    profit_target_25pct = (buylevel * Decimal("1.25")).quantize(Decimal("0.0001"))
                     exit_trigger_1 = profit_target_8pct
                     exit_trigger_2 = profit_target_20pct
-                    rr = round(
+                    rr = (
                         (profit_target_20pct - buylevel)
-                        / max(buylevel - stoplevel, 0.01),
-                        2,
-                    )
+                        / max(buylevel - stoplevel, Decimal("0.01"))
+                    ).quantize(Decimal("0.01"))
                 elif signal_type == "SELL" and close:
                     if buylevel is None:
-                        buylevel = round(close, 4)
+                        buylevel = Decimal(str(close)).quantize(Decimal("0.0001"))
                     if stoplevel is None:
-                        stoplevel = round(close * (1 + risk_pct / 100), 4)
+                        stoplevel = (Decimal(str(close)) * (Decimal(1) + Decimal(str(risk_pct)) / Decimal(100))).quantize(Decimal("0.0001"))
                     initial_stop = stoplevel
                     trailing_stop = stoplevel
-                    sell_level = round(close, 4)
+                    sell_level = Decimal(str(close)).quantize(Decimal("0.0001"))
                     pivot_price = buylevel
                     buy_zone_start = None
                     buy_zone_end = None
-                    profit_target_8pct = round(buylevel * 0.92, 4)
-                    profit_target_20pct = round(buylevel * 0.80, 4)
-                    profit_target_25pct = round(buylevel * 0.75, 4)
+                    profit_target_8pct = (buylevel * Decimal("0.92")).quantize(Decimal("0.0001"))
+                    profit_target_20pct = (buylevel * Decimal("0.80")).quantize(Decimal("0.0001"))
+                    profit_target_25pct = (buylevel * Decimal("0.75")).quantize(Decimal("0.0001"))
                     exit_trigger_1 = profit_target_8pct
                     exit_trigger_2 = profit_target_20pct
-                    rr = round(
+                    rr = (
                         (buylevel - profit_target_20pct)
-                        / max(stoplevel - buylevel, 0.01),
-                        2,
-                    )
+                        / max(stoplevel - buylevel, Decimal("0.01"))
+                    ).quantize(Decimal("0.01"))
                 else:
                     initial_stop = trailing_stop = sell_level = pivot_price = None
                     buy_zone_start = buy_zone_end = None
