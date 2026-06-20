@@ -221,7 +221,12 @@ def panel_sectors_expanded(srank, pos, port, sec_rot=None, irank=None):
     # Issue 3.1 FIX: Use unified normalization function
     pos_list, _, _ = normalize_positions_data(pos)
     if pos_list:
-        pv = float(port.get("total_portfolio_value", 0))
+        pv_raw = port.get("total_portfolio_value")
+        if pv_raw is None:
+            logger.warning("Total portfolio value unavailable for sector breakdown")
+            pv = None
+        else:
+            pv = float(pv_raw)
         sd: dict = {}
         invalid_count = 0
         for p in pos_list:
@@ -244,20 +249,26 @@ def panel_sectors_expanded(srank, pos, port, sec_rot=None, irank=None):
             logger.error(
                 f"panel_sectors_expanded: encountered {invalid_count} invalid position(s); sector totals may be incomplete"
             )
-        sorted_secs = sorted(sd.items(), key=lambda x: -x[1]["val"])
-        rows.append(Text.from_markup("[dim]Portfolio by sector:[/]"))
-        for sec, dv in sorted_secs:
-            pct = dv["val"] / pv * 100 if pv else 0
-            avg_pnl = sum(dv["pnls"]) / len(dv["pnls"]) if dv["pnls"] else 0
-            pc = G if avg_pnl >= 0 else R
-            bar_f = int(min(pct, 25) / 25 * 8)
-            bar_s = f"[{pc}]{'█' * bar_f}[/][dim]{'░' * (8 - bar_f)}[/]"
-            rows.append(
-                Text.from_markup(
-                    f"  [white]{sec!s:<24}[/]{bar_s} [dim]{pct:.1f}%  {dv['n']} pos[/]  [{pc}]{sign(avg_pnl)}{avg_pnl:.1f}% avg P&L[/]"
+
+        # Only show sector breakdown if we have portfolio value (required for percentage calculations)
+        if pv is not None and pv > 0:
+            sorted_secs = sorted(sd.items(), key=lambda x: -x[1]["val"])
+            rows.append(Text.from_markup("[dim]Portfolio by sector:[/]"))
+            for sec, dv in sorted_secs:
+                pct = dv["val"] / pv * 100
+                avg_pnl = sum(dv["pnls"]) / len(dv["pnls"]) if dv["pnls"] else 0
+                pc = G if avg_pnl >= 0 else R
+                bar_f = int(min(pct, 25) / 25 * 8)
+                bar_s = f"[{pc}]{'█' * bar_f}[/][dim]{'░' * (8 - bar_f)}[/]"
+                rows.append(
+                    Text.from_markup(
+                        f"  [white]{sec!s:<24}[/]{bar_s} [dim]{pct:.1f}%  {dv['n']} pos[/]  [{pc}]{sign(avg_pnl)}{avg_pnl:.1f}% avg P&L[/]"
+                    )
                 )
-            )
-        rows.append(Rule(style="dim"))
+            rows.append(Rule(style="dim"))
+        elif pv is not None:
+            rows.append(Text.from_markup("[dim]Portfolio value is zero - no sector breakdown[/]"))
+            rows.append(Rule(style="dim"))
 
     # All sector rankings — one per row, full names, 1wk and 4wk changes
     srank_items_exp = (

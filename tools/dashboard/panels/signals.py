@@ -137,7 +137,7 @@ def panel_signals_compact(sig, sig_eval=None, scores=None):
     buy_c = G if raw >= 5 else (Y if raw >= 1 else (DIM if total == 0 else R))
     spark_s = ""
     if len(trend) >= 2:
-        counts = [int(t.get("buy_n", 0)) for t in reversed(trend)]
+        counts = [int(t.get("buy_n")) if t.get("buy_n") is not None else 0 for t in reversed(trend)]
         max_b = max(counts) if counts else 1
         spark = "".join(SPARKLINE_CHARS[min(7, int(v / max(max_b, 1) * 7.9))] for v in counts)
         spark_s = f"  [{CY}]{spark}[/]"
@@ -176,36 +176,39 @@ def panel_signals_compact(sig, sig_eval=None, scores=None):
 
     # ── Row 3: Funnel arrow chain  ·  avg score  ·  top blockers ─────────────
     if sig_eval and not has_error(sig_eval):
-        ev_tot = sig_eval.get("total", 0)
+        ev_tot = sig_eval.get("total")
         ev_t1 = sig_eval.get("t1")
         ev_t2 = sig_eval.get("t2")
         ev_t3 = sig_eval.get("t3")
         ev_t4 = sig_eval.get("t4")
-        ev_t5 = sig_eval.get("t5", 0)
-        ev_avg = sig_eval.get("avg_score", 0)
-        ev_c = G if ev_t5 >= 20 else (Y if ev_t5 >= 5 else R)
-        rejected = sig_eval.get("rejected", [])
-        if rejected:
-            block_parts = []
-            for rj in rejected[:3]:
-                reason_abbr = _shorten_reason(rj["evaluation_reason"])
-                description = rj.get("description", "")
-                if description:
-                    block_parts.append(f"[dim]{reason_abbr}:{rj['n']}[/] [bright_black]({description})[/]")
-                else:
-                    block_parts.append(f"[dim]{reason_abbr}:{rj['n']}[/]")
-            blocks_s = "  [dim]blocked:[/]  " + "  ".join(block_parts)
-        else:
-            blocks_s = ""
-        has_full_funnel = all(v is not None for v in [ev_t1, ev_t2, ev_t3, ev_t4])
-        if has_full_funnel:
-            funnel_s = (
-                f"[dim]Funnel:[/] {ev_tot}[dim]→[/]{ev_t1}[dim]→[/]{ev_t2}"
-                f"[dim]→[/]{ev_t3}[dim]→[/]{ev_t4}[dim]→[/][{ev_c}]{ev_t5}[/]"
-            )
-        else:
-            funnel_s = f"[dim]{ev_tot} →[/] [{ev_c}]{ev_t5} qualified[/]"
-        rows.append(Text.from_markup(funnel_s + f"  [dim]avg score:[/][white]{ev_avg:.0f}[/]" + blocks_s))
+        ev_t5 = sig_eval.get("t5")
+        ev_avg = sig_eval.get("avg_score")
+        # Validate required funnel fields
+        if ev_tot is not None and ev_t5 is not None:
+            ev_c = G if ev_t5 >= 20 else (Y if ev_t5 >= 5 else R)
+            rejected = sig_eval.get("rejected", [])
+            if rejected:
+                block_parts = []
+                for rj in rejected[:3]:
+                    reason_abbr = _shorten_reason(rj["evaluation_reason"])
+                    description = rj.get("description", "")
+                    if description:
+                        block_parts.append(f"[dim]{reason_abbr}:{rj['n']}[/] [bright_black]({description})[/]")
+                    else:
+                        block_parts.append(f"[dim]{reason_abbr}:{rj['n']}[/]")
+                blocks_s = "  [dim]blocked:[/]  " + "  ".join(block_parts)
+            else:
+                blocks_s = ""
+            has_full_funnel = all(v is not None for v in [ev_t1, ev_t2, ev_t3, ev_t4])
+            if has_full_funnel:
+                funnel_s = (
+                    f"[dim]Funnel:[/] {ev_tot}[dim]→[/]{ev_t1}[dim]→[/]{ev_t2}"
+                    f"[dim]→[/]{ev_t3}[dim]→[/]{ev_t4}[dim]→[/][{ev_c}]{ev_t5}[/]"
+                )
+            else:
+                funnel_s = f"[dim]{ev_tot} →[/] [{ev_c}]{ev_t5} qualified[/]"
+            avg_s = f"  [dim]avg score:[/][white]{ev_avg:.0f}[/]" if ev_avg is not None else ""
+            rows.append(Text.from_markup(funnel_s + avg_s + blocks_s))
 
     rows.append(Rule(style="dim"))
 
@@ -436,36 +439,39 @@ def panel_signals_expanded(sig, sig_eval=None, scores=None):
         rows.append(Text.from_markup("[dim]A-grade radar:[/] " + "  ".join(parts)))
 
     if sig_eval and not has_error(sig_eval):
-        ev_tot = sig_eval.get("total", 0)
-        ev_t5 = sig_eval.get("t5", 0)
-        ev_avg = sig_eval.get("avg_score", 0)
-        ev_c = G if ev_t5 >= 20 else (Y if ev_t5 >= 5 else R)
-        t1 = sig_eval.get("t1")
-        t2 = sig_eval.get("t2")
-        t3 = sig_eval.get("t3")
-        t4 = sig_eval.get("t4")
-        has_full = all(v is not None for v in [t1, t2, t3, t4])
-        if has_full:
-            funnel = (
-                f"[dim]Funnel:[/] {ev_tot}[dim]→[/]{t1}[dim]→[/]{t2}"
-                f"[dim]→[/]{t3}[dim]→[/]{t4}[dim]→[/][{ev_c}]{ev_t5} qualified[/]"
-                f"  [dim]avg score:[/]{ev_avg:.0f}"
-            )
-        else:
-            funnel = f"[dim]Funnel:[/] {ev_tot}[dim]→[/][{ev_c}]{ev_t5} qualified[/]  [dim]avg score:[/]{ev_avg:.0f}"
-        rejected = sig_eval.get("rejected", [])
-        if rejected:
-            block_items = []
-            for rj in rejected:
-                reason_full = rj["evaluation_reason"][:32]
-                description = rj.get("description", "")
-                if description:
-                    block_items.append(f"[dim]{reason_full}:{rj['n']}[/] [bright_black]({description[:40]})[/]")
-                else:
-                    block_items.append(f"[dim]{reason_full}:{rj['n']}[/]")
-            blocks = "  ".join(block_items)
-            funnel += f"  [dim]blocked:[/] {blocks}"
-        rows.append(Text.from_markup(funnel))
+        ev_tot = sig_eval.get("total")
+        ev_t5 = sig_eval.get("t5")
+        ev_avg = sig_eval.get("avg_score")
+        if ev_tot is not None and ev_t5 is not None:
+            ev_c = G if ev_t5 >= 20 else (Y if ev_t5 >= 5 else R)
+            t1 = sig_eval.get("t1")
+            t2 = sig_eval.get("t2")
+            t3 = sig_eval.get("t3")
+            t4 = sig_eval.get("t4")
+            has_full = all(v is not None for v in [t1, t2, t3, t4])
+            if has_full:
+                avg_score_str = f"{ev_avg:.0f}" if ev_avg is not None else "--"
+                funnel = (
+                    f"[dim]Funnel:[/] {ev_tot}[dim]→[/]{t1}[dim]→[/]{t2}"
+                    f"[dim]→[/]{t3}[dim]→[/]{t4}[dim]→[/][{ev_c}]{ev_t5} qualified[/]"
+                    f"  [dim]avg score:[/]{avg_score_str}"
+                )
+            else:
+                avg_score_str = f"{ev_avg:.0f}" if ev_avg is not None else "--"
+                funnel = f"[dim]Funnel:[/] {ev_tot}[dim]→[/][{ev_c}]{ev_t5} qualified[/]  [dim]avg score:[/]{avg_score_str}"
+            rejected = sig_eval.get("rejected", [])
+            if rejected:
+                block_items = []
+                for rj in rejected:
+                    reason_full = rj["evaluation_reason"][:32]
+                    description = rj.get("description", "")
+                    if description:
+                        block_items.append(f"[dim]{reason_full}:{rj['n']}[/] [bright_black]({description[:40]})[/]")
+                    else:
+                        block_items.append(f"[dim]{reason_full}:{rj['n']}[/]")
+                blocks = "  ".join(block_items)
+                funnel += f"  [dim]blocked:[/] {blocks}"
+            rows.append(Text.from_markup(funnel))
 
     rows.append(Rule(style="dim"))
     rows.append(Text.from_markup(f"[{Y}][bold]DETAILED SCORE BREAKDOWN[/][/]"))

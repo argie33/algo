@@ -209,10 +209,12 @@ def panel_trades_expanded(trades):
 
     # Summary stats (from displayed trades; see Performance panel for all-time stats)
     total = len(closed)
-    wins = sum(1 for t in closed if (t.get("profit_loss_pct", 0)) > 0)
+    # Count wins: only trades with profit_loss_pct data
+    wins = sum(1 for t in closed if t.get("profit_loss_pct") is not None and float(t.get("profit_loss_pct")) > 0)
     losses = total - wins
     wr = wins / total * 100 if total else 0
-    total_pnl = sum(float(t.get("profit_loss_dollars", 0)) for t in closed)
+    # Sum P&L only from trades with profit_loss_dollars data
+    total_pnl = sum(float(t.get("profit_loss_dollars")) for t in closed if t.get("profit_loss_dollars") is not None)
     avg_r_list = [float(t["exit_r_multiple"]) for t in closed if t.get("exit_r_multiple") is not None]
     avg_r = sum(avg_r_list) / len(avg_r_list) if avg_r_list else None
     wc = G if wr >= 45 else (Y if wr >= 40 else R)

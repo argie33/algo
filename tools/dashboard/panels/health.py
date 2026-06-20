@@ -755,11 +755,14 @@ def panel_algo_health(
         for m in valid_metrics[:5]:
             d = m.get("date")
             d_s = d.strftime("%d") if hasattr(d, "strftime") else str(d or "")[-2:]
-            en = int(m.get("entries", 0))
-            ex = int(m.get("exits", 0))
-            e_c = G if en > 0 else DIM
-            x_c = Y if ex > 0 else DIM
-            day_parts.append(f"[dim]{d_s}:[/][{e_c}]{en}↑[/][{x_c}]{ex}↓[/]")
+            en = m.get("entries")
+            ex = m.get("exits")
+            # Show "--" if counts are missing, not 0 (which would hide incomplete data)
+            en_s = str(int(en)) if en is not None else "--"
+            ex_s = str(int(ex)) if ex is not None else "--"
+            e_c = G if en is not None and en > 0 else DIM
+            x_c = Y if ex is not None and ex > 0 else DIM
+            day_parts.append(f"[dim]{d_s}:[/][{e_c}]{en_s}↑[/][{x_c}]{ex_s}↓[/]")
         rows.append(Text.from_markup("[dim]5d activity:[/] " + "  ".join(day_parts)))
 
     rows.append(Rule(style="dim"))
@@ -1112,9 +1115,11 @@ def panel_algo_health_expanded(
     )
     today_m_e = valid_metrics_e[0] if valid_metrics_e else {}
     if not entries_exec:
-        entries_exec = int(today_m_e.get("entries", 0))
+        en = today_m_e.get("entries")
+        entries_exec = int(en) if en is not None else 0
     if not exits_exec:
-        exits_exec = int(today_m_e.get("exits", 0))
+        ex = today_m_e.get("exits")
+        exits_exec = int(ex) if ex is not None else 0
 
     action_parts_e = []
     if signals_gen > 0:
@@ -1135,11 +1140,13 @@ def panel_algo_health_expanded(
         for m in valid_metrics_e[:5]:
             d = m.get("date")
             d_s = d.strftime("%d") if hasattr(d, "strftime") else str(d or "")[-2:]
-            en = int(m.get("entries", 0))
-            ex = int(m.get("exits", 0))
-            e_c = G if en > 0 else DIM
-            x_c = Y if ex > 0 else DIM
-            day_parts_e.append(f"[dim]{d_s}:[/][{e_c}]{en}up[/][{x_c}]{ex}dn[/]")
+            en = m.get("entries")
+            ex = m.get("exits")
+            en_s = str(int(en)) if en is not None else "--"
+            ex_s = str(int(ex)) if ex is not None else "--"
+            e_c = G if en is not None and en > 0 else DIM
+            x_c = Y if ex is not None and ex > 0 else DIM
+            day_parts_e.append(f"[dim]{d_s}:[/][{e_c}]{en_s}up[/][{x_c}]{ex_s}dn[/]")
         right_rows.append(Text.from_markup("[dim]5d:[/] " + "  ".join(day_parts_e)))
 
     right_rows.append(Rule(style="dim"))
@@ -1166,12 +1173,12 @@ def panel_algo_health_expanded(
             right_rows.append(Text.from_markup(f"  [{ic}]{ii}[/] [dim]{dt_s}[/]  [{ic}]{s}[/]{hr_s}"))
 
     # Risk snapshot
-    if risk and not has_error(risk) and risk.get("var95") and float(risk["var95"]) > 0:
+    if risk and not has_error(risk) and risk.get("var95") is not None and float(risk.get("var95")) > 0:
         right_rows.append(Rule(style="dim"))
-        var95_val_e = risk["var95"]
-        beta_val_e = risk.get("beta", 0)
-        conc5_val_e = risk.get("conc5", 0)
-        cvar95_val_e = risk.get("cvar95", 0)
+        var95_val_e = risk.get("var95")
+        beta_val_e = risk.get("beta")
+        conc5_val_e = risk.get("conc5")
+        cvar95_val_e = risk.get("cvar95")
         svar_val_e = risk.get("svar")
         beta_c = R if beta_val_e >= 1.2 else (Y if beta_val_e >= 0.8 else G)
         conc_c = R if conc5_val_e >= 35 else (Y if conc5_val_e >= 25 else "white")

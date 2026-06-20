@@ -383,50 +383,55 @@ def _get_circuit_breakers(cur) -> dict:
             )
 
         # Fetch pre-computed circuit breaker metrics from database
+        # CRITICAL: Fail-fast if metrics are unavailable (don't default to 0 for trading safety)
         cbm_data = {}
         try:
             cur.execute(
                 "SELECT portfolio_drawdown_pct, daily_loss_pct, weekly_loss_pct, open_risk_pct, consecutive_losses, vix_level, market_stage FROM circuit_breaker_status ORDER BY check_date DESC LIMIT 1"
             )
             cbm_row = cur.fetchone()
-            if cbm_row:
-                cbm_data = {
-                    "drawdown": (
-                        safe_float(cbm_row["portfolio_drawdown_pct"])
-                        if cbm_row["portfolio_drawdown_pct"] is not None
-                        else 0
-                    ),
-                    "daily_loss": (
-                        safe_float(cbm_row["daily_loss_pct"])
-                        if cbm_row["daily_loss_pct"] is not None
-                        else 0
-                    ),
-                    "weekly_loss": (
-                        safe_float(cbm_row["weekly_loss_pct"])
-                        if cbm_row["weekly_loss_pct"] is not None
-                        else 0
-                    ),
-                    "total_risk": (
-                        safe_float(cbm_row["open_risk_pct"])
-                        if cbm_row["open_risk_pct"] is not None
-                        else 0
-                    ),
-                    "consecutive_losses": (
-                        safe_int(cbm_row["consecutive_losses"])
-                        if cbm_row["consecutive_losses"] is not None
-                        else 0
-                    ),
-                    "vix_level": (
-                        safe_float(cbm_row["vix_level"])
-                        if cbm_row["vix_level"] is not None
-                        else None
-                    ),
-                    "market_stage": (
-                        safe_int(cbm_row["market_stage"])
-                        if cbm_row["market_stage"] is not None
-                        else 0
-                    ),
-                }
+            if not cbm_row:
+                logger.warning("Circuit breaker metrics unavailable (circuit_breaker_status table empty)")
+                return json_response(
+                    503,
+                    {
+                        "breakers": [],
+                        "any_triggered": False,
+                        "triggered_count": 0,
+                        "data_freshness": {"data_age_days": None, "is_stale": True, "warning": "Circuit breaker data unavailable"},
+                        "errorType": "missing_circuit_breaker_data",
+                        "message": "Circuit breaker metrics unavailable. Trading disabled until data is available.",
+                        "_error": "Circuit breaker metrics unavailable. Trading disabled until data is available.",
+                    },
+                )
+
+            # Validate critical fields exist and are non-null (fail-closed)
+            critical_fields = ["portfolio_drawdown_pct", "daily_loss_pct", "weekly_loss_pct", "open_risk_pct", "consecutive_losses", "market_stage"]
+            missing = [f for f in critical_fields if cbm_row[f] is None]
+            if missing:
+                logger.error(f"Circuit breaker critical fields missing: {missing}")
+                return json_response(
+                    503,
+                    {
+                        "breakers": [],
+                        "any_triggered": False,
+                        "triggered_count": 0,
+                        "data_freshness": {"data_age_days": None, "is_stale": True, "warning": "Circuit breaker data incomplete"},
+                        "errorType": "incomplete_circuit_breaker_data",
+                        "message": f"Circuit breaker data incomplete (missing {', '.join(missing)}). Trading disabled.",
+                        "_error": "Circuit breaker data incomplete. Trading disabled.",
+                    },
+                )
+
+            cbm_data = {
+                "drawdown": safe_float(cbm_row["portfolio_drawdown_pct"]),
+                "daily_loss": safe_float(cbm_row["daily_loss_pct"]),
+                "weekly_loss": safe_float(cbm_row["weekly_loss_pct"]),
+                "total_risk": safe_float(cbm_row["open_risk_pct"]),
+                "consecutive_losses": safe_int(cbm_row["consecutive_losses"]),
+                "vix_level": safe_float(cbm_row["vix_level"]),  # VIX is optional
+                "market_stage": safe_int(cbm_row["market_stage"]),
+            }
         except (
             psycopg2.errors.UndefinedTable,
             psycopg2.errors.UndefinedColumn,
@@ -439,7 +444,7 @@ def _get_circuit_breakers(cur) -> dict:
 
         # CB1: Portfolio drawdown (from pre-computed metrics)
         try:
-            dd = cbm_data["drawdown"] if cbm_data else 0
+            dd = cbm_data["drawdown"]
             threshold_dd = 20.0
             breakers.append(
                 {
@@ -452,23 +457,24 @@ def _get_circuit_breakers(cur) -> dict:
                     "description": f"Halt when drawdown from peak ≥ {threshold_dd:.0f}%",
                 }
             )
-        except (ValueError, ZeroDivisionError, TypeError) as e:
+        except (ValueError, ZeroDivisionError, TypeError, KeyError) as e:
             logger.error(f"CB1 (drawdown) computation failed: {type(e).__name__}: {e}")
-            breakers.append(
+            return json_response(
+                503,
                 {
-                    "id": "drawdown",
-                    "label": "Portfolio Drawdown",
-                    "triggered": False,
-                    "current": 0,
-                    "threshold": 20,
-                    "unit": "%",
-                    "description": "No portfolio data yet",
-                }
+                    "breakers": [],
+                    "any_triggered": False,
+                    "triggered_count": 0,
+                    "data_freshness": {"data_age_days": None, "is_stale": True, "warning": "Circuit breaker data error"},
+                    "errorType": "circuit_breaker_computation_error",
+                    "message": f"Circuit breaker computation error (drawdown): {e!s}",
+                    "_error": "Circuit breaker computation failed. Trading disabled.",
+                },
             )
 
         # CB2: Daily loss (from pre-computed metrics)
         try:
-            daily_loss = cbm_data["daily_loss"] if cbm_data else 0
+            daily_loss = cbm_data["daily_loss"]
             threshold_dl = 2.0
             breakers.append(
                 {
@@ -481,25 +487,24 @@ def _get_circuit_breakers(cur) -> dict:
                     "description": f"Halt when today's loss ≥ {threshold_dl:.0f}%",
                 }
             )
-        except (ValueError, ZeroDivisionError, TypeError) as e:
-            logger.error(
-                f"CB2 (daily_loss) computation failed: {type(e).__name__}: {e}"
-            )
-            breakers.append(
+        except (ValueError, ZeroDivisionError, TypeError, KeyError) as e:
+            logger.error(f"CB2 (daily_loss) computation failed: {type(e).__name__}: {e}")
+            return json_response(
+                503,
                 {
-                    "id": "daily_loss",
-                    "label": "Daily Loss",
-                    "triggered": False,
-                    "current": 0,
-                    "threshold": 2,
-                    "unit": "%",
-                    "description": "No today snapshot yet",
-                }
+                    "breakers": [],
+                    "any_triggered": False,
+                    "triggered_count": 0,
+                    "data_freshness": {"data_age_days": None, "is_stale": True, "warning": "Circuit breaker data error"},
+                    "errorType": "circuit_breaker_computation_error",
+                    "message": f"Circuit breaker computation error (daily_loss): {e!s}",
+                    "_error": "Circuit breaker computation failed. Trading disabled.",
+                },
             )
 
         # CB3: Consecutive losses (from pre-computed metrics)
         try:
-            streak = cbm_data["consecutive_losses"] if cbm_data else 0
+            streak = cbm_data["consecutive_losses"]
             threshold_cl = 3
             breakers.append(
                 {
@@ -512,20 +517,19 @@ def _get_circuit_breakers(cur) -> dict:
                     "description": f"Halt after {threshold_cl} consecutive losing trades",
                 }
             )
-        except (ValueError, ZeroDivisionError, TypeError) as e:
-            logger.error(
-                f"CB3 (consecutive_losses) computation failed: {type(e).__name__}: {e}"
-            )
-            breakers.append(
+        except (ValueError, ZeroDivisionError, TypeError, KeyError) as e:
+            logger.error(f"CB3 (consecutive_losses) computation failed: {type(e).__name__}: {e}")
+            return json_response(
+                503,
                 {
-                    "id": "consecutive_losses",
-                    "label": "Consecutive Losses",
-                    "triggered": False,
-                    "current": 0,
-                    "threshold": 3,
-                    "unit": "",
-                    "description": "No closed trades yet",
-                }
+                    "breakers": [],
+                    "any_triggered": False,
+                    "triggered_count": 0,
+                    "data_freshness": {"data_age_days": None, "is_stale": True, "warning": "Circuit breaker data error"},
+                    "errorType": "circuit_breaker_computation_error",
+                    "message": f"Circuit breaker computation error (consecutive_losses): {e!s}",
+                    "_error": "Circuit breaker computation failed. Trading disabled.",
+                },
             )
 
         # CB4: VIX spike (from pre-computed metrics)
@@ -559,7 +563,7 @@ def _get_circuit_breakers(cur) -> dict:
 
         # CB5: Weekly portfolio loss (from pre-computed metrics)
         try:
-            weekly_loss = cbm_data["weekly_loss"] if cbm_data else 0
+            weekly_loss = cbm_data["weekly_loss"]
             threshold_wl = 5.0
             breakers.append(
                 {
@@ -572,25 +576,24 @@ def _get_circuit_breakers(cur) -> dict:
                     "description": f"Halt when 7-day loss ≥ {threshold_wl:.0f}%",
                 }
             )
-        except (ValueError, ZeroDivisionError, TypeError) as e:
-            logger.error(
-                f"CB5 (weekly_loss) computation failed: {type(e).__name__}: {e}"
-            )
-            breakers.append(
+        except (ValueError, ZeroDivisionError, TypeError, KeyError) as e:
+            logger.error(f"CB5 (weekly_loss) computation failed: {type(e).__name__}: {e}")
+            return json_response(
+                503,
                 {
-                    "id": "weekly_loss",
-                    "label": "Weekly Loss",
-                    "triggered": False,
-                    "current": 0,
-                    "threshold": 5,
-                    "unit": "%",
-                    "description": "No weekly data yet",
-                }
+                    "breakers": [],
+                    "any_triggered": False,
+                    "triggered_count": 0,
+                    "data_freshness": {"data_age_days": None, "is_stale": True, "warning": "Circuit breaker data error"},
+                    "errorType": "circuit_breaker_computation_error",
+                    "message": f"Circuit breaker computation error (weekly_loss): {e!s}",
+                    "_error": "Circuit breaker computation failed. Trading disabled.",
+                },
             )
 
         # CB6: Market stage break (Stage 4 = downtrend) (from pre-computed metrics)
         try:
-            stage = cbm_data["market_stage"] if cbm_data else 0
+            stage = cbm_data["market_stage"]
             breakers.append(
                 {
                     "id": "market_stage",
@@ -602,25 +605,24 @@ def _get_circuit_breakers(cur) -> dict:
                     "description": "Halt when market enters Stage 4 (confirmed downtrend)",
                 }
             )
-        except (ValueError, ZeroDivisionError, TypeError) as e:
-            logger.error(
-                f"CB6 (market_stage) computation failed: {type(e).__name__}: {e}"
-            )
-            breakers.append(
+        except (ValueError, ZeroDivisionError, TypeError, KeyError) as e:
+            logger.error(f"CB6 (market_stage) computation failed: {type(e).__name__}: {e}")
+            return json_response(
+                503,
                 {
-                    "id": "market_stage",
-                    "label": "Market Stage",
-                    "triggered": False,
-                    "current": 0,
-                    "threshold": 4,
-                    "unit": "",
-                    "description": "No market data yet",
-                }
+                    "breakers": [],
+                    "any_triggered": False,
+                    "triggered_count": 0,
+                    "data_freshness": {"data_age_days": None, "is_stale": True, "warning": "Circuit breaker data error"},
+                    "errorType": "circuit_breaker_computation_error",
+                    "message": f"Circuit breaker computation error (market_stage): {e!s}",
+                    "_error": "Circuit breaker computation failed. Trading disabled.",
+                },
             )
 
         # CB7: Total open risk (from pre-computed metrics)
         try:
-            risk_pct = cbm_data["total_risk"] if cbm_data else 0
+            risk_pct = cbm_data["total_risk"]
             threshold_risk = 4.0
             breakers.append(
                 {
@@ -633,20 +635,19 @@ def _get_circuit_breakers(cur) -> dict:
                     "description": f"Halt when total open risk ≥ {threshold_risk:.0f}% of portfolio",
                 }
             )
-        except (ValueError, ZeroDivisionError, TypeError) as e:
-            logger.error(
-                f"CB7 (total_risk) computation failed: {type(e).__name__}: {e}"
-            )
-            breakers.append(
+        except (ValueError, ZeroDivisionError, TypeError, KeyError) as e:
+            logger.error(f"CB7 (total_risk) computation failed: {type(e).__name__}: {e}")
+            return json_response(
+                503,
                 {
-                    "id": "total_risk",
-                    "label": "Total Open Risk",
-                    "triggered": False,
-                    "current": 0,
-                    "threshold": 4,
-                    "unit": "%",
-                    "description": "No positions data yet",
-                }
+                    "breakers": [],
+                    "any_triggered": False,
+                    "triggered_count": 0,
+                    "data_freshness": {"data_age_days": None, "is_stale": True, "warning": "Circuit breaker data error"},
+                    "errorType": "circuit_breaker_computation_error",
+                    "message": f"Circuit breaker computation error (total_risk): {e!s}",
+                    "_error": "Circuit breaker computation failed. Trading disabled.",
+                },
             )
 
         # CB8: Intraday market health (SPY down >2% yesterday)

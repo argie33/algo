@@ -152,7 +152,7 @@ def panel_portfolio(port, cfg, risk=None, perf=None):
 
     # Risk metrics (VaR, CVaR, Beta, concentration, Stressed VaR)
     if risk and not has_error(risk) and risk.get("var95") is not None and float(risk["var95"]) > 0:
-        var_v = risk["var95"]
+        var_v = risk.get("var95")
         cvar_v = risk.get("cvar95")
         beta_v = risk.get("beta")
         conc5_v = risk.get("conc5")
@@ -296,7 +296,7 @@ def panel_performance_spark(perf, rec, perf_anl=None, pos=None):
         if calmar is not None and calmar != 0.0:
             cc = G if calmar >= 0.5 else (Y if calmar >= 0 else R)
             calmar_cell = cell("Calmar Ratio:", f"[{cc}]{calmar:.2f}[/]")
-        if wr50 is not None and wr50 != 0.0 and (total_trades is not None and total_trades >= 10 or wr50 > 0):
+        if wr50 is not None and wr50 != 0.0 and ((total_trades is not None and total_trades >= 10) or wr50 > 0):
             wc = G if wr50 >= 50 else (Y if wr50 >= 42 else R)
             wr50_cell = cell("Win Rate (50 trades):", f"[{wc}]{wr50:.0f}%[/]")
         if calmar_cell is not None or wr50_cell is not None:
@@ -585,18 +585,18 @@ def panel_portfolio_perf_expanded(port, cfg, risk=None, perf=None, perf_anl=None
         rows.append(Rule(style="dim"))
 
     # ── Risk metrics ──────────────────────────────────────────────────────────
-    if risk and not risk.get("_error") and risk.get("var95") and float(risk.get("var95", 0)) > 0:
+    if risk and not has_error(risk) and risk.get("var95") is not None and float(risk.get("var95")) > 0:
         rows.append(Text.from_markup("[dim bold]RISK METRICS[/]"))
         rtbl = Table.grid(padding=(0, 3), expand=False)
         rtbl.add_column("label", style="dim")
         rtbl.add_column("val")
         rtbl.add_column("label2", style="dim")
         rtbl.add_column("val2")
-        var95_val = risk.get("var95", 0)
-        beta_val = risk.get("beta", 0)
-        conc5_val = risk.get("conc5", 0)
+        var95_val = risk.get("var95")
+        beta_val = risk.get("beta")
+        conc5_val = risk.get("conc5")
         svar_val = risk.get("svar")
-        cvar95_val = risk.get("cvar95", 0)
+        cvar95_val = risk.get("cvar95")
         beta_c = R if beta_val >= 1.2 else (Y if beta_val >= 0.8 else G)
         conc_c = R if conc5_val >= 35 else (Y if conc5_val >= 25 else "white")
         var_c = R if var95_val >= 4 else (Y if var95_val >= 2 else "white")
