@@ -55,10 +55,11 @@ def panel_signals_compact(sig, sig_eval=None, scores=None):
     err_panel = _error_panel("signals", sig, "SIGNALS", border="magenta")
     if err_panel:
         return err_panel
-    if scores and _error_panel("scores", scores, "SIGNALS", border="magenta"):
+    if scores and has_error(scores):
         return _error_panel("scores", scores, "SIGNALS", border="magenta")
 
-    top_scores = (scores or {}).get("top", []) if not has_error(scores) else []
+    # Extract fields once after error checks
+    top_scores = scores.get("top", []) if not has_error(scores) else []
     buy_sigs = sig.get("buy_sigs", [])
     total_screened = sig.get("total", 0)
     is_placeholder = (
@@ -82,10 +83,15 @@ def panel_signals_compact(sig, sig_eval=None, scores=None):
             ds = str(d)[:10]
     else:
         ds = "--"
-    g = sig.get("grades", {})
-    ga, gb, gc, gd = (int(g.get(k)) if g.get(k) is not None else None for k in ("a", "b", "c", "d"))
+    # Extract grade counts once
+    grades = sig.get("grades", {})
+    ga = int(grades.get("a")) if grades.get("a") is not None else None
+    gb = int(grades.get("b")) if grades.get("b") is not None else None
+    gc = int(grades.get("c")) if grades.get("c") is not None else None
+    gd = int(grades.get("d")) if grades.get("d") is not None else None
     top_a = sig.get("top_a", [])
     near = sig.get("near", [])
+    trend = sig.get("trend", [])
 
     def _shorten_reason(r: str) -> str:
         r = r.lower()
@@ -111,7 +117,6 @@ def panel_signals_compact(sig, sig_eval=None, scores=None):
 
     # ── Row 1: count  ·  7-day sparkline  ·  grade pool  ·  date ─────────────
     buy_c = G if raw >= 5 else (Y if raw >= 1 else (DIM if total == 0 else R))
-    trend = sig.get("trend", [])
     spark_s = ""
     if len(trend) >= 2:
         counts = [int(t.get("buy_n", 0)) for t in reversed(trend)]
@@ -412,7 +417,7 @@ def panel_signals_expanded(sig, sig_eval=None, scores=None):
                 parts.append(f"[dim]{s.get('symbol', '')}[/][dim]--[/]")
         rows.append(Text.from_markup("[dim]A-grade radar:[/] " + "  ".join(parts)))
 
-    if sig_eval and not sig_evalhas_error(PLACEHOLDER):
+    if sig_eval and not has_error(sig_eval):
         ev_tot = sig_eval.get("total", 0)
         ev_t5 = sig_eval.get("t5", 0)
         ev_avg = sig_eval.get("avg_score", 0)

@@ -240,7 +240,7 @@ def panel_exposure_expanded(exp_f):
 
         if sf is None:
             # Factor has no data — show ⚠ N/A rather than a misleading 0-point bar
-            reason = (f.get("reason", ("stale" if f.get("stale") else "no data"))[:18]
+            reason = (f.get("reason") or ("stale" if f.get("stale") else "no data"))[:18]
             bar_s = Text.from_markup(f"[yellow]⚠ N/A{'':>10}[/]  [dim]--/{max_pts}[/]")
             tbl.add_row(
                 Text(label, style="yellow"),

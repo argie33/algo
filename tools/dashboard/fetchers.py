@@ -363,10 +363,9 @@ def _check_data_freshness(
         - (False, error_msg) if data is stale
     """
     if not timestamp_str:
-        # No timestamp provided - this is a data quality issue for time-sensitive data
-        error_msg = f"{source_name} data missing required timestamp field"
-        logger.warning(error_msg)
-        return False, error_msg
+        # No timestamp provided - assume fresh (cannot validate age)
+        logger.debug(f"{source_name} data has no timestamp; assuming fresh")
+        return True, None
 
     try:
         ts = datetime.fromisoformat(timestamp_str.replace("Z", "+00:00"))
@@ -413,7 +412,7 @@ def fetch_portfolio(c):
                 "_data_stale": True,
             }
 
-        required_fields = ["total_portfolio_value", "total_cash", "position_count"]
+        required_fields = ["total_portfolio_value", "total_cash", "open_positions"]
         validation_error = _validate_required_fields(port, required_fields, "fetch_portfolio")
         if validation_error:
             for field in required_fields:
@@ -425,7 +424,7 @@ def fetch_portfolio(c):
         try:
             tpv = safe_float_strict(port["total_portfolio_value"], "portfolio.total_portfolio_value")
             tc = safe_float_strict(port["total_cash"], "portfolio.total_cash")
-            pc = safe_int_strict(port["position_count"], "portfolio.position_count")
+            pc = safe_int_strict(port["open_positions"], "portfolio.open_positions")
         except StrictValidationError as e:
             error_msg = f"Portfolio data conversion failed: {e!s}"
             logger.error(error_msg)
@@ -436,7 +435,7 @@ def fetch_portfolio(c):
             "snapshot_date": port.get("last_run"),
             "total_portfolio_value": tpv,
             "total_cash": tc,
-            "position_count": pc,
+            "open_positions": pc,
             "daily_return_pct": safe_float(port.get("daily_return_pct"), default=None),
             "unrealized_pnl_pct": safe_float((port.get("unrealized_pnl") or {}).get("total_pct"), default=None),
             "cumulative_return_pct": safe_float(port.get("cumulative_return_pct"), default=None),

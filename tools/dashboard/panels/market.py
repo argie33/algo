@@ -22,6 +22,7 @@ from rich.rule import Rule
 from rich.table import Table
 from rich.text import Text
 
+from ..error_boundary import has_error
 from ..formatters import (
     exp_bar,
     next_run_str,
@@ -36,7 +37,6 @@ from ..utilities import (
     Y,
 )
 from ._helpers import _error_panel
-from ..error_boundary import has_error
 
 
 @register_panel(
@@ -50,23 +50,19 @@ def panel_market_full(mkt, sentiment=None):
     err_panel = _error_panel("market", mkt, "MARKET", border="blue")
     if err_panel:
         return err_panel
+
+    # Extract market fields in batch after error check
     tier = mkt.get("tier", "unknown")
     tc = TIER_COLOR.get(tier, "dim")
     lbl = TIER_SHORT.get(tier, "LOADING")
     exp = mkt.get("pct")
-    exp_s = f"{float(exp):.0f}%" if exp is not None else "--"
-    bar = exp_bar(exp or 0, w=10)
-    vix = f"{mkt['vix']:.1f}" if mkt.get("vix") is not None else "--"
-    vc = DIM if mkt.get("vix") is None else (R if mkt.get("vix") >= 30 else (Y if mkt.get("vix") >= 20 else G))
-    dist = str(mkt.get("dist", "--"))
-    stage = str(mkt.get("stage", "--"))
+    vix = mkt.get("vix")
+    dist = mkt.get("dist", "--")
+    stage = mkt.get("stage", "--")
     spy_raw = mkt.get("spy")
     spy_chg = mkt.get("spy_chg")
-    trend_s = (mkt.get("trend", "")).upper()
+    trend = mkt.get("trend", "")
     halts = mkt.get("halts", [])
-    halt_s = " ".join(str(h)[:16] for h in halts[:2]) if halts else "none"
-    hc = Y if halts else DIM
-
     upvol = mkt.get("upvol")
     adr = mkt.get("adr")
     nh = mkt.get("nh")
@@ -74,6 +70,15 @@ def panel_market_full(mkt, sentiment=None):
     pcr = mkt.get("pcr")
     bmom = mkt.get("bmom")
     fed = mkt.get("fed")
+
+    # Derived values from extracted fields
+    exp_s = f"{float(exp):.0f}%" if exp is not None else "--"
+    bar = exp_bar(exp or 0, w=10)
+    vix_s = f"{vix:.1f}" if vix is not None else "--"
+    vc = DIM if vix is None else (R if vix >= 30 else (Y if vix >= 20 else G))
+    trend_s = trend.upper()
+    halt_s = " ".join(str(h)[:16] for h in halts[:2]) if halts else "none"
+    hc = Y if halts else DIM
 
     uvc = G if upvol is not None and upvol >= 60 else (Y if upvol is not None and upvol >= 50 else R)
     pcr_c = DIM if pcr is None else (G if pcr <= 0.8 else (Y if pcr <= 1.0 else R))
@@ -87,8 +92,8 @@ def panel_market_full(mkt, sentiment=None):
 
     lines = [
         f"[{tc}][bold]{lbl}[/]  [dim]exposure[/][{tc}]{exp_s}[/]  {bar}",
-        f"VIX:[{vc}]{vix}[/]  [dim]Dist Days:[/][white]{dist}[/]  [dim]Stage:[/][white]{stage}[/]"
-        + (f"  [dim]Trend:[/][white]{trend_s}[/]" if trend_s else "")
+        f"VIX:[{vc}]{vix_s}[/]  [dim]Dist Days:[/][white]{dist}[/]  [dim]Stage:[/][white]{stage}[/]"
+        + (f"  [dim]Trend:[/][white]{trend_s}[/]" if trend else "")
         + f"  {spy_s}",
     ]
     if upvol is not None:
@@ -117,7 +122,7 @@ def panel_market_full(mkt, sentiment=None):
     lines.append(halt_fed)
 
     # Fear & Greed
-    if sentiment and not sentimenthas_error(PLACEHOLDER):
+    if sentiment and not has_error(sentiment):
         fg_v = sentiment.get("fg", 0)
         fg_lbl = (sentiment.get("label", ""))[:16]
         fg_c = sentiment.get("color", "dim")
@@ -233,7 +238,7 @@ def panel_market_expanded(mkt, sentiment=None):
         grid.add_row(left_item, right_item)
     rows.append(grid)
 
-    if sentiment and not sentimenthas_error(PLACEHOLDER):
+    if sentiment and not has_error(sentiment):
         rows.append(Rule(style="dim"))
         fg_v = sentiment.get("fg", 0)
         fg_lbl = (sentiment.get("label", ""))[:22]
@@ -262,7 +267,7 @@ def panel_header_market(mkt, sentiment, ts, mkt_s, elapsed, refresh_s="", cfg=No
     rows = [
         Text.from_markup(f"{mkt_s}  [dim]{ts}[/]  [dim]{elapsed:.1f}s[/]{refresh_s}  [{source_color}]{data_source}[/]")
     ]
-    if mkt and not mkthas_error(PLACEHOLDER):
+    if mkt and not has_error(mkt):
         tier = mkt.get("tier", "unknown")
         tc = TIER_COLOR.get(tier, "dim")
         lbl = TIER_SHORT.get(tier, "LOADING")
@@ -335,7 +340,7 @@ def panel_header_market(mkt, sentiment, ts, mkt_s, elapsed, refresh_s="", cfg=No
         line5 = f"[dim]Halt:[/][{hc_col}]{halt_s}[/]"
         if _fed_ok:
             line5 += f"  [dim]Fed:[/][white]{str(fed)[:18]}[/]"
-        if sentiment and not sentimenthas_error(PLACEHOLDER):
+        if sentiment and not has_error(sentiment):
             fg_v = sentiment.get("fg", 0)
             fg_lbl = (sentiment.get("label", ""))[:14]
             fg_c = sentiment.get("color", "dim")

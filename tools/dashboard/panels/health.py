@@ -25,6 +25,7 @@ from rich.rule import Rule
 from rich.table import Table
 from rich.text import Text
 
+from ..error_boundary import has_error
 from ..formatters import (
     fmt_age,
     next_run_str,
@@ -37,7 +38,6 @@ from ..utilities import (
     R,
     Y,
 )
-from ..error_boundary import has_error
 from ._helpers import (
     _best_halt_reason,
     _error_panel,

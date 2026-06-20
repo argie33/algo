@@ -47,7 +47,7 @@ def panel_positions(pos, compact=False, trades=None, extended=False):
     # Issue 3.1 FIX: Use unified normalization function
     pos_items, pos_timestamp, has_error = normalize_positions_data(pos)
     if has_error:
-        err_msg = poshas_error(PLACEHOLDER) if isinstance(pos, dict) else "Unknown error"
+        err_msg = has_error(pos) if isinstance(pos, dict) else "Unknown error"
         return Panel(
             Text(f"  Error: {err_msg}", style="red"),
             title="[bold red]POSITIONS[/]",

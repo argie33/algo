@@ -23,6 +23,7 @@ from rich.table import Table
 from rich.text import Text
 
 from ..data_validation import safe_float
+from ..error_boundary import has_error
 from ..formatters import sign
 from ..utilities import (
     CY,
@@ -33,7 +34,6 @@ from ..utilities import (
     normalize_positions_data,
 )
 from ._helpers import _error_panel
-from ..error_boundary import has_error
 
 
 def _rdelta(r, wk="rank_1w_ago", wk4=None):
@@ -118,7 +118,7 @@ def panel_sector_compact(srank, pos, port, sec_rot=None, irank=None):
         if isinstance(srank, dict) and "items" in srank
         else (srank if isinstance(srank, list) else [])
     )
-    srank_error = srankhas_error(PLACEHOLDER) if isinstance(srank, dict) else None
+    srank_error = has_error(srank) if isinstance(srank, dict) else None
     valid_srank = [r for r in srank_items if not srank_error][:6]
     if valid_srank:
         if rows:
@@ -148,7 +148,7 @@ def panel_sector_compact(srank, pos, port, sec_rot=None, irank=None):
         if isinstance(irank, dict) and "items" in irank
         else (irank if isinstance(irank, list) else [])
     )
-    irank_error = irankhas_error(PLACEHOLDER) if isinstance(irank, dict) else None
+    irank_error = has_error(irank) if isinstance(irank, dict) else None
     valid_irank = irank_items if irank_items and not irank_error else []
     if valid_irank:
         rows.append(Rule(style="dim"))
@@ -265,7 +265,7 @@ def panel_sectors_expanded(srank, pos, port, sec_rot=None, irank=None):
         if isinstance(srank, dict) and "items" in srank
         else (srank if isinstance(srank, list) else [])
     )
-    srank_error_exp = srankhas_error(PLACEHOLDER) if isinstance(srank, dict) else None
+    srank_error_exp = has_error(srank) if isinstance(srank, dict) else None
     valid_srank = [r for r in srank_items_exp if not srank_error_exp]
     if valid_srank:
         rows.append(Text.from_markup("[dim]All sectors  (rank  mom  ↑↓1wk/4wk):[/]"))
@@ -285,7 +285,7 @@ def panel_sectors_expanded(srank, pos, port, sec_rot=None, irank=None):
         if isinstance(irank, dict) and "items" in irank
         else (irank if isinstance(irank, list) else [])
     )
-    irank_error_exp = irankhas_error(PLACEHOLDER) if isinstance(irank, dict) else None
+    irank_error_exp = has_error(irank) if isinstance(irank, dict) else None
     valid_irank = irank_items_exp if irank_items_exp and not irank_error_exp else []
     if valid_irank:
         rows.append(Text.from_markup("[dim]All industries  (rank  mom  ↑↓1wk):[/]"))

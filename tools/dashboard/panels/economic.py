@@ -22,13 +22,13 @@ from rich.rule import Rule
 from rich.table import Table
 from rich.text import Text
 
+from ..error_boundary import has_error
 from ..utilities import (
     G,
     R,
     Y,
 )
 from ._helpers import _error_panel
-from ..error_boundary import has_error
 
 
 @register_panel(
@@ -44,24 +44,14 @@ def panel_economic_pulse(eco, econ_cal=None):
         return err_panel
     rows: list = []
 
-    t10 = eco.get("t10")
-    t2 = eco.get("t2")
-    t3m = eco.get("t3m")
-    t6m = eco.get("t6m")
-    yc10_2 = eco.get("yc_10_2")
-    yc10_3m = eco.get("yc_10_3m")
-    hy = eco.get("hy")
-    ig = eco.get("ig")
-    oil = eco.get("oil")
-    nfci = eco.get("nfci")
-    fed_funds = eco.get("fed_funds")
-    cpi_yoy = eco.get("cpi_yoy")
-    unrate = eco.get("unrate")
-    be10 = eco.get("be10")
-    be5 = eco.get("be5")
-    dxy = eco.get("dxy")
-    mortgage = eco.get("mortgage")
-    umcsent = eco.get("umcsent")
+    # Extract all economic indicators at once (after error check)
+    field_names = [
+        "t10", "t2", "t3m", "t6m", "yc_10_2", "yc_10_3m", "hy", "ig", "oil",
+        "nfci", "fed_funds", "cpi_yoy", "unrate", "be10", "be5", "dxy", "mortgage", "umcsent"
+    ]
+    t10, t2, t3m, t6m, yc10_2, yc10_3m, hy, ig, oil, nfci, fed_funds, cpi_yoy, unrate, be10, be5, dxy, mortgage, umcsent = (
+        eco.get(f) for f in field_names
+    )
 
     # Treasury yields (short to long) + Fed Funds Rate
     y_parts = []
@@ -159,7 +149,7 @@ def panel_economic_pulse(eco, econ_cal=None):
         if isinstance(econ_cal, dict) and "items" in econ_cal
         else (econ_cal if isinstance(econ_cal, list) else [])
     )
-    econ_cal_error = econ_calhas_error(PLACEHOLDER) if isinstance(econ_cal, dict) else None
+    econ_cal_error = has_error(econ_cal) if isinstance(econ_cal, dict) else None
     valid_cal = econ_cal_items if econ_cal_items and not econ_cal_error else []
     if valid_cal:
         rows.append(Rule(style="dim"))
@@ -362,7 +352,7 @@ def panel_economic_expanded(eco, econ_cal=None):
         if isinstance(econ_cal, dict) and "items" in econ_cal
         else (econ_cal if isinstance(econ_cal, list) else [])
     )
-    econ_cal_error = econ_calhas_error(PLACEHOLDER) if isinstance(econ_cal, dict) else None
+    econ_cal_error = has_error(econ_cal) if isinstance(econ_cal, dict) else None
     valid_cal = econ_cal_items if econ_cal_items and not econ_cal_error else []
     if valid_cal:
         rows.append(Rule(style="dim"))
