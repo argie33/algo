@@ -341,13 +341,13 @@ class VectorizedSwingScoresLoader:
                     # Include grade in components so API can read it via components->>'grade'
                     components = {
                         "grade": grade,
-                        "setup": float(row.get("setup_score", 50)),
-                        "trend": float(row.get("trend_score", 50)),
-                        "momentum": float(row.get("momentum_score", 50)),
-                        "volume": float(row.get("volume_score", 50)),
-                        "fundamentals": float(row.get("fundamentals_score", 50)),
-                        "sector": float(row.get("sector_score", 50)),
-                        "multi_t": float(row.get("multi_tf_score", 50)),
+                        "setup": safe_float(row.get("setup_score", 50), default=50, context="setup_score"),
+                        "trend": safe_float(row.get("trend_score", 50), default=50, context="trend_score"),
+                        "momentum": safe_float(row.get("momentum_score", 50), default=50, context="momentum_score"),
+                        "volume": safe_float(row.get("volume_score", 50), default=50, context="volume_score"),
+                        "fundamentals": safe_float(row.get("fundamentals_score", 50), default=50, context="fundamentals_score"),
+                        "sector": safe_float(row.get("sector_score", 50), default=50, context="sector_score"),
+                        "multi_t": safe_float(row.get("multi_tf_score", 50), default=50, context="multi_tf_score"),
                     }
 
                     cur.execute(
@@ -360,7 +360,7 @@ class VectorizedSwingScoresLoader:
                         (
                             row["symbol"],
                             row["date"],
-                            float(row.get("total_score", 50)),
+                            safe_float(row.get("total_score", 50), default=50, context="total_score"),
                             json.dumps(components),
                         ),
                     )
