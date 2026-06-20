@@ -1704,7 +1704,7 @@ locals {
 }
 
 # Access key for developer user (local CLI use)
-# Rotated quarterly per security baseline (see steering/algo.md)
+# Rotated quarterly per security baseline (see steering/system.md)
 # Rotation workflow updates var.developer_key_rotation_date, triggering key recreation on next apply
 resource "aws_iam_access_key" "developer" {
   user = aws_iam_user.developer.name

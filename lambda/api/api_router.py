@@ -515,7 +515,7 @@ def _format_handler_error(e):
 
     Returns specific error type to client for debugging without exposing sensitive details.
     Logs full stack trace server-side for investigation.
-    Error types documented in steering/algo.md → Error Handling & Diagnostics section.
+    Error types documented in steering/system.md → API Error Handling section.
     All errors include _error field for consistent error detection by dashboard.
     """
     error_type = type(e).__name__

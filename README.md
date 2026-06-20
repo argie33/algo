@@ -136,7 +136,7 @@ algo/
 └── LOCAL_SETUP_GUIDE.md         # ← You are here
    DEPLOYMENT_READINESS.md       # Deployment checklist
    CLAUDE.md                     # Project instructions
-   steering/algo.md              # System documentation
+   steering/system.md             # System documentation
 ```
 
 ---
@@ -273,7 +273,7 @@ aws lambda list-functions                    # ✓ Lambda functions deployed
 |----------|---------|
 | [LOCAL_SETUP_GUIDE.md](LOCAL_SETUP_GUIDE.md) | Get site running locally (today) |
 | [DEPLOYMENT_READINESS.md](DEPLOYMENT_READINESS.md) | Deploy to AWS (June 15) |
-| [steering/algo.md](steering/algo.md) | System architecture details |
+| [steering/system.md](steering/system.md) | System architecture details |
 | [terraform/DEPLOYMENT_GUIDE.md](terraform/DEPLOYMENT_GUIDE.md) | IaC deployment walkthrough |
 | [CLAUDE.md](CLAUDE.md) | Project instructions & constraints |
 
@@ -365,7 +365,7 @@ python -c "import lambda.api; print('OK')"
 
 - **Errors during setup?** Check [LOCAL_SETUP_GUIDE.md](LOCAL_SETUP_GUIDE.md) troubleshooting
 - **Deployment questions?** See [DEPLOYMENT_READINESS.md](DEPLOYMENT_READINESS.md)
-- **System architecture?** Read [steering/algo.md](steering/algo.md)
+- **System architecture?** Read [steering/system.md](steering/system.md)
 - **Code questions?** Check [CLAUDE.md](CLAUDE.md)
 
 ---

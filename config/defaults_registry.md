@@ -168,6 +168,6 @@
 ## Related Documentation
 
 - `CLAUDE.md` - Project-wide configuration
-- `steering/algo.md` - System architecture and procedures
+- `steering/system.md` - System architecture and procedures
 - `algo/algo_data_patrol.py` - Default configuration loader
 - `utils/fallback_registry.py` - Fallback behavior documentation

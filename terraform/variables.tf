@@ -601,7 +601,7 @@ variable "cognito_session_duration_hours" {
 }
 
 variable "cognito_custom_email_enabled" {
-  description = "Enable custom message Lambda for Cognito emails (requires SES production access). See steering/algo.md for setup."
+  description = "Enable custom message Lambda for Cognito emails (requires SES production access). See steering/system.md for setup."
   type        = bool
   default     = false
 }
