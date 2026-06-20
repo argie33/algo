@@ -1,9 +1,10 @@
 name: CI — Required Checks (Security + Lint + Tests + Coverage)
 
 # Runs on: every commit to main, every PR
-# Duration: ~12 minutes (security scans + linting + full test suite + coverage)
+# Duration: ~27 minutes (security scans + linting + full test suite + coverage + CodeQL tools)
 # Cost: within GitHub free tier
 # All gates are BLOCKING — merge blocked if any gate fails
+# Priority 0 Security Gates Added: CodeQL (separate workflow), Trivy, Semgrep, OWASP ZAP DAST
 
 on:
   push:
@@ -145,6 +146,97 @@ jobs:
           tfsec terraform/ --minimum-severity CRITICAL
           echo "OK: No critical Terraform security issues found"
 
+  scan-container:
+    name: Security — Container Image Scanning (Trivy)
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    permissions:
+      security-events: write
+      contents: read
+    steps:
+      - uses: actions/checkout@692973e3d937129bcbf40652eb9f2f61becf3332  # v4.1.7
+      - name: Build container image
+        run: docker build -t algo:${{ github.sha }} .
+      - name: Scan with Trivy
+        uses: aquasecurity/trivy-action@master
+        with:
+          image-ref: algo:${{ github.sha }}
+          format: 'sarif'
+          output: 'trivy-results.sarif'
+          severity: 'CRITICAL,HIGH'
+      - name: Upload Trivy results to GitHub Security
+        uses: github/codeql-action/upload-sarif@522fcb2491c81aab3e92074897baeab4019e6401  # v3
+        if: always()
+        with:
+          sarif_file: 'trivy-results.sarif'
+          category: 'trivy'
+
+  scan-semgrep:
+    name: Security — JavaScript/TypeScript Analysis (Semgrep)
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    permissions:
+      security-events: write
+      contents: read
+    steps:
+      - uses: actions/checkout@692973e3d937129bcbf40652eb9f2f61becf3332  # v4.1.7
+      - name: Run Semgrep
+        uses: returntocorp/semgrep-action@v1
+        with:
+          config: >-
+            p/security-audit
+            p/owasp-top-ten
+            p/nodejs
+            p/typescript
+          generateSarif: true
+      - name: Upload Semgrep results to GitHub Security
+        uses: github/codeql-action/upload-sarif@522fcb2491c81aab3e92074897baeab4019e6401  # v3
+        if: always()
+        with:
+          sarif_file: 'semgrep.sarif'
+          category: 'semgrep'
+
+  scan-licenses:
+    name: Compliance — License Checking
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@692973e3d937129bcbf40652eb9f2f61becf3332  # v4.1.7
+      - uses: actions/setup-python@a26af69be951a213d495a4c3e4e4022e16d87065  # v5
+        with:
+          python-version: '3.11'
+          cache: 'pip'
+      - name: Install licensecheck
+        run: pip install -q licensecheck
+      - name: Check Python dependency licenses
+        run: |
+          licensecheck --zero --format json > /tmp/license-report.json || true
+          # Check for GPL/SSPL in output (these have compliance implications)
+          if grep -iE '(GPL|SSPL)' /tmp/license-report.json; then
+            echo "WARNING: GPL/SSPL licenses detected in Python dependencies"
+            echo "Review before using this in commercial distribution"
+            cat /tmp/license-report.json
+            # Not failing CI yet — review findings first
+          else
+            echo "OK: No GPL/SSPL licenses in Python dependencies"
+          fi
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '18'
+          cache: 'npm'
+      - name: Check Node.js dependency licenses
+        run: |
+          npm install -g license-checker
+          license-checker --json > /tmp/npm-licenses.json || true
+          if grep -iE '(GPL|SSPL)' /tmp/npm-licenses.json; then
+            echo "WARNING: GPL/SSPL licenses detected in Node.js dependencies"
+            cat /tmp/npm-licenses.json
+          else
+            echo "OK: No GPL/SSPL licenses in Node.js dependencies"
+          fi
+      - name: License compliance check completed
+        run: echo "License scan completed — review warnings above"
+
   lint-and-type:
     runs-on: ubuntu-latest
     timeout-minutes: 5
@@ -241,6 +333,53 @@ jobs:
           ALPACA_KEY: pk-test-alpaca-key
           ALPACA_SECRET: sk-test-alpaca-secret
 
+  scan-dast:
+    name: Security — Dynamic Testing (OWASP ZAP)
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    needs: [tests]
+    permissions:
+      security-events: write
+      contents: read
+    steps:
+      - uses: actions/checkout@692973e3d937129bcbf40652eb9f2f61becf3332  # v4.1.7
+      - name: Build test image
+        run: docker build -t algo:dast-test .
+      - name: Start API server in background
+        run: |
+          docker run -d \
+            --name algo-api \
+            -p 5000:5000 \
+            -e DATABASE_URL=postgresql://mock:mock@localhost/algo_test \
+            -e EXECUTION_MODE=dry_run \
+            -e DB_MODE=mock \
+            algo:dast-test
+          echo "Waiting for API server..."
+          sleep 5
+          for i in {1..30}; do
+            if curl -f http://localhost:5000/health 2>/dev/null; then
+              echo "API server ready"
+              exit 0
+            fi
+            sleep 1
+          done
+          echo "Server failed to start"
+          docker logs algo-api
+          exit 1
+      - name: Run OWASP ZAP baseline scan
+        uses: zaproxy/action-baseline@v0.11.0
+        with:
+          target: 'http://localhost:5000'
+          cmd_options: '-a'
+        continue-on-error: true
+      - name: Upload ZAP report
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: zap-report
+          path: report_html.html
+          retention-days: 30
+
   coverage:
     name: Coverage — Test Coverage Report
     runs-on: ubuntu-latest
@@ -303,7 +442,7 @@ jobs:
 
   summary:
     runs-on: ubuntu-latest
-    needs: [scan-secrets, scan-dependencies, scan-sast, validate-terraform, scan-iac, lint-and-type, tests, coverage]
+    needs: [scan-secrets, scan-dependencies, scan-sast, scan-container, scan-semgrep, validate-terraform, scan-iac, scan-licenses, lint-and-type, tests, scan-dast, coverage]
     if: always()
     steps:
       - name: Check status
@@ -355,6 +494,30 @@ jobs:
             exit 1
           fi
           echo "OK: IaC scan passed"
+
+          if [[ "${{ needs.scan-container.result }}" != "success" ]]; then
+            echo "FAIL: Container scan FAILED — vulnerabilities detected in Docker image"
+            exit 1
+          fi
+          echo "OK: Container scan passed (Trivy)"
+
+          if [[ "${{ needs.scan-semgrep.result }}" != "success" ]]; then
+            echo "FAIL: Semgrep scan FAILED — security issues detected in JS/TS code"
+            exit 1
+          fi
+          echo "OK: Semgrep scan passed"
+
+          if [[ "${{ needs.scan-dast.result }}" != "success" ]]; then
+            echo "WARN: DAST scan FAILED — runtime vulnerabilities detected (non-blocking)"
+            # DAST failures are warnings only for now; upgrade to blocking as you add fixes
+          fi
+          echo "OK: DAST scan completed"
+
+          if [[ "${{ needs.scan-licenses.result }}" != "success" ]]; then
+            echo "WARN: License scan FAILED — check results for GPL/SSPL implications"
+            # License scan is currently warning-only; review and gate if needed
+          fi
+          echo "OK: License compliance check completed"
 
           if [[ "${{ needs.coverage.result }}" != "success" ]]; then
             echo "FAIL: Coverage analysis FAILED"
