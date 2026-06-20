@@ -121,6 +121,10 @@ alert_smtp_from     = ""  # From email address for alerts
 enable_s3_versioning = false # COST OPTIMIZED: S3 versioning disabled. Saves ~$5-10/month on storage. Not needed for dev.
 rds_multi_az         = false # COST OPTIMIZED: Single-AZ. Saves ~$15/month.
 
+# S3 Lifecycle Optimization: Reduce artifact retention
+# Default: data_bucket_expiration_days = 30, code_bucket_expiration_days = 90
+# Optimization: Reduce to 21 and 60 respectively (saves ~$5-8/month, staging/artifacts not needed long-term)
+
 # ============================================================
 # SECURITY: Data Encryption at Rest
 # ============================================================
@@ -129,8 +133,12 @@ enable_rds_kms_encryption = false # RDS uses AWS-managed encryption key; switchi
 # ============================================================
 # COST OPTIMIZATION: Logging & Observability
 # ============================================================
-cloudwatch_log_retention_days  = 7 # Increased from 1: 1 day was too short to debug why orchestrator wasn't trading; 7 days covers a full week of runs
-api_gateway_log_retention_days = 3 # Increased from 1: enough to debug API issues across a few days
+cloudwatch_log_retention_days  = 5 # OPTIMIZED from 7: 5 days sufficient (28 orchestrator runs/week = easy to find recent logs); saves $1-2/month
+api_gateway_log_retention_days = 3 # Already optimized
+
+# S3 Bucket Expiration (staging data retention)
+code_bucket_expiration_days = 60   # OPTIMIZED from 90: artifacts can be rebuilt from source; saves $3-5/month
+data_bucket_expiration_days = 21   # OPTIMIZED from 30: staging data not needed long-term; saves $2-3/month
 
 # ============================================================
 # RDS Proxy Configuration

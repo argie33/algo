@@ -37,16 +37,21 @@ module "vpc" {
 module "storage" {
   source = "./modules/storage"
 
-  project_name                = var.project_name
-  environment                 = var.environment
-  aws_region                  = var.aws_region
-  aws_account_id              = local.aws_account_id
-  enable_versioning           = var.enable_s3_versioning
-  code_bucket_expiration_days = var.code_bucket_expiration_days
-  data_bucket_expiration_days = var.data_bucket_expiration_days
-  encryption_kms_key_id       = var.s3_encryption_kms_key_id
-  enforce_kms_encryption      = var.enforce_s3_kms_encryption
-  common_tags                 = local.common_tags
+  project_name                           = var.project_name
+  environment                            = var.environment
+  aws_region                             = var.aws_region
+  aws_account_id                         = local.aws_account_id
+  enable_versioning                      = var.enable_s3_versioning
+  code_bucket_expiration_days            = var.code_bucket_expiration_days
+  data_bucket_expiration_days            = var.data_bucket_expiration_days
+  log_archive_transition_ia_days         = var.log_archive_transition_ia_days
+  log_archive_transition_glacier_days    = var.log_archive_transition_glacier_days
+  log_archive_transition_deep_archive_days = var.log_archive_transition_deep_archive_days
+  log_archive_expiration_days            = var.log_archive_expiration_days
+  log_archive_intelligent_tiering_enabled = var.log_archive_intelligent_tiering_enabled
+  encryption_kms_key_id                  = var.s3_encryption_kms_key_id
+  enforce_kms_encryption                 = var.enforce_s3_kms_encryption
+  common_tags                            = local.common_tags
 }
 
 resource "random_password" "jwt_secret" {

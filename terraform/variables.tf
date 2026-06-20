@@ -356,6 +356,36 @@ variable "data_bucket_expiration_days" {
   default     = 30
 }
 
+variable "log_archive_transition_ia_days" {
+  description = "Days before transitioning logs to Standard-IA"
+  type        = number
+  default     = 30
+}
+
+variable "log_archive_transition_glacier_days" {
+  description = "Days before transitioning logs to Glacier-IR"
+  type        = number
+  default     = 90
+}
+
+variable "log_archive_transition_deep_archive_days" {
+  description = "Days before transitioning logs to Deep Archive"
+  type        = number
+  default     = 365
+}
+
+variable "log_archive_expiration_days" {
+  description = "Days before deleting archived logs"
+  type        = number
+  default     = 2555 # ~7 years
+}
+
+variable "log_archive_intelligent_tiering_enabled" {
+  description = "Enable Intelligent-Tiering on log archive bucket"
+  type        = bool
+  default     = true
+}
+
 # ============================================================
 # Lambda Configuration
 # ============================================================
