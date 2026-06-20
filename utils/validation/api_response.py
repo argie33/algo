@@ -100,3 +100,23 @@ class APIResponseValidator:
             logger.warning(
                 f"[NULL_VALUES_DETECTED] {operation}: Found {len(nulls)} None values at: {', '.join(nulls)}"
             )
+
+    @staticmethod
+    def validate_critical_response(data: Any, operation: str = "API response") -> None:
+        """Validate response for critical endpoints. Raises if nulls detected.
+
+        Critical endpoints must have complete data — validation failures are fatal.
+        Use this instead of log_null_findings() for user-facing or trading endpoints.
+
+        Args:
+            data: Response data to check
+            operation: Name of operation for context in error message
+
+        Raises:
+            ValueError: If any None values detected in response
+        """
+        nulls = APIResponseValidator.validate_no_nulls(data)
+        if nulls:
+            error_msg = f"[VALIDATION_FAILED] {operation}: Found {len(nulls)} None values at: {', '.join(nulls)}. Cannot continue with invalid data."
+            logger.critical(error_msg)
+            raise ValueError(error_msg)
