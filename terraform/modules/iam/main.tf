@@ -1212,6 +1212,25 @@ data "aws_iam_policy_document" "eventbridge_scheduler" {
       "arn:aws:states:${var.aws_region}:${var.aws_account_id}:stateMachine:${var.project_name}-*"
     ]
   }
+
+  # CloudWatch Logs (required for EventBridge Scheduler to log execution attempts)
+  statement {
+    sid    = "CloudWatchLogs"
+    effect = "Allow"
+
+    actions = [
+      "logs:CreateLogDelivery",
+      "logs:GetLogDelivery",
+      "logs:UpdateLogDelivery",
+      "logs:DeleteLogDelivery",
+      "logs:ListLogDeliveries",
+      "logs:PutResourcePolicy",
+      "logs:DescribeResourcePolicies",
+      "logs:DescribeLogGroups"
+    ]
+
+    resources = ["*"]
+  }
 }
 
 # ============================================================

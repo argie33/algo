@@ -1449,6 +1449,17 @@ resource "aws_sfn_state_machine" "intraday_preclose_update_pipeline" {
 }
 
 # ============================================================
+# CloudWatch Log Group for EventBridge Scheduler
+# ============================================================
+
+resource "aws_cloudwatch_log_group" "eventbridge_scheduler" {
+  name              = "/aws/scheduler/${var.project_name}-pipeline-${var.environment}"
+  retention_in_days = var.cloudwatch_log_retention_days
+
+  tags = var.common_tags
+}
+
+# ============================================================
 # EventBridge Scheduler (timezone-aware): all pipelines use America/New_York so they
 # fire at the correct wall-clock time year-round regardless of EST/EDT offset.
 #
@@ -1553,6 +1564,11 @@ resource "aws_scheduler_schedule" "eod_pipeline_trigger" {
     input = jsonencode({
       execution_name = "eod-<aws.scheduler.execution-id>"
     })
+
+    retry_policy {
+      maximum_event_age       = 3600
+      maximum_retry_attempts  = 2
+    }
   }
 }
 
