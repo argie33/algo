@@ -232,7 +232,7 @@ def _build_perf_header(perf_data: dict, pos) -> Text:
     open_l_s = f" [dim](+{losing_open} open L)[/]" if losing_open > 0 else ""
 
     return Text.from_markup(
-        f"[bold white]{w + l + (adj_l or 0) - (l or 0)} Trades[/]  "
+        f"[bold white]{w + closed_losses + (adj_l or 0) - (closed_losses or 0)} Trades[/]  "
         f"[{G}]{w}W[/][dim]/[/][{R}]{adj_l}L[/]  "
         f"[dim]Win Rate:[/][{wrc}]{wr_v:.1f}%[/]{open_l_s}  "
         f"[{str_c}]{str_s} streak[/]"

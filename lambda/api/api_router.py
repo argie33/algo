@@ -8,9 +8,6 @@ import threading
 # Set up imports for Lambda API - ensures routes and api_utils are importable
 import setup_imports  # noqa: F401
 
-# Import from lambda_function which has TTL-based caching (24hr)
-from lambda_function import fetch_cloudfront_domain_from_secrets
-
 
 logger = logging.getLogger(__name__)
 
@@ -283,6 +280,7 @@ def _add_cors_headers(response):
     allowed_origins_str = os.getenv("ALLOWED_ORIGINS", "").strip()
     if not allowed_origins_str:
         # Fallback: fetch CloudFront domain from Secrets Manager
+        from lambda_function import fetch_cloudfront_domain_from_secrets
         cf_domain, _ = fetch_cloudfront_domain_from_secrets()
         allowed_origins = [cf_domain] if cf_domain else []
     else:
