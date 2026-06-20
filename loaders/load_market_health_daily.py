@@ -226,14 +226,16 @@ class MarketHealthDailyLoader(OptimalLoader):
                     continue
 
                 close_float = float(close_val)
-                # CRITICAL FIX: Accept ALL valid numeric VIX values, including < 5.0
-                # Low VIX (< 5) is rare but valid (indicates very low market volatility)
-                # Filtering them out masks data quality issues. Only reject NaN/None.
-                if close_float >= 0:
-                    result[date_str] = round(close_float, 2)
-                    if close_float < 5.0:
-                        low_value_count += 1
-                        low_values.append(close_float)
+                # VIX must be > 0 (can never be 0 in real market data)
+                # If yfinance returns 0, it's a data quality issue - skip it
+                if close_float <= 0:
+                    logger.warning(f"[VIX] Skipping invalid value {close_float} on {date_str} (VIX must be > 0)")
+                    continue
+
+                result[date_str] = round(close_float, 2)
+                if close_float < 5.0:
+                    low_value_count += 1
+                    low_values.append(close_float)
 
             # Check for data availability
             if len(result) == 0:
