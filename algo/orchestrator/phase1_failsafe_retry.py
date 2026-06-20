@@ -155,9 +155,17 @@ def check_and_retry_incomplete_loaders(dry_run: bool = False) -> dict[str, Any]:
                             results["still_failing"].append(table_name)
                             final_pct = retry_result.get("final_completion_pct")
                             pct_str = f"{final_pct:.1f}%" if final_pct is not None else "unknown"
+                            status_reason = retry_result.get("status_reason", "unknown")
+
+                            if status_reason == "timeout":
+                                reason_msg = "timeout (loader still running after 15 minutes)"
+                            elif status_reason == "failed":
+                                reason_msg = f"failed (completed with {pct_str} completion)"
+                            else:
+                                reason_msg = f"failed ({pct_str} completion)"
+
                             logger.error(
-                                f"[PHASE 1 FAILSAFE] Loader still failing after retry: {table_name} "
-                                f"-> {pct_str}"
+                                f"[PHASE 1 FAILSAFE] Loader still failing after retry: {table_name} — {reason_msg}"
                             )
 
                             if is_critical:
@@ -187,13 +195,15 @@ def retry_loader(
         {
             "retried": bool,        # True if retry was triggered
             "recovered": bool,      # True if loader reached >=95% after retry
-            "final_completion_pct": float,
+            "final_completion_pct": float | None,  # None if status unknown
+            "status_reason": str,   # 'success', 'timeout' (still running), or 'failed'
         }
     """
     result = {
         "retried": False,
         "recovered": False,
-        "final_completion_pct": 0.0,
+        "final_completion_pct": None,
+        "status_reason": "unknown",
     }
 
     try:
@@ -209,11 +219,12 @@ def retry_loader(
 
         if result["retried"]:
             # Monitor loader status
-            recovered, final_pct = monitor_loader_retry(
+            recovered, final_pct, status_reason = monitor_loader_retry(
                 loader_name, RETRY_MONITOR_TIMEOUT_SECONDS
             )
             result["recovered"] = recovered
-            result["final_completion_pct"] = final_pct
+            result["final_completion_pct"] = final_pct  # type: ignore[assignment]
+            result["status_reason"] = status_reason
 
     except Exception as e:
         logger.error(
@@ -357,7 +368,7 @@ def _run_loader_with_timeout(
 
 def monitor_loader_retry(
     loader_name: str, timeout_seconds: int
-) -> tuple[bool, float | None]:
+) -> tuple[bool, float | None, str]:
     """Monitor loader status during retry.
 
     Args:
@@ -365,9 +376,10 @@ def monitor_loader_retry(
         timeout_seconds: How long to wait before giving up
 
     Returns:
-        (recovered, final_completion_pct):
+        (recovered, final_completion_pct, status_reason):
         - recovered: True if loader reached >=95% completion
         - final_completion_pct: Latest completion percentage, or None if status unknown
+        - status_reason: 'success', 'timeout' (still running), or 'failed' (completed low)
     """
     deadline = datetime.now(timezone.utc) + timedelta(seconds=timeout_seconds)
 
@@ -392,14 +404,14 @@ def monitor_loader_retry(
                         logger.info(
                             f"[PHASE 1 FAILSAFE] Loader recovered: {loader_name} {completion_pct:.1f}%"
                         )
-                        return True, completion_pct
+                        return True, completion_pct, "success"
 
                     elif status == "COMPLETED":
                         # Completed but still below 95% (unlikely but handle it)
                         logger.warning(
                             f"[PHASE 1 FAILSAFE] Loader completed but incomplete: {loader_name} {completion_pct:.1f}%"
                         )
-                        return False, completion_pct
+                        return False, completion_pct, "failed"
 
             # Check again in 10 seconds
             time.sleep(10)
@@ -409,8 +421,8 @@ def monitor_loader_retry(
                 f"[PHASE 1 FAILSAFE] Error monitoring retry for {loader_name}: {e}"
             )
 
-    # Timeout reached
+    # Timeout reached — loader still running, didn't complete within deadline
     logger.error(
-        f"[PHASE 1 FAILSAFE] Timeout waiting for retry of {loader_name} (waited {timeout_seconds}s) — status unknown"
+        f"[PHASE 1 FAILSAFE] Timeout waiting for retry of {loader_name} (waited {timeout_seconds}s, loader still running)"
     )
-    return False, None  # None indicates we couldn't determine final status
+    return False, None, "timeout"
