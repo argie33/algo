@@ -1123,38 +1123,56 @@ class DailyReconciliation:
         failed_symbols = {row[0] for row in cur.fetchall()}
         retryable = failed_symbols & set(alpaca_map.keys())
         retried = 0
+        skipped_count = 0
+        skip_reasons = []
         for sym in retryable:
             ap = alpaca_map[sym]
             try:
                 qty_raw = getattr(ap, "qty", None)
                 if qty_raw is None or qty_raw == 0:
+                    skip_reasons.append(f"{sym}: qty missing/zero")
+                    skipped_count += 1
                     continue
                 qty = float(qty_raw)
                 avg_entry_raw = getattr(ap, "avg_entry_price", None)
                 if avg_entry_raw is None or float(avg_entry_raw) <= 0:
+                    skip_reasons.append(f"{sym}: avg_entry_price missing/invalid")
+                    skipped_count += 1
                     continue
                 avg_entry = float(avg_entry_raw)
                 cur_price_raw = getattr(ap, "current_price", None)
                 if cur_price_raw is None or float(cur_price_raw) <= 0:
+                    skip_reasons.append(f"{sym}: current_price missing/invalid")
+                    skipped_count += 1
                     continue
                 cur_price = float(cur_price_raw)
                 pos_value_raw = getattr(ap, "market_value", None)
                 if pos_value_raw is None:
+                    skip_reasons.append(f"{sym}: market_value missing")
+                    skipped_count += 1
                     continue
                 try:
                     pos_value = float(pos_value_raw)
                 except (ValueError, TypeError):
+                    skip_reasons.append(f"{sym}: market_value not numeric")
+                    skipped_count += 1
                     continue
                 if pos_value <= 0:
+                    skip_reasons.append(f"{sym}: market_value <= 0")
+                    skipped_count += 1
                     continue
                 pnl_raw = getattr(ap, "unrealized_pl", None)
                 pnl_pct_raw = getattr(ap, "unrealized_plpc", None)
                 if pnl_raw is None or pnl_pct_raw is None:
+                    skip_reasons.append(f"{sym}: PnL fields missing (pnl={pnl_raw}, pnl_pct={pnl_pct_raw})")
+                    skipped_count += 1
                     continue
                 try:
                     pnl = float(pnl_raw)
                     pnl_pct = (float(pnl_pct_raw) * 100)
-                except (ValueError, TypeError):
+                except (ValueError, TypeError) as e:
+                    skip_reasons.append(f"{sym}: PnL not numeric ({e})")
+                    skipped_count += 1
                     continue
                 position_id = f"EXT-{sym}-{datetime.now(timezone.utc).strftime('%Y%m%d')}"
                 trade_id = f"EXT-{sym}"
@@ -1269,6 +1287,11 @@ class DailyReconciliation:
                     )
             except (psycopg2.DatabaseError, psycopg2.OperationalError) as e:
                 logger.debug(f"  Retry prep for {sym} failed: {e}")
+        # Issue #11: Log skip summary for audit trail
+        logger.info(
+            f"[RECONCILIATION] Retry import: {retried} succeeded, {skipped_count} skipped. "
+            f"Skips: {skip_reasons[:10]}"  # First 10 skip reasons
+        )
         cur.execute(
             "SELECT COUNT(DISTINCT symbol) FROM alpaca_import_failures "
             "WHERE resolved = FALSE AND failed_at > NOW() - INTERVAL '1 day'"

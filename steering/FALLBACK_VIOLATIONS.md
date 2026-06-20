@@ -222,6 +222,174 @@ dry_run = event.get("dry_run", False)  # FALLBACK to dry_run=False for preclose
 
 ---
 
+## ADDITIONAL DASHBOARD FETCHER VIOLATIONS (Not Fail-Fast Compliant)
+
+### 16. **Fetchers.py — fetch_signals Returns Fallback Dict on Error** ⚠️ HIGH
+**File:** `tools/dashboard/fetchers.py`
+**Lines:** 580-632
+**Pattern:**
+```python
+if _is_api_error(data):
+    return {
+        "_error": message,
+        "n": 0,
+        "total": 0,
+        "buy_sigs": [],
+        "grades": {},
+        # ... 5 more fallback fields
+    }
+```
+**Problem:** Returns `{"_error": "...", plus all fields with defaults}` instead of `{"_error": "..."}` only.
+**Impact:** Panels receive false data structure; they can't tell if fields are real or fallback.
+**Fix Needed:** Return `{"_error": message}` only. Panels must check `has_error()` before accessing fields.
+
+---
+
+### 17. **Fetchers.py — fetch_sentiment Returns Fallback Dict on Error** ⚠️ MEDIUM
+**File:** `tools/dashboard/fetchers.py`
+**Lines:** 942-968
+**Pattern:**
+```python
+if _is_api_error(data):
+    return {"_error": message, "fg": 50, "label": "Unknown", ...}
+# ALSO in exception handler:
+except Exception:
+    return {"_error": message, "fg": 50, "label": "Unknown", ...}
+```
+**Problem:** Returns fake defaults (fg=50 = neutral, label="Unknown") when error occurs.
+**Impact:** Dashboard shows "50% fear/greed" even when sentiment data failed.
+**Fix Needed:** Return `{"_error": message}` only.
+
+---
+
+### 18. **Fetchers.py — fetch_risk_metrics Returns Fallback Dict on Error** ⚠️ MEDIUM
+**File:** `tools/dashboard/fetchers.py`
+**Lines:** 992-1021
+**Pattern:**
+```python
+if _is_api_error(data):
+    return {"_error": message, "date": None, "var95": None, ...}
+# ALSO in exception handler with same structure
+```
+**Problem:** Returns structure with all None values instead of just error.
+**Impact:** Panels can't distinguish "no data loaded" from "real data is None".
+**Fix Needed:** Return `{"_error": message}` only.
+
+---
+
+### 19. **Fetchers.py — fetch_perf_analytics Returns Fallback Dict on Error** ⚠️ MEDIUM
+**File:** `tools/dashboard/fetchers.py`
+**Lines:** 1029-1064
+**Pattern:**
+```python
+if _is_api_error(data):
+    return {"_error": message, "sharpe252": None, "sortino": None, ...}
+# ALSO in exception handler
+```
+**Problem:** Returns structure with 8 None fields instead of just error.
+**Impact:** Same as above — can't distinguish error from missing data.
+**Fix Needed:** Return `{"_error": message}` only.
+
+---
+
+### 20. **Fetchers.py — fetch_sector_rotation Returns Multiple Fallback Dicts** ⚠️ MEDIUM
+**File:** `tools/dashboard/fetchers.py`
+**Lines:** 1096-1140
+**Pattern:**
+```python
+if _is_api_error(data):
+    return {"_error": message, "date": None, "signal": "", "weeks": 0, ...}
+if not items:
+    return {"_error": "No sector rotation data available", "date": None, ...}
+# ALSO in exception handler
+```
+**Problem:** Returns fallback dict THREE times (error path, no items path, exception path).
+**Impact:** Panels get false structure in all failure cases.
+**Fix Needed:** Return `{"_error": message}` only for all failure paths.
+
+---
+
+### 21. **Fetchers.py — fetch_economic_pulse Returns Large Fallback Dict** ⚠️ MEDIUM
+**File:** `tools/dashboard/fetchers.py`
+**Lines:** 814-900
+**Pattern:**
+```python
+_empty = {  # 17 fields, all None
+    "t10": None, "t2": None, "t3m": None, ...
+}
+# Exception handler:
+except Exception:
+    return {"_error": error_msg, **_empty}
+```
+**Problem:** Returns error plus 17 fields of None values.
+**Impact:** Panels get fake economic data when fetch fails.
+**Fix Needed:** Return `{"_error": message}` only.
+
+---
+
+### 22. **Fetchers.py — fetch_recent_trades Returns Items in Error Dict** ⚠️ MEDIUM
+**File:** `tools/dashboard/fetchers.py`
+**Lines:** 556-567
+**Pattern:**
+```python
+if "503" in str(_get_error_message(data)):
+    return {
+        "_no_data": True,
+        "items": [],
+        "timestamp": datetime.now(ET),
+    }
+return {
+    "_error": _get_error_message(data),
+    "items": [],
+    "timestamp": datetime.now(ET),
+}
+```
+**Problem:** Returns error dict with `"items": []` and timestamp, not just error.
+**Impact:** Panels see empty items array instead of error marker.
+**Fix Needed:** Return `{"_error": message}` only. Panels check `has_error()` before iterating items.
+
+---
+
+### 23. **Fetchers.py — fetch_economic_pulse Partial Fallback** ⚠️ MEDIUM
+**File:** `tools/dashboard/fetchers.py`
+**Lines:** 841-896
+**Pattern:**
+```python
+if not _is_api_error(yc_data):
+    d = yc_data
+    # ... extract values
+else:
+    t10 = t2 = t3m = ... = None  # Implicit, not explicit
+return {
+    "t10": t10,  # Could be None from API error
+    "t2": t2,    # Could be None from API error
+    ...
+}
+```
+**Problem:** Partially successful fetches (yc succeeds, ind fails) return mixed None + real data.
+**Impact:** Panels can't tell if None means "API error" or "field missing in successful response".
+**Fix Needed:** Return `{"_error": message}` if EITHER API call fails.
+
+---
+
+### 24. **Panels/market.py — Undefined Variables (spy_raw, spy_chg)** ⚠️ HIGH
+**File:** `tools/dashboard/panels/market.py`
+**Lines:** 62, 82-86
+**Pattern:**
+```python
+# Line 62: expression not assigned
+f"${mkt['spy']:.2f}" if mkt.get("spy") else "--"
+
+# Line 82: uses undefined spy_raw
+spy_s = f"SPY:[white]${float(spy_raw):.2f}[/]"
+if spy_chg is not None:  # spy_chg also undefined
+```
+**Problem:** Variable assignment missing on line 62; lines 82-86 reference undefined variables.
+**Impact:** Panel crashes with NameError when rendering market data.
+**Fix Needed:** Extract `spy_raw = mkt.get("spy")` and `spy_chg = mkt.get("spy_chg")` before use.
+
+---
+
 ## PATTERNS THAT ARE OK (Intentional Fallbacks)
 
 ### ✅ API Caching During Circuit Breaker
@@ -243,16 +411,66 @@ dry_run = event.get("dry_run", False)  # FALLBACK to dry_run=False for preclose
 | Severity | Count | Impact |
 |----------|-------|--------|
 | 🔴 CRITICAL | 4 | Finance calculations corrupted (PnL, values, latency) |
-| 🟠 HIGH | 6 | Dashboard doesn't error; hides data issues |
-| 🟡 MEDIUM | 4 | Exit logic & order tracking affected |
+| 🟠 HIGH | 8 | Dashboard doesn't error; hides data issues; panels crash |
+| 🟡 MEDIUM | 11 | Exit logic, order tracking, partial fallbacks, stale data mixing |
 | 🔵 LOW | 1 | Config/parallelism ambiguity |
 
-**Total Violations:** 15
+**Total Violations:** 24 (15 original + 9 new dashboard violations)
 
 ---
 
 ## Recommended Fix Priority
 
-1. **Immediate (this sprint):** Fix #1, #2, #3 (reconciliation & executor latency)
-2. **Next sprint:** Fix #5, #6, #7, #8, #9 (dashboard fail-fast)
-3. **Backlog:** Fix #11-15 (lower impact config/skip issues)
+### Tier 1: Critical (Fixes This Sprint)
+- **#1, #2, #3:** Reconciliation & executor latency (finance calculations)
+- **#24:** market.py undefined variables (panel crash)
+
+### Tier 2: High Priority (Next Sprint - Dashboard Fail-Fast)
+- **#5, #6, #7, #8, #9:** fetch_run, fetch_algo_config, fetch_market validation
+- **#16, #17, #18, #19, #20, #21, #22:** fetch_* fallback dict violations
+- **#23:** fetch_economic_pulse partial fallback mixing
+
+### Tier 3: Medium Priority (Following Sprint)
+- **#10, #11, #12, #13:** Config parsing, skip logging, exit logic
+- **#14, #15:** Lambda task count and dry-run mode
+
+---
+
+## Key Principle: Fail-Fast vs. Fallback
+
+**When to return error ONLY:**
+- Data fetchers (any fetch_*) that hit API errors
+- Critical data is missing (finance, pricing, portfolio values)
+- Validation fails on required fields
+- Exception occurs during data processing
+
+**When fallback is OK (rarely):**
+- ✅ Circuit breaker fallback to stale cache (documented, degraded mode)
+- ✅ Optional fields with `.get("field", [])` for truly optional arrays
+- ✅ Non-critical display fields with sensible defaults
+- ❌ NEVER for: prices, quantities, P&L, portfolio values, trading signals
+
+---
+
+## How Panels Should Consume Data
+
+```python
+from .error_boundary import has_error, error_summary_panel
+
+def my_panel(data):
+    # FIRST: Check for error (includes stale data)
+    err_panel = error_summary_panel({"data": data})
+    if err_panel:
+        return err_panel
+    
+    # SECOND: Now safe to access fields - validation guarantees they exist
+    value = data["critical_field"]  # Direct access, no .get()
+    
+    # THIRD: For optional fields, use .get()
+    optional = data.get("nice_to_have_field")
+```
+
+**This pattern ensures:**
+1. Errors surface visually to operators
+2. Panels never receive data with `_error` + fallback fields
+3. No silent None values masking real problems
