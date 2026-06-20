@@ -178,12 +178,9 @@ def lambda_handler(event, context):
             }
 
         # Load portfolio variance threshold from centralized config
-        try:
-            from config.thresholds import ThresholdConfig
+        from config.thresholds import ThresholdConfig
 
-            threshold = ThresholdConfig.portfolio_variance_threshold()
-        except Exception:
-            threshold = 0.15  # Fallback to default
+        threshold = ThresholdConfig.portfolio_variance_threshold()
 
         if variance > threshold:
             logger.critical(

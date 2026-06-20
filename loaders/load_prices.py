@@ -1600,14 +1600,11 @@ class PriceLoader(OptimalLoader):
         # Timeout guardrails: ECS task timeout is 25200s (7h), Step Functions is 27000s (7.5h)
         # At N% of timeout, if < 10% complete, trigger emergency mode (multiplier from config)
         task_timeout_sec = 25200
-        try:
-            from config.thresholds import ThresholdConfig
+        from config.thresholds import ThresholdConfig
 
-            emergency_multiplier = (
-                ThresholdConfig.loader_emergency_mode_threshold_multiplier()
-            )
-        except Exception:
-            emergency_multiplier = 0.5
+        emergency_multiplier = (
+            ThresholdConfig.loader_emergency_mode_threshold_multiplier()
+        )
         emergency_mode_threshold = task_timeout_sec * emergency_multiplier
         completion_threshold_pct = 0.10  # 10% complete
         emergency_mode_enabled = False
