@@ -390,35 +390,27 @@ def fetch_portfolio(c):
     STRICT MODE: Uses direct conversion for critical financial fields (no defaults to 0).
     Missing data triggers error, not silent 0 values which are catastrophically misleading.
     """
+    from tools.dashboard.fetcher_validator import FetcherValidator
+
     try:
         data = api_call("/api/algo/portfolio")
-        if _is_api_error(data):
-            record_data_quality_issue("portfolio", "api_call", "api_error", _get_error_message(data))
-            return data
         port = data
 
-        # Check data freshness before validation (portfolio data > 5 days old is stale;
-        # algo only runs on trading days so a long weekend + Monday holiday can mean
-        # 4 calendar days between runs)
-        snapshot_date = port.get("last_run")
-        is_fresh, freshness_error = _check_data_freshness(
-            snapshot_date, max_age_seconds=432000, source_name="Portfolio"
+        # Comprehensive validation using FetcherValidator
+        required_fields = ["total_portfolio_value", "total_cash", "position_count", "last_run"]
+        valid, error_msg = FetcherValidator.validate_response(
+            response=port,
+            required_fields=required_fields,
+            source_name="fetch_portfolio",
+            max_age_seconds=432000,
+            timestamp_field="last_run",
         )
-        if not is_fresh:
-            logger.warning(freshness_error)
-            record_data_quality_issue("portfolio", "timestamp", "data_stale", freshness_error)
-            return {
-                "_error": freshness_error,
-                "_data_stale": True,
-            }
-
-        required_fields = ["total_portfolio_value", "total_cash", "position_count"]
-        validation_error = _validate_required_fields(port, required_fields, "fetch_portfolio")
-        if validation_error:
+        if not valid:
+            logger.error(error_msg)
             for field in required_fields:
                 if field not in port or port[field] is None:
                     record_data_quality_issue("portfolio", field, "missing_required_field")
-            return validation_error
+            return FetcherValidator.build_error_response(error_msg)
 
         # Strict conversion for critical financial fields
         try:
@@ -429,7 +421,7 @@ def fetch_portfolio(c):
             error_msg = f"Portfolio data conversion failed: {e!s}"
             logger.error(error_msg)
             record_data_quality_issue("portfolio", "type_conversion", "conversion_failed", str(e))
-            return {"_error": error_msg}
+            return FetcherValidator.build_error_response(error_msg)
 
         return {
             "snapshot_date": port.get("last_run"),
