@@ -135,37 +135,44 @@ def _get_error_message(response: dict) -> str:
 
 
 def fetch_run(c):
+    from tools.dashboard.fetcher_validator import FetcherValidator
+
     try:
         data = api_call("/api/algo/last-run")
-        if _is_api_error(data):
-            return data
-        # api_call already returns unwrapped data (statusCode + fields at top level)
+
+        # Check for API error
+        is_error, error_msg = FetcherValidator.check_api_error(data)
+        if is_error:
+            record_data_quality_issue("run", "api_call", "api_error", error_msg)
+            return FetcherValidator.build_error_response(error_msg)
+
         inner = data
-        # Phases is required — fail if missing (Issue #5)
-        if "phases" not in inner:
-            error_msg = "Last-run API response missing required field: phases"
+
+        # Validate required fields
+        required = ["phases", "success", "halted"]
+        valid, error_msg = FetcherValidator.require_fields(inner, required, "fetch_run")
+        if not valid:
             logger.error(error_msg)
-            return {"_error": error_msg}
+            record_data_quality_issue("run", "validation", "missing_fields", error_msg)
+            return FetcherValidator.build_error_response(error_msg)
+
         phases = inner.get("phases") or []
         halted_phases = [p for p in phases if p.get("status") in ("halt", "halted")]
         errored_phases = [p for p in phases if p.get("status") == "error"]
         completed_phases = [p for p in phases if p.get("status") == "success"]
         halt_reason = halted_phases[0].get("summary") if halted_phases else None
+
         # Timestamps are required — fail if all are missing (Issue #6)
         run_at = inner.get("run_at") or inner.get("completed_at") or inner.get("started_at")
+        # No runs yet (algo hasn't executed) — return _no_data instead of error
+        if not run_at and not inner.get("run_id") and not inner.get("success") and not inner.get("halted"):
+            return {"_no_data": True}
         if not run_at:
             error_msg = "Last-run API response missing all timestamp fields (run_at, completed_at, started_at)"
             logger.error(error_msg)
-            return {"_error": error_msg}
-        # Success and halted flags are required — fail if missing (Issue #7)
-        if "success" not in inner:
-            error_msg = "Last-run API response missing required field: success"
-            logger.error(error_msg)
-            return {"_error": error_msg}
-        if "halted" not in inner:
-            error_msg = "Last-run API response missing required field: halted"
-            logger.error(error_msg)
-            return {"_error": error_msg}
+            record_data_quality_issue("run", "critical_field", "missing_timestamp")
+            return FetcherValidator.build_error_response(error_msg)
+
         # errored: use API field if present, otherwise derive from phase data
         api_errored = inner.get("errored")
         derived_errored = bool(errored_phases) or (
@@ -187,32 +194,43 @@ def fetch_run(c):
     except Exception as e:
         error_msg = _format_fetcher_error("run", e)
         logger.error(error_msg)
-        return {"_error": error_msg}
+        record_data_quality_issue("run", "exception", type(e).__name__, str(e))
+        return FetcherValidator.build_error_response(error_msg)
 
 
 def fetch_algo_config(c):
     """AWS-only algo configuration (fail-fast: error if unavailable)."""
+    from tools.dashboard.fetcher_validator import FetcherValidator
+
     try:
         data = api_call("/api/algo/config")
-        if _is_api_error(data):
-            return data
+
+        # Check for API error
+        is_error, error_msg = FetcherValidator.check_api_error(data)
+        if is_error:
+            record_data_quality_issue("cfg", "api_call", "api_error", error_msg)
+            return FetcherValidator.build_error_response(error_msg)
+
         raw = data
         if not isinstance(raw, dict):
-            return {"_error": "Config response is not a dict"}
+            error_msg = "Config response is not a dict"
+            logger.error(error_msg)
+            record_data_quality_issue("cfg", "type", "not_dict", type(raw).__name__)
+            return FetcherValidator.build_error_response(error_msg)
+
         # API returns {items: [{key, value, value_type, ...}], total: N}
         items = raw.get("items", [])
         if not items:
             error_msg = "Config API response has no items (empty config)"
             logger.error(error_msg)
-            return {"_error": error_msg}
+            record_data_quality_issue("cfg", "validation", "empty_items")
+            return FetcherValidator.build_error_response(error_msg)
+
         cfg = {i["key"]: i.get("value") for i in items if "key" in i}
+
         # Issue #8: enable_algo is REQUIRED — no default to True (fail-closed)
-        if "enable_algo" not in cfg:
-            error_msg = "Config missing required field: enable_algo"
-            logger.error(error_msg)
-            return {"_error": error_msg}
-        # Issue #10: All critical config values required; no silent None
         required_config = [
+            "enable_algo",
             "execution_mode",
             "max_position_size_pct",
             "max_positions",
@@ -225,7 +243,9 @@ def fetch_algo_config(c):
         if missing:
             error_msg = f"Config missing required fields: {missing}"
             logger.error(error_msg)
-            return {"_error": error_msg}
+            record_data_quality_issue("cfg", "validation", "missing_fields", ", ".join(missing))
+            return FetcherValidator.build_error_response(error_msg)
+
         # Boolean string conversion
         en_raw = cfg.get("enable_algo")
         enabled = str(en_raw).lower() in ("true", "1", "yes") if en_raw is not None else False
@@ -242,7 +262,8 @@ def fetch_algo_config(c):
     except Exception as e:
         error_msg = _format_fetcher_error("cfg", e)
         logger.error(error_msg)
-        return {"_error": error_msg}
+        record_data_quality_issue("cfg", "exception", type(e).__name__, str(e))
+        return FetcherValidator.build_error_response(error_msg)
 
 
 def fetch_market(c):
@@ -500,7 +521,7 @@ def fetch_perf(c):
             "w": w,
             "l": losing,
             "wr": safe_float(perf.get("win_rate_pct"), default=None),
-            "open_count": safe_int(perf.get("open_positions"), default=None),
+            "open_count": safe_int(perf.get("open_losses_count") or perf.get("open_positions"), default=None),
             "pnl": safe_float(perf.get("total_pnl_dollars"), default=None),
             "unrealized_pnl": safe_float(perf.get("unrealized_pnl"), default=None),
             "streak": safe_int(perf.get("current_streak"), default=None),
@@ -523,24 +544,38 @@ def fetch_perf(c):
 
 def fetch_positions(c):
     """Fetch positions via AWS API only (fail-fast: error if unavailable)."""
+    from tools.dashboard.fetcher_validator import FetcherValidator
+
     try:
         data = api_call(_get_endpoint_path("pos"))
-        if _is_api_error(data):
-            return data
+
+        # Check for API error
+        is_error, error_msg = FetcherValidator.check_api_error(data)
+        if is_error:
+            record_data_quality_issue("pos", "api_call", "api_error", error_msg)
+            return FetcherValidator.build_error_response(error_msg)
+
         result = data
         if isinstance(result, dict):
             items = result.get("items")
             if not isinstance(items, list):
-                return {"_error": "Positions API response: 'items' field is not a list"}
+                error_msg = "Positions API response: 'items' field is not a list"
+                logger.error(error_msg)
+                record_data_quality_issue("pos", "validation", "items_not_list")
+                return FetcherValidator.build_error_response(error_msg)
         elif isinstance(result, list):
             items = result
         else:
-            return {"_error": "Positions API response: expected dict or list"}
+            error_msg = "Positions API response: expected dict or list"
+            logger.error(error_msg)
+            record_data_quality_issue("pos", "validation", "invalid_response_type")
+            return FetcherValidator.build_error_response(error_msg)
         return {"items": items, "timestamp": datetime.now(ET)}
     except Exception as e:
         error_msg = _format_fetcher_error("pos", e)
         logger.error(error_msg)
-        return {"_error": error_msg}
+        record_data_quality_issue("pos", "exception", type(e).__name__, str(e))
+        return FetcherValidator.build_error_response(error_msg)
 
 
 def fetch_recent_trades(c):
@@ -549,41 +584,64 @@ def fetch_recent_trades(c):
     Returns closed trades only — open positions are in the positions panel.
     Note: 503 means no closed trades yet (algo just started) — treat as no data.
     """
+    from tools.dashboard.fetcher_validator import FetcherValidator
+
     try:
         data = api_call(
             _get_endpoint_path("trades"),
             params={"limit": 30, "status": "closed"},
         )
-        if _is_api_error(data):
-            error_msg = _get_error_message(data)
+
+        # Check for API error
+        is_error, error_msg = FetcherValidator.check_api_error(data)
+        if is_error:
             # 503 means no trades data yet (algo just started or no closed trades)
             if "503" in str(error_msg):
                 return {"_no_data": True}
-            return {"_error": error_msg}
+            record_data_quality_issue("trades", "api_call", "api_error", error_msg)
+            return FetcherValidator.build_error_response(error_msg)
+
         result = data
         if isinstance(result, dict):
             trades = result.get("items")
             if not isinstance(trades, list):
-                return {"_error": "Trades API response: 'items' field is not a list"}
+                error_msg = "Trades API response: 'items' field is not a list"
+                logger.error(error_msg)
+                record_data_quality_issue("trades", "validation", "items_not_list")
+                return FetcherValidator.build_error_response(error_msg)
         elif isinstance(result, list):
             trades = result
         else:
-            return {"_error": "Trades API response: expected dict or list"}
+            error_msg = "Trades API response: expected dict or list"
+            logger.error(error_msg)
+            record_data_quality_issue("trades", "validation", "invalid_response_type")
+            return FetcherValidator.build_error_response(error_msg)
         return {"items": trades, "timestamp": datetime.now(ET)}
     except Exception as e:
         error_msg = _format_fetcher_error("trades", e)
         logger.error(error_msg)
-        return {"_error": error_msg}
+        record_data_quality_issue("trades", "exception", type(e).__name__, str(e))
+        return FetcherValidator.build_error_response(error_msg)
 
 
 def fetch_signals(c):
     """Fetch dashboard signals from API. Fail-fast: error only on failure."""
+    from tools.dashboard.fetcher_validator import FetcherValidator
+
     try:
         data = api_call(_get_endpoint_path("sig"))
-        if _is_api_error(data):
-            return {"_error": _get_error_message(data)}
+
+        # Check for API error
+        is_error, error_msg = FetcherValidator.check_api_error(data)
+        if is_error:
+            record_data_quality_issue("sig", "api_call", "api_error", error_msg)
+            return FetcherValidator.build_error_response(error_msg)
+
         if not data:
-            return {"_error": "No data returned from /api/algo/dashboard-signals"}
+            error_msg = "No data returned from /api/algo/dashboard-signals"
+            logger.error(error_msg)
+            record_data_quality_issue("sig", "validation", "no_data")
+            return FetcherValidator.build_error_response(error_msg)
 
         result = data
         buy_sigs = result.get("buy_sigs") or []
@@ -605,15 +663,23 @@ def fetch_signals(c):
     except Exception as e:
         error_msg = _format_fetcher_error("sig", e)
         logger.error(error_msg)
-        return {"_error": error_msg}
+        record_data_quality_issue("sig", "exception", type(e).__name__, str(e))
+        return FetcherValidator.build_error_response(error_msg)
 
 
 def fetch_sector_ranking(c):
     """Fetch per-sector rankings from /api/sectors (fail-fast: error if unavailable)."""
+    from tools.dashboard.fetcher_validator import FetcherValidator
+
     try:
         data = api_call("/api/sectors")
-        if _is_api_error(data):
-            return data
+
+        # Check for API error
+        is_error, error_msg = FetcherValidator.check_api_error(data)
+        if is_error:
+            record_data_quality_issue("srank", "api_call", "api_error", error_msg)
+            return FetcherValidator.build_error_response(error_msg)
+
         raw = data
         if isinstance(raw, dict):
             items = raw.get("items") or []
@@ -625,15 +691,23 @@ def fetch_sector_ranking(c):
     except Exception as e:
         error_msg = _format_fetcher_error("srank", e)
         logger.error(error_msg)
-        return {"_error": error_msg}
+        record_data_quality_issue("srank", "exception", type(e).__name__, str(e))
+        return FetcherValidator.build_error_response(error_msg)
 
 
 def fetch_activity(c):
     """Fetch activity from audit log API (fail-fast: error if unavailable)."""
+    from tools.dashboard.fetcher_validator import FetcherValidator
+
     try:
         data = api_call(_get_endpoint_path("activity"))
-        if _is_api_error(data):
-            return data
+
+        # Check for API error
+        is_error, error_msg = FetcherValidator.check_api_error(data)
+        if is_error:
+            record_data_quality_issue("activity", "api_call", "api_error", error_msg)
+            return FetcherValidator.build_error_response(error_msg)
+
         raw = data
         items = raw.get("items") or [] if isinstance(raw, dict) else []
         run_at = items[0].get("action_date") if items else None
@@ -647,7 +721,8 @@ def fetch_activity(c):
     except Exception as e:
         error_msg = _format_fetcher_error("activity", e)
         logger.error(error_msg)
-        return {"_error": error_msg}
+        record_data_quality_issue("activity", "exception", type(e).__name__, str(e))
+        return FetcherValidator.build_error_response(error_msg)
 
 
 _data_status_cache: dict = {}
@@ -707,10 +782,17 @@ def _get_markets_cached():
 
 def fetch_health(c):
     """Fetch data loader health status from API. Uses cached data-status (fail-fast: error if unavailable)."""
+    from tools.dashboard.fetcher_validator import FetcherValidator
+
     try:
         data = _get_data_status_cached()
-        if _is_api_error(data):
-            return data
+
+        # Check for API error
+        is_error, error_msg = FetcherValidator.check_api_error(data)
+        if is_error:
+            record_data_quality_issue("health", "api_call", "api_error", error_msg)
+            return FetcherValidator.build_error_response(error_msg)
+
         inner = data
         if not isinstance(inner, dict):
             inner = {}
@@ -752,7 +834,8 @@ def fetch_health(c):
     except Exception as e:
         error_msg = _format_fetcher_error("health", e)
         logger.error(error_msg)
-        return {"_error": error_msg}
+        record_data_quality_issue("health", "exception", type(e).__name__, str(e))
+        return FetcherValidator.build_error_response(error_msg)
 
 
 def fetch_exp_factors(c):
@@ -764,16 +847,31 @@ def fetch_exp_factors(c):
     Issue 14 FIX: Uses cached markets endpoint to avoid duplicate API calls
     when fetch_market also needs the same data.
     """
+    from tools.dashboard.fetcher_validator import FetcherValidator
+
     try:
         data = _get_markets_cached()
-        if _is_api_error(data):
-            return {"_error": _get_error_message(data)}
+
+        # Check for API error
+        is_error, error_msg = FetcherValidator.check_api_error(data)
+        if is_error:
+            record_data_quality_issue("exp_factors", "api_call", "api_error", error_msg)
+            return FetcherValidator.build_error_response(error_msg)
+
         # Response: {statusCode, data: {current: {exposure_pct, raw_score, regime, factors}, ...}}
         inner = data
         if not isinstance(inner, dict):
-            return {"_error": "Unexpected response format from markets endpoint"}
+            error_msg = "Unexpected response format from markets endpoint"
+            logger.error(error_msg)
+            record_data_quality_issue("exp_factors", "validation", "invalid_response_type")
+            return FetcherValidator.build_error_response(error_msg)
+
         if "current" not in inner:
-            return {"_error": "Missing 'current' field in markets response"}
+            error_msg = "Missing 'current' field in markets response"
+            logger.error(error_msg)
+            record_data_quality_issue("exp_factors", "validation", "missing_current_field")
+            return FetcherValidator.build_error_response(error_msg)
+
         current = inner.get("current")
         return {
             "exposure_pct": safe_float(current.get("exposure_pct"), default=None),
@@ -784,7 +882,8 @@ def fetch_exp_factors(c):
     except Exception as e:
         error_msg = _format_fetcher_error("exp_factors", e)
         logger.error(error_msg)
-        return {"_error": error_msg}
+        record_data_quality_issue("exp_factors", "exception", type(e).__name__, str(e))
+        return FetcherValidator.build_error_response(error_msg)
 
 
 def fetch_economic_pulse(c):
@@ -794,16 +893,26 @@ def fetch_economic_pulse(c):
     Both endpoints must succeed; partial data is not accepted (can't distinguish
     None from "API error" vs "field missing in successful response").
     """
+    from tools.dashboard.fetcher_validator import FetcherValidator
+
     try:
         # Fetch yield curve (treasury yields + credit spreads + breakevens)
         yc_data = api_call("/api/economic/yield-curve-full")
-        if _is_api_error(yc_data):
-            return {"_error": _get_error_message(yc_data)}
+
+        # Check for API error
+        is_error, error_msg = FetcherValidator.check_api_error(yc_data)
+        if is_error:
+            record_data_quality_issue("eco", "api_call", "yield_curve_error", error_msg)
+            return FetcherValidator.build_error_response(error_msg)
 
         # Fetch macro indicators (CPI, unemployment, fed funds, oil, DXY, etc.)
         ind_data = api_call("/api/economic/indicators")
-        if _is_api_error(ind_data):
-            return {"_error": _get_error_message(ind_data)}
+
+        # Check for API error
+        is_error, error_msg = FetcherValidator.check_api_error(ind_data)
+        if is_error:
+            record_data_quality_issue("eco", "api_call", "indicators_error", error_msg)
+            return FetcherValidator.build_error_response(error_msg)
 
         # Extract yield curve data
         d = yc_data
@@ -860,19 +969,28 @@ def fetch_economic_pulse(c):
             "umcsent": umcsent,
         }
     except Exception as e:
+        from tools.dashboard.fetcher_validator import FetcherValidator
         error_msg = _format_fetcher_error("eco", e)
         logger.error(error_msg)
-        return {"_error": error_msg}
+        record_data_quality_issue("eco", "exception", type(e).__name__, str(e))
+        return FetcherValidator.build_error_response(error_msg)
 
 
 def fetch_algo_metrics(c):
     """Fetch algo metrics. API returns a single dict {date, total_actions,
     entries, exits, avg_signal_score}; panel expects a flat list so it can
     do valid_metrics[0] and iterate over multiple days."""
+    from tools.dashboard.fetcher_validator import FetcherValidator
+
     try:
         data = api_call(_get_endpoint_path("algo_metrics"))
-        if _is_api_error(data):
-            return {"_error": _get_error_message(data)}
+
+        # Check for API error
+        is_error, error_msg = FetcherValidator.check_api_error(data)
+        if is_error:
+            record_data_quality_issue("algo_metrics", "api_call", "api_error", error_msg)
+            return FetcherValidator.build_error_response(error_msg)
+
         d = data
         if isinstance(d, list):
             return d
@@ -880,36 +998,59 @@ def fetch_algo_metrics(c):
             return [d]
         error_msg = f"Algo metrics API response unexpected type: expected list or dict, got {type(d).__name__}"
         logger.error(error_msg)
-        return {"_error": error_msg}
+        record_data_quality_issue("algo_metrics", "validation", "invalid_response_type")
+        return FetcherValidator.build_error_response(error_msg)
     except Exception as e:
         error_msg = _format_fetcher_error("algo_metrics", e)
         logger.error(error_msg)
-        return {"_error": error_msg}
+        record_data_quality_issue("algo_metrics", "exception", type(e).__name__, str(e))
+        return FetcherValidator.build_error_response(error_msg)
 
 
 def fetch_notifications(c):
+    from tools.dashboard.fetcher_validator import FetcherValidator
+
     try:
         data = api_call(_get_endpoint_path("notifs"))
-        if _is_api_error(data):
-            return data
+
+        # Check for API error
+        is_error, error_msg = FetcherValidator.check_api_error(data)
+        if is_error:
+            record_data_quality_issue("notifs", "api_call", "api_error", error_msg)
+            return FetcherValidator.build_error_response(error_msg)
+
         raw = data
         items = raw.get("items", []) if isinstance(raw, dict) else (raw if isinstance(raw, list) else [])
         return {"items": items}
     except Exception as e:
         error_msg = _format_fetcher_error("notifs", e)
         logger.error(error_msg)
-        return {"_error": error_msg}
+        record_data_quality_issue("notifs", "exception", type(e).__name__, str(e))
+        return FetcherValidator.build_error_response(error_msg)
 
 
 def fetch_sentiment(c):
     """API-only sentiment data. Fail-fast: error only on failure."""
+    from tools.dashboard.fetcher_validator import FetcherValidator
+
     try:
         data = api_call(_get_endpoint_path("sentiment"))
-        if _is_api_error(data):
-            return {"_error": _get_error_message(data)}
+
+        # Check for API error
+        is_error, error_msg = FetcherValidator.check_api_error(data)
+        if is_error:
+            record_data_quality_issue("sentiment", "api_call", "api_error", error_msg)
+            return FetcherValidator.build_error_response(error_msg)
+
         d = data
-        if "fear_greed_index" not in d or "label" not in d:
-            return {"_error": "Missing required sentiment fields: fear_greed_index, label"}
+        # Validate required fields
+        required = ["fear_greed_index", "label"]
+        valid, error_msg = FetcherValidator.require_fields(d, required, "fetch_sentiment")
+        if not valid:
+            logger.error(error_msg)
+            record_data_quality_issue("sentiment", "validation", "missing_fields")
+            return FetcherValidator.build_error_response(error_msg)
+
         fg = safe_float(d.get("fear_greed_index"))
         label = d.get("label")
         c_fg = R if fg <= 25 else (Y if fg <= 45 else (G if fg >= 75 else CY))
@@ -922,31 +1063,47 @@ def fetch_sentiment(c):
     except Exception as e:
         error_msg = _format_fetcher_error("sentiment", e)
         logger.error(error_msg)
-        return {"_error": error_msg}
+        record_data_quality_issue("sentiment", "exception", type(e).__name__, str(e))
+        return FetcherValidator.build_error_response(error_msg)
 
 
 def fetch_economic_calendar(c):
     """Fetch economic calendar events. API returns {items: [{event_date,
     event_name, country, importance, category, ...}], total: N}."""
+    from tools.dashboard.fetcher_validator import FetcherValidator
+
     try:
         data = api_call(_get_endpoint_path("econ_cal"))
-        if _is_api_error(data):
-            return data
+
+        # Check for API error
+        is_error, error_msg = FetcherValidator.check_api_error(data)
+        if is_error:
+            record_data_quality_issue("econ_cal", "api_call", "api_error", error_msg)
+            return FetcherValidator.build_error_response(error_msg)
+
         raw = data
         items = raw.get("items", []) if isinstance(raw, dict) else (raw if isinstance(raw, list) else [])
         return {"items": items}
     except Exception as e:
         error_msg = _format_fetcher_error("econ_cal", e)
         logger.error(error_msg)
-        return {"_error": error_msg}
+        record_data_quality_issue("econ_cal", "exception", type(e).__name__, str(e))
+        return FetcherValidator.build_error_response(error_msg)
 
 
 def fetch_risk_metrics(c):
     """API-only risk metrics. Fail-fast: error only on failure."""
+    from tools.dashboard.fetcher_validator import FetcherValidator
+
     try:
         data = api_call(_get_endpoint_path("risk"))
-        if _is_api_error(data):
-            return {"_error": _get_error_message(data)}
+
+        # Check for API error
+        is_error, error_msg = FetcherValidator.check_api_error(data)
+        if is_error:
+            record_data_quality_issue("risk", "api_call", "api_error", error_msg)
+            return FetcherValidator.build_error_response(error_msg)
+
         d = data
         return {
             "date": d.get("report_date"),
@@ -959,15 +1116,23 @@ def fetch_risk_metrics(c):
     except Exception as e:
         error_msg = _format_fetcher_error("risk", e)
         logger.error(error_msg)
-        return {"_error": error_msg}
+        record_data_quality_issue("risk", "exception", type(e).__name__, str(e))
+        return FetcherValidator.build_error_response(error_msg)
 
 
 def fetch_perf_analytics(c):
     """API-only performance analytics. Fail-fast: error only on failure."""
+    from tools.dashboard.fetcher_validator import FetcherValidator
+
     try:
         data = api_call(_get_endpoint_path("perf_anl"))
-        if _is_api_error(data):
-            return {"_error": _get_error_message(data)}
+
+        # Check for API error
+        is_error, error_msg = FetcherValidator.check_api_error(data)
+        if is_error:
+            record_data_quality_issue("perf_anl", "api_call", "api_error", error_msg)
+            return FetcherValidator.build_error_response(error_msg)
+
         d = data
         return {
             "sharpe252": safe_float(d.get("rolling_sharpe_252d")),
@@ -982,15 +1147,23 @@ def fetch_perf_analytics(c):
     except Exception as e:
         error_msg = _format_fetcher_error("perf_anl", e)
         logger.error(error_msg)
-        return {"_error": error_msg}
+        record_data_quality_issue("perf_anl", "exception", type(e).__name__, str(e))
+        return FetcherValidator.build_error_response(error_msg)
 
 
 def fetch_signal_eval(c):
     """Fetch signal evaluation stats from API."""
+    from tools.dashboard.fetcher_validator import FetcherValidator
+
     try:
         data = api_call(_get_endpoint_path("sig_eval"))
-        if _is_api_error(data):
-            return {"_error": _get_error_message(data)}
+
+        # Check for API error
+        is_error, error_msg = FetcherValidator.check_api_error(data)
+        if is_error:
+            record_data_quality_issue("sig_eval", "api_call", "api_error", error_msg)
+            return FetcherValidator.build_error_response(error_msg)
+
         result = data
         return {
             "total": safe_int(result.get("total")),
@@ -1006,19 +1179,31 @@ def fetch_signal_eval(c):
     except Exception as e:
         error_msg = _format_fetcher_error("sig_eval", e)
         logger.error(error_msg)
-        return {"_error": error_msg}
+        record_data_quality_issue("sig_eval", "exception", type(e).__name__, str(e))
+        return FetcherValidator.build_error_response(error_msg)
 
 
 def fetch_sector_rotation(c):
     """Fetch sector rotation signal from API. Fail-fast: error only on failure."""
+    from tools.dashboard.fetcher_validator import FetcherValidator
+
     try:
         data = api_call(_get_endpoint_path("srank"))
-        if _is_api_error(data):
-            return {"_error": _get_error_message(data)}
+
+        # Check for API error
+        is_error, error_msg = FetcherValidator.check_api_error(data)
+        if is_error:
+            record_data_quality_issue("sec_rot", "api_call", "api_error", error_msg)
+            return FetcherValidator.build_error_response(error_msg)
+
         raw = data
         items = raw.get("items", []) if isinstance(raw, dict) else []
         if not items:
-            return {"_error": "No sector rotation data available"}
+            error_msg = "No sector rotation data available"
+            logger.error(error_msg)
+            record_data_quality_issue("sec_rot", "validation", "no_items")
+            return FetcherValidator.build_error_response(error_msg)
+
         row = items[0]
         return {
             "date": row.get("date"),
@@ -1031,35 +1216,51 @@ def fetch_sector_rotation(c):
     except Exception as e:
         error_msg = _format_fetcher_error("sec_rot", e)
         logger.error(error_msg)
-        return {"_error": error_msg}
+        record_data_quality_issue("sec_rot", "exception", type(e).__name__, str(e))
+        return FetcherValidator.build_error_response(error_msg)
 
 
 def fetch_industry_ranking(c):
     """Fetch industry rankings. API returns {items: [{industry, sector,
     current_rank, overall_rank, rank_1w_ago, rank_4w_ago}], total: N}."""
+    from tools.dashboard.fetcher_validator import FetcherValidator
+
     try:
         data = api_call(_get_endpoint_path("irank"))
-        if _is_api_error(data):
-            return data
+
+        # Check for API error
+        is_error, error_msg = FetcherValidator.check_api_error(data)
+        if is_error:
+            record_data_quality_issue("irank", "api_call", "api_error", error_msg)
+            return FetcherValidator.build_error_response(error_msg)
+
         raw = data
         items = raw.get("items", []) if isinstance(raw, dict) else (raw if isinstance(raw, list) else [])
         return {"items": items}
     except Exception as e:
         error_msg = _format_fetcher_error("irank", e)
         logger.error(error_msg)
-        return {"_error": error_msg}
+        record_data_quality_issue("irank", "exception", type(e).__name__, str(e))
+        return FetcherValidator.build_error_response(error_msg)
 
 
 def fetch_exec_history(c):
     """Fetch recent execution history. Panel expects a flat list (not wrapped
     in a dict) so it can do valid_hist[:7] directly."""
+    from tools.dashboard.fetcher_validator import FetcherValidator
+
     try:
         data = api_call(
             _get_endpoint_path("exec_hist"),
             params={"days": 7, "limit": 10},
         )
-        if _is_api_error(data):
-            return {"_error": _get_error_message(data)}
+
+        # Check for API error
+        is_error, error_msg = FetcherValidator.check_api_error(data)
+        if is_error:
+            record_data_quality_issue("exec_hist", "api_call", "api_error", error_msg)
+            return FetcherValidator.build_error_response(error_msg)
+
         raw = data
         if isinstance(raw, dict):
             return raw.get("items", [])
@@ -1067,39 +1268,58 @@ def fetch_exec_history(c):
             return raw
         error_msg = f"Execution history API response unexpected type: expected list or dict, got {type(raw).__name__}"
         logger.error(error_msg)
-        return {"_error": error_msg}
+        record_data_quality_issue("exec_hist", "validation", "invalid_response_type")
+        return FetcherValidator.build_error_response(error_msg)
     except Exception as e:
         error_msg = _format_fetcher_error("exec_hist", e)
         logger.error(error_msg)
-        return {"_error": error_msg}
+        record_data_quality_issue("exec_hist", "exception", type(e).__name__, str(e))
+        return FetcherValidator.build_error_response(error_msg)
 
 
 def fetch_scores(c):
     """Fetch top stock scores from /api/scores. Used by signals panel for composite score display."""
+    from tools.dashboard.fetcher_validator import FetcherValidator
+
     try:
         top_data = api_call("/api/scores", params={"limit": 50, "sortOrder": "desc"})
 
-        if _is_api_error(top_data):
-            return {"_error": _get_error_message(top_data)}
+        # Check for API error
+        is_error, error_msg = FetcherValidator.check_api_error(top_data)
+        if is_error:
+            record_data_quality_issue("scores", "api_call", "api_error", error_msg)
+            return FetcherValidator.build_error_response(error_msg)
 
         # API response is unwrapped so items is at top level, not under data
         items = top_data.get("items", [])
         if not items:
-            return {"_error": "No score data available"}
+            error_msg = "No score data available"
+            logger.error(error_msg)
+            record_data_quality_issue("scores", "validation", "no_items")
+            return FetcherValidator.build_error_response(error_msg)
+
         return {"top": items}
     except Exception as e:
         error_msg = _format_fetcher_error("scores", e)
         logger.error(error_msg)
-        return {"_error": error_msg}
+        record_data_quality_issue("scores", "exception", type(e).__name__, str(e))
+        return FetcherValidator.build_error_response(error_msg)
 
 
 def fetch_audit_log(c):
     """Fetch audit log entries. Panel expects a flat list (not wrapped in a
     dict) for direct iteration. API returns {items: [...], total, limit, offset}."""
+    from tools.dashboard.fetcher_validator import FetcherValidator
+
     try:
         data = api_call(_get_endpoint_path("audit"))
-        if _is_api_error(data):
-            return {"_error": _get_error_message(data)}
+
+        # Check for API error
+        is_error, error_msg = FetcherValidator.check_api_error(data)
+        if is_error:
+            record_data_quality_issue("audit", "api_call", "api_error", error_msg)
+            return FetcherValidator.build_error_response(error_msg)
+
         raw = data
         if isinstance(raw, dict):
             return raw.get("items", [])
@@ -1107,19 +1327,28 @@ def fetch_audit_log(c):
             return raw
         error_msg = f"Audit log API response unexpected type: expected list or dict, got {type(raw).__name__}"
         logger.error(error_msg)
-        return {"_error": error_msg}
+        record_data_quality_issue("audit", "validation", "invalid_response_type")
+        return FetcherValidator.build_error_response(error_msg)
     except Exception as e:
         error_msg = _format_fetcher_error("audit", e)
         logger.error(error_msg)
-        return {"_error": error_msg}
+        record_data_quality_issue("audit", "exception", type(e).__name__, str(e))
+        return FetcherValidator.build_error_response(error_msg)
 
 
 def fetch_circuit(c):
     """Fetch circuit breakers from API."""
+    from tools.dashboard.fetcher_validator import FetcherValidator
+
     try:
         data = api_call("/api/algo/circuit-breakers")
-        if _is_api_error(data):
-            return {"_error": _get_error_message(data)}
+
+        # Check for API error
+        is_error, error_msg = FetcherValidator.check_api_error(data)
+        if is_error:
+            record_data_quality_issue("cb", "api_call", "api_error", error_msg)
+            return FetcherValidator.build_error_response(error_msg)
+
         result = data
         bs = result.get("breakers", [])
         formatted_bs = []
@@ -1141,7 +1370,8 @@ def fetch_circuit(c):
     except Exception as e:
         error_msg = _format_fetcher_error("cb", e)
         logger.error(error_msg)
-        return {"_error": error_msg}
+        record_data_quality_issue("cb", "exception", type(e).__name__, str(e))
+        return FetcherValidator.build_error_response(error_msg)
 
 
 FETCHERS = {
