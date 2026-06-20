@@ -166,9 +166,12 @@ def fetch_run(c):
 
         # Timestamps are required — fail if all are missing (Issue #6)
         run_at = inner.get("run_at") or inner.get("completed_at") or inner.get("started_at")
-        # No runs yet (algo hasn't executed) — return _no_data instead of error
+        # No runs yet (algo hasn't executed) — fail-fast: return error instead of placeholder
         if not run_at and not inner.get("run_id") and not inner.get("success") and not inner.get("halted"):
-            return {"_no_data": True}
+            error_msg = "No algo runs available yet (algo has not executed)"
+            logger.warning(error_msg)
+            record_data_quality_issue("run", "initialization", "no_runs_yet")
+            return FetcherValidator.build_error_response(error_msg)
         if not run_at:
             error_msg = "Last-run API response missing all timestamp fields (run_at, completed_at, started_at)"
             logger.error(error_msg)
@@ -494,13 +497,11 @@ def fetch_perf(c):
         data = api_call("/api/algo/performance")
         perf = data
 
-        # Check for 503 (no completed trades yet) before standard validation
+        # Check for API error — 503 means no performance data yet (fail-fast: return error)
         is_error, error_msg = FetcherValidator.check_api_error(perf)
         if is_error:
-            if "503" in error_msg:
-                return {"_no_data": True}
             record_data_quality_issue("per", "api_call", "api_error", error_msg)
-            return perf
+            return FetcherValidator.build_error_response(error_msg)
 
         # Comprehensive validation using FetcherValidator
         required_fields = ["total_trades", "winning_trades", "losing_trades"]
@@ -612,12 +613,9 @@ def fetch_recent_trades(c):
             params={"limit": 30, "status": "closed"},
         )
 
-        # Check for API error
+        # Check for API error — fail-fast: return error for all API failures
         is_error, error_msg = FetcherValidator.check_api_error(data)
         if is_error:
-            # 503 means no trades data yet (algo just started or no closed trades)
-            if "503" in str(error_msg):
-                return {"_no_data": True}
             record_data_quality_issue("trades", "api_call", "api_error", error_msg)
             return FetcherValidator.build_error_response(error_msg)
 

@@ -4,7 +4,7 @@ Ensures all panels gracefully handle missing or error data, preventing silent fa
 and making error state visible to operators.
 """
 
-from typing import Any
+from typing import Any, cast
 
 from rich.panel import Panel
 from rich.text import Text
@@ -61,7 +61,7 @@ def error_summary_panel(data_dict: dict[str, Any]) -> Panel | None:
     Distinguishes between hard errors (red) and stale data (yellow).
     Returns None if no errors or stale data, otherwise returns a Panel listing them.
     """
-    from .utilities import R, Y
+    from .colors import R, Y
 
     failed_errors = []
     stale_data = []
@@ -105,6 +105,8 @@ def error_summary_panel_expanded(data_dict: dict[str, Any]) -> Panel | None:
     Shows complete error messages without truncation for full visibility into data problems.
     Returns None if no errors or stale data, otherwise returns a Panel listing them.
     """
+    from .colors import R, Y
+
     failed_errors = []
     stale_data = []
 
@@ -143,6 +145,7 @@ def make_panel_safe(panel_fn):
 
     Catches rendering errors and returns an error panel instead of crashing.
     """
+    from .colors import DIM, R
 
     def wrapper(*args, **kwargs):
         try:

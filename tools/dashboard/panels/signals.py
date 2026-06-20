@@ -58,22 +58,10 @@ def panel_signals_compact(sig, sig_eval=None, scores=None):
     if scores and has_error(scores):
         return _error_panel("scores", scores, "SIGNALS", border="magenta")
 
-    # Extract fields once after error checks
-    top_scores = scores.get("top") if scores and not has_error(scores) else None
-    if top_scores is None:
-        top_scores = []
-    buy_sigs = sig.get("buy_sigs")
-    if buy_sigs is None:
-        buy_sigs = []
-    total_screened = sig.get("total")
-    if total_screened is None:
-        total_screened = 0
-    is_placeholder = (
-        not top_scores
-        and not buy_sigs
-        and total_screened == 0
-        and (sig.get("_is_placeholder") or sig.get("_is_fallback_data"))
-    )
+    # Extract fields once after error checks — no placeholder data in fail-fast
+    top_scores = scores.get("top") if scores and not has_error(scores) else []
+    buy_sigs = sig.get("buy_sigs") or []
+    total_screened = sig.get("total") or 0
 
     raw = sig.get("n")
     if raw is None:
@@ -370,16 +358,8 @@ def panel_signals_compact(sig, sig_eval=None, scores=None):
             parts.append(f"[{CY}]{a['symbol']}[/][dim]{sc_s}[/]")
         rows.append(Text.from_markup("[dim]Near BUY (55-69):[/]  " + "  ".join(parts)))
 
-    # Add placeholder warning if needed
-    if is_placeholder:
-        rows.insert(
-            0,
-            Text.from_markup("[bold red]📊 PLACEHOLDER DATA - Signals may not be accurate[/]"),
-        )
-
     age_s = f"  [dim]{fmt_age(sig.get('timestamp'))}[/]" if sig.get("timestamp") is not None else ""
-    border = "red" if is_placeholder else "magenta"
-    title = "[bold red]TOP SCORES ⚠ NO DATA[/]" if is_placeholder else "[bold magenta]TOP SCORES & SIGNALS[/]"
+    title = "[bold magenta]TOP SCORES & SIGNALS[/]"
     return Panel(
         Group(*rows),
         title=f"{title}{age_s}  [dim][s] expand[/]",
@@ -396,24 +376,15 @@ def panel_signals_expanded(sig, sig_eval=None, scores=None):
     if scores and _error_panel("scores", scores, "SIGNALS", border="magenta"):
         return _error_panel("scores", scores, "SIGNALS", border="magenta")
 
-    top_scores = None
-    if isinstance(scores, dict):
+    top_scores = []
+    if isinstance(scores, dict) and isinstance(scores.get("top"), list):
         top_scores = scores.get("top")
-        if not isinstance(top_scores, list):
-            top_scores = None
-    if top_scores is None:
-        top_scores = []
-    buy_sigs = sig.get("buy_sigs")
+    buy_sigs = sig.get("buy_sigs") or []
     if not isinstance(buy_sigs, list):
-        buy_sigs = None
-    if buy_sigs is None:
         buy_sigs = []
     total = sig.get("total")
     if total is None:
         return _error_panel("signals", {"_error": "Missing signal total count"}, "SIGNALS", border="magenta")
-    is_placeholder = (
-        not top_scores and not buy_sigs and total == 0 and (sig.get("_is_placeholder") or sig.get("_is_fallback_data"))
-    )
 
     raw = sig.get("n")
     if raw is None:
