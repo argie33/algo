@@ -268,8 +268,8 @@ class TradeExecutor:
         try:
             pretrade_passed, pretrade_reason = self.pretrade.run_all(
                 symbol=symbol,
-                position_value=position_value,
-                portfolio_value=portfolio_value,
+                position_value=float(position_value),
+                portfolio_value=float(portfolio_value) if portfolio_value else 0,
                 side="BUY",
             )
         except ValueError as e:
