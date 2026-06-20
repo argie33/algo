@@ -423,13 +423,12 @@ class VectorizedTechnicalLoader:
                 # Build COPY command
                 import psycopg2.sql
 
+                col_ids = [psycopg2.sql.Identifier(c) for c in columns]
                 sql = psycopg2.sql.SQL(
-                    "COPY {table} ({fields}) FROM STDIN WITH (FORMAT CSV, NULL '')"
+                    "COPY {table} ({fields}) FROM STDIN WITH (FORMAT CSV, FORCE_NULL ({fields}))"
                 ).format(
                     table=psycopg2.sql.Identifier("technical_data_daily"),
-                    fields=psycopg2.sql.SQL(", ").join(
-                        map(psycopg2.sql.Identifier, columns)
-                    ),
+                    fields=psycopg2.sql.SQL(", ").join(col_ids),
                 )
 
                 # Stream CSV data to COPY (wrap string in StringIO for file-like object)

@@ -231,15 +231,21 @@ class VectorizedSwingScoresLoader:
                     continue
 
                 # Compute component scores; use defaults when upstream tables are empty
-                setup_score = float(trend.get("minervini_trend_score", 75))
-                trend_score = float(trend.get("weinstein_stage", 2)) * 25.0
-                momentum_score = self._calculate_momentum_score(
-                    float(tech.get("rsi", 50)) if tech is not None else 50.0
-                )
+                # Handle NaN values from pandas (convert to defaults)
+                minervini = trend.get("minervini_trend_score", 75)
+                setup_score = float(minervini) if pd.notna(minervini) else 75.0
+
+                weinstein = trend.get("weinstein_stage", 2)
+                trend_score = float(weinstein) * 25.0 if pd.notna(weinstein) else 50.0
+
+                rsi = tech.get("rsi", 50) if tech is not None else None
+                rsi = rsi if pd.notna(rsi) else 50.0
+                momentum_score = self._calculate_momentum_score(float(rsi))
+
                 volume_score = 70.0  # From price ROC
-                fundamentals_score = (
-                    float(sig.get("composite_sqs", 50)) if sig is not None else 50.0
-                )
+
+                sqs = sig.get("composite_sqs", 50) if sig is not None else None
+                fundamentals_score = float(sqs) if pd.notna(sqs) else 50.0
 
                 total_score = (
                     setup_score * 0.25
