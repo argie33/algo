@@ -162,6 +162,12 @@ class EconomicMetricsDailyLoader(OptimalLoader):
                     ycs_error = f"ycs_error:{type(e).__name__}"
                     logger.warning(f"Failed to compute yield curve slope: {e}")
 
+                if cpi_yoy is None and spy_price_change is None and ycs_10y2y is None:
+                    raise RuntimeError(
+                        f"[ECONOMIC_METRICS] All metrics failed: CPI({cpi_error}), "
+                        f"SPY({spy_error}), YCS({ycs_error}). Cannot proceed without at least one metric."
+                    )
+
                 result = {
                     "report_date": report_date,
                     "cpi_yoy_pct": cpi_yoy,
@@ -177,7 +183,7 @@ class EconomicMetricsDailyLoader(OptimalLoader):
                     f"Economic metrics: CPI_YoY={cpi_yoy}% SPY_chg={spy_price_change}% YCS={ycs_10y2y}"
                 )
 
-                return [result] if result else None
+                return [result]
 
         except Exception as e:
             raise RuntimeError(

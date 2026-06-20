@@ -123,22 +123,39 @@ class RLadderDistributionDailyLoader(OptimalLoader):
     ) -> float:
         """Calculate R-multiple for a position."""
         if not entry or entry <= 0:
-            return 0.0
+            raise RuntimeError(
+                f"[R_LADDER] Invalid entry price: {entry}. "
+                "Entry price must be positive and non-zero."
+            )
 
         if stop is None or target is None:
-            return 0.0
+            raise RuntimeError(
+                f"[R_LADDER] Missing stop or target: stop={stop}, target={target}. "
+                "Both stop loss and target price are required for R-multiple calculation."
+            )
 
         if entry <= stop or entry >= target:
-            return 0.0
+            raise RuntimeError(
+                f"[R_LADDER] Invalid position geometry: entry={entry}, stop={stop}, target={target}. "
+                "Entry must be strictly between stop and target (stop < entry < target)."
+            )
 
         try:
             risk = entry - stop
             reward = target - entry
             if reward > 0:
                 return round(risk / reward, 2)
-            return 0.0
-        except Exception:
-            return 0.0
+            raise RuntimeError(
+                f"[R_LADDER] Non-positive reward: entry={entry}, target={target}. "
+                "Target must be above entry price."
+            )
+        except RuntimeError:
+            raise
+        except Exception as e:
+            raise RuntimeError(
+                f"[R_LADDER] Failed to calculate R-multiple: entry={entry}, stop={stop}, target={target}: {e}. "
+                "Calculation error prevents accurate risk/reward analysis."
+            ) from e
 
     def _get_bucket(self, r_multiple: float) -> str:
         """Determine which bucket this R-multiple falls into."""

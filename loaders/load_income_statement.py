@@ -125,27 +125,31 @@ class IncomeStatementLoader(OptimalLoader):
                     (symbol,),
                 )
                 return {row[0] for row in cur.fetchall()}
-        except Exception:
-            return set()
+        except Exception as e:
+            raise RuntimeError(
+                f"[INCOME_STATEMENT] Failed to query {self.table_name} for {symbol} (revenue=NULL check): {e}. "
+                "Database error prevents incremental loading. Cannot proceed."
+            )
 
     def fetch_incremental(self, symbol: str, since: date | None):
         try:
             cik = self._sec_client.symbol_to_cik(symbol)
             if not cik:
-                logging.warning("Symbol %s not found in SEC EDGAR (CIK resolution failed)", symbol)
-                return None
-            logging.debug("Symbol %s resolved to CIK %s", symbol, cik)
+                raise RuntimeError(
+                    f"[INCOME_STATEMENT] CIK resolution failed for {symbol}. "
+                    "Cannot fetch income statement data without CIK."
+                )
+            logger.debug("Symbol %s resolved to CIK %s", symbol, cik)
 
             rows = self._sec_client.get_income_statement(
                 symbol, period=self._edgar_period
             )
             if not rows:
-                logging.warning(
-                    "No %s income statement data for %s (symbol=%s, cik=%s)",
-                    self._edgar_period, symbol, symbol, cik
+                raise RuntimeError(
+                    f"[INCOME_STATEMENT] No {self._edgar_period} income statement data for {symbol} "
+                    f"(CIK={cik}). Cannot proceed without historical financials."
                 )
-                return None
-            logging.info("%s: Fetched %d %s income statement row(s)", symbol, len(rows), self._edgar_period)
+            logger.info("%s: Fetched %d %s income statement row(s)", symbol, len(rows), self._edgar_period)
 
             since_year = int(since.year) if since else 2000
             # Also include years already in DB where revenue is NULL (backfill ASC 606 gaps)
@@ -156,15 +160,19 @@ class IncomeStatementLoader(OptimalLoader):
                 or r.get("fiscal_year") in null_revenue_years
             ]
             if len(filtered) < len(rows):
-                logging.debug(
+                logger.debug(
                     f"{symbol}: Filtered {len(rows) - len(filtered)} row(s) with fiscal_year <= {since_year} "
                     f"(watermark incremental load — keeping {len(filtered)} newer rows; "
                     f"{len(null_revenue_years)} null-revenue years also included)"
                 )
             return filtered or None
+        except RuntimeError:
+            raise
         except Exception as e:
-            logging.error("SEC EDGAR error for %s: %s", symbol, e, exc_info=True)
-            return None
+            raise RuntimeError(
+                f"[INCOME_STATEMENT] SEC EDGAR error for {symbol}: {e}. "
+                "API failure prevents data fetch. Cannot proceed."
+            ) from e
 
     _QUARTER_MAP = {"Q1": 1, "Q2": 2, "Q3": 3, "Q4": 4}
 
