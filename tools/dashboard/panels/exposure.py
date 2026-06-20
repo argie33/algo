@@ -204,7 +204,7 @@ def panel_exposure_expanded(exp_f):
     rows.append(Rule(style="dim"))
 
     # Per-factor detail table
-    FACTOR_MAP_EXP = [
+    factor_map_exp = [
         ("trend_30wk", "30-Week Trend", 15, "SPY above 30-week MA?"),
         ("spy_momentum", "SPY 12mo Momentum", 10, "12-month SPY return"),
         ("breadth_200dma", "Breadth 200 DMA", 10, "% stocks above 200DMA"),
@@ -234,7 +234,7 @@ def panel_exposure_expanded(exp_f):
     tbl.add_column("Value", no_wrap=True, min_width=12)
     tbl.add_column("Context", style="dim", no_wrap=False)
 
-    for key, label, max_pts, context in FACTOR_MAP_EXP:
+    for key, label, max_pts, context in factor_map_exp:
         f = factors.get(key, {})
         sf = f.get("score_factor")
 
