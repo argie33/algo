@@ -46,10 +46,6 @@ from ._helpers import (
 from .data_extractors import (
     extract_config_params,
     extract_risk_metrics,
-    extract_run_info,
-    safe_get_dict,
-    safe_get_field,
-    safe_get_list,
 )
 
 
@@ -69,15 +65,16 @@ def panel_orch(run, cfg, risk=None):
         return _error_panel("config", cfg, "ORCHESTRATION")
 
     next_run = next_run_str()
-    mode = cfg["mode"]
+    cfg_params = extract_config_params(cfg)
+    mode = cfg_params["mode"]
     mc2 = G if "LIVE" in mode else Y
-    en = "ENABLED" if cfg["enabled"] else "DISABLED"
-    ec = G if cfg["enabled"] else R
-    max_n = cfg.get("max_pos_n")
-    max_sec_n = cfg.get("max_sec_n")
-    min_score = cfg.get("min_score")
-    base_risk = cfg.get("base_risk")
-    t1r = cfg.get("t1_r")
+    en = "ENABLED" if cfg_params["enabled"] else "DISABLED"
+    ec = G if cfg_params["enabled"] else R
+    max_n = cfg_params["max_pos_n"]
+    max_sec_n = cfg_params["max_sec_n"]
+    min_score = cfg_params["min_score"]
+    base_risk = cfg_params["base_risk"]
+    t1r = cfg_params["t1_r"]
 
     score_s = f"[dim]min score ≥[/][white]{min_score}[/]" if min_score and float(min_score) > 0 else ""
     slots_s = f"[dim]max [/][white]{max_n}[/][dim] positions[/]" if max_n else ""
@@ -88,25 +85,27 @@ def panel_orch(run, cfg, risk=None):
 
     # VaR line — only show if table is populated with real data
     var_line = ""
-    if risk and not has_error(risk) and risk["var95"] and float(risk["var95"]) > 0:
-        var95_val = risk["var95"]
-        beta_val = risk["beta"]
-        cvar95_val = risk["cvar95"]
-        conc5_val = risk["conc5"]
-        svar_val = risk.get("svar")
-        beta_c = R if beta_val >= 1.2 else (Y if beta_val >= 0.8 else G)
-        var_c = _var_color(var95_val)
-        svar_s = (
-            f"\n[dim]Stressed VaR:[/][{R}]{float(svar_val):.2f}%[/]"
-            if svar_val and float(svar_val) > 0
-            else ""
-        )
-        var_line = (
-            f"\n[dim]VaR 95%:[/][{var_c}]{var95_val:.2f}%[/]"
-            f"  [dim]CVaR 95%:[/][{var_c}]{cvar95_val:.2f}%[/]"
-            f"  [dim]Portfolio Beta:[/][{beta_c}]{beta_val:.2f}[/]"
-            f"  [dim]Top-5 Conc:[/][white]{conc5_val:.0f}%[/]" + svar_s
-        )
+    if risk and not has_error(risk) and risk.get("var95") and float(risk["var95"]) > 0:
+        risk_metrics = extract_risk_metrics(risk)
+        if risk_metrics:
+            var95_val = risk_metrics["var95"]
+            beta_val = risk_metrics["beta"]
+            cvar95_val = risk_metrics["cvar95"]
+            conc5_val = risk_metrics["conc5"]
+            svar_val = risk_metrics["svar"]
+            beta_c = R if beta_val >= 1.2 else (Y if beta_val >= 0.8 else G)
+            var_c = _var_color(var95_val)
+            svar_s = (
+                f"\n[dim]Stressed VaR:[/][{R}]{float(svar_val):.2f}%[/]"
+                if svar_val and float(svar_val) > 0
+                else ""
+            )
+            var_line = (
+                f"\n[dim]VaR 95%:[/][{var_c}]{var95_val:.2f}%[/]"
+                f"  [dim]CVaR 95%:[/][{var_c}]{cvar95_val:.2f}%[/]"
+                f"  [dim]Portfolio Beta:[/][{beta_c}]{beta_val:.2f}[/]"
+                f"  [dim]Top-5 Conc:[/][white]{conc5_val:.0f}%[/]" + svar_s
+            )
 
     if not run or has_error(run):
         error_msg = (
@@ -221,8 +220,8 @@ def panel_status(
     )
 
     # ── Run status + schedule + mode + trading config ────────────────────────────
-    run_valid = run and not run.get("_error")
-    act_valid = act and not act.get("_error")
+    run_valid = run and not has_error(run)
+    act_valid = act and not has_error(act)
     run_id_top = (run.get("run_id", "")) if run_valid else ((act.get("run_id", "")) if act_valid else "")
     run_at_top = run.get("run_at") if run_valid else (act.get("run_at") if act_valid else None)
     if run_id_top or run_at_top:
@@ -415,7 +414,7 @@ def panel_status(
             hlt_s = f"  [{Y}]{n_hlt} halted[/]" if n_hlt else ""
             err_s = f"  [{R}]{n_err} errored[/]" if n_err else ""
             rows.append(Text.from_markup(f"  {ok_s}{hlt_s}{err_s}"))
-    elif act and not act.get("_error"):
+    elif act and not has_error(act):
         phases_list = act.get("phases")
         if not phases_list:
             logger.warning(

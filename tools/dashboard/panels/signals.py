@@ -254,17 +254,24 @@ def panel_signals_compact(sig, sig_eval=None, scores=None):
             comp_score = score_item.get("composite_score")
             sector = (score_item.get("sector", ""))[:12]
             sym_norm = str(sym).upper().strip()
-            sig_obj = buy_sig_details.get(sym_norm, {})
+            sig_obj = buy_sig_details.get(sym_norm)
 
-            # Extract signal details
-            swing_score = sig_obj.get("swing_score") or sig_obj.get("signal_quality_score")
-            if swing_score is None:
+            # Extract signal details (use score_item defaults if sig_obj missing)
+            if sig_obj:
+                swing_score = sig_obj.get("swing_score") or sig_obj.get("signal_quality_score")
+                if swing_score is None:
+                    swing_score = 0
+                entry_qual = sig_obj.get("entry_quality_score", swing_score)
+                buy_lvl = sig_obj.get("buylevel")
+                stop_lvl = sig_obj.get("stoplevel")
+                price = sig_obj.get("close")
+                if price is None:
+                    price = score_item.get("current_price")
+            else:
                 swing_score = 0
-            entry_qual = sig_obj.get("entry_quality_score", swing_score)
-            buy_lvl = sig_obj.get("buylevel")
-            stop_lvl = sig_obj.get("stoplevel")
-            price = sig_obj.get("close")
-            if price is None:
+                entry_qual = 0
+                buy_lvl = None
+                stop_lvl = None
                 price = score_item.get("current_price")
 
             # Calculate R/R ratio
@@ -410,8 +417,11 @@ def panel_signals_expanded(sig, sig_eval=None, scores=None):
             ds = str(d)[:10]
     else:
         ds = "--"
-    g = sig.get("grades", {})
-    ga, gb, gc, gd = (int(g.get(k)) if g.get(k) is not None else None for k in ("a", "b", "c", "d"))
+    g = sig.get("grades")
+    if g and isinstance(g, dict):
+        ga, gb, gc, gd = (int(g.get(k)) if g.get(k) is not None else None for k in ("a", "b", "c", "d"))
+    else:
+        ga, gb, gc, gd = None, None, None, None
     ga_s = f"{ga}" if ga is not None else "--"
     gb_s = f"{gb}" if gb is not None else "--"
     gc_s = f"{gc}" if gc is not None else "--"
@@ -514,12 +524,12 @@ def panel_signals_expanded(sig, sig_eval=None, scores=None):
             rs_pct = sc.get("rs_percentile")
             price = sc.get("current_price")
             chg = sc.get("change_percent")
-            mom_inputs = sc.get("momentum_inputs", {})
+            mom_inputs = sc.get("momentum_inputs")
             vs50 = sc.get("price_vs_sma_50")
-            if vs50 is None:
+            if vs50 is None and mom_inputs and isinstance(mom_inputs, dict):
                 vs50 = mom_inputs.get("price_vs_sma_50")
             vs200 = sc.get("price_vs_sma_200")
-            if vs200 is None:
+            if vs200 is None and mom_inputs and isinstance(mom_inputs, dict):
                 vs200 = mom_inputs.get("price_vs_sma_200")
             sector = (sc.get("sector", ""))[:14]
             comp_v = float(comp) if comp is not None else 0
