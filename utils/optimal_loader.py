@@ -674,12 +674,15 @@ class OptimalLoader(ABC):
             buf = io.StringIO()
             writer = csv.DictWriter(buf, fieldnames=columns, extrasaction="ignore")
             for row in rows:
-                writer.writerow({k: ("" if v is None else v) for k, v in row.items()})
+                # Use PostgreSQL's standard NULL marker (\N) for None values
+                # This correctly interprets as NULL for all column types (TEXT, NUMERIC, etc.)
+                # without relying on empty strings which PostgreSQL converts to 0 in NUMERIC columns
+                writer.writerow({k: ("\\N" if v is None else v) for k, v in row.items()})
             buf.seek(0)
             col_ids = [psycopg2.sql.Identifier(c) for c in columns]
             cur.copy_expert(
                 psycopg2.sql.SQL(
-                    "COPY {} ({}) FROM STDIN WITH (FORMAT CSV, NULL '')"
+                    "COPY {} ({}) FROM STDIN WITH (FORMAT CSV)"
                 ).format(
                     psycopg2.sql.Identifier(staging),
                     psycopg2.sql.SQL(",").join(col_ids),

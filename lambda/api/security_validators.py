@@ -346,35 +346,3 @@ def validate_position_side(side: str) -> str:
         )
 
     return side
-
-
-# Safe conversion wrappers that return defaults instead of raising
-def safe_symbol(value: Optional[str], default: str = None) -> Optional[str]:
-    """Safe symbol conversion with default fallback."""
-    try:
-        return validate_symbol(value) if value else default
-    except ValidationError:
-        logger.warning(f"Invalid symbol: {value}, using default: {default}")
-        return default
-
-
-def safe_percentage(
-    value: Optional[Union[int, float, str]], default: float = 50
-) -> float:
-    """Safe percentage conversion with default fallback."""
-    try:
-        return validate_percentage(value) if value is not None else default
-    except ValidationError:
-        logger.warning(f"Invalid percentage: {value}, using default: {default}")
-        return default
-
-
-def safe_price(
-    value: Optional[Union[int, float, str]], default: Decimal = None
-) -> Decimal:
-    """Safe price conversion with default fallback."""
-    try:
-        return validate_price(value) if value is not None else (default or Decimal("0"))
-    except ValidationError:
-        logger.warning(f"Invalid price: {value}, using default: {default}")
-        return default or Decimal("0")

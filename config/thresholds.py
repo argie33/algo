@@ -32,13 +32,14 @@ class ThresholdConfig:
 
         Args:
             key: Configuration key in algo_config.DEFAULTS
-            default: Default value (only used if key not present in config)
+            default: Default value (no longer used — fails if key missing)
 
         Returns:
-            Config value or default
+            Config value
 
         Raises:
-            RuntimeError: If config cannot be loaded. Configuration is authoritative.
+            RuntimeError: If config cannot be loaded or key is missing.
+                         Configuration is authoritative; no silent fallbacks.
         """
         try:
             from algo.infrastructure import get_config
@@ -46,10 +47,12 @@ class ThresholdConfig:
             val = get_config().get(key)
             if val is not None:
                 return val
-            logger.warning(
-                f"Config key '{key}' not found in infrastructure config. Using default: {default}"
+            raise RuntimeError(
+                f"[CONFIG] Missing required configuration key: '{key}'. "
+                "No hardcoded fallback allowed. Check algo_config table for this key."
             )
-            return default
+        except RuntimeError:
+            raise
         except Exception as e:
             raise RuntimeError(
                 f"[CONFIG] Failed to load configuration: {e}. "

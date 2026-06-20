@@ -57,7 +57,10 @@ class TrendCriteriaLoader(OptimalLoader):
                     )
                     end = max_price_date
         except Exception as e:
-            logger.warning(f"Could not check max price date: {e}")
+            raise RuntimeError(
+                f"[TrendCriteria] Failed to query max price date from database: {e}. "
+                "Cannot determine batch context without authoritative price data availability."
+            ) from e
 
         self._batch_context = {"end_date": end}
 
@@ -93,9 +96,10 @@ class TrendCriteriaLoader(OptimalLoader):
                             else date.fromisoformat(str(row[0]))
                         )
             except Exception as e:
-                logger.warning(
-                    f"Could not read trend_template_data watermark for {symbol}: {e}"
-                )
+                raise RuntimeError(
+                    f"[TrendCriteria] Failed to read watermark for {symbol}: {e}. "
+                    "Cannot determine incremental load point without authoritative database state."
+                ) from e
 
         if since is None:
             start = end - timedelta(days=2 * 365)

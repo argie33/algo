@@ -516,7 +516,7 @@ class StockScoresLoader(OptimalLoader):
         total_weight = 0.0
 
         # Institutional ownership: higher is better (target 50%+, cap at 95%)
-        if metrics.get("institutional_ownership"):
+        if metrics.get("institutional_ownership") is not None:
             io = min(metrics["institutional_ownership"], 95)
             weighted_sum += io * 0.55
             total_weight += 0.55
@@ -536,7 +536,7 @@ class StockScoresLoader(OptimalLoader):
             total_weight += 0.20
 
         # Short interest: lower is better (target <5%)
-        if metrics.get("short_interest"):
+        if metrics.get("short_interest") is not None:
             si = metrics["short_interest"]
             if si < 5:
                 score = 100 - (si * 10)

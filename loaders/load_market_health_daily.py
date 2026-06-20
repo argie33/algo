@@ -606,11 +606,13 @@ def _write_vix_family_prices(start: date, end: date) -> int:
         from utils.external.yfinance import YFinanceWrapper
 
         records = []
+        failed_symbols = {}
         for sym in INDEX_SYMBOLS_FOR_PRICE_DAILY:
             try:
                 ticker = YFinanceWrapper.get_ticker(sym)
                 if not ticker:
                     logger.warning(f"Could not get ticker for {sym}")
+                    failed_symbols[sym] = "Ticker unavailable"
                     continue
 
                 df = ticker.history(
@@ -618,6 +620,7 @@ def _write_vix_family_prices(start: date, end: date) -> int:
                 )
                 if df is None or df.empty:
                     logger.warning(f"No data for {sym}")
+                    failed_symbols[sym] = "Empty data"
                     continue
 
                 for idx, row in df.iterrows():
@@ -677,13 +680,23 @@ def _write_vix_family_prices(start: date, end: date) -> int:
                     f"Fetched {len([r for r in records if r[0] == sym])} rows for {sym}"
                 )
             except (AttributeError, KeyError, ValueError, TypeError) as e:
-                logger.warning(f"Failed to fetch {sym}: Data format error: {e}")
+                logger.error(f"Failed to fetch {sym}: Data format error: {e}")
+                failed_symbols[sym] = f"Data format error: {str(e)[:50]}"
                 continue
             except RuntimeError:
                 raise
             except Exception as e:
-                logger.warning(f"Failed to fetch {sym}: Unexpected error: {e}")
+                logger.error(f"Failed to fetch {sym}: Unexpected error: {e}")
+                failed_symbols[sym] = f"Unexpected error: {str(e)[:50]}"
                 continue
+
+        coverage = (len(INDEX_SYMBOLS_FOR_PRICE_DAILY) - len(failed_symbols)) / len(INDEX_SYMBOLS_FOR_PRICE_DAILY) * 100
+        if coverage < 80:
+            raise RuntimeError(
+                f"[VIX_PRICES] Insufficient market health index coverage: {coverage:.1f}% ({len(INDEX_SYMBOLS_FOR_PRICE_DAILY) - len(failed_symbols)} of {len(INDEX_SYMBOLS_FOR_PRICE_DAILY)} symbols). "
+                f"Failed symbols: {failed_symbols}. "
+                "Cannot compute breadth and regime metrics with incomplete index data."
+            )
 
         if not records:
             raise RuntimeError(

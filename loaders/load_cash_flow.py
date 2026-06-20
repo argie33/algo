@@ -163,9 +163,9 @@ class CashFlowLoader(OptimalLoader):
             # Calculate free_cash_flow: OCF - CapEx (both required)
             if "free_cash_flow" in self._schema_cols:
                 ocf = row.get("operating_cash_flow")
-                if ocf and capex:
+                if ocf is not None and capex is not None:
                     row["free_cash_flow"] = ocf - capex
-                elif ocf and capex is None:
+                elif ocf is not None and capex is None:
                     raise ValueError(
                         f"CapEx data missing for {r.get('symbol')} fiscal_year {r.get('fiscal_year')} — "
                         "Cannot calculate FCF without capital expenditure data (FCF ≠ OCF)"

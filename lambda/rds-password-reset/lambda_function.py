@@ -127,8 +127,8 @@ def lambda_handler(event, context):
                     Subject=f"RDS Password Reset REJECTED - Weak Password - {db_host}",
                     Message=json.dumps(validation_message, indent=2),
                 )
-            except ClientError:
-                pass
+            except ClientError as e:
+                logger.error(f"Failed to send SNS alert for validation failure: {e}")
 
         return {
             "statusCode": 400,
@@ -176,8 +176,8 @@ def lambda_handler(event, context):
                         Subject=f"RDS Password Reset FAILED - Missing Secret - {db_host}",
                         Message=json.dumps(secret_message, indent=2),
                     )
-                except ClientError:
-                    pass
+                except ClientError as e:
+                    logger.error(f"Failed to send SNS alert for missing secret: {e}")
 
             return {
                 "statusCode": 400,
@@ -204,8 +204,8 @@ def lambda_handler(event, context):
                     Subject=f"RDS Password Reset FAILED - Secrets Manager Error - {db_host}",
                     Message=json.dumps(secret_message, indent=2),
                 )
-            except ClientError:
-                pass
+            except ClientError as e:
+                logger.error(f"Failed to send SNS alert for secrets manager error: {e}")
 
         return {
             "statusCode": 500,
@@ -250,8 +250,8 @@ def lambda_handler(event, context):
                     Subject=f"RDS Password Reset FAILED - Connection Error - {db_host}",
                     Message=json.dumps(conn_message, indent=2),
                 )
-            except ClientError:
-                pass
+            except ClientError as e:
+                logger.error(f"Failed to send SNS alert for connection error: {e}")
 
         return {
             "statusCode": 500,
@@ -378,8 +378,8 @@ def lambda_handler(event, context):
                     Subject=f"RDS Password Reset FAILED - {db_user}@{db_host}",
                     Message=json.dumps(failure_message, indent=2),
                 )
-            except ClientError:
-                pass
+            except ClientError as e:
+                logger.error(f"Failed to send SNS alert for password reset failure: {e}")
 
         return {
             "statusCode": 500,
