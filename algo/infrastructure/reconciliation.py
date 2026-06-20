@@ -239,7 +239,6 @@ class DailyReconciliation:
 
                 total_position_value = 0.0
                 unrealized_pnl = 0.0
-                unrealized_pnl_pct = 0.0
                 positions_with_prices = 0
                 # Track unrealized PnL breakdown: winning, losing, breakeven positions
                 unrealized_pnl_winning_count = 0
