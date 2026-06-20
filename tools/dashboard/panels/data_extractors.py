@@ -134,3 +134,46 @@ def extract_run_info(run: dict[str, Any]) -> dict[str, Any]:
         "summary": run.get("summary"),
         "_source": run.get("_source"),
     }
+
+
+def extract_health_items(hlth: dict[str, Any] | list) -> tuple[list, bool]:
+    """Extract health items and ready_to_trade status (error already checked).
+
+    Args:
+        hlth: Health response dict or list of items
+
+    Returns:
+        (items_list, ready_to_trade_bool) tuple
+    """
+    items = []
+    ready_to_trade = None
+
+    if isinstance(hlth, dict):
+        items = hlth.get("items", []) if isinstance(hlth.get("items"), list) else []
+        ready_to_trade = hlth.get("ready_to_trade")
+    elif isinstance(hlth, list):
+        items = hlth
+
+    return items, ready_to_trade
+
+
+def extract_phase_results(run: dict[str, Any]) -> list[dict[str, Any]]:
+    """Extract and normalize phase results from run data.
+
+    Handles various phase result formats and ensures consistent structure.
+    """
+    if not isinstance(run, dict):
+        return []
+    results = run.get("phase_results", [])
+    return results if isinstance(results, list) else []
+
+
+def extract_item_field(item: dict[str, Any], field: str, default: Any = None) -> Any:
+    """Extract field from health item (used in loops over items).
+
+    After has_error() check at function entry, direct field access is safe.
+    Use this for optional fields only.
+    """
+    if not isinstance(item, dict):
+        return default
+    return item.get(field, default)
