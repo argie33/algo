@@ -13,6 +13,7 @@ Rules:
 import logging
 import os
 from datetime import date as _date
+from decimal import Decimal, ROUND_HALF_UP
 
 from algo.infrastructure import get_alpaca_timeout
 from utils.db.context import DatabaseContext
@@ -62,7 +63,7 @@ class PositionSizer:
         try:
             result = self._with_cursor(fetch_snapshot)
             if result is not None and result[0] is not None:
-                snapshot_value = float(result[0])
+                snapshot_value = Decimal(str(result[0]))
                 snapshot_date = result[1]
                 age_days = (
                     (_date.today() - snapshot_date).days if snapshot_date else 999
@@ -140,11 +141,11 @@ class PositionSizer:
 
                     if "portfolio_value" in data and data["portfolio_value"] is not None:
                         pv = data["portfolio_value"]
-                        return float(pv)
+                        return Decimal(str(pv))
 
                     if "equity" in data and data["equity"] is not None:
                         pv = data["equity"]
-                        return float(pv)
+                        return Decimal(str(pv))
 
                     raise ValueError(f"Portfolio value fields missing or null in Alpaca response. Expected 'portfolio_value' or 'equity', got: {list(data.keys())}")
                 elif response.status_code in (429, 503):
@@ -199,15 +200,15 @@ class PositionSizer:
                     "Portfolio snapshot data inconsistent. Cannot calculate drawdown for position sizing."
                 )
 
-            peak = float(result[0])
-            current = float(result[1])
+            peak = Decimal(str(result[0]))
+            current = Decimal(str(result[1]))
             if peak == 0:
                 raise RuntimeError(
                     "Peak portfolio value is zero. Portfolio snapshots data is invalid."
                 )
 
-            drawdown_pct = ((peak - current) / peak) * 100
-            return max(0, drawdown_pct)
+            drawdown_pct = ((peak - current) / peak) * Decimal(100)
+            return max(Decimal(0), drawdown_pct)
 
         result = self._with_cursor(calc_drawdown)
         if result is not None:
@@ -232,24 +233,24 @@ class PositionSizer:
                 "CIRCUIT BREAKER TRIGGERED: Portfolio drawdown >= 20%. "
                 "Position sizing halted. All entries blocked until recovery."
             )
-            return 0.0
+            return Decimal(0)
         elif dd >= 15:
             val = self.config.get("risk_reduction_at_minus_15")
             if val is None:
                 raise ValueError("CRITICAL: risk_reduction_at_minus_15 config missing. Cannot adjust risk at -15% drawdown.")
-            return float(val)
+            return Decimal(str(val))
         elif dd >= 10:
             val = self.config.get("risk_reduction_at_minus_10")
             if val is None:
                 raise ValueError("CRITICAL: risk_reduction_at_minus_10 config missing. Cannot adjust risk at -10% drawdown.")
-            return float(val)
+            return Decimal(str(val))
         elif dd >= 5:
             val = self.config.get("risk_reduction_at_minus_5")
             if val is None:
                 raise ValueError("CRITICAL: risk_reduction_at_minus_5 config missing. Cannot adjust risk at -5% drawdown.")
-            return float(val)
+            return Decimal(str(val))
         else:
-            return 1.0
+            return Decimal(1)
 
     def get_market_exposure_multiplier(self):
         """Look up the most recent market exposure pct (0-100). Returns multiplier 0.0-1.0.
@@ -264,7 +265,7 @@ class PositionSizer:
             row = cur.fetchone()
             if not row or row[0] is None:
                 raise ValueError("Market exposure data unavailable. Phase must run daily to maintain this.")
-            return float(row[0]) / 100.0
+            return Decimal(str(row[0])) / Decimal(100)
 
         result = self._with_cursor(fetch_exposure)
         if result is not None:
@@ -286,7 +287,7 @@ class PositionSizer:
             row = cur.fetchone()
             if not row or row[0] is None:
                 raise ValueError("VIX level unavailable from market_health_daily. Cannot adjust position size for volatility.")
-            vix = float(row[0])
+            vix = Decimal(str(row[0]))
             caution_threshold_val = self.config.get("vix_caution_threshold")
             max_threshold_val = self.config.get("vix_max_threshold")
             reduction_val = self.config.get("vix_caution_risk_reduction")
@@ -296,11 +297,11 @@ class PositionSizer:
                 raise ValueError("CRITICAL: vix_max_threshold config missing. Cannot determine VIX max threshold.")
             if reduction_val is None:
                 raise ValueError("CRITICAL: vix_caution_risk_reduction config missing. Cannot apply VIX risk reduction.")
-            caution_threshold = float(caution_threshold_val)
-            max_threshold = float(max_threshold_val)
+            caution_threshold = Decimal(str(caution_threshold_val))
+            max_threshold = Decimal(str(max_threshold_val))
             if vix > caution_threshold and vix <= max_threshold:
-                return float(reduction_val)
-            return 1.0
+                return Decimal(str(reduction_val))
+            return Decimal(1)
 
         result = self._with_cursor(fetch_vix)
         if result is not None:
@@ -346,7 +347,7 @@ class PositionSizer:
                     WHERE status = 'open'
                 """)
                 result = cur.fetchone()
-                return float(result[0]) if result else 0.0
+                return Decimal(str(result[0])) if result else Decimal(0)
 
             result = self._with_cursor(fetch_positions_value)
             if result is not None:
@@ -397,8 +398,8 @@ class PositionSizer:
             result = cur.fetchone()
             if result is None:
                 raise ValueError("Position capital query returned None")
-            total_value = float(result[0]) if result[0] is not None else 0
-            return (total_value / portfolio_value * 100) if portfolio_value > 0 else 0
+            total_value = Decimal(str(result[0])) if result[0] is not None else Decimal(0)
+            return (total_value / portfolio_value * Decimal(100)) if portfolio_value > 0 else Decimal(0)
 
         result = self._with_cursor(fetch_capital_pct)
         if result is not None:
@@ -486,7 +487,7 @@ class PositionSizer:
             base_risk_val = self.config.get("base_risk_pct")
             if base_risk_val is None:
                 raise ValueError("CRITICAL: base_risk_pct config missing. Cannot calculate position size.")
-            base_risk_pct = float(base_risk_val) / 100
+            base_risk_pct = Decimal(str(base_risk_val)) / Decimal(100)
             exposure_mult = self.get_market_exposure_multiplier()
             phase_mult = self.get_phase_size_multiplier()
             vix_mult = self.get_vix_caution_multiplier()
@@ -527,7 +528,7 @@ class PositionSizer:
             min_risk_val = self.config.get("min_risk_pct_floor")
             if min_risk_val is None:
                 raise ValueError("CRITICAL: min_risk_pct_floor config missing. Cannot enforce minimum position risk floor.")
-            min_risk_floor = float(min_risk_val) / 100
+            min_risk_floor = Decimal(str(min_risk_val)) / Decimal(100)
             has_safety_reduction = (
                 exposure_mult < 0.8 or vix_mult < 1.0 or risk_adjustment < 1.0
             )
@@ -535,9 +536,9 @@ class PositionSizer:
                 adjusted_risk_pct = min_risk_floor
                 risk_dollars = portfolio_value * adjusted_risk_pct
 
-            risk_per_share = entry_price - stop_loss_price
+            risk_per_share = Decimal(str(entry_price)) - Decimal(str(stop_loss_price))
             shares = (
-                int(round(risk_dollars / risk_per_share)) if risk_per_share > 0 else 0
+                int((risk_dollars / risk_per_share).quantize(Decimal(1), rounding=ROUND_HALF_UP)) if risk_per_share > 0 else 0
             )
 
             if shares < 1:
@@ -549,25 +550,25 @@ class PositionSizer:
                     "reason": f"Position too small: risk_dollars=${risk_dollars:.2f}, risk_per_share=${risk_per_share:.2f}",
                 }
 
-            position_value = shares * entry_price
+            position_value = Decimal(shares) * Decimal(str(entry_price))
             max_pos_pct_val = self.config.get("max_position_size_pct")
             if max_pos_pct_val is None:
                 raise ValueError("CRITICAL: max_position_size_pct config missing. Cannot enforce position size cap.")
-            max_position_pct = float(max_pos_pct_val) / 100
+            max_position_pct = Decimal(str(max_pos_pct_val)) / Decimal(100)
             max_position_value = portfolio_value * max_position_pct
 
             if position_value > max_position_value:
-                shares = int(round(max_position_value / entry_price))
-                position_value = shares * entry_price
-                risk_dollars = risk_per_share * shares
+                shares = int((max_position_value / Decimal(str(entry_price))).quantize(Decimal(1), rounding=ROUND_HALF_UP))
+                position_value = Decimal(shares) * Decimal(str(entry_price))
+                risk_dollars = risk_per_share * Decimal(shares)
 
             position_pct_of_portfolio = (
-                (position_value / portfolio_value * 100) if portfolio_value > 0 else 0
+                (position_value / Decimal(str(portfolio_value)) * Decimal(100)) if portfolio_value > 0 else Decimal(0)
             )
             max_conc_val = self.config.get("max_concentration_pct")
             if max_conc_val is None:
                 raise ValueError("CRITICAL: max_concentration_pct config missing. Cannot enforce concentration limit.")
-            max_concentration = float(max_conc_val)
+            max_concentration = Decimal(str(max_conc_val))
 
             if position_pct_of_portfolio > max_concentration:
                 return {
@@ -578,21 +579,21 @@ class PositionSizer:
                     "reason": f"Position would be {position_pct_of_portfolio:.1f}% > {max_concentration:.0f}% portfolio",
                 }
 
-            total_invested = active_position_value + position_value
+            total_invested = Decimal(str(active_position_value)) + position_value
             max_inv_val = self.config.get("max_total_invested_pct")
             if max_inv_val is None:
                 raise ValueError("CRITICAL: max_total_invested_pct config missing. Cannot enforce total investment limit.")
-            max_invested_pct = float(max_inv_val)
+            max_invested_pct = Decimal(str(max_inv_val))
             if (
                 portfolio_value > 0
-                and (total_invested / portfolio_value * 100) > max_invested_pct
+                and (total_invested / Decimal(str(portfolio_value)) * Decimal(100)) > max_invested_pct
             ):
                 return {
                     "shares": 0,
                     "position_size_pct": 0,
                     "risk_dollars": 0,
                     "status": "no_room",
-                    "reason": f"Total invested would be {total_invested/portfolio_value*100:.0f}% > {max_invested_pct:.0f}%",
+                    "reason": f"Total invested would be {(total_invested/Decimal(str(portfolio_value))*Decimal(100)):.0f}% > {max_invested_pct:.0f}%",
                 }
 
             return {

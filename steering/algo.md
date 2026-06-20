@@ -85,6 +85,14 @@ unzip -l terraform/lambda_api.zip | head -30
 **Resilience:** If EOD fails, day's morning regime covers (graceful degradation). Day+1 morning recomputes fresh.  
 **Monitor:** `SELECT MAX(date), MAX(computed_at) FROM market_exposure_daily` (should show 2 recent timestamps). Alert if no computation in 24h (both pipelines failed).
 
+## Data Architecture: Earnings Calendar
+
+**Single source of truth:** `earnings_calendar` table (symbol, earnings_date, announce_time, estimates).  
+**Loaded daily:** 4:29 AM ET via EventBridge + yfinance ticker.calendar. Keeps 60 days of history (past + future).  
+**Purpose:** Blackout window gating — prevents entries 7 trading days before or 3 trading days after earnings to avoid gap risk.  
+**Data retention:** Loader preserves past earnings (within 60 days) to properly check blackout windows for recent trades. Without history, earnings surprises that occurred within past 7 days won't block entries.  
+**Phase 1 freshness check:** HALT if stale (>1 trading day old). Missing data means blackout logic cannot function.
+
 ## Schedule (Daily, Mon-Fri)
 
 **2:00 AM ET:** morning-prep-pipeline (Step Functions) — loads prices + market health + swing_trader_scores + technical indicators (5-5.5h) before 9:30 AM deadline
@@ -92,6 +100,8 @@ unzip -l terraform/lambda_api.zip | head -30
 **2:40 AM ET:** Load SP500/Russell constituents (EventBridge)
 
 **4:05 PM ET:** EOD pipeline (Step Functions) — loads prices, market health, market exposure, technical indicators, algo metrics, swing scores, buy/sell signals (3-4h)
+
+**4:29 AM ET:** Load earnings calendar (EventBridge) — fetches next earnings for all symbols, preserves 60 days history for blackout window gating
 
 **4:30 PM ET:** Compute circuit breaker metrics (EventBridge)
 

@@ -4,7 +4,7 @@
 import argparse
 import logging
 import sys
-from datetime import date
+from datetime import date, timedelta
 from typing import List, Optional
 
 from utils.loaders.config import get_default_parallelism
@@ -25,7 +25,11 @@ class EarningsCalendarLoader(OptimalLoader):
     def fetch_incremental(
         self, symbol: str, since: date | None
     ) -> list[dict] | None:
-        """Fetch earnings dates from yfinance for a symbol."""
+        """Fetch earnings dates from yfinance for a symbol.
+
+        Keeps historical earnings (past 60 days) to properly gate blackout windows.
+        Future earnings ensure new earnings surprises are caught before trading.
+        """
         try:
             import pandas as pd
 
@@ -43,7 +47,9 @@ class EarningsCalendarLoader(OptimalLoader):
                 cal = ticker.calendar
                 if cal and isinstance(cal, dict) and "Earnings Date" in cal:
                     earnings_date = cal["Earnings Date"]
-                    if earnings_date and earnings_date >= date.today():
+                    # Keep 60 days of history + all future dates to properly gate blackout windows
+                    cutoff_date = date.today() - timedelta(days=60)
+                    if earnings_date and earnings_date >= cutoff_date:
                         results.append(
                             {
                                 "symbol": symbol,

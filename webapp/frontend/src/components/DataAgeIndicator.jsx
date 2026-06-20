@@ -5,6 +5,7 @@ import { AlertTriangle, Clock, AlertCircle } from 'lucide-react';
  * Component to display data age and staleness warnings
  * Shows when data is from cache and how old it is
  * Warns if data is phantom (>2 hours old)
+ * Always safe to render - gracefully handles missing data
  */
 export const DataAgeIndicator = ({
   fetchedAt,
@@ -12,7 +13,9 @@ export const DataAgeIndicator = ({
   isStale = false,
   label = 'Data',
 }) => {
-  if (!fetchedAt) return null;
+  if (!fetchedAt || typeof fetchedAt !== 'number' || fetchedAt <= 0) {
+    return null;
+  }
 
   const now = Date.now();
   const ageMs = now - fetchedAt;
@@ -137,4 +140,12 @@ export const StaleDataWarning = ({
   );
 };
 
-export default { DataAgeIndicator, StaleDataWarning };
+/**
+ * Safe wrapper component that handles null render gracefully
+ * Parent components can use this without null checks
+ */
+export const SafeDataAgeIndicator = (props) => {
+  return <DataAgeIndicator {...props} />;
+};
+
+export default { DataAgeIndicator, StaleDataWarning, SafeDataAgeIndicator };

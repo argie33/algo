@@ -14,7 +14,8 @@ Validates:
 
 import logging
 from datetime import date as _date
-from typing import Any, Dict, Optional, Tuple
+from decimal import Decimal, ROUND_HALF_UP
+from typing import Any
 
 from algo.risk import EarningsBlackout
 from utils.db import DatabaseContext
@@ -28,10 +29,10 @@ class PreTradeChecks:
 
     def __init__(
         self,
-        config: Dict[str, Any],
-        alpaca_base_url: Optional[str] = None,
-        alpaca_key: Optional[str] = None,
-        alpaca_secret: Optional[str] = None,
+        config: dict[str, Any],
+        alpaca_base_url: str | None = None,
+        alpaca_key: str | None = None,
+        alpaca_secret: str | None = None,
     ):
         """Initialize pre-trade checks with configuration."""
         self.config = config
@@ -41,7 +42,7 @@ class PreTradeChecks:
 
     def apply_slippage_adjustment(
         self, shares: float, entry_price: float, slippage_pct: float = 1.0
-    ) -> Tuple[float, float]:
+    ) -> tuple[int, float]:
         """Issue #28: Apply slippage model to position size.
 
         Reduces shares by slippage percentage to account for market impact and execution slippage.
@@ -55,9 +56,9 @@ class PreTradeChecks:
         Returns:
             (adjusted_shares, actual_cost_per_share)
         """
-        slippage_factor = 1.0 - (slippage_pct / 100.0)
-        adjusted_shares = int(shares * slippage_factor)
-        actual_cost = entry_price / slippage_factor
+        slippage_factor = Decimal(1) - (Decimal(str(slippage_pct)) / Decimal(100))
+        adjusted_shares = int((Decimal(shares) * slippage_factor).quantize(Decimal(1), rounding=ROUND_HALF_UP))
+        actual_cost = float(Decimal(str(entry_price)) / slippage_factor)
         logger.debug(
             f"Slippage adjustment: {shares} → {adjusted_shares} shares, cost ${entry_price:.2f} → ${actual_cost:.2f}"
         )
@@ -69,8 +70,8 @@ class PreTradeChecks:
         position_value: float,
         portfolio_value: float,
         side: str = "BUY",
-        eval_date: Optional[_date] = None,
-    ) -> Tuple[bool, Optional[str]]:
+        eval_date: _date | None = None,
+    ) -> tuple[bool, str | None]:
         """
         Run all pre-trade validation checks.
 
@@ -99,14 +100,15 @@ class PreTradeChecks:
             except ValueError as e:
                 return (False, f"Earnings blackout check failed: {e}")
 
-        max_position_pct = float(self.config.get("max_position_size_pct", 8.0)) / 100.0
-        max_position_value = portfolio_value * max_position_pct
+        max_position_pct = Decimal(str(self.config.get("max_position_size_pct", 8.0))) / Decimal(100)
+        max_position_value = Decimal(str(portfolio_value)) * max_position_pct
 
-        if position_value > max_position_value:
+        position_value_dec = Decimal(str(position_value))
+        if position_value_dec > max_position_value:
             return (
                 False,
                 f"Position ${position_value:.2f} exceeds max "
-                f"${max_position_value:.2f} ({max_position_pct*100:.1f}% of portfolio)",
+                f"${float(max_position_value):.2f} ({float(max_position_pct*Decimal(100)):.1f}% of portfolio)",
             )
 
         try:
@@ -121,11 +123,11 @@ class PreTradeChecks:
             logger.critical(f"[PRE-TRADE] Database error checking duplicate position for {symbol}: {e}")
             raise ValueError(f"Cannot validate duplicate position check for {symbol}: {e}") from e
 
-        min_order_size = float(self.config.get("min_order_size_dollars", 100.0))
-        if position_value < min_order_size:
+        min_order_size = Decimal(str(self.config.get("min_order_size_dollars", 100.0)))
+        if position_value_dec < min_order_size:
             return (
                 False,
-                f"Position value ${position_value:.2f} below minimum ${min_order_size:.2f}",
+                f"Position value ${position_value:.2f} below minimum ${float(min_order_size):.2f}",
             )
 
         try:
@@ -158,7 +160,10 @@ class PreTradeChecks:
                            WHERE ap.status = %s AND cp.sector = %s""",
                         ("open", sector),
                     )
-                    sector_count = cur.fetchone()[0]
+                    row = cur.fetchone()
+                    if row is None or row[0] is None:
+                        raise RuntimeError(f"Sector count query failed for {sector}")
+                    sector_count = row[0]
                     if sector_count >= max_sector_positions:
                         return (
                             False,
@@ -171,7 +176,10 @@ class PreTradeChecks:
                            WHERE ap.status = %s AND cp.industry = %s""",
                         ("open", industry),
                     )
-                    industry_count = cur.fetchone()[0]
+                    row = cur.fetchone()
+                    if row is None or row[0] is None:
+                        raise RuntimeError(f"Industry count query failed for {industry}")
+                    industry_count = row[0]
                     if industry_count >= max_industry_positions:
                         return (
                             False,

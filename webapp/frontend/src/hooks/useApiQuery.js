@@ -1,5 +1,6 @@
 import { useQuery } from '@tanstack/react-query';
 import { extractData, extractPaginatedData } from '../utils/responseNormalizer';
+import { validateResponseEnvelope } from '../utils/responseValidator';
 import dataCache from '../services/dataCache';
 
 /**
@@ -92,17 +93,31 @@ export const useApiQuery = (
       try {
         const response = await withTimeout(queryFn(), timeout);
         const freshData = extractData(response);
-        // Unwrap single-object envelope: {data: payload, statusCode, success} → payload
-        // Lambda always returns json_response(200, payload) which wraps in {data: payload}.
-        // extractData preserves this as {data: payload, statusCode, success}.
-        // Stripping the envelope here means every component gets payload fields directly.
-        const hasEnvelope = (
-          freshData !== null && typeof freshData === 'object' && !Array.isArray(freshData)
-          && freshData.data !== null && freshData.data !== undefined
-          && typeof freshData.data === 'object' && !Array.isArray(freshData.data)
-          && !freshData.items
-        );
-        const result = hasEnvelope ? freshData.data : freshData;
+
+        // Validate and unwrap envelope with explicit structure checks
+        // Lambda responses come wrapped as {data: payload, statusCode, success}
+        // We need to unwrap safely while validating the envelope is valid.
+        let result;
+        if (freshData && typeof freshData === 'object' && !Array.isArray(freshData) && freshData.data !== undefined && !freshData.items) {
+          // Has single-object envelope structure
+          const envelopeValidation = validateResponseEnvelope(freshData, 'Query result');
+          if (!envelopeValidation.valid) {
+            throw new Error(`Invalid response envelope: ${envelopeValidation.errors.join('; ')}`);
+          }
+
+          // Ensure unwrapped data is not null or problematic
+          result = envelopeValidation.unwrapped;
+          if (result === null) {
+            throw new Error('Response envelope.data unwrapped to null — API returned {data: null}');
+          }
+          if (typeof result === 'object' && Object.keys(result).length === 0 && !Array.isArray(result)) {
+            console.warn('[useApiQuery] Warning: envelope.data is empty object {}', { endpoint: actualCacheKey });
+            // Still use it but log warning — some endpoints may legitimately return empty state
+          }
+        } else {
+          // No envelope or already unwrapped (items list, direct array, etc.)
+          result = freshData;
+        }
         // Cache the unwrapped result for consistent access on cache hit
         try {
           await dataCache.set(actualCacheKey, result, { ttl: 30 * 60 * 1000 });

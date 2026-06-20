@@ -17,7 +17,7 @@ Implementation:
 import logging
 import time
 from datetime import datetime, timedelta, timezone
-from typing import Any
+from typing import Any, Dict, Optional
 
 from utils.db.context import DatabaseContext
 
@@ -234,15 +234,19 @@ class YFinanceIPCircuitBreaker:
             return {
                 "is_banned": False,
                 "failure_count": 0,
+                "backoff_secs": 0.0,
+                "ban_until": None,
+                "last_error_time": None,
+                "last_success_time": None,
                 "reason": "No ban state"
             }
 
         ban_until = state.get("ban_until")
-        remaining_secs = 0
+        remaining_secs = 0.0
 
         if ban_until:
             remaining_secs = (ban_until - datetime.now(timezone.utc)).total_seconds()
-            remaining_secs = max(0, remaining_secs)
+            remaining_secs = max(0.0, remaining_secs)
 
         last_error_time = state.get("last_error_time")
         last_success_time = state.get("last_success_time")

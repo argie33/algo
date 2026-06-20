@@ -23,17 +23,18 @@ import {
   ResponsiveContainer, CartesianGrid, PieChart, Pie, Legend, ReferenceLine,
 } from 'recharts';
 import { useApiQuery } from '../hooks/useApiQuery';
-import { useDataStalenessCheck, safeGetNonPhantomArray } from '../hooks/useDataStalenessCheck';
+import { useDataStalenessCheck, safeGetNonPhantomArray, isArraySafe, safeGetValue } from '../hooks/useDataStalenessCheck';
 import { api } from '../services/api';
 import ErrorBoundary from '../components/ErrorBoundary';
-import { DataAgeIndicator, StaleDataWarning } from '../components/DataAgeIndicator';
+import { DataAgeIndicator, StaleDataWarning, SafeDataAgeIndicator } from '../components/DataAgeIndicator';
 import { SkeletonKpi, SkeletonChart, SkeletonTable, SkeletonCircuitBreaker, SkeletonChartContent, AddGlobalStyles } from '../components/Skeleton';
 import { fmtMoney, fmtMoneyShort, num, pct } from '../components/dashboard/shared/utils/dashboardFormatters';
-import { safeGetMarketCurrent } from '../utils/dataValidation';
+import { safeGetMarketCurrent, safeNumericValue, ensureArray } from '../utils/dataValidation';
 
 const Pnl = ({ value, suffix = '' }) => {
-  if (value == null || isNaN(Number(value))) return <span className="muted">—</span>;
+  if (value == null) return <span className="muted">—</span>;
   const v = Number(value);
+  if (isNaN(v)) return <span className="muted">—</span>;
   const cls = v > 0 ? 'up' : v < 0 ? 'down' : 'flat';
   const sign = v > 0 ? '+' : '';
   return (
@@ -95,17 +96,19 @@ const LADDER_FILL_STYLE = (pStop, pCur, pEntry) => ({
 
 // Data extraction helpers — consistent patterns for normalizing API responses
 const extractArray = (data, defaultKey = 'items') => {
+  if (!data) return [];
   if (Array.isArray(data)) return data;
-  if (data && typeof data === 'object' && Array.isArray(data[defaultKey])) return data[defaultKey];
+  if (typeof data === 'object' && Array.isArray(data[defaultKey])) return data[defaultKey];
   return [];
 };
 
 const extractNestedValue = (obj, path, defaultValue = {}) => {
   if (!obj || typeof obj !== 'object') return defaultValue;
+  if (typeof path !== 'string') return defaultValue;
   const keys = path.split('.');
   let val = obj;
   for (const key of keys) {
-    if (val == null) return defaultValue;
+    if (val == null || typeof val !== 'object') return defaultValue;
     val = val[key];
   }
   return val ?? defaultValue;
@@ -435,14 +438,14 @@ function PortfolioDashboardPage() {
           <Kpi
             label="Total Return"
             value={<Pnl value={perf?.total_return_pct} suffix="%" />}
-            sub={`${perf?.total_trades ?? 0} closed trades`}
+            sub={`${safeNumericValue(perf, ['total_trades'], 0)} closed trades`}
             icon={TrendingUp}
-            tone={perf?.total_return_pct >= 0 ? 'up' : 'down'}
+            tone={safeNumericValue(perf, ['total_return_pct'], 0) >= 0 ? 'up' : 'down'}
           />
           <Kpi
             label="Market Regime"
-            value={<span className="mono">{(market.trend || '—').toString().toUpperCase()}</span>}
-            sub={`Stage ${market.stage ?? '—'} · DD ${market.distribution_days ?? 0}`}
+            value={<span className="mono">{((market?.trend) || '—').toString().toUpperCase()}</span>}
+            sub={`Stage ${market?.stage ?? '—'} · DD ${safeNumericValue(market, ['distribution_days'], 0)}`}
             icon={Shield}
           />
         </div>
@@ -452,10 +455,10 @@ function PortfolioDashboardPage() {
       {hasCachedPerf && (
         <div style={{ marginTop: 'var(--space-4)', marginBottom: 'var(--space-2)', display: 'flex', gap: 'var(--space-2)', alignItems: 'center' }}>
           <CachedDataBadge />
-          <DataAgeIndicator
+          <SafeDataAgeIndicator
             fetchedAt={perf?._fetchedAt}
-            isFromCache={perf?._fromCache}
-            isStale={perf?._isStale}
+            isFromCache={Boolean(perf?._fromCache)}
+            isStale={Boolean(perf?._isStale)}
             label="Performance Metrics"
           />
         </div>
@@ -739,28 +742,33 @@ function PortfolioDashboardPage() {
           </div>
           <div className="card-body">
             {(() => {
-              const safeCurrent = safeGetMarketCurrent(markets);
+              const safeCurrent = safeGetMarketCurrent(markets) || {};
+              const exposurePct = safeCurrent.exposure_pct ?? '—';
+              const rawScore = safeCurrent.raw_score ?? '—';
+              const regime = (safeCurrent.regime || 'unknown').toString().toUpperCase();
+              const vixValue = market.vix ?? 0;
+              const distDays = market.distribution_days ?? 0;
               return (
                 <div className="grid grid-4">
                   <Stile
                     label="Exposure Target"
-                    value={<span className="mono tnum">{safeCurrent?.exposure_pct ?? '—'}%</span>}
-                    sub={(safeCurrent?.regime || 'unknown').toString().toUpperCase()}
+                    value={<span className="mono tnum">{exposurePct}%</span>}
+                    sub={regime}
                   />
                   <Stile
                     label="Market Score"
-                    value={<span className="mono tnum">{safeCurrent?.raw_score ?? '—'}/100</span>}
+                    value={<span className="mono tnum">{rawScore}/100</span>}
                     sub="12-factor composite"
                   />
                   <Stile
                     label="VIX"
-                    value={<span className="mono tnum">{num(market.vix, 1)}</span>}
-                    sub={market.vix > 25 ? 'elevated' : market.vix > 15 ? 'normal' : 'low'}
+                    value={<span className="mono tnum">{num(vixValue, 1)}</span>}
+                    sub={vixValue > 25 ? 'elevated' : vixValue > 15 ? 'normal' : 'low'}
                   />
                   <Stile
                     label="Distribution Days"
-                    value={<span className={`mono tnum ${market.distribution_days >= 5 ? 'down' : ''}`}>
-                      {market.distribution_days ?? 0}
+                    value={<span className={`mono tnum ${distDays >= 5 ? 'down' : ''}`}>
+                      {distDays}
                     </span>}
                     sub="trailing 4 weeks"
                   />
@@ -1540,66 +1548,100 @@ function Empty({ title, desc }) {
 
 // PropTypes for chart components
 CircuitBreakerPanel.propTypes = {
-  data: PropTypes.oneOfType([PropTypes.array, PropTypes.object]),
-  loading: PropTypes.bool,
-  error: PropTypes.object,
+  data: PropTypes.oneOfType([
+    PropTypes.arrayOf(PropTypes.object),
+    PropTypes.shape({
+      breakers: PropTypes.array.isRequired,
+      _error: PropTypes.oneOfType([PropTypes.string, PropTypes.object]),
+    }),
+  ]),
+  loading: PropTypes.bool.isRequired,
+  error: PropTypes.shape({
+    message: PropTypes.string,
+    code: PropTypes.string,
+    responseData: PropTypes.object,
+  }),
 };
 
 EquityCurve.propTypes = {
-  series: PropTypes.array,
-  loading: PropTypes.bool,
+  series: PropTypes.arrayOf(PropTypes.object).isRequired,
+  loading: PropTypes.bool.isRequired,
 };
 
 DrawdownChart.propTypes = {
-  series: PropTypes.array,
-  loading: PropTypes.bool,
+  series: PropTypes.arrayOf(PropTypes.object).isRequired,
+  loading: PropTypes.bool.isRequired,
 };
 
 DailyReturnHistogram.propTypes = {
-  histogram_data: PropTypes.object,
-  loading: PropTypes.bool,
-  error: PropTypes.object,
+  histogram_data: PropTypes.shape({
+    bins: PropTypes.array,
+    values: PropTypes.array,
+  }).isRequired,
+  loading: PropTypes.bool.isRequired,
+  error: PropTypes.shape({
+    message: PropTypes.string,
+    code: PropTypes.string,
+  }),
 };
 
 TradeDistribution.propTypes = {
-  distribution_data: PropTypes.object,
-  loading: PropTypes.bool,
-  error: PropTypes.object,
+  distribution_data: PropTypes.shape({
+    wins: PropTypes.number,
+    losses: PropTypes.number,
+  }).isRequired,
+  loading: PropTypes.bool.isRequired,
+  error: PropTypes.shape({
+    message: PropTypes.string,
+    code: PropTypes.string,
+  }),
 };
 
 HoldingPeriodHistogram.propTypes = {
-  holding_data: PropTypes.object,
-  error: PropTypes.object,
+  holding_data: PropTypes.shape({
+    bins: PropTypes.array,
+    values: PropTypes.array,
+  }).isRequired,
+  error: PropTypes.shape({
+    message: PropTypes.string,
+    code: PropTypes.string,
+  }),
 };
 
 RLadderPanel.propTypes = {
-  positions: PropTypes.array,
-  loading: PropTypes.bool,
+  positions: PropTypes.arrayOf(PropTypes.object).isRequired,
+  loading: PropTypes.bool.isRequired,
   onSelect: PropTypes.func,
 };
 
 RiskAllocationPie.propTypes = {
-  positions: PropTypes.array,
-  totalValue: PropTypes.number,
-  loading: PropTypes.bool,
+  positions: PropTypes.arrayOf(PropTypes.object).isRequired,
+  totalValue: PropTypes.number.isRequired,
+  loading: PropTypes.bool.isRequired,
   onSelect: PropTypes.func,
 };
 
 SectorConcentration.propTypes = {
-  positions: PropTypes.array,
-  totalValue: PropTypes.number,
-  loading: PropTypes.bool,
+  positions: PropTypes.arrayOf(PropTypes.object).isRequired,
+  totalValue: PropTypes.number.isRequired,
+  loading: PropTypes.bool.isRequired,
 };
 
 StagePhaseDonut.propTypes = {
-  distribution: PropTypes.object,
-  loading: PropTypes.bool,
-  error: PropTypes.object,
+  distribution: PropTypes.shape({
+    labels: PropTypes.array,
+    values: PropTypes.array,
+  }).isRequired,
+  loading: PropTypes.bool.isRequired,
+  error: PropTypes.shape({
+    message: PropTypes.string,
+    code: PropTypes.string,
+  }),
 };
 
 PositionHealthTable.propTypes = {
-  positions: PropTypes.array,
-  loading: PropTypes.bool,
+  positions: PropTypes.arrayOf(PropTypes.object).isRequired,
+  loading: PropTypes.bool.isRequired,
   onSelect: PropTypes.func,
 };
 

@@ -16,7 +16,7 @@ This is what institutional traders use to validate their edge isn't eroded by fe
 
 import logging
 from datetime import date
-from typing import Optional
+from decimal import Decimal, ROUND_HALF_UP
 
 from utils.db import DatabaseContext
 
@@ -39,7 +39,7 @@ class TCAEngine:
         shares_requested: int,
         shares_filled: int,
         side: str = "BUY",
-        execution_latency_ms: Optional[int] = None,
+        execution_latency_ms: int | None = None,
     ):
         """Record a fill and compute slippage metrics.
 
@@ -59,18 +59,20 @@ class TCAEngine:
         try:
             with DatabaseContext("write") as cur:
                 # Compute slippage in basis points
+                signal_price_dec = Decimal(str(signal_price))
+                fill_price_dec = Decimal(str(fill_price))
                 if side == "BUY":
                     # For buy, adverse if fill_price > signal_price
-                    slippage_bps = (fill_price - signal_price) / signal_price * 10000
+                    slippage_bps = (fill_price_dec - signal_price_dec) / signal_price_dec * Decimal(10000)
                 else:
                     # For sell, adverse if fill_price < signal_price
-                    slippage_bps = (signal_price - fill_price) / signal_price * 10000
+                    slippage_bps = (signal_price_dec - fill_price_dec) / signal_price_dec * Decimal(10000)
 
                 # Compute fill rate
                 fill_rate_pct = (
-                    (shares_filled / shares_requested * 100)
+                    (Decimal(shares_filled) / Decimal(shares_requested) * Decimal(100))
                     if shares_requested > 0
-                    else 0
+                    else Decimal(0)
                 )
 
                 # Insert into algo_tca table
@@ -92,21 +94,24 @@ class TCAEngine:
                         fill_price,
                         shares_requested,
                         shares_filled,
-                        round(fill_rate_pct, 2),
-                        round(slippage_bps, 2),
+                        fill_rate_pct.quantize(Decimal('0.01'), rounding=ROUND_HALF_UP),
+                        slippage_bps.quantize(Decimal('0.01'), rounding=ROUND_HALF_UP),
                         side,
                         execution_latency_ms,
                     ),
                 )
-                tca_id = cur.fetchone()[0]
+                row = cur.fetchone()
+                if row is None or row[0] is None:
+                    raise RuntimeError("TCA insert failed: RETURNING tca_id returned no row")
+                tca_id = row[0]
 
                 result = {
                     "tca_id": tca_id,
                     "symbol": symbol,
                     "signal_price": signal_price,
                     "fill_price": fill_price,
-                    "slippage_bps": round(slippage_bps, 2),
-                    "fill_rate_pct": round(fill_rate_pct, 2),
+                    "slippage_bps": float(slippage_bps.quantize(Decimal('0.01'), rounding=ROUND_HALF_UP)),
+                    "fill_rate_pct": float(fill_rate_pct.quantize(Decimal('0.01'), rounding=ROUND_HALF_UP)),
                     "execution_latency_ms": execution_latency_ms,
                 }
 
@@ -120,8 +125,8 @@ class TCAEngine:
             raise
 
     def _check_slippage_alert(
-        self, symbol: str, slippage_bps: float, side: str
-    ) -> Optional[dict]:
+        self, symbol: str, slippage_bps: Decimal | float, side: str
+    ) -> dict | None:
         """Check if slippage exceeds alert thresholds.
 
         Returns:
@@ -133,7 +138,7 @@ class TCAEngine:
         if side == "SELL" and slippage_bps <= 0:
             return None  # Favorable, no alert
 
-        abs_slippage = abs(slippage_bps)
+        abs_slippage = float(abs(slippage_bps))
 
         if abs_slippage >= 300:  # 3% adverse
             return {
@@ -150,7 +155,7 @@ class TCAEngine:
 
         return None
 
-    def daily_report(self, report_date: Optional[date] = None) -> dict:
+    def daily_report(self, report_date: date | None = None) -> dict:
         """Generate daily TCA report.
 
         Args:
@@ -204,7 +209,10 @@ class TCAEngine:
                     """,
                     (report_date,),
                 )
-                high_slippage_count = cur.fetchone()[0]
+                row = cur.fetchone()
+                if row is None or row[0] is None:
+                    raise RuntimeError("High slippage count query failed: returned no row")
+                high_slippage_count = row[0]
 
                 cur.execute(
                     """
@@ -218,20 +226,23 @@ class TCAEngine:
                 worst_row = cur.fetchone()
                 worst_symbol = worst_row[0] if worst_row else None
 
+                avg_abs_slippage_dec = Decimal(str(avg_abs_slippage)) if avg_abs_slippage else Decimal(0)
+                best_slippage_dec = Decimal(str(best_slippage)) if best_slippage else Decimal(0)
+                worst_slippage_dec = Decimal(str(worst_slippage)) if worst_slippage else Decimal(0)
+                avg_fill_rate_dec = Decimal(str(avg_fill_rate)) if avg_fill_rate else Decimal(0)
+                avg_latency_dec = Decimal(str(avg_latency)) if avg_latency else Decimal(0)
+
                 return {
                     "report_date": report_date,
                     "fill_count": fill_count,
-                    "avg_abs_slippage_bps": round(avg_abs_slippage, 2),
-                    "best_slippage_bps": round(best_slippage, 2),
-                    "worst_slippage_bps": round(worst_slippage, 2),
+                    "avg_abs_slippage_bps": float(avg_abs_slippage_dec.quantize(Decimal('0.01'), rounding=ROUND_HALF_UP)),
+                    "best_slippage_bps": float(best_slippage_dec.quantize(Decimal('0.01'), rounding=ROUND_HALF_UP)),
+                    "worst_slippage_bps": float(worst_slippage_dec.quantize(Decimal('0.01'), rounding=ROUND_HALF_UP)),
                     "worst_symbol": worst_symbol,
                     "high_slippage_fills": high_slippage_count,
-                    "high_slippage_pct": round(
-                        high_slippage_count / fill_count * 100,
-                        1,
-                    ),
-                    "avg_fill_rate_pct": round(avg_fill_rate, 2),
-                    "avg_execution_latency_ms": round(avg_latency),
+                    "high_slippage_pct": float((Decimal(high_slippage_count) / Decimal(fill_count) * Decimal(100)).quantize(Decimal('0.1'), rounding=ROUND_HALF_UP)),
+                    "avg_fill_rate_pct": float(avg_fill_rate_dec.quantize(Decimal('0.01'), rounding=ROUND_HALF_UP)),
+                    "avg_execution_latency_ms": int(avg_latency_dec.quantize(Decimal('1'), rounding=ROUND_HALF_UP)),
                     "status": "ok" if high_slippage_count == 0 else "warning",
                 }
         except Exception as e:
@@ -284,17 +295,20 @@ class TCAEngine:
                     high_slippage_count,
                 ) = row
 
+                avg_abs_slippage_dec = Decimal(str(avg_abs_slippage)) if avg_abs_slippage else Decimal(0)
+                p95_slippage_dec = Decimal(str(p95_slippage)) if p95_slippage else Decimal(0)
+                worst_slippage_dec = Decimal(str(worst_slippage)) if worst_slippage else Decimal(0)
+                avg_fill_rate_dec = Decimal(str(avg_fill_rate)) if avg_fill_rate else Decimal(0)
+
                 return {
                     "period": f"{year}-{month:02d}",
                     "fill_count": fill_count,
-                    "avg_abs_slippage_bps": round(avg_abs_slippage, 2),
-                    "p95_abs_slippage_bps": round(p95_slippage, 2),
-                    "worst_slippage_bps": round(worst_slippage, 2),
-                    "avg_fill_rate_pct": round(avg_fill_rate, 2),
+                    "avg_abs_slippage_bps": float(avg_abs_slippage_dec.quantize(Decimal('0.01'), rounding=ROUND_HALF_UP)),
+                    "p95_abs_slippage_bps": float(p95_slippage_dec.quantize(Decimal('0.01'), rounding=ROUND_HALF_UP)),
+                    "worst_slippage_bps": float(worst_slippage_dec.quantize(Decimal('0.01'), rounding=ROUND_HALF_UP)),
+                    "avg_fill_rate_pct": float(avg_fill_rate_dec.quantize(Decimal('0.01'), rounding=ROUND_HALF_UP)),
                     "high_slippage_fills": high_slippage_count,
-                    "high_slippage_pct": round(
-                        high_slippage_count / fill_count * 100, 1
-                    ),
+                    "high_slippage_pct": float((Decimal(high_slippage_count) / Decimal(fill_count) * Decimal(100)).quantize(Decimal('0.1'), rounding=ROUND_HALF_UP)),
                     "status": "ok" if high_slippage_count == 0 else "warning",
                 }
         except Exception as e:
