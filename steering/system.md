@@ -48,6 +48,14 @@ Pivot-breakout BUY signals filtered by quality ranking. Pipeline: (1) Check halt
 
 **Position limits:** Max 8 sector, max 5 industry (configurable).
 
+**Data Validation (Critical for Accuracy):**
+- Market regime: If market_exposure_daily is missing or exposure_pct is NULL, halt entries (fail-closed)
+- Signal completeness: Each candidate validated for required fields (symbol, composite_score, entry_price, close, sma_50, signal_strength). Incomplete signals logged with reason and filtered. Phase 6 receives only complete signals.
+- Halt flag check: Verifies Phase 1 data freshness gates are met before generating signals
+- Liquidity checks: Top candidates validated for min volume/dollar volume before entry
+
+All validation failures are explicitly logged (no silent skips). Operators see CloudWatch logs for every filtered signal with reason.
+
 ## Loader Configuration
 
 **6 Core Loaders (FAIL-CLOSED):** Symbols, prices, swing scores, market health, trend template data. **50 Supporting Loaders (FAIL-OPEN):** Earnings, sentiment, technical, economic, sector. Continue if they fail.
@@ -67,6 +75,14 @@ Pivot-breakout BUY signals filtered by quality ranking. Pipeline: (1) Check halt
 ## Trading Safety Configuration
 
 **Three layers of safety gates.** All configured via `algo_config` table (hot-reloadable). **NEVER set any threshold to zero — doing so bypasses all guards.**
+
+**Pre-Deployment Verification:** Run `python scripts/verify_safety_thresholds.py --strict` before production deploys. This script:
+- Checks minimum safe thresholds (rejects configs that would bypass quality gates)
+- Verifies earnings blackout is active (>0 days before/after)
+- Detects if quality scores or volume filters are disabled (= 0)
+- In strict mode, ensures no deviation from expected defaults
+
+Failing safety checks blocks deployment. This is intentional — misconfigured thresholds = uncontrolled trading.
 
 ### Layer 1: Entry Quality Thresholds (Hard Gates)
 
@@ -157,6 +173,8 @@ unzip -l terraform/lambda_api.zip | head -30  # What's deployed
 
 **Type Safety:** `python -m mypy algo/ loaders/ lambda/ --ignore-missing-imports`
 
+**Enforcement:** mypy includes Lambda API and executor (highest-risk modules). Pre-commit hook blocks on type errors in algo/orchestration, algo/trading/executor, lambda/api (core financial paths). Loaders and tools have relaxed checking for prototyping speed.
+
 **Test Coverage Targets:** algo/ 80%, loaders/ 70%, lambda/ 60%. Coverage is a guide, not the goal.
 
 **Linting:** Black (format), isort (imports), flake8 (lint) — non-blocking. Security: TruffleHog (blocks on secrets), pip-audit, bandit — TruffleHog blocks; others informational.
@@ -194,6 +212,21 @@ Never silently return defaults (0, None, [], {}, False). Raise exception with co
 **Rule:** REQUIRED data → raise exception. OPTIONAL data → log WARNING + return None (document in docstring).
 
 **Implementation:** Circuit breaker, position sizing, exit logic, data loaders all raise ValueError/RuntimeError on unavailability.
+
+## Database Transactions & Atomicity
+
+**Multi-Step Operations:** All operations affecting trades and positions must be atomic:
+- Entry: Trade entry + position creation + audit log all commit together or rollback together
+- Exit: Trade status update + position quantity update + stop price adjustment + audit log are atomic
+- Reconciliation: Alpaca sync + position status updates + profit/loss calculation are atomic
+
+**Row-Level Locking:** Multi-step updates use `FOR UPDATE` to lock rows and prevent concurrent modifications during transaction. Example: executor.py locks both algo_trades and algo_positions rows before executing partial exits.
+
+**Rowcount Verification:** After each critical UPDATE, verify `cursor.rowcount == 1` (exactly one row updated). Mismatch indicates lost update or concurrency violation — transaction rolls back.
+
+**Connection Context:** All database operations use `DatabaseContext` which auto-commits on success and rollbacks on any exception. Never manually commit or close connections.
+
+**Savepoints in Error Handling:** Loaders use named savepoints for recoverable errors. On failure, rollback to savepoint (not full transaction) and continue with next record. On critical error, exception propagates and full rollback occurs.
 
 ## Troubleshooting
 
