@@ -1,0 +1,71 @@
+repos:
+  # Code formatting with Ruff (single tool for format + lint)
+  - repo: https://github.com/astral-sh/ruff-pre-commit
+    rev: v0.6.9
+    hooks:
+      - id: ruff
+        args: [--fix]
+        name: Ruff lint and auto-fix
+      - id: ruff-format
+        name: Ruff format code
+
+  # Type checking
+  - repo: https://github.com/pre-commit/mirrors-mypy
+    rev: v1.14.1
+    hooks:
+      - id: mypy
+        args: [--ignore-missing-imports, --show-error-codes]
+        name: MyPy type check
+        additional_dependencies:
+          - psycopg2-binary
+          - yfinance
+          - requests
+          - pandas
+          - scipy
+          - boto3
+          - Flask
+          - pydantic
+
+  # Security scanning
+  - repo: https://github.com/PyCQA/bandit
+    rev: 1.7.9
+    hooks:
+      - id: bandit
+        args: [--severity-level=medium, --confidence-level=high]
+        name: Bandit security scan
+        exclude: ^(tests/|tools/dashboard/)
+
+  # Secret detection
+  - repo: https://github.com/trufflesecurity/trufflehog
+    rev: v3.63.0
+    hooks:
+      - id: trufflehog
+        args: [--no-update, --only-verified]
+        name: TruffleHog secret scan
+        stages: [commit]
+
+  # General file checks
+  - repo: https://github.com/pre-commit/pre-commit-hooks
+    rev: v4.6.0
+    hooks:
+      - id: trailing-whitespace
+        name: Trim trailing whitespace
+      - id: end-of-file-fixer
+        name: Fix end of file
+      - id: check-yaml
+        name: Check YAML syntax
+      - id: check-json
+        name: Check JSON syntax
+      - id: check-merge-conflict
+        name: Check for merge conflicts
+      - id: check-added-large-files
+        args: [--maxkb=1000]
+        name: Check for large files (>1MB)
+      - id: check-case-conflict
+        name: Check for case conflicts in filenames
+
+default_language_version:
+  python: python3.11
+
+# To skip hooks when needed: SKIP=bandit,mypy git commit
+# To run all hooks manually: pre-commit run --all-files

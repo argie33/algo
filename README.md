@@ -44,6 +44,41 @@ git push main
 
 📖 **Full Deployment:** See [DEPLOYMENT_READINESS.md](DEPLOYMENT_READINESS.md)
 
+## ✅ Code Quality & Testing (Before Commits)
+
+Before pushing code, run quality checks locally (takes ~10 seconds with pre-commit hooks):
+
+```bash
+# First time: install pre-commit hooks (one-time setup)
+make install-hooks
+
+# Then: normal git workflow — hooks run automatically on commit
+git add .
+git commit -m "feat: new feature"
+# ✓ Hooks run automatically: linting, formatting, type-check, security scan
+```
+
+**Manual quality checks anytime:**
+
+```bash
+# Code quality (matches CI)
+make lint           # Ruff linter
+make format         # Auto-format with ruff
+make type-check     # MyPy type checking
+
+# Testing
+make test           # All tests (unit + edge + integration)
+make coverage       # Tests with coverage report
+
+# Security
+make security       # Bandit + TruffleHog
+
+# Run all CI checks locally
+make ci-local
+```
+
+📖 **Full CI/CD info:** See [steering/ci.md](steering/ci.md)
+
 ---
 
 ## 📊 Project Overview
