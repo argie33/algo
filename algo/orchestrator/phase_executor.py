@@ -78,18 +78,69 @@ class OrchestratorPhaseExecutor:
     def get_phase_data(
         self, phase_num: int | str, key: str, default: Any = None
     ) -> Any:
-        """Convenience method to get specific data from a phase result."""
+        """Convenience method to get specific data from a phase result.
+
+        DEPRECATED: Use get_phase_data_required() for explicit validation.
+        This method silently returns default, hiding missing dependencies.
+        """
         result = self.phase_results.get(phase_num)
         if result:
             return result.data.get(key, default)
         return default
 
+    def get_phase_data_required(
+        self, phase_num: int | str, *keys: str
+    ) -> Any:
+        """Extract required data from phase result with validation.
+
+        Fails if: phase not executed, result is None/failed, or keys are missing.
+
+        Args:
+            phase_num: Phase that produced data
+            *keys: Required keys to extract
+
+        Returns:
+            Single value if one key, tuple if multiple keys
+
+        Raises:
+            Exception: If phase data is missing or invalid
+        """
+        from algo.orchestrator.phase_data_contract import (
+            MissingPhaseDataError,
+            extract_required_data,
+        )
+
+        result = self.phase_results.get(phase_num)
+        if result is None:
+            raise MissingPhaseDataError(
+                f"Phase {phase_num} not executed. Available: {list(self.phase_results.keys())}"
+            )
+
+        if not result.ok:
+            raise MissingPhaseDataError(
+                f"Phase {phase_num} failed: {result.status} — {result.error}"
+            )
+
+        data = extract_required_data(phase_num, result.data, *keys)
+
+        if len(keys) == 1:
+            return data[0]
+        return data
+
     def _check_dependencies(self, phase_num: int | str) -> str | None:
         """Check if a phase's dependencies are satisfied.
+
+        Validates both execution status AND data contracts (schema validation).
+        Prevents phases from proceeding with incomplete dependency data.
 
         Returns:
             None if all dependencies satisfied, error message otherwise.
         """
+        from algo.orchestrator.phase_data_contract import (
+            DataContractError,
+            validate_phase_data,
+        )
+
         phase = self.phases.get(phase_num)
         if not phase:
             return f"Phase {phase_num} not registered"
@@ -100,6 +151,12 @@ class OrchestratorPhaseExecutor:
                 return f"Phase {phase_num} requires Phase {dep} (not executed)"
             if not dep_result.ok:
                 return f"Phase {phase_num} requires Phase {dep} (status: {dep_result.status})"
+
+            # CRITICAL: Validate dependency produced valid data schema
+            try:
+                validate_phase_data(dep, dep_result.data)
+            except DataContractError as e:
+                return f"Phase {phase_num} dependency {dep} data invalid: {e}"
 
         return None
 
@@ -150,7 +207,8 @@ class OrchestratorPhaseExecutor:
             logger.info(f"PHASE {phase_num}: {phase.phase_name}")
             logger.info(f"{'='*70}")
 
-            result = phase.execute_fn(**kwargs)
+            # Pass executor to phase so it can retrieve validated data from prior phases
+            result = phase.execute_fn(executor=self, **kwargs)
             self.phase_results[phase_num] = result
 
             if result.halted:

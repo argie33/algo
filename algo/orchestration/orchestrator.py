@@ -1002,18 +1002,50 @@ class Orchestrator:
     def phase_5_signal_generation(self) -> bool:
         """Thin delegation to phase5_signal_generation module.
 
+        ISSUE #4 FIX: Explicit dependency validation.
+        Phase 5 depends on Phase 3b producing valid exposure_constraints.
+        If constraints are missing or invalid, fail loudly instead of silently degrading.
+
         New version: Compute signals on-the-fly from price data.
         No dependency on technical_data_daily.
         """
         self.log_phase_start(5, "SIGNAL GENERATION & RANKING")
         from algo.orchestrator.phase5_signal_generation import run as run_phase5
+        from algo.orchestrator.phase_data_contract import validate_phase_3b_constraints
+
+        # CRITICAL VALIDATION: Phase 3b must have produced valid exposure constraints
+        exposure_constraints = getattr(self, "_exposure_constraints", None)
+
+        # Validate constraints exist and are not empty
+        if exposure_constraints is None:
+            msg = "[PHASE 5 CRITICAL] Exposure constraints not set by Phase 3b. Cannot proceed with signal generation."
+            logger.critical(msg)
+            self.log_phase_result(5, "signal_generation", "halt", msg)
+            from algo.orchestrator.phase_result import PhaseResult
+            self._phase5_result = PhaseResult(
+                5, "signal_generation", "halted", {"qualified_trades": []}, True, msg
+            )
+            return False
+
+        # Validate constraints schema
+        try:
+            validate_phase_3b_constraints(exposure_constraints)
+        except Exception as e:
+            msg = f"[PHASE 5 CRITICAL] Exposure constraints invalid: {e}. Cannot proceed with signal generation."
+            logger.critical(msg)
+            self.log_phase_result(5, "signal_generation", "halt", msg)
+            from algo.orchestrator.phase_result import PhaseResult
+            self._phase5_result = PhaseResult(
+                5, "signal_generation", "halted", {"qualified_trades": []}, True, msg
+            )
+            return False
 
         result = run_phase5(
             self.run_date,
             self.dry_run,
             self.verbose,
             self.log_phase_result,
-            getattr(self, "_exposure_constraints", {}),
+            exposure_constraints,
             self._check_halt_flag,
             phase1_degraded=False,
             config=self.config,

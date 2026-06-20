@@ -35,11 +35,10 @@ def validate_environment():
         raise RuntimeError(f"Critical credential error: {e}")
 
 
-try:
-    validate_environment()
-except (psycopg2.DatabaseError, psycopg2.OperationalError) as e:
-    logger.error(f"ERROR: Environment validation failed: {e}")
-    raise
+# DEFERRED: Validate environment only when actually connecting to RDS/AWS,
+# not at module import time. This allows loaders to run in dev environments
+# without full production credentials configured locally.
+# validate_environment() is called at connection time in db/connection.py
 
 
 class AlgoConfig:
