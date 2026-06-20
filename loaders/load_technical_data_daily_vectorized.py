@@ -397,19 +397,17 @@ class VectorizedTechnicalLoader:
         # Format data
         df["date"] = df["date"].dt.date.astype(str)
 
-        # Convert integer columns to nullable Int64 (preserves None without upcasting to float)
-        # This prevents "invalid input syntax for type bigint" errors in PostgreSQL COPY
+        # Convert integer columns to nullable Int64 to prevent float encoding in CSV
+        # This fixes: "invalid input syntax for type bigint: 2042066.0"
         integer_cols = ["volume_ma_50", "price_data_age_days"]
         for col in integer_cols:
             if col in df.columns:
-                df[col] = pd.array(
-                    [int(round(x)) if pd.notna(x) else None for x in df[col]],
-                    dtype="Int64"
-                )
+                # Round to int, convert to Int64 (nullable integer type)
+                df[col] = df[col].round(0).astype('Int64')
 
-        # Handle NaN -> None conversion
+        # Handle NaN -> None conversion for non-integer columns
         for col in df.columns:
-            if col not in ("symbol", "date"):
+            if col not in ("symbol", "date") and col not in integer_cols:
                 df[col] = df[col].where(pd.notna(df[col]), None)
 
         # Bulk insert via COPY (with DELETE to handle updates)
