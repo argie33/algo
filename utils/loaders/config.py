@@ -174,14 +174,26 @@ class LoaderConfigManager:
                         f"[{loader_name}] RDS Proxy saturation MEDIUM ({conn_count}/{max_proxy_connections}). "
                         f"Adjusted parallelism to {adjusted}"
                     )
+            else:
+                logger.warning(
+                    f"[{loader_name}] Could not retrieve RDS connection metrics. "
+                    f"Using base parallelism {adjusted} without RDS-aware adjustment (potential pool risk)."
+                )
         except Exception as e:
-            logger.debug(f"Adaptive parallelism adjustment failed: {e}")
+            logger.error(
+                f"[RDS_METRICS_FAILURE] Adaptive parallelism adjustment failed for {loader_name}: {e}. "
+                f"Cannot monitor RDS pool saturation. Using base parallelism {adjusted} (potential exhaustion risk). "
+                f"Check CloudWatch metrics and AWS credentials."
+            )
 
         # Final constraint enforcement
         return max(min_parallelism, min(adjusted, max_parallelism))
 
     def _check_dynamodb_available(self) -> bool:
-        """Check if DynamoDB is available (cache result for efficiency)."""
+        """Check if DynamoDB is available (cache result for efficiency).
+
+        Fails fast if unavailable — returns False rather than silently falling back.
+        """
         if self._dynamodb_available is not None:
             return self._dynamodb_available
 
@@ -193,9 +205,20 @@ class LoaderConfigManager:
             )
             response = client.describe_table(TableName=self.config_table)
             self._dynamodb_available = response["Table"]["TableStatus"] == "ACTIVE"
+            if self._dynamodb_available:
+                logger.info(f"[CONFIG] DynamoDB table {self.config_table} is ACTIVE")
+            else:
+                logger.critical(
+                    f"[CONFIG_FAILURE] DynamoDB table {self.config_table} is not ACTIVE (status: {response['Table']['TableStatus']}). "
+                    "Loader configuration is unavailable."
+                )
             return self._dynamodb_available
         except Exception as e:
-            logger.debug(f"DynamoDB check failed: {e}")
+            logger.critical(
+                f"[CONFIG_FAILURE] DynamoDB check failed: {e}. "
+                f"Cannot load {self.config_table}. Loader configuration is unavailable. "
+                f"Check AWS credentials, region, and table existence."
+            )
             self._dynamodb_available = False
             return False
 
@@ -361,14 +384,24 @@ def get_default_parallelism(loader_name: str, fallback: int = 1) -> int:
     This is useful for loaders that use argparse with:
         parser.add_argument("--parallelism", type=int, default=get_default_parallelism("loader_name"))
 
+    IMPORTANT: Returns fallback on failure rather than raising to support CLI defaults.
+    For production code, call get_parallelism() directly to get exceptions on failures.
+
     Args:
         loader_name: Name of the loader
         fallback: Fallback value if DynamoDB/env var not available (default: 1)
 
     Returns:
-        Adaptive parallelism value to use as argparse default
+        Adaptive parallelism value to use as argparse default (or fallback if unavailable)
     """
     try:
-        return get_parallelism(loader_name)
-    except Exception:
+        parallelism = get_parallelism(loader_name)
+        logger.info(f"[CONFIG] Loaded parallelism for {loader_name}: {parallelism}")
+        return parallelism
+    except Exception as e:
+        logger.warning(
+            f"[CONFIG] Could not load parallelism for {loader_name}: {e}. "
+            f"Falling back to parallelism={fallback} (may be non-optimal). "
+            f"Check DynamoDB and environment configuration."
+        )
         return fallback
