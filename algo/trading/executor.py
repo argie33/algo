@@ -474,9 +474,7 @@ class TradeExecutor:
                     or "TIME" in (exit_reason or "").upper()
                 ):
                     max_reentries = int(self.config.get("max_reentries_per_name", 2))
-                    prior_reentry_count = (
-                        int(prior_reentry) if prior_reentry is not None else 0
-                    )
+                    prior_reentry_count = int(prior_reentry)
                     if prior_reentry_count >= max_reentries:
                         return {
                             "success": False,
