@@ -1,78 +1,14 @@
 """API Router - dispatcher."""
 
-import json
 import logging
-import os
-import threading
 
 # Set up imports for Lambda API - ensures routes and api_utils are importable
 import setup_imports  # noqa: F401
 
+# Import from lambda_function which has TTL-based caching (24hr)
+from lambda_function import fetch_cloudfront_domain_from_secrets  # noqa: F401
 
 logger = logging.getLogger(__name__)
-
-# CloudFront domain cache (thread-safe)
-_CLOUDFRONT_DOMAIN_CACHE = None
-_CLOUDFRONT_DOMAIN_LOCK = threading.Lock()
-
-
-def fetch_cloudfront_domain_from_secrets():
-    """Fetch CloudFront domain from AWS Secrets Manager (thread-safe).
-
-    Returns: (domain: Optional[str], error: Optional[str])
-    """
-    global _CLOUDFRONT_DOMAIN_CACHE
-
-    if _CLOUDFRONT_DOMAIN_CACHE is not None:
-        return _CLOUDFRONT_DOMAIN_CACHE, None
-
-    with _CLOUDFRONT_DOMAIN_LOCK:
-        if _CLOUDFRONT_DOMAIN_CACHE is not None:
-            return _CLOUDFRONT_DOMAIN_CACHE, None
-
-        try:
-            from config.credential_manager import get_secret
-
-            try:
-                secret = get_secret("algo/cloudfront-domain", default="")
-
-                if isinstance(secret, str) and not secret.startswith("{"):
-                    domain = secret.strip()
-                else:
-                    secret_dict = (
-                        json.loads(secret) if isinstance(secret, str) else secret
-                    )
-                    domain = secret_dict.get("domain", "").strip()
-
-                if domain:
-                    logger.info(
-                        f"[CloudFront] Fetched domain from Secrets Manager: {domain}"
-                    )
-                    _CLOUDFRONT_DOMAIN_CACHE = domain
-                    return domain, None
-                else:
-                    logger.warning("[CloudFront] Secret exists but domain is empty")
-                    return None, "Secret exists but domain is empty"
-
-            except ValueError:
-                logger.info(
-                    "[CloudFront] Secret 'algo/cloudfront-domain' not found in Secrets Manager (OK on first deploy)"
-                )
-                return None, "Secret not found"
-            except json.JSONDecodeError as e:
-                logger.warning(f"[CloudFront] Failed to parse secret JSON: {e}")
-                return None, f"Invalid secret format: {e}"
-
-        except ImportError:
-            logger.warning(
-                "[CloudFront] credential_manager not available, skipping Secrets Manager fetch"
-            )
-            return None, "credential_manager not available"
-        except (json.JSONDecodeError, ValueError) as e:
-            logger.error(
-                f"[CloudFront] Error fetching from Secrets Manager: {type(e).__name__}: {e}\n  Operation: Fetch CloudFront domain from AWS Secrets Manager\n  Secret name: algo/cloudfront-domain"
-            )
-            return None, f"Error: {e}"
 
 
 # health is the only truly critical route — if it fails the API can't self-report its own status

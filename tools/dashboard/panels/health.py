@@ -996,12 +996,12 @@ def panel_algo_health(
     # ── E: Risk snapshot (VaR / CVaR / Beta / Concentration) ────────────────────
     risk_dict = safe_get_dict(risk) if not has_error(risk) else {}
     if risk_dict:
-        var95_val = risk_dict.get("var95")
+        var95_val = safe_get_field(risk_dict, "var95")
         if var95_val and float(var95_val) > 0:
             rows.append(Rule(style="dim"))
-            beta_val = risk_dict.get("beta")
-            conc5_val = risk_dict.get("conc5")
-            cvar95_val = risk_dict.get("cvar95")
+            beta_val = safe_get_field(risk_dict, "beta")
+            conc5_val = safe_get_field(risk_dict, "conc5")
+            cvar95_val = safe_get_field(risk_dict, "cvar95")
             svar_val = safe_get_field(risk_dict, "svar")
             beta_c = R if beta_val >= 1.2 else (Y if beta_val >= 0.8 else G)
             conc_c = R if conc5_val >= 35 else (Y if conc5_val >= 25 else "white")

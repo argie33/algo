@@ -10,6 +10,14 @@ from typing import Any
 import psycopg2
 
 from algo.orchestrator.phase_result import PhaseResult
+from utils.db.advisory_locks import (
+    ALGO_AUDIT_LOG_LOCK_ID,
+    ALGO_METRICS_DAILY_LOCK_ID,
+    ALGO_POSITIONS_LOCK_ID,
+    ALGO_TRADES_LOCK_ID,
+    acquire_advisory_lock,
+    release_advisory_lock,
+)
 from utils.db.context import DatabaseContext
 
 
@@ -147,54 +155,61 @@ def run(
                 exits_recorded = 0
                 # Single write context for all updates (no nested contexts)
                 with DatabaseContext("write") as write_cursor:
-                    for symbol, entry_price, exit_price, quantity in closed_positions:
-                        if not exit_price:
-                            logger.critical(
-                                f"[CRITICAL] Exit price missing for {symbol}: cannot use entry price "
-                                f"(${entry_price}) as fallback. This corrupts P&L. Skipping exit record."
-                            )
-                            continue
+                    # Acquire locks for both tables to prevent concurrent writes
+                    acquire_advisory_lock(write_cursor, ALGO_TRADES_LOCK_ID, "algo_trades")
+                    acquire_advisory_lock(write_cursor, ALGO_POSITIONS_LOCK_ID, "algo_positions")
+                    try:
+                        for symbol, entry_price, exit_price, quantity in closed_positions:
+                            if not exit_price:
+                                logger.critical(
+                                    f"[CRITICAL] Exit price missing for {symbol}: cannot use entry price "
+                                    f"(${entry_price}) as fallback. This corrupts P&L. Skipping exit record."
+                                )
+                                continue
 
-                        pnl = (exit_price - entry_price) * quantity
-                        pnl_pct = ((exit_price - entry_price) / entry_price * 100) if entry_price > 0 else 0
+                            pnl = (exit_price - entry_price) * quantity
+                            pnl_pct = ((exit_price - entry_price) / entry_price * 100) if entry_price > 0 else 0
 
-                        try:
-                            write_cursor.execute(
-                                """
-                                UPDATE algo_trades
-                                SET exit_date = %s, exit_price = %s, profit_loss_dollars = %s,
-                                    profit_loss_pct = %s, exit_reason = %s, updated_at = CURRENT_TIMESTAMP
-                                WHERE symbol = %s AND exit_date IS NULL
-                                ORDER BY entry_date DESC LIMIT 1
-                            """,
-                                (
-                                    run_date,
-                                    exit_price,
-                                    pnl,
-                                    pnl_pct,
-                                    "Closed position recorded during reconciliation",
-                                    symbol,
-                                ),
-                            )
-                            write_cursor.execute(
-                                """
-                                UPDATE algo_positions
-                                SET status = 'CLOSED', current_price = %s, unrealized_pnl = %s,
-                                    updated_at = CURRENT_TIMESTAMP
-                                WHERE symbol = %s
-                            """,
-                                (exit_price, pnl, symbol),
-                            )
-                            exits_recorded += 1
-                            logger.info(
-                                f"Recorded exit: {symbol} {quantity}sh @ ${exit_price:.2f} on {run_date} "
-                                f"(P&L: ${pnl:.2f} / {pnl_pct:.1f}%)"
-                            )
-                        except (psycopg2.DatabaseError, psycopg2.OperationalError) as e:
-                            logger.error(f"Failed to record exit for {symbol}: {e}")
+                            try:
+                                write_cursor.execute(
+                                    """
+                                    UPDATE algo_trades
+                                    SET exit_date = %s, exit_price = %s, profit_loss_dollars = %s,
+                                        profit_loss_pct = %s, exit_reason = %s, updated_at = CURRENT_TIMESTAMP
+                                    WHERE symbol = %s AND exit_date IS NULL
+                                    ORDER BY entry_date DESC LIMIT 1
+                                """,
+                                    (
+                                        run_date,
+                                        exit_price,
+                                        pnl,
+                                        pnl_pct,
+                                        "Closed position recorded during reconciliation",
+                                        symbol,
+                                    ),
+                                )
+                                write_cursor.execute(
+                                    """
+                                    UPDATE algo_positions
+                                    SET status = 'CLOSED', current_price = %s, unrealized_pnl = %s,
+                                        updated_at = CURRENT_TIMESTAMP
+                                    WHERE symbol = %s
+                                """,
+                                    (exit_price, pnl, symbol),
+                                )
+                                exits_recorded += 1
+                                logger.info(
+                                    f"Recorded exit: {symbol} {quantity}sh @ ${exit_price:.2f} on {run_date} "
+                                    f"(P&L: ${pnl:.2f} / {pnl_pct:.1f}%)"
+                                )
+                            except (psycopg2.DatabaseError, psycopg2.OperationalError) as e:
+                                logger.error(f"Failed to record exit for {symbol}: {e}")
 
-                    if exits_recorded > 0:
-                        logger.info(f"Recorded {exits_recorded} exits in trade history")
+                        if exits_recorded > 0:
+                            logger.info(f"Recorded {exits_recorded} exits in trade history")
+                    finally:
+                        release_advisory_lock(write_cursor, ALGO_POSITIONS_LOCK_ID, "algo_positions")
+                        release_advisory_lock(write_cursor, ALGO_TRADES_LOCK_ID, "algo_trades")
             else:
                 logger.info("No closed positions found for exit recording")
         except (psycopg2.DatabaseError, psycopg2.OperationalError) as e:
@@ -296,14 +311,18 @@ def run(
                 # Log to algo_audit_log for historical tracking
                 try:
                     with DatabaseContext("write") as cur:
-                        cur.execute(
-                            """
-                            INSERT INTO algo_audit_log (
-                                action_type, action_date, symbol, details, created_at
-                            ) VALUES (%s, %s, %s, %s, CURRENT_TIMESTAMP)
-                            """,
-                            ("daily_report", run_date, "PORTFOLIO", json.dumps(report)),
-                        )
+                        acquire_advisory_lock(cur, ALGO_AUDIT_LOG_LOCK_ID, "algo_audit_log")
+                        try:
+                            cur.execute(
+                                """
+                                INSERT INTO algo_audit_log (
+                                    action_type, action_date, symbol, details, created_at
+                                ) VALUES (%s, %s, %s, %s, CURRENT_TIMESTAMP)
+                                """,
+                                ("daily_report", run_date, "PORTFOLIO", json.dumps(report)),
+                            )
+                        finally:
+                            release_advisory_lock(cur, ALGO_AUDIT_LOG_LOCK_ID, "algo_audit_log")
                 except (psycopg2.DatabaseError, psycopg2.OperationalError) as e:
                     logger.critical(f"[AUDIT_FAILURE] Could not log daily report to audit log: {e}")
                     raise
@@ -401,24 +420,28 @@ def run(
                 total_actions, entries, exits, avg_score = row_data
                 # Single write context for UPSERT (no nested contexts)
                 with DatabaseContext("write") as write_cur:
-                    write_cur.execute(
-                        """
-                        INSERT INTO algo_metrics_daily (date, total_actions, entries, exits, avg_signal_score)
-                        VALUES (%s, %s, %s, %s, %s)
-                        ON CONFLICT (date) DO UPDATE SET
-                            total_actions = EXCLUDED.total_actions,
-                            entries = EXCLUDED.entries,
-                            exits = EXCLUDED.exits,
-                            avg_signal_score = EXCLUDED.avg_signal_score
-                    """,
-                        (
-                            run_date,
-                            total_actions or 0,
-                            entries or 0,
-                            exits or 0,
-                            avg_score,
-                        ),
-                    )
+                    acquire_advisory_lock(write_cur, ALGO_METRICS_DAILY_LOCK_ID, "algo_metrics_daily")
+                    try:
+                        write_cur.execute(
+                            """
+                            INSERT INTO algo_metrics_daily (date, total_actions, entries, exits, avg_signal_score)
+                            VALUES (%s, %s, %s, %s, %s)
+                            ON CONFLICT (date) DO UPDATE SET
+                                total_actions = EXCLUDED.total_actions,
+                                entries = EXCLUDED.entries,
+                                exits = EXCLUDED.exits,
+                                avg_signal_score = EXCLUDED.avg_signal_score
+                        """,
+                            (
+                                run_date,
+                                total_actions or 0,
+                                entries or 0,
+                                exits or 0,
+                                avg_score,
+                            ),
+                        )
+                    finally:
+                        release_advisory_lock(write_cur, ALGO_METRICS_DAILY_LOCK_ID, "algo_metrics_daily")
                 metrics_status = "success"
                 metrics_summary = f"{total_actions or 0} actions, {entries or 0} entries, {exits or 0} exits"
                 logger.info(f"Updated algo_metrics_daily: {metrics_summary}")

@@ -10,6 +10,11 @@ import psycopg2
 
 from algo.orchestrator.phase_result import PhaseResult
 from algo.reporting import AlertManager
+from utils.db.advisory_locks import (
+    ALGO_POSITIONS_LOCK_ID,
+    acquire_advisory_lock,
+    release_advisory_lock,
+)
 from utils.db.context import DatabaseContext
 from utils.trading.status import PositionStatus
 
@@ -152,13 +157,17 @@ def run(
                 elif action["action"] == "tighten_stop":
                     try:
                         with DatabaseContext("write") as cur:
-                            cur.execute(
-                                "UPDATE algo_positions SET current_stop_price = %s WHERE position_id = %s",
-                                (action["new_stop"], action["position_id"]),
-                            )
-                            stop_raises += 1
-                            if verbose:
-                                logger.info(f"  EXPOSURE TIGHTEN {action['symbol']}: stop -> ${action['new_stop']:.2f}")
+                            acquire_advisory_lock(cur, ALGO_POSITIONS_LOCK_ID, "algo_positions")
+                            try:
+                                cur.execute(
+                                    "UPDATE algo_positions SET current_stop_price = %s WHERE position_id = %s",
+                                    (action["new_stop"], action["position_id"]),
+                                )
+                                stop_raises += 1
+                                if verbose:
+                                    logger.info(f"  EXPOSURE TIGHTEN {action['symbol']}: stop -> ${action['new_stop']:.2f}")
+                            finally:
+                                release_advisory_lock(cur, ALGO_POSITIONS_LOCK_ID, "algo_positions")
                     except (RuntimeError, ValueError, TypeError) as e:
                         errors += 1
                         logger.error(f"  Tighten failed for {action['symbol']}: {e}")
@@ -191,20 +200,24 @@ def run(
                 elif rec["action"] == "RAISE_STOP" and rec.get("new_stop_recommended"):
                     try:
                         with DatabaseContext("write") as cur:
-                            cur.execute(
-                                "UPDATE algo_positions SET current_stop_price = %s "
-                                "WHERE position_id = %s AND status = %s",
-                                (
-                                    rec["new_stop_recommended"],
-                                    rec["position_id"],
-                                    PositionStatus.OPEN.value,
-                                ),
-                            )
-                            stop_raises += 1
-                            if verbose:
-                                logger.info(
-                                    f"  RAISED STOP {rec['symbol']}: ${rec['active_stop']:.2f} -> ${rec['new_stop_recommended']:.2f}"
+                            acquire_advisory_lock(cur, ALGO_POSITIONS_LOCK_ID, "algo_positions")
+                            try:
+                                cur.execute(
+                                    "UPDATE algo_positions SET current_stop_price = %s "
+                                    "WHERE position_id = %s AND status = %s",
+                                    (
+                                        rec["new_stop_recommended"],
+                                        rec["position_id"],
+                                        PositionStatus.OPEN.value,
+                                    ),
                                 )
+                                stop_raises += 1
+                                if verbose:
+                                    logger.info(
+                                        f"  RAISED STOP {rec['symbol']}: ${rec['active_stop']:.2f} -> ${rec['new_stop_recommended']:.2f}"
+                                    )
+                            finally:
+                                release_advisory_lock(cur, ALGO_POSITIONS_LOCK_ID, "algo_positions")
                     except (RuntimeError, ValueError, TypeError) as e:
                         errors += 1
                         logger.error(f"  Stop-raise failed for {rec['symbol']}: {e}")

@@ -567,8 +567,17 @@ def render_dashboard(
         secs = max(0, watch_interval - int(time.monotonic() - last_load_time))
         refresh_s = f"  [dim]↻{secs}s[/]"
 
-    hdr_panel = panel_header_market(mkt, sentiment, ts, mkt_s, elapsed, refresh_s, cfg=cfg, data_source=data_source)
-    exp_panel = panel_exposure_compact(exp_f)
+    # FIX: Check header data before rendering
+    if has_error(mkt) or has_error(cfg):
+        hdr_panel = Panel(
+            Text.from_markup(f"[red]Market/Config Error - Dashboard data unavailable[/]"),
+            title="[bold red]✗ Data Error[/]",
+            border_style="red",
+        )
+    else:
+        hdr_panel = panel_header_market(mkt, sentiment, ts, mkt_s, elapsed, refresh_s, cfg=cfg, data_source=data_source)
+
+    exp_panel = panel_exposure_compact(exp_f) if not has_error(exp_f) else Panel("[red]Exposure factors unavailable[/]")
     mascot_panel = mascot_compact(data, frame)
 
     # Check for authentication loss first (highest priority)
@@ -617,61 +626,68 @@ def render_dashboard(
     outer["top"]["exposure"].update(exp_panel)
     outer["top"]["mascot"].update(mascot_panel)
 
+    # FIX: Wrap all panels with error checks
+    cb_panel = panel_circuit(cb) if not has_error(cb) else Panel("[red]Circuit breakers unavailable[/]", border_style="red")
+    health_panel = panel_algo_health(
+        run, act, hlth, notifs, algo_metrics, audit, exec_hist, risk=risk
+    ) if not (has_error(run) or has_error(hlth)) else Panel("[red]Health data unavailable[/]", border_style="red")
+
     outer["r1"].split_row(
-        Layout(panel_circuit(cb), ratio=3, name="cb"),
-        Layout(
-            panel_algo_health(
-                run,
-                act,
-                hlth,
-                notifs,
-                algo_metrics,
-                audit,
-                exec_hist,
-                risk=risk,
-            ),
-            ratio=5,
-            name="health",
-        ),
+        Layout(cb_panel, ratio=3, name="cb"),
+        Layout(health_panel, ratio=5, name="health"),
     )
+
+    # FIX: Portfolio/Performance row with error checks
+    port_panel = panel_portfolio(port, cfg, risk=risk, perf=perf) if not (has_error(port) or has_error(cfg)) else Panel("[red]Portfolio unavailable[/]", border_style="red")
+    perf_panel = panel_performance_spark(perf, rec, perf_anl, pos=pos) if not (has_error(perf) or has_error(rec)) else Panel("[red]Performance unavailable[/]", border_style="red")
+    eco_panel = panel_economic_pulse(eco, econ_cal) if not has_error(eco) else Panel("[red]Economic data unavailable[/]", border_style="red")
 
     outer["r2"].split_row(
-        Layout(panel_portfolio(port, cfg, risk=risk, perf=perf), name="portfolio"),
-        Layout(panel_performance_spark(perf, rec, perf_anl, pos=pos), name="perf"),
-        Layout(panel_economic_pulse(eco, econ_cal), name="eco"),
+        Layout(port_panel, name="portfolio"),
+        Layout(perf_panel, name="perf"),
+        Layout(eco_panel, name="eco"),
     )
+
+    # FIX: Signals/Sectors row with error checks
+    sig_panel = panel_signals_compact(sig, sig_eval, scores=scores) if not (has_error(sig) or has_error(scores)) else Panel("[red]Signals unavailable[/]", border_style="red")
+    sector_panel = panel_sector_compact(srank, pos, port, sec_rot, irank) if not (has_error(pos) or has_error(port)) else Panel("[red]Sectors unavailable[/]", border_style="red")
 
     outer["r3"].split_row(
-        Layout(panel_signals_compact(sig, sig_eval, scores=scores), ratio=3, name="signals"),
-        Layout(
-            panel_sector_compact(srank, pos, port, sec_rot, irank),
-            ratio=2,
-            name="sectors",
-        ),
+        Layout(sig_panel, ratio=3, name="signals"),
+        Layout(sector_panel, ratio=2, name="sectors"),
     )
 
+    # FIX: Positions/Trades row with error checks
+    pos_panel = panel_positions(pos, compact, trades=rec) if not (has_error(pos) or has_error(rec)) else Panel("[red]Positions unavailable[/]", border_style="red")
+    trades_panel = panel_recent_trades(rec) if not has_error(rec) else Panel("[red]Recent trades unavailable[/]", border_style="red")
+
     outer["pos"].split_row(
-        Layout(panel_positions(pos, compact, trades=rec), ratio=5, name="positions"),
-        Layout(panel_recent_trades(rec), ratio=3, name="recent_trades"),
+        Layout(pos_panel, ratio=5, name="positions"),
+        Layout(trades_panel, ratio=3, name="recent_trades"),
     )
 
     _exp_top = (hdr_panel, exp_panel, mascot_panel)
 
     if view_mode == "circuit":
+        if has_error(cb):
+            return _expanded_layout(*_exp_top, Panel("[red]Circuit breaker data unavailable[/]", border_style="red"))
         return _expanded_layout(*_exp_top, panel_circuit_expanded(cb))
 
     if view_mode == "exposure":
+        if has_error(exp_f):
+            return _expanded_layout(*_exp_top, Panel("[red]Exposure factors unavailable[/]", border_style="red"))
         return _expanded_layout(*_exp_top, panel_exposure_expanded(exp_f))
 
     if view_mode == "market":
+        if has_error(mkt):
+            return _expanded_layout(*_exp_top, Panel("[red]Market data unavailable[/]", border_style="red"))
         return _expanded_layout(*_exp_top, panel_market_expanded(mkt, sentiment))
 
     if view_mode == "positions":
-        hint = Text.from_markup("[dim]press [/][bold cyan]p[/][dim] to return to dashboard[/]")
-        # FIXED: No fallback to [] — if pos has error, show it instead
         if has_error(pos):
-            _pos_items = []
-        elif isinstance(pos, dict) and "items" in pos:
+            return _expanded_layout(*_exp_top, Panel("[red]Positions data unavailable[/]", border_style="red"))
+        hint = Text.from_markup("[dim]press [/][bold cyan]p[/][dim] to return to dashboard[/]")
+        if isinstance(pos, dict) and "items" in pos:
             _pos_items = pos.get("items", [])
         elif isinstance(pos, list):
             _pos_items = pos
@@ -692,33 +708,38 @@ def render_dashboard(
         )
 
     if view_mode == "signals":
+        if has_error(sig) or has_error(scores):
+            return _expanded_layout(*_exp_top, Panel("[red]Signals data unavailable[/]", border_style="red"))
         return _expanded_layout(*_exp_top, panel_signals_expanded(sig, sig_eval, scores=scores))
 
     if view_mode == "health":
+        if has_error(run) or has_error(hlth):
+            return _expanded_layout(*_exp_top, Panel("[red]Health data unavailable[/]", border_style="red"))
         return _expanded_layout(
             *_exp_top,
             panel_algo_health_expanded(
-                run,
-                act,
-                hlth,
-                notifs,
-                algo_metrics,
-                audit,
-                exec_hist,
-                risk=risk,
+                run, act, hlth, notifs, algo_metrics, audit, exec_hist, risk=risk,
             ),
         )
 
     if view_mode == "sectors":
+        if has_error(pos) or has_error(port):
+            return _expanded_layout(*_exp_top, Panel("[red]Sectors data unavailable[/]", border_style="red"))
         return _expanded_layout(*_exp_top, panel_sectors_expanded(srank, pos, port, sec_rot, irank))
 
     if view_mode == "trades":
+        if has_error(rec):
+            return _expanded_layout(*_exp_top, Panel("[red]Trade history unavailable[/]", border_style="red"))
         return _expanded_layout(*_exp_top, panel_trades_expanded(rec))
 
     if view_mode == "economic":
+        if has_error(eco):
+            return _expanded_layout(*_exp_top, Panel("[red]Economic data unavailable[/]", border_style="red"))
         return _expanded_layout(*_exp_top, panel_economic_expanded(eco, econ_cal))
 
     if view_mode == "portfolio":
+        if has_error(port) or has_error(cfg):
+            return _expanded_layout(*_exp_top, Panel("[red]Portfolio data unavailable[/]", border_style="red"))
         return _expanded_layout(
             *_exp_top,
             panel_portfolio_perf_expanded(port, cfg, risk=risk, perf=perf, perf_anl=perf_anl, pos=pos),

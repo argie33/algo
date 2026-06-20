@@ -65,6 +65,7 @@ from psycopg2 import sql as pgsql
 
 from algo.risk.market_factor_calculator import MarketFactorCalculator
 from utils.db import DatabaseContext
+from utils.safe_data_conversion import safe_float
 
 
 logger = logging.getLogger(__name__)

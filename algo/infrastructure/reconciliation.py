@@ -15,6 +15,7 @@ from algo.infrastructure.price_auditor import PriceAuditor
 from algo.infrastructure.reconciliation_analytics import ReconciliationAnalytics
 from algo.reporting import notify
 from utils.db import DatabaseContext
+from utils.safe_data_conversion import safe_float
 from utils.trading import PositionStatus, TradeStatus
 
 

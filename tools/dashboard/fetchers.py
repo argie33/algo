@@ -156,9 +156,7 @@ def fetch_run(c):
             record_data_quality_issue("run", "validation", "missing_fields", error_msg)
             return FetcherValidator.build_error_response(error_msg)
 
-        phases = inner.get("phases")
-        if phases is None:
-            phases = []
+        phases = inner["phases"]
         halted_phases = [p for p in phases if p.get("status") in ("halt", "halted")]
         errored_phases = [p for p in phases if p.get("status") == "error"]
         completed_phases = [p for p in phases if p.get("status") == "success"]
@@ -167,7 +165,7 @@ def fetch_run(c):
         # Timestamps are required — fail if all are missing (Issue #6)
         run_at = inner.get("run_at") or inner.get("completed_at") or inner.get("started_at")
         # No runs yet (algo hasn't executed) — fail-fast: return error instead of placeholder
-        if not run_at and not inner.get("run_id") and not inner.get("success") and not inner.get("halted"):
+        if not run_at and not inner.get("run_id") and not inner["success"] and not inner["halted"]:
             error_msg = "No algo runs available yet (algo has not executed)"
             logger.warning(error_msg)
             record_data_quality_issue("run", "initialization", "no_runs_yet")
@@ -181,13 +179,13 @@ def fetch_run(c):
         # errored: use API field if present, otherwise derive from phase data
         api_errored = inner.get("errored")
         derived_errored = bool(errored_phases) or (
-            not inner.get("success") and not inner.get("halted") and bool(phases)
+            not inner["success"] and not inner["halted"] and bool(phases)
         )
         return {
             "run_id": inner.get("run_id"),
             "run_at": run_at,
-            "success": inner.get("success"),
-            "halted": inner.get("halted"),
+            "success": inner["success"],
+            "halted": inner["halted"],
             "errored": api_errored if api_errored is not None else derived_errored,
             "summary": inner.get("summary"),
             "halt_reason": halt_reason,
@@ -252,17 +250,17 @@ def fetch_algo_config(c):
             return FetcherValidator.build_error_response(error_msg)
 
         # Boolean string conversion
-        en_raw = cfg.get("enable_algo")
+        en_raw = cfg["enable_algo"]
         enabled = str(en_raw).lower() in ("true", "1", "yes") if en_raw is not None else False
         return {
             "enabled": enabled,
-            "mode": cfg.get("execution_mode"),
-            "max_pos_pct": safe_float(cfg.get("max_position_size_pct")),
-            "max_pos_n": safe_int(cfg.get("max_positions")),
-            "max_sec_n": safe_int(cfg.get("max_positions_per_sector")),
-            "min_score": safe_float(cfg.get("min_swing_score")),
-            "base_risk": safe_float(cfg.get("base_risk_pct")),
-            "t1_r": safe_float(cfg.get("t1_target_r_multiple")),
+            "mode": cfg["execution_mode"],
+            "max_pos_pct": safe_float(cfg["max_position_size_pct"]),
+            "max_pos_n": safe_int(cfg["max_positions"]),
+            "max_sec_n": safe_int(cfg["max_positions_per_sector"]),
+            "min_score": safe_float(cfg["min_swing_score"]),
+            "base_risk": safe_float(cfg["base_risk_pct"]),
+            "t1_r": safe_float(cfg["t1_target_r_multiple"]),
         }
     except Exception as e:
         error_msg = _format_fetcher_error("cfg", e)

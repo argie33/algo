@@ -11,12 +11,11 @@ Triggered by: EventBridge rule (6-hour interval)
 
 import json
 import logging
-import os
 from datetime import datetime, timezone
 
 import boto3
-import psycopg2
 
+from utils.db.connection import get_db_connection
 from utils.db.sql_safety import assert_safe_table
 
 
@@ -26,46 +25,6 @@ logger.setLevel(logging.INFO)
 # AWS clients
 cloudwatch = boto3.client("cloudwatch")
 sns = boto3.client("sns")
-
-
-def get_db_connection():
-    """Create database connection from environment variables.
-
-    Requires all DB config to be explicitly set — no defaults.
-    """
-    db_host = os.environ.get("DB_HOST")
-    db_port_str = os.environ.get("DB_PORT")
-    db_name = os.environ.get("DB_NAME")
-    db_user = os.environ.get("DB_USER")
-    db_password = os.environ.get("DB_PASSWORD")
-
-    if not db_host:
-        raise ValueError("DB_HOST environment variable is REQUIRED")
-    if not db_port_str:
-        raise ValueError("DB_PORT environment variable is REQUIRED")
-    if not db_name:
-        raise ValueError("DB_NAME environment variable is REQUIRED")
-    if not db_user:
-        raise ValueError("DB_USER environment variable is REQUIRED")
-    if not db_password:
-        raise ValueError("DB_PASSWORD environment variable is REQUIRED")
-
-    try:
-        conn = psycopg2.connect(
-            host=db_host,
-            port=int(db_port_str),
-            database=db_name,
-            user=db_user,
-            password=db_password,
-            connect_timeout=10,
-        )
-        return conn
-    except (psycopg2.DatabaseError, psycopg2.OperationalError) as e:
-        logger.error(f"Database connection failed: {e}")
-        raise
-    except ValueError:
-        logger.error(f"Invalid DB_PORT value: {db_port_str}")
-        raise
 
 
 def check_loader_health() -> tuple[str, list[dict]]:

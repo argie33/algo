@@ -23,6 +23,7 @@ from typing import Any
 import psycopg2
 
 from utils.db import DatabaseContext
+from utils.safe_data_conversion import safe_float
 
 
 logger = logging.getLogger(__name__)
@@ -70,7 +71,7 @@ class ValueAtRisk:
                 if len(rows) < 30:
                     logger.warning(f"Risk metrics using limited historical data: {len(rows)} snapshots (recommend 30+)")
 
-                values = [float(row[1]) for row in rows]
+                values = [safe_float(row[1], context=f"portfolio_value row {i}") for i, row in enumerate(rows)]
                 returns = [(values[i] - values[i - 1]) / values[i - 1] for i in range(1, len(values))]
 
                 if not returns:
@@ -131,7 +132,7 @@ class ValueAtRisk:
                 if len(rows) < 30:
                     logger.warning(f"Risk metrics using limited historical data: {len(rows)} snapshots (recommend 30+)")
 
-                values = [float(row[1]) for row in rows]
+                values = [safe_float(row[1], context=f"portfolio_value row {i}") for i, row in enumerate(rows)]
                 returns = [(values[i] - values[i - 1]) / values[i - 1] for i in range(1, len(values))]
 
                 if not returns:
@@ -191,7 +192,7 @@ class ValueAtRisk:
                         "Portfolio must have at least 1 year of trading history."
                     )
 
-                values = [float(row[1]) for row in rows]
+                values = [safe_float(row[1], context=f"portfolio_value row {i}") for i, row in enumerate(rows)]
                 returns = np.array([(values[i] - values[i - 1]) / values[i - 1] for i in range(1, len(values))])
 
                 worst_var = 0
@@ -250,7 +251,7 @@ class ValueAtRisk:
                         "Cannot compute beta exposure without portfolio snapshot. "
                         "Portfolio must have been reconciled at least once."
                     )
-                portfolio_value = float(portfolio_row[0])
+                portfolio_value = safe_float(portfolio_row[0], context="portfolio_value")
 
                 # Fetch SPY returns for the last 60 trading days (beta denominator)
                 cur.execute("""
@@ -261,7 +262,7 @@ class ValueAtRisk:
                 spy_rows = cur.fetchall()
                 spy_returns = []
                 if len(spy_rows) >= 2:
-                    spy_prices = list(reversed([float(r[1]) for r in spy_rows]))
+                    spy_prices = list(reversed([safe_float(r[1], context=f"SPY close {i}") for i, r in enumerate(spy_rows)]))
                     spy_returns = [
                         (spy_prices[i] - spy_prices[i - 1]) / spy_prices[i - 1] for i in range(1, len(spy_prices))
                     ]
@@ -276,12 +277,13 @@ class ValueAtRisk:
 
                 for symbol, qty, cur_price, _entry_price in positions:
                     # CRITICAL: Do NOT use entry_price as fallback for current_price
-                    if cur_price is None or float(cur_price) <= 0:
+                    safe_price = safe_float(cur_price, context=f"{symbol} current_price")
+                    if cur_price is None or safe_price <= 0:
                         logger.warning(
                             f"[VAR] {symbol}: missing or invalid current_price, skipping from VAR calculation"
                         )
                         continue
-                    position_value = float(qty) * float(cur_price)
+                    position_value = safe_float(qty, context=f"{symbol} quantity") * safe_price
                     position_weight = position_value / portfolio_value if portfolio_value > 0 else 0
 
                     # Compute 60-day beta via covariance with SPY
@@ -298,7 +300,7 @@ class ValueAtRisk:
                             )
                             stock_rows = cur.fetchall()
                             if len(stock_rows) >= 2:
-                                stock_prices = list(reversed([float(r[0]) for r in stock_rows]))
+                                stock_prices = list(reversed([safe_float(r[0], context=f"{symbol} close {i}") for i, r in enumerate(stock_rows)]))
                                 stock_returns = [
                                     (stock_prices[i] - stock_prices[i - 1]) / stock_prices[i - 1]
                                     for i in range(1, len(stock_prices))

@@ -25,12 +25,12 @@ EASTERN_TZ = timezone.utc
 # ──────────────────────────────────────────────────────────────────────────────
 
 
-def safe_float(value: Any, default: float = 0.0, context: str = "") -> float:
+def safe_float(value: Any, default: float | None = 0.0, context: str = "") -> float | None:
     """Convert value to float safely, handling NaN, Infinity, None.
 
     Args:
         value: Value to convert (can be str, int, float, None)
-        default: Default value if conversion fails
+        default: Default value if conversion fails (can be None for optional fields)
         context: Context string for logging (e.g., "symbol=AAPL, field=price")
 
     Returns:

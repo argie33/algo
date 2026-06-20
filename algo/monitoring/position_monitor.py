@@ -31,6 +31,7 @@ import requests
 from config.alpaca_config import get_alpaca_base_url
 from config.credential_manager import get_alpaca_credentials, get_credential_manager
 from utils.db import DatabaseContext
+from utils.safe_data_conversion import safe_float
 
 
 logger = logging.getLogger(__name__)
@@ -262,7 +263,7 @@ class PositionMonitor:
                         "Portfolio equity unavailable — cannot compute margin utilization. Snapshots missing or stale."
                     )
 
-                total_equity = float(eq_row[0])
+                total_equity = safe_float(eq_row[0], context="portfolio_equity")
                 if total_equity <= 0:
                     raise PositionValidationError(
                         f"Invalid portfolio equity: {total_equity} <= 0. Cannot monitor positions with zero or negative equity."
@@ -274,7 +275,7 @@ class PositionMonitor:
                     SELECT SUM(position_value) FROM algo_positions WHERE status = 'open'
                 """)
                 pos_val_row = cur.fetchone()
-                pos_value = float(pos_val_row[0]) if pos_val_row is not None and pos_val_row[0] is not None else 0
+                pos_value = safe_float(pos_val_row[0], default=0.0, context="total_position_value") if pos_val_row is not None and pos_val_row[0] is not None else 0
                 if pos_value < 0:
                     raise PositionValidationError(
                         f"Invalid position value: {pos_value} < 0. Database corruption detected."

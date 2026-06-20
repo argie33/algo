@@ -9,35 +9,31 @@ This script runs in GitHub Actions and checks:
 """
 
 import logging
-import os
+import sys
 from datetime import datetime
+from pathlib import Path
 
 import psycopg2
+
+# Add project root for imports
+sys.path.insert(0, str(Path(__file__).parent.parent))
+
+from utils.db.connection import get_db_connection as _get_db_connection
 
 
 logging.basicConfig(level=logging.INFO, format="%(message)s")
 logger = logging.getLogger(__name__)
 
-# Database connection parameters from environment
-DB_HOST = os.environ.get('DB_HOST', 'localhost')
-DB_PORT = os.environ.get('DB_PORT', '5432')
-DB_USER = os.environ.get('DB_USER', 'stocks')
-DB_PASSWORD = os.environ.get('DB_PASSWORD', '')
-DB_NAME = os.environ.get('DB_NAME', 'stocks')
 
 def get_db_connection():
-    """Create a database connection with timeout."""
+    """Get database connection with graceful failure for CI environment.
+
+    Returns None if connection fails (CI runners are outside VPC).
+    Centralized implementation in utils/db/connection.py handles pooling/retries in Lambda.
+    """
     try:
-        conn = psycopg2.connect(
-            host=DB_HOST,
-            port=int(DB_PORT),
-            user=DB_USER,
-            password=DB_PASSWORD,
-            database=DB_NAME,
-            connect_timeout=5
-        )
-        return conn
-    except psycopg2.OperationalError as e:
+        return _get_db_connection(max_retries=1, timeout=5)
+    except Exception as e:
         logger.error(f"❌ Database connection failed: {e}")
         logger.info("Note: CI runners are outside VPC and can't reach private RDS proxy.")
         logger.info("Loader health is verified by ECS task logs instead.")

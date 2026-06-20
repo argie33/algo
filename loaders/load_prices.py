@@ -2108,11 +2108,13 @@ def _invalidate_phase1_cache():
     ISSUE #2 FIX: Three-tier approach:
     1. Try to delete cache (best case)
     2. If delete fails, mark as poisoned so Phase 1 skips it
-    3. If both fail, raise RuntimeError to halt loader immediately
+    3. If both fail and not a permission error, halt loader immediately
+    4. If permission error, log warning and allow loader to continue
     """
     from datetime import datetime
 
     import boto3
+    from botocore.exceptions import ClientError
 
     # FIX: Use ET date, not system date (AWS runs in UTC but trading is ET-based)
     try:
@@ -2131,6 +2133,16 @@ def _invalidate_phase1_cache():
                 f"[CACHE INVALIDATION] ✓ Successfully deleted Phase 1 cache: {cache_key}"
             )
             return
+        except ClientError as delete_err:
+            if delete_err.response.get("Error", {}).get("Code") in ("AccessDenied", "AccessDeniedException"):
+                logger.warning(
+                    f"[CACHE INVALIDATION] ⚠ Permission denied (DELETE): No DynamoDB write access. "
+                    f"Loader will proceed without cache invalidation (risk: may use stale data from previous run)."
+                )
+                return
+            logger.error(
+                f"[CACHE INVALIDATION] ✗ DELETE FAILED: {type(delete_err).__name__}: {delete_err}. Attempting cache poisoning..."
+            )
         except Exception as delete_err:
             logger.error(
                 f"[CACHE INVALIDATION] ✗ DELETE FAILED: {type(delete_err).__name__}: {delete_err}. Attempting cache poisoning..."
@@ -2152,6 +2164,16 @@ def _invalidate_phase1_cache():
                 "[CACHE INVALIDATION] ✓ POISONED cache (set invalidation_failed=true) - Phase 1 will skip stale data"
             )
             return
+        except ClientError as poison_err:
+            if poison_err.response.get("Error", {}).get("Code") in ("AccessDenied", "AccessDeniedException"):
+                logger.warning(
+                    "[CACHE INVALIDATION] ⚠ Permission denied (UPDATE): No DynamoDB write access. "
+                    "Loader will proceed without cache invalidation (risk: may use stale data from previous run)."
+                )
+                return
+            logger.error(
+                f"[CACHE INVALIDATION] ✗ POISONING ALSO FAILED: {type(poison_err).__name__}: {poison_err}"
+            )
         except (ValueError, ZeroDivisionError, TypeError) as poison_err:
             logger.error(
                 f"[CACHE INVALIDATION] ✗ POISONING ALSO FAILED: {type(poison_err).__name__}: {poison_err}"

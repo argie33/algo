@@ -40,6 +40,12 @@ from algo.trading.exceptions import (
 from config.alpaca_config import get_alpaca_base_url
 from config.credential_manager import get_alpaca_credentials
 from utils.db import DatabaseContext, OptimisticLockRetry
+from utils.db.advisory_locks import (
+    ALGO_POSITIONS_LOCK_ID,
+    ALGO_TRADES_LOCK_ID,
+    acquire_advisory_lock,
+    release_advisory_lock,
+)
 from utils.trading import PositionStatus
 from utils.validation import AlpacaResponseValidator
 
@@ -151,11 +157,25 @@ class TradeExecutor:
         else:
             self.is_paper = False
 
-    def _with_cursor(self, operation) -> Any:
-        """Execute an operation with a cursor via DatabaseContext."""
+    def _with_cursor(self, operation, acquire_locks: bool = False) -> Any:
+        """Execute an operation with a cursor via DatabaseContext.
+
+        Args:
+            operation: Callable that takes a cursor and returns a result
+            acquire_locks: If True, acquire advisory locks for algo_trades and algo_positions
+        """
         try:
             with DatabaseContext("write") as cur:
-                return operation(cur)
+                if acquire_locks:
+                    acquire_advisory_lock(cur, ALGO_TRADES_LOCK_ID, "algo_trades")
+                    acquire_advisory_lock(cur, ALGO_POSITIONS_LOCK_ID, "algo_positions")
+                    try:
+                        return operation(cur)
+                    finally:
+                        release_advisory_lock(cur, ALGO_POSITIONS_LOCK_ID, "algo_positions")
+                        release_advisory_lock(cur, ALGO_TRADES_LOCK_ID, "algo_trades")
+                else:
+                    return operation(cur)
         except (psycopg2.DatabaseError, psycopg2.OperationalError) as e:
             logger.debug(f"Database operation failed: {e}")
             raise
@@ -297,6 +317,10 @@ class TradeExecutor:
         def _execute_entry(cur):
             # B10: Entire entry sequence is wrapped in a single transaction.
             # If any step fails, the transaction rolls back and no partial state is left.
+
+            # THREAD SAFETY: Advisory locks are acquired by _with_cursor(acquire_locks=True).
+            # This prevents concurrent writes from Phase 6 (exits), Phase 7 (reconciliation),
+            # or other Phase 8 entries to algo_trades and algo_positions.
 
             # nonlocal: allow conditional slippage recalculation to update these without
             # causing UnboundLocalError for earlier uses (Python treats any assignment in a
@@ -739,7 +763,7 @@ class TradeExecutor:
             }
 
         try:
-            return self._with_cursor(_execute_entry) or {
+            return self._with_cursor(_execute_entry, acquire_locks=True) or {
                 "success": False,
                 "trade_id": "",
                 "status": "error",
@@ -1298,7 +1322,7 @@ class TradeExecutor:
                     "message": "Unknown error",
                 }
             else:
-                return self._with_cursor(_execute_exit) or {
+                return self._with_cursor(_execute_exit, acquire_locks=True) or {
                     "success": False,
                     "trade_id": "",
                     "status": "error",

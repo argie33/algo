@@ -152,8 +152,10 @@ def validate_signals_response(data: dict[str, Any]) -> dict[str, Any]:
 def validate_config_response(data: dict[str, Any]) -> dict[str, Any]:
     """Validate config endpoint response.
 
-    Config provides algorithm settings; structure is flexible per deployment.
-    Optionally validate safety threshold fields if present, but don't require them.
+    Config provides algorithm settings with critical safety thresholds.
+    Requires: min_signal_quality_score, min_swing_score, min_completeness_score,
+              min_volume_ma_50d, min_avg_daily_dollar_volume,
+              earnings_blackout_days_before, earnings_blackout_days_after
     """
     if not isinstance(data, dict):
         raise ResponseValidationError(f"Config response not a dict: {type(data)}")
@@ -161,8 +163,20 @@ def validate_config_response(data: dict[str, Any]) -> dict[str, Any]:
     if has_error(data):
         return data
 
-    # Validate optional numeric fields if present (but don't require them to exist)
-    optional_numeric = {
+    # Critical fields that must be present for config validation
+    required_fields = [
+        "min_signal_quality_score",
+        "min_swing_score",
+        "min_completeness_score",
+        "min_volume_ma_50d",
+        "min_avg_daily_dollar_volume",
+        "earnings_blackout_days_before",
+        "earnings_blackout_days_after",
+    ]
+    _check_required_fields(data, required_fields, "config")
+
+    # Validate numeric fields
+    field_types = {
         "min_signal_quality_score": int,
         "min_swing_score": float,
         "min_completeness_score": int,
@@ -173,12 +187,11 @@ def validate_config_response(data: dict[str, Any]) -> dict[str, Any]:
     }
 
     try:
-        for field, expected_type in optional_numeric.items():
-            if field in data and data[field] is not None:
-                if expected_type is int:
-                    safe_int(data[field], strict=True, field_name=field)
-                else:
-                    safe_float(data[field], strict=True, field_name=field)
+        for field, expected_type in field_types.items():
+            if expected_type is int:
+                safe_int(data[field], strict=True, field_name=field)
+            else:
+                safe_float(data[field], strict=True, field_name=field)
     except StrictValidationError as e:
         raise ResponseValidationError(f"Config field validation failed: {e}") from e
 
