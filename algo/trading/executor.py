@@ -1393,7 +1393,7 @@ class TradeExecutor:
                 # Verify audit log insert succeeded (must affect exactly 1 row)
                 if cur.rowcount != 1:
                     raise DatabaseError(f"Audit log insert failed: expected 1 row, got {cur.rowcount}")
-            except (DatabaseError, Exception) as audit_e:
+            except Exception as audit_e:
                 logger.critical(
                     f"[AUDIT_FAILURE] Could not audit log trade exit {trade_id}: {type(audit_e).__name__}: {audit_e}"
                 )
