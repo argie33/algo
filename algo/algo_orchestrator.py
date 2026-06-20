@@ -35,25 +35,38 @@ from utils.infrastructure.timezone import EASTERN_TZ
 from utils.logging.execution_tracker import get_tracker
 
 
+from contextlib import contextmanager
+from typing import Generator
+
+_time_block: Any
+_log_metrics: Any
+
 try:
     from monitoring.metrics_context import (
-        TimeBlock,
-        log_metrics_summary,
+        TimeBlock as _imported_time_block,
+        log_metrics_summary as _imported_log_metrics,
     )
+    _time_block = _imported_time_block
+    _log_metrics = _imported_log_metrics
 except ImportError:
     import logging as _logging
     _logging.getLogger(__name__).warning(
         "[MONITORING] monitoring.metrics_context not available — timing metrics disabled. "
         "Rebuild Docker image to include monitoring/ package."
     )
-    from contextlib import contextmanager
 
-    @contextmanager  # type: ignore[no-redef, misc]
-    def TimeBlock(name, **kwargs):  # type: ignore[no-redef, misc]
+    @contextmanager
+    def _stub_time_block(name: str, **kwargs: Any) -> Generator[None, None, None]:
         yield
 
-    def log_metrics_summary() -> None:  # type: ignore[no-redef, misc]
+    def _stub_log_metrics() -> None:
         pass
+
+    _time_block = _stub_time_block
+    _log_metrics = _stub_log_metrics
+
+TimeBlock = _time_block
+log_metrics_summary = _log_metrics
 
 logger = logging.getLogger(__name__)
 
@@ -130,22 +143,8 @@ class Orchestrator:
             return phase_func(*args, **kwargs)
 
         import signal
-        import threading
 
-        phase_result = None
-        phase_error = None
-        phase_event = threading.Event()
-
-        def run_phase():
-            nonlocal phase_result, phase_error
-            try:
-                phase_result = phase_func(*args, **kwargs)
-            except Exception as e:
-                phase_error = e
-            finally:
-                phase_event.set()
-
-        def timeout_handler(signum, frame):
+        def timeout_handler(signum, frame):  # type: ignore[unused-ignore]
             raise TimeoutError(
                 f"{phase_name} timed out after {self.per_phase_timeout}s. "
                 "Phase execution exceeded per-phase timeout limit."
@@ -153,14 +152,14 @@ class Orchestrator:
 
         # Try using signal-based timeout (Unix/Lambda)
         try:
-            old_handler = signal.signal(signal.SIGALRM, timeout_handler)
-            signal.alarm(self.per_phase_timeout)
+            old_handler = signal.signal(signal.SIGALRM, timeout_handler)  # type: ignore[attr-defined]
+            signal.alarm(self.per_phase_timeout)  # type: ignore[attr-defined]
             try:
                 return phase_func(*args, **kwargs)
             finally:
-                signal.alarm(0)
-                signal.signal(signal.SIGALRM, old_handler)
-        except ValueError:
+                signal.alarm(0)  # type: ignore[attr-defined]
+                signal.signal(signal.SIGALRM, old_handler)  # type: ignore[attr-defined]
+        except (ValueError, AttributeError):
             logger.warning(
                 f"[TIMEOUT] signal.alarm() not available (Windows?). Skipping per-phase timeout for {phase_name}."
             )
@@ -222,7 +221,7 @@ class Orchestrator:
                 "Could not verify halt flag status (both DynamoDB and RDS unavailable). Trading halted as fail-safe.",
                 {"action": "manual_intervention_required"},
             )
-        except Exception as alert_err:
+        except (OSError, TimeoutError, ValueError) as alert_err:
             logger.error(
                 f"Could not send halt flag unavailability alert (trading halted): {alert_err}"
             )
@@ -232,7 +231,7 @@ class Orchestrator:
             from algo.reporting import MetricsPublisher
 
             MetricsPublisher().add_metric("HaltFlagCheckFailure", 1, unit="Count")
-        except Exception as metric_err:
+        except (OSError, TimeoutError, ValueError) as metric_err:
             logger.debug(
                 f"Could not emit halt flag check failure metric (non-critical): {metric_err}"
             )
@@ -260,7 +259,7 @@ class Orchestrator:
                     f'Halt flag set: {reason or "Stale data detected"}',
                     {"reason": reason},
                 )
-            except Exception as alert_err:
+            except (OSError, TimeoutError, ValueError) as alert_err:
                 logger.error(f"Could not send halt flag set alert: {alert_err}")
 
         return success
@@ -360,7 +359,7 @@ class Orchestrator:
                             logger.info(f"    [{age}d old] {desc:20s}: {latest_date}")
                         else:
                             logger.info(f"    [EMPTY] {desc:20s}: no data")
-                    except Exception as t_err:
+                    except (ValueError, TypeError, AttributeError) as t_err:
                         logger.warning(f"    [ERROR] {desc:20s}: {t_err}")
 
                 # Check loader status
@@ -376,10 +375,10 @@ class Orchestrator:
                         logger.info(
                             f"    {row[0]:25s}: {row[1]:10s} (updated {row[2]})"
                         )
-                except Exception as loader_err:
+                except (psycopg2.OperationalError, psycopg2.DatabaseError, psycopg2.InterfaceError) as loader_err:
                     logger.debug(f"    Could not check loader status: {loader_err}")
 
-        except Exception as e:
+        except (psycopg2.OperationalError, psycopg2.DatabaseError, psycopg2.InterfaceError) as e:
             logger.debug(f"  Health check failed: {e}")
 
     def _verify_task_stopped(
@@ -443,7 +442,7 @@ class Orchestrator:
                     time.sleep(retry_delay_sec)
                     retry_delay_sec *= 1.5
 
-            except Exception as e:
+            except (TypeError, KeyError, AttributeError, IndexError) as e:
                 logger.error(
                     f"[TASK_TERMINATION] Attempt {attempt}: Failed to verify task status: {e}"
                 )
@@ -1058,7 +1057,7 @@ class Orchestrator:
                         return self._final_report()
 
                     logger.info("[OK] All pre-flight checks passed")
-            except Exception as e:
+            except (psycopg2.OperationalError, psycopg2.DatabaseError, psycopg2.InterfaceError) as e:
                 logger.error(f"  [HALT] Pre-flight check failed: {e}")
                 # Return skipped=True when DB is unreachable so test verification
                 # treats this as a transient skip, not a code bug (phases={})
@@ -1118,7 +1117,7 @@ class Orchestrator:
                 logger.info(
                     f"[PHASE 1] Completed in {phase_1_elapsed:.2f}s at {datetime.now(timezone.utc).isoformat()}"
                 )
-            except Exception as e:
+            except (psycopg2.OperationalError, psycopg2.DatabaseError, psycopg2.InterfaceError, TimeoutError, ValueError, RuntimeError) as e:
                 logger.error(
                     f"\nERROR in phase 1 (data freshness): {e}. Running Phase 3/4/7 before halting."
                 )
@@ -1127,7 +1126,7 @@ class Orchestrator:
                     self.phase_3_position_monitor()
                     self.phase_3b_exposure_policy()
                     self.phase_4_exit_execution()
-                except Exception as phase4_err:
+                except (psycopg2.OperationalError, psycopg2.DatabaseError, psycopg2.InterfaceError, TimeoutError, ValueError, RuntimeError) as phase4_err:
                     logger.error(f"Phase 3/4 also failed after Phase 1 error: {phase4_err}")
                 self.phase_7_reconcile()
                 return self._final_report()
@@ -1339,7 +1338,7 @@ class Orchestrator:
         finally:
             self._release_run_lock()
 
-    def _final_report(self):
+    def _final_report(self) -> dict[str, Any]:
         logger.info(f"\n{'#'*70}")
         logger.info(f"#   FINAL REPORT — {self.run_id}")
         logger.info(f"{'#'*70}")

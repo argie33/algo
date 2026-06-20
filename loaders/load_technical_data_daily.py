@@ -207,7 +207,7 @@ class TechnicalDataDailyLoader(OptimalLoader):
             return -1
 
     def _compute_all_indicators(
-        self, symbol: str, rows: list[dict], spy_rows: list[dict] = None
+        self, symbol: str, rows: list[dict], spy_rows: list[dict] | None = None
     ) -> list[dict]:
         if not rows:
             raise RuntimeError(

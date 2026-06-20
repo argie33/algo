@@ -232,7 +232,10 @@ def run(
     skipped_count = 0
     failed_count = 0
 
-    symbols_to_check = [sig.get("symbol") for sig in qualified_trades if sig.get("symbol")]
+    symbols_to_check = [
+        sym for sig in qualified_trades
+        if (sym := sig.get("symbol")) is not None
+    ]
     technical_data = _batch_fetch_technical_data(symbols_to_check, run_date)
 
     for signal in qualified_trades:

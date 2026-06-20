@@ -19,7 +19,7 @@ Requires: annual_income_statement, annual_balance_sheet populated
 import argparse
 import logging
 from datetime import date
-from typing import Optional
+from typing import Any, Optional
 
 from utils.db.context import DatabaseContext
 from utils.loaders.config import get_default_parallelism
@@ -96,7 +96,7 @@ class QualityMetricsLoader(OptimalLoader):
                 current_liabilities
             ) = inventory = None
 
-        metrics = {"symbol": symbol}
+        metrics: dict[str, Any] = {"symbol": symbol}
 
         # Operating Margin: Operating Income / Revenue
         if revenue and revenue > 0 and operating_income is not None:

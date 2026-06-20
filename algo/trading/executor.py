@@ -26,7 +26,7 @@ from algo.infrastructure import get_api_timeout
 from algo.reporting import TradeNotificationService, notify
 from config.alpaca_config import get_alpaca_base_url
 from config.credential_manager import get_alpaca_credentials
-from utils.db import DatabaseContext, OptimisticLockRetry
+from utils.db import DatabaseContext, OptimisticLockRetry, StructuredDBLogger
 from utils.trading import PositionStatus, TradeStatus
 from utils.validation import AlpacaResponseValidator
 
@@ -135,7 +135,7 @@ class TradeExecutor:
         else:
             self.is_paper = False
 
-    def _with_cursor(self, operation):
+    def _with_cursor(self, operation) -> Any:
         """Execute an operation with a cursor via DatabaseContext."""
         try:
             with DatabaseContext("write") as cur:
@@ -970,6 +970,9 @@ class TradeExecutor:
             operation_name=f"update_position_{position_id}",
             max_attempts=3,
             base_delay_ms=100,
+            query="UPDATE algo_positions SET ... WHERE position_id=%s AND quantity=%s",
+            params=(new_qty, position_id, new_qty),
+            context={"position_id": position_id, "new_quantity": new_qty},
         )
 
         if success:
@@ -983,7 +986,7 @@ class TradeExecutor:
     def exit_trade(
         self,
         trade_id: int,
-        exit_price: float,
+        exit_price: float | None,
         exit_reason: str,
         exit_fraction: float = 1.0,
         exit_stage: str | None = None,
@@ -1679,7 +1682,7 @@ class TradeExecutor:
                     )
         return None
 
-    def _verify_order_status(self, alpaca_order_id: str) -> dict[str, Any] | None:
+    def _verify_order_status(self, alpaca_order_id: str) -> str | None:
         """Re-query order status from Alpaca (B6: race condition protection).
 
         Includes retry logic (B5) with exponential backoff for transient failures.
@@ -1712,7 +1715,7 @@ class TradeExecutor:
                         if attempt < max_retries - 1:
                             time.sleep(2**attempt)
                         continue
-                    return cast(dict[str, Any] | None, data.get("status"))
+                    return cast(str | None, data.get("status"))
                 else:
                     if attempt < max_retries - 1:
                         wait_time = 2**attempt  # 1s, 2s, 4s

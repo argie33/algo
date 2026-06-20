@@ -710,7 +710,7 @@ locals {
     # FIXED Issue #???: Vectorized approach: 1 bulk query → vectorized pandas → single bulk insert
     # Full load (300-day lookback): 15-25 min vs old 60-90 min
     # Intraday mode (today only): 3-8 min vs old 60-90 min
-    "technical_data_daily_vectorized" = { cpu = 2048, memory = 4096, timeout = 1800, parallelism = 1 }
+    "technical_data_daily_vectorized" = { cpu = 1024, memory = 2048, timeout = 1800, parallelism = 1 } # OPTIMIZED: vectorized = fast, reduced from 2048/4096
 
     # Market health — reads price_daily, processes 5000+ symbols
     "market_health_daily" = { cpu = 256, memory = 512, timeout = 1200, parallelism = 1 }
@@ -730,7 +730,7 @@ locals {
     # FIXED Issue #???: Vectorized approach: 1 bulk query → vectorized pandas → single bulk insert
     # Full load (30-day lookback): 10-20 min vs old 30-40 min
     # Intraday mode (today only, --today flag): 5-15 min vs old 30-40 min
-    "swing_trader_scores_vectorized" = { cpu = 2048, memory = 4096, timeout = 1200, parallelism = 1 }
+    "swing_trader_scores_vectorized" = { cpu = 1024, memory = 2048, timeout = 1200, parallelism = 1 } # OPTIMIZED: vectorized = fast (20min timeout), reduced from 2048/4096
 
     # Sector ranking — compute sector composite scores and rankings
     "sector_ranking" = { cpu = 512, memory = 1024, timeout = 900, parallelism = 1 }

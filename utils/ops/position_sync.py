@@ -39,7 +39,7 @@ class PositionSyncChecker:
 
     def _do_check(self, cur) -> Dict[str, Any]:
         """Perform consistency checks against database."""
-        issues = []
+        issues: list[dict[str, Any]] = []
 
         # 1. Check for trades with missing required entry fields
         cur.execute("""

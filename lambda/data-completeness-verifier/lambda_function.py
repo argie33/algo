@@ -42,7 +42,8 @@ def lambda_handler(event, context):
 
         # Verify Phase 1 thresholds
         cursor.execute("SELECT MAX(date) FROM price_daily")
-        max_date = cursor.fetchone()[0]
+        row = cursor.fetchone()
+        max_date = row[0] if row and row[0] is not None else None
 
         if not max_date:
             return {
@@ -74,14 +75,22 @@ def lambda_handler(event, context):
             "SELECT COUNT(DISTINCT symbol) FROM price_daily WHERE date = %s",
             (max_date,)
         )
-        symbols_today = cursor.fetchone()[0]
+        row = cursor.fetchone()
+        if row is None or row[0] is None:
+            return {
+                "statusCode": 500,
+                "result": "ERROR",
+                "reason": "Symbol count query failed"
+            }
+        symbols_today = row[0]
 
         cursor.execute(
             "SELECT COUNT(DISTINCT symbol) FROM price_daily WHERE date = "
             "(SELECT MAX(date) FROM price_daily WHERE date < %s)",
             (max_date,)
         )
-        symbols_prior = cursor.fetchone()[0] or symbols_today
+        row = cursor.fetchone()
+        symbols_prior = row[0] if row and row[0] is not None else symbols_today
 
         coverage_pct = (symbols_today / max(symbols_prior, 1)) * 100
 

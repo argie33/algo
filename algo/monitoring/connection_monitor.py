@@ -9,7 +9,7 @@ basic connection timeout for stuck connections.
 import logging
 import threading
 import time
-from typing import Any, Dict, Optional
+from typing import Any
 
 
 logger = logging.getLogger(__name__)
@@ -21,14 +21,17 @@ class ConnectionPoolMonitor:
     def __init__(
         self,
         max_connections: int = 100,
-        alert_threshold_pct: int = 80,
+        alert_threshold_pct: int = 70,
         timeout_sec: int = 300,
     ):
         """
         Args:
-            max_connections: Maximum connections allowed (RDS t4g.small = 100)
-            alert_threshold_pct: Warn when usage > this percentage (default 80%)
+            max_connections: Maximum connections allowed (RDS Proxy = 100)
+            alert_threshold_pct: Warn when usage > this percentage (default 70% for 100-conn proxy)
             timeout_sec: Timeout for stuck connections (default 5 min)
+
+        CLUSTER 6 FIX: RDS Proxy has only 100 connections. With 6 tasks x 8 loaders x parallelism,
+        we must alert aggressively. Thresholds: 70% (70 conn) warn, 85% (85 conn) critical.
         """
         self.max_connections = max_connections
         self.alert_threshold_pct = alert_threshold_pct
@@ -36,7 +39,7 @@ class ConnectionPoolMonitor:
 
         self._lock = threading.Lock()
         self._active_connections = 0
-        self._connection_start_times: Dict[int, float] = (
+        self._connection_start_times: dict[int, float] = (
             {}
         )  # Connection ID → start time
         self._high_usage_warned = False
@@ -55,9 +58,11 @@ class ConnectionPoolMonitor:
             # Warn on threshold breach (once per threshold level)
             if usage_pct >= self.alert_threshold_pct and not self._high_usage_warned:
                 logger.warning(
-                    f"[RDS_POOL] WARNING: Connection pool usage {usage_pct:.0f}% "
+                    f"[RDS_POOL] ALERT: RDS Proxy connection usage {usage_pct:.0f}% "
                     f"({self._active_connections}/{self.max_connections}). "
-                    "If approaching 100%, check for stuck connections or excessive parallelism."
+                    "CLUSTER 6 FIX: Approaching pool limit. Check for stuck connections (>5min), "
+                    "excessive loader parallelism, or long-running transactions. "
+                    "See CLAUDE.md → Cluster 6 for mitigation."
                 )
                 self._high_usage_warned = True
 
@@ -90,7 +95,7 @@ class ConnectionPoolMonitor:
             if usage_pct < (self.alert_threshold_pct - 20):
                 self._high_usage_warned = False  # Reset warning once usage drops back
 
-    def get_status(self) -> Dict[str, Any]:
+    def get_status(self) -> dict[str, Any]:
         """Get current pool status."""
         with self._lock:
             usage_pct = (self._active_connections / self.max_connections) * 100
@@ -122,7 +127,7 @@ class ConnectionPoolMonitor:
 
 
 # Global monitor instance
-_monitor: Optional[ConnectionPoolMonitor] = None
+_monitor: ConnectionPoolMonitor | None = None
 _monitor_lock = threading.Lock()
 
 
@@ -151,7 +156,7 @@ def on_disconnect() -> None:
     get_monitor().on_disconnect()
 
 
-def get_pool_status() -> Dict[str, Any]:
+def get_pool_status() -> dict[str, Any]:
     """Get current RDS pool status (for monitoring/debugging)."""
     return get_monitor().get_status()
 

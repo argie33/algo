@@ -12,7 +12,7 @@ Requires: annual_income_statement populated.
 import argparse
 import logging
 from datetime import date
-from typing import Optional
+from typing import Any, Optional
 
 
 logger = logging.getLogger(__name__)
@@ -67,7 +67,7 @@ class GrowthMetricsLoader(OptimalLoader):
         """Compute multi-year growth metrics."""
         _latest_year, latest_rev, latest_eps = latest
 
-        metrics = {"symbol": symbol}
+        metrics: dict[str, Any] = {"symbol": symbol}
 
         # Calculate 1Y, 3Y, 5Y growth rates
         for lookback in [1, 3, 5]:

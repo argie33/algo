@@ -51,7 +51,7 @@ logger = logging.getLogger(__name__)
 class ExitEngine:
     """Monitor and execute position exits."""
 
-    def __init__(self, config):
+    def __init__(self, config: dict) -> None:
         self.config = config
         self.executor = TradeExecutor(config)
         self.verbose = True
@@ -578,7 +578,7 @@ class ExitEngine:
             raise RuntimeError(f"Operation failed: {e}") from e
 
     def _fetch_recent_prices(
-        self, cur, symbol, current_date
+        self, cur, symbol: str, current_date
     ) -> tuple[float | None, float | None]:
         """Return (current_price, previous_close) with intraday support.
 
@@ -644,7 +644,7 @@ class ExitEngine:
         row = cur.fetchone()
         return int(row[0]) if row and row[0] is not None else None
 
-    def _is_pulling_back(self, cur, symbol, current_date) -> bool:
+    def _is_pulling_back(self, cur, symbol: str, current_date) -> bool:
         """Requires either 2-3% decline from recent high OR 2+ days below 5-day high.
 
         Real pullbacks show clear consolidation, not just a 0.5% afternoon dip.
@@ -676,7 +676,7 @@ class ExitEngine:
         days_below_high = sum(1 for r in rows[:5] if float(r[0]) < recent_high * 0.98)
         return days_below_high >= 2
 
-    def _rs_line_breaking(self, cur, symbol, current_date) -> bool:
+    def _rs_line_breaking(self, cur, symbol: str, current_date) -> bool:
         """RS line (stock/SPY ratio) breaking below its 50-day MA = exit signal."""
         cur.execute(
             """
@@ -741,7 +741,7 @@ class ExitEngine:
         return cast(bool, gain_pct >= threshold_pct)
 
     def _chandelier_or_ema_stop(
-        self, cur, symbol, current_date, days_held
+        self, cur, symbol: str, current_date, days_held: int
     ) -> float | None:
         """Trailing stop: chandelier (3xATR from highest high) for first 10d,
         then 21-EMA after."""
@@ -811,7 +811,7 @@ class ExitEngine:
             raise ValueError(f"TD Sequential calculation failed for {symbol}")
         return td_state
 
-    def _is_minervini_break(self, cur, symbol, current_date, cur_price) -> bool:
+    def _is_minervini_break(self, cur, symbol: str, current_date, cur_price: float) -> bool:
         """Close < 50-DMA OR (close < EMA(21) AND volume > 50-day avg)."""
         cur.execute(
             """
@@ -844,7 +844,7 @@ class ExitEngine:
             return True
         return False
 
-    def _check_volume_spike(self, cur, symbol, current_date, volume_multiplier) -> bool:
+    def _check_volume_spike(self, cur, symbol: str, current_date, volume_multiplier: float) -> bool:
         """Check if today's volume is >= volume_multiplier * average volume."""
         cur.execute(
             """
@@ -863,10 +863,10 @@ class ExitEngine:
             raise ValueError(f"Volume data unavailable for {symbol} on {current_date}")
         today_vol = float(row[0])
         avg_vol = float(row[1])
-        return cast(bool, today_vol >= avg_vol * volume_multiplier)
+        return today_vol >= avg_vol * volume_multiplier
 
     def _compute_gain_last_n_days(
-        self, cur, symbol, current_date, n_days
+        self, cur, symbol: str, current_date, n_days: int
     ) -> float | None:
         """Compute % gain over the last N days (from close N days ago to current close)."""
         cur.execute(

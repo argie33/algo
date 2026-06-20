@@ -355,7 +355,10 @@ class SignalQualityScoresLoader(OptimalLoader):
                     "SELECT EXISTS(SELECT 1 FROM information_schema.tables "
                     "WHERE table_schema = 'public' AND table_name = 'vcp_patterns')"
                 )
-                table_exists = cur.fetchone()[0]
+                row = cur.fetchone()
+                if row is None or row[0] is None:
+                    raise RuntimeError("Table existence check query failed")
+                table_exists = row[0]
                 if not table_exists:
                     logger.critical(
                         "[VCP_TABLE_MISSING] VCP patterns table does not exist. "
@@ -370,7 +373,10 @@ class SignalQualityScoresLoader(OptimalLoader):
                     "WHERE symbol = %s AND date >= %s AND date <= %s",
                     (symbol, start, end),
                 )
-                count = cur.fetchone()[0]
+                row = cur.fetchone()
+                if row is None or row[0] is None:
+                    raise RuntimeError(f"VCP count query failed for {symbol}")
+                count = row[0]
                 if count == 0:
                     logger.debug(
                         f"[VCP_NO_DATA] No VCP patterns found for {symbol} "

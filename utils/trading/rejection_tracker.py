@@ -88,7 +88,7 @@ class RejectionTracker:
         eval_date: date,
         symbol: str,
         tier_0_reason: str,
-        entry_price: float = None,
+        entry_price: float | None = None,
     ):
         """Log signal rejection at pre-tier stage (before Tier 1)."""
 

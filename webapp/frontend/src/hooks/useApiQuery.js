@@ -136,13 +136,17 @@ export const useApiQuery = (
 
         // Get endpoint schema to validate required fields
         const endpointSchema = getEndpointSchema(actualCacheKey);
-        const requiredFields = getRequiredFields(actualCacheKey);
 
         // Validate response based on schema
         let result;
         if (freshData && typeof freshData === 'object' && !Array.isArray(freshData)) {
           if (freshData.data !== undefined && !freshData.items) {
-            // Single-object response structure
+            // Single-object response structure - only validate if schema is for object type
+            let requiredFields = [];
+            if (endpointSchema?.type === 'object') {
+              requiredFields = endpointSchema.requiredFields || [];
+            }
+
             const validation = validateResponse(freshData, {
               requiredFields,
               requireNonEmpty: endpointSchema?.requireNonEmpty || false,

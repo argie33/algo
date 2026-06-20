@@ -20,6 +20,7 @@ Metrics computed:
 
 import logging
 from datetime import date
+from typing import Any
 
 import psycopg2
 import psycopg2.extras
@@ -33,13 +34,13 @@ from utils.validation import safe_float
 logger = logging.getLogger(__name__)
 
 
-def compute_performance_metrics(cur, metric_date: date = None):
+def compute_performance_metrics(cur, metric_date: date | None = None) -> dict[str, Any] | None:
     """Compute all performance metrics for today and store in database."""
     if metric_date is None:
         metric_date = date.today()
 
     try:
-        metrics = {}
+        metrics: dict[str, Any] = {}
 
         # Fetch all closed trades + open trades with unrealized P&L (E10 fix)
         # Closed trades: use profit_loss_dollars directly
@@ -69,7 +70,7 @@ def compute_performance_metrics(cur, metric_date: date = None):
             logger.info(
                 f"No trades (closed or open with current price) for {metric_date}, inserted defaults"
             )
-            return
+            return None
 
         # Extract metrics from trades
         pnl_dollars = [safe_float(t["profit_loss_dollars"]) for t in trades]
@@ -222,7 +223,8 @@ def _compute_advanced_metrics(cur, metric_date: date):
         if n_days > 0 and start_val > 0 and end_val > 0:
             cagr = (end_val / start_val) ** (365.25 / n_days) - 1
 
-        return sharpe, sortino, max_drawdown / 100.0, cagr, calmar
+        max_dd_pct = (max_drawdown / 100.0) if max_drawdown is not None else 0.0
+        return sharpe, sortino, max_dd_pct, cagr, calmar
 
     except Exception as e:
         raise RuntimeError(

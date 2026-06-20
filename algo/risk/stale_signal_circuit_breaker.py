@@ -39,11 +39,13 @@ class StaleSignalCircuitBreaker:
             with DatabaseContext("read") as cur:
                 # Get latest price data available
                 cur.execute("SELECT MAX(date) FROM price_daily")
-                latest_price_date = cur.fetchone()[0]
+                row = cur.fetchone()
+                latest_price_date = row[0] if row and row[0] is not None else None
 
                 # Get latest signal data available
                 cur.execute("SELECT MAX(date) FROM buy_sell_daily")
-                latest_signal_date = cur.fetchone()[0]
+                row = cur.fetchone()
+                latest_signal_date = row[0] if row and row[0] is not None else None
 
                 if not latest_signal_date or not latest_price_date:
                     return False, "No signals or prices in database"

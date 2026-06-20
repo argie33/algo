@@ -32,12 +32,17 @@ def up():
                     """,
                     (table_name,),
                 )
-                if cur.fetchone()[0] > 0:
+                row = cur.fetchone()
+                if row is not None and row[0] is not None and row[0] > 0:
                     # Verify 'admin-user' entries exist
                     cur.execute(
                         f"SELECT COUNT(*) as count FROM {table_name} WHERE cognito_sub = 'admin-user'"
                     )
-                    count = cur.fetchone()[0]
+                    row = cur.fetchone()
+                    if row is not None and row[0] is not None:
+                        count = row[0]
+                    else:
+                        raise RuntimeError(f"Count query failed for {table_name}")
                     if count > 0:
                         print(
                             f"  âœ“ {table_name}: {count} rows with 'admin-user' placeholder found"

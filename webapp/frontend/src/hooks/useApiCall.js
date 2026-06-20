@@ -9,11 +9,19 @@ import { useState, useEffect } from 'react';
  *     const r = await api.get('/api/sectors?limit=20');
  *     return r.data?.items || r.data?.data;
  *   });
+ *
+ * With validation:
+ *   const { data, loading, error } = useApiCall(
+ *     async () => api.get('/api/sectors'),
+ *     [],
+ *     { validateFn: (result) => validateResponse(result, { requiredFields: ['id', 'name'] }) }
+ *   );
  */
-export const useApiCall = (fn, deps = []) => {
+export const useApiCall = (fn, deps = [], options = {}) => {
   const [data, setData] = useState(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
+  const { validateFn } = options;
 
   useEffect(() => {
     let isMounted = true;
@@ -22,7 +30,21 @@ export const useApiCall = (fn, deps = []) => {
       try {
         setLoading(true);
         setError(null);
-        const result = await fn();
+        let result = await fn();
+
+        // Optional validation
+        if (validateFn) {
+          const validation = validateFn(result);
+          if (!validation.valid) {
+            throw new Error(
+              validation.errors?.join('; ') ||
+              validation.error ||
+              'Data validation failed'
+            );
+          }
+          result = validation.data || result;
+        }
+
         if (isMounted) {
           setData(result);
         }
@@ -43,7 +65,7 @@ export const useApiCall = (fn, deps = []) => {
     return () => {
       isMounted = false;
     };
-  }, [fn, ...deps]);
+  }, [fn, validateFn, ...deps]);
 
   return { data, loading, error };
 };

@@ -12,7 +12,7 @@ Pre-computes daily economic metrics for dashboard consumption:
 import logging
 import sys
 from datetime import date, datetime
-from typing import List, Optional
+from typing import Any, List, Optional
 
 from utils.db.context import DatabaseContext
 from utils.infrastructure.timezone import EASTERN_TZ
@@ -55,7 +55,7 @@ class EconomicMetricsDailyLoader(OptimalLoader):
                         WHERE series_id='CPIAUCSL'
                         ORDER BY date DESC LIMIT 1
                     """)
-                    cpi_cur_row = cur.fetchone() or {}
+                    cpi_cur_row: dict[str, Any] = cur.fetchone() or {}
                     cpi_cur = (
                         float(cpi_cur_row.get("value"))
                         if cpi_cur_row.get("value") is not None
@@ -70,7 +70,7 @@ class EconomicMetricsDailyLoader(OptimalLoader):
                               AND date <= CURRENT_DATE - 365
                             ORDER BY date DESC LIMIT 1
                         """)
-                        cpi_yoy_row = cur.fetchone() or {}
+                        cpi_yoy_row: dict[str, Any] = cur.fetchone() or {}
                         cpi_prev = (
                             float(cpi_yoy_row.get("value"))
                             if cpi_yoy_row.get("value") is not None

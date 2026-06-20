@@ -191,8 +191,10 @@ def _get_comprehensive_risk_dashboard(cur) -> dict:
         freshness = check_data_freshness(
             cur, "algo_portfolio_snapshots", "snapshot_date", warning_days=1
         )
-        result["data_freshness"] = freshness
-        return json_response(200, result)
+        response = json_response(200, result)
+        if freshness:
+            response["data_freshness"] = freshness
+        return response
     except Exception as e:
         code, error_type, message = handle_db_error(
             e, "fetch comprehensive risk dashboard"

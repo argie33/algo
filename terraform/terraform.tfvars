@@ -63,6 +63,7 @@ api_lambda_timeout                  = 25   # Validation requires max 25s (API Ga
 api_lambda_reserved_concurrency     = 50   # MarketsHealth fires 26 concurrent calls on load (4 indices + 11 sector tiles + 4 VIX + 5 main + 2 extras). 50 gives headroom for 2 simultaneous users.
 api_lambda_provisioned_concurrency  = 1    # Keep 1 instance warm to avoid 15-40s VPC cold start 502 errors. Cost: ~$12/month
 algo_lambda_timeout                 = 600
+algo_lambda_ephemeral_storage       = 512  # OPTIMIZED: reduced from 2048 (orchestrator doesn't write large temp files); saves $2-5/month
 algo_lambda_provisioned_concurrency = 0 # Orchestrator runs on schedule, cold start is acceptable
 # COST OPTIMIZED: Reserved concurrency removed (saves $170+/month). Provisioned concurrency for API only (~$12/month) worth the 502 error fix.
 
@@ -137,8 +138,8 @@ cloudwatch_log_retention_days  = 5 # OPTIMIZED from 7: 5 days sufficient (28 orc
 api_gateway_log_retention_days = 3 # Already optimized
 
 # S3 Bucket Expiration (staging data retention)
-code_bucket_expiration_days = 60   # OPTIMIZED from 90: artifacts can be rebuilt from source; saves $3-5/month
-data_bucket_expiration_days = 21   # OPTIMIZED from 30: staging data not needed long-term; saves $2-3/month
+code_bucket_expiration_days = 30   # OPTIMIZED from 60→30: CI/CD rebuilds ZIPs from source code; saves $1-2/month
+data_bucket_expiration_days = 14   # OPTIMIZED from 21→14: staging data regenerable from APIs; saves $0.50-1/month
 
 # ============================================================
 # RDS Proxy Configuration

@@ -26,7 +26,7 @@ if os.path.exists("/opt/python"):
 sys.path.insert(0, str(Path(__file__).parent.parent.parent))
 
 # Import the orchestrator
-from algo.algo_orchestrator import Orchestrator
+from algo.algo_orchestrator import Orchestrator  # noqa: E402
 
 
 def lambda_handler(event, context):
@@ -342,7 +342,7 @@ def lambda_handler(event, context):
             "body": json.dumps(
                 {
                     "status": "error",
-                    "message": f"Orchestrator failed: {str(e)}",
+                    "message": f"Orchestrator failed: {e!s}",
                     "source": source,
                 }
             ),

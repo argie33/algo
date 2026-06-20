@@ -18,6 +18,7 @@ Runs after swing_trader_scores is loaded (end of day pipeline).
 import logging
 import sys
 from datetime import date, datetime
+from typing import Any
 from typing import List, Optional
 
 from utils.db.context import DatabaseContext
@@ -82,7 +83,7 @@ class GradeDistributionDailyLoader(OptimalLoader):
                     (latest_date,),
                 )
 
-                stats = cur.fetchone() or {}
+                stats: dict[str, Any] = cur.fetchone() or {}
 
                 result = {
                     "report_date": report_date,

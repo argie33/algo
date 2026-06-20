@@ -4,7 +4,7 @@
 import logging
 import sys
 from datetime import date, datetime, timezone
-from typing import List, Optional
+from typing import Any, List, Optional
 
 from utils.db.context import DatabaseContext
 from utils.infrastructure.timezone import EASTERN_TZ
@@ -59,7 +59,7 @@ class RLadderDistributionDailyLoader(OptimalLoader):
                     return []
 
                 # Group positions into R-ladder buckets
-                buckets = {
+                buckets: dict[str, dict[str, Any]] = {
                     bucket: {"count": 0, "value": 0, "days": [], "pnl": []}
                     for bucket in self.BUCKETS
                 }

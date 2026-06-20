@@ -286,7 +286,8 @@ export const ENDPOINT_SCHEMAS = {
 
 /**
  * Find schema for an endpoint path
- * @param {string} endpoint - API endpoint path (e.g., '/api/sectors' or '/api/sectors?page=1')
+ * Handles both API paths (e.g., '/api/sectors') and cache key formats (e.g., 'sectors')
+ * @param {string} endpoint - API endpoint path or cache key (e.g., '/api/sectors', 'sectors', or '/api/sectors?page=1')
  * @returns {object|null} Schema object or null if not found
  */
 export function getEndpointSchema(endpoint) {
@@ -298,6 +299,34 @@ export function getEndpointSchema(endpoint) {
   // Exact match
   if (ENDPOINT_SCHEMAS[basePath]) {
     return ENDPOINT_SCHEMAS[basePath];
+  }
+
+  // If not an API path, try to match as cache key by converting to API path
+  if (!basePath.startsWith('/')) {
+    // Cache key format: try matching against endpoint paths
+    // e.g., 'algo-positions' should match '/api/algo/positions'
+    // e.g., 'swing-scores' should match '/api/algo/swing-scores'
+    const cacheKeyNormalized = basePath.toLowerCase();
+
+    for (const [pattern, schema] of Object.entries(ENDPOINT_SCHEMAS)) {
+      // Remove /api/ prefix and * wildcards for comparison
+      let patternPath = pattern.replace(/^\/api\//, '').replace(/\*$/, '');
+
+      // Normalize: replace '/' with '-' to match hyphenated cache keys
+      const patternNormalized = patternPath.replace(/\//g, '-').toLowerCase();
+
+      if (patternNormalized === cacheKeyNormalized) {
+        return schema;
+      }
+
+      // Also try single-segment matching for simple keys like 'positions' -> '/api/algo/positions'
+      if (patternPath.includes('/')) {
+        const lastSegment = patternPath.split('/').pop();
+        if (lastSegment && lastSegment.toLowerCase() === cacheKeyNormalized) {
+          return schema;
+        }
+      }
+    }
   }
 
   // Wildcard match (simple pattern matching)

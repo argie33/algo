@@ -16,6 +16,7 @@ Usage:
 
 import logging
 from datetime import datetime
+from typing import Optional
 
 from utils.db import DatabaseContext
 
@@ -28,8 +29,8 @@ class LoaderHistoryTracker:
 
     def __init__(self, loader_name: str):
         self.loader_name = loader_name
-        self.start_time = None
-        self.end_time = None
+        self.start_time: Optional[datetime] = None
+        self.end_time: Optional[datetime] = None
 
     def start(self):
         """Mark execution start."""
@@ -42,7 +43,7 @@ class LoaderHistoryTracker:
             status="success", symbols_processed=symbols_processed, error_count=errors
         )
 
-    def failed(self, error_message: str = None):
+    def failed(self, error_message: str | None = None):
         """Log failed execution."""
         self.end_time = datetime.utcnow()
         self._log(status="failed", error_message=error_message)
@@ -52,7 +53,7 @@ class LoaderHistoryTracker:
         status: str,
         symbols_processed: int = 0,
         error_count: int = 0,
-        error_message: str = None,
+        error_message: str | None = None,
     ):
         """Write to database."""
         if not self.start_time:

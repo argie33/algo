@@ -32,7 +32,8 @@ class AlignmentChecker(BaseCheck):
         """Cross-validate SQS with its input tables."""
         try:
             cur.execute("SELECT MAX(date) FROM signal_quality_scores")
-            sqs_date = cur.fetchone()[0]
+            row = cur.fetchone()
+            sqs_date = row[0] if row and row[0] is not None else None
             if not sqs_date:
                 self.log(
                     "alignment",
@@ -46,7 +47,8 @@ class AlignmentChecker(BaseCheck):
             cur.execute(
                 "SELECT MAX(date) FROM buy_sell_daily WHERE date <= %s", (sqs_date,)
             )
-            buy_sell_date = cur.fetchone()[0]
+            row = cur.fetchone()
+            buy_sell_date = row[0] if row and row[0] is not None else None
 
             if not buy_sell_date or buy_sell_date < sqs_date:
                 self.log(
@@ -250,7 +252,8 @@ class AlignmentChecker(BaseCheck):
                 SELECT COUNT(DISTINCT symbol) FROM price_daily
                 WHERE date = (SELECT MAX(date) FROM price_daily)
             """)
-            baseline = int(cur.fetchone()[0] or 1)
+            row = cur.fetchone()
+            baseline = int(row[0]) if row and row[0] is not None else 1
         except Exception as e:
             self.log(
                 "cross_align",

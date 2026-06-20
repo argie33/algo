@@ -84,7 +84,7 @@ def get_run_details(run_id: str) -> Optional[Dict[str, Any]]:
             if not row:
                 return None
 
-            phase_results = []
+            phase_results: list[Any] = []
             try:
                 phase_results = json.loads(row[5]) if row[5] else []
             except json.JSONDecodeError:

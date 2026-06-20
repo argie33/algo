@@ -50,7 +50,8 @@ class TrendCriteriaLoader(OptimalLoader):
                     "SELECT MAX(date) FROM price_daily WHERE date <= %s",
                     (end,),
                 )
-                max_price_date = cur.fetchone()[0]
+                row = cur.fetchone()
+                max_price_date = row[0] if row and row[0] is not None else None
                 if max_price_date and max_price_date < end:
                     logger.info(
                         f"[TrendCriteria] Price data only available to {max_price_date}, using that as end date"

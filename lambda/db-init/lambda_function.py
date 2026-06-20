@@ -184,7 +184,10 @@ def lambda_handler(event, context):
                   AND state IN ('idle', 'idle in transaction', 'idle in transaction (aborted)')
                   AND state_change < NOW() - INTERVAL '5 minutes'
             """)
-            terminated = cur.fetchone()[0]
+            row = cur.fetchone()
+            if row is None or row[0] is None:
+                raise RuntimeError("Terminate backend query failed")
+            terminated = row[0]
             cur.close()
             conn.close()
             logger.info(
@@ -218,7 +221,10 @@ def lambda_handler(event, context):
                   AND state IN ('idle', 'idle in transaction', 'idle in transaction (aborted)')
                   AND state_change < NOW() - INTERVAL '5 minutes'
             """)
-            terminated = _cur.fetchone()[0]
+            row = _cur.fetchone()
+            if row is None or row[0] is None:
+                raise RuntimeError("Terminate backend query failed")
+            terminated = row[0]
             _cur.close()
             _conn.close()
             if terminated:
@@ -368,7 +374,10 @@ def lambda_handler(event, context):
             cursor.execute(
                 "SELECT COUNT(*) FROM information_schema.tables WHERE table_schema = 'public'"
             )
-            table_count = cursor.fetchone()[0]
+            row = cursor.fetchone()
+            if row is None or row[0] is None:
+                raise RuntimeError("Table count query failed")
+            table_count = row[0]
             cursor.close()
             conn.close()
             return {

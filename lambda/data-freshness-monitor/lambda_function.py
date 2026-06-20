@@ -90,7 +90,8 @@ def _check_critical_table_freshness() -> dict:
             is_halt_table = table_name in _HALT_TABLES
             try:
                 cur.execute(f"SELECT MAX(date) FROM {_safe_table(table_name)}")
-                max_date = cur.fetchone()[0]
+                row = cur.fetchone()
+                max_date = row[0] if row and row[0] is not None else None
                 if max_date is None:
                     msg = f"{description} (empty)"
                     logger.warning(f"[FRESHNESS] {description} table is EMPTY")

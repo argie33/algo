@@ -48,7 +48,8 @@ class VectorizedSignalGenerator:
                     "SELECT COUNT(DISTINCT symbol) FROM price_daily WHERE date = %s",
                     (eval_date,),
                 )
-                symbol_count = cur.fetchone()[0] or 0
+                row = cur.fetchone()
+                symbol_count = row[0] if row and row[0] is not None else 0
                 price_date = eval_date
 
                 # If eval_date has insufficient data, fall back to most recent date with >1000 symbols

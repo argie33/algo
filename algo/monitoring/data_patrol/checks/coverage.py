@@ -79,7 +79,8 @@ class CoverageChecker(BaseCheck):
             coverage_warn_pct = cov_cfg["warn_pct"]
 
             cur.execute("SELECT COUNT(*) FROM stock_symbols WHERE active = true")
-            expected_count = cur.fetchone()[0] or 1
+            row = cur.fetchone()
+            expected_count = row[0] if row and row[0] is not None else 1
 
             critical_tables = [
                 "price_daily",

@@ -15,7 +15,7 @@ import logging
 import os
 import threading
 import time
-from typing import Any, Dict, Optional, cast
+from typing import Any, cast
 
 
 logger = logging.getLogger(__name__)
@@ -31,7 +31,7 @@ class LoaderConfigManager:
     """
 
     # Class-level cache (shared across all instances)
-    _cache: Dict[str, Dict[str, Any]] = {}
+    _cache: dict[str, dict[str, Any]] = {}
     _cache_lock = threading.Lock()
     _cache_timestamp: float = 0.0
     _cache_ttl_seconds = 300  # 5-minute cache TTL
@@ -61,13 +61,13 @@ class LoaderConfigManager:
             "LOADER_CONFIG_TABLE",
             f"{os.getenv('PROJECT_NAME', 'algo')}-loader-config-{os.getenv('ENVIRONMENT', 'dev')}",
         )
-        self._dynamodb_available: Optional[bool] = None
-        self._rds_connection_cache: Optional[int] = None
+        self._dynamodb_available: bool | None = None
+        self._rds_connection_cache: int | None = None
         self._rds_connection_cache_time = 0
         self._rds_cache_ttl = 30  # Cache RDS metrics for 30 seconds
 
     @classmethod
-    def _get_cache(cls, loader_name: str) -> Optional[Dict[str, Any]]:
+    def _get_cache(cls, loader_name: str) -> dict[str, Any] | None:
         """Get cached configuration (thread-safe)."""
         with cls._cache_lock:
             now = time.time()
@@ -78,13 +78,13 @@ class LoaderConfigManager:
             return cls._cache.get(loader_name)
 
     @classmethod
-    def _set_cache(cls, loader_name: str, config: Dict[str, Any]):
+    def _set_cache(cls, loader_name: str, config: dict[str, Any]):
         """Set cached configuration (thread-safe)."""
         with cls._cache_lock:
             cls._cache[loader_name] = config
             cls._cache_timestamp = time.time()
 
-    def _get_rds_connection_count(self) -> Optional[int]:
+    def _get_rds_connection_count(self) -> int | None:
         """Get current RDS active connection count from CloudWatch metrics (cached).
 
         Returns:
@@ -129,9 +129,9 @@ class LoaderConfigManager:
     ) -> int:
         """Compute adaptive parallelism based on RDS load and per-loader constraints.
 
-        ISSUE #7 FIX: Dynamic parallelism adjustment based on RDS connection pool saturation.
-        - If RDS connections > 400 (80% of 500): reduce parallelism by 50%
-        - If RDS connections > 450 (90% of 500): reduce to minimum constraint
+        CLUSTER 6 FIX: Dynamic parallelism adjustment based on RDS connection pool saturation.
+        - If RDS Proxy connections > 75 (75% of 100): reduce parallelism by 50%
+        - If RDS Proxy connections > 85 (85% of 100): reduce to minimum constraint
         - Never exceed per-loader maximum (e.g., stock_prices_daily max=3)
         - Never go below per-loader minimum (e.g., stock_prices_daily min=1)
 
@@ -152,26 +152,26 @@ class LoaderConfigManager:
         # Apply max constraint first
         adjusted = min(base_parallelism, max_parallelism)
 
-        # Check RDS load and reduce if needed
+        # Check RDS Proxy load and reduce if needed (100-connection Proxy limit)
         try:
             conn_count = self._get_rds_connection_count()
             if conn_count is not None:
-                max_db_connections = 500
-                saturation_high = max_db_connections * 0.90  # 450
-                saturation_medium = max_db_connections * 0.80  # 400
+                max_proxy_connections = 100  # RDS Proxy limit
+                saturation_high = max_proxy_connections * 0.85  # 85 connections
+                saturation_medium = max_proxy_connections * 0.70  # 70 connections
 
                 if conn_count > saturation_high:
-                    # Extreme saturation: go to minimum safe parallelism
+                    # Critical saturation: go to minimum safe parallelism (prevent pool exhaustion)
                     adjusted = min_parallelism
                     logger.warning(
-                        f"[{loader_name}] RDS saturation HIGH ({conn_count}/{max_db_connections}). "
-                        f"Reduced parallelism to minimum {adjusted}"
+                        f"[{loader_name}] RDS Proxy saturation CRITICAL ({conn_count}/{max_proxy_connections}). "
+                        f"Reduced parallelism to minimum {adjusted} (pool exhaustion risk)"
                     )
                 elif conn_count > saturation_medium:
                     # Moderate saturation: reduce by 50% but respect minimum
                     adjusted = max(min_parallelism, adjusted // 2)
                     logger.info(
-                        f"[{loader_name}] RDS saturation MEDIUM ({conn_count}/{max_db_connections}). "
+                        f"[{loader_name}] RDS Proxy saturation MEDIUM ({conn_count}/{max_proxy_connections}). "
                         f"Adjusted parallelism to {adjusted}"
                     )
         except Exception as e:
@@ -199,7 +199,7 @@ class LoaderConfigManager:
             self._dynamodb_available = False
             return False
 
-    def _get_from_dynamodb(self, loader_name: str) -> Optional[Dict[str, Any]]:
+    def _get_from_dynamodb(self, loader_name: str) -> dict[str, Any] | None:
         """Fetch configuration from DynamoDB."""
         try:
             import boto3
@@ -275,12 +275,13 @@ class LoaderConfigManager:
                     f"Using env var parallelism for {loader_name}: {base_parallelism}"
                 )
             else:
-                # Use per-loader constraint maximum as default (enables per-loader optimization)
-                constraints = self.LOADER_CONSTRAINTS.get(loader_name, (1, 32))
-                min_parallelism, max_parallelism = constraints
-                base_parallelism = max_parallelism
+                # CLUSTER 6 FIX: Default to minimum parallelism (1) to prevent RDS pool exhaustion
+                # With 6 ECS tasks x 8 loaders x 2 workers = 96 connections hitting 100-conn proxy limit.
+                # Start conservative: min=1, adaptive RDS adjustment increases as load permits.
+                base_parallelism = 1
                 logger.info(
-                    f"Using per-loader constraint for {loader_name}: max={max_parallelism} (no DynamoDB/env var)"
+                    f"Using default minimum parallelism for {loader_name}: 1 (no DynamoDB/env var). "
+                    f"Will scale up via RDS-aware adaptive adjustment if pool available."
                 )
 
         # Apply adaptive adjustment based on RDS load

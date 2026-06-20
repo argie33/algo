@@ -80,7 +80,10 @@ def down():
                 WHERE table_name='sector_ranking' AND column_name='date_recorded'
             )
         """)
-        date_recorded_exists = cur.fetchone()[0]
+        row = cur.fetchone()
+        if row is None or row[0] is None:
+            raise RuntimeError("Column existence check query failed")
+        date_recorded_exists = row[0]
 
         if not date_recorded_exists:
             # Restore date_recorded column

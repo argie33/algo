@@ -19,7 +19,10 @@ def up():
     with DatabaseContext("write") as cur:
         # First, check if there are any NULL values
         cur.execute("SELECT COUNT(*) FROM company_profile WHERE sector IS NULL")
-        null_count = cur.fetchone()[0]
+        row = cur.fetchone()
+        if row is None or row[0] is None:
+            raise RuntimeError("NULL count query failed")
+        null_count = row[0]
 
         if null_count > 0:
             # Update NULL sectors to 'Industrials' (most common sector)

@@ -10,7 +10,7 @@ Provides:
 
 import logging
 from datetime import date, timedelta
-from typing import Dict, Optional, Tuple
+from typing import Any, Dict, Optional, Tuple
 
 from utils.db import DatabaseContext
 
@@ -156,7 +156,7 @@ def calculate_failure_trends(loader_name: str) -> Optional[Dict]:
             raise RuntimeError(f"Operation failed: {e}") from e
 
 
-def check_chronic_failures(threshold_pct: float = 50.0) -> Tuple[list, list]:
+def check_chronic_failures(threshold_pct: float = 50.0) -> Tuple[list[dict[str, Any]], dict[str, Any]]:
     """Check all loaders for chronic failures (failure_rate_7day > threshold).
 
     Args:

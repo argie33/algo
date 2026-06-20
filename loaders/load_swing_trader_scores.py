@@ -487,7 +487,10 @@ class SwingTraderScoresLoader(OptimalLoader):
                         ).format(psycopg2.sql.Identifier(table_safe)),
                         (symbol, end_date),
                     )
-                    if cur.fetchone()[0] == 0:
+                    row = cur.fetchone()
+                    if row is None or row[0] is None:
+                        raise RuntimeError(f"Count query failed for {table_name} {symbol}")
+                    if row[0] == 0:
                         failures.append(f"{table_name}_missing")
 
         except Exception as e:

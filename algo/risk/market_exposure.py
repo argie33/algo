@@ -142,12 +142,29 @@ class MarketExposure:
                 logger.critical(msg)
                 return None
 
-            halt_reasons = json.loads(halt_reasons_str) if halt_reasons_str else []
-            factors = (
-                factors_obj
-                if isinstance(factors_obj, dict)
-                else (json.loads(factors_obj) if factors_obj else {})
-            )
+            halt_reasons = []
+            if halt_reasons_str:
+                try:
+                    halt_reasons = json.loads(halt_reasons_str)
+                    if not isinstance(halt_reasons, list):
+                        logger.warning(f"halt_reasons is not a list: {type(halt_reasons)}")
+                        halt_reasons = []
+                except (json.JSONDecodeError, TypeError) as e:
+                    logger.error(f"Malformed halt_reasons JSON: {e} — treating as empty list")
+                    halt_reasons = []
+
+            factors = {}
+            if isinstance(factors_obj, dict):
+                factors = factors_obj
+            elif factors_obj:
+                try:
+                    factors = json.loads(factors_obj)
+                    if not isinstance(factors, dict):
+                        logger.warning(f"factors is not a dict: {type(factors)}")
+                        factors = {}
+                except (json.JSONDecodeError, TypeError) as e:
+                    logger.error(f"Malformed factors JSON: {e} — treating as empty dict")
+                    factors = {}
 
             result = {
                 "eval_date": str(eval_date),

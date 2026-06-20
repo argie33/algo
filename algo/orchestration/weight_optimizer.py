@@ -311,7 +311,7 @@ class WeightOptimizer:
                 "dry_run": dry_run,
             }
 
-        except Exception as e:
+        except (RuntimeError, ValueError, TypeError) as e:
             logger.error(f"Weight application failed: {e}")
             return {
                 "old_weights": self.get_current_weights(),
@@ -351,7 +351,7 @@ class WeightOptimizer:
                                 regime,
                             ),
                         )
-        except Exception as e:
+        except (OSError, RuntimeError, ValueError) as e:
             logger.error(f"Failed to log weight changes: {e}")
 
 

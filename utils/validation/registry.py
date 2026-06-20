@@ -69,7 +69,7 @@ logger = logging.getLogger(__name__)
 ValidatorFunc = Callable[[Any, str], Optional[Any]]
 
 # Global validation registry - documents all validators in one place
-VALIDATORS_BY_TYPE: Dict[str, ValidatorFunc] = {  # type: ignore
+VALIDATORS_BY_TYPE: dict[str, Callable[[Any, str], Any | None]] = {
     "float": safe_float,
     "float_strict": safe_float_strict,
     "int": safe_int,

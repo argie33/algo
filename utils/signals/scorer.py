@@ -76,9 +76,9 @@ class SignalScorer:
     @staticmethod
     def classify_strength(
         score: float,
-        weak_threshold: float = None,
-        medium_threshold: float = None,
-        strong_threshold: float = None,
+        weak_threshold: float | None = None,
+        medium_threshold: float | None = None,
+        strong_threshold: float | None = None,
     ) -> str:
         """
         Classify signal strength based on score.
@@ -121,9 +121,9 @@ class SignalScorer:
         symbol: str,
         eval_date: date,
         score: float,
-        strength: str = None,
-        details: Dict[str, Any] = None,
-        threshold: float = None,
+        strength: str | None = None,
+        details: Dict[str, Any] | None = None,
+        threshold: float | None = None,
     ) -> Dict[str, Any]:
         """
         Format a standardized signal result.
@@ -161,7 +161,7 @@ class SignalScorer:
 
     @staticmethod
     def blend_scores(
-        scores: Dict[str, Tuple[float, float]], weights: Dict[str, float] = None
+        scores: Dict[str, Tuple[float, float]], weights: Dict[str, float] | None = None
     ) -> float:
         """
         Blend multiple component scores using weights.

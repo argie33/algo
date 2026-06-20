@@ -111,14 +111,27 @@ export const validateDataFields = (data, requiredFields = [], context = 'Data') 
  * @param {array} items - Array of items
  * @param {array} requiredFields - Fields each item must have
  * @param {string} context - Human-readable context
+ * @param {object} options - Validation options
+ *   - requireNonEmpty: if true, array must have at least one item
  * @returns {object} { valid: boolean, errors: string[], invalidItems: array }
  */
-export const validateArrayItems = (items, requiredFields = [], context = 'Items') => {
+export const validateArrayItems = (
+  items,
+  requiredFields = [],
+  context = 'Items',
+  { requireNonEmpty = false } = {}
+) => {
   const errors = [];
   const invalidItems = [];
 
   if (!Array.isArray(items)) {
     errors.push(`${context}: Expected array but got ${typeof items}`);
+    return { valid: false, errors, invalidItems };
+  }
+
+  // Check if array is empty when non-empty is required
+  if (requireNonEmpty && items.length === 0) {
+    errors.push(`${context}: Array is empty but non-empty required`);
     return { valid: false, errors, invalidItems };
   }
 
@@ -171,16 +184,18 @@ export const validateResponse = (
   } = {}
 ) => {
   const errors = [];
+  const warnings = [];
   let unwrapped = response;
 
   // Step 1: Validate envelope
   const envelopeCheck = validateResponseEnvelope(response, context);
   errors.push(...envelopeCheck.errors);
+  warnings.push(...envelopeCheck.warnings);
   unwrapped = envelopeCheck.unwrapped;
 
   // If envelope validation failed, return early
   if (!envelopeCheck.valid) {
-    return { valid: false, errors, data: null };
+    return { valid: false, errors, warnings, data: null };
   }
 
   // Step 2: Check if data is empty when non-empty is required
@@ -207,6 +222,7 @@ export const validateResponse = (
   return {
     valid: errors.length === 0,
     errors,
+    warnings,
     data: errors.length === 0 ? unwrapped : null,
   };
 };

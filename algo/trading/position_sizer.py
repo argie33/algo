@@ -13,7 +13,8 @@ Rules:
 import logging
 import os
 from datetime import date as _date
-from decimal import Decimal, ROUND_HALF_UP
+from decimal import ROUND_HALF_UP, Decimal
+from typing import Any, cast
 
 from algo.infrastructure import get_alpaca_timeout
 from utils.db.context import DatabaseContext
@@ -37,7 +38,9 @@ class PositionSizer:
         with DatabaseContext("read") as cur:
             return operation(cur)
 
-    def get_portfolio_value(self):
+    # Type: Any to accommodate various operation return types
+
+    def get_portfolio_value(self) -> Decimal:
         """Get current portfolio value.
 
         Priority:
@@ -96,7 +99,7 @@ class PositionSizer:
         logger.critical(error_msg)
         raise RuntimeError(error_msg)
 
-    def _fetch_live_alpaca_equity(self):
+    def _fetch_live_alpaca_equity(self) -> Decimal:
         """Fetch live portfolio equity from Alpaca with retries. Raises on credential/API failure."""
         import time
 
@@ -172,8 +175,10 @@ class PositionSizer:
                 ) from e
             except Exception as e:
                 raise RuntimeError(f"Operation failed: {e}") from e
+        # Should never reach here (all paths raise or return above)
+        raise RuntimeError("CRITICAL: Alpaca portfolio value retrieval exhausted all retries without a result.")
 
-    def get_current_drawdown(self):
+    def get_current_drawdown(self) -> Decimal:
         """Calculate current drawdown from peak.
 
         Fails fast — raises if any data missing. Position sizing requires accurate
@@ -210,18 +215,18 @@ class PositionSizer:
             drawdown_pct = ((peak - current) / peak) * Decimal(100)
             return max(Decimal(0), drawdown_pct)
 
-        result = self._with_cursor(calc_drawdown)
+        result: Any = self._with_cursor(calc_drawdown)
         if result is not None:
-            return result
+            return cast(Decimal, result)
         raise RuntimeError(
             "Could not fetch drawdown from database. Cannot calculate risk adjustment for position sizing."
         )
 
-    def get_risk_adjustment(self):
+    def get_risk_adjustment(self) -> Decimal:
         """Get risk adjustment factor based on drawdown.
 
         Combined with market_exposure_pct multiplier for dynamic risk:
-            effective_risk = base_risk × dd_adjustment × (exposure_pct / 100)
+            effective_risk = base_risk x dd_adjustment x (exposure_pct / 100)
 
         CRITICAL: Risk adjustment thresholds are hard risk gates. Fails closed if any
         config value is missing — these must NEVER use fallback defaults.
@@ -252,7 +257,7 @@ class PositionSizer:
         else:
             return Decimal(1)
 
-    def get_market_exposure_multiplier(self):
+    def get_market_exposure_multiplier(self) -> Decimal:
         """Look up the most recent market exposure pct (0-100). Returns multiplier 0.0-1.0.
 
         Fail-fast — if data unavailable, raises exception. Position sizing requires
@@ -267,12 +272,12 @@ class PositionSizer:
                 raise ValueError("Market exposure data unavailable. Phase must run daily to maintain this.")
             return Decimal(str(row[0])) / Decimal(100)
 
-        result = self._with_cursor(fetch_exposure)
+        result: Any = self._with_cursor(fetch_exposure)
         if result is not None:
-            return result
+            return cast(Decimal, result)
         raise RuntimeError("Could not fetch market exposure from database. Cannot calculate safe position size.")
 
-    def get_vix_caution_multiplier(self):
+    def get_vix_caution_multiplier(self) -> Decimal:
         """Reduce risk if VIX is in caution zone (caution_threshold < VIX < max_threshold).
 
         Returns risk multiplier: 1.0 if VIX is normal, reduced multiplier if in caution zone.
@@ -303,16 +308,16 @@ class PositionSizer:
                 return Decimal(str(reduction_val))
             return Decimal(1)
 
-        result = self._with_cursor(fetch_vix)
+        result: Any = self._with_cursor(fetch_vix)
         if result is not None:
-            return result
+            return cast(Decimal, result)
         raise RuntimeError("Could not fetch VIX from database. Cannot calculate safe position size.")
 
-    def get_phase_size_multiplier(self):
+    def get_phase_size_multiplier(self) -> float:
         """Stage-2 phase mult: always 1.0 (DB schema has no late/climax phase column)."""
         return 1.0
 
-    def get_position_size_multiplier_from_regime(self, signal_date=None):
+    def get_position_size_multiplier_from_regime(self, signal_date=None) -> float:
         """Get position size multiplier from current market regime.
 
         Fail-fast — if regime cannot be determined, raises exception. Position sizing
@@ -333,7 +338,7 @@ class PositionSizer:
         except Exception as e:
             raise RuntimeError(f"Regime multiplier calculation failed: {type(e).__name__}: {e}") from e
 
-    def get_active_positions_value(self):
+    def get_active_positions_value(self) -> Decimal:
         """Get sum of active position values.
 
         B13: Fail-closed — on error, assume high value to prevent over-sizing.
@@ -349,9 +354,9 @@ class PositionSizer:
                 result = cur.fetchone()
                 return Decimal(str(result[0])) if result else Decimal(0)
 
-            result = self._with_cursor(fetch_positions_value)
+            result: Any = self._with_cursor(fetch_positions_value)
             if result is not None:
-                return result
+                return cast(Decimal, result)
             raise RuntimeError("Portfolio value query returned no data")
         except Exception as e:
             logger.error(
@@ -361,7 +366,7 @@ class PositionSizer:
                 f"Portfolio value unavailable - cannot calculate safe position size: {e}"
             )
 
-    def get_position_count(self):
+    def get_position_count(self) -> int:
         """Get count of active positions (Issue #26: Now checks capital, not just count).
 
         Fail-fast — if data unavailable, raises exception. Cannot size positions
@@ -376,12 +381,12 @@ class PositionSizer:
                 raise ValueError("Position count query returned None")
             return result[0]
 
-        result = self._with_cursor(fetch_position_count)
+        result: Any = self._with_cursor(fetch_position_count)
         if result is not None:
-            return result
+            return cast(int, result)
         raise RuntimeError("Could not fetch position count from database. Cannot calculate safe position size.")
 
-    def get_active_positions_capital_pct(self):
+    def get_active_positions_capital_pct(self) -> Decimal:
         """Issue #26: Get total capital invested as % of portfolio.
 
         Returns capital-based position limit, not just count-based.
@@ -401,9 +406,9 @@ class PositionSizer:
             total_value = Decimal(str(result[0])) if result[0] is not None else Decimal(0)
             return (total_value / portfolio_value * Decimal(100)) if portfolio_value > 0 else Decimal(0)
 
-        result = self._with_cursor(fetch_capital_pct)
+        result: Any = self._with_cursor(fetch_capital_pct)
         if result is not None:
-            return result
+            return cast(Decimal, result)
         raise RuntimeError("Could not fetch capital percentage from database. Cannot calculate safe position size.")
 
     def calculate_position_size(
@@ -413,7 +418,7 @@ class PositionSizer:
         stop_loss_price,
         signal_date=None,
         portfolio_value=None,
-    ):
+    ) -> dict:
         """
         Calculate position size for a new trade.
 
@@ -453,7 +458,7 @@ class PositionSizer:
         stop_loss_price,
         signal_date=None,
         portfolio_value=None,
-    ):
+    ) -> dict:
         """Internal method for position calculation."""
         try:
             if portfolio_value is None:
@@ -497,9 +502,9 @@ class PositionSizer:
                 base_risk_pct
                 * risk_adjustment
                 * exposure_mult
-                * phase_mult
+                * Decimal(str(phase_mult))
                 * vix_mult
-                * regime_mult
+                * Decimal(str(regime_mult))
             )
             risk_dollars = portfolio_value * adjusted_risk_pct
 

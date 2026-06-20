@@ -179,8 +179,8 @@ def _get_loader_status(cur) -> dict:
 
     if not rows:
         response = list_response([], total=0, limit=None, offset=None)
-        response["status"] = "no_runs"
-        response["message"] = "No loader runs recorded yet"
+        response["data"]["status"] = "no_runs"
+        response["data"]["message"] = "No loader runs recorded yet"
         return response
 
     now = datetime.now(timezone.utc)
@@ -231,8 +231,8 @@ def _get_loader_status(cur) -> dict:
         )
         freshness = None
     response = list_response(loaders, total=len(loaders), limit=None, offset=None)
-    response["status"] = "ok"
-    response["summary"] = {
+    response["data"]["status"] = "ok"
+    response["data"]["summary"] = {
         "total": len(loaders),
         "healthy": len([loader for loader in loaders if loader["health"] == "fresh"]),
         "stale": len([loader for loader in loaders if loader["health"] == "stale"]),

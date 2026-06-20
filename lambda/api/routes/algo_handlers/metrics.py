@@ -460,7 +460,7 @@ def _get_daily_return_histogram(cur) -> dict:
 
     if not returns:
         response = list_response([], total=0, limit=None, offset=None)
-        response["stats"] = None
+        response["data"]["stats"] = None
         return response
 
     bucket_width = 0.5
@@ -495,7 +495,7 @@ def _get_daily_return_histogram(cur) -> dict:
     }
 
     response = list_response(buckets, total=len(buckets), limit=None, offset=None)
-    response["stats"] = stats
+    response["data"]["stats"] = stats
     return response
 
 
