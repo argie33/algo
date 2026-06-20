@@ -100,9 +100,10 @@ class StockScoresLoader(OptimalLoader):
             # SKIP stocks without sufficient real data
             # Key insight: Value (99.4%) and Stability (98.7%) cover ~all stocks.
             # Growth (6%) and Positioning (18%) are scarce but not critical for scoring.
-            # Allow any 1+ real metrics to generate meaningful scores via normalized weighting.
-            # This increases coverage from 47% → 95%+ while maintaining score quality.
-            min_required_metrics = 1
+            # Require 2+ real metrics to avoid single-metric bias (e.g., declining stocks with only momentum data
+            # would score 0.0 due to heavy decline, creating false "no data" entries). Minimum 2 metrics
+            # ensures composite scores reflect diverse factor opinions, not one signal's weakness.
+            min_required_metrics = 2
 
             if data_count < min_required_metrics:
                 logger.debug(
