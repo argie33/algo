@@ -12,10 +12,11 @@ Rules:
 
 import logging
 import os
-import psycopg2
 from datetime import date as _date
 from decimal import ROUND_HALF_UP, Decimal
 from typing import Any, cast
+
+import psycopg2
 
 from algo.infrastructure import get_alpaca_timeout
 from algo.trading.exceptions import (
@@ -84,9 +85,7 @@ class PositionSizer:
             if result is not None and result[0] is not None:
                 snapshot_value = Decimal(str(result[0]))
                 snapshot_date = result[1]
-                age_days = (
-                    (_date.today() - snapshot_date).days if snapshot_date else 999
-                )
+                age_days = (_date.today() - snapshot_date).days if snapshot_date else 999
                 if age_days <= 2:
                     logger.warning(
                         f"[PORTFOLIO] STALE: Using snapshot from {age_days}d ago (threshold: 2 days): ${snapshot_value:,.2f}"
@@ -128,9 +127,7 @@ class PositionSizer:
             key = _creds.get("key")
             secret = _creds.get("secret")
         except (ImportError, AttributeError, KeyError) as e:
-            logger.debug(
-                f"Failed to get credentials from credential manager, falling back to env vars: {e}"
-            )
+            logger.debug(f"Failed to get credentials from credential manager, falling back to env vars: {e}")
             key = os.getenv("APCA_API_KEY_ID")
             secret = os.getenv("APCA_API_SECRET_KEY")
         base = os.getenv("APCA_API_BASE_URL")
@@ -166,7 +163,9 @@ class PositionSizer:
                         pv = data["equity"]
                         return Decimal(str(pv))
 
-                    raise ValueError(f"Portfolio value fields missing or null in Alpaca response. Expected 'portfolio_value' or 'equity', got: {list(data.keys())}")
+                    raise ValueError(
+                        f"Portfolio value fields missing or null in Alpaca response. Expected 'portfolio_value' or 'equity', got: {list(data.keys())}"
+                    )
                 elif response.status_code in (429, 503):
                     if attempt < max_retries - 1:
                         wait_time = 2**attempt
@@ -175,7 +174,9 @@ class PositionSizer:
                         )
                         time.sleep(wait_time)
                         continue
-                    raise RuntimeError(f"Alpaca API unavailable after {max_retries} attempts (status {response.status_code})")
+                    raise RuntimeError(
+                        f"Alpaca API unavailable after {max_retries} attempts (status {response.status_code})"
+                    )
                 else:
                     raise RuntimeError(f"Alpaca portfolio API error (status {response.status_code})")
             except (requests.Timeout, requests.ConnectionError) as e:
@@ -186,9 +187,7 @@ class PositionSizer:
                     )
                     time.sleep(wait_time)
                     continue
-                raise RuntimeError(
-                    f"Portfolio value retrieval failed after {max_retries} attempts: {e}"
-                ) from e
+                raise RuntimeError(f"Portfolio value retrieval failed after {max_retries} attempts: {e}") from e
             except RuntimeError:
                 raise
             except (requests.RequestException, requests.Timeout) as e:
@@ -202,6 +201,7 @@ class PositionSizer:
         Fails fast — raises if any data missing. Position sizing requires accurate
         drawdown to adjust risk multiplier correctly. Guessing is worse than not trading.
         """
+
         def calc_drawdown(cur):
             cur.execute("SELECT COUNT(*) FROM algo_portfolio_snapshots")
             count_result = cur.fetchone()
@@ -226,9 +226,7 @@ class PositionSizer:
             peak = Decimal(str(result[0]))
             current = Decimal(str(result[1]))
             if peak == 0:
-                raise RuntimeError(
-                    "Peak portfolio value is zero. Portfolio snapshots data is invalid."
-                )
+                raise RuntimeError("Peak portfolio value is zero. Portfolio snapshots data is invalid.")
 
             drawdown_pct = ((peak - current) / peak) * Decimal(100)
             return max(Decimal(0), drawdown_pct)
@@ -260,17 +258,23 @@ class PositionSizer:
         elif dd >= 15:
             val = self.config.get("risk_reduction_at_minus_15")
             if val is None:
-                raise ValueError("CRITICAL: risk_reduction_at_minus_15 config missing. Cannot adjust risk at -15% drawdown.")
+                raise ValueError(
+                    "CRITICAL: risk_reduction_at_minus_15 config missing. Cannot adjust risk at -15% drawdown."
+                )
             return Decimal(str(val))
         elif dd >= 10:
             val = self.config.get("risk_reduction_at_minus_10")
             if val is None:
-                raise ValueError("CRITICAL: risk_reduction_at_minus_10 config missing. Cannot adjust risk at -10% drawdown.")
+                raise ValueError(
+                    "CRITICAL: risk_reduction_at_minus_10 config missing. Cannot adjust risk at -10% drawdown."
+                )
             return Decimal(str(val))
         elif dd >= 5:
             val = self.config.get("risk_reduction_at_minus_5")
             if val is None:
-                raise ValueError("CRITICAL: risk_reduction_at_minus_5 config missing. Cannot adjust risk at -5% drawdown.")
+                raise ValueError(
+                    "CRITICAL: risk_reduction_at_minus_5 config missing. Cannot adjust risk at -5% drawdown."
+                )
             return Decimal(str(val))
         else:
             return Decimal(1)
@@ -281,10 +285,9 @@ class PositionSizer:
         Fail-fast — if data unavailable, raises exception. Position sizing requires
         current market exposure to avoid over-committing during risk-off periods.
         """
+
         def fetch_exposure(cur):
-            cur.execute(
-                "SELECT exposure_pct FROM market_exposure_daily ORDER BY date DESC LIMIT 1"
-            )
+            cur.execute("SELECT exposure_pct FROM market_exposure_daily ORDER BY date DESC LIMIT 1")
             row = cur.fetchone()
             if not row or row[0] is None:
                 raise ValueError("Market exposure data unavailable. Phase must run daily to maintain this.")
@@ -303,13 +306,16 @@ class PositionSizer:
 
         CRITICAL: VIX thresholds are hard risk gates. Fails closed if config missing.
         """
+
         def fetch_vix(cur):
             cur.execute(
                 "SELECT vix_level FROM market_health_daily WHERE vix_level IS NOT NULL ORDER BY date DESC LIMIT 1"
             )
             row = cur.fetchone()
             if not row or row[0] is None:
-                raise ValueError("VIX level unavailable from market_health_daily. Cannot adjust position size for volatility.")
+                raise ValueError(
+                    "VIX level unavailable from market_health_daily. Cannot adjust position size for volatility."
+                )
             vix = Decimal(str(row[0]))
             caution_threshold_val = self.config.get("vix_caution_threshold")
             max_threshold_val = self.config.get("vix_max_threshold")
@@ -319,7 +325,9 @@ class PositionSizer:
             if max_threshold_val is None:
                 raise ValueError("CRITICAL: vix_max_threshold config missing. Cannot determine VIX max threshold.")
             if reduction_val is None:
-                raise ValueError("CRITICAL: vix_caution_risk_reduction config missing. Cannot apply VIX risk reduction.")
+                raise ValueError(
+                    "CRITICAL: vix_caution_risk_reduction config missing. Cannot apply VIX risk reduction."
+                )
             caution_threshold = Decimal(str(caution_threshold_val))
             max_threshold = Decimal(str(max_threshold_val))
             if vix > caution_threshold and vix <= max_threshold:
@@ -361,6 +369,7 @@ class PositionSizer:
 
         B13: Fail-closed — on error, assume high value to prevent over-sizing.
         """
+
         def fetch_positions_value(cur):
             cur.execute("""
                 SELECT COALESCE(SUM(position_value), 0) as total
@@ -388,6 +397,7 @@ class PositionSizer:
         Fail-fast — if data unavailable, raises exception. Cannot size positions
         without knowing how many are already open.
         """
+
         def fetch_position_count(cur):
             cur.execute("""
                 SELECT COUNT(*) as count FROM algo_positions WHERE status = 'open'
@@ -572,18 +582,20 @@ class PositionSizer:
 
             min_risk_val = self.config.get("min_risk_pct_floor")
             if min_risk_val is None:
-                raise ValueError("CRITICAL: min_risk_pct_floor config missing. Cannot enforce minimum position risk floor.")
+                raise ValueError(
+                    "CRITICAL: min_risk_pct_floor config missing. Cannot enforce minimum position risk floor."
+                )
             min_risk_floor = Decimal(str(min_risk_val)) / Decimal(100)
-            has_safety_reduction = (
-                exposure_mult < 0.8 or vix_mult < 1.0 or risk_adjustment < 1.0
-            )
+            has_safety_reduction = exposure_mult < 0.8 or vix_mult < 1.0 or risk_adjustment < 1.0
             if adjusted_risk_pct < min_risk_floor and not has_safety_reduction:
                 adjusted_risk_pct = min_risk_floor
                 risk_dollars = portfolio_value * adjusted_risk_pct
 
             risk_per_share = Decimal(str(entry_price)) - Decimal(str(stop_loss_price))
             shares = (
-                int((risk_dollars / risk_per_share).quantize(Decimal(1), rounding=ROUND_HALF_UP)) if risk_per_share > 0 else 0
+                int((risk_dollars / risk_per_share).quantize(Decimal(1), rounding=ROUND_HALF_UP))
+                if risk_per_share > 0
+                else 0
             )
 
             if shares < 1:
@@ -603,7 +615,9 @@ class PositionSizer:
             max_position_value = portfolio_value * max_position_pct
 
             if position_value > max_position_value:
-                shares = int((max_position_value / Decimal(str(entry_price))).quantize(Decimal(1), rounding=ROUND_HALF_UP))
+                shares = int(
+                    (max_position_value / Decimal(str(entry_price))).quantize(Decimal(1), rounding=ROUND_HALF_UP)
+                )
                 position_value = Decimal(shares) * Decimal(str(entry_price))
                 risk_dollars = risk_per_share * Decimal(shares)
 
@@ -627,7 +641,9 @@ class PositionSizer:
             total_invested = Decimal(str(active_position_value)) + position_value
             max_inv_val = self.config.get("max_total_invested_pct")
             if max_inv_val is None:
-                raise ValueError("CRITICAL: max_total_invested_pct config missing. Cannot enforce total investment limit.")
+                raise ValueError(
+                    "CRITICAL: max_total_invested_pct config missing. Cannot enforce total investment limit."
+                )
             max_invested_pct = Decimal(str(max_inv_val))
             if (
                 portfolio_value > 0
@@ -638,7 +654,7 @@ class PositionSizer:
                     "position_size_pct": 0,
                     "risk_dollars": 0,
                     "status": "no_room",
-                    "reason": f"Total invested would be {(total_invested/Decimal(str(portfolio_value))*Decimal(100)):.0f}% > {max_invested_pct:.0f}%",
+                    "reason": f"Total invested would be {(total_invested / Decimal(str(portfolio_value)) * Decimal(100)):.0f}% > {max_invested_pct:.0f}%",
                 }
 
             return {

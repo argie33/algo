@@ -76,10 +76,7 @@ class LivePerformance:
                 return None
 
             values = [float(row[1]) for row in rows]
-            daily_returns = [
-                (values[i] - values[i - 1]) / values[i - 1]
-                for i in range(1, len(values))
-            ]
+            daily_returns = [(values[i] - values[i - 1]) / values[i - 1] for i in range(1, len(values))]
 
             return MetricsCalculator.calculate_sharpe_ratio(daily_returns)
         except (ValueError, ZeroDivisionError, TypeError) as e:
@@ -232,10 +229,7 @@ class LivePerformance:
                 return None
 
             values = [float(r[0]) for r in rows]
-            daily_returns = [
-                (values[i] - values[i - 1]) / values[i - 1]
-                for i in range(1, len(values))
-            ]
+            daily_returns = [(values[i] - values[i - 1]) / values[i - 1] for i in range(1, len(values))]
 
             return MetricsCalculator.calculate_sortino_ratio(daily_returns)
         except (ValueError, ZeroDivisionError, TypeError) as e:
@@ -274,9 +268,7 @@ class LivePerformance:
         """
         try:
             # Load backtest reference metrics
-            ref_file = (
-                Path(__file__).parent / "tests" / "backtest" / "reference_metrics.json"
-            )
+            ref_file = Path(__file__).parent / "tests" / "backtest" / "reference_metrics.json"
             if not ref_file.exists():
                 logger.info(f"Performance: Reference metrics not found at {ref_file}")
                 return None
@@ -296,32 +288,22 @@ class LivePerformance:
             backtest_sharpe = backtest_metrics.get("sharpe_ratio")
             backtest_wr = backtest_metrics.get("win_rate_pct")
 
-            live_win_rate = (
-                live_wr.get("win_rate_pct") if isinstance(live_wr, dict) else live_wr
-            )
+            live_win_rate = live_wr.get("win_rate_pct") if isinstance(live_wr, dict) else live_wr
             return {
                 "live_sharpe": live_sharpe,
                 "backtest_sharpe": backtest_sharpe,
-                "sharpe_ratio": (
-                    live_sharpe / backtest_sharpe if backtest_sharpe else None
-                ),
+                "sharpe_ratio": (live_sharpe / backtest_sharpe if backtest_sharpe else None),
                 "live_win_rate": live_win_rate,
                 "backtest_win_rate": backtest_wr,
-                "win_rate_ratio": (
-                    live_win_rate / backtest_wr
-                    if (live_win_rate and backtest_wr)
-                    else None
-                ),
+                "win_rate_ratio": (live_win_rate / backtest_wr if (live_win_rate and backtest_wr) else None),
                 "live_expectancy": live_expectancy,
                 "live_max_dd": live_max_dd,
                 "backtest_max_dd": backtest_metrics.get("max_drawdown_pct"),
             }
-        except (FileNotFoundError, IOError, OSError) as e:
+        except (FileNotFoundError, OSError) as e:
             raise RuntimeError(f"Operation failed: {e}") from e
 
-    def generate_daily_report(
-        self, report_date: date | None = None
-    ) -> dict[str, Any]:
+    def generate_daily_report(self, report_date: date | None = None) -> dict[str, Any]:
         """Generate comprehensive daily performance report.
 
         Args:
@@ -426,14 +408,10 @@ class LivePerformance:
                         f"[OK] Performance report persisted: sharpe={sharpe_val}, wr={win_rate_val}%, max_dd={max_dd_val}%"
                     )
             except (psycopg2.DatabaseError, psycopg2.OperationalError) as e:
-                logger.error(
-                    f"Failed to persist performance report: {e}", exc_info=True
-                )
+                logger.error(f"Failed to persist performance report: {e}", exc_info=True)
 
             return result
 
         except (ValueError, ZeroDivisionError, TypeError) as e:
-            logger.error(
-                f"Performance: generate_daily_report failed: {e}", exc_info=True
-            )
+            logger.error(f"Performance: generate_daily_report failed: {e}", exc_info=True)
             return {"status": "error", "message": str(e)}

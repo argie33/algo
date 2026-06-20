@@ -81,12 +81,12 @@ module = [
 ignore_errors = true
 
 [tool.ruff]
-line-length = 88
+line-length = 120
 target-version = "py310"
 
 [tool.ruff.lint]
 select = ["E", "F", "W", "I", "N", "C90", "UP", "B", "C4", "PIE", "T10", "LOG", "RUF", "A"]
-ignore = ["E203", "E501", "C901", "B904"]
+ignore = ["E203", "E501", "C901", "B904", "UP031", "RUF012"]
 
 [tool.ruff.lint.per-file-ignores]
 "__init__.py" = ["F401"]
@@ -100,6 +100,15 @@ ignore = ["E203", "E501", "C901", "B904"]
 "api_proxy_server.py" = ["E402"]
 "panels.py" = ["E402"]
 "tools/dashboard/*.py" = ["E402", "C901"]
+"*config*.py" = ["E402"]
+"enrich_*.py" = ["E402"]
+"orchestrator*.py" = ["E402"]
+"validate_*.py" = ["E402"]
+"verify_*.py" = ["E402"]
+"diagnose_*.py" = ["E402"]
+"migration_helper.py" = ["E402"]
+"freshness.py" = ["E402"]
+"routes/utils.py" = ["E402"]
 
 [tool.ruff.lint.mccabe]
 max-complexity = 12
@@ -108,6 +117,11 @@ max-complexity = 12
 known-first-party = ["algo", "utils", "loaders", "lambda", "config", "tools", "monitoring"]
 known-third-party = ["numpy", "pandas", "scipy", "boto3", "flask", "requests", "psycopg2"]
 lines-after-imports = 2
+
+[tool.ruff.format]
+quote-style = "double"
+indent-style = "space"
+line-ending = "auto"
 
 [tool.pylint.messages_control]
 disable = [

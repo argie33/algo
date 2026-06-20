@@ -9,10 +9,12 @@ try:
     from panel_registry import register_panel
 except ImportError as e:
     logger.warning(f"Panel registry not available: {e} - panels will not auto-register")
+
     def register_panel(*args, **kwargs):
         if args and callable(args[0]):
             return args[0]
         return lambda fn: fn
+
 
 from rich import box
 from rich.console import Group
@@ -71,15 +73,14 @@ def panel_signals_compact(sig, sig_eval=None, scores=None):
     elif d and isinstance(d, str) and len(d) >= 10:
         try:
             from datetime import date as _date
+
             ds = _date.fromisoformat(str(d)[:10]).strftime("%b %d")
         except (ValueError, TypeError):
             ds = str(d)[:10]
     else:
         ds = "--"
     g = sig.get("grades") or {}
-    ga, gb, gc, gd = (
-        int(g.get(k)) if g.get(k) is not None else None for k in ("a", "b", "c", "d")
-    )
+    ga, gb, gc, gd = (int(g.get(k)) if g.get(k) is not None else None for k in ("a", "b", "c", "d"))
     top_a = sig.get("top_a") or []
     near = sig.get("near") or []
 
@@ -100,17 +101,8 @@ def panel_signals_compact(sig, sig_eval=None, scores=None):
         return r[:7].title()
 
     def _shorten_type(t: str) -> str:
-        t = (
-            (t or "")
-            .replace("WEEKLY_", "W_")
-            .replace("STAGE_2", "S2")
-            .replace("STAGE2", "S2")
-        )
-        t = (
-            t.replace("BREAKOUT", "BKT")
-            .replace("MOMENTUM", "MOM")
-            .replace("REVERSAL", "REV")
-        )
+        t = (t or "").replace("WEEKLY_", "W_").replace("STAGE_2", "S2").replace("STAGE2", "S2")
+        t = t.replace("BREAKOUT", "BKT").replace("MOMENTUM", "MOM").replace("REVERSAL", "REV")
         t = t.replace("PULLBACK", "PB").replace("TREND", "TRD").replace("_FOLLOW", "")
         return t[:12]
 
@@ -121,10 +113,7 @@ def panel_signals_compact(sig, sig_eval=None, scores=None):
     if len(trend) >= 2:
         counts = [int(t.get("buy_n") or 0) for t in reversed(trend)]
         max_b = max(counts) if counts else 1
-        spark = "".join(
-            SPARKLINE_CHARS[min(7, int(v / max(max_b, 1) * 7.9))]
-            for v in counts
-        )
+        spark = "".join(SPARKLINE_CHARS[min(7, int(v / max(max_b, 1) * 7.9))] for v in counts)
         spark_s = f"  [{CY}]{spark}[/]"
     n_near = len(near)
     near_hint = f"  [{CY}]{n_near} near[/]" if n_near else ""
@@ -146,12 +135,10 @@ def panel_signals_compact(sig, sig_eval=None, scores=None):
             sc = float(s.get("score")) if s.get("score") is not None else None
             if sc is not None:
                 sc_c = G if sc >= 90 else ("bright_green" if sc >= 85 else "green")
-                parts.append(f"[{sc_c}]{s.get('symbol','')}[/][dim]{sc:.0f}[/]")
+                parts.append(f"[{sc_c}]{s.get('symbol', '')}[/][dim]{sc:.0f}[/]")
             else:
-                parts.append(f"[dim]{s.get('symbol','')}[/][dim]--[/]")
-        extra = (
-            f"  [dim]+{ga - min(ga, 8)} more[/]" if ga is not None and ga > 8 else ""
-        )
+                parts.append(f"[dim]{s.get('symbol', '')}[/][dim]--[/]")
+        extra = f"  [dim]+{ga - min(ga, 8)} more[/]" if ga is not None and ga > 8 else ""
         rows.append(Text.from_markup("[dim]A radar:[/]  " + "  ".join(parts) + extra))
     elif near:
         parts = []
@@ -178,9 +165,7 @@ def panel_signals_compact(sig, sig_eval=None, scores=None):
                 reason_abbr = _shorten_reason(rj["evaluation_reason"])
                 description = rj.get("description", "")
                 if description:
-                    block_parts.append(
-                        f"[dim]{reason_abbr}:{rj['n']}[/] [bright_black]({description})[/]"
-                    )
+                    block_parts.append(f"[dim]{reason_abbr}:{rj['n']}[/] [bright_black]({description})[/]")
                 else:
                     block_parts.append(f"[dim]{reason_abbr}:{rj['n']}[/]")
             blocks_s = "  [dim]blocked:[/]  " + "  ".join(block_parts)
@@ -194,11 +179,7 @@ def panel_signals_compact(sig, sig_eval=None, scores=None):
             )
         else:
             funnel_s = f"[dim]{ev_tot} →[/] [{ev_c}]{ev_t5} qualified[/]"
-        rows.append(
-            Text.from_markup(
-                funnel_s + f"  [dim]avg score:[/][white]{ev_avg:.0f}[/]" + blocks_s
-            )
-        )
+        rows.append(Text.from_markup(funnel_s + f"  [dim]avg score:[/][white]{ev_avg:.0f}[/]" + blocks_s))
 
     rows.append(Rule(style="dim"))
 
@@ -212,13 +193,16 @@ def panel_signals_compact(sig, sig_eval=None, scores=None):
             buy_sig_details[sym_norm] = bs
 
     # Find stocks that have BOTH high composite score AND active buy signal
-    scored_with_signals = [
-        s for s in top_scores
-        if str(s.get("symbol", "")).upper().strip() in buy_sig_details
-    ][:10]  # Limit to top 10
+    scored_with_signals = [s for s in top_scores if str(s.get("symbol", "")).upper().strip() in buy_sig_details][
+        :10
+    ]  # Limit to top 10
 
     if scored_with_signals:
-        rows.append(Text.from_markup(f"[{G}][bold]ACTIVE BUY SIGNALS ★[/][/] [dim]({len(scored_with_signals)} trades with price targets)[/]"))
+        rows.append(
+            Text.from_markup(
+                f"[{G}][bold]ACTIVE BUY SIGNALS ★[/][/] [dim]({len(scored_with_signals)} trades with price targets)[/]"
+            )
+        )
         sig_table = Table(
             box=box.SIMPLE_HEAD,
             show_header=True,
@@ -334,9 +318,7 @@ def panel_signals_compact(sig, sig_eval=None, scores=None):
             )
         rows.append(t)
     else:
-        rows.append(
-            Text.from_markup(f"[{Y}]No score data — check Data Health[/]")
-        )
+        rows.append(Text.from_markup(f"[{Y}]No score data — check Data Health[/]"))
 
     # ── Near-miss strip (only when A-grade stocks exist above; otherwise shown on row 2) ──
     if near and top_a:
@@ -352,22 +334,12 @@ def panel_signals_compact(sig, sig_eval=None, scores=None):
     if is_placeholder:
         rows.insert(
             0,
-            Text.from_markup(
-                "[bold red]📊 PLACEHOLDER DATA - Signals may not be accurate[/]"
-            ),
+            Text.from_markup("[bold red]📊 PLACEHOLDER DATA - Signals may not be accurate[/]"),
         )
 
-    age_s = (
-        f"  [dim]{fmt_age(sig.get('timestamp'))}[/]"
-        if sig.get("timestamp") is not None
-        else ""
-    )
+    age_s = f"  [dim]{fmt_age(sig.get('timestamp'))}[/]" if sig.get("timestamp") is not None else ""
     border = "red" if is_placeholder else "magenta"
-    title = (
-        "[bold red]TOP SCORES ⚠ NO DATA[/]"
-        if is_placeholder
-        else "[bold magenta]TOP SCORES & SIGNALS[/]"
-    )
+    title = "[bold red]TOP SCORES ⚠ NO DATA[/]" if is_placeholder else "[bold magenta]TOP SCORES & SIGNALS[/]"
     return Panel(
         Group(*rows),
         title=f"{title}{age_s}  [dim][s] expand[/]",
@@ -386,10 +358,7 @@ def panel_signals_expanded(sig, sig_eval=None, scores=None):
     buy_sigs = sig.get("buy_sigs") or []
     total = sig.get("total", 0)
     is_placeholder = (
-        not top_scores
-        and not buy_sigs
-        and total == 0
-        and (sig.get("_is_placeholder") or sig.get("_is_fallback_data"))
+        not top_scores and not buy_sigs and total == 0 and (sig.get("_is_placeholder") or sig.get("_is_fallback_data"))
     )
 
     raw = sig.get("n", 0)
@@ -400,15 +369,14 @@ def panel_signals_expanded(sig, sig_eval=None, scores=None):
     elif d and isinstance(d, str) and len(d) >= 10:
         try:
             from datetime import date as _date
+
             ds = _date.fromisoformat(str(d)[:10]).strftime("%b %d")
         except (ValueError, TypeError):
             ds = str(d)[:10]
     else:
         ds = "--"
     g = sig.get("grades") or {}
-    ga, gb, gc, gd = (
-        int(g.get(k)) if g.get(k) is not None else None for k in ("a", "b", "c", "d")
-    )
+    ga, gb, gc, gd = (int(g.get(k)) if g.get(k) is not None else None for k in ("a", "b", "c", "d"))
     ga_s = f"{ga}" if ga is not None else "--"
     gb_s = f"{gb}" if gb is not None else "--"
     gc_s = f"{gc}" if gc is not None else "--"
@@ -420,7 +388,7 @@ def panel_signals_expanded(sig, sig_eval=None, scores=None):
             f"[{buy_c}][bold]{raw} BUY SIGNALS[/][/]  [dim]from {total} screened  {ds}[/]  "
             f"[{G}]A:{ga_s}[/] [{CY}]B:{gb_s}[/] [{Y}]C:{gc_s}[/] [{R}]D:{gd_s}[/]  "
             "[dim]press [/][bold magenta]s[/][dim] to return[/]"
-        )
+        ),
     ]
 
     top_a = sig.get("top_a") or []
@@ -430,9 +398,9 @@ def panel_signals_expanded(sig, sig_eval=None, scores=None):
             sc = float(s.get("score")) if s.get("score") is not None else None
             if sc is not None:
                 sc_c = G if sc >= 90 else ("bright_green" if sc >= 85 else "green")
-                parts.append(f"[{sc_c}]{s.get('symbol','')}[/][dim]{sc:.0f}[/]")
+                parts.append(f"[{sc_c}]{s.get('symbol', '')}[/][dim]{sc:.0f}[/]")
             else:
-                parts.append(f"[dim]{s.get('symbol','')}[/][dim]--[/]")
+                parts.append(f"[dim]{s.get('symbol', '')}[/][dim]--[/]")
         rows.append(Text.from_markup("[dim]A-grade radar:[/] " + "  ".join(parts)))
 
     if sig_eval and not sig_eval.get("_error"):
@@ -452,10 +420,7 @@ def panel_signals_expanded(sig, sig_eval=None, scores=None):
                 f"  [dim]avg score:[/]{ev_avg:.0f}"
             )
         else:
-            funnel = (
-                f"[dim]Funnel:[/] {ev_tot}[dim]→[/][{ev_c}]{ev_t5} qualified[/]"
-                f"  [dim]avg score:[/]{ev_avg:.0f}"
-            )
+            funnel = f"[dim]Funnel:[/] {ev_tot}[dim]→[/][{ev_c}]{ev_t5} qualified[/]  [dim]avg score:[/]{ev_avg:.0f}"
         rejected = sig_eval.get("rejected") or []
         if rejected:
             block_items = []
@@ -463,9 +428,7 @@ def panel_signals_expanded(sig, sig_eval=None, scores=None):
                 reason_full = rj["evaluation_reason"][:32]
                 description = rj.get("description", "")
                 if description:
-                    block_items.append(
-                        f"[dim]{reason_full}:{rj['n']}[/] [bright_black]({description[:40]})[/]"
-                    )
+                    block_items.append(f"[dim]{reason_full}:{rj['n']}[/] [bright_black]({description[:40]})[/]")
                 else:
                     block_items.append(f"[dim]{reason_full}:{rj['n']}[/]")
             blocks = "  ".join(block_items)
@@ -541,14 +504,11 @@ def panel_signals_expanded(sig, sig_eval=None, scores=None):
                 _score_cell(grwth),
                 _score_cell(stab),
                 _score_cell(pos),
-                Text(f"{rs_v:.0f}" if rs_v is not None else "--",
-                     style=G if (rs_v or 0) >= 70 else DIM),
+                Text(f"{rs_v:.0f}" if rs_v is not None else "--", style=G if (rs_v or 0) >= 70 else DIM),
                 Text(f"${float(price):.2f}" if price else "--", style=DIM),
                 Text(f"{chg_v:+.1f}%" if chg_v is not None else "--", style=chg_c),
-                Text(f"{vs50_v:+.1f}%" if vs50_v is not None else "--",
-                     style=G if (vs50_v or 0) > 0 else R),
-                Text(f"{vs200_v:+.1f}%" if vs200_v is not None else "--",
-                     style=G if (vs200_v or 0) > 0 else R),
+                Text(f"{vs50_v:+.1f}%" if vs50_v is not None else "--", style=G if (vs50_v or 0) > 0 else R),
+                Text(f"{vs200_v:+.1f}%" if vs200_v is not None else "--", style=G if (vs200_v or 0) > 0 else R),
                 Text(sector, style=DIM),
             )
         rows.append(sig_tbl)
@@ -564,9 +524,7 @@ def panel_signals_expanded(sig, sig_eval=None, scores=None):
 
     border = "red" if is_placeholder else "magenta"
     title = (
-        "[bold red]SIGNALS & SCORES ⚠ NO DATA[/]"
-        if is_placeholder
-        else "[bold magenta]SIGNALS & SCORES - EXPANDED[/]"
+        "[bold red]SIGNALS & SCORES ⚠ NO DATA[/]" if is_placeholder else "[bold magenta]SIGNALS & SCORES - EXPANDED[/]"
     )
     return Panel(
         Group(*rows),
@@ -574,7 +532,6 @@ def panel_signals_expanded(sig, sig_eval=None, scores=None):
         border_style=border,
         padding=(0, 1),
     )
-
 
 
 __all__ = [

@@ -40,7 +40,10 @@ FETCHER_METADATA = {
     "cb": {"endpoint": "/api/algo/circuit-breakers", "desc": "Circuit breakers"},
     "srank": {"endpoint": "/api/sectors", "desc": "Sector rankings"},
     "activity": {"endpoint": "/api/algo/audit-log", "desc": "Activity log"},
-    "eco": {"endpoint": "/api/economic/yield-curve-full + /api/economic/indicators", "desc": "Economic macro indicators"},
+    "eco": {
+        "endpoint": "/api/economic/yield-curve-full + /api/economic/indicators",
+        "desc": "Economic macro indicators",
+    },
     "notifs": {"endpoint": "/api/algo/notifications", "desc": "Notifications"},
     "sentiment": {"endpoint": "/api/algo/sentiment", "desc": "Market sentiment"},
     "econ_cal": {
@@ -141,7 +144,9 @@ def fetch_run(c):
         halt_reason = halted_phases[0].get("summary") if halted_phases else None
         # errored: use API field if present, otherwise derive from phase data
         api_errored = inner.get("errored")
-        derived_errored = bool(errored_phases) or (not inner.get("success") and not inner.get("halted") and bool(phases))
+        derived_errored = bool(errored_phases) or (
+            not inner.get("success") and not inner.get("halted") and bool(phases)
+        )
         return {
             "run_id": inner.get("run_id"),
             "run_at": inner.get("run_at") or inner.get("completed_at") or inner.get("started_at"),
@@ -240,9 +245,7 @@ def fetch_market(c):
     try:
         mkt = _get_markets_cached()
         if mkt.get("_error"):
-            record_data_quality_issue(
-                "market", "api_call", "api_error", mkt.get("_error")
-            )
+            record_data_quality_issue("market", "api_call", "api_error", mkt.get("_error"))
             return {
                 "_error": mkt.get("_error"),
                 "pct": None,
@@ -270,20 +273,14 @@ def fetch_market(c):
         # VIX is under market_health, not top-level data
         try:
             vix_raw = market_health.get("vix_level")
-            vix = (
-                safe_float_strict(vix_raw, "market.vix_level")
-                if vix_raw is not None
-                else None
-            )
+            vix = safe_float_strict(vix_raw, "market.vix_level") if vix_raw is not None else None
             if vix is not None and vix <= 0:
                 vix = None  # VIX = 0 is bad data; loader now rejects values <= 5
             spy = safe_float(current.get("spy_close"), default=None)
         except StrictValidationError as e:
             error_msg = f"Critical market data missing: {e!s}"
             logger.error(error_msg)
-            record_data_quality_issue(
-                "market", "critical_field", "missing_or_invalid", str(e)
-            )
+            record_data_quality_issue("market", "critical_field", "missing_or_invalid", str(e))
             return {
                 "_error": error_msg,
                 "pct": None,
@@ -306,18 +303,12 @@ def fetch_market(c):
             }
 
         # regime is in current; fall back to active_tier.name
-        tier = (
-            current.get("regime")
-            or mkt.get("active_tier", {}).get("name")
-            or "unknown"
-        )
+        tier = current.get("regime") or mkt.get("active_tier", {}).get("name") or "unknown"
 
         return {
             "pct": safe_float(current.get("exposure_pct"), default=None),
             "tier": tier,
-            "halts": safe_json_parse(
-                current.get("halt_reasons"), default=[], field_name="halt_reasons"
-            ),
+            "halts": safe_json_parse(current.get("halt_reasons"), default=[], field_name="halt_reasons"),
             "vix": vix,
             "stage": market_health.get("market_stage"),
             "trend": market_health.get("market_trend"),
@@ -362,9 +353,7 @@ def fetch_market(c):
 def _validate_required_fields(data_dict, required_fields, source_name):
     """Validate that all required fields exist in response dict. Return error dict if missing."""
     if not isinstance(data_dict, dict):
-        return {
-            "_error": f"{source_name}: expected dict but got {type(data_dict).__name__}"
-        }
+        return {"_error": f"{source_name}: expected dict but got {type(data_dict).__name__}"}
     missing = [f for f in required_fields if f not in data_dict]
     if missing:
         logger.warning(f"{source_name}: missing required fields: {missing}")
@@ -397,13 +386,13 @@ def _check_data_freshness(
         age_seconds = (datetime.now(timezone.utc) - ts).total_seconds()
         if age_seconds > max_age_seconds:
             age_minutes = age_seconds / 60
-            error_msg = f"{source_name} data stale ({age_minutes:.0f} min old, threshold: {max_age_seconds/60:.0f} min)"
+            error_msg = (
+                f"{source_name} data stale ({age_minutes:.0f} min old, threshold: {max_age_seconds / 60:.0f} min)"
+            )
             return False, error_msg
         return True, None
     except Exception as e:
-        logger.warning(
-            f"Could not parse {source_name} timestamp '{timestamp_str}': {e}"
-        )
+        logger.warning(f"Could not parse {source_name} timestamp '{timestamp_str}': {e}")
         return True, None
 
 
@@ -416,9 +405,7 @@ def fetch_portfolio(c):
     try:
         data = api_call("/api/algo/portfolio")
         if _is_api_error(data):
-            record_data_quality_issue(
-                "portfolio", "api_call", "api_error", _get_error_message(data)
-            )
+            record_data_quality_issue("portfolio", "api_call", "api_error", _get_error_message(data))
             return {
                 "_error": _get_error_message(data),
                 "snapshot_date": None,
@@ -443,9 +430,7 @@ def fetch_portfolio(c):
         )
         if not is_fresh:
             logger.warning(freshness_error)
-            record_data_quality_issue(
-                "portfolio", "timestamp", "data_stale", freshness_error
-            )
+            record_data_quality_issue("portfolio", "timestamp", "data_stale", freshness_error)
             return {
                 "_error": freshness_error,
                 "_data_stale": True,
@@ -462,15 +447,11 @@ def fetch_portfolio(c):
             }
 
         required_fields = ["total_portfolio_value", "total_cash", "position_count"]
-        validation_error = _validate_required_fields(
-            port, required_fields, "fetch_portfolio"
-        )
+        validation_error = _validate_required_fields(port, required_fields, "fetch_portfolio")
         if validation_error:
             for field in required_fields:
                 if field not in port or port[field] is None:
-                    record_data_quality_issue(
-                        "portfolio", field, "missing_required_field"
-                    )
+                    record_data_quality_issue("portfolio", field, "missing_required_field")
             return {
                 **validation_error,
                 "snapshot_date": None,
@@ -487,17 +468,13 @@ def fetch_portfolio(c):
 
         # Strict conversion for critical financial fields
         try:
-            tpv = safe_float_strict(
-                port["total_portfolio_value"], "portfolio.total_portfolio_value"
-            )
+            tpv = safe_float_strict(port["total_portfolio_value"], "portfolio.total_portfolio_value")
             tc = safe_float_strict(port["total_cash"], "portfolio.total_cash")
             pc = safe_int_strict(port["position_count"], "portfolio.position_count")
         except StrictValidationError as e:
             error_msg = f"Portfolio data conversion failed: {e!s}"
             logger.error(error_msg)
-            record_data_quality_issue(
-                "portfolio", "type_conversion", "conversion_failed", str(e)
-            )
+            record_data_quality_issue("portfolio", "type_conversion", "conversion_failed", str(e))
             return {
                 "_error": error_msg,
                 "snapshot_date": None,
@@ -518,16 +495,10 @@ def fetch_portfolio(c):
             "total_cash": tc,
             "position_count": pc,
             "daily_return_pct": safe_float(port.get("daily_return_pct"), default=None),
-            "unrealized_pnl_pct": safe_float(
-                (port.get("unrealized_pnl") or {}).get("total_pct"), default=None
-            ),
-            "cumulative_return_pct": safe_float(
-                port.get("cumulative_return_pct"), default=None
-            ),
+            "unrealized_pnl_pct": safe_float((port.get("unrealized_pnl") or {}).get("total_pct"), default=None),
+            "cumulative_return_pct": safe_float(port.get("cumulative_return_pct"), default=None),
             "max_drawdown_pct": safe_float(port.get("max_drawdown_pct"), default=None),
-            "largest_position_pct": safe_float(
-                port.get("largest_position_pct"), default=None
-            ),
+            "largest_position_pct": safe_float(port.get("largest_position_pct"), default=None),
             "data_age_seconds": port.get("data_age_seconds"),
         }
     except Exception as e:
@@ -562,14 +533,23 @@ def fetch_perf(c):
             if "503" in str(_get_error_message(data)):
                 return {
                     "_no_data": True,
-                    "n": 0, "w": 0, "l": 0, "wr": None, "pnl": None,
-                    "streak": None, "sharpe": None, "maxdd": None,
-                    "avg_win": None, "avg_loss": None, "profit_factor": None,
-                    "expectancy": None, "avg_r": None, "equity_vals": [], "recent_rets": [],
+                    "n": 0,
+                    "w": 0,
+                    "l": 0,
+                    "wr": None,
+                    "pnl": None,
+                    "streak": None,
+                    "sharpe": None,
+                    "maxdd": None,
+                    "avg_win": None,
+                    "avg_loss": None,
+                    "profit_factor": None,
+                    "expectancy": None,
+                    "avg_r": None,
+                    "equity_vals": [],
+                    "recent_rets": [],
                 }
-            record_data_quality_issue(
-                "per", "api_call", "api_error", _get_error_message(data)
-            )
+            record_data_quality_issue("per", "api_call", "api_error", _get_error_message(data))
             return {
                 "_error": _get_error_message(data),
                 "n": None,
@@ -619,9 +599,7 @@ def fetch_perf(c):
             }
 
         required_fields = ["total_trades", "winning_trades", "losing_trades"]
-        validation_error = _validate_required_fields(
-            perf, required_fields, "fetch_perf"
-        )
+        validation_error = _validate_required_fields(perf, required_fields, "fetch_perf")
         if validation_error:
             for field in required_fields:
                 if field not in perf or perf[field] is None:
@@ -653,9 +631,7 @@ def fetch_perf(c):
         except StrictValidationError as e:
             error_msg = f"Performance data conversion failed: {e!s}"
             logger.error(error_msg)
-            record_data_quality_issue(
-                "per", "type_conversion", "conversion_failed", str(e)
-            )
+            record_data_quality_issue("per", "type_conversion", "conversion_failed", str(e))
             return {
                 "_error": error_msg,
                 "n": None,
@@ -729,11 +705,7 @@ def fetch_positions(c):
                 "timestamp": datetime.now(timezone.utc),
             }
         result = data
-        items = (
-            result.get("items", [])
-            if isinstance(result, dict)
-            else result if isinstance(result, list) else []
-        )
+        items = result.get("items", []) if isinstance(result, dict) else result if isinstance(result, list) else []
         return {"items": items, "timestamp": datetime.now(timezone.utc)}
     except Exception as e:
         error_msg = _format_fetcher_error("pos", e)
@@ -769,11 +741,7 @@ def fetch_recent_trades(c):
                 "timestamp": datetime.now(timezone.utc),
             }
         result = data
-        trades = (
-            result.get("items", [])
-            if isinstance(result, dict)
-            else result if isinstance(result, list) else []
-        )
+        trades = result.get("items", []) if isinstance(result, dict) else result if isinstance(result, list) else []
         return {"items": trades, "timestamp": datetime.now(timezone.utc)}
     except Exception as e:
         error_msg = _format_fetcher_error("trades", e)
@@ -981,22 +949,25 @@ def fetch_health(c):
             if not role:
                 try:
                     from utils.validation.freshness_config import FRESHNESS_RULES as _FR
+
                     r = _FR.get(name, {})
                     role = "CRIT" if r.get("critical") else ("IMP" if r.get("max_age_days", 999) <= 7 else "NORM")
                 except ImportError:
                     role = "CRIT" if name in set(critical_stale) else "NORM"
-            sources.append({
-                "tbl": name,
-                "st": s.get("status", "ok"),
-                "age": round(s.get("age_hours", 0) / 24, 1),
-                "role": role,
-                # preserve originals for other panels that may use them
-                "name": name,
-                "status": s.get("status", "ok"),
-                "last_updated": s.get("last_updated"),
-                "age_hours": s.get("age_hours"),
-                "row_count": s.get("row_count"),
-            })
+            sources.append(
+                {
+                    "tbl": name,
+                    "st": s.get("status", "ok"),
+                    "age": round(s.get("age_hours", 0) / 24, 1),
+                    "role": role,
+                    # preserve originals for other panels that may use them
+                    "name": name,
+                    "status": s.get("status", "ok"),
+                    "last_updated": s.get("last_updated"),
+                    "age_hours": s.get("age_hours"),
+                    "row_count": s.get("row_count"),
+                }
+            )
         return {
             "items": sources,
             "ready_to_trade": inner.get("ready_to_trade"),
@@ -1047,11 +1018,24 @@ def fetch_economic_pulse(c):
     which returns upcoming calendar events, not macro indicator values.
     """
     _empty = {
-        "t10": None, "t2": None, "t3m": None, "t6m": None,
-        "yc_10_2": None, "yc_10_3m": None, "hy": None, "ig": None,
-        "oil": None, "nfci": None, "fed_funds": None, "cpi_yoy": None,
-        "unrate": None, "be10": None, "be5": None, "dxy": None,
-        "mortgage": None, "umcsent": None,
+        "t10": None,
+        "t2": None,
+        "t3m": None,
+        "t6m": None,
+        "yc_10_2": None,
+        "yc_10_3m": None,
+        "hy": None,
+        "ig": None,
+        "oil": None,
+        "nfci": None,
+        "fed_funds": None,
+        "cpi_yoy": None,
+        "unrate": None,
+        "be10": None,
+        "be5": None,
+        "dxy": None,
+        "mortgage": None,
+        "umcsent": None,
     }
     try:
         # Fetch yield curve (treasury yields + credit spreads + breakevens)
@@ -1097,12 +1081,24 @@ def fetch_economic_pulse(c):
             mortgage = by_series.get("MORTGAGE30US")
 
         return {
-            "t10": t10, "t2": t2, "t3m": t3m, "t6m": t6m,
-            "yc_10_2": yc_10_2, "yc_10_3m": yc_10_3m,
-            "hy": hy, "ig": ig, "oil": oil, "nfci": nfci,
-            "fed_funds": fed_funds, "cpi_yoy": cpi_yoy, "unrate": unrate,
-            "be10": be10, "be5": be5, "dxy": dxy,
-            "mortgage": mortgage, "umcsent": umcsent,
+            "t10": t10,
+            "t2": t2,
+            "t3m": t3m,
+            "t6m": t6m,
+            "yc_10_2": yc_10_2,
+            "yc_10_3m": yc_10_3m,
+            "hy": hy,
+            "ig": ig,
+            "oil": oil,
+            "nfci": nfci,
+            "fed_funds": fed_funds,
+            "cpi_yoy": cpi_yoy,
+            "unrate": unrate,
+            "be10": be10,
+            "be5": be5,
+            "dxy": dxy,
+            "mortgage": mortgage,
+            "umcsent": umcsent,
         }
     except Exception as e:
         error_msg = _format_fetcher_error("eco", e)
@@ -1606,7 +1602,7 @@ def load_all() -> dict:
                     meta = FETCHER_METADATA.get(name, {})
                     endpoint = meta.get("endpoint", "unknown endpoint")
                     logger.warning(
-                        f"Fetcher {name} ({endpoint}) retry {attempt+1}/{max_retries} (backoff {backoff:.1f}s): {type(e).__name__}"
+                        f"Fetcher {name} ({endpoint}) retry {attempt + 1}/{max_retries} (backoff {backoff:.1f}s): {type(e).__name__}"
                     )
                     time.sleep(backoff)
                     continue
@@ -1618,10 +1614,7 @@ def load_all() -> dict:
     critical_start_time = time.monotonic()
     with ThreadPoolExecutor(max_workers=10) as pool:
         critical_items = {k: v for k, v in FETCHERS.items() if k in critical_fetchers}
-        futures = {
-            pool.submit(one, k, v, fetcher_timeout_seconds.get(k, 8.0)): k
-            for k, v in critical_items.items()
-        }
+        futures = {pool.submit(one, k, v, fetcher_timeout_seconds.get(k, 8.0)): k for k, v in critical_items.items()}
         pending_futures = set(futures.keys())
 
         try:
@@ -1646,9 +1639,7 @@ def load_all() -> dict:
                     endpoint = meta.get("endpoint", "unknown endpoint")
                     desc = meta.get("desc", "")
                     context = f"{endpoint}" + (f": {desc}" if desc else "")
-                    timeout_msg = (
-                        f"Fetcher {k} ({context}) timed out (exceeded {batch_timeout}s)"
-                    )
+                    timeout_msg = f"Fetcher {k} ({context}) timed out (exceeded {batch_timeout}s)"
                     logger.warning(timeout_msg)
                     out[k] = {"_error": timeout_msg}
 
@@ -1659,10 +1650,7 @@ def load_all() -> dict:
     optional_timeout = remaining_time
     with ThreadPoolExecutor(max_workers=6) as pool:
         optional_items = {k: v for k, v in FETCHERS.items() if k in optional_fetchers}
-        futures = {
-            pool.submit(one, k, v, fetcher_timeout_seconds.get(k, 3.0)): k
-            for k, v in optional_items.items()
-        }
+        futures = {pool.submit(one, k, v, fetcher_timeout_seconds.get(k, 3.0)): k for k, v in optional_items.items()}
         pending_futures = set(futures.keys())
 
         try:
@@ -1678,9 +1666,7 @@ def load_all() -> dict:
                     out[k] = {"_error": error_msg}
                     pending_futures.discard(f)
         except TimeoutError:
-            logger.debug(
-                f"load_all optional timeout - {len(pending_futures)} fetchers incomplete"
-            )
+            logger.debug(f"load_all optional timeout - {len(pending_futures)} fetchers incomplete")
             for f in pending_futures:
                 k_opt = futures.get(f)
                 if k_opt and not f.done():

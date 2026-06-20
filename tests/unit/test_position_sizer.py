@@ -122,9 +122,7 @@ class TestPositionSizerVIX:
 
         def mock_cursor_op(operation):
             mock_cur = Mock()
-            mock_cur.fetchone.return_value = (
-                15.0,
-            )  # VIX value below caution threshold
+            mock_cur.fetchone.return_value = (15.0,)  # VIX value below caution threshold
             return operation(mock_cur)
 
         with patch.object(position_sizer, "_with_cursor", side_effect=mock_cursor_op):

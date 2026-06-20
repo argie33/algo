@@ -138,9 +138,7 @@ class TestEndpointAccessControl:
         # for non-admin users.
         trader_claims = {"cognito:groups": ["trader"]}
         is_authorized = _check_admin_access(trader_claims)
-        assert (
-            is_authorized is False
-        ), "Trader should not be authorized for admin endpoints"
+        assert is_authorized is False, "Trader should not be authorized for admin endpoints"
 
     def test_public_endpoints_allow_all(self):
         """Public endpoints should not require admin access.

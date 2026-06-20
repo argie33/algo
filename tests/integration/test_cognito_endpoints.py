@@ -48,9 +48,7 @@ class TestAdminEndpointProtection:
         from routes.algo import _check_admin_access
 
         is_authorized = _check_admin_access(trader_claims)
-        assert (
-            is_authorized is False
-        ), "Trader should be denied access to /api/algo/status"
+        assert is_authorized is False, "Trader should be denied access to /api/algo/status"
 
     def test_api_algo_performance_admin_allowed(self, mock_cursor):
         """Admin user should access /api/algo/performance (200)."""
@@ -59,9 +57,7 @@ class TestAdminEndpointProtection:
 
         # Endpoint check at line 127-131
         is_authorized = _check_admin_access(admin_claims)
-        assert (
-            is_authorized is True
-        ), "Admin should be authorized for /api/algo/performance"
+        assert is_authorized is True, "Admin should be authorized for /api/algo/performance"
 
     def test_api_algo_performance_trader_denied(self, mock_cursor):
         """Trader user should be denied /api/algo/performance (403)."""
@@ -69,9 +65,7 @@ class TestAdminEndpointProtection:
         from routes.algo import _check_admin_access
 
         is_authorized = _check_admin_access(trader_claims)
-        assert (
-            is_authorized is False
-        ), "Trader should be denied access to /api/algo/performance"
+        assert is_authorized is False, "Trader should be denied access to /api/algo/performance"
 
     def test_api_algo_positions_admin_allowed(self, mock_cursor):
         """Admin user should access /api/algo/positions (200)."""
@@ -80,9 +74,7 @@ class TestAdminEndpointProtection:
 
         # Endpoint check at line 117-121
         is_authorized = _check_admin_access(admin_claims)
-        assert (
-            is_authorized is True
-        ), "Admin should be authorized for /api/algo/positions"
+        assert is_authorized is True, "Admin should be authorized for /api/algo/positions"
 
     def test_api_algo_positions_trader_denied(self, mock_cursor):
         """Trader user should be denied /api/algo/positions (403)."""
@@ -90,9 +82,7 @@ class TestAdminEndpointProtection:
         from routes.algo import _check_admin_access
 
         is_authorized = _check_admin_access(trader_claims)
-        assert (
-            is_authorized is False
-        ), "Trader should be denied access to /api/algo/positions"
+        assert is_authorized is False, "Trader should be denied access to /api/algo/positions"
 
     def test_api_algo_circuit_breakers_admin_allowed(self, mock_cursor):
         """Admin user should access /api/algo/circuit-breakers (200)."""
@@ -100,9 +90,7 @@ class TestAdminEndpointProtection:
         from routes.algo import _check_admin_access
 
         is_authorized = _check_admin_access(admin_claims)
-        assert (
-            is_authorized is True
-        ), "Admin should be authorized for /api/algo/circuit-breakers"
+        assert is_authorized is True, "Admin should be authorized for /api/algo/circuit-breakers"
 
     def test_api_algo_circuit_breakers_trader_denied(self, mock_cursor):
         """Trader user should be denied /api/algo/circuit-breakers (403)."""
@@ -110,9 +98,7 @@ class TestAdminEndpointProtection:
         from routes.algo import _check_admin_access
 
         is_authorized = _check_admin_access(trader_claims)
-        assert (
-            is_authorized is False
-        ), "Trader should be denied access to /api/algo/circuit-breakers"
+        assert is_authorized is False, "Trader should be denied access to /api/algo/circuit-breakers"
 
     def test_api_algo_config_admin_allowed(self, mock_cursor):
         """Admin user should access /api/algo/config (200)."""
@@ -128,9 +114,7 @@ class TestAdminEndpointProtection:
         from routes.algo import _check_admin_access
 
         is_authorized = _check_admin_access(trader_claims)
-        assert (
-            is_authorized is False
-        ), "Trader should be denied access to /api/algo/config"
+        assert is_authorized is False, "Trader should be denied access to /api/algo/config"
 
     def test_api_algo_last_run_admin_allowed(self, mock_cursor):
         """Admin user should access /api/algo/last-run (200)."""
@@ -138,9 +122,7 @@ class TestAdminEndpointProtection:
         from routes.algo import _check_admin_access
 
         is_authorized = _check_admin_access(admin_claims)
-        assert (
-            is_authorized is True
-        ), "Admin should be authorized for /api/algo/last-run"
+        assert is_authorized is True, "Admin should be authorized for /api/algo/last-run"
 
     def test_api_algo_last_run_trader_denied(self, mock_cursor):
         """Trader user should be denied /api/algo/last-run (403)."""
@@ -148,9 +130,7 @@ class TestAdminEndpointProtection:
         from routes.algo import _check_admin_access
 
         is_authorized = _check_admin_access(trader_claims)
-        assert (
-            is_authorized is False
-        ), "Trader should be denied access to /api/algo/last-run"
+        assert is_authorized is False, "Trader should be denied access to /api/algo/last-run"
 
     def test_api_algo_data_status_admin_allowed(self, mock_cursor):
         """Admin user should access /api/algo/data-status (200)."""
@@ -158,9 +138,7 @@ class TestAdminEndpointProtection:
         from routes.algo import _check_admin_access
 
         is_authorized = _check_admin_access(admin_claims)
-        assert (
-            is_authorized is True
-        ), "Admin should be authorized for /api/algo/data-status"
+        assert is_authorized is True, "Admin should be authorized for /api/algo/data-status"
 
     def test_api_algo_data_status_trader_denied(self, mock_cursor):
         """Trader user should be denied /api/algo/data-status (403)."""
@@ -168,9 +146,7 @@ class TestAdminEndpointProtection:
         from routes.algo import _check_admin_access
 
         is_authorized = _check_admin_access(trader_claims)
-        assert (
-            is_authorized is False
-        ), "Trader should be denied access to /api/algo/data-status"
+        assert is_authorized is False, "Trader should be denied access to /api/algo/data-status"
 
 
 class TestPublicEndpointAccess:
@@ -190,9 +166,7 @@ class TestPublicEndpointAccess:
 
         # Health handler should accept None jwt_claims
         result = health.handle(cursor, "/api/health", "GET", {}, jwt_claims=None)
-        assert (
-            result is not None
-        ), "Health endpoint should return response even with no JWT"
+        assert result is not None, "Health endpoint should return response even with no JWT"
 
     def test_api_algo_markets_allows_all(self):
         """Public markets endpoint should allow all authenticated users."""

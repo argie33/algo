@@ -6,9 +6,10 @@ Validates that the system correctly detects when Alpaca has filled part of an or
 and the local DB has a different quantity, then corrects the DB to match Alpaca.
 """
 
-import pytest
-from unittest.mock import Mock, patch, MagicMock
 from datetime import datetime, timezone
+from unittest.mock import MagicMock, Mock, patch
+
+import pytest
 
 from algo.infrastructure.reconciliation import DailyReconciliation
 
@@ -22,7 +23,7 @@ class TestPartialFillDetection:
         config = {
             "api_request_timeout_seconds": 5,
         }
-        with patch('algo.infrastructure.reconciliation.get_credential_manager') as mock_cred:
+        with patch("algo.infrastructure.reconciliation.get_credential_manager") as mock_cred:
             mock_cm = Mock()
             mock_cm.get_alpaca_credentials.return_value = {
                 "key": "test_key",
@@ -30,12 +31,15 @@ class TestPartialFillDetection:
             }
             mock_cred.return_value = mock_cm
 
-            with patch('algo.infrastructure.reconciliation.get_alpaca_base_url', return_value="https://paper-api.alpaca.markets"):
+            with patch(
+                "algo.infrastructure.reconciliation.get_alpaca_base_url",
+                return_value="https://paper-api.alpaca.markets",
+            ):
                 recon = DailyReconciliation(config)
         return recon
 
-    @patch('algo.infrastructure.reconciliation.requests.get')
-    @patch('algo.infrastructure.reconciliation.notify')
+    @patch("algo.infrastructure.reconciliation.requests.get")
+    @patch("algo.infrastructure.reconciliation.notify")
     def test_partial_fill_detected_and_corrected(self, mock_notify, mock_get, reconciliation):
         """Test that a partial fill is detected and DB is corrected to match Alpaca."""
         # Simulate Alpaca response: 100 shares requested, but only 75 filled
@@ -72,10 +76,7 @@ class TestPartialFillDetection:
         assert mismatch["alpaca_filled"] == 75
 
         # Verify DB was updated to match Alpaca
-        update_call = [
-            call for call in mock_cursor.execute.call_args_list
-            if "UPDATE algo_trades" in str(call)
-        ]
+        update_call = [call for call in mock_cursor.execute.call_args_list if "UPDATE algo_trades" in str(call)]
         assert len(update_call) > 0
         update_call = update_call[0]
         # Verify the update sets entry_quantity to 75 (Alpaca's filled amount)
@@ -87,7 +88,7 @@ class TestPartialFillDetection:
         assert "warning" in str(notify_call)
         assert "Partial Fill" in str(notify_call) or "Corrected" in str(notify_call)
 
-    @patch('algo.infrastructure.reconciliation.requests.get')
+    @patch("algo.infrastructure.reconciliation.requests.get")
     def test_no_partial_fills_when_quantities_match(self, mock_get, reconciliation):
         """Test that no correction occurs when DB and Alpaca quantities match."""
         # Alpaca has 100 filled
@@ -115,7 +116,7 @@ class TestPartialFillDetection:
         assert result["mismatches"] == 0
         assert len(result["details"]) == 0
 
-    @patch('algo.infrastructure.reconciliation.requests.get')
+    @patch("algo.infrastructure.reconciliation.requests.get")
     def test_alpaca_connection_error(self, mock_get, reconciliation):
         """Test handling of Alpaca connection errors."""
         # Simulate connection error
@@ -129,7 +130,7 @@ class TestPartialFillDetection:
         assert result["checked"] == 0
         assert "Error" in result["message"]
 
-    @patch('algo.infrastructure.reconciliation.requests.get')
+    @patch("algo.infrastructure.reconciliation.requests.get")
     def test_alpaca_http_error(self, mock_get, reconciliation):
         """Test handling of Alpaca HTTP errors."""
         mock_alpaca_response = Mock()
@@ -144,7 +145,7 @@ class TestPartialFillDetection:
         assert result["checked"] == 0
         assert "503" in result["message"]
 
-    @patch('algo.infrastructure.reconciliation.requests.get')
+    @patch("algo.infrastructure.reconciliation.requests.get")
     def test_empty_orders_list(self, mock_get, reconciliation):
         """Test handling when Alpaca returns no orders."""
         mock_alpaca_response = Mock()
@@ -164,8 +165,8 @@ class TestPartialFillDetection:
 class TestPartialFillIntegration:
     """Integration tests for partial fill reconciliation."""
 
-    @patch('algo.orchestrator.phase3a_reconciliation.DatabaseContext')
-    @patch('algo.orchestrator.phase3a_reconciliation.DailyReconciliation')
+    @patch("algo.orchestrator.phase3a_reconciliation.DatabaseContext")
+    @patch("algo.orchestrator.phase3a_reconciliation.DailyReconciliation")
     def test_phase3a_calls_partial_fill_check(self, mock_recon_class, mock_db_context):
         """Test that Phase 3a reconciliation calls partial fill check."""
         from algo.orchestrator.phase3a_reconciliation import run

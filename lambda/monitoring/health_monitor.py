@@ -203,7 +203,9 @@ def check_data_freshness() -> Tuple[str, List[Dict]]:
         if not stale_tables:
             return "healthy", []
 
-        return ("unhealthy" if len(stale_tables) > 1 else "degraded"), stale_tables
+        # CRITICAL: ANY stale critical table is unhealthy (not degraded).
+        # Even one stale table means data pipeline has failed — that's a critical issue.
+        return "unhealthy", stale_tables
 
     except (psycopg2.DatabaseError, psycopg2.OperationalError) as e:
         logger.error(f"Data freshness check failed: {e}")

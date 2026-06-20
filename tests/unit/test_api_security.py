@@ -41,9 +41,7 @@ class TestAPIAuthentication:
         assert not is_valid or error is not None
 
         # Test JWT-like but invalid
-        is_valid, _claims, error = dev_auth.validate_dev_token(
-            "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.invalid.signature"
-        )
+        is_valid, _claims, error = dev_auth.validate_dev_token("eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.invalid.signature")
         assert not is_valid or error is not None
 
     def test_expired_token_returns_401(self):
@@ -167,7 +165,7 @@ class TestInputValidation:
         dangerous_symbols = [
             "<script>",
             "'; DROP TABLE",
-            "AAPL\"; DROP TABLE--",
+            'AAPL"; DROP TABLE--',
         ]
         for malicious in dangerous_symbols:
             result = safe_symbol(malicious)
@@ -224,9 +222,7 @@ class TestCORSSecurity:
 
         # Should reference allowed_origins or similar whitelist
         has_whitelist = (
-            "allowed_origins" in source.lower() or
-            "allowed_origin" in source.lower() or
-            "whitelist" in source.lower()
+            "allowed_origins" in source.lower() or "allowed_origin" in source.lower() or "whitelist" in source.lower()
         )
         assert has_whitelist, "CORS should use origin whitelist, not wildcard"
 
@@ -238,6 +234,7 @@ class TestCORSSecurity:
 
         # Verify Flask-CORS is imported and configured
         import inspect
+
         source = inspect.getsource(router_module)
 
         # Should have Flask-CORS configured
@@ -431,6 +428,7 @@ class TestAPISecurityIntegration:
         """Verify protected endpoints reject requests without auth header"""
         try:
             import importlib
+
             lambda_module = importlib.import_module("lambda.api.lambda_function")
 
             # Should require authentication
@@ -443,6 +441,7 @@ class TestAPISecurityIntegration:
         """Verify query parameters are safe from SQL injection"""
         try:
             import importlib
+
             routes_utils = importlib.import_module("lambda.api.routes.utils")
             safe_symbol = routes_utils.safe_symbol
         except ImportError:
@@ -466,6 +465,7 @@ class TestAPISecurityIntegration:
         try:
             import importlib
             import json
+
             routes_utils = importlib.import_module("lambda.api.routes.utils")
             safe_json_serialize = routes_utils.safe_json_serialize
         except ImportError:
@@ -506,6 +506,7 @@ class TestAPISecurityIntegration:
         """Verify error responses are generic and don't expose system details"""
         try:
             import importlib
+
             lambda_module = importlib.import_module("lambda.api.lambda_function")
             import inspect
 

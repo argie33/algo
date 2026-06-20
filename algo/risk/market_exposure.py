@@ -75,17 +75,17 @@ class MarketExposure:
 
     # Factor weights (sum = 100)
     W_TREND_30WK = 15
-    W_SPY_MOMENTUM = 10       # 12-month TSMOM (replaces follow-through day)
+    W_SPY_MOMENTUM = 10  # 12-month TSMOM (replaces follow-through day)
     W_BREADTH_200 = 10
-    W_SELLING_PRESSURE = 10   # heavy-volume down days (was distribution_days, was 8pt)
-    W_VIX = 10                # level + VIX3M term structure (was 8pt)
-    W_CREDIT_SPREAD = 10      # HY OAS (was 7pt)
-    W_PUT_CALL = 8            # options put/call ratio (replaces McClellan oscillator)
+    W_SELLING_PRESSURE = 10  # heavy-volume down days (was distribution_days, was 8pt)
+    W_VIX = 10  # level + VIX3M term structure (was 8pt)
+    W_CREDIT_SPREAD = 10  # HY OAS (was 7pt)
+    W_PUT_CALL = 8  # options put/call ratio (replaces McClellan oscillator)
     W_NEW_HIGHS_LOWS = 7
-    W_AD_LINE = 6             # A/D direction vs SPY (was 5pt)
-    W_BREADTH_50 = 6          # reduced from 14pt (was overweighted relative to 200-DMA)
-    W_NAAIM = 5               # (was 3pt)
-    W_AAII = 3                # extremes-only scoring (was 4pt)
+    W_AD_LINE = 6  # A/D direction vs SPY (was 5pt)
+    W_BREADTH_50 = 6  # reduced from 14pt (was overweighted relative to 200-DMA)
+    W_NAAIM = 5  # (was 3pt)
+    W_AAII = 3  # extremes-only scoring (was 4pt)
 
     def __init__(self):
         self.calculator = MarketFactorCalculator()
@@ -179,9 +179,7 @@ class MarketExposure:
                 "factors": factors,
                 "_cached": True,
             }
-            logger.info(
-                f"✓ Loaded cached market exposure for {eval_date}: {exposure_pct}% ({regime})"
-            )
+            logger.info(f"✓ Loaded cached market exposure for {eval_date}: {exposure_pct}% ({regime})")
             return result
 
         try:
@@ -205,9 +203,7 @@ class MarketExposure:
             if cached:
                 return cached
 
-        logger.info(
-            f"Computing market exposure for {eval_date} (12 sequential queries)"
-        )
+        logger.info(f"Computing market exposure for {eval_date} (12 sequential queries)")
         with DatabaseContext("read") as cur:
             # Per-query timeout: 45s. Breadth queries use pre-computed sma_50/sma_200 from
             # technical_data_daily (fast indexed lookup). 45s × 12 = 540s max, fits in Lambda
@@ -252,9 +248,7 @@ class MarketExposure:
                 "max": self.W_BREADTH_50,
             }
             score += b50_pts
-            logger.debug(
-                f"  Breadth 50-DMA: {(b50.get('value') or 0):.1f}%, {b50_pts:.1f} pts"
-            )
+            logger.debug(f"  Breadth 50-DMA: {(b50.get('value') or 0):.1f}%, {b50_pts:.1f} pts")
 
             # --- 4. Breadth: % stocks above 200-DMA ---
             b200 = self.calculator._pct_above_ma(eval_date, ma_days=200, cur=cur)
@@ -266,9 +260,7 @@ class MarketExposure:
                 "max": self.W_BREADTH_200,
             }
             score += b200_pts
-            logger.debug(
-                f"  Breadth 200-DMA: {(b200.get('value') or 0):.1f}%, {b200_pts:.1f} pts"
-            )
+            logger.debug(f"  Breadth 200-DMA: {(b200.get('value') or 0):.1f}%, {b200_pts:.1f} pts")
 
             # --- 5. Selling pressure (heavy-volume down days) ---
             sp = self.calculator.selling_pressure(eval_date, cur)
@@ -280,9 +272,7 @@ class MarketExposure:
                 "max": self.W_SELLING_PRESSURE,
             }
             score += sp_pts
-            logger.debug(
-                f"  Selling pressure: {sp.get('count', 0)} days, {sp_pts:.1f} pts"
-            )
+            logger.debug(f"  Selling pressure: {sp.get('count', 0)} days, {sp_pts:.1f} pts")
 
             # --- 6. VIX regime (level + VIX3M term structure) ---
             # _vix_regime() raises RuntimeError if VIX data is unavailable (critical dependency).
@@ -439,15 +429,11 @@ class MarketExposure:
                 cap = min(cap, 40.0)
             # Veto 5: HY credit spread systemic stress
             if cs.get("value") and cs["value"] > 8.5:
-                halt_reasons.append(
-                    f'HY credit spread {cs["value"]:.2f}% > 8.5% (systemic stress)'
-                )
+                halt_reasons.append(f"HY credit spread {cs['value']:.2f}% > 8.5% (systemic stress)")
                 cap = min(cap, 30.0)
 
             if halt_reasons:
-                logger.warning(
-                    f"  Hard vetoes active: {'; '.join(halt_reasons)}, cap={cap}%"
-                )
+                logger.warning(f"  Hard vetoes active: {'; '.join(halt_reasons)}, cap={cap}%")
             if cap < 100.0:
                 logger.info(f"  Score capped from {score:.1f}% to {cap}%")
 
@@ -515,9 +501,7 @@ class MarketExposure:
 
         current_close = float(rows[0][1])
         past_close = float(rows[251][1])  # ~252 trading days ago
-        momentum_pct = (
-            (current_close - past_close) / past_close * 100 if past_close > 0 else 0
-        )
+        momentum_pct = (current_close - past_close) / past_close * 100 if past_close > 0 else 0
 
         if momentum_pct > 20:
             sf = 1.0
@@ -566,11 +550,7 @@ class MarketExposure:
         return {
             "score_factor": sf,
             "count": dd_count,
-            "regime": (
-                "clean"
-                if dd_count <= 2
-                else ("caution" if dd_count <= 4 else "pressure")
-            ),
+            "regime": ("clean" if dd_count <= 2 else ("caution" if dd_count <= 4 else "pressure")),
         }
 
     def _distribution_days(self, eval_date, cur):
@@ -656,11 +636,7 @@ class MarketExposure:
 
         cur_close = float(rows[0][1])
         sma_now = float(rows[0][2])
-        sma_30d_ago = (
-            float(rows[30][2])
-            if len(rows) > 30 and rows[30][2] is not None
-            else sma_now
-        )
+        sma_30d_ago = float(rows[30][2]) if len(rows) > 30 and rows[30][2] is not None else sma_now
 
         slope = (sma_now - sma_30d_ago) / sma_30d_ago * 100.0 if sma_30d_ago > 0 else 0
         price_pct = (cur_close - sma_now) / sma_now * 100.0 if sma_now > 0 else 0
@@ -859,15 +835,15 @@ class MarketExposure:
 
         # Contrarian scoring: high P/C = fear = bullish for markets
         if pc > 1.2:
-            sf = 1.0    # extreme fear → contrarian buy
+            sf = 1.0  # extreme fear → contrarian buy
         elif pc > 0.9:
-            sf = 0.80   # elevated put buying
+            sf = 0.80  # elevated put buying
         elif pc > 0.7:
-            sf = 0.65   # neutral
+            sf = 0.65  # neutral
         elif pc > 0.5:
-            sf = 0.40   # complacent
+            sf = 0.40  # complacent
         else:
-            sf = 0.20   # extreme greed → contrarian caution
+            sf = 0.20  # extreme greed → contrarian caution
 
         return {"score_factor": sf, "value": round(pc, 3)}
 
@@ -972,13 +948,9 @@ class MarketExposure:
         first_spy = float(first_spy_val) if first_spy_val is not None else 0.0
         last_spy_val = rows[-1].get("spy_close")
         last_spy = float(last_spy_val) if last_spy_val is not None else 0.0
-        spy_change_pct = (
-            (last_spy - first_spy) / first_spy * 100.0 if first_spy > 0 else 0
-        )
+        spy_change_pct = (last_spy - first_spy) / first_spy * 100.0 if first_spy > 0 else 0
         # Confirmation: both same direction. Divergence: opposite.
-        if (ad_change > 0 and spy_change_pct > 0) or (
-            ad_change < 0 and spy_change_pct < 0
-        ):
+        if (ad_change > 0 and spy_change_pct > 0) or (ad_change < 0 and spy_change_pct < 0):
             sf = 1.0
             relation = "confirming"
         elif ad_change > 0 and spy_change_pct < 0:
@@ -1020,15 +992,15 @@ class MarketExposure:
 
         # Extremes-only scoring: neutral in the normal range (-15 to +15)
         if spread < -25:
-            sf = 1.0    # extreme fear → strong contrarian buy
+            sf = 1.0  # extreme fear → strong contrarian buy
         elif spread < -15:
-            sf = 0.75   # elevated bearishness
+            sf = 0.75  # elevated bearishness
         elif spread < 15:
-            sf = 0.50   # normal range — not predictive, neutral score
+            sf = 0.50  # normal range — not predictive, neutral score
         elif spread < 25:
-            sf = 0.30   # elevated bullishness
+            sf = 0.30  # elevated bullishness
         else:
-            sf = 0.15   # extreme greed → contrarian caution
+            sf = 0.15  # extreme greed → contrarian caution
 
         return {
             "score_factor": sf,
@@ -1161,9 +1133,7 @@ class MarketExposure:
             weeks_inverted = sum(1 for r in curve_rows[:12] if float(r[0]) < 0)
             if latest_spread < -0.5 and weeks_inverted >= 8:
                 stress += 35.0
-                signals.append(
-                    f"Curve inverted {latest_spread:.2f}% for {weeks_inverted}+ weeks"
-                )
+                signals.append(f"Curve inverted {latest_spread:.2f}% for {weeks_inverted}+ weeks")
             elif latest_spread < 0:
                 stress += 20.0
                 signals.append(f"Curve inverted {latest_spread:.2f}%")
@@ -1184,9 +1154,7 @@ class MarketExposure:
         if len(claims_rows) >= 26:
             claims_now = float(claims_rows[0][0])
             claims_26w = float(claims_rows[-1][0])
-            chg_pct = (
-                (claims_now - claims_26w) / claims_26w * 100 if claims_26w > 0 else 0
-            )
+            chg_pct = (claims_now - claims_26w) / claims_26w * 100 if claims_26w > 0 else 0
             if chg_pct > 30:
                 stress += 30.0
                 signals.append(f"Jobless claims +{chg_pct:.1f}% in 26w (severe)")
@@ -1224,14 +1192,10 @@ class MarketExposure:
         )
         cfnai_rows = cur.fetchall()
         if cfnai_rows:
-            cfnai_avg = sum(float(r[0]) for r in cfnai_rows[:3]) / min(
-                3, len(cfnai_rows)
-            )
+            cfnai_avg = sum(float(r[0]) for r in cfnai_rows[:3]) / min(3, len(cfnai_rows))
             if cfnai_avg < -0.7:
                 stress += 20.0
-                signals.append(
-                    f"CFNAI 3-mo avg {cfnai_avg:.2f} (below recession threshold)"
-                )
+                signals.append(f"CFNAI 3-mo avg {cfnai_avg:.2f} (below recession threshold)")
             elif cfnai_avg < -0.35:
                 stress += 10.0
                 signals.append(f"CFNAI 3-mo avg {cfnai_avg:.2f} (below trend growth)")
@@ -1324,9 +1288,7 @@ class MarketExposure:
                 f"persist market_exposure OK for {eval_date}: {exposure_pct}% exposure ({tier}), entry_allowed={is_entry_allowed}"
             )
         except (psycopg2.DatabaseError, psycopg2.OperationalError) as e:
-            logger.error(
-                f"persist market_exposure failed for {eval_date}: {e}", exc_info=True
-            )
+            logger.error(f"persist market_exposure failed for {eval_date}: {e}", exc_info=True)
 
 
 def read_market_regime(eval_date: _date) -> dict:
@@ -1455,9 +1417,7 @@ if __name__ == "__main__":
     else:
         # Use latest trading date in price_daily
         def get_latest_date(cur):
-            cur.execute(
-                "SELECT date FROM price_daily WHERE symbol='SPY' ORDER BY date DESC LIMIT 1"
-            )
+            cur.execute("SELECT date FROM price_daily WHERE symbol='SPY' ORDER BY date DESC LIMIT 1")
             return cur.fetchone()
 
         with DatabaseContext("read") as cur:

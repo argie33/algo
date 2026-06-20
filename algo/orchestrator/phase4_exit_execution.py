@@ -6,11 +6,12 @@ from collections.abc import Callable
 from datetime import date as _date
 from typing import Any
 
+import psycopg2
+
 from algo.orchestrator.phase_result import PhaseResult
 from algo.reporting import AlertManager
 from utils.db.context import DatabaseContext
 from utils.trading.status import PositionStatus
-import psycopg2
 
 
 logger = logging.getLogger(__name__)
@@ -59,9 +60,7 @@ def run(
             # "no positions" from "Phase 3 crashed with fail-open"
             try:
                 with DatabaseContext("read") as cur_chk:
-                    cur_chk.execute(
-                        "SELECT COUNT(*) FROM algo_positions WHERE status = 'open'"
-                    )
+                    cur_chk.execute("SELECT COUNT(*) FROM algo_positions WHERE status = 'open'")
                     row = cur_chk.fetchone()
                     if row is None or row[0] is None:
                         raise RuntimeError("Open position count query failed")
@@ -77,9 +76,7 @@ def run(
         # In dry-run mode, skip TradeExecutor initialization (no Alpaca credentials needed)
         if dry_run:
             logger.info("[DRY-RUN] Phase 4: Skipping trade execution (dry-run mode)")
-            log_phase_result_fn(
-                4, "exit_execution", "success", "DRY-RUN: execution skipped"
-            )
+            log_phase_result_fn(4, "exit_execution", "success", "DRY-RUN: execution skipped")
             return PhaseResult(4, "exit_execution", "ok", {}, False, None)
 
         executor = TradeExecutor(config)
@@ -92,10 +89,7 @@ def run(
             try:
                 if dry_run:
                     if verbose:
-                        logger.info(
-                            f"  [DRY-RUN] {action['symbol']}: {action['action'].upper()} "
-                            f"({action['reason']})"
-                        )
+                        logger.info(f"  [DRY-RUN] {action['symbol']}: {action['action'].upper()} ({action['reason']})")
                     continue
 
                 if action["action"] == "force_exit":
@@ -108,18 +102,12 @@ def run(
                                 (action["position_id"],),
                             )
                             row_tmp = cur_tmp.fetchone()
-                            cur_price = (
-                                float(row_tmp[0]) if row_tmp and row_tmp[0] else 0
-                            )
+                            cur_price = float(row_tmp[0]) if row_tmp and row_tmp[0] else 0
                     except (RuntimeError, TypeError, ValueError) as e:
-                        logger.warning(
-                            f"  Warning: Could not fetch price for force_exit: {e}"
-                        )
+                        logger.warning(f"  Warning: Could not fetch price for force_exit: {e}")
 
                     if cur_price <= 0:
-                        logger.error(
-                            "  ERROR: force_exit cannot proceed — no valid current price"
-                        )
+                        logger.error("  ERROR: force_exit cannot proceed — no valid current price")
                         continue
 
                     result = executor.exit_trade(
@@ -131,9 +119,7 @@ def run(
                     )
                     if result.get("success"):
                         exit_count += 1
-                        logger.info(
-                            f"  EXPOSURE FORCE-EXIT: {result.get('message', action['symbol'])}"
-                        )
+                        logger.info(f"  EXPOSURE FORCE-EXIT: {result.get('message', action['symbol'])}")
                     else:
                         errors += 1
 
@@ -147,15 +133,9 @@ def run(
                                 (action["position_id"],),
                             )
                             row = cur.fetchone()
-                            cur_price = (
-                                float(row[0])
-                                if row is not None and row[0] is not None
-                                else 0
-                            )
+                            cur_price = float(row[0]) if row is not None and row[0] is not None else 0
                     except (RuntimeError, TypeError, ValueError) as e:
-                        logger.warning(
-                            f"  Warning: Could not fetch current price for {action['position_id']}: {e}"
-                        )
+                        logger.warning(f"  Warning: Could not fetch current price for {action['position_id']}: {e}")
                     if cur_price > 0:
                         result = executor.exit_trade(
                             trade_id=action["trade_id"],
@@ -178,9 +158,7 @@ def run(
                             )
                             stop_raises += 1
                             if verbose:
-                                logger.info(
-                                    f"  EXPOSURE TIGHTEN {action['symbol']}: stop -> ${action['new_stop']:.2f}"
-                                )
+                                logger.info(f"  EXPOSURE TIGHTEN {action['symbol']}: stop -> ${action['new_stop']:.2f}")
                     except (RuntimeError, ValueError, TypeError) as e:
                         errors += 1
                         logger.error(f"  Tighten failed for {action['symbol']}: {e}")
@@ -193,9 +171,7 @@ def run(
             try:
                 if dry_run:
                     if verbose:
-                        logger.info(
-                            f"  [DRY-RUN] {rec['symbol']}: {rec['action']} ({rec['action_reason']})"
-                        )
+                        logger.info(f"  [DRY-RUN] {rec['symbol']}: {rec['action']} ({rec['action_reason']})")
                     continue
 
                 if rec["action"] == "EARLY_EXIT":

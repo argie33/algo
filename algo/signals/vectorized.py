@@ -58,16 +58,13 @@ class VectorizedSignalGenerator:
                         f"[VECTORIZED] eval_date={eval_date} has {symbol_count} symbols; finding recent date with >1000"
                     )
                     cur.execute(
-                        "SELECT date, COUNT(DISTINCT symbol) FROM price_daily "
-                        "GROUP BY date ORDER BY date DESC LIMIT 5"
+                        "SELECT date, COUNT(DISTINCT symbol) FROM price_daily GROUP BY date ORDER BY date DESC LIMIT 5"
                     )
                     for row in cur.fetchall():
                         if row[1] >= 1000:
                             price_date = row[0]
                             symbol_count = row[1]
-                            logger.info(
-                                f"[VECTORIZED] Using price_date={price_date} ({symbol_count} symbols)"
-                            )
+                            logger.info(f"[VECTORIZED] Using price_date={price_date} ({symbol_count} symbols)")
                             break
 
                 # Fetch 300 days of history for all symbols in ONE query
@@ -107,9 +104,7 @@ class VectorizedSignalGenerator:
             logger.error(error_msg)
             raise RuntimeError(error_msg) from e
 
-    def compute_minervini_parallel(
-        self, data_by_symbol: dict, eval_date: _date
-    ) -> dict[str, dict]:
+    def compute_minervini_parallel(self, data_by_symbol: dict, eval_date: _date) -> dict[str, dict]:
         """
         Compute Minervini 8-point trend template for all symbols.
 
@@ -145,11 +140,7 @@ class VectorizedSignalGenerator:
                 sma150 = self._rolling_mean(closes, 150)
                 sma200 = self._rolling_mean(closes, 200)
                 # SMA200 slope: (current - 5 bars ago) / (5 bars ago)
-                sma200_slope = (
-                    (sma200[-1] - sma200[-6]) / sma200[-6]
-                    if len(sma200) > 6 and sma200[-6] > 0
-                    else 0
-                )
+                sma200_slope = (sma200[-1] - sma200[-6]) / sma200[-6] if len(sma200) > 6 and sma200[-6] > 0 else 0
 
                 # Compute 52-week high/low
                 high52 = np.max(closes[-252:]) if len(closes) >= 252 else np.max(closes)
@@ -229,9 +220,7 @@ class VectorizedSignalGenerator:
                     "pct_from_52w_low": pct_from_low,
                 }
             except Exception as e:
-                logger.debug(
-                    f"[VECTORIZED] {symbol}: Minervini computation failed: {e}"
-                )
+                logger.debug(f"[VECTORIZED] {symbol}: Minervini computation failed: {e}")
                 results[symbol] = {
                     "score": 0,
                     "pass": False,
@@ -241,9 +230,7 @@ class VectorizedSignalGenerator:
 
         return results
 
-    def compute_weinstein_stage_parallel(
-        self, data_by_symbol: dict, eval_date: _date
-    ) -> dict[str, dict]:
+    def compute_weinstein_stage_parallel(self, data_by_symbol: dict, eval_date: _date) -> dict[str, dict]:
         """Compute Weinstein 4-stage classification for all symbols."""
         results = {}
 
@@ -260,11 +247,7 @@ class VectorizedSignalGenerator:
 
                 # Compute 30-week MA (150 days) and slope
                 ma150 = self._rolling_mean(closes, 150)
-                ma150_slope = (
-                    (ma150[-1] - ma150[-6]) / ma150[-6]
-                    if len(ma150) > 6 and ma150[-6] > 0
-                    else 0
-                )
+                ma150_slope = (ma150[-1] - ma150[-6]) / ma150[-6] if len(ma150) > 6 and ma150[-6] > 0 else 0
 
                 c = closes[-1]
                 sma200 = self._rolling_mean(closes, 200)
@@ -285,16 +268,12 @@ class VectorizedSignalGenerator:
 
                 results[symbol] = {"stage": stage, "confidence": 0.75}
             except (ValueError, ZeroDivisionError, TypeError) as e:
-                logger.debug(
-                    f"[VECTORIZED] {symbol}: Weinstein computation failed: {e}"
-                )
+                logger.debug(f"[VECTORIZED] {symbol}: Weinstein computation failed: {e}")
                 results[symbol] = {"stage": 0, "confidence": 0.0}
 
         return results
 
-    def compute_power_trend_parallel(
-        self, data_by_symbol: dict, eval_date: _date
-    ) -> dict[str, dict]:
+    def compute_power_trend_parallel(self, data_by_symbol: dict, eval_date: _date) -> dict[str, dict]:
         """Compute power trend: 20%+ gain in 21 days."""
         results = {}
 
@@ -318,9 +297,7 @@ class VectorizedSignalGenerator:
                     "return_21d": ret_21d,
                 }
             except (ValueError, ZeroDivisionError, TypeError) as e:
-                logger.debug(
-                    f"[VECTORIZED] {symbol}: Power trend computation failed: {e}"
-                )
+                logger.debug(f"[VECTORIZED] {symbol}: Power trend computation failed: {e}")
                 results[symbol] = {"power_trend": False, "return_21d": None}
 
         return results
@@ -345,18 +322,14 @@ class VectorizedSignalGenerator:
         data_by_symbol, actual_eval_date = self.fetch_all_price_data(symbols, eval_date)
 
         symbols_with_data = len(data_by_symbol)
-        logger.info(
-            f"[VECTORIZED] Got data for {symbols_with_data} symbols (using date={actual_eval_date})"
-        )
+        logger.info(f"[VECTORIZED] Got data for {symbols_with_data} symbols (using date={actual_eval_date})")
 
         # Compute all signals in parallel
         logger.info("[VECTORIZED] Computing Minervini scores...")
         minervini = self.compute_minervini_parallel(data_by_symbol, actual_eval_date)
 
         logger.info("[VECTORIZED] Computing Weinstein stages...")
-        weinstein = self.compute_weinstein_stage_parallel(
-            data_by_symbol, actual_eval_date
-        )
+        weinstein = self.compute_weinstein_stage_parallel(data_by_symbol, actual_eval_date)
 
         logger.info("[VECTORIZED] Computing power trends...")
         power = self.compute_power_trend_parallel(data_by_symbol, actual_eval_date)

@@ -50,9 +50,11 @@ except ImportError:
         )
     except ImportError:
         ResponseValidationError = Exception  # type: ignore
+
         def validate_response(endpoint: str, data: dict) -> dict:  # type: ignore
             """Fallback validator that does no validation."""
             return data
+
 
 try:
     from urllib3.util.retry import Retry
@@ -78,6 +80,7 @@ def get_api_url() -> str:
     """Get the current API base URL."""
     return API_BASE_URL
 
+
 # Circuit breaker for preventing hammering a downed API
 _circuit_breaker_state = "closed"
 _circuit_breaker_failures = 0
@@ -96,7 +99,8 @@ _http_adapter = requests.adapters.HTTPAdapter(
     pool_connections=16,
     pool_maxsize=16,
     max_retries=Retry(
-        total=0, backoff_factor=0  # Retries handled by api_call() instead
+        total=0,
+        backoff_factor=0,  # Retries handled by api_call() instead
     ),
 )
 _http_session.mount("http://", _http_adapter)
@@ -128,11 +132,7 @@ def _check_circuit_breaker():
     with _circuit_breaker_lock:
         if _circuit_breaker_state != "open":
             return False
-        if (
-            _circuit_breaker_reset_time
-            and time.time() - _circuit_breaker_reset_time
-            > CIRCUIT_BREAKER_RESET_SECONDS
-        ):
+        if _circuit_breaker_reset_time and time.time() - _circuit_breaker_reset_time > CIRCUIT_BREAKER_RESET_SECONDS:
             _circuit_breaker_state = "half-open"
             _circuit_breaker_failures = 0
             logger.info("Circuit breaker attempting half-open state")
@@ -149,9 +149,7 @@ def _record_api_failure():
         _circuit_breaker_failures += 1
         if _circuit_breaker_failures >= CIRCUIT_BREAKER_THRESHOLD:
             if _circuit_breaker_state != "open":
-                logger.error(
-                    f"Circuit breaker OPEN after {_circuit_breaker_failures} failures"
-                )
+                logger.error(f"Circuit breaker OPEN after {_circuit_breaker_failures} failures")
                 _circuit_breaker_state = "open"
                 _circuit_breaker_reset_time = time.time()
 
@@ -237,15 +235,8 @@ def api_call(endpoint: str, params: dict | None = None, method: str = "GET") -> 
         or {"_error": message} on failure (never cached fallback on transient failures)
     """
     if not API_BASE_URL:
-        logger.error(
-            "DASHBOARD_API_URL environment variable not set - cannot make API calls"
-        )
-        return {
-            "_error": (
-                "API_BASE_URL not configured - "
-                "set DASHBOARD_API_URL environment variable"
-            )
-        }
+        logger.error("DASHBOARD_API_URL environment variable not set - cannot make API calls")
+        return {"_error": ("API_BASE_URL not configured - set DASHBOARD_API_URL environment variable")}
 
     if _check_circuit_breaker():
         try:
@@ -277,26 +268,16 @@ def api_call(endpoint: str, params: dict | None = None, method: str = "GET") -> 
     for attempt in range(API_MAX_RETRIES + 1):
         try:
             if method == "GET":
-                resp = _http_session.get(
-                    url, params=params, headers=headers, timeout=API_TIMEOUT
-                )
+                resp = _http_session.get(url, params=params, headers=headers, timeout=API_TIMEOUT)
             else:
-                resp = _http_session.post(
-                    url, json=params, headers=headers, timeout=API_TIMEOUT
-                )
+                resp = _http_session.post(url, json=params, headers=headers, timeout=API_TIMEOUT)
 
             if resp.status_code >= 400:
-                logger.warning(
-                    f"API {endpoint}: {resp.status_code} - {resp.text[:100]}"
-                )
+                logger.warning(f"API {endpoint}: {resp.status_code} - {resp.text[:100]}")
                 if attempt < API_MAX_RETRIES:
-                    backoff = min(
-                        (2**attempt) + random.random() * (2**attempt), API_MAX_BACKOFF
-                    )
-                    att_str = f"attempt {attempt+1}/{API_MAX_RETRIES+1}"
-                    logger.warning(
-                        f"API {endpoint} failed ({att_str}), retry in {backoff:.1f}s"
-                    )
+                    backoff = min((2**attempt) + random.random() * (2**attempt), API_MAX_BACKOFF)
+                    att_str = f"attempt {attempt + 1}/{API_MAX_RETRIES + 1}"
+                    logger.warning(f"API {endpoint} failed ({att_str}), retry in {backoff:.1f}s")
                     time.sleep(backoff)
                     continue
                 _record_api_failure()
@@ -307,9 +288,7 @@ def api_call(endpoint: str, params: dict | None = None, method: str = "GET") -> 
             if isinstance(data, dict) and data.get("statusCode", 200) >= 400:
                 logger.warning(f"API {endpoint}: error in JSON response")
                 if attempt < API_MAX_RETRIES:
-                    backoff = min(
-                        (2**attempt) + random.random() * (2**attempt), API_MAX_BACKOFF
-                    )
+                    backoff = min((2**attempt) + random.random() * (2**attempt), API_MAX_BACKOFF)
                     time.sleep(backoff)
                     continue
                 _record_api_failure()
@@ -326,63 +305,43 @@ def api_call(endpoint: str, params: dict | None = None, method: str = "GET") -> 
                 validated = validate_response(endpoint, unwrapped)
                 return validated
             except ResponseValidationError as e:
-                logger.error(
-                    f"API response validation failed for {endpoint}: {e}"
-                )
+                logger.error(f"API response validation failed for {endpoint}: {e}")
                 return {"_error": str(e)}
         except requests.exceptions.Timeout:
             if attempt < API_MAX_RETRIES:
-                backoff = min(
-                    (2**attempt) + random.random() * (2**attempt), API_MAX_BACKOFF
-                )
-                att_str = f"attempt {attempt+1}/{API_MAX_RETRIES+1}"
-                logger.warning(
-                    f"API {endpoint} timeout ({att_str}), retry in {backoff:.1f}s"
-                )
+                backoff = min((2**attempt) + random.random() * (2**attempt), API_MAX_BACKOFF)
+                att_str = f"attempt {attempt + 1}/{API_MAX_RETRIES + 1}"
+                logger.warning(f"API {endpoint} timeout ({att_str}), retry in {backoff:.1f}s")
                 time.sleep(backoff)
                 continue
-            logger.error(f"API {endpoint}: timeout after {API_MAX_RETRIES+1} attempts")
+            logger.error(f"API {endpoint}: timeout after {API_MAX_RETRIES + 1} attempts")
             _record_api_failure()
             return {"_error": f"API timeout after {API_MAX_RETRIES + 1} attempts"}
         except requests.exceptions.ConnectionError:
             if attempt < API_MAX_RETRIES:
-                backoff = min(
-                    (2**attempt) + random.random() * (2**attempt), API_MAX_BACKOFF
-                )
-                att_str = f"attempt {attempt+1}/{API_MAX_RETRIES+1}"
-                logger.warning(
-                    f"API {endpoint} connection failed ({att_str}), "
-                    f"retry in {backoff:.1f}s"
-                )
+                backoff = min((2**attempt) + random.random() * (2**attempt), API_MAX_BACKOFF)
+                att_str = f"attempt {attempt + 1}/{API_MAX_RETRIES + 1}"
+                logger.warning(f"API {endpoint} connection failed ({att_str}), retry in {backoff:.1f}s")
                 time.sleep(backoff)
                 continue
             max_att = API_MAX_RETRIES + 1
-            logger.error(
-                f"API {endpoint}: connection unavailable after {max_att} attempts"
-            )
+            logger.error(f"API {endpoint}: connection unavailable after {max_att} attempts")
             _record_api_failure()
             return {"_error": f"API unavailable after {max_att} attempts"}
         except Exception as e:
             if attempt < API_MAX_RETRIES:
-                backoff = min(
-                    (2**attempt) + random.random() * (2**attempt), API_MAX_BACKOFF
-                )
-                att_str = f"attempt {attempt+1}/{API_MAX_RETRIES+1}"
+                backoff = min((2**attempt) + random.random() * (2**attempt), API_MAX_BACKOFF)
+                att_str = f"attempt {attempt + 1}/{API_MAX_RETRIES + 1}"
                 e_name = type(e).__name__
                 e_msg = str(e)[:100]
-                logger.warning(
-                    f"API {endpoint} error ({att_str}): {e_name}: {e_msg}, "
-                    f"retry in {backoff:.1f}s"
-                )
+                logger.warning(f"API {endpoint} error ({att_str}): {e_name}: {e_msg}, retry in {backoff:.1f}s")
                 time.sleep(backoff)
                 continue
             max_att = API_MAX_RETRIES + 1
             e_name = type(e).__name__
             e_msg = str(e)[:200]
             logger.error(
-                f"API {endpoint}: {e_name} after {max_att} attempts\n"
-                f"  Last error: {e_msg}\n"
-                f"  Endpoint URL: {endpoint}"
+                f"API {endpoint}: {e_name} after {max_att} attempts\n  Last error: {e_msg}\n  Endpoint URL: {endpoint}"
             )
             _record_api_failure()
             return {"_error": str(e)}
@@ -416,13 +375,9 @@ def _unwrap_api_response(response: dict) -> dict:
     else:
         # Fallback for error responses that have no 'data' field
         # Keep statusCode but remove other metadata markers
-        payload = {
-            k: v for k, v in response.items() if k not in ("statusCode", "headers")
-        }
+        payload = {k: v for k, v in response.items() if k not in ("statusCode", "headers")}
 
     # Preserve statusCode at top level so callers can distinguish errors from success
     result = {"statusCode": status_code}
     result.update(payload)
     return result
-
-

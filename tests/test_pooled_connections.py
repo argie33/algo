@@ -72,10 +72,7 @@ class TestPoolSemaphore(unittest.TestCase):
                 time.sleep(0.1)
                 sem.release(name)
 
-        threads = [
-            threading.Thread(target=try_acquire, args=(f"loader{i}",))
-            for i in range(10)
-        ]
+        threads = [threading.Thread(target=try_acquire, args=(f"loader{i}",)) for i in range(10)]
         for t in threads:
             t.start()
         for t in threads:
@@ -202,7 +199,7 @@ class TestDatabaseContextIntegration(unittest.TestCase):
         mock_get_pooled.return_value = mock_pooled
 
         # Create context
-        with DatabaseContext("read") as cur:
+        with DatabaseContext("read"):
             pass
 
         # Should have used pooled connection, not created new one
@@ -224,7 +221,7 @@ class TestDatabaseContextIntegration(unittest.TestCase):
         mock_get_fresh.return_value = mock_fresh
 
         # Create context
-        with DatabaseContext("read") as cur:
+        with DatabaseContext("read"):
             pass
 
         # Should have acquired fresh connection and closed it
@@ -259,11 +256,11 @@ class TestConnectionChurnReduction(unittest.TestCase):
 
         try:
             # Multiple operations with same connection
-            with DatabaseContext("read") as cur:
+            with DatabaseContext("read"):
                 pass
-            with DatabaseContext("read") as cur:
+            with DatabaseContext("read"):
                 pass
-            with DatabaseContext("write") as cur:
+            with DatabaseContext("write"):
                 pass
         finally:
             set_pooled_connection(None)

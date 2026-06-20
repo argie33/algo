@@ -26,9 +26,7 @@ def test_morning_pipeline_timing():
     expected_start = "02:00"  # 2:00 AM ET
     expected_complete = "04:00"  # 4:00 AM ET (before 9:30 AM orchestrator)
 
-    print(
-        f"Expected: Pipeline starts at {expected_start} ET, completes by {expected_complete} ET"
-    )
+    print(f"Expected: Pipeline starts at {expected_start} ET, completes by {expected_complete} ET")
     print("Check CloudWatch logs for /ecs/algo-*-loader timestamps")
     print("Requirement: Ready 7.5 hours before 9:30 AM market open [OK]")
 
@@ -84,9 +82,7 @@ def test_no_database_conflicts():
     print("\n=== TEST: No Database Conflicts ===")
 
     print("Concurrent runs that should NOT conflict:")
-    print(
-        "  - 2 AM morning pipeline + 4:05 PM EOD pipeline (opposite sides of trading day)"
-    )
+    print("  - 2 AM morning pipeline + 4:05 PM EOD pipeline (opposite sides of trading day)")
     print("  - 12:50 PM afternoon update + 2:50 PM pre-close update")
     print("    (different start times, <30 min apart)")
 
@@ -126,7 +122,7 @@ def validate_intraday_mode_support():
 
     for loader_file in loader_files:
         try:
-            with open(loader_file, "r") as f:
+            with open(loader_file) as f:
                 content = f.read()
                 if "INTRADAY_MODE" in content:
                     print(f"[OK] {loader_file}: INTRADAY_MODE support found")

@@ -104,9 +104,7 @@ def _validate_webhook_url(url: str) -> bool:
             logger.info(f"Webhook URL validation passed for {allowed}")
             return True
 
-    logger.warning(
-        f"Webhook URL validation failed: domain not whitelisted - {hostname}"
-    )
+    logger.warning(f"Webhook URL validation failed: domain not whitelisted - {hostname}")
     return False
 
 
@@ -114,12 +112,8 @@ class AlertManager:
     """Send alerts via email and webhook. Fails hard if no channels configured."""
 
     def __init__(self):
-        self.email_from = os.getenv("ALERT_SMTP_FROM") or os.getenv(
-            "ALERT_EMAIL_FROM", "noreply@algo.local"
-        )
-        self.email_to = [
-            e.strip() for e in os.getenv("ALERT_EMAIL_TO", "").split(",") if e.strip()
-        ]
+        self.email_from = os.getenv("ALERT_SMTP_FROM") or os.getenv("ALERT_EMAIL_FROM", "noreply@algo.local")
+        self.email_to = [e.strip() for e in os.getenv("ALERT_EMAIL_TO", "").split(",") if e.strip()]
         self.smtp_host = os.getenv("ALERT_SMTP_HOST")
         self.smtp_port = int(os.getenv("ALERT_SMTP_PORT", "587"))
         self.smtp_user = os.getenv("ALERT_SMTP_USER", "")
@@ -142,11 +136,7 @@ class AlertManager:
         self.webhook_url = webhook_url_raw
 
         # SMS via Twilio — fail fast if configured but unavailable
-        self.phone_numbers = [
-            p.strip()
-            for p in os.getenv("ALERT_PHONE_NUMBERS", "").split(",")
-            if p.strip()
-        ]
+        self.phone_numbers = [p.strip() for p in os.getenv("ALERT_PHONE_NUMBERS", "").split(",") if p.strip()]
         self.twilio_client = None
         # Check if SMS is configured but twilio library is not available
         if os.getenv("TWILIO_ACCOUNT_SID") and not TWILIO_AVAILABLE:
@@ -161,9 +151,7 @@ class AlertManager:
                     "Set TWILIO_AUTH_TOKEN and TWILIO_PHONE_NUMBER or remove TWILIO_ACCOUNT_SID."
                 )
             try:
-                self.twilio_client = TwilioClient(
-                    os.getenv("TWILIO_ACCOUNT_SID"), os.getenv("TWILIO_AUTH_TOKEN")
-                )
+                self.twilio_client = TwilioClient(os.getenv("TWILIO_ACCOUNT_SID"), os.getenv("TWILIO_AUTH_TOKEN"))
                 self.twilio_from = os.getenv("TWILIO_PHONE_NUMBER", "")
             except (ImportError, ValueError, AttributeError) as e:
                 raise RuntimeError(f"Twilio client initialization failed: {e}") from e
@@ -230,9 +218,7 @@ class AlertManager:
                     )
             body_lines.append("")
 
-        body_lines.append(
-            "ACTION REQUIRED: Review patrol results and halt trading if necessary."
-        )
+        body_lines.append("ACTION REQUIRED: Review patrol results and halt trading if necessary.")
         body_text = "\n".join(body_lines)
 
         # SMS message (short version)
@@ -357,9 +343,7 @@ class AlertManager:
 
         if self.webhook_url:
             try:
-                self._send_webhook_simple(
-                    subject, f"{severity}: Data loaders failing", "LOADER_FAILURE"
-                )
+                self._send_webhook_simple(subject, f"{severity}: Data loaders failing", "LOADER_FAILURE")
             except Exception as e:
                 logger.error(f"Loader alert webhook failed (non-blocking): {e}")
 
@@ -370,9 +354,7 @@ class AlertManager:
             message: Alert message
         """
         subject = "[ALGO ALERT] CRITICAL"
-        body_text = (
-            f"Critical Alert — {datetime.now(timezone.utc).isoformat()}\n\n{message}"
-        )
+        body_text = f"Critical Alert — {datetime.now(timezone.utc).isoformat()}\n\n{message}"
 
         if self.email_to:
             try:
@@ -394,12 +376,7 @@ class AlertManager:
 
     def _send_email(self, subject, body):
         """Send email via SMTP."""
-        if (
-            not self.email_to
-            or not self.smtp_host
-            or not self.smtp_user
-            or not self.smtp_password
-        ):
+        if not self.email_to or not self.smtp_host or not self.smtp_user or not self.smtp_password:
             # Skip email if credentials not configured
             return
 
@@ -479,9 +456,7 @@ class AlertManager:
                         "color": "danger",
                         "title": title,
                         "text": message,
-                        "fields": [
-                            {"title": "Alert Type", "value": alert_type, "short": True}
-                        ],
+                        "fields": [{"title": "Alert Type", "value": alert_type, "short": True}],
                         "ts": int(datetime.now(timezone.utc).timestamp()),
                     }
                 ]
@@ -499,9 +474,7 @@ class AlertManager:
 
         for phone in self.phone_numbers:
             try:
-                self.twilio_client.messages.create(
-                    body=message, from_=self.twilio_from, to=phone
-                )
+                self.twilio_client.messages.create(body=message, from_=self.twilio_from, to=phone)
                 logger.info(f"SMS sent to {phone}")
             except (RuntimeError, ValueError, ConnectionError) as e:
                 logger.error(f"SMS to {phone} failed: {e}")

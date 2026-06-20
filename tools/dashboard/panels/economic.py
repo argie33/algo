@@ -9,10 +9,12 @@ try:
     from panel_registry import register_panel
 except ImportError as e:
     logger.warning(f"Panel registry not available: {e} - panels will not auto-register")
+
     def register_panel(*args, **kwargs):
         if args and callable(args[0]):
             return args[0]
         return lambda fn: fn
+
 
 from rich.console import Group
 from rich.panel import Panel
@@ -36,9 +38,7 @@ from ._helpers import _error_panel
 )
 def panel_economic_pulse(eco, econ_cal=None):
     """Economic factors the algo uses to calculate market exposure score."""
-    err_panel = _error_panel(
-        "economic pulse", eco, "ECONOMIC INPUTS", border="bright_magenta"
-    )
+    err_panel = _error_panel("economic pulse", eco, "ECONOMIC INPUTS", border="bright_magenta")
     if err_panel:
         return err_panel
     rows: list = []
@@ -81,12 +81,8 @@ def panel_economic_pulse(eco, econ_cal=None):
     if yc10_2 is not None:
         ycc = G if yc10_2 >= 0.5 else (Y if yc10_2 >= 0 else R)
         inv = "  [bold red]INV[/]" if yc10_2 < 0 else ""
-        c3m = (
-            f"  [dim]10Y-3M:[/][{ycc}]{yc10_3m:+.2f}%[/]" if yc10_3m is not None else ""
-        )
-        rows.append(
-            Text.from_markup(f"[dim]10Y-2Y:[/][{ycc}]{yc10_2:+.2f}%[/]{inv}{c3m}")
-        )
+        c3m = f"  [dim]10Y-3M:[/][{ycc}]{yc10_3m:+.2f}%[/]" if yc10_3m is not None else ""
+        rows.append(Text.from_markup(f"[dim]10Y-2Y:[/][{ycc}]{yc10_2:+.2f}%[/]{inv}{c3m}"))
 
     # Credit spreads
     if hy is not None or ig is not None:
@@ -212,11 +208,7 @@ def panel_economic_pulse(eco, econ_cal=None):
                 pass
             et = ev.get("event_time")
             et_s = f" [dim]{str(et)[:5]}[/]" if et else ""
-            rows.append(
-                Text.from_markup(
-                    f"[{ic}]{str(when):<5}[/]{et_s} [white]{str(name)}[/]{vals}"
-                )
-            )
+            rows.append(Text.from_markup(f"[{ic}]{when!s:<5}[/]{et_s} [white]{name!s}[/]{vals}"))
 
     if not rows:
         rows.append(Text("[dim]no economic data[/]"))
@@ -272,11 +264,13 @@ def panel_economic_expanded(eco, econ_cal=None):
     if yc10_2 is not None:
         ycc = G if yc10_2 >= 0.5 else (Y if yc10_2 >= 0 else R)
         inv = "  ⚠ INVERTED" if yc10_2 < 0 else ""
-        spreads_data.append(("10Y-2Y Spread", Text.from_markup(f"[{ycc}]{yc10_2:+.2f}%[/][{R if yc10_2 < 0 else 'dim'}]{inv}[/]")))
+        spreads_data.append(
+            ("10Y-2Y Spread", Text.from_markup(f"[{ycc}]{yc10_2:+.2f}%[/][{R if yc10_2 < 0 else 'dim'}]{inv}[/]"))
+        )
     if yc10_3m is not None:
         ycc2 = G if yc10_3m >= 0.5 else (Y if yc10_3m >= 0 else R)
         spreads_data.append(("10Y-3M Spread", Text.from_markup(f"[{ycc2}]{yc10_3m:+.2f}%[/]")))
-    pairs = list(zip(_y[::2], _y[1::2] + [("", "")]))
+    pairs = list(zip(_y[::2], [*_y[1::2], ("", "")], strict=False))
     for (la, va), (lb, vb) in pairs:
         ytbl.add_row(la + ":", va, lb + (":" if lb else ""), vb)
     rows.append(ytbl)
@@ -370,6 +364,7 @@ def panel_economic_expanded(eco, econ_cal=None):
         rows.append(Text.from_markup("[dim bold]ECONOMIC CALENDAR (UPCOMING)[/]"))
         IMP_C = {"HIGH": "bold bright_red", "MEDIUM": "yellow", "LOW": "dim"}
         from datetime import date
+
         today = date.today()
         seen_keys = set()
         for ev in valid_cal[:20]:
@@ -411,7 +406,7 @@ def panel_economic_expanded(eco, econ_cal=None):
             et_s = f"  [dim]{str(ev.get('event_time') or '')[:5]}[/]" if ev.get("event_time") else ""
             rows.append(
                 Text.from_markup(
-                    f"  [{ic}]{str(when):<5}[/]{et_s}  [{ic}]{imp[:1]}[/]  [white]{str(full_nm)[:40]}[/]{vals}"
+                    f"  [{ic}]{when!s:<5}[/]{et_s}  [{ic}]{imp[:1]}[/]  [white]{str(full_nm)[:40]}[/]{vals}"
                 )
             )
 
@@ -425,8 +420,7 @@ def panel_economic_expanded(eco, econ_cal=None):
     )
 
 
-
 __all__ = [
-    "panel_economic_pulse",
     "panel_economic_expanded",
+    "panel_economic_pulse",
 ]

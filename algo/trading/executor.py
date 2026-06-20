@@ -14,13 +14,14 @@ Features:
 import json
 import logging
 import os
-import psycopg2
-import requests
 import time
 import uuid
 from datetime import datetime, timezone
 from decimal import ROUND_HALF_UP, Decimal
 from typing import Any
+
+import psycopg2
+import requests
 
 from algo.infrastructure import get_api_timeout
 from algo.reporting import TradeNotificationService, notify
@@ -95,9 +96,7 @@ class TradeExecutor:
         # Wire pre-trade hard stops (Phase 5: independent risk layer)
         from algo.trading import PreTradeChecks
 
-        self.pretrade = PreTradeChecks(
-            config, self.alpaca_base_url, self.alpaca_key, self.alpaca_secret
-        )
+        self.pretrade = PreTradeChecks(config, self.alpaca_base_url, self.alpaca_key, self.alpaca_secret)
 
         # Get execution mode from config (supports both dict and AlgoConfig objects)
         execution_mode = config.get("execution_mode", "paper")
@@ -131,15 +130,11 @@ class TradeExecutor:
                 # execution_mode is auto but live_intent is False — log exactly why
                 reasons = []
                 if live_ack != "I_UNDERSTAND_REAL_MONEY":
-                    reasons.append(
-                        f"ALGO_LIVE_TRADING not set to 'I_UNDERSTAND_REAL_MONEY' (got '{live_ack}')"
-                    )
+                    reasons.append(f"ALGO_LIVE_TRADING not set to 'I_UNDERSTAND_REAL_MONEY' (got '{live_ack}')")
                 if paper_flag == "true":
                     reasons.append("ALPACA_PAPER_TRADING=true")
                 if url_says_paper:
-                    reasons.append(
-                        f"APCA_API_BASE_URL contains 'paper': {self.alpaca_base_url}"
-                    )
+                    reasons.append(f"APCA_API_BASE_URL contains 'paper': {self.alpaca_base_url}")
                 logger.warning(
                     f"[EXECUTOR] execution_mode=auto but forced to PAPER. Reason(s): {'; '.join(reasons) or 'unknown'}"
                 )
@@ -243,9 +238,7 @@ class TradeExecutor:
 
         portfolio_value = self._get_portfolio_value()
         if not portfolio_value or portfolio_value <= 0:
-            logger.error(
-                f"execute_trade: cannot determine portfolio value for {symbol}, aborting"
-            )
+            logger.error(f"execute_trade: cannot determine portfolio value for {symbol}, aborting")
             return {
                 "success": False,
                 "trade_id": "",
@@ -300,7 +293,9 @@ class TradeExecutor:
                 }
         except (DatabaseError, Exception) as e:
             logger.error(f"Failed to check for duplicate position: {type(e).__name__}: {e}")
-            raise DuplicatePositionError(f"Cannot verify duplicate position status: {e!s}. Order halted for safety.") from e
+            raise DuplicatePositionError(
+                f"Cannot verify duplicate position status: {e!s}. Order halted for safety."
+            ) from e
 
         stop_price_dec = Decimal(str(stop_loss_price))
         risk_per_share_decimal = entry_price - stop_price_dec
@@ -320,7 +315,9 @@ class TradeExecutor:
             }
         if target_1_price is None:
             t1_r_dec = Decimal(str(self.config.get("t1_target_r_multiple", 1.5)))
-            target_1_price = (entry_price + (risk_per_share_decimal * t1_r_dec)).quantize(Decimal("0.01"), rounding=ROUND_HALF_UP)
+            target_1_price = (entry_price + (risk_per_share_decimal * t1_r_dec)).quantize(
+                Decimal("0.01"), rounding=ROUND_HALF_UP
+            )
             if target_1_price <= entry_price:
                 return {
                     "success": False,
@@ -330,7 +327,9 @@ class TradeExecutor:
                 }
         if target_2_price is None:
             t2_r_dec = Decimal(str(self.config.get("t2_target_r_multiple", 3.0)))
-            target_2_price = (entry_price + (risk_per_share_decimal * t2_r_dec)).quantize(Decimal("0.01"), rounding=ROUND_HALF_UP)
+            target_2_price = (entry_price + (risk_per_share_decimal * t2_r_dec)).quantize(
+                Decimal("0.01"), rounding=ROUND_HALF_UP
+            )
             if target_2_price <= entry_price:
                 return {
                     "success": False,
@@ -340,7 +339,9 @@ class TradeExecutor:
                 }
         if target_3_price is None:
             t3_r_dec = Decimal(str(self.config.get("t3_target_r_multiple", 4.0)))
-            target_3_price = (entry_price + (risk_per_share_decimal * t3_r_dec)).quantize(Decimal("0.01"), rounding=ROUND_HALF_UP)
+            target_3_price = (entry_price + (risk_per_share_decimal * t3_r_dec)).quantize(
+                Decimal("0.01"), rounding=ROUND_HALF_UP
+            )
             if target_3_price <= entry_price:
                 return {
                     "success": False,
@@ -426,12 +427,8 @@ class TradeExecutor:
             existing = cur.fetchone()
             if existing:
                 # B9: Log duplicate with visibility for pattern monitoring
-                signal_fingerprint = (
-                    f"{symbol}|{entry_price:.2f}|{stop_loss_price:.2f}|{signal_date}"
-                )
-                logger.warning(
-                    f"DUPLICATE SIGNAL: {signal_fingerprint} (prior trade: {existing[0]})"
-                )
+                signal_fingerprint = f"{symbol}|{entry_price:.2f}|{stop_loss_price:.2f}|{signal_date}"
+                logger.warning(f"DUPLICATE SIGNAL: {signal_fingerprint} (prior trade: {existing[0]})")
                 return {
                     "success": False,
                     "trade_id": existing[0],
@@ -478,10 +475,7 @@ class TradeExecutor:
             if prior:
                 prior_trade_id, exit_date, exit_reason, _exit_pnl, prior_reentry = prior
                 # If prior trade was a stop-out, we're attempting a re-entry
-                if exit_reason and (
-                    "STOP" in (exit_reason or "").upper()
-                    or "TIME" in (exit_reason or "").upper()
-                ):
+                if exit_reason and ("STOP" in (exit_reason or "").upper() or "TIME" in (exit_reason or "").upper()):
                     max_reentries = int(self.config.get("max_reentries_per_name", 2))
                     prior_reentry_count = int(prior_reentry)
                     if prior_reentry_count >= max_reentries:
@@ -493,20 +487,12 @@ class TradeExecutor:
                             "message": f"{symbol}: {prior_reentry_count} prior re-entries within 30 days >= {max_reentries} max",
                         }
                     # NEW: Enforce minimum days between stop-out and re-entry (reset period for failed setup)
-                    min_days_wait = int(
-                        self.config.get("min_days_before_reentry_same_symbol", 5)
-                    )
+                    min_days_wait = int(self.config.get("min_days_before_reentry_same_symbol", 5))
                     if exit_date:
                         from datetime import date as _date
 
-                        exit_d = (
-                            exit_date
-                            if isinstance(exit_date, _date)
-                            else exit_date.date()
-                        )
-                        days_since_exit = (
-                            datetime.now(timezone.utc).date() - exit_d
-                        ).days
+                        exit_d = exit_date if isinstance(exit_date, _date) else exit_date.date()
+                        days_since_exit = (datetime.now(timezone.utc).date() - exit_d).days
                         if days_since_exit < min_days_wait:
                             return {
                                 "success": False,
@@ -521,31 +507,19 @@ class TradeExecutor:
             rejection_reason = None  # Initialize for all code paths
 
             if execution_mode in ("paper", "dry"):
-                logger.info(
-                    f"[ENTRY] {symbol}: {execution_mode.upper()} mode - creating LOCAL order {trade_id}"
-                )
-                logger.warning(
-                    f"[ENTRY] {symbol}: NOT TRADING LIVE - execution_mode is {execution_mode} (not 'auto')"
-                )
+                logger.info(f"[ENTRY] {symbol}: {execution_mode.upper()} mode - creating LOCAL order {trade_id}")
+                logger.warning(f"[ENTRY] {symbol}: NOT TRADING LIVE - execution_mode is {execution_mode} (not 'auto')")
                 alpaca_order_id = f"LOCAL-{trade_id}"
-                order_status = (
-                    "open"  # P4: Changed from 'filled' to standardized 'open'
-                )
+                order_status = "open"  # P4: Changed from 'filled' to standardized 'open'
                 executed_price = entry_price
             elif execution_mode == "review":
-                logger.info(
-                    f"[ENTRY] {symbol}: REVIEW mode - creating PENDING order {trade_id}"
-                )
+                logger.info(f"[ENTRY] {symbol}: REVIEW mode - creating PENDING order {trade_id}")
                 alpaca_order_id = f"PENDING-{trade_id}"
                 order_status = "pending"  # P4: Standardized status
                 executed_price = entry_price
             else:  # 'auto' — actually send to Alpaca as BRACKET ORDER
-                logger.info(
-                    f"[ENTRY] {symbol}: AUTO mode - SENDING LIVE ORDER TO ALPACA"
-                )
-                logger.info(
-                    f"[ENTRY] {symbol}: Using Alpaca endpoint: {self.alpaca_base_url}"
-                )
+                logger.info(f"[ENTRY] {symbol}: AUTO mode - SENDING LIVE ORDER TO ALPACA")
+                logger.info(f"[ENTRY] {symbol}: Using Alpaca endpoint: {self.alpaca_base_url}")
                 self._order_send_time = time.time()  # Track for execution latency (TCA)
                 order_result = self._send_alpaca_order(
                     symbol,
@@ -564,7 +538,7 @@ class TradeExecutor:
                             symbol,
                             "EXECUTION_FAILURE",
                             "CRITICAL",
-                            f'Order submission failed: {order_result.get("message", "Unknown error")}',
+                            f"Order submission failed: {order_result.get('message', 'Unknown error')}",
                         )
                     except NotificationError as alert_e:
                         logger.warning(f"Failed to send execution failure alert (non-blocking): {alert_e}")
@@ -587,8 +561,7 @@ class TradeExecutor:
                 rejection_reason = None
                 if order_status == "rejected":
                     rejection_reason = (
-                        order_result.get("rejection_reason")
-                        or "Order rejected by Alpaca (no reason provided)"
+                        order_result.get("rejection_reason") or "Order rejected by Alpaca (no reason provided)"
                     )
                 # For pending orders, executed_price is None (order not yet filled).
                 # Use entry_price as the initial DB value; reconciliation updates it to
@@ -603,9 +576,7 @@ class TradeExecutor:
                     try:
                         self._cancel_bracket_orders(alpaca_order_id)
                     except Exception as e:
-                        logger.warning(
-                            f"Failed to cancel bracket order {alpaca_order_id}: {e}"
-                        )
+                        logger.warning(f"Failed to cancel bracket order {alpaca_order_id}: {e}")
                     return {
                         "success": False,
                         "trade_id": trade_id,
@@ -639,7 +610,11 @@ class TradeExecutor:
             if executed_price and executed_price != entry_price:
                 executed_price_dec = Decimal(str(executed_price))
                 entry_price_dec_slip = Decimal(str(entry_price))
-                slippage_pct = float(((executed_price_dec - entry_price_dec_slip) / entry_price_dec_slip * Decimal(100)).quantize(Decimal("0.01"), rounding=ROUND_HALF_UP))
+                slippage_pct = float(
+                    ((executed_price_dec - entry_price_dec_slip) / entry_price_dec_slip * Decimal(100)).quantize(
+                        Decimal("0.01"), rounding=ROUND_HALF_UP
+                    )
+                )
                 logger.info(
                     _redact_for_logs(
                         f"Slippage detected: {slippage_pct:+.2f}% (signal ${entry_price:.2f} → fill ${executed_price:.2f})"
@@ -667,15 +642,17 @@ class TradeExecutor:
             # Compute initial position size pct using live or snapshot portfolio value
             _pv_for_pct = self._get_portfolio_value()
             if _pv_for_pct is None:
-                logger.warning(
-                    "Portfolio value unavailable for position size pct calculation"
-                )
+                logger.warning("Portfolio value unavailable for position size pct calculation")
                 position_size_pct = None
             else:
                 # For pending orders, executed_price is None; use entry_price as estimate for pct calculation only
                 price_for_pct = executed_price if executed_price else entry_price
                 position_size_pct = (
-                    float((Decimal(shares) * Decimal(str(price_for_pct)) / Decimal(str(_pv_for_pct)) * Decimal(100)).quantize(Decimal("0.01"), rounding=ROUND_HALF_UP))
+                    float(
+                        (
+                            Decimal(shares) * Decimal(str(price_for_pct)) / Decimal(str(_pv_for_pct)) * Decimal(100)
+                        ).quantize(Decimal("0.01"), rounding=ROUND_HALF_UP)
+                    )
                     if _pv_for_pct > 0
                     else 0
                 )
@@ -772,9 +749,7 @@ class TradeExecutor:
                 ),
             )
 
-            if order_status == "filled" or (
-                order_status == "partially_filled" and execution_mode == "auto"
-            ):
+            if order_status == "filled" or (order_status == "partially_filled" and execution_mode == "auto"):
                 # In auto mode, re-query order status to catch race where it was cancelled
                 if execution_mode == "auto" and alpaca_order_id:
                     verified_status = self._verify_order_status(alpaca_order_id)
@@ -795,9 +770,7 @@ class TradeExecutor:
                     if filled_qty and filled_qty > 0:
                         actual_shares = filled_qty
                         logger.info(
-                            _redact_for_logs(
-                                f"Partial fill detected: {actual_shares} of {shares} shares filled"
-                            )
+                            _redact_for_logs(f"Partial fill detected: {actual_shares} of {shares} shares filled")
                         )
 
                 # B3: Defensive check for position value (ensure Decimal precision)
@@ -835,14 +808,9 @@ class TradeExecutor:
                 )
 
             # Phase 3.2: Record execution quality (TCA) for every fill
-            if order_status == "filled" or (
-                order_status == "partially_filled" and execution_mode == "auto"
-            ):
+            if order_status == "filled" or (order_status == "partially_filled" and execution_mode == "auto"):
                 try:
-                    execution_latency_ms = int(
-                        (time.time() - getattr(self, "_order_send_time", time.time()))
-                        * 1000
-                    )
+                    execution_latency_ms = int((time.time() - getattr(self, "_order_send_time", time.time())) * 1000)
                     tca_result = self.tca.record_fill(
                         trade_id=trade_id,
                         symbol=symbol,
@@ -986,6 +954,7 @@ class TradeExecutor:
         Handles concurrent updates by re-reading position before each retry.
         Returns: (success: bool, message: str or None)
         """
+
         def do_update():
             cur.execute(
                 "SELECT quantity, current_stop_price FROM algo_positions WHERE position_id = %s",
@@ -1010,9 +979,7 @@ class TradeExecutor:
                     (PositionStatus.CLOSED.value, position_id, current_qty),
                 )
             else:
-                increment_targets = (
-                    1 if (exit_stage and "target" in exit_stage.lower()) else 0
-                )
+                increment_targets = 1 if (exit_stage and "target" in exit_stage.lower()) else 0
                 update_sql = """UPDATE algo_positions
                                SET quantity = %s,
                                    position_value = %s * current_price,
@@ -1208,9 +1175,7 @@ class TradeExecutor:
 
             current_qty_dec = Decimal(str(current_qty))
             exit_frac_dec = Decimal(str(exit_fraction))
-            shares_to_exit_dec = (current_qty_dec * exit_frac_dec).quantize(
-                Decimal("0.01"), rounding=ROUND_HALF_UP
-            )
+            shares_to_exit_dec = (current_qty_dec * exit_frac_dec).quantize(Decimal("0.01"), rounding=ROUND_HALF_UP)
             shares_to_exit_dec = max(Decimal("0.01"), shares_to_exit_dec)
             shares_to_exit_dec = min(shares_to_exit_dec, current_qty_dec)
             shares_to_exit = float(shares_to_exit_dec)
@@ -1219,9 +1184,7 @@ class TradeExecutor:
             if full_exit and alpaca_order_id:
                 cancel_result = self._cancel_bracket_orders(alpaca_order_id)
                 if not cancel_result.get("success"):
-                    logger.warning(
-                        f"Failed to cancel bracket for {trade_id}: {cancel_result['message']}"
-                    )
+                    logger.warning(f"Failed to cancel bracket for {trade_id}: {cancel_result['message']}")
 
             execution_mode = self.config.get("execution_mode", "paper")
             actual_fill_price = None
@@ -1238,13 +1201,13 @@ class TradeExecutor:
                         notify(
                             "critical",
                             title=f"EXIT ORDER FAILED: {symbol}",
-                            message=f'Trade {trade_id}: Failed to exit {shares_to_exit}sh. {exit_order_result.get("message")}',
+                            message=f"Trade {trade_id}: Failed to exit {shares_to_exit}sh. {exit_order_result.get('message')}",
                         )
                     except NotificationError as e:
                         logger.warning(f"Failed to send exit failure alert (non-blocking): {e}")
                     return {
                         "success": False,
-                        "message": f'Exit order failed: {exit_order_result.get("message")}',
+                        "message": f"Exit order failed: {exit_order_result.get('message')}",
                     }
 
             final_exit_price = actual_fill_price if actual_fill_price else exit_price
@@ -1264,13 +1227,27 @@ class TradeExecutor:
 
             risk_per_share = Decimal(str(entry_price)) - Decimal(str(stop_loss_price))
             r_multiple = (
-                float(((Decimal(str(final_exit_price)) - Decimal(str(entry_price))) / risk_per_share).quantize(Decimal("0.01"), rounding=ROUND_HALF_UP))
+                float(
+                    ((Decimal(str(final_exit_price)) - Decimal(str(entry_price))) / risk_per_share).quantize(
+                        Decimal("0.01"), rounding=ROUND_HALF_UP
+                    )
+                )
                 if risk_per_share > 0
                 else 0
             )
             pnl_per_share = Decimal(str(final_exit_price)) - Decimal(str(entry_price))
-            pnl_dollars = float((pnl_per_share * Decimal(str(shares_to_exit))).quantize(Decimal("0.01"), rounding=ROUND_HALF_UP))
-            pnl_pct = float((pnl_per_share / Decimal(str(entry_price)) * Decimal(100)).quantize(Decimal("0.01"), rounding=ROUND_HALF_UP)) if entry_price > 0 else 0
+            pnl_dollars = float(
+                (pnl_per_share * Decimal(str(shares_to_exit))).quantize(Decimal("0.01"), rounding=ROUND_HALF_UP)
+            )
+            pnl_pct = (
+                float(
+                    (pnl_per_share / Decimal(str(entry_price)) * Decimal(100)).quantize(
+                        Decimal("0.01"), rounding=ROUND_HALF_UP
+                    )
+                )
+                if entry_price > 0
+                else 0
+            )
 
             if not isinstance(pnl_dollars, (int, float)) or pnl_dollars != pnl_dollars:
                 pnl_dollars = 0.0
@@ -1331,9 +1308,7 @@ class TradeExecutor:
             new_qty = float(new_qty_dec)
 
             # TRANSACTION GUARD 4: Update position with safety checks
-            effective_stop = (
-                new_stop_price if new_stop_price is not None else stop_loss_price
-            )
+            effective_stop = new_stop_price if new_stop_price is not None else stop_loss_price
             update_success, update_error = self._update_position_with_retry(
                 cur=cur,
                 position_id=position_id,

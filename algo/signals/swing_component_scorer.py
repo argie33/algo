@@ -11,8 +11,9 @@ Responsibilities:
 import logging
 from typing import Any
 
-from utils.db import DatabaseContext
 import psycopg2
+
+from utils.db import DatabaseContext
 
 
 logger = logging.getLogger(__name__)
@@ -37,14 +38,10 @@ class SwingComponentScorer:
         """Load swing score component weights from config table if available."""
         weights = {}
         try:
-            cur.execute(
-                "SELECT key, value FROM algo_config WHERE key LIKE 'swing_weight_%'"
-            )
+            cur.execute("SELECT key, value FROM algo_config WHERE key LIKE 'swing_weight_%'")
             weights = {k: int(v) for k, v in cur.fetchall()}
         except (psycopg2.DatabaseError, psycopg2.OperationalError) as e:
-            logger.debug(
-                f"Could not load swing weights from config: {e} — using defaults"
-            )
+            logger.debug(f"Could not load swing weights from config: {e} — using defaults")
         return weights
 
     def _load_config_val(self, key: str, default):
@@ -261,7 +258,9 @@ class SwingComponentScorer:
             logger.debug(f"Fundamentals component failed for {symbol}: {e}")
             return 0, {"error": str(e)[:50]}
 
-    def _sector_component(self, symbol: str, eval_date, sector: str | None, industry: str | None, cur) -> tuple[float, dict[str, Any]]:
+    def _sector_component(
+        self, symbol: str, eval_date, sector: str | None, industry: str | None, cur
+    ) -> tuple[float, dict[str, Any]]:
         """Sector/Industry: industry rank vs sector rank."""
         try:
             if not industry:

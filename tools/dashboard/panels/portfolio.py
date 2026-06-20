@@ -9,10 +9,12 @@ try:
     from panel_registry import register_panel
 except ImportError as e:
     logger.warning(f"Panel registry not available: {e} - panels will not auto-register")
+
     def register_panel(*args, **kwargs):
         if args and callable(args[0]):
             return args[0]
         return lambda fn: fn
+
 
 from rich.console import Group
 from rich.panel import Panel
@@ -191,18 +193,14 @@ def panel_performance_spark(perf, rec, perf_anl=None, pos=None):
     pnl_c = G if pnl_val is not None and pnl_val >= 0 else R
     pf = perf.get("profit_factor")
     pf_s = f"{pf:.2f}" if pf is not None else "--"
-    pf_c = (
-        G
-        if pf is not None and pf >= 1.5
-        else (Y if pf is not None and pf >= 1.0 else R)
-    )
+    pf_c = G if pf is not None and pf >= 1.5 else (Y if pf is not None and pf >= 1.0 else R)
     exp = perf.get("expectancy")
     exp_c = G if (exp is None or exp >= 0) else R
     exp_s = f"{exp:.2f}R" if exp is not None else "--"
     sharpe_v = perf.get("sharpe")
     sharpe_s = f"{sharpe_v:.2f}" if sharpe_v is not None else "--"
 
-    wr_v, adj_w, adj_l = _calculate_adjusted_win_rate(perf, pos)
+    wr_v, _adj_w, adj_l = _calculate_adjusted_win_rate(perf, pos)
     closed_wins = perf.get("w") or 0
     closed_losses = perf.get("l") or 0
     losing_open = (adj_l or 0) - (closed_losses or 0)
@@ -240,16 +238,20 @@ def panel_performance_spark(perf, rec, perf_anl=None, pos=None):
         grid_rows.append((cell("Realized P&L:", pnl_s), Text("")))
 
     # Ratios row
-    grid_rows.append((
-        cell("Profit Factor:", f"[{pf_c}]{pf_s}[/]"),
-        cell("Sharpe Ratio:", f"[white]{sharpe_s}[/]"),
-    ))
+    grid_rows.append(
+        (
+            cell("Profit Factor:", f"[{pf_c}]{pf_s}[/]"),
+            cell("Sharpe Ratio:", f"[white]{sharpe_s}[/]"),
+        )
+    )
 
     # Expectancy + avg win/loss row
-    grid_rows.append((
-        cell("Expectancy (R):", f"[{exp_c}]{exp_s}[/]"),
-        cell("Avg Win / Loss:", f"[{G}]{avg_win_s}[/][dim]/[/][{R}]{avg_loss_s}[/]"),
-    ))
+    grid_rows.append(
+        (
+            cell("Expectancy (R):", f"[{exp_c}]{exp_s}[/]"),
+            cell("Avg Win / Loss:", f"[{G}]{avg_win_s}[/][dim]/[/][{R}]{avg_loss_s}[/]"),
+        )
+    )
 
     # Rolling analytics
     if perf_anl and not perf_anl.get("_error"):
@@ -263,10 +265,12 @@ def panel_performance_spark(perf, rec, perf_anl=None, pos=None):
         if sharpe252 is not None and sharpe252 != 0.0 and sortino is not None and sortino != 0.0:
             sc1 = G if sharpe252 >= 1.0 else (Y if sharpe252 >= 0 else R)
             sc2 = G if sortino >= 1.5 else (Y if sortino >= 0 else R)
-            grid_rows.append((
-                cell("Sharpe (1-Year):", f"[{sc1}]{sharpe252:.2f}[/]"),
-                cell("Sortino Ratio:", f"[{sc2}]{sortino:.2f}[/]"),
-            ))
+            grid_rows.append(
+                (
+                    cell("Sharpe (1-Year):", f"[{sc1}]{sharpe252:.2f}[/]"),
+                    cell("Sortino Ratio:", f"[{sc2}]{sortino:.2f}[/]"),
+                )
+            )
         elif sharpe252 is not None and sharpe252 != 0.0:
             sc1 = G if sharpe252 >= 1.0 else (Y if sharpe252 >= 0 else R)
             grid_rows.append((cell("Sharpe (1-Year):", f"[{sc1}]{sharpe252:.2f}[/]"), Text("")))
@@ -368,8 +372,10 @@ def panel_portfolio_perf_expanded(port, cfg, risk=None, perf=None, perf_anl=None
         ptbl.add_column("label2", style="dim")
         ptbl.add_column("val2", style="white")
         ptbl.add_row(
-            "Total Value:", f"{fmt_money(pv)}",
-            "Cash:", fmt_money(cash),
+            "Total Value:",
+            f"{fmt_money(pv)}",
+            "Cash:",
+            fmt_money(cash),
         )
         max_n = int(cfg.get("max_pos_n") or 0) if cfg else 0
         slots_s = f"{npos}/{max_n}" if (npos is not None and max_n) else (str(npos) if npos is not None else "--")
@@ -407,7 +413,7 @@ def panel_portfolio_perf_expanded(port, cfg, risk=None, perf=None, perf_anl=None
         avg_win = perf.get("avg_win")
         avg_loss = perf.get("avg_loss")
 
-        wr_v, adj_w, adj_l = _calculate_adjusted_win_rate(perf, pos)
+        wr_v, _adj_w, adj_l = _calculate_adjusted_win_rate(perf, pos)
         losing_open = (adj_l or 0) - (l or 0)
         wr_label = "Win Rate (adj.):" if losing_open > 0 else "Win Rate:"
 
@@ -424,32 +430,46 @@ def panel_portfolio_perf_expanded(port, cfg, risk=None, perf=None, perf_anl=None
         perfblk.add_column("label2", style="dim")
         perfblk.add_column("val2")
         perfblk.add_row(
-            "Total Trades:", Text(str(n), style="white"),
-            "Win/Loss:", Text.from_markup(f"[{G}]{w}W[/][dim]/[/][{R}]{l}L[/]"),
+            "Total Trades:",
+            Text(str(n), style="white"),
+            "Win/Loss:",
+            Text.from_markup(f"[{G}]{w}W[/][dim]/[/][{R}]{l}L[/]"),
         )
         perfblk.add_row(
-            wr_label, Text(f"{wr_v:.1f}%", style=wrc),
-            "Streak:", Text(str_s, style=str_c),
+            wr_label,
+            Text(f"{wr_v:.1f}%", style=wrc),
+            "Streak:",
+            Text(str_s, style=str_c),
         )
         perfblk.add_row(
-            "Total P&L:", Text(fmt_money(pnl_val), style=G if (pnl_val or 0) >= 0 else R),
-            "Profit Factor:", Text(f"{pf:.2f}" if pf else "--", style=pf_c),
+            "Total P&L:",
+            Text(fmt_money(pnl_val), style=G if (pnl_val or 0) >= 0 else R),
+            "Profit Factor:",
+            Text(f"{pf:.2f}" if pf else "--", style=pf_c),
         )
         perfblk.add_row(
-            "Unrealized P&L:", Text(fmt_money(unrlzd_pnl) if unrlzd_pnl is not None else "--", style=G if (unrlzd_pnl or 0) >= 0 else R),
-            "Open Positions:", Text(str(open_cnt) if open_cnt is not None else "--", style="white"),
+            "Unrealized P&L:",
+            Text(fmt_money(unrlzd_pnl) if unrlzd_pnl is not None else "--", style=G if (unrlzd_pnl or 0) >= 0 else R),
+            "Open Positions:",
+            Text(str(open_cnt) if open_cnt is not None else "--", style="white"),
         )
         perfblk.add_row(
-            "Max Drawdown:", Text(f"-{dd_v:.1f}%" if dd_v else "--", style=dd_c),
-            "Sharpe (annl.):", Text(f"{sharpe_v:.2f}" if sharpe_v is not None else "--", style="white"),
+            "Max Drawdown:",
+            Text(f"-{dd_v:.1f}%" if dd_v else "--", style=dd_c),
+            "Sharpe (annl.):",
+            Text(f"{sharpe_v:.2f}" if sharpe_v is not None else "--", style="white"),
         )
         perfblk.add_row(
-            "Expectancy:", Text(f"{exp:.2f}R" if exp is not None else "--", style=exp_c),
-            "", Text(""),
+            "Expectancy:",
+            Text(f"{exp:.2f}R" if exp is not None else "--", style=exp_c),
+            "",
+            Text(""),
         )
         perfblk.add_row(
-            "Avg Win:", Text(f"{avg_win:.1f}%" if avg_win else "--", style=G),
-            "Avg Loss:", Text(f"{avg_loss:.1f}%" if avg_loss else "--", style=R),
+            "Avg Win:",
+            Text(f"{avg_win:.1f}%" if avg_win else "--", style=G),
+            "Avg Loss:",
+            Text(f"{avg_loss:.1f}%" if avg_loss else "--", style=R),
         )
         rows.append(perfblk)
 
@@ -463,6 +483,7 @@ def panel_portfolio_perf_expanded(port, cfg, risk=None, perf=None, perf_anl=None
         recent_rets = perf.get("recent_rets") or []
         if recent_rets:
             from datetime import datetime
+
             parts = []
             for item in recent_rets[-10:]:
                 if isinstance(item, (list, tuple)) and len(item) >= 2:
@@ -503,27 +524,41 @@ def panel_portfolio_perf_expanded(port, cfg, risk=None, perf=None, perf_anl=None
         exp2 = perf_anl.get("expectancy")
         maxdd2 = perf_anl.get("maxdd")
         anl.add_row(
-            "Sharpe (252d):", Text(f"{sharpe252:.2f}" if sharpe252 is not None else "--",
-                style=G if (sharpe252 or 0) >= 1 else (Y if (sharpe252 or 0) >= 0 else R)),
-            "Sortino:", Text(f"{sortino:.2f}" if sortino is not None else "--",
-                style=G if (sortino or 0) >= 1.5 else (Y if (sortino or 0) >= 0 else R)),
+            "Sharpe (252d):",
+            Text(
+                f"{sharpe252:.2f}" if sharpe252 is not None else "--",
+                style=G if (sharpe252 or 0) >= 1 else (Y if (sharpe252 or 0) >= 0 else R),
+            ),
+            "Sortino:",
+            Text(
+                f"{sortino:.2f}" if sortino is not None else "--",
+                style=G if (sortino or 0) >= 1.5 else (Y if (sortino or 0) >= 0 else R),
+            ),
         )
         anl.add_row(
-            "Calmar:", Text(f"{calmar:.2f}" if calmar else "--",
-                style=G if (calmar or 0) >= 0.5 else (Y if (calmar or 0) >= 0 else R)),
-            "Win Rate (50T):", Text(f"{wr50:.0f}%" if wr50 else "--",
-                style=G if (wr50 or 0) >= 50 else (Y if (wr50 or 0) >= 42 else R)),
+            "Calmar:",
+            Text(
+                f"{calmar:.2f}" if calmar else "--",
+                style=G if (calmar or 0) >= 0.5 else (Y if (calmar or 0) >= 0 else R),
+            ),
+            "Win Rate (50T):",
+            Text(f"{wr50:.0f}%" if wr50 else "--", style=G if (wr50 or 0) >= 50 else (Y if (wr50 or 0) >= 42 else R)),
         )
         anl.add_row(
-            "Avg Win R (50T):", Text(f"{avg_w_r:.2f}R" if avg_w_r else "--", style=G),
-            "Avg Loss R (50T):", Text(f"{avg_l_r:.2f}R" if avg_l_r else "--", style=R),
+            "Avg Win R (50T):",
+            Text(f"{avg_w_r:.2f}R" if avg_w_r else "--", style=G),
+            "Avg Loss R (50T):",
+            Text(f"{avg_l_r:.2f}R" if avg_l_r else "--", style=R),
         )
         if exp2 is not None or maxdd2 is not None:
             anl.add_row(
-                "Expectancy:", Text(f"{exp2:.2f}R" if exp2 else "--",
-                    style=G if (exp2 or 0) >= 0 else R),
-                "Max Drawdown:", Text(f"-{abs(maxdd2):.1f}%" if maxdd2 else "--",
-                    style=R if abs(maxdd2 or 0) >= 15 else (Y if abs(maxdd2 or 0) >= 5 else G)),
+                "Expectancy:",
+                Text(f"{exp2:.2f}R" if exp2 else "--", style=G if (exp2 or 0) >= 0 else R),
+                "Max Drawdown:",
+                Text(
+                    f"-{abs(maxdd2):.1f}%" if maxdd2 else "--",
+                    style=R if abs(maxdd2 or 0) >= 15 else (Y if abs(maxdd2 or 0) >= 5 else G),
+                ),
             )
         rows.append(anl)
         rows.append(Rule(style="dim"))
@@ -540,17 +575,23 @@ def panel_portfolio_perf_expanded(port, cfg, risk=None, perf=None, perf_anl=None
         conc_c = R if (risk.get("conc5") or 0) >= 35 else (Y if (risk.get("conc5") or 0) >= 25 else "white")
         var_c = R if (risk.get("var95") or 0) >= 4 else (Y if (risk.get("var95") or 0) >= 2 else "white")
         rtbl.add_row(
-            "VaR (95%):", Text(f"{(risk.get('var95') or 0):.2f}%", style=var_c),
-            "CVaR (95%):", Text(f"{(risk.get('cvar95') or 0):.2f}%", style=var_c),
+            "VaR (95%):",
+            Text(f"{(risk.get('var95') or 0):.2f}%", style=var_c),
+            "CVaR (95%):",
+            Text(f"{(risk.get('cvar95') or 0):.2f}%", style=var_c),
         )
         rtbl.add_row(
-            "Portfolio Beta:", Text(f"{(risk.get('beta') or 0):.2f}", style=beta_c),
-            "Top-5 Concentration:", Text(f"{(risk.get('conc5') or 0):.0f}%", style=conc_c),
+            "Portfolio Beta:",
+            Text(f"{(risk.get('beta') or 0):.2f}", style=beta_c),
+            "Top-5 Concentration:",
+            Text(f"{(risk.get('conc5') or 0):.0f}%", style=conc_c),
         )
         if risk.get("svar") and float(risk.get("svar") or 0) > 0:
             rtbl.add_row(
-                "Stressed VaR:", Text(f"{(risk.get('svar') or 0):.2f}%", style=R),
-                "Risk Date:", Text(str(risk.get("date") or "--")[:10], style="dim"),
+                "Stressed VaR:",
+                Text(f"{(risk.get('svar') or 0):.2f}%", style=R),
+                "Risk Date:",
+                Text(str(risk.get("date") or "--")[:10], style="dim"),
             )
         rows.append(rtbl)
 
@@ -560,7 +601,9 @@ def panel_portfolio_perf_expanded(port, cfg, risk=None, perf=None, perf_anl=None
         if pos_items:
             rows.append(Rule(style="dim"))
             rows.append(Text.from_markup("[dim bold]POSITION CONCENTRATION[/]"))
-            pv_total = safe_float(port.get("total_portfolio_value"), default=0) if port and not port.get("_error") else 0
+            pv_total = (
+                safe_float(port.get("total_portfolio_value"), default=0) if port and not port.get("_error") else 0
+            )
             conc_rows = []
             for p in pos_items:
                 if not isinstance(p, dict):

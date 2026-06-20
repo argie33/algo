@@ -11,8 +11,9 @@ HIGH CONFIDENCE ENTRY: Stage 2 + RS > 70 + Volume + Entry near trendline support
 import logging
 from datetime import date, timedelta
 
-from utils.db import DatabaseContext
 import psycopg2
+
+from utils.db import DatabaseContext
 
 
 logger = logging.getLogger(__name__)
@@ -156,9 +157,7 @@ class TrendlineSupport:
 
         return best_trendline
 
-    def validate_entry_near_trendline(
-        self, symbol: str, eval_date: date, entry_price: float
-    ) -> dict:
+    def validate_entry_near_trendline(self, symbol: str, eval_date: date, entry_price: float) -> dict:
         """
         Check if entry_price is near (above) the support trendline.
 

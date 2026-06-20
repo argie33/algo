@@ -115,11 +115,7 @@ def _best_halt_reason(top_level: str, phase_results: list) -> list[tuple[str, st
                 logger.warning(f"Failed to parse phase data JSON: {e}")
                 pdata = {}
         detail = next(
-            (
-                str(pdata[k])
-                for k in _FIELDS
-                if pdata.get(k) and len(str(pdata.get(k))) > 3
-            ),
+            (str(pdata[k]) for k in _FIELDS if pdata.get(k) and len(str(pdata.get(k))) > 3),
             "",
         )
         if detail:
@@ -185,10 +181,6 @@ def _rdelta(r, wk="rank_1w_ago", wk4=None):
         old4 = r.get(wk4)
         if old4 is not None:
             d4 = int(old4) - int(cur)
-            s4 = (
-                f"[{G}]↑{d4}[/]"
-                if d4 > 0
-                else (f"[{R}]↓{abs(d4)}[/]" if d4 < 0 else "[dim]=[/]")
-            )
+            s4 = f"[{G}]↑{d4}[/]" if d4 > 0 else (f"[{R}]↓{abs(d4)}[/]" if d4 < 0 else "[dim]=[/]")
             return f"{s1}[dim]/[/]{s4}"
     return s1

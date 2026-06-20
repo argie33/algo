@@ -141,25 +141,15 @@ class TestConfigCriticalThresholds:
         config = AlgoConfig()
         for key in critical_keys:
             val = config.get(key)
-            assert val is not None, (
-                f"Critical threshold {key} is None — "
-                "should have default value"
-            )
-            assert (
-                val != 0 and val != 0.0
-            ), (
-                f"Critical threshold {key} is zero — "
-                "validation should have failed"
-            )
+            assert val is not None, f"Critical threshold {key} is None — should have default value"
+            assert val != 0 and val != 0.0, f"Critical threshold {key} is zero — validation should have failed"
 
     def test_database_connection_failure_raises_error(self):
         """Should raise RuntimeError if database connection fails during config load."""
         from algo.infrastructure.config import AlgoConfig
 
         with mock.patch("algo.infrastructure.config.DatabaseContext") as mock_db:
-            mock_db.return_value.__enter__.side_effect = ConnectionError(
-                "Database connection timeout"
-            )
+            mock_db.return_value.__enter__.side_effect = ConnectionError("Database connection timeout")
             with pytest.raises(RuntimeError, match="Config initialization failed"):
                 AlgoConfig()
 
@@ -169,9 +159,7 @@ class TestConfigCriticalThresholds:
 
         with mock.patch("algo.infrastructure.config.DatabaseContext") as mock_db:
             mock_cursor = mock.MagicMock()
-            mock_cursor.execute.side_effect = Exception(
-                "Database query error: syntax error"
-            )
+            mock_cursor.execute.side_effect = Exception("Database query error: syntax error")
             mock_db.return_value.__enter__.return_value = mock_cursor
             with pytest.raises(RuntimeError, match="cannot load safety thresholds from database"):
                 AlgoConfig()
@@ -189,9 +177,7 @@ class TestConfigValidationSchema:
         defaults = config.DEFAULTS
 
         for key in defaults:
-            assert key in schema, (
-                f"Key {key} in DEFAULTS but not in VALIDATION_SCHEMA"
-            )
+            assert key in schema, f"Key {key} in DEFAULTS but not in VALIDATION_SCHEMA"
 
     def test_critical_keys_have_fail_closed_defaults(self):
         """All critical keys must have a fail_closed value in schema."""
@@ -200,19 +186,13 @@ class TestConfigValidationSchema:
         config = AlgoConfig()
         for key, (dtype, min_val, max_val, is_critical, fail_closed) in config.VALIDATION_SCHEMA.items():
             if is_critical:
-                assert fail_closed is not None, (
-                    f"Critical key {key} must have a fail_closed default"
-                )
+                assert fail_closed is not None, f"Critical key {key} must have a fail_closed default"
                 if dtype in ("int", "float"):
                     # Fail-closed should be within valid range
                     if min_val is not None:
-                        assert fail_closed >= min_val, (
-                            f"Critical key {key}: fail_closed {fail_closed} < min {min_val}"
-                        )
+                        assert fail_closed >= min_val, f"Critical key {key}: fail_closed {fail_closed} < min {min_val}"
                     if max_val is not None:
-                        assert fail_closed <= max_val, (
-                            f"Critical key {key}: fail_closed {fail_closed} > max {max_val}"
-                        )
+                        assert fail_closed <= max_val, f"Critical key {key}: fail_closed {fail_closed} > max {max_val}"
 
     def test_validation_rejects_zero_signal_quality(self):
         """Should reject min_signal_quality_score = 0 as out of range."""
@@ -282,12 +262,7 @@ class TestConfigFailClosedBehavior:
 
         config = AlgoConfig()
         # Attempt to set critical threshold to zero
-        success = config.set(
-            "min_signal_quality_score",
-            "0",
-            "int",
-            changed_by="test"
-        )
+        success = config.set("min_signal_quality_score", "0", "int", changed_by="test")
         # Should fail the set (return False)
         assert not success, "set() should return False when applying fail-closed default"
         # But config should be set to safe default
@@ -301,12 +276,7 @@ class TestConfigFailClosedBehavior:
 
         config = AlgoConfig()
         # Attempt to set critical threshold above max
-        success = config.set(
-            "min_signal_quality_score",
-            "200",
-            "int",
-            changed_by="test"
-        )
+        success = config.set("min_signal_quality_score", "200", "int", changed_by="test")
         assert not success
         assert config.get("min_signal_quality_score") == 60
 
@@ -315,12 +285,7 @@ class TestConfigFailClosedBehavior:
         from algo.infrastructure.config import AlgoConfig
 
         config = AlgoConfig()
-        success = config.set(
-            "min_signal_quality_score",
-            "75",
-            "int",
-            changed_by="test"
-        )
+        success = config.set("min_signal_quality_score", "75", "int", changed_by="test")
         assert success, "set() should return True for valid values"
         assert config.get("min_signal_quality_score") == 75
 
@@ -329,12 +294,7 @@ class TestConfigFailClosedBehavior:
         from algo.infrastructure.config import AlgoConfig
 
         config = AlgoConfig()
-        success = config.set(
-            "max_trades_per_day",
-            "1000",
-            "int",
-            changed_by="test"
-        )
+        success = config.set("max_trades_per_day", "1000", "int", changed_by="test")
         assert not success, "set() should return False for out-of-range non-critical value"
         # Old value should be preserved
         assert config.get("max_trades_per_day") == 5

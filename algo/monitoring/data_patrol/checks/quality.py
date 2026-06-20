@@ -113,7 +113,7 @@ class QualityChecker(BaseCheck):
                         "today_total": today_zero_count,
                         "recurring": len(recurring_zeros),
                         "threshold": new_zeros_error,
-                        "sample_new": sorted(list(new_zeros))[:5],
+                        "sample_new": sorted(new_zeros)[:5],
                     },
                 )
             elif len(new_zeros) > new_zeros_warn:

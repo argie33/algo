@@ -27,4 +27,3 @@ from utils.db.connection import register_connection_callbacks
 
 
 register_connection_callbacks(on_connect, on_disconnect)
-

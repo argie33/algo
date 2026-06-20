@@ -91,9 +91,7 @@ class PatrolLogger:
         except (json.JSONDecodeError, ValueError) as e:
             logger.error(f"Failed to log patrol performance: {e}")
 
-    def update_completion_status(
-        self, ready: bool, elapsed_seconds: float | None = None
-    ) -> None:
+    def update_completion_status(self, ready: bool, elapsed_seconds: float | None = None) -> None:
         """Update DynamoDB with patrol completion status."""
         import os
         import time
@@ -101,9 +99,7 @@ class PatrolLogger:
         import boto3
 
         try:
-            dynamodb = boto3.resource(
-                "dynamodb", region_name=os.getenv("AWS_REGION", "us-east-1")
-            )
+            dynamodb = boto3.resource("dynamodb", region_name=os.getenv("AWS_REGION", "us-east-1"))
             state_table_name = os.getenv("HALT_FLAG_TABLE", "algo_orchestrator_state")
             state_table = dynamodb.Table(state_table_name)
 
@@ -118,10 +114,6 @@ class PatrolLogger:
                 },
             )
             status = "ready" if ready else "completed_with_findings"
-            logger.info(
-                f"[PATROL] ✓ Completed successfully. Updated DynamoDB (status={status})"
-            )
+            logger.info(f"[PATROL] ✓ Completed successfully. Updated DynamoDB (status={status})")
         except (ValueError, ZeroDivisionError, TypeError) as e:
-            logger.warning(
-                f"[PATROL] Could not update DynamoDB completion status: {e}"
-            )
+            logger.warning(f"[PATROL] Could not update DynamoDB completion status: {e}")

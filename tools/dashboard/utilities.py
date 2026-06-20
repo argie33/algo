@@ -103,7 +103,6 @@ logging.basicConfig(
 logger = logging.getLogger(__name__)
 
 
-
 # Sector aggregation cache (E5 optimization)
 _sector_agg_cache = OrderedDict()
 _sector_cache_maxsize = 100
@@ -147,9 +146,7 @@ def compute_sector_agg(pos, port):
     if not pos:
         raise ValueError("Cannot compute sector aggregation: positions data is empty")
 
-    pos_hash = hashlib.md5(
-        json.dumps(pos, sort_keys=True, default=str).encode()
-    ).hexdigest()
+    pos_hash = hashlib.md5(json.dumps(pos, sort_keys=True, default=str).encode()).hexdigest()
 
     with _sector_cache_lock:
         if pos_hash in _sector_agg_cache:
@@ -162,9 +159,7 @@ def compute_sector_agg(pos, port):
     for p in pos:
         if not isinstance(p, dict):
             invalid_count += 1
-            logger.error(
-                f"compute_sector_agg: invalid position (not a dict): {type(p).__name__}"
-            )
+            logger.error(f"compute_sector_agg: invalid position (not a dict): {type(p).__name__}")
             continue
         # Sector is critical for aggregation; fail if missing instead of silently using "Unknown"
         sec = p.get("sector")
@@ -183,18 +178,13 @@ def compute_sector_agg(pos, port):
             sd[sec]["pnls"].append(pnl)
 
     if invalid_count > 0:
-        raise ValueError(
-            f"Cannot compute sector aggregation: encountered {invalid_count} invalid position(s)"
-        )
+        raise ValueError(f"Cannot compute sector aggregation: encountered {invalid_count} invalid position(s)")
 
     sorted_secs = sorted(sd.items(), key=lambda x: -x[1]["val"])
     total_secs = len(sorted_secs)
 
     with _sector_cache_lock:
-        if (
-            len(_sector_agg_cache) >= _sector_cache_maxsize
-            and pos_hash not in _sector_agg_cache
-        ):
+        if len(_sector_agg_cache) >= _sector_cache_maxsize and pos_hash not in _sector_agg_cache:
             _sector_agg_cache.popitem(last=False)
 
         _sector_agg_cache[pos_hash] = {
@@ -223,9 +213,7 @@ def extract_items_and_error(data):
         return [], None
 
 
-def validate_data_freshness(
-    data: dict, max_age_hours: int = 24, field_name: str = "timestamp"
-) -> bool:
+def validate_data_freshness(data: dict, max_age_hours: int = 24, field_name: str = "timestamp") -> bool:
     """Validate data freshness by checking timestamp field age.
 
     Returns True if data is fresh or timestamp unavailable, logs warning if stale.
@@ -247,13 +235,9 @@ def validate_data_freshness(
         ts = ts.replace(tzinfo=timezone.utc)
     age_hours = (datetime.now(timezone.utc) - ts).total_seconds() / 3600
     if age_hours > max_age_hours:
-        logger.warning(
-            f"Data stale: {field_name} is {age_hours:.1f}h old (threshold: {max_age_hours}h)"
-        )
+        logger.warning(f"Data stale: {field_name} is {age_hours:.1f}h old (threshold: {max_age_hours}h)")
         return False
     return True
-
-
 
 
 # ── Data Quality Tracking (Finance Principle: Make Missing Data Visible) ───────
@@ -285,8 +269,7 @@ def record_data_quality_issue(fetcher: str, field: str, issue: str, value: Any =
         if len(_data_quality_issues) > 1000:
             _data_quality_issues = _data_quality_issues[-1000:]
     logger.warning(
-        f"Data quality issue: {fetcher}.{field} - {issue}"
-        + (f" (value: {value!r})" if value is not None else "")
+        f"Data quality issue: {fetcher}.{field} - {issue}" + (f" (value: {value!r})" if value is not None else "")
     )
 
 

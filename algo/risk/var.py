@@ -20,8 +20,9 @@ import logging
 from datetime import date, datetime, timezone
 from typing import Any
 
-from utils.db import DatabaseContext
 import psycopg2
+
+from utils.db import DatabaseContext
 
 
 logger = logging.getLogger(__name__)
@@ -33,9 +34,7 @@ class ValueAtRisk:
     def __init__(self, config):
         self.config = config
 
-    def historical_var(
-        self, confidence: float = 0.95, lookback_days: int = 252
-    ) -> dict[str, Any] | None:
+    def historical_var(self, confidence: float = 0.95, lookback_days: int = 252) -> dict[str, Any] | None:
         """Compute historical simulation VaR.
 
         Args:
@@ -49,11 +48,14 @@ class ValueAtRisk:
 
         try:
             with DatabaseContext("read") as cur:
-                cur.execute("""
+                cur.execute(
+                    """
                     SELECT snapshot_date, total_portfolio_value FROM algo_portfolio_snapshots
                     WHERE snapshot_date >= CURRENT_DATE - (%s || ' days')::interval
                     ORDER BY snapshot_date ASC
-                    """, (int(lookback_days),))
+                    """,
+                    (int(lookback_days),),
+                )
                 rows = cur.fetchall()
 
                 if len(rows) < 5:
@@ -66,15 +68,10 @@ class ValueAtRisk:
                         "Run daily reconciliation to populate portfolio snapshots."
                     )
                 if len(rows) < 30:
-                    logger.warning(
-                        f"Risk metrics using limited historical data: {len(rows)} snapshots (recommend 30+)"
-                    )
+                    logger.warning(f"Risk metrics using limited historical data: {len(rows)} snapshots (recommend 30+)")
 
                 values = [float(row[1]) for row in rows]
-                returns = [
-                    (values[i] - values[i - 1]) / values[i - 1]
-                    for i in range(1, len(values))
-                ]
+                returns = [(values[i] - values[i - 1]) / values[i - 1] for i in range(1, len(values))]
 
                 if not returns:
                     logger.critical(
@@ -102,9 +99,7 @@ class ValueAtRisk:
         except (ValueError, ZeroDivisionError, TypeError) as e:
             raise RuntimeError(f"Operation failed: {e}") from e
 
-    def cvar(
-        self, confidence: float = 0.95, lookback_days: int = 252
-    ) -> dict[str, Any] | None:
+    def cvar(self, confidence: float = 0.95, lookback_days: int = 252) -> dict[str, Any] | None:
         """Compute Conditional VaR (Expected Shortfall) — mean loss beyond VaR.
 
         Args:
@@ -118,49 +113,37 @@ class ValueAtRisk:
 
         try:
             with DatabaseContext("read") as cur:
-                cur.execute("""
+                cur.execute(
+                    """
                     SELECT snapshot_date, total_portfolio_value FROM algo_portfolio_snapshots
                     WHERE snapshot_date >= CURRENT_DATE - (%s || ' days')::interval
                     ORDER BY snapshot_date ASC
-                    """, (int(lookback_days),))
+                    """,
+                    (int(lookback_days),),
+                )
                 rows = cur.fetchall()
 
                 if len(rows) < 5:
                     logger.critical(
                         f"CVaR calculation failed: only {len(rows)} portfolio snapshots found (minimum 5 required)"
                     )
-                    raise RuntimeError(
-                        f"Insufficient historical data for CVaR (only {len(rows)} snapshots, need 5+)"
-                    )
+                    raise RuntimeError(f"Insufficient historical data for CVaR (only {len(rows)} snapshots, need 5+)")
                 if len(rows) < 30:
-                    logger.warning(
-                        f"Risk metrics using limited historical data: {len(rows)} snapshots (recommend 30+)"
-                    )
+                    logger.warning(f"Risk metrics using limited historical data: {len(rows)} snapshots (recommend 30+)")
 
                 values = [float(row[1]) for row in rows]
-                returns = [
-                    (values[i] - values[i - 1]) / values[i - 1]
-                    for i in range(1, len(values))
-                ]
+                returns = [(values[i] - values[i - 1]) / values[i - 1] for i in range(1, len(values))]
 
                 if not returns:
-                    logger.critical(
-                        "CVaR calculation failed: no valid returns computed from portfolio snapshots"
-                    )
-                    raise RuntimeError(
-                        "Cannot compute CVaR: no valid portfolio return data available"
-                    )
+                    logger.critical("CVaR calculation failed: no valid returns computed from portfolio snapshots")
+                    raise RuntimeError("Cannot compute CVaR: no valid portfolio return data available")
 
                 var_threshold = np.percentile(returns, (1 - confidence) * 100)
                 tail_losses = [r for r in returns if r <= var_threshold]
 
                 if not tail_losses:
-                    logger.critical(
-                        "CVaR calculation failed: no tail loss events in historical data"
-                    )
-                    raise RuntimeError(
-                        "Cannot compute CVaR: no tail loss events found in historical returns"
-                    )
+                    logger.critical("CVaR calculation failed: no tail loss events in historical data")
+                    raise RuntimeError("Cannot compute CVaR: no tail loss events found in historical returns")
 
                 cvar_pct = abs(np.mean(tail_losses)) * 100
                 current_value = values[-1]
@@ -209,12 +192,7 @@ class ValueAtRisk:
                     )
 
                 values = [float(row[1]) for row in rows]
-                returns = np.array(
-                    [
-                        (values[i] - values[i - 1]) / values[i - 1]
-                        for i in range(1, len(values))
-                    ]
-                )
+                returns = np.array([(values[i] - values[i - 1]) / values[i - 1] for i in range(1, len(values))])
 
                 worst_var = 0
                 worst_start_idx = 0
@@ -267,9 +245,7 @@ class ValueAtRisk:
                 )
                 portfolio_row = cur.fetchone()
                 if not portfolio_row or not portfolio_row[0]:
-                    logger.critical(
-                        "Beta exposure calculation failed: no portfolio snapshot available"
-                    )
+                    logger.critical("Beta exposure calculation failed: no portfolio snapshot available")
                     raise RuntimeError(
                         "Cannot compute beta exposure without portfolio snapshot. "
                         "Portfolio must have been reconciled at least once."
@@ -287,21 +263,18 @@ class ValueAtRisk:
                 if len(spy_rows) >= 2:
                     spy_prices = list(reversed([float(r[1]) for r in spy_rows]))
                     spy_returns = [
-                        (spy_prices[i] - spy_prices[i - 1]) / spy_prices[i - 1]
-                        for i in range(1, len(spy_prices))
+                        (spy_prices[i] - spy_prices[i - 1]) / spy_prices[i - 1] for i in range(1, len(spy_prices))
                     ]
 
                 spy_var = 0.0
                 if spy_returns:
                     spy_mean = sum(spy_returns) / len(spy_returns)
-                    spy_var = sum((r - spy_mean) ** 2 for r in spy_returns) / len(
-                        spy_returns
-                    )
+                    spy_var = sum((r - spy_mean) ** 2 for r in spy_returns) / len(spy_returns)
 
                 total_beta_exposure = 0.0
                 positions_list = []
 
-                for symbol, qty, cur_price, entry_price in positions:
+                for symbol, qty, cur_price, _entry_price in positions:
                     # CRITICAL: Do NOT use entry_price as fallback for current_price
                     if cur_price is None or float(cur_price) <= 0:
                         logger.warning(
@@ -309,9 +282,7 @@ class ValueAtRisk:
                         )
                         continue
                     position_value = float(qty) * float(cur_price)
-                    position_weight = (
-                        position_value / portfolio_value if portfolio_value > 0 else 0
-                    )
+                    position_weight = position_value / portfolio_value if portfolio_value > 0 else 0
 
                     # Compute 60-day beta via covariance with SPY
                     estimated_beta = 1.0
@@ -327,12 +298,9 @@ class ValueAtRisk:
                             )
                             stock_rows = cur.fetchall()
                             if len(stock_rows) >= 2:
-                                stock_prices = list(
-                                    reversed([float(r[0]) for r in stock_rows])
-                                )
+                                stock_prices = list(reversed([float(r[0]) for r in stock_rows]))
                                 stock_returns = [
-                                    (stock_prices[i] - stock_prices[i - 1])
-                                    / stock_prices[i - 1]
+                                    (stock_prices[i] - stock_prices[i - 1]) / stock_prices[i - 1]
                                     for i in range(1, len(stock_prices))
                                 ]
                                 n = min(len(stock_returns), len(spy_returns))
@@ -341,13 +309,7 @@ class ValueAtRisk:
                                     m_rets = spy_returns[-n:]
                                     s_mean = sum(s_rets) / n
                                     m_mean = sum(m_rets) / n
-                                    cov = (
-                                        sum(
-                                            (s_rets[i] - s_mean) * (m_rets[i] - m_mean)
-                                            for i in range(n)
-                                        )
-                                        / n
-                                    )
+                                    cov = sum((s_rets[i] - s_mean) * (m_rets[i] - m_mean) for i in range(n)) / n
                                     var = sum((r - m_mean) ** 2 for r in m_rets) / n
                                     if var > 0:
                                         estimated_beta = round(cov / var, 2)
@@ -424,9 +386,7 @@ class ValueAtRisk:
                 )
                 portfolio_row = cur.fetchone()
                 if not portfolio_row or not portfolio_row[0]:
-                    logger.critical(
-                        "Concentration report failed: no portfolio snapshot available"
-                    )
+                    logger.critical("Concentration report failed: no portfolio snapshot available")
                     raise RuntimeError(
                         "Cannot compute concentration without portfolio snapshot. "
                         "Portfolio must have been reconciled at least once."
@@ -438,7 +398,7 @@ class ValueAtRisk:
                 industry_exposure: dict[str, float] = {}
 
                 excluded_count = 0
-                for symbol, qty, cur_price, entry_price, sector, industry in positions:
+                for symbol, qty, cur_price, _entry_price, sector, industry in positions:
                     # CRITICAL: Do NOT use entry_price as fallback for current_price
                     if cur_price is None or float(cur_price) <= 0:
                         excluded_count += 1
@@ -448,11 +408,7 @@ class ValueAtRisk:
                         )
                         continue
                     position_value = float(qty) * float(cur_price)
-                    position_pct = (
-                        position_value / portfolio_value * 100
-                        if portfolio_value > 0
-                        else 0
-                    )
+                    position_pct = position_value / portfolio_value * 100 if portfolio_value > 0 else 0
 
                     top_holdings.append(
                         {
@@ -464,12 +420,8 @@ class ValueAtRisk:
 
                     sector = sector or "Unknown"
                     industry = industry or "Unknown"
-                    sector_exposure[sector] = (
-                        sector_exposure.get(sector, 0) + position_pct
-                    )
-                    industry_exposure[industry] = (
-                        industry_exposure.get(industry, 0) + position_pct
-                    )
+                    sector_exposure[sector] = sector_exposure.get(sector, 0) + position_pct
+                    industry_exposure[industry] = industry_exposure.get(industry, 0) + position_pct
 
                 top_5_pct = sum([h["pct_of_portfolio"] for h in top_holdings[:5]])
 
@@ -493,28 +445,19 @@ class ValueAtRisk:
                     "top_holdings": top_holdings[:5],
                     "top_5_concentration_pct": round(top_5_pct, 1),
                     "sector_exposure": {
-                        k: round(v, 1)
-                        for k, v in sorted(
-                            sector_exposure.items(), key=lambda x: x[1], reverse=True
-                        )
+                        k: round(v, 1) for k, v in sorted(sector_exposure.items(), key=lambda x: x[1], reverse=True)
                     },
                     "industry_exposure": {
                         k: round(v, 1)
-                        for k, v in sorted(
-                            industry_exposure.items(), key=lambda x: x[1], reverse=True
-                        )[:5]
+                        for k, v in sorted(industry_exposure.items(), key=lambda x: x[1], reverse=True)[:5]
                     },
-                    "diversification_status": (
-                        "CONCENTRATED" if top_5_pct > 30 else "DIVERSIFIED"
-                    ),
+                    "diversification_status": ("CONCENTRATED" if top_5_pct > 30 else "DIVERSIFIED"),
                 }
 
         except Exception as e:
             raise RuntimeError(f"Operation failed: {e}") from e
 
-    def generate_daily_risk_report(
-        self, report_date: date | None = None
-    ) -> dict[str, Any]:
+    def generate_daily_risk_report(self, report_date: date | None = None) -> dict[str, Any]:
         """Generate comprehensive daily risk report.
 
         Args:
@@ -537,26 +480,14 @@ class ValueAtRisk:
             beta = self.beta_exposure()
             concentration = self.concentration_report()
 
-            logger.debug(
-                f"  VaR: {var_metrics['var_pct']:.3f}%"
-                if var_metrics
-                else "  VaR: <unavailable>"
-            )
-            logger.debug(
-                f"  CVaR: {cvar_metrics['cvar_pct']:.3f}%"
-                if cvar_metrics
-                else "  CVaR: <unavailable>"
-            )
+            logger.debug(f"  VaR: {var_metrics['var_pct']:.3f}%" if var_metrics else "  VaR: <unavailable>")
+            logger.debug(f"  CVaR: {cvar_metrics['cvar_pct']:.3f}%" if cvar_metrics else "  CVaR: <unavailable>")
             logger.debug(
                 f"  Stressed VaR: {stressed_var['stressed_var_pct']:.3f}%"
                 if stressed_var
                 else "  Stressed VaR: <unavailable>"
             )
-            logger.debug(
-                f"  Beta: {beta['portfolio_beta']:.3f}"
-                if beta
-                else "  Beta: <unavailable>"
-            )
+            logger.debug(f"  Beta: {beta['portfolio_beta']:.3f}" if beta else "  Beta: <unavailable>")
             logger.debug(
                 f"  Top 5 Concentration: {concentration['top_5_concentration_pct']:.1f}%"
                 if concentration
@@ -597,20 +528,10 @@ class ValueAtRisk:
             try:
                 with DatabaseContext("write") as cur:
                     var_pct_val = float(var_metrics["var_pct"]) if var_metrics else None
-                    cvar_pct_val = (
-                        float(cvar_metrics["cvar_pct"]) if cvar_metrics else None
-                    )
-                    stressed_var_pct_val = (
-                        float(stressed_var["stressed_var_pct"])
-                        if stressed_var
-                        else None
-                    )
+                    cvar_pct_val = float(cvar_metrics["cvar_pct"]) if cvar_metrics else None
+                    stressed_var_pct_val = float(stressed_var["stressed_var_pct"]) if stressed_var else None
                     portfolio_beta_val = float(beta["portfolio_beta"]) if beta else None
-                    top_5_conc_val = (
-                        float(concentration["top_5_concentration_pct"])
-                        if concentration
-                        else None
-                    )
+                    top_5_conc_val = float(concentration["top_5_concentration_pct"]) if concentration else None
 
                     cur.execute(
                         """

@@ -19,6 +19,7 @@ from unittest import mock
 
 import pytest
 
+
 project_root = str(Path(__file__).parent.parent)
 sys.path.insert(0, project_root)
 
@@ -40,11 +41,10 @@ class TestExitHierarchy:
     def exit_engine(self, exit_engine_config):
         from algo.trading.exit_engine import ExitEngine
 
-        with mock.patch(
-            "algo.trading.executor.get_alpaca_credentials"
-        ) as mock_creds, mock.patch(
-            "algo.trading.executor.get_alpaca_base_url"
-        ) as mock_url:
+        with (
+            mock.patch("algo.trading.executor.get_alpaca_credentials") as mock_creds,
+            mock.patch("algo.trading.executor.get_alpaca_base_url") as mock_url,
+        ):
             mock_creds.return_value = {"key": "test_key", "secret": "test_secret"}
             mock_url.return_value = "https://api.alpaca.test"
             return ExitEngine(exit_engine_config)
@@ -55,7 +55,7 @@ class TestExitHierarchy:
         # Should exit at STOP, not T3
         current_price = Decimal("140.00")
         stop_loss_price = Decimal("145.00")
-        target_3_price = Decimal("172.50")
+        Decimal("172.50")
 
         # Stop loss is breached
         assert current_price <= stop_loss_price
@@ -66,7 +66,6 @@ class TestExitHierarchy:
         """Minervini break should execute before time/target exits."""
         # Scenario: Close < 21-EMA on volume > 50d avg
         # Should trigger exit even if not at stop or time limit
-        pass
 
     def test_time_based_exit_after_max_hold_days(self, exit_engine):
         """Position should exit if held beyond max_hold_days."""
@@ -81,7 +80,7 @@ class TestExitHierarchy:
         # Price progression: Entry → T1 → T2 → T3
         # Each should trigger in order
 
-        entry_price = Decimal("100.00")
+        Decimal("100.00")
         target_1 = Decimal("101.50")  # 1.5R
         target_2 = Decimal("103.00")  # 3R
         target_3 = Decimal("104.00")  # 4R
@@ -100,11 +99,10 @@ class TestStopLossExecution:
     def exit_engine(self, exit_engine_config):
         from algo.trading.exit_engine import ExitEngine
 
-        with mock.patch(
-            "algo.trading.executor.get_alpaca_credentials"
-        ) as mock_creds, mock.patch(
-            "algo.trading.executor.get_alpaca_base_url"
-        ) as mock_url:
+        with (
+            mock.patch("algo.trading.executor.get_alpaca_credentials") as mock_creds,
+            mock.patch("algo.trading.executor.get_alpaca_base_url") as mock_url,
+        ):
             mock_creds.return_value = {"key": "test_key", "secret": "test_secret"}
             mock_url.return_value = "https://api.alpaca.test"
             return ExitEngine(exit_engine_config)
@@ -140,7 +138,7 @@ class TestStopLossExecution:
         initial_stop = Decimal("95.00")
 
         # After T1 hit at 101.5R
-        target_1_price = Decimal("101.50")
+        Decimal("101.50")
         new_stop_after_t1 = entry_price  # Raised to breakeven
 
         assert new_stop_after_t1 > initial_stop
@@ -157,11 +155,10 @@ class TestTargetExits:
     def exit_engine(self, exit_engine_config):
         from algo.trading.exit_engine import ExitEngine
 
-        with mock.patch(
-            "algo.trading.executor.get_alpaca_credentials"
-        ) as mock_creds, mock.patch(
-            "algo.trading.executor.get_alpaca_base_url"
-        ) as mock_url:
+        with (
+            mock.patch("algo.trading.executor.get_alpaca_credentials") as mock_creds,
+            mock.patch("algo.trading.executor.get_alpaca_base_url") as mock_url,
+        ):
             mock_creds.return_value = {"key": "test_key", "secret": "test_secret"}
             mock_url.return_value = "https://api.alpaca.test"
             return ExitEngine(exit_engine_config)
@@ -184,7 +181,6 @@ class TestTargetExits:
 
     def test_target_3_exit_final_25_percent(self):
         """T3 hit should exit final 25% of position."""
-        remaining_after_t2 = 25
         remaining_after_t3 = 0
 
         assert remaining_after_t3 == 0
@@ -193,7 +189,6 @@ class TestTargetExits:
         """Target should only trigger on pullback, not touched."""
         # Scenario: Price touches T1 but immediately reverses
         # Should NOT exit on touch, only if pullback is detected
-        pass
 
     def test_target_levels_from_entry(self):
         """Targets should be calculated as multiples of risk."""
@@ -203,8 +198,8 @@ class TestTargetExits:
 
         # Targets should be:
         target_1 = entry + (risk_per_share * 1.5)  # $107.50 = 1.5R
-        target_2 = entry + (risk_per_share * 3)    # $115.00 = 3R
-        target_3 = entry + (risk_per_share * 4)    # $120.00 = 4R
+        target_2 = entry + (risk_per_share * 3)  # $115.00 = 3R
+        target_3 = entry + (risk_per_share * 4)  # $120.00 = 4R
 
         assert target_1 == Decimal("107.50")
         assert target_2 == Decimal("115.00")
@@ -222,11 +217,10 @@ class TestMinerviniBreak:
     def exit_engine(self, exit_engine_config):
         from algo.trading.exit_engine import ExitEngine
 
-        with mock.patch(
-            "algo.trading.executor.get_alpaca_credentials"
-        ) as mock_creds, mock.patch(
-            "algo.trading.executor.get_alpaca_base_url"
-        ) as mock_url:
+        with (
+            mock.patch("algo.trading.executor.get_alpaca_credentials") as mock_creds,
+            mock.patch("algo.trading.executor.get_alpaca_base_url") as mock_url,
+        ):
             mock_creds.return_value = {"key": "test_key", "secret": "test_secret"}
             mock_url.return_value = "https://api.alpaca.test"
             return ExitEngine(exit_engine_config)
@@ -253,9 +247,7 @@ class TestMinerviniBreak:
         volume_50d_avg = 1000000
         current_volume = 1500000
 
-        is_minervini_break = (close_price < ema_21) and (
-            current_volume > volume_50d_avg
-        )
+        is_minervini_break = (close_price < ema_21) and (current_volume > volume_50d_avg)
 
         assert is_minervini_break is True
 
@@ -266,9 +258,7 @@ class TestMinerviniBreak:
         volume_50d_avg = 1000000
         current_volume = 500000  # Below average
 
-        is_minervini_break = (close_price < ema_21) and (
-            current_volume > volume_50d_avg
-        )
+        is_minervini_break = (close_price < ema_21) and (current_volume > volume_50d_avg)
 
         assert is_minervini_break is False
 
@@ -330,7 +320,6 @@ class TestTDSequential:
         """TD Sequential 9-count should trigger 50% exit."""
         # After 9 consecutive closes lower than 4 bars ago
         td_count = 9
-        exit_percent = 0.50
 
         assert td_count == 9
 
@@ -338,7 +327,6 @@ class TestTDSequential:
         """TD Sequential 13-count should trigger 100% exit."""
         # After 13 consecutive closes lower
         td_count = 13
-        exit_percent = 1.00
 
         assert td_count == 13
 
@@ -357,7 +345,6 @@ class TestFirstRedDay:
         """First big down day after 2.5R+ gain should exit 50%."""
         # Scenario: Held 10 days, up 2.6R, then -1.5% down on heavy volume
         # Should exit 50%
-        pass
 
     def test_red_day_requires_volume(self):
         """Red day should be on heavy volume to count."""
@@ -373,7 +360,6 @@ class TestDistributionTracking:
     def test_distribution_day_definition(self):
         """Distribution day: down day, close in lower half, volume > 50d avg."""
         # S&P down, stock down, closes in lower half, volume heavy
-        pass
 
     def test_distribution_days_expire_after_25_days(self):
         """Distribution days should roll off after 25 calendar days."""
@@ -394,11 +380,10 @@ class TestPositionMonitoring:
     def exit_engine(self, exit_engine_config):
         from algo.trading.exit_engine import ExitEngine
 
-        with mock.patch(
-            "algo.trading.executor.get_alpaca_credentials"
-        ) as mock_creds, mock.patch(
-            "algo.trading.executor.get_alpaca_base_url"
-        ) as mock_url:
+        with (
+            mock.patch("algo.trading.executor.get_alpaca_credentials") as mock_creds,
+            mock.patch("algo.trading.executor.get_alpaca_base_url") as mock_url,
+        ):
             mock_creds.return_value = {"key": "test_key", "secret": "test_secret"}
             mock_url.return_value = "https://api.alpaca.test"
             return ExitEngine(exit_engine_config)

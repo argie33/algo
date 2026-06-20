@@ -95,12 +95,8 @@ class TestJWTFlowIntegration:
         sig = inspect.signature(api_router.route_request)
         params = list(sig.parameters.keys())
 
-        assert (
-            "jwt_claims" in params
-        ), "router.route_request must accept jwt_claims parameter"
-        assert (
-            params[-1] == "jwt_claims"
-        ), "jwt_claims should be last parameter for optional passing"
+        assert "jwt_claims" in params, "router.route_request must accept jwt_claims parameter"
+        assert params[-1] == "jwt_claims", "jwt_claims should be last parameter for optional passing"
 
     def test_handler_receives_claims(self):
         """Verify handler.handle() receives jwt_claims parameter."""
@@ -135,9 +131,7 @@ class TestJWTFlowIntegration:
         is_authorized = _check_admin_access(trader_claims)
 
         # Trader should NOT be authorized
-        assert (
-            is_authorized is False
-        ), "Trader should be denied access to admin endpoints"
+        assert is_authorized is False, "Trader should be denied access to admin endpoints"
 
     def test_public_endpoints_allow_all_authenticated(self):
         """Verify public endpoints allow all authenticated users.
@@ -167,9 +161,7 @@ class TestJWTFlowIntegration:
         # Admin can access everything
         assert admin_can_access is True, "Admin should have access"
         # Trader can't access admin endpoints (but CAN access public)
-        assert (
-            trader_for_public is True
-        ), "Trader blocked from admin endpoints (but public endpoints not gated)"
+        assert trader_for_public is True, "Trader blocked from admin endpoints (but public endpoints not gated)"
 
 
 class TestCognitoConfiguration:
@@ -195,9 +187,7 @@ class TestCognitoConfiguration:
         # Code checks for 'admin' group specifically
         code_admin_group = "admin"
 
-        assert (
-            code_admin_group in setup_groups
-        ), "Code checks for 'admin' group that setup script creates"
+        assert code_admin_group in setup_groups, "Code checks for 'admin' group that setup script creates"
 
 
 if __name__ == "__main__":

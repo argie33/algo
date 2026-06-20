@@ -95,18 +95,12 @@ def tier_for_exposure(exposure_pct):
     higher (more aggressive) tier, matching the >= thresholds in algo_market_exposure.py.
     NaN or None defaults to correction (fail-closed).
     """
-    if exposure_pct is None or (
-        isinstance(exposure_pct, float) and math.isnan(exposure_pct)
-    ):
+    if exposure_pct is None or (isinstance(exposure_pct, float) and math.isnan(exposure_pct)):
         return EXPOSURE_TIERS[-1]
 
     for i, tier in enumerate(EXPOSURE_TIERS):
         is_last = i == len(EXPOSURE_TIERS) - 1
-        upper_ok = (
-            exposure_pct <= tier["max_pct"]
-            if is_last
-            else exposure_pct < tier["max_pct"]
-        )
+        upper_ok = exposure_pct <= tier["max_pct"] if is_last else exposure_pct < tier["max_pct"]
         if tier["min_pct"] <= exposure_pct and upper_ok:
             return tier
 
@@ -192,16 +186,16 @@ class ExposurePolicy:
             symbol,
             entry_price,
             init_stop,
-            t1_price,
-            t2_price,
-            t3_price,
-            trade_date,
+            _t1_price,
+            _t2_price,
+            _t3_price,
+            _trade_date,
             position_id,
-            qty,
+            _qty,
             target_hits,
             cur_stop,
             cur_price,
-            pnl_pct,
+            _pnl_pct,
         ) = row
 
         entry_price = float(entry_price)
@@ -210,27 +204,21 @@ class ExposurePolicy:
 
         # CRITICAL: target_hits configuration must be present. Do not mask missing config with fallback to 0.
         if target_hits is None:
-            logger.warning(
-                f"SKIP {symbol}: target_hits configuration missing (NULL). Cannot evaluate exposure policy."
-            )
+            logger.warning(f"SKIP {symbol}: target_hits configuration missing (NULL). Cannot evaluate exposure policy.")
             return None
         target_hits = int(target_hits)
 
         # CRITICAL: Do NOT use entry_price as fallback for cur_price. This distorts risk evaluation.
         # cur_price must be valid; if missing, skip this position.
         if not cur_price or float(cur_price) <= 0:
-            logger.warning(
-                f"SKIP {symbol}: No valid current price in algo_positions. Cannot evaluate exposure policy."
-            )
+            logger.warning(f"SKIP {symbol}: No valid current price in algo_positions. Cannot evaluate exposure policy.")
             return None
 
         cur_price = float(cur_price)
 
         # R-multiple
         risk_per_share = entry_price - init_stop
-        r_mult = (
-            ((cur_price - entry_price) / risk_per_share) if risk_per_share > 0 else 0
-        )
+        r_mult = ((cur_price - entry_price) / risk_per_share) if risk_per_share > 0 else 0
 
         # 1. CORRECTION TIER + force_exit_negative_r: cut losers
         if tier.get("force_exit_negative_r") and r_mult < 0:
@@ -278,8 +266,7 @@ class ExposurePolicy:
                     "position_id": position_id,
                     "action": "tighten_stop",
                     "reason": (
-                        f"Tier '{tier['name']}' tighten: R={r_mult:.2f} >= "
-                        f"{tier['tighten_winners_at_r']}R, raise stop"
+                        f"Tier '{tier['name']}' tighten: R={r_mult:.2f} >= {tier['tighten_winners_at_r']}R, raise stop"
                     ),
                     "exit_fraction": 0.0,
                     "new_stop": round(tightened, 2),
@@ -337,10 +324,7 @@ if __name__ == "__main__":
     actions = p.review_existing_positions()
     logger.info(f"\n\nPosition Review: {len(actions)} actions recommended")
     for a in actions:
-        logger.info(
-            f"  {a['symbol']:6s} → {a['action'].upper():15s}  R={a.get('r_multiple', 0):+.2f}  "
-            f"{a['reason']}"
-        )
+        logger.info(f"  {a['symbol']:6s} → {a['action'].upper():15s}  R={a.get('r_multiple', 0):+.2f}  {a['reason']}")
         if a.get("new_stop"):
             logger.info(f"            new_stop=${a['new_stop']:.2f}")
 
@@ -348,9 +332,7 @@ if __name__ == "__main__":
     logger.info("ALL TIER DEFINITIONS")
     logger.info("=" * 80)
     for tier in EXPOSURE_TIERS:
-        logger.info(
-            f"\n{tier['name'].upper():20s} {tier['min_pct']:>3}-{tier['max_pct']:>3}%"
-        )
+        logger.info(f"\n{tier['name'].upper():20s} {tier['min_pct']:>3}-{tier['max_pct']:>3}%")
         logger.info(f"  {tier['description']}")
         logger.info(
             f"  risk_mult={tier['risk_multiplier']}, max_new/day={tier['max_new_positions_today']}, "

@@ -183,7 +183,10 @@ class CredentialManager:
         try:
             client = self._get_secrets_client()
             if not client:
-                return None
+                raise RuntimeError(
+                    "Secrets Manager client is unavailable. "
+                    "Cannot fetch credentials — credentials must be fetched fresh from Secrets Manager every time."
+                )
 
             # Try to get the secret by name
             response = client.get_secret_value(SecretId=secret_name)
@@ -370,6 +373,9 @@ class CredentialManager:
         Raises ValueError if credentials not found or if Secrets Manager is unreachable.
         """
         # Step 1: Try user-specific secret if user_id provided
+        # CRITICAL FIX: If user-specific secret exists but is invalid, FAIL HARD.
+        # Silently falling back to shared credentials after finding a user secret would
+        # cause trades to execute under the wrong account.
         if user_id and self._is_aws:
             try:
                 client = self._get_secrets_client()
@@ -393,25 +399,28 @@ class CredentialManager:
                             )
                             return {"key": key, "secret": secret}
                         else:
+                            # User-specific secret exists but is invalid — FAIL HARD
                             raise ValueError(
-                                f"User secret '{user_secret_id}' exists but missing api_key/APCA_API_KEY_ID or api_secret/APCA_API_SECRET_KEY"
+                                f"[CREDENTIALS_CRITICAL] User secret '{user_secret_id}' exists but missing or invalid credentials. "
+                                f"Cannot fall back to shared credentials (would trade under wrong account). "
+                                f"Verify user secret contains api_key/APCA_API_KEY_ID and api_secret/APCA_API_SECRET_KEY."
                             )
                     except client.exceptions.ResourceNotFoundException:
                         logger.debug(
                             f"[CREDENTIALS] No user-specific Alpaca secret for {user_id}, falling back to shared"
                         )
-                    except ValueError as e:
-                        logger.warning(
-                            f"[CREDENTIALS] User-specific Alpaca secret validation failed for {user_id}: {e}"
-                        )
+                    except ValueError:
+                        # Re-raise ValueError (validation errors) without catching
+                        raise
                     except Exception as e:
-                        logger.warning(
-                            f"[CREDENTIALS] Could not fetch user-specific Alpaca credentials for {user_id}: {e}"
-                        )
-            except Exception as e:
-                logger.warning(
-                    f"[CREDENTIALS] Error trying user-specific Alpaca secret: {e}"
-                )
+                        # Convert other exceptions to ValueError to trigger fail-hard below
+                        raise ValueError(
+                            f"[CREDENTIALS_CRITICAL] Could not fetch user-specific Alpaca credentials for {user_id}: {e}. "
+                            f"Cannot fall back to shared credentials (would trade under wrong account)."
+                        ) from e
+            except ValueError:
+                # Re-raise ValueError so it triggers the fail-hard logic below
+                raise
 
         # Step 2: Try ALGO_SECRETS_ARN (Terraform-managed secret: algo-algo-secrets-dev)
         # LIVE MODE EXCEPTION: ALGO_SECRETS_ARN always contains PAPER keys (hardcoded in deploy

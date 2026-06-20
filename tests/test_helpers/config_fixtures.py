@@ -12,7 +12,7 @@ from typing import Any, Dict
 
 
 # Base configuration with all required keys
-BASE_CONFIG: Dict[str, Any] = {
+BASE_CONFIG: dict[str, Any] = {
     # Risk Management
     "base_risk_pct": 0.75,
     "max_position_size_pct": 8.0,
@@ -201,7 +201,7 @@ BASE_CONFIG: Dict[str, Any] = {
 }
 
 
-def bull_market_config() -> Dict[str, Any]:
+def bull_market_config() -> dict[str, Any]:
     """Configuration for aggressive bull market trading (high confidence, high risk).
 
     Conditions:
@@ -227,7 +227,7 @@ def bull_market_config() -> Dict[str, Any]:
     return config
 
 
-def correction_config() -> Dict[str, Any]:
+def correction_config() -> dict[str, Any]:
     """Configuration for correction/consolidation (cautious, balanced).
 
     Conditions:
@@ -252,7 +252,7 @@ def correction_config() -> Dict[str, Any]:
     return config
 
 
-def crisis_config() -> Dict[str, Any]:
+def crisis_config() -> dict[str, Any]:
     """Configuration for crisis/bear market (very cautious, capital preservation).
 
     Conditions:
@@ -281,7 +281,7 @@ def crisis_config() -> Dict[str, Any]:
     return config
 
 
-def minimal_config() -> Dict[str, Any]:
+def minimal_config() -> dict[str, Any]:
     """Minimal configuration with only essential keys for unit tests."""
     return {
         "base_risk_pct": 0.75,
@@ -294,7 +294,7 @@ def minimal_config() -> Dict[str, Any]:
     }
 
 
-def strict_risk_config() -> Dict[str, Any]:
+def strict_risk_config() -> dict[str, Any]:
     """Configuration with very tight risk limits for testing circuit breakers."""
     config = deepcopy(BASE_CONFIG)
     config.update(
@@ -311,7 +311,7 @@ def strict_risk_config() -> Dict[str, Any]:
     return config
 
 
-def relaxed_risk_config() -> Dict[str, Any]:
+def relaxed_risk_config() -> dict[str, Any]:
     """Configuration with relaxed risk limits for testing edge cases."""
     config = deepcopy(BASE_CONFIG)
     config.update(
@@ -328,7 +328,7 @@ def relaxed_risk_config() -> Dict[str, Any]:
     return config
 
 
-def sandbox_config() -> Dict[str, Any]:
+def sandbox_config() -> dict[str, Any]:
     """Configuration for sandbox/testing with no actual trading."""
     config = deepcopy(BASE_CONFIG)
     config.update(
@@ -342,7 +342,7 @@ def sandbox_config() -> Dict[str, Any]:
     return config
 
 
-def merge_configs(base: Dict[str, Any], overrides: Dict[str, Any]) -> Dict[str, Any]:
+def merge_configs(base: dict[str, Any], overrides: dict[str, Any]) -> dict[str, Any]:
     """Merge configuration overrides into a base config.
 
     Args:
@@ -357,7 +357,7 @@ def merge_configs(base: Dict[str, Any], overrides: Dict[str, Any]) -> Dict[str, 
     return config
 
 
-def validate_config(config: Dict[str, Any], required_keys: list = None) -> bool:
+def validate_config(config: dict[str, Any], required_keys: list | None = None) -> bool:
     """Validate that config has all required keys.
 
     Args:

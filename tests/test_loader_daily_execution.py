@@ -48,7 +48,7 @@ class TestCriticalLoaderDailyExecution:
         "sector_ranking",
     ]
 
-    def _get_loader_status(self, table_name: str) -> Optional[Dict]:
+    def _get_loader_status(self, table_name: str) -> dict | None:
         """Get current status of a loader from data_loader_status table."""
         try:
             with DatabaseContext("read") as cur:
@@ -59,7 +59,7 @@ class TestCriticalLoaderDailyExecution:
                 row = cur.fetchone()
                 if row:
                     cols = [desc[0] for desc in cur.description]
-                    return dict(zip(cols, row))
+                    return dict(zip(cols, row, strict=False))
                 return None
         except Exception as e:
             raise RuntimeError(f"Operation failed: {e}") from e
@@ -109,9 +109,7 @@ class TestCriticalLoaderDailyExecution:
             last_updated = status.get("last_updated")
             if last_updated:
                 if isinstance(last_updated, str):
-                    last_updated = datetime.fromisoformat(
-                        last_updated.replace("Z", "+00:00")
-                    )
+                    last_updated = datetime.fromisoformat(last_updated.replace("Z", "+00:00"))
 
                 # Ensure timezone-aware datetime in Eastern TZ for comparison
                 if last_updated.tzinfo is None:

@@ -40,9 +40,7 @@ class TestTradePreviewRequest:
 
     def test_valid_full_request(self):
         """Valid request with all fields."""
-        req = TradePreviewRequest(
-            symbol="MSFT", entry_price=300.00, stop_loss_price=295.00
-        )
+        req = TradePreviewRequest(symbol="MSFT", entry_price=300.00, stop_loss_price=295.00)
         assert req.symbol == "MSFT"
         assert req.entry_price == 300.00
         assert req.stop_loss_price == 295.00
@@ -83,18 +81,14 @@ class TestTradePreviewRequest:
     def test_stop_loss_must_be_below_entry(self):
         """Stop loss price must be below entry price."""
         with pytest.raises(ValidationError) as exc_info:
-            TradePreviewRequest(
-                symbol="AAPL", entry_price=150.00, stop_loss_price=150.00
-            )
+            TradePreviewRequest(symbol="AAPL", entry_price=150.00, stop_loss_price=150.00)
         errors = exc_info.value.errors()
         assert any(err["loc"][0] == "stop_loss_price" for err in errors)
 
     def test_stop_loss_above_entry_rejected(self):
         """Stop loss price above entry price is rejected."""
         with pytest.raises(ValidationError) as exc_info:
-            TradePreviewRequest(
-                symbol="AAPL", entry_price=150.00, stop_loss_price=155.00
-            )
+            TradePreviewRequest(symbol="AAPL", entry_price=150.00, stop_loss_price=155.00)
         errors = exc_info.value.errors()
         assert any(err["loc"][0] == "stop_loss_price" for err in errors)
 
@@ -150,9 +144,7 @@ class TestPreTradeImpactRequest:
 
     def test_valid_with_all_optional_fields(self):
         """Valid request with all optional fields."""
-        req = PreTradeImpactRequest(
-            symbol="AAPL", entry_price=150.00, position_dollars=10000, position_pct=5.0
-        )
+        req = PreTradeImpactRequest(symbol="AAPL", entry_price=150.00, position_dollars=10000, position_pct=5.0)
         assert req.symbol == "AAPL"
         assert req.entry_price == 150.00
         assert req.position_dollars == 10000
@@ -211,9 +203,7 @@ class TestContactSubmissionRequest:
 
     def test_valid_minimal_request(self):
         """Valid request with required fields only."""
-        req = ContactSubmissionRequest(
-            name="John Doe", email="john@example.com", message="This is a test message"
-        )
+        req = ContactSubmissionRequest(name="John Doe", email="john@example.com", message="This is a test message")
         assert req.name == "John Doe"
         assert req.email == "john@example.com"
         assert req.message == "This is a test message"
@@ -237,9 +227,7 @@ class TestContactSubmissionRequest:
 
     def test_name_whitespace_stripped(self):
         """Name whitespace is stripped."""
-        req = ContactSubmissionRequest(
-            name="  John Doe  ", email="john@example.com", message="Test"
-        )
+        req = ContactSubmissionRequest(name="  John Doe  ", email="john@example.com", message="Test")
         assert req.name == "John Doe"
 
     def test_missing_name_rejected(self):
@@ -266,9 +254,7 @@ class TestContactSubmissionRequest:
     def test_invalid_email_rejected(self):
         """Invalid email is rejected."""
         with pytest.raises(ValidationError) as exc_info:
-            ContactSubmissionRequest(
-                name="John Doe", email="invalid-email", message="Test"
-            )
+            ContactSubmissionRequest(name="John Doe", email="invalid-email", message="Test")
         errors = exc_info.value.errors()
         assert any(err["loc"][0] == "email" for err in errors)
 
@@ -282,9 +268,7 @@ class TestContactSubmissionRequest:
     def test_empty_message_rejected(self):
         """Empty message is rejected."""
         with pytest.raises(ValidationError) as exc_info:
-            ContactSubmissionRequest(
-                name="John Doe", email="john@example.com", message=""
-            )
+            ContactSubmissionRequest(name="John Doe", email="john@example.com", message="")
         errors = exc_info.value.errors()
         assert any(err["loc"][0] == "message" for err in errors)
 
@@ -299,9 +283,7 @@ class TestContactSubmissionRequest:
         ]
         for payload in xss_payloads:
             with pytest.raises(ValidationError):
-                ContactSubmissionRequest(
-                    name="John Doe", email="john@example.com", message=payload
-                )
+                ContactSubmissionRequest(name="John Doe", email="john@example.com", message=payload)
 
     def test_xss_in_name_rejected(self):
         """XSS attempts in name are rejected."""
@@ -331,9 +313,7 @@ class TestContactSubmissionRequest:
             "How do I write queries like SELECT * FROM table?",
         ]
         for message in sql_like_messages:
-            req = ContactSubmissionRequest(
-                name="John Doe", email="john@example.com", message=message
-            )
+            req = ContactSubmissionRequest(name="John Doe", email="john@example.com", message=message)
             assert req.message == message
 
     def test_valid_phone_formats(self):
@@ -346,46 +326,34 @@ class TestContactSubmissionRequest:
             "+1 800 555 0123",
         ]
         for phone in valid_phones:
-            req = ContactSubmissionRequest(
-                name="John Doe", email="john@example.com", message="Test", phone=phone
-            )
+            req = ContactSubmissionRequest(name="John Doe", email="john@example.com", message="Test", phone=phone)
             assert req.phone == phone
 
     def test_invalid_phone_rejected(self):
         """Invalid phone format is rejected."""
         with pytest.raises(ValidationError) as exc_info:
-            ContactSubmissionRequest(
-                name="John Doe", email="john@example.com", message="Test", phone="123"
-            )
+            ContactSubmissionRequest(name="John Doe", email="john@example.com", message="Test", phone="123")
         errors = exc_info.value.errors()
         assert any(err["loc"][0] == "phone" for err in errors)
 
     def test_name_max_length(self):
         """Name respects max length of 100 chars."""
         with pytest.raises(ValidationError):
-            ContactSubmissionRequest(
-                name="x" * 101, email="john@example.com", message="Test"
-            )
+            ContactSubmissionRequest(name="x" * 101, email="john@example.com", message="Test")
 
     def test_message_max_length(self):
         """Message respects max length of 5000 chars."""
         with pytest.raises(ValidationError):
-            ContactSubmissionRequest(
-                name="John Doe", email="john@example.com", message="x" * 5001
-            )
+            ContactSubmissionRequest(name="John Doe", email="john@example.com", message="x" * 5001)
 
     def test_subject_optional(self):
         """Subject is optional."""
-        req = ContactSubmissionRequest(
-            name="John Doe", email="john@example.com", message="Test"
-        )
+        req = ContactSubmissionRequest(name="John Doe", email="john@example.com", message="Test")
         assert req.subject is None
 
     def test_phone_optional(self):
         """Phone is optional."""
-        req = ContactSubmissionRequest(
-            name="John Doe", email="john@example.com", message="Test"
-        )
+        req = ContactSubmissionRequest(name="John Doe", email="john@example.com", message="Test")
         assert req.phone is None
 
 
@@ -481,9 +449,7 @@ class TestManualTradeRequest:
 
     def test_trade_type_normalized_to_lowercase(self):
         """Trade type is normalized to lowercase."""
-        req = ManualTradeRequest(
-            symbol="AAPL", trade_type="BUY", quantity=100, price=150.00
-        )
+        req = ManualTradeRequest(symbol="AAPL", trade_type="BUY", quantity=100, price=150.00)
         assert req.trade_type == "buy"
 
     def test_missing_symbol_rejected(self):
@@ -538,51 +504,39 @@ class TestManualTradeRequest:
     def test_invalid_trade_type_rejected(self):
         """Invalid trade type is rejected."""
         with pytest.raises(ValidationError) as exc_info:
-            ManualTradeRequest(
-                symbol="AAPL", trade_type="invalid", quantity=100, price=150.00
-            )
+            ManualTradeRequest(symbol="AAPL", trade_type="invalid", quantity=100, price=150.00)
         errors = exc_info.value.errors()
         assert any(err["loc"][0] == "trade_type" for err in errors)
 
     def test_invalid_execution_date_format_rejected(self):
         """Invalid execution date format is rejected."""
         with pytest.raises(ValidationError) as exc_info:
-            ManualTradeRequest(
-                symbol="AAPL", quantity=100, price=150.00, execution_date="06-14-2026"
-            )
+            ManualTradeRequest(symbol="AAPL", quantity=100, price=150.00, execution_date="06-14-2026")
         errors = exc_info.value.errors()
         assert any(err["loc"][0] == "execution_date" for err in errors)
 
     def test_valid_execution_date_format(self):
         """Valid YYYY-MM-DD execution date is accepted."""
-        req = ManualTradeRequest(
-            symbol="AAPL", quantity=100, price=150.00, execution_date="2026-06-14"
-        )
+        req = ManualTradeRequest(symbol="AAPL", quantity=100, price=150.00, execution_date="2026-06-14")
         assert req.execution_date == "2026-06-14"
 
     def test_zero_stop_loss_rejected(self):
         """Zero stop loss is rejected."""
         with pytest.raises(ValidationError) as exc_info:
-            ManualTradeRequest(
-                symbol="AAPL", quantity=100, price=150.00, stop_loss_price=0
-            )
+            ManualTradeRequest(symbol="AAPL", quantity=100, price=150.00, stop_loss_price=0)
         errors = exc_info.value.errors()
         assert any(err["loc"][0] == "stop_loss_price" for err in errors)
 
     def test_negative_stop_loss_rejected(self):
         """Negative stop loss is rejected."""
         with pytest.raises(ValidationError) as exc_info:
-            ManualTradeRequest(
-                symbol="AAPL", quantity=100, price=150.00, stop_loss_price=-10.00
-            )
+            ManualTradeRequest(symbol="AAPL", quantity=100, price=150.00, stop_loss_price=-10.00)
         errors = exc_info.value.errors()
         assert any(err["loc"][0] == "stop_loss_price" for err in errors)
 
     def test_positive_stop_loss_accepted(self):
         """Positive stop loss is accepted."""
-        req = ManualTradeRequest(
-            symbol="AAPL", quantity=100, price=150.00, stop_loss_price=145.00
-        )
+        req = ManualTradeRequest(symbol="AAPL", quantity=100, price=150.00, stop_loss_price=145.00)
         assert req.stop_loss_price == 145.00
 
     def test_stop_loss_can_be_above_price(self):

@@ -6,9 +6,10 @@ from collections.abc import Callable
 from datetime import date as _date
 from typing import Any
 
+import psycopg2
+
 from algo.orchestrator.phase_result import PhaseResult
 from algo.reporting import AlertManager
-import psycopg2
 
 
 logger = logging.getLogger(__name__)
@@ -62,17 +63,14 @@ def run(
                 "3a",
                 "reconciliation",
                 "success",
-                f'{result.get("positions", 0)} positions verified',
+                f"{result.get('positions', 0)} positions verified",
             )
-        elif (
-            result.get("reason") == "Alpaca unavailable"
-            or "unavailable" in result.get("reason", "").lower()
-        ):
+        elif result.get("reason") == "Alpaca unavailable" or "unavailable" in result.get("reason", "").lower():
             log_phase_result_fn(
                 "3a",
                 "reconciliation",
                 "success",
-                f'Skipped: {result.get("reason", "alpaca unavailable")}',
+                f"Skipped: {result.get('reason', 'alpaca unavailable')}",
             )
         else:
             log_phase_result_fn(
@@ -82,9 +80,9 @@ def run(
                 result.get("reason", "reconciliation failed"),
             )
 
-        return PhaseResult(3, "reconciliation", "ok", result, False, None)
+        return PhaseResult("3a", "reconciliation", "ok", result, False, None)
 
     except (psycopg2.DatabaseError, psycopg2.OperationalError) as e:
         traceback.print_exc()
-        log_phase_result_fn(3, "reconciliation", "error", str(e))
-        return PhaseResult(3, "reconciliation", "ok", {}, False, str(e))
+        log_phase_result_fn("3a", "reconciliation", "error", str(e))
+        return PhaseResult("3a", "reconciliation", "ok", {}, False, str(e))

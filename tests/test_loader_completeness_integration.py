@@ -108,15 +108,14 @@ class TestLoaderCompletenessValidation:
         result = validator.validate(actual_symbols_loaded=4000)
 
         assert result.is_complete is False
-        assert any("manual" in rec.lower() or "investigation" in rec.lower()
-                   for rec in result.recommendations)
+        assert any("manual" in rec.lower() or "investigation" in rec.lower() for rec in result.recommendations)
 
     def test_custom_completion_threshold(self):
         """Test that custom completion thresholds are respected."""
         validator = LoaderCompletenessValidator(
             "test_loader",
             symbol_count=5000,
-            min_completion_pct=90.0  # Lower threshold for testing
+            min_completion_pct=90.0,  # Lower threshold for testing
         )
 
         # 91% completion
@@ -129,15 +128,14 @@ class TestLoaderCompletenessValidation:
         validator = LoaderCompletenessValidator("test_loader", symbol_count=5000)
 
         # 90% completion with 60 second execution time
-        result = validator.validate(
-            actual_symbols_loaded=4500,
-            execution_duration_sec=60.0
-        )
+        result = validator.validate(actual_symbols_loaded=4500, execution_duration_sec=60.0)
 
         assert result.is_complete is False
         # Check that time info is in recommendations
-        assert any("execution" in rec.lower() or "time" in rec.lower() or "min" in rec.lower()
-                   for rec in result.recommendations)
+        assert any(
+            "execution" in rec.lower() or "time" in rec.lower() or "min" in rec.lower()
+            for rec in result.recommendations
+        )
 
 
 class TestSLAMonitoring:

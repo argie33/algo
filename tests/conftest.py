@@ -1,4 +1,4 @@
-﻿#!/usr/bin/env python3
+#!/usr/bin/env python3
 """Pytest configuration with environment setup for credential validation."""
 
 import os
@@ -6,6 +6,7 @@ import sys
 from pathlib import Path
 
 import pytest
+
 
 project_root = str(Path(__file__).parent.parent)
 sys.path.insert(0, project_root)
@@ -28,5 +29,6 @@ os.environ["AWS_REGION"] = "us-east-1"
 def mock_db():
     """Mock database context."""
     from unittest import mock
+
     with mock.patch("utils.db.DatabaseContext") as m:
         yield m

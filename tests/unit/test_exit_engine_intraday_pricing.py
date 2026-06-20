@@ -29,7 +29,6 @@ class TestAlpacaQuoteFetching:
             patch("algo.trading.exit_engine.get_alpaca_credentials") as mock_creds,
             patch("algo.trading.exit_engine.requests.get") as mock_get,
         ):
-
             # Setup credentials
             mock_creds.return_value = {"key": "test_key", "secret": "test_secret"}
 
@@ -60,7 +59,6 @@ class TestAlpacaQuoteFetching:
             patch("algo.trading.exit_engine.get_alpaca_credentials") as mock_creds,
             patch("algo.trading.exit_engine.requests.get") as mock_get,
         ):
-
             mock_creds.return_value = {"key": "test_key", "secret": "test_secret"}
 
             mock_response = Mock()
@@ -94,7 +92,6 @@ class TestAlpacaQuoteFetching:
             patch("algo.trading.exit_engine.get_alpaca_credentials") as mock_creds,
             patch("algo.trading.exit_engine.requests.get") as mock_get,
         ):
-
             mock_creds.return_value = {"key": "test_key", "secret": "test_secret"}
 
             # Simulate API error
@@ -113,7 +110,6 @@ class TestAlpacaQuoteFetching:
             patch("algo.trading.exit_engine.get_alpaca_credentials") as mock_creds,
             patch("algo.trading.exit_engine.requests.get") as mock_get,
         ):
-
             mock_creds.return_value = {"key": "test_key", "secret": "test_secret"}
 
             # Simulate timeout
@@ -129,7 +125,6 @@ class TestAlpacaQuoteFetching:
             patch("algo.trading.exit_engine.requests.get") as mock_get,
             patch("algo.trading.exit_engine.MarketCalendar.is_market_open") as mock_market,
         ):
-
             mock_creds.return_value = {"key": "test_key", "secret": "test_secret"}
             mock_market.return_value = True  # Market is open
 
@@ -150,7 +145,6 @@ class TestAlpacaQuoteFetching:
             patch("algo.trading.exit_engine.requests.get") as mock_get,
             patch("algo.trading.exit_engine.MarketCalendar.is_market_open") as mock_market,
         ):
-
             mock_creds.return_value = {"key": "test_key", "secret": "test_secret"}
             mock_market.return_value = False  # Market is closed
 
@@ -181,17 +175,13 @@ class TestFetchRecentPrices:
             mock_cur.fetchone.return_value = (149.75,)  # Previous close
 
             # Fetch prices
-            current_price, prev_close = exit_engine._fetch_recent_prices(
-                mock_cur, "AAPL", current_date
-            )
+            current_price, prev_close = exit_engine._fetch_recent_prices(mock_cur, "AAPL", current_date)
 
             # Should use Alpaca quote for current price
             assert current_price == 150.50
             assert prev_close == 149.75
 
-    def test_fetch_recent_prices_falls_back_to_daily_when_alpaca_unavailable(
-        self, exit_engine
-    ):
+    def test_fetch_recent_prices_falls_back_to_daily_when_alpaca_unavailable(self, exit_engine):
         """Test that daily closes are used when Alpaca is unavailable."""
         current_date = _date(2025, 6, 14)
 
@@ -207,9 +197,7 @@ class TestFetchRecentPrices:
             ]
 
             # Fetch prices
-            current_price, prev_close = exit_engine._fetch_recent_prices(
-                mock_cur, "AAPL", current_date
-            )
+            current_price, prev_close = exit_engine._fetch_recent_prices(mock_cur, "AAPL", current_date)
 
             # Should use daily closes from database
             assert current_price == 149.80
@@ -228,29 +216,21 @@ class TestFetchRecentPrices:
 
             # Should raise error when price data unavailable, not return None
             with pytest.raises(RuntimeError, match="Price data missing"):
-                exit_engine._fetch_recent_prices(
-                    mock_cur, "AAPL", current_date
-                )
+                exit_engine._fetch_recent_prices(mock_cur, "AAPL", current_date)
 
     def test_fetch_recent_prices_propagates_alpaca_error(self, exit_engine):
         """Test that API errors from Alpaca are propagated to caller."""
         current_date = _date(2025, 6, 14)
 
-        with patch.object(
-            exit_engine, "_fetch_alpaca_quote"
-        ) as mock_alpaca:
+        with patch.object(exit_engine, "_fetch_alpaca_quote") as mock_alpaca:
             # Simulate Alpaca API error (market open, no data)
-            mock_alpaca.side_effect = RuntimeError(
-                "Alpaca quote API returned status 200 but no valid price data"
-            )
+            mock_alpaca.side_effect = RuntimeError("Alpaca quote API returned status 200 but no valid price data")
 
             mock_cur = Mock()
 
             # Should raise, not fall back to daily closes
             with pytest.raises(RuntimeError, match="no valid price data"):
-                exit_engine._fetch_recent_prices(
-                    mock_cur, "AAPL", current_date
-                )
+                exit_engine._fetch_recent_prices(mock_cur, "AAPL", current_date)
 
 
 class TestStopExecutionWithIntradayPrices:
@@ -268,9 +248,7 @@ class TestStopExecutionWithIntradayPrices:
             mock_cur = Mock()
             mock_cur.fetchone.return_value = (149.00,)  # Previous close
 
-            current_price, _ = exit_engine._fetch_recent_prices(
-                mock_cur, "AAPL", current_date
-            )
+            current_price, _ = exit_engine._fetch_recent_prices(mock_cur, "AAPL", current_date)
 
             # Should use intraday price (144.50), not stale daily close
             assert current_price == 144.50

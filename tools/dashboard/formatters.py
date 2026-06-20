@@ -59,9 +59,9 @@ def fmt_money_short(v):
     s = "-" if v < 0 else ""
     av = abs(v)
     if av >= 1e6:
-        return f"{s}${av/1e6:.1f}M"
+        return f"{s}${av / 1e6:.1f}M"
     if av >= 1e3:
-        return f"{s}${av/1e3:.0f}K"
+        return f"{s}${av / 1e3:.0f}K"
     return f"{s}${av:.0f}"
 
 
@@ -148,9 +148,7 @@ def mkt_hours_str() -> tuple:
 
     if wd >= 5:
         days_ahead = 7 - wd
-        open_dt = (n + timedelta(days=days_ahead)).replace(
-            hour=9, minute=30, second=0, microsecond=0
-        )
+        open_dt = (n + timedelta(days=days_ahead)).replace(hour=9, minute=30, second=0, microsecond=0)
         diff_m = max(0, int((open_dt - n).total_seconds() / 60))
         return (
             "[orange1]⊘ CLOSED[/]",
@@ -173,18 +171,14 @@ def mkt_hours_str() -> tuple:
         return "[bold bright_green]◆ OPEN[/]", f"closes in {_fmt_mins(diff_m)}"
     if t < AH_END:
         next_days = 3 if wd == 4 else 1
-        open_dt = (n + timedelta(days=next_days)).replace(
-            hour=9, minute=30, second=0, microsecond=0
-        )
+        open_dt = (n + timedelta(days=next_days)).replace(hour=9, minute=30, second=0, microsecond=0)
         diff_m = max(0, int((open_dt - n).total_seconds() / 60))
         return (
             "[orange1]⊘ AFTER-HRS[/]",
             f"opens {open_dt.strftime('%a')} in {_fmt_mins(diff_m)}",
         )
     next_days = 3 if wd == 4 else 1
-    open_dt = (n + timedelta(days=next_days)).replace(
-        hour=9, minute=30, second=0, microsecond=0
-    )
+    open_dt = (n + timedelta(days=next_days)).replace(hour=9, minute=30, second=0, microsecond=0)
     diff_m = max(0, int((open_dt - n).total_seconds() / 60))
     return "[orange1]⊘ CLOSED[/]", f"opens {open_dt.strftime('%a')} in {_fmt_mins(diff_m)}"
 
@@ -235,7 +229,7 @@ def _next_run_from_schedule(schedule: list) -> str:
         if mins < 60:
             return f"in {mins}m"
         if mins < 1440:
-            return f"in {mins//60}h{mins%60:02d}m"
+            return f"in {mins // 60}h{mins % 60:02d}m"
         return f"{dt.strftime('%a %I:%M %p')}"
 
     def next_wkd(dt, off=1):
@@ -247,9 +241,7 @@ def _next_run_from_schedule(schedule: list) -> str:
     if wd >= 5:
         next_day = next_wkd(now)
         if schedule:
-            sched = sorted(
-                schedule, key=lambda s: s.get("hour", 0) * 60 + s.get("minute", 0)
-            )
+            sched = sorted(schedule, key=lambda s: s.get("hour", 0) * 60 + s.get("minute", 0))
             first_run = sched[0]
             run_dt = next_day.replace(
                 hour=first_run.get("hour", 9),
@@ -258,13 +250,9 @@ def _next_run_from_schedule(schedule: list) -> str:
                 microsecond=0,
             )
             return f"orch {fmt(run_dt)}"
-        return (
-            f"orch {fmt(next_day.replace(hour=9, minute=30, second=0, microsecond=0))}"
-        )
+        return f"orch {fmt(next_day.replace(hour=9, minute=30, second=0, microsecond=0))}"
 
-    today_runs = sorted(
-        schedule, key=lambda s: s.get("hour", 0) * 60 + s.get("minute", 0)
-    )
+    today_runs = sorted(schedule, key=lambda s: s.get("hour", 0) * 60 + s.get("minute", 0))
     for run in today_runs:
         run_t = run.get("hour", 9) * 60 + run.get("minute", 30)
         if run_t > t:
@@ -301,7 +289,7 @@ def _next_run_hardcoded() -> str:
         if mins < 60:
             return f"in {mins}m"
         if mins < 1440:
-            return f"in {mins//60}h{mins%60:02d}m"
+            return f"in {mins // 60}h{mins % 60:02d}m"
         return f"{dt.strftime('%a %I:%M %p')}"
 
     def next_wkd(dt, off=1):
@@ -314,9 +302,7 @@ def _next_run_hardcoded() -> str:
         if t < 120:
             return f"prep {fmt(now.replace(hour=2, minute=0, second=0, microsecond=0))}"
         if t < 570:
-            return (
-                f"orch {fmt(now.replace(hour=9, minute=30, second=0, microsecond=0))}"
-            )
+            return f"orch {fmt(now.replace(hour=9, minute=30, second=0, microsecond=0))}"
         tgt = next_wkd(now).replace(hour=2, minute=0, second=0, microsecond=0)
         return f"prep {fmt(tgt)}"
     tgt = next_wkd(now).replace(hour=2, minute=0, second=0, microsecond=0)
@@ -369,8 +355,6 @@ def sparkline(values: list, width: int = 24) -> str:
     else:
         sampled = [vals[0]] * (width - len(vals)) + vals
     sampled = sampled[:width]
-    chars = "".join(
-        SPARKLINE_CHARS[min(7, int((v - mn) / rng * 7.9999))] for v in sampled
-    )
+    chars = "".join(SPARKLINE_CHARS[min(7, int((v - mn) / rng * 7.9999))] for v in sampled)
     c = G if sampled[-1] >= sampled[0] else R
     return f"[{c}]{chars}[/]"

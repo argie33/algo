@@ -100,9 +100,7 @@ class OrderManager:
                 },
                 timeout=get_api_timeout(),
             )
-            logger.info(
-                f"[SEND_ORDER] {symbol}: Alpaca responded with HTTP {response.status_code}"
-            )
+            logger.info(f"[SEND_ORDER] {symbol}: Alpaca responded with HTTP {response.status_code}")
 
             if response.status_code in (200, 201):
                 try:
@@ -121,9 +119,7 @@ class OrderManager:
                 validation = validator.validate_order_response(data)
                 if not validation["valid"]:
                     error_msg = f"Invalid response: {', '.join(validation['errors'])}"
-                    logger.error(
-                        f"[SEND_ORDER] {symbol}: {error_msg}. Response data: {data}"
-                    )
+                    logger.error(f"[SEND_ORDER] {symbol}: {error_msg}. Response data: {data}")
                     return {"success": False, "message": error_msg}
 
                 order_status = validation["status"]
@@ -143,23 +139,15 @@ class OrderManager:
                 }
             else:
                 error_text = response.text[:500]
-                logger.error(
-                    f"[SEND_ORDER] {symbol}: Alpaca {response.status_code} error"
-                )
-                logger.error(
-                    f"[SEND_ORDER] {symbol}: Request payload: {json.dumps(order_data, indent=2)}"
-                )
+                logger.error(f"[SEND_ORDER] {symbol}: Alpaca {response.status_code} error")
+                logger.error(f"[SEND_ORDER] {symbol}: Request payload: {json.dumps(order_data, indent=2)}")
                 logger.error(f"[SEND_ORDER] {symbol}: Response: {error_text}")
                 try:
                     error_data = response.json()
                     if "message" in error_data:
-                        logger.error(
-                            f"[SEND_ORDER] {symbol}: Error message: {error_data['message']}"
-                        )
+                        logger.error(f"[SEND_ORDER] {symbol}: Error message: {error_data['message']}")
                 except (json.JSONDecodeError, ValueError) as json_err:
-                    logger.debug(
-                        f"[SEND_ORDER] {symbol}: Could not parse error response as JSON: {json_err}"
-                    )
+                    logger.debug(f"[SEND_ORDER] {symbol}: Could not parse error response as JSON: {json_err}")
                 return {
                     "success": False,
                     "message": f"Alpaca {response.status_code}: {error_text[:200]}",
@@ -231,7 +219,9 @@ class OrderManager:
 
                 validation = validator.validate_order_status_response(data)
                 if not validation["valid"]:
-                    error_msg = f"[GET_ORDER_PRICE] {alpaca_order_id}: Invalid response from Alpaca: {validation['errors']}"
+                    error_msg = (
+                        f"[GET_ORDER_PRICE] {alpaca_order_id}: Invalid response from Alpaca: {validation['errors']}"
+                    )
                     logger.error(error_msg)
                     raise RuntimeError(error_msg)
 
@@ -323,16 +313,12 @@ class OrderManager:
                 else:
                     if attempt < max_retries - 1:
                         wait_time = 2**attempt
-                        logger.debug(
-                            f"Retrying order status query ({attempt + 1}/{max_retries}) after {wait_time}s..."
-                        )
+                        logger.debug(f"Retrying order status query ({attempt + 1}/{max_retries}) after {wait_time}s...")
                         time.sleep(wait_time)
             except (requests.RequestException, requests.Timeout) as e:
                 if attempt < max_retries - 1:
                     wait_time = 2**attempt
-                    logger.debug(
-                        f"Retrying order status query ({attempt + 1}/{max_retries}) after {wait_time}s: {e}"
-                    )
+                    logger.debug(f"Retrying order status query ({attempt + 1}/{max_retries}) after {wait_time}s: {e}")
                     time.sleep(wait_time)
                 else:
                     logger.error(
@@ -385,28 +371,20 @@ class OrderManager:
                     timeout=get_api_timeout(),
                 )
                 logger.info(
-                    f"[SEND_EXIT] {symbol}: Alpaca responded with status {resp.status_code} (attempt {attempt+1})"
+                    f"[SEND_EXIT] {symbol}: Alpaca responded with status {resp.status_code} (attempt {attempt + 1})"
                 )
                 if resp.status_code in (200, 201):
                     try:
                         data = resp.json()
                     except (requests.RequestException, requests.Timeout) as e:
-                        logger.error(
-                            f"[SEND_EXIT] {symbol}: Failed to parse exit response JSON: {e}"
-                        )
+                        logger.error(f"[SEND_EXIT] {symbol}: Failed to parse exit response JSON: {e}")
                         return {
                             "success": False,
                             "message": f"Invalid response format: {e}",
                         }
                     order_id = data.get("id")
-                    filled_price = (
-                        float(data.get("filled_avg_price"))
-                        if data.get("filled_avg_price")
-                        else None
-                    )
-                    logger.info(
-                        f"[SEND_EXIT] {symbol}: Exit order {order_id} created, fill=${filled_price}"
-                    )
+                    filled_price = float(data.get("filled_avg_price")) if data.get("filled_avg_price") else None
+                    logger.info(f"[SEND_EXIT] {symbol}: Exit order {order_id} created, fill=${filled_price}")
                     return {
                         "success": True,
                         "order_id": order_id,
@@ -414,9 +392,7 @@ class OrderManager:
                         "message": f"Order sent: {order_id}",
                     }
                 elif resp.status_code == 422:
-                    logger.error(
-                        f"[SEND_EXIT] {symbol}: Alpaca 422 (unprocessable) - {resp.text[:200]}"
-                    )
+                    logger.error(f"[SEND_EXIT] {symbol}: Alpaca 422 (unprocessable) - {resp.text[:200]}")
                     return {
                         "success": False,
                         "order_id": None,
@@ -425,14 +401,10 @@ class OrderManager:
                     }
                 else:
                     last_error = f"Alpaca {resp.status_code}: {resp.text[:200]}"
-                    logger.warning(
-                        f"[SEND_EXIT] {symbol}: {last_error} (attempt {attempt+1}/{max_attempts})"
-                    )
+                    logger.warning(f"[SEND_EXIT] {symbol}: {last_error} (attempt {attempt + 1}/{max_attempts})")
             except (requests.RequestException, requests.Timeout, json.JSONDecodeError) as e:
                 last_error = f"Error: {e!s}"
-                logger.warning(
-                    f"[SEND_EXIT] {symbol}: {last_error} (attempt {attempt+1}/{max_attempts})"
-                )
+                logger.warning(f"[SEND_EXIT] {symbol}: {last_error} (attempt {attempt + 1}/{max_attempts})")
                 if attempt < max_attempts - 1:
                     time.sleep(1)
 

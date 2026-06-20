@@ -18,6 +18,7 @@ from unittest import mock
 
 import pytest
 
+
 project_root = str(Path(__file__).parent.parent)
 sys.path.insert(0, project_root)
 
@@ -44,11 +45,10 @@ class TestTradeExecutorEntry:
         # Import inside fixture to avoid module-level credential validation
         from algo.trading.executor import TradeExecutor
 
-        with mock.patch(
-            "algo.trading.executor.get_alpaca_credentials"
-        ) as mock_creds, mock.patch(
-            "algo.trading.executor.get_alpaca_base_url"
-        ) as mock_url:
+        with (
+            mock.patch("algo.trading.executor.get_alpaca_credentials") as mock_creds,
+            mock.patch("algo.trading.executor.get_alpaca_base_url") as mock_url,
+        ):
             mock_creds.return_value = {"key": "test_key", "secret": "test_secret"}
             mock_url.return_value = "https://api.alpaca.test"
             return TradeExecutor(executor_config)
@@ -181,11 +181,10 @@ class TestTradeExecutorExit:
     def executor(self, executor_config):
         from algo.trading.executor import TradeExecutor
 
-        with mock.patch(
-            "algo.trading.executor.get_alpaca_credentials"
-        ) as mock_creds, mock.patch(
-            "algo.trading.executor.get_alpaca_base_url"
-        ) as mock_url:
+        with (
+            mock.patch("algo.trading.executor.get_alpaca_credentials") as mock_creds,
+            mock.patch("algo.trading.executor.get_alpaca_base_url") as mock_url,
+        ):
             mock_creds.return_value = {"key": "test_key", "secret": "test_secret"}
             mock_url.return_value = "https://api.alpaca.test"
             return TradeExecutor(executor_config)
@@ -267,11 +266,10 @@ class TestPartialExitCostBasis:
     def executor(self, executor_config):
         from algo.trading.executor import TradeExecutor
 
-        with mock.patch(
-            "algo.trading.executor.get_alpaca_credentials"
-        ) as mock_creds, mock.patch(
-            "algo.trading.executor.get_alpaca_base_url"
-        ) as mock_url:
+        with (
+            mock.patch("algo.trading.executor.get_alpaca_credentials") as mock_creds,
+            mock.patch("algo.trading.executor.get_alpaca_base_url") as mock_url,
+        ):
             mock_creds.return_value = {"key": "test_key", "secret": "test_secret"}
             mock_url.return_value = "https://api.alpaca.test"
             return TradeExecutor(executor_config)
@@ -342,11 +340,10 @@ class TestPositionTracking:
     def executor(self, executor_config):
         from algo.trading.executor import TradeExecutor
 
-        with mock.patch(
-            "algo.trading.executor.get_alpaca_credentials"
-        ) as mock_creds, mock.patch(
-            "algo.trading.executor.get_alpaca_base_url"
-        ) as mock_url:
+        with (
+            mock.patch("algo.trading.executor.get_alpaca_credentials") as mock_creds,
+            mock.patch("algo.trading.executor.get_alpaca_base_url") as mock_url,
+        ):
             mock_creds.return_value = {"key": "test_key", "secret": "test_secret"}
             mock_url.return_value = "https://api.alpaca.test"
             return TradeExecutor(executor_config)
@@ -387,17 +384,15 @@ class TestExecutionModes:
     def test_review_mode_doesnt_send_orders(self):
         """Review mode should not call Alpaca API."""
         config = {"mode": "review", "max_position_size": 100}
-        with mock.patch(
-            "algo.trading.executor.get_alpaca_credentials"
-        ) as mock_creds, mock.patch(
-            "algo.trading.executor.get_alpaca_base_url"
-        ) as mock_url, mock.patch(
-            "requests.post"
-        ) as mock_post:
+        with (
+            mock.patch("algo.trading.executor.get_alpaca_credentials") as mock_creds,
+            mock.patch("algo.trading.executor.get_alpaca_base_url") as mock_url,
+            mock.patch("requests.post") as mock_post,
+        ):
             mock_creds.return_value = {"key": "test_key", "secret": "test_secret"}
             mock_url.return_value = "https://api.alpaca.test"
 
-            executor = TradeExecutor(config)
+            TradeExecutor(config)
 
             with mock.patch("utils.db.DatabaseContext"):
                 # In review mode, should not make HTTP requests to Alpaca
@@ -406,11 +401,10 @@ class TestExecutionModes:
     def test_paper_mode_simulates_orders(self):
         """Paper mode should update DB but not send to exchange."""
         config = {"mode": "paper", "max_position_size": 100}
-        with mock.patch(
-            "algo.trading.executor.get_alpaca_credentials"
-        ) as mock_creds, mock.patch(
-            "algo.trading.executor.get_alpaca_base_url"
-        ) as mock_url:
+        with (
+            mock.patch("algo.trading.executor.get_alpaca_credentials") as mock_creds,
+            mock.patch("algo.trading.executor.get_alpaca_base_url") as mock_url,
+        ):
             mock_creds.return_value = {"key": "test_key", "secret": "test_secret"}
             mock_url.return_value = "https://api.alpaca.test"
 
@@ -420,11 +414,10 @@ class TestExecutionModes:
     def test_auto_mode_sends_orders(self):
         """Auto mode should send real orders to exchange."""
         config = {"mode": "auto", "max_position_size": 100}
-        with mock.patch(
-            "algo.trading.executor.get_alpaca_credentials"
-        ) as mock_creds, mock.patch(
-            "algo.trading.executor.get_alpaca_base_url"
-        ) as mock_url:
+        with (
+            mock.patch("algo.trading.executor.get_alpaca_credentials") as mock_creds,
+            mock.patch("algo.trading.executor.get_alpaca_base_url") as mock_url,
+        ):
             mock_creds.return_value = {"key": "test_key", "secret": "test_secret"}
             mock_url.return_value = "https://api.alpaca.test"
 

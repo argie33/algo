@@ -7,9 +7,10 @@ from datetime import date as _date
 from datetime import datetime
 from enum import Enum
 
+import psycopg2
+
 from utils.db import DatabaseContext, assert_safe_column, assert_safe_table
 from utils.infrastructure import EASTERN_TZ
-import psycopg2
 
 
 logger = logging.getLogger(__name__)
@@ -129,13 +130,9 @@ class PipelineHealth:
         "earnings_calendar": {"date_column": "created_at", "sla_days": 30},
     }
 
-    def check_table_health(
-        self, cur, table_name: str, date_column: str, sla_days: int
-    ) -> TableHealth:
+    def check_table_health(self, cur, table_name: str, date_column: str, sla_days: int) -> TableHealth:
         """Check health of a single table."""
-        health = TableHealth(
-            table_name=table_name, status=HealthStatus.ERROR, sla_days=sla_days
-        )
+        health = TableHealth(table_name=table_name, status=HealthStatus.ERROR, sla_days=sla_days)
 
         try:
             safe_table = assert_safe_table(table_name)
@@ -159,9 +156,7 @@ class PipelineHealth:
             # Use ORDER BY + LIMIT 1 instead of MAX() — forces an index scan and
             # avoids sequential scans when PostgreSQL statistics are stale (reltuples=0
             # on t4g.micro after bulk inserts). MAX() with stale stats can take 30s+.
-            cur.execute(
-                f"SELECT {safe_date_col}::DATE FROM {safe_table} ORDER BY {safe_date_col} DESC LIMIT 1"
-            )
+            cur.execute(f"SELECT {safe_date_col}::DATE FROM {safe_table} ORDER BY {safe_date_col} DESC LIMIT 1")
             result = cur.fetchone()
             latest_date = result[0] if result else None
 
@@ -224,9 +219,7 @@ class PipelineHealth:
                                     f"CRITICAL: {table_name} is very stale ({health.age_days} days old)"
                                 )
                             elif health.status == HealthStatus.STALE:
-                                status.warnings.append(
-                                    f"WARNING: {table_name} is stale ({health.age_days} days old)"
-                                )
+                                status.warnings.append(f"WARNING: {table_name} is stale ({health.age_days} days old)")
                     except (ValueError, ZeroDivisionError, TypeError) as e:
                         logger.error(f"Error checking {table_name}: {e}")
                         status.tables[table_name] = TableHealth(
@@ -241,9 +234,7 @@ class PipelineHealth:
             return status
 
         # Overall health determination
-        has_critical_issues = any(
-            not t.is_healthy and t.is_critical for t in status.tables.values()
-        )
+        has_critical_issues = any(not t.is_healthy and t.is_critical for t in status.tables.values())
         status.is_healthy = not has_critical_issues and len(status.critical_alerts) == 0
 
         return status
@@ -289,9 +280,7 @@ class PipelineHealth:
         status = self.get_pipeline_status()
 
         if status.critical_alerts:
-            error_msg = "Pipeline not ready for trading:\n" + "\n".join(
-                status.critical_alerts
-            )
+            error_msg = "Pipeline not ready for trading:\n" + "\n".join(status.critical_alerts)
             logger.error(error_msg)
             raise RuntimeError(error_msg)
 

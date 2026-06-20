@@ -7,8 +7,9 @@ Ensures entry can be executed with adequate liquidity and reasonable spreads.
 import logging
 from datetime import timedelta
 
-from utils.db import DatabaseContext
 import psycopg2
+
+from utils.db import DatabaseContext
 
 
 logger = logging.getLogger(__name__)
@@ -34,18 +35,14 @@ class LiquidityChecks:
             if not adv_passed:
                 return False, f"ADV check failed: {adv_reason}"
 
-            dollar_vol_passed, dollar_reason = self._check_dollar_volume(
-                symbol, signal_date
-            )
+            dollar_vol_passed, dollar_reason = self._check_dollar_volume(symbol, signal_date)
             if not dollar_vol_passed:
                 return False, f"Dollar volume check failed: {dollar_reason}"
 
             return True, "All liquidity checks passed"
 
         except (psycopg2.DatabaseError, psycopg2.OperationalError) as e:
-            logger.warning(
-                f"Liquidity check unavailable for {symbol}: {e} — blocking as safety measure"
-            )
+            logger.warning(f"Liquidity check unavailable for {symbol}: {e} — blocking as safety measure")
             return (
                 False,
                 f"Liquidity checks unavailable ({type(e).__name__}) — blocking as safety measure",
@@ -92,9 +89,7 @@ class LiquidityChecks:
                 return True, f"ADV {avg_vol:,.0f} ok"
 
         except (ValueError, ZeroDivisionError, TypeError) as e:
-            logger.error(
-                f"ADV check failed for {symbol}: {e} — blocking as safety measure"
-            )
+            logger.error(f"ADV check failed for {symbol}: {e} — blocking as safety measure")
             return False, f"ADV check unavailable ({type(e).__name__}) — blocking as safety measure"
 
     def _check_dollar_volume(self, symbol: str, signal_date) -> tuple:
@@ -138,9 +133,7 @@ class LiquidityChecks:
                 return True, f"Dollar vol ${avg_dollar_vol:,.0f} ok"
 
         except (ValueError, ZeroDivisionError, TypeError) as e:
-            logger.error(
-                f"Dollar volume check failed for {symbol}: {e} — blocking as safety measure"
-            )
+            logger.error(f"Dollar volume check failed for {symbol}: {e} — blocking as safety measure")
             return False, f"Dollar volume check unavailable ({type(e).__name__}) — blocking as safety measure"
 
     def _check_price_history_age(self, symbol: str, signal_date) -> tuple:
@@ -185,7 +178,5 @@ class LiquidityChecks:
                 return True, f"{trading_days} trading days of history ok"
 
         except (ValueError, ZeroDivisionError, TypeError) as e:
-            logger.error(
-                f"Price history age check failed for {symbol}: {e} — blocking as safety measure"
-            )
+            logger.error(f"Price history age check failed for {symbol}: {e} — blocking as safety measure")
             return False, f"Price history age check unavailable ({type(e).__name__}) — blocking as safety measure"

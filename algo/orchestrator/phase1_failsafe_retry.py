@@ -136,9 +136,7 @@ def check_and_retry_incomplete_loaders(dry_run: bool = False) -> dict[str, Any]:
 
                 if not dry_run:
                     # Trigger retry
-                    retry_result = retry_loader(
-                        table_name, symbols_missing, is_critical
-                    )
+                    retry_result = retry_loader(table_name, symbols_missing, is_critical)
 
                     if retry_result["retried"]:
                         results["retried"].append(table_name)
@@ -147,10 +145,7 @@ def check_and_retry_incomplete_loaders(dry_run: bool = False) -> dict[str, Any]:
                             results["recovered"].append(table_name)
                             final_pct = retry_result.get("final_completion_pct")
                             pct_str = f"{final_pct:.1f}%" if final_pct is not None else "unknown"
-                            logger.info(
-                                f"[PHASE 1 FAILSAFE] Loader recovered: {table_name} "
-                                f"-> {pct_str}"
-                            )
+                            logger.info(f"[PHASE 1 FAILSAFE] Loader recovered: {table_name} -> {pct_str}")
                         else:
                             results["still_failing"].append(table_name)
                             final_pct = retry_result.get("final_completion_pct")
@@ -172,17 +167,13 @@ def check_and_retry_incomplete_loaders(dry_run: bool = False) -> dict[str, Any]:
                                 results["halt_required"] = True
 
     except (OSError, RuntimeError, ValueError) as e:
-        logger.error(
-            f"[PHASE 1 FAILSAFE] Error checking incomplete loaders: {e}", exc_info=True
-        )
+        logger.error(f"[PHASE 1 FAILSAFE] Error checking incomplete loaders: {e}", exc_info=True)
         # Don't halt on error checking, just log and proceed
 
     return results
 
 
-def retry_loader(
-    loader_name: str, symbols_missing: int, is_critical: bool
-) -> dict[str, Any]:
+def retry_loader(loader_name: str, symbols_missing: int, is_critical: bool) -> dict[str, Any]:
     """Retry a single incomplete loader.
 
     Args:
@@ -208,9 +199,7 @@ def retry_loader(
 
     try:
         # Wait for API throttling to reset
-        logger.info(
-            f"[PHASE 1 FAILSAFE] Waiting {RETRY_WAIT_SECONDS}s before retry (API reset)"
-        )
+        logger.info(f"[PHASE 1 FAILSAFE] Waiting {RETRY_WAIT_SECONDS}s before retry (API reset)")
         time.sleep(RETRY_WAIT_SECONDS)
 
         # Trigger retry via Lambda invocation or direct call
@@ -219,17 +208,13 @@ def retry_loader(
 
         if result["retried"]:
             # Monitor loader status
-            recovered, final_pct, status_reason = monitor_loader_retry(
-                loader_name, RETRY_MONITOR_TIMEOUT_SECONDS
-            )
+            recovered, final_pct, status_reason = monitor_loader_retry(loader_name, RETRY_MONITOR_TIMEOUT_SECONDS)
             result["recovered"] = recovered
             result["final_completion_pct"] = final_pct  # type: ignore[assignment]
             result["status_reason"] = status_reason
 
     except (RuntimeError, ValueError, TimeoutError) as e:
-        logger.error(
-            f"[PHASE 1 FAILSAFE] Error retrying loader {loader_name}: {e}", exc_info=True
-        )
+        logger.error(f"[PHASE 1 FAILSAFE] Error retrying loader {loader_name}: {e}", exc_info=True)
 
     return result
 
@@ -264,9 +249,7 @@ def invoke_loader_retry(loader_name: str, is_critical: bool) -> bool:
         }
 
         if loader_name not in loader_modules:
-            logger.warning(
-                f"[PHASE 1 FAILSAFE] Unknown loader: {loader_name} (cannot retry)"
-            )
+            logger.warning(f"[PHASE 1 FAILSAFE] Unknown loader: {loader_name} (cannot retry)")
             return False
 
         # Dynamically import and run the loader
@@ -277,9 +260,8 @@ def invoke_loader_retry(loader_name: str, is_critical: bool) -> bool:
 
             # Most loaders have a main() function or a Loader class with run()
             if hasattr(module, "main"):
-                logger.info(
-                    f"[PHASE 1 FAILSAFE] Running {loader_name} via main() function"
-                )
+                logger.info(f"[PHASE 1 FAILSAFE] Running {loader_name} via main() function")
+
                 # Call main() with sys.argv cleared to avoid argparse conflicts
                 def run_main():
                     old_argv = sys.argv[:]
@@ -288,39 +270,31 @@ def invoke_loader_retry(loader_name: str, is_critical: bool) -> bool:
                         return module.main()
                     finally:
                         sys.argv = old_argv
+
                 return _run_loader_with_timeout(run_main, loader_name)
             else:
                 # Try to find the loader class and instantiate
-                loader_class_name = "".join(
-                    word.capitalize()
-                    for word in loader_name.replace("_", " ").split()
-                ) + "Loader"
+                loader_class_name = (
+                    "".join(word.capitalize() for word in loader_name.replace("_", " ").split()) + "Loader"
+                )
 
                 if hasattr(module, loader_class_name):
                     loader_class = getattr(module, loader_class_name)
                     loader_instance = loader_class()
 
-                    logger.info(
-                        f"[PHASE 1 FAILSAFE] Running {loader_name} via {loader_class_name}.run()"
-                    )
+                    logger.info(f"[PHASE 1 FAILSAFE] Running {loader_name} via {loader_class_name}.run()")
 
                     # Run with timeout
                     return _run_loader_with_timeout(
-                        lambda: loader_instance.run(
-                            get_active_symbols(), parallelism=4
-                        ),
+                        lambda: loader_instance.run(get_active_symbols(), parallelism=4),
                         loader_name,
                     )
                 else:
-                    logger.error(
-                        f"[PHASE 1 FAILSAFE] Could not find loader class or main() in {module_name}"
-                    )
+                    logger.error(f"[PHASE 1 FAILSAFE] Could not find loader class or main() in {module_name}")
                     return False
 
         except ImportError as e:
-            logger.error(
-                f"[PHASE 1 FAILSAFE] Failed to import loader module {module_name}: {e}"
-            )
+            logger.error(f"[PHASE 1 FAILSAFE] Failed to import loader module {module_name}: {e}")
             return False
 
     except (RuntimeError, ValueError, ModuleNotFoundError) as e:
@@ -331,9 +305,7 @@ def invoke_loader_retry(loader_name: str, is_critical: bool) -> bool:
         return False
 
 
-def _run_loader_with_timeout(
-    loader_func: Any, loader_name: str, timeout_seconds: int = 600
-) -> bool:
+def _run_loader_with_timeout(loader_func: Any, loader_name: str, timeout_seconds: int = 600) -> bool:
     """Run a loader function with timeout protection.
 
     Args:
@@ -348,27 +320,19 @@ def _run_loader_with_timeout(
         with concurrent.futures.ThreadPoolExecutor(max_workers=1) as executor:
             future = executor.submit(loader_func)
             result = future.result(timeout=timeout_seconds)
-            logger.info(
-                f"[PHASE 1 FAILSAFE] Loader {loader_name} completed successfully: {result}"
-            )
+            logger.info(f"[PHASE 1 FAILSAFE] Loader {loader_name} completed successfully: {result}")
             return True
 
     except concurrent.futures.TimeoutError:
-        logger.error(
-            f"[PHASE 1 FAILSAFE] Loader {loader_name} timeout after {timeout_seconds}s"
-        )
+        logger.error(f"[PHASE 1 FAILSAFE] Loader {loader_name} timeout after {timeout_seconds}s")
         return False
 
     except (RuntimeError, ValueError, TypeError) as e:
-        logger.error(
-            f"[PHASE 1 FAILSAFE] Loader {loader_name} failed: {e}", exc_info=True
-        )
+        logger.error(f"[PHASE 1 FAILSAFE] Loader {loader_name} failed: {e}", exc_info=True)
         return False
 
 
-def monitor_loader_retry(
-    loader_name: str, timeout_seconds: int
-) -> tuple[bool, float | None, str]:
+def monitor_loader_retry(loader_name: str, timeout_seconds: int) -> tuple[bool, float | None, str]:
     """Monitor loader status during retry.
 
     Args:
@@ -401,9 +365,7 @@ def monitor_loader_retry(
                             f"[PHASE 1 FAILSAFE] {loader_name} status unknown, still running (will check again in 10s)"
                         )
                     elif completion_pct >= 95.0:
-                        logger.info(
-                            f"[PHASE 1 FAILSAFE] Loader recovered: {loader_name} {completion_pct:.1f}%"
-                        )
+                        logger.info(f"[PHASE 1 FAILSAFE] Loader recovered: {loader_name} {completion_pct:.1f}%")
                         return True, completion_pct, "success"
 
                     elif status == "COMPLETED":
@@ -417,9 +379,7 @@ def monitor_loader_retry(
             time.sleep(10)
 
         except (OSError, RuntimeError, ValueError) as e:
-            logger.debug(
-                f"[PHASE 1 FAILSAFE] Error monitoring retry for {loader_name}: {e}"
-            )
+            logger.debug(f"[PHASE 1 FAILSAFE] Error monitoring retry for {loader_name}: {e}")
 
     # Timeout reached — loader still running, didn't complete within deadline
     logger.error(

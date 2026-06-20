@@ -59,9 +59,7 @@ class Orchestrator:
         self.config = config
 
         # Override execution_mode from environment variable if set
-        env_execution_mode = (
-            os.getenv("ORCHESTRATOR_EXECUTION_MODE", "").strip().lower()
-        )
+        env_execution_mode = os.getenv("ORCHESTRATOR_EXECUTION_MODE", "").strip().lower()
         if env_execution_mode:
             self.config.override("execution_mode", env_execution_mode)
 
@@ -135,9 +133,7 @@ class Orchestrator:
                 triggered_at_str = response["Item"].get("triggered_at", "")
                 if triggered_at_str:
                     try:
-                        trigger_dt = datetime.fromisoformat(
-                            triggered_at_str.replace("Z", "+00:00")
-                        )
+                        trigger_dt = datetime.fromisoformat(triggered_at_str.replace("Z", "+00:00"))
                         now_utc = datetime.now(timezone.utc)
 
                         # Convert to ET for trading hour comparison
@@ -199,14 +195,11 @@ class Orchestrator:
                             return True
 
                     except Exception as parse_err:
-                        logger.warning(
-                            f"[HALT_FLAG] Could not parse triggered_at: {parse_err}"
-                        )
+                        logger.warning(f"[HALT_FLAG] Could not parse triggered_at: {parse_err}")
 
                 reason = response["Item"].get("reason", "Unknown")
                 logger.critical(
-                    "[HALT_FLAG_ACTIVE] HALT FLAG DETECTED (could not parse timestamp). "
-                    f"Reason: {reason[:150]}"
+                    f"[HALT_FLAG_ACTIVE] HALT FLAG DETECTED (could not parse timestamp). Reason: {reason[:150]}"
                 )
                 self.log_phase_result(
                     0,
@@ -223,9 +216,7 @@ class Orchestrator:
             # MUST FAIL-CLOSED: Assume halt is set if we can't verify the flag
             # Better to stop trading unnecessarily than to trade when halt was set
             logger.critical(f"[CRITICAL] Could not check halt flag in DynamoDB: {e}")
-            logger.critical(
-                "[CRITICAL] FAILING CLOSED: Treating DynamoDB unavailability as halt condition for safety"
-            )
+            logger.critical("[CRITICAL] FAILING CLOSED: Treating DynamoDB unavailability as halt condition for safety")
 
             # Emit alert to operations team
             try:
@@ -240,21 +231,15 @@ class Orchestrator:
                     {"error": str(e)[:200], "action": "manual_intervention_required"},
                 )
             except (ValueError, ZeroDivisionError, TypeError) as alert_err:
-                logger.warning(
-                    f"Could not send DynamoDB unavailability alert: {alert_err}"
-                )
+                logger.warning(f"Could not send DynamoDB unavailability alert: {alert_err}")
 
             # Emit metric for monitoring
             try:
                 from algo.reporting import MetricsPublisher
 
-                MetricsPublisher().add_metric(
-                    "DynamoDBHaltCheckFailure", 1, unit="Count"
-                )
+                MetricsPublisher().add_metric("DynamoDBHaltCheckFailure", 1, unit="Count")
             except (ValueError, ZeroDivisionError, TypeError) as metric_err:
-                logger.warning(
-                    f"Could not emit halt check failure metric: {metric_err}"
-                )
+                logger.warning(f"Could not emit halt check failure metric: {metric_err}")
 
             # Return True (halt condition) to fail-closed
             return True
@@ -286,9 +271,7 @@ class Orchestrator:
                 first_trigger = response["Item"].get("triggered_at", "")
                 if first_trigger:
                     try:
-                        first_dt = datetime.fromisoformat(
-                            first_trigger.replace("Z", "+00:00")
-                        )
+                        first_dt = datetime.fromisoformat(first_trigger.replace("Z", "+00:00"))
                         first_et = first_dt.astimezone(EASTERN_TZ)
                         # Same trading day = escalate
                         if first_et.date() == now_et.date():
@@ -315,13 +298,9 @@ class Orchestrator:
                                         },
                                     )
                                 except Exception as alert_err:
-                                    logger.warning(
-                                        f"Could not send escalation alert: {alert_err}"
-                                    )
+                                    logger.warning(f"Could not send escalation alert: {alert_err}")
                     except Exception as escalation_err:
-                        logger.warning(
-                            f"Could not check halt escalation: {escalation_err}"
-                        )
+                        logger.warning(f"Could not check halt escalation: {escalation_err}")
 
             table.put_item(
                 Item={
@@ -334,13 +313,9 @@ class Orchestrator:
             )
 
             if halt_escalated and halt_count >= 2:
-                logger.critical(
-                    f"[HALT_FLAG_SET_ESCALATED] {reason or 'Phase 1 degraded'} (halt #{halt_count})"
-                )
+                logger.critical(f"[HALT_FLAG_SET_ESCALATED] {reason or 'Phase 1 degraded'} (halt #{halt_count})")
             else:
-                logger.critical(
-                    f"[HALT_FLAG_SET] {reason or 'Phase 1 degraded: halt flag activated'}"
-                )
+                logger.critical(f"[HALT_FLAG_SET] {reason or 'Phase 1 degraded: halt flag activated'}")
             return True
         except Exception as e:
             raise RuntimeError(f"Operation failed: {e}") from e
@@ -373,9 +348,7 @@ class Orchestrator:
                     "reset_at": now_utc.isoformat(),
                 }
             )
-            logger.info(
-                f"[HALT_FLAG_CLEARED] {reason or 'Phase 1 verified: data is fresh, resuming normal trading'}"
-            )
+            logger.info(f"[HALT_FLAG_CLEARED] {reason or 'Phase 1 verified: data is fresh, resuming normal trading'}")
             return True
         except Exception as e:
             raise RuntimeError(f"Operation failed: {e}") from e
@@ -393,9 +366,7 @@ class Orchestrator:
 
             # Alert on stuck connections (held >5min)
             if status["stuck_connections_count"] > 0:
-                logger.warning(
-                    f"[RDS_POOL] Found {status['stuck_connections_count']} stuck connections"
-                )
+                logger.warning(f"[RDS_POOL] Found {status['stuck_connections_count']} stuck connections")
                 check_stuck_connections()
         except Exception as e:
             logger.debug(f"Could not check connection pool health: {e}")
@@ -425,7 +396,9 @@ class Orchestrator:
                     union_parts = []
                     for table, _desc in tables_to_check:
                         table_safe = assert_safe_table(table)
-                        union_parts.append(f"SELECT '{table}' as table_name, MAX(date) as latest_date FROM {table_safe}")
+                        union_parts.append(
+                            f"SELECT '{table}' as table_name, MAX(date) as latest_date FROM {table_safe}"
+                        )
 
                     union_query = " UNION ALL ".join(union_parts)
                     cur.execute(union_query)
@@ -442,24 +415,15 @@ class Orchestrator:
                                 from datetime import date as date_type
                                 from datetime import datetime as dt
 
-                                if isinstance(latest_date, date_type) and not isinstance(
-                                    latest_date, datetime
-                                ):
-                                    latest_dt = dt.combine(
-                                        latest_date, dt.min.time()
-                                    ).replace(tzinfo=timezone.utc)
-                                elif (
-                                    isinstance(latest_date, datetime)
-                                    and latest_date.tzinfo is None
-                                ):
+                                if isinstance(latest_date, date_type) and not isinstance(latest_date, datetime):
+                                    latest_dt = dt.combine(latest_date, dt.min.time()).replace(tzinfo=timezone.utc)
+                                elif isinstance(latest_date, datetime) and latest_date.tzinfo is None:
                                     latest_dt = latest_date.replace(tzinfo=timezone.utc)
                                 else:
                                     latest_dt = (
                                         latest_date
                                         if isinstance(latest_date, datetime)
-                                        else dt.fromisoformat(str(latest_date)).replace(
-                                            tzinfo=timezone.utc
-                                        )
+                                        else dt.fromisoformat(str(latest_date)).replace(tzinfo=timezone.utc)
                                     )
                                 age = (datetime.now(timezone.utc) - latest_dt).days
                                 logger.info(f"    [{age}d old] {desc:20s}: {latest_date}")
@@ -480,9 +444,7 @@ class Orchestrator:
                     """)
                     logger.info("  Loader Status:")
                     for row in cur.fetchall():
-                        logger.info(
-                            f"    {row[0]:25s}: {row[1]:10s} (updated {row[2]})"
-                        )
+                        logger.info(f"    {row[0]:25s}: {row[1]:10s} (updated {row[2]})")
                 except (psycopg2.DatabaseError, psycopg2.OperationalError) as loader_err:
                     logger.debug(f"    Could not check loader status: {loader_err}")
 
@@ -524,9 +486,7 @@ class Orchestrator:
 
                 # Task is confirmed stopped
                 if task_status == "STOPPED":
-                    logger.info(
-                        f"[TASK_TERMINATION] ✓ {loader_name} task {task_arn} verified STOPPED"
-                    )
+                    logger.info(f"[TASK_TERMINATION] ✓ {loader_name} task {task_arn} verified STOPPED")
                     return True
 
                 # Task still running but stop was requested
@@ -551,9 +511,7 @@ class Orchestrator:
                     retry_delay_sec *= 1.5
 
             except Exception as e:
-                logger.error(
-                    f"[TASK_TERMINATION] Attempt {attempt}: Failed to verify task status: {e}"
-                )
+                logger.error(f"[TASK_TERMINATION] Attempt {attempt}: Failed to verify task status: {e}")
                 if attempt < max_retries:
                     time.sleep(retry_delay_sec)
                     retry_delay_sec *= 1.5
@@ -615,9 +573,7 @@ class Orchestrator:
             # Find next orchestrator run
             next_orch_et = None
             for orch_hour, orch_minute in ORCHESTRATOR_RUN_TIMES_TUPLE:
-                orch_time = now_et.replace(
-                    hour=orch_hour, minute=orch_minute, second=0, microsecond=0
-                )
+                orch_time = now_et.replace(hour=orch_hour, minute=orch_minute, second=0, microsecond=0)
                 if orch_time > now_et:
                     next_orch_et = orch_time
                     break
@@ -635,20 +591,16 @@ class Orchestrator:
                     next_orch_et += timedelta(days=1)
 
             # Calculate kill threshold: next_orch - buffer minutes
-            kill_threshold_et = next_orch_et - timedelta(
-                minutes=ORCHESTRATOR_KILL_BUFFER_MINUTES
-            )
+            kill_threshold_et = next_orch_et - timedelta(minutes=ORCHESTRATOR_KILL_BUFFER_MINUTES)
             max_runtime = kill_threshold_et - now_et
 
             if max_runtime.total_seconds() <= 0:
-                logger.debug(
-                    "[OOM_PREVENTION] Next orchestrator run is imminent, using 5 min max runtime"
-                )
+                logger.debug("[OOM_PREVENTION] Next orchestrator run is imminent, using 5 min max runtime")
                 max_runtime = timedelta(minutes=5)
 
             logger.debug(
                 f"[OOM_PREVENTION] Next orchestrator run at {next_orch_et.strftime('%H:%M')} ET. "
-                f"Kill timeout: {max_runtime.total_seconds()/60:.0f} minutes"
+                f"Kill timeout: {max_runtime.total_seconds() / 60:.0f} minutes"
             )
 
             # List running tasks
@@ -657,9 +609,7 @@ class Orchestrator:
                 return
 
             # Get task details (includes startedAt timestamp)
-            task_details = ecs.describe_tasks(
-                cluster=cluster, tasks=response["taskArns"]
-            )
+            task_details = ecs.describe_tasks(cluster=cluster, tasks=response["taskArns"])
             now = datetime.now(timezone.utc)
 
             failed_terminations = []
@@ -688,7 +638,7 @@ class Orchestrator:
                     task_arn = task.get("taskArn")
                     logger.warning(
                         f"[OOM_PREVENTION] Killing {loader_name} task (running {age.total_seconds() / 3600:.1f}h, "
-                        f"max {max_runtime.total_seconds()/3600:.1f}h before next orch run): {task_arn}"
+                        f"max {max_runtime.total_seconds() / 3600:.1f}h before next orch run): {task_arn}"
                     )
 
                     # ISSUE #5: Issue stop request
@@ -699,12 +649,8 @@ class Orchestrator:
                             reason="Loader hung beyond timeout before next orchestrator run",
                         )
                     except Exception as stop_err:
-                        logger.error(
-                            f"[TASK_TERMINATION] stop_task() call failed: {stop_err}"
-                        )
-                        failed_terminations.append(
-                            (loader_name, task_arn, str(stop_err))
-                        )
+                        logger.error(f"[TASK_TERMINATION] stop_task() call failed: {stop_err}")
+                        failed_terminations.append((loader_name, task_arn, str(stop_err)))
                         continue
 
                     # ISSUE #5: Verify task actually stopped (with retries)
@@ -716,15 +662,11 @@ class Orchestrator:
                             f"Killed {loader_name} task running {age.total_seconds() / 3600:.1f}h",
                         )
                     else:
-                        failed_terminations.append(
-                            (loader_name, task_arn, "verification timeout")
-                        )
+                        failed_terminations.append((loader_name, task_arn, "verification timeout"))
 
             # ISSUE #5: Alert if any terminations failed
             if failed_terminations:
-                error_details = "; ".join(
-                    [f"{name}: {err}" for name, arn, err in failed_terminations]
-                )
+                error_details = "; ".join([f"{name}: {err}" for name, arn, err in failed_terminations])
                 logger.critical(
                     f"[TASK_TERMINATION] ESCALATION: {len(failed_terminations)} task termination(s) failed. "
                     f"{error_details}"
@@ -734,7 +676,7 @@ class Orchestrator:
                         "TASK_TERMINATION",
                         "HUNG_LOADER_TERMINATION_FAILED",
                         f"Failed to terminate {len(failed_terminations)} hung loaders. RDS connections may not be released. "
-                        f'Check CloudWatch logs and manually stop: {", ".join([arn.split("/")[-1] for _, arn, _ in failed_terminations])}',
+                        f"Check CloudWatch logs and manually stop: {', '.join([arn.split('/')[-1] for _, arn, _ in failed_terminations])}",
                         {
                             "failed_tasks": [
                                 {"loader": name, "task_arn": arn, "error": err}
@@ -743,14 +685,10 @@ class Orchestrator:
                         },
                     )
                 except Exception as alert_err:
-                    logger.error(
-                        f"[TASK_TERMINATION] Could not send escalation alert: {alert_err}"
-                    )
+                    logger.error(f"[TASK_TERMINATION] Could not send escalation alert: {alert_err}")
 
         except Exception as e:
-            logger.warning(
-                f"[OOM_PREVENTION] Could not check/kill long-running loaders: {e}"
-            )
+            logger.warning(f"[OOM_PREVENTION] Could not check/kill long-running loaders: {e}")
             # Don't halt trading for this check - it's advisory
 
     def _validate_required_tables(self, cur: Any) -> bool:
@@ -778,30 +716,22 @@ class Orchestrator:
                     )
                     if not cur.fetchone():
                         missing_tables.append(table_name)
-                        logger.error(
-                            f"[TABLE-CHECK] Missing required table: {table_name}"
-                        )
+                        logger.error(f"[TABLE-CHECK] Missing required table: {table_name}")
                 except (psycopg2.DatabaseError, psycopg2.OperationalError) as e:
-                    logger.error(
-                        f"[TABLE-CHECK] Failed to check table {table_name}: {e}"
-                    )
+                    logger.error(f"[TABLE-CHECK] Failed to check table {table_name}: {e}")
                     missing_tables.append(table_name)
 
             if missing_tables:
-                logger.error(
-                    f"[TABLE-CHECK] Cannot proceed: missing tables {missing_tables}"
-                )
+                logger.error(f"[TABLE-CHECK] Cannot proceed: missing tables {missing_tables}")
                 self.log_phase_result(
                     0,
                     "table_validation",
                     "halt",
-                    f'Missing tables: {", ".join(missing_tables)}',
+                    f"Missing tables: {', '.join(missing_tables)}",
                 )
                 return False
 
-            logger.info(
-                f"[TABLE-CHECK] All {len(required_tables)} required tables exist ✓"
-            )
+            logger.info(f"[TABLE-CHECK] All {len(required_tables)} required tables exist ✓")
             return True
 
         except (psycopg2.DatabaseError, psycopg2.OperationalError) as e:
@@ -820,9 +750,7 @@ class Orchestrator:
 
         Returns: True if lock acquired, False if another active instance holds it.
         """
-        self._lock_acquired = self.lock_manager.acquire(
-            timeout_seconds=lock_timeout_seconds
-        )
+        self._lock_acquired = self.lock_manager.acquire(timeout_seconds=lock_timeout_seconds)
         return self._lock_acquired
 
     def _release_run_lock(self) -> None:
@@ -832,13 +760,11 @@ class Orchestrator:
 
     def log_phase_start(self, phase_num: int | str, name: str) -> None:
         if self.verbose:
-            logger.info(f"\n{'='*70}")
+            logger.info(f"\n{'=' * 70}")
             logger.info(f"PHASE {phase_num}: {name}")
-            logger.info(f"{'='*70}")
+            logger.info(f"{'=' * 70}")
 
-    def log_phase_result(
-        self, phase_num: int | str, name: str, status: str, summary: str
-    ) -> None:
+    def log_phase_result(self, phase_num: int | str, name: str, status: str, summary: str) -> None:
         self.phase_results[phase_num] = {
             "name": name,
             "status": status,
@@ -911,14 +837,10 @@ class Orchestrator:
         try:
             degraded_status = result.status == "degraded"
             if degraded_status:
-                logger.info(
-                    f"[DEGRADED_MODE] Phase 1 returned degraded status: {result.summary}"
-                )
+                logger.info(f"[DEGRADED_MODE] Phase 1 returned degraded status: {result.summary}")
                 self._set_halt_flag(f"Phase 1 degraded: {result.summary}")
             elif result.status == "ok":
-                self._clear_halt_flag(
-                    f"Phase 1 verified data is fresh at {datetime.now(timezone.utc).isoformat()}"
-                )
+                self._clear_halt_flag(f"Phase 1 verified data is fresh at {datetime.now(timezone.utc).isoformat()}")
         except (ValueError, ZeroDivisionError, TypeError) as e:
             logger.warning(f"Failed to manage halt flag after Phase 1: {e}")
 
@@ -1022,9 +944,8 @@ class Orchestrator:
             logger.critical(msg)
             self.log_phase_result(5, "signal_generation", "halt", msg)
             from algo.orchestrator.phase_result import PhaseResult
-            self._phase5_result = PhaseResult(
-                5, "signal_generation", "halted", {"qualified_trades": []}, True, msg
-            )
+
+            self._phase5_result = PhaseResult(5, "signal_generation", "halted", {"qualified_trades": []}, True, msg)
             return False
 
         # Validate constraints schema
@@ -1035,9 +956,8 @@ class Orchestrator:
             logger.critical(msg)
             self.log_phase_result(5, "signal_generation", "halt", msg)
             from algo.orchestrator.phase_result import PhaseResult
-            self._phase5_result = PhaseResult(
-                5, "signal_generation", "halted", {"qualified_trades": []}, True, msg
-            )
+
+            self._phase5_result = PhaseResult(5, "signal_generation", "halted", {"qualified_trades": []}, True, msg)
             return False
 
         result = run_phase5(
@@ -1052,9 +972,7 @@ class Orchestrator:
         )
         self._phase5_result = result
         self._qualified_trades = result.data.get("qualified_trades", [])
-        self.phase_results.setdefault(5, {})["signals_evaluated"] = len(
-            self._qualified_trades
-        )
+        self.phase_results.setdefault(5, {})["signals_evaluated"] = len(self._qualified_trades)
         return not result.halted
 
     def phase_6_entry_execution(self) -> bool:
@@ -1076,9 +994,7 @@ class Orchestrator:
             self._check_halt_flag,
         )
         self._phase6_result = result
-        self.phase_results.setdefault(6, {})["trades_executed"] = result.data.get(
-            "entered", 0
-        )
+        self.phase_results.setdefault(6, {})["trades_executed"] = result.data.get("entered", 0)
         return not result.halted
 
     def phase_7_reconcile(self) -> bool:
@@ -1090,9 +1006,7 @@ class Orchestrator:
 
         result = run_phase7(self.config, self.run_date, self.log_phase_result)
         self._phase7_result = result
-        self.phase_results.setdefault(7, {})["open_positions"] = result.data.get(
-            "positions", 0
-        )
+        self.phase_results.setdefault(7, {})["open_positions"] = result.data.get("positions", 0)
         return not result.halted
 
     # ---------- Executor setup (Phase 2: Phase Executor Framework) ----------
@@ -1106,9 +1020,7 @@ class Orchestrator:
         Returns:
             OrchestratorPhaseExecutor ready to execute all phases.
         """
-        executor = OrchestratorPhaseExecutor(
-            config=self.config, halt_check_fn=self._check_halt_flag
-        )
+        executor = OrchestratorPhaseExecutor(config=self.config, halt_check_fn=self._check_halt_flag)
 
         # Phase 1: Data Freshness
         executor.register_phase(
@@ -1277,18 +1189,14 @@ class Orchestrator:
 
     def run(self) -> dict[str, Any]:
         run_start = time.time()
-        logger.info(f"\n{'#'*70}")
-        logger.info(
-            f"#   ALGO ORCHESTRATOR — {self.run_date}  ({'DRY RUN' if self.dry_run else 'LIVE'})"
-        )
+        logger.info(f"\n{'#' * 70}")
+        logger.info(f"#   ALGO ORCHESTRATOR — {self.run_date}  ({'DRY RUN' if self.dry_run else 'LIVE'})")
         logger.info(f"#   run_id: {self.run_id}")
         logger.info(f"#   START TIME: {datetime.now(timezone.utc).isoformat()}")
-        logger.info(f"{'#'*70}")
+        logger.info(f"{'#' * 70}")
 
         if not MarketCalendar.is_trading_day(self.run_date):
-            status = MarketCalendar.market_status(
-                datetime.combine(self.run_date, datetime.min.time())
-            )
+            status = MarketCalendar.market_status(datetime.combine(self.run_date, datetime.min.time()))
             logger.info(f"\n Market closed: {status['reason']}")
             logger.info("Skipping all trading phases.\n")
             # FIXED Issue #6: Log skipped runs to execution log
@@ -1307,9 +1215,7 @@ class Orchestrator:
             if not lock_acquired:
                 if self.lock_manager.is_available:
                     # DynamoDB is available but lock couldn't be acquired (another instance running)
-                    logger.error(
-                        "\nABORT: Could not acquire run lock. Another orchestrator instance is running."
-                    )
+                    logger.error("\nABORT: Could not acquire run lock. Another orchestrator instance is running.")
                     return {"success": False, "error": "Lock acquisition failed"}
                 else:
                     # DynamoDB unavailable (no permissions, network issue, etc.) - allow to continue with warning
@@ -1320,9 +1226,9 @@ class Orchestrator:
             logger.info("[DRY-RUN] Skipping distributed lock check (dry-run mode)")
 
         try:
-            logger.info(f"\n{'='*70}")
+            logger.info(f"\n{'=' * 70}")
             logger.info("PRE-FLIGHT CHECKS (before Phase 1)")
-            logger.info(f"{'='*70}")
+            logger.info(f"{'=' * 70}")
             logger.info("[CRITICAL] Running critical data checks...")
             try:
                 logger.debug("[PREFLIGHT] Opening database context (timeout=10s)")
@@ -1355,9 +1261,7 @@ class Orchestrator:
             logger.info("\n[CHECK] Database connectivity...")
             if not self._check_db_connectivity():
                 logger.error("[DB_ERROR] Database connectivity check FAILED")
-                logger.error(
-                    "Check CloudWatch alarms for database availability. Returning skipped status."
-                )
+                logger.error("Check CloudWatch alarms for database availability. Returning skipped status.")
                 report = cast(dict[str, Any], self._final_report())
                 report["skipped"] = True
                 report["reason"] = "database_unavailable"
@@ -1375,9 +1279,7 @@ class Orchestrator:
             self._health_check_diagnostics()
             try:
                 phase_1_start = time.time()
-                logger.info(
-                    f"\n[PHASE 1] Starting at {datetime.now(timezone.utc).isoformat()}"
-                )
+                logger.info(f"\n[PHASE 1] Starting at {datetime.now(timezone.utc).isoformat()}")
                 with TimeBlock("phase_1_data_freshness"):
                     from algo.orchestrator.phase1_data_freshness import (
                         run as run_phase1,
@@ -1393,12 +1295,8 @@ class Orchestrator:
                     )
                     self._phase1_result = phase1_result
                     if phase1_result.halted:
-                        logger.error(
-                            "\nPhase 1 failed: prices not loaded or coverage insufficient."
-                        )
-                        self.log_phase_result(
-                            1, "data_freshness", "halt", phase1_result.error or ""
-                        )
+                        logger.error("\nPhase 1 failed: prices not loaded or coverage insufficient.")
+                        self.log_phase_result(1, "data_freshness", "halt", phase1_result.error or "")
                         self.phase_7_reconcile()
                         return cast(dict[str, Any], self._final_report())
                 phase_1_elapsed = time.time() - phase_1_start
@@ -1414,25 +1312,17 @@ class Orchestrator:
                 return cast(dict[str, Any], self._final_report())
 
             phase_2_start = time.time()
-            logger.info(
-                f"\n[PHASE 2] Starting at {datetime.now(timezone.utc).isoformat()}"
-            )
+            logger.info(f"\n[PHASE 2] Starting at {datetime.now(timezone.utc).isoformat()}")
             with TimeBlock("phase_2_circuit_breakers"):
                 phase_2_passed = self.phase_2_circuit_breakers()
             phase_2_elapsed = time.time() - phase_2_start
-            logger.info(
-                f"[PHASE 2] Completed in {phase_2_elapsed:.2f}s at {datetime.now(timezone.utc).isoformat()}"
-            )
+            logger.info(f"[PHASE 2] Completed in {phase_2_elapsed:.2f}s at {datetime.now(timezone.utc).isoformat()}")
 
             if not phase_2_passed:
-                logger.info(
-                    "\nHALT: Circuit breaker fired. Will still review positions but skip new entries."
-                )
+                logger.info("\nHALT: Circuit breaker fired. Will still review positions but skip new entries.")
                 phase2_result = getattr(self, "_phase2_result", None)
                 halt_reason = (
-                    phase2_result.error
-                    if phase2_result and phase2_result.error
-                    else "Circuit breaker triggered"
+                    phase2_result.error if phase2_result and phase2_result.error else "Circuit breaker triggered"
                 )
                 self._set_halt_flag(halt_reason)
                 self.phase_3_position_monitor()
@@ -1447,9 +1337,7 @@ class Orchestrator:
 
             # Phase 3: Position Monitor
             phase_3_start = time.time()
-            logger.info(
-                f"\n[PHASE 3] Starting at {datetime.now(timezone.utc).isoformat()}"
-            )
+            logger.info(f"\n[PHASE 3] Starting at {datetime.now(timezone.utc).isoformat()}")
             try:
                 with TimeBlock("phase_3_position_monitor"):
                     self.phase_3_position_monitor()
@@ -1463,9 +1351,7 @@ class Orchestrator:
 
             # Phase 3b: Exposure Policy
             phase_3b_start = time.time()
-            logger.info(
-                f"\n[PHASE 3b] Starting at {datetime.now(timezone.utc).isoformat()}"
-            )
+            logger.info(f"\n[PHASE 3b] Starting at {datetime.now(timezone.utc).isoformat()}")
             try:
                 with TimeBlock("phase_3b_exposure_policy"):
                     self.phase_3b_exposure_policy()
@@ -1479,9 +1365,7 @@ class Orchestrator:
 
             # Phase 4: Exit Execution
             phase_4_start = time.time()
-            logger.info(
-                f"\n[PHASE 4] Starting at {datetime.now(timezone.utc).isoformat()}"
-            )
+            logger.info(f"\n[PHASE 4] Starting at {datetime.now(timezone.utc).isoformat()}")
             try:
                 with TimeBlock("phase_4_exit_execution"):
                     result = self.phase_4_exit_execution()
@@ -1501,9 +1385,7 @@ class Orchestrator:
 
             # Phase 5: Signal Generation
             phase_5_start = time.time()
-            logger.info(
-                f"\n[PHASE 5] Starting at {datetime.now(timezone.utc).isoformat()}"
-            )
+            logger.info(f"\n[PHASE 5] Starting at {datetime.now(timezone.utc).isoformat()}")
             try:
                 with TimeBlock("phase_5_signal_generation"):
                     result = self.phase_5_signal_generation()
@@ -1524,16 +1406,12 @@ class Orchestrator:
                     f"[PHASE 5] Completed in {phase_5_elapsed:.2f}s at {datetime.now(timezone.utc).isoformat()}"
                 )
             except Exception as e:
-                logger.error(
-                    f"✗ Phase 5 (Signal Generation) failed: {e}", exc_info=True
-                )
+                logger.error(f"✗ Phase 5 (Signal Generation) failed: {e}", exc_info=True)
                 self.log_phase_result(5, "signal_generation", "error", str(e))
 
             # Phase 6: Entry Execution
             phase_6_start = time.time()
-            logger.info(
-                f"\n[PHASE 6] Starting at {datetime.now(timezone.utc).isoformat()}"
-            )
+            logger.info(f"\n[PHASE 6] Starting at {datetime.now(timezone.utc).isoformat()}")
             try:
                 with TimeBlock("phase_6_entry_execution"):
                     result = self.phase_6_entry_execution()
@@ -1556,9 +1434,7 @@ class Orchestrator:
 
             # Phase 7: Reconciliation (fail-open — doesn't execute trades, just records state)
             phase_7_start = time.time()
-            logger.info(
-                f"\n[PHASE 7] Starting at {datetime.now(timezone.utc).isoformat()}"
-            )
+            logger.info(f"\n[PHASE 7] Starting at {datetime.now(timezone.utc).isoformat()}")
             try:
                 with TimeBlock("phase_7_reconciliation"):
                     result = self.phase_7_reconcile()
@@ -1593,9 +1469,7 @@ class Orchestrator:
                             unit="Seconds",
                         )
                     else:  # After 10 AM = EOD pipeline
-                        metrics.add_metric(
-                            "eod_pipeline_seconds", total_elapsed, unit="Seconds"
-                        )
+                        metrics.add_metric("eod_pipeline_seconds", total_elapsed, unit="Seconds")
             except Exception as e:
                 logger.debug(f"Could not emit pipeline timing metrics: {e}")
 
@@ -1604,9 +1478,9 @@ class Orchestrator:
             self._release_run_lock()
 
     def _final_report(self):
-        logger.info(f"\n{'#'*70}")
+        logger.info(f"\n{'#' * 70}")
         logger.info(f"#   FINAL REPORT — {self.run_id}")
-        logger.info(f"{'#'*70}")
+        logger.info(f"{'#' * 70}")
         for n, info in sorted(self.phase_results.items(), key=lambda x: str(x[0])):
             status_flag = {
                 "success": "[OK] ",
@@ -1614,14 +1488,10 @@ class Orchestrator:
                 "fail": "[FAIL]",
                 "error": "[ERR] ",
             }.get(info["status"], "[?]   ")
-            logger.info(
-                f"  {status_flag} Phase {n}: {info['name']:22s} — {info['summary']}"
-            )
-        logger.info(f"{'#'*70}\n")
+            logger.info(f"  {status_flag} Phase {n}: {info['name']:22s} — {info['summary']}")
+        logger.info(f"{'#' * 70}\n")
 
-        any_error = any(
-            p["status"] in ("error", "fail") for p in self.phase_results.values()
-        )
+        any_error = any(p["status"] in ("error", "fail") for p in self.phase_results.values())
         any_halt = any(p["status"] == "halt" for p in self.phase_results.values())
         result = {
             "run_id": self.run_id,
@@ -1636,21 +1506,13 @@ class Orchestrator:
             if any_error:
                 overall_status = "error"
                 halt_reason = next(
-                    (
-                        p["summary"]
-                        for p in self.phase_results.values()
-                        if p["status"] == "error"
-                    ),
+                    (p["summary"] for p in self.phase_results.values() if p["status"] == "error"),
                     None,
                 )
             elif any_halt:
                 overall_status = "halted"
                 halt_reason = next(
-                    (
-                        p["summary"]
-                        for p in self.phase_results.values()
-                        if p["status"] == "halt"
-                    ),
+                    (p["summary"] for p in self.phase_results.values() if p["status"] == "halt"),
                     None,
                 )
             else:
@@ -1694,7 +1556,6 @@ class Orchestrator:
 
 
 if __name__ == "__main__":
-
     logging.basicConfig(
         level=os.getenv("LOG_LEVEL", "INFO"),
         format="%(asctime)s [%(levelname)s] %(name)s: %(message)s",
@@ -1704,12 +1565,8 @@ if __name__ == "__main__":
 
     parser = argparse.ArgumentParser(description="Run daily algo workflow")
     parser.add_argument("--date", type=str, help="Run date (YYYY-MM-DD)", default=None)
-    parser.add_argument(
-        "--dry-run", action="store_true", help="Plan only, no real trades"
-    )
-    parser.add_argument(
-        "--init-only", action="store_true", help="Run loaders only, no trading"
-    )
+    parser.add_argument("--dry-run", action="store_true", help="Plan only, no real trades")
+    parser.add_argument("--init-only", action="store_true", help="Run loaders only, no trading")
     parser.add_argument("--quiet", action="store_true", help="Reduce output")
     args = parser.parse_args()
 
@@ -1737,9 +1594,7 @@ if __name__ == "__main__":
     from algo.infrastructure import get_config
 
     config = get_config()
-    orch = Orchestrator(
-        config=config, run_date=run_date, dry_run=dry_run, verbose=not args.quiet
-    )
+    orch = Orchestrator(config=config, run_date=run_date, dry_run=dry_run, verbose=not args.quiet)
     try:
         final = orch.run()
         sys.exit(0 if final["success"] else 1)

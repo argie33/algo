@@ -52,9 +52,7 @@ class AdvancedFilters:
             val = self.config.get(key)
             return val if val is not None else default
         except (RuntimeError, OSError) as e:
-            raise RuntimeError(
-                f"CRITICAL: Database/connection error loading config[{key}]: {e}"
-            ) from e
+            raise RuntimeError(f"CRITICAL: Database/connection error loading config[{key}]: {e}") from e
         except (psycopg2.DatabaseError, psycopg2.OperationalError) as e:
             logger.debug(f"Config value {key} unavailable, using default: {e}")
             return default
@@ -80,9 +78,7 @@ class AdvancedFilters:
             sectors = cur.fetchall()
             top_n = int(self.config.get("strong_sector_top_n", 5))
             self._sector_full_ranking = {row[0]: int(row[1]) for row in sectors}
-            self._strong_sectors = {
-                row[0]: float(row[2]) for row in sectors[:top_n] if row[2] is not None
-            }
+            self._strong_sectors = {row[0]: float(row[2]) for row in sectors[:top_n] if row[2] is not None}
 
             if not self._strong_sectors:
                 raise ValueError(
@@ -107,9 +103,7 @@ class AdvancedFilters:
             industries = cur.fetchall()
             if industries:
                 cutoff_idx = max(1, len(industries) // 4)
-                self._strong_industries = {
-                    row[0]: float(row[1]) for row in industries[:cutoff_idx]
-                }
+                self._strong_industries = {row[0]: float(row[1]) for row in industries[:cutoff_idx]}
             else:
                 self._strong_industries = {}
 
@@ -169,10 +163,7 @@ class AdvancedFilters:
             components["days_to_earnings"] = days_to_earnings
             block_window = int(self.config.get("block_days_before_earnings", 5))
             if days_to_earnings is not None and 0 <= days_to_earnings <= block_window:
-                hard_fail = (
-                    hard_fail
-                    or f"Earnings in ~{days_to_earnings}d (block window {block_window}d)"
-                )
+                hard_fail = hard_fail or f"Earnings in ~{days_to_earnings}d (block window {block_window}d)"
 
             # H2. Over-extended (CRITICAL: must not skip on exception)
             ext_pct = None
@@ -187,10 +178,7 @@ class AdvancedFilters:
             components["extension_pct"] = ext_pct
             max_extension = float(self.config.get("max_extension_above_50ma_pct", 15.0))
             if ext_pct is not None and ext_pct > max_extension:
-                hard_fail = (
-                    hard_fail
-                    or f"{ext_pct:.1f}% above 50-DMA (max {max_extension:.0f})"
-                )
+                hard_fail = hard_fail or f"{ext_pct:.1f}% above 50-DMA (max {max_extension:.0f})"
 
             # H4. Liquidity (institutional must — CRITICAL: must not skip on exception)
             avg_dollar_vol = None
@@ -205,18 +193,12 @@ class AdvancedFilters:
             components["avg_dollar_volume"] = avg_dollar_vol
             min_liq = float(self.config.get("min_avg_daily_dollar_volume", 500_000))
             if avg_dollar_vol is not None and avg_dollar_vol < min_liq:
-                hard_fail = (
-                    hard_fail
-                    or f"Liquidity ${avg_dollar_vol/1e6:.1f}M < ${min_liq/1e6:.1f}M"
-                )
+                hard_fail = hard_fail or f"Liquidity ${avg_dollar_vol / 1e6:.1f}M < ${min_liq / 1e6:.1f}M"
 
             # H5. Strong-sector requirement (off by default)
             if self.config.get("require_strong_sector", False):
                 if sector and sector not in (self._strong_sectors or {}):
-                    hard_fail = (
-                        hard_fail
-                        or f'Sector "{sector}" not in top {len(self._strong_sectors or {})}'
-                    )
+                    hard_fail = hard_fail or f'Sector "{sector}" not in top {len(self._strong_sectors or {})}'
 
             # ===== SOFT scoring (always computed, even when hard-failed) =====
 
@@ -249,9 +231,7 @@ class AdvancedFilters:
                 logger.warning(f"  {symbol}: {hard_fail}")
 
             try:
-                vol_pts, vol_ratio = self._volume_confirmation_score(
-                    symbol, signal_date, cur
-                )
+                vol_pts, vol_ratio = self._volume_confirmation_score(symbol, signal_date, cur)
                 components["volume_ratio"] = vol_ratio
                 subscores["momentum"] += vol_pts
             except ValueError as e:
@@ -332,9 +312,7 @@ class AdvancedFilters:
         if self._signals is None:
             self._signals = SignalComputer()
 
-        rs_percentile = self._signals._rs_percentile_vs_spy(
-            cur, symbol, signal_date, lookback=60
-        )
+        rs_percentile = self._signals._rs_percentile_vs_spy(cur, symbol, signal_date, lookback=60)
         # ValueError (missing data) and other errors propagate to caller
 
         pts = (rs_percentile / 100.0) * self.W_MOMENTUM_RS
@@ -345,11 +323,7 @@ class AdvancedFilters:
             raise ValueError("Sector ranking data not loaded — call load_market_context() first")
         if not sector:
             raise ValueError("Sector name is missing or empty")
-        rank = (
-            self._sector_full_ranking.get(sector, 99)
-            if self._sector_full_ranking
-            else 99
-        )
+        rank = self._sector_full_ranking.get(sector, 99) if self._sector_full_ranking else 99
         # Top sector = 10pts, rank 5 = 5pts, rank 11 = 0pts
         return max(0.0, self.W_MOMENTUM_SECTOR * (1.0 - (rank - 1) / 10.0))
 
@@ -376,15 +350,11 @@ class AdvancedFilters:
         )
         row = cur.fetchone()
         if not row or not row[0] or not row[1]:
-            raise ValueError(
-                f"Volume data missing for {symbol} on {signal_date} — cannot confirm volume strength"
-            )
+            raise ValueError(f"Volume data missing for {symbol} on {signal_date} — cannot confirm volume strength")
         vol = float(row[0])
         avg = float(row[1])
         if avg <= 0:
-            raise ValueError(
-                f"Invalid volume average (≤0) for {symbol} on {signal_date} — data corruption"
-            )
+            raise ValueError(f"Invalid volume average (≤0) for {symbol} on {signal_date} — data corruption")
         ratio = vol / avg
         # 1.5x = full points
         pts = max(
@@ -423,9 +393,7 @@ class AdvancedFilters:
                 score += 1.0
         except (psycopg2.DatabaseError, psycopg2.OperationalError) as e:
             # Weekly data missing or unavailable — continue without bonus
-            logger.debug(
-                f"Weekly alignment data unavailable for {symbol}: {e} (continuing without bonus)"
-            )
+            logger.debug(f"Weekly alignment data unavailable for {symbol}: {e} (continuing without bonus)")
 
         return min(score, self.W_MOMENTUM_PRICE_TREND)
 
@@ -506,9 +474,7 @@ class AdvancedFilters:
         recent = float(row[0])
         oldest = float(row[1])
         if oldest <= 0:
-            raise ValueError(
-                f"Invalid historical price for {symbol}: oldest close {oldest} <= 0"
-            )
+            raise ValueError(f"Invalid historical price for {symbol}: oldest close {oldest} <= 0")
         return (recent - oldest) / oldest
 
     # ============= QUALITY =============
@@ -528,9 +494,7 @@ class AdvancedFilters:
             raise ValueError(error_msg)
         composite = float(row[0])
         # 40 = 0pts, 90+ = full pts
-        pts = max(
-            0.0, min(self.W_QUALITY_IBD, (composite - 40.0) * self.W_QUALITY_IBD / 50.0)
-        )
+        pts = max(0.0, min(self.W_QUALITY_IBD, (composite - 40.0) * self.W_QUALITY_IBD / 50.0))
 
         # Assign letter grade using configurable thresholds from algo_config
         grade = GradeClassifier.classify_ibd_composite(composite)
@@ -645,9 +609,7 @@ class AdvancedFilters:
         downs = int(row[1]) if row[1] is not None else 0
         net = ups - downs
         # +5 net = full; -3 net = 0
-        pts = max(
-            0.0, min(self.W_CATALYST_ANALYST, (net + 3) * self.W_CATALYST_ANALYST / 8.0)
-        )
+        pts = max(0.0, min(self.W_CATALYST_ANALYST, (net + 3) * self.W_CATALYST_ANALYST / 8.0))
         return pts, net
 
     def _insider_score(self, symbol, signal_date, cur):
@@ -693,9 +655,7 @@ class AdvancedFilters:
         )
         row = cur.fetchone()
         if not row or not row[0] or float(row[0]) <= 0:
-            raise ValueError(
-                f"50-day SMA not available for {symbol} on {signal_date}"
-            )
+            raise ValueError(f"50-day SMA not available for {symbol} on {signal_date}")
         sma_50 = float(row[0])
         return ((entry_price - sma_50) / sma_50) * 100.0
 
@@ -725,11 +685,7 @@ class AdvancedFilters:
             return 0.0
         if days_to_earnings >= 30:
             return self.W_RISK_EARNINGS_PROX
-        return (
-            self.W_RISK_EARNINGS_PROX
-            * (days_to_earnings - block_window)
-            / (30 - block_window)
-        )
+        return self.W_RISK_EARNINGS_PROX * (days_to_earnings - block_window) / (30 - block_window)
 
     def _avg_dollar_volume(self, symbol, signal_date, cur):
         """Calculate average daily dollar volume (close * volume) over 50 days.

@@ -21,7 +21,6 @@ Usage — rate limiter (shared across threads):
 import functools
 import logging
 import random
-import requests
 import time
 from collections.abc import Callable
 

@@ -33,16 +33,14 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).parent.parent))
 
-from algo.algo_orchestrator import Orchestrator
 from algo.infrastructure import MarketCalendar, get_config
+from algo.orchestration import Orchestrator
 from utils.db.context import DatabaseContext
 from utils.db.sql_safety import assert_safe_table
 from utils.infrastructure.timezone import EASTERN_TZ
 
 
-logging.basicConfig(
-    level=logging.INFO, format="%(asctime)s [%(name)s] %(levelname)s: %(message)s"
-)
+logging.basicConfig(level=logging.INFO, format="%(asctime)s [%(name)s] %(levelname)s: %(message)s")
 logger = logging.getLogger(__name__)
 
 
@@ -180,38 +178,18 @@ class EndToEndIntegrationTest:
             checks = {}
 
             # Check load_prices.py for circuit breaker
-            load_prices_path = (
-                Path(__file__).parent.parent / "loaders" / "load_prices.py"
-            )
+            load_prices_path = Path(__file__).parent.parent / "loaders" / "load_prices.py"
             try:
-                with open(
-                    load_prices_path, "r", encoding="utf-8", errors="replace"
-                ) as f:
+                with open(load_prices_path, encoding="utf-8", errors="replace") as f:
                     source = f.read()
 
-                checks["circuit_breaker_code"] = (
-                    "_check_market_close_data_available" in source
-                )
-                checks["batch_threshold_check"] = (
-                    "batch >= 20" in source or "batch size" in source.lower()
-                )
-                checks["error_threshold_check"] = (
-                    "3" in source and "error" in source.lower()
-                )
-                checks["timeout_dynamic"] = "timeout" in source.lower() and (
-                    "180" in source or "600" in source
-                )
+                checks["circuit_breaker_code"] = "_check_market_close_data_available" in source
+                checks["batch_threshold_check"] = "batch >= 20" in source or "batch size" in source.lower()
+                checks["error_threshold_check"] = "3" in source and "error" in source.lower()
+                checks["timeout_dynamic"] = "timeout" in source.lower() and ("180" in source or "600" in source)
             except Exception as e:
                 logger.warning(f"  Could not read load_prices.py: {e}")
-                checks = {
-                    k: False
-                    for k in [
-                        "circuit_breaker_code",
-                        "batch_threshold_check",
-                        "error_threshold_check",
-                        "timeout_dynamic",
-                    ]
-                }
+                checks = dict.fromkeys(["circuit_breaker_code", "batch_threshold_check", "error_threshold_check", "timeout_dynamic"], False)
 
             for check, passed in checks.items():
                 status = "[OK]" if passed else "[SKIP]"
@@ -263,28 +241,15 @@ class EndToEndIntegrationTest:
                 logger.info(f"  {status} Column {col}")
 
             # Check phase1_data_freshness.py for completion detection logic
-            phase1_path = (
-                Path(__file__).parent.parent
-                / "algo"
-                / "orchestrator"
-                / "phase1_data_freshness.py"
-            )
+            phase1_path = Path(__file__).parent.parent / "algo" / "orchestrator" / "phase1_data_freshness.py"
             try:
-                with open(phase1_path, "r", encoding="utf-8", errors="replace") as f:
+                with open(phase1_path, encoding="utf-8", errors="replace") as f:
                     source = f.read()
-                has_coverage_check = (
-                    "symbols_loaded" in source and "symbol_count" in source
-                )
-                has_recentness_check = (
-                    "execution_completed" in source and "10" in source
-                )
+                has_coverage_check = "symbols_loaded" in source and "symbol_count" in source
+                has_recentness_check = "execution_completed" in source and "10" in source
 
-                logger.info(
-                    f"  {'[OK]' if has_coverage_check else '[MISSING]'} Coverage validation logic"
-                )
-                logger.info(
-                    f"  {'[OK]' if has_recentness_check else '[MISSING]'} Recentness check logic"
-                )
+                logger.info(f"  {'[OK]' if has_coverage_check else '[MISSING]'} Coverage validation logic")
+                logger.info(f"  {'[OK]' if has_recentness_check else '[MISSING]'} Recentness check logic")
 
                 if all(checks.values()) and has_coverage_check and has_recentness_check:
                     self.results["issues_verified"].add("Issue #2")
@@ -320,7 +285,7 @@ class EndToEndIntegrationTest:
 
             # Check 1: Orchestrator can be instantiated
             try:
-                orch = Orchestrator(config=self.config, dry_run=True)
+                Orchestrator(config=self.config, dry_run=True)
                 checks["orchestrator_init"] = True
                 logger.info("  ✓ Orchestrator initialization")
             except Exception as e:
@@ -369,7 +334,7 @@ class EndToEndIntegrationTest:
             # Check 5: Phase implementation (verify phases/logic in orchestrator code)
             orch_path = Path(__file__).parent.parent / "algo" / "algo_orchestrator.py"
             try:
-                with open(orch_path, "r", encoding="utf-8", errors="replace") as f:
+                with open(orch_path, encoding="utf-8", errors="replace") as f:
                     source = f.read()
 
                 # Check for key phase-related functions/patterns
@@ -418,7 +383,7 @@ class EndToEndIntegrationTest:
             for path in health_paths:
                 if path.exists():
                     try:
-                        with open(path, "r", encoding="utf-8", errors="replace") as f:
+                        with open(path, encoding="utf-8", errors="replace") as f:
                             source = f.read()
                         break
                     except Exception:
@@ -429,9 +394,7 @@ class EndToEndIntegrationTest:
                 for py_file in Path(__file__).parent.parent.rglob("*.py"):
                     if "backend" in str(py_file) or "api" in str(py_file):
                         try:
-                            with open(
-                                py_file, "r", encoding="utf-8", errors="replace"
-                            ) as f:
+                            with open(py_file, encoding="utf-8", errors="replace") as f:
                                 content = f.read()
                             if "signal_age_hours" in content:
                                 source = content
@@ -440,9 +403,7 @@ class EndToEndIntegrationTest:
                             continue
 
             checks = {
-                "signal_age_hours_field": (
-                    "signal_age_hours" in source if source else False
-                ),
+                "signal_age_hours_field": ("signal_age_hours" in source if source else False),
                 "degraded_mode_field": "degraded_mode" in source if source else False,
                 "freshness_logic": "fresh" in source.lower() if source else False,
             }
@@ -455,9 +416,7 @@ class EndToEndIntegrationTest:
                 self.results["issues_verified"].add("Issue #13")
                 return True
             else:
-                logger.info(
-                    "  (Health endpoint verification incomplete - will test in AWS)"
-                )
+                logger.info("  (Health endpoint verification incomplete - will test in AWS)")
                 return True  # Non-critical for local test
 
         except Exception as e:
@@ -477,9 +436,7 @@ class EndToEndIntegrationTest:
         if len(self.results["issues_verified"]) >= 2:
             print("\n[PASSED] CRITICAL ISSUES VERIFIED")
             print("\nNext Steps for Monday AWS Verification (June 9, 2:00 AM ET):")
-            print(
-                "  1. Monitor CloudWatch /aws/ecs/algo-loaders for execution timestamps"
-            )
+            print("  1. Monitor CloudWatch /aws/ecs/algo-loaders for execution timestamps")
             print("  2. Verify all 5 loaders complete with >=90% coverage")
             print("  3. Check Phase 1 completes without halting")
             print("  4. Verify Phase 5 generates signals with correct sizing")

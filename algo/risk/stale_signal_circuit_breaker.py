@@ -4,9 +4,10 @@
 import logging
 from datetime import datetime, timezone
 
+import psycopg2
+
 from utils.db.context import DatabaseContext
 from utils.infrastructure.timezone import EASTERN_TZ
-import psycopg2
 
 
 logger = logging.getLogger(__name__)
@@ -54,9 +55,7 @@ class StaleSignalCircuitBreaker:
                 # Check if signals are based on latest price data
                 if latest_signal_date < latest_price_date:
                     gap_days = (latest_price_date - latest_signal_date).days
-                    msg = (
-                        f"Signals lag price data by {gap_days}d (signals from old data)"
-                    )
+                    msg = f"Signals lag price data by {gap_days}d (signals from old data)"
                     logger.critical(f"CIRCUIT BREAKER OPEN: {msg}")
                     return False, msg
 
@@ -80,9 +79,7 @@ class StaleSignalCircuitBreaker:
                     return False, msg
 
                 # Signals are based on latest available price data
-                msg = (
-                    f"Signals FRESH: based on latest price data ({latest_signal_date})"
-                )
+                msg = f"Signals FRESH: based on latest price data ({latest_signal_date})"
                 logger.info(msg)
                 return True, msg
 

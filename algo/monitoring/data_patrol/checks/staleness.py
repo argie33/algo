@@ -138,14 +138,10 @@ class StalenessChecker(BaseCheck):
                 # Parse date
                 latest = None
                 try:
-                    latest = datetime.strptime(
-                        latest_str.split()[0], "%Y-%m-%d"
-                    ).date()
+                    latest = datetime.strptime(latest_str.split()[0], "%Y-%m-%d").date()
                 except (ValueError, IndexError, AttributeError):
                     try:
-                        latest = datetime.fromisoformat(
-                            latest_str.replace("Z", "+00:00")
-                        ).date()
+                        latest = datetime.fromisoformat(latest_str.replace("Z", "+00:00")).date()
                     except (ValueError, AttributeError):
                         latest = None
 

@@ -63,15 +63,13 @@ class ExitEngine:
         if not current_date:
             current_date = datetime.now(timezone.utc).date()
 
-        auditor = (
-            TradePerformanceAuditor(self.config) if TradePerformanceAuditor else None
-        )
+        auditor = TradePerformanceAuditor(self.config) if TradePerformanceAuditor else None
 
         with DatabaseContext("write") as cur:
             try:
-                logger.info(f"\n{'='*70}")
+                logger.info(f"\n{'=' * 70}")
                 logger.info(f"EXIT ENGINE CHECK - {current_date}")
-                logger.info(f"{'='*70}\n")
+                logger.info(f"{'=' * 70}\n")
 
                 cur.execute(
                     """
@@ -127,9 +125,7 @@ class ExitEngine:
                     status_row = cur.fetchone()
                     status = status_row[0] if status_row else None
                     if status != "open":
-                        logger.debug(
-                            f"Position {symbol} already closed, skipping exit check"
-                        )
+                        logger.debug(f"Position {symbol} already closed, skipping exit check")
                         continue
 
                     try:
@@ -145,9 +141,7 @@ class ExitEngine:
                     except (TypeError, ValueError) as e:
                         raise ValueError(f"Cannot evaluate exit checks for {symbol}: invalid price data — {e}") from e
 
-                    cur_price, prev_close = self._fetch_recent_prices(
-                        cur, symbol, current_date
-                    )
+                    cur_price, prev_close = self._fetch_recent_prices(cur, symbol, current_date)
                     if cur_price is None:
                         raise RuntimeError(
                             f"[EXIT ENGINE] Critical: current price unavailable for {symbol} "
@@ -159,9 +153,7 @@ class ExitEngine:
                     # Enforce minimum holding period (no same-day exits per Curtis Faith)
                     if days_held < 1:
                         if self.verbose:
-                            logger.info(
-                                f"  {symbol}: hold (too new, need 1d hold minimum, held {days_held}d)"
-                            )
+                            logger.info(f"  {symbol}: hold (too new, need 1d hold minimum, held {days_held}d)")
                         continue
 
                     exit_signal = self._evaluate_position(
@@ -199,11 +191,9 @@ class ExitEngine:
 
                     # Route exit through executor (atomicity + audit logging)
                     # Stop-raise-only (fraction=0) skips exit_trade, just updates stop
-                    logger.info(
-                        f"  {symbol}: {stage.upper()} — {exit_signal['reason']}"
-                    )
+                    logger.info(f"  {symbol}: {stage.upper()} — {exit_signal['reason']}")
                     if fraction > 0:
-                        logger.info(f"      (exit {int(fraction*100)}%)")
+                        logger.info(f"      (exit {int(fraction * 100)}%)")
 
                     # Route through executor for all cases (stop-raise-only when fraction=0)
                     # Pass cursor for transactional integrity: all exit updates in same transaction
@@ -226,9 +216,9 @@ class ExitEngine:
                     else:
                         logger.error(f"      -> FAILED: {result.get('message')}")
 
-                logger.info(f"\n{'='*70}")
+                logger.info(f"\n{'=' * 70}")
                 logger.info(f"Exits executed: {exits_executed}/{len(trades)} positions")
-                logger.info(f"{'='*70}\n")
+                logger.info(f"{'=' * 70}\n")
 
                 # NEW: Audit closed trades for performance (Phase 2 integration)
                 try:
@@ -244,7 +234,9 @@ class ExitEngine:
                         if auditor:
                             auditor.audit_exit(trade_id)
                 except (DatabaseError, ValueError) as audit_err:
-                    logger.error(f"Warning: Failed to audit closed trades (non-blocking): {type(audit_err).__name__}: {audit_err}")
+                    logger.error(
+                        f"Warning: Failed to audit closed trades (non-blocking): {type(audit_err).__name__}: {audit_err}"
+                    )
 
                 return exits_executed
             except (ValueError, RuntimeError) as e:
@@ -301,7 +293,13 @@ class ExitEngine:
                 "— R-based exits disabled for this position; hard stop still active"
             )
         r_mult = (
-            float(((Decimal(str(cur_price)) - Decimal(str(entry_price))) / risk_per_share).quantize(Decimal("0.01"), rounding=ROUND_HALF_UP)) if risk_per_share > 0 else 0
+            float(
+                ((Decimal(str(cur_price)) - Decimal(str(entry_price))) / risk_per_share).quantize(
+                    Decimal("0.01"), rounding=ROUND_HALF_UP
+                )
+            )
+            if risk_per_share > 0
+            else 0
         )
 
         # 1. STOP (capital preservation always wins)
@@ -353,9 +351,7 @@ class ExitEngine:
                 eight_wk_threshold,
                 eight_wk_window,
             )
-            if (
-                eight_wk_ext and days_held < 56
-            ):  # 8 weeks = 40 trading days; calendar 56
+            if eight_wk_ext and days_held < 56:  # 8 weeks = 40 trading days; calendar 56
                 # Don't exit on time; let the trail / stop manage it
                 pass
             else:
@@ -370,10 +366,7 @@ class ExitEngine:
         move_be_val = self.config.get("move_be_at_r")
         if move_be_val is None:
             raise ValueError("CRITICAL: move_be_at_r config missing. Cannot determine breakeven stop move trigger.")
-        if (
-            r_mult >= float(move_be_val)
-            and active_stop < entry_price
-        ):
+        if r_mult >= float(move_be_val) and active_stop < entry_price:
             return {
                 "stage": "raise_stop_be",
                 "fraction": 0.0,  # 0 = no exit, just raise stop
@@ -397,9 +390,7 @@ class ExitEngine:
 
         # First check T1 if it hasn't been hit yet
         if target_hits == 0 and t1_price is not None and cur_price >= t1_price:
-            if not _was_hit_today(t1_hit_time) and (
-                not require_pb or self._is_pulling_back(cur, symbol, current_date)
-            ):
+            if not _was_hit_today(t1_hit_time) and (not require_pb or self._is_pulling_back(cur, symbol, current_date)):
                 return {
                     "stage": "target_1",
                     "fraction": 0.50,
@@ -409,12 +400,8 @@ class ExitEngine:
 
         # Then check T2 only if T1 already hit
         if target_hits == 1 and t2_price is not None and cur_price >= t2_price:
-            if not _was_hit_today(t2_hit_time) and (
-                not require_pb or self._is_pulling_back(cur, symbol, current_date)
-            ):
-                stop_for_t2 = (
-                    max(active_stop, t1_price) if t1_price is not None else active_stop
-                )
+            if not _was_hit_today(t2_hit_time) and (not require_pb or self._is_pulling_back(cur, symbol, current_date)):
+                stop_for_t2 = max(active_stop, t1_price) if t1_price is not None else active_stop
                 return {
                     "stage": "target_2",
                     "fraction": 0.50,
@@ -437,9 +424,7 @@ class ExitEngine:
         if chandelier_enabled is None:
             raise ValueError("CRITICAL: use_chandelier_trail config missing. Cannot determine trailing stop behavior.")
         if bool(chandelier_enabled) and r_mult >= 1.0:
-            chand_stop = self._chandelier_or_ema_stop(
-                cur, symbol, current_date, days_held
-            )
+            chand_stop = self._chandelier_or_ema_stop(cur, symbol, current_date, days_held)
             if chand_stop and chand_stop > active_stop:
                 return {
                     "stage": "raise_stop_trail",
@@ -450,14 +435,13 @@ class ExitEngine:
 
         td_seq_enabled = self.config.get("exit_on_td_sequential")
         if td_seq_enabled is None:
-            raise ValueError("CRITICAL: exit_on_td_sequential config missing. Cannot determine TD Sequential exit behavior.")
+            raise ValueError(
+                "CRITICAL: exit_on_td_sequential config missing. Cannot determine TD Sequential exit behavior."
+            )
         if bool(td_seq_enabled) and target_hits >= 1:
             if r_mult >= 0.5:
                 td_state = self._get_td_state(cur, symbol, current_date)
-                if (
-                    td_state.get("combo_13_complete")
-                    and td_state.get("setup_type") == "sell"
-                ):
+                if td_state.get("combo_13_complete") and td_state.get("setup_type") == "sell":
                     return {
                         "stage": "td_combo_13",
                         "fraction": 1.0,  # full exit on 13
@@ -474,7 +458,11 @@ class ExitEngine:
         # 9. FIRST RED DAY (O'Neill) — after 20%+ gain, first big down day on heavy volume
         # Institutional distribution day after parabolic run — exit 50%
         if r_mult >= 2.5 and prev_close is not None and prev_close > 0:
-            down_pct = float(((Decimal(str(prev_close)) - Decimal(str(cur_price))) / Decimal(str(prev_close)) * Decimal(100)).quantize(Decimal("0.01"), rounding=ROUND_HALF_UP))
+            down_pct = float(
+                (
+                    (Decimal(str(prev_close)) - Decimal(str(cur_price))) / Decimal(str(prev_close)) * Decimal(100)
+                ).quantize(Decimal("0.01"), rounding=ROUND_HALF_UP)
+            )
             if down_pct >= 1.5:  # Close < prior close * 0.985 = 1.5% down
                 vol_check = self._check_volume_spike(cur, symbol, current_date, 1.5)
                 if vol_check:
@@ -504,14 +492,15 @@ class ExitEngine:
         # the raised stop protects the remainder.
         dist_enabled = self.config.get("exit_on_distribution_day")
         if dist_enabled is None:
-            raise ValueError("CRITICAL: exit_on_distribution_day config missing. Cannot determine distribution day exit behavior.")
-        if (
-            bool(dist_enabled)
-            and dist_days_today is not None
-        ):
+            raise ValueError(
+                "CRITICAL: exit_on_distribution_day config missing. Cannot determine distribution day exit behavior."
+            )
+        if bool(dist_enabled) and dist_days_today is not None:
             max_dd_val = self.config.get("max_distribution_days")
             if max_dd_val is None:
-                raise ValueError("CRITICAL: max_distribution_days config missing. Cannot enforce distribution day limit.")
+                raise ValueError(
+                    "CRITICAL: max_distribution_days config missing. Cannot enforce distribution day limit."
+                )
             max_dd = int(max_dd_val)
             if dist_days_today > max_dd:
                 return {
@@ -579,17 +568,13 @@ class ExitEngine:
             elif response.status_code == 401:
                 raise RuntimeError(f"Alpaca quote API authentication failed for {symbol}")
             else:
-                raise RuntimeError(
-                    f"Alpaca quote API error for {symbol}: status {response.status_code}"
-                )
+                raise RuntimeError(f"Alpaca quote API error for {symbol}: status {response.status_code}")
         except requests.RequestException as e:
             raise ExchangeAPIError(f"Alpaca quote API error for {symbol}: {type(e).__name__}: {e}") from e
         except (RuntimeError, ValueError):
             raise
 
-    def _fetch_recent_prices(
-        self, cur, symbol: str, current_date
-    ) -> tuple[float | None, float | None]:
+    def _fetch_recent_prices(self, cur, symbol: str, current_date) -> tuple[float | None, float | None]:
         """Return (current_price, previous_close) with intraday support.
 
         Strategy:
@@ -614,9 +599,7 @@ class ExitEngine:
                 (symbol, current_date),
             )
             prev_row = cur.fetchone()
-            prev_close = (
-                float(prev_row[0]) if prev_row and prev_row[0] is not None else None
-            )
+            prev_close = float(prev_row[0]) if prev_row and prev_row[0] is not None else None
             return current_price, prev_close
 
         # Fall back to daily closes (market closed or API unavailable)
@@ -638,9 +621,7 @@ class ExitEngine:
             error_msg = f"Current price is NULL for {symbol}"
             logger.error(error_msg)
             raise RuntimeError(error_msg)
-        prev_close = (
-            float(rows[1][1]) if len(rows) > 1 and rows[1][1] is not None else None
-        )
+        prev_close = float(rows[1][1]) if len(rows) > 1 and rows[1][1] is not None else None
         return cur_price, prev_close
 
     def _fetch_market_dist_days(self, cur, current_date) -> int | None:
@@ -672,12 +653,16 @@ class ExitEngine:
             return False
 
         cur_close = Decimal(str(rows[0][0]))
-        recent_high = max(
-            Decimal(str(r[1])) if r[1] is not None else Decimal(str(r[0])) for r in rows[:5]
-        )
+        recent_high = max(Decimal(str(r[1])) if r[1] is not None else Decimal(str(r[0])) for r in rows[:5])
 
         pullback_pct = (
-            float(((recent_high - cur_close) / recent_high * Decimal(100)).quantize(Decimal("0.01"), rounding=ROUND_HALF_UP)) if recent_high > 0 else 0
+            float(
+                ((recent_high - cur_close) / recent_high * Decimal(100)).quantize(
+                    Decimal("0.01"), rounding=ROUND_HALF_UP
+                )
+            )
+            if recent_high > 0
+            else 0
         )
         if pullback_pct >= 2.0:
             return True
@@ -748,17 +733,21 @@ class ExitEngine:
         max_close_in_window = Decimal(str(row[0]))
         if entry_price <= 0:
             raise ValueError(f"Invalid entry price for {symbol}: {entry_price}")
-        gain_pct = float(((max_close_in_window - Decimal(str(entry_price))) / Decimal(str(entry_price)) * Decimal(100)).quantize(Decimal("0.01"), rounding=ROUND_HALF_UP))
+        gain_pct = float(
+            ((max_close_in_window - Decimal(str(entry_price))) / Decimal(str(entry_price)) * Decimal(100)).quantize(
+                Decimal("0.01"), rounding=ROUND_HALF_UP
+            )
+        )
         return cast(bool, gain_pct >= threshold_pct)
 
-    def _chandelier_or_ema_stop(
-        self, cur, symbol: str, current_date, days_held: int
-    ) -> float | None:
+    def _chandelier_or_ema_stop(self, cur, symbol: str, current_date, days_held: int) -> float | None:
         """Trailing stop: chandelier (3xATR from highest high) for first 10d,
         then 21-EMA after."""
         switch_val = self.config.get("switch_to_21ema_after_days")
         if switch_val is None:
-            raise ValueError("CRITICAL: switch_to_21ema_after_days config missing. Cannot determine EMA switch point for trailing stop.")
+            raise ValueError(
+                "CRITICAL: switch_to_21ema_after_days config missing. Cannot determine EMA switch point for trailing stop."
+            )
         switch_days = int(switch_val)
         if days_held >= switch_days:
             cur.execute(
@@ -806,7 +795,9 @@ class ExitEngine:
             atr = float(row[1])
             mult_val = self.config.get("chandelier_atr_mult")
             if mult_val is None:
-                raise ValueError("CRITICAL: chandelier_atr_mult config missing. Cannot calculate chandelier trailing stop.")
+                raise ValueError(
+                    "CRITICAL: chandelier_atr_mult config missing. Cannot calculate chandelier trailing stop."
+                )
             mult = float(mult_val)
             return round(hh - (mult * atr), 2)
 
@@ -877,9 +868,7 @@ class ExitEngine:
         avg_vol = float(row[1])
         return today_vol >= avg_vol * volume_multiplier
 
-    def _compute_gain_last_n_days(
-        self, cur, symbol: str, current_date, n_days: int
-    ) -> float | None:
+    def _compute_gain_last_n_days(self, cur, symbol: str, current_date, n_days: int) -> float | None:
         """Compute % gain over the last N days (from close N days ago to current close)."""
         cur.execute(
             """

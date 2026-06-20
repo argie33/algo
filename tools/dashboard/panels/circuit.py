@@ -9,10 +9,12 @@ try:
     from panel_registry import register_panel
 except ImportError as e:
     logger.warning(f"Panel registry not available: {e} - panels will not auto-register")
+
     def register_panel(*args, **kwargs):
         if args and callable(args[0]):
             return args[0]
         return lambda fn: fn
+
 
 from rich import box
 from rich.console import Group
@@ -45,16 +47,12 @@ def panel_circuit(cb):
     n_f = cb.get("n", 0)
     any_f = cb.get("any", False)
     hc = R if any_f else G
-    hs = (
-        f"✗ {n_f} BREAKER{'S' if n_f != 1 else ''} FIRED"
-        if any_f
-        else "✓ ALL CLEAR"
-    )
+    hs = f"✗ {n_f} BREAKER{'S' if n_f != 1 else ''} FIRED" if any_f else "✓ ALL CLEAR"
     tbl = Table.grid(padding=(0, 1), expand=True)
     tbl.add_column("a", ratio=1)
     tbl.add_column("b", ratio=1)
     bs = cb.get("bs", [])
-    for a, b in zip(bs[::2], bs[1::2] + [None]):
+    for a, b in zip(bs[::2], [*bs[1::2], None], strict=False):
 
         def fmt_b(br):
             if br is None:
@@ -66,7 +64,7 @@ def panel_circuit(cb):
             if thr is None or cur is None:
                 thr_s = "--" if thr is None else f"{float(thr or 0):.0f}"
                 cur_s = "--" if cur is None else str(cur)
-                return f"[{R if fired else 'dim'}]{lbl_s}:[/]{cur_s}{str(br.get('u', ''))}[dim]/{thr_s}{str(br.get('u', ''))}[/]"
+                return f"[{R if fired else 'dim'}]{lbl_s}:[/]{cur_s}{br.get('u', '')!s}[dim]/{thr_s}{br.get('u', '')!s}[/]"
             thr_f = float(thr or 1)
             cur_f = float(cur or 0)
             if thr_f > 0:
@@ -77,11 +75,11 @@ def panel_circuit(cb):
                 util = 0
             fc = R if fired else (Y if util >= 0.75 else G)
             ind = "[bold red] ![/]" if fired else ""
-            pct_s = f"[dim] {util*100:.0f}%[/]" if not fired else ""
+            pct_s = f"[dim] {util * 100:.0f}%[/]" if not fired else ""
             cur_fmt = f"{cur_f:.1f}" if cur_f != int(cur_f) else f"{int(cur_f)}"
             return (
-                f"[{fc}]{lbl_s}:[/]{cur_fmt}{str(br.get('u', ''))}"
-                f"[dim]/{thr_f:.0f}{str(br.get('u', ''))}[/]{hbar(cur_f, thr_f, w=4)}{pct_s}{ind}"
+                f"[{fc}]{lbl_s}:[/]{cur_fmt}{br.get('u', '')!s}"
+                f"[dim]/{thr_f:.0f}{br.get('u', '')!s}[/]{hbar(cur_f, thr_f, w=4)}{pct_s}{ind}"
             )
 
         tbl.add_row(Text.from_markup(fmt_b(a)), Text.from_markup(fmt_b(b)))
@@ -92,6 +90,7 @@ def panel_circuit(cb):
         border_style="blue",
         padding=(0, 1),
     )
+
 
 @register_panel(
     "circuit_expanded",
@@ -112,11 +111,10 @@ def panel_circuit_expanded(cb):
 
     n_f = cb.get("n", 0)
     any_f = cb.get("any", False)
-    hc = R if any_f else G
     if any_f:
-        rows.append(Text.from_markup(
-            f"[bold {R}]⚠  {n_f} BREAKER{'S' if n_f != 1 else ''} FIRED  —  TRADING HALTED[/]"
-        ))
+        rows.append(
+            Text.from_markup(f"[bold {R}]⚠  {n_f} BREAKER{'S' if n_f != 1 else ''} FIRED  —  TRADING HALTED[/]")
+        )
     else:
         rows.append(Text.from_markup(f"[bold {G}]✓  ALL CLEAR  —  NO BREAKERS ACTIVE[/]"))
     rows.append(Rule(style="dim"))
@@ -177,7 +175,16 @@ def panel_circuit_expanded(cb):
                     status = Text.from_markup(f"[{G}]CLEAR[/]")
 
             tbl.add_row(
-                Text(lbl, style=f"bold {R}" if fired else ("white" if (cur is not None and thr is not None and float(cur or 0) / float(thr or 1) >= 0.75) else "dim")),
+                Text(
+                    lbl,
+                    style=f"bold {R}"
+                    if fired
+                    else (
+                        "white"
+                        if (cur is not None and thr is not None and float(cur or 0) / float(thr or 1) >= 0.75)
+                        else "dim"
+                    ),
+                ),
                 Text(cur_s, style=R if fired else "white"),
                 Text(thr_s, style="dim"),
                 util_bar,
@@ -187,10 +194,12 @@ def panel_circuit_expanded(cb):
 
         if any_f:
             rows.append(Rule(style="dim"))
-            rows.append(Text.from_markup(
-                f"[bold {R}]Trading is halted until the circuit breaker condition clears.[/]\n"
-                f"[dim]Breakers auto-reset when the monitored metric falls below threshold.[/]"
-            ))
+            rows.append(
+                Text.from_markup(
+                    f"[bold {R}]Trading is halted until the circuit breaker condition clears.[/]\n"
+                    f"[dim]Breakers auto-reset when the monitored metric falls below threshold.[/]"
+                )
+            )
 
     return Panel(
         Group(*rows),

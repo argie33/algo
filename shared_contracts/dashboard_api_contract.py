@@ -650,10 +650,21 @@ class EndpointRegistry:
 
     @staticmethod
     def get_critical_endpoints() -> Dict[str, Dict[str, Any]]:
-        """Get only critical endpoints (dashboard won't render without these)."""
-        return {
-            k: v for k, v in DASHBOARD_ENDPOINTS.items() if v.get("critical", False)
-        }
+        """Get only critical endpoints (dashboard won't render without these).
+
+        FAIL-CLOSED: Raises exception if any endpoint is missing 'critical' field.
+        Dashboard reliability depends on explicit configuration, not defaults.
+        """
+        critical = {}
+        for k, v in DASHBOARD_ENDPOINTS.items():
+            if "critical" not in v:
+                raise KeyError(
+                    f"Endpoint '{k}' missing required 'critical' field in dashboard contract. "
+                    "All endpoints must explicitly declare critical=True/False."
+                )
+            if v.get("critical"):
+                critical[k] = v
+        return critical
 
     @staticmethod
     def validate_endpoint_exists(name: str) -> bool:
@@ -682,15 +693,42 @@ class PanelRegistry:
 
     @staticmethod
     def get_panel_dependencies(name: str) -> List[str]:
-        """Get list of endpoints required by a panel."""
+        """Get list of endpoints required by a panel.
+
+        FAIL-CLOSED: Raises exception if panel doesn't exist or lacks endpoint_deps field.
+        """
         panel = DASHBOARD_PANELS.get(name)
-        return cast(List[str], panel.get("endpoint_deps", []) if panel else [])
+        if not panel:
+            raise KeyError(
+                f"Panel '{name}' not found in dashboard contract. "
+                "All referenced panels must be defined."
+            )
+        if "endpoint_deps" not in panel:
+            raise KeyError(
+                f"Panel '{name}' missing required 'endpoint_deps' field. "
+                "All panels must explicitly declare their endpoint dependencies."
+            )
+        return cast(List[str], panel.get("endpoint_deps", []))
 
     @staticmethod
     def is_panel_optional(name: str) -> bool:
-        """Check if a panel is optional."""
+        """Check if a panel is optional.
+
+        FAIL-CLOSED: Raises exception if panel doesn't exist or lacks optional field.
+        All panels must explicitly declare optionality, not default to True.
+        """
         panel = DASHBOARD_PANELS.get(name)
-        return cast(bool, panel.get("optional", True) if panel else True)
+        if not panel:
+            raise KeyError(
+                f"Panel '{name}' not found in dashboard contract. "
+                "All referenced panels must be defined."
+            )
+        if "optional" not in panel:
+            raise KeyError(
+                f"Panel '{name}' missing required 'optional' field. "
+                "All panels must explicitly declare optional=True/False."
+            )
+        return cast(bool, panel.get("optional"))
 
     @staticmethod
     def validate_panel_dependencies(name: str) -> tuple[bool, List[str]]:

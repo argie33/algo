@@ -25,13 +25,9 @@ def test_exponential_backoff_reduction():
     new_total = sum(new_backoffs)
     reduction = (old_total - new_total) / old_total * 100
 
-    print("  Old backoff sequence: {} (total: {}s)".format(old_backoffs, old_total))
-    print("  New backoff sequence: {} (total: {}s)".format(new_backoffs, new_total))
-    print(
-        "  [PASS] Reduced by {:.0f}% ({}s saved)".format(
-            reduction, old_total - new_total
-        )
-    )
+    print(f"  Old backoff sequence: {old_backoffs} (total: {old_total}s)")
+    print(f"  New backoff sequence: {new_backoffs} (total: {new_total}s)")
+    print(f"  [PASS] Reduced by {reduction:.0f}% ({old_total - new_total}s saved)")
     print()
 
 
@@ -45,21 +41,15 @@ def test_batch_timeout_reduction():
     new_morning = 300
 
     print("  EOD pipeline:")
-    print("    Old max wait at batch=1: {}s (3 min)".format(old_eod))
-    print("    New max wait at batch=1: {}s (2 min)".format(new_eod))
-    print(
-        "    [OK] Reduction: {}s ({:.0f}%)".format(
-            old_eod - new_eod, (old_eod - new_eod) / old_eod * 100
-        )
-    )
+    print(f"    Old max wait at batch=1: {old_eod}s (3 min)")
+    print(f"    New max wait at batch=1: {new_eod}s (2 min)")
+    print(f"    [OK] Reduction: {old_eod - new_eod}s ({(old_eod - new_eod) / old_eod * 100:.0f}%)")
 
     print("  Morning pipeline:")
-    print("    Old max wait at batch=1: {}s (10 min)".format(old_morning))
-    print("    New max wait at batch=1: {}s (5 min)".format(new_morning))
+    print(f"    Old max wait at batch=1: {old_morning}s (10 min)")
+    print(f"    New max wait at batch=1: {new_morning}s (5 min)")
     print(
-        "    [OK] Reduction: {}s ({:.0f}%)".format(
-            old_morning - new_morning, (old_morning - new_morning) / old_morning * 100
-        )
+        f"    [OK] Reduction: {old_morning - new_morning}s ({(old_morning - new_morning) / old_morning * 100:.0f}%)"
     )
     print("  [PASS]")
     print()
@@ -73,11 +63,9 @@ def test_market_close_timeout():
     new_timeout = 10  # 10 seconds
     reduction = old_timeout - new_timeout
 
-    print("  Old timeout: {}s ({:.0f} min)".format(old_timeout, old_timeout / 60))
-    print("  New timeout: {}s".format(new_timeout))
-    print(
-        "  [PASS] Reduced by {}s ({:.0f} min saved)".format(reduction, reduction / 60)
-    )
+    print(f"  Old timeout: {old_timeout}s ({old_timeout / 60:.0f} min)")
+    print(f"  New timeout: {new_timeout}s")
+    print(f"  [PASS] Reduced by {reduction}s ({reduction / 60:.0f} min saved)")
     print()
 
 
@@ -89,24 +77,16 @@ def test_batch_one_rate_limit_abort():
     batch_size = 1
     rate_limit_errors = 0
 
-    print("  Starting with batch_size={}".format(batch_size))
+    print(f"  Starting with batch_size={batch_size}")
 
     # Simulate 2 rate limit errors
     for attempt in range(2):
         rate_limit_errors += 1
-        print(
-            "  Attempt {}: Rate limited (error #{})".format(
-                attempt + 1, rate_limit_errors
-            )
-        )
+        print(f"  Attempt {attempt + 1}: Rate limited (error #{rate_limit_errors})")
 
         # Check if should abort
         if batch_size == 1 and rate_limit_errors >= 2:
-            print(
-                "  [OK] ABORT triggered: batch=1 with {} rate limit errors".format(
-                    rate_limit_errors
-                )
-            )
+            print(f"  [OK] ABORT triggered: batch=1 with {rate_limit_errors} rate limit errors")
             print("  [PASS] Fails fast instead of continuing retries")
             return
 
@@ -121,9 +101,7 @@ def test_market_close_non_blocking():
     print("  New behavior: Loader uses optimistic flag (market_close_available = True)")
     print("  ")
     print("  If check passes: Loads data normally")
-    print(
-        "  If check times out (10s): Proceeds anyway, Phase 1 validates data staleness"
-    )
+    print("  If check times out (10s): Proceeds anyway, Phase 1 validates data staleness")
     print("  If check errors: Proceeds anyway, Phase 1 validates data staleness")
     print("  ")
     print("  [PASS] Loader never blocks waiting for market close check")

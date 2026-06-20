@@ -113,7 +113,7 @@ class PreTradeChecks:
             return (
                 False,
                 f"Position ${position_value:.2f} exceeds max "
-                f"${float(max_position_value):.2f} ({float(max_position_pct*Decimal(100)):.1f}% of portfolio)",
+                f"${float(max_position_value):.2f} ({float(max_position_pct * Decimal(100)):.1f}% of portfolio)",
             )
 
         try:

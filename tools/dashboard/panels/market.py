@@ -9,10 +9,12 @@ try:
     from panel_registry import register_panel
 except ImportError as e:
     logger.warning(f"Panel registry not available: {e} - panels will not auto-register")
+
     def register_panel(*args, **kwargs):
         if args and callable(args[0]):
             return args[0]
         return lambda fn: fn
+
 
 from rich.console import Group
 from rich.panel import Panel
@@ -54,14 +56,10 @@ def panel_market_full(mkt, sentiment=None):
     exp_s = f"{float(exp):.0f}%" if exp is not None else "--"
     bar = exp_bar(exp or 0, w=10)
     vix = f"{mkt['vix']:.1f}" if mkt.get("vix") is not None else "--"
-    vc = (
-        DIM
-        if mkt.get("vix") is None
-        else (R if mkt.get("vix") >= 30 else (Y if mkt.get("vix") >= 20 else G))
-    )
+    vc = DIM if mkt.get("vix") is None else (R if mkt.get("vix") >= 30 else (Y if mkt.get("vix") >= 20 else G))
     dist = str(mkt.get("dist") or "--")
     stage = str(mkt.get("stage") or "--")
-    spy = f"${mkt['spy']:.2f}" if mkt.get("spy") else "--"
+    f"${mkt['spy']:.2f}" if mkt.get("spy") else "--"
     trend_s = (mkt.get("trend") or "").upper()
     halts = mkt.get("halts") or []
     halt_s = " ".join(str(h)[:16] for h in halts[:2]) if halts else "none"
@@ -78,18 +76,12 @@ def panel_market_full(mkt, sentiment=None):
     uvc = G if (upvol or 0) >= 60 else (Y if (upvol or 0) >= 50 else R)
     pcr_c = DIM if pcr is None else (G if pcr <= 0.8 else (Y if pcr <= 1.0 else R))
     nhnl = (nh - nl) if (nh is not None and nl is not None) else None
-    nhnl_c = (
-        (G if (nhnl or 0) >= 50 else (Y if (nhnl or 0) >= 0 else R))
-        if nhnl is not None
-        else DIM
-    )
+    nhnl_c = (G if (nhnl or 0) >= 50 else (Y if (nhnl or 0) >= 0 else R)) if nhnl is not None else DIM
 
     spy_raw = mkt.get("spy")
     spy_chg = mkt.get("spy_chg")
     spy_chg_s = (
-        f" [{G if (spy_chg or 0) >= 0 else R}]{sign(spy_chg or 0)}{spy_chg:.1f}%[/]"
-        if spy_chg is not None
-        else ""
+        f" [{G if (spy_chg or 0) >= 0 else R}]{sign(spy_chg or 0)}{spy_chg:.1f}%[/]" if spy_chg is not None else ""
     )
     spy_s = f"SPY:[white]${float(spy_raw):.2f}[/]{spy_chg_s}  " if spy_raw else ""
     lines = [
@@ -99,18 +91,10 @@ def panel_market_full(mkt, sentiment=None):
         + (f"  {spy_s}" if spy_s else ""),
     ]
     if upvol is not None:
-        adr_s = (
-            f"  [dim]Adv/Dec:[/][white]{float(adr or 0):.1f}[/]"
-            if adr is not None
-            else ""
-        )
-        nhnl_s = (
-            f"  [dim]NH-NL:[/][{nhnl_c}]{sign(nhnl or 0)}{int(nhnl or 0)}[/]"
-            if nhnl is not None
-            else ""
-        )
+        adr_s = f"  [dim]Adv/Dec:[/][white]{float(adr or 0):.1f}[/]" if adr is not None else ""
+        nhnl_s = f"  [dim]NH-NL:[/][{nhnl_c}]{sign(nhnl or 0)}{int(nhnl or 0)}[/]" if nhnl is not None else ""
         lines.append(
-            f"[dim]Up Volume:[/][{uvc}]{float(upvol or 0):.0f}%[/]{adr_s}  [dim]New Highs:[/][{G}]{str(nh or '--')}[/] [dim]Lows:[/][{R}]{str(nl or '--')}[/]{nhnl_s}"
+            f"[dim]Up Volume:[/][{uvc}]{float(upvol or 0):.0f}%[/]{adr_s}  [dim]New Highs:[/][{G}]{nh or '--'!s}[/] [dim]Lows:[/][{R}]{nl or '--'!s}[/]{nhnl_s}"
         )
     ycs = mkt.get("ycs")
     bmom_pcr = []
@@ -138,9 +122,7 @@ def panel_market_full(mkt, sentiment=None):
         fg_c = sentiment.get("color", "dim")
         fg_bar = int(fg_v / 100 * 8)
         fg_bar_s = f"[{fg_c}]{'█' * fg_bar}[/][dim]{'░' * (8 - fg_bar)}[/]"
-        lines.append(
-            f"[dim]Fear & Greed:[/][{fg_c}]{fg_v:.0f}%  {fg_lbl}[/] {fg_bar_s}"
-        )
+        lines.append(f"[dim]Fear & Greed:[/][{fg_c}]{fg_v:.0f}%  {fg_lbl}[/] {fg_bar_s}")
 
     txt = Text.from_markup("\n".join(lines))
     return Panel(txt, title="[bold blue]MARKET[/]", border_style="blue", padding=(0, 1))
@@ -171,9 +153,11 @@ def panel_market_expanded(mkt, sentiment=None):
     vix = mkt.get("vix")
     vc = DIM if vix is None else (R if vix >= 30 else (Y if vix >= 20 else G))
     vix_s = f"{vix:.1f}" if vix is not None else "--"
-    rows.append(Text.from_markup(
-        f"[{tc}][bold]{lbl}[/]  [dim]Exposure:[/][{tc}]{exp_s}[/]  {bar}  [dim]VIX:[/][{vc}]{vix_s}[/]"
-    ))
+    rows.append(
+        Text.from_markup(
+            f"[{tc}][bold]{lbl}[/]  [dim]Exposure:[/][{tc}]{exp_s}[/]  {bar}  [dim]VIX:[/][{vc}]{vix_s}[/]"
+        )
+    )
     rows.append(Rule(style="dim"))
 
     spy_raw = mkt.get("spy")
@@ -244,7 +228,7 @@ def panel_market_expanded(mkt, sentiment=None):
         Text(""),
     ]
 
-    for left_item, right_item in zip(left, right):
+    for left_item, right_item in zip(left, right, strict=False):
         grid.add_row(left_item, right_item)
     rows.append(grid)
 
@@ -255,9 +239,7 @@ def panel_market_expanded(mkt, sentiment=None):
         fg_c = sentiment.get("color", "dim")
         fg_bar_f = int(fg_v / 100 * 24)
         fg_bar_s = f"[{fg_c}]{'█' * fg_bar_f}[/][dim]{'░' * (24 - fg_bar_f)}[/]"
-        rows.append(Text.from_markup(
-            f"  [dim]Fear & Greed:[/]  [{fg_c}]{fg_v:.0f}  {fg_lbl}[/]  {fg_bar_s}"
-        ))
+        rows.append(Text.from_markup(f"  [dim]Fear & Greed:[/]  [{fg_c}]{fg_v:.0f}  {fg_lbl}[/]  {fg_bar_s}"))
 
     rows.append(Rule(style="dim"))
     hc = Y if halts else G
@@ -272,18 +254,12 @@ def panel_market_expanded(mkt, sentiment=None):
     )
 
 
-@register_panel(
-    "header", endpoint_deps=["mkt", "sentiment"], optional=False, description="Header"
-)
-def panel_header_market(
-    mkt, sentiment, ts, mkt_s, elapsed, refresh_s="", cfg=None, data_source="AWS"
-):
+@register_panel("header", endpoint_deps=["mkt", "sentiment"], optional=False, description="Header")
+def panel_header_market(mkt, sentiment, ts, mkt_s, elapsed, refresh_s="", cfg=None, data_source="AWS"):
     """Compact market header - fits alongside exposure factors + monkey in the top row."""
     source_color = "cyan" if data_source == "LOCAL" else "dim"
     rows = [
-        Text.from_markup(
-            f"{mkt_s}  [dim]{ts}[/]  [dim]{elapsed:.1f}s[/]{refresh_s}  [{source_color}]{data_source}[/]"
-        )
+        Text.from_markup(f"{mkt_s}  [dim]{ts}[/]  [dim]{elapsed:.1f}s[/]{refresh_s}  [{source_color}]{data_source}[/]")
     ]
     if mkt and not mkt.get("_error"):
         tier = mkt.get("tier", "unknown")
@@ -293,11 +269,7 @@ def panel_header_market(
         exp_s = f"{float(exp):.0f}%" if exp is not None else "--"
         bar = exp_bar(exp or 0, w=8)
         vix = f"{mkt['vix']:.1f}" if mkt.get("vix") is not None else "--"
-        vc = (
-            DIM
-            if mkt.get("vix") is None
-            else (R if mkt.get("vix") >= 30 else (Y if mkt.get("vix") >= 20 else G))
-        )
+        vc = DIM if mkt.get("vix") is None else (R if mkt.get("vix") >= 30 else (Y if mkt.get("vix") >= 20 else G))
         dist = str(mkt.get("dist") or "--")
         stage = str(mkt.get("stage") or "--")
         trend_raw = (mkt.get("trend") or "").upper()
@@ -305,9 +277,7 @@ def panel_header_market(
         spy_raw = mkt.get("spy")
         spy_chg = mkt.get("spy_chg")
         spy_chg_s = (
-            f" [{G if (spy_chg or 0) >= 0 else R}]{sign(spy_chg or 0)}{spy_chg:.1f}%[/]"
-            if spy_chg is not None
-            else ""
+            f" [{G if (spy_chg or 0) >= 0 else R}]{sign(spy_chg or 0)}{spy_chg:.1f}%[/]" if spy_chg is not None else ""
         )
         spy_s = f"  SPY:[white]${float(spy_raw):.2f}[/]{spy_chg_s}" if spy_raw else ""
         rows.append(
@@ -323,16 +293,8 @@ def panel_header_market(
         if upvol is not None:
             uvc = G if upvol >= 60 else (Y if upvol >= 50 else R)
             nhnl = (nh - nl) if (nh is not None and nl is not None) else None
-            nhnl_c = (
-                (G if (nhnl or 0) >= 50 else (Y if (nhnl or 0) >= 0 else R))
-                if nhnl is not None
-                else DIM
-            )
-            adr_s = (
-                f"  [dim]Adv/Dec:[/][white]{float(adr or 0):.1f}[/]"
-                if adr is not None
-                else ""
-            )
+            nhnl_c = (G if (nhnl or 0) >= 50 else (Y if (nhnl or 0) >= 0 else R)) if nhnl is not None else DIM
+            adr_s = f"  [dim]Adv/Dec:[/][white]{float(adr or 0):.1f}[/]" if adr is not None else ""
             nhnl_s = (
                 f"[dim]New Hi-Lo:[/][{nhnl_c}]{sign(nhnl or 0)}{int(nhnl or 0)}[/]"
                 if nhnl is not None
@@ -341,7 +303,7 @@ def panel_header_market(
             rows.append(
                 Text.from_markup(
                     f"[dim]Up Volume:[/][{uvc}]{float(upvol or 0):.0f}%[/]{adr_s}  "
-                    f"[dim]New High:[/][{G}]{str(nh or '--')}[/] [dim]New Low:[/][{R}]{str(nl or '--')}[/]  "
+                    f"[dim]New High:[/][{G}]{nh or '--'!s}[/] [dim]New Low:[/][{R}]{nl or '--'!s}[/]  "
                     f"{nhnl_s}"
                 )
             )
@@ -406,14 +368,11 @@ def panel_header_market(
             rows.append(Text.from_markup("  ".join(parts6)))
     else:
         rows.append(Text("no market data", style="dim"))
-    return Panel(
-        Group(*rows), title="[bold blue]MARKET[/]  [dim][m] expand[/]", border_style="blue", padding=(0, 1)
-    )
-
+    return Panel(Group(*rows), title="[bold blue]MARKET[/]  [dim][m] expand[/]", border_style="blue", padding=(0, 1))
 
 
 __all__ = [
-    "panel_market_full",
-    "panel_market_expanded",
     "panel_header_market",
+    "panel_market_expanded",
+    "panel_market_full",
 ]

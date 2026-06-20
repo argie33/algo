@@ -60,9 +60,7 @@ class CognitoAuth:
             self.id_token = auth_result.get("IdToken")
             self.refresh_token = auth_result.get("RefreshToken")
             self.username = username
-            self.token_expires_at = (
-                self._parse_jwt_expiry(self.access_token) if self.access_token else None
-            )
+            self.token_expires_at = self._parse_jwt_expiry(self.access_token) if self.access_token else None
             return bool(self.access_token)
         except ClientError as e:
             error_code = e.response.get("Error", {}).get("Code")
@@ -87,9 +85,7 @@ class CognitoAuth:
             auth_result = response.get("AuthenticationResult", {})
             self.access_token = auth_result.get("AccessToken")
             self.id_token = auth_result.get("IdToken")
-            self.token_expires_at = (
-                self._parse_jwt_expiry(self.access_token) if self.access_token else None
-            )
+            self.token_expires_at = self._parse_jwt_expiry(self.access_token) if self.access_token else None
             return bool(self.access_token)
         except ClientError as e:
             logger.error(f"Token refresh failed: {e}")
@@ -123,11 +119,7 @@ class CognitoAuth:
             logger.error("Authorization header validation failed: token is not a valid JWT")
             return {}
 
-        return (
-            {"Authorization": f"Bearer {self.access_token}"}
-            if self.access_token
-            else {}
-        )
+        return {"Authorization": f"Bearer {self.access_token}"} if self.access_token else {}
 
     def _is_valid_jwt(self, token: str) -> bool:
         """Check if token is a valid JWT with required claims (exp, sub) and proper structure."""
@@ -202,9 +194,7 @@ def _get_aws_cfn_output(key: str) -> str | None:
     """Try to get Cognito credentials from AWS CloudFormation stack outputs."""
     try:
         cfn_client = boto3.client("cloudformation", region_name="us-east-1")
-        stacks = cfn_client.list_stacks(
-            StackStatusFilter=["CREATE_COMPLETE", "UPDATE_COMPLETE"]
-        )
+        stacks = cfn_client.list_stacks(StackStatusFilter=["CREATE_COMPLETE", "UPDATE_COMPLETE"])
         for stack in stacks.get("StackSummaries", []):
             if "algo" in stack["StackName"].lower():
                 response = cfn_client.describe_stacks(StackName=stack["StackName"])
@@ -213,12 +203,10 @@ def _get_aws_cfn_output(key: str) -> str | None:
                     if output["OutputKey"] == key:
                         return cast(str, output["OutputValue"])
     except Exception as e:
-            raise RuntimeError(f"Operation failed: {e}") from e
+        raise RuntimeError(f"Operation failed: {e}") from e
 
 
-def get_cognito_auth(
-    require_auth: bool = True, interactive: bool = True
-) -> CognitoAuth | None:
+def get_cognito_auth(require_auth: bool = True, interactive: bool = True) -> CognitoAuth | None:
     """
     Dynamically get authenticated Cognito instance.
 
@@ -235,9 +223,7 @@ def get_cognito_auth(
     client_id = os.environ.get("COGNITO_CLIENT_ID")
 
     if not (user_pool_id and client_id):
-        logger.debug(
-            "Cognito not configured (COGNITO_USER_POOL_ID or COGNITO_CLIENT_ID missing)"
-        )
+        logger.debug("Cognito not configured (COGNITO_USER_POOL_ID or COGNITO_CLIENT_ID missing)")
         return None
 
     auth = CognitoAuth(user_pool_id, client_id)
@@ -267,9 +253,7 @@ def get_cognito_auth(
                 file_stat = os.stat(token_file)
                 file_mode = file_stat.st_mode & 0o777
                 if file_mode != 0o600:
-                    logger.warning(
-                        f"[Cognito] Token file has overly permissive mode {oct(file_mode)}, removing"
-                    )
+                    logger.warning(f"[Cognito] Token file has overly permissive mode {oct(file_mode)}, removing")
                     should_remove = True
 
             if should_remove:
@@ -284,14 +268,10 @@ def get_cognito_auth(
                     auth.token_expires_at = tokens.get("expires_at")
 
                     if auth.is_authenticated():
-                        logger.info(
-                            f"[Cognito] Loaded cached token for {auth.username}"
-                        )
+                        logger.info(f"[Cognito] Loaded cached token for {auth.username}")
                         return auth
                     elif auth.refresh_token and auth.refresh_access_token():
-                        logger.info(
-                            f"[Cognito] Refreshed expired token for {auth.username}"
-                        )
+                        logger.info(f"[Cognito] Refreshed expired token for {auth.username}")
                         return auth
                     else:
                         os.remove(token_file)
@@ -311,9 +291,7 @@ def get_cognito_auth(
                 logger.info(f"[Cognito] Authenticated from Secrets Manager: {sm_user}")
                 return auth
             else:
-                logger.debug(
-                    f"[Cognito] Secrets Manager credentials invalid for {sm_user}"
-                )
+                logger.debug(f"[Cognito] Secrets Manager credentials invalid for {sm_user}")
     except Exception as e:
         logger.debug(f"[Cognito] Could not read from Secrets Manager: {e}")
 
@@ -321,9 +299,7 @@ def get_cognito_auth(
     saved_user, saved_pass = _get_or_create_test_user()
     if saved_user and saved_pass:
         if auth.authenticate(saved_user, saved_pass):
-            logger.info(
-                f"[Cognito] Authenticated from saved credentials file: {saved_user}"
-            )
+            logger.info(f"[Cognito] Authenticated from saved credentials file: {saved_user}")
             return auth
         else:
             logger.debug(f"[Cognito] Saved credentials invalid for {saved_user}")
@@ -334,9 +310,7 @@ def get_cognito_auth(
             print("\n" + "=" * 60)
             print("Cognito Authentication Required")
             print("=" * 60)
-            print(
-                "Set COGNITO_USERNAME + COGNITO_PASSWORD env vars to skip this prompt."
-            )
+            print("Set COGNITO_USERNAME + COGNITO_PASSWORD env vars to skip this prompt.")
             username = input(f"Email [{saved_user}]: ").strip() or saved_user
             password = input("Password: ").strip()
             if auth.authenticate(username, password):

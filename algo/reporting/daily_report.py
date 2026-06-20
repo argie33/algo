@@ -73,17 +73,9 @@ class DailyFinanceReport:
                 return {}
 
             current_value = float(rows[0][0]) if rows[0][0] is not None else 0
-            prior_value = (
-                float(rows[1][0])
-                if len(rows) > 1 and rows[1][0] is not None
-                else current_value
-            )
+            prior_value = float(rows[1][0]) if len(rows) > 1 and rows[1][0] is not None else current_value
 
-            daily_pnl_pct = (
-                ((current_value - prior_value) / prior_value * 100)
-                if prior_value > 0
-                else 0
-            )
+            daily_pnl_pct = ((current_value - prior_value) / prior_value * 100) if prior_value > 0 else 0
 
             # YTD P&L (simplified)
             cur.execute(
@@ -93,14 +85,8 @@ class DailyFinanceReport:
                 (report_date,),
             )
             ytd_row = cur.fetchone()
-            ytd_start = (
-                float(ytd_row[0])
-                if ytd_row is not None and ytd_row[0] is not None
-                else current_value
-            )
-            ytd_pnl_pct = (
-                ((current_value - ytd_start) / ytd_start * 100) if ytd_start > 0 else 0
-            )
+            ytd_start = float(ytd_row[0]) if ytd_row is not None and ytd_row[0] is not None else current_value
+            ytd_pnl_pct = ((current_value - ytd_start) / ytd_start * 100) if ytd_start > 0 else 0
 
             return {
                 "current_value": round(current_value, 2),
@@ -260,64 +246,52 @@ class DailyFinanceReport:
             pv = 0
         dpnl = portfolio.get("daily_pnl_pct")
         if dpnl is None:
-            logger.warning(
-                f"Daily P&L missing for {report['date']} — using N/A instead of fake 0"
-            )
+            logger.warning(f"Daily P&L missing for {report['date']} — using N/A instead of fake 0")
             dpnl_str = "N/A"
         else:
             dpnl_str = f"{dpnl:+.2f}%"
 
         ytd = portfolio.get("ytd_pnl_pct")
         if ytd is None:
-            logger.warning(
-                f"YTD P&L missing for {report['date']} — using N/A instead of fake 0"
-            )
+            logger.warning(f"YTD P&L missing for {report['date']} — using N/A instead of fake 0")
             ytd_str = "N/A"
         else:
             ytd_str = f"{ytd:+.2f}%"
 
         var95 = risk.get("var_95_pct")
         if var95 is None:
-            logger.warning(
-                f"VaR 95% missing for {report['date']} — using N/A instead of fake 0"
-            )
+            logger.warning(f"VaR 95% missing for {report['date']} — using N/A instead of fake 0")
             var95_str = "N/A"
         else:
             var95_str = f"{var95:.1f}%"
 
         beta = risk.get("beta")
         if beta is None:
-            logger.warning(
-                f"Beta missing for {report['date']} — using N/A instead of fake 0"
-            )
+            logger.warning(f"Beta missing for {report['date']} — using N/A instead of fake 0")
             beta_str = "N/A"
         else:
             beta_str = f"{beta:.2f}"
 
         sharpe = risk.get("sharpe_ytd")
         if sharpe is None:
-            logger.warning(
-                f"Sharpe YTD missing for {report['date']} — using N/A instead of fake 0"
-            )
+            logger.warning(f"Sharpe YTD missing for {report['date']} — using N/A instead of fake 0")
             sharpe_str = "N/A"
         else:
             sharpe_str = f"{sharpe:.1f}"
 
         exp_r = strategy.get("expectancy_r")
         if exp_r is None:
-            logger.warning(
-                f"Expectancy missing for {report['date']} — using N/A instead of fake 0"
-            )
+            logger.warning(f"Expectancy missing for {report['date']} — using N/A instead of fake 0")
             exp_r_str = "N/A"
         else:
             exp_r_str = f"{exp_r:+.2f}R"
 
         lines = [
-            f"{'='*70}",
+            f"{'=' * 70}",
             f"DAILY FINANCE REPORT — {report['date']} | Regime: {regime.get('current', 'unknown')}",
-            f"{'='*70}",
-            f"Portfolio: ${pv:,.0f} | " f"Daily P&L: {dpnl_str} | " f"YTD: {ytd_str}",
-            f"Risk: VaR {var95_str} | " f"Beta {beta_str} | " f"Sharpe {sharpe_str}",
+            f"{'=' * 70}",
+            f"Portfolio: ${pv:,.0f} | Daily P&L: {dpnl_str} | YTD: {ytd_str}",
+            f"Risk: VaR {var95_str} | Beta {beta_str} | Sharpe {sharpe_str}",
             "",
             "Strategy (last 50 trades):",
             f"  Win rate: {strategy.get('win_rate_pct', 0):.0f}% | "
@@ -343,12 +317,8 @@ class DailyFinanceReport:
                 lines.append(f"  {comp:20s} r=N/A        {status.upper():10s}")
             else:
                 ic = comp_data.get("ic", 0)
-                status_marker = (
-                    "★" if status == "strong" else "◇" if status == "moderate" else " "
-                )
-                lines.append(
-                    f"  {comp:20s} r={ic:+.3f} {status_marker:2s} {status.upper():10s}"
-                )
+                status_marker = "★" if status == "strong" else "◇" if status == "moderate" else " "
+                lines.append(f"  {comp:20s} r={ic:+.3f} {status_marker:2s} {status.upper():10s}")
 
         signals = report.get("signals", {})
         lines.extend(
@@ -357,7 +327,7 @@ class DailyFinanceReport:
                 f"Today: {signals.get('candidates_today', 0)} BUY signals → "
                 f"{signals.get('passed_tiers', 0)} tier-passed → "
                 f"{signals.get('entries_today', 0)} entries",
-                f"{'='*70}",
+                f"{'=' * 70}",
             ]
         )
 
@@ -370,32 +340,22 @@ class DailyFinanceReport:
         risk = report.get("risk", {})
         var_95 = risk.get("var_95_pct")
         if var_95 is None:
-            logger.warning(
-                f"VaR 95% unavailable for {report['date']} - not yet computed by pipeline"
-            )
-            warnings.append(
-                "VaR 95% not yet available - check algo_performance_metrics pipeline"
-            )
+            logger.warning(f"VaR 95% unavailable for {report['date']} - not yet computed by pipeline")
+            warnings.append("VaR 95% not yet available - check algo_performance_metrics pipeline")
         elif var_95 > 2.0:
             warnings.append(f"⚠️  VaR > 2% ({var_95:.1f}%) - High daily risk")
 
         sharpe_ytd = risk.get("sharpe_ytd")
         if sharpe_ytd is None:
-            logger.warning(
-                f"Sharpe YTD unavailable for {report['date']} - cannot assess strategy quality"
-            )
+            logger.warning(f"Sharpe YTD unavailable for {report['date']} - cannot assess strategy quality")
             warnings.append("⚠️  Sharpe YTD missing - strategy quality unavailable")
         elif sharpe_ytd < 0.5:
-            warnings.append(
-                f"⚠️  Sharpe < 0.5 ({sharpe_ytd:.2f}) - Strategy struggling"
-            )
+            warnings.append(f"⚠️  Sharpe < 0.5 ({sharpe_ytd:.2f}) - Strategy struggling")
 
         portfolio = report.get("portfolio", {})
         daily_pnl = portfolio.get("daily_pnl_pct")
         if daily_pnl is None:
-            logger.critical(
-                f"Daily P&L unavailable for {report['date']} - cannot assess halt threshold"
-            )
+            logger.critical(f"Daily P&L unavailable for {report['date']} - cannot assess halt threshold")
             warnings.append(
                 "🔴 CRITICAL: Daily P&L missing - cannot assess halt threshold. Manually verify before trading."
             )

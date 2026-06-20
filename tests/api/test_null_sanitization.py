@@ -27,13 +27,9 @@ def test_sanitize_nested_dict_with_nulls():
     sanitized = APIResponseValidator.sanitize_response(data)
 
     # Verify None values are preserved in dicts (nullable fields)
-    assert (
-        sanitized["profit_factor"] is None
-    ), f"Expected None, got {sanitized['profit_factor']}"
+    assert sanitized["profit_factor"] is None, f"Expected None, got {sanitized['profit_factor']}"
     assert sanitized["win_rate"] == 50.5, f"Expected 50.5, got {sanitized['win_rate']}"
-    assert (
-        sanitized["trades"]["avg_win"] is None
-    ), f"Expected None, got {sanitized['trades']['avg_win']}"
+    assert sanitized["trades"]["avg_win"] is None, f"Expected None, got {sanitized['trades']['avg_win']}"
     print("[OK] test_sanitize_nested_dict_with_nulls passed")
 
 

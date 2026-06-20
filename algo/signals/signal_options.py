@@ -10,6 +10,7 @@ Gracefully handle missing options data (many small-caps have no options).
 import logging
 from datetime import date as _date
 from typing import Any
+
 import psycopg2
 
 
@@ -217,9 +218,7 @@ class SignalOptionsMixin:
 
         total_bonus = min(
             3.0,
-            iv_sig.get("bonus_pts", 0)
-            + pc_sig.get("bonus_pts", 0)
-            + im_sig.get("bonus_pts", 0),
+            iv_sig.get("bonus_pts", 0) + pc_sig.get("bonus_pts", 0) + im_sig.get("bonus_pts", 0),
         )
 
         return {

@@ -98,11 +98,7 @@ class SignalTradePerformancePopulator:
 
                     # Parse swing_components JSONB
                     try:
-                        swing_comp = (
-                            json.loads(swing_components_json)
-                            if swing_components_json
-                            else {}
-                        )
+                        swing_comp = json.loads(swing_components_json) if swing_components_json else {}
                     except (json.JSONDecodeError, TypeError):
                         swing_comp = {}
 
@@ -116,13 +112,8 @@ class SignalTradePerformancePopulator:
                             component_scores[comp_name] = normalized_score
 
                             # Track for IC calculation
-                            if (
-                                comp_name in component_returns
-                                and exit_r_multiple is not None
-                            ):
-                                component_returns[comp_name].append(
-                                    (normalized_score, float(exit_r_multiple))
-                                )
+                            if comp_name in component_returns and exit_r_multiple is not None:
+                                component_returns[comp_name].append((normalized_score, float(exit_r_multiple)))
 
                     # Insert into signal_trade_performance (only columns that exist in schema)
                     try:
@@ -154,10 +145,7 @@ class SignalTradePerformancePopulator:
                                 float(exit_price) if exit_price else 0,
                                 float(pnl_dollars) if pnl_dollars else 0,
                                 (
-                                    (
-                                        float(pnl_dollars)
-                                        / float(entry_price * entry_qty)
-                                    )
+                                    (float(pnl_dollars) / float(entry_price * entry_qty))
                                     if (
                                         pnl_dollars is not None
                                         and entry_price
@@ -170,11 +158,7 @@ class SignalTradePerformancePopulator:
                                 float(swing_score) if swing_score else 0,
                                 float(trend_score) if trend_score else 0,
                                 float(exit_r_multiple) if exit_r_multiple else 0,
-                                (
-                                    bool(exit_r_multiple and exit_r_multiple > 0)
-                                    if exit_r_multiple
-                                    else False
-                                ),
+                                (bool(exit_r_multiple and exit_r_multiple > 0) if exit_r_multiple else False),
                             ),
                         )
                         inserted_count += 1
@@ -198,9 +182,7 @@ class SignalTradePerformancePopulator:
                     except (ValueError, ZeroDivisionError, TypeError) as e:
                         logger.debug(f"IC calculation failed for {comp_name}: {e}")
 
-            logger.info(
-                f"Populated {inserted_count} closed trades to signal_trade_performance"
-            )
+            logger.info(f"Populated {inserted_count} closed trades to signal_trade_performance")
             return {
                 "success": True,
                 "trades_processed": inserted_count,
@@ -209,9 +191,7 @@ class SignalTradePerformancePopulator:
             }
 
         except (ValueError, ZeroDivisionError, TypeError) as e:
-            logger.error(
-                f"Signal trade performance population failed: {e}", exc_info=True
-            )
+            logger.error(f"Signal trade performance population failed: {e}", exc_info=True)
             return {
                 "success": False,
                 "trades_processed": 0,
@@ -240,7 +220,6 @@ class SignalTradePerformancePopulator:
         if component not in self._VALID_COMPONENTS:
             logger.warning(f"get_trailing_ic: unknown component '{component}'")
             return []
-        col = f"{component}_score"
         try:
             with DatabaseContext("read") as cur:
                 cutoff = _date.today() - timedelta(days=days)

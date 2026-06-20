@@ -249,7 +249,7 @@ jobs:
       - name: Install dependencies
         run: |
           pip install -q -r requirements.txt
-          pip install -q black isort flake8 mypy
+          pip install -q ruff mypy
 
       - name: Validate all Python files can be imported (catches broken imports)
         run: |
@@ -281,13 +281,10 @@ jobs:
           else:
               print("✅ All Python files are importable")
           PYEOF
-      - name: Black format check
-        run: black --check algo/ tests/ tools/ --line-length=120
-      - name: isort import check
-        run: isort --check-only algo/ tests/ tools/
-      - name: Flake8 lint (advisory only)
-        run: flake8 algo/ tests/ tools/ --max-line-length=120 --ignore=E501,W503 || true
-        continue-on-error: true
+      - name: Ruff format check
+        run: ruff format --check algo/ tests/ tools/
+      - name: Ruff lint check
+        run: ruff check algo/ tests/ tools/
       - name: MyPy type check
         run: |
           mypy algo/ --ignore-missing-imports --show-error-codes

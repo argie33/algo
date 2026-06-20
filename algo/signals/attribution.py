@@ -52,9 +52,7 @@ class SignalAttributionEngine:
         "noise": 0.00,
     }
 
-    def compute_ic(
-        self, report_date: _date, lookback_trades: int = 40
-    ) -> dict[str, dict[str, Any]]:
+    def compute_ic(self, report_date: _date, lookback_trades: int = 40) -> dict[str, dict[str, Any]]:
         """
         Compute Information Coefficient for each component.
 
@@ -100,13 +98,8 @@ class SignalAttributionEngine:
                 trades = cur.fetchall()
 
                 if not trades or len(trades) < 10:
-                    logger.warning(
-                        f"Insufficient closed trades ({len(trades) if trades else 0}) for IC calculation"
-                    )
-                    return {
-                        comp: {"ic_value": 0, "ic_pvalue": 1.0, "sample_size": 0}
-                        for comp in self.COMPONENTS
-                    }
+                    logger.warning(f"Insufficient closed trades ({len(trades) if trades else 0}) for IC calculation")
+                    return {comp: {"ic_value": 0, "ic_pvalue": 1.0, "sample_size": 0} for comp in self.COMPONENTS}
 
                 # Extract component scores and P&Ls
                 ic_results = {}
@@ -118,21 +111,16 @@ class SignalAttributionEngine:
                     for trade in trades:
                         (
                             trade_id,
-                            swing_score,
+                            _swing_score,
                             swing_components_json,
                             r_multiple,
-                            exit_date,
-                            symbol,
-                            signal_date,
+                            _exit_date,
+                            _symbol,
+                            _signal_date,
                         ) = trade
 
                         try:
-
-                            swing_components = (
-                                json.loads(swing_components_json)
-                                if swing_components_json
-                                else {}
-                            )
+                            swing_components = json.loads(swing_components_json) if swing_components_json else {}
                             comp_data = swing_components.get(component, {})
                             comp_score = comp_data.get("pts", 0)
                             r_mult = float(r_multiple) if r_multiple is not None else 0
@@ -141,9 +129,7 @@ class SignalAttributionEngine:
                                 comp_scores.append(float(comp_score))
                                 r_multiples.append(r_mult)
                         except (json.JSONDecodeError, ValueError) as e:
-                            logger.debug(
-                                f"Could not extract {component} from trade {trade_id}: {e}"
-                            )
+                            logger.debug(f"Could not extract {component} from trade {trade_id}: {e}")
                             continue
 
                     # Calculate IC
@@ -153,9 +139,7 @@ class SignalAttributionEngine:
 
                         # Pearson correlation
                         if comp_scores_arr.std() > 0 and r_mult_arr.std() > 0:
-                            ic_value, ic_pvalue = stats.pearsonr(
-                                comp_scores_arr, r_mult_arr
-                            )
+                            ic_value, ic_pvalue = stats.pearsonr(comp_scores_arr, r_mult_arr)
                         else:
                             ic_value, ic_pvalue = 0.0, 1.0
 
@@ -172,9 +156,7 @@ class SignalAttributionEngine:
                             "ic_value": round(float(ic_value), 4),
                             "ic_pvalue": round(float(ic_pvalue), 4),
                             "sample_size": len(comp_scores),
-                            "avg_component_score": round(
-                                float(comp_scores_arr.mean()), 2
-                            ),
+                            "avg_component_score": round(float(comp_scores_arr.mean()), 2),
                             "avg_realized_pnl": round(float(r_mult_arr.mean()), 2),
                             "interpretation": interpretation,
                         }
@@ -188,20 +170,13 @@ class SignalAttributionEngine:
                             "interpretation": "insufficient_data",
                         }
 
-                logger.info(
-                    f"IC computation complete for {report_date}. Samples: {len(trades)}"
-                )
+                logger.info(f"IC computation complete for {report_date}. Samples: {len(trades)}")
                 return ic_results
         except (ValueError, ZeroDivisionError, TypeError) as e:
             logger.error(f"IC computation failed: {e}")
-            return {
-                comp: {"ic_value": 0, "ic_pvalue": 1.0, "sample_size": 0}
-                for comp in self.COMPONENTS
-            }
+            return {comp: {"ic_value": 0, "ic_pvalue": 1.0, "sample_size": 0} for comp in self.COMPONENTS}
 
-    def compute_ic_by_regime(
-        self, report_date: _date, lookback_trades: int = 40
-    ) -> dict[str, dict]:
+    def compute_ic_by_regime(self, report_date: _date, lookback_trades: int = 40) -> dict[str, dict]:
         """
         Compute IC broken down by market regime.
 
@@ -218,9 +193,7 @@ class SignalAttributionEngine:
         from algo.orchestration import RegimeManager
 
         regime_mgr = RegimeManager()
-        regime_results: dict[str, dict[str, dict[str, Any]]] = {
-            regime: {} for regime in RegimeManager.REGIMES
-        }
+        regime_results: dict[str, dict[str, dict[str, Any]]] = {regime: {} for regime in RegimeManager.REGIMES}
 
         try:
             with DatabaseContext("read") as cur:
@@ -245,19 +218,17 @@ class SignalAttributionEngine:
                     return regime_results
 
                 # Group trades by regime at entry date
-                trades_by_regime: dict[str, list[tuple[Any, ...]]] = {
-                    regime: [] for regime in RegimeManager.REGIMES
-                }
+                trades_by_regime: dict[str, list[tuple[Any, ...]]] = {regime: [] for regime in RegimeManager.REGIMES}
 
                 for trade in trades:
                     (
                         trade_id,
-                        swing_score,
+                        _swing_score,
                         swing_components,
                         exit_r_multiple,
-                        exit_date,
+                        _exit_date,
                         signal_date,
-                        symbol,
+                        _symbol,
                     ) = trade
 
                     if not swing_components or not exit_r_multiple:
@@ -269,14 +240,10 @@ class SignalAttributionEngine:
                         if signal_regime not in trades_by_regime:
                             signal_regime = "caution"  # Default if regime not in mapping
                     except (psycopg2.DatabaseError, psycopg2.OperationalError) as e:
-                        logger.debug(
-                            f"Could not determine regime for {signal_date}: {e}"
-                        )
+                        logger.debug(f"Could not determine regime for {signal_date}: {e}")
                         signal_regime = "caution"
 
-                    trades_by_regime[signal_regime].append(
-                        (trade_id, swing_components, exit_r_multiple)
-                    )
+                    trades_by_regime[signal_regime].append((trade_id, swing_components, exit_r_multiple))
 
                 # Compute IC for each regime
                 for regime, regime_trades in trades_by_regime.items():
@@ -297,22 +264,14 @@ class SignalAttributionEngine:
                                 if isinstance(swing_components, str):
                                     swing_components = json.loads(swing_components)
                                 comp_data = (
-                                    swing_components.get(component)
-                                    if isinstance(swing_components, dict)
-                                    else None
+                                    swing_components.get(component) if isinstance(swing_components, dict) else None
                                 )
-                                comp_value = (
-                                    comp_data.get("pts")
-                                    if isinstance(comp_data, dict)
-                                    else comp_data
-                                )
+                                comp_value = comp_data.get("pts") if isinstance(comp_data, dict) else comp_data
                                 if comp_value is not None:
                                     comp_scores.append(float(comp_value))
                                     r_multiples.append(float(exit_r_multiple))
                             except (json.JSONDecodeError, ValueError) as e:
-                                logger.debug(
-                                    f"Could not extract {component} from trade {trade_id}: {e}"
-                                )
+                                logger.debug(f"Could not extract {component} from trade {trade_id}: {e}")
                                 continue
 
                         # Calculate IC for this component in this regime
@@ -321,9 +280,7 @@ class SignalAttributionEngine:
                             r_mult_arr = np.array(r_multiples)
 
                             if comp_scores_arr.std() > 0 and r_mult_arr.std() > 0:
-                                ic_value, ic_pvalue = stats.pearsonr(
-                                    comp_scores_arr, r_mult_arr
-                                )
+                                ic_value, ic_pvalue = stats.pearsonr(comp_scores_arr, r_mult_arr)
                             else:
                                 ic_value, ic_pvalue = 0.0, 1.0
 
@@ -340,9 +297,7 @@ class SignalAttributionEngine:
                                 "ic_value": round(float(ic_value), 4),
                                 "ic_pvalue": round(float(ic_pvalue), 4),
                                 "sample_size": len(comp_scores),
-                                "avg_component_score": round(
-                                    float(comp_scores_arr.mean()), 2
-                                ),
+                                "avg_component_score": round(float(comp_scores_arr.mean()), 2),
                                 "avg_realized_pnl": round(float(r_mult_arr.mean()), 2),
                                 "interpretation": interpretation,
                             }
@@ -355,9 +310,7 @@ class SignalAttributionEngine:
             logger.error(f"IC by regime computation failed: {e}")
             return regime_results
 
-    def compute_ic_decay(
-        self, report_date: _date, horizons: list[int] | None = None
-    ) -> dict[str, dict[int, float]]:
+    def compute_ic_decay(self, report_date: _date, horizons: list[int] | None = None) -> dict[str, dict[int, float]]:
         """
         Compute IC at different lookback horizons.
 
@@ -422,15 +375,11 @@ class SignalAttributionEngine:
                         ),
                     )
 
-                logger.info(
-                    f"Persisted IC for {len(ic_values)} components on {report_date}"
-                )
+                logger.info(f"Persisted IC for {len(ic_values)} components on {report_date}")
         except (psycopg2.DatabaseError, psycopg2.OperationalError) as e:
             logger.error(f"Failed to persist IC: {e}")
 
-    def get_trailing_ic(
-        self, component: str, days: int = 60
-    ) -> list[tuple[_date, float]]:
+    def get_trailing_ic(self, component: str, days: int = 60) -> list[tuple[_date, float]]:
         """
         Get rolling IC for a component over last N days.
 

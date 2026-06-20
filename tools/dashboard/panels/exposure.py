@@ -9,10 +9,12 @@ try:
     from panel_registry import register_panel
 except ImportError as e:
     logger.warning(f"Panel registry not available: {e} - panels will not auto-register")
+
     def register_panel(*args, **kwargs):
         if args and callable(args[0]):
             return args[0]
         return lambda fn: fn
+
 
 from rich import box
 from rich.console import Group
@@ -43,9 +45,7 @@ from ._helpers import _error_panel
 )
 def panel_exposure_compact(exp_f):
     """Exposure score breakdown - compact 2-col layout."""
-    err_panel = _error_panel(
-        "exposure factors", exp_f, "EXPOSURE FACTORS", border="blue"
-    )
+    err_panel = _error_panel("exposure factors", exp_f, "EXPOSURE FACTORS", border="blue")
     if err_panel:
         return err_panel
     raw = safe_float(exp_f.get("raw_score"), default=None)
@@ -94,11 +94,7 @@ def panel_exposure_compact(exp_f):
         if key == "aaii_sentiment":
             bull = f.get("bullish_pct")
             bear = f.get("bearish_pct")
-            return (
-                f" B:{bull:.0f}/Be:{bear:.0f}"
-                if bull is not None and bear is not None
-                else ""
-            )
+            return f" B:{bull:.0f}/Be:{bear:.0f}" if bull is not None and bear is not None else ""
         if key == "naaim":
             v = f.get("value")
             return f" {v:.0f}" if v is not None else ""
@@ -109,18 +105,18 @@ def panel_exposure_compact(exp_f):
         return ""
 
     FACTOR_MAP = [
-        ("trend_30wk",       "30-Week Trend",  15),
-        ("spy_momentum",     "SPY 12mo Mom",   10),
-        ("breadth_200dma",   "Breadth 200MA",  10),
-        ("distribution_days","Sell Pressure",  10),
-        ("vix_regime",       "VIX Regime",     10),
-        ("credit_spread",    "Credit Spread",  10),
-        ("put_call_ratio",   "Put/Call",        8),
-        ("new_highs_lows",   "New Hi vs Lo",    7),
-        ("ad_line",          "Adv/Dec Line",    6),
-        ("breadth_50dma",    "Breadth 50 MA",   6),
-        ("naaim",            "NAAIM Alloc",     5),
-        ("aaii_sentiment",   "AAII Survey",     3),
+        ("trend_30wk", "30-Week Trend", 15),
+        ("spy_momentum", "SPY 12mo Mom", 10),
+        ("breadth_200dma", "Breadth 200MA", 10),
+        ("distribution_days", "Sell Pressure", 10),
+        ("vix_regime", "VIX Regime", 10),
+        ("credit_spread", "Credit Spread", 10),
+        ("put_call_ratio", "Put/Call", 8),
+        ("new_highs_lows", "New Hi vs Lo", 7),
+        ("ad_line", "Adv/Dec Line", 6),
+        ("breadth_50dma", "Breadth 50 MA", 6),
+        ("naaim", "NAAIM Alloc", 5),
+        ("aaii_sentiment", "AAII Survey", 3),
     ]
 
     tbl = Table.grid(padding=(0, 2), expand=True)
@@ -132,18 +128,14 @@ def panel_exposure_compact(exp_f):
         f = factors.get(key) or {}
         sf = f.get("score_factor")
         if sf is None:
-            items.append(
-                f"[dim]{label}:[/] [yellow]⚠ N/A[/][dim] /{max_pts}[/]"
-            )
+            items.append(f"[dim]{label}:[/] [yellow]⚠ N/A[/][dim] /{max_pts}[/]")
         else:
             pts = float(f.get("pts") or 0)
             bar = mini_bar(pts, max_pts, w=4)
             fc = G if pts >= max_pts * 0.75 else (Y if pts >= max_pts * 0.35 else R)
             det = factor_detail(key)
             det_s = f" [dim]{det.strip()}[/]" if det else ""
-            items.append(
-                f"[dim]{label}:[/] {bar} [{fc}]{pts:.0f}/{max_pts}[/]{det_s}"
-            )
+            items.append(f"[dim]{label}:[/] {bar} [{fc}]{pts:.0f}/{max_pts}[/]{det_s}")
 
     sr = factors.get("sector_rotation") or {}
     eco = factors.get("economic_overlay") or {}
@@ -154,12 +146,9 @@ def panel_exposure_compact(exp_f):
         items.append(f"[dim]Sector Rotation:[/] [{R}]{sr_pen:+.0f}[/] [dim]{sig}[/]")
     if eco_pen < 0:
         eco_err = (eco.get("error") or "")[:18]
-        items.append(
-            f"[dim]Economic Overlay:[/] [{R}]{eco_pen:+.0f}[/]"
-            + (f" [dim]{eco_err}[/]" if eco_err else "")
-        )
+        items.append(f"[dim]Economic Overlay:[/] [{R}]{eco_pen:+.0f}[/]" + (f" [dim]{eco_err}[/]" if eco_err else ""))
 
-    for a, b in zip(items[::2], items[1::2] + [""]):
+    for a, b in zip(items[::2], [*items[1::2], ""], strict=False):
         tbl.add_row(Text.from_markup(a), Text.from_markup(b))
 
     raw_bar = mini_bar(raw or 0, 100, w=8)
@@ -197,31 +186,37 @@ def panel_exposure_expanded(exp_f):
     raw_bar = mini_bar(raw or 0, 100, w=12)
     raw_s = f"{(raw or 0):.0f}" if raw is not None else "--"
     epct_s = f"{(epct or 0):.0f}" if epct is not None else "--"
-    rows.append(Text.from_markup(
-        f"[dim]Raw Score:[/] [white]{raw_s}[/][dim]/100[/] {raw_bar}  "
-        f"[dim]→ Allocation:[/] [{tc}][bold]{epct_s}%[/][/]  [dim]{regime[:30]}[/]"
-    ))
+    rows.append(
+        Text.from_markup(
+            f"[dim]Raw Score:[/] [white]{raw_s}[/][dim]/100[/] {raw_bar}  "
+            f"[dim]→ Allocation:[/] [{tc}][bold]{epct_s}%[/][/]  [dim]{regime[:30]}[/]"
+        )
+    )
     rows.append(Rule(style="dim"))
 
     # Per-factor detail table
     FACTOR_MAP_EXP = [
-        ("trend_30wk",       "30-Week Trend",     15, "SPY above 30-week MA?"),
-        ("spy_momentum",     "SPY 12mo Momentum", 10, "12-month SPY return"),
-        ("breadth_200dma",   "Breadth 200 DMA",   10, "% stocks above 200DMA"),
-        ("distribution_days","Sell Pressure",     10, "Distribution day count"),
-        ("vix_regime",       "VIX + Structure",   10, "Fear gauge + market structure"),
-        ("credit_spread",    "Credit Spread",     10, "HY/IG spread compression"),
-        ("put_call_ratio",   "Put/Call Ratio",     8, "Options sentiment signal"),
-        ("new_highs_lows",   "New Highs vs Lows",  7, "NYSE new highs minus lows"),
-        ("ad_line",          "Advance/Decline",    6, "Breadth momentum direction"),
-        ("breadth_50dma",    "Breadth 50 DMA",     6, "% stocks above 50DMA"),
-        ("naaim",            "NAAIM Exposure",     5, "Active manager allocation"),
-        ("aaii_sentiment",   "AAII Sentiment",     3, "Retail investor bull/bear"),
+        ("trend_30wk", "30-Week Trend", 15, "SPY above 30-week MA?"),
+        ("spy_momentum", "SPY 12mo Momentum", 10, "12-month SPY return"),
+        ("breadth_200dma", "Breadth 200 DMA", 10, "% stocks above 200DMA"),
+        ("distribution_days", "Sell Pressure", 10, "Distribution day count"),
+        ("vix_regime", "VIX + Structure", 10, "Fear gauge + market structure"),
+        ("credit_spread", "Credit Spread", 10, "HY/IG spread compression"),
+        ("put_call_ratio", "Put/Call Ratio", 8, "Options sentiment signal"),
+        ("new_highs_lows", "New Highs vs Lows", 7, "NYSE new highs minus lows"),
+        ("ad_line", "Advance/Decline", 6, "Breadth momentum direction"),
+        ("breadth_50dma", "Breadth 50 DMA", 6, "% stocks above 50DMA"),
+        ("naaim", "NAAIM Exposure", 5, "Active manager allocation"),
+        ("aaii_sentiment", "AAII Sentiment", 3, "Retail investor bull/bear"),
     ]
 
     tbl = Table(
-        box=box.SIMPLE_HEAD, show_header=True, header_style="dim bold",
-        padding=(0, 2), expand=True, row_styles=["", "dim"],
+        box=box.SIMPLE_HEAD,
+        show_header=True,
+        header_style="dim bold",
+        padding=(0, 2),
+        expand=True,
+        row_styles=["", "dim"],
     )
     tbl.add_column("Factor", no_wrap=True, min_width=20)
     tbl.add_column("Pts", justify="right", no_wrap=True, min_width=5)
@@ -251,9 +246,7 @@ def panel_exposure_expanded(exp_f):
         pts = float(f.get("pts") or 0)
         bar_f = int(min(pts / max_pts, 1.0) * 12) if max_pts > 0 else 0
         fc = G if pts >= max_pts * 0.75 else (Y if pts >= max_pts * 0.35 else R)
-        bar_s = Text.from_markup(
-            f"[{fc}]{'█' * bar_f}[/][dim]{'░' * (12 - bar_f)}[/]  [{fc}]{pts:.0f}/{max_pts}[/]"
-        )
+        bar_s = Text.from_markup(f"[{fc}]{'█' * bar_f}[/][dim]{'░' * (12 - bar_f)}[/]  [{fc}]{pts:.0f}/{max_pts}[/]")
 
         # Build value string per factor
         val_s = "--"
@@ -320,16 +313,16 @@ def panel_exposure_expanded(exp_f):
         if sr_pen != 0:
             sig = (sr.get("signal") or "").replace("_", " ")
             sc = R if sr_pen < 0 else G
-            rows.append(Text.from_markup(
-                f"  [dim]Sector Rotation:[/] [{sc}]{sr_pen:+.0f} pts[/]  [dim]{sig}[/]"
-            ))
+            rows.append(Text.from_markup(f"  [dim]Sector Rotation:[/] [{sc}]{sr_pen:+.0f} pts[/]  [dim]{sig}[/]"))
         if eco_pen != 0:
             eco_err = (eco.get("error") or "")[:30]
             ec = R if eco_pen < 0 else G
-            rows.append(Text.from_markup(
-                f"  [dim]Economic Overlay:[/] [{ec}]{eco_pen:+.0f} pts[/]"
-                + (f"  [dim]{eco_err}[/]" if eco_err else "")
-            ))
+            rows.append(
+                Text.from_markup(
+                    f"  [dim]Economic Overlay:[/] [{ec}]{eco_pen:+.0f} pts[/]"
+                    + (f"  [dim]{eco_err}[/]" if eco_err else "")
+                )
+            )
 
     return Panel(
         Group(*rows),
@@ -337,7 +330,6 @@ def panel_exposure_expanded(exp_f):
         border_style="blue",
         padding=(0, 1),
     )
-
 
 
 __all__ = [

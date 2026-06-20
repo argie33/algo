@@ -13,6 +13,7 @@ from datetime import timedelta
 from typing import Any, ClassVar, cast
 
 import psycopg2
+
 from algo.infrastructure.constants import (
     REGIME_HOLD_DAYS_CAUTION,
     REGIME_HOLD_DAYS_CONFIRMED_UPTREND,
@@ -117,22 +118,16 @@ class RegimeManager:
                 )
                 row = cur.fetchone()
 
-            regime = (
-                str(row[0]) if row is not None and row[0] is not None else "caution"
-            )
+            regime = str(row[0]) if row is not None and row[0] is not None else "caution"
 
             if regime not in self.REGIMES:
-                logger.warning(
-                    f"Unknown regime '{regime}', defaulting to caution (conservative)"
-                )
+                logger.warning(f"Unknown regime '{regime}', defaulting to caution (conservative)")
                 regime = "caution"
 
             return regime
 
         except (OSError, RuntimeError, ValueError) as e:
-            logger.warning(
-                f"Could not fetch regime: {e}. Defaulting to caution (conservative)"
-            )
+            logger.warning(f"Could not fetch regime: {e}. Defaulting to caution (conservative)")
             return "caution"
 
     def get_regime_params(self, as_of_date: _date | None = None) -> dict[str, Any]:
@@ -168,15 +163,9 @@ class RegimeManager:
         config["max_hold_days"] = int(base_max_hold * params["max_hold_days_mult"])
 
         # Adjust target R-multiples
-        config["t1_target_r_multiple"] = (
-            float(config.get("t1_target_r_multiple", 1.5)) * params["target_1_mult"]
-        )
-        config["t2_target_r_multiple"] = (
-            float(config.get("t2_target_r_multiple", 3.0)) * params["target_2_mult"]
-        )
-        config["t3_target_r_multiple"] = (
-            float(config.get("t3_target_r_multiple", 4.0)) * params["target_3_mult"]
-        )
+        config["t1_target_r_multiple"] = float(config.get("t1_target_r_multiple", 1.5)) * params["target_1_mult"]
+        config["t2_target_r_multiple"] = float(config.get("t2_target_r_multiple", 3.0)) * params["target_2_mult"]
+        config["t3_target_r_multiple"] = float(config.get("t3_target_r_multiple", 4.0)) * params["target_3_mult"]
 
         # Override min swing score
         config["min_swing_score"] = params["min_swing_score"]
@@ -244,8 +233,7 @@ class RegimeManager:
 
         except (psycopg2.DatabaseError, psycopg2.OperationalError) as e:
             raise RuntimeError(
-                f"Failed to fetch regime history: {e}. "
-                "Cannot compute regime transitions without historical data."
+                f"Failed to fetch regime history: {e}. Cannot compute regime transitions without historical data."
             ) from e
 
     def get_regime_strength(self, as_of_date: _date | None = None) -> float:

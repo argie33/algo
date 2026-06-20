@@ -23,9 +23,7 @@ YFINANCE_RATE_LIMIT_CPM = 400  # Optimized: 150 was too slow (80+ min for 10k st
 ALPACA_DATA_RATE_LIMIT_CPM = 180  # Alpaca data API 200 req/min with 10% headroom
 ALPHA_VANTAGE_RATE_LIMIT_CPM = 4  # Free tier: 5 req/min with 20% headroom
 DEFAULT_RATE_LIMIT_CPM = 30  # Conservative fallback
-SEC_EDGAR_RATE_LIMIT_CPM = (
-    2  # SEC allows 10 req/sec; 2 = extra conservative for parallel tasks
-)
+SEC_EDGAR_RATE_LIMIT_CPM = 2  # SEC allows 10 req/sec; 2 = extra conservative for parallel tasks
 
 # Retry backoff configuration
 RETRY_BASE_DELAY_SEC = 1.0
@@ -106,9 +104,7 @@ NEW_LOW_VOLUME_ALERT_COUNT = 50  # Alert if >50 NEW low-volume symbols
 VOLUME_NEW_LOW_PCT = 50  # Flag if volume < 50% of 20d avg
 
 # Corporate actions detection
-CORPORATE_ACTION_DROP_RATIO = (
-    -0.3
-)  # Flag if >30% drop in 1 day (likely split/halt/delisting)
+CORPORATE_ACTION_DROP_RATIO = -0.3  # Flag if >30% drop in 1 day (likely split/halt/delisting)
 CORPORATE_ACTION_LOOKBACK_DAYS = 30
 
 # ── Data Loader Contracts ───────────────────────────────────────────────────

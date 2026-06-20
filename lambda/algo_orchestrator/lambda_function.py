@@ -12,6 +12,7 @@ import os
 import sys
 from datetime import date as _date
 from pathlib import Path
+
 import psycopg2
 
 
@@ -27,7 +28,7 @@ if os.path.exists("/opt/python"):
 sys.path.insert(0, str(Path(__file__).parent.parent.parent))
 
 # Import the orchestrator
-from algo.algo_orchestrator import Orchestrator  # noqa: E402
+from algo.orchestration import Orchestrator  # noqa: E402
 
 
 def lambda_handler(event, context):

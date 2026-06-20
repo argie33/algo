@@ -59,7 +59,9 @@ class TestRealisticLoaderScenarios:
         assert sla.is_breaching is False
         assert sla.is_critical is False
         assert sla.elapsed_seconds == execution_time_sec
-        print(f"[PASS] {loader_name}: {execution_time_sec/60:.0f} min (SLA: {sla.warning_threshold_seconds/60:.0f} min)")
+        print(
+            f"[PASS] {loader_name}: {execution_time_sec / 60:.0f} min (SLA: {sla.warning_threshold_seconds / 60:.0f} min)"
+        )
 
         # OUTCOME: Data ready
         print("[SUCCESS] SCENARIO PASSED: All data loaded, SLA met. Ready for Phase 2+")
@@ -115,8 +117,8 @@ class TestRealisticLoaderScenarios:
 
         # Fake time progression
         check_points = [
-            (15 * 60, "OK", False, False),      # 15 min: OK
-            (30 * 60, "OK", False, False),      # 30 min: OK
+            (15 * 60, "OK", False, False),  # 15 min: OK
+            (30 * 60, "OK", False, False),  # 30 min: OK
             (50 * 60, "WARNING", True, False),  # 50 min: Approaching limit (warn at 45min)
             (58 * 60, "WARNING", True, False),  # 58 min: Getting close (critical at 60min)
         ]
@@ -127,8 +129,10 @@ class TestRealisticLoaderScenarios:
 
             assert status.is_breaching == should_breach
             assert status.is_critical == should_be_critical
-            print(f"  TIME: {elapsed/60:3.0f} min: {status.status_text:8s} | "
-                  f"Warn at {status.warning_threshold_seconds/60:.0f}m, Critical at {status.critical_threshold_seconds/60:.0f}m")
+            print(
+                f"  TIME: {elapsed / 60:3.0f} min: {status.status_text:8s} | "
+                f"Warn at {status.warning_threshold_seconds / 60:.0f}m, Critical at {status.critical_threshold_seconds / 60:.0f}m"
+            )
 
         print("[SUCCESS] SCENARIO PASSED: SLA violations detected early for response")
 
@@ -171,7 +175,7 @@ class TestRealisticLoaderScenarios:
 
         pipeline_loaders = [
             ("stock_prices_daily", 5000, 28 * 60),  # 28 min (expect 20-30)
-            ("market_health_daily", 1, 18 * 60),     # 18 min
+            ("market_health_daily", 1, 18 * 60),  # 18 min
             ("trend_template_data", 5000, 32 * 60),  # 32 min
             ("swing_trader_scores_vectorized", 5000, 14 * 60),  # 14 min
         ]
@@ -195,10 +199,12 @@ class TestRealisticLoaderScenarios:
             all_pass = all_pass and completeness.is_complete and not sla.is_breaching
 
             total_pipeline_time += execution_time
-            print(f"  {status} {loader_name:35s} {completeness.completion_pct:5.1f}% | "
-                  f"{execution_time/60:4.0f}m (SLA: {sla.warning_threshold_seconds/60:.0f}m)")
+            print(
+                f"  {status} {loader_name:35s} {completeness.completion_pct:5.1f}% | "
+                f"{execution_time / 60:4.0f}m (SLA: {sla.warning_threshold_seconds / 60:.0f}m)"
+            )
 
-        print(f"\nTotal pipeline time: {total_pipeline_time/60:.0f} min (max 90 min available)")
+        print(f"\nTotal pipeline time: {total_pipeline_time / 60:.0f} min (max 90 min available)")
         assert all_pass
         print("[SUCCESS] SCENARIO PASSED: All critical loaders complete successfully")
         print("[SUCCESS] DATA READY: Trading system ready for market open at 9:30 AM")

@@ -34,9 +34,7 @@ def test_parallelism():
         actual = get_parallelism(loader_name)
         status = "PASS" if actual >= expected else "FAIL"
         print(f"[{status}]: {loader_name:30} expected>={expected}, got {actual}")
-        assert (
-            actual >= expected
-        ), f"{loader_name} parallelism {actual} < expected {expected}"
+        assert actual >= expected, f"{loader_name} parallelism {actual} < expected {expected}"
 
     print("=" * 60)
 
@@ -113,14 +111,7 @@ def main():
         print(f"[{status}]: {test_name}")
 
     all_pass = all(r[1] for r in results)
-    print(
-        "\n"
-        + (
-            "[ALL PASS] - LOADERS READY TO RUN"
-            if all_pass
-            else "[FAIL] - SOME TESTS FAILED"
-        )
-    )
+    print("\n" + ("[ALL PASS] - LOADERS READY TO RUN" if all_pass else "[FAIL] - SOME TESTS FAILED"))
     print("=" * 60)
 
     return 0 if all_pass else 1

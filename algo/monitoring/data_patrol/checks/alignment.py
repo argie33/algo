@@ -45,9 +45,7 @@ class AlignmentChecker(BaseCheck):
                 )
                 return
 
-            cur.execute(
-                "SELECT MAX(date) FROM buy_sell_daily WHERE date <= %s", (sqs_date,)
-            )
+            cur.execute("SELECT MAX(date) FROM buy_sell_daily WHERE date <= %s", (sqs_date,))
             row = cur.fetchone()
             buy_sell_date = row[0] if row and row[0] is not None else None
 
@@ -181,10 +179,7 @@ class AlignmentChecker(BaseCheck):
                     f"{len(orphaned)} filled trades missing price history",
                     {
                         "orphaned_trades": len(orphaned),
-                        "sample": [
-                            {"trade_id": r[0], "symbol": r[1], "fill_date": str(r[2])}
-                            for r in orphaned[:5]
-                        ],
+                        "sample": [{"trade_id": r[0], "symbol": r[1], "fill_date": str(r[2])} for r in orphaned[:5]],
                     },
                 )
             else:
@@ -300,7 +295,9 @@ class AlignmentChecker(BaseCheck):
             union_parts = []
             for tbl, where, min_ratio, sev in checks:
                 tbl_safe = assert_safe_table(tbl)
-                union_parts.append(f"SELECT '{tbl}' as tbl_name, COUNT(DISTINCT symbol) as cnt FROM {tbl_safe} WHERE {where}")
+                union_parts.append(
+                    f"SELECT '{tbl}' as tbl_name, COUNT(DISTINCT symbol) as cnt FROM {tbl_safe} WHERE {where}"
+                )
 
             union_query = " UNION ALL ".join(union_parts)
             cur.execute(union_query)
@@ -319,7 +316,7 @@ class AlignmentChecker(BaseCheck):
                             "cross_align",
                             sev,
                             tbl,
-                            f"{tbl} coverage {ratio*100:.1f}% < {min_ratio*100:.0f}% ({count}/{baseline} symbols)",
+                            f"{tbl} coverage {ratio * 100:.1f}% < {min_ratio * 100:.0f}% ({count}/{baseline} symbols)",
                             {"coverage_pct": round(ratio * 100, 1), "baseline": baseline},
                         )
                     else:
@@ -327,7 +324,7 @@ class AlignmentChecker(BaseCheck):
                             "cross_align",
                             INFO,
                             tbl,
-                            f"{tbl} alignment OK ({ratio*100:.1f}%)",
+                            f"{tbl} alignment OK ({ratio * 100:.1f}%)",
                             None,
                         )
                 except (psycopg2.DatabaseError, psycopg2.OperationalError) as e:

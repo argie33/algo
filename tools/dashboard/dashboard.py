@@ -208,10 +208,7 @@ else:
             f"Unexpected error initializing panel registry: {type(e).__name__}: {e}",
             exc_info=True,
         )
-        logger.error(
-            "Panel registry initialization failed. "
-            "Dashboard will continue with graceful fallback."
-        )
+        logger.error("Panel registry initialization failed. Dashboard will continue with graceful fallback.")
         _REGISTRY_FAILED = True
 
 
@@ -220,18 +217,12 @@ def _validate_watch_interval(value):
     try:
         int_value = int(value)
         if int_value < 10:
-            raise argparse.ArgumentTypeError(
-                f"Watch interval must be at least 10 seconds (got {int_value})"
-            )
+            raise argparse.ArgumentTypeError(f"Watch interval must be at least 10 seconds (got {int_value})")
         if int_value > 600:
-            raise argparse.ArgumentTypeError(
-                f"Watch interval must be at most 600 seconds (got {int_value})"
-            )
+            raise argparse.ArgumentTypeError(f"Watch interval must be at most 600 seconds (got {int_value})")
         return int_value
     except ValueError:
-        raise argparse.ArgumentTypeError(
-            f"Watch interval must be an integer (got {value})"
-        )
+        raise argparse.ArgumentTypeError(f"Watch interval must be an integer (got {value})")
 
 
 def _validate_api_url(url: str) -> bool:
@@ -313,9 +304,7 @@ def _fetch_terraform_credentials() -> tuple[str | None, str | None, str | None]:
 
         # Find terraform directory - try multiple paths
         possible_roots = [
-            os.path.dirname(
-                os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
-            ),  # From tools/dashboard/
+            os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__)))),  # From tools/dashboard/
             os.getcwd(),  # Current working directory
             os.path.dirname(os.getcwd()),  # Parent of cwd
         ]
@@ -323,33 +312,24 @@ def _fetch_terraform_credentials() -> tuple[str | None, str | None, str | None]:
         tf_dir = None
         for root in possible_roots:
             candidate = os.path.join(root, "terraform")
-            if os.path.isdir(candidate) and os.path.exists(
-                os.path.join(candidate, "main.tf")
-            ):
+            if os.path.isdir(candidate) and os.path.exists(os.path.join(candidate, "main.tf")):
                 tf_dir = candidate
                 logger.debug(f"Found terraform directory at {tf_dir}")
                 break
 
         if not tf_dir:
-            logger.warning(
-                "Terraform directory not found - cannot auto-fetch credentials"
-            )
+            logger.warning("Terraform directory not found - cannot auto-fetch credentials")
             return (None, None, None)
 
         # Check if terraform is available
         try:
-            subprocess.run(
-                ["terraform", "--version"], capture_output=True, timeout=5, check=True
-            )
+            subprocess.run(["terraform", "--version"], capture_output=True, timeout=5, check=True)
         except FileNotFoundError:
-            logger.warning(
-                "Terraform not installed - use launcher script or set env vars manually"
-            )
+            logger.warning("Terraform not installed - use launcher script or set env vars manually")
             return (None, None, None)
         except subprocess.TimeoutExpired:
             logger.warning(
-                "Terraform check timed out (running but slow) - "
-                "use launcher script or set env vars manually"
+                "Terraform check timed out (running but slow) - use launcher script or set env vars manually"
             )
             return (None, None, None)
         except subprocess.CalledProcessError as e:
@@ -371,18 +351,11 @@ def _fetch_terraform_credentials() -> tuple[str | None, str | None, str | None]:
                     timeout=60,
                 )
                 if result.returncode != 0:
-                    error_output = (
-                        result.stderr.strip() if result.stderr else "(no error output)"
-                    )
-                    logger.warning(
-                        f"Terraform init failed: {error_output[:200]} - may need manual setup"
-                    )
+                    error_output = result.stderr.strip() if result.stderr else "(no error output)"
+                    logger.warning(f"Terraform init failed: {error_output[:200]} - may need manual setup")
                     return (None, None, None)
             except subprocess.TimeoutExpired:
-                logger.warning(
-                    "Terraform init timed out (60s) - "
-                    "running but slow, may need manual setup"
-                )
+                logger.warning("Terraform init timed out (60s) - running but slow, may need manual setup")
                 return (None, None, None)
 
         # Fetch outputs
@@ -395,16 +368,11 @@ def _fetch_terraform_credentials() -> tuple[str | None, str | None, str | None]:
                 timeout=30,
             )
         except subprocess.TimeoutExpired:
-            logger.warning(
-                "Terraform output timed out (30s) - "
-                "running but slow, may need manual setup"
-            )
+            logger.warning("Terraform output timed out (30s) - running but slow, may need manual setup")
             return (None, None, None)
 
         if result.returncode != 0:
-            error_output = (
-                result.stderr.strip() if result.stderr else "(no error output)"
-            )
+            error_output = result.stderr.strip() if result.stderr else "(no error output)"
             logger.warning(f"Terraform output failed: {error_output[:100]}")
             return (None, None, None)
 
@@ -431,9 +399,7 @@ def _fetch_terraform_credentials() -> tuple[str | None, str | None, str | None]:
             pool_id = str(outputs.get("cognito_user_pool_id", "")).strip()
 
         if isinstance(outputs.get("cognito_user_pool_client_id"), dict):
-            client_id = (
-                outputs.get("cognito_user_pool_client_id", {}).get("value", "").strip()
-            )
+            client_id = outputs.get("cognito_user_pool_client_id", {}).get("value", "").strip()
         else:
             client_id = str(outputs.get("cognito_user_pool_client_id", "")).strip()
 
@@ -471,13 +437,9 @@ def _validate_panel_dependencies(data: dict) -> dict[str, bool]:
     """
     if not PANEL_REGISTRY:
         if _REGISTRY_FAILED:
-            logger.warning(
-                "Panel registry failed to initialize - check startup logs for details"
-            )
+            logger.warning("Panel registry failed to initialize - check startup logs for details")
         elif not _REGISTRY_SKIPPED:
-            logger.warning(
-                "Panel registry unavailable - check startup logs for initialization error"
-            )
+            logger.warning("Panel registry unavailable - check startup logs for initialization error")
         return {}
 
     panel_status = {}
@@ -515,9 +477,7 @@ def _handle_render_error(e: Exception, recovery_status: str = "") -> Panel:
 
     error_line = f"{type(e).__name__}: {str(e)[:80]}"
     if recovery_status:
-        content = (
-            f"[bold red]âš  Render Error[/]\n[dim]{error_line}[/]\n\n{recovery_status}"
-        )
+        content = f"[bold red]âš  Render Error[/]\n[dim]{error_line}[/]\n\n{recovery_status}"
     else:
         content = f"[bold red]âš  Render Error[/]\n[dim]{error_line}[/]"
 
@@ -563,9 +523,7 @@ def render_dashboard(
     perf = data.get("perf") or {}
     pos = data.get("pos") or {}
     sig = data.get("sig") or {}
-    hlth = (
-        data.get("health") or {}
-    )  # keep raw dict; ready_to_trade/critical_stale available to panels
+    hlth = data.get("health") or {}  # keep raw dict; ready_to_trade/critical_stale available to panels
     cb = data.get("cb") or {}
     rec = data.get("trades") or {}
     srank = _extract_items(data.get("srank") or {})
@@ -597,9 +555,7 @@ def render_dashboard(
         secs = max(0, watch_interval - int(time.monotonic() - last_load_time))
         refresh_s = f"  [dim]â†»{secs}s[/]"
 
-    hdr_panel = panel_header_market(
-        mkt, sentiment, ts, mkt_s, elapsed, refresh_s, cfg=cfg, data_source=data_source
-    )
+    hdr_panel = panel_header_market(mkt, sentiment, ts, mkt_s, elapsed, refresh_s, cfg=cfg, data_source=data_source)
     exp_panel = panel_exposure_compact(exp_f)
     mascot_panel = mascot_compact(data, frame)
 
@@ -674,9 +630,7 @@ def render_dashboard(
     )
 
     outer["r3"].split_row(
-        Layout(
-            panel_signals_compact(sig, sig_eval, scores=scores), ratio=3, name="signals"
-        ),
+        Layout(panel_signals_compact(sig, sig_eval, scores=scores), ratio=3, name="signals"),
         Layout(
             panel_sector_compact(srank, pos, port, sec_rot, irank),
             ratio=2,
@@ -701,9 +655,7 @@ def render_dashboard(
         return _expanded_layout(*_exp_top, panel_market_expanded(mkt, sentiment))
 
     if view_mode == "positions":
-        hint = Text.from_markup(
-            "[dim]press [/][bold cyan]p[/][dim] to return to dashboard[/]"
-        )
+        hint = Text.from_markup("[dim]press [/][bold cyan]p[/][dim] to return to dashboard[/]")
         _pos_items = pos.get("items", []) if isinstance(pos, dict) else (pos or [])
         return _expanded_layout(
             *_exp_top,
@@ -720,9 +672,7 @@ def render_dashboard(
         )
 
     if view_mode == "signals":
-        return _expanded_layout(
-            *_exp_top, panel_signals_expanded(sig, sig_eval, scores=scores)
-        )
+        return _expanded_layout(*_exp_top, panel_signals_expanded(sig, sig_eval, scores=scores))
 
     if view_mode == "health":
         return _expanded_layout(
@@ -740,9 +690,7 @@ def render_dashboard(
         )
 
     if view_mode == "sectors":
-        return _expanded_layout(
-            *_exp_top, panel_sectors_expanded(srank, pos, port, sec_rot, irank)
-        )
+        return _expanded_layout(*_exp_top, panel_sectors_expanded(srank, pos, port, sec_rot, irank))
 
     if view_mode == "trades":
         return _expanded_layout(*_exp_top, panel_trades_expanded(rec))
@@ -753,9 +701,7 @@ def render_dashboard(
     if view_mode == "portfolio":
         return _expanded_layout(
             *_exp_top,
-            panel_portfolio_perf_expanded(
-                port, cfg, risk=risk, perf=perf, perf_anl=perf_anl, pos=pos
-            ),
+            panel_portfolio_perf_expanded(port, cfg, risk=risk, perf=perf, perf_anl=perf_anl, pos=pos),
         )
 
     return outer
@@ -806,14 +752,10 @@ def run_once(compact: bool, data_source: str = "AWS") -> None:
                             render_wrapper.frame = frame
                             render_wrapper.view_mode = view_mode
                         try:
-                            layout, _recovery_status = recovery.render_with_recovery(
-                                state.result, render_wrapper
-                            )
+                            layout, _recovery_status = recovery.render_with_recovery(state.result, render_wrapper)
                             live.update(layout)
                         except Exception as e:
-                            error_panel = _handle_render_error(
-                                e, recovery.get_recovery_status()
-                            )
+                            error_panel = _handle_render_error(e, recovery.get_recovery_status())
                             try:
                                 live.update(error_panel)
                             except Exception as panel_error:
@@ -919,27 +861,18 @@ def run_watch(interval: int, compact: bool, data_source: str = "AWS") -> None:
                                 render_wrapper.refreshing = is_loading
                                 render_wrapper.view_mode = view_mode
                             try:
-                                layout, _recovery_status = (
-                                    recovery.render_with_recovery(
-                                        current_result, render_wrapper
-                                    )
-                                )
+                                layout, _recovery_status = recovery.render_with_recovery(current_result, render_wrapper)
                                 render_layout = layout
                                 render_error = None
                             except Exception as e:
                                 render_layout = None
                                 render_error = e
                                 error_status = recovery.get_recovery_status()
-                            should_reload = (
-                                not is_loading
-                                and (time.monotonic() - current_last_load) >= interval
-                            )
+                            should_reload = not is_loading and (time.monotonic() - current_last_load) >= interval
                             try:
                                 should_retry_load = recovery.should_retry_data_load()
                             except Exception as e:
-                                logger.error(
-                                    f"Failed to check recovery retry status: {type(e).__name__}: {e}"
-                                )
+                                logger.error(f"Failed to check recovery retry status: {type(e).__name__}: {e}")
                                 should_retry_load = False
 
                     # Render UI outside lock (I/O operations)
@@ -956,16 +889,12 @@ def run_watch(interval: int, compact: bool, data_source: str = "AWS") -> None:
                                     f"Failed to render error panel: {type(panel_error).__name__}: {panel_error}"
                                 )
                         else:
-                            live.update(
-                                loading_layout(current_frame, data_source=data_source)
-                            )
+                            live.update(loading_layout(current_frame, data_source=data_source))
                     else:
                         if render_error is None:
                             live.update(render_layout)
                         else:
-                            error_panel = _handle_render_error(
-                                render_error, error_status
-                            )
+                            error_panel = _handle_render_error(render_error, error_status)
                             try:
                                 live.update(error_panel)
                             except Exception as panel_error:
@@ -975,9 +904,7 @@ def run_watch(interval: int, compact: bool, data_source: str = "AWS") -> None:
 
                         if should_reload or should_retry_load:
                             cleanup_dead_threads()
-                            reload_thread = threading.Thread(
-                                target=reload, daemon=False
-                            )
+                            reload_thread = threading.Thread(target=reload, daemon=False)
                             reload_thread.start()
                             with active_threads_lock:
                                 active_threads.append(reload_thread)
@@ -1067,12 +994,8 @@ def main():
                 CONSOLE.print("[yellow]1. Fetch AWS credentials:[/]")
                 CONSOLE.print("[cyan]   scripts/refresh-aws-credentials.ps1[/]")
                 CONSOLE.print("")
-                CONSOLE.print(
-                    "[yellow]2. Dashboard will auto-fetch from Secrets Manager / Terraform[/]"
-                )
-                CONSOLE.print(
-                    "[dim]After GitHub Actions deploy completes, run setup-local-dev.ps1 to refresh[/]"
-                )
+                CONSOLE.print("[yellow]2. Dashboard will auto-fetch from Secrets Manager / Terraform[/]")
+                CONSOLE.print("[dim]After GitHub Actions deploy completes, run setup-local-dev.ps1 to refresh[/]")
             except Exception as e:
                 logger.error(
                     f"Dashboard credentials not found. "
@@ -1096,23 +1019,17 @@ def main():
         auth = get_cognito_auth_instance(require_auth=True)
         if auth is None:
             try:
-                CONSOLE.print(
-                    "[bold red]ERROR:[/] Authentication required but Cognito credentials not found"
-                )
+                CONSOLE.print("[bold red]ERROR:[/] Authentication required but Cognito credentials not found")
                 CONSOLE.print("")
                 CONSOLE.print("[bold cyan]Options:[/]")
                 CONSOLE.print("[yellow]1. Set environment variables:[/]")
                 CONSOLE.print("[cyan]   $env:COGNITO_USERNAME = 'your_username'[/]")
                 CONSOLE.print("[cyan]   $env:COGNITO_PASSWORD = 'your_password'[/]")
                 CONSOLE.print("")
-                CONSOLE.print(
-                    "[yellow]2. Or run setup (will prompt for credentials):[/]"
-                )
+                CONSOLE.print("[yellow]2. Or run setup (will prompt for credentials):[/]")
                 CONSOLE.print("[cyan]   scripts/setup-local-dev.ps1[/]")
                 CONSOLE.print("")
-                CONSOLE.print(
-                    "[yellow]3. Or save credentials to ~/.algo/cognito_credentials.json[/]"
-                )
+                CONSOLE.print("[yellow]3. Or save credentials to ~/.algo/cognito_credentials.json[/]")
             except Exception as e:
                 logger.error(
                     f"[AUTH] Authentication required but failed - no credentials available. "
@@ -1129,9 +1046,7 @@ def main():
             set_cognito_auth(auth)
             save_tokens(auth)
         else:
-            logger.warning(
-                "[AUTH] Running with limited permissions - Cognito not fully authenticated"
-            )
+            logger.warning("[AUTH] Running with limited permissions - Cognito not fully authenticated")
             set_cognito_auth(auth)  # Still set it, will fail on protected endpoints
 
     if args.watch is not None:

@@ -17,7 +17,9 @@ def test_db_credentials_requires_all_fields_in_aws_secret():
 
     mock_response_incomplete = {"SecretString": json.dumps({"host": "db.local"})}
 
-    with patch.dict(os.environ, {"DB_SECRET_ARN": "arn:aws:secretsmanager:us-east-1:123456789012:secret:db-creds"}, clear=False):
+    with patch.dict(
+        os.environ, {"DB_SECRET_ARN": "arn:aws:secretsmanager:us-east-1:123456789012:secret:db-creds"}, clear=False
+    ):
         with patch.object(mgr, "_get_secrets_client") as mock_client:
             mock_sm = MagicMock()
             mock_client.return_value = mock_sm
@@ -44,7 +46,9 @@ def test_db_credentials_requires_port_is_valid_integer():
         )
     }
 
-    with patch.dict(os.environ, {"DB_SECRET_ARN": "arn:aws:secretsmanager:us-east-1:123456789012:secret:db-creds"}, clear=False):
+    with patch.dict(
+        os.environ, {"DB_SECRET_ARN": "arn:aws:secretsmanager:us-east-1:123456789012:secret:db-creds"}, clear=False
+    ):
         with patch.object(mgr, "_get_secrets_client") as mock_client:
             mock_sm = MagicMock()
             mock_client.return_value = mock_sm
@@ -160,7 +164,9 @@ def test_db_credentials_aws_requires_secret_string():
 
     mock_response = {"SecretBinary": b"data"}  # Only binary, no string
 
-    with patch.dict(os.environ, {"DB_SECRET_ARN": "arn:aws:secretsmanager:us-east-1:123456789012:secret:db-creds"}, clear=False):
+    with patch.dict(
+        os.environ, {"DB_SECRET_ARN": "arn:aws:secretsmanager:us-east-1:123456789012:secret:db-creds"}, clear=False
+    ):
         with patch.object(mgr, "_get_secrets_client") as mock_client:
             mock_sm = MagicMock()
             mock_client.return_value = mock_sm

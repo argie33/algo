@@ -868,16 +868,16 @@ class AlgoConfig:
         self._validate_schema_consistency()
         self._load_defaults()
         t1 = time.time()
-        logger.info(f"[AlgoConfig] defaults loaded in {t1-t0:.2f}s")
+        logger.info(f"[AlgoConfig] defaults loaded in {t1 - t0:.2f}s")
         self._load_from_database()
         t2 = time.time()
-        logger.info(f"[AlgoConfig] database loaded in {t2-t1:.2f}s, total {t2-t0:.2f}s")
+        logger.info(f"[AlgoConfig] database loaded in {t2 - t1:.2f}s, total {t2 - t0:.2f}s")
         self._validate_critical_thresholds()
         t_crit = time.time()
-        logger.info(f"[AlgoConfig] critical threshold validation completed in {t_crit-t2:.2f}s")
+        logger.info(f"[AlgoConfig] critical threshold validation completed in {t_crit - t2:.2f}s")
         self._validate_config_interdependencies()
         t3 = time.time()
-        logger.info(f"[AlgoConfig] interdependency validation completed in {t3-t_crit:.2f}s")
+        logger.info(f"[AlgoConfig] interdependency validation completed in {t3 - t_crit:.2f}s")
         self._audit_config_sources()
 
     def _validate_schema_consistency(self):
@@ -891,11 +891,9 @@ class AlgoConfig:
         warnings = []
 
         # Check that all DEFAULTS keys have corresponding VALIDATION_SCHEMA entries
-        for key, (default_value, default_type, _) in self.DEFAULTS.items():
+        for key, (_default_value, default_type, _) in self.DEFAULTS.items():
             if key not in self.VALIDATION_SCHEMA:
-                errors.append(
-                    f"  {key}: in DEFAULTS but NOT in VALIDATION_SCHEMA (type: {default_type})"
-                )
+                errors.append(f"  {key}: in DEFAULTS but NOT in VALIDATION_SCHEMA (type: {default_type})")
             else:
                 schema_type, _, _, _, _ = self.VALIDATION_SCHEMA[key]
                 # Relaxed check: int/float can be interchanged in numeric contexts
@@ -909,13 +907,9 @@ class AlgoConfig:
         for key, (schema_type, _, _, is_critical, _) in self.VALIDATION_SCHEMA.items():
             if key not in self.DEFAULTS:
                 if is_critical:
-                    errors.append(
-                        f"  {key}: CRITICAL in SCHEMA but NOT in DEFAULTS (must have a safe default)"
-                    )
+                    errors.append(f"  {key}: CRITICAL in SCHEMA but NOT in DEFAULTS (must have a safe default)")
                 else:
-                    warnings.append(
-                        f"  {key}: in SCHEMA but NOT in DEFAULTS (non-critical, will use schema default)"
-                    )
+                    warnings.append(f"  {key}: in SCHEMA but NOT in DEFAULTS (non-critical, will use schema default)")
 
         if errors:
             error_msg = (
@@ -928,13 +922,11 @@ class AlgoConfig:
             raise RuntimeError(error_msg)
 
         if warnings:
-            logger.warning(
-                "[AlgoConfig] Schema/defaults consistency warnings:\n" + "\n".join(warnings)
-            )
+            logger.warning("[AlgoConfig] Schema/defaults consistency warnings:\n" + "\n".join(warnings))
 
     def _load_defaults(self):
         """Load default configuration."""
-        for key, (value, dtype, desc) in self.DEFAULTS.items():
+        for key, (value, dtype, _desc) in self.DEFAULTS.items():
             self._config[key] = self._parse_value(value, dtype)
             self._sources[key] = "default"
 
@@ -950,9 +942,7 @@ class AlgoConfig:
             t_conn_start = time.time()
             with DatabaseContext("read", timeout=15) as cur:
                 t_conn_done = time.time()
-                logger.info(
-                    f"[AlgoConfig] database connection took {t_conn_done-t_conn_start:.2f}s"
-                )
+                logger.info(f"[AlgoConfig] database connection took {t_conn_done - t_conn_start:.2f}s")
 
                 cur.execute("SELECT key, value, value_type FROM algo_config")
                 rows = cur.fetchall()
@@ -981,9 +971,7 @@ class AlgoConfig:
                                     f"Admin must fix database value: {e}"
                                 )
                             else:
-                                logger.warning(
-                                    f"Warning: Invalid config {key}={value}: {e} — using default"
-                                )
+                                logger.warning(f"Warning: Invalid config {key}={value}: {e} — using default")
                                 self._sources[key] = "default_fallback"
 
                 if invalid_critical_values:
@@ -995,9 +983,7 @@ class AlgoConfig:
 
                 self._validate_r_multiple_ordering()
                 t_end = time.time()
-                logger.info(
-                    f"[AlgoConfig] _load_from_database() completed in {t_end-t0:.2f}s"
-                )
+                logger.info(f"[AlgoConfig] _load_from_database() completed in {t_end - t0:.2f}s")
         except ValueError as e:
             logger.error(f"Config validation error: {e}")
             raise
@@ -1036,9 +1022,7 @@ class AlgoConfig:
         if dtype != schema_type:
             # For backward compatibility, allow int/float interchangeably in numeric contexts
             if not ((dtype in ("int", "float")) and (schema_type in ("int", "float"))):
-                raise ValueError(
-                    f"{key}: type mismatch. Expected {schema_type}, got {dtype}"
-                )
+                raise ValueError(f"{key}: type mismatch. Expected {schema_type}, got {dtype}")
 
         # Parse value for range checking (skip bool/string which have no min/max)
         if schema_type in ("int", "float"):
@@ -1049,13 +1033,9 @@ class AlgoConfig:
 
             # Validate range if bounds are defined
             if min_val is not None and f_val < min_val:
-                raise ValueError(
-                    f"{key}: {f_val} is below minimum {min_val}"
-                )
+                raise ValueError(f"{key}: {f_val} is below minimum {min_val}")
             if max_val is not None and f_val > max_val:
-                raise ValueError(
-                    f"{key}: {f_val} is above maximum {max_val}"
-                )
+                raise ValueError(f"{key}: {f_val} is above maximum {max_val}")
 
             # Critical safety gates: must not be zero/near-zero
             if is_critical and abs(f_val) < 0.001:
@@ -1075,8 +1055,7 @@ class AlgoConfig:
             t3 = float(self._config.get("t3_target_r_multiple", 4.0))
             if not (t1 < t2 < t3):
                 raise ValueError(
-                    f"R-multiple ordering broken: t1={t1} t2={t2} t3={t3}. "
-                    "Required: t1 < t2 < t3 for position sizing."
+                    f"R-multiple ordering broken: t1={t1} t2={t2} t3={t3}. Required: t1 < t2 < t3 for position sizing."
                 )
         except (TypeError, ValueError) as e:
             logger.error(f"Config validation failed: {e}")
@@ -1091,7 +1070,7 @@ class AlgoConfig:
         errors = []
         warnings = []
 
-        for key, (schema_type, min_val, max_val, is_critical, fail_closed) in self.VALIDATION_SCHEMA.items():
+        for key, (_schema_type, min_val, max_val, is_critical, fail_closed) in self.VALIDATION_SCHEMA.items():
             if not is_critical:
                 continue  # Skip non-critical params
 
@@ -1100,8 +1079,7 @@ class AlgoConfig:
             # Missing or None
             if current_value is None:
                 errors.append(
-                    f"  {key}: not configured (None). "
-                    f"Safe default: {fail_closed}. Range: [{min_val}, {max_val}]"
+                    f"  {key}: not configured (None). Safe default: {fail_closed}. Range: [{min_val}, {max_val}]"
                 )
                 continue
 
@@ -1109,10 +1087,7 @@ class AlgoConfig:
             try:
                 f_val = float(current_value)
             except (ValueError, TypeError):
-                errors.append(
-                    f"  {key}: cannot parse value {current_value!r}. "
-                    f"Safe default: {fail_closed}"
-                )
+                errors.append(f"  {key}: cannot parse value {current_value!r}. Safe default: {fail_closed}")
                 continue
 
             # Zero/near-zero (disables safety gate)
@@ -1125,15 +1100,9 @@ class AlgoConfig:
 
             # Out of range
             if min_val is not None and f_val < min_val:
-                errors.append(
-                    f"  {key} = {f_val}: below minimum {min_val}. "
-                    f"Safe default: {fail_closed}"
-                )
+                errors.append(f"  {key} = {f_val}: below minimum {min_val}. Safe default: {fail_closed}")
             if max_val is not None and f_val > max_val:
-                errors.append(
-                    f"  {key} = {f_val}: above maximum {max_val}. "
-                    f"Safe default: {fail_closed}"
-                )
+                errors.append(f"  {key} = {f_val}: above maximum {max_val}. Safe default: {fail_closed}")
 
         if errors:
             error_msg = (
@@ -1182,8 +1151,7 @@ class AlgoConfig:
 
             if vix_caution >= vix_max:
                 raise ValueError(
-                    f"Config error: vix_caution_threshold ({vix_caution}) must be < "
-                    f"vix_max_threshold ({vix_max})"
+                    f"Config error: vix_caution_threshold ({vix_caution}) must be < vix_max_threshold ({vix_max})"
                 )
 
             if vix_alert >= vix_max:
@@ -1206,10 +1174,7 @@ class AlgoConfig:
             r_at_minus_20 = float(self._config.get("risk_reduction_at_minus_20", 0.0))
 
             if halt_dd >= 0:
-                logger.warning(
-                    f"Config: halt_drawdown_pct ({halt_dd}) should be negative "
-                    "(represents downside loss)"
-                )
+                logger.warning(f"Config: halt_drawdown_pct ({halt_dd}) should be negative (represents downside loss)")
 
             if not (r_at_minus_20 <= r_at_minus_15 <= r_at_minus_10 <= r_at_minus_5):
                 logger.warning(
@@ -1225,42 +1190,29 @@ class AlgoConfig:
 
             if eb_before < 0 or eb_after < 0:
                 logger.warning(
-                    f"Config: Earnings blackout days should be non-negative "
-                    f"(before={eb_before}, after={eb_after})"
+                    f"Config: Earnings blackout days should be non-negative (before={eb_before}, after={eb_after})"
                 )
 
             # Stop loss: max_stop_distance_pct should be positive and reasonable
             max_stop = float(self._config.get("max_stop_distance_pct", 12.0))
             if max_stop <= 0:
-                logger.warning(
-                    f"Config: max_stop_distance_pct ({max_stop}) should be positive"
-                )
+                logger.warning(f"Config: max_stop_distance_pct ({max_stop}) should be positive")
             if max_stop > 50:
-                logger.warning(
-                    f"Config: max_stop_distance_pct ({max_stop}) is very wide "
-                    "(typical range 5-20%)"
-                )
+                logger.warning(f"Config: max_stop_distance_pct ({max_stop}) is very wide (typical range 5-20%)")
 
             # Risk percentages: should be positive
             base_risk = float(self._config.get("base_risk_pct", 0.75))
             if base_risk <= 0:
-                logger.warning(
-                    f"Config: base_risk_pct ({base_risk}) should be positive"
-                )
+                logger.warning(f"Config: base_risk_pct ({base_risk}) should be positive")
             if base_risk > 5:
-                logger.warning(
-                    f"Config: base_risk_pct ({base_risk}) is very high (typical: 0.5-2%)"
-                )
+                logger.warning(f"Config: base_risk_pct ({base_risk}) is very high (typical: 0.5-2%)")
 
             # Daily/weekly loss caps should be positive
             daily_loss = float(self._config.get("max_daily_loss_pct", 2.0))
             weekly_loss = float(self._config.get("max_weekly_loss_pct", 5.0))
 
             if daily_loss <= 0 or weekly_loss <= 0:
-                logger.warning(
-                    f"Config: Max loss caps should be positive "
-                    f"(daily={daily_loss}, weekly={weekly_loss})"
-                )
+                logger.warning(f"Config: Max loss caps should be positive (daily={daily_loss}, weekly={weekly_loss})")
 
             if daily_loss >= weekly_loss:
                 logger.warning(
@@ -1296,7 +1248,7 @@ class AlgoConfig:
         Format: {key: {"value": X, "min": Y, "max": Z, "source": "database"}}
         """
         summary = {}
-        for key, (schema_type, min_val, max_val, is_critical, fail_closed) in self.VALIDATION_SCHEMA.items():
+        for key, (_schema_type, min_val, max_val, is_critical, fail_closed) in self.VALIDATION_SCHEMA.items():
             if is_critical:
                 summary[key] = {
                     "value": self._config.get(key),
@@ -1335,10 +1287,7 @@ class AlgoConfig:
             )
 
         # Warn if any critical thresholds are using defaults or fail-closed
-        problematic = [
-            k for k, info in summary.items()
-            if info["source"] in ("default", "fail_closed_default")
-        ]
+        problematic = [k for k, info in summary.items() if info["source"] in ("default", "fail_closed_default")]
         if problematic:
             logger.warning(
                 f"[AlgoConfig] ALERT: {len(problematic)} critical thresholds NOT loaded from database "
@@ -1362,8 +1311,7 @@ class AlgoConfig:
             parsed_default = self._parse_value(default_value, self.DEFAULTS[key][1])
             if parsed_default != default:
                 logger.warning(
-                    f"[CONFIG] Default mismatch for {key!r}: "
-                    f"code has {default!r} but DEFAULTS has {parsed_default!r}"
+                    f"[CONFIG] Default mismatch for {key!r}: code has {default!r} but DEFAULTS has {parsed_default!r}"
                 )
 
         value = self._config.get(key)
@@ -1531,9 +1479,7 @@ class AlgoConfig:
                 )
                 return False
             else:
-                logger.info(
-                    f"[CONFIG SET] {key} = {final_value} (was {old_value}), actor={changed_by}"
-                )
+                logger.info(f"[CONFIG SET] {key} = {final_value} (was {old_value}), actor={changed_by}")
                 return True
 
         except (psycopg2.DatabaseError, psycopg2.OperationalError) as e:
@@ -1602,9 +1548,7 @@ def reset_config() -> None:
     global _instance
     with _instance_lock:
         _instance = None
-    logger.info(
-        "[AlgoConfig] Singleton reset — will reload from DB on next get_config() call"
-    )
+    logger.info("[AlgoConfig] Singleton reset — will reload from DB on next get_config() call")
 
 
 def get_api_timeout() -> int:

@@ -75,9 +75,7 @@ class OrchestratorPhaseExecutor:
         """Get result from a previously executed phase."""
         return self.phase_results.get(phase_num)
 
-    def get_phase_data(
-        self, phase_num: int | str, key: str, default: Any = None
-    ) -> Any:
+    def get_phase_data(self, phase_num: int | str, key: str, default: Any = None) -> Any:
         """Convenience method to get specific data from a phase result.
 
         DEPRECATED: Use get_phase_data_required() for explicit validation.
@@ -88,9 +86,7 @@ class OrchestratorPhaseExecutor:
             return result.data.get(key, default)
         return default
 
-    def get_phase_data_required(
-        self, phase_num: int | str, *keys: str
-    ) -> Any:
+    def get_phase_data_required(self, phase_num: int | str, *keys: str) -> Any:
         """Extract required data from phase result with validation.
 
         Fails if: phase not executed, result is None/failed, or keys are missing.
@@ -112,14 +108,10 @@ class OrchestratorPhaseExecutor:
 
         result = self.phase_results.get(phase_num)
         if result is None:
-            raise MissingPhaseDataError(
-                f"Phase {phase_num} not executed. Available: {list(self.phase_results.keys())}"
-            )
+            raise MissingPhaseDataError(f"Phase {phase_num} not executed. Available: {list(self.phase_results.keys())}")
 
         if not result.ok:
-            raise MissingPhaseDataError(
-                f"Phase {phase_num} failed: {result.status} — {result.error}"
-            )
+            raise MissingPhaseDataError(f"Phase {phase_num} failed: {result.status} — {result.error}")
 
         data = extract_required_data(phase_num, result.data, *keys)
 
@@ -160,9 +152,7 @@ class OrchestratorPhaseExecutor:
 
         return None
 
-    def execute_phase(
-        self, phase_num: int | str, **kwargs
-    ) -> tuple[bool, str | None]:
+    def execute_phase(self, phase_num: int | str, **kwargs) -> tuple[bool, str | None]:
         """Execute a single phase.
 
         Args:
@@ -179,9 +169,7 @@ class OrchestratorPhaseExecutor:
         # Check halt flag (unless phase always runs)
         if not phase.always_run and phase.skip_if_halted:
             if self.halt_check_fn():
-                logger.info(
-                    f"Phase {phase_num} ({phase.phase_name}) skipped due to halt flag"
-                )
+                logger.info(f"Phase {phase_num} ({phase.phase_name}) skipped due to halt flag")
                 result = PhaseResult(
                     phase_num=phase_num,
                     phase_name=phase.phase_name,
@@ -203,24 +191,21 @@ class OrchestratorPhaseExecutor:
             if not phase.execute_fn:
                 return False, f"Phase {phase_num} has no execution function"
 
-            logger.info(f"\n{'='*70}")
+            logger.info(f"\n{'=' * 70}")
             logger.info(f"PHASE {phase_num}: {phase.phase_name}")
-            logger.info(f"{'='*70}")
+            logger.info(f"{'=' * 70}")
 
             # Pass executor to phase so it can retrieve validated data from prior phases
             result = phase.execute_fn(executor=self, **kwargs)
             self.phase_results[phase_num] = result
 
             if result.halted:
-                logger.critical(
-                    f"[PHASE {phase_num}] HALTED — {result.error or 'unknown reason'}"
-                )
+                logger.critical(f"[PHASE {phase_num}] HALTED — {result.error or 'unknown reason'}")
 
             log_level = "error" if not result.ok else "info"
             logger.log(
                 logging.ERROR if log_level == "error" else logging.INFO,
-                f"\n-> Phase {phase_num} {result.status}: "
-                f"{result.data.get('summary', 'check logs for details')}",
+                f"\n-> Phase {phase_num} {result.status}: {result.data.get('summary', 'check logs for details')}",
             )
 
             return result.ok, result.error
@@ -249,10 +234,10 @@ class OrchestratorPhaseExecutor:
         Returns:
             Results summary with phase outcomes and any errors.
         """
-        logger.info(f"\n{'#'*70}")
+        logger.info(f"\n{'#' * 70}")
         logger.info("#   ORCHESTRATOR EXECUTOR START")
         logger.info(f"#   Executing {len(self.execution_order)} phases")
-        logger.info(f"{'#'*70}")
+        logger.info(f"{'#' * 70}")
 
         success_count = 0
         error_phase = None
@@ -270,15 +255,13 @@ class OrchestratorPhaseExecutor:
                 # Stop at first dependency-blocking error
                 phase_def = self.phases[phase_num]
                 if not phase_def.always_run:
-                    logger.critical(
-                        f"[EXECUTOR] Halting phase sequence at Phase {phase_num}: {error}"
-                    )
+                    logger.critical(f"[EXECUTOR] Halting phase sequence at Phase {phase_num}: {error}")
                     break
 
-        logger.info(f"\n{'#'*70}")
+        logger.info(f"\n{'#' * 70}")
         logger.info("#   ORCHESTRATOR EXECUTOR COMPLETE")
         logger.info(f"#   {success_count}/{len(self.execution_order)} phases succeeded")
-        logger.info(f"{'#'*70}")
+        logger.info(f"{'#' * 70}")
 
         return {
             "success": error_phase is None,

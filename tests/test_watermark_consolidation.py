@@ -58,9 +58,7 @@ class TestWatermarkConsolidation:
         # Critical tables should have tight thresholds (1 day)
         for table in ["price_daily", "algo_portfolio_snapshots", "market_health_daily"]:
             rule = get_freshness_rule(table)
-            assert (
-                rule["max_age_days"] <= 1
-            ), f"{table} critical, should have 1d or tighter threshold"
+            assert rule["max_age_days"] <= 1, f"{table} critical, should have 1d or tighter threshold"
 
         # trend_template_data: non-critical but still regularly refreshed (7-day tolerance)
         trend_rule = get_freshness_rule("trend_template_data")
@@ -78,7 +76,7 @@ class TestWatermarkConsolidation:
 
     def test_weekday_adjustment(self):
         """Verify Friday data stays fresh through weekend."""
-        friday = date(2026, 6, 12)  # Friday
+        date(2026, 6, 12)  # Friday
         saturday = date(2026, 6, 13)
         sunday = date(2026, 6, 14)
 
@@ -118,14 +116,6 @@ class TestDataAgeValidator:
     def test_check_method_returns_complete_dict(self):
         """Verify check() returns all expected fields."""
         # Note: This test uses mock data; in integration tests would use real DB
-        expected_keys = [
-            "is_fresh",
-            "age_days",
-            "max_date",
-            "rule",
-            "message",
-            "is_critical",
-        ]
         # We'd need a real DB to test this fully
 
     def test_validator_handles_missing_tables(self):
@@ -135,10 +125,6 @@ class TestDataAgeValidator:
 
     def test_multiple_tables_check(self):
         """Verify check_multiple() aggregates results correctly."""
-        tables = {
-            "price_daily": "date",
-            "market_health_daily": "date",
-        }
 
         # Expected structure:
         # {

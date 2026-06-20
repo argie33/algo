@@ -21,9 +21,9 @@ from .api_data_layer import api_call
 
 logging.basicConfig(level=logging.DEBUG)
 
-print("\n" + "="*80)
+print("\n" + "=" * 80)
 print("DIAGNOSTICS: VIX and Concentration Data")
-print("="*80 + "\n")
+print("=" * 80 + "\n")
 
 # 1. Check what the markets endpoint returns
 print("1. MARKETS API (/api/algo/markets)")
@@ -62,7 +62,14 @@ try:
         print(f"top_5_concentration type: {type(conc5)}")
 
         print("\nAll risk metrics:")
-        for key in ["var_pct_95", "cvar_pct_95", "stressed_var_pct", "portfolio_beta", "top_5_concentration", "report_date"]:
+        for key in [
+            "var_pct_95",
+            "cvar_pct_95",
+            "stressed_var_pct",
+            "portfolio_beta",
+            "top_5_concentration",
+            "report_date",
+        ]:
             val = risk_data.get(key)
             print(f"  {key}: {val} (type: {type(val).__name__})")
 
@@ -128,6 +135,6 @@ try:
 except Exception as e:
     print(f"EXCEPTION: {type(e).__name__}: {e}")
 
-print("\n" + "="*80)
+print("\n" + "=" * 80)
 print("END DIAGNOSTICS")
-print("="*80 + "\n")
+print("=" * 80 + "\n")

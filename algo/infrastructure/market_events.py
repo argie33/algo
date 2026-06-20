@@ -115,9 +115,7 @@ class MarketEventHandler:
             def fetch_bars():
                 url = f"{self.alpaca_base_url}/v2/stocks/SPY/bars/latest?timeframe=1day"
                 try:
-                    resp = requests.get(
-                        url, headers=headers, timeout=get_market_data_timeout()
-                    )
+                    resp = requests.get(url, headers=headers, timeout=get_market_data_timeout())
                     if resp.status_code != 200:
                         raise RuntimeError(f"Bars API error: status {resp.status_code}")
                     return resp.json().get("bar", {}).get("o")
@@ -196,11 +194,7 @@ class MarketEventHandler:
             # Fallback: check known dates
             # Day after Thanksgiving (4th Thursday of November)
             # Find all Thursdays in November (weekday() == 3 means Thursday)
-            nov_thursdays = [
-                d
-                for d in range(1, 31)
-                if datetime(check_date.year, 11, d).weekday() == 3
-            ]
+            nov_thursdays = [d for d in range(1, 31) if datetime(check_date.year, 11, d).weekday() == 3]
             if len(nov_thursdays) >= 4:
                 day_after_thanksgiving = nov_thursdays[3] + 1  # 4th Thursday + 1 day
                 if check_date.month == 11 and check_date.day == day_after_thanksgiving:
@@ -306,17 +300,18 @@ class MarketEventHandler:
             dict with action taken
         """
         try:
-
             if level == 3:
                 # L3: Full halt, no new orders, close positions
                 action = "HALT_ALL_ENTRIES"
-                message = "Market circuit breaker L3 (20%+ down) — halting all new entries and preparing for forced exit"
+                message = (
+                    "Market circuit breaker L3 (20%+ down) — halting all new entries and preparing for forced exit"
+                )
                 severity = "CRITICAL"
                 action_type = "CIRCUIT_BREAKER_L3"
             elif level in (1, 2):
                 # L1/L2: Pause new entries for 15 minutes, tighten stops
                 action = "PAUSE_ENTRIES_15MIN"
-                message = f'Market circuit breaker L{level} ({"7" if level == 1 else "13"}%+ down) — pausing new entries for 15 minutes'
+                message = f"Market circuit breaker L{level} ({'7' if level == 1 else '13'}%+ down) — pausing new entries for 15 minutes"
                 severity = "ERROR"
                 action_type = f"CIRCUIT_BREAKER_L{level}"
             else:
@@ -343,9 +338,7 @@ class MarketEventHandler:
             }
 
         except (psycopg2.DatabaseError, psycopg2.OperationalError) as e:
-            logger.error(
-                f"MarketEventHandler: handle_market_circuit_breaker error: {e}"
-            )
+            logger.error(f"MarketEventHandler: handle_market_circuit_breaker error: {e}")
             return {"action": "ERROR", "message": str(e)}
 
     def check_delisting(self, symbol: str) -> dict[str, Any] | None:
@@ -417,8 +410,6 @@ class MarketEventHandler:
 
         cb = result["checks"].get("circuit_breaker")
         if cb:
-            result["alerts"].append(
-                f"CIRCUIT BREAKER LEVEL {cb['level']}: {cb['description']}"
-            )
+            result["alerts"].append(f"CIRCUIT BREAKER LEVEL {cb['level']}: {cb['description']}")
 
         return result

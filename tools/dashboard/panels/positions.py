@@ -9,10 +9,12 @@ try:
     from panel_registry import register_panel
 except ImportError as e:
     logger.warning(f"Panel registry not available: {e} - panels will not auto-register")
+
     def register_panel(*args, **kwargs):
         if args and callable(args[0]):
             return args[0]
         return lambda fn: fn
+
 
 from rich import box
 from rich.console import Group
@@ -93,38 +95,24 @@ def panel_positions(pos, compact=False, trades=None, extended=False):
     for p in pos_items:
         if not isinstance(p, dict):
             invalid_count += 1
-            logger.error(
-                f"panel_positions: invalid position (not a dict): {type(p).__name__}"
-            )
+            logger.error(f"panel_positions: invalid position (not a dict): {type(p).__name__}")
             continue
         entry = safe_float(p.get("avg_entry_price"), default=None)
         price = safe_float(p.get("current_price"), default=None)
         pval = safe_float(p.get("position_value"), default=None)
         stop = safe_float(p.get("stop_loss_price"), default=None)
-        t1 = safe_float(p.get("target_1_price"), default=None)
+        safe_float(p.get("target_1_price"), default=None)
         pnl = safe_float(p.get("unrealized_pnl_pct"), default=None)
         days = p.get("days_since_entry") or "--"
         stg = p.get("weinstein_stage")
         swg = p.get("swing_score")
         sec = (p.get("sector") or "--")[:12]
         rmul = float(p.get("r_multiple")) if p.get("r_multiple") is not None else None
-        dist = (
-            float(p.get("distance_to_stop_pct"))
-            if p.get("distance_to_stop_pct") is not None
-            else None
-        )
-        t1pct = (
-            float(p.get("distance_to_t1_pct"))
-            if p.get("distance_to_t1_pct") is not None
-            else None
-        )
+        dist = float(p.get("distance_to_stop_pct")) if p.get("distance_to_stop_pct") is not None else None
+        t1pct = float(p.get("distance_to_t1_pct")) if p.get("distance_to_t1_pct") is not None else None
         pc = G if (pnl is not None and pnl >= 0) else R
         rc = G if (rmul is not None and rmul >= 0) else R
-        dc = (
-            R
-            if (dist is not None and dist < 3)
-            else (Y if (dist is not None and dist < 5) else "white")
-        )
+        dc = R if (dist is not None and dist < 3) else (Y if (dist is not None and dist < 5) else "white")
         name = (p.get("company_name") or p.get("name") or "")[:16]
         row = [
             p.get("symbol") or "--",
@@ -143,9 +131,7 @@ def panel_positions(pos, compact=False, trades=None, extended=False):
         if not compact:
             swg_s = float(swg) if swg is not None else None
             swg_c = (
-                G
-                if (swg_s is not None and swg_s >= 80)
-                else (Y if (swg_s is not None and swg_s >= 60) else "white")
+                G if (swg_s is not None and swg_s >= 80) else (Y if (swg_s is not None and swg_s >= 60) else "white")
             )
             row += [
                 f"+{t1pct:.1f}%" if t1pct is not None else "--",
@@ -159,25 +145,15 @@ def panel_positions(pos, compact=False, trades=None, extended=False):
     # Build content (placeholder warning only if flagged — pending trades removed, see RECENT TRADES panel)
     content_items = []
     if is_placeholder:
-        content_items.append(
-            Text.from_markup(
-                "[bold red]📊 PLACEHOLDER DATA - Positions may not be accurate[/]"
-            )
-        )
+        content_items.append(Text.from_markup("[bold red]📊 PLACEHOLDER DATA - Positions may not be accurate[/]"))
     content_items.append(t)
 
-    content = (
-        Group(*content_items)
-        if len(content_items) > 1
-        else (content_items[0] if content_items else t)
-    )
+    content = Group(*content_items) if len(content_items) > 1 else (content_items[0] if content_items else t)
 
     border = "red" if is_placeholder else "cyan"
     age_s = f"  [dim]{fmt_age(pos_timestamp)}[/]" if pos_timestamp is not None else ""
     if invalid_count > 0:
-        logger.error(
-            f"panel_positions: encountered {invalid_count} invalid position(s); display may be incomplete"
-        )
+        logger.error(f"panel_positions: encountered {invalid_count} invalid position(s); display may be incomplete")
         border = "red"
         title_str = f"[bold red]POSITIONS ⚠ DATA ERROR ({invalid_count} invalid)[/]"
     elif is_placeholder:
@@ -190,7 +166,6 @@ def panel_positions(pos, compact=False, trades=None, extended=False):
         border_style=border,
         padding=(0, 0),
     )
-
 
 
 __all__ = [

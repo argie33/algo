@@ -8,12 +8,13 @@ Verifies that:
 """
 
 import pytest
-from algo.orchestrator.phase_executor import OrchestratorPhaseExecutor, PhaseDefinition
-from algo.orchestrator.phase_result import PhaseResult
+
 from algo.orchestrator.phase_data_contract import (
     DataContractError,
     MissingPhaseDataError,
 )
+from algo.orchestrator.phase_executor import OrchestratorPhaseExecutor, PhaseDefinition
+from algo.orchestrator.phase_result import PhaseResult
 
 
 class TestPhaseDependencyValidation:
@@ -29,9 +30,7 @@ class TestPhaseDependencyValidation:
                 return PhaseResult(4, "test", "error", {}, True, "No executor")
             try:
                 position_recs = executor.get_phase_data_required(3, "recommendations")
-                return PhaseResult(
-                    4, "test", "ok", {"positions": position_recs}, False, None
-                )
+                return PhaseResult(4, "test", "ok", {"positions": position_recs}, False, None)
             except MissingPhaseDataError as e:
                 return PhaseResult(4, "test", "error", {}, True, str(e))
 
@@ -54,9 +53,7 @@ class TestPhaseDependencyValidation:
         executor = OrchestratorPhaseExecutor(config=None, halt_check_fn=lambda: False)
 
         # Manually set up Phase 3 result with data
-        phase3_result = PhaseResult(
-            3, "POSITION_MONITOR", "ok", {"recommendations": ["rec1", "rec2"]}
-        )
+        phase3_result = PhaseResult(3, "POSITION_MONITOR", "ok", {"recommendations": ["rec1", "rec2"]})
         executor.phase_results[3] = phase3_result
 
         # Extract recommendations
@@ -80,9 +77,7 @@ class TestPhaseDependencyValidation:
         executor = OrchestratorPhaseExecutor(config=None, halt_check_fn=lambda: False)
 
         # Set up Phase 3 with failed status
-        phase3_result = PhaseResult(
-            3, "POSITION_MONITOR", "error", {"recommendations": []}, True, "Failed"
-        )
+        phase3_result = PhaseResult(3, "POSITION_MONITOR", "error", {"recommendations": []}, True, "Failed")
         executor.phase_results[3] = phase3_result
 
         # Try to extract data from failed phase

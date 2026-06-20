@@ -91,20 +91,22 @@ def _get_daily_buy_signals(signal_date: date, min_composite: float) -> list[dict
             close = float(r[1]) if r[1] is not None else None
             if not close:
                 continue
-            signals.append({
-                "symbol": r[0],
-                "entry_price": close,
-                "high": float(r[2]) if r[2] is not None else None,
-                "low": float(r[3]) if r[3] is not None else None,
-                "sma_50": float(r[4]) if r[4] is not None else None,
-                "signal_strength": float(r[5]) if r[5] is not None else 0.5,
-                "buylevel": float(r[6]) if r[6] is not None else None,
-                "stoplevel": float(r[7]) if r[7] is not None else None,
-                "signal_quality_score": float(r[8]) if r[8] is not None else 0.0,
-                "entry_quality_score": float(r[9]) if r[9] is not None else None,
-                "composite_score": float(r[10]) if r[10] is not None else None,
-                "rs_percentile": float(r[11]) if r[11] is not None else None,
-            })
+            signals.append(
+                {
+                    "symbol": r[0],
+                    "entry_price": close,
+                    "high": float(r[2]) if r[2] is not None else None,
+                    "low": float(r[3]) if r[3] is not None else None,
+                    "sma_50": float(r[4]) if r[4] is not None else None,
+                    "signal_strength": float(r[5]) if r[5] is not None else 0.5,
+                    "buylevel": float(r[6]) if r[6] is not None else None,
+                    "stoplevel": float(r[7]) if r[7] is not None else None,
+                    "signal_quality_score": float(r[8]) if r[8] is not None else 0.0,
+                    "entry_quality_score": float(r[9]) if r[9] is not None else None,
+                    "composite_score": float(r[10]) if r[10] is not None else None,
+                    "rs_percentile": float(r[11]) if r[11] is not None else None,
+                }
+            )
 
         return signals
     except (ValueError, ZeroDivisionError, TypeError) as e:
@@ -135,7 +137,7 @@ def _get_price_on_date(symbol: str, target_date: date) -> float | None:
             row = cur.fetchone()
             return float(row[0]) if row and row[0] is not None else None
     except (ValueError, ZeroDivisionError, TypeError) as e:
-            raise RuntimeError(f"Operation failed: {e}") from e
+        raise RuntimeError(f"Operation failed: {e}") from e
 
 
 def _get_prices_batch(symbols: list[str], target_date: date) -> dict[str, float]:
@@ -179,7 +181,9 @@ def run_backtest(
 
     trading_dates = _get_trading_dates(start_date, end_date)
     if not trading_dates:
-        raise RuntimeError(f"[BACKTEST] FATAL: No trading dates found in price_daily between {start_date} and {end_date}")
+        raise RuntimeError(
+            f"[BACKTEST] FATAL: No trading dates found in price_daily between {start_date} and {end_date}"
+        )
 
     logger.info(f"[BACKTEST] {len(trading_dates)} trading days to simulate")
 
@@ -221,31 +225,29 @@ def run_backtest(
                 pnl_pct_final = (exit_price - pos["entry_price"]) / pos["entry_price"] * 100
                 capital += pos["shares"] * exit_price  # return capital
 
-                completed_trades.append({
-                    "symbol": symbol,
-                    "trade_date": pos["entry_date"],
-                    "entry_price": pos["entry_price"],
-                    "entry_quantity": int(pos["shares"]),
-                    "exit_date": sim_date,
-                    "exit_price": round(exit_price, 4),
-                    "profit_loss_dollars": round(pnl_dollars, 2),
-                    "profit_loss_pct": round(pnl_pct_final, 4),
-                    "holding_days": hold_days,
-                    "exit_reason": exit_reason,
-                    "signal_quality_score": pos.get("signal_quality_score"),
-                    "composite_score": pos.get("composite_score"),
-                })
-
-                logger.debug(
-                    f"[BACKTEST] EXIT {symbol}: {exit_reason} "
-                    f"P&L={pnl_pct_final:+.1f}% ({hold_days}d)"
+                completed_trades.append(
+                    {
+                        "symbol": symbol,
+                        "trade_date": pos["entry_date"],
+                        "entry_price": pos["entry_price"],
+                        "entry_quantity": int(pos["shares"]),
+                        "exit_date": sim_date,
+                        "exit_price": round(exit_price, 4),
+                        "profit_loss_dollars": round(pnl_dollars, 2),
+                        "profit_loss_pct": round(pnl_pct_final, 4),
+                        "holding_days": hold_days,
+                        "exit_reason": exit_reason,
+                        "signal_quality_score": pos.get("signal_quality_score"),
+                        "composite_score": pos.get("composite_score"),
+                    }
                 )
+
+                logger.debug(f"[BACKTEST] EXIT {symbol}: {exit_reason} P&L={pnl_pct_final:+.1f}% ({hold_days}d)")
                 del positions[symbol]
 
         # Record equity curve snapshot
         invested_value = sum(
-            current_prices.get(sym, pos["entry_price"]) * pos["shares"]
-            for sym, pos in positions.items()
+            current_prices.get(sym, pos["entry_price"]) * pos["shares"] for sym, pos in positions.items()
         )
         total_value = capital + invested_value
         equity_curve.append({"date": sim_date.isoformat(), "value": round(total_value, 2)})
@@ -285,10 +287,7 @@ def run_backtest(
 
                 sq = sig.get("signal_quality_score")
                 sq_str = f"{sq:.1f}" if sq is not None else "?"
-                logger.debug(
-                    f"[BACKTEST] ENTER {symbol}: ${entry_price:.2f} x {shares} shares "
-                    f"signal_quality={sq_str}"
-                )
+                logger.debug(f"[BACKTEST] ENTER {symbol}: ${entry_price:.2f} x {shares} shares signal_quality={sq_str}")
 
     # Close any remaining open positions at last date's price
     if positions:
@@ -301,30 +300,29 @@ def run_backtest(
             hold_days = (final_date - pos["entry_date"]).days
             capital += pos["shares"] * exit_price
 
-            completed_trades.append({
-                "symbol": symbol,
-                "trade_date": pos["entry_date"],
-                "entry_price": pos["entry_price"],
-                "entry_quantity": int(pos["shares"]),
-                "exit_date": final_date,
-                "exit_price": round(exit_price, 4),
-                "profit_loss_dollars": round(pnl_dollars, 2),
-                "profit_loss_pct": round(pnl_pct_final, 4),
-                "holding_days": hold_days,
-                "exit_reason": "end_of_backtest",
-                "signal_quality_score": pos.get("signal_quality_score"),
-                "composite_score": pos.get("composite_score"),
-            })
+            completed_trades.append(
+                {
+                    "symbol": symbol,
+                    "trade_date": pos["entry_date"],
+                    "entry_price": pos["entry_price"],
+                    "entry_quantity": int(pos["shares"]),
+                    "exit_date": final_date,
+                    "exit_price": round(exit_price, 4),
+                    "profit_loss_dollars": round(pnl_dollars, 2),
+                    "profit_loss_pct": round(pnl_pct_final, 4),
+                    "holding_days": hold_days,
+                    "exit_reason": "end_of_backtest",
+                    "signal_quality_score": pos.get("signal_quality_score"),
+                    "composite_score": pos.get("composite_score"),
+                }
+            )
 
     # Compute performance metrics
     final_capital = capital
     total_return_pct = (final_capital - initial_capital) / initial_capital * 100
     n_days = (end_date - start_date).days
     years = n_days / 365.25
-    annualized_return_pct = (
-        ((final_capital / initial_capital) ** (1.0 / years) - 1) * 100
-        if years > 0 else 0
-    )
+    annualized_return_pct = ((final_capital / initial_capital) ** (1.0 / years) - 1) * 100 if years > 0 else 0
 
     total_trades = len(completed_trades)
     winning_trades = [t for t in completed_trades if t["profit_loss_pct"] > 0]
@@ -334,10 +332,7 @@ def run_backtest(
     win_rate_pct = (win_count / total_trades * 100) if total_trades > 0 else 0
     best_trade = max((t["profit_loss_pct"] for t in completed_trades), default=0)
     worst_trade = min((t["profit_loss_pct"] for t in completed_trades), default=0)
-    avg_hold = (
-        sum(t["holding_days"] for t in completed_trades) / total_trades
-        if total_trades > 0 else 0
-    )
+    avg_hold = sum(t["holding_days"] for t in completed_trades) / total_trades if total_trades > 0 else 0
 
     gross_profit = sum(t["profit_loss_dollars"] for t in winning_trades)
     gross_loss = abs(sum(t["profit_loss_dollars"] for t in losing_trades))
@@ -362,14 +357,12 @@ def run_backtest(
         daily_returns = [(values[i] - values[i - 1]) / values[i - 1] for i in range(1, len(values))]
         if daily_returns:
             import statistics
+
             avg_ret = statistics.mean(daily_returns)
             std_ret = statistics.stdev(daily_returns) if len(daily_returns) > 1 else 0
-            sharpe = round((avg_ret / std_ret * (252 ** 0.5)) if std_ret > 0 else 0, 4)
+            sharpe = round((avg_ret / std_ret * (252**0.5)) if std_ret > 0 else 0, 4)
 
-    avg_trade_return_pct = (
-        sum(t["profit_loss_pct"] for t in completed_trades) / total_trades
-        if total_trades > 0 else 0
-    )
+    avg_trade_return_pct = sum(t["profit_loss_pct"] for t in completed_trades) / total_trades if total_trades > 0 else 0
 
     results = {
         "strategy_name": strategy_name,
@@ -451,7 +444,7 @@ def save_results(results: dict) -> int | None:
                     results["end_date"],
                     results["initial_capital"],
                     results["final_capital"],
-                    results["total_return_pct"] / 100.0,      # store as fraction
+                    results["total_return_pct"] / 100.0,  # store as fraction
                     results["annualized_return_pct"] / 100.0,
                     results["max_drawdown_pct"] / 100.0,
                     results["sharpe_ratio"],
@@ -511,7 +504,7 @@ def save_results(results: dict) -> int | None:
         return run_id  # type: ignore[return-value]
 
     except (psycopg2.DatabaseError, psycopg2.OperationalError) as e:
-            raise RuntimeError(f"Operation failed: {e}") from e
+        raise RuntimeError(f"Operation failed: {e}") from e
 
 
 def main():

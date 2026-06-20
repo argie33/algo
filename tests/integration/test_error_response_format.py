@@ -30,9 +30,9 @@ class TestErrorResponseFormat:
         assert response["errorType"] == "bad_request"
         assert response["message"] == "Invalid input"
         assert response["_error"] == "Invalid input"
-        assert (
-            len(response) == 4
-        ), f"Error response should have exactly 4 fields, got {len(response)}: {response.keys()}"
+        assert len(response) == 4, (
+            f"Error response should have exactly 4 fields, got {len(response)}: {response.keys()}"
+        )
 
     def test_error_response_500(self):
         """error_response() with 500 should include _error field."""
@@ -45,9 +45,7 @@ class TestErrorResponseFormat:
 
     def test_error_response_503(self):
         """error_response() with 503 should include _error field."""
-        response = error_response(
-            503, "service_unavailable", "Database connection failed"
-        )
+        response = error_response(503, "service_unavailable", "Database connection failed")
 
         assert response["statusCode"] == 503
         assert response["errorType"] == "service_unavailable"
@@ -66,16 +64,12 @@ class TestErrorResponseFormat:
 
     def test_json_response_error_with_message(self):
         """json_response(4xx, {message: '...'}) should ensure _error field."""
-        response = json_response(
-            400, {"errorType": "bad_request", "message": "Invalid input"}
-        )
+        response = json_response(400, {"errorType": "bad_request", "message": "Invalid input"})
 
         assert response["statusCode"] == 400
         assert response["errorType"] == "bad_request"
         assert response["message"] == "Invalid input"
-        assert (
-            response["_error"] == "Invalid input"
-        ), "json_response should auto-populate _error from message"
+        assert response["_error"] == "Invalid input", "json_response should auto-populate _error from message"
 
     def test_json_response_error_with_explicit_error_field(self):
         """json_response(4xx, {_error: '...'}) should preserve explicit _error."""
@@ -148,9 +142,7 @@ class TestErrorResponseInConsistentScenarios:
 
     def test_error_response_special_characters(self):
         """error_response should handle special characters in message."""
-        response = error_response(
-            400, "validation_error", 'Field "email" is required: please@example.com'
-        )
+        response = error_response(400, "validation_error", 'Field "email" is required: please@example.com')
 
         assert response["_error"] == 'Field "email" is required: please@example.com'
         assert response["message"] == 'Field "email" is required: please@example.com'

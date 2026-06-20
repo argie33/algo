@@ -4,7 +4,7 @@ Ensures all panels gracefully handle missing or error data, preventing silent fa
 and making error state visible to operators.
 """
 
-from typing import Any, Dict, List, Optional, cast
+from typing import Any, cast
 
 from rich.panel import Panel
 from rich.text import Text
@@ -24,7 +24,7 @@ def is_data_stale(data: Any) -> bool:
     return isinstance(data, dict) and data.get("_data_stale", False)
 
 
-def get_error_message(data: Any) -> Optional[str]:
+def get_error_message(data: Any) -> str | None:
     """Extract error message from data if present.
 
     Distinguishes between stale data and hard errors for better visibility.
@@ -50,13 +50,13 @@ def safe_get(data: Any, key: str, default: Any = None) -> Any:
     return default
 
 
-def safe_list(data: Any) -> List:
+def safe_list(data: Any) -> list:
     """Safely extract list from data, propagating errors instead of hiding them.
 
     Returns error dict on error, items list otherwise.
     """
     if has_error(data):
-        return cast(List, data)
+        return cast(list, data)
     if isinstance(data, dict):
         return (
             data.get("items", [])
@@ -68,7 +68,7 @@ def safe_list(data: Any) -> List:
     return []
 
 
-def error_summary_panel(data_dict: Dict[str, Any]) -> Optional[Panel]:
+def error_summary_panel(data_dict: dict[str, Any]) -> Panel | None:
     """Generate a panel showing all failed data fetchers and stale data.
 
     Distinguishes between hard errors (red) and stale data (yellow).
@@ -98,7 +98,9 @@ def error_summary_panel(data_dict: Dict[str, Any]) -> Optional[Panel]:
     content = "\n".join(content_parts)
 
     border_color = R if failed_errors else Y
-    title = f"[bold {border_color}]{'⚠ ' if stale_data else '✗ '}Data Issues ({len(failed_errors) + len(stale_data)})[/]"
+    title = (
+        f"[bold {border_color}]{'⚠ ' if stale_data else '✗ '}Data Issues ({len(failed_errors) + len(stale_data)})[/]"
+    )
 
     return Panel(
         Text.from_markup(content),
@@ -121,9 +123,7 @@ def make_panel_safe(panel_fn):
             # Extract first positional arg if it's a data dict for context
             data_name = kwargs.get("title", panel_fn.__name__)
             return Panel(
-                Text.from_markup(
-                    f"[{R}]Panel rendering failed[/]: {type(e).__name__}\n[{DIM}]{str(e)[:100]}[/]"
-                ),
+                Text.from_markup(f"[{R}]Panel rendering failed[/]: {type(e).__name__}\n[{DIM}]{str(e)[:100]}[/]"),
                 title=f"[bold]{data_name}[/]",
                 border_style=R,
                 padding=(0, 1),

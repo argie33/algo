@@ -141,9 +141,7 @@ class Phase5Result(PhaseResult):
     Produces: qualified_trades
     """
 
-    def __init__(
-        self, status: str, qualified_trades: list[dict] | None = None, **kwargs
-    ):
+    def __init__(self, status: str, qualified_trades: list[dict] | None = None, **kwargs):
         super().__init__(
             phase_num=5,
             phase_name="SIGNAL GENERATION & RANKING",

@@ -9,9 +9,9 @@ import logging
 
 logging.basicConfig(level=logging.INFO)
 
-print("\n" + "="*80)
+print("\n" + "=" * 80)
 print("DATABASE DIAGNOSTICS: VIX and Concentration Data")
-print("="*80 + "\n")
+print("=" * 80 + "\n")
 
 try:
     from utils.db.context import DatabaseContext
@@ -30,9 +30,7 @@ try:
         print(f"Total rows: {count}")
 
         if count > 0:
-            cur.execute(
-                "SELECT date, vix_level FROM market_health_daily ORDER BY date DESC LIMIT 10"
-            )
+            cur.execute("SELECT date, vix_level FROM market_health_daily ORDER BY date DESC LIMIT 10")
             rows = cur.fetchall()
             print("\nLast 10 rows (date, vix_level):")
             for date_val, vix in rows:
@@ -148,6 +146,6 @@ try:
 except Exception as e:
     print(f"EXCEPTION: {type(e).__name__}: {e}")
 
-print("\n" + "="*80)
+print("\n" + "=" * 80)
 print("END DIAGNOSTICS")
-print("="*80 + "\n")
+print("=" * 80 + "\n")

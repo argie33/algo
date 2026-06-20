@@ -94,8 +94,8 @@ class TCAEngine:
                         fill_price,
                         shares_requested,
                         shares_filled,
-                        fill_rate_pct.quantize(Decimal('0.01'), rounding=ROUND_HALF_UP),
-                        slippage_bps.quantize(Decimal('0.01'), rounding=ROUND_HALF_UP),
+                        fill_rate_pct.quantize(Decimal("0.01"), rounding=ROUND_HALF_UP),
+                        slippage_bps.quantize(Decimal("0.01"), rounding=ROUND_HALF_UP),
                         side,
                         execution_latency_ms,
                     ),
@@ -110,8 +110,8 @@ class TCAEngine:
                     "symbol": symbol,
                     "signal_price": signal_price,
                     "fill_price": fill_price,
-                    "slippage_bps": float(slippage_bps.quantize(Decimal('0.01'), rounding=ROUND_HALF_UP)),
-                    "fill_rate_pct": float(fill_rate_pct.quantize(Decimal('0.01'), rounding=ROUND_HALF_UP)),
+                    "slippage_bps": float(slippage_bps.quantize(Decimal("0.01"), rounding=ROUND_HALF_UP)),
+                    "fill_rate_pct": float(fill_rate_pct.quantize(Decimal("0.01"), rounding=ROUND_HALF_UP)),
                     "execution_latency_ms": execution_latency_ms,
                 }
 
@@ -124,9 +124,7 @@ class TCAEngine:
             logger.error(f"TCA: record_fill failed: {e}")
             raise
 
-    def _check_slippage_alert(
-        self, symbol: str, slippage_bps: Decimal | float, side: str
-    ) -> dict | None:
+    def _check_slippage_alert(self, symbol: str, slippage_bps: Decimal | float, side: str) -> dict | None:
         """Check if slippage exceeds alert thresholds.
 
         Returns:
@@ -235,19 +233,28 @@ class TCAEngine:
                 return {
                     "report_date": report_date,
                     "fill_count": fill_count,
-                    "avg_abs_slippage_bps": float(avg_abs_slippage_dec.quantize(Decimal('0.01'), rounding=ROUND_HALF_UP)),
-                    "best_slippage_bps": float(best_slippage_dec.quantize(Decimal('0.01'), rounding=ROUND_HALF_UP)),
-                    "worst_slippage_bps": float(worst_slippage_dec.quantize(Decimal('0.01'), rounding=ROUND_HALF_UP)),
+                    "avg_abs_slippage_bps": float(
+                        avg_abs_slippage_dec.quantize(Decimal("0.01"), rounding=ROUND_HALF_UP)
+                    ),
+                    "best_slippage_bps": float(best_slippage_dec.quantize(Decimal("0.01"), rounding=ROUND_HALF_UP)),
+                    "worst_slippage_bps": float(worst_slippage_dec.quantize(Decimal("0.01"), rounding=ROUND_HALF_UP)),
                     "worst_symbol": worst_symbol,
                     "high_slippage_fills": high_slippage_count,
-                    "high_slippage_pct": float((Decimal(high_slippage_count) / Decimal(fill_count) * Decimal(100)).quantize(Decimal('0.1'), rounding=ROUND_HALF_UP)),
-                    "avg_fill_rate_pct": float(avg_fill_rate_dec.quantize(Decimal('0.01'), rounding=ROUND_HALF_UP)),
-                    "avg_execution_latency_ms": int(avg_latency_dec.quantize(Decimal('1'), rounding=ROUND_HALF_UP)),
+                    "high_slippage_pct": float(
+                        (Decimal(high_slippage_count) / Decimal(fill_count) * Decimal(100)).quantize(
+                            Decimal("0.1"), rounding=ROUND_HALF_UP
+                        )
+                    ),
+                    "avg_fill_rate_pct": float(avg_fill_rate_dec.quantize(Decimal("0.01"), rounding=ROUND_HALF_UP)),
+                    "avg_execution_latency_ms": int(avg_latency_dec.quantize(Decimal("1"), rounding=ROUND_HALF_UP)),
                     "status": "ok" if high_slippage_count == 0 else "warning",
                 }
         except (ValueError, ZeroDivisionError, TypeError) as e:
-            logger.error(f"TCA: daily_report failed: {e}")
-            return {"status": "error", "message": str(e)}
+            logger.critical(f"[TCA_AUDIT] daily_report FAILED: {e}")
+            raise RuntimeError(
+                f"TCA daily report generation failed (audit trail interrupted): {e}. "
+                "This is critical — all fills must be audited. Check database connectivity and data integrity."
+            ) from e
 
     def monthly_summary(self, year: int, month: int) -> dict:
         """Generate monthly TCA summary.
@@ -303,14 +310,23 @@ class TCAEngine:
                 return {
                     "period": f"{year}-{month:02d}",
                     "fill_count": fill_count,
-                    "avg_abs_slippage_bps": float(avg_abs_slippage_dec.quantize(Decimal('0.01'), rounding=ROUND_HALF_UP)),
-                    "p95_abs_slippage_bps": float(p95_slippage_dec.quantize(Decimal('0.01'), rounding=ROUND_HALF_UP)),
-                    "worst_slippage_bps": float(worst_slippage_dec.quantize(Decimal('0.01'), rounding=ROUND_HALF_UP)),
-                    "avg_fill_rate_pct": float(avg_fill_rate_dec.quantize(Decimal('0.01'), rounding=ROUND_HALF_UP)),
+                    "avg_abs_slippage_bps": float(
+                        avg_abs_slippage_dec.quantize(Decimal("0.01"), rounding=ROUND_HALF_UP)
+                    ),
+                    "p95_abs_slippage_bps": float(p95_slippage_dec.quantize(Decimal("0.01"), rounding=ROUND_HALF_UP)),
+                    "worst_slippage_bps": float(worst_slippage_dec.quantize(Decimal("0.01"), rounding=ROUND_HALF_UP)),
+                    "avg_fill_rate_pct": float(avg_fill_rate_dec.quantize(Decimal("0.01"), rounding=ROUND_HALF_UP)),
                     "high_slippage_fills": high_slippage_count,
-                    "high_slippage_pct": float((Decimal(high_slippage_count) / Decimal(fill_count) * Decimal(100)).quantize(Decimal('0.1'), rounding=ROUND_HALF_UP)),
+                    "high_slippage_pct": float(
+                        (Decimal(high_slippage_count) / Decimal(fill_count) * Decimal(100)).quantize(
+                            Decimal("0.1"), rounding=ROUND_HALF_UP
+                        )
+                    ),
                     "status": "ok" if high_slippage_count == 0 else "warning",
                 }
         except (ValueError, ZeroDivisionError, TypeError) as e:
-            logger.error(f"TCA: monthly_summary failed: {e}")
-            return {"status": "error", "message": str(e)}
+            logger.critical(f"[TCA_AUDIT] monthly_summary FAILED: {e}")
+            raise RuntimeError(
+                f"TCA monthly summary generation failed (audit trail interrupted): {e}. "
+                "This is critical — all fills must be audited. Check database connectivity and data integrity."
+            ) from e

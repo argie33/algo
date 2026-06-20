@@ -7,11 +7,12 @@ This module coordinates multiple data quality checks and logs results.
 import argparse
 import json
 import logging
-import psycopg2
 import socket
 import time
 from datetime import datetime, timezone
 from typing import Any, Dict, List, Optional
+
+import psycopg2
 
 from utils.db import DatabaseContext
 from utils.infrastructure.timeout import ExecutionTimeout
@@ -92,10 +93,12 @@ class DataPatrol:
         ]
 
         if not quick:
-            checks.extend([
-                ("alignment", AlignmentChecker(self.config)),
-                ("specialized", SpecializedChecker(self.config)),
-            ])
+            checks.extend(
+                [
+                    ("alignment", AlignmentChecker(self.config)),
+                    ("specialized", SpecializedChecker(self.config)),
+                ]
+            )
 
         for check_name, checker in checks:
             start = time.time()
@@ -132,9 +135,7 @@ class DataPatrol:
             logger.info("FLAGGED:")
             for r in flagged:
                 sev_pad = r.severity.upper().rjust(8)
-                logger.info(
-                    f"  [{sev_pad}] {r.check_name:20s} {r.target_table:28s} : {r.message}"
-                )
+                logger.info(f"  [{sev_pad}] {r.check_name:20s} {r.target_table:28s} : {r.message}")
         else:
             logger.info("No issues — all checks clean.")
 
@@ -169,9 +170,7 @@ if __name__ == "__main__":
         with ExecutionTimeout(max_seconds=600, label="data_patrol"):
             parser = argparse.ArgumentParser(description="Data integrity patrol")
             parser.add_argument("--quick", action="store_true", help="Critical checks only")
-            parser.add_argument(
-                "--validate-alpaca", action="store_true", help="Cross-validate vs Alpaca"
-            )
+            parser.add_argument("--validate-alpaca", action="store_true", help="Cross-validate vs Alpaca")
             parser.add_argument("--json", action="store_true", help="JSON output")
             args = parser.parse_args()
 
@@ -182,8 +181,10 @@ if __name__ == "__main__":
                 logger.info(json.dumps(summary, default=str, indent=2))
 
             import sys
+
             sys.exit(0 if summary["ready"] else 1)
     except (json.JSONDecodeError, ValueError) as e:
         logger.error(f"Data patrol execution failed: {e}", exc_info=True)
         import sys
+
         sys.exit(1)

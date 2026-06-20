@@ -5,9 +5,10 @@ import logging
 from datetime import date
 from typing import Any, cast
 
+import psycopg2
+
 from algo.signals.swing_component_scorer import SwingComponentScorer
 from utils.db import DatabaseContext
-import psycopg2
 
 
 logger = logging.getLogger(__name__)
@@ -26,9 +27,7 @@ class SwingTraderScore:
 
     def __init__(self, config):
         if config is None:
-            raise ValueError(
-                "SwingTraderScore requires explicit config parameter (dependency injection)"
-            )
+            raise ValueError("SwingTraderScore requires explicit config parameter (dependency injection)")
         self.config = config
         from algo.signals import SignalComputer
 
@@ -117,9 +116,7 @@ class SwingTraderScore:
                 try:
                     gates = self._check_hard_gates(symbol, eval_date, industry, cur)
                 except (psycopg2.DatabaseError, psycopg2.OperationalError) as gate_err:
-                    logger.warning(
-                        f"Swing score hard gates unavailable for {symbol}: {gate_err} — blocking"
-                    )
+                    logger.warning(f"Swing score hard gates unavailable for {symbol}: {gate_err} — blocking")
                     return {
                         "symbol": symbol,
                         "eval_date": str(eval_date),
@@ -129,9 +126,7 @@ class SwingTraderScore:
                     }
 
                 if not gates["pass"]:
-                    logger.debug(
-                        f"Swing score {symbol}: hard gate failed - {gates.get('reason', 'unknown')}"
-                    )
+                    logger.debug(f"Swing score {symbol}: hard gate failed - {gates.get('reason', 'unknown')}")
                     return {
                         "symbol": symbol,
                         "eval_date": str(eval_date),
@@ -143,12 +138,8 @@ class SwingTraderScore:
 
                 # Compute critical components (fail-hard if data unavailable)
                 setup_pts, setup_detail = self.scorer.compute_setup_component(symbol, eval_date)
-                trend_pts, trend_detail = self.scorer.compute_trend_component(
-                    symbol, eval_date, cur
-                )
-                mom_pts, mom_detail = self.scorer.compute_momentum_component(
-                    symbol, eval_date, cur
-                )
+                trend_pts, trend_detail = self.scorer.compute_trend_component(symbol, eval_date, cur)
+                mom_pts, mom_detail = self.scorer.compute_momentum_component(symbol, eval_date, cur)
 
                 try:
                     vol_pts, vol_detail = self.scorer.compute_volume_component(symbol, eval_date, cur)
@@ -163,30 +154,18 @@ class SwingTraderScore:
                     fund_pts, fund_detail = 0, {"error": str(e)[:50]}
 
                 try:
-                    sec_pts, sec_detail = self.scorer.compute_sector_component(
-                        symbol, eval_date, sector, industry, cur
-                    )
+                    sec_pts, sec_detail = self.scorer.compute_sector_component(symbol, eval_date, sector, industry, cur)
                 except Exception as e:
                     logger.debug(f"Sector component failed for {symbol}: {e}")
                     sec_pts, sec_detail = 0, {"error": str(e)[:50]}
 
                 try:
-                    mtf_pts, mtf_detail = self.scorer.compute_multi_timeframe_component(
-                        symbol, eval_date, cur
-                    )
+                    mtf_pts, mtf_detail = self.scorer.compute_multi_timeframe_component(symbol, eval_date, cur)
                 except Exception as e:
                     logger.debug(f"Multi-timeframe component failed for {symbol}: {e}")
                     mtf_pts, mtf_detail = 0, {"error": str(e)[:50]}
 
-                total = (
-                    setup_pts
-                    + trend_pts
-                    + mom_pts
-                    + vol_pts
-                    + fund_pts
-                    + sec_pts
-                    + mtf_pts
-                )
+                total = setup_pts + trend_pts + mom_pts + vol_pts + fund_pts + sec_pts + mtf_pts
 
                 # Classify grade based on score: A+ (85+), A (75+), B (65+), C (55+), D (45+), F (<45)
                 if total >= 85:
@@ -251,9 +230,7 @@ class SwingTraderScore:
                 logger.debug(f"Swing score {symbol}: {total:.1f} ({grade})")
                 return result
             except Exception as e:
-                logger.error(
-                    f"Swing score calculation failed for {symbol}: {e}", exc_info=True
-                )
+                logger.error(f"Swing score calculation failed for {symbol}: {e}", exc_info=True)
                 return {
                     "symbol": symbol,
                     "eval_date": str(eval_date),
@@ -264,9 +241,7 @@ class SwingTraderScore:
 
     # ============= HARD GATES =============
 
-    def _check_hard_gates(
-        self, symbol: str, eval_date, industry: str | None, cur
-    ) -> dict[str, Any]:
+    def _check_hard_gates(self, symbol: str, eval_date, industry: str | None, cur) -> dict[str, Any]:
         """
         Apply hard-fail gates that block scoring entirely if violated.
 
@@ -345,7 +320,7 @@ class SwingTraderScore:
         if base_type.get("type") == "wide_and_loose":
             return {
                 "pass": False,
-                "reason": f'Bad base: {base_type.get("type")} (quality {base_type.get("quality")})',
+                "reason": f"Bad base: {base_type.get('type')} (quality {base_type.get('quality')})",
                 "base": base_type,
             }
 
@@ -353,9 +328,7 @@ class SwingTraderScore:
         industry_rank = None
         if industry:
             try:
-                max_industry_rank = self._load_config_val(
-                    "swing_min_industry_rank", 100
-                )
+                max_industry_rank = self._load_config_val("swing_min_industry_rank", 100)
                 cur.execute(
                     """SELECT current_rank FROM industry_ranking
                        WHERE industry = %s AND date_recorded <= %s
@@ -417,9 +390,7 @@ class SwingTraderScore:
                 row = cur.fetchone()
                 if row and row[0]:
                     return cast(int, (row[0] - eval_date).days)
-            raise ValueError(
-                f"Earnings calendar data not available for {symbol} on {eval_date}"
-            )
+            raise ValueError(f"Earnings calendar data not available for {symbol} on {eval_date}")
         except (psycopg2.DatabaseError, psycopg2.OperationalError) as e:
             raise RuntimeError(f"Operation failed: {e}") from e
 
@@ -496,9 +467,7 @@ if __name__ == "__main__":
 
     with DatabaseContext("read") as cur:
         for sym in candidates:
-            cur.execute(
-                "SELECT sector, industry FROM company_profile WHERE ticker = %s", (sym,)
-            )
+            cur.execute("SELECT sector, industry FROM company_profile WHERE ticker = %s", (sym,))
             r = cur.fetchone()
             sector = r[0] if r else None
             industry = r[1] if r else None

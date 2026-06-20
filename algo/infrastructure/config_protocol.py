@@ -14,15 +14,13 @@ from typing import Any, Protocol, Union, runtime_checkable
 class ConfigProtocol(Protocol):
     """Allows both AlgoConfig and plain dicts for maximum flexibility during DI transition."""
 
-    def get(self, key: str, default: Any = None) -> Any:
-        ...
+    def get(self, key: str, default: Any = None) -> Any: ...
 
     def override(self, key: str, value: Any) -> None:
         """Apply in-memory-only override (for testing and CLI args)."""
         ...
 
-    def to_dict(self) -> dict:
-        ...
+    def to_dict(self) -> dict: ...
 
 
 ConfigType = Union[ConfigProtocol, dict]

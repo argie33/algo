@@ -14,6 +14,7 @@ logger = logging.getLogger(__name__)
 
 class _RenderCache:
     """Cache rendered Panel/Layout objects to avoid redundant rendering on every frame."""
+
     def __init__(self):
         self.mascot_compact_pose_index = None
         self.mascot_compact_panel = None
@@ -46,9 +47,11 @@ class _RenderCache:
 
     def get_loading_layout(self, pose_index: int, dots_idx: int, data_source: str) -> Layout:
         """Return cached Layout if pose and dots haven't changed."""
-        if (self.loading_layout_pose_index == pose_index and
-            self.loading_layout_dots_idx == dots_idx and
-            self.loading_layout_data_source == data_source):
+        if (
+            self.loading_layout_pose_index == pose_index
+            and self.loading_layout_dots_idx == dots_idx
+            and self.loading_layout_data_source == data_source
+        ):
             return self.loading_layout_cache
 
         self.loading_layout_pose_index = pose_index
@@ -116,10 +119,12 @@ try:
     from panel_registry import register_panel
 except ImportError as e:
     logger.warning(f"Panel registry not available: {e} - panels will not auto-register")
+
     def register_panel(*args, **kwargs):
         if args and callable(args[0]):
             return args[0]
         return lambda fn: fn
+
 
 from ..utilities import (
     LOAD_SEQ,
@@ -195,7 +200,6 @@ def _expanded_layout(hdr_panel, exposure_panel, mascot_panel, main_panel) -> Lay
     exp["etop"]["emsc"].update(mascot_panel)
     exp["emain"].update(main_panel)
     return exp
-
 
 
 __all__ = [

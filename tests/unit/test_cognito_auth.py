@@ -26,9 +26,7 @@ from tools.dashboard.cognito_auth import CognitoAuth
 def create_jwt(exp: int, sub: str = "user-123") -> str:
     """Create a properly encoded JWT for testing."""
     header = base64.urlsafe_b64encode(json.dumps({"alg": "HS256"}).encode()).decode().rstrip("=")
-    payload = base64.urlsafe_b64encode(
-        json.dumps({"exp": exp, "sub": sub}).encode()
-    ).decode().rstrip("=")
+    payload = base64.urlsafe_b64encode(json.dumps({"exp": exp, "sub": sub}).encode()).decode().rstrip("=")
     signature = base64.urlsafe_b64encode(b"test-signature").decode().rstrip("=")
     return f"{header}.{payload}.{signature}"
 
@@ -143,9 +141,11 @@ class TestAuthorizationHeaderValidation:
 
         # Valid JWT format with required claims - create properly encoded parts
         header = base64.urlsafe_b64encode(json.dumps({"alg": "HS256"}).encode()).decode().rstrip("=")
-        payload = base64.urlsafe_b64encode(
-            json.dumps({"exp": int(time.time()) + 3600, "sub": "user-123"}).encode()
-        ).decode().rstrip("=")
+        payload = (
+            base64.urlsafe_b64encode(json.dumps({"exp": int(time.time()) + 3600, "sub": "user-123"}).encode())
+            .decode()
+            .rstrip("=")
+        )
         signature = base64.urlsafe_b64encode(b"test-signature").decode().rstrip("=")
         valid_jwt = f"{header}.{payload}.{signature}"
         assert auth._is_valid_jwt(valid_jwt) is True
@@ -158,9 +158,7 @@ class TestAuthorizationHeaderValidation:
         assert auth._is_valid_jwt("...") is False
 
         # Valid structure but missing required claims
-        missing_claims_payload = base64.urlsafe_b64encode(
-            json.dumps({"data": "value"}).encode()
-        ).decode().rstrip("=")
+        missing_claims_payload = base64.urlsafe_b64encode(json.dumps({"data": "value"}).encode()).decode().rstrip("=")
         missing_claims_jwt = f"{header}.{missing_claims_payload}.{signature}"
         assert auth._is_valid_jwt(missing_claims_jwt) is False
 

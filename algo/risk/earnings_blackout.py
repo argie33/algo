@@ -33,9 +33,7 @@ class EarningsBlackout:
 
     def __init__(self, config):
         if config is None:
-            raise ValueError(
-                "EarningsBlackout requires explicit config parameter (dependency injection)"
-            )
+            raise ValueError("EarningsBlackout requires explicit config parameter (dependency injection)")
         self.config = config
         self.days_before = int(self.config.get("earnings_blackout_days_before", 7))
         self.days_after = int(self.config.get("earnings_blackout_days_after", 3))
@@ -50,9 +48,7 @@ class EarningsBlackout:
             with DatabaseContext("read") as cur:
                 # Issue #27: Compute trading day windows instead of calendar days
                 # Count back N trading days before, forward N trading days after
-                lookback_date = eval_date - timedelta(
-                    days=self.days_before * 2
-                )  # Conservative estimate
+                lookback_date = eval_date - timedelta(days=self.days_before * 2)  # Conservative estimate
                 lookahead_date = eval_date + timedelta(days=self.days_after * 2)
 
                 cur.execute(
@@ -77,9 +73,7 @@ class EarningsBlackout:
                         trading_days_away += 1
 
                 # Check if within blackout window (in trading days, not calendar days)
-                if trading_days_away <= (
-                    self.days_after if direction > 0 else self.days_before
-                ):
+                if trading_days_away <= (self.days_after if direction > 0 else self.days_before):
                     return {
                         "pass": False,
                         "reason": f"Earnings on {earnings_date} ({trading_days_away} trading days away)",
@@ -94,9 +88,7 @@ class EarningsBlackout:
                 f"Earnings calendar table missing for {symbol} — explicit halt (table infrastructure failure)"
             ) from e
         except (psycopg2.DatabaseError, psycopg2.OperationalError) as e:
-            raise ValueError(
-                f"Earnings blackout check error for {symbol}: {str(e)[:50]} — explicit halt"
-            ) from e
+            raise ValueError(f"Earnings blackout check error for {symbol}: {str(e)[:50]} — explicit halt") from e
 
     def get_upcoming_earnings(self, symbol: str, days_ahead: int = 30) -> list:
         """Get upcoming earnings for symbol."""
@@ -118,9 +110,7 @@ class EarningsBlackout:
 
             return [{"date": row[0]} for row in rows]
         except (psycopg2.DatabaseError, psycopg2.OperationalError) as e:
-            raise ValueError(
-                f"Failed to fetch earnings for {symbol}: {str(e)[:50]} — explicit halt"
-            ) from e
+            raise ValueError(f"Failed to fetch earnings for {symbol}: {str(e)[:50]} — explicit halt") from e
 
 
 if __name__ == "__main__":

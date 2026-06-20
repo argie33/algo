@@ -5,11 +5,12 @@ import logging
 from datetime import date as _date
 from datetime import datetime, timezone
 
+import psycopg2
+
 from utils.db import assert_safe_table
 
 from ..base import BaseCheck, CheckResult
 from ..config import ERROR, INFO, WARN
-import psycopg2
 
 
 logger = logging.getLogger(__name__)
@@ -142,7 +143,9 @@ class SpecializedChecker(BaseCheck):
             for tbl, col, max_days, sev in table_checks:
                 tbl_safe = assert_safe_table(tbl)
                 col_safe = assert_safe_table(col)
-                union_parts.append(f"SELECT '{tbl}' as tbl_name, MAX({col_safe}::date) as latest, COUNT(*) as total, COUNT(DISTINCT symbol) as unique_syms FROM {tbl_safe}")
+                union_parts.append(
+                    f"SELECT '{tbl}' as tbl_name, MAX({col_safe}::date) as latest, COUNT(*) as total, COUNT(DISTINCT symbol) as unique_syms FROM {tbl_safe}"
+                )
 
             union_query = " UNION ALL ".join(union_parts)
             cur.execute(union_query)
@@ -150,12 +153,16 @@ class SpecializedChecker(BaseCheck):
             results_by_table = {}
             for row in cur.fetchall():
                 row_dict = dict(row)
-                results_by_table[row_dict["tbl_name"]] = (row_dict["latest"], row_dict["total"], row_dict["unique_syms"])
+                results_by_table[row_dict["tbl_name"]] = (
+                    row_dict["latest"],
+                    row_dict["total"],
+                    row_dict["unique_syms"],
+                )
 
             for tbl, col, max_days, sev in table_checks:
                 try:
                     if tbl in results_by_table:
-                        latest, total, unique_syms = results_by_table[tbl]
+                        latest, _total, unique_syms = results_by_table[tbl]
 
                         if not latest:
                             self.log(
@@ -311,9 +318,7 @@ class SpecializedChecker(BaseCheck):
                 )
             else:
                 age = (_date.today() - max_date).days
-                updated_age = (
-                    datetime.now(timezone.utc) - max_updated
-                ).total_seconds() / 3600
+                updated_age = (datetime.now(timezone.utc) - max_updated).total_seconds() / 3600
                 sev = WARN if age > 7 else INFO
                 self.log(
                     "sentiment_aggregate",
@@ -393,9 +398,7 @@ class SpecializedChecker(BaseCheck):
                     count, max_updated = cur.fetchone()
 
                     if count > 0 and max_updated:
-                        updated_age = (
-                            datetime.now(timezone.utc) - max_updated
-                        ).total_seconds() / 3600
+                        updated_age = (datetime.now(timezone.utc) - max_updated).total_seconds() / 3600
                         self.log(
                             "trade_recorder_watermark",
                             INFO,

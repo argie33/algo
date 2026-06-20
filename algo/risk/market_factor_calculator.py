@@ -322,7 +322,12 @@ class MarketFactorCalculator:
                 spread = bull - bear
                 # Contrarian: spread > 15 or < -15 = extreme = 100, neutral = 0
                 score = min(100, max(0, (abs(spread) - 15) * 5))
-                return {"bullish": round(bull, 1), "bearish": round(bear, 1), "spread": round(spread, 1), "score": score}
+                return {
+                    "bullish": round(bull, 1),
+                    "bearish": round(bear, 1),
+                    "spread": round(spread, 1),
+                    "score": score,
+                }
             return {"error": "No sentiment data"}
         except (psycopg2.DatabaseError, psycopg2.OperationalError) as e:
             logger.warning(f"AAII calculation failed: {e}")

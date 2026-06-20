@@ -89,9 +89,7 @@ class SignalMomentumMixin:
             for offset in range(min(5, len(sell_count_history))):
                 idx = -1 - offset
                 if sell_count_history[idx] == 9 or buy_count_history[idx] == 9:
-                    last_9_date = dates[
-                        4 + len(sell_count_history) + idx
-                    ]  # crude index calc
+                    last_9_date = dates[4 + len(sell_count_history) + idx]  # crude index calc
                     break
 
             # Perfected sell setup: bar 8 OR 9 high > bar 6 AND 7 high
@@ -102,9 +100,9 @@ class SignalMomentumMixin:
                     bar_9_high = highs[-1]
                     bar_6_high = highs[-4]
                     bar_7_high = highs[-3]
-                    perfected = (
-                        bar_8_high > bar_6_high and bar_8_high > bar_7_high
-                    ) or (bar_9_high > bar_6_high and bar_9_high > bar_7_high)
+                    perfected = (bar_8_high > bar_6_high and bar_8_high > bar_7_high) or (
+                        bar_9_high > bar_6_high and bar_9_high > bar_7_high
+                    )
                 else:  # buy
                     bar_8_low = lows[-2]
                     bar_9_low = lows[-1]
@@ -129,14 +127,7 @@ class SignalMomentumMixin:
                             break
                 if ref_idx is not None and ref_idx + 2 < len(closes):
                     # Count bars since 9 that meet TD Combo countdown criteria
-                    target_type = (
-                        "sell"
-                        if (
-                            ref_idx < len(sell_count_history) + 4
-                            and setup_type == "sell"
-                        )
-                        else "buy"
-                    )
+                    target_type = "sell" if (ref_idx < len(sell_count_history) + 4 and setup_type == "sell") else "buy"
                     for i in range(ref_idx, len(closes)):
                         if i < 2:
                             continue
@@ -223,9 +214,7 @@ class SignalMomentumMixin:
                 "breakout": breakout and on_volume,
                 "close": close,
                 "pivot": round(pivot, 2),
-                "pct_above_pivot": (
-                    round((close - pivot) / pivot * 100, 2) if pivot > 0 else 0
-                ),
+                "pct_above_pivot": (round((close - pivot) / pivot * 100, 2) if pivot > 0 else 0),
                 "volume_ratio": round(volume / avg_vol, 2) if avg_vol > 0 else None,
             }
 
@@ -235,9 +224,7 @@ class SignalMomentumMixin:
             logger.debug(f"Pivot breakout check failed: {e}")
             return {"breakout": False}
 
-    def pocket_pivot(
-        self, symbol: str, eval_date, lookback_days: int = 10
-    ) -> dict[str, Any]:
+    def pocket_pivot(self, symbol: str, eval_date, lookback_days: int = 10) -> dict[str, Any]:
         """
         Pocket Pivot (re-accumulation signal): an up day where volume >= highest
         down-day volume in the prior lookback_days.
@@ -275,7 +262,7 @@ class SignalMomentumMixin:
                     max_down_vol = max(max_down_vol, float(vol) if vol else 0)
 
             if rows:
-                today_date, today_close, today_prev, today_vol, today_rn = rows[0]
+                _today_date, today_close, today_prev, today_vol, _today_rn = rows[0]
                 today_vol = float(today_vol) if today_vol else 0
                 today_prev = float(today_prev) if today_prev is not None else None
                 today_close = float(today_close) if today_close else 0
@@ -289,26 +276,17 @@ class SignalMomentumMixin:
                         "days_since_fired": 0,
                         "current_vol": round(today_vol, 0),
                         "max_down_vol": round(max_down_vol, 0),
-                        "vol_ratio": (
-                            round(today_vol / max_down_vol, 2)
-                            if max_down_vol > 0
-                            else 0
-                        ),
+                        "vol_ratio": (round(today_vol / max_down_vol, 2) if max_down_vol > 0 else 0),
                     }
 
             # Also check if pocket pivot fired 1-2 days ago (yesterday and day-2 only)
             up_day_dates = []
             for row in rows[1:3]:  # Skip today, check yesterday and day-2
-                date, close, prev_close, vol, rn = row
+                _date, close, prev_close, vol, rn = row
                 vol = float(vol) if vol else 0
                 prev_close = float(prev_close) if prev_close is not None else None
                 close = float(close) if close else 0
-                if (
-                    prev_close is not None
-                    and close > prev_close
-                    and vol >= max_down_vol
-                    and max_down_vol > 0
-                ):
+                if prev_close is not None and close > prev_close and vol >= max_down_vol and max_down_vol > 0:
                     days_since = rn - 1  # rn=1 is most recent
                     up_day_dates.append((days_since, vol))
 
@@ -319,9 +297,7 @@ class SignalMomentumMixin:
                     "days_since_fired": days_since,
                     "current_vol": round(vol, 0),
                     "max_down_vol": round(max_down_vol, 0),
-                    "vol_ratio": (
-                        round(vol / max_down_vol, 2) if max_down_vol > 0 else 0
-                    ),
+                    "vol_ratio": (round(vol / max_down_vol, 2) if max_down_vol > 0 else 0),
                 }
 
             return {"pocket_pivot": False}

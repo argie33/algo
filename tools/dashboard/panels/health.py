@@ -10,10 +10,12 @@ try:
     from panel_registry import register_panel
 except ImportError as e:
     logger.warning(f"Panel registry not available: {e} - panels will not auto-register")
+
     def register_panel(*args, **kwargs):
         if args and callable(args[0]):
             return args[0]
         return lambda fn: fn
+
 
 from rich import box
 from rich.console import Group
@@ -62,11 +64,7 @@ def panel_orch(run, cfg, risk=None):
     base_risk = cfg.get("base_risk")
     t1r = cfg.get("t1_r")
 
-    score_s = (
-        f"[dim]min score ≥[/][white]{min_score}[/]"
-        if min_score and float(min_score) > 0
-        else ""
-    )
+    score_s = f"[dim]min score ≥[/][white]{min_score}[/]" if min_score and float(min_score) > 0 else ""
     slots_s = f"[dim]max [/][white]{max_n}[/][dim] positions[/]" if max_n else ""
     sec_s = f"[dim]sector ≤[/][white]{max_sec_n}[/]" if max_sec_n else ""
     risk_s = f"[dim]base risk [/][white]{base_risk}%[/]" if base_risk else ""
@@ -75,17 +73,8 @@ def panel_orch(run, cfg, risk=None):
 
     # VaR line — only show if table is populated with real data
     var_line = ""
-    if (
-        risk
-        and not risk.get("_error")
-        and risk.get("var95")
-        and float(risk.get("var95") or 0) > 0
-    ):
-        beta_c = (
-            R
-            if (risk.get("beta") or 0) >= 1.2
-            else (Y if (risk.get("beta") or 0) >= 0.8 else G)
-        )
+    if risk and not risk.get("_error") and risk.get("var95") and float(risk.get("var95") or 0) > 0:
+        beta_c = R if (risk.get("beta") or 0) >= 1.2 else (Y if (risk.get("beta") or 0) >= 0.8 else G)
         var_c = _var_color(risk.get("var95", 0))
         svar_s = (
             f"\n[dim]Stressed VaR:[/][{R}]{(risk.get('svar') or 0):.2f}%[/]"
@@ -116,11 +105,7 @@ def panel_orch(run, cfg, risk=None):
         sts = (
             "[bold bright_green]✓ COMPLETED[/]"
             if run.get("success") and not run.get("halted")
-            else (
-                "[bold yellow]~ HALTED[/]"
-                if run.get("halted")
-                else "[bold bright_red]✗ ERROR[/]"
-            )
+            else ("[bold yellow]~ HALTED[/]" if run.get("halted") else "[bold bright_red]✗ ERROR[/]")
         )
 
         pbadges = []
@@ -132,33 +117,21 @@ def panel_orch(run, cfg, risk=None):
                 base = "_".join(parts[:2]) if len(parts) >= 2 else raw
                 short = PHASE_NAMES.get(base, base.replace("phase_", "P"))[:9]
                 ps = (p.get("status") or "").lower()
-                pc = (
-                    G
-                    if ps in ("success", "completed")
-                    else (Y if ps in ("halt", "halted", "warn") else R)
-                )
-                pi = (
-                    "✓"
-                    if ps in ("success", "completed")
-                    else ("~" if ps in ("halt", "halted", "warn") else "✗")
-                )
+                pc = G if ps in ("success", "completed") else (Y if ps in ("halt", "halted", "warn") else R)
+                pi = "✓" if ps in ("success", "completed") else ("~" if ps in ("halt", "halted", "warn") else "✗")
                 pbadges.append(f"[{pc}]{pi}{short}[/]")
             # Show halt reason if halted
             halt_r = run.get("halt_reason") or ""
             summary = run.get("summary") or ""
             if halt_r or run.get("halted"):
                 _details = _best_halt_reason(halt_r, run.get("phase_results"))
-                _lines = [f"{lb+': ' if lb else ''}{dt[:60]}" for lb, dt in _details]
-                extra = (
-                    ("\n" + "\n".join(f"[{Y}]{ln}[/]" for ln in _lines))
-                    if _lines
-                    else ""
-                )
+                _lines = [f"{lb + ': ' if lb else ''}{dt[:60]}" for lb, dt in _details]
+                extra = ("\n" + "\n".join(f"[{Y}]{ln}[/]" for ln in _lines)) if _lines else ""
             else:
                 extra = f"\n[dim]{summary[:50]}[/]" if summary else ""
         else:
             # audit_log fallback: phase_N or phase_N_name format
-            for p in (run.get("phase_results") or run.get("phases") or []):
+            for p in run.get("phase_results") or run.get("phases") or []:
                 at = p.get("action_type", "")
                 if not at.startswith("phase_"):
                     continue
@@ -172,9 +145,7 @@ def panel_orch(run, cfg, risk=None):
                 short = PHASE_NAMES.get(phase_key, default_short)[:9]
                 ps = p.get("status", "")
                 pc = G if ps == "success" else (Y if ps in ("halt", "warn") else R)
-                pi = (
-                    "✓" if ps == "success" else ("~" if ps in ("halt", "warn") else "✗")
-                )
+                pi = "✓" if ps == "success" else ("~" if ps in ("halt", "warn") else "✗")
                 pbadges.append(f"[{pc}]{pi}{short}[/]")
             extra = ""
 
@@ -186,11 +157,7 @@ def panel_orch(run, cfg, risk=None):
             f"[dim]Next run:[/] [white]{next_run}[/]\n"
             f"{phases_str}" + extra + var_line
         )
-    return Panel(
-        body, title="[bold cyan]ORCHESTRATOR[/]", border_style="cyan", padding=(0, 1)
-    )
-
-
+    return Panel(body, title="[bold cyan]ORCHESTRATOR[/]", border_style="cyan", padding=(0, 1))
 
 
 def panel_status(
@@ -217,14 +184,8 @@ def panel_status(
     # ── Run status + schedule + mode + trading config ────────────────────────────
     run_valid = run and not run.get("_error")
     act_valid = act and not act.get("_error")
-    run_id_top = (
-        (run.get("run_id") or "")
-        if run_valid
-        else ((act.get("run_id") or "") if act_valid else "")
-    )
-    run_at_top = (
-        run.get("run_at") if run_valid else (act.get("run_at") if act_valid else None)
-    )
+    run_id_top = (run.get("run_id") or "") if run_valid else ((act.get("run_id") or "") if act_valid else "")
+    run_at_top = run.get("run_at") if run_valid else (act.get("run_at") if act_valid else None)
     if run_id_top or run_at_top:
         sts = (
             "[bold bright_green]✓ COMPLETED[/]"
@@ -232,11 +193,7 @@ def panel_status(
             else (
                 "[bold yellow]~ HALTED[/]"
                 if (run_valid and run.get("halted"))
-                else (
-                    "[bold bright_red]✗ ERROR[/]"
-                    if (run_valid and run.get("errored"))
-                    else "[dim]RUN[/]"
-                )
+                else ("[bold bright_red]✗ ERROR[/]" if (run_valid and run.get("errored")) else "[dim]RUN[/]")
             )
         )
         age_s = f"  [dim]{fmt_age(run_at_top)}[/]" if run_at_top else ""
@@ -248,11 +205,7 @@ def panel_status(
     ec = G if en else R
     en_s = "ENABLED" if en else "DISABLED"
     next_r = next_run_str()
-    rows.append(
-        Text.from_markup(
-            f"[{mc}]{mode or 'PAPER'}[/]  [{ec}]{en_s}[/]  [dim]Next run:[/] [white]{next_r}[/]"
-        )
-    )
+    rows.append(Text.from_markup(f"[{mc}]{mode or 'PAPER'}[/]  [{ec}]{en_s}[/]  [dim]Next run:[/] [white]{next_r}[/]"))
     # Trading config params — visible context for position sizing decisions
     cfg_parts = []
     if cfg_v.get("max_pos_n"):
@@ -275,25 +228,11 @@ def panel_status(
         return 0
 
     # Execution history summary — last 7 runs
-    valid_hist = (
-        exec_hist
-        if (exec_hist and not (isinstance(exec_hist, dict) and exec_hist.get("_error")))
-        else []
-    )
+    valid_hist = exec_hist if (exec_hist and not (isinstance(exec_hist, dict) and exec_hist.get("_error"))) else []
     if valid_hist:
-        n_ok = sum(
-            1
-            for r in valid_hist
-            if (r.get("overall_status") or "").lower() in ("success", "completed")
-        )
-        n_hlt = sum(
-            1 for r in valid_hist if (r.get("overall_status") or "").lower() == "halted"
-        )
-        n_err = sum(
-            1
-            for r in valid_hist
-            if (r.get("overall_status") or "").lower() in ("error", "failed")
-        )
+        n_ok = sum(1 for r in valid_hist if (r.get("overall_status") or "").lower() in ("success", "completed"))
+        n_hlt = sum(1 for r in valid_hist if (r.get("overall_status") or "").lower() == "halted")
+        n_err = sum(1 for r in valid_hist if (r.get("overall_status") or "").lower() in ("error", "failed"))
         total_h = len(valid_hist)
         wr_h = n_ok / total_h * 100 if total_h else 0
         wc_h = G if wr_h >= 80 else (Y if wr_h >= 50 else R)
@@ -315,11 +254,7 @@ def panel_status(
             )
         )
         last_halt = next(
-            (
-                r
-                for r in valid_hist
-                if (r.get("overall_status") or "").lower() == "halted"
-            ),
+            (r for r in valid_hist if (r.get("overall_status") or "").lower() == "halted"),
             None,
         )
         if last_halt:
@@ -347,9 +282,7 @@ def panel_status(
                 r_stat = f"  [{Y}]~ HALTED[/]"
             elif run.get("errored"):
                 r_stat = f"  [{R}]X ERROR[/]"
-        rows.append(
-            Text.from_markup(f"[dim]Run:[/] [white]{run_id[:30]}[/]{age_s}{r_stat}")
-        )
+        rows.append(Text.from_markup(f"[dim]Run:[/] [white]{run_id[:30]}[/]{age_s}{r_stat}"))
 
         # Show phases_completed/halted/errored counts from the run object
         if run and not run.get("_error"):
@@ -384,18 +317,12 @@ def panel_status(
             sc = (
                 G
                 if ps in ("success", "completed", "ok")
-                else (
-                    Y if ps in ("halt", "halted", "warn", "degraded", "skipped") else R
-                )
+                else (Y if ps in ("halt", "halted", "warn", "degraded", "skipped") else R)
             )
             si = (
                 "✓"
                 if ps in ("success", "completed", "ok")
-                else (
-                    "~"
-                    if ps in ("halt", "halted", "warn", "degraded", "skipped")
-                    else "✗"
-                )
+                else ("~" if ps in ("halt", "halted", "warn", "degraded", "skipped") else "✗")
             )
             phase_badges.append(f"[{sc}]{si}[dim]{short}[/][/]")
 
@@ -429,11 +356,7 @@ def panel_status(
                 ):
                     val = pdata.get(key)
                     if val is not None:
-                        rows.append(
-                            Text.from_markup(
-                                f"  [dim]{short}:[/] [white]{key.replace('_', ' ')}={val}[/]"
-                            )
-                        )
+                        rows.append(Text.from_markup(f"  [dim]{short}:[/] [white]{key.replace('_', ' ')}={val}[/]"))
                         break
 
         if phase_badges:
@@ -461,22 +384,14 @@ def panel_status(
             default_short = "_".join(name_parts)[:7] if name_parts else f"P{num}"
             short = PHASE_NAMES.get(phase_key, default_short)[:9]
             st = p.get("status", "")
-            sc = (
-                G if st == "success" else (Y if st in ("halt", "warn", "halted") else R)
-            )
-            si = (
-                "✓"
-                if st == "success"
-                else ("~" if st in ("halt", "warn", "halted") else "✗")
-            )
+            sc = G if st == "success" else (Y if st in ("halt", "warn", "halted") else R)
+            si = "✓" if st == "success" else ("~" if st in ("halt", "warn", "halted") else "✗")
             phase_badges.append(f"[{sc}]{si}[dim]{short}[/][/]")
         if phase_badges:
             rows.append(Text.from_markup("  ".join(phase_badges)))
 
     # Recent trade events (entry/exit/order) from audit_log
-    recent = (
-        (act.get("recent_actions") or []) if (act and not act.get("_error")) else []
-    )
+    recent = (act.get("recent_actions") or []) if (act and not act.get("_error")) else []
     trade_evts = [
         a
         for a in recent
@@ -500,11 +415,7 @@ def panel_status(
                 logger.warning(f"Failed to parse action details JSON: {e}")
                 det = {}
         sym = det.get("symbol", "")
-        ic = (
-            G
-            if ("executed" in at or at == "position_exited")
-            else (Y if "placed" in at else R)
-        )
+        ic = G if ("executed" in at or at == "position_exited") else (Y if "placed" in at else R)
         lbl = at.replace("_", " ").title()[:20]
         rows.append(Text.from_markup(f"  [{ic}]{lbl}{(' ' + sym) if sym else ''}[/]"))
 
@@ -513,18 +424,10 @@ def panel_status(
         rows.append(Rule(style="dim"))
         stale = [r for r in hlth_items if isinstance(r, dict) and r.get("st") != "ok"]
         if not stale:
-            rows.append(
-                Text.from_markup(
-                    f"[{G}]OK Data OK[/]  [dim]{len(hlth_items)} tables[/]"
-                )
-            )
-            crit = [
-                r for r in hlth_items if isinstance(r, dict) and r.get("role") == "CRIT"
-            ]
+            rows.append(Text.from_markup(f"[{G}]OK Data OK[/]  [dim]{len(hlth_items)} tables[/]"))
+            crit = [r for r in hlth_items if isinstance(r, dict) and r.get("role") == "CRIT"]
             if crit:
-                crit_parts = "  ".join(
-                    f"[{G}]OK[/][dim]{r.get('tbl','')[:13]}[/]" for r in crit
-                )
+                crit_parts = "  ".join(f"[{G}]OK[/][dim]{r.get('tbl', '')[:13]}[/]" for r in crit)
                 rows.append(Text.from_markup(f"  {crit_parts}"))
         else:
             for r in stale[:4]:
@@ -546,18 +449,10 @@ def panel_status(
                     lat_s = f" ({lat[5:10]})"
                 else:
                     lat_s = f" ({str(lat)[:5]})" if lat else ""
-                rows.append(
-                    Text.from_markup(
-                        f"[{R}]X[/] [{cc}]{nm:<13}[/] [dim]{age_s} stale{lat_s}[/]"
-                    )
-                )
+                rows.append(Text.from_markup(f"[{R}]X[/] [{cc}]{nm:<13}[/] [dim]{age_s} stale{lat_s}[/]"))
 
     # Notifications (up to 4)
-    valid_notifs = (
-        notifs
-        if (notifs and not (isinstance(notifs, dict) and notifs.get("_error")))
-        else []
-    )
+    valid_notifs = notifs if (notifs and not (isinstance(notifs, dict) and notifs.get("_error"))) else []
     if valid_notifs:
         rows.append(Rule(style="dim"))
         sev_colors = {"critical": R, "warning": Y, "info": CY, "debug": DIM}
@@ -573,23 +468,14 @@ def panel_status(
             sc = sev_colors.get(n.get("severity", "info"), DIM)
             raw_t = n.get("title") or ""
             tl = raw_t.lower()
-            title = next(
-                (v for k, v in short_names.items() if k in tl), raw_t[:24]
-            )
+            title = next((v for k, v in short_names.items() if k in tl), raw_t[:24])
             age = fmt_age(n.get("created_at"))
             unread = "-" if not n.get("seen", True) else " "
-            rows.append(
-                Text.from_markup(f"[{sc}]{unread}[/] [{sc}]{title}[/] [dim]{age}[/]")
-            )
+            rows.append(Text.from_markup(f"[{sc}]{unread}[/] [{sc}]{title}[/] [dim]{age}[/]"))
 
     # Algo metrics daily (action counts)
     valid_metrics = (
-        algo_metrics
-        if (
-            algo_metrics
-            and not (isinstance(algo_metrics, dict) and algo_metrics.get("_error"))
-        )
-        else []
+        algo_metrics if (algo_metrics and not (isinstance(algo_metrics, dict) and algo_metrics.get("_error"))) else []
     )
     if valid_metrics:
         rows.append(Rule(style="dim"))
@@ -607,24 +493,14 @@ def panel_status(
             )
 
     # Data loader status (errors/stale from data_loader_status table)
-    valid_loader = (
-        loader
-        if (loader and not (isinstance(loader, dict) and loader.get("_error")))
-        else []
-    )
-    problem_loader = [
-        r
-        for r in valid_loader
-        if (r.get("status") or "") in ("error", "failed", "stale")
-    ]
+    valid_loader = loader if (loader and not (isinstance(loader, dict) and loader.get("_error"))) else []
+    problem_loader = [r for r in valid_loader if (r.get("status") or "") in ("error", "failed", "stale")]
     running_loader = [r for r in valid_loader if (r.get("status") or "") == "loading"]
     ok_count = len(valid_loader) - len(problem_loader) - len(running_loader)
     if problem_loader:
         rows.append(Rule(style="dim"))
         ok_s = f"  [dim]{ok_count} ok[/]" if ok_count > 0 else ""
-        rows.append(
-            Text.from_markup(f"[{Y}]Loaders ({len(problem_loader)} issues){ok_s}:[/]")
-        )
+        rows.append(Text.from_markup(f"[{Y}]Loaders ({len(problem_loader)} issues){ok_s}:[/]"))
         for r in problem_loader[:3]:
             nm = str((r.get("table_name") or "--")[:14])
             st = r.get("status") or "?"
@@ -632,12 +508,7 @@ def panel_status(
             age_s = str(f"{int(age)}d" if age is not None else "--")
             sc = R if st in ("error", "failed") else Y
             err = (r.get("error_message") or "")[:20]
-            rows.append(
-                Text.from_markup(
-                    f"  [{sc}]{nm:<14}[/] [dim]{age_s}[/]"
-                    + (f" [dim]{err}[/]" if err else "")
-                )
-            )
+            rows.append(Text.from_markup(f"  [{sc}]{nm:<14}[/] [dim]{age_s}[/]" + (f" [dim]{err}[/]" if err else "")))
     elif valid_loader:
         if running_loader:
             rows.append(Rule(style="dim"))
@@ -648,26 +519,15 @@ def panel_status(
                 rows.append(Text.from_markup(f"[{CY}]Loading:[/][dim] {nm}{pct_s}[/]"))
         elif ok_count > 0:
             rows.append(Rule(style="dim"))
-            rows.append(
-                Text.from_markup(
-                    f"[{G}]OK Loaders[/]  [dim]{ok_count} feeds healthy[/]"
-                )
-            )
+            rows.append(Text.from_markup(f"[{G}]OK Loaders[/]  [dim]{ok_count} feeds healthy[/]"))
 
     # Audit log — most recent notable actions
-    valid_audit = (
-        audit
-        if (audit and not (isinstance(audit, dict) and audit.get("_error")))
-        else []
-    )
+    valid_audit = audit if (audit and not (isinstance(audit, dict) and audit.get("_error"))) else []
     if valid_audit:
         notable = [
             a
             for a in valid_audit
-            if any(
-                k in (a.get("action_type") or "")
-                for k in ("entry", "exit", "halt", "resume", "circuit")
-            )
+            if any(k in (a.get("action_type") or "") for k in ("entry", "exit", "halt", "resume", "circuit"))
         ][:3]
         if notable:
             rows.append(Rule(style="dim"))
@@ -677,11 +537,7 @@ def panel_status(
                 sym = a.get("symbol") or ""
                 st = a.get("status") or ""
                 sc = G if st == "success" else (Y if st == "warn" else R)
-                rows.append(
-                    Text.from_markup(
-                        f"  [{sc}]{at[:22]}[/]" + (f" [white]{sym}[/]" if sym else "")
-                    )
-                )
+                rows.append(Text.from_markup(f"  [{sc}]{at[:22]}[/]" + (f" [white]{sym}[/]" if sym else "")))
 
     if not rows:
         rows.append(Text("no activity", style="dim"))
@@ -709,9 +565,7 @@ def panel_algo_health(
     # ── A: Run outcome ────────────────────────────────────────────────────────
     run_valid = run and not run.get("_error")
     act_valid = act and not act.get("_error")
-    run_at = (
-        run.get("run_at") if run_valid else (act.get("run_at") if act_valid else None)
-    )
+    run_at = run.get("run_at") if run_valid else (act.get("run_at") if act_valid else None)
     age_s = f"  [dim]{fmt_age(run_at)}[/]" if run_at else ""
 
     if run_valid:
@@ -734,9 +588,7 @@ def panel_algo_health(
         elif summary:
             rows.append(Text.from_markup(f"  [dim]{summary[:72]}[/]"))
     elif act_valid:
-        rows.append(
-            Text.from_markup(f"[dim]Last run (audit):[/]  [dim]{fmt_age(run_at)}[/]")
-        )
+        rows.append(Text.from_markup(f"[dim]Last run (audit):[/]  [dim]{fmt_age(run_at)}[/]"))
     else:
         rows.append(Text.from_markup("[dim]No run data - algo has not run yet[/]"))
 
@@ -763,18 +615,12 @@ def panel_algo_health(
             sc = (
                 G
                 if ps in ("success", "completed", "ok")
-                else (
-                    Y if ps in ("halt", "halted", "warn", "degraded", "skipped") else R
-                )
+                else (Y if ps in ("halt", "halted", "warn", "degraded", "skipped") else R)
             )
             si = (
                 "✓"
                 if ps in ("success", "completed", "ok")
-                else (
-                    "~"
-                    if ps in ("halt", "halted", "warn", "degraded", "skipped")
-                    else "✗"
-                )
+                else ("~" if ps in ("halt", "halted", "warn", "degraded", "skipped") else "✗")
             )
             phase_badges.append(f"[{sc}]{si}[dim]{short}[/][/]")
             pdata = p.get("data") or {}
@@ -795,7 +641,7 @@ def panel_algo_health(
                 exits_exec = max(exits_exec, int(xe))
     elif run_valid or act_valid:
         src = run if run_valid else act
-        for p in (src.get("phase_results") or src.get("phases") or []):
+        for p in src.get("phase_results") or src.get("phases") or []:
             at = p.get("action_type", "")
             if not at.startswith("phase_"):
                 continue
@@ -806,17 +652,11 @@ def panel_algo_health(
             # "phase_1_data_freshness" → base "phase_1", name from remaining parts
             phase_key = f"phase_{num}"
             name_parts = parts_p[2:] if len(parts_p) > 2 else []
-            default_short = ("_".join(name_parts)[:7] if name_parts else f"P{num}")
+            default_short = "_".join(name_parts)[:7] if name_parts else f"P{num}"
             short = PHASE_NAMES.get(phase_key, default_short)[:8]
             st = p.get("status", "")
-            sc = (
-                G if st == "success" else (Y if st in ("halt", "warn", "halted") else R)
-            )
-            si = (
-                "✓"
-                if st == "success"
-                else ("~" if st in ("halt", "warn", "halted") else "✗")
-            )
+            sc = G if st == "success" else (Y if st in ("halt", "warn", "halted") else R)
+            si = "✓" if st == "success" else ("~" if st in ("halt", "warn", "halted") else "✗")
             phase_badges.append(f"[{sc}]{si}[dim]{short}[/][/]")
 
     if phase_badges:
@@ -824,12 +664,7 @@ def panel_algo_health(
 
     # Fallback: use algo_metrics for today's entry/exit counts
     valid_metrics = (
-        algo_metrics
-        if (
-            algo_metrics
-            and not (isinstance(algo_metrics, dict) and algo_metrics.get("_error"))
-        )
-        else []
+        algo_metrics if (algo_metrics and not (isinstance(algo_metrics, dict) and algo_metrics.get("_error"))) else []
     )
     today_m = valid_metrics[0] if valid_metrics else {}
     if not entries_exec:
@@ -874,33 +709,17 @@ def panel_algo_health(
     rows.append(Rule(style="dim"))
 
     # ── C: Run history (last 7 runs as badges) ───────────────────────────────
-    valid_hist = (
-        exec_hist
-        if (exec_hist and not (isinstance(exec_hist, dict) and exec_hist.get("_error")))
-        else []
-    )
+    valid_hist = exec_hist if (exec_hist and not (isinstance(exec_hist, dict) and exec_hist.get("_error"))) else []
     if valid_hist:
-        n_ok = sum(
-            1
-            for r in valid_hist
-            if (r.get("overall_status") or "").lower() in ("success", "completed")
-        )
-        n_hlt = sum(
-            1 for r in valid_hist if (r.get("overall_status") or "").lower() == "halted"
-        )
-        n_err = sum(
-            1
-            for r in valid_hist
-            if (r.get("overall_status") or "").lower() in ("error", "failed")
-        )
+        n_ok = sum(1 for r in valid_hist if (r.get("overall_status") or "").lower() in ("success", "completed"))
+        n_hlt = sum(1 for r in valid_hist if (r.get("overall_status") or "").lower() == "halted")
+        n_err = sum(1 for r in valid_hist if (r.get("overall_status") or "").lower() in ("error", "failed"))
         total_h = len(valid_hist)
         badges = []
         for r in valid_hist[:7]:
             s = (r.get("overall_status") or "").lower()
             badges.append(
-                f"[{G}]OK[/]"
-                if s in ("success", "completed")
-                else (f"[{Y}]~[/]" if s == "halted" else f"[{R}]X[/]")
+                f"[{G}]OK[/]" if s in ("success", "completed") else (f"[{Y}]~[/]" if s == "halted" else f"[{R}]X[/]")
             )
         wc = G if n_ok == total_h else (Y if n_ok > 0 else R)
         rows.append(
@@ -912,11 +731,7 @@ def panel_algo_health(
             )
         )
         last_halt = next(
-            (
-                r
-                for r in valid_hist
-                if (r.get("overall_status") or "").lower() == "halted"
-            ),
+            (r for r in valid_hist if (r.get("overall_status") or "").lower() == "halted"),
             None,
         )
         if last_halt:
@@ -967,9 +782,7 @@ def panel_algo_health(
             ages = [_age_h(r) for r in hlth_list if _age_h(r) is not None]
             oldest_s = f"  [dim]oldest: {_age_fmt_c(max(hlth_list, key=lambda r: _age_h(r) or 0))}[/]" if ages else ""
             crit_s = f"  [dim]crit {n_crit}[/][{G}] ok[/]" if n_crit else ""
-            rows.append(Text.from_markup(
-                f"{rtt_badge}  [dim]{n_total} tables fresh[/]{crit_s}{oldest_s}"
-            ))
+            rows.append(Text.from_markup(f"{rtt_badge}  [dim]{n_total} tables fresh[/]{crit_s}{oldest_s}"))
         else:
             crit_stale = [r for r in stale if r.get("role") == "CRIT"]
             if ready_to_trade is False:
@@ -987,23 +800,10 @@ def panel_algo_health(
             rows.append(Text.from_markup(f"{rtt_pfx}" + "  ".join(stale_parts)))
 
     # ── E: Risk snapshot (VaR / CVaR / Beta / Concentration) ────────────────────
-    if (
-        risk
-        and not risk.get("_error")
-        and risk.get("var95")
-        and float(risk.get("var95") or 0) > 0
-    ):
+    if risk and not risk.get("_error") and risk.get("var95") and float(risk.get("var95") or 0) > 0:
         rows.append(Rule(style="dim"))
-        beta_c = (
-            R
-            if (risk.get("beta") or 0) >= 1.2
-            else (Y if (risk.get("beta") or 0) >= 0.8 else G)
-        )
-        conc_c = (
-            R
-            if (risk.get("conc5") or 0) >= 35
-            else (Y if (risk.get("conc5") or 0) >= 25 else "white")
-        )
+        beta_c = R if (risk.get("beta") or 0) >= 1.2 else (Y if (risk.get("beta") or 0) >= 0.8 else G)
+        conc_c = R if (risk.get("conc5") or 0) >= 35 else (Y if (risk.get("conc5") or 0) >= 25 else "white")
         var_c = _var_color(risk.get("var95", 0))
         risk_parts = [
             f"[dim]VaR 95%:[/][{var_c}]{(risk.get('var95') or 0):.2f}%[/]",
@@ -1012,9 +812,7 @@ def panel_algo_health(
             f"[dim]Top-5 Conc:[/][{conc_c}]{(risk.get('conc5') or 0):.0f}%[/]",
         ]
         if risk.get("svar") and float(risk.get("svar") or 0) > 0:
-            risk_parts.append(
-                f"[dim]Stressed VaR:[/][{R}]{(risk.get('svar') or 0):.2f}%[/]"
-            )
+            risk_parts.append(f"[dim]Stressed VaR:[/][{R}]{(risk.get('svar') or 0):.2f}%[/]")
         rows.append(Text.from_markup("  ".join(risk_parts)))
 
     # ── F: Notifications (compact) ────────────────────────────────────────────
@@ -1082,10 +880,7 @@ def panel_algo_health_expanded(
 
     if hlth_items:
         stale_count = sum(1 for r in hlth_items if isinstance(r, dict) and r.get("st") != "ok")
-        crit_stale = [
-            r for r in hlth_items
-            if isinstance(r, dict) and r.get("role") == "CRIT" and r.get("st") != "ok"
-        ]
+        crit_stale = [r for r in hlth_items if isinstance(r, dict) and r.get("role") == "CRIT" and r.get("st") != "ok"]
         if crit_stale:
             crit_names = "  ".join(f"[bold white]{r.get('tbl', '')[:18]}[/]" for r in crit_stale)
             left_rows.append(Text.from_markup(f"[bold {R}]⚠ CRIT STALE:[/]  {crit_names}"))
@@ -1095,11 +890,13 @@ def panel_algo_health_expanded(
         elif ready_to_trade is False:
             rtt_part = f"  [bold {R}]✗ NOT READY[/]"
         status_c = G if stale_count == 0 else (Y if stale_count <= 2 else R)
-        left_rows.append(Text.from_markup(
-            f"[dim]Freshness:[/] [{status_c}]{len(hlth_items) - stale_count}/{len(hlth_items)} fresh[/]"
-            + (f"  [{R}]{stale_count} stale[/]" if stale_count else "")
-            + rtt_part
-        ))
+        left_rows.append(
+            Text.from_markup(
+                f"[dim]Freshness:[/] [{status_c}]{len(hlth_items) - stale_count}/{len(hlth_items)} fresh[/]"
+                + (f"  [{R}]{stale_count} stale[/]" if stale_count else "")
+                + rtt_part
+            )
+        )
 
         def _fmt_age_e(r):
             ah = r.get("age_hours")
@@ -1124,8 +921,12 @@ def panel_algo_health_expanded(
             key=lambda r: (_role_order.get(r.get("role") or "NORM", 2), r.get("tbl") or ""),
         )
         all_tbl = Table(
-            box=box.SIMPLE_HEAD, show_header=True, header_style="dim",
-            padding=(0, 1), expand=True, row_styles=["", "dim"],
+            box=box.SIMPLE_HEAD,
+            show_header=True,
+            header_style="dim",
+            padding=(0, 1),
+            expand=True,
+            row_styles=["", "dim"],
         )
         all_tbl.add_column("Role", no_wrap=True, min_width=4)
         all_tbl.add_column("Table", no_wrap=True, min_width=26)
@@ -1173,20 +974,14 @@ def panel_algo_health_expanded(
 
     run_valid = run and not run.get("_error")
     act_valid = act and not act.get("_error")
-    run_at = (
-        run.get("run_at") if run_valid else (act.get("run_at") if act_valid else None)
-    )
+    run_at = run.get("run_at") if run_valid else (act.get("run_at") if act_valid else None)
     age_s = f"  [dim]{fmt_age(run_at)}[/]" if run_at else ""
 
     if run_valid:
         sts = (
             f"[bold {G}]OK COMPLETED[/]"
             if run.get("success") and not run.get("halted")
-            else (
-                f"[bold {Y}]~ HALTED[/]"
-                if run.get("halted")
-                else f"[bold {R}]X ERROR[/]"
-            )
+            else (f"[bold {Y}]~ HALTED[/]" if run.get("halted") else f"[bold {R}]X ERROR[/]")
         )
         rid = run.get("run_id") or ""
         rid = run.get("run_id") or ""
@@ -1211,18 +1006,12 @@ def panel_algo_health_expanded(
             sc = (
                 G
                 if ps in ("success", "completed", "ok")
-                else (
-                    Y if ps in ("halt", "halted", "warn", "degraded", "skipped") else R
-                )
+                else (Y if ps in ("halt", "halted", "warn", "degraded", "skipped") else R)
             )
             si = (
                 "v"
                 if ps in ("success", "completed", "ok")
-                else (
-                    "~"
-                    if ps in ("halt", "halted", "warn", "degraded", "skipped")
-                    else "x"
-                )
+                else ("~" if ps in ("halt", "halted", "warn", "degraded", "skipped") else "x")
             )
             phase_badges_e.append(f"[{sc}]{si}[dim]{short}[/][/]")
     if phase_badges_e:
@@ -1238,6 +1027,7 @@ def panel_algo_health_expanded(
             if isinstance(pdata, str):
                 try:
                     import json as _json
+
                     pdata = _json.loads(pdata)
                 except Exception:
                     pdata = {}
@@ -1252,9 +1042,7 @@ def panel_algo_health_expanded(
                 exits_exec = max(exits_exec, int(xe))
 
     valid_metrics_e = (
-        algo_metrics
-        if (algo_metrics and not (isinstance(algo_metrics, dict) and algo_metrics.get("_error")))
-        else []
+        algo_metrics if (algo_metrics and not (isinstance(algo_metrics, dict) and algo_metrics.get("_error"))) else []
     )
     today_m_e = valid_metrics_e[0] if valid_metrics_e else {}
     if not entries_exec:
@@ -1291,68 +1079,32 @@ def panel_algo_health_expanded(
     right_rows.append(Rule(style="dim"))
 
     # Full run history
-    valid_hist_e = (
-        exec_hist
-        if (exec_hist and not (isinstance(exec_hist, dict) and exec_hist.get("_error")))
-        else []
-    )
+    valid_hist_e = exec_hist if (exec_hist and not (isinstance(exec_hist, dict) and exec_hist.get("_error"))) else []
     if valid_hist_e:
-        n_ok = sum(
-            1
-            for r in valid_hist_e
-            if (r.get("overall_status") or "").lower() in ("success", "completed")
-        )
+        n_ok = sum(1 for r in valid_hist_e if (r.get("overall_status") or "").lower() in ("success", "completed"))
         wc = G if n_ok == len(valid_hist_e) else (Y if n_ok > 0 else R)
         right_rows.append(
-            Text.from_markup(
-                f"[dim]Run history ({len(valid_hist_e)}):[/]  [{wc}]{n_ok}/{len(valid_hist_e)} success[/]"
-            )
+            Text.from_markup(f"[dim]Run history ({len(valid_hist_e)}):[/]  [{wc}]{n_ok}/{len(valid_hist_e)} success[/]")
         )
         for r in valid_hist_e:
             s = (r.get("overall_status") or "").lower()
             dt = r.get("started_at")
-            dt_s = (
-                dt.strftime("%b %d  %I:%M %p")
-                if hasattr(dt, "strftime")
-                else str(dt or "")[:16]
-            )
+            dt_s = dt.strftime("%b %d  %I:%M %p") if hasattr(dt, "strftime") else str(dt or "")[:16]
             ic = G if s in ("success", "completed") else (Y if s == "halted" else R)
-            ii = (
-                "v"
-                if s in ("success", "completed")
-                else ("~" if s == "halted" else "x")
-            )
+            ii = "v" if s in ("success", "completed") else ("~" if s == "halted" else "x")
             hr = r.get("halt_reason") or ""
             lph = _fmt_phases_halted(r.get("phases_halted"))
             body = hr or lph
             ph_s = f"  [dim]({lph})[/]" if lph and lph not in (hr or "") else ""
             hr_s = f"  [{Y}]-> {body}[/]{ph_s}" if body else ""
-            right_rows.append(
-                Text.from_markup(f"  [{ic}]{ii}[/] [dim]{dt_s}[/]  [{ic}]{s}[/]{hr_s}")
-            )
+            right_rows.append(Text.from_markup(f"  [{ic}]{ii}[/] [dim]{dt_s}[/]  [{ic}]{s}[/]{hr_s}"))
 
     # Risk snapshot
-    if (
-        risk
-        and not risk.get("_error")
-        and risk.get("var95")
-        and float(risk.get("var95") or 0) > 0
-    ):
+    if risk and not risk.get("_error") and risk.get("var95") and float(risk.get("var95") or 0) > 0:
         right_rows.append(Rule(style="dim"))
-        beta_c = (
-            R
-            if (risk.get("beta") or 0) >= 1.2
-            else (Y if (risk.get("beta") or 0) >= 0.8 else G)
-        )
-        conc_c = (
-            R
-            if (risk.get("conc5") or 0) >= 35
-            else (Y if (risk.get("conc5") or 0) >= 25 else "white")
-        )
-        var_c = (
-            R if (risk.get("var95") or 0) >= 4
-            else (Y if (risk.get("var95") or 0) >= 2 else "white")
-        )
+        beta_c = R if (risk.get("beta") or 0) >= 1.2 else (Y if (risk.get("beta") or 0) >= 0.8 else G)
+        conc_c = R if (risk.get("conc5") or 0) >= 35 else (Y if (risk.get("conc5") or 0) >= 25 else "white")
+        var_c = R if (risk.get("var95") or 0) >= 4 else (Y if (risk.get("var95") or 0) >= 2 else "white")
         risk_parts_e = [
             f"[dim]VaR95:[/][{var_c}]{(risk.get('var95') or 0):.2f}%[/]",
             f"[dim]CVaR:[/][{var_c}]{(risk.get('cvar95') or 0):.2f}%[/]",
@@ -1360,9 +1112,7 @@ def panel_algo_health_expanded(
             f"[dim]Top5:[/][{conc_c}]{(risk.get('conc5') or 0):.0f}%[/]",
         ]
         if risk.get("svar") and float(risk.get("svar") or 0) > 0:
-            risk_parts_e.append(
-                f"[dim]StressVaR:[/][{R}]{(risk.get('svar') or 0):.2f}%[/]"
-            )
+            risk_parts_e.append(f"[dim]StressVaR:[/][{R}]{(risk.get('svar') or 0):.2f}%[/]")
         right_rows.append(Text.from_markup("  ".join(risk_parts_e)))
 
     # Notifications
@@ -1387,11 +1137,7 @@ def panel_algo_health_expanded(
             right_rows.append(Text.from_markup(f"  [{sc}]{unread} {title}[/] [dim]{age}[/]"))
 
     # Audit log
-    valid_audit_exp = (
-        audit
-        if (audit and not (isinstance(audit, dict) and audit.get("_error")))
-        else []
-    )
+    valid_audit_exp = audit if (audit and not (isinstance(audit, dict) and audit.get("_error"))) else []
     if valid_audit_exp:
         right_rows.append(Rule(style="dim"))
         right_rows.append(Text.from_markup("[dim]Audit log:[/]"))
@@ -1424,7 +1170,6 @@ def panel_algo_health_expanded(
         Layout(right_panel, ratio=3, name="runs"),
     )
     return dual
-
 
 
 __all__ = [

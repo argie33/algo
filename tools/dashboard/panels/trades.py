@@ -10,10 +10,12 @@ try:
     from panel_registry import register_panel
 except ImportError as e:
     logger.warning(f"Panel registry not available: {e} - panels will not auto-register")
+
     def register_panel(*args, **kwargs):
         if args and callable(args[0]):
             return args[0]
         return lambda fn: fn
+
 
 from rich import box
 from rich.console import Group
@@ -63,11 +65,7 @@ def panel_recent_trades(trades):
     closed_trades = [tr for tr in trades_list if isinstance(tr, dict) and (tr.get("status") or "").lower() == "closed"]
 
     if not closed_trades:
-        age_s = (
-            f"  [dim]{fmt_age(trades_timestamp)}[/]"
-            if trades_timestamp is not None
-            else ""
-        )
+        age_s = f"  [dim]{fmt_age(trades_timestamp)}[/]" if trades_timestamp is not None else ""
         return Panel(
             Text("no closed trades yet", style="dim"),
             title=f"[bold cyan]RECENT TRADES[/]{age_s}  [dim][t] expand[/]",
@@ -98,6 +96,7 @@ def panel_recent_trades(trades):
         if isinstance(d, str) and len(d) >= 7:
             try:
                 from datetime import datetime as _dt
+
                 return _dt.fromisoformat(d.replace("Z", "+00:00")).strftime("%b%d")
             except (ValueError, TypeError):
                 return d[5:10]
@@ -123,7 +122,11 @@ def panel_recent_trades(trades):
         pc = G if (pnl_d or pnl_p or 0) > 0 else R
         si = f"[{G}]▲[/]" if (pnl_p or 0) > 0 else f"[{R}]▼[/]"
         grade = tr.get("swing_grade") or "--"
-        grade_c = G if grade in ("A", "A+", "A-") else (CY if grade in ("B", "B+", "B-") else (Y if grade in ("C", "C+", "C-") else DIM))
+        grade_c = (
+            G
+            if grade in ("A", "A+", "A-")
+            else (CY if grade in ("B", "B+", "B-") else (Y if grade in ("C", "C+", "C-") else DIM))
+        )
 
         t.add_row(
             Text.from_markup(f"{si} {sym}"),
@@ -136,10 +139,13 @@ def panel_recent_trades(trades):
             Text(grade, style=grade_c),
         )
 
-    age_s = (
-        f"  [dim]{fmt_age(trades_timestamp)}[/]" if trades_timestamp is not None else ""
+    age_s = f"  [dim]{fmt_age(trades_timestamp)}[/]" if trades_timestamp is not None else ""
+    return Panel(
+        t,
+        title=f"[bold cyan]RECENT TRADES ({len(closed_trades)})[/]{age_s}  [dim][t] expand[/]",
+        border_style="cyan",
+        padding=(0, 0),
     )
-    return Panel(t, title=f"[bold cyan]RECENT TRADES ({len(closed_trades)})[/]{age_s}  [dim][t] expand[/]", border_style="cyan", padding=(0, 0))
 
 
 def panel_trades_expanded(trades):
@@ -177,19 +183,28 @@ def panel_trades_expanded(trades):
     avg_r = sum(avg_r_list) / len(avg_r_list) if avg_r_list else None
     wc = G if wr >= 45 else (Y if wr >= 40 else R)
     pnl_c = G if total_pnl >= 0 else R
-    rows.append(Text.from_markup(
-        f"[dim]Showing {total} trades:[/]  [{G}]{wins}W[/][dim]/[/][{R}]{losses}L[/]  "
-        f"[dim]Win Rate:[/][{wc}]{wr:.0f}%[/]  "
-        f"[dim]P&L:[/][{pnl_c}]{sign(total_pnl)}${abs(total_pnl):.0f}[/]"
-        + (f"  [dim]Avg R:[/][white]{avg_r:.2f}R[/]" if avg_r is not None else "")
-    ))
+    rows.append(
+        Text.from_markup(
+            f"[dim]Showing {total} trades:[/]  [{G}]{wins}W[/][dim]/[/][{R}]{losses}L[/]  "
+            f"[dim]Win Rate:[/][{wc}]{wr:.0f}%[/]  "
+            f"[dim]P&L:[/][{pnl_c}]{sign(total_pnl)}${abs(total_pnl):.0f}[/]"
+            + (f"  [dim]Avg R:[/][white]{avg_r:.2f}R[/]" if avg_r is not None else "")
+        )
+    )
     rows.append(Rule(style="dim"))
 
     _EXIT_SHORT = {
-        "stop_loss": "stop", "stop": "stop",
-        "t1_target": "T1", "t1_hit": "T1", "t1": "T1",
-        "t2_target": "T2", "t2_hit": "T2", "t2": "T2",
-        "manual": "man", "time_exit": "time", "time": "time",
+        "stop_loss": "stop",
+        "stop": "stop",
+        "t1_target": "T1",
+        "t1_hit": "T1",
+        "t1": "T1",
+        "t2_target": "T2",
+        "t2_hit": "T2",
+        "t2": "T2",
+        "manual": "man",
+        "time_exit": "time",
+        "time": "time",
     }
 
     tbl = Table(
@@ -220,6 +235,7 @@ def panel_trades_expanded(trades):
         if isinstance(d, str) and len(d) >= 7:
             try:
                 from datetime import datetime as _dt
+
                 return _dt.fromisoformat(d.replace("Z", "+00:00")).strftime("%b%d")
             except (ValueError, TypeError):
                 return d[5:10]
@@ -252,7 +268,11 @@ def panel_trades_expanded(trades):
 
         pc = G if (pnl_p or 0) > 0 else R
         si = f"[{G}]▲[/]" if (pnl_p or 0) > 0 else f"[{R}]▼[/]"
-        grade_c = G if grade in ("A", "A+", "A-") else (CY if grade in ("B", "B+", "B-") else (Y if grade in ("C", "C+", "C-") else DIM))
+        grade_c = (
+            G
+            if grade in ("A", "A+", "A-")
+            else (CY if grade in ("B", "B+", "B-") else (Y if grade in ("C", "C+", "C-") else DIM))
+        )
 
         tbl.add_row(
             Text.from_markup(f"{si} {sym}"),
@@ -281,9 +301,8 @@ def panel_trades_expanded(trades):
     )
 
 
-
 __all__ = [
+    "_extract_items",
     "panel_recent_trades",
     "panel_trades_expanded",
-    "_extract_items",
 ]

@@ -3,11 +3,12 @@
 
 import logging
 
+import psycopg2
+
 from utils.db import assert_safe_table, safe_select_count
 
 from ..base import BaseCheck, CheckResult
 from ..config import ERROR, INFO, WARN
-import psycopg2
 
 
 logger = logging.getLogger(__name__)
@@ -114,9 +115,7 @@ class CoverageChecker(BaseCheck):
                 for table_name in critical_tables:
                     try:
                         table_count = results_by_table.get(table_name, 0)
-                        coverage_pct = (
-                            (table_count / expected_count * 100) if expected_count else 0
-                        )
+                        coverage_pct = (table_count / expected_count * 100) if expected_count else 0
 
                         if coverage_pct < coverage_error_pct:
                             self.log(

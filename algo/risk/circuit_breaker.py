@@ -125,9 +125,7 @@ class CircuitBreaker:
                         # All check failures result in fail-closed halt.
                         # If a safety check cannot be verified, trading must halt.
                         # Do NOT skip checks with "transient" claims — that masks data loss.
-                        logger.critical(
-                            f"Circuit breaker {name} FAILED - HALTING TRADING: {error_type}: {e}"
-                        )
+                        logger.critical(f"Circuit breaker {name} FAILED - HALTING TRADING: {error_type}: {e}")
                         state = {
                             "halted": True,
                             "reason": f"check error ({error_type}: {e})",
@@ -136,9 +134,7 @@ class CircuitBreaker:
                     results["checks"][name] = state
                     if state.get("halted"):
                         results["halted"] = True
-                        results["halt_reasons"].append(
-                            f"{state['label']}: {state['reason']}"
-                        )
+                        results["halt_reasons"].append(f"{state['label']}: {state['reason']}")
 
                 # Persist if halted
                 if results["halted"]:
@@ -193,11 +189,7 @@ class CircuitBreaker:
         )
         return {
             "halted": dd >= threshold,
-            "reason": (
-                f"Drawdown {dd:.2f}% >= {threshold:.0f}%"
-                if dd >= threshold
-                else f"Drawdown {dd:.2f}%"
-            ),
+            "reason": (f"Drawdown {dd:.2f}% >= {threshold:.0f}%" if dd >= threshold else f"Drawdown {dd:.2f}%"),
             "value": round(dd, 2),
             "threshold": threshold,
         }
@@ -268,9 +260,7 @@ class CircuitBreaker:
         if require_ftd:
             # A Follow-Through Day is when SPY up 1.25%+ on higher volume after a pullback/correction
             # For now, simplified check: market is in Stage 2
-            cur.execute(
-                "SELECT market_stage FROM market_health_daily ORDER BY date DESC LIMIT 1"
-            )
+            cur.execute("SELECT market_stage FROM market_health_daily ORDER BY date DESC LIMIT 1")
             market_row = cur.fetchone()
             if market_row is None or market_row[0] != 2:
                 return {
@@ -303,9 +293,7 @@ class CircuitBreaker:
         return {
             "halted": daily <= threshold,
             "reason": (
-                f"Daily loss {daily:.2f}% <= {threshold:.1f}%"
-                if daily <= threshold
-                else f"Daily {daily:+.2f}%"
+                f"Daily loss {daily:.2f}% <= {threshold:.1f}%" if daily <= threshold else f"Daily {daily:+.2f}%"
             ),
             "value": round(daily, 2),
             "threshold": threshold,
@@ -339,11 +327,7 @@ class CircuitBreaker:
         threshold = int(self.config.get("max_consecutive_losses", 3))
         return {
             "halted": streak >= threshold,
-            "reason": (
-                f"{streak} consecutive losses >= {threshold}"
-                if streak >= threshold
-                else f"{streak} losses"
-            ),
+            "reason": (f"{streak} consecutive losses >= {threshold}" if streak >= threshold else f"{streak} losses"),
             "value": streak,
             "threshold": threshold,
         }
@@ -396,9 +380,7 @@ class CircuitBreaker:
         return {
             "halted": win_rate < threshold,
             "reason": (
-                f"Win rate {win_rate:.1f}% < {threshold:.0f}%"
-                if win_rate < threshold
-                else f"Win rate {win_rate:.1f}%"
+                f"Win rate {win_rate:.1f}% < {threshold:.0f}%" if win_rate < threshold else f"Win rate {win_rate:.1f}%"
             ),
             "value": round(win_rate, 1),
             "threshold": threshold,
@@ -417,22 +399,16 @@ class CircuitBreaker:
             (PositionStatus.OPEN.value,),
         )
         result = cur.fetchone()
-        total_open_risk = (
-            _safe_float(result[0], None, context="total_open_risk") if result else None
-        )
+        total_open_risk = _safe_float(result[0], None, context="total_open_risk") if result else None
         if total_open_risk is None:
             logger.critical("Cannot calculate total open risk — risk calculation failed")
             return {"halted": True, "reason": "Risk calculation failed — fail-closed"}
 
-        cur.execute(
-            "SELECT total_portfolio_value FROM algo_portfolio_snapshots ORDER BY snapshot_date DESC LIMIT 1"
-        )
+        cur.execute("SELECT total_portfolio_value FROM algo_portfolio_snapshots ORDER BY snapshot_date DESC LIMIT 1")
         row = cur.fetchone()
         if row is None or row[0] is None:
             # First run (no portfolio snapshots yet) — skip risk check but log
-            logger.info(
-                "[TOTAL_RISK_CHECK] Skipping (no portfolio snapshot yet; expected on first run)"
-            )
+            logger.info("[TOTAL_RISK_CHECK] Skipping (no portfolio snapshot yet; expected on first run)")
             return {"halted": False, "reason": "No portfolio snapshot (first run?)"}
 
         portfolio = _safe_float(row[0], None, context="portfolio_value")
@@ -471,27 +447,19 @@ class CircuitBreaker:
             (current_date,),
         )
         row = cur.fetchone()
-        vix = (
-            _safe_float(row[0], None, context="vix_level")
-            if row is not None and row[0] is not None
-            else None
-        )
+        vix = _safe_float(row[0], None, context="vix_level") if row is not None and row[0] is not None else None
 
         # CRITICAL: VIX data unavailable — cannot safely assess volatility risk.
         # Fail-closed: cannot use fallback estimates. Even computed estimates from SPY
         # volatility mask the real issue (missing live data) and may be inaccurate during
         # extreme market dislocations when we most need reliable circuit breaker protection.
         if vix is None:
-            logger.critical(
-                "VIX unavailable from live data sources — halting trading"
-            )
+            logger.critical("VIX unavailable from live data sources — halting trading")
             return {
                 "halted": True,
                 "reason": "VIX data unavailable — cannot assess volatility risk. Trading halted.",
                 "value": None,
-                "threshold": _safe_float(
-                    self.config.get("vix_max_threshold", 35.0), 35.0
-                ),
+                "threshold": _safe_float(self.config.get("vix_max_threshold", 35.0), 35.0),
             }
 
         threshold = _safe_float(
@@ -501,11 +469,7 @@ class CircuitBreaker:
         )
         return {
             "halted": vix > threshold,
-            "reason": (
-                f"VIX {vix:.1f} > {threshold:.0f}"
-                if vix > threshold
-                else f"VIX {vix:.1f}"
-            ),
+            "reason": (f"VIX {vix:.1f} > {threshold:.0f}" if vix > threshold else f"VIX {vix:.1f}"),
             "value": vix,
             "threshold": threshold,
         }
@@ -550,9 +514,7 @@ class CircuitBreaker:
                     break
                 min_acceptable_date -= timedelta(days=1)
         except (psycopg2.DatabaseError, psycopg2.OperationalError) as cal_e:
-            logger.debug(
-                f"MarketCalendar check failed, falling back to weekday check: {cal_e}"
-            )
+            logger.debug(f"MarketCalendar check failed, falling back to weekday check: {cal_e}")
             while expected_date.weekday() >= 5:
                 expected_date -= timedelta(days=1)
             while min_acceptable_date.weekday() >= 5:
@@ -584,11 +546,7 @@ class CircuitBreaker:
         halted = stage == 4
         return {
             "halted": halted,
-            "reason": (
-                f"Stage 4 downtrend (trend={trend})"
-                if halted
-                else f"Stage {stage} ({trend})"
-            ),
+            "reason": (f"Stage 4 downtrend (trend={trend})" if halted else f"Stage {stage} ({trend})"),
             "value": stage,
         }
 
@@ -607,16 +565,12 @@ class CircuitBreaker:
         if not row or not row[0] or not row[1]:
             return {"halted": False, "reason": "Insufficient history"}
         cur_val, week_ago_val = float(row[0]), float(row[1])
-        weekly = (
-            ((cur_val - week_ago_val) / week_ago_val * 100.0) if week_ago_val > 0 else 0
-        )
+        weekly = ((cur_val - week_ago_val) / week_ago_val * 100.0) if week_ago_val > 0 else 0
         threshold = -float(self.config.get("max_weekly_loss_pct", 5.0))
         return {
             "halted": weekly <= threshold,
             "reason": (
-                f"Weekly {weekly:.2f}% <= {threshold:.1f}%"
-                if weekly <= threshold
-                else f"Weekly {weekly:+.2f}%"
+                f"Weekly {weekly:.2f}% <= {threshold:.1f}%" if weekly <= threshold else f"Weekly {weekly:+.2f}%"
             ),
             "value": round(weekly, 2),
             "threshold": threshold,
@@ -632,9 +586,7 @@ class CircuitBreaker:
         NOTE: Uses trading-day logic (more sophisticated) vs centralized config's calendar-day logic.
         Coordinated via get_freshness_rule("price_daily") for consistency with other components.
         """
-        cur.execute(
-            "SELECT date FROM price_daily WHERE symbol = 'SPY' ORDER BY date DESC LIMIT 1"
-        )
+        cur.execute("SELECT date FROM price_daily WHERE symbol = 'SPY' ORDER BY date DESC LIMIT 1")
         row = cur.fetchone()
         if not row or not row[0]:
             return {"halted": True, "reason": "No SPY data at all"}
@@ -661,9 +613,7 @@ class CircuitBreaker:
                     break
                 min_acceptable -= timedelta(days=1)
         except (psycopg2.DatabaseError, psycopg2.OperationalError) as cal_e:
-            logger.debug(
-                f"MarketCalendar check failed, falling back to weekday check: {cal_e}"
-            )
+            logger.debug(f"MarketCalendar check failed, falling back to weekday check: {cal_e}")
             while expected.weekday() >= 5:
                 expected -= timedelta(days=1)
             while min_acceptable.weekday() >= 5:
@@ -673,9 +623,7 @@ class CircuitBreaker:
         return {
             "halted": is_stale,
             "reason": (
-                f"Data {days_stale}d stale (latest {latest}, expected {expected})"
-                if is_stale
-                else f"{days_stale}d old"
+                f"Data {days_stale}d stale (latest {latest}, expected {expected})" if is_stale else f"{days_stale}d old"
             ),
             "value": days_stale,
         }
@@ -756,11 +704,7 @@ class CircuitBreaker:
             for _, sector in rows:
                 sector_counts[sector] = sector_counts.get(sector, 0) + 1
 
-            concentrated = {
-                s: n
-                for s, n in sector_counts.items()
-                if n >= max_sector_positions and s != "Unknown"
-            }
+            concentrated = {s: n for s, n in sector_counts.items() if n >= max_sector_positions and s != "Unknown"}
             if concentrated:
                 sector_details = ", ".join(f"{s}({n})" for s, n in concentrated.items())
                 logger.warning(
@@ -810,9 +754,7 @@ class CircuitBreaker:
                 (json.dumps(results),),
             )
         except (psycopg2.DatabaseError, psycopg2.OperationalError) as e:
-            logger.critical(
-                f"[AUDIT_FAILURE] Could not log circuit breaker halt to audit log: {e}"
-            )
+            logger.critical(f"[AUDIT_FAILURE] Could not log circuit breaker halt to audit log: {e}")
             raise
         # Surface to notifications for UI (non-critical, warn only)
         try:

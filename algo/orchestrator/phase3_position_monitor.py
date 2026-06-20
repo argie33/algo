@@ -47,35 +47,29 @@ def run(
             open_positions = monitor.get_open_positions() or []
             halts_found = []
             for pos in open_positions:
-                halt_check = meh.check_single_stock_halt(
-                    pos.get("symbol") or pos.get("name", "")
-                )
+                halt_check = meh.check_single_stock_halt(pos.get("symbol") or pos.get("name", ""))
                 if halt_check and halt_check.get("halted"):
                     symbol = pos.get("symbol") or pos.get("name", "")
                     halts_found.append(symbol)
                     if verbose:
-                        logger.warning(
-                            f"  [WARN] {symbol} halted — pending orders cancelled"
-                        )
+                        logger.warning(f"  [WARN] {symbol} halted — pending orders cancelled")
             if halts_found:
                 log_phase_result_fn(
                     3,
                     "single_stock_halts",
                     "warn",
-                    f'{len(halts_found)} symbols halted: {", ".join(halts_found)}',
+                    f"{len(halts_found)} symbols halted: {', '.join(halts_found)}",
                 )
         except (OSError, RuntimeError, ValueError) as e:
             logger.warning(f"Halt check failed for position: {e}")
-            log_phase_result_fn(
-                3, "halt_check_error", "warn", f"Halt check failed: {str(e)[:100]}"
-            )
+            log_phase_result_fn(3, "halt_check_error", "warn", f"Halt check failed: {str(e)[:100]}")
 
         stale_result = monitor.check_stale_orders(run_date)
         if stale_result and stale_result.get("status") == "STALE_ORDERS_FOUND":
             alerts.send_position_alert(
                 "STALE_ORDERS",
                 "STALE_ORDER_ALERT",
-                f'{stale_result.get("count", 0)} orders pending >1 hour',
+                f"{stale_result.get('count', 0)} orders pending >1 hour",
                 {"orders": stale_result.get("count", 0)},
             )
 
@@ -114,6 +108,4 @@ def run(
     except Exception as e:
         traceback.print_exc()
         log_phase_result_fn(3, "position_monitor", "error", str(e))
-        return PhaseResult(
-            3, "position_monitor", "degraded", {"recommendations": []}, False, str(e)
-        )
+        return PhaseResult(3, "position_monitor", "degraded", {"recommendations": []}, False, str(e))

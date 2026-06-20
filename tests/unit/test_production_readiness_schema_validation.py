@@ -22,11 +22,7 @@ class TestProductionReadinessSchemaValidation(unittest.TestCase):
 
         def execute_side_effect(query, *args, **kwargs):
             # Store query for fetchall/fetchone to know what to return
-            self._last_query = (
-                query
-                if isinstance(query, str)
-                else (query if len(args) == 0 else args[0])
-            )
+            self._last_query = query if isinstance(query, str) else (query if len(args) == 0 else args[0])
 
         def fetchall_side_effect():
             # Check last query to know what data to return
@@ -96,12 +92,7 @@ class TestProductionReadinessSchemaValidation(unittest.TestCase):
 
             self.assertFalse(result)
             self.assertTrue(any("schema INVALID" in msg for msg in check.checks_failed))
-            self.assertTrue(
-                any(
-                    "close" in msg and "wrong type" in msg.lower()
-                    for msg in check.checks_failed
-                )
-            )
+            self.assertTrue(any("close" in msg and "wrong type" in msg.lower() for msg in check.checks_failed))
 
     def test_detects_missing_column(self):
         """Missing column should fail."""

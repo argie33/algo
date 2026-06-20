@@ -220,10 +220,7 @@ class MarketCalendar:
 
         if check_time < market_open:
             mins_until = int(
-                (
-                    datetime.combine(check_date, market_open)
-                    - datetime.combine(check_date, check_time)
-                ).total_seconds()
+                (datetime.combine(check_date, market_open) - datetime.combine(check_date, check_time)).total_seconds()
                 / 60
             )
             return {
@@ -242,10 +239,7 @@ class MarketCalendar:
             }
         else:
             mins_until_close = int(
-                (
-                    datetime.combine(check_date, market_close)
-                    - datetime.combine(check_date, check_time)
-                ).total_seconds()
+                (datetime.combine(check_date, market_close) - datetime.combine(check_date, check_time)).total_seconds()
                 / 60
             )
             return {
@@ -266,9 +260,7 @@ class MarketCalendar:
         max_iterations = 10  # prevent infinite loop
         iterations = 0
 
-        while (
-            not MarketCalendar.is_trading_day(next_date) and iterations < max_iterations
-        ):
+        while not MarketCalendar.is_trading_day(next_date) and iterations < max_iterations:
             next_date = _date.fromordinal(next_date.toordinal() + 1)
             iterations += 1
 
@@ -288,9 +280,7 @@ class MarketCalendar:
         max_iterations = 10  # prevent infinite loop
         iterations = 0
 
-        while (
-            not MarketCalendar.is_trading_day(prev_date) and iterations < max_iterations
-        ):
+        while not MarketCalendar.is_trading_day(prev_date) and iterations < max_iterations:
             prev_date = _date.fromordinal(prev_date.toordinal() - 1)
             iterations += 1
 

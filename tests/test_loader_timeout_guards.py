@@ -11,16 +11,12 @@ import sys
 def check_loader_has_timeout_guard(loader_file_path: str) -> tuple[bool, str]:
     """Check if a loader file has ExecutionTimeout import and usage."""
     try:
-        with open(loader_file_path, "r", encoding="utf-8") as f:
+        with open(loader_file_path, encoding="utf-8") as f:
             content = f.read()
 
-        has_import = (
-            "from utils.infrastructure.timeout import ExecutionTimeout" in content
-        )
+        has_import = "from utils.infrastructure.timeout import ExecutionTimeout" in content
         has_usage = "with ExecutionTimeout" in content
-        has_socket_timeout = (
-            "socket.setdefaulttimeout" in content or "socket_timeout" in content
-        )
+        has_socket_timeout = "socket.setdefaulttimeout" in content or "socket_timeout" in content
 
         checks = {
             "ExecutionTimeout import": has_import,
@@ -81,15 +77,13 @@ def test_socket_timeout_utility():
     project_root = os.path.dirname(os.path.dirname(__file__))
     helper_path = os.path.join(project_root, "loaders", "loader_helper.py")
 
-    with open(helper_path, "r", encoding="utf-8") as f:
+    with open(helper_path, encoding="utf-8") as f:
         content = f.read()
 
     has_setup_func = "def setup_loader_timeouts" in content
     has_socket_import = "import socket" in content
 
-    assert (
-        has_setup_func
-    ), "[FAIL] loader_helper.py is missing setup_loader_timeouts() function"
+    assert has_setup_func, "[FAIL] loader_helper.py is missing setup_loader_timeouts() function"
     assert has_socket_import, "[FAIL] loader_helper.py is missing socket import"
 
     print("[OK] loader_helper.py has setup_loader_timeouts() function")
@@ -108,19 +102,13 @@ def test_execution_timeout_utility():
     project_root = os.path.dirname(os.path.dirname(__file__))
     timeout_path = os.path.join(project_root, "utils", "infrastructure", "timeout.py")
 
-    with open(timeout_path, "r", encoding="utf-8") as f:
+    with open(timeout_path, encoding="utf-8") as f:
         content = f.read()
 
-    has_timeout_class = (
-        "class ExecutionTimeout" in content or "def ExecutionTimeout" in content
-    )
-    has_context_manager = (
-        "@contextmanager" in content or "def ExecutionTimeout" in content
-    )
+    has_timeout_class = "class ExecutionTimeout" in content or "def ExecutionTimeout" in content
+    has_context_manager = "@contextmanager" in content or "def ExecutionTimeout" in content
 
-    assert (
-        has_timeout_class or has_context_manager
-    ), "[FAIL] ExecutionTimeout utility missing expected components"
+    assert has_timeout_class or has_context_manager, "[FAIL] ExecutionTimeout utility missing expected components"
 
     print("[OK] ExecutionTimeout utility is available")
     print("[OK] Provides context manager for timeout handling")
@@ -151,9 +139,7 @@ def main():
         print("[SUCCESS] ALL TIMEOUT GUARDS ARE IN PLACE")
         print("=" * 70)
         print()
-        print(
-            "[OK] Loaders will now timeout gracefully instead of hanging indefinitely"
-        )
+        print("[OK] Loaders will now timeout gracefully instead of hanging indefinitely")
         print("[OK] Socket-level timeouts catch hanging connections early")
         print("[OK] Execution-level timeouts prevent long-running retries")
         print()

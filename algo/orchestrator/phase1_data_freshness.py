@@ -21,11 +21,12 @@ from collections.abc import Callable
 from datetime import date as _date
 from typing import Any
 
+import psycopg2
+
 from algo.orchestrator.phase1_failsafe_retry import check_and_retry_incomplete_loaders
 from algo.orchestrator.phase_result import PhaseResult
 from algo.reporting import AlertManager
 from utils.db.context import DatabaseContext
-import psycopg2
 
 
 logger = logging.getLogger(__name__)
@@ -75,9 +76,7 @@ def run(
     from zoneinfo import ZoneInfo
 
     now_et = dt.now(ZoneInfo("America/New_York"))
-    pipeline_context = (
-        "EOD" if now_et.hour >= 16 else "MORNING" if now_et.hour < 10 else "INTRADAY"
-    )
+    pipeline_context = "EOD" if now_et.hour >= 16 else "MORNING" if now_et.hour < 10 else "INTRADAY"
 
     logger.info(
         f"[PHASE 1] Starting comprehensive freshness check (Pipeline: {pipeline_context}, Time: {now_et.strftime('%H:%M:%S ET')})"
@@ -115,9 +114,7 @@ def run(
 
     try:
         with DatabaseContext("read") as cur:
-            cur.execute(
-                "SET statement_timeout = 15000"
-            )  # 15s timeout for multi-table checks
+            cur.execute("SET statement_timeout = 15000")  # 15s timeout for multi-table checks
 
             # CRITICAL: Validate that stock_scores table has data (Phase 5 dependency)
             # stock_scores must be populated by its loader before Phase 5 can generate signals
@@ -152,12 +149,8 @@ def run(
 
             if max_date is None:
                 logger.critical("[PHASE 1] price_daily table is empty")
-                log_phase_result_fn(
-                    1, "price_data", "halt", "price_daily table is empty"
-                )
-                return PhaseResult(
-                    1, "price_data", "halted", {}, True, "price_daily table is empty"
-                )
+                log_phase_result_fn(1, "price_data", "halt", "price_daily table is empty")
+                return PhaseResult(1, "price_data", "halted", {}, True, "price_daily table is empty")
 
             from algo.infrastructure import MarketCalendar
 
@@ -168,13 +161,21 @@ def run(
                 last_trading_day -= td(days=1)
 
             if max_date < last_trading_day:
+                from algo.orchestrator.phase_error_handling import ErrorCategory, PhaseError, log_phase_error
+
                 days_stale = (last_trading_day - max_date).days
-                logger.critical(
-                    f"[PHASE 1] Price data stale: {max_date} vs expected {last_trading_day}"
+                logger.critical(f"[PHASE 1] Price data stale: {max_date} vs expected {last_trading_day}")
+
+                # CONSISTENCY: Categorize staleness as DATA_STALE so operators know it's a timing issue, not a loader failure
+                error = PhaseError(
+                    category=ErrorCategory.DATA_STALE,
+                    message=f"Price data is {days_stale} day(s) stale (latest: {max_date}, expected: {last_trading_day})",
+                    root_cause="Check that price_daily loader has completed for today. Check data_loader_status and CloudWatch logs.",
+                    recoverable=False,
+                    log_level="critical",
                 )
-                log_phase_result_fn(
-                    1, "price_staleness", "halt", f"Price data {days_stale} days stale"
-                )
+                log_phase_error(1, error, log_phase_result_fn)
+
                 return PhaseResult(
                     1,
                     "price_staleness",
@@ -205,6 +206,8 @@ def run(
             coverage_pct = (symbols_loaded / max(prior_count, 1)) * 100
 
             if symbols_loaded < min_symbol_count or coverage_pct < min_coverage_pct:
+                from algo.orchestrator.phase_error_handling import ErrorCategory, PhaseError, log_phase_error
+
                 fail_reason = (
                     f"symbols {symbols_loaded} < min {min_symbol_count}"
                     if symbols_loaded < min_symbol_count
@@ -213,12 +216,17 @@ def run(
                 logger.critical(
                     f"[PHASE 1] Insufficient price coverage: {symbols_loaded} symbols ({coverage_pct:.1f}%) — {fail_reason}"
                 )
-                log_phase_result_fn(
-                    1,
-                    "price_coverage",
-                    "halt",
-                    f"Price data insufficient: {fail_reason}",
+
+                # CONSISTENCY: Use error categorization so operators know why trading halted
+                error = PhaseError(
+                    category=ErrorCategory.DATA_INCOMPLETE,
+                    message=f"Price data coverage insufficient: {fail_reason}",
+                    root_cause=f"Check that price_daily loader has loaded today's data (expected {min_symbol_count}+ symbols, got {symbols_loaded})",
+                    recoverable=False,
+                    log_level="critical",
                 )
+                log_phase_error(1, error, log_phase_result_fn)
+
                 return PhaseResult(
                     1,
                     "price_coverage",
@@ -242,8 +250,8 @@ def run(
             }
             critical_tables = {**halt_tables, **warn_tables}
 
-            halt_stale = []   # pipeline-loaded tables — stale = HALT
-            warn_stale = []   # auxiliary tables — stale = WARNING only
+            halt_stale = []  # pipeline-loaded tables — stale = HALT
+            warn_stale = []  # auxiliary tables — stale = WARNING only
 
             # Tables checked by MAX(date) vs price_daily latest date
             date_checked_tables = critical_tables
@@ -300,7 +308,10 @@ def run(
                             logger.warning(f"[PHASE 1] {msg}")
                             warn_stale.append(msg)
             except (psycopg2.DatabaseError, psycopg2.OperationalError) as e:
-                logger.critical(f"[PHASE 1] CRITICAL: Failed to check table freshness — cannot verify data integrity: {e}", exc_info=True)
+                logger.critical(
+                    f"[PHASE 1] CRITICAL: Failed to check table freshness — cannot verify data integrity: {e}",
+                    exc_info=True,
+                )
                 log_phase_result_fn(
                     1,
                     "table_freshness_check_error",
@@ -318,14 +329,11 @@ def run(
 
             if warn_stale:
                 logger.warning(
-                    f"[PHASE 1] Non-critical staleness (auxiliary tables, trading continues): "
-                    f"{'; '.join(warn_stale)}"
+                    f"[PHASE 1] Non-critical staleness (auxiliary tables, trading continues): {'; '.join(warn_stale)}"
                 )
 
             if halt_stale:
-                logger.critical(
-                    f"[PHASE 1] CRITICAL DATA GAPS (pipeline tables): {'; '.join(halt_stale)}"
-                )
+                logger.critical(f"[PHASE 1] CRITICAL DATA GAPS (pipeline tables): {'; '.join(halt_stale)}")
                 log_phase_result_fn(
                     1,
                     "signal_tables_stale",
@@ -349,26 +357,22 @@ def run(
 
             sla_status = ""
             if pipeline_context == "MORNING":
-                sla_deadline = phase1_end_et.replace(
-                    hour=9, minute=30, second=0, microsecond=0
-                )
+                sla_deadline = phase1_end_et.replace(hour=9, minute=30, second=0, microsecond=0)
                 if phase1_end_et < sla_deadline:
-                    minutes_until_sla = (
-                        sla_deadline - phase1_end_et
-                    ).total_seconds() / 60
+                    minutes_until_sla = (sla_deadline - phase1_end_et).total_seconds() / 60
                     sla_status = f" [SLA OK: {minutes_until_sla:.0f}m until 9:30 AM]"
                 else:
                     sla_status = " [SLA WARNING: Past 9:30 AM]"
 
             warn_suffix = f" ({len(warn_stale)} auxiliary warnings)" if warn_stale else ""
             logger.info(f"[PHASE 1] PASS - PIPELINE DATA FRESH{sla_status}{warn_suffix}")
-            logger.info(
-                f"  - Prices: {max_date} ({symbols_loaded} symbols, {coverage_pct:.1f}%)"
-            )
+            logger.info(f"  - Prices: {max_date} ({symbols_loaded} symbols, {coverage_pct:.1f}%)")
             if not warn_stale:
                 logger.info("  - All pipeline tables (market_health, trend_template, market_exposure) fresh")
             else:
-                logger.info("  - Critical pipeline tables (market_health, market_exposure) fresh; auxiliary warnings above")
+                logger.info(
+                    "  - Critical pipeline tables (market_health, market_exposure) fresh; auxiliary warnings above"
+                )
             logger.info(f"  - Check completed in {elapsed:.1f}s")
 
             log_phase_result_fn(
@@ -394,6 +398,4 @@ def run(
     except Exception as e:
         logger.error(f"[PHASE 1] ERROR: {e}", exc_info=True)
         log_phase_result_fn(1, "error", "error", str(e)[:100])
-        return PhaseResult(
-            1, "error", "error", {}, True, f"Phase 1 error: {str(e)[:100]}"
-        )
+        return PhaseResult(1, "error", "error", {}, True, f"Phase 1 error: {str(e)[:100]}")

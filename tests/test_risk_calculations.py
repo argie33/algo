@@ -12,12 +12,13 @@ Tests validate:
 """
 
 import sys
-from datetime import datetime, timezone, timedelta
+from datetime import datetime, timedelta, timezone
 from decimal import Decimal
 from pathlib import Path
 from unittest import mock
 
 import pytest
+
 
 project_root = str(Path(__file__).parent.parent)
 sys.path.insert(0, project_root)
@@ -75,7 +76,6 @@ class TestValueAtRisk:
         # With 100 days of data, 5th percentile = day 5 from worst
         # If returns sorted: [-5%, -4%, -3%, -2%, -1%, 0%, ...]
         # 5th percentile = -2%
-        pass
 
     def test_var_handles_insufficient_returns(self, var_calculator):
         """VaR should fail gracefully if no valid returns."""
@@ -84,10 +84,7 @@ class TestValueAtRisk:
             mock_db.return_value.__enter__.return_value = mock_cur
 
             # All same price (no returns)
-            snapshots = [
-                (datetime(2026, 6, i).date(), Decimal("1000000"))
-                for i in range(1, 31)
-            ]
+            snapshots = [(datetime(2026, 6, i).date(), Decimal("1000000")) for i in range(1, 31)]
             mock_cur.fetchall.return_value = snapshots
 
             with pytest.raises(RuntimeError):
@@ -107,7 +104,6 @@ class TestValueAtRisk:
         # VaR at 95% = -2%
         # Losses beyond (5% worst): -5%, -4%, -3%, -2.5%, -2%
         # CVaR = mean = -3.3%
-        pass
 
 
 class TestPortfolioConcentration:
@@ -223,7 +219,6 @@ class TestCircuitBreaker:
         """Circuit breaker daily loss should reset at market open."""
         # Day 1: Lost $4k (below limit)
         # Day 2: New session, loss tracker resets to $0
-        daily_loss_day1 = 4000
         daily_loss_day2 = 0
 
         assert daily_loss_day2 == 0
@@ -342,9 +337,7 @@ class TestLiquidityChecks:
         volume_50d_avg = 5000000  # 5M shares
         dollar_volume = price * volume_50d_avg
 
-        is_liquid = (
-            volume_50d_avg >= 300000 and dollar_volume >= 500000
-        )
+        is_liquid = volume_50d_avg >= 300000 and dollar_volume >= 500000
 
         assert is_liquid
 
@@ -356,12 +349,14 @@ class TestExposurePolicy:
     def exposure_policy(self):
         from algo.risk.exposure_policy import ExposurePolicy
 
-        return ExposurePolicy({
-            "max_long_exposure": 1.0,  # 100%
-            "max_short_exposure": 0.3,  # 30%
-            "max_long_positions": 20,
-            "max_short_positions": 5,
-        })
+        return ExposurePolicy(
+            {
+                "max_long_exposure": 1.0,  # 100%
+                "max_short_exposure": 0.3,  # 30%
+                "max_long_positions": 20,
+                "max_short_positions": 5,
+            }
+        )
 
     def test_max_long_exposure_limit(self, exposure_policy):
         """Portfolio should not exceed 100% long exposure."""
@@ -414,7 +409,6 @@ class TestExposurePolicy:
     def test_beta_exposure_calculation(self, exposure_policy):
         """Portfolio beta should not exceed 2.0x market risk."""
         # Individual position beta
-        spy_beta = 1.0  # SPY = 1.0 by definition
         position_beta = 1.2  # Stock has 20% higher volatility than market
 
         # Position exposure weight
@@ -434,7 +428,6 @@ class TestExposurePolicy:
     def test_high_beta_position_reduces_weight(self, exposure_policy):
         """High-beta positions should be sized smaller."""
         # High-beta stock
-        position_beta = 2.5
 
         # Should size smaller
         max_safe_weight = 0.05  # 5% max for high-beta stock
@@ -488,9 +481,7 @@ class TestSignalQualityGates:
         swing = 60  # Pass
         completeness = 80  # Pass
 
-        all_pass = (
-            sqs >= 60 and swing >= 55.0 and completeness >= 70
-        )
+        all_pass = sqs >= 60 and swing >= 55.0 and completeness >= 70
 
         assert all_pass
 
@@ -500,8 +491,6 @@ class TestSignalQualityGates:
         swing = 60  # Pass
         completeness = 80  # Pass
 
-        all_pass = (
-            sqs >= 60 and swing >= 55.0 and completeness >= 70
-        )
+        all_pass = sqs >= 60 and swing >= 55.0 and completeness >= 70
 
         assert not all_pass

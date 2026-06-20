@@ -3,9 +3,10 @@
 
 import logging
 
+import psycopg2
+
 from ..base import BaseCheck, CheckResult
 from ..config import ERROR, INFO, WARN
-import psycopg2
 
 
 logger = logging.getLogger(__name__)
@@ -56,13 +57,10 @@ class PriceSanityChecker(BaseCheck):
                     "price_sanity",
                     WARN,
                     "price_daily",
-                    f"{len(extreme)} symbols with >{max_move_pct*100:.0f}% day-over-day move",
+                    f"{len(extreme)} symbols with >{max_move_pct * 100:.0f}% day-over-day move",
                     {
                         "count": len(extreme),
-                        "samples": [
-                            {"symbol": r[0], "pct_change": float(r[4])}
-                            for r in extreme[:5]
-                        ],
+                        "samples": [{"symbol": r[0], "pct_change": float(r[4])} for r in extreme[:5]],
                     },
                 )
             elif extreme:
@@ -71,12 +69,7 @@ class PriceSanityChecker(BaseCheck):
                     INFO,
                     "price_daily",
                     f"{len(extreme)} extreme moves (likely real events)",
-                    {
-                        "samples": [
-                            {"symbol": r[0], "pct_change": float(r[4])}
-                            for r in extreme[:5]
-                        ]
-                    },
+                    {"samples": [{"symbol": r[0], "pct_change": float(r[4])} for r in extreme[:5]]},
                 )
             else:
                 self.log(
@@ -122,7 +115,7 @@ class PriceSanityChecker(BaseCheck):
                     "corporate_action",
                     WARN,
                     "price_daily",
-                    f"{len(extreme_drops)} symbols with >{drop_ratio*-100:.0f}% single-day drop (likely corporate action)",
+                    f"{len(extreme_drops)} symbols with >{drop_ratio * -100:.0f}% single-day drop (likely corporate action)",
                     {
                         "count": len(extreme_drops),
                         "samples": [

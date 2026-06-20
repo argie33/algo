@@ -15,6 +15,7 @@ print("=" * 60)
 try:
     from utils.external import sec_statements
     from utils.external.sec_edgar import SecEdgarClient
+
     print("[OK] Imports successful")
 except ImportError as e:
     print(f"[FAIL] Import failed: {e}")
@@ -66,6 +67,7 @@ try:
 except Exception as e:
     print(f"[FAIL] get_company_facts failed: {e}")
     import traceback
+
     traceback.print_exc()
     sys.exit(1)
 
@@ -89,6 +91,7 @@ try:
 except Exception as e:
     print(f"[FAIL] get_balance_sheet failed: {e}")
     import traceback
+
     traceback.print_exc()
     sys.exit(1)
 
@@ -110,6 +113,7 @@ try:
 except Exception as e:
     print(f"[FAIL] get_income_statement failed: {e}")
     import traceback
+
     traceback.print_exc()
     sys.exit(1)
 
@@ -131,6 +135,7 @@ try:
 except Exception as e:
     print(f"[FAIL] get_cash_flow failed: {e}")
     import traceback
+
     traceback.print_exc()
     sys.exit(1)
 

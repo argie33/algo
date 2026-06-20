@@ -125,8 +125,7 @@ class SectorRotationDetector:
                 if momentum is None:
                     logger.warning(f"[SECTOR ROTATION] {sector_name}: missing momentum_score for {eval_date}")
                     raise ValueError(
-                        f"Sector {sector_name} missing momentum_score for {eval_date} — "
-                        "incomplete sector_ranking data"
+                        f"Sector {sector_name} missing momentum_score for {eval_date} — incomplete sector_ranking data"
                     )
 
                 sector_data[sector_name] = {
@@ -143,9 +142,7 @@ class SectorRotationDetector:
             cyclical = [d for d in sector_data.values() if d["is_cyclical"]]
 
             if not sector_data:
-                raise ValueError(
-                    f"No sector ranking data found for {eval_date} — sector_ranking table may be empty"
-                )
+                raise ValueError(f"No sector ranking data found for {eval_date} — sector_ranking table may be empty")
             if not defensive or not cyclical:
                 missing_defensive = [s for s in DEFENSIVE_SECTORS if s not in sector_data]
                 missing_cyclical = [s for s in CYCLICAL_SECTORS if s not in sector_data]
@@ -154,9 +151,7 @@ class SectorRotationDetector:
                     f"missing defensive={missing_defensive}, missing cyclical={missing_cyclical}"
                 )
 
-            def_imp_4w = sum(d["rank_improvement_4w"] for d in defensive) / len(
-                defensive
-            )
+            def_imp_4w = sum(d["rank_improvement_4w"] for d in defensive) / len(defensive)
             cyc_imp_4w = sum(d["rank_improvement_4w"] for d in cyclical) / len(cyclical)
             spread = def_imp_4w - cyc_imp_4w
 
@@ -172,27 +167,15 @@ class SectorRotationDetector:
                 [
                     (
                         1
-                        if (
-                            sum(d["rank_improvement_1w"] for d in defensive)
-                            / len(defensive)
-                        )
-                        > (
-                            sum(d["rank_improvement_1w"] for d in cyclical)
-                            / len(cyclical)
-                        )
+                        if (sum(d["rank_improvement_1w"] for d in defensive) / len(defensive))
+                        > (sum(d["rank_improvement_1w"] for d in cyclical) / len(cyclical))
                         else 0
                     ),
                     1 if def_imp_4w > cyc_imp_4w else 0,
                     (
                         1
-                        if (
-                            sum(d["rank_improvement_12w"] for d in defensive)
-                            / len(defensive)
-                        )
-                        > (
-                            sum(d["rank_improvement_12w"] for d in cyclical)
-                            / len(cyclical)
-                        )
+                        if (sum(d["rank_improvement_12w"] for d in defensive) / len(defensive))
+                        > (sum(d["rank_improvement_12w"] for d in cyclical) / len(cyclical))
                         else 0
                     ),
                 ]
@@ -220,9 +203,7 @@ class SectorRotationDetector:
                 "momentum_spread": round(momentum_spread, 2),
                 "weeks_persistent": weeks_persistent,
                 "sector_data": sector_data,
-                "reduce_exposure_pts": self._exposure_penalty(
-                    defensive_lead_score, weeks_persistent
-                ),
+                "reduce_exposure_pts": self._exposure_penalty(defensive_lead_score, weeks_persistent),
             }
             self._persist(eval_date, result)
             return result
@@ -244,12 +225,8 @@ class SectorRotationDetector:
             details_dict = {
                 "defensive_lead_score": result.get("defensive_lead_score"),
                 "cyclical_weak_score": result.get("cyclical_weak_score"),
-                "defensive_rank_improvement_4w": result.get(
-                    "defensive_rank_improvement_4w"
-                ),
-                "cyclical_rank_improvement_4w": result.get(
-                    "cyclical_rank_improvement_4w"
-                ),
+                "defensive_rank_improvement_4w": result.get("defensive_rank_improvement_4w"),
+                "cyclical_rank_improvement_4w": result.get("cyclical_rank_improvement_4w"),
                 "spread_4w": result.get("spread_4w"),
                 "weeks_persistent": result.get("weeks_persistent"),
                 "reduce_exposure_pts": result.get("reduce_exposure_pts"),
@@ -266,9 +243,7 @@ class SectorRotationDetector:
                     f"Invalid JSON generated for sector_rotation {eval_date}: {je}",
                     exc_info=True,
                 )
-                details_json = json.dumps(
-                    {"error": "JSON serialization failed", "timestamp": str(eval_date)}
-                )
+                details_json = json.dumps({"error": "JSON serialization failed", "timestamp": str(eval_date)})
 
             with DatabaseContext("write") as cur:
                 cur.execute(
@@ -290,9 +265,7 @@ class SectorRotationDetector:
                     ),
                 )
         except (psycopg2.DatabaseError, psycopg2.OperationalError) as e:
-            logger.error(
-                f"persist sector_rotation failed for {eval_date}: {e}", exc_info=True
-            )
+            logger.error(f"persist sector_rotation failed for {eval_date}: {e}", exc_info=True)
 
 
 if __name__ == "__main__":
@@ -303,12 +276,8 @@ if __name__ == "__main__":
         logger.info(f"Signal: {result['signal']}")
         logger.info(f"Defensive lead score: {result['defensive_lead_score']}/100")
         logger.info(f"Cyclical weak score: {result['cyclical_weak_score']}/100")
-        logger.info(
-            f"Defensive rank improvement 4w: {result['defensive_rank_improvement_4w']}"
-        )
-        logger.info(
-            f"Cyclical rank improvement 4w: {result['cyclical_rank_improvement_4w']}"
-        )
+        logger.info(f"Defensive rank improvement 4w: {result['defensive_rank_improvement_4w']}")
+        logger.info(f"Cyclical rank improvement 4w: {result['cyclical_rank_improvement_4w']}")
         logger.info(f"Spread: {result['spread_4w']}")
         logger.info(f"Weeks persistent: {result['weeks_persistent']}/4")
         logger.info(f"Recommended exp drop: {result['reduce_exposure_pts']} pts")
@@ -318,11 +287,7 @@ if __name__ == "__main__":
             key=lambda x: x[1]["rank_improvement_4w"],
             reverse=True,
         ):
-            tag = (
-                "[DEF]"
-                if d["is_defensive"]
-                else "[CYC]" if d["is_cyclical"] else "[   ]"
-            )
+            tag = "[DEF]" if d["is_defensive"] else "[CYC]" if d["is_cyclical"] else "[   ]"
             logger.info(
                 f"  {tag} {sec:25s}  rank={d['rank']}  imp_4w={d['rank_improvement_4w']:+.0f}  imp_12w={d['rank_improvement_12w']:+.0f}"
             )

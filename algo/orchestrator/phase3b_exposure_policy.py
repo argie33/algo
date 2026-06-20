@@ -40,9 +40,7 @@ def run(
         from algo.risk import ExposurePolicy, read_market_regime
 
         exposure = read_market_regime(run_date)
-        logger.info(
-            f"  Exposure: {exposure['exposure_pct']}% ({exposure['regime']})"
-        )
+        logger.info(f"  Exposure: {exposure['exposure_pct']}% ({exposure['regime']})")
         if exposure.get("halt_reasons"):
             logger.info(f"  Halt reasons: {'; '.join(exposure['halt_reasons'])}")
 
@@ -50,9 +48,7 @@ def run(
         constraints = policy.get_entry_constraints(run_date)
 
         if constraints:
-            logger.info(
-                f"  Tier: {constraints['tier_name']} — {constraints['description']}"
-            )
+            logger.info(f"  Tier: {constraints['tier_name']} — {constraints['description']}")
             logger.info(
                 f"    risk_mult={constraints['risk_multiplier']}, "
                 f"max_new/day={constraints['max_new_positions_today']}, "
@@ -64,12 +60,8 @@ def run(
             actions = policy.review_existing_positions(run_date)
         except (RuntimeError, ValueError) as e:
             # If transaction is aborted (from prior phase), retry with fresh connection
-            if "transaction is aborted" in str(
-                e
-            ).lower() or "InFailedSqlTransaction" in str(type(e)):
-                logger.warning(
-                    f"Transaction aborted, retrying with fresh connection: {e}"
-                )
+            if "transaction is aborted" in str(e).lower() or "InFailedSqlTransaction" in str(type(e)):
+                logger.warning(f"Transaction aborted, retrying with fresh connection: {e}")
                 policy = ExposurePolicy()
                 actions = policy.review_existing_positions(run_date)
             else:
@@ -81,7 +73,7 @@ def run(
                 "3b",
                 "exposure_policy",
                 "success",
-                f'tier={constraints["tier_name"] if constraints else "n/a"}, no actions',
+                f"tier={constraints['tier_name'] if constraints else 'n/a'}, no actions",
             )
             return PhaseResult(
                 "3b",
@@ -99,8 +91,7 @@ def run(
         logger.info(f"\n  {len(actions)} exposure-policy actions:")
         for a in actions:
             logger.info(
-                f"    {a['symbol']:6s} -> {a['action'].upper():15s} "
-                f"R={a.get('r_multiple', 0):+.2f}  {a['reason']}"
+                f"    {a['symbol']:6s} -> {a['action'].upper():15s} R={a.get('r_multiple', 0):+.2f}  {a['reason']}"
             )
 
         tier_name = constraints["tier_name"] if constraints else "unknown"
@@ -142,8 +133,7 @@ def run(
         }
 
         log_phase_result_fn(
-            "3b", "exposure_policy", "fallback",
-            f"Using conservative constraints due to error: {str(e)[:80]}"
+            "3b", "exposure_policy", "fallback", f"Using conservative constraints due to error: {str(e)[:80]}"
         )
         return PhaseResult(
             "3b",

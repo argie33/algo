@@ -50,16 +50,12 @@ class SignalPatternsMixin:
                 # SEC-001 FIX: Use parameterized query to prevent SQL injection
                 keys_list = list(thresholds.keys())
                 placeholders = ", ".join(["%s"] * len(keys_list))
-                query = (
-                    f"SELECT key, value FROM algo_config WHERE key IN ({placeholders})"
-                )
+                query = f"SELECT key, value FROM algo_config WHERE key IN ({placeholders})"
                 cur.execute(query, keys_list)
                 for k, v in cur.fetchall():
                     thresholds[k] = int(v)
         except (ValueError, TypeError, KeyError, RuntimeError) as e:
-            logger.debug(
-                f"Could not load signal pattern thresholds: {e} — using defaults"
-            )
+            logger.debug(f"Could not load signal pattern thresholds: {e} — using defaults")
         return thresholds
 
     def base_detection(self, symbol: str, eval_date) -> dict[str, Any]:
@@ -95,20 +91,22 @@ class SignalPatternsMixin:
 
             base_high = max(base_highs)
             base_low = min(base_lows)
-            base_depth = (
-                ((base_high - base_low) / base_high * 100.0) if base_high > 0 else 0
-            )
+            base_depth = ((base_high - base_low) / base_high * 100.0) if base_high > 0 else 0
             weeks_in_base = len(base_highs) // 5
 
             cur_price = closes[0]
-            in_base = (self.BASE_MIN_DEPTH_PCT <= base_depth <= self.BASE_MAX_DEPTH_PCT) and len(base_highs) >= self.BASE_MIN_HISTORY
+            in_base = (self.BASE_MIN_DEPTH_PCT <= base_depth <= self.BASE_MAX_DEPTH_PCT) and len(
+                base_highs
+            ) >= self.BASE_MIN_HISTORY
 
-            pct_to_pivot = (
-                ((base_high - cur_price) / base_high * 100.0) if base_high > 0 else 100
-            )
+            pct_to_pivot = ((base_high - cur_price) / base_high * 100.0) if base_high > 0 else 100
             breakout_imminent = in_base and pct_to_pivot <= 2.0
 
-            recent_vol = sum(base_vols[:self.LOOKBACK_BARS_SHORT]) / self.LOOKBACK_BARS_SHORT if len(base_vols) >= self.LOOKBACK_BARS_SHORT else 0
+            recent_vol = (
+                sum(base_vols[: self.LOOKBACK_BARS_SHORT]) / self.LOOKBACK_BARS_SHORT
+                if len(base_vols) >= self.LOOKBACK_BARS_SHORT
+                else 0
+            )
             prior_vol = sum(volumes[20:50]) / 30 if len(volumes) >= 50 else recent_vol
             volume_dryup = prior_vol > 0 and recent_vol < prior_vol * 0.8
 
@@ -178,11 +176,7 @@ class SignalPatternsMixin:
             for j in range(len(peaks) - 1):
                 p1, p2 = peaks[j], peaks[j + 1]
                 window_low = min(lows[p1 : p2 + 1])
-                depth = (
-                    ((highs[p1] - window_low) / highs[p1] * 100.0)
-                    if highs[p1] > 0
-                    else 0
-                )
+                depth = ((highs[p1] - window_low) / highs[p1] * 100.0) if highs[p1] > 0 else 0
                 depths.append(round(depth, 1))
 
             contractions = 0
@@ -260,11 +254,7 @@ class SignalPatternsMixin:
             recent_closes = closes[-25:] if len(closes) >= 25 else closes
             recent_high = max(recent_closes)
             recent_low = min(recent_closes)
-            recent_spread = (
-                (recent_high - recent_low) / recent_high * 100.0
-                if recent_high > 0
-                else 0
-            )
+            recent_spread = (recent_high - recent_low) / recent_high * 100.0 if recent_high > 0 else 0
             if depth <= 15 and duration >= 5 and recent_spread <= 12:
                 return {
                     "type": "flat_base",
@@ -276,14 +266,8 @@ class SignalPatternsMixin:
                 mid_third_low = min(lows[len(lows) // 3 : 2 * len(lows) // 3])
                 full_low = min(lows)
                 mid_low_match = abs(mid_third_low - full_low) / full_low < 0.02
-                handle_high = (
-                    max(highs[-15:-5]) if len(highs) >= 15 else max(highs[-5:])
-                )
-                recent_dip = (
-                    (handle_high - min(lows[-7:])) / handle_high * 100.0
-                    if handle_high > 0
-                    else 0
-                )
+                handle_high = max(highs[-15:-5]) if len(highs) >= 15 else max(highs[-5:])
+                recent_dip = (handle_high - min(lows[-7:])) / handle_high * 100.0 if handle_high > 0 else 0
                 handle_present = 5 < recent_dip < 12
                 if mid_low_match and handle_present:
                     return {
@@ -331,9 +315,7 @@ class SignalPatternsMixin:
                     min(lows[2 * len(lows) // 3 :]),
                 ]
                 if third_thirds[0] < third_thirds[1] < third_thirds[2]:
-                    rise_pct = (
-                        (third_thirds[2] - third_thirds[0]) / third_thirds[0] * 100.0
-                    )
+                    rise_pct = (third_thirds[2] - third_thirds[0]) / third_thirds[0] * 100.0
                     if 6 <= rise_pct <= 25:
                         return {
                             "type": "ascending_base",
@@ -359,9 +341,7 @@ class SignalPatternsMixin:
             "characteristics": base_info,
         }
 
-    def base_type_stop(
-        self, symbol: str, eval_date, entry_price: float, atr: float | None = None
-    ) -> dict[str, Any]:
+    def base_type_stop(self, symbol: str, eval_date, entry_price: float, atr: float | None = None) -> dict[str, Any]:
         """Compute optimal stop loss based on the SPECIFIC base type detected.
 
         Different chart bases have proven-optimal stop placements per the canon:
@@ -387,8 +367,7 @@ class SignalPatternsMixin:
             nonlocal atr
             if atr is None:
                 cur.execute(
-                    "SELECT atr FROM technical_data_daily WHERE symbol = %s AND date <= %s "
-                    "ORDER BY date DESC LIMIT 1",
+                    "SELECT atr FROM technical_data_daily WHERE symbol = %s AND date <= %s ORDER BY date DESC LIMIT 1",
                     (symbol, eval_date),
                 )
                 r = cur.fetchone()
@@ -464,9 +443,7 @@ class SignalPatternsMixin:
                     last_hl = float(r[0])
                     candidate = last_hl * 0.985
                     method = "ascending_base_last_higher_low"
-                    reasoning = (
-                        f"Ascending base: 1.5% below last higher low ${last_hl:.2f}"
-                    )
+                    reasoning = f"Ascending base: 1.5% below last higher low ${last_hl:.2f}"
 
             elif base_type == "saucer":
                 cur.execute(
@@ -497,9 +474,7 @@ class SignalPatternsMixin:
                     reasoning = f"3-Weeks-Tight: 1.5% below 3wk low ${three_wk_low:.2f}"
 
             if htf.get("is_ht") and htf.get("pivot_high"):
-                cons_low = htf.get("pivot_high", 0) * (
-                    1 - htf.get("consolidation_pct", 25) / 100
-                )
+                cons_low = htf.get("pivot_high", 0) * (1 - htf.get("consolidation_pct", 25) / 100)
                 candidate = max(candidate, cons_low * 0.95)
                 method = "htf_consolidation_low"
                 reasoning = f"HTF: 5% below consolidation low ${cons_low:.2f}"
@@ -661,9 +636,7 @@ class SignalPatternsMixin:
                 cons_lows = lows[-cons_weeks:]
                 cons_high = max(cons_highs)
                 cons_low = min(cons_lows)
-                cons_pct = (
-                    (cons_high - cons_low) / cons_high * 100.0 if cons_high > 0 else 100
-                )
+                cons_pct = (cons_high - cons_low) / cons_high * 100.0 if cons_high > 0 else 100
 
                 if cons_pct > 25:
                     continue

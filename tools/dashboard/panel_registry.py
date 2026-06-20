@@ -30,13 +30,12 @@ Panels self-register with their dependencies:
 import logging
 import os
 import sys
+from collections.abc import Callable
 from dataclasses import dataclass
-from typing import Any, Callable, Dict, List, Optional, Tuple
+from typing import Any
 
 
-sys.path.insert(
-    0, os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
-)
+sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__)))))
 
 try:
     from shared_contracts import EndpointRegistry
@@ -51,8 +50,8 @@ class PanelDefinition:
     """Definition of a dashboard panel."""
 
     name: str
-    endpoint_deps: List[str]  # Endpoint names this panel depends on
-    render_fn: Optional[Callable] = None  # Function to call to render panel
+    endpoint_deps: list[str]  # Endpoint names this panel depends on
+    render_fn: Callable | None = None  # Function to call to render panel
     optional: bool = False  # If True, dashboard renders without this panel
     description: str = ""  # Human-readable description
 
@@ -66,14 +65,14 @@ class PanelRegistry:
 
     def __init__(self):
         """Initialize the panel registry."""
-        self._panels: Dict[str, PanelDefinition] = {}
-        self._render_functions: Dict[str, Callable] = {}
+        self._panels: dict[str, PanelDefinition] = {}
+        self._render_functions: dict[str, Callable] = {}
 
     def register_panel(
         self,
         name: str,
-        endpoint_deps: List[str],
-        render_fn: Optional[Callable] = None,
+        endpoint_deps: list[str],
+        render_fn: Callable | None = None,
         optional: bool = False,
         description: str = "",
     ) -> None:
@@ -103,10 +102,7 @@ class PanelRegistry:
                 if not EndpointRegistry.validate_endpoint_exists(endpoint):
                     missing.append(endpoint)
             if missing:
-                logger.warning(
-                    f"Panel {name} requires undefined endpoints: {missing}"
-                    f" (optional={optional})"
-                )
+                logger.warning(f"Panel {name} requires undefined endpoints: {missing} (optional={optional})")
 
         panel_def = PanelDefinition(
             name=name,
@@ -136,23 +132,23 @@ class PanelRegistry:
             logger.warning(f"Registering render function for unregistered panel {name}")
         self._render_functions[name] = render_fn
 
-    def get_panel(self, name: str) -> Optional[PanelDefinition]:
+    def get_panel(self, name: str) -> PanelDefinition | None:
         """Get a panel definition by name."""
         return self._panels.get(name)
 
-    def get_all_panels(self) -> Dict[str, PanelDefinition]:
+    def get_all_panels(self) -> dict[str, PanelDefinition]:
         """Get all registered panels."""
         return self._panels.copy()
 
-    def get_panel_names(self) -> List[str]:
+    def get_panel_names(self) -> list[str]:
         """Get all registered panel names."""
         return list(self._panels.keys())
 
-    def get_render_function(self, name: str) -> Optional[Callable]:
+    def get_render_function(self, name: str) -> Callable | None:
         """Get the rendering function for a panel."""
         return self._render_functions.get(name)
 
-    def get_panel_dependencies(self, name: str) -> List[str]:
+    def get_panel_dependencies(self, name: str) -> list[str]:
         """Get list of endpoint dependencies for a panel."""
         panel = self._panels.get(name)
         return panel.endpoint_deps if panel else []
@@ -162,7 +158,7 @@ class PanelRegistry:
         panel = self._panels.get(name)
         return panel.optional if panel else True
 
-    def validate_panel_dependencies(self, name: str) -> Tuple[bool, List[str]]:
+    def validate_panel_dependencies(self, name: str) -> tuple[bool, list[str]]:
         """Check if all required endpoints for a panel are defined in contract.
 
         Returns:
@@ -182,9 +178,7 @@ class PanelRegistry:
 
         return len(missing) == 0, missing
 
-    def can_render_panel(
-        self, name: str, data: Dict[str, Any]
-    ) -> Tuple[bool, Optional[str]]:
+    def can_render_panel(self, name: str, data: dict[str, Any]) -> tuple[bool, str | None]:
         """Check if a panel can be rendered with the given data.
 
         Returns:
@@ -211,7 +205,7 @@ class PanelRegistry:
 
         return True, None
 
-    def get_panels_for_view_mode(self, view_mode: str) -> List[str]:
+    def get_panels_for_view_mode(self, view_mode: str) -> list[str]:
         """Get panels to display for a given view mode.
 
         view_mode can be: 'normal', 'positions', 'signals', 'health', 'sectors'
@@ -239,11 +233,11 @@ class PanelRegistry:
         }
         return view_panels.get(view_mode, [])
 
-    def get_critical_panels(self) -> List[str]:
+    def get_critical_panels(self) -> list[str]:
         """Get panels that are not optional (dashboard won't fully render without them)."""
         return [name for name, panel in self._panels.items() if not panel.optional]
 
-    def get_optional_panels(self) -> List[str]:
+    def get_optional_panels(self) -> list[str]:
         """Get optional panels (dashboard can render without them)."""
         return [name for name, panel in self._panels.items() if panel.optional]
 
@@ -259,8 +253,8 @@ def get_panel_registry() -> PanelRegistry:
 
 def register_panel(
     name: str,
-    endpoint_deps: List[str],
-    render_fn: Optional[Callable] = None,
+    endpoint_deps: list[str],
+    render_fn: Callable | None = None,
     optional: bool = False,
     description: str = "",
 ) -> Callable:

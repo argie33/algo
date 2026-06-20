@@ -89,27 +89,27 @@ class TestErrorClassification:
     def test_classify_database_error(self):
         """DatabaseConnectionError should classify correctly."""
         err = DatabaseConnectionError("test")
-        code, error_type, message = classify_exception(err)
+        code, error_type, _message = classify_exception(err)
         assert code == 503
         assert error_type == "connection_error"
 
     def test_classify_timeout_error(self):
         """DatabaseQueryTimeout should classify correctly."""
         err = DatabaseQueryTimeout("query too slow")
-        code, error_type, message = classify_exception(err)
+        code, error_type, _message = classify_exception(err)
         assert code == 504
         assert error_type == "timeout"
 
     def test_classify_validation_error(self):
         """InputValidationError should classify correctly."""
         err = InputValidationError("bad input")
-        code, error_type, message = classify_exception(err)
+        code, _error_type, _message = classify_exception(err)
         assert code == 400
 
     def test_classify_generic_exception(self):
         """Generic Exception should classify as 500."""
         err = Exception("something went wrong")
-        code, error_type, message = classify_exception(err)
+        code, _error_type, _message = classify_exception(err)
         assert code == 500
 
 
@@ -265,11 +265,9 @@ class TestFileStandardization:
             try:
                 content = route_file.read_text(encoding="utf-8", errors="ignore")
                 # Should have imports or decorators related to error handling
-                assert (
-                    "error_response" in content
-                    or "handle_db_error" in content
-                    or "@db_route_handler" in content
-                ), f"{route_file.name} missing error handling"
+                assert "error_response" in content or "handle_db_error" in content or "@db_route_handler" in content, (
+                    f"{route_file.name} missing error handling"
+                )
             except Exception:
                 # Skip files with encoding issues - they're not critical for this test
                 pass
@@ -352,9 +350,7 @@ class TestIntegration:
 
 def pytest_configure(config):
     """Add custom markers."""
-    config.addinivalue_line(
-        "markers", "slow: marks tests as slow (deselect with '-m \"not slow\"')"
-    )
+    config.addinivalue_line("markers", "slow: marks tests as slow (deselect with '-m \"not slow\"')")
 
 
 if __name__ == "__main__":

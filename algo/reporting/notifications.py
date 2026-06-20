@@ -52,11 +52,7 @@ class TradeNotificationService:
     def _format_trade_entry_alert(self, event: dict) -> str | None:
         """Format trade entry notification."""
         try:
-            details = (
-                json.loads(event["details"])
-                if isinstance(event["details"], str)
-                else event["details"]
-            )
+            details = json.loads(event["details"]) if isinstance(event["details"], str) else event["details"]
             symbol = event.get("symbol") or details.get("symbol", "?")
             entry_price = details.get("entry_price")
             shares = details.get("shares")
@@ -77,11 +73,7 @@ Time:         {event["created_at"].strftime("%H:%M:%S")}
     def _format_trade_exit_alert(self, event: dict) -> str | None:
         """Format trade exit notification."""
         try:
-            details = (
-                json.loads(event["details"])
-                if isinstance(event["details"], str)
-                else event["details"]
-            )
+            details = json.loads(event["details"]) if isinstance(event["details"], str) else event["details"]
             symbol = event.get("symbol") or details.get("symbol", "?")
             exit_price = details.get("exit_price")
             shares = details.get("shares")
@@ -190,9 +182,7 @@ Time:         {event["created_at"].strftime("%H:%M:%S")}
 
             # Send email alert
             if self.alert_manager.email_to:
-                self.alert_manager._send_email(
-                    subject=f"[ALGO] {subject}", body=message
-                )
+                self.alert_manager._send_email(subject=f"[ALGO] {subject}", body=message)
             logger.info(f"[NOTIF] Sent: {subject}")
         except (psycopg2.DatabaseError, psycopg2.OperationalError) as e:
             logger.error(f"[NOTIF] Send failed: {e}")

@@ -12,10 +12,11 @@ Tracks:
 import logging
 from datetime import date as _date
 from datetime import datetime, timezone
-from typing import Any, Dict, Optional
+from typing import Any
+
+import psycopg2
 
 from utils.db import DatabaseContext
-import psycopg2
 
 
 logger = logging.getLogger(__name__)
@@ -33,8 +34,8 @@ class TradeAuditLogger:
         base_shares: int,
         final_shares: int,
         position_size_pct: float,
-        multipliers: Dict[str, float],
-        reasons: Dict[str, str],
+        multipliers: dict[str, float],
+        reasons: dict[str, str],
     ) -> None:
         """Log complete position sizing decision with all multipliers.
 
@@ -128,7 +129,7 @@ class TradeAuditLogger:
         stop_loss_price: float,
         stop_method: str,
         stop_reasoning: str,
-        candidates: Dict[str, Optional[float]],
+        candidates: dict[str, float | None],
     ) -> None:
         """Log why stop loss was calculated as it was.
 
@@ -154,9 +155,7 @@ class TradeAuditLogger:
             distance_pct = ((entry_price - stop_loss_price) / entry_price) * 100
 
             # Build candidate list for logging
-            candidates_str = " | ".join(
-                [f"{k}=${v:.2f}" for k, v in candidates.items() if v is not None]
-            )
+            candidates_str = " | ".join([f"{k}=${v:.2f}" for k, v in candidates.items() if v is not None])
 
             audit_msg = (
                 f"[STOP LOSS] {symbol}: Entry ${entry_price:.2f} → Stop ${stop_loss_price:.2f} "
@@ -254,11 +253,12 @@ class TradeAuditLogger:
         except (psycopg2.DatabaseError, psycopg2.OperationalError) as e:
             logger.warning(f"Exit execution audit log failed: {e}")
 
-    def get_position_sizing_summary(self, days: int = 30) -> Dict[str, Any]:
+    def get_position_sizing_summary(self, days: int = 30) -> dict[str, Any]:
         """Get position sizing statistics for dashboard."""
         try:
             with DatabaseContext("read") as cur:
-                cur.execute("""
+                cur.execute(
+                    """
                     SELECT
                         COUNT(*) as total_trades,
                         AVG(cascade_multiplier) as avg_cascade_mult,
@@ -267,7 +267,9 @@ class TradeAuditLogger:
                         AVG(position_size_pct) as avg_position_size_pct
                     FROM algo_position_sizing_audit
                     WHERE created_at >= NOW() - INTERVAL '%d days'
-                """ % days)
+                """
+                    % days
+                )
 
                 row = cur.fetchone()
                 if row:
@@ -283,17 +285,20 @@ class TradeAuditLogger:
             logger.warning(f"Position sizing summary failed: {e}")
             return {"error": str(e)}
 
-    def get_exit_rule_distribution(self, days: int = 30) -> Dict[str, int]:
+    def get_exit_rule_distribution(self, days: int = 30) -> dict[str, int]:
         """Get which exit rules fire most (diagnostic)."""
         try:
             with DatabaseContext("read") as cur:
-                cur.execute("""
+                cur.execute(
+                    """
                     SELECT exit_rule, COUNT(*) as count
                     FROM algo_exit_rules_distribution
                     WHERE created_at >= NOW() - INTERVAL '%d days'
                     GROUP BY exit_rule
                     ORDER BY count DESC
-                """ % days)
+                """
+                    % days
+                )
 
                 result = {}
                 for row in cur.fetchall():

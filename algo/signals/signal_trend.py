@@ -27,9 +27,7 @@ class SignalTrendMixin:
         except (TypeError, ValueError):
             return False
 
-    def _compute_minervini_from_prices(
-        self, cur, symbol: str, eval_date
-    ) -> dict[str, Any]:
+    def _compute_minervini_from_prices(self, cur, symbol: str, eval_date) -> dict[str, Any]:
         """Compute Minervini 8-point trend score on-the-fly from price_daily."""
         cur.execute(
             """SELECT date, close, volume FROM price_daily
@@ -53,9 +51,7 @@ class SignalTrendMixin:
         try:
             close = np.array([float(v) for v in closes_raw], dtype=np.float64)
         except (TypeError, ValueError) as e:
-            invalid_indices = [
-                i for i, v in enumerate(closes_raw) if not self._is_valid_float(v)
-            ]
+            invalid_indices = [i for i, v in enumerate(closes_raw) if not self._is_valid_float(v)]
             raise ValueError(
                 f"Invalid price data for {symbol}: {len(invalid_indices)} "
                 f"non-numeric values at indices {invalid_indices[:5]}{'...' if len(invalid_indices) > 5 else ''}. "
@@ -126,18 +122,10 @@ class SignalTrendMixin:
             "score": score,
             "pass": score >= 5,
             "criteria": {
-                "percent_from_52w_high": (
-                    float(pct_from_high) if pct_from_high is not None else None
-                ),
-                "percent_from_52w_low": (
-                    float(pct_from_low) if pct_from_low is not None else None
-                ),
+                "percent_from_52w_high": (float(pct_from_high) if pct_from_high is not None else None),
+                "percent_from_52w_low": (float(pct_from_low) if pct_from_low is not None else None),
                 "weinstein_stage": weinstein_stage,
-                "trend_direction": (
-                    "uptrend"
-                    if score >= 6
-                    else ("downtrend" if score <= 2 else "sideways")
-                ),
+                "trend_direction": ("uptrend" if score >= 6 else ("downtrend" if score <= 2 else "sideways")),
             },
         }
 
@@ -165,9 +153,7 @@ class SignalTrendMixin:
                     },
                 }
 
-            logger.debug(
-                f"[MINERVINI] trend_template_data stale for {symbol}; computing on-the-fly"
-            )
+            logger.debug(f"[MINERVINI] trend_template_data stale for {symbol}; computing on-the-fly")
             return self._compute_minervini_from_prices(cur, symbol, eval_date)
 
         return self._with_cursor(_fetch_trend)  # type: ignore[attr-defined, no-any-return]
@@ -216,9 +202,7 @@ class SignalTrendMixin:
 
         return self._with_cursor(_fetch_stage)  # type: ignore[attr-defined, no-any-return]
 
-    def mansfield_rs(
-        self, symbol: str, eval_date, lookback: int = 252
-    ) -> dict[str, Any]:
+    def mansfield_rs(self, symbol: str, eval_date, lookback: int = 252) -> dict[str, Any]:
         """
         Compute Mansfield Relative Strength: (stock_return / spy_return) - 1.
 

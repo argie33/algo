@@ -59,9 +59,9 @@ def run(
                 raise ValueError(f"Reconciliation succeeded but missing critical data: {missing_keys}")
 
             summary = (
-                f'Portfolio ${result["portfolio_value"]:,.2f}, '
-                f'{result["positions"]} positions, '
-                f'unrealized P&L ${result["unrealized_pnl"]:+,.2f}'
+                f"Portfolio ${result['portfolio_value']:,.2f}, "
+                f"{result['positions']} positions, "
+                f"unrealized P&L ${result['unrealized_pnl']:+,.2f}"
             )
         else:
             summary = result.get("error", "unknown")
@@ -81,9 +81,7 @@ def run(
                             "[PHASE 7 P&L VALIDATION] Alpaca data missing both 'equity' and "
                             "'portfolio_value'. Available keys: " + str(list(alpaca_data.keys()))
                         )
-                        raise ValueError(
-                            "Alpaca data missing equity and portfolio_value — cannot validate P&L"
-                        )
+                        raise ValueError("Alpaca data missing equity and portfolio_value — cannot validate P&L")
                 local_equity = result.get("portfolio_value", 0)
 
                 pnl_check = recon.validate_pnl(alpaca_equity, local_equity)
@@ -109,12 +107,8 @@ def run(
             with DatabaseContext("read") as audit_cur:
                 stale_audit = recon.audit_stale_estimated_prices(audit_cur)
                 if stale_audit["status"] != "OK":
-                    logger.warning(
-                        f"[PHASE 7 AUDIT] Stale estimated prices detected: {stale_audit['message']}"
-                    )
-                    log_phase_result_fn(
-                        7, "exit_reconciliation_audit", "warn", stale_audit["message"]
-                    )
+                    logger.warning(f"[PHASE 7 AUDIT] Stale estimated prices detected: {stale_audit['message']}")
+                    log_phase_result_fn(7, "exit_reconciliation_audit", "warn", stale_audit["message"])
                 else:
                     logger.info("[PHASE 7 AUDIT] All exit prices reconciled properly")
         except (psycopg2.DatabaseError, psycopg2.OperationalError) as e:
@@ -145,11 +139,7 @@ def run(
                             continue
 
                         pnl = (exit_price - entry_price) * quantity
-                        pnl_pct = (
-                            ((exit_price - entry_price) / entry_price * 100)
-                            if entry_price > 0
-                            else 0
-                        )
+                        pnl_pct = ((exit_price - entry_price) / entry_price * 100) if entry_price > 0 else 0
 
                         try:
                             write_cursor.execute(
@@ -160,7 +150,14 @@ def run(
                                 WHERE symbol = %s AND exit_date IS NULL
                                 ORDER BY entry_date DESC LIMIT 1
                             """,
-                                (run_date, exit_price, pnl, pnl_pct, "Closed position recorded during reconciliation", symbol),
+                                (
+                                    run_date,
+                                    exit_price,
+                                    pnl,
+                                    pnl_pct,
+                                    "Closed position recorded during reconciliation",
+                                    symbol,
+                                ),
                             )
                             write_cursor.execute(
                                 """
@@ -195,15 +192,11 @@ def run(
             stpp = SignalTradePerformancePopulator()
             stpp_result = stpp.populate_closed_trades(lookback_days=7)
             trades_processed = stpp_result.get("trades_processed", 0)
-            logger.info(
-                f"Signal trade performance: {stpp_result.get('message', 'N/A')}"
-            )
+            logger.info(f"Signal trade performance: {stpp_result.get('message', 'N/A')}")
             if stpp_result.get("ic_values"):
                 logger.info(f"  IC values computed: {stpp_result['ic_values']}")
         except Exception as e:
-            logger.warning(
-                f"Signal trade performance failed (numpy/scipy not available): {e}"
-            )
+            logger.warning(f"Signal trade performance failed (numpy/scipy not available): {e}")
         trades_processed = stpp_result.get("trades_processed", 0)
         log_phase_result_fn(
             7,
@@ -218,28 +211,17 @@ def run(
             attribution = SignalAttributionEngine()
             attr_result = attribution.compute_ic(run_date, lookback_trades=40)
             # compute_ic returns {component_name: {ic_value, ic_pvalue, sample_size, ...}}
-            logger.info(
-                f"Signal attribution: IC computed for {len(attr_result)} components"
-            )
+            logger.info(f"Signal attribution: IC computed for {len(attr_result)} components")
             for comp, ic_data in attr_result.items():
-                logger.info(
-                    f"  {comp}: IC={ic_data.get('ic_value', 0):.3f}, pval={ic_data.get('ic_pvalue', 1):.3f}"
-                )
+                logger.info(f"  {comp}: IC={ic_data.get('ic_value', 0):.3f}, pval={ic_data.get('ic_pvalue', 1):.3f}")
             if attr_result:
                 attribution.persist(run_date, attr_result)
         except ImportError as e:
-            logger.warning(
-                f"Signal attribution skipped (scipy/numpy not available): {e}"
-            )
+            logger.warning(f"Signal attribution skipped (scipy/numpy not available): {e}")
         except ValueError as e:
-            logger.warning(
-                f"Signal attribution skipped (insufficient trades or invalid data): {e}"
-            )
+            logger.warning(f"Signal attribution skipped (insufficient trades or invalid data): {e}")
         except Exception as e:
-            logger.error(
-                f"Signal attribution failed unexpectedly: {e}",
-                exc_info=True
-            )
+            logger.error(f"Signal attribution failed unexpectedly: {e}", exc_info=True)
         log_phase_result_fn(
             7,
             "ic_computation",
@@ -254,34 +236,19 @@ def run(
 
             _current_regime = _RegimeManager().get_current_regime(run_date)
             optimizer = WeightOptimizer(config)
-            opt_result = optimizer.apply(
-                run_date, regime=_current_regime, dry_run=False
-            )
+            opt_result = optimizer.apply(run_date, regime=_current_regime, dry_run=False)
             if opt_result.get("changes"):
-                logger.info(
-                    f"Weight optimization: {len(opt_result['changes'])} changes applied"
-                )
+                logger.info(f"Weight optimization: {len(opt_result['changes'])} changes applied")
                 for change in opt_result["changes"]:
-                    logger.info(
-                        f"  {change['component']}: {change['old_weight']}% → {change['new_weight']}%"
-                    )
+                    logger.info(f"  {change['component']}: {change['old_weight']}% → {change['new_weight']}%")
             else:
-                logger.info(
-                    "Weight optimization: no changes (insufficient trades or weights stable)"
-                )
+                logger.info("Weight optimization: no changes (insufficient trades or weights stable)")
         except ValueError as e:
-            logger.warning(
-                f"Weight optimization skipped (insufficient trades): {e}"
-            )
+            logger.warning(f"Weight optimization skipped (insufficient trades): {e}")
         except ImportError as e:
-            logger.warning(
-                f"Weight optimization skipped (scipy/numpy not available): {e}"
-            )
+            logger.warning(f"Weight optimization skipped (scipy/numpy not available): {e}")
         except Exception as e:
-            logger.error(
-                f"Weight optimization failed unexpectedly: {e}",
-                exc_info=True
-            )
+            logger.error(f"Weight optimization failed unexpectedly: {e}", exc_info=True)
         log_phase_result_fn(
             7,
             "weight_optimization",
@@ -296,10 +263,7 @@ def run(
             report_text = daily_report.format_text(report)
             logger.info(f"\n{report_text}")
         except Exception as e:
-            logger.error(
-                f"Daily report generation failed (could not generate): {e}",
-                exc_info=True
-            )
+            logger.error(f"Daily report generation failed (could not generate): {e}", exc_info=True)
             log_phase_result_fn(7, "daily_report", "warn", f"generation error: {str(e)[:60]}")
         else:
             # Validate critical report data before use
@@ -324,22 +288,17 @@ def run(
                             ("daily_report", run_date, "PORTFOLIO", json.dumps(report)),
                         )
                 except (psycopg2.DatabaseError, psycopg2.OperationalError) as e:
-                    logger.critical(
-                        f"[AUDIT_FAILURE] Could not log daily report to audit log: {e}"
-                    )
+                    logger.critical(f"[AUDIT_FAILURE] Could not log daily report to audit log: {e}")
                     raise
 
                 log_phase_result_fn(
                     7,
                     "daily_report",
                     "success",
-                    f"Portfolio ${portfolio_data['current_value']:,.0f}, "
-                    f"P&L {portfolio_data['daily_pnl_pct']:+.2f}%",
+                    f"Portfolio ${portfolio_data['current_value']:,.0f}, P&L {portfolio_data['daily_pnl_pct']:+.2f}%",
                 )
             except ValueError as e:
-                logger.error(
-                    f"Daily report validation failed (generated but data incomplete): {e}"
-                )
+                logger.error(f"Daily report validation failed (generated but data incomplete): {e}")
                 log_phase_result_fn(7, "daily_report", "warn", f"validation error: {str(e)[:60]}")
 
         # Step 5: Compute and log live performance metrics
@@ -382,9 +341,7 @@ def run(
                     else "N/A"
                 )
                 conc_pct = (
-                    risk_report.get("concentration", {}).get(
-                        "top_5_concentration_pct", "N/A"
-                    )
+                    risk_report.get("concentration", {}).get("top_5_concentration_pct", "N/A")
                     if risk_report.get("concentration")
                     else "N/A"
                 )

@@ -44,9 +44,7 @@ class MetricsPublisher:
             "Timestamp": datetime.now(timezone.utc),
         }
         if dimensions:
-            datum["Dimensions"] = [
-                {"Name": k, "Value": v} for k, v in dimensions.items()
-            ]
+            datum["Dimensions"] = [{"Name": k, "Value": v} for k, v in dimensions.items()]
 
         if self._dry_run:
             logger.info(
@@ -80,9 +78,7 @@ class MetricsPublisher:
                     len(self._batch),
                 )
             else:
-                logger.warning(
-                    "metrics.flush_failed error=%s count=%d", e, len(self._batch)
-                )
+                logger.warning("metrics.flush_failed error=%s count=%d", e, len(self._batch))
         finally:
             self._batch.clear()
 
@@ -120,9 +116,7 @@ class MetricsPublisher:
 
     def put_data_freshness(self, table: str, age_days: float) -> None:
         """Staleness of a critical data table in days."""
-        self._emit(
-            "DataFreshnessAgeDays", age_days, unit="None", dimensions={"Table": table}
-        )
+        self._emit("DataFreshnessAgeDays", age_days, unit="None", dimensions={"Table": table})
 
     def put_loader_duration(self, loader: str, seconds: float) -> None:
         """Wall-clock seconds for a loader run."""
@@ -155,7 +149,9 @@ class MetricsPublisher:
             dimensions=dims,
         )
 
-    def add_metric(self, metric_name: str, value: float, unit: str = "Count", dimensions: dict[str, str] | None = None) -> None:
+    def add_metric(
+        self, metric_name: str, value: float, unit: str = "Count", dimensions: dict[str, str] | None = None
+    ) -> None:
         """Emit a single metric immediately (no batching)."""
         self._emit(metric_name, value, unit, dimensions)
         self._flush()

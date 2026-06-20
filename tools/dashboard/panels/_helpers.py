@@ -58,9 +58,7 @@ def _build_buy_sig_map(buy_sigs) -> dict:
             except (TypeError, ValueError) as e:
                 logger.warning(f"Failed to convert score for {sym}: {e}")
         else:
-            logger.warning(
-                f"Buy signal {sym}: missing signal_quality_score and swing_score"
-            )
+            logger.warning(f"Buy signal {sym}: missing signal_quality_score and swing_score")
 
     return out
 
@@ -111,11 +109,7 @@ def _best_halt_reason(top_level: str, phase_results: list) -> list[tuple[str, st
                 logger.warning(f"Failed to parse phase data JSON: {e}")
                 pdata = {}
         detail = next(
-            (
-                str(pdata[k])
-                for k in _FIELDS
-                if pdata.get(k) and len(str(pdata.get(k))) > 3
-            ),
+            (str(pdata[k]) for k in _FIELDS if pdata.get(k) and len(str(pdata.get(k))) > 3),
             "",
         )
         if detail:
@@ -171,11 +165,11 @@ def _error_panel(data_name: str, data, title: str, border="magenta"):
 
 
 __all__ = [
-    "_score_cell",
-    "_build_buy_sig_map",
-    "_swing_cell",
-    "_composite_score_color",
     "_best_halt_reason",
-    "_fmt_phases_halted",
+    "_build_buy_sig_map",
+    "_composite_score_color",
     "_error_panel",
+    "_fmt_phases_halted",
+    "_score_cell",
+    "_swing_cell",
 ]

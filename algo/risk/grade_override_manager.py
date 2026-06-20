@@ -80,9 +80,7 @@ def reset_override() -> None:
     with _override_state_lock:
         if _override_enabled_at is not None:
             was_enabled_at = _override_enabled_at
-            duration_minutes = int(
-                (datetime.now(timezone.utc) - was_enabled_at).total_seconds() / 60
-            )
+            duration_minutes = int((datetime.now(timezone.utc) - was_enabled_at).total_seconds() / 60)
             _override_enabled_at = None
 
             logger.warning(
@@ -110,7 +108,9 @@ def check_and_alert_on_long_duration() -> bool:
         logger.error(
             "[GRADE_OVERRIDE] ALERT: Override active for %d minutes (max: %d). "
             "Enabled at: %s. Action required: Disable override or extend deadline.",
-            minutes_active, max_duration, enabled_at.isoformat() if enabled_at else "unknown"
+            minutes_active,
+            max_duration,
+            enabled_at.isoformat() if enabled_at else "unknown",
         )
         return True
 
@@ -129,9 +129,12 @@ def log_trade_with_override(symbol: str, entry_price: float, direction: str = "l
 
     if is_enabled:
         logger.warning(
-            "[GRADE_OVERRIDE] TRADE ENTERED WITH OVERRIDE: %s %s @ $%.2f. "
-            "Override enabled for %d minutes (max: %d).",
-            direction.upper(), symbol, entry_price, minutes_active or 0, get_override_duration_minutes()
+            "[GRADE_OVERRIDE] TRADE ENTERED WITH OVERRIDE: %s %s @ $%.2f. Override enabled for %d minutes (max: %d).",
+            direction.upper(),
+            symbol,
+            entry_price,
+            minutes_active or 0,
+            get_override_duration_minutes(),
         )
 
 
@@ -148,10 +151,7 @@ def validate_override_state_against_config() -> bool:
     if is_enabled and enabled_at is None:
         log_override_activation("config_detected")
     elif not is_enabled and enabled_at is not None:
-        logger.info(
-            "[GRADE_OVERRIDE] Override was disabled via config. "
-            f"Was active since: {enabled_at.isoformat()}"
-        )
+        logger.info(f"[GRADE_OVERRIDE] Override was disabled via config. Was active since: {enabled_at.isoformat()}")
         reset_override()
 
     return True

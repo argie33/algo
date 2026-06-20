@@ -62,9 +62,7 @@ class WeightOptimizer:
 
     def __init__(self, config):
         if config is None:
-            raise ValueError(
-                "WeightOptimizer requires explicit config parameter (dependency injection)"
-            )
+            raise ValueError("WeightOptimizer requires explicit config parameter (dependency injection)")
         self.config = config
 
     def get_current_weights(self) -> dict[str, int]:
@@ -75,9 +73,7 @@ class WeightOptimizer:
             weights[component] = int(val) if val is not None else 0
         return weights
 
-    def optimize(
-        self, report_date: _date, lookback_trades: int = 40
-    ) -> dict[str, int] | None:
+    def optimize(self, report_date: _date, lookback_trades: int = 40) -> dict[str, int] | None:
         """
         Compute optimal weights from IC values.
 
@@ -156,14 +152,11 @@ class WeightOptimizer:
             # Initial guess (equal weights)
             x0 = np.full(n, 100 / n)
 
-            result = minimize(
-                objective, x0, method="SLSQP", bounds=bounds, constraints=constraints
-            )
+            result = minimize(objective, x0, method="SLSQP", bounds=bounds, constraints=constraints)
 
             if not result.success:
                 raise RuntimeError(
-                    f"Weight optimization solver failed: {result.message}. "
-                    "Cannot compute optimal portfolio weights."
+                    f"Weight optimization solver failed: {result.message}. Cannot compute optimal portfolio weights."
                 )
 
             # Round to integers while maintaining sum=100
@@ -177,9 +170,7 @@ class WeightOptimizer:
             delta = 100 - weights_int.sum()
             if delta != 0:
                 not_at_bounds = [
-                    i
-                    for i in range(len(weights_int))
-                    if self.MIN_WEIGHT < weights_int[i] < self.MAX_WEIGHT
+                    i for i in range(len(weights_int)) if self.MIN_WEIGHT < weights_int[i] < self.MAX_WEIGHT
                 ]
                 idx = (
                     not_at_bounds[int(np.argmax(weights_float[not_at_bounds]))]
@@ -188,9 +179,7 @@ class WeightOptimizer:
                 )
                 weights_int[idx] += delta
 
-            result_dict = {
-                comp: int(w) for comp, w in zip(self.COMPONENTS, weights_int)
-            }
+            result_dict = {comp: int(w) for comp, w in zip(self.COMPONENTS, weights_int, strict=False)}
             return result_dict
 
         except (ValueError, ZeroDivisionError, TypeError) as e:
@@ -240,9 +229,7 @@ class WeightOptimizer:
             # Compute optimal
             optimal = self.optimize(report_date)
             if not optimal:
-                logger.warning(
-                    f"Optimization failed on {report_date}, keeping current weights"
-                )
+                logger.warning(f"Optimization failed on {report_date}, keeping current weights")
                 return {
                     "old_weights": self.get_current_weights(),
                     "new_weights": self.get_current_weights(),
@@ -265,7 +252,7 @@ class WeightOptimizer:
                 old_w = float(current[comp])
                 opt_w = float(optimal[comp])
                 new_w = (1 - blend_alpha) * old_w + blend_alpha * opt_w
-                blended[comp] = int(round(new_w))
+                blended[comp] = round(new_w)
 
             # Fix sum to 100
             delta = 100 - sum(blended.values())
@@ -286,17 +273,13 @@ class WeightOptimizer:
                         }
                     )
 
-            logger.info(
-                f"Weight optimization {report_date}: {len(changes)} changes, alpha={blend_alpha:.2f}"
-            )
+            logger.info(f"Weight optimization {report_date}: {len(changes)} changes, alpha={blend_alpha:.2f}")
 
             if not dry_run and changes:
                 # Persist to algo_config
                 for comp, new_w in blended.items():
                     key = self.COMPONENT_KEYS[comp]
-                    self.config.set(
-                        key, str(new_w), "int", changed_by="weight_optimizer"
-                    )
+                    self.config.set(key, str(new_w), "int", changed_by="weight_optimizer")
 
                 # Log to algo_weight_history
                 self._log_changes(report_date, current, blended, regime, blend_alpha)

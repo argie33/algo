@@ -75,13 +75,16 @@ class PositionMonitor:
 
         with DatabaseContext("write") as cur:
             try:
-                cur.execute("""
+                cur.execute(
+                    """
                     SELECT trade_id, symbol, entry_price, entry_quantity, created_at
                     FROM algo_trades
                     WHERE status = 'pending'
                       AND created_at < CURRENT_TIMESTAMP - INTERVAL %s
                     ORDER BY created_at ASC
-                """, (f"{alert_threshold} minutes",))
+                """,
+                    (f"{alert_threshold} minutes",),
+                )
                 stale_orders = cur.fetchall()
             except (psycopg2.DatabaseError, psycopg2.OperationalError) as e:
                 logger.error(f"Stale orders query failed: {e}")
@@ -100,9 +103,7 @@ class PositionMonitor:
                         trade_id, symbol, price, qty, created_at = row
                         halt_check = meh.check_single_stock_halt(symbol)
                         if halt_check and halt_check.get("halted"):
-                            logger.info(
-                                f"    {trade_id} {symbol} pending (but halted, expected)"
-                            )
+                            logger.info(f"    {trade_id} {symbol} pending (but halted, expected)")
                             halted_orders.append(row)
                             continue
                         filtered_stale.append(row)
@@ -112,7 +113,9 @@ class PositionMonitor:
                         f"[HALT_CHECK] Could not check halts for stale orders: {e}. "
                         f"Continuing without halt filtering will process halted orders."
                     )
-                    raise RuntimeError(f"Halt check failed: {e}. Cannot proceed without knowing which orders are halted.") from e
+                    raise RuntimeError(
+                        f"Halt check failed: {e}. Cannot proceed without knowing which orders are halted."
+                    ) from e
 
                 if stale_orders:
                     logger.info(
@@ -128,13 +131,8 @@ class PositionMonitor:
                         # Ensure created_at is timezone-aware (UTC) for subtraction
                         if not getattr(created_at, "tzinfo", None):
                             created_at = created_at.replace(tzinfo=timezone.utc)
-                        age_minutes = int(
-                            (datetime.now(timezone.utc) - created_at).total_seconds()
-                            / 60
-                        )
-                        logger.info(
-                            f"    {trade_id} {symbol} {qty}@{price} (pending {age_minutes}m)"
-                        )
+                        age_minutes = int((datetime.now(timezone.utc) - created_at).total_seconds() / 60)
+                        logger.info(f"    {trade_id} {symbol} {qty}@{price} (pending {age_minutes}m)")
 
                         # Auto-cancel if > 2 hours (or configured threshold)
                         if age_minutes >= auto_cancel_threshold:
@@ -153,21 +151,25 @@ class PositionMonitor:
 
                             # Only mark as cancelled after successful Alpaca cancellation
                             trades_to_update.append(trade_id)
-                            audit_entries.append((
-                                "STALE_ORDER_AUTO_CANCELLED",
-                                symbol,
-                                f"Trade {trade_id}: {qty}@${price} pending {age_minutes}m >= auto-cancel threshold",
-                                "WARN",
-                                "position_monitor",
-                                "auto_cancelled",
-                            ))
-                            cancelled_orders.append({
-                                "trade_id": trade_id,
-                                "symbol": symbol,
-                                "qty": qty,
-                                "price": price,
-                                "age_minutes": age_minutes
-                            })
+                            audit_entries.append(
+                                (
+                                    "STALE_ORDER_AUTO_CANCELLED",
+                                    symbol,
+                                    f"Trade {trade_id}: {qty}@${price} pending {age_minutes}m >= auto-cancel threshold",
+                                    "WARN",
+                                    "position_monitor",
+                                    "auto_cancelled",
+                                )
+                            )
+                            cancelled_orders.append(
+                                {
+                                    "trade_id": trade_id,
+                                    "symbol": symbol,
+                                    "qty": qty,
+                                    "price": price,
+                                    "age_minutes": age_minutes,
+                                }
+                            )
                             logger.warning(
                                 f"  [AUTO-CANCEL] {trade_id} {symbol} (pending {age_minutes}m >= {auto_cancel_threshold}m threshold)"
                             )
@@ -272,11 +274,7 @@ class PositionMonitor:
                     SELECT SUM(position_value) FROM algo_positions WHERE status = 'open'
                 """)
                 pos_val_row = cur.fetchone()
-                pos_value = (
-                    float(pos_val_row[0])
-                    if pos_val_row is not None and pos_val_row[0] is not None
-                    else 0
-                )
+                pos_value = float(pos_val_row[0]) if pos_val_row is not None and pos_val_row[0] is not None else 0
                 if pos_value < 0:
                     raise PositionValidationError(
                         f"Invalid position value: {pos_value} < 0. Database corruption detected."
@@ -291,9 +289,7 @@ class PositionMonitor:
                         f"Margin utilization critical: {margin_util_pct:.1f}% of equity (>90%). Cannot proceed with position monitoring."
                     )
                 elif margin_util_pct > 80:
-                    logger.warning(
-                        f"[MARGIN WARNING] Position value {margin_util_pct:.1f}% of equity > 80%"
-                    )
+                    logger.warning(f"[MARGIN WARNING] Position value {margin_util_pct:.1f}% of equity > 80%")
             except PositionValidationError:
                 raise
             except (psycopg2.DatabaseError, psycopg2.OperationalError) as margin_e:
@@ -318,9 +314,9 @@ class PositionMonitor:
                 """)
             positions = cur.fetchall()
 
-            logger.info(f"\n{'='*70}")
+            logger.info(f"\n{'=' * 70}")
             logger.info(f"POSITION MONITOR — {current_date}")
-            logger.info(f"{'='*70}")
+            logger.info(f"{'=' * 70}")
             logger.info(f"Reviewing {len(positions)} open position(s)\n")
 
             validation_errors = []
@@ -334,13 +330,15 @@ class PositionMonitor:
                     error_msg = str(e)
                     validation_errors.append((symbol, error_msg))
                     # Include failed position in results so orchestrator has complete visibility
-                    recs.append({
-                        "trade_id": trade_id,
-                        "symbol": symbol,
-                        "position_id": position_id,
-                        "action": "FAILED_VALIDATION",
-                        "error": error_msg,
-                    })
+                    recs.append(
+                        {
+                            "trade_id": trade_id,
+                            "symbol": symbol,
+                            "position_id": position_id,
+                            "action": "FAILED_VALIDATION",
+                            "error": error_msg,
+                        }
+                    )
                     logger.warning(f"  Validation failed for {symbol}: {error_msg}")
                     continue
 
@@ -413,9 +411,7 @@ class PositionMonitor:
 
         # 1. Current market data
         try:
-            cur_price, atr, sma_50, _ema_12 = self._fetch_current_market(
-                symbol, current_date, cur
-            )
+            cur_price, atr, sma_50, _ema_12 = self._fetch_current_market(symbol, current_date, cur)
         except ValueError as e:
             msg = f"Position {symbol} cannot be monitored: {e}"
             logger.error(f"REJECT: {msg}")
@@ -432,26 +428,16 @@ class PositionMonitor:
 
         # Use Decimal for monetary calculations to avoid floating point precision loss
         if quantity <= 0:
-            raise PositionValidationError(
-                f"Invalid quantity for {symbol}: {quantity} <= 0"
-            )
+            raise PositionValidationError(f"Invalid quantity for {symbol}: {quantity} <= 0")
 
         price_diff = Decimal(str(cur_price)) - Decimal(str(entry_price))
         entry_price_dec = Decimal(str(entry_price))
         quantity_dec = Decimal(str(quantity))
 
-        unrealized_pnl = float(
-            (price_diff * quantity_dec).quantize(Decimal("0.01"), ROUND_HALF_UP)
-        )
+        unrealized_pnl = float((price_diff * quantity_dec).quantize(Decimal("0.01"), ROUND_HALF_UP))
         if entry_price_dec <= 0:
-            raise PositionValidationError(
-                f"Invalid entry price for {symbol}: {entry_price_dec} <= 0"
-            )
-        unrealized_pct = float(
-            (price_diff / entry_price_dec * 100).quantize(
-                Decimal("0.01"), ROUND_HALF_UP
-            )
-        )
+            raise PositionValidationError(f"Invalid entry price for {symbol}: {entry_price_dec} <= 0")
+        unrealized_pct = float((price_diff / entry_price_dec * 100).quantize(Decimal("0.01"), ROUND_HALF_UP))
 
         # 2. Recompute trailing stop (only ratchet UP, never down)
         proposed_stop = self._compute_trailing_stop(
@@ -464,9 +450,7 @@ class PositionMonitor:
         )
 
         if proposed_stop > cur_price:
-            logger.error(
-                f"ERROR: Proposed stop ${proposed_stop:.2f} > current price ${cur_price:.2f} for {symbol}"
-            )
+            logger.error(f"ERROR: Proposed stop ${proposed_stop:.2f} > current price ${cur_price:.2f} for {symbol}")
             proposed_stop = cur_price - 0.01  # Clamp to 1c below market
             logger.info(f"  Clamped stop to ${proposed_stop:.2f}")
 
@@ -485,9 +469,7 @@ class PositionMonitor:
             flags.append("SECTOR_WEAK")
 
         # 3c. Giving back gains (>33% retrace from peak)?
-        peak_pct = self._max_unrealized_pct(
-            symbol, trade_date, current_date, entry_price, cur
-        )
+        peak_pct = self._max_unrealized_pct(symbol, trade_date, current_date, entry_price, cur)
         if peak_pct > 5 and unrealized_pct < peak_pct * 0.66:
             flags.append("GIVING_BACK_GAINS")
 
@@ -536,7 +518,7 @@ class PositionMonitor:
 
         if len(flags) >= halt_flag_count:
             action = "EARLY_EXIT"
-            action_reason = f'{len(flags)} health flags: {", ".join(flags)}'
+            action_reason = f"{len(flags)} health flags: {', '.join(flags)}"
             urgent_exit = True
 
         # Special case: earnings within 1-2 days = always exit
@@ -642,13 +624,9 @@ class PositionMonitor:
                 resp = requests.delete(url, headers=headers, timeout=timeout)
 
                 if resp.status_code == 204 or resp.status_code == 200:
-                    logger.info(
-                        f"Successfully cancelled order {trade_id} on Alpaca"
-                    )
+                    logger.info(f"Successfully cancelled order {trade_id} on Alpaca")
                 elif resp.status_code == 404:
-                    logger.info(
-                        f"Order {trade_id} not found on Alpaca (already closed/cancelled)"
-                    )
+                    logger.info(f"Order {trade_id} not found on Alpaca (already closed/cancelled)")
                 else:
                     raise RuntimeError(
                         f"Alpaca cancel returned unexpected status {resp.status_code} for {trade_id}: {resp.text}. DB update blocked to maintain broker/DB state consistency."
@@ -681,9 +659,7 @@ class PositionMonitor:
             )
 
         except (psycopg2.DatabaseError, psycopg2.OperationalError) as db_e:
-            raise RuntimeError(
-                f"Failed to cancel and update {trade_id}: {db_e}"
-            ) from db_e
+            raise RuntimeError(f"Failed to cancel and update {trade_id}: {db_e}") from db_e
 
     def _fetch_current_market(self, symbol, current_date, cur):
         """Fetch current price and technical indicators for a symbol.
@@ -704,15 +680,11 @@ class PositionMonitor:
         )
         row = cur.fetchone()
         if row is None:
-            raise ValueError(
-                f"Price data missing for {symbol} on {current_date} or earlier — no price_daily entry"
-            )
+            raise ValueError(f"Price data missing for {symbol} on {current_date} or earlier — no price_daily entry")
 
         close_price = float(row[0]) if row[0] is not None else None
         if close_price is None:
-            raise ValueError(
-                f"Invalid price for {symbol} on {current_date} — close price is NULL"
-            )
+            raise ValueError(f"Invalid price for {symbol} on {current_date} — close price is NULL")
 
         return (
             close_price,
@@ -721,9 +693,7 @@ class PositionMonitor:
             float(row[3]) if row[3] is not None else None,
         )
 
-    def _compute_trailing_stop(
-        self, entry_price, active_stop, cur_price, atr, sma_50, target_hits
-    ):
+    def _compute_trailing_stop(self, entry_price, active_stop, cur_price, atr, sma_50, target_hits):
         """Stop ratchets up only.
 
         - Before T1: keep initial stop OR use 50-DMA (whichever higher) capped at entry-2*ATR
@@ -742,9 +712,7 @@ class PositionMonitor:
         # This can occur with stale/imported positions.
         if active_stop > cur_price:
             active_stop = cur_price - 0.01
-            logger.warning(
-                f"  Clamped active_stop {active_stop:.2f} to {cur_price - 0.01:.2f} (was above market)"
-            )
+            logger.warning(f"  Clamped active_stop {active_stop:.2f} to {cur_price - 0.01:.2f} (was above market)")
 
         candidates = [active_stop]
 
@@ -839,9 +807,7 @@ class PositionMonitor:
         )
         cur_row = cur.fetchone()
         if not cur_row:
-            logger.warning(
-                f"Missing sector ranking data for {sector} — cannot assess health"
-            )
+            logger.warning(f"Missing sector ranking data for {sector} — cannot assess health")
             return "unknown"
         cur_rank = int(cur_row[0]) if cur_row[0] else 99
 
@@ -858,11 +824,7 @@ class PositionMonitor:
             (sector, four_weeks_ago, four_weeks_ago + timedelta(days=3)),
         )
         old_row = cur.fetchone()
-        old_rank = (
-            int(old_row[0])
-            if old_row is not None and old_row[0] is not None
-            else cur_rank
-        )
+        old_rank = int(old_row[0]) if old_row is not None and old_row[0] is not None else cur_rank
         if cur_rank > old_rank + 3:  # got worse by 3+ ranks
             return "weakening"
         if cur_rank < old_rank - 3:
@@ -891,9 +853,7 @@ class PositionMonitor:
 
         max_close = float(row[0])
         if max_close <= 0:
-            raise PositionValidationError(
-                f"Invalid price data for {symbol}: max close {max_close} <= 0"
-            )
+            raise PositionValidationError(f"Invalid price data for {symbol}: max close {max_close} <= 0")
         return ((max_close - entry_price) / entry_price) * 100.0
 
     def _days_to_earnings(self, symbol, current_date, cur):
@@ -930,7 +890,9 @@ class PositionMonitor:
                 est += timedelta(days=90)
             days = (est - current_date).days
             if days < 0 or days > 200:
-                raise ValueError(f"Earnings estimate out of range for {symbol}: {days} days — estimated date {est} is invalid")
+                raise ValueError(
+                    f"Earnings estimate out of range for {symbol}: {days} days — estimated date {est} is invalid"
+                )
             return days
         except ValueError:
             raise
@@ -981,9 +943,7 @@ class PositionMonitor:
             )
         recent, oldest = float(row[0]), float(row[1])
         if oldest <= 0:
-            raise ValueError(
-                f"Invalid historical price for {symbol}: oldest close {oldest} <= 0"
-            )
+            raise ValueError(f"Invalid historical price for {symbol}: oldest close {oldest} <= 0")
         return (recent - oldest) / oldest
 
     def _persist_review(self, rec, cur):
@@ -1087,16 +1047,12 @@ class PositionMonitor:
                 alpaca_key = creds.get("key")
                 alpaca_secret = creds.get("secret")
             except (psycopg2.DatabaseError, psycopg2.OperationalError) as e:
-                logger.warning(
-                    f"Could not retrieve Alpaca credentials: {e}. Skipping Alpaca sync."
-                )
+                logger.warning(f"Could not retrieve Alpaca credentials: {e}. Skipping Alpaca sync.")
                 alpaca_key = None
                 alpaca_secret = None
 
             if not alpaca_key or not alpaca_secret:
-                logger.warning(
-                    "Alpaca credentials not available, skipping position sync"
-                )
+                logger.warning("Alpaca credentials not available, skipping position sync")
                 return adjustments
 
             for pos_id, symbol, db_qty, db_stop, _entry_price in positions:
@@ -1121,9 +1077,7 @@ class PositionMonitor:
                     try:
                         alpaca_pos = resp.json()
                     except (ValueError, Exception) as e:
-                        logger.warning(
-                            f"Invalid JSON response for {symbol}: {e}, skipping"
-                        )
+                        logger.warning(f"Invalid JSON response for {symbol}: {e}, skipping")
                         continue
 
                     alpaca_qty = int(alpaca_pos.get("qty", 0))
@@ -1148,9 +1102,7 @@ class PositionMonitor:
                         continue
 
                     if alpaca_qty != db_qty:
-                        qty_change_pct = (
-                            abs(alpaca_qty - db_qty) / db_qty * 100 if db_qty > 0 else 0
-                        )
+                        qty_change_pct = abs(alpaca_qty - db_qty) / db_qty * 100 if db_qty > 0 else 0
 
                         if qty_change_pct > 20:  # Likely a split
                             split_ratio = alpaca_qty / db_qty if db_qty > 0 else 1.0
@@ -1222,9 +1174,7 @@ class PositionMonitor:
                             )
 
                 except (psycopg2.DatabaseError, psycopg2.OperationalError) as e:
-                    logger.warning(
-                        f"  Warning: Could not check Alpaca position for {symbol}: {e}"
-                    )
+                    logger.warning(f"  Warning: Could not check Alpaca position for {symbol}: {e}")
                     continue
 
             return adjustments
@@ -1243,11 +1193,7 @@ class PositionMonitor:
                     ORDER BY symbol
                 """)
                 positions = cur.fetchall()
-                return (
-                    [{"symbol": row[0], "name": row[0]} for row in positions]
-                    if positions
-                    else []
-                )
+                return [{"symbol": row[0], "name": row[0]} for row in positions] if positions else []
             except (psycopg2.DatabaseError, psycopg2.OperationalError) as e:
                 logger.warning(f"Failed to fetch open positions: {e}")
                 return []

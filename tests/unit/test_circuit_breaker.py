@@ -74,10 +74,7 @@ class TestCircuitBreakerBasic:
         with patch("algo.risk.circuit_breaker.DatabaseContext") as mock_db_ctx:
             mock_db_ctx.return_value.__enter__.return_value = mock_cur
             mock_db_ctx.return_value.__exit__.return_value = False
-            patches = [
-                patch.object(circuit_breaker, m, return_value=all_pass)
-                for m in check_methods
-            ]
+            patches = [patch.object(circuit_breaker, m, return_value=all_pass) for m in check_methods]
             for p in patches:
                 p.start()
             try:
@@ -110,11 +107,7 @@ class TestCircuitBreakerAll:
         circuit_breaker.conn = Mock()
         circuit_breaker.cur = Mock()
 
-        with patch.object(
-            circuit_breaker, "_check_drawdown", return_value={"passed": True}
-        ):
-            with patch.object(
-                circuit_breaker, "_check_daily_loss", return_value={"passed": True}
-            ):
+        with patch.object(circuit_breaker, "_check_drawdown", return_value={"passed": True}):
+            with patch.object(circuit_breaker, "_check_daily_loss", return_value={"passed": True}):
                 assert circuit_breaker.conn is not None
                 assert circuit_breaker.cur is not None

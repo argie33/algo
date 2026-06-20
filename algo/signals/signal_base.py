@@ -11,9 +11,10 @@ All SignalComputer mixins inherit indirectly through SignalBase for:
 
 import logging
 
+import psycopg2
+
 from utils.db.context import DatabaseContext
 from utils.db.query_cache import CacheStrategy, QueryCache
-import psycopg2
 
 
 logger = logging.getLogger(__name__)
@@ -42,9 +43,7 @@ class SignalBase:
         """Clear RS percentile cache to prevent stale data."""
         self._rs_percentile_cache.invalidate()
 
-    def _rs_percentile_vs_spy(
-        self, cur, symbol: str, eval_date, lookback: int = 60
-    ) -> float:
+    def _rs_percentile_vs_spy(self, cur, symbol: str, eval_date, lookback: int = 60) -> float:
         """
         Mansfield-style RS percentile ranking over `lookback` days.
 
@@ -161,7 +160,5 @@ class SignalBase:
         recent = float(row[0])
         oldest = float(row[1])
         if oldest <= 0:
-            raise ValueError(
-                f"Invalid historical price for {symbol}: oldest close {oldest} <= 0"
-            )
+            raise ValueError(f"Invalid historical price for {symbol}: oldest close {oldest} <= 0")
         return (recent - oldest) / oldest

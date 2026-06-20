@@ -39,9 +39,7 @@ class ConnectionPoolMonitor:
 
         self._lock = threading.Lock()
         self._active_connections = 0
-        self._connection_start_times: dict[int, float] = (
-            {}
-        )  # Connection ID → start time
+        self._connection_start_times: dict[int, float] = {}  # Connection ID → start time
         self._high_usage_warned = False
         self._last_report = time.time()
         self._report_interval = 60  # Report stats every 60s
@@ -87,9 +85,7 @@ class ConnectionPoolMonitor:
 
                     # Log connections that held the pool for >30s (potential timeout candidates)
                     if duration > 30:
-                        logger.debug(
-                            f"[RDS_POOL] Connection held for {duration:.0f}s (long duration)"
-                        )
+                        logger.debug(f"[RDS_POOL] Connection held for {duration:.0f}s (long duration)")
 
             usage_pct = (self._active_connections / self.max_connections) * 100
             if usage_pct < (self.alert_threshold_pct - 20):
@@ -110,8 +106,7 @@ class ConnectionPoolMonitor:
                 "usage_pct": usage_pct,
                 "stuck_connections_count": len(stuck_connections),
                 "stuck_details": [
-                    {"connection_id": cid, "duration_sec": int(duration)}
-                    for cid, duration in stuck_connections
+                    {"connection_id": cid, "duration_sec": int(duration)} for cid, duration in stuck_connections
                 ],
             }
 

@@ -120,9 +120,7 @@ class TestValidateTableSchema(unittest.TestCase):
         )
 
         self.assertFalse(is_valid)
-        self.assertTrue(
-            any("price" in err and "wrong type" in err.lower() for err in errors)
-        )
+        self.assertTrue(any("price" in err and "wrong type" in err.lower() for err in errors))
 
     def test_table_not_found(self):
         """Non-existent table should be reported as error."""
@@ -191,12 +189,8 @@ class TestSchemaMisdetection(unittest.TestCase):
 
         # Validation should FAIL with clear error
         self.assertFalse(is_valid)
-        self.assertTrue(
-            any("close" in err and "wrong type" in err.lower() for err in errors)
-        )
-        self.assertTrue(
-            any("text" in err.lower() and "numeric" in err.lower() for err in errors)
-        )
+        self.assertTrue(any("close" in err and "wrong type" in err.lower() for err in errors))
+        self.assertTrue(any("text" in err.lower() and "numeric" in err.lower() for err in errors))
 
 
 if __name__ == "__main__":

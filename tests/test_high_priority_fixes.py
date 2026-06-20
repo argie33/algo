@@ -48,8 +48,9 @@ class TestStopLossPrecision:
 
         # Verify no drift
         for name in expected_targets:
-            assert abs(calculated_targets[name] - expected_targets[name]) < 0.01, \
+            assert abs(calculated_targets[name] - expected_targets[name]) < 0.01, (
                 f"{name}: expected {expected_targets[name]}, got {calculated_targets[name]}"
+            )
 
     def test_fractional_r_multiple_precision(self):
         """Test with fractional R values that commonly cause float precision issues."""
@@ -68,8 +69,7 @@ class TestStopLossPrecision:
 
         # Expected: 50.25 + (1.5 * 1.5) = 50.25 + 2.25 = 52.50
         expected = 52.50
-        assert abs(target_price - expected) < 0.01, \
-            f"Expected {expected}, got {target_price}"
+        assert abs(target_price - expected) < 0.01, f"Expected {expected}, got {target_price}"
 
     def test_slippage_recalculation_decimal_precision(self):
         """Slippage recalculation should also maintain Decimal precision."""
@@ -82,9 +82,7 @@ class TestStopLossPrecision:
         fill_dec = Decimal(str(fill_price))
         stop_dec = Decimal(str(stop_loss))
 
-        _ = ((fill_dec - signal_dec) / signal_dec * Decimal(100)).quantize(
-            Decimal("0.01"), rounding=ROUND_HALF_UP
-        )
+        _ = ((fill_dec - signal_dec) / signal_dec * Decimal(100)).quantize(Decimal("0.01"), rounding=ROUND_HALF_UP)
 
         # Recalculate targets from fill price
         risk_from_fill = fill_dec - stop_dec  # 100.50 - 95.00 = 5.50
@@ -94,8 +92,7 @@ class TestStopLossPrecision:
 
         # Expected: 100.50 + (5.50 * 1.5) = 100.50 + 8.25 = 108.75
         expected = 108.75
-        assert abs(target_1 - expected) < 0.01, \
-            f"Expected {expected}, got {target_1}"
+        assert abs(target_1 - expected) < 0.01, f"Expected {expected}, got {target_1}"
 
 
 class TestDatabaseTransactionBoundaries:
@@ -124,10 +121,10 @@ class TestDatabaseTransactionBoundaries:
         with open("algo/trading/executor.py") as f:
             code = f.read()
             # Verify consistency checks are present
-            assert "Re-fetch position" in code or "re-fetch" in code.lower(), \
+            assert "Re-fetch position" in code or "re-fetch" in code.lower(), (
                 "exit_trade should re-fetch position to verify consistency"
-            assert "Position consistency error" in code, \
-                "exit_trade should validate position state consistency"
+            )
+            assert "Position consistency error" in code, "exit_trade should validate position state consistency"
 
     def test_exit_trade_audit_log_failure_causes_rollback(self):
         """Verify audit log failures trigger transaction rollback."""
@@ -135,8 +132,7 @@ class TestDatabaseTransactionBoundaries:
             code = f.read()
             # Verify audit log failure handling
             assert "AuditLogError" in code, "exit_trade should handle audit log errors"
-            assert "raise AuditLogError" in code, \
-                "audit log failure should raise error (triggering rollback)"
+            assert "raise AuditLogError" in code, "audit log failure should raise error (triggering rollback)"
 
 
 class TestCacheInvalidationUtility:
@@ -145,6 +141,7 @@ class TestCacheInvalidationUtility:
     def test_cache_invalidation_module_exists(self):
         """Verify cacheInvalidation.js exists."""
         import os
+
         path = "webapp/frontend/src/utils/cacheInvalidation.js"
         assert os.path.exists(path), f"Cache invalidation utility should exist at {path}"
 

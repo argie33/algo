@@ -9,10 +9,12 @@ try:
     from panel_registry import register_panel
 except ImportError as e:
     logger.warning(f"Panel registry not available: {e} - panels will not auto-register")
+
     def register_panel(*args, **kwargs):
         if args and callable(args[0]):
             return args[0]
         return lambda fn: fn
+
 
 from rich.console import Group
 from rich.panel import Panel
@@ -62,16 +64,10 @@ def panel_sector_compact(srank, pos, port, sec_rot=None, irank=None):
         cyc_s = float(sec_rot.get("cyc_score") or 0)
         strength = float(sec_rot.get("strength") or 0)
         sig_c = R if def_s >= 60 else (Y if def_s >= 40 else G)
-        scores_s = (
-            f" [dim]def:{def_s:.0f} cyc:{cyc_s:.0f}[/]"
-            if def_s or cyc_s
-            else ""
-        )
+        scores_s = f" [dim]def:{def_s:.0f} cyc:{cyc_s:.0f}[/]" if def_s or cyc_s else ""
         str_s = f" [dim]spread:{strength:.1f}[/]" if strength else ""
         rows.append(
-            Text.from_markup(
-                f"[dim]Sector Rotation:[/] [{sig_c}]{sig_name[:24]}[/] [dim]{wks}wk[/]{scores_s}{str_s}"
-            )
+            Text.from_markup(f"[dim]Sector Rotation:[/] [{sig_c}]{sig_name[:24]}[/] [dim]{wks}wk[/]{scores_s}{str_s}")
         )
 
     # Holdings by sector: 2-col pairs, up to 6 sectors
@@ -91,15 +87,12 @@ def panel_sector_compact(srank, pos, port, sec_rot=None, irank=None):
             pc = G if avg_pnl >= 0 else R
             bar_f = int(min(pct, 30) / 30 * 4)
             bar_s = f"[{pc}]{'█' * bar_f}[/][dim]{'░' * (4 - bar_f)}[/]"
-            return (
-                f"[white]{sec[:13]:<13}[/]{bar_s}"
-                f"[dim]{pct:3.0f}%[/] [{pc}]{avg_pnl:+.1f}%[/]"
-            )
+            return f"[white]{sec[:13]:<13}[/]{bar_s}[dim]{pct:3.0f}%[/] [{pc}]{avg_pnl:+.1f}%[/]"
 
         sec_tbl = Table.grid(padding=(0, 2), expand=True)
         sec_tbl.add_column("a", ratio=1)
         sec_tbl.add_column("b", ratio=1)
-        for a, b in zip(show_secs[::2], show_secs[1::2] + [None]):
+        for a, b in zip(show_secs[::2], [*show_secs[1::2], None], strict=False):
             sec_tbl.add_row(
                 Text.from_markup(fmt_sec_item(*a)),
                 Text.from_markup(fmt_sec_item(*b)) if b else Text(""),
@@ -117,13 +110,11 @@ def panel_sector_compact(srank, pos, port, sec_rot=None, irank=None):
     if valid_srank:
         if rows:
             rows.append(Rule(style="dim"))
-        rows.append(
-            Text.from_markup("[dim]Sector rankings by momentum  ↑↓= rank change vs 1wk/4wk:[/]")
-        )
+        rows.append(Text.from_markup("[dim]Sector rankings by momentum  ↑↓= rank change vs 1wk/4wk:[/]"))
         srank_tbl = Table.grid(padding=(0, 2), expand=True)
         srank_tbl.add_column("a", ratio=1)
         srank_tbl.add_column("b", ratio=1)
-        for a, b in zip(valid_srank[::2], valid_srank[1::2] + [None]):
+        for a, b in zip(valid_srank[::2], [*valid_srank[1::2], None], strict=False):
             na = (a.get("sector_name") or "")[:13]
             mma = a.get("momentum_score")
             ms_a = f"[dim] mom:{float(mma):.0f}[/]" if mma is not None else ""
@@ -148,13 +139,11 @@ def panel_sector_compact(srank, pos, port, sec_rot=None, irank=None):
     valid_irank = irank_items if irank_items and not irank_error else []
     if valid_irank:
         rows.append(Rule(style="dim"))
-        rows.append(
-            Text.from_markup("[dim]Top industries by momentum  ↑↓= vs 1wk:[/]")
-        )
+        rows.append(Text.from_markup("[dim]Top industries by momentum  ↑↓= vs 1wk:[/]"))
         irank_tbl = Table.grid(padding=(0, 2), expand=True)
         irank_tbl.add_column("a", ratio=1)
         irank_tbl.add_column("b", ratio=1)
-        for a, b in zip(valid_irank[:4][::2], valid_irank[:4][1::2] + [None]):
+        for a, b in zip(valid_irank[:4][::2], [*valid_irank[:4][1::2], None], strict=False):
             na = (a.get("industry") or "")[:14]
             mma = a.get("momentum_score")
             ms_a = f"[dim] mom:{float(mma):.0f}[/]" if mma is not None else ""
@@ -187,9 +176,7 @@ def panel_sector_compact(srank, pos, port, sec_rot=None, irank=None):
 def panel_sectors_expanded(srank, pos, port, sec_rot=None, irank=None):
     """Full-screen sectors - all sector and industry rankings, full portfolio breakdown."""
     rows: list = [
-        Text.from_markup(
-            "[dim]press [/][bold cyan]r[/][dim] to return to dashboard[/]"
-        ),
+        Text.from_markup("[dim]press [/][bold cyan]r[/][dim] to return to dashboard[/]"),
         Rule(style="dim"),
     ]
 
@@ -220,9 +207,7 @@ def panel_sectors_expanded(srank, pos, port, sec_rot=None, irank=None):
         for p in pos_list:
             if not isinstance(p, dict):
                 invalid_count += 1
-                logger.error(
-                    f"panel_sectors_expanded: invalid position (not a dict): {type(p).__name__}"
-                )
+                logger.error(f"panel_sectors_expanded: invalid position (not a dict): {type(p).__name__}")
                 continue
             sec = p.get("sector") or "Unknown"
             val = safe_float(p.get("position_value"), default=None)
@@ -249,7 +234,7 @@ def panel_sectors_expanded(srank, pos, port, sec_rot=None, irank=None):
             bar_s = f"[{pc}]{'█' * bar_f}[/][dim]{'░' * (8 - bar_f)}[/]"
             rows.append(
                 Text.from_markup(
-                    f"  [white]{str(sec):<24}[/]{bar_s} [dim]{pct:.1f}%  {dv['n']} pos[/]  [{pc}]{sign(avg_pnl)}{avg_pnl:.1f}% avg P&L[/]"
+                    f"  [white]{sec!s:<24}[/]{bar_s} [dim]{pct:.1f}%  {dv['n']} pos[/]  [{pc}]{sign(avg_pnl)}{avg_pnl:.1f}% avg P&L[/]"
                 )
             )
         rows.append(Rule(style="dim"))
@@ -263,18 +248,14 @@ def panel_sectors_expanded(srank, pos, port, sec_rot=None, irank=None):
     srank_error_exp = srank.get("_error") if isinstance(srank, dict) else None
     valid_srank = [r for r in srank_items_exp if not srank_error_exp]
     if valid_srank:
-        rows.append(
-            Text.from_markup("[dim]All sectors  (rank  mom  ↑↓1wk/4wk):[/]")
-        )
+        rows.append(Text.from_markup("[dim]All sectors  (rank  mom  ↑↓1wk/4wk):[/]"))
         for r in valid_srank:
             nm = str(r.get("sector_name") or "")
             mm = r.get("momentum_score")
             ms = f"[dim]  mom:{float(mm):.0f}[/]" if mm is not None else ""
             rank_str = str(r.get("current_rank") or "")
             rows.append(
-                Text.from_markup(
-                    f"  [{G}]#{rank_str:<2}[/]  [white]{nm:<28}[/]{ms}  {_rdelta(r, wk4='rank_4w_ago')}"
-                )
+                Text.from_markup(f"  [{G}]#{rank_str:<2}[/]  [white]{nm:<28}[/]{ms}  {_rdelta(r, wk4='rank_4w_ago')}")
             )
         rows.append(Rule(style="dim"))
 
@@ -287,19 +268,13 @@ def panel_sectors_expanded(srank, pos, port, sec_rot=None, irank=None):
     irank_error_exp = irank.get("_error") if isinstance(irank, dict) else None
     valid_irank = irank_items_exp if irank_items_exp and not irank_error_exp else []
     if valid_irank:
-        rows.append(
-            Text.from_markup("[dim]All industries  (rank  mom  ↑↓1wk):[/]")
-        )
+        rows.append(Text.from_markup("[dim]All industries  (rank  mom  ↑↓1wk):[/]"))
         for r in valid_irank:
             nm = str(r.get("industry") or "")
             mm = r.get("momentum_score")
             ms = f"[dim]  mom:{float(mm):.0f}[/]" if mm is not None else ""
             rank_str = str(r.get("current_rank") or "")
-            rows.append(
-                Text.from_markup(
-                    f"  [{CY}]#{rank_str:<2}[/]  [white]{nm:<32}[/]{ms}  {_rdelta(r)}"
-                )
-            )
+            rows.append(Text.from_markup(f"  [{CY}]#{rank_str:<2}[/]  [white]{nm:<32}[/]{ms}  {_rdelta(r)}"))
 
     if not rows:
         return Panel(
@@ -316,9 +291,8 @@ def panel_sectors_expanded(srank, pos, port, sec_rot=None, irank=None):
     )
 
 
-
 __all__ = [
+    "_rdelta",
     "panel_sector_compact",
     "panel_sectors_expanded",
-    "_rdelta",
 ]

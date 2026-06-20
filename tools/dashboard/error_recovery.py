@@ -105,9 +105,7 @@ class RenderRecovery:
     def __init__(self):
         self.state = RenderState()
 
-    def render_with_recovery(
-        self, data: dict, render_fn: Callable[[dict], Layout]
-    ) -> tuple[Layout, str]:
+    def render_with_recovery(self, data: dict, render_fn: Callable[[dict], Layout]) -> tuple[Layout, str]:
         """Attempt to render with automatic retry on transient errors.
 
         Args:
@@ -193,9 +191,7 @@ class RenderRecovery:
     def _create_loading_panel(self, status: str) -> Layout:
         """Create a loading panel for backoff periods."""
         layout = Layout()
-        content = Text.from_markup(
-            f"[dim]Recovering from transient error... waiting for next retry[/]\n\n{status}"
-        )
+        content = Text.from_markup(f"[dim]Recovering from transient error... waiting for next retry[/]\n\n{status}")
         layout.update(Panel(content, title="[yellow]RECOVERING[/]", border_style="yellow"))
         return layout
 
