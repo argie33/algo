@@ -35,6 +35,9 @@ from ..utilities import (
     Y,
 )
 from ._helpers import _error_panel
+from .data_extractors import (
+    safe_get_field,
+)
 
 
 @register_panel(
@@ -48,10 +51,10 @@ def panel_exposure_compact(exp_f):
     err_panel = _error_panel("exposure factors", exp_f, "EXPOSURE FACTORS", border="blue")
     if err_panel:
         return err_panel
-    raw = safe_float(exp_f.get("raw_score"), default=None)
-    epct = safe_float(exp_f.get("exposure_pct"), default=None)
-    regime = exp_f.get("regime", "")
-    factors = exp_f.get("factors", {})
+    raw = safe_float(safe_get_field(exp_f, "raw_score"), default=None)
+    epct = safe_float(safe_get_field(exp_f, "exposure_pct"), default=None)
+    regime = safe_get_field(exp_f, "regime", "")
+    factors = safe_get_field(exp_f, "factors", {})
     tier = tier_from_pct(epct)
     tc = TIER_COLOR.get(tier, "dim")
 
@@ -63,48 +66,48 @@ def panel_exposure_compact(exp_f):
         if not isinstance(f, dict):
             return ""
         if key == "trend_30wk":
-            v = f.get("price_vs_ma_pct")
+            v = safe_get_field(f, "price_vs_ma_pct")
             return f" {'+' if v is not None and v >= 0 else ''}{v:.1f}%" if v is not None else ""
         if key == "breadth_50dma":
-            v = f.get("value")
+            v = safe_get_field(f, "value")
             return f" {v:.0f}%" if v is not None else ""
         if key == "breadth_200dma":
-            v = f.get("value")
+            v = safe_get_field(f, "value")
             return f" {v:.0f}%" if v is not None else ""
         if key == "spy_momentum":
-            v = f.get("value")
+            v = safe_get_field(f, "value")
             return f" {v:+.1f}%" if v is not None else ""
         if key == "put_call_ratio":
-            v = f.get("value")
+            v = safe_get_field(f, "value")
             if v is not None:
                 return f" {v:.2f}"
-            return " [yellow]⚠[/]" if f.get("reason") else ""
+            return " [yellow]⚠[/]" if safe_get_field(f, "reason") else ""
         if key == "vix_regime":
-            v = f.get("value")
+            v = safe_get_field(f, "value")
             return f" {v:.1f}" if v is not None else ""
         if key == "new_highs_lows":
-            nh = f.get("new_highs")
-            nl = f.get("new_lows")
+            nh = safe_get_field(f, "new_highs")
+            nl = safe_get_field(f, "new_lows")
             if nh is not None and nl is not None:
                 net = nh - nl
                 return f" {'+' if net >= 0 else ''}{net}"
             return ""
         if key == "credit_spread":
-            v = f.get("value")
+            v = safe_get_field(f, "value")
             return f" {v:.2f}" if v is not None else ""
         if key == "ad_line":
-            rel = (f.get("relation", "")).replace("_", " ")[:8]
+            rel = (safe_get_field(f, "relation", "")).replace("_", " ")[:8]
             return f" {rel}" if rel else ""
         if key == "aaii_sentiment":
-            bull = f.get("bullish_pct")
-            bear = f.get("bearish_pct")
+            bull = safe_get_field(f, "bullish_pct")
+            bear = safe_get_field(f, "bearish_pct")
             return f" B:{bull:.0f}/Be:{bear:.0f}" if bull is not None and bear is not None else ""
         if key == "naaim":
-            v = f.get("value")
+            v = safe_get_field(f, "value")
             return f" {v:.0f}" if v is not None else ""
         if key == "distribution_days":
-            cnt = f.get("count")
-            regime = (f.get("regime", ""))[:5]
+            cnt = safe_get_field(f, "count")
+            regime = (safe_get_field(f, "regime", ""))[:5]
             return f" {cnt}d/{regime}" if cnt is not None else ""
         return ""
 
@@ -135,7 +138,7 @@ def panel_exposure_compact(exp_f):
             f = factors[key]
             if not isinstance(f, dict):
                 f = {}
-        sf = f.get("score_factor")
+        sf = safe_get_field(f, "score_factor")
         if sf is None:
             items.append(f"[dim]{label}:[/] [yellow]⚠ N/A[/][dim] /{max_pts}[/]")
         else:
@@ -149,20 +152,20 @@ def panel_exposure_compact(exp_f):
     sr = None
     eco = None
     if factors and isinstance(factors, dict):
-        sr_raw = factors.get("sector_rotation")
+        sr_raw = safe_get_field(factors, "sector_rotation")
         if isinstance(sr_raw, dict):
             sr = sr_raw
-        eco_raw = factors.get("economic_overlay")
+        eco_raw = safe_get_field(factors, "economic_overlay")
         if isinstance(eco_raw, dict):
             eco = eco_raw
 
-    sr_pen = safe_float(sr.get("pts") if sr else None, default=0)
-    eco_pen = safe_float(eco.get("pts") if eco else None, default=0)
+    sr_pen = safe_float(safe_get_field(sr, "pts") if sr else None, default=0)
+    eco_pen = safe_float(safe_get_field(eco, "pts") if eco else None, default=0)
     if sr_pen < 0 and sr:
-        sig = (sr.get("signal", "")).replace("_", " ")[:18]
+        sig = (safe_get_field(sr, "signal", "")).replace("_", " ")[:18]
         items.append(f"[dim]Sector Rotation:[/] [{R}]{sr_pen:+.0f}[/] [dim]{sig}[/]")
     if eco_pen < 0 and eco:
-        eco_err = (eco.get("error", ""))[:18]
+        eco_err = (safe_get_field(eco, "error", ""))[:18]
         items.append(f"[dim]Economic Overlay:[/] [{R}]{eco_pen:+.0f}[/]" + (f" [dim]{eco_err}[/]" if eco_err else ""))
 
     for a, b in zip(items[::2], [*items[1::2], ""], strict=False):
@@ -192,10 +195,10 @@ def panel_exposure_expanded(exp_f):
     if err_panel:
         return err_panel
 
-    raw = safe_float(exp_f.get("raw_score"), default=None)
-    epct = safe_float(exp_f.get("exposure_pct"), default=None)
-    regime = exp_f.get("regime", "")
-    factors = exp_f.get("factors", {})
+    raw = safe_float(safe_get_field(exp_f, "raw_score"), default=None)
+    epct = safe_float(safe_get_field(exp_f, "exposure_pct"), default=None)
+    regime = safe_get_field(exp_f, "regime", "")
+    factors = safe_get_field(exp_f, "factors", {})
     tier = tier_from_pct(epct)
     tc = TIER_COLOR.get(tier, "dim")
 
@@ -243,12 +246,12 @@ def panel_exposure_expanded(exp_f):
     tbl.add_column("Context", style="dim", no_wrap=False)
 
     for key, label, max_pts, context in factor_map_exp:
-        f = factors.get(key, {})
-        sf = f.get("score_factor")
+        f = safe_get_field(factors, key, {})
+        sf = safe_get_field(f, "score_factor")
 
         if sf is None:
             # Factor has no data — show ⚠ N/A rather than a misleading 0-point bar
-            reason = (f.get("reason") or ("stale" if f.get("stale") else "no data"))[:18]
+            reason = (safe_get_field(f, "reason") or ("stale" if safe_get_field(f, "stale") else "no data"))[:18]
             bar_s = Text.from_markup(f"[yellow]⚠ N/A{'':>10}[/]  [dim]--/{max_pts}[/]")
             tbl.add_row(
                 Text(label, style="yellow"),
@@ -268,44 +271,44 @@ def panel_exposure_expanded(exp_f):
         # Build value string per factor
         val_s = "--"
         if key == "trend_30wk":
-            v = f.get("price_vs_ma_pct")
+            v = safe_get_field(f, "price_vs_ma_pct")
             val_s = f"{v:+.1f}% vs MA" if v is not None else "--"
         elif key == "breadth_200dma":
-            v = f.get("value")
+            v = safe_get_field(f, "value")
             val_s = f"{v:.0f}% above" if v is not None else "--"
         elif key == "breadth_50dma":
-            v = f.get("value")
+            v = safe_get_field(f, "value")
             val_s = f"{v:.0f}% above" if v is not None else "--"
         elif key == "spy_momentum":
-            v = f.get("value")
+            v = safe_get_field(f, "value")
             val_s = f"{v:+.1f}% 12mo" if v is not None else "--"
         elif key == "put_call_ratio":
-            v = f.get("value")
+            v = safe_get_field(f, "value")
             val_s = f"{v:.2f} P/C" if v is not None else "--"
         elif key == "vix_regime":
-            v = f.get("value")
+            v = safe_get_field(f, "value")
             val_s = f"VIX {v:.1f}" if v is not None else "--"
         elif key == "new_highs_lows":
-            nh = f.get("new_highs") if "new_highs" in f else 0
-            nl = f.get("new_lows") if "new_lows" in f else 0
+            nh = safe_get_field(f, "new_highs") if "new_highs" in f else 0
+            nl = safe_get_field(f, "new_lows") if "new_lows" in f else 0
             net = (nh if nh is not None else 0) - (nl if nl is not None else 0)
             val_s = f"NH:{nh} NL:{nl} net:{net:+d}"
         elif key == "credit_spread":
-            v = f.get("value")
+            v = safe_get_field(f, "value")
             val_s = f"{v:.2f}% OAS" if v is not None else "--"
         elif key == "ad_line":
-            rel = (f.get("relation", "")).replace("_", " ")
+            rel = (safe_get_field(f, "relation", "")).replace("_", " ")
             val_s = rel[:16] if rel else "--"
         elif key == "aaii_sentiment":
-            bull = f.get("bullish_pct")
-            bear = f.get("bearish_pct")
+            bull = safe_get_field(f, "bullish_pct")
+            bear = safe_get_field(f, "bearish_pct")
             val_s = f"B:{bull:.0f}% Bear:{bear:.0f}%" if (bull is not None and bear is not None) else "--"
         elif key == "naaim":
-            v = f.get("value")
+            v = safe_get_field(f, "value")
             val_s = f"{v:.0f}% allocated" if v is not None else "--"
         elif key == "distribution_days":
-            cnt = f.get("count")
-            rg = (f.get("regime", ""))[:10]
+            cnt = safe_get_field(f, "count")
+            rg = (safe_get_field(f, "regime", ""))[:10]
             val_s = f"{cnt}d / {rg}" if cnt is not None else "--"
 
         tbl.add_row(
@@ -323,24 +326,24 @@ def panel_exposure_expanded(exp_f):
     sr = None
     eco = None
     if factors and isinstance(factors, dict):
-        sr_raw = factors.get("sector_rotation")
+        sr_raw = safe_get_field(factors, "sector_rotation")
         if isinstance(sr_raw, dict):
             sr = sr_raw
-        eco_raw = factors.get("economic_overlay")
+        eco_raw = safe_get_field(factors, "economic_overlay")
         if isinstance(eco_raw, dict):
             eco = eco_raw
 
-    sr_pen = safe_float(sr.get("pts") if sr else None, default=0)
-    eco_pen = safe_float(eco.get("pts") if eco else None, default=0)
+    sr_pen = safe_float(safe_get_field(sr, "pts") if sr else None, default=0)
+    eco_pen = safe_float(safe_get_field(eco, "pts") if eco else None, default=0)
     if sr_pen != 0 or eco_pen != 0:
         rows.append(Rule(style="dim"))
         rows.append(Text.from_markup("[dim bold]ADJUSTMENTS[/]"))
         if sr_pen != 0 and sr:
-            sig = (sr.get("signal", "")).replace("_", " ")
+            sig = (safe_get_field(sr, "signal", "")).replace("_", " ")
             sc = R if sr_pen < 0 else G
             rows.append(Text.from_markup(f"  [dim]Sector Rotation:[/] [{sc}]{sr_pen:+.0f} pts[/]  [dim]{sig}[/]"))
         if eco_pen != 0 and eco:
-            eco_err = (eco.get("error", ""))[:30]
+            eco_err = (safe_get_field(eco, "error", ""))[:30]
             ec = R if eco_pen < 0 else G
             rows.append(
                 Text.from_markup(

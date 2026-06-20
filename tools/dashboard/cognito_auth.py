@@ -44,7 +44,8 @@ class CognitoAuth:
                 return None
             payload = json.loads(base64.urlsafe_b64decode(parts[1] + "=="))
             return cast(float, payload.get("exp"))
-        except Exception:
+        except Exception as e:
+            logger.warning(f"Failed to parse JWT expiry from token: {e}")
             return None
 
     def authenticate(self, username: str, password: str) -> bool:
@@ -137,7 +138,8 @@ class CognitoAuth:
             # Validate header is valid base64
             try:
                 base64.urlsafe_b64decode(parts[0] + "==")
-            except Exception:
+            except Exception as e:
+                logger.debug(f"JWT header validation failed: {e}")
                 return False
 
             # Validate payload is valid base64 and contains required claims
@@ -145,18 +147,22 @@ class CognitoAuth:
                 payload_json = json.loads(base64.urlsafe_b64decode(parts[1] + "=="))
                 # Verify required claims exist
                 if "exp" not in payload_json or "sub" not in payload_json:
+                    logger.debug("JWT payload missing required claims (exp, sub)")
                     return False
-            except Exception:
+            except Exception as e:
+                logger.debug(f"JWT payload validation failed: {e}")
                 return False
 
             # Validate signature is present and valid base64
             try:
                 base64.urlsafe_b64decode(parts[2] + "==")
-            except Exception:
+            except Exception as e:
+                logger.debug(f"JWT signature validation failed: {e}")
                 return False
 
             return True
-        except Exception:
+        except Exception as e:
+            logger.debug(f"JWT validation failed: {e}")
             return False
 
     def is_authenticated(self) -> bool:

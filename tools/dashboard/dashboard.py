@@ -252,7 +252,8 @@ def _validate_api_url(url: str) -> bool:
             return False
 
         return True
-    except Exception:
+    except Exception as e:
+        logger.error(f"API URL validation failed for '{url}': {e}")
         return False
 
 
@@ -547,14 +548,6 @@ def render_dashboard(
     exec_hist = _extract_items(data.get("exec_hist"))
     scores = data.get("scores")
 
-    # CRITICAL: Check for errors in extracted data before using
-    # Any data with _error marker should not be passed to panels expecting real data
-    data_errors = {k: v for k, v in {
-        "run": run, "cfg": cfg, "mkt": mkt, "port": port, "perf": perf, "pos": pos,
-        "sig": sig, "health": hlth, "cb": cb, "trades": rec, "eco": eco, "risk": risk,
-        "perf_anl": perf_anl, "sig_eval": sig_eval, "sec_rot": sec_rot, "scores": scores,
-    }.items() if has_error(v)}
-
     now_et = datetime.now(ET)
     _mkt_badge, _mkt_cdown = mkt_hours_str()
     mkt_s = f"{_mkt_badge}  [dim]{_mkt_cdown}[/]"
@@ -570,7 +563,7 @@ def render_dashboard(
     # FIX: Check header data before rendering
     if has_error(mkt) or has_error(cfg):
         hdr_panel = Panel(
-            Text.from_markup(f"[red]Market/Config Error - Dashboard data unavailable[/]"),
+            Text.from_markup("[red]Market/Config Error - Dashboard data unavailable[/]"),
             title="[bold red]✗ Data Error[/]",
             border_style="red",
         )
@@ -687,11 +680,17 @@ def render_dashboard(
         if has_error(pos):
             return _expanded_layout(*_exp_top, Panel("[red]Positions data unavailable[/]", border_style="red"))
         hint = Text.from_markup("[dim]press [/][bold cyan]p[/][dim] to return to dashboard[/]")
-        if isinstance(pos, dict) and "items" in pos:
-            _pos_items = pos.get("items", [])
+        if isinstance(pos, dict):
+            if "items" not in pos:
+                logger.error("Positions response missing 'items' field")
+                _pos_items = []
+            else:
+                items = pos["items"]
+                _pos_items = items if isinstance(items, list) else []
         elif isinstance(pos, list):
             _pos_items = pos
         else:
+            logger.error(f"Positions data has unexpected type: {type(pos).__name__}")
             _pos_items = []
         return _expanded_layout(
             *_exp_top,

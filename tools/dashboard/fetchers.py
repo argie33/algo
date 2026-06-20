@@ -20,6 +20,7 @@ from .data_validation import (
     safe_int_strict,
     safe_json_parse,
 )
+from .panels.data_extractors import safe_get_dict, safe_get_field, safe_get_list
 from .utilities import (
     CY,
     G,
@@ -157,15 +158,15 @@ def fetch_run(c):
             return FetcherValidator.build_error_response(error_msg)
 
         phases = inner["phases"]
-        halted_phases = [p for p in phases if p.get("status") in ("halt", "halted")]
-        errored_phases = [p for p in phases if p.get("status") == "error"]
-        completed_phases = [p for p in phases if p.get("status") == "success"]
-        halt_reason = halted_phases[0].get("summary") if halted_phases else None
+        halted_phases = [p for p in phases if safe_get_field(p, "status") in ("halt", "halted")]
+        errored_phases = [p for p in phases if safe_get_field(p, "status") == "error"]
+        completed_phases = [p for p in phases if safe_get_field(p, "status") == "success"]
+        halt_reason = safe_get_field(halted_phases[0], "summary") if halted_phases else None
 
         # Timestamps are required — fail if all are missing (Issue #6)
-        run_at = inner.get("run_at") or inner.get("completed_at") or inner.get("started_at")
+        run_at = safe_get_field(inner, "run_at") or safe_get_field(inner, "completed_at") or safe_get_field(inner, "started_at")
         # No runs yet (algo hasn't executed) — fail-fast: return error instead of placeholder
-        if not run_at and not inner.get("run_id") and not inner["success"] and not inner["halted"]:
+        if not run_at and not safe_get_field(inner, "run_id") and not inner["success"] and not inner["halted"]:
             error_msg = "No algo runs available yet (algo has not executed)"
             logger.warning(error_msg)
             record_data_quality_issue("run", "initialization", "no_runs_yet")
@@ -177,21 +178,21 @@ def fetch_run(c):
             return FetcherValidator.build_error_response(error_msg)
 
         # errored: use API field if present, otherwise derive from phase data
-        api_errored = inner.get("errored")
+        api_errored = safe_get_field(inner, "errored")
         derived_errored = bool(errored_phases) or (
             not inner["success"] and not inner["halted"] and bool(phases)
         )
         return {
-            "run_id": inner.get("run_id"),
+            "run_id": safe_get_field(inner, "run_id"),
             "run_at": run_at,
             "success": inner["success"],
             "halted": inner["halted"],
             "errored": api_errored if api_errored is not None else derived_errored,
-            "summary": inner.get("summary"),
+            "summary": safe_get_field(inner, "summary"),
             "halt_reason": halt_reason,
-            "phases_completed": [p.get("action_type") for p in completed_phases],
-            "phases_halted": [p.get("action_type") for p in halted_phases],
-            "phases_errored": [p.get("action_type") for p in errored_phases],
+            "phases_completed": [safe_get_field(p, "action_type") for p in completed_phases],
+            "phases_halted": [safe_get_field(p, "action_type") for p in halted_phases],
+            "phases_errored": [safe_get_field(p, "action_type") for p in errored_phases],
             "phase_results": phases,
         }
     except Exception as e:
@@ -222,7 +223,19 @@ def fetch_algo_config(c):
             return FetcherValidator.build_error_response(error_msg)
 
         # API returns {items: [{key, value, value_type, ...}], total: N}
-        items = raw.get("items", [])
+        if "items" not in raw:
+            error_msg = "Config API response missing 'items' key (API contract violation)"
+            logger.error(error_msg)
+            record_data_quality_issue("cfg", "validation", "missing_items_key")
+            return FetcherValidator.build_error_response(error_msg)
+
+        items = raw["items"]
+        if not isinstance(items, list):
+            error_msg = f"Config 'items' is not a list: {type(items).__name__}"
+            logger.error(error_msg)
+            record_data_quality_issue("cfg", "validation", "items_not_list")
+            return FetcherValidator.build_error_response(error_msg)
+
         if not items:
             error_msg = "Config API response has no items (empty config)"
             logger.error(error_msg)
@@ -458,23 +471,22 @@ def fetch_portfolio(c):
             record_data_quality_issue("portfolio", "type_conversion", "conversion_failed", str(e))
             return FetcherValidator.build_error_response(error_msg)
 
-        unrealized_pnl_dict = port.get("unrealized_pnl")
+        unrealized_pnl_dict = safe_get_dict(safe_get_field(port, "unrealized_pnl"))
         unrealized_pnl_pct = None
-        if unrealized_pnl_dict is not None:
-            if isinstance(unrealized_pnl_dict, dict):
-                unrealized_pnl_pct = safe_float(unrealized_pnl_dict.get("total_pct"), default=None)
+        if unrealized_pnl_dict:
+            unrealized_pnl_pct = safe_float(safe_get_field(unrealized_pnl_dict, "total_pct"), default=None)
 
         return {
-            "snapshot_date": port.get("last_run"),
+            "snapshot_date": safe_get_field(port, "last_run"),
             "total_portfolio_value": tpv,
             "total_cash": tc,
             "position_count": pc,
-            "daily_return_pct": safe_float(port.get("daily_return_pct"), default=None),
+            "daily_return_pct": safe_float(safe_get_field(port, "daily_return_pct"), default=None),
             "unrealized_pnl_pct": unrealized_pnl_pct,
-            "cumulative_return_pct": safe_float(port.get("cumulative_return_pct"), default=None),
-            "max_drawdown_pct": safe_float(port.get("max_drawdown_pct"), default=None),
-            "largest_position_pct": safe_float(port.get("largest_position_pct"), default=None),
-            "data_age_seconds": port.get("data_age_seconds"),
+            "cumulative_return_pct": safe_float(safe_get_field(port, "cumulative_return_pct"), default=None),
+            "max_drawdown_pct": safe_float(safe_get_field(port, "max_drawdown_pct"), default=None),
+            "largest_position_pct": safe_float(safe_get_field(port, "largest_position_pct"), default=None),
+            "data_age_seconds": safe_get_field(port, "data_age_seconds"),
         }
     except Exception as e:
         error_msg = _format_fetcher_error("port", e)
@@ -528,27 +540,23 @@ def fetch_perf(c):
             record_data_quality_issue("per", "type_conversion", "conversion_failed", str(e))
             return FetcherValidator.build_error_response(error_msg)
 
-        equity_vals = perf.get("equity_vals")
-        if not isinstance(equity_vals, list):
-            equity_vals = None
-        recent_rets = perf.get("recent_rets")
-        if not isinstance(recent_rets, list):
-            recent_rets = None
+        equity_vals = safe_get_list(safe_get_field(perf, "equity_vals"))
+        recent_rets = safe_get_list(safe_get_field(perf, "recent_rets"))
 
         return {
             "n": n,
             "w": w,
             "l": losing,
-            "wr": safe_float(perf.get("win_rate_pct"), default=None),
-            "open_count": safe_int(perf.get("open_losses_count") or perf.get("open_positions"), default=None),
-            "pnl": safe_float(perf.get("total_pnl_dollars"), default=None),
-            "unrealized_pnl": safe_float(perf.get("unrealized_pnl"), default=None),
-            "streak": safe_int(perf.get("current_streak"), default=None),
-            "sharpe": safe_float(perf.get("sharpe_annualized"), default=None),
-            "maxdd": safe_float(perf.get("max_drawdown_pct"), default=None),
-            "avg_win": safe_float(perf.get("avg_win_pct"), default=None),
-            "avg_loss": safe_float(perf.get("avg_loss_pct"), default=None),
-            "profit_factor": safe_float(perf.get("profit_factor"), default=None),
+            "wr": safe_float(safe_get_field(perf, "win_rate_pct"), default=None),
+            "open_count": safe_int(safe_get_field(perf, "open_losses_count") or safe_get_field(perf, "open_positions"), default=None),
+            "pnl": safe_float(safe_get_field(perf, "total_pnl_dollars"), default=None),
+            "unrealized_pnl": safe_float(safe_get_field(perf, "unrealized_pnl"), default=None),
+            "streak": safe_int(safe_get_field(perf, "current_streak"), default=None),
+            "sharpe": safe_float(safe_get_field(perf, "sharpe_annualized"), default=None),
+            "maxdd": safe_float(safe_get_field(perf, "max_drawdown_pct"), default=None),
+            "avg_win": safe_float(safe_get_field(perf, "avg_win_pct"), default=None),
+            "avg_loss": safe_float(safe_get_field(perf, "avg_loss_pct"), default=None),
+            "profit_factor": safe_float(safe_get_field(perf, "profit_factor"), default=None),
             "expectancy": safe_float(perf.get("expectancy_r"), default=None),
             "avg_r": safe_float(perf.get("expectancy_r"), default=None),
             "equity_vals": equity_vals,

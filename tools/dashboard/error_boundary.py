@@ -41,18 +41,26 @@ def safe_list(data: Any) -> list:
     """Safely extract list from data, propagating errors instead of hiding them.
 
     Returns error dict on error, items list otherwise.
+    Fail-fast: Returns error if data structure is malformed.
     """
     if has_error(data):
         return cast(list, data)
     if isinstance(data, dict):
-        return (
-            data.get("items", [])
-            if "items" in data
-            else (data.get("data", []) if isinstance(data.get("data"), list) else [])
-        )
+        if "items" in data:
+            items = data["items"]
+            if isinstance(items, list):
+                return items
+            # Malformed: items exists but is not a list
+            return cast(list, {"_error": f"'items' is not a list: {type(items).__name__}"})
+        elif "data" in data and isinstance(data["data"], list):
+            return data["data"]
+        else:
+            # Malformed: dict has neither 'items' nor 'data' list
+            return cast(list, {"_error": "Response dict missing 'items' or 'data' field"})
     if isinstance(data, list):
         return data
-    return []
+    # Malformed: not a dict or list
+    return cast(list, {"_error": f"Expected list or dict, got {type(data).__name__}"})
 
 
 def error_summary_panel(data_dict: dict[str, Any]) -> Panel | None:

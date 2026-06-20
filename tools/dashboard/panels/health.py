@@ -1076,34 +1076,34 @@ def _build_results_panel(
 
     run_valid = run and not has_error(run)
     act_valid = act and not has_error(act)
-    run_at = run.get("run_at") if run_valid else (act.get("run_at") if act_valid else None)
+    run_at = safe_get_field(run, "run_at") if run_valid else (safe_get_field(act, "run_at") if act_valid else None)
     age_s = f"  [dim]{fmt_age(run_at)}[/]" if run_at else ""
 
     if run_valid:
         sts = (
             f"[bold {G}]OK COMPLETED[/]"
-            if run.get("success") and not run.get("halted")
-            else (f"[bold {Y}]~ HALTED[/]" if run.get("halted") else f"[bold {R}]X ERROR[/]")
+            if safe_get_field(run, "success") and not safe_get_field(run, "halted")
+            else (f"[bold {Y}]~ HALTED[/]" if safe_get_field(run, "halted") else f"[bold {R}]X ERROR[/]")
         )
-        rid = run.get("run_id", "")
+        rid = safe_get_field(run, "run_id", "")
         right_rows.append(Text.from_markup(f"{sts}{age_s}  [dim]{rid}[/]"))
-        halt_r = run.get("halt_reason", "")
-        summary = run.get("summary", "")
-        if run.get("halted") or halt_r:
-            for label, detail in _best_halt_reason(halt_r, run.get("phase_results")):
+        halt_r = safe_get_field(run, "halt_reason", "")
+        summary = safe_get_field(run, "summary", "")
+        if safe_get_field(run, "halted") or halt_r:
+            for label, detail in _best_halt_reason(halt_r, safe_get_field(run, "phase_results")):
                 prefix = f"{label}: " if label else ""
                 right_rows.append(Text.from_markup(f"  [{Y}]-> {prefix}{detail}[/]"))
         elif summary:
             right_rows.append(Text.from_markup(f"  [dim]{summary}[/]"))
 
     phase_badges_e: list = []
-    if run_valid and run.get("_source") == "exec_log":
-        for p in run.get("phase_results", []):
-            raw = (p.get("name") or p.get("phase", "")).lower()
+    if run_valid and safe_get_field(run, "_source") == "exec_log":
+        for p in safe_get_list(safe_get_field(run, "phase_results", [])):
+            raw = (safe_get_field(p, "name") or safe_get_field(p, "phase", "")).lower()
             parts_p = raw.split("_")
             base = "_".join(parts_p[:2]) if len(parts_p) >= 2 else raw
             short = PHASE_NAMES.get(base, base.replace("phase_", "P"))[:8]
-            ps = (p.get("status", "")).lower()
+            ps = (safe_get_field(p, "status", "")).lower()
             sc = (
                 G
                 if ps in ("success", "completed", "ok")
@@ -1119,9 +1119,9 @@ def _build_results_panel(
         right_rows.append(Text.from_markup("  ".join(phase_badges_e)))
 
     signals_gen = entries_exec = exits_exec = 0
-    if run_valid and run.get("_source") == "exec_log":
-        for p in run.get("phase_results", []):
-            pdata = p.get("data")
+    if run_valid and safe_get_field(run, "_source") == "exec_log":
+        for p in safe_get_list(safe_get_field(run, "phase_results", [])):
+            pdata = safe_get_field(p, "data")
             if isinstance(pdata, str):
                 try:
                     pdata = json.loads(pdata)
@@ -1130,9 +1130,9 @@ def _build_results_panel(
             elif not isinstance(pdata, dict):
                 pdata = None
             if pdata:
-                sg = pdata.get("signals_generated")
-                ee = pdata.get("entries_executed") or pdata.get("trades_executed")
-                xe = pdata.get("exits_executed")
+                sg = safe_get_field(pdata, "signals_generated")
+                ee = safe_get_field(pdata, "entries_executed") or safe_get_field(pdata, "trades_executed")
+                xe = safe_get_field(pdata, "exits_executed")
                 if sg:
                     signals_gen = max(signals_gen, int(sg))
                 if ee:
@@ -1143,10 +1143,10 @@ def _build_results_panel(
     valid_metrics_e = algo_metrics if (algo_metrics and not (isinstance(algo_metrics, dict) and has_error(algo_metrics))) else []
     today_m_e = valid_metrics_e[0] if valid_metrics_e else {}
     if not entries_exec:
-        en = today_m_e.get("entries")
+        en = safe_get_field(today_m_e, "entries")
         entries_exec = int(en) if en is not None else 0
     if not exits_exec:
-        ex = today_m_e.get("exits")
+        ex = safe_get_field(today_m_e, "exits")
         exits_exec = int(ex) if ex is not None else 0
 
     action_parts_e = []
@@ -1154,7 +1154,7 @@ def _build_results_panel(
         action_parts_e.append(f"[dim]Signals:[/][white]{signals_gen}[/]")
     action_parts_e.append(f"[dim]Entries:[/][{G if entries_exec > 0 else DIM}]{entries_exec}[/]")
     action_parts_e.append(f"[dim]Exits:[/][{Y if exits_exec > 0 else DIM}]{exits_exec}[/]")
-    avg_sig_score_e = today_m_e.get("avg_signal_score")
+    avg_sig_score_e = safe_get_field(today_m_e, "avg_signal_score")
     if avg_sig_score_e is not None:
         avg_sig_v = float(avg_sig_score_e)
         if avg_sig_v > 0:
@@ -1166,10 +1166,10 @@ def _build_results_panel(
     if len(valid_metrics_e) >= 2:
         day_parts_e = []
         for m in valid_metrics_e[:5]:
-            d = m.get("date")
+            d = safe_get_field(m, "date")
             d_s = d.strftime("%d") if hasattr(d, "strftime") else str(d or "")[-2:]
-            en = m.get("entries")
-            ex = m.get("exits")
+            en = safe_get_field(m, "entries")
+            ex = safe_get_field(m, "exits")
             en_s = str(int(en)) if en is not None else "--"
             ex_s = str(int(ex)) if ex is not None else "--"
             e_c = G if en is not None and en > 0 else DIM
@@ -1181,31 +1181,33 @@ def _build_results_panel(
 
     valid_hist_e = exec_hist if (exec_hist and not (isinstance(exec_hist, dict) and has_error(exec_hist))) else []
     if valid_hist_e:
-        n_ok = sum(1 for r in valid_hist_e if (r.get("overall_status") or "").lower() in ("success", "completed"))
+        n_ok = sum(1 for r in valid_hist_e if (safe_get_field(r, "overall_status", "") or "").lower() in ("success", "completed"))
         wc = G if n_ok == len(valid_hist_e) else (Y if n_ok > 0 else R)
         right_rows.append(
             Text.from_markup(f"[dim]Run history ({len(valid_hist_e)}):[/]  [{wc}]{n_ok}/{len(valid_hist_e)} success[/]")
         )
         for r in valid_hist_e:
-            s = (r.get("overall_status") or "").lower()
-            dt = r.get("started_at")
+            s = (safe_get_field(r, "overall_status", "") or "").lower()
+            dt = safe_get_field(r, "started_at")
             dt_s = dt.strftime("%b %d  %I:%M %p") if hasattr(dt, "strftime") else str(dt or "")[:16]
             ic = G if s in ("success", "completed") else (Y if s == "halted" else R)
             ii = "v" if s in ("success", "completed") else ("~" if s == "halted" else "x")
-            hr = r.get("halt_reason", "")
-            lph = _fmt_phases_halted(r.get("phases_halted"))
+            hr = safe_get_field(r, "halt_reason", "")
+            lph = _fmt_phases_halted(safe_get_field(r, "phases_halted"))
             body = hr or lph
             ph_s = f"  [dim]({lph})[/]" if lph and lph not in (hr or "") else ""
             hr_s = f"  [{Y}]-> {body}[/]{ph_s}" if body else ""
             right_rows.append(Text.from_markup(f"  [{ic}]{ii}[/] [dim]{dt_s}[/]  [{ic}]{s}[/]{hr_s}"))
 
-    if risk and not has_error(risk) and risk.get("var95") is not None and float(risk.get("var95")) > 0:
+    risk_dict_b = safe_get_dict(risk) if not has_error(risk) else {}
+    var95_b = safe_get_field(risk_dict_b, "var95") if risk_dict_b else None
+    if risk_dict_b and var95_b is not None and float(var95_b) > 0:
         right_rows.append(Rule(style="dim"))
-        var95_val_e = risk.get("var95")
-        beta_val_e = risk.get("beta")
-        conc5_val_e = risk.get("conc5")
-        cvar95_val_e = risk.get("cvar95")
-        svar_val_e = risk.get("svar")
+        var95_val_e = var95_b
+        beta_val_e = safe_get_field(risk_dict_b, "beta")
+        conc5_val_e = safe_get_field(risk_dict_b, "conc5")
+        cvar95_val_e = safe_get_field(risk_dict_b, "cvar95")
+        svar_val_e = safe_get_field(risk_dict_b, "svar")
         beta_c = R if beta_val_e >= 1.2 else (Y if beta_val_e >= 0.8 else G)
         conc_c = R if conc5_val_e >= 35 else (Y if conc5_val_e >= 25 else "white")
         var_c = R if var95_val_e >= 4 else (Y if var95_val_e >= 2 else "white")
