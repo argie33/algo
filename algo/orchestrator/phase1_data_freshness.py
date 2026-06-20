@@ -42,6 +42,20 @@ def run(
 ) -> PhaseResult:
     """Execute Phase 1: Verify pipeline-loaded tables are fresh.
 
+    ISSUE #6 FIX: Integrate DataPatrol checks to block Phase 1 if data quality issues found.
+
+    DataPatrol runs independently and validates:
+    - Staleness of critical tables (price_daily, market_health_daily, etc.)
+    - Data coverage and completeness
+    - Quality metrics (OHLC sanity, volume outliers, etc.)
+    - Alignment between related tables
+
+    Phase 1 now:
+    1. Queries DataPatrol results from patrol_log table
+    2. Fails if CRITICAL or ERROR issues found
+    3. Warns if WARNING issues found but proceeds
+    4. Performs traditional freshness checks (redundant but explicit fail-safe)
+
     Halts if price_daily, market_health_daily, or market_exposure_daily are stale —
     these are required for Phase 5 signal generation and regime gating.
     Issues warnings for trend_template_data, swing_trader_scores, and sector_ranking —
@@ -111,6 +125,91 @@ def run(
             f"[PHASE 1] Failsafe retry check: {len(failsafe_result.get('recovered', []))} recovered, "
             f"{len(failsafe_result.get('still_failing', []))} still failing (auxiliary)"
         )
+
+    # ISSUE #6 FIX: Check DataPatrol results before proceeding with freshness validation
+    # DataPatrol runs independently and validates data quality; Phase 1 must respect those findings
+    try:
+        with DatabaseContext("read") as cur:
+            cur.execute("SET LOCAL statement_timeout = '5000ms'")  # 5s timeout for patrol log check
+
+            # Get latest DataPatrol results for today (critical/error severity only)
+            # These are dealbreakers that must block trading
+            cur.execute(
+                """
+                SELECT severity, check_name, target_table, message
+                FROM data_patrol_log
+                WHERE patrol_date = %s
+                AND severity IN ('critical', 'error')
+                ORDER BY severity DESC, check_name
+                LIMIT 20
+                """,
+                (run_date,),
+            )
+            critical_patrol_issues = cur.fetchall()
+
+            if critical_patrol_issues:
+                logger.critical(
+                    f"[PHASE 1] DataPatrol found {len(critical_patrol_issues)} critical/error issues. "
+                    "Cannot proceed with trading until resolved."
+                )
+                issues_summary = "; ".join(
+                    [f"{row[1]} ({row[2]}): {row[3][:80]}" for row in critical_patrol_issues[:5]]
+                )
+                log_phase_result_fn(
+                    1,
+                    "data_patrol_critical_issues",
+                    "halt",
+                    f"DataPatrol CRITICAL/ERROR: {issues_summary}",
+                )
+                from algo.orchestrator.phase_error_handling import ErrorCategory, PhaseError, log_phase_error
+
+                error = PhaseError(
+                    category=ErrorCategory.DATA_INVALID,
+                    message=f"DataPatrol detected {len(critical_patrol_issues)} critical data quality issues",
+                    root_cause=f"Check data_patrol_log table for details. Issues: {issues_summary}",
+                    recoverable=False,
+                    log_level="critical",
+                )
+                log_phase_error(1, error, log_phase_result_fn)
+
+                return PhaseResult(
+                    1,
+                    "data_patrol_critical_issues",
+                    "halted",
+                    {},
+                    True,
+                    f"DataPatrol critical issues found: {issues_summary[:100]}",
+                )
+
+            # Log any warnings from DataPatrol (informational only - trading continues)
+            cur.execute(
+                """
+                SELECT COUNT(*), COUNT(DISTINCT check_name)
+                FROM data_patrol_log
+                WHERE patrol_date = %s
+                AND severity = 'warning'
+                """,
+                (run_date,),
+            )
+            patrol_warn_row = cur.fetchone()
+            patrol_warn_count = patrol_warn_row[0] if patrol_warn_row else 0
+            patrol_warn_checks = patrol_warn_row[1] if patrol_warn_row and len(patrol_warn_row) > 1 else 0
+            if patrol_warn_count > 0:
+                logger.warning(
+                    f"[PHASE 1] DataPatrol: {patrol_warn_count} warning(s) from {patrol_warn_checks} check(s) "
+                    "(trading continues but data quality degraded)"
+                )
+
+    except (psycopg2.DatabaseError, psycopg2.OperationalError) as e:
+        # If patrol_log doesn't exist yet (first run) or query fails, continue with fallback checks
+        # This maintains fail-fast behavior if critical issues exist, but doesn't block if patrol hasn't run
+        if "data_patrol_log" in str(e).lower() or "undefined table" in str(e).lower():
+            logger.info(
+                "[PHASE 1] DataPatrol log table not yet available (first run?). "
+                "Continuing with traditional freshness checks."
+            )
+        else:
+            logger.warning(f"[PHASE 1] DataPatrol check failed: {str(e)[:100]}. Continuing with fallback checks.")
 
     try:
         with DatabaseContext("read") as cur:

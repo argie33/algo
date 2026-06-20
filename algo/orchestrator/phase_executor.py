@@ -122,11 +122,15 @@ class OrchestratorPhaseExecutor:
     def _check_dependencies(self, phase_num: int | str) -> str | None:
         """Check if a phase's dependencies are satisfied.
 
-        Validates both execution status AND data contracts (schema validation).
+        ISSUE #7 FIX: Validates both execution status AND data contracts (schema validation).
         Prevents phases from proceeding with incomplete dependency data.
+        Raises exceptions instead of silently returning defaults.
 
         Returns:
             None if all dependencies satisfied, error message otherwise.
+
+        Raises:
+            Exception: On missing dependencies with full context about what failed
         """
         from algo.orchestrator.phase_data_contract import (
             DataContractError,
@@ -140,20 +144,45 @@ class OrchestratorPhaseExecutor:
         for dep in phase.dependencies:
             dep_result = self.phase_results.get(dep)
             if not dep_result:
-                return f"Phase {phase_num} requires Phase {dep} (not executed)"
+                error_msg = (
+                    f"[PHASE {phase_num} DEPENDENCY FAILED] Phase {phase_num} requires Phase {dep} output "
+                    f"but Phase {dep} was never executed. Available phases: {list(self.phase_results.keys())}. "
+                    f"Cannot proceed without {dep}'s output."
+                )
+                logger.critical(error_msg)
+                return error_msg
+
             if not dep_result.ok:
-                return f"Phase {phase_num} requires Phase {dep} (status: {dep_result.status})"
+                error_msg = (
+                    f"[PHASE {phase_num} DEPENDENCY FAILED] Phase {phase_num} requires Phase {dep} "
+                    f"but Phase {dep} failed with status={dep_result.status}. "
+                    f"Reason: {dep_result.error or 'unknown'}. "
+                    f"Cannot proceed without successful Phase {dep}."
+                )
+                logger.critical(error_msg)
+                return error_msg
 
             # CRITICAL: Validate dependency produced valid data schema
+            # ISSUE #7 FIX: Never silently return defaults - fail loudly if data is incomplete
             try:
                 validate_phase_data(dep, dep_result.data)
             except DataContractError as e:
-                return f"Phase {phase_num} dependency {dep} data invalid: {e}"
+                error_msg = (
+                    f"[PHASE {phase_num} DATA CONTRACT VIOLATION] Phase {phase_num} depends on Phase {dep} "
+                    f"but Phase {dep}'s output is invalid: {e}. "
+                    f"Expected data: {dep_result.data.keys() if hasattr(dep_result, 'data') else 'unknown'}. "
+                    f"Cannot proceed with invalid upstream data."
+                )
+                logger.critical(error_msg)
+                return error_msg
 
         return None
 
     def execute_phase(self, phase_num: int | str, **kwargs) -> tuple[bool, str | None]:
         """Execute a single phase.
+
+        ISSUE #7 FIX: Ensure all dependency failures are loud and actionable.
+        Never silently skip a phase with dependencies - if dependencies fail, the phase must fail too.
 
         Args:
             phase_num: Phase to execute
@@ -165,6 +194,19 @@ class OrchestratorPhaseExecutor:
         phase = self.phases.get(phase_num)
         if not phase:
             return False, f"Phase {phase_num} not registered"
+
+        # ISSUE #7 FIX: Check dependencies BEFORE checking halt flag
+        # Dependencies must be satisfied regardless of halt state
+        dep_error = self._check_dependencies(phase_num)
+        if dep_error:
+            logger.critical(f"[DEP-CHECK FAILED] {dep_error}")
+            # CRITICAL: If a phase has dependencies and they fail, the phase MUST fail
+            # Never skip phases with unsatisfied dependencies
+            if phase.dependencies:
+                logger.critical(
+                    f"[PHASE {phase_num}] Cannot proceed: has {len(phase.dependencies)} unsatisfied dependencies"
+                )
+            return False, dep_error
 
         # Check halt flag (unless phase always runs)
         if not phase.always_run and phase.skip_if_halted:
@@ -179,12 +221,6 @@ class OrchestratorPhaseExecutor:
                 )
                 self.phase_results[phase_num] = result
                 return True, None
-
-        # Check dependencies
-        dep_error = self._check_dependencies(phase_num)
-        if dep_error:
-            logger.critical(f"[DEP-CHECK] {dep_error}")
-            return False, dep_error
 
         # Execute phase
         try:

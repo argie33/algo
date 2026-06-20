@@ -233,3 +233,154 @@ class TestPortfolioResponseValidator:
         with pytest.raises(ResponseValidationError) as exc_info:
             validate_portfolio_response(data)
         assert "position_count" in str(exc_info.value)
+
+
+class TestNewEndpointValidators:
+    """Test validators for newly added critical endpoints."""
+
+    def test_last_run_response_valid(self):
+        """Valid last-run response passes validation."""
+        from tools.dashboard.response_validators import validate_last_run_response
+
+        data = {
+            "run_id": "run_123",
+            "success": True,
+            "completed_at": "2024-01-15T10:30:00Z",
+            "started_at": "2024-01-15T10:20:00Z",
+        }
+        result = validate_last_run_response(data)
+        assert result == data
+
+    def test_last_run_missing_run_id(self):
+        """Last-run response missing run_id raises error."""
+        from tools.dashboard.response_validators import validate_last_run_response
+
+        data = {
+            "success": True,
+            "completed_at": "2024-01-15T10:30:00Z",
+        }
+        with pytest.raises(ResponseValidationError) as exc_info:
+            validate_last_run_response(data)
+        assert "run_id" in str(exc_info.value)
+
+    def test_trades_response_valid(self):
+        """Valid trades response with items array passes."""
+        from tools.dashboard.response_validators import validate_trades_response
+
+        data = {
+            "items": [
+                {"symbol": "AAPL", "quantity": 10, "status": "closed"},
+                {"symbol": "MSFT", "quantity": 5, "status": "closed"},
+            ]
+        }
+        result = validate_trades_response(data)
+        assert result == data
+
+    def test_trades_response_empty_items(self):
+        """Trades response with empty items array is valid."""
+        from tools.dashboard.response_validators import validate_trades_response
+
+        data = {"items": []}
+        result = validate_trades_response(data)
+        assert result == data
+
+    def test_trades_items_not_list(self):
+        """Trades response with non-list items raises error."""
+        from tools.dashboard.response_validators import validate_trades_response
+
+        data = {"items": "not_a_list"}
+        with pytest.raises(ResponseValidationError) as exc_info:
+            validate_trades_response(data)
+        assert "items field must be list" in str(exc_info.value)
+
+    def test_markets_response_valid(self):
+        """Valid markets response passes validation."""
+        from tools.dashboard.response_validators import validate_markets_response
+
+        data = {
+            "current": {"spy_close": 450.25, "exposure_pct": 85.0},
+            "market_health": {"vix_level": 18.5, "market_stage": "uptrend"},
+        }
+        result = validate_markets_response(data)
+        assert result == data
+
+    def test_markets_response_empty(self):
+        """Markets response that is empty or metadata-only raises error."""
+        from tools.dashboard.response_validators import validate_markets_response
+
+        data = {}
+        with pytest.raises(ResponseValidationError) as exc_info:
+            validate_markets_response(data)
+        assert "empty" in str(exc_info.value)
+
+    def test_dashboard_signals_valid(self):
+        """Valid dashboard signals response passes."""
+        from tools.dashboard.response_validators import validate_dashboard_signals_response
+
+        data = {
+            "items": [
+                {"symbol": "AAPL", "signal": "buy", "grade": "A"},
+                {"symbol": "MSFT", "signal": "hold", "grade": "B"},
+            ]
+        }
+        result = validate_dashboard_signals_response(data)
+        assert result == data
+
+    def test_dashboard_signals_no_items(self):
+        """Signals response without items key is valid (no signals yet)."""
+        from tools.dashboard.response_validators import validate_dashboard_signals_response
+
+        data = {"n": 0, "total": 100}
+        result = validate_dashboard_signals_response(data)
+        assert result == data
+
+    def test_circuit_breakers_valid(self):
+        """Valid circuit breakers response passes."""
+        from tools.dashboard.response_validators import validate_circuit_breakers_response
+
+        data = {
+            "breakers": [
+                {"name": "max_daily_loss", "triggered": False},
+                {"name": "max_position_size", "triggered": True},
+            ],
+            "any_triggered": True,
+        }
+        result = validate_circuit_breakers_response(data)
+        assert result == data
+
+    def test_circuit_breakers_invalid_type(self):
+        """Circuit breakers with non-list breakers raises error."""
+        from tools.dashboard.response_validators import validate_circuit_breakers_response
+
+        data = {"breakers": "not_a_list"}
+        with pytest.raises(ResponseValidationError) as exc_info:
+            validate_circuit_breakers_response(data)
+        assert "must be list" in str(exc_info.value)
+
+    def test_sector_rotation_valid(self):
+        """Valid sector rotation response passes."""
+        from tools.dashboard.response_validators import validate_sector_rotation_response
+
+        data = {
+            "items": [
+                {"sector": "Technology", "strength": 0.85},
+                {"sector": "Healthcare", "strength": 0.72},
+            ],
+            "signal": "rotate_to_tech",
+        }
+        result = validate_sector_rotation_response(data)
+        assert result == data
+
+    def test_validation_with_error_flag_passes(self):
+        """Any response with _error flag passes through without validation."""
+        from tools.dashboard.response_validators import (
+            validate_last_run_response,
+            validate_markets_response,
+            validate_trades_response,
+        )
+
+        error_data = {"_error": "API call failed"}
+        # All validators should pass through error responses
+        assert validate_last_run_response(error_data) == error_data
+        assert validate_markets_response(error_data) == error_data
+        assert validate_trades_response(error_data) == error_data

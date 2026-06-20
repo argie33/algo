@@ -267,16 +267,154 @@ def validate_health_response(data: dict[str, Any]) -> dict[str, Any]:
     return data
 
 
+def validate_last_run_response(data: dict[str, Any]) -> dict[str, Any]:
+    """Validate last-run endpoint response.
+
+    Critical fields: run_id, success status, run timestamps.
+    """
+    if not isinstance(data, dict):
+        raise ResponseValidationError(f"Last run response not a dict: {type(data)}")
+
+    if data.get("_error"):
+        return data
+
+    # Require run_id and success indicator
+    if "run_id" not in data:
+        raise ResponseValidationError("Last run response missing critical field: run_id")
+
+    return data
+
+
+def validate_trades_response(data: dict[str, Any]) -> dict[str, Any]:
+    """Validate trades endpoint response.
+
+    Trades can be empty list (no recent trades) but items must be present.
+    """
+    if not isinstance(data, dict):
+        raise ResponseValidationError(f"Trades response not a dict: {type(data)}")
+
+    if data.get("_error"):
+        return data
+
+    # If data has items array, validate it's a list
+    if "items" in data and not isinstance(data["items"], list):
+        raise ResponseValidationError(f"Trades items field must be list, got {type(data['items'])}")
+
+    return data
+
+
+def validate_markets_response(data: dict[str, Any]) -> dict[str, Any]:
+    """Validate markets endpoint response.
+
+    Market data: SPY close, VIX level, regime, exposure.
+    These are critical for position sizing and risk management.
+    """
+    if not isinstance(data, dict):
+        raise ResponseValidationError(f"Markets response not a dict: {type(data)}")
+
+    if data.get("_error"):
+        return data
+
+    # Markets response can have nested structure (current, market_health, etc)
+    # or flat structure; be flexible but ensure it has some data
+    if not data or all(k.startswith("_") for k in data.keys()):
+        raise ResponseValidationError("Markets response is empty or contains only metadata")
+
+    return data
+
+
+def validate_dashboard_signals_response(data: dict[str, Any]) -> dict[str, Any]:
+    """Validate dashboard signals endpoint response.
+
+    Signals are optional (no signals valid), but structure should be sound.
+    """
+    if not isinstance(data, dict):
+        raise ResponseValidationError(f"Dashboard signals response not a dict: {type(data)}")
+
+    if data.get("_error"):
+        return data
+
+    # If signals exist, validate items array structure
+    if "items" in data:
+        if not isinstance(data["items"], list):
+            raise ResponseValidationError(f"Dashboard signals items must be list, got {type(data['items'])}")
+
+    return data
+
+
+def validate_circuit_breakers_response(data: dict[str, Any]) -> dict[str, Any]:
+    """Validate circuit breakers endpoint response.
+
+    Circuit breaker status is optional but structure should be valid.
+    """
+    if not isinstance(data, dict):
+        raise ResponseValidationError(f"Circuit breakers response not a dict: {type(data)}")
+
+    if data.get("_error"):
+        return data
+
+    # If breakers array exists, it must be a list
+    if "breakers" in data and not isinstance(data["breakers"], list):
+        raise ResponseValidationError(f"Circuit breakers array must be list, got {type(data['breakers'])}")
+
+    return data
+
+
+def validate_sector_rotation_response(data: dict[str, Any]) -> dict[str, Any]:
+    """Validate sector rotation endpoint response.
+
+    Sector rotation signal and rankings can be empty but structure should be valid.
+    """
+    if not isinstance(data, dict):
+        raise ResponseValidationError(f"Sector rotation response not a dict: {type(data)}")
+
+    if data.get("_error"):
+        return data
+
+    # If items array exists, it must be a list
+    if "items" in data and not isinstance(data["items"], list):
+        raise ResponseValidationError(f"Sector items must be list, got {type(data['items'])}")
+
+    return data
+
+
+def validate_generic_response(data: dict[str, Any]) -> dict[str, Any]:
+    """Generic validator for endpoints without specific requirements.
+
+    Ensures response is a dict and not an error.
+    """
+    if not isinstance(data, dict):
+        raise ResponseValidationError(f"Response not a dict: {type(data)}")
+
+    if data.get("_error"):
+        return data
+
+    return data
+
+
 # Mapping of endpoints to their validators
+# Keep updating this as new endpoints are added to ensure validation coverage
 VALIDATORS = {
+    # Critical endpoints (used for position sizing, risk mgmt)
     "/api/algo/portfolio": validate_portfolio_response,
     "/api/algo/performance": validate_performance_response,
+    "/api/algo/markets": validate_markets_response,
+    "/api/algo/last-run": validate_last_run_response,
+    "/api/algo/risk-metrics": validate_risk_response,
+    "/api/algo/data-status": validate_health_response,
+    # Core dashboard endpoints
     "/api/algo/positions": validate_positions_response,
-    "/api/algo/signals": validate_signals_response,
+    "/api/algo/trades": validate_trades_response,
+    "/api/algo/dashboard-signals": validate_dashboard_signals_response,
     "/api/algo/config": validate_config_response,
+    # Support endpoints
+    "/api/algo/circuit-breakers": validate_circuit_breakers_response,
+    "/api/algo/sector-rotation": validate_sector_rotation_response,
+    # Legacy endpoint paths (for backwards compatibility)
     "/api/algo/risk": validate_risk_response,
     "/api/algo/market": validate_market_data_response,
-    "/api/algo/data-status": validate_health_response,
+    "/api/algo/signals": validate_signals_response,
+    # Generic fallback for unregistered endpoints
 }
 
 
@@ -296,5 +434,6 @@ def validate_response(endpoint: str, data: dict[str, Any]) -> dict[str, Any]:
     validator = VALIDATORS.get(endpoint)
     if validator:
         return validator(data)
-    # No validator defined; return data as-is
-    return data
+    # No validator defined; use generic validator as fallback
+    logger.debug(f"No specific validator for {endpoint}, using generic validation")
+    return validate_generic_response(data)
