@@ -487,10 +487,24 @@ class PositionSizer:
     ) -> dict:
         """Internal method for position calculation."""
         try:
+            assert symbol and isinstance(symbol, str), f"Symbol must be non-empty string, got {symbol}"
+            entry_dec = Decimal(str(entry_price))
+            assert entry_dec > 0, f"Entry price must be > 0, got {entry_price}"
+            stop_dec = Decimal(str(stop_loss_price))
+            assert stop_dec > 0, f"Stop loss must be > 0, got {stop_loss_price}"
+            assert stop_dec < entry_dec, f"Stop {stop_dec} must be < entry {entry_dec}"
+
             if portfolio_value is None:
                 portfolio_value = self.get_portfolio_value()
+            pv_dec = Decimal(str(portfolio_value))
+            assert pv_dec > 0, f"Portfolio value must be > 0, got {portfolio_value}"
+
             risk_adjustment = self.get_risk_adjustment()
+            assert risk_adjustment is not None, "Risk adjustment cannot be None"
+            assert Decimal(str(risk_adjustment)) >= 0, f"Risk adjustment must be >= 0, got {risk_adjustment}"
+
             active_positions = self.get_position_count()
+            assert isinstance(active_positions, int), f"Active positions must be int, got {type(active_positions)}"
             active_position_value = self.get_active_positions_value()
 
             max_positions_val = self.config.get("max_positions")

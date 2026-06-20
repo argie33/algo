@@ -34,7 +34,10 @@ _ALLOWED_ORIGINS_LOCK = threading.Lock()  # Protects allowed origins cache
 _COGNITO_ENABLED = None  # Determined at module load
 _COGNITO_ENABLED_LOCK = threading.Lock()  # Protects Cognito enabled flag
 _CLOUDFRONT_DOMAIN_CACHE = None  # CloudFront domain fetched from Secrets Manager
+_CLOUDFRONT_DOMAIN_CACHE_TIME = None
+_CLOUDFRONT_DOMAIN_CACHE_TTL_SECONDS = 86400  # Refresh CloudFront domain daily
 _CLOUDFRONT_DOMAIN_LOCK = threading.Lock()  # Protects CloudFront domain cache
+_JWKS_CACHE_TTL_SECONDS = 3600  # Refresh JWKS keys hourly
 
 try:
     import base64
@@ -52,22 +55,27 @@ logger.setLevel(logging.INFO)
 
 
 def fetch_cloudfront_domain_from_secrets():
-    """Fetch CloudFront domain from AWS Secrets Manager (thread-safe).
+    """Fetch CloudFront domain from AWS Secrets Manager (thread-safe with TTL).
 
     Uses centralized credential_manager for consistent error handling, caching, and fallback.
     If domain is not found in Secrets Manager, falls back to FRONTEND_URL env var.
+    Cache expires after 24 hours to ensure fresh data.
 
     Returns: (domain: Optional[str], error: Optional[str])
     """
-    global _CLOUDFRONT_DOMAIN_CACHE
+    global _CLOUDFRONT_DOMAIN_CACHE, _CLOUDFRONT_DOMAIN_CACHE_TIME
+    from datetime import datetime, timezone
 
-    if _CLOUDFRONT_DOMAIN_CACHE is not None:
-        return _CLOUDFRONT_DOMAIN_CACHE, None
+    if _CLOUDFRONT_DOMAIN_CACHE is not None and _CLOUDFRONT_DOMAIN_CACHE_TIME is not None:
+        age_sec = (datetime.now(timezone.utc) - _CLOUDFRONT_DOMAIN_CACHE_TIME).total_seconds()
+        if age_sec < _CLOUDFRONT_DOMAIN_CACHE_TTL_SECONDS:
+            return _CLOUDFRONT_DOMAIN_CACHE, None
 
     with _CLOUDFRONT_DOMAIN_LOCK:
-        # Double-check pattern after acquiring lock
-        if _CLOUDFRONT_DOMAIN_CACHE is not None:
-            return _CLOUDFRONT_DOMAIN_CACHE, None
+        if _CLOUDFRONT_DOMAIN_CACHE is not None and _CLOUDFRONT_DOMAIN_CACHE_TIME is not None:
+            age_sec = (datetime.now(timezone.utc) - _CLOUDFRONT_DOMAIN_CACHE_TIME).total_seconds()
+            if age_sec < _CLOUDFRONT_DOMAIN_CACHE_TTL_SECONDS:
+                return _CLOUDFRONT_DOMAIN_CACHE, None
 
         try:
             import json
@@ -92,6 +100,7 @@ def fetch_cloudfront_domain_from_secrets():
                         f"[CloudFront] Fetched domain from Secrets Manager: {domain}"
                     )
                     _CLOUDFRONT_DOMAIN_CACHE = domain
+                    _CLOUDFRONT_DOMAIN_CACHE_TIME = datetime.now(timezone.utc)
                     return domain, None
                 else:
                     logger.warning("[CloudFront] Secret exists but domain is empty")

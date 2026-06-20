@@ -1054,6 +1054,22 @@ class Orchestrator:
             logger.info(f"\n{'='*70}")
             logger.info("PRE-FLIGHT CHECKS (before Phase 1)")
             logger.info(f"{'='*70}")
+
+            logger.info("[CRITICAL] Validating configuration system...")
+            try:
+                if not self.config or not isinstance(self.config, dict):
+                    raise RuntimeError("Configuration system is invalid")
+                for k in ["min_signal_quality_score", "halt_drawdown_pct", "max_daily_loss_pct"]:
+                    if k not in self.config or self.config[k] is None:
+                        raise RuntimeError(f"Critical config missing: {k}")
+                logger.info("[OK] Configuration validation passed")
+            except RuntimeError as e:
+                logger.error(f"[HALT] {e}")
+                report = self._final_report()
+                report["success"] = False
+                report["error"] = str(e)
+                return report
+
             logger.info("[CRITICAL] Running critical data checks...")
             try:
                 with DatabaseContext("read") as cur:
