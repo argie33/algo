@@ -56,6 +56,22 @@ class SignalsDailyLoader(OptimalLoader):
 
         self._batch_context = {}
         try:
+            # CRITICAL: Check that signal_quality_scores is available (ISSUE: loader dependency)
+            # If SQS loader is stuck/incomplete, buy_sell_daily will generate signals with NULL scores
+            # which corrupts the data and cascades to Phase 5 (signal generation).
+            with DatabaseContext("read") as cur:
+                cur.execute(
+                    "SELECT status FROM data_loader_status WHERE table_name = %s",
+                    ("signal_quality_scores",),
+                )
+                sqs_status = cur.fetchone()
+                if not sqs_status or sqs_status[0] not in ("COMPLETED", "success", "OK"):
+                    raise RuntimeError(
+                        "signal_quality_scores loader is not COMPLETED. "
+                        "Cannot generate buy/sell signals without quality scores. "
+                        "Phase 5 (signal generation) depends on signal_quality_scores → buy_sell_daily ordering."
+                    )
+
             now_utc = datetime.now(timezone.utc)
             now_et = now_utc.astimezone(EASTERN_TZ)
             end = now_et.date()
@@ -206,7 +222,10 @@ class SignalsDailyLoader(OptimalLoader):
                     "SELECT COUNT(*) FROM technical_data_daily WHERE symbol = %s AND date = %s",
                     (symbol, end),
                 )
-                tech_count = cur.fetchone()[0]
+                row = cur.fetchone()
+                if row is None or row[0] is None:
+                    raise RuntimeError(f"Technical count query failed for {symbol} on {end}")
+                tech_count = row[0]
 
                 if tech_count == 0:
                     raise RuntimeError(
