@@ -170,7 +170,7 @@ class SignalTrendMixin:
             )
             return self._compute_minervini_from_prices(cur, symbol, eval_date)
 
-        return self._with_cursor(_fetch_trend)  # type: ignore[attr-defined]
+        return self._with_cursor(_fetch_trend)  # type: ignore[attr-defined, no-any-return]
 
     def weinstein_stage(self, symbol: str, eval_date) -> dict[str, Any]:
         """
@@ -214,7 +214,7 @@ class SignalTrendMixin:
                 "slope_pct": None,
             }
 
-        return self._with_cursor(_fetch_stage)  # type: ignore[attr-defined]
+        return self._with_cursor(_fetch_stage)  # type: ignore[attr-defined, no-any-return]
 
     def mansfield_rs(
         self, symbol: str, eval_date, lookback: int = 252
@@ -263,7 +263,7 @@ class SignalTrendMixin:
                 "spy_return_pct": round(spy_ret * 100, 2),
             }
 
-        return self._with_cursor(_compute_rs)  # type: ignore[attr-defined]
+        return self._with_cursor(_compute_rs)  # type: ignore[attr-defined, no-any-return]
 
     def stage2_phase(self, symbol: str, eval_date) -> dict[str, Any]:
         """Alias for weinstein_stage() for backwards compatibility."""
