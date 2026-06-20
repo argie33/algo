@@ -79,18 +79,18 @@ def handle(
 
                 result = {sym: [] for sym in symbols}
 
-                batch_query = f"""
+                batch_query = psycopg2.sql.SQL("""
                     WITH ranked AS (
                         SELECT symbol, date, open, high, low, close, volume,
                                ROW_NUMBER() OVER (PARTITION BY symbol ORDER BY date DESC) AS rn
-                        FROM {table_name}
+                        FROM {}
                         WHERE symbol = ANY(%s)
                     )
                     SELECT symbol, date, open, high, low, close, volume
                     FROM ranked
                     WHERE rn <= %s
                     ORDER BY symbol, date DESC
-                """
+                """).format(psycopg2.sql.Identifier(table_name))
                 rows = execute_with_timeout(
                     cur, batch_query, [symbols, limit], timeout_sec=20
                 )
@@ -123,18 +123,18 @@ def handle(
 
                 missing = [s for s in symbols if s not in found_symbols]
                 if missing:
-                    etf_query = f"""
+                    etf_query = psycopg2.sql.SQL("""
                         WITH ranked AS (
                             SELECT symbol, date, open, high, low, close, volume,
                                    ROW_NUMBER() OVER (PARTITION BY symbol ORDER BY date DESC) AS rn
-                            FROM {etf_table_name}
+                            FROM {}
                             WHERE symbol = ANY(%s)
                         )
                         SELECT symbol, date, open, high, low, close, volume
                         FROM ranked
                         WHERE rn <= %s
                         ORDER BY symbol, date DESC
-                    """
+                    """).format(psycopg2.sql.Identifier(etf_table_name))
                     etf_rows = execute_with_timeout(
                         cur, etf_query, [missing, limit], timeout_sec=20
                     )
@@ -199,24 +199,24 @@ def handle(
 
             # Query stock price table first; fall back to ETF table if no results
             etf_table_name = _ETF_TABLE_MAP.get(timeframe, "etf_price_daily")
-            query = f"""
+            query = psycopg2.sql.SQL("""
                 SELECT date, open, high, low, close, volume
-                FROM {table_name}
-                WHERE {where_clause}
+                FROM {}
+                WHERE {}
                 ORDER BY date DESC
                 LIMIT %s
-            """
+            """).format(psycopg2.sql.Identifier(table_name), psycopg2.sql.SQL(where_clause))
             rows = execute_with_timeout(cur, query, [*qparams, limit], timeout_sec=10)
             used_table = table_name
             if not rows:
                 # No data in stock table — try ETF table
-                etf_query = f"""
+                etf_query = psycopg2.sql.SQL("""
                     SELECT date, open, high, low, close, volume
-                    FROM {etf_table_name}
-                    WHERE {where_clause}
+                    FROM {}
+                    WHERE {}
                     ORDER BY date DESC
                     LIMIT %s
-                """
+                """).format(psycopg2.sql.Identifier(etf_table_name), psycopg2.sql.SQL(where_clause))
                 rows = execute_with_timeout(
                     cur, etf_query, [*qparams, limit], timeout_sec=10
                 )

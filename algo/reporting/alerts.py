@@ -141,14 +141,20 @@ class AlertManager:
             )
         self.webhook_url = webhook_url_raw
 
-        # SMS via Twilio
+        # SMS via Twilio — fail fast if configured but unavailable
         self.phone_numbers = [
             p.strip()
             for p in os.getenv("ALERT_PHONE_NUMBERS", "").split(",")
             if p.strip()
         ]
         self.twilio_client = None
-        if TWILIO_AVAILABLE and os.getenv("TWILIO_ACCOUNT_SID"):
+        # Check if SMS is configured but twilio library is not available
+        if os.getenv("TWILIO_ACCOUNT_SID") and not TWILIO_AVAILABLE:
+            raise RuntimeError(
+                "[SMS CONFIG ERROR] Twilio SMS configured (TWILIO_ACCOUNT_SID set) but twilio library not available. "
+                "Install twilio with: pip install twilio. Or remove TWILIO_ACCOUNT_SID to disable SMS."
+            )
+        if os.getenv("TWILIO_ACCOUNT_SID"):
             if not os.getenv("TWILIO_AUTH_TOKEN") or not os.getenv("TWILIO_PHONE_NUMBER"):
                 raise RuntimeError(
                     "Twilio SMS configured (TWILIO_ACCOUNT_SID set) but credentials incomplete. "

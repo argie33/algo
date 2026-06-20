@@ -89,6 +89,7 @@ class PositionMonitor:
 
             if stale_orders:
                 # Filter out halted symbols (halts are normal, not actionable)
+                # Fail fast if halt check fails — don't skip filtering silently
                 try:
                     from algo.infrastructure import MarketEventHandler
 
@@ -107,7 +108,11 @@ class PositionMonitor:
                         filtered_stale.append(row)
                     stale_orders = filtered_stale
                 except Exception as e:
-                    logger.warning(f"Could not check halts for stale orders: {e}")
+                    logger.critical(
+                        f"[HALT_CHECK] Could not check halts for stale orders: {e}. "
+                        f"Continuing without halt filtering will process halted orders."
+                    )
+                    raise RuntimeError(f"Halt check failed: {e}. Cannot proceed without knowing which orders are halted.") from e
 
                 if stale_orders:
                     logger.info(
@@ -247,33 +252,45 @@ class PositionMonitor:
                     ORDER BY snapshot_date DESC LIMIT 1
                 """)
                 eq_row = cur.fetchone()
-                if eq_row is not None and eq_row[0] is not None:
-                    total_equity = float(eq_row[0])
-                    # Compute margin usage = (equity - buying_power) / equity
-                    # Using proxy: if total open position value > 90% of equity, halt new entries
-                    cur.execute("""
-                        SELECT SUM(position_value) FROM algo_positions WHERE status = 'open'
-                    """)
-                    pos_val_row = cur.fetchone()
-                    pos_value = (
-                        float(pos_val_row[0])
-                        if pos_val_row is not None and pos_val_row[0] is not None
-                        else 0
+                if eq_row is None or eq_row[0] is None:
+                    raise PositionValidationError(
+                        "Portfolio equity unavailable — cannot compute margin utilization. Snapshots missing or stale."
                     )
-                    margin_util_pct = (
-                        (pos_value / total_equity * 100) if total_equity > 0 else 0
+
+                total_equity = float(eq_row[0])
+                if total_equity <= 0:
+                    raise PositionValidationError(
+                        f"Invalid portfolio equity: {total_equity} <= 0. Cannot monitor positions with zero or negative equity."
                     )
-                    if margin_util_pct > 90:
-                        logger.critical(
-                            f"[MARGIN HALT] Position value {margin_util_pct:.1f}% of equity — liquidation risk imminent"
-                        )
-                        raise PositionValidationError(
-                            f"Margin utilization critical: {margin_util_pct:.1f}% of equity (>90%). Cannot proceed with position monitoring."
-                        )
-                    elif margin_util_pct > 80:
-                        logger.warning(
-                            f"[MARGIN WARNING] Position value {margin_util_pct:.1f}% of equity > 80%"
-                        )
+
+                # Compute margin usage = (equity - buying_power) / equity
+                # Using proxy: if total open position value > 90% of equity, halt new entries
+                cur.execute("""
+                    SELECT SUM(position_value) FROM algo_positions WHERE status = 'open'
+                """)
+                pos_val_row = cur.fetchone()
+                pos_value = (
+                    float(pos_val_row[0])
+                    if pos_val_row is not None and pos_val_row[0] is not None
+                    else 0
+                )
+                if pos_value < 0:
+                    raise PositionValidationError(
+                        f"Invalid position value: {pos_value} < 0. Database corruption detected."
+                    )
+
+                margin_util_pct = pos_value / total_equity * 100
+                if margin_util_pct > 90:
+                    logger.critical(
+                        f"[MARGIN HALT] Position value {margin_util_pct:.1f}% of equity — liquidation risk imminent"
+                    )
+                    raise PositionValidationError(
+                        f"Margin utilization critical: {margin_util_pct:.1f}% of equity (>90%). Cannot proceed with position monitoring."
+                    )
+                elif margin_util_pct > 80:
+                    logger.warning(
+                        f"[MARGIN WARNING] Position value {margin_util_pct:.1f}% of equity > 80%"
+                    )
             except PositionValidationError:
                 raise
             except Exception as margin_e:
@@ -403,9 +420,12 @@ class PositionMonitor:
 
         # P&L (using Decimal for precision)
         risk_per_share = entry_price - init_stop
-        r_multiple = (
-            ((cur_price - entry_price) / risk_per_share) if risk_per_share > 0 else 0
-        )
+        if risk_per_share <= 0:
+            raise PositionValidationError(
+                f"Invalid risk per share for {symbol}: entry {entry_price} - stop {init_stop} = {risk_per_share}. "
+                "Stop must be strictly below entry price."
+            )
+        r_multiple = (cur_price - entry_price) / risk_per_share
 
         # Use Decimal for monetary calculations to avoid floating point precision loss
         price_diff = Decimal(str(cur_price)) - Decimal(str(entry_price))

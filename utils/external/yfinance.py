@@ -25,12 +25,16 @@ logger = logging.getLogger(__name__)
 
 # Global per-process rate limiter: enforces minimum interval between requests
 # This is a BACKUP to the shared circuit breaker (DynamoDB-based).
-# CRITICAL: Each ECS task runs one loader with parallelism=2, so this per-process
+# CRITICAL: Each ECS task runs one loader with parallelism=2-8, so this per-process
 # limit applies to all symbols processed in parallel.
+#
+# OPTIMIZATION: Reduced from 2.0s to 1.0s to improve throughput while staying within
+# yfinance's documented rate limits (2000 requests per hour = 1.8 req/sec max).
+# Circuit breaker handles IP-level coordination if we exceed limits.
 _yf_semaphore = threading.Semaphore(1)  # Max 1 concurrent request
 _yf_rate_lock = threading.Lock()
 _yf_last_request_time = [0.0]  # list for mutable access across threads
-_YF_MIN_INTERVAL_SECS = 2.0  # 1 request per 2 seconds = ~1800 req/hour per task
+_YF_MIN_INTERVAL_SECS = 1.0  # 1 request per 1 second = ~3600 req/hour per task
 
 
 def _throttled_yf_request(fn):
