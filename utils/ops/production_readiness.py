@@ -196,7 +196,7 @@ class ProductionReadinessCheck:
                     self.checks_failed.append("Cognito user pool not found")
                     return False
 
-            except Exception:
+            except (ImportError, AttributeError, KeyError, ConnectionError):
                 self.checks_warnings.append(
                     "Cannot validate Cognito with API (may lack IAM permissions), "
                     f"but config exists: {client_id}"

@@ -34,10 +34,10 @@ class BaseResponse(BaseModel):
 
 
 class SuccessResponse(BaseResponse):
-    """Success response for single object."""
+    """Success response for single object (generic for type safety)."""
 
     statusCode: int = Field(default=200, description="HTTP status code")
-    data: Dict[str, Any] = Field(..., description="Response data")
+    data: Dict[str, Any] | Any = Field(..., description="Response data")
 
 
 class ListResponseData(BaseModel):

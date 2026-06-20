@@ -208,8 +208,8 @@ def validate_date_string(date_str: str, format_str: str = "%Y-%m-%d") -> str:
 
 def validate_integer_range(
     value: Union[int, str],
-    min_val: int = None,
-    max_val: int = None,
+    min_val: int | None = None,
+    max_val: int | None = None,
     name: str = "value",
 ) -> int:
     """
@@ -243,8 +243,8 @@ def validate_integer_range(
 
 def validate_float_range(
     value: Union[int, float, str],
-    min_val: float = None,
-    max_val: float = None,
+    min_val: float | None = None,
+    max_val: float | None = None,
     name: str = "value",
 ) -> float:
     """

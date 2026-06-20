@@ -56,7 +56,6 @@ warn_redundant_casts = true
 warn_unused_ignores = true
 warn_no_return = true
 exclude = [
-    "^lambda/",
     "^migrations/",
     "^tests/",
 ]
@@ -70,7 +69,6 @@ module = [
     "algo.algo_data_patrol",
     "algo.backtest.run_backtest",
     "algo.signals.trendline",
-    "algo.trading.executor",
     "loaders.load_analyst_upgrade_downgrade",
     "loaders.load_balance_sheet",
     "loaders.load_cash_flow",

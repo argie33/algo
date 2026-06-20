@@ -256,7 +256,7 @@ def is_fresh(
 
         age = (today - loaded_date).days
         return age <= 3
-    except Exception:
+    except (ValueError, TypeError, AttributeError):
         return False
 
 

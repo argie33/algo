@@ -529,7 +529,7 @@ def _format_handler_error(e):
             try:
                 from utils.error_handlers import sanitize_error_message
                 msg = sanitize_error_message(e.message)
-            except Exception:
+            except (ImportError, AttributeError):
                 import re
                 msg = re.sub(r"password=\S+|api.?key=\S+", "***", e.message)
             return {

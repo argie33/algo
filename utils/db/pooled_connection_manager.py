@@ -355,7 +355,7 @@ class PooledConnectionManager:
                 f"[{self.loader_name}] Failed to acquire connection from pool after {max_retries} retries"
             )
 
-        except Exception:
+        except (psycopg2.pool.PoolError, RuntimeError, OSError):
             # Release semaphore on failure
             _pool_semaphore.release(self.loader_name)
             raise

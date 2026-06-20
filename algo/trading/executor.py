@@ -160,12 +160,12 @@ class TradeExecutor:
     def execute_trade(
         self,
         symbol: str,
-        entry_price: float,
-        shares: float,
-        stop_loss_price: float,
-        target_1_price: float | None = None,
-        target_2_price: float | None = None,
-        target_3_price: float | None = None,
+        entry_price: Decimal | float,
+        shares: Decimal | float,
+        stop_loss_price: Decimal | float,
+        target_1_price: Decimal | float | None = None,
+        target_2_price: Decimal | float | None = None,
+        target_3_price: Decimal | float | None = None,
         signal_date: Any | None = None,
         entry_date: Any | None = None,
         sqs: Any | None = None,
@@ -196,6 +196,16 @@ class TradeExecutor:
             'duplicate': bool (only when blocked by idempotency)
         }
         """
+        entry_price = Decimal(str(entry_price))
+        shares = Decimal(str(shares))
+        stop_loss_price = Decimal(str(stop_loss_price))
+        if target_1_price is not None:
+            target_1_price = Decimal(str(target_1_price))
+        if target_2_price is not None:
+            target_2_price = Decimal(str(target_2_price))
+        if target_3_price is not None:
+            target_3_price = Decimal(str(target_3_price))
+
         if not signal_date:
             signal_date = datetime.now(timezone.utc).date()
         if not entry_date:
@@ -208,23 +218,22 @@ class TradeExecutor:
                 "status": "invalid",
                 "message": f"Invalid: entry_date {entry_date} must be >= signal_date {signal_date}",
             }
-        # Note: entry_date == signal_date is allowed (signal fires at market open, entry happens same day)
 
-        if not entry_price or entry_price <= 0:
+        if entry_price <= 0:
             return {
                 "success": False,
                 "trade_id": "",
                 "status": "invalid",
                 "message": f"Invalid entry price: {entry_price} (must be > 0)",
             }
-        if not stop_loss_price or stop_loss_price <= 0:
+        if stop_loss_price <= 0:
             return {
                 "success": False,
                 "trade_id": "",
                 "status": "invalid",
                 "message": f"Invalid stop loss price: {stop_loss_price} (must be > 0)",
             }
-        if not shares or shares <= 0:
+        if shares <= 0:
             return {
                 "success": False,
                 "trade_id": "",
@@ -232,7 +241,6 @@ class TradeExecutor:
                 "message": f"Invalid share count: {shares} (must be > 0)",
             }
 
-        # Phase 5: Run independent pre-trade hard stops BEFORE anything else
         portfolio_value = self._get_portfolio_value()
         if not portfolio_value or portfolio_value <= 0:
             logger.error(
@@ -244,7 +252,7 @@ class TradeExecutor:
                 "status": "portfolio_value_unavailable",
                 "message": "Cannot execute trade: portfolio value unavailable from Alpaca and DB snapshot",
             }
-        position_value = float(Decimal(shares) * Decimal(str(entry_price)))
+        position_value = shares * entry_price
         try:
             pretrade_passed, pretrade_reason = self.pretrade.run_all(
                 symbol=symbol,
@@ -294,12 +302,8 @@ class TradeExecutor:
             logger.error(f"Failed to check for duplicate position: {type(e).__name__}: {e}")
             raise DuplicatePositionError(f"Cannot verify duplicate position status: {e!s}. Order halted for safety.") from e
 
-        # Compute targets if missing — based on R-multiples from actual stop
-        # Convert to Decimal BEFORE arithmetic to avoid IEEE 754 precision loss
-        # Keep ALL calculations in Decimal until final float conversion to prevent drift
-        entry_price_dec = Decimal(str(entry_price))
         stop_price_dec = Decimal(str(stop_loss_price))
-        risk_per_share_decimal = entry_price_dec - stop_price_dec
+        risk_per_share_decimal = entry_price - stop_price_dec
         if risk_per_share_decimal <= 0:
             return {
                 "success": False,
@@ -307,8 +311,7 @@ class TradeExecutor:
                 "status": "invalid_stop",
                 "message": f"Invalid stop: ${stop_loss_price:.2f} >= entry ${entry_price:.2f} (stop must be below entry)",
             }
-        # Additional guard: stop must be at least 1% below entry (meaningful risk)
-        if stop_price_dec >= entry_price_dec * Decimal("0.99"):
+        if stop_price_dec >= entry_price * Decimal("0.99"):
             return {
                 "success": False,
                 "trade_id": "",
@@ -316,13 +319,8 @@ class TradeExecutor:
                 "message": f"Stop too tight: ${stop_loss_price:.2f} within 1% of entry ${entry_price:.2f} (meaningful R required)",
             }
         if target_1_price is None:
-            # Keep R-multiple as Decimal for arithmetic precision
-            t1_r_config = self.config.get("t1_target_r_multiple", 1.5)
-            t1_r_dec = Decimal(str(t1_r_config))
-            # Calculate target as: entry + (risk_per_share * r_multiple), all in Decimal
-            target_1_price_dec = entry_price_dec + (risk_per_share_decimal * t1_r_dec)
-            target_1_price_dec = target_1_price_dec.quantize(Decimal("0.01"), rounding=ROUND_HALF_UP)
-            target_1_price = float(target_1_price_dec)
+            t1_r_dec = Decimal(str(self.config.get("t1_target_r_multiple", 1.5)))
+            target_1_price = (entry_price + (risk_per_share_decimal * t1_r_dec)).quantize(Decimal("0.01"), rounding=ROUND_HALF_UP)
             if target_1_price <= entry_price:
                 return {
                     "success": False,
@@ -331,13 +329,8 @@ class TradeExecutor:
                     "message": f"Invalid target_1: ${target_1_price:.2f} <= entry ${entry_price:.2f}",
                 }
         if target_2_price is None:
-            # Keep R-multiple as Decimal for arithmetic precision
-            t2_r_config = self.config.get("t2_target_r_multiple", 3.0)
-            t2_r_dec = Decimal(str(t2_r_config))
-            # Calculate target as: entry + (risk_per_share * r_multiple), all in Decimal
-            target_2_price_dec = entry_price_dec + (risk_per_share_decimal * t2_r_dec)
-            target_2_price_dec = target_2_price_dec.quantize(Decimal("0.01"), rounding=ROUND_HALF_UP)
-            target_2_price = float(target_2_price_dec)
+            t2_r_dec = Decimal(str(self.config.get("t2_target_r_multiple", 3.0)))
+            target_2_price = (entry_price + (risk_per_share_decimal * t2_r_dec)).quantize(Decimal("0.01"), rounding=ROUND_HALF_UP)
             if target_2_price <= entry_price:
                 return {
                     "success": False,
@@ -346,13 +339,8 @@ class TradeExecutor:
                     "message": f"Invalid target_2: ${target_2_price:.2f} <= entry ${entry_price:.2f}",
                 }
         if target_3_price is None:
-            # Keep R-multiple as Decimal for arithmetic precision
-            t3_r_config = self.config.get("t3_target_r_multiple", 4.0)
-            t3_r_dec = Decimal(str(t3_r_config))
-            # Calculate target as: entry + (risk_per_share * r_multiple), all in Decimal
-            target_3_price_dec = entry_price_dec + (risk_per_share_decimal * t3_r_dec)
-            target_3_price_dec = target_3_price_dec.quantize(Decimal("0.01"), rounding=ROUND_HALF_UP)
-            target_3_price = float(target_3_price_dec)
+            t3_r_dec = Decimal(str(self.config.get("t3_target_r_multiple", 4.0)))
+            target_3_price = (entry_price + (risk_per_share_decimal * t3_r_dec)).quantize(Decimal("0.01"), rounding=ROUND_HALF_UP)
             if target_3_price <= entry_price:
                 return {
                     "success": False,
@@ -361,10 +349,6 @@ class TradeExecutor:
                     "message": f"Invalid target_3: ${target_3_price:.2f} <= entry ${entry_price:.2f}",
                 }
 
-        # Validate target hierarchy: target_1 < target_2 < target_3
-        target_1_price = float(target_1_price) if target_1_price else None
-        target_2_price = float(target_2_price) if target_2_price else None
-        target_3_price = float(target_3_price) if target_3_price else None
         if target_1_price and target_2_price and target_1_price >= target_2_price:
             return {
                 "success": False,
@@ -382,7 +366,7 @@ class TradeExecutor:
 
         import hashlib
 
-        key_source = f"{symbol}|{signal_date}|{entry_price:.4f}|{stop_loss_price:.4f}"
+        key_source = f"{symbol}|{signal_date}|{entry_price}|{stop_loss_price}"
         idempotency_key = hashlib.sha256(key_source.encode()).hexdigest()
 
         def _execute_entry(cur):
