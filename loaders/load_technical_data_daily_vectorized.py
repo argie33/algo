@@ -397,11 +397,15 @@ class VectorizedTechnicalLoader:
         # Format data
         df["date"] = df["date"].dt.date.astype(str)
 
-        # Convert volume_ma_50 to integer (database expects bigint, not float)
-        if "volume_ma_50" in df.columns:
-            df["volume_ma_50"] = df["volume_ma_50"].apply(
-                lambda x: int(round(x)) if pd.notna(x) else None
-            )
+        # Convert integer columns to nullable Int64 (preserves None without upcasting to float)
+        # This prevents "invalid input syntax for type bigint" errors in PostgreSQL COPY
+        integer_cols = ["volume_ma_50", "price_data_age_days"]
+        for col in integer_cols:
+            if col in df.columns:
+                df[col] = pd.array(
+                    [int(round(x)) if pd.notna(x) else None for x in df[col]],
+                    dtype="Int64"
+                )
 
         # Handle NaN -> None conversion
         for col in df.columns:
