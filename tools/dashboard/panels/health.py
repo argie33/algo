@@ -45,6 +45,7 @@ from ._helpers import (
 )
 from .data_extractors import (
     extract_config_params,
+    extract_health_items,
     extract_risk_metrics,
     safe_get_dict,
     safe_get_field,
@@ -61,6 +62,119 @@ def _var_color(var95: float | None) -> str:
     if var95 >= 2:
         return Y
     return "white"
+
+
+def _build_freshness_panel(hlth_items: list, ready_to_trade: bool | None) -> Panel:
+    """Build LEFT panel: data freshness table with status summary.
+
+    Args:
+        hlth_items: Validated list of health status items
+        ready_to_trade: Boolean ready state (True/False/None)
+
+    Returns:
+        Rich Panel with freshness table
+    """
+    left_rows: list = []
+
+    if not hlth_items:
+        msg = "⚠ Data health unavailable — loaders may not have run yet.\n"
+        msg += "Check Phase 1 orchestrator status or monitor logs."
+        left_rows.append(Text(msg, style="dim"))
+        return Panel(
+            Group(*left_rows),
+            title="[bold yellow]DATA FRESHNESS[/]  [dim][h] return[/]",
+            border_style="yellow",
+            padding=(0, 1),
+        )
+
+    stale_count = sum(1 for r in hlth_items if isinstance(r, dict) and r.get("st") != "ok")
+    crit_stale = [r for r in hlth_items if isinstance(r, dict) and r.get("role") == "CRIT" and r.get("st") != "ok"]
+
+    if crit_stale:
+        crit_names = "  ".join(f"[bold white]{r.get('tbl', '')[:18]}[/]" for r in crit_stale)
+        left_rows.append(Text.from_markup(f"[bold {R}]⚠ CRIT STALE:[/]  {crit_names}"))
+
+    rtt_part = ""
+    if ready_to_trade is True:
+        rtt_part = f"  [bold {G}]✓ READY TO TRADE[/]"
+    elif ready_to_trade is False:
+        rtt_part = f"  [bold {R}]✗ NOT READY[/]"
+
+    status_c = G if stale_count == 0 else (Y if stale_count <= 2 else R)
+    left_rows.append(
+        Text.from_markup(
+            f"[dim]Freshness:[/] [{status_c}]{len(hlth_items) - stale_count}/{len(hlth_items)} fresh[/]"
+            + (f"  [{R}]{stale_count} stale[/]" if stale_count else "")
+            + rtt_part
+        )
+    )
+
+    def _fmt_age(r):
+        ah = r.get("age_hours")
+        ad = r.get("age")
+        if ah is not None:
+            return f"{ah:.0f}h" if float(ah) < 24 else f"{float(ah) / 24:.1f}d"
+        elif ad is not None:
+            return f"{float(ad):.1f}d"
+        return "?"
+
+    def _fmt_updated(r):
+        lat = r.get("last_updated") or r.get("latest")
+        if hasattr(lat, "strftime"):
+            return lat.strftime("%m/%d")
+        if isinstance(lat, str) and len(lat) >= 10:
+            return lat[5:10]
+        return str(lat or "")[:5]
+
+    _role_order = {"CRIT": 0, "IMP": 1, "NORM": 2}
+    sorted_items = sorted(
+        [r for r in hlth_items if isinstance(r, dict)],
+        key=lambda r: (_role_order.get(r.get("role") or "NORM", 2), r.get("tbl") or ""),
+    )
+
+    all_tbl = Table(
+        box=box.SIMPLE_HEAD,
+        show_header=True,
+        header_style="dim",
+        padding=(0, 1),
+        expand=True,
+        row_styles=["", "dim"],
+    )
+    all_tbl.add_column("Role", no_wrap=True, min_width=4)
+    all_tbl.add_column("Table", no_wrap=True, min_width=26)
+    all_tbl.add_column("Age", no_wrap=True, min_width=5, justify="right")
+    all_tbl.add_column("Updated", no_wrap=True, min_width=5)
+    all_tbl.add_column("Rows", no_wrap=True, min_width=8, justify="right")
+    all_tbl.add_column("Status", no_wrap=True, min_width=6)
+
+    for r in sorted_items:
+        nm = str(r.get("tbl") or "--")
+        role = str(r.get("role") or "NORM")
+        st = r.get("st", "ok")
+        ok = st == "ok"
+        ic = G if ok else (Y if st == "empty" else R)
+        ii = "✓" if ok else ("-" if st == "empty" else "✗")
+        rc = "bold white" if role == "CRIT" else (Y if role == "IMP" else DIM)
+        row_count = r.get("row_count")
+        rc_s = f"{row_count:,}" if row_count is not None else "--"
+        st_label = "ok" if ok else st.upper()
+        all_tbl.add_row(
+            Text(role, style=rc),
+            Text.from_markup(f"[{ic}]{ii}[/] [{rc}]{nm}[/]"),
+            Text(_fmt_age(r), style=DIM if ok else Y),
+            Text(_fmt_updated(r), style="dim"),
+            Text(rc_s, style="dim"),
+            Text(st_label, style=G if ok else (Y if st == "empty" else R)),
+        )
+
+    left_rows.append(all_tbl)
+
+    return Panel(
+        Group(*left_rows),
+        title="[bold yellow]DATA FRESHNESS[/]  [dim][h] return[/]",
+        border_style="yellow",
+        padding=(0, 1),
+    )
 
 
 def panel_orch(run, cfg, risk=None):
@@ -607,14 +721,6 @@ def panel_status(
     )
 
 
-def extract_health_items(hlth_dict):
-    """Extract health items list and ready-to-trade flag from health data dict."""
-    hlth_items = safe_get_list(hlth_dict)
-    crit_stale = [r for r in hlth_items if isinstance(r, dict) and safe_get_field(r, "st") != "ok" and safe_get_field(r, "role") == "CRIT"]
-    ready_to_trade = None if not hlth_items else (False if crit_stale else True)
-    return hlth_items, ready_to_trade
-
-
 def panel_algo_health(
     run,
     act,
@@ -944,121 +1050,23 @@ def panel_algo_health(
     )
 
 
-def panel_algo_health_expanded(
-    run,
-    act,
-    hlth,
-    notifs,
-    algo_metrics=None,
-    audit=None,
-    exec_hist=None,
-    risk=None,
-):
-    """Full-screen algo health — dual column: data freshness (left) | run results (right)."""
-    if _error_panel("health", hlth, "HEALTH EXPANDED"):
-        return _error_panel("health", hlth, "HEALTH EXPANDED")
-    if _error_panel("notifications", notifs, "HEALTH EXPANDED"):
-        return _error_panel("notifications", notifs, "HEALTH EXPANDED")
+def _build_results_panel(
+    run, act, algo_metrics, exec_hist, risk, notifs, audit
+) -> Panel:
+    """Build RIGHT panel: run results, history, risk, notifications, audit.
 
-    hlth_items = (
-        hlth.get("items", [])
-        if isinstance(hlth, dict) and "items" in hlth
-        else (hlth if isinstance(hlth, list) else [])
-    )
-    ready_to_trade = hlth.get("ready_to_trade") if isinstance(hlth, dict) else None
+    Args:
+        run: Run data (validated for errors)
+        act: Activity data (fallback if run missing)
+        algo_metrics: Today's metrics + 5d history
+        exec_hist: Full run execution history
+        risk: Risk metrics (VaR, beta, concentration)
+        notifs: Notification items
+        audit: Audit log entries
 
-    # ── LEFT: full data-freshness table ────────────────────────────────────────
-    left_rows: list = []
-
-    if hlth_items:
-        stale_count = sum(1 for r in hlth_items if isinstance(r, dict) and r.get("st") != "ok")
-        crit_stale = [r for r in hlth_items if isinstance(r, dict) and r.get("role") == "CRIT" and r.get("st") != "ok"]
-        if crit_stale:
-            crit_names = "  ".join(f"[bold white]{r.get('tbl', '')[:18]}[/]" for r in crit_stale)
-            left_rows.append(Text.from_markup(f"[bold {R}]⚠ CRIT STALE:[/]  {crit_names}"))
-        rtt_part = ""
-        if ready_to_trade is True:
-            rtt_part = f"  [bold {G}]✓ READY TO TRADE[/]"
-        elif ready_to_trade is False:
-            rtt_part = f"  [bold {R}]✗ NOT READY[/]"
-        status_c = G if stale_count == 0 else (Y if stale_count <= 2 else R)
-        left_rows.append(
-            Text.from_markup(
-                f"[dim]Freshness:[/] [{status_c}]{len(hlth_items) - stale_count}/{len(hlth_items)} fresh[/]"
-                + (f"  [{R}]{stale_count} stale[/]" if stale_count else "")
-                + rtt_part
-            )
-        )
-
-        def _fmt_age_e(r):
-            ah = r.get("age_hours")
-            ad = r.get("age")
-            if ah is not None:
-                return f"{ah:.0f}h" if float(ah) < 24 else f"{float(ah) / 24:.1f}d"
-            elif ad is not None:
-                return f"{float(ad):.1f}d"
-            return "?"
-
-        def _fmt_lat_e(r):
-            lat = r.get("last_updated") or r.get("latest")
-            if hasattr(lat, "strftime"):
-                return lat.strftime("%m/%d")
-            if isinstance(lat, str) and len(lat) >= 10:
-                return lat[5:10]
-            return str(lat or "")[:5]
-
-        _role_order = {"CRIT": 0, "IMP": 1, "NORM": 2}
-        sorted_items = sorted(
-            [r for r in hlth_items if isinstance(r, dict)],
-            key=lambda r: (_role_order.get(r.get("role") or "NORM", 2), r.get("tbl") or ""),
-        )
-        all_tbl = Table(
-            box=box.SIMPLE_HEAD,
-            show_header=True,
-            header_style="dim",
-            padding=(0, 1),
-            expand=True,
-            row_styles=["", "dim"],
-        )
-        all_tbl.add_column("Role", no_wrap=True, min_width=4)
-        all_tbl.add_column("Table", no_wrap=True, min_width=26)
-        all_tbl.add_column("Age", no_wrap=True, min_width=5, justify="right")
-        all_tbl.add_column("Updated", no_wrap=True, min_width=5)
-        all_tbl.add_column("Rows", no_wrap=True, min_width=8, justify="right")
-        all_tbl.add_column("Status", no_wrap=True, min_width=6)
-        for r in sorted_items:
-            nm = str(r.get("tbl") or "--")
-            role = str(r.get("role") or "NORM")
-            st = r.get("st", "ok")
-            ok = st == "ok"
-            ic = G if ok else (Y if st == "empty" else R)
-            ii = "✓" if ok else ("-" if st == "empty" else "✗")
-            rc = "bold white" if role == "CRIT" else (Y if role == "IMP" else DIM)
-            row_count = r.get("row_count")
-            rc_s = f"{row_count:,}" if row_count is not None else "--"
-            st_label = "ok" if ok else st.upper()
-            all_tbl.add_row(
-                Text(role, style=rc),
-                Text.from_markup(f"[{ic}]{ii}[/] [{rc}]{nm}[/]"),
-                Text(_fmt_age_e(r), style=DIM if ok else Y),
-                Text(_fmt_lat_e(r), style="dim"),
-                Text(rc_s, style="dim"),
-                Text(st_label, style=G if ok else (Y if st == "empty" else R)),
-            )
-        left_rows.append(all_tbl)
-    else:
-        msg = "⚠ Data health unavailable — loaders may not have run yet.\n"
-        msg += "Check Phase 1 orchestrator status or monitor logs."
-        left_rows.append(Text(msg, style="dim"))
-
-    left_panel = Panel(
-        Group(*left_rows),
-        title="[bold yellow]DATA FRESHNESS[/]  [dim][h] return[/]",
-        border_style="yellow",
-        padding=(0, 1),
-    )
-
-    # ── RIGHT: run results, history, risk, notifications, audit ─────────────────
+    Returns:
+        Rich Panel with run results and history
+    """
     right_rows: list = [
         Text.from_markup("[dim]press [/][bold yellow]h[/][dim] to return to dashboard[/]"),
         Rule(style="dim"),
@@ -1075,7 +1083,6 @@ def panel_algo_health_expanded(
             if run.get("success") and not run.get("halted")
             else (f"[bold {Y}]~ HALTED[/]" if run.get("halted") else f"[bold {R}]X ERROR[/]")
         )
-        rid = run.get("run_id", "")
         rid = run.get("run_id", "")
         right_rows.append(Text.from_markup(f"{sts}{age_s}  [dim]{rid}[/]"))
         halt_r = run.get("halt_reason", "")
@@ -1109,35 +1116,29 @@ def panel_algo_health_expanded(
     if phase_badges_e:
         right_rows.append(Text.from_markup("  ".join(phase_badges_e)))
 
-    # entries/exits today
-    signals_gen = 0
-    entries_exec = 0
-    exits_exec = 0
+    signals_gen = entries_exec = exits_exec = 0
     if run_valid and run.get("_source") == "exec_log":
         for p in run.get("phase_results", []):
             pdata = p.get("data")
             if isinstance(pdata, str):
                 try:
-                    import json as _json
-
-                    pdata = _json.loads(pdata)
+                    pdata = json.loads(pdata)
                 except Exception:
                     pdata = None
-            elif not isinstance(pdata, dict) and pdata is not None:
+            elif not isinstance(pdata, dict):
                 pdata = None
-            sg = pdata.get("signals_generated") if pdata else None
-            ee = (pdata.get("entries_executed") or pdata.get("trades_executed")) if pdata else None
-            xe = pdata.get("exits_executed")
-            if sg:
-                signals_gen = max(signals_gen, int(sg))
-            if ee:
-                entries_exec = max(entries_exec, int(ee))
-            if xe:
-                exits_exec = max(exits_exec, int(xe))
+            if pdata:
+                sg = pdata.get("signals_generated")
+                ee = pdata.get("entries_executed") or pdata.get("trades_executed")
+                xe = pdata.get("exits_executed")
+                if sg:
+                    signals_gen = max(signals_gen, int(sg))
+                if ee:
+                    entries_exec = max(entries_exec, int(ee))
+                if xe:
+                    exits_exec = max(exits_exec, int(xe))
 
-    valid_metrics_e = (
-        algo_metrics if (algo_metrics and not (isinstance(algo_metrics, dict) and has_error(algo_metrics))) else []
-    )
+    valid_metrics_e = algo_metrics if (algo_metrics and not (isinstance(algo_metrics, dict) and has_error(algo_metrics))) else []
     today_m_e = valid_metrics_e[0] if valid_metrics_e else {}
     if not entries_exec:
         en = today_m_e.get("entries")
@@ -1176,7 +1177,6 @@ def panel_algo_health_expanded(
 
     right_rows.append(Rule(style="dim"))
 
-    # Full run history
     valid_hist_e = exec_hist if (exec_hist and not (isinstance(exec_hist, dict) and has_error(exec_hist))) else []
     if valid_hist_e:
         n_ok = sum(1 for r in valid_hist_e if (r.get("overall_status") or "").lower() in ("success", "completed"))
@@ -1197,7 +1197,6 @@ def panel_algo_health_expanded(
             hr_s = f"  [{Y}]-> {body}[/]{ph_s}" if body else ""
             right_rows.append(Text.from_markup(f"  [{ic}]{ii}[/] [dim]{dt_s}[/]  [{ic}]{s}[/]{hr_s}"))
 
-    # Risk snapshot
     if risk and not has_error(risk) and risk.get("var95") is not None and float(risk.get("var95")) > 0:
         right_rows.append(Rule(style="dim"))
         var95_val_e = risk.get("var95")
@@ -1218,7 +1217,6 @@ def panel_algo_health_expanded(
             risk_parts_e.append(f"[dim]StressVaR:[/][{R}]{float(svar_val_e):.2f}%[/]")
         right_rows.append(Text.from_markup("  ".join(risk_parts_e)))
 
-    # Notifications
     notifs_items_exp = (
         notifs.get("items", [])
         if isinstance(notifs, dict) and "items" in notifs
@@ -1239,7 +1237,6 @@ def panel_algo_health_expanded(
             unread = "-" if not safe_get_field(n, "seen", True) else "."
             right_rows.append(Text.from_markup(f"  [{sc}]{unread} {title}[/] [dim]{age}[/]"))
 
-    # Audit log
     valid_audit_exp = audit if (audit and not (isinstance(audit, dict) and has_error(audit))) else []
     if valid_audit_exp:
         right_rows.append(Rule(style="dim"))
@@ -1260,12 +1257,33 @@ def panel_algo_health_expanded(
                 )
             )
 
-    right_panel = Panel(
+    return Panel(
         Group(*right_rows),
         title="[bold yellow]RUN RESULTS & HISTORY[/]  [dim][h] return[/]",
         border_style="yellow",
         padding=(0, 1),
     )
+
+
+def panel_algo_health_expanded(
+    run,
+    act,
+    hlth,
+    notifs,
+    algo_metrics=None,
+    audit=None,
+    exec_hist=None,
+    risk=None,
+):
+    """Full-screen algo health — dual column: data freshness (left) | run results (right)."""
+    if _error_panel("health", hlth, "HEALTH EXPANDED"):
+        return _error_panel("health", hlth, "HEALTH EXPANDED")
+    if _error_panel("notifications", notifs, "HEALTH EXPANDED"):
+        return _error_panel("notifications", notifs, "HEALTH EXPANDED")
+
+    hlth_items, ready_to_trade = extract_health_items(hlth)
+    left_panel = _build_freshness_panel(hlth_items, ready_to_trade)
+    right_panel = _build_results_panel(run, act, algo_metrics, exec_hist, risk, notifs, audit)
 
     dual = Layout()
     dual.split_row(
