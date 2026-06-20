@@ -345,23 +345,24 @@ def panel_status(
 
     # Phase detail — named phases from exec_log with per-phase status and key data
     phase_badges = []
-    if run and not has_error(run) and run["_source"] == "exec_log":
-        halt_r = run.get("halt_reason", "")
-        summary = run.get("summary", "")
-        if run.get("halted") or halt_r:
-            for label, detail in _best_halt_reason(halt_r, run.get("phase_results")):
+    run_source = safe_get_field(run, "_source") if run_valid else None
+    if run_valid and run_source == "exec_log":
+        halt_r = safe_get_field(run, "halt_reason", "")
+        summary = safe_get_field(run, "summary", "")
+        if safe_get_field(run, "halted") or halt_r:
+            for label, detail in _best_halt_reason(halt_r, safe_get_field(run, "phase_results")):
                 prefix = f"{label}: " if label else ""
                 rows.append(Text.from_markup(f"[{Y}]a†³ {prefix}{detail[:60]}[/]"))
         elif summary and isinstance(summary, str):
             rows.append(Text.from_markup(f"[dim]{summary[:65]}[/]"))
 
-        phase_results = run.get("phase_results", [])
+        phase_results = safe_get_field(run, "phase_results", [])
         for p in phase_results:
-            raw = (p.get("name") or p.get("phase", "")).lower()
+            raw = (safe_get_field(p, "name") or safe_get_field(p, "phase", "")).lower()
             parts = raw.split("_")
             base = "_".join(parts[:2]) if len(parts) >= 2 else raw
             short = PHASE_NAMES.get(base, base.replace("phase_", "P"))[:9]
-            ps = (p.get("status", "")).lower()
+            ps = (safe_get_field(p, "status", "")).lower()
             sc = (
                 G
                 if ps in ("success", "completed", "ok")
@@ -375,8 +376,8 @@ def panel_status(
             phase_badges.append(f"[{sc}]{si}[dim]{short}[/][/]")
 
             # Show error or key data for failed/halted phases
-            err = p.get("error") or ""
-            pdata = p.get("data")
+            err = safe_get_field(p, "error", "") or ""
+            pdata = safe_get_field(p, "data")
             if isinstance(pdata, str):
                 try:
                     pdata = json.loads(pdata)
@@ -388,7 +389,7 @@ def panel_status(
             if err and ps not in ("success", "completed", "ok"):
                 rows.append(Text.from_markup(f"  [{sc}]a†³ {err[:62]}[/]"))
             elif ps in ("halt", "halted") and pdata:
-                reason = (pdata.get("halt_reason") or pdata.get("reason") or "")[:55]
+                reason = (safe_get_field(pdata, "halt_reason", "") or safe_get_field(pdata, "reason", "") or "")[:55]
                 if reason:
                     rows.append(Text.from_markup(f"  [{Y}]a†³ {reason}[/]"))
             elif ps in ("success", "completed", "ok") and pdata:
@@ -404,7 +405,7 @@ def panel_status(
                     "checks_passed",
                     "score",
                 ):
-                    val = pdata.get(key)
+                    val = safe_get_field(pdata, key)
                     if val is not None:
                         rows.append(Text.from_markup(f"  [dim]{short}:[/] [white]{key.replace('_', ' ')}={val}[/]"))
                         break
@@ -412,16 +413,16 @@ def panel_status(
         if phase_badges:
             rows.append(Text.from_markup("  ".join(phase_badges)))
 
-        n_ok = _pc(run.get("phases_completed"))
-        n_hlt = _pc(run.get("phases_halted"))
-        n_err = _pc(run.get("phases_errored"))
+        n_ok = _pc(safe_get_field(run, "phases_completed"))
+        n_hlt = _pc(safe_get_field(run, "phases_halted"))
+        n_err = _pc(safe_get_field(run, "phases_errored"))
         if n_ok + n_hlt + n_err > 0:
             ok_s = f"[{G}]{n_ok} phases done[/]"
             hlt_s = f"  [{Y}]{n_hlt} halted[/]" if n_hlt else ""
             err_s = f"  [{R}]{n_err} errored[/]" if n_err else ""
             rows.append(Text.from_markup(f"  {ok_s}{hlt_s}{err_s}"))
-    elif act and not has_error(act):
-        phases_list = act.get("phases")
+    elif act_valid:
+        phases_list = safe_get_field(act, "phases")
         if not phases_list:
             logger.warning(
                 f"[HEALTH] Activity log missing 'phases' field. Available keys: {list(act.keys())}. "
@@ -429,7 +430,7 @@ def panel_status(
             )
             phases_list = []
         for p in phases_list:
-            at = p.get("action_type", "")
+            at = safe_get_field(p, "action_type", "")
             if not at.startswith("phase_"):
                 continue
             parts = at.split("_")
@@ -440,7 +441,7 @@ def panel_status(
             name_parts = parts[2:] if len(parts) > 2 else []
             default_short = "_".join(name_parts)[:7] if name_parts else f"P{num}"
             short = PHASE_NAMES.get(phase_key, default_short)[:9]
-            st = p.get("status", "")
+            st = safe_get_field(p, "status", "")
             sc = G if st == "success" else (Y if st in ("halt", "warn", "halted") else R)
             si = "✓" if st == "success" else ("~" if st in ("halt", "warn", "halted") else "✗")
             phase_badges.append(f"[{sc}]{si}[dim]{short}[/][/]")
@@ -448,11 +449,11 @@ def panel_status(
             rows.append(Text.from_markup("  ".join(phase_badges)))
 
     # Recent trade events (entry/exit/order) from audit_log
-    recent = (act.get("recent_actions") or []) if (act and not has_error(act)) else []
+    recent = safe_get_field(act, "recent_actions", []) if act_valid else []
     trade_evts = [
         a
         for a in recent
-        if a.get("action_type")
+        if safe_get_field(a, "action_type")
         in (
             "entry_executed",
             "exit_executed",
@@ -463,8 +464,8 @@ def panel_status(
         )
     ]
     for a in trade_evts[:4]:
-        at = a.get("action_type", "")
-        det = a.get("details")
+        at = safe_get_field(a, "action_type", "")
+        det = safe_get_field(a, "details")
         if isinstance(det, str):
             try:
                 det = json.loads(det)
@@ -473,7 +474,7 @@ def panel_status(
                 det = None
         elif not isinstance(det, dict) and det is not None:
             det = None
-        sym = det.get("symbol", "") if det else ""
+        sym = safe_get_field(det, "symbol", "") if det else ""
         ic = G if ("executed" in at or at == "position_exited") else (Y if "placed" in at else R)
         lbl = at.replace("_", " ").title()[:20]
         rows.append(Text.from_markup(f"  [{ic}]{lbl}{(' ' + sym) if sym else ''}[/]"))
@@ -481,27 +482,27 @@ def panel_status(
     # Data health (stale tables only)
     if hlth_items:
         rows.append(Rule(style="dim"))
-        stale = [r for r in hlth_items if isinstance(r, dict) and r.get("st") != "ok"]
+        stale = [r for r in hlth_items if isinstance(r, dict) and safe_get_field(r, "st") != "ok"]
         if not stale:
             rows.append(Text.from_markup(f"[{G}]OK Data OK[/]  [dim]{len(hlth_items)} tables[/]"))
-            crit = [r for r in hlth_items if isinstance(r, dict) and r.get("role") == "CRIT"]
+            crit = [r for r in hlth_items if isinstance(r, dict) and safe_get_field(r, "role") == "CRIT"]
             if crit:
-                crit_parts = "  ".join(f"[{G}]OK[/][dim]{r.get('tbl', '')[:13]}[/]" for r in crit)
+                crit_parts = "  ".join(f"[{G}]OK[/][dim]{safe_get_field(r, 'tbl', '')[:13]}[/]" for r in crit)
                 rows.append(Text.from_markup(f"  {crit_parts}"))
         else:
             for r in stale[:4]:
-                nm = str((r.get("tbl") or "--")[:13])
-                age_hours = r.get("age_hours")
-                age_days = r.get("age")
+                nm = str((safe_get_field(r, "tbl", "") or "--")[:13])
+                age_hours = safe_get_field(r, "age_hours")
+                age_days = safe_get_field(r, "age")
                 if age_hours is not None:
                     age_s = f"{age_hours:.0f}h" if age_hours < 24 else f"{age_hours / 24:.1f}d"
                 elif age_days is not None:
                     age_s = f"{float(age_days):.1f}d"
                 else:
                     age_s = "?"
-                rc = r.get("role", "")
+                rc = safe_get_field(r, "role", "")
                 cc = "bold white" if rc == "CRIT" else "white"
-                lat = r.get("last_updated") or r.get("latest")
+                lat = safe_get_field(r, "last_updated") or safe_get_field(r, "latest")
                 if hasattr(lat, "strftime"):
                     lat_s = f" ({lat.strftime('%m/%d')})"
                 elif isinstance(lat, str) and len(lat) >= 10:

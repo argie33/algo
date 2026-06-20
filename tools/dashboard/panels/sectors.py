@@ -311,11 +311,15 @@ def panel_sectors_expanded(srank, pos, port, sec_rot=None, irank=None):
         rows.append(Rule(style="dim"))
 
     # All industries — full names, 1wk change
-    irank_items_exp = (
-        irank.get("items") or []
-        if isinstance(irank, dict) and "items" in irank
-        else (irank if isinstance(irank, list) else [])
-    )
+    irank_items_exp = None
+    if isinstance(irank, dict) and "items" in irank:
+        irank_items_exp = irank.get("items")
+        if not isinstance(irank_items_exp, list):
+            irank_items_exp = None
+    elif isinstance(irank, list):
+        irank_items_exp = irank
+    if irank_items_exp is None:
+        irank_items_exp = []
     irank_error_exp = has_error(irank) if isinstance(irank, dict) else None
     valid_irank = irank_items_exp if irank_items_exp and not irank_error_exp else []
     if valid_irank:

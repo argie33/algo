@@ -200,14 +200,14 @@ class MarketHealthDailyLoader(OptimalLoader):
                     f"[VIX] Ticker ^VIX not available from yfinance for {start} to {end}. "
                     "Continuing with missing VIX data."
                 )
-                return {}
+                return {"_error": "VIX ticker unavailable from yfinance"}
             df = ticker.history(start=start, end=end, interval="1d", auto_adjust=True)
             if df is None or df.empty:
                 logger.debug(
                     f"[VIX] yfinance returned no data for {start} to {end}. "
                     "This is expected for non-trading date ranges."
                 )
-                return {}
+                return {"_error": "No VIX data available for date range"}
 
             result = {}
             low_value_count = 0  # Track but don't reject low values

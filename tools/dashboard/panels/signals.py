@@ -396,8 +396,18 @@ def panel_signals_expanded(sig, sig_eval=None, scores=None):
     if scores and _error_panel("scores", scores, "SIGNALS", border="magenta"):
         return _error_panel("scores", scores, "SIGNALS", border="magenta")
 
-    top_scores = (scores or {}).get("top", [])
-    buy_sigs = sig.get("buy_sigs", [])
+    top_scores = None
+    if isinstance(scores, dict):
+        top_scores = scores.get("top")
+        if not isinstance(top_scores, list):
+            top_scores = None
+    if top_scores is None:
+        top_scores = []
+    buy_sigs = sig.get("buy_sigs")
+    if not isinstance(buy_sigs, list):
+        buy_sigs = None
+    if buy_sigs is None:
+        buy_sigs = []
     total = sig.get("total")
     if total is None:
         return _error_panel("signals", {"_error": "Missing signal total count"}, "SIGNALS", border="magenta")
