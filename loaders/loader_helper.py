@@ -42,7 +42,7 @@ def setup_loader_timeouts(socket_timeout_sec: float = 30.0):
     """
     try:
         socket.setdefaulttimeout(socket_timeout_sec)
-    except Exception as e:
+    except (requests.RequestException, requests.Timeout, json.JSONDecodeError) as e:
         import logging
 
         logging.warning(f"Could not set socket timeout: {e}")

@@ -119,6 +119,6 @@ def lambda_handler(event, context):
             ),
         }
 
-    except Exception as e:
+    except (json.JSONDecodeError, ValueError) as e:
         logger.error(f"Error triggering loader: {e}", exc_info=True)
         return {"statusCode": 500, "body": json.dumps({"error": str(e)})}

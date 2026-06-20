@@ -397,7 +397,7 @@ def lambda_handler(event, context):
             try:
                 cursor.execute(statement)
                 ok_count += 1
-            except Exception as e:
+            except (json.JSONDecodeError, ValueError) as e:
                 err = str(e)
                 if "already exists" in err or "does not exist" in err:
                     skip_count += 1

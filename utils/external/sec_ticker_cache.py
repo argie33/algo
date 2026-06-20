@@ -64,7 +64,7 @@ class TickerCache:
                     else:
                         logger.debug("Ticker cache file expired, will refresh from API")
                         self._ticker_cache = None
-        except Exception as e:
+        except (json.JSONDecodeError, ValueError) as e:
             logger.debug(f"Could not load ticker cache file: {e}")
 
     def _save_ticker_cache_to_file(self) -> None:
@@ -82,7 +82,7 @@ class TickerCache:
             logger.debug(
                 f"Saved ticker cache to file ({len(self._ticker_cache or {})} symbols)"
             )
-        except Exception as e:
+        except (json.JSONDecodeError, ValueError) as e:
             logger.debug(f"Could not save ticker cache file: {e}")
 
     def _refresh_ticker_cache(self) -> Dict[str, str]:

@@ -336,7 +336,7 @@ class SwingTraderScore:
                         "reason": f"{abs(pct_from_high):.1f}% below 52w high (max {max_extension_pct}% allowed)",
                         "percent_from_52w_high": pct_from_high,
                     }
-        except Exception as e:
+        except (psycopg2.DatabaseError, psycopg2.OperationalError) as e:
             logger.debug(f"52w high extension check failed: {e}")
 
         # Gate 4: Base type quality check
@@ -370,7 +370,7 @@ class SwingTraderScore:
                             "reason": f"Industry rank {industry_rank} > {max_industry_rank} (bottom half)",
                             "industry_rank": industry_rank,
                         }
-            except Exception as e:
+            except (psycopg2.DatabaseError, psycopg2.OperationalError) as e:
                 logger.debug(f"Industry rank check failed: {e}")
 
         # Gate 7: Earnings proximity

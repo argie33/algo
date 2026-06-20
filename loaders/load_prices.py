@@ -2323,7 +2323,7 @@ def main():
             )
             try:
                 _lock_conn.close()
-            except Exception as close_err:
+            except (psycopg2.DatabaseError, psycopg2.OperationalError) as close_err:
                 logger.debug(f"Could not close lock connection: {close_err}")
             _lock_conn = None
             return 0

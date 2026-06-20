@@ -231,7 +231,7 @@ class SwingTraderScoresLoader(OptimalLoader):
                         all_scores.append(score_row)
 
                 return all_scores if all_scores else None
-        except Exception as e:
+        except (psycopg2.DatabaseError, psycopg2.OperationalError) as e:
             raise RuntimeError(
                 f"[SWING_SCORES] Failed to compute swing trader scores for {symbol}: {e}. "
                 "Swing trading signal generation requires complete score computation."
@@ -509,7 +509,7 @@ class SwingTraderScoresLoader(OptimalLoader):
                 """,
                     ("swing_trader_scores", reason, symbol, signal_date, "loader"),
                 )
-        except Exception as e:
+        except (psycopg2.DatabaseError, psycopg2.OperationalError) as e:
             logger.debug(
                 f"[SIGNAL_REJECTION_LOG] Could not log rejection for {symbol}: {e}"
             )

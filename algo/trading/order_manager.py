@@ -107,7 +107,7 @@ class OrderManager:
             if response.status_code in (200, 201):
                 try:
                     data = response.json()
-                except Exception as e:
+                except (requests.RequestException, requests.Timeout, json.JSONDecodeError) as e:
                     logger.error(
                         f"[SEND_ORDER] {symbol}: Failed to parse response JSON: {e}. Response: {response.text}"
                     )
@@ -164,7 +164,7 @@ class OrderManager:
                     "success": False,
                     "message": f"Alpaca {response.status_code}: {error_text[:200]}",
                 }
-        except Exception as e:
+        except (requests.RequestException, requests.Timeout, json.JSONDecodeError) as e:
             logger.exception(f"[SEND_ORDER] {symbol}: Exception during request: {e}")
             return {"success": False, "message": f"Request failed: {e}"}
 

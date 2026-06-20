@@ -50,7 +50,7 @@ def _get_db_connection():
             connect_timeout=10,
             sslmode=os.environ.get("DB_SSL", "require"),
         )
-    except Exception as e:
+    except (json.JSONDecodeError, ValueError) as e:
         logger.error(f"Database connection failed: {e}")
         raise
 

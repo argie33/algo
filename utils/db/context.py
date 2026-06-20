@@ -296,7 +296,7 @@ class DatabaseContext:
                         "SET application_name = %s",
                         (f"algo_loader[{self.correlation_id}]",),
                     )
-                except Exception as e:
+                except (psycopg2.DatabaseError, psycopg2.OperationalError) as e:
 
                     msg = f"Unexpected error: {e}"
                     raise RuntimeError(msg) from e

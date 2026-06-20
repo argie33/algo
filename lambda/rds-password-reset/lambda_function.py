@@ -339,7 +339,7 @@ def lambda_handler(event, context):
                 ),
             }
 
-    except Exception as e:
+    except (json.JSONDecodeError, ValueError) as e:
         logger.error(f"✗ Error executing ALTER USER: {e!s}")
 
         # Log failed reset attempt to CloudWatch

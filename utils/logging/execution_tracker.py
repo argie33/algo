@@ -148,7 +148,7 @@ class OrchestratorExecutionTracker:
                 )
             logger.info(f"[EXECUTION_LOG] Saved run {self.run_id}: {overall_status}")
             return True
-        except Exception as e:
+        except (json.JSONDecodeError, ValueError) as e:
             raise RuntimeError(f"Operation failed: {e}") from e
 
 

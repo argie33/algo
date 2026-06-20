@@ -171,7 +171,7 @@ def lambda_handler(event, context):
                         "[F-02] Circuit breaker halted trading — orchestrator_dry_run=true in Secrets Manager"
                     )
                     dry_run = True
-            except Exception as _cb_err:
+            except (json.JSONDecodeError, ValueError) as _cb_err:
                 logger.warning(
                     f"[F-02] Could not check circuit breaker state: {_cb_err} — continuing with dry_run={dry_run}"
                 )

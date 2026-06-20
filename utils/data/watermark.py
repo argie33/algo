@@ -75,7 +75,7 @@ class WatermarkManager:
                     if watermark_str:
                         return _date.fromisoformat(watermark_str)
                 return None
-        except Exception as e:
+        except (psycopg2.DatabaseError, psycopg2.OperationalError) as e:
             raise RuntimeError(f"Operation failed: {e}") from e
 
     def advance_watermark(
@@ -268,5 +268,5 @@ class WatermarkManager:
                 rows = cur.fetchall()
                 return {"loader": self.loader_name, "watermarks": rows}
 
-        except Exception as e:
+        except (psycopg2.DatabaseError, psycopg2.OperationalError) as e:
             raise RuntimeError(f"Error getting watermark status: {e}") from e

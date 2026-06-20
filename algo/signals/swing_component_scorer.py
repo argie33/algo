@@ -40,7 +40,7 @@ class SwingComponentScorer:
                 "SELECT key, value FROM algo_config WHERE key LIKE 'swing_weight_%'"
             )
             weights = {k: int(v) for k, v in cur.fetchall()}
-        except Exception as e:
+        except (psycopg2.DatabaseError, psycopg2.OperationalError) as e:
             logger.debug(
                 f"Could not load swing weights from config: {e} — using defaults"
             )
@@ -57,7 +57,7 @@ class SwingComponentScorer:
                 row = cur.fetchone()
                 if row:
                     return type(default)(row[0])
-        except Exception as e:
+        except (psycopg2.DatabaseError, psycopg2.OperationalError) as e:
             logger.debug(f"Could not load config key {key}: {e}")
         return default
 

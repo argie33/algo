@@ -149,7 +149,7 @@ def _check_market_regime(run_date: _date) -> dict:
                 "regime": row[2] or "unknown",
                 "halt_reasons": halt_reasons,
             }
-    except Exception as e:
+    except (json.JSONDecodeError, ValueError) as e:
         logger.warning(f"[PHASE 5] Could not read market regime: {e} — halting entries (fail-closed)")
         return {
             "is_entry_allowed": False,
@@ -206,7 +206,7 @@ def _detect_upstream_data_quality_drift(run_date: _date, signal_source: str) -> 
                     f"[PHASE 5] DATA QUALITY ALERT: {row[0]} symbols missing swing_trader_scores "
                     f"(source={signal_source}, date={run_date}). Check swing_trader_scores loader."
                 )
-    except Exception as e:
+    except (psycopg2.DatabaseError, psycopg2.OperationalError) as e:
         logger.debug(f"[PHASE 5] Could not check upstream data quality: {e}")
 
     return drift

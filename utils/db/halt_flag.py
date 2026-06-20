@@ -112,7 +112,7 @@ class HaltFlagManager:
             halt_flag, reason = self._check_halt_flag_dynamodb()
             if halt_flag is not None:
                 return halt_flag, reason
-        except Exception as e:
+        except (FileNotFoundError, IOError, OSError) as e:
             logger.warning(
                 f"[HALT_FLAG] DynamoDB check failed: {e}. Falling back to RDS."
             )
@@ -332,7 +332,7 @@ class HaltFlagManager:
                 )
             logger.debug(f"[HALT_FLAG] Set in RDS: {halt_data['reason']}")
             return True
-        except Exception as e:
+        except (json.JSONDecodeError, ValueError) as e:
             logger.warning(f"[HALT_FLAG] Failed to set in RDS: {e}")
             return False
 

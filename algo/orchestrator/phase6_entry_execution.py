@@ -151,7 +151,7 @@ def run(
                 logger.critical(msg)
                 log_phase_result_fn(6, "entry_execution", "halt", msg)
                 return PhaseResult(6, "entry_execution", "halted", {"entered": 0}, True, msg)
-    except Exception as e:
+    except (psycopg2.DatabaseError, psycopg2.OperationalError) as e:
         msg = f"[PHASE 6 CRITICAL] Data freshness check failed: {e}"
         logger.critical(msg)
         log_phase_result_fn(6, "entry_execution", "halt", msg)

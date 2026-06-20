@@ -363,7 +363,7 @@ class SignalsDailyLoader(OptimalLoader):
                 """,
                     ("buy_sell_daily", reason, symbol, signal_date, "loader"),
                 )
-        except Exception as e:
+        except (psycopg2.DatabaseError, psycopg2.OperationalError) as e:
             logger.debug(
                 f"[SIGNAL_REJECTION_LOG] Could not log rejection for {symbol}: {e}"
             )
@@ -798,7 +798,7 @@ def main():
                     "waiting for price data to be available"
                 )
                 return 0  # Exit cleanly, will retry on next pipeline run
-    except Exception as status_err:
+    except (psycopg2.DatabaseError, psycopg2.OperationalError) as status_err:
         logger.warning(
             f"[DEPENDENCY] Could not check stock_prices_daily status: {status_err}"
         )
@@ -903,7 +903,7 @@ def main():
                         ("FAILED", "buy_sell_daily"),
                     )
                     logger.info("[STATUS] Marked buy_sell_daily as FAILED due to enrichment failure")
-            except Exception as status_err:
+            except (psycopg2.DatabaseError, psycopg2.OperationalError) as status_err:
                 logger.error(f"[STATUS] Could not update loader status: {status_err}")
 
             raise RuntimeError(

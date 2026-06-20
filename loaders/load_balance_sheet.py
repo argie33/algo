@@ -144,7 +144,7 @@ class BalanceSheetLoader(OptimalLoader):
                     "Cannot proceed with empty incremental load."
                 )
             return filtered
-        except Exception as e:
+        except (ValueError, ZeroDivisionError, TypeError) as e:
             raise RuntimeError(
                 f"[BALANCE_SHEET] Failed to fetch balance sheet for {symbol}: {e}. "
                 "Cannot proceed without fundamental data."

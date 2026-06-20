@@ -41,7 +41,7 @@ def _get_orchestrator_execution_details(cur, run_id: str) -> Dict:
     if result.get("phase_results"):
         try:
             result["phase_results"] = json.loads(result["phase_results"])
-        except Exception as e:
+        except (psycopg2.DatabaseError, psycopg2.OperationalError) as e:
             logger.warning(f"Failed to parse phase_results JSON: {e}")
             result["phase_results"] = {}
     return success_response(result)
@@ -134,7 +134,7 @@ def _get_orchestrator_execution_recent(cur, days: int = 7, limit: int = 50) -> D
         try:
             items = [safe_json_serialize(safe_dict_convert(r)) for r in rows]
             return list_response(items, total=len(rows), limit=limit)
-        except Exception as ser_e:
+        except (psycopg2.DatabaseError, psycopg2.OperationalError) as ser_e:
             logger.warning(
                 f"Serialization error in execution recent: {type(ser_e).__name__}: {ser_e}"
             )

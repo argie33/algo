@@ -142,7 +142,7 @@ class IncomeStatementYFinanceBackfillLoader(OptimalLoader):
                 logger.debug(f"{symbol}: No matching yfinance data to backfill.")
                 return None
 
-        except Exception as e:
+        except (ValueError, ZeroDivisionError, TypeError) as e:
             logger.warning(
                 f"{symbol}: Backfill check failed: {e}. Will skip this symbol."
             )

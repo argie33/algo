@@ -59,7 +59,7 @@ def get_db_credentials():
                 "user": creds.get("username"),
                 "password": creds.get("password"),
             }
-        except Exception as e:
+        except (json.JSONDecodeError, ValueError) as e:
             logger.error(f"Failed to fetch DB credentials from Secrets Manager: {e}")
             raise
 
@@ -224,13 +224,13 @@ def lambda_handler(event, context):
                 ),
             }
 
-    except Exception as e:
+    except (json.JSONDecodeError, ValueError) as e:
         logger.error(f"Circuit breaker check failed: {e}", exc_info=True)
         try:
             _set_halt(
                 table, True, f"Circuit breaker check failed: {str(e)[:100]}", check_time
             )
-        except Exception as ddb_err:
+        except (json.JSONDecodeError, ValueError) as ddb_err:
             logger.error(
                 f"Failed to update DynamoDB halt flag: {ddb_err}", exc_info=True
             )

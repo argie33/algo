@@ -47,7 +47,11 @@ class PositioningMetricsLoader(OptimalLoader):
 
     @staticmethod
     def _fetch_positioning_metrics(symbol: str) -> dict | None:
-        """Fetch institutional ownership and short interest from yfinance via the rate-limiting wrapper."""
+        """Fetch institutional ownership and short interest from yfinance via the rate-limiting wrapper.
+
+        Skips symbols with market cap < $50M (illiquid stocks typically lack positioning data).
+        This reduces unnecessary API calls and improves loader throughput.
+        """
         from utils.external.yfinance import get_ticker
 
         ticker = get_ticker(symbol)
@@ -56,6 +60,12 @@ class PositioningMetricsLoader(OptimalLoader):
 
         try:
             info = ticker.info
+
+            # Early exit for illiquid symbols (< $50M market cap)
+            mkt_cap = info.get("marketCap")
+            if mkt_cap and mkt_cap < 50_000_000:
+                logger.debug(f"Skipping {symbol} (market cap ${mkt_cap:,} < $50M threshold)")
+                return None
 
             institutional_ownership = None
             insider_ownership = None

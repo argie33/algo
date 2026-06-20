@@ -197,7 +197,7 @@ class AWSProductionConfigValidator:
 
             return True
 
-        except Exception as e:
+        except (psycopg2.DatabaseError, psycopg2.OperationalError) as e:
             raise RuntimeError(
                 f"Loader status tracking issue: {e}. Cannot verify loader status table configured."
             ) from e
@@ -259,7 +259,7 @@ class AWSProductionConfigValidator:
                 self.checks_warnings.append("Error fallback utilities not found")
                 return False
 
-        except Exception as e:
+        except (FileNotFoundError, IOError, OSError) as e:
             raise RuntimeError(
                 f"Error fallback monitoring validation failed: {e}. "
                 "Cannot verify error fallback utilities."

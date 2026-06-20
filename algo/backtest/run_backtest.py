@@ -52,7 +52,7 @@ def _get_trading_dates(start: date, end: date) -> list[date]:
                 (start, end),
             )
             return [row[0] for row in cur.fetchall()]
-    except Exception as e:
+    except (psycopg2.DatabaseError, psycopg2.OperationalError) as e:
         raise RuntimeError(f"[BACKTEST] FATAL: Cannot fetch trading dates from price_daily: {e}") from e
 
 
@@ -105,7 +105,7 @@ def _get_daily_buy_signals(signal_date: date, min_composite: float) -> list[dict
             })
 
         return signals
-    except Exception as e:
+    except (ValueError, ZeroDivisionError, TypeError) as e:
         raise RuntimeError(f"[BACKTEST] FATAL: Cannot fetch buy signals for {signal_date}: {e}") from e
 
 
@@ -118,7 +118,7 @@ def _get_daily_sell_signals(signal_date: date) -> set:
                 (signal_date,),
             )
             return {row[0] for row in cur.fetchall()}
-    except Exception as e:
+    except (psycopg2.DatabaseError, psycopg2.OperationalError) as e:
         raise RuntimeError(f"[BACKTEST] FATAL: Cannot fetch sell signals for {signal_date}: {e}") from e
 
 
@@ -132,7 +132,7 @@ def _get_price_on_date(symbol: str, target_date: date) -> float | None:
             )
             row = cur.fetchone()
             return float(row[0]) if row and row[0] is not None else None
-    except Exception as e:
+    except (ValueError, ZeroDivisionError, TypeError) as e:
             raise RuntimeError(f"Operation failed: {e}") from e
 
 
@@ -152,7 +152,7 @@ def _get_prices_batch(symbols: list[str], target_date: date) -> dict[str, float]
                 (symbols, target_date),
             )
             return {r[0]: float(r[1]) for r in cur.fetchall() if r[1] is not None}
-    except Exception as e:
+    except (psycopg2.DatabaseError, psycopg2.OperationalError) as e:
         raise RuntimeError(f"[BACKTEST] FATAL: Cannot fetch prices for symbols: {e}") from e
 
 

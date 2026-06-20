@@ -278,7 +278,7 @@ class TradeAuditLogger:
                         "avg_position_size_pct": float(row[4]) if row[4] else 0,
                     }
             return {"error": "No data"}
-        except Exception as e:
+        except (psycopg2.DatabaseError, psycopg2.OperationalError) as e:
             logger.warning(f"Position sizing summary failed: {e}")
             return {"error": str(e)}
 
@@ -298,6 +298,6 @@ class TradeAuditLogger:
                 for row in cur.fetchall():
                     result[row[0]] = row[1]
                 return result
-        except Exception as e:
+        except (psycopg2.DatabaseError, psycopg2.OperationalError) as e:
             logger.warning(f"Exit rule distribution failed: {e}")
             return {}

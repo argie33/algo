@@ -76,7 +76,7 @@ class SignalThemesLoader(OptimalLoader):
                     }
                     for r in rows
                 ]
-        except Exception as e:
+        except (psycopg2.DatabaseError, psycopg2.OperationalError) as e:
             raise RuntimeError(f"Operation failed: {e}") from e
 
 

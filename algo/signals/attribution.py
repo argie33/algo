@@ -140,7 +140,7 @@ class SignalAttributionEngine:
                             if comp_score is not None and r_mult is not None:
                                 comp_scores.append(float(comp_score))
                                 r_multiples.append(r_mult)
-                        except Exception as e:
+                        except (json.JSONDecodeError, ValueError) as e:
                             logger.debug(
                                 f"Could not extract {component} from trade {trade_id}: {e}"
                             )
@@ -309,7 +309,7 @@ class SignalAttributionEngine:
                                 if comp_value is not None:
                                     comp_scores.append(float(comp_value))
                                     r_multiples.append(float(exit_r_multiple))
-                            except Exception as e:
+                            except (json.JSONDecodeError, ValueError) as e:
                                 logger.debug(
                                     f"Could not extract {component} from trade {trade_id}: {e}"
                                 )

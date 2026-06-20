@@ -224,7 +224,7 @@ class RejectionTracker:
 
         try:
             return self._with_cursor(_get_reasons) or []
-        except Exception as e:
+        except (psycopg2.DatabaseError, psycopg2.OperationalError) as e:
             raise RuntimeError(
                 f"Failed to get rejection reasons for tier {tier}: {e}. "
                 "Cannot proceed without rejection analysis."
@@ -264,7 +264,7 @@ class RejectionTracker:
 
         try:
             return self._with_cursor(_get_status) or {}
-        except Exception as e:
+        except (psycopg2.DatabaseError, psycopg2.OperationalError) as e:
             raise RuntimeError(
                 f"Failed to get rejection summary: {e}. "
                 "Cannot proceed without rejection status tracking."

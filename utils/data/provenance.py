@@ -273,7 +273,7 @@ class DataProvenanceTracker:
                     "ticks": ticks,
                     "errors": errors,
                 }
-        except Exception as e:
+        except (psycopg2.DatabaseError, psycopg2.OperationalError) as e:
             raise RuntimeError(f"Operation failed: {e}") from e
 
     def _insert_loader_run(
@@ -300,7 +300,7 @@ class DataProvenanceTracker:
                         self.start_time,
                     ),
                 )
-        except Exception as e:
+        except (json.JSONDecodeError, ValueError) as e:
             logger.error(f"Failed to insert loader run: {e}", exc_info=True)
 
     def _insert_provenance_record(self, record: Dict):
@@ -388,7 +388,7 @@ class DataProvenanceTracker:
                         self.run_id,
                     ),
                 )
-        except Exception as e:
+        except (json.JSONDecodeError, ValueError) as e:
             logger.error(f"Failed to finalize loader run: {e}")
 
     @staticmethod

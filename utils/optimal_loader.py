@@ -179,7 +179,7 @@ class OptimalLoader(ABC):
                                 "WHERE table_name = %s AND status = %s",
                                 (self.table_name, "RUNNING"),
                             )
-                except Exception as e:
+                except (psycopg2.DatabaseError, psycopg2.OperationalError) as e:
                     error_msg = (
                         f"[{self.table_name}] Heartbeat update failed: {e}. "
                         "Phase 1 hung task detection cannot run without a live heartbeat. "
@@ -242,7 +242,7 @@ class OptimalLoader(ABC):
                         )
             finally:
                 set_pooled_connection(saved_conn)
-        except Exception as e:
+        except (psycopg2.DatabaseError, psycopg2.OperationalError) as e:
             raise RuntimeError(
                 f"[{self.table_name}] CRITICAL: Failed to update loader status to {status}: {e}. "
                 "Loader completion cannot be recorded. This affects orchestration and data consistency."
@@ -628,7 +628,7 @@ class OptimalLoader(ABC):
                 columns = [c for c in all_data_cols if c in existing_cols]
                 if not columns:
                     raise ValueError(f"No valid columns to write for {self.table_name}")
-            except Exception as e:
+            except (psycopg2.DatabaseError, psycopg2.OperationalError) as e:
                 logger.error(f"Failed to prepare columns for {self.table_name}: {e}")
                 raise
 
@@ -945,7 +945,7 @@ class OptimalLoader(ABC):
                                 )
                         finally:
                             set_pooled_connection(_saved)
-                    except Exception as handler_err:
+                    except (psycopg2.DatabaseError, psycopg2.OperationalError) as handler_err:
                         raise RuntimeError(
                             f"[{self.table_name}] Failure handler itself failed: {handler_err}"
                         ) from handler_err
@@ -1390,7 +1390,7 @@ class OptimalLoader(ABC):
                             )
                 finally:
                     set_pooled_connection(_saved_conn)
-            except Exception as status_err:
+            except (psycopg2.DatabaseError, psycopg2.OperationalError) as status_err:
                 logger.error(
                     f"[{self.table_name}] Critical: Could not update final status on exception: {status_err}"
                 )
@@ -1576,7 +1576,7 @@ class OptimalLoader(ABC):
                             )
                 finally:
                     set_pooled_connection(_saved_conn_global)
-            except Exception as e:
+            except (psycopg2.DatabaseError, psycopg2.OperationalError) as e:
                 logger.warning(
                     f"Failed to update data_loader_status for {self.table_name}: {e}"
                 )
@@ -1635,7 +1635,7 @@ class OptimalLoader(ABC):
                 try:
                     with DatabaseContext("read") as cur:
                         cur.execute("SELECT 1")
-                except Exception as e:
+                except (psycopg2.DatabaseError, psycopg2.OperationalError) as e:
                     logger.debug(f"Connection health check failed: {e}. Reconnecting.")
 
             self._safe_load_symbol(symbol)
@@ -1686,7 +1686,7 @@ class OptimalLoader(ABC):
                         try:
                             with DatabaseContext("read") as cur:
                                 cur.execute("SELECT 1")
-                        except Exception as e:
+                        except (psycopg2.DatabaseError, psycopg2.OperationalError) as e:
                             logger.debug(
                                 f"Connection health check failed: {e}. Reconnecting."
                             )

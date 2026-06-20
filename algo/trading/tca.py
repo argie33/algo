@@ -120,7 +120,7 @@ class TCAEngine:
                     result["alert"] = alert
 
                 return result
-        except Exception as e:
+        except (ValueError, ZeroDivisionError, TypeError) as e:
             logger.error(f"TCA: record_fill failed: {e}")
             raise
 

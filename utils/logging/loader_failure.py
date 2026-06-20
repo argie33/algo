@@ -152,7 +152,7 @@ def calculate_failure_trends(loader_name: str) -> Optional[Dict]:
                 "total_runs_7day": row_7d[2] if row_7d else 0,
             }
 
-    except Exception as e:
+    except (psycopg2.DatabaseError, psycopg2.OperationalError) as e:
             raise RuntimeError(f"Operation failed: {e}") from e
 
 

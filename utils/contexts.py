@@ -354,6 +354,6 @@ class CircuitBreaker:
         try:
             yield
             self.record_success()
-        except Exception:
+        except (FileNotFoundError, IOError, OSError):
             self.record_failure()
             raise

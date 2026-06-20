@@ -277,7 +277,7 @@ class PipelineHealth:
                         """,
                         insert_values,
                     )
-        except Exception as e:
+        except (psycopg2.DatabaseError, psycopg2.OperationalError) as e:
             logger.error(f"[LOGGING_FAILURE] Could not log health check: {e}")
             raise
 

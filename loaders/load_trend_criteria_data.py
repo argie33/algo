@@ -94,7 +94,7 @@ class TrendCriteriaLoader(OptimalLoader):
                             if isinstance(row[0], date)
                             else date.fromisoformat(str(row[0]))
                         )
-            except Exception as e:
+            except (psycopg2.DatabaseError, psycopg2.OperationalError) as e:
                 raise RuntimeError(
                     f"[TrendCriteria] Failed to read watermark for {symbol}: {e}. "
                     "Cannot determine incremental load point without authoritative database state."

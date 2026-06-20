@@ -326,7 +326,7 @@ class DailyReconciliation:
                             title="Reconciliation Halted",
                             message="Alpaca portfolio_value zero/negative — reconciliation requires positive portfolio value. Cannot use stale DB cache.",
                         )
-                    except Exception as e:
+                    except (ValueError, ZeroDivisionError, TypeError) as e:
                         logger.warning(f"Failed to send notification: {e}")
                     raise ValueError(
                         "Alpaca portfolio_value must be positive for reconciliation — cannot proceed"
@@ -764,7 +764,7 @@ class DailyReconciliation:
                         title="Exit Price Reconciliation Failed",
                         message=alert_msg,
                     )
-                except Exception as e:
+                except (psycopg2.DatabaseError, psycopg2.OperationalError) as e:
                     logger.warning(f"Failed to send reconciliation alert: {e}")
                 return {
                     "status": "STALE_ESTIMATED_PRICES",
@@ -1363,7 +1363,7 @@ class DailyReconciliation:
                     message=">5 failed imports in last 24h. Positions may be orphaned.",
                     details={"failure_count": failure_count},
                 )
-            except Exception as alert_e:
+            except (psycopg2.DatabaseError, psycopg2.OperationalError) as alert_e:
                 logger.warning(f"Could not send failure alert: {alert_e}")
         try:
             cur.execute(

@@ -417,7 +417,7 @@ def _swing_heartbeat_worker(stop_event):
                 """,
                     ("swing_trader_scores", "RUNNING"),
                 )
-        except Exception as e:
+        except (psycopg2.DatabaseError, psycopg2.OperationalError) as e:
             logger.debug(f"Swing scores heartbeat failed: {e}")
 
 

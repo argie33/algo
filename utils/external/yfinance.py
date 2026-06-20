@@ -13,6 +13,7 @@ IP bans from overwhelming other tasks, this wrapper:
 import logging
 import threading
 import time
+from functools import lru_cache
 
 import requests
 import yfinance as yf
@@ -63,6 +64,9 @@ class YFinanceWrapper:
     _session = None
     _last_session_time = 0
     SESSION_TIMEOUT = 3600  # Refresh session every hour
+    _ticker_cache = {}  # Cache ticker objects to reduce API calls
+    _ticker_cache_lock = threading.Lock()
+    TICKER_CACHE_TTL = 3600  # Cache ticker objects for 1 hour
 
     @classmethod
     def get_session(cls):
@@ -102,10 +106,12 @@ class YFinanceWrapper:
 
     @classmethod
     def get_ticker(cls, symbol: str, max_retries: int = 5):
-        """Get yfinance Ticker with retry logic and shared IP circuit breaker.
+        """Get yfinance Ticker with retry logic, shared IP circuit breaker, and caching.
 
         Uses exponential backoff controlled by shared circuit breaker that coordinates
         across all ECS tasks (prevents IP ban cascades).
+
+        Caches ticker objects for 1 hour to reduce API calls across parallel loaders.
 
         When 429/401 errors are detected:
         1. Report to shared circuit breaker (PostgreSQL)
@@ -114,6 +120,15 @@ class YFinanceWrapper:
         """
         if not yf:
             raise RuntimeError("yfinance not installed")
+
+        # Check cache first (thread-safe)
+        with cls._ticker_cache_lock:
+            cached = cls._ticker_cache.get(symbol)
+            if cached is not None:
+                cached_ticker, cached_time = cached
+                if time.time() - cached_time < cls.TICKER_CACHE_TTL:
+                    logger.debug(f"Using cached ticker for {symbol}")
+                    return cached_ticker
 
         import random
 
@@ -134,6 +149,10 @@ class YFinanceWrapper:
 
                 ticker = _throttled_yf_request(_make_ticker)
                 logger.debug(f"Successfully created ticker for {symbol}")
+
+                # Cache ticker object (thread-safe)
+                with cls._ticker_cache_lock:
+                    cls._ticker_cache[symbol] = (ticker, time.time())
 
                 # Report success to shared circuit breaker (resets failure counter)
                 circuit_breaker.report_success()

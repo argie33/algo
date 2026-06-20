@@ -530,7 +530,7 @@ def _tech_heartbeat_worker(stop_event):
                 """,
                     ("technical_data_daily", "RUNNING"),
                 )
-        except Exception as e:
+        except (psycopg2.DatabaseError, psycopg2.OperationalError) as e:
             logger.error(f"Heartbeat failed — hung task detection disabled: {e}", exc_info=True)
 
 

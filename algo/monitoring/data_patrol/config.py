@@ -38,7 +38,7 @@ class PatrolConfig:
                 except (ValueError, TypeError):
                     self._config_cache[key] = value
             self._loaded = True
-        except Exception as e:
+        except (psycopg2.DatabaseError, psycopg2.OperationalError) as e:
             logger.warning(f"Could not load patrol config: {e}")
             self._loaded = False
 

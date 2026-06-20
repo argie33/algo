@@ -72,6 +72,6 @@ def lambda_handler(event: Dict[str, Any], context: Any) -> Dict[str, Any]:
             ),
         }
 
-    except Exception as e:
+    except (json.JSONDecodeError, ValueError) as e:
         logger.error(f"[LOADER-RESULT] Error processing loader result: {e}")
         return {"statusCode": 500, "body": json.dumps({"error": str(e)})}

@@ -252,7 +252,7 @@ class ExitEngine:
             except DatabaseError as e:
                 logger.critical(f"Exit engine database error (halting): {e}")
                 raise
-            except Exception as e:
+            except (psycopg2.DatabaseError, psycopg2.OperationalError) as e:
                 logger.exception(f"Unexpected error in exit engine: {type(e).__name__}: {e}")
                 raise
 

@@ -66,7 +66,7 @@ class DataPatrol:
             # Log configuration snapshot
             try:
                 self.logger.log_configuration(cur, self.config.as_dict())
-            except Exception as e:
+            except (psycopg2.DatabaseError, psycopg2.OperationalError) as e:
                 logger.error(f"Failed to log configuration: {e}")
 
             # Run checks
@@ -182,7 +182,7 @@ if __name__ == "__main__":
 
             import sys
             sys.exit(0 if summary["ready"] else 1)
-    except Exception as e:
+    except (json.JSONDecodeError, ValueError) as e:
         logger.error(f"Data patrol execution failed: {e}", exc_info=True)
         import sys
         sys.exit(1)

@@ -125,7 +125,7 @@ def lambda_handler(event, context):
             ),
         }
 
-    except Exception as e:
+    except (json.JSONDecodeError, ValueError) as e:
         logger.error(f"Error in loader_failure_handler: {e}", exc_info=True)
         # Re-raise to propagate the error to Step Functions (failing the pipeline for critical loaders)
         raise

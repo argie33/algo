@@ -43,7 +43,7 @@ try:
     import jwt
     import requests
     from api_utils.database_context import DatabaseContext
-except Exception as e:
+except (psycopg2.DatabaseError, psycopg2.OperationalError) as e:
     IMPORT_ERROR = f"{type(e).__name__}: {str(e)[:200]}"
 
 logger = logging.getLogger()
@@ -706,7 +706,7 @@ def validate_bearer_token(token: str | None) -> tuple:
         return (False, None, f"Token invalid: {e!s}")
     except json.JSONDecodeError as e:
         return (False, None, f"Invalid token format: {e!s}")
-    except Exception as e:
+    except (json.JSONDecodeError, ValueError) as e:
         logger.error(f"Token validation error: {e}", exc_info=True)
         return (False, None, "Token validation failed")
 
@@ -799,7 +799,7 @@ def log_api_request(
         }
 
         logger.info(json.dumps(audit_log))
-    except Exception as e:
+    except (json.JSONDecodeError, ValueError) as e:
         logger.error(f"Failed to log API request: {e!s}")
 
 
@@ -1273,7 +1273,7 @@ def lambda_handler(event: dict[str, Any], context: Any) -> dict[str, Any]:
             ),
         }
 
-    except Exception as e:
+    except (json.JSONDecodeError, ValueError) as e:
         error_msg = f"{type(e).__name__}: {e!s}"
         logger.error(f"[UNHANDLED_ERROR] {error_msg}", exc_info=True)
         cors_headers = get_cors_headers(event)

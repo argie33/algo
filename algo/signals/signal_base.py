@@ -34,7 +34,7 @@ class SignalBase:
         try:
             with DatabaseContext("read") as cur:
                 return operation(cur)
-        except Exception as e:
+        except (psycopg2.DatabaseError, psycopg2.OperationalError) as e:
             raise RuntimeError(f"Operation failed: {e}") from e
 
     def clear_cache(self):

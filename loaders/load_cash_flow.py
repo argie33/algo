@@ -132,7 +132,7 @@ class CashFlowLoader(OptimalLoader):
                     "Cannot proceed with empty incremental load."
                 )
             return filtered
-        except Exception as e:
+        except (ValueError, ZeroDivisionError, TypeError) as e:
             raise RuntimeError(
                 f"[CASH_FLOW] Failed to fetch cash flow for {symbol}: {e}. "
                 "Cannot proceed without fundamental data."

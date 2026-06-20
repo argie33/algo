@@ -83,7 +83,7 @@ class PositionMonitor:
                     ORDER BY created_at ASC
                 """, (f"{alert_threshold} minutes",))
                 stale_orders = cur.fetchall()
-            except Exception as e:
+            except (psycopg2.DatabaseError, psycopg2.OperationalError) as e:
                 logger.error(f"Stale orders query failed: {e}")
                 return {"status": "ERROR", "error": str(e)}
 
@@ -223,7 +223,7 @@ class PositionMonitor:
                         logger.info(f"    {sector}: {count} positions (>3 is risky)")
                     return {"status": "HIGH_CONCENTRATION", "sectors": concentrated}
                 return {"status": "OK", "sectors": []}
-            except Exception as e:
+            except (psycopg2.DatabaseError, psycopg2.OperationalError) as e:
                 return {"status": "ERROR", "error": str(e)}
 
     def review_positions(self, current_date=None):

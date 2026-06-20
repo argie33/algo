@@ -265,13 +265,9 @@ def error_response(code, typ, msg):
     Use raise_api_error() or raise_db_error() helper functions.
     """
     # Sanitize message to remove credentials, paths, SQL
-    try:
-        from utils.error_handlers import sanitize_error_message
+    from utils.error_handlers import sanitize_error_message
 
-        msg = sanitize_error_message(msg)
-    except Exception:
-        # Fallback: basic sanitization if import fails
-        msg = re.sub(r"password=\S+|api.?key=\S+", "***", msg)
+    msg = sanitize_error_message(msg)
 
     return {"statusCode": code, "errorType": typ, "message": msg, "_error": msg}
 
@@ -554,13 +550,11 @@ def check_data_freshness(
             "max_date": str(max_date),
             "warning": f"Data is {data_age} days old" if is_stale else None,
         }
-    except Exception:
-        # SECURITY FIX S-11: Don't expose database error details to client
-        return {
-            "data_age_days": None,
-            "is_stale": True,
-            "warning": "Unable to determine data freshness",
-        }
+    except Exception as e:
+        # Fail fast on data freshness check errors — don't silently mark as stale
+        # Caller should know if freshness verification failed, not assume stale
+        logger.error(f"[DATA_FRESHNESS] Failed to check freshness for {table_name}: {e}")
+        raise
 
 
 def json_response(code, data, data_freshness=None):
@@ -693,17 +687,15 @@ def handle_db_error(error, context="database operation", query=None, params=None
 
     Returns:
         Tuple of (statusCode, errorType, message) for standardized error responses
+
+    Raises:
+        Exception: If error classification fails (fail-closed: don't guess error type)
     """
     from utils.error_handlers import classify_exception, log_sanitizer
 
     # Use centralized classification (handles both psycopg2 and custom exceptions)
-    try:
-        status_code, error_type, message = classify_exception(error)
-    except (psycopg2.DatabaseError, psycopg2.OperationalError):
-        # Fallback to old logic if import fails
-        status_code = 500
-        error_type = "database_error"
-        message = f"Error during {context}"
+    # If classification fails, raise to alert ops — don't fall back to generic status
+    status_code, error_type, message = classify_exception(error)
 
     # Log with sanitization to prevent PII/SQL leakage
     with log_sanitizer(f"database error: {context}") as safe_log:

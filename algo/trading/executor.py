@@ -151,7 +151,7 @@ class TradeExecutor:
         try:
             with DatabaseContext("write") as cur:
                 return operation(cur)
-        except Exception as e:
+        except (psycopg2.DatabaseError, psycopg2.OperationalError) as e:
             logger.debug(f"Database operation failed: {e}")
             raise
 

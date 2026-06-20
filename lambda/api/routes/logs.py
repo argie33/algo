@@ -151,7 +151,7 @@ def handle(
                 logger.info(
                     f"Logged {len(log_events)} frontend events to {stream_name}"
                 )
-            except Exception as e:
+            except (json.JSONDecodeError, ValueError) as e:
                 logger.error(f"Failed to put logs to CloudWatch: {e}")
                 # Still return success to avoid breaking frontend
                 return success_response(

@@ -330,7 +330,7 @@ class APIHandler(BaseHTTPRequestHandler):
             self.end_headers()
             self.wfile.write(response_body_bytes)
 
-        except Exception as e:
+        except (FileNotFoundError, IOError, OSError) as e:
             logger.error(f"Error handling {method} {path}: {e}", exc_info=True)
             self.send_response(500)
             self.send_header("Content-Type", "application/json")

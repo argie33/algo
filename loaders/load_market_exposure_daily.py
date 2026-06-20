@@ -136,7 +136,7 @@ def main():
                     "UPDATE data_loader_status SET status = %s, last_updated = NOW(), error_message = %s WHERE table_name = %s",
                     ("FAILED", str(e)[:200], table_name),
                 )
-        except Exception as db_err:
+        except (psycopg2.DatabaseError, psycopg2.OperationalError) as db_err:
             logger.error(f"Failed to update loader status: {db_err}")
         return 1
 

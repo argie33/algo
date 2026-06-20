@@ -199,7 +199,7 @@ def _load_economic_calendar(today: date) -> int:
             )
 
             return count
-        except Exception as e:
+        except (psycopg2.DatabaseError, psycopg2.OperationalError) as e:
             logger.error(f"Failed to upsert economic calendar events: {e}")
             raise
 

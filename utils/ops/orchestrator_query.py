@@ -140,7 +140,7 @@ def get_failed_runs(days: int = 30) -> List[Dict[str, Any]]:
                 }
                 for row in rows
             ]
-    except Exception as e:
+    except (psycopg2.DatabaseError, psycopg2.OperationalError) as e:
         logger.error(f"Error querying failed runs: {e}")
         return []
 
@@ -189,7 +189,7 @@ def get_halt_patterns(days: int = 30) -> List[Dict[str, Any]]:
                 )
 
             return patterns
-    except Exception as e:
+    except (json.JSONDecodeError, ValueError) as e:
         logger.error(f"Error analyzing halt patterns: {e}")
         return []
 

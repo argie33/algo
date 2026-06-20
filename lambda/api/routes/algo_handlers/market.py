@@ -183,7 +183,7 @@ def _get_data_status(cur) -> dict:
                 r = cur.fetchone()
                 if r:
                     algo_rows.append({"table_name": tbl_name, "row_count": r["row_count"], "last_updated": r["last_updated"]})
-            except Exception as e:
+            except (psycopg2.DatabaseError, psycopg2.OperationalError) as e:
 
                 raise RuntimeError(f"Unexpected error: {e}") from e
 
@@ -369,7 +369,7 @@ def _get_market(cur) -> dict:
             spy_row = cur.fetchone()
             if spy_row:
                 spy_close = safe_float(spy_row["close"]) if spy_row["close"] else None
-        except Exception as e:
+        except (psycopg2.DatabaseError, psycopg2.OperationalError) as e:
             logger.warning(f"[MARKET] SPY price unavailable: {e}")
 
         data = {
@@ -473,7 +473,7 @@ def _get_market_factors(cur) -> dict:
                     factors = json.loads(factors_val)
                 else:
                     factors = factors_val if isinstance(factors_val, dict) else {}
-            except Exception as e:
+            except (json.JSONDecodeError, ValueError) as e:
                 logger.warning(f"[MARKET_FACTORS] Failed to parse factors: {e}")
                 factors = {}
 

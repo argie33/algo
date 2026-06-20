@@ -95,11 +95,15 @@ def handle(
                     cur, batch_query, [symbols, limit], timeout_sec=20
                 )
 
-                # Validate rows is not None and not empty
+                # Validate rows is not None and not empty — fail fast if validation fails
                 if not DatabaseResultValidator.validate_rows_not_empty(
                     rows, "prices batch query"
                 ):
-                    rows = []
+                    raise_api_error(
+                        503,
+                        "ServiceUnavailable",
+                        "Price data validation failed; prices batch query returned invalid data",
+                    )
 
                 found_symbols = set()
                 for row in rows:
@@ -135,11 +139,15 @@ def handle(
                         cur, etf_query, [missing, limit], timeout_sec=20
                     )
 
-                    # Validate ETF rows
+                    # Validate ETF rows — fail fast if validation fails
                     if not DatabaseResultValidator.validate_rows_not_empty(
                         etf_rows, "prices ETF query"
                     ):
-                        etf_rows = []
+                        raise_api_error(
+                            503,
+                            "ServiceUnavailable",
+                            "ETF price data validation failed; prices ETF query returned invalid data",
+                        )
 
                     for row in etf_rows:
                         # Validate row is not None before accessing

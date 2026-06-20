@@ -243,7 +243,7 @@ class LoaderConfigManager:
                     "updated_at": item.get("updated_at", {}).get("S", ""),
                 }
             return None
-        except Exception as e:
+        except (ValueError, ZeroDivisionError, TypeError) as e:
             raise RuntimeError(f"Operation failed: {e}") from e
 
     def get_parallelism(self, loader_name: str) -> int:

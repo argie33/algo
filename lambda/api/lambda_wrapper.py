@@ -111,7 +111,7 @@ class LambdaAPIClient:
                 "_source": "lambda_direct",
             }
 
-        except Exception as e:
+        except (json.JSONDecodeError, ValueError) as e:
             logger.error(f"[Lambda] Invocation failed: {e}")
             return {
                 "statusCode": 500,

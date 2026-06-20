@@ -30,7 +30,11 @@ class ValueMetricsLoader(OptimalLoader):
     def fetch_incremental(
         self, symbol: str, since: date | None
     ) -> list[dict] | None:
-        """Fetch value metrics from yfinance for a symbol."""
+        """Fetch value metrics from yfinance for a symbol.
+
+        Skips symbols with market cap < $50M (illiquid/penny stocks won't have reliable metrics).
+        This reduces unnecessary API calls and improves loader throughput.
+        """
         for attempt in range(3):
             try:
                 ticker = get_ticker(symbol)
@@ -44,6 +48,13 @@ class ValueMetricsLoader(OptimalLoader):
                     return None
 
                 mkt_cap = info.get("marketCap")
+
+                # Skip illiquid symbols (market cap < $50M) to reduce unnecessary API calls
+                # These symbols typically lack reliable value metrics anyway
+                if mkt_cap and mkt_cap < 50_000_000:
+                    logger.debug(f"Skipping {symbol} (market cap ${mkt_cap:,} < $50M threshold)")
+                    return None
+
                 pe = info.get("trailingPE")
                 pb = info.get("priceToBook")
                 ps = info.get("priceToSalesTrailing12Months")

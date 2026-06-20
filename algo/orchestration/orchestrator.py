@@ -483,7 +483,7 @@ class Orchestrator:
                         logger.info(
                             f"    {row[0]:25s}: {row[1]:10s} (updated {row[2]})"
                         )
-                except Exception as loader_err:
+                except (psycopg2.DatabaseError, psycopg2.OperationalError) as loader_err:
                     logger.debug(f"    Could not check loader status: {loader_err}")
 
         except Exception as e:

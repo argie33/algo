@@ -45,7 +45,7 @@ class TradeNotificationService:
                     (cutoff,),
                 )
                 return cast(list[dict[Any, Any]], cur.fetchall())
-        except Exception as e:
+        except (psycopg2.DatabaseError, psycopg2.OperationalError) as e:
             logger.error(f"[NOTIF] Failed to fetch events: {e}")
             return []
 

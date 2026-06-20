@@ -88,7 +88,7 @@ class PatrolLogger:
                     ),
                 ),
             )
-        except Exception as e:
+        except (json.JSONDecodeError, ValueError) as e:
             logger.error(f"Failed to log patrol performance: {e}")
 
     def update_completion_status(
