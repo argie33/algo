@@ -269,11 +269,11 @@ def _get_data_status(cur) -> dict:
         ready_to_trade = len(critical_stale) == 0 and summary.get("ok", 0) > 0
 
         response = list_response(sources, total=len(sources), limit=None, offset=None)
-        response["ready_to_trade"] = ready_to_trade
-        response["summary"] = summary
-        response["critical_stale"] = critical_stale
-        response["expected_date"] = str(expected_date)
-        response["as_of"] = datetime.now(timezone.utc).isoformat()
+        response["data"]["ready_to_trade"] = ready_to_trade
+        response["data"]["summary"] = summary
+        response["data"]["critical_stale"] = critical_stale
+        response["data"]["expected_date"] = str(expected_date)
+        response["data"]["as_of"] = datetime.now(timezone.utc).isoformat()
         return response
     except (
         psycopg2.errors.UndefinedTable,
@@ -563,9 +563,9 @@ def _get_markets(cur) -> dict:
 
         if not row:
             response = list_response([], total=0, limit=None, offset=None)
-            response["current"] = None
-            response["active_tier"] = None
-            response["history"] = []
+            response["data"]["current"] = None
+            response["data"]["active_tier"] = None
+            response["data"]["history"] = []
             return response
 
         row = safe_json_serialize(safe_dict_convert(row))
@@ -695,7 +695,7 @@ def _get_markets(cur) -> dict:
             )
 
         response = list_response(sectors, total=len(sectors), limit=None, offset=None)
-        response["current"] = {
+        response["data"]["current"] = {
             "exposure_pct": (
                 float(row["exposure_pct"])
                 if row.get("exposure_pct") is not None
@@ -717,9 +717,9 @@ def _get_markets(cur) -> dict:
                 else str(current_date)
             ),
         }
-        response["active_tier"] = active_tier
-        response["history"] = history
-        response["market_health"] = market_health
+        response["data"]["active_tier"] = active_tier
+        response["data"]["history"] = history
+        response["data"]["market_health"] = market_health
         return response
     except (
         psycopg2.errors.UndefinedTable,

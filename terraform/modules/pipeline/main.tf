@@ -1475,6 +1475,11 @@ resource "aws_scheduler_schedule" "morning_pipeline_trigger" {
     input = jsonencode({
       execution_name = "morning-<aws.scheduler.execution-id>"
     })
+
+    retry_policy {
+      maximum_event_age       = 3600
+      maximum_retry_attempts  = 2
+    }
   }
 }
 
@@ -1496,6 +1501,11 @@ resource "aws_scheduler_schedule" "afternoon_update_pipeline_trigger" {
     input = jsonencode({
       execution_name = "afternoon-<aws.scheduler.execution-id>"
     })
+
+    retry_policy {
+      maximum_event_age       = 3600
+      maximum_retry_attempts  = 2
+    }
   }
 }
 
@@ -1517,6 +1527,11 @@ resource "aws_scheduler_schedule" "preclose_update_pipeline_trigger" {
     input = jsonencode({
       execution_name = "preclose-<aws.scheduler.execution-id>"
     })
+
+    retry_policy {
+      maximum_event_age       = 3600
+      maximum_retry_attempts  = 2
+    }
   }
 }
 

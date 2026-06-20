@@ -56,11 +56,8 @@ class EconomicMetricsDailyLoader(OptimalLoader):
                         ORDER BY date DESC LIMIT 1
                     """)
                     cpi_cur_row: dict[str, Any] = cur.fetchone() or {}
-                    cpi_cur = (
-                        float(cpi_cur_row.get("value"))
-                        if cpi_cur_row.get("value") is not None
-                        else None
-                    )
+                    cpi_val = cpi_cur_row.get("value")
+                    cpi_cur = float(cpi_val) if cpi_val is not None else None
 
                     if cpi_cur is not None:
                         # Get CPI from 1 year ago
@@ -71,11 +68,8 @@ class EconomicMetricsDailyLoader(OptimalLoader):
                             ORDER BY date DESC LIMIT 1
                         """)
                         cpi_yoy_row: dict[str, Any] = cur.fetchone() or {}
-                        cpi_prev = (
-                            float(cpi_yoy_row.get("value"))
-                            if cpi_yoy_row.get("value") is not None
-                            else None
-                        )
+                        cpi_prev_val = cpi_yoy_row.get("value")
+                        cpi_prev = float(cpi_prev_val) if cpi_prev_val is not None else None
 
                         if cpi_prev is not None and cpi_prev > 0:
                             cpi_yoy = round((cpi_cur - cpi_prev) / cpi_prev * 100, 2)

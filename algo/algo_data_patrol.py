@@ -38,6 +38,6 @@ if __name__ == "__main__":
                 logger.info(json.dumps(summary, default=str, indent=2))
 
             sys.exit(0 if summary["ready"] else 1)
-    except Exception as e:
+    except (ExecutionTimeout, KeyError, ValueError, RuntimeError) as e:
         logger.error(f"Data patrol execution failed: {e}", exc_info=True)
         sys.exit(1)

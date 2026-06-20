@@ -233,7 +233,7 @@ class TradeExecutor:
                 "status": "portfolio_value_unavailable",
                 "message": "Cannot execute trade: portfolio value unavailable from Alpaca and DB snapshot",
             }
-        position_value = shares * entry_price
+        position_value = float(Decimal(shares) * Decimal(str(entry_price)))
         try:
             pretrade_passed, pretrade_reason = self.pretrade.run_all(
                 symbol=symbol,
@@ -307,7 +307,7 @@ class TradeExecutor:
             }
         if target_1_price is None:
             t1_r = float(self.config.get("t1_target_r_multiple", 1.5))
-            target_1_price = round(entry_price + (risk_per_share * t1_r), 2)
+            target_1_price = float((Decimal(str(entry_price)) + (risk_per_share * Decimal(str(t1_r)))).quantize(Decimal("0.01"), rounding=ROUND_HALF_UP))
             if target_1_price <= entry_price:
                 return {
                     "success": False,
@@ -317,7 +317,7 @@ class TradeExecutor:
                 }
         if target_2_price is None:
             t2_r = float(self.config.get("t2_target_r_multiple", 3.0))
-            target_2_price = round(entry_price + (risk_per_share * t2_r), 2)
+            target_2_price = float((Decimal(str(entry_price)) + (risk_per_share * Decimal(str(t2_r)))).quantize(Decimal("0.01"), rounding=ROUND_HALF_UP))
             if target_2_price <= entry_price:
                 return {
                     "success": False,
@@ -327,7 +327,7 @@ class TradeExecutor:
                 }
         if target_3_price is None:
             t3_r = float(self.config.get("t3_target_r_multiple", 4.0))
-            target_3_price = round(entry_price + (risk_per_share * t3_r), 2)
+            target_3_price = float((Decimal(str(entry_price)) + (risk_per_share * Decimal(str(t3_r)))).quantize(Decimal("0.01"), rounding=ROUND_HALF_UP))
             if target_3_price <= entry_price:
                 return {
                     "success": False,
@@ -628,27 +628,21 @@ class TradeExecutor:
 
             # If fill price differs from signal price (slippage), recalculate targets based on actual fill
             if executed_price and executed_price != entry_price:
-                slippage_pct = (executed_price - entry_price) / entry_price * 100
+                slippage_pct = float(((Decimal(str(executed_price)) - Decimal(str(entry_price))) / Decimal(str(entry_price)) * Decimal(100)).quantize(Decimal("0.01"), rounding=ROUND_HALF_UP))
                 logger.info(
                     _redact_for_logs(
                         f"Slippage detected: {slippage_pct:+.2f}% (signal ${entry_price:.2f} → fill ${executed_price:.2f})"
                     )
                 )
                 # Recalculate targets from actual fill price
-                actual_risk_per_share = executed_price - stop_loss_price
+                actual_risk_per_share = Decimal(str(executed_price)) - Decimal(str(stop_loss_price))
                 if actual_risk_per_share > 0:
                     t1_r = float(self.config.get("t1_target_r_multiple", 1.5))
                     t2_r = float(self.config.get("t2_target_r_multiple", 3.0))
                     t3_r = float(self.config.get("t3_target_r_multiple", 4.0))
-                    target_1_price = round(
-                        executed_price + (actual_risk_per_share * t1_r), 2
-                    )
-                    target_2_price = round(
-                        executed_price + (actual_risk_per_share * t2_r), 2
-                    )
-                    target_3_price = round(
-                        executed_price + (actual_risk_per_share * t3_r), 2
-                    )
+                    target_1_price = float((Decimal(str(executed_price)) + (actual_risk_per_share * Decimal(str(t1_r)))).quantize(Decimal("0.01"), rounding=ROUND_HALF_UP))
+                    target_2_price = float((Decimal(str(executed_price)) + (actual_risk_per_share * Decimal(str(t2_r)))).quantize(Decimal("0.01"), rounding=ROUND_HALF_UP))
+                    target_3_price = float((Decimal(str(executed_price)) + (actual_risk_per_share * Decimal(str(t3_r)))).quantize(Decimal("0.01"), rounding=ROUND_HALF_UP))
 
             # Compute initial position size pct using live or snapshot portfolio value
             _pv_for_pct = self._get_portfolio_value()
@@ -661,7 +655,7 @@ class TradeExecutor:
                 # For pending orders, executed_price is None; use entry_price as estimate for pct calculation only
                 price_for_pct = executed_price if executed_price else entry_price
                 position_size_pct = (
-                    (shares * price_for_pct / _pv_for_pct * 100)
+                    float((Decimal(shares) * Decimal(str(price_for_pct)) / Decimal(str(_pv_for_pct)) * Decimal(100)).quantize(Decimal("0.01"), rounding=ROUND_HALF_UP))
                     if _pv_for_pct > 0
                     else 0
                 )
@@ -786,8 +780,8 @@ class TradeExecutor:
                             )
                         )
 
-                # B3: Defensive check for position value (ensure float precision)
-                position_value = float(actual_shares) * float(executed_price)
+                # B3: Defensive check for position value (ensure Decimal precision)
+                position_value = float(Decimal(str(actual_shares)) * Decimal(str(executed_price)))
                 if position_value <= 0:
                     return {
                         "success": False,
@@ -1166,15 +1160,15 @@ class TradeExecutor:
                     "message": f"Invalid entry price for {trade_id}",
                 }
 
-            risk_per_share = entry_price - stop_loss_price
+            risk_per_share = Decimal(str(entry_price)) - Decimal(str(stop_loss_price))
             r_multiple = (
-                ((final_exit_price - entry_price) / risk_per_share)
+                float(((Decimal(str(final_exit_price)) - Decimal(str(entry_price))) / risk_per_share).quantize(Decimal("0.01"), rounding=ROUND_HALF_UP))
                 if risk_per_share > 0
                 else 0
             )
-            pnl_per_share = final_exit_price - entry_price
-            pnl_dollars = pnl_per_share * shares_to_exit
-            pnl_pct = (pnl_per_share / entry_price * 100) if entry_price > 0 else 0
+            pnl_per_share = Decimal(str(final_exit_price)) - Decimal(str(entry_price))
+            pnl_dollars = float((pnl_per_share * Decimal(str(shares_to_exit))).quantize(Decimal("0.01"), rounding=ROUND_HALF_UP))
+            pnl_pct = float(((pnl_per_share / Decimal(str(entry_price)) * Decimal(100)).quantize(Decimal("0.01"), rounding=ROUND_HALF_UP))) if entry_price > 0 else 0
 
             if not isinstance(pnl_dollars, (int, float)) or pnl_dollars != pnl_dollars:
                 pnl_dollars = 0.0

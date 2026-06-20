@@ -472,7 +472,7 @@ def save_results(results: dict) -> int | None:
             row = cur.fetchone()
             if row is None or row[0] is None:
                 raise RuntimeError("Backtest run insert failed: RETURNING run_id returned no row")
-            run_id = row[0]
+            run_id = row[0]  # type: ignore[assignment]
 
         # Write individual trades
         if trades and run_id:

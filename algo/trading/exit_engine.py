@@ -23,7 +23,7 @@ State tracked on algo_positions:
 
 import logging
 from datetime import datetime, timezone
-from decimal import ROUND_DOWN, Decimal
+from decimal import ROUND_DOWN, ROUND_HALF_UP, Decimal
 
 import requests
 
@@ -284,14 +284,14 @@ class ExitEngine:
             return None  # Not ready to exit yet
 
         # Compute R-multiple for use across rules (Curtis Faith's R-unit framework)
-        risk_per_share = entry_price - init_stop
+        risk_per_share = Decimal(str(entry_price)) - Decimal(str(init_stop))
         if risk_per_share <= 0:
             logger.warning(
                 f"[exit_engine] {symbol}: init_stop ({init_stop:.2f}) >= entry ({entry_price:.2f}) "
                 "— R-based exits disabled for this position; hard stop still active"
             )
         r_mult = (
-            ((cur_price - entry_price) / risk_per_share) if risk_per_share > 0 else 0
+            float(((Decimal(str(cur_price)) - Decimal(str(entry_price))) / risk_per_share).quantize(Decimal("0.01"), rounding=ROUND_HALF_UP)) if risk_per_share > 0 else 0
         )
 
         # 1. STOP (capital preservation always wins)
@@ -464,7 +464,7 @@ class ExitEngine:
         # 9. FIRST RED DAY (O'Neill) — after 20%+ gain, first big down day on heavy volume
         # Institutional distribution day after parabolic run — exit 50%
         if r_mult >= 2.5 and prev_close is not None and prev_close > 0:
-            down_pct = (prev_close - cur_price) / prev_close * 100.0
+            down_pct = float(((Decimal(str(prev_close)) - Decimal(str(cur_price))) / Decimal(str(prev_close)) * Decimal(100)).quantize(Decimal("0.01"), rounding=ROUND_HALF_UP))
             if down_pct >= 1.5:  # Close < prior close * 0.985 = 1.5% down
                 vol_check = self._check_volume_spike(cur, symbol, current_date, 1.5)
                 if vol_check:
@@ -661,19 +661,19 @@ class ExitEngine:
         if len(rows) < 3:
             return False
 
-        cur_close = float(rows[0][0])
+        cur_close = Decimal(str(rows[0][0]))
         recent_high = max(
-            float(r[1]) if r[1] is not None else float(r[0]) for r in rows[:5]
+            Decimal(str(r[1])) if r[1] is not None else Decimal(str(r[0])) for r in rows[:5]
         )
 
         pullback_pct = (
-            ((recent_high - cur_close) / recent_high * 100.0) if recent_high > 0 else 0
+            float(((recent_high - cur_close) / recent_high * Decimal(100)).quantize(Decimal("0.01"), rounding=ROUND_HALF_UP)) if recent_high > 0 else 0
         )
         if pullback_pct >= 2.0:
             return True
 
         # OR check if consolidated below high for 2+ days
-        days_below_high = sum(1 for r in rows[:5] if float(r[0]) < recent_high * 0.98)
+        days_below_high = sum(1 for r in rows[:5] if Decimal(str(r[0])) < recent_high * Decimal("0.98"))
         return days_below_high >= 2
 
     def _rs_line_breaking(self, cur, symbol: str, current_date) -> bool:
@@ -700,8 +700,9 @@ class ExitEngine:
         row = cur.fetchone()
         if not row or row[0] is None or row[1] is None:
             raise ValueError(f"Insufficient RS data for {symbol} to calculate RS line break")
-        cur_rs, rs_50 = float(row[0]), float(row[1])
-        return cur_rs < rs_50 * 0.99
+        cur_rs = Decimal(str(row[0]))
+        rs_50 = Decimal(str(row[1]))
+        return cur_rs < rs_50 * Decimal("0.99")
 
     def _eight_week_rule_active(
         self,
@@ -734,10 +735,10 @@ class ExitEngine:
         row = cur.fetchone()
         if not row or not row[0]:
             raise ValueError(f"No price data for {symbol} in 8-week window")
-        max_close_in_window = float(row[0])
+        max_close_in_window = Decimal(str(row[0]))
         if entry_price <= 0:
             raise ValueError(f"Invalid entry price for {symbol}: {entry_price}")
-        gain_pct = (max_close_in_window - entry_price) / entry_price * 100.0
+        gain_pct = float(((max_close_in_window - Decimal(str(entry_price))) / Decimal(str(entry_price)) * Decimal(100)).quantize(Decimal("0.01"), rounding=ROUND_HALF_UP))
         return cast(bool, gain_pct >= threshold_pct)
 
     def _chandelier_or_ema_stop(
@@ -840,7 +841,8 @@ class ExitEngine:
         if sma_50 and cur_price_decimal < sma_50 * Decimal("0.99"):
             return True
         # Break of EMA(21) on rising volume (institutional selling)
-        if ema_21 and cur_price < ema_21 and avg_vol_50 > 0 and vol > avg_vol_50 * 1.15:
+        ema_21_float = float(ema_21) if ema_21 else None
+        if ema_21_float and cur_price < ema_21_float and avg_vol_50 > 0 and vol > avg_vol_50 * 1.15:
             return True
         return False
 
@@ -886,11 +888,11 @@ class ExitEngine:
         row = cur.fetchone()
         if not row or row[0] is None or row[1] is None:
             raise ValueError(f"Insufficient {n_days}-day price data for {symbol}")
-        current = float(row[0])
-        prior = float(row[1])
+        current = Decimal(str(row[0]))
+        prior = Decimal(str(row[1]))
         if prior <= 0:
             raise ValueError(f"Invalid price data for {symbol}: prior close = {prior}")
-        return ((current - prior) / prior) * 100.0
+        return float(((current - prior) / prior * Decimal(100)).quantize(Decimal("0.01"), rounding=ROUND_HALF_UP))
 
 
 if __name__ == "__main__":

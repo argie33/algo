@@ -72,9 +72,7 @@ export const useApiQuery = (
 
     const formatValue = (val) => {
       if (val === null || val === undefined) return val;
-      const num = parseFloat(val);
-      if (isNaN(num)) return val;
-      return parseFloat(num.toFixed(2));
+      return parseFloat(toFixed(val, 2));
     };
 
     if (Array.isArray(data)) {

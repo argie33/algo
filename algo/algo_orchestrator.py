@@ -144,7 +144,7 @@ class Orchestrator:
 
         import signal
 
-        def timeout_handler(signum, frame):  # type: ignore[unused-ignore]
+        def timeout_handler(signum, frame):
             raise TimeoutError(
                 f"{phase_name} timed out after {self.per_phase_timeout}s. "
                 "Phase execution exceeded per-phase timeout limit."
@@ -594,7 +594,7 @@ class Orchestrator:
                             task=task_arn,
                             reason="Loader hung beyond timeout before next orchestrator run",
                         )
-                    except Exception as stop_err:
+                    except (TypeError, KeyError, AttributeError) as stop_err:
                         logger.error(
                             f"[TASK_TERMINATION] stop_task() call failed: {stop_err}"
                         )
@@ -638,12 +638,12 @@ class Orchestrator:
                             ]
                         },
                     )
-                except Exception as alert_err:
+                except (OSError, TimeoutError, ValueError) as alert_err:
                     logger.error(
                         f"[TASK_TERMINATION] Could not send escalation alert: {alert_err}"
                     )
 
-        except Exception as e:
+        except (psycopg2.OperationalError, psycopg2.DatabaseError, psycopg2.InterfaceError, RuntimeError) as e:
             logger.warning(
                 f"[OOM_PREVENTION] Could not check/kill long-running loaders: {e}"
             )
@@ -676,7 +676,7 @@ class Orchestrator:
                         logger.error(
                             f"[TABLE-CHECK] Missing required table: {table_name}"
                         )
-                except Exception as e:
+                except (psycopg2.OperationalError, psycopg2.DatabaseError, psycopg2.InterfaceError) as e:
                     logger.error(
                         f"[TABLE-CHECK] Failed to check table {table_name}: {e}"
                     )
@@ -699,7 +699,7 @@ class Orchestrator:
             )
             return True
 
-        except Exception as e:
+        except (psycopg2.OperationalError, psycopg2.DatabaseError, psycopg2.InterfaceError) as e:
             raise RuntimeError(f"Operation failed: {e}") from e
 
     # ---------- Logging helpers ----------
@@ -756,7 +756,7 @@ class Orchestrator:
                         status,
                     ),
                 )
-        except Exception as e:
+        except (psycopg2.OperationalError, psycopg2.DatabaseError, psycopg2.InterfaceError) as e:
             logger.critical(
                 f"[AUDIT_FAILURE] Could not persist audit log entry for phase {phase_num}: {e}"
             )
@@ -802,7 +802,7 @@ class Orchestrator:
                     "ttl": int(time.time()) + 3600,  # 1-hour TTL
                 }
             )
-        except Exception as e:
+        except (OSError, TimeoutError, ValueError) as e:
             logger.debug(f"Failed to write Phase 1 degraded_mode status to DynamoDB: {e}")
 
         # Halt flag lifecycle: always run regardless of informational write success above.
@@ -821,7 +821,7 @@ class Orchestrator:
                 self._clear_halt_flag(
                     f"Phase 1 verified data is fresh at {datetime.now(timezone.utc).isoformat()}"
                 )
-        except Exception as e:
+        except (psycopg2.OperationalError, psycopg2.DatabaseError, psycopg2.InterfaceError, RuntimeError) as e:
             logger.warning(f"Failed to manage halt flag after Phase 1: {e}")
 
         return not result.halted
@@ -1166,7 +1166,7 @@ class Orchestrator:
                 logger.info(
                     f"[PHASE 3] Completed in {phase_3_elapsed:.2f}s at {datetime.now(timezone.utc).isoformat()}"
                 )
-            except Exception as e:
+            except (psycopg2.OperationalError, psycopg2.DatabaseError, psycopg2.InterfaceError, TimeoutError, ValueError, RuntimeError) as e:
                 phase_3_failed = True
                 logger.error(f"✗ Phase 3 (Position Monitor) failed: {e}", exc_info=True)
                 self.log_phase_result(3, "position_monitor", "error", str(e))
@@ -1185,7 +1185,7 @@ class Orchestrator:
                 logger.info(
                     f"[PHASE 3b] Completed in {phase_3b_elapsed:.2f}s at {datetime.now(timezone.utc).isoformat()}"
                 )
-            except Exception as e:
+            except (psycopg2.OperationalError, psycopg2.DatabaseError, psycopg2.InterfaceError, TimeoutError, ValueError, RuntimeError) as e:
                 phase_3b_failed = True
                 logger.error(f"✗ Phase 3b (Exposure Policy) failed: {e}", exc_info=True)
                 self.log_phase_result("3b", "exposure_policy", "error", str(e))
@@ -1208,7 +1208,7 @@ class Orchestrator:
                 logger.info(
                     f"[PHASE 4] Completed in {phase_4_elapsed:.2f}s at {datetime.now(timezone.utc).isoformat()}"
                 )
-            except Exception as e:
+            except (psycopg2.OperationalError, psycopg2.DatabaseError, psycopg2.InterfaceError, TimeoutError, ValueError, RuntimeError) as e:
                 logger.error(f"✗ Phase 4 (Exit Execution) failed: {e}", exc_info=True)
                 self.log_phase_result(4, "exit_execution", "error", str(e))
 
@@ -1248,7 +1248,7 @@ class Orchestrator:
                 logger.info(
                     f"[PHASE 5] Completed in {phase_5_elapsed:.2f}s at {datetime.now(timezone.utc).isoformat()}"
                 )
-            except Exception as e:
+            except (psycopg2.OperationalError, psycopg2.DatabaseError, psycopg2.InterfaceError, TimeoutError, ValueError, RuntimeError) as e:
                 phase_5_failed = True
                 logger.error(
                     f"✗ Phase 5 (Signal Generation) failed: {e}", exc_info=True
@@ -1285,7 +1285,7 @@ class Orchestrator:
                 logger.info(
                     f"[PHASE 6] Completed in {phase_6_elapsed:.2f}s at {datetime.now(timezone.utc).isoformat()}"
                 )
-            except Exception as e:
+            except (psycopg2.OperationalError, psycopg2.DatabaseError, psycopg2.InterfaceError, TimeoutError, ValueError, RuntimeError) as e:
                 logger.error(f"✗ Phase 6 (Entry Execution) failed: {e}", exc_info=True)
                 self.log_phase_result(6, "entry_execution", "error", str(e))
 
@@ -1303,7 +1303,7 @@ class Orchestrator:
                 logger.info(
                     f"[PHASE 7] Completed in {phase_7_elapsed:.2f}s at {datetime.now(timezone.utc).isoformat()}"
                 )
-            except Exception as e:
+            except (psycopg2.OperationalError, psycopg2.DatabaseError, psycopg2.InterfaceError, TimeoutError, ValueError, RuntimeError) as e:
                 logger.error(f"✗ Phase 7 (Reconciliation) failed: {e}", exc_info=True)
                 self.log_phase_result(7, "reconciliation", "error", str(e))
 
@@ -1331,7 +1331,7 @@ class Orchestrator:
                         metrics.add_metric(
                             "eod_pipeline_seconds", total_elapsed, unit="Seconds"
                         )
-            except Exception as e:
+            except (OSError, TimeoutError, ValueError) as e:
                 logger.debug(f"Could not emit pipeline timing metrics: {e}")
 
             return self._final_report()
@@ -1422,7 +1422,7 @@ class Orchestrator:
                 if isinstance(positions, int):
                     m.put_open_positions(positions)
 
-        except Exception as e:
+        except (OSError, TimeoutError, ValueError) as e:
             # Never let metrics publishing interrupt trading results
             logger.error(f"CloudWatch metric publish failed: {e}")
 

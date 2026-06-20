@@ -78,7 +78,7 @@ $Updated = $Updated.TrimEnd() + "`n`n" + $NewBlock + "`n"
 $utf8NoBom = New-Object System.Text.UTF8Encoding($false)
 [System.IO.File]::WriteAllText($CredFile, $Updated, $utf8NoBom)
 
-Write-Host "✓ Credentials written to $CredFile" -ForegroundColor Green
+Write-Host "OK Credentials written to $CredFile" -ForegroundColor Green
 
 # Check credential status from the secret
 if ($Secret.status) {
@@ -120,16 +120,16 @@ if ($LASTEXITCODE -eq 0) {
     $Account = $IdentityObj.Account
 
     Write-Host "`n[OK] Credentials verified successfully" -ForegroundColor Green
-    Write-Host ('  Profile: ' + $Profile) -ForegroundColor Green
-    Write-Host ('  IAM ARN: ' + $Arn) -ForegroundColor Green
-    Write-Host ('  Account: ' + $Account) -ForegroundColor Green
-    Write-Host ('  File: ' + $CredFile) -ForegroundColor Green
-    Write-Host ('  Access Key: ' + $AccessKeyId) -ForegroundColor Green
+    Write-Host "  Profile: $Profile" -ForegroundColor Green
+    Write-Host "  IAM ARN: $Arn" -ForegroundColor Green
+    Write-Host "  Account: $Account" -ForegroundColor Green
+    Write-Host "  File: $CredFile" -ForegroundColor Green
+    Write-Host "  Access Key: $AccessKeyId" -ForegroundColor Green
 } else {
-    Write-Warning ('Credentials written to ' + $CredFile + ' but verification failed.')
-    Write-Warning ('Details: ' + $Identity)
-    Write-Warning ''
-    Write-Warning 'The IAM key may need a moment to propagate (usually less than 1 minute).'
-    Write-Warning ('Retry: aws sts get-caller-identity --profile ' + $Profile)
+    Write-Warning "Credentials written to $CredFile but verification failed."
+    Write-Warning "Details: $Identity"
+    Write-Warning ""
+    Write-Warning "The IAM key may need a moment to propagate (usually less than 1 minute)."
+    Write-Warning "Retry: aws sts get-caller-identity --profile $Profile"
     exit 1
 }

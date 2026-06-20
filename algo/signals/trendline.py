@@ -180,6 +180,14 @@ class TrendlineSupport:
                 "reason": str(e),
             }
 
+        if trendline is None:
+            return {
+                "near_trendline": False,
+                "trendline_support": None,
+                "distance_pct": None,
+                "reason": "No valid support trendline found",
+            }
+
         support_level = float(trendline["support_level"])
 
         # Entry should be near (1-5% above) the support line
