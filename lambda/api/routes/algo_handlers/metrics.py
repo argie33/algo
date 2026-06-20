@@ -469,7 +469,22 @@ def _get_algo_portfolio(cur) -> dict:
         return success_response(_ensure_portfolio_fields(response_data))
     except (ValueError, ZeroDivisionError, TypeError) as e:
         logger.error(f"Portfolio fetch error: {type(e).__name__}: {e}")
-        return error_response(503, "service_unavailable", "Portfolio data unavailable")
+        error_data = {
+            "total_portfolio_value": None,
+            "total_cash": None,
+            "position_count": 0,
+            "_error": "Portfolio data unavailable",
+        }
+        return success_response(_ensure_portfolio_fields(error_data))
+    except Exception as e:
+        logger.error(f"Portfolio fetch unexpected error: {type(e).__name__}: {e}", exc_info=True)
+        error_data = {
+            "total_portfolio_value": None,
+            "total_cash": None,
+            "position_count": 0,
+            "_error": "Portfolio data unavailable",
+        }
+        return success_response(_ensure_portfolio_fields(error_data))
 
 
 

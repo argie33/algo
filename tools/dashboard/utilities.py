@@ -113,20 +113,31 @@ _sector_cache_maxsize = 100
 def normalize_positions_data(data):
     """Unified normalization of positions data structure.
 
+    FAIL-CLOSED: Raises exception on unexpected data types instead of silently returning empty list.
+    Data format issues must be visible to operators.
+
     Returns:
-        (positions_list, timestamp, has_error) or
-        ({"_error": "..."}, None, True) on error
+        (positions_list, timestamp, has_error) tuple
     """
     if isinstance(data, dict):
         if data.get("_error"):
             return data, None, True
         if "items" in data:
             return data.get("items", []), data.get("timestamp"), False
-        return [], None, False
+        # Dict without items or error — log and fail
+        logger.error(f"[DATA_FORMAT] Positions dict malformed: missing 'items' and no '_error'. Keys: {list(data.keys())}")
+        raise ValueError(
+            "Positions data is dict but missing 'items' array. "
+            "Check API response schema — may indicate upstream data corruption."
+        )
     elif isinstance(data, list):
         return data, None, False
     else:
-        return [], None, False
+        logger.error(f"[DATA_FORMAT] Positions data has unexpected type: {type(data).__name__}")
+        raise TypeError(
+            f"Positions data must be dict or list, got {type(data).__name__}. "
+            "Check API response schema — may indicate upstream data corruption."
+        )
 
 
 def compute_sector_agg(pos, port):
@@ -199,18 +210,31 @@ def compute_sector_agg(pos, port):
 def extract_items_and_error(data):
     """Extract items array and error message from data dict or list.
 
-    Propagates errors instead of silently hiding them.
+    FAIL-CLOSED: Raises exception on unexpected data types instead of silently returning empty list.
+    Data format issues must be visible to operators.
+
+    Returns:
+        (items_list, error_msg) tuple
     """
     if isinstance(data, dict):
         if data.get("_error"):
             return [], data.get("_error")
         if "items" in data:
             return data.get("items", []), data.get("_error")
-        return [], None
+        # Dict without items or error — log and fail
+        logger.error(f"[DATA_FORMAT] Data dict malformed: missing 'items' and no '_error'. Keys: {list(data.keys())}")
+        raise ValueError(
+            "Data is dict but missing 'items' array. "
+            "Check API response schema — may indicate upstream data corruption."
+        )
     elif isinstance(data, list):
         return data, None
     else:
-        return [], None
+        logger.error(f"[DATA_FORMAT] Data has unexpected type: {type(data).__name__}")
+        raise TypeError(
+            f"Data must be dict or list, got {type(data).__name__}. "
+            "Check API response schema — may indicate upstream data corruption."
+        )
 
 
 def validate_data_freshness(data: dict, max_age_hours: int = 24, field_name: str = "timestamp") -> bool:
