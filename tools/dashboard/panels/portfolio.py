@@ -98,7 +98,8 @@ def panel_portfolio(port, cfg, risk=None, perf=None):
     lgpos = port.get("largest_position_pct")
     snap = port.get("snapshot_date")
     cfg_data = extract_config_params(cfg) if isinstance(cfg, dict) else {}
-    max_n = int(cfg_data.get("max_pos_n", 0)) if cfg_data.get("max_pos_n") else 0
+    max_n_val = cfg_data.get("max_pos_n")
+    max_n = int(max_n_val) if max_n_val else None
     snap_s = f"  [dim]{fmt_age(snap)}[/]" if snap is not None else ""
 
     # Header: portfolio value + age
