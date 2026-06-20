@@ -79,7 +79,7 @@ class DailyReconciliation:
 
             logger.warning(
                 "[RECONCILIATION] DRY RUN ACTIVE: Returning mock portfolio snapshot. "
-                "This is for testing only — all returned data is synthetic. "
+                "This is for testing only - all returned data is synthetic. "
                 "ENSURE ORCHESTRATOR_DRY_RUN is set to false in production."
             )
             return {
@@ -109,17 +109,17 @@ class DailyReconciliation:
             # 1. Fetch Alpaca account (required - no fallback to stale DB data)
             alpaca_data = self._fetch_alpaca_account()
             if not alpaca_data:
-                logger.critical("Alpaca account fetch failed — reconciliation cannot proceed without live account data")
+                logger.critical("Alpaca account fetch failed - reconciliation cannot proceed without live account data")
                 try:
                     notify(
                         "critical",
                         title="Reconciliation Halted",
-                        message="Alpaca unavailable. Reconciliation requires live account data — cannot use stale DB cache.",
+                        message="Alpaca unavailable. Reconciliation requires live account data - cannot use stale DB cache.",
                     )
                 except Exception as e:
                     logger.warning(f"Failed to send notification: {e}")
                 raise ValueError(
-                    "Alpaca account data required for reconciliation — cannot proceed with DB-only fallback"
+                    "Alpaca account data required for reconciliation - cannot proceed with DB-only fallback"
                 )
             else:
                 logger.info("1. Alpaca Account:")
@@ -127,32 +127,32 @@ class DailyReconciliation:
                 cash = alpaca_data.get("cash")
                 equity = alpaca_data.get("equity")
 
-                # Validate critical fields are present — fail immediately, not silently
+                # Validate critical fields are present - fail immediately, not silently
                 if pv is None:
                     logger.critical(
-                        "Alpaca portfolio_value is missing — reconciliation cannot proceed without live portfolio value"
+                        "Alpaca portfolio_value is missing - reconciliation cannot proceed without live portfolio value"
                     )
                     try:
                         notify(
                             "critical",
                             title="Reconciliation Halted",
-                            message="Alpaca portfolio_value missing — reconciliation requires live portfolio value for drawdown limits. Cannot use stale DB cache.",
+                            message="Alpaca portfolio_value missing - reconciliation requires live portfolio value for drawdown limits. Cannot use stale DB cache.",
                         )
                     except Exception as e:
                         logger.warning(f"Failed to send notification: {e}")
-                    raise ValueError("Alpaca portfolio_value required for reconciliation — cannot proceed")
+                    raise ValueError("Alpaca portfolio_value required for reconciliation - cannot proceed")
 
                 if cash is None:
-                    logger.critical("Alpaca cash is missing — reconciliation cannot proceed without live cash value")
+                    logger.critical("Alpaca cash is missing - reconciliation cannot proceed without live cash value")
                     try:
                         notify(
                             "critical",
                             title="Reconciliation Halted",
-                            message="Alpaca cash missing — reconciliation requires live cash value for position sizing. Cannot use stale DB cache.",
+                            message="Alpaca cash missing - reconciliation requires live cash value for position sizing. Cannot use stale DB cache.",
                         )
                     except Exception as e:
                         logger.warning(f"Failed to send notification: {e}")
-                    raise ValueError("Alpaca cash required for reconciliation — cannot proceed")
+                    raise ValueError("Alpaca cash required for reconciliation - cannot proceed")
 
                 logger.info(f"   Portfolio Value: ${pv:,.2f}")
                 logger.info(f"   Cash: ${cash:,.2f}")
@@ -247,18 +247,18 @@ class DailyReconciliation:
                 unrealized_pnl_breakeven_count = 0
 
                 for symbol, qty, entry, current, pos_value in positions:
-                    # Validate critical fields before processing — fail fast on missing data
+                    # Validate critical fields before processing - fail fast on missing data
                     if entry is None:
-                        raise ValueError(f"[RECONCILIATION CRITICAL] {symbol}: ENTRY PRICE MISSING — cannot compute P&L for open position")
+                        raise ValueError(f"[RECONCILIATION CRITICAL] {symbol}: ENTRY PRICE MISSING - cannot compute P&L for open position")
                     if current is None:
                         entry_dec = Decimal(str(entry))
                         qty_dec = Decimal(str(qty)) if qty is not None else Decimal(0)
                         raise ValueError(
-                            f"[RECONCILIATION CRITICAL] {symbol}: {qty_dec:.0f} @ ${entry_dec:.2f} -> CURRENT PRICE MISSING — cannot compute P&L for open position"
+                            f"[RECONCILIATION CRITICAL] {symbol}: {qty_dec:.0f} @ ${entry_dec:.2f} -> CURRENT PRICE MISSING - cannot compute P&L for open position"
                         )
 
                     if qty is None or pos_value is None:
-                        raise ValueError(f"[RECONCILIATION CRITICAL] {symbol}: QUANTITY OR VALUE MISSING — cannot compute P&L for open position")
+                        raise ValueError(f"[RECONCILIATION CRITICAL] {symbol}: QUANTITY OR VALUE MISSING - cannot compute P&L for open position")
 
                     # Keep all calculations in Decimal for precision; convert only for storage
                     from decimal import Decimal
@@ -281,29 +281,29 @@ class DailyReconciliation:
                         unrealized_pnl_breakeven_count += 1
 
                     logger.info(
-                        f"   {symbol}: {float(qty_dec):.0f} @ ${float(entry_dec):.2f} -> ${float(current_dec):.2f} | {float(pnl_dec):+,.2f} ({float(pnl_pct_dec):+.2f}%)"
+                        f"   {symbol}: {safe_float(qty_dec, default=0.0):.0f} @ ${safe_float(entry_dec, default=0.0):.2f} -> ${safe_float(current_dec, default=0.0):.2f} | {safe_float(pnl_dec, default=0.0):+,.2f} ({safe_float(pnl_pct_dec, default=0.0):+.2f}%)"
                     )
 
                 # 3. Calculate metrics
                 # Values already validated at initial Alpaca fetch; keep as Decimal for precision
                 # Use Alpaca's authoritative portfolio_value for the snapshot (includes live prices).
-                # Our DB position_value sum may lag — Alpaca is the ground truth for drawdown math.
+                # Our DB position_value sum may lag - Alpaca is the ground truth for drawdown math.
                 from decimal import Decimal
                 cash_dec = Decimal(str(cash))
                 alpaca_portfolio_value_dec = Decimal(str(pv))
                 if alpaca_portfolio_value_dec <= 0:
                     logger.critical(
-                        "Alpaca portfolio_value is zero/negative — cannot proceed with drawdown calculations. Halting."
+                        "Alpaca portfolio_value is zero/negative - cannot proceed with drawdown calculations. Halting."
                     )
                     try:
                         notify(
                             "critical",
                             title="Reconciliation Halted",
-                            message="Alpaca portfolio_value zero/negative — reconciliation requires positive portfolio value. Cannot use stale DB cache.",
+                            message="Alpaca portfolio_value zero/negative - reconciliation requires positive portfolio value. Cannot use stale DB cache.",
                         )
                     except (ValueError, ZeroDivisionError, TypeError) as e:
                         logger.warning(f"Failed to send notification: {e}")
-                    raise ValueError("Alpaca portfolio_value must be positive for reconciliation — cannot proceed")
+                    raise ValueError("Alpaca portfolio_value must be positive for reconciliation - cannot proceed")
 
                 # DB-computed total (kept for drift reporting)
                 from decimal import Decimal
@@ -315,7 +315,7 @@ class DailyReconciliation:
                     drift_pct = ((alpaca_portfolio_value_dec - total_equity_db_dec) / total_equity_db_dec) * Decimal(100)
                     if abs(drift_pct) > Decimal("1.0"):
                         logger.warning(
-                            f"Position value drift: Alpaca ${float(alpaca_portfolio_value_dec):,.2f} vs DB-computed ${float(total_equity_db_dec):,.2f} ({float(drift_pct):+.1f}%)"
+                            f"Position value drift: Alpaca ${safe_float(alpaca_portfolio_value_dec, default=0.0):,.2f} vs DB-computed ${safe_float(total_equity_db_dec, default=0.0):,.2f} ({safe_float(drift_pct, default=0.0):+.1f}%)"
                         )
 
                 if total_equity_dec > 0:
@@ -371,8 +371,8 @@ class DailyReconciliation:
                     raise ValueError("No trades data returned from database")
                 win_count = int(result[0]) if result[0] is not None else 0
                 loss_count = int(result[1]) if result[1] is not None else 0
-                realized_pnl_today = float(result[2]) if result[2] is not None else 0.0
-                cumulative_pnl = float(result[3]) if result[3] is not None else 0.0
+                realized_pnl_today = safe_float(result[2], default=0.0) if result[2] is not None else 0.0
+                cumulative_pnl = safe_float(result[3], default=0.0) if result[3] is not None else 0.0
 
                 # Get cumulative return (normalize to actual initial capital from Alpaca account history)
                 try:
@@ -382,7 +382,7 @@ class DailyReconciliation:
                         f"   Cumulative Return: {cumulative_return_pct:+.2f}% (on initial capital ${initial_capital:,.2f})"
                     )
                 except ValueError as e:
-                    logger.error(f"CRITICAL: {e} — cannot calculate cumulative return")
+                    logger.error(f"CRITICAL: {e} - cannot calculate cumulative return")
                     raise
 
                 # Calculate max drawdown from historical snapshots
@@ -408,7 +408,7 @@ class DailyReconciliation:
                     WHERE daily_return_pct IS NOT NULL
                     ORDER BY snapshot_date DESC LIMIT 252
                 """)
-                returns = [float(r[0]) / 100.0 for r in cur.fetchall() if r[0] is not None]
+                returns = [safe_float(r[0], default=0.0) / 100.0 for r in cur.fetchall() if r[0] is not None]
                 if len(returns) > 1:
                     import statistics
 
@@ -463,25 +463,25 @@ class DailyReconciliation:
                 """,
                         (
                             reconcile_date,
-                            float(total_equity_dec),
-                            float(cash_dec),
-                            float(total_equity_dec),
+                            safe_float(total_equity_dec, default=0.0),
+                            safe_float(cash_dec, default=0.0),
+                            safe_float(total_equity_dec, default=0.0),
                             positions_with_prices,
-                            float(max_concentration_dec),
+                            safe_float(max_concentration_dec, default=0.0),
                             float((avg_position_size_dec / total_equity_dec * Decimal(100)) if total_equity_dec > 0 else Decimal(0)),
-                            float(max_concentration_dec),
+                            safe_float(max_concentration_dec, default=0.0),
                             realized_pnl_today,
-                            float(unrealized_pnl),
-                            float(unrealized_pnl_pct_dec),
+                            safe_float(unrealized_pnl, default=0.0),
+                            safe_float(unrealized_pnl_pct_dec, default=0.0),
                             unrealized_pnl_winning_count,
                             unrealized_pnl_losing_count,
                             unrealized_pnl_breakeven_count,
                             "open_positions_only",
                             win_count,
                             loss_count,
-                            float(daily_return_pct_dec),
+                            safe_float(daily_return_pct_dec, default=0.0),
                             cumulative_return_pct,
-                            float(max_drawdown_pct_dec),
+                            safe_float(max_drawdown_pct_dec, default=0.0),
                             sharpe_ratio,
                             market_trend,
                         ),
@@ -490,15 +490,15 @@ class DailyReconciliation:
                     cur.execute("SELECT pg_advisory_unlock(%s)", (PORTFOLIO_SNAPSHOT_LOCK_ID,))
 
             logger.info("\n3. Portfolio Summary:")
-            logger.info(f"   Total Value: ${float(total_equity_dec):,.2f}")
-            logger.info(f"   Position Value: ${float(total_position_value):,.2f}")
-            logger.info(f"   Cash: ${float(cash_dec):,.2f}")
-            logger.info(f"   Unrealized P&L (OPEN POSITIONS ONLY): {float(unrealized_pnl):+,.2f} ({float(unrealized_pnl_pct_dec):+.2f}%)")
+            logger.info(f"   Total Value: ${safe_float(total_equity_dec, default=0.0):,.2f}")
+            logger.info(f"   Position Value: ${safe_float(total_position_value, default=0.0):,.2f}")
+            logger.info(f"   Cash: ${safe_float(cash_dec, default=0.0):,.2f}")
+            logger.info(f"   Unrealized P&L (OPEN POSITIONS ONLY): {safe_float(unrealized_pnl, default=0.0):+,.2f} ({safe_float(unrealized_pnl_pct_dec, default=0.0):+.2f}%)")
             logger.info(f"     - Winning positions: {unrealized_pnl_winning_count}")
             logger.info(f"     - Losing positions: {unrealized_pnl_losing_count}")
             logger.info(f"     - Breakeven positions: {unrealized_pnl_breakeven_count}")
-            logger.info(f"   Daily Return: {float(daily_return_pct_dec):+.2f}%")
-            logger.info(f"   Concentration: {float(max_concentration_dec):.1f}%")
+            logger.info(f"   Daily Return: {safe_float(daily_return_pct_dec, default=0.0):+.2f}%")
+            logger.info(f"   Concentration: {safe_float(max_concentration_dec, default=0.0):.1f}%")
 
             logger.info(f"\n{'=' * 70}")
             logger.info("Reconciliation complete - snapshot created")
@@ -506,9 +506,9 @@ class DailyReconciliation:
 
             return {
                 "success": True,
-                "portfolio_value": float(total_equity_dec),
+                "portfolio_value": safe_float(total_equity_dec, default=0.0),
                 "positions": len(positions),
-                "unrealized_pnl": float(unrealized_pnl),
+                "unrealized_pnl": safe_float(unrealized_pnl, default=0.0),
             }
 
         except (ValueError, requests.RequestException, json.JSONDecodeError, KeyError, TypeError) as e:
@@ -564,11 +564,11 @@ class DailyReconciliation:
                 if not symbol or not filled_price_str:
                     raise ValueError(f"[RECONCILIATION CRITICAL] Filled sell order missing symbol or filled_price: {order}")
                 try:
-                    filled_price = float(filled_price_str)
+                    filled_price = safe_float(filled_price_str, default=0.0)
                 except (TypeError, ValueError) as e:
                     raise ValueError(f"[RECONCILIATION CRITICAL] Filled price not numeric '{filled_price_str}' for {symbol}") from e
                 if filled_price <= 0:
-                    raise ValueError(f"[RECONCILIATION CRITICAL] Filled price invalid {filled_price} for {symbol} — must be > 0")
+                    raise ValueError(f"[RECONCILIATION CRITICAL] Filled price invalid {filled_price} for {symbol} - must be > 0")
 
                 cur.execute("SAVEPOINT reconcile_fill")
                 try:
@@ -588,24 +588,24 @@ class DailyReconciliation:
                     row = cur.fetchone()
                     if row is None:
                         cur.execute("RELEASE SAVEPOINT reconcile_fill")
-                        raise ValueError(f"[RECONCILIATION CRITICAL] No closed trade found for {symbol} within 2 days — cannot reconcile fill")
+                        raise ValueError(f"[RECONCILIATION CRITICAL] No closed trade found for {symbol} within 2 days - cannot reconcile fill")
 
                     trade_id, entry_price, stop_loss_price, entry_qty = row
                     if entry_price is None or stop_loss_price is None or entry_qty is None:
                         cur.execute("RELEASE SAVEPOINT reconcile_fill")
-                        raise ValueError(f"[RECONCILIATION CRITICAL] Trade {trade_id} ({symbol}) missing entry_price, stop_loss_price, or entry_qty — cannot reconcile")
+                        raise ValueError(f"[RECONCILIATION CRITICAL] Trade {trade_id} ({symbol}) missing entry_price, stop_loss_price, or entry_qty - cannot reconcile")
 
                     try:
-                        entry_price = float(entry_price)
-                        stop_loss_price = float(stop_loss_price)
+                        entry_price = safe_float(entry_price, default=0.0)
+                        stop_loss_price = safe_float(stop_loss_price, default=0.0)
                         entry_qty = int(entry_qty)
                     except (ValueError, TypeError) as e:
                         cur.execute("RELEASE SAVEPOINT reconcile_fill")
-                        raise ValueError(f"[RECONCILIATION CRITICAL] Trade {trade_id} ({symbol}) has non-numeric price/qty — cannot reconcile") from e
+                        raise ValueError(f"[RECONCILIATION CRITICAL] Trade {trade_id} ({symbol}) has non-numeric price/qty - cannot reconcile") from e
 
                     if entry_price <= 0 or stop_loss_price <= 0 or entry_qty <= 0:
                         cur.execute("RELEASE SAVEPOINT reconcile_fill")
-                        raise ValueError(f"[RECONCILIATION CRITICAL] Trade {trade_id} ({symbol}) has invalid prices/qty (entry={entry_price}, stop={stop_loss_price}, qty={entry_qty}) — must be > 0")
+                        raise ValueError(f"[RECONCILIATION CRITICAL] Trade {trade_id} ({symbol}) has invalid prices/qty (entry={entry_price}, stop={stop_loss_price}, qty={entry_qty}) - must be > 0")
 
                     pnl_pct = (filled_price - entry_price) / entry_price * 100.0
                     pnl_dollars = (filled_price - entry_price) * entry_qty
@@ -618,7 +618,7 @@ class DailyReconciliation:
                         (trade_id,),
                     )
                     est_row = cur.fetchone()
-                    estimated_price = float(est_row[0]) if est_row is not None and est_row[0] is not None else None
+                    estimated_price = safe_float(est_row[0], default=0.0) if est_row is not None and est_row[0] is not None else None
 
                     # Calculate reconciliation note with variance if estimated price exists
                     reconciliation_note = None
@@ -707,8 +707,8 @@ class DailyReconciliation:
                             "trade_id": t[0],
                             "symbol": t[1],
                             "exit_date": t[2],
-                            "estimated": float(t[3]),
-                            "actual": float(t[4]),
+                            "estimated": safe_float(t[3], default=0.0),
+                            "actual": safe_float(t[4], default=0.0),
                         }
                         for t in stale_trades
                     ],
@@ -782,10 +782,10 @@ class DailyReconciliation:
         _pv_row = cur.fetchone()
         if _pv_row is None or _pv_row[0] is None:
             raise ValueError(
-                "Portfolio snapshot missing — cannot calculate position_size_pct without current portfolio value"
+                "Portfolio snapshot missing - cannot calculate position_size_pct without current portfolio value"
             )
         try:
-            _portfolio_value_for_pct = float(_pv_row[0])
+            _portfolio_value_for_pct = safe_float(_pv_row[0], default=0.0)
         except (ValueError, TypeError) as e:
             raise ValueError(f"Portfolio snapshot value not numeric: {_pv_row[0]} ({e})")
         if _portfolio_value_for_pct <= 0:
@@ -810,7 +810,7 @@ class DailyReconciliation:
                     # Shares should be integers; only allow rounding error on tiny positions (<1 share)
                     qty_int = round(qty)
                     if abs(db_qty - qty_int) > 0:
-                        # Alpaca is the source of truth — correct the DB quantity
+                        # Alpaca is the source of truth - correct the DB quantity
                         try:
                             cur.execute(
                                 "UPDATE algo_positions SET quantity = %s WHERE symbol = %s AND status = %s",
@@ -842,54 +842,54 @@ class DailyReconciliation:
                 qty_raw = getattr(ap, "qty", None)
                 if qty_raw is None or qty_raw == 0:
                     continue  # skip zero/missing quantities
-                qty = float(qty_raw)
+                qty = safe_float(qty_raw, default=0.0)
 
                 # Validate entry price (critical)
                 avg_entry_raw = getattr(ap, "avg_entry_price", None)
                 if avg_entry_raw is None:
-                    raise ValueError(f"[RECONCILIATION CRITICAL] Alpaca position {sym}: missing or invalid entry price — cannot import")
+                    raise ValueError(f"[RECONCILIATION CRITICAL] Alpaca position {sym}: missing or invalid entry price - cannot import")
                 try:
-                    avg_entry = float(avg_entry_raw)
+                    avg_entry = safe_float(avg_entry_raw, default=0.0)
                 except (ValueError, TypeError) as e:
-                    raise ValueError(f"[RECONCILIATION CRITICAL] Alpaca position {sym}: entry price not numeric '{avg_entry_raw}' — cannot import") from e
+                    raise ValueError(f"[RECONCILIATION CRITICAL] Alpaca position {sym}: entry price not numeric '{avg_entry_raw}' - cannot import") from e
                 if avg_entry <= 0:
-                    raise ValueError(f"[RECONCILIATION CRITICAL] Alpaca position {sym}: entry price {avg_entry} <= 0 — cannot import")
+                    raise ValueError(f"[RECONCILIATION CRITICAL] Alpaca position {sym}: entry price {avg_entry} <= 0 - cannot import")
 
                 # Validate current price
                 cur_price_raw = getattr(ap, "current_price", None)
                 if cur_price_raw is None:
-                    raise ValueError(f"[RECONCILIATION CRITICAL] Alpaca position {sym}: missing or invalid current price — cannot import")
+                    raise ValueError(f"[RECONCILIATION CRITICAL] Alpaca position {sym}: missing or invalid current price - cannot import")
                 try:
-                    cur_price = float(cur_price_raw)
+                    cur_price = safe_float(cur_price_raw, default=0.0)
                 except (ValueError, TypeError) as e:
-                    raise ValueError(f"[RECONCILIATION CRITICAL] Alpaca position {sym}: current price not numeric '{cur_price_raw}' — cannot import") from e
+                    raise ValueError(f"[RECONCILIATION CRITICAL] Alpaca position {sym}: current price not numeric '{cur_price_raw}' - cannot import") from e
                 if cur_price <= 0:
-                    raise ValueError(f"[RECONCILIATION CRITICAL] Alpaca position {sym}: current price {cur_price} <= 0 — cannot import")
+                    raise ValueError(f"[RECONCILIATION CRITICAL] Alpaca position {sym}: current price {cur_price} <= 0 - cannot import")
 
-                # Validate market value — required field, no fallback computation allowed
+                # Validate market value - required field, no fallback computation allowed
                 pos_value_raw = getattr(ap, "market_value", None)
                 if pos_value_raw is None:
-                    raise ValueError(f"[RECONCILIATION CRITICAL] Alpaca position {sym}: market_value is required but missing — cannot import")
+                    raise ValueError(f"[RECONCILIATION CRITICAL] Alpaca position {sym}: market_value is required but missing - cannot import")
                 try:
-                    pos_value = float(pos_value_raw)
+                    pos_value = safe_float(pos_value_raw, default=0.0)
                 except (ValueError, TypeError) as e:
-                    raise ValueError(f"[RECONCILIATION CRITICAL] Alpaca position {sym}: market_value not numeric '{pos_value_raw}' — cannot import") from e
+                    raise ValueError(f"[RECONCILIATION CRITICAL] Alpaca position {sym}: market_value not numeric '{pos_value_raw}' - cannot import") from e
                 if pos_value <= 0:
-                    raise ValueError(f"[RECONCILIATION CRITICAL] Alpaca position {sym}: market_value {pos_value} <= 0 — cannot import")
+                    raise ValueError(f"[RECONCILIATION CRITICAL] Alpaca position {sym}: market_value {pos_value} <= 0 - cannot import")
 
-                # Get PnL — both fields required, no fallback to 0 allowed
+                # Get PnL - both fields required, no fallback to 0 allowed
                 pnl_raw = getattr(ap, "unrealized_pl", None)
                 pnl_pct_raw = getattr(ap, "unrealized_plpc", None)
 
                 if pnl_raw is None:
-                    raise ValueError(f"[RECONCILIATION CRITICAL] Alpaca position {sym}: unrealized_pl is required but missing — cannot import")
+                    raise ValueError(f"[RECONCILIATION CRITICAL] Alpaca position {sym}: unrealized_pl is required but missing - cannot import")
                 if pnl_pct_raw is None:
-                    raise ValueError(f"[RECONCILIATION CRITICAL] Alpaca position {sym}: unrealized_plpc is required but missing — cannot import")
+                    raise ValueError(f"[RECONCILIATION CRITICAL] Alpaca position {sym}: unrealized_plpc is required but missing - cannot import")
                 try:
-                    pnl = float(pnl_raw)
-                    pnl_pct = float(pnl_pct_raw) * 100
+                    pnl = safe_float(pnl_raw, default=0.0)
+                    pnl_pct = safe_float(pnl_pct_raw, default=0.0) * 100
                 except (ValueError, TypeError) as e:
-                    raise ValueError(f"[RECONCILIATION CRITICAL] Alpaca position {sym}: PnL fields not numeric — cannot import") from e
+                    raise ValueError(f"[RECONCILIATION CRITICAL] Alpaca position {sym}: PnL fields not numeric - cannot import") from e
 
                 position_id = f"EXT-{sym}-{datetime.now(timezone.utc).strftime('%Y%m%d')}"
                 trade_id = f"EXT-{sym}"
@@ -917,7 +917,7 @@ class DailyReconciliation:
                     )
                     atr_row = cur.fetchone()
                     if atr_row is not None and atr_row[0] is not None:
-                        atr = float(atr_row[0])
+                        atr = safe_float(atr_row[0], default=0.0)
                         # Stop = 2 * ATR below entry (standard risk management)
                         stop_loss_price = max(0.01, avg_entry - (2 * atr))
                         stop_loss_method = "imported_2x_atr"
@@ -928,7 +928,7 @@ class DailyReconciliation:
                         target_3 = avg_entry + (4 * r)  # 4R
                 except (psycopg2.DatabaseError, psycopg2.OperationalError) as e:
                     logger.critical(
-                        f"[RECONCILIATION] Failed to calculate stop/targets for imported {sym}: {e} — "
+                        f"[RECONCILIATION] Failed to calculate stop/targets for imported {sym}: {e} - "
                         f"cannot proceed with risk calculation. Position cannot be imported without proper risk limits."
                     )
                     raise ValueError(
@@ -1124,26 +1124,26 @@ class DailyReconciliation:
                     skip_reasons.append(f"{sym}: qty missing/zero")
                     skipped_count += 1
                     continue
-                qty = float(qty_raw)
+                qty = safe_float(qty_raw, default=0.0)
                 avg_entry_raw = getattr(ap, "avg_entry_price", None)
-                if avg_entry_raw is None or float(avg_entry_raw) <= 0:
+                if avg_entry_raw is None or safe_float(avg_entry_raw, default=0.0) <= 0:
                     skip_reasons.append(f"{sym}: avg_entry_price missing/invalid")
                     skipped_count += 1
                     continue
-                avg_entry = float(avg_entry_raw)
+                avg_entry = safe_float(avg_entry_raw, default=0.0)
                 cur_price_raw = getattr(ap, "current_price", None)
-                if cur_price_raw is None or float(cur_price_raw) <= 0:
+                if cur_price_raw is None or safe_float(cur_price_raw, default=0.0) <= 0:
                     skip_reasons.append(f"{sym}: current_price missing/invalid")
                     skipped_count += 1
                     continue
-                cur_price = float(cur_price_raw)
+                cur_price = safe_float(cur_price_raw, default=0.0)
                 pos_value_raw = getattr(ap, "market_value", None)
                 if pos_value_raw is None:
                     skip_reasons.append(f"{sym}: market_value missing")
                     skipped_count += 1
                     continue
                 try:
-                    pos_value = float(pos_value_raw)
+                    pos_value = safe_float(pos_value_raw, default=0.0)
                 except (ValueError, TypeError):
                     skip_reasons.append(f"{sym}: market_value not numeric")
                     skipped_count += 1
@@ -1159,8 +1159,8 @@ class DailyReconciliation:
                     skipped_count += 1
                     continue
                 try:
-                    pnl = float(pnl_raw)
-                    pnl_pct = (float(pnl_pct_raw) * 100)
+                    pnl = safe_float(pnl_raw, default=0.0)
+                    pnl_pct = (safe_float(pnl_pct_raw, default=0.0) * 100)
                 except (ValueError, TypeError) as e:
                     skip_reasons.append(f"{sym}: PnL not numeric ({e})")
                     skipped_count += 1
@@ -1187,7 +1187,7 @@ class DailyReconciliation:
                         )
                         atr_retry_row = cur.fetchone()
                         if atr_retry_row is not None and atr_retry_row[0] is not None:
-                            atr_retry = float(atr_retry_row[0])
+                            atr_retry = safe_float(atr_retry_row[0], default=0.0)
                             stop_loss_price_retry = max(0.01, avg_entry - (2 * atr_retry))
                             stop_loss_method_retry = "imported_retry_2x_atr"
                             r = avg_entry - stop_loss_price_retry
@@ -1197,7 +1197,7 @@ class DailyReconciliation:
                     except (psycopg2.DatabaseError, psycopg2.OperationalError) as atr_e:
                         logger.error(f"[RETRY_IMPORT] Failed to calculate ATR-based stops for {sym}: {atr_e}")
 
-                    # Fail hard if ATR calculation failed — don't fall back to percentages
+                    # Fail hard if ATR calculation failed - don't fall back to percentages
                     if stop_loss_price_retry is None:
                         logger.warning(
                             f"[RETRY_IMPORT] Skipping retry for {sym}: cannot calculate risk limits without ATR"
@@ -1334,8 +1334,8 @@ class DailyReconciliation:
             if len(trades) >= 10:  # Need min 10 trades for meaningful IC
                 # Compute rank correlation (Spearman) between swing_score and 5d returns
                 try:
-                    scores = [float(t[0]) for t in trades]
-                    returns = [float(t[1]) for t in trades]
+                    scores = [safe_float(t[0], default=0.0) for t in trades]
+                    returns = [safe_float(t[1], default=0.0) for t in trades]
 
                     # Rank correlation manually (Spearman)
                     score_ranks = sorted(range(len(scores)), key=lambda i: scores[i])
@@ -1391,8 +1391,8 @@ class DailyReconciliation:
 
             if stats and stats[0] >= 30:  # Need 30+ trades
                 total_trades = stats[0]
-                float(stats[1]) if stats[1] is not None else 0.0
-                float(stats[2]) if stats[2] is not None else 0.0
+                safe_float(stats[1], default=0.0) if stats[1] is not None else 0.0
+                safe_float(stats[2], default=0.0) if stats[2] is not None else 0.0
 
                 # Count wins and losses
                 cur.execute(
@@ -1410,8 +1410,8 @@ class DailyReconciliation:
                 wr = cur.fetchone()
                 wins = int(wr[0]) if wr[0] is not None else 0
                 int(wr[1]) if wr[1] is not None else 0
-                avg_win = float(wr[2]) if wr[2] is not None else 1.0
-                avg_loss = float(wr[3]) if wr[3] is not None else -1.0
+                avg_win = safe_float(wr[2], default=0.0) if wr[2] is not None else 1.0
+                avg_loss = safe_float(wr[3], default=0.0) if wr[3] is not None else -1.0
 
                 win_rate = wins / total_trades if total_trades > 0 else 0
                 expectancy = (win_rate * avg_win) + ((1 - win_rate) * avg_loss)
@@ -1481,14 +1481,14 @@ class DailyReconciliation:
             ) in trades_to_update:
                 try:
                     cur.execute("SAVEPOINT mae_mfe_update")
-                    entry_price = float(entry_price)
-                    if not exit_price or float(exit_price) <= 0:
+                    entry_price = safe_float(entry_price, default=0.0)
+                    if not exit_price or safe_float(exit_price, default=0.0) <= 0:
                         logger.warning(
                             f"Trade {trade_id} ({symbol}): invalid exit_price {exit_price}, skipping MAE/MFE"
                         )
                         cur.execute("RELEASE SAVEPOINT mae_mfe_update")
                         continue
-                    exit_price = float(exit_price)
+                    exit_price = safe_float(exit_price, default=0.0)
 
                     cur.execute(
                         """
@@ -1509,8 +1509,8 @@ class DailyReconciliation:
                     # Example: stop-loss hit at -5%, entry used as high/low → MAE shows -0.01% (entry price ≈ high/low).
                     # This corrupts strategy evaluation and makes losing trades appear safer.
                     # Instead: skip MAE/MFE if price data incomplete (leave NULL in DB).
-                    highs = [float(p[0]) for p in prices if p[0] is not None]
-                    lows = [float(p[1]) for p in prices if p[1] is not None]
+                    highs = [safe_float(p[0], default=0.0) for p in prices if p[0] is not None]
+                    lows = [safe_float(p[1], default=0.0) for p in prices if p[1] is not None]
 
                     # Only compute MAE/MFE if we have complete high/low data for the period
                     if not highs or not lows:
@@ -1587,8 +1587,8 @@ class DailyReconciliation:
             mismatches = []
             for order in orders:
                 symbol = order.get("symbol")
-                float(order.get("qty", 0))
-                alpaca_filled_qty = float(order.get("filled_qty", 0))
+                safe_float(order.get("qty", 0), default=0.0)
+                alpaca_filled_qty = safe_float(order.get("filled_qty", 0), default=0.0)
                 order_status = order.get("status")
 
                 if not symbol or alpaca_filled_qty <= 0:
@@ -1616,7 +1616,7 @@ class DailyReconciliation:
                 alpaca_filled_int = int(alpaca_filled_qty)
 
                 if alpaca_filled_int > 0 and db_qty_int != alpaca_filled_int:
-                    # Quantity drift detected — Alpaca has different fill than DB
+                    # Quantity drift detected - Alpaca has different fill than DB
                     mismatches.append(
                         {
                             "symbol": symbol,
@@ -1696,8 +1696,8 @@ class DailyReconciliation:
                 variance_pct = None
                 if exit_price is not None and est_price is not None:
                     try:
-                        exit_price_f = float(exit_price)
-                        est_price_f = float(est_price)
+                        exit_price_f = safe_float(exit_price, default=0.0)
+                        est_price_f = safe_float(est_price, default=0.0)
                         if est_price_f > 0:
                             variance_pct = (exit_price_f - est_price_f) / est_price_f * 100
                     except (ValueError, TypeError):
@@ -1707,8 +1707,8 @@ class DailyReconciliation:
                         "trade_id": trade_id,
                         "symbol": symbol,
                         "exit_date": exit_date,
-                        "estimated_price": float(est_price) if est_price else None,
-                        "current_exit_price": float(exit_price) if exit_price else None,
+                        "estimated_price": safe_float(est_price, default=0.0) if est_price else None,
+                        "current_exit_price": safe_float(exit_price, default=0.0) if exit_price else None,
                         "variance_pct": variance_pct,
                         "note": note,
                         "days_pending": ((datetime.now(timezone.utc).date() - exit_date).days if exit_date else None),
@@ -1761,10 +1761,10 @@ class DailyReconciliation:
                 portfolio_value_val = data.get("portfolio_value") or data.get("equity")
                 buying_power_val = data.get("buying_power")
                 return {
-                    "cash": float(cash_val) if cash_val is not None else None,
-                    "equity": float(equity_val) if equity_val is not None else None,
-                    "portfolio_value": (float(portfolio_value_val) if portfolio_value_val is not None else None),
-                    "buying_power": (float(buying_power_val) if buying_power_val is not None else None),
+                    "cash": safe_float(cash_val, default=0.0) if cash_val is not None else None,
+                    "equity": safe_float(equity_val, default=0.0) if equity_val is not None else None,
+                    "portfolio_value": (safe_float(portfolio_value_val, default=0.0) if portfolio_value_val is not None else None),
+                    "buying_power": (safe_float(buying_power_val, default=0.0) if buying_power_val is not None else None),
                 }
             raise ValueError(f"Alpaca /v2/account returned HTTP {resp.status_code}: {resp.text[:100]}")
         except (requests.RequestException, requests.Timeout, ValueError, KeyError, AttributeError) as e:
@@ -1786,7 +1786,7 @@ class DailyReconciliation:
                 """)
                 row = cur.fetchone()
                 if row is not None and row[0] is not None:
-                    val = float(row[0])
+                    val = safe_float(row[0], default=0.0)
                     if val > 0:
                         logger.info(f"Using oldest database snapshot as initial capital: ${val:,.2f}")
                         return val
@@ -1811,7 +1811,7 @@ class DailyReconciliation:
                 if isinstance(data, dict) and "equity" in data:
                     equity_list = data.get("equity", [])
                     if equity_list:
-                        initial_val = float(equity_list[0])
+                        initial_val = safe_float(equity_list[0], default=0.0)
                         if initial_val > 0:
                             logger.info(f"Initial capital from Alpaca history: ${initial_val:,.2f}")
                             return initial_val
@@ -1826,7 +1826,7 @@ class DailyReconciliation:
             """)
             row = cur.fetchone()
             if row is not None and row[0] is not None:
-                val = float(row[0])
+                val = safe_float(row[0], default=0.0)
                 if val > 0:
                     logger.info(f"Using oldest database snapshot as initial capital: ${val:,.2f}")
                     return val

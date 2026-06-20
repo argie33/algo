@@ -26,6 +26,7 @@ from utils.infrastructure.timezone import EASTERN_TZ
 from utils.loaders.config import get_default_parallelism
 from utils.loaders.helpers import get_active_symbols
 from utils.optimal_loader import OptimalLoader
+from utils.safe_data_conversion import safe_float
 
 
 logger = logging.getLogger(__name__)
@@ -281,7 +282,7 @@ class SignalsDailyLoader(OptimalLoader):
                 )
 
                 # Fail-fast if technical data covers < 70% of price symbols (normal is 80-83%)
-                # Do not generate signals with incomplete technical data—this would create inconsistent coverage.
+                # Do not generate signals with incomplete technical data-this would create inconsistent coverage.
                 # Upstream loader must complete or fix coverage issues before signal generation proceeds.
                 if tech_coverage < 70:
                     raise RuntimeError(
@@ -389,28 +390,28 @@ class SignalsDailyLoader(OptimalLoader):
                     if r[0] is None or r[11] is None:
                         dropped_rows += 1
                         logger.debug(
-                            f"{symbol} [{r[0]}]: Row dropped — missing required field "
+                            f"{symbol} [{r[0]}]: Row dropped - missing required field "
                             f"(date={r[0]}, close={r[11]})"
                         )
                         continue
                     rows.append(
                         {
                             "date": r[0].isoformat() if r[0] else None,
-                            "rsi": float(r[1]) if r[1] is not None else None,
-                            "macd": float(r[2]) if r[2] is not None else None,
-                            "macd_signal": float(r[3]) if r[3] is not None else None,
-                            "sma_50": float(r[4]) if r[4] is not None else None,
-                            "sma_200": float(r[5]) if r[5] is not None else None,
-                            "ema_12": float(r[6]) if r[6] is not None else None,
-                            "ema_21": float(r[7]) if r[7] is not None else None,
-                            "atr": float(r[8]) if r[8] is not None else None,
-                            "adx": float(r[9]) if r[9] is not None else None,
-                            "mansfield_rs": float(r[10]) if r[10] is not None else None,
-                            "close": float(r[11]) if r[11] is not None else None,
+                            "rsi": safe_float(r[1], default=0.0) if r[1] is not None else None,
+                            "macd": safe_float(r[2], default=0.0) if r[2] is not None else None,
+                            "macd_signal": safe_float(r[3], default=0.0) if r[3] is not None else None,
+                            "sma_50": safe_float(r[4], default=0.0) if r[4] is not None else None,
+                            "sma_200": safe_float(r[5], default=0.0) if r[5] is not None else None,
+                            "ema_12": safe_float(r[6], default=0.0) if r[6] is not None else None,
+                            "ema_21": safe_float(r[7], default=0.0) if r[7] is not None else None,
+                            "atr": safe_float(r[8], default=0.0) if r[8] is not None else None,
+                            "adx": safe_float(r[9], default=0.0) if r[9] is not None else None,
+                            "mansfield_rs": safe_float(r[10], default=0.0) if r[10] is not None else None,
+                            "close": safe_float(r[11], default=0.0) if r[11] is not None else None,
                             "volume": int(r[12]) if r[12] is not None else None,
-                            "open": float(r[13]) if r[13] is not None else None,
-                            "high": float(r[14]) if r[14] is not None else None,
-                            "low": float(r[15]) if r[15] is not None else None,
+                            "open": safe_float(r[13], default=0.0) if r[13] is not None else None,
+                            "high": safe_float(r[14], default=0.0) if r[14] is not None else None,
+                            "low": safe_float(r[15], default=0.0) if r[15] is not None else None,
                         }
                     )
                 if dropped_rows > 0:
@@ -457,7 +458,7 @@ class SignalsDailyLoader(OptimalLoader):
             if close is None or high is None or low is None:
                 skipped_count += 1
                 logger.debug(
-                    f"{symbol} [{row.get('date')}]: Skipping row — missing required OHLC field "
+                    f"{symbol} [{row.get('date')}]: Skipping row - missing required OHLC field "
                     f"(close={close}, high={high}, low={low})"
                 )
                 continue
@@ -650,7 +651,7 @@ class SignalsDailyLoader(OptimalLoader):
                         "timeframe": "1d",
                         "signal": signal_type,
                         "signal_type": signal_type,
-                        "strength": float(strength),
+                        "strength": safe_float(strength, default=0.0),
                         "reason": reason,
                         "entry_quality_score": None,
                         "signal_quality_score": None,
@@ -658,25 +659,25 @@ class SignalsDailyLoader(OptimalLoader):
                         "volume_surge_capped": volume_surge_capped,
                         "risk_reward_ratio": rr,
                         "risk_pct": risk_pct,
-                        "rsi": float(rsi) if rsi is not None else None,
-                        "sma_50": float(sma_50) if sma_50 is not None else None,
-                        "sma_200": float(sma_200) if sma_200 is not None else None,
-                        "ema_21": float(ema_21) if ema_21 is not None else None,
-                        "atr": float(atr) if atr is not None else None,
-                        "adx": float(adx) if adx is not None else None,
+                        "rsi": safe_float(rsi, default=0.0) if rsi is not None else None,
+                        "sma_50": safe_float(sma_50, default=0.0) if sma_50 is not None else None,
+                        "sma_200": safe_float(sma_200, default=0.0) if sma_200 is not None else None,
+                        "ema_21": safe_float(ema_21, default=0.0) if ema_21 is not None else None,
+                        "atr": safe_float(atr, default=0.0) if atr is not None else None,
+                        "adx": safe_float(adx, default=0.0) if adx is not None else None,
                         "mansfield_rs": (
-                            float(mansfield_rs) if mansfield_rs is not None else None
+                            safe_float(mansfield_rs, default=0.0) if mansfield_rs is not None else None
                         ),
-                        "macd": float(macd) if macd is not None else None,
+                        "macd": safe_float(macd, default=0.0) if macd is not None else None,
                         "macd_signal": (
-                            float(macd_signal) if macd_signal is not None else None
+                            safe_float(macd_signal, default=0.0) if macd_signal is not None else None
                         ),
                         "stage_number": None,
                         "market_stage": market_stage,
                         "open": row.get("open"),
-                        "high": float(high) if high is not None else None,
-                        "low": float(low) if low is not None else None,
-                        "close": float(close) if close is not None else None,
+                        "high": safe_float(high, default=0.0) if high is not None else None,
+                        "low": safe_float(low, default=0.0) if low is not None else None,
+                        "close": safe_float(close, default=0.0) if close is not None else None,
                         "volume": volume,
                         "avg_volume_50d": avg_vol_50d,
                         "buylevel": buylevel,
@@ -699,11 +700,11 @@ class SignalsDailyLoader(OptimalLoader):
         if skipped_count > 0:
             logger.warning(
                 f"{symbol}: Skipped {skipped_count} row(s) during signal generation "
-                f"due to missing OHLC fields — {len(signals)} signal(s) generated"
+                f"due to missing OHLC fields - {len(signals)} signal(s) generated"
             )
         return signals
 
-    # Columns with DECIMAL(8,4) precision — max 9999.9999
+    # Columns with DECIMAL(8,4) precision - max 9999.9999
     # High-priced stocks (ASML, BLK, CAT, etc.) can produce values ≥10000 for
     # percentage/ratio fields, causing PostgreSQL numeric field overflow on COPY.
     _DECIMAL84_COLS = frozenset(
@@ -803,7 +804,7 @@ def main():
             f"[DEPENDENCY] Could not check stock_prices_daily status: {status_err}"
         )
 
-    # ISSUE #7: Validate dependency — technical_data_daily must be fresh and have good coverage
+    # ISSUE #7: Validate dependency - technical_data_daily must be fresh and have good coverage
     try:
         with DatabaseContext("read") as cur:
             cur.execute("SELECT MAX(date) FROM technical_data_daily")
@@ -876,7 +877,7 @@ def main():
         logger.info("Daily signals load completed")
 
         # ISSUE #27 FIX: Make technical data enrichment part of the critical path.
-        # Enrichment is MANDATORY for signal quality—if it fails, the entire load fails.
+        # Enrichment is MANDATORY for signal quality-if it fails, the entire load fails.
         # This prevents buy_sell_daily from being marked COMPLETED with NULL technical fields.
         # Fail-close: If >5% of records can't be enriched, update loader status to FAILED.
         logger.info("Starting technical data enrichment (fail-close)...")
@@ -891,7 +892,7 @@ def main():
                 f"{enrich_result['checked']} checked, {enrich_result['nulls_remaining']} nulls remaining"
             )
         except RuntimeError as e:
-            # Enrichment failed to meet quality threshold — mark loader as FAILED
+            # Enrichment failed to meet quality threshold - mark loader as FAILED
             logger.critical(f"[ENRICHMENT_FAILED] {e!s}")
             try:
                 # Update loader status to FAILED so orchestration detects the failure

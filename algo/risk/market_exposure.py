@@ -9,22 +9,22 @@ Zweig breadth research, Weinstein stage analysis, AAII/NAAIM contrarian studies,
 Apollo/Goldman credit cycle research, and Pan-Poteshman options flow research.
 
     15pt  TREND 30-WK MA        SPY price vs rising/flat/falling 30-week MA
-    10pt  SPY 12-MONTH MOMENTUM trailing 12-month return (TSMOM — most replicated quant signal)
+    10pt  SPY 12-MONTH MOMENTUM trailing 12-month return (TSMOM - most replicated quant signal)
     10pt  BREADTH % > 200-DMA   long-term market participation (linear 30-80%)
     10pt  SELLING PRESSURE      heavy-volume down days in last 25 sessions: 0-2=1.0, 3-4=0.6, 5+=0.2
     10pt  VIX REGIME            level (<15/15-25/25-35/35+) + term structure (VIX3M/VIX ratio)
     10pt  CREDIT SPREADS        HY OAS (BAMLH0A0HYM2): credit leads equity (Apollo/Slok research)
-     8pt  PUT/CALL RATIO        options market sentiment — contrarian at extremes (daily signal)
+     8pt  PUT/CALL RATIO        options market sentiment - contrarian at extremes (daily signal)
      7pt  NEW HIGHS - LOWS      market leadership quality (52-week NH vs NL)
      6pt  ADVANCE-DECLINE LINE  direction vs SPY over 20 days (confirmation/divergence)
      6pt  BREADTH % > 50-DMA   short-term market participation (linear 20-80%)
      5pt  NAAIM EXPOSURE        professional manager positioning (contrarian at extremes)
-     3pt  AAII SENTIMENT        contrarian at extremes only (±15+ spread; neutral in middle range)
+     3pt  AAII SENTIMENT        contrarian at extremes only (?15+ spread; neutral in middle range)
 
 Removed factors vs prior version:
   - FOLLOW-THROUGH DAY (was 10pt): ~50% reliability per independent backtests
     (Quantifiable Edges, 37yr study); retained only as hard veto
-  - MCCLELLAN OSCILLATOR (was 9pt): redundant with A/D line — both derive from
+  - MCCLELLAN OSCILLATOR (was 9pt): redundant with A/D line - both derive from
     advance/decline data; A/D line direction vs SPY is the less correlated signal
 
 Breadth signal consolidation: prior version had 5 breadth signals at 45pt total,
@@ -32,7 +32,7 @@ all highly correlated. Now 4 signals at 26pt covering distinct information:
   % > 200-DMA (long-term regime), NH/NL (leadership), A/D line (direction),
   % > 50-DMA (short-term participation).
 
-HARD VETOES (cap exposure at ≤25-40%):
+HARD VETOES (cap exposure at ?25-40%):
   - SPY < rising 30-wk MA AND breadth_50 < 30%
   - VIX > 40 with rising trend
   - 6+ selling-pressure days in last 25 sessions
@@ -102,7 +102,7 @@ class MarketExposure:
     def try_load_cached(self, eval_date=None):
         """Load cached market exposure for today. Returns dict or None if not cached/stale.
 
-        CRITICAL: Validates cache freshness. Never silently uses stale cache — if cached value
+        CRITICAL: Validates cache freshness. Never silently uses stale cache - if cached value
         is from a different date, returns None to force recomputation instead of using stale data.
         Stale cache causes incorrect risk allocation and must be detected + logged, not silently accepted.
         """
@@ -138,7 +138,7 @@ class MarketExposure:
             # If cached value is from a different date, it's stale and should not be used
             if cached_date != eval_date:
                 msg = (
-                    f"CRITICAL: Cached market exposure is stale — cached from {cached_date}, "
+                    f"CRITICAL: Cached market exposure is stale - cached from {cached_date}, "
                     f"but requested for {eval_date}. Not using stale cache to prevent incorrect risk allocation. "
                     f"This requires recomputation (check Phase 4 data loader)."
                 )
@@ -153,7 +153,7 @@ class MarketExposure:
                         logger.warning(f"halt_reasons is not a list: {type(halt_reasons)}")
                         halt_reasons = []
                 except (json.JSONDecodeError, TypeError) as e:
-                    logger.error(f"Malformed halt_reasons JSON: {e} — treating as empty list")
+                    logger.error(f"Malformed halt_reasons JSON: {e} - treating as empty list")
                     halt_reasons = []
 
             factors = {}
@@ -166,7 +166,7 @@ class MarketExposure:
                         logger.warning(f"factors is not a dict: {type(factors)}")
                         factors = {}
                 except (json.JSONDecodeError, TypeError) as e:
-                    logger.error(f"Malformed factors JSON: {e} — treating as empty dict")
+                    logger.error(f"Malformed factors JSON: {e} - treating as empty dict")
                     factors = {}
 
             result = {
@@ -227,7 +227,7 @@ class MarketExposure:
             score += t30_pts
             logger.debug(f"  Trend 30-week: {t30_pts:.1f} pts")
 
-            # --- 2. SPY 12-month momentum (TSMOM — most replicated quant signal) ---
+            # --- 2. SPY 12-month momentum (TSMOM - most replicated quant signal) ---
             mom = self.calculator.spy_momentum(eval_date, cur)
             mom_pts, mom_avail = self.calculator._wt_pts(mom, self.W_SPY_MOMENTUM)
             avail_max += mom_avail
@@ -289,7 +289,7 @@ class MarketExposure:
             score += vix_pts
             logger.debug(f"  VIX regime: {vix.get('value', 'N/A')} (score {vix_pts:.1f} pts)")
 
-            # --- 7. Put/call ratio (options sentiment — contrarian, daily) ---
+            # --- 7. Put/call ratio (options sentiment - contrarian, daily) ---
             pc = self.calculator.put_call_ratio(eval_date, cur)
             pc_pts, pc_avail = self.calculator._wt_pts(pc, self.W_PUT_CALL)
             avail_max += pc_avail
@@ -321,7 +321,7 @@ class MarketExposure:
             score += ad_pts
             logger.debug(f"  A/D line: {ad_pts:.1f} pts")
 
-            # --- 10. Credit spreads (HY OAS — credit leads equity) ---
+            # --- 10. Credit spreads (HY OAS - credit leads equity) ---
             cs = self.calculator.credit_spread(eval_date, cur)
             cs_pts, cs_avail = self.calculator._wt_pts(cs, self.W_CREDIT_SPREAD)
             avail_max += cs_avail
@@ -422,7 +422,7 @@ class MarketExposure:
                 halt_reasons.append(f"{sp_count} selling-pressure days >= 6")
                 cap = min(cap, 35.0)
             # Veto 4: No market confirmation signal while SPY below 30-week MA.
-            # Only applies when SPY is actually below its 30-week MA — in smooth uptrends
+            # Only applies when SPY is actually below its 30-week MA - in smooth uptrends
             # SPY never drops enough to need confirmation, so this veto is dormant.
             has_confirmation = self._has_market_confirmation(eval_date, cur)
             if not has_confirmation and t30.get("price_below_ma"):
@@ -481,7 +481,7 @@ class MarketExposure:
         return (safe_float(weight, default=0.0, context="weight") * sf, safe_float(weight, default=0.0, context="weight")) if sf is not None else (0.0, 0.0)
 
     def _spy_momentum(self, eval_date, cur):
-        """SPY 12-month price momentum — trailing return over ~252 trading days.
+        """SPY 12-month price momentum - trailing return over ~252 trading days.
 
         Time-series momentum (TSMOM) is the most replicated signal in quantitative
         finance. Source: Moskowitz, Ooi & Pedersen (JFE, 2012); AQR Century of
@@ -529,7 +529,7 @@ class MarketExposure:
     def _selling_pressure_factor(self, eval_date, cur):
         """Institutional selling pressure: heavy-volume down days in last 25 sessions.
 
-        Counts sessions where the market closes down ≥0.2% on above-average volume —
+        Counts sessions where the market closes down ?0.2% on above-average volume -
         a sign of institutional distribution rather than retail-driven selling.
         A cluster of these days signals professionals are reducing exposure.
 
@@ -557,7 +557,7 @@ class MarketExposure:
     def _distribution_days(self, eval_date, cur):
         """Count heavy-volume down days over last 25 trading sessions on SPY.
 
-        A qualifying session: close declines ≥0.2% AND volume is heavier than
+        A qualifying session: close declines ?0.2% AND volume is heavier than
         the prior day. Rolling 25-session window. (LIMIT 26: first row lacks
         prev_close due to LAG, so only 25 valid comparisons are made.)
         """
@@ -584,7 +584,7 @@ class MarketExposure:
     def _has_market_confirmation(self, eval_date, cur):
         """Detect a volume-backed rally day in last 30 days.
 
-        A qualifying day: index closes ≥1.7% on volume above prior day.
+        A qualifying day: index closes ?1.7% on volume above prior day.
         Used only as a hard veto condition (not a scoring factor): when SPY
         is below its 30-week MA and no such day has occurred, the market has
         not confirmed an attempted recovery, so exposure is capped at 40%.
@@ -615,7 +615,7 @@ class MarketExposure:
 
         Reads pre-computed sma_150 from technical_data_daily (indexed lookup, <1s)
         instead of computing AVG() OVER a window across all SPY rows in price_daily
-        (7000+ rows × window function = slow under load on t4g.micro).
+        (7000+ rows ? window function = slow under load on t4g.micro).
         """
         cur.execute(
             """
@@ -668,7 +668,7 @@ class MarketExposure:
 
         Reads pre-computed price_above_sma50 / price_above_sma200 boolean flags
         from trend_template_data (single-table indexed scan, <1s) instead of
-        joining technical_data_daily × price_daily (DISTINCT ON across 35k rows
+        joining technical_data_daily ? price_daily (DISTINCT ON across 35k rows
         each, too slow on t4g.micro).
         """
         bool_col = "price_above_sma50" if ma_days == 50 else "price_above_sma200"
@@ -709,8 +709,8 @@ class MarketExposure:
 
         VIX level captures current implied volatility / fear.
         VIX term structure (VIX3M/VIX ratio) is more forward-looking:
-        - Contango (VIX3M > VIX): market expects volatility to subside → positive signal
-        - Backwardation (VIX3M < VIX): near-term stress worse than medium-term → negative
+        - Contango (VIX3M > VIX): market expects volatility to subside ? positive signal
+        - Backwardation (VIX3M < VIX): near-term stress worse than medium-term ? negative
         VIX3M is pre-loaded to price_daily by load_market_health_daily.
         """
         cur.execute(
@@ -745,22 +745,22 @@ class MarketExposure:
                 msg = (
                     f"[VIX CRITICAL] No VIX data available for {eval_date}: "
                     f"^VIX missing from price_daily AND vix_level missing/null in market_health_daily. "
-                    f"Exposure calculation INCOMPLETE — hard veto for high VIX cannot run. "
+                    f"Exposure calculation INCOMPLETE - hard veto for high VIX cannot run. "
                     f"Check that load_market_health_daily loader is running and fetching VIX from external sources."
                 )
                 logger.critical(msg)
                 raise RuntimeError(msg)
-            vix = float(r2[0])
+            vix = safe_float(r2[0], default=0.0)
             logger.debug(f"[VIX] Using fallback: vix_level={vix} from market_health_daily for {eval_date}")
             return self._vix_score(vix, rising=False, term_structure=None)
 
-        vix = float(vix_row[0])
-        prior = float(vix_row[1]) if vix_row[1] is not None else vix
+        vix = safe_float(vix_row[0], default=0.0)
+        prior = safe_float(vix_row[1], default=0.0) if vix_row[1] is not None else vix
         rising = vix > prior * 1.05
 
         term_structure = None
         if vix3m_row and vix3m_row[0] is not None and vix > 0:
-            vix3m = float(vix3m_row[0])
+            vix3m = safe_float(vix3m_row[0], default=0.0)
             term_structure = vix3m / vix  # >1.0 = contango, <1.0 = backwardation
 
         logger.debug(
@@ -812,12 +812,12 @@ class MarketExposure:
         }
 
     def _put_call_ratio(self, eval_date, cur):
-        """Put/call ratio — options market sentiment (contrarian, daily signal).
+        """Put/call ratio - options market sentiment (contrarian, daily signal).
 
         High P/C ratio (>1.1): elevated put buying = fear/hedging = contrarian bullish.
         Low P/C ratio (<0.6): call-heavy = complacency/greed = contrarian bearish.
         Populated daily from SPY options chain via load_market_health_daily.
-        Source: Pan & Poteshman (JoF, 2006) — statistically significant predictive
+        Source: Pan & Poteshman (JoF, 2006) - statistically significant predictive
         power for subsequent returns from options flow data.
         """
         cur.execute(
@@ -836,7 +836,7 @@ class MarketExposure:
 
         # Contrarian scoring: high P/C = fear = bullish for markets
         if pc > 1.2:
-            sf = 1.0  # extreme fear → contrarian buy
+            sf = 1.0  # extreme fear ? contrarian buy
         elif pc > 0.9:
             sf = 0.80  # elevated put buying
         elif pc > 0.7:
@@ -844,7 +844,7 @@ class MarketExposure:
         elif pc > 0.5:
             sf = 0.40  # complacent
         else:
-            sf = 0.20  # extreme greed → contrarian caution
+            sf = 0.20  # extreme greed ? contrarian caution
 
         return {"score_factor": sf, "value": round(pc, 3)}
 
@@ -853,7 +853,7 @@ class MarketExposure:
 
         Reads pre-computed new_highs_count / new_lows_count from market_health_daily
         (fast, <1s indexed lookup) instead of computing 400-day window functions across
-        price_daily (reads 2M+ rows with 3 window functions per symbol — too slow on t4g.micro).
+        price_daily (reads 2M+ rows with 3 window functions per symbol - too slow on t4g.micro).
         """
         cur.execute(
             """
@@ -884,7 +884,7 @@ class MarketExposure:
 
         Uses pre-computed advance_decline_ratio from market_health_daily and
         SPY close from price_daily (fast, <1s indexed lookups) instead of
-        computing LAG() window functions across 5000 stocks × 35 days (~175,000 rows).
+        computing LAG() window functions across 5000 stocks ? 35 days (~175,000 rows).
         """
         cur.execute(
             """
@@ -935,7 +935,7 @@ class MarketExposure:
             ratio = r.get("ratio")
             if ratio is None:
                 msg = (
-                    f"Advance/decline ratio missing for {r.get('date')} — "
+                    f"Advance/decline ratio missing for {r.get('date')} - "
                     "A/D calculation requires real advance/decline data from market_health_daily. "
                     "Check that market_health_daily is populated with advance_decline_ratio."
                 )
@@ -968,10 +968,10 @@ class MarketExposure:
         }
 
     def _aaii(self, eval_date, cur):
-        """AAII investor sentiment — contrarian at extremes only.
+        """AAII investor sentiment - contrarian at extremes only.
 
         Bull-bear spread (bullish% - bearish%) is the key metric.
-        Signal is only meaningful at extreme readings (±15+ spread);
+        Signal is only meaningful at extreme readings (?15+ spread);
         in the normal middle range it is noise with low predictive value.
         """
         cur.execute(
@@ -993,15 +993,15 @@ class MarketExposure:
 
         # Extremes-only scoring: neutral in the normal range (-15 to +15)
         if spread < -25:
-            sf = 1.0  # extreme fear → strong contrarian buy
+            sf = 1.0  # extreme fear ? strong contrarian buy
         elif spread < -15:
             sf = 0.75  # elevated bearishness
         elif spread < 15:
-            sf = 0.50  # normal range — not predictive, neutral score
+            sf = 0.50  # normal range - not predictive, neutral score
         elif spread < 25:
             sf = 0.30  # elevated bullishness
         else:
-            sf = 0.15  # extreme greed → contrarian caution
+            sf = 0.15  # extreme greed ? contrarian caution
 
         return {
             "score_factor": sf,
@@ -1012,11 +1012,11 @@ class MarketExposure:
         }
 
     def _naaim(self, eval_date, cur):
-        """NAAIM manager equity exposure — contrarian at extremes.
+        """NAAIM manager equity exposure - contrarian at extremes.
 
         Active manager exposure scale (0-100%):
-        < 20: heavily underweight → contrarian bullish (managers will be forced to buy)
-        > 80: heavily overweight → contrarian cautious (limited buying power left)
+        < 20: heavily underweight ? contrarian bullish (managers will be forced to buy)
+        > 80: heavily overweight ? contrarian cautious (limited buying power left)
         """
         cur.execute(
             """
@@ -1053,7 +1053,7 @@ class MarketExposure:
         }
 
     def _credit_spread(self, eval_date, cur):
-        """HY OAS credit spread (BAMLH0A0HYM2) — credit leads equity.
+        """HY OAS credit spread (BAMLH0A0HYM2) - credit leads equity.
 
         Based on Apollo/Torsten Slok research: HY spreads widen 4-6 weeks
         before equity markets price in credit risk. Rapidly widening spreads
@@ -1110,7 +1110,7 @@ class MarketExposure:
         deteriorate, reduce max exposure regardless of short-term price action.
         This overlay is applied AFTER factor scoring, not as a factor weight.
 
-        Note: HY credit spread is excluded here — it is a direct 10pt factor.
+        Note: HY credit spread is excluded here - it is a direct 10pt factor.
         Including it in both places would double-count the same data series.
 
         Returns: {macro_stress_score, penalty, cap, contributing_signals}
@@ -1118,7 +1118,7 @@ class MarketExposure:
         stress = 0.0
         signals = []
 
-        # Signal 1: Yield curve (T10Y2Y) — inversion duration matters
+        # Signal 1: Yield curve (T10Y2Y) - inversion duration matters
         cur.execute(
             """
             SELECT value::float, date FROM economic_data
@@ -1142,7 +1142,7 @@ class MarketExposure:
                 stress += 8.0
                 signals.append(f"Curve flat {latest_spread:.2f}%")
 
-        # Signal 2: Jobless claims trend — rising claims precede recessions
+        # Signal 2: Jobless claims trend - rising claims precede recessions
         cur.execute(
             """
             SELECT value::float, date FROM economic_data
@@ -1163,7 +1163,7 @@ class MarketExposure:
                 stress += 15.0
                 signals.append(f"Jobless claims +{chg_pct:.1f}% in 26w (elevated)")
 
-        # Signal 3: St. Louis Financial Stress Index — 18-variable financial market composite
+        # Signal 3: St. Louis Financial Stress Index - 18-variable financial market composite
         cur.execute(
             """
             SELECT value::float FROM economic_data
@@ -1182,7 +1182,7 @@ class MarketExposure:
                 stress += 12.0
                 signals.append(f"Financial stress index {stlfsi:.2f}σ (elevated)")
 
-        # Signal 4: Chicago Fed National Activity Index — 85-indicator broad economic composite
+        # Signal 4: Chicago Fed National Activity Index - 85-indicator broad economic composite
         cur.execute(
             """
             SELECT value::float FROM economic_data
@@ -1327,7 +1327,7 @@ def read_market_regime(eval_date: _date) -> dict:
             row = cur.fetchone()
             if row is None:
                 logger.warning(
-                    f"[MARKET REGIME] No market_exposure_daily data on or before {eval_date} — halting entries (fail-closed)"
+                    f"[MARKET REGIME] No market_exposure_daily data on or before {eval_date} - halting entries (fail-closed)"
                 )
                 return {
                     "is_entry_allowed": False,
@@ -1348,16 +1348,16 @@ def read_market_regime(eval_date: _date) -> dict:
                 _cached_date,
             ) = row
 
-            # Validate exposure_pct is not NULL — critical for position sizing
+            # Validate exposure_pct is not NULL - critical for position sizing
             if exposure_pct is None:
                 logger.critical(
-                    f"[MARKET REGIME] market_exposure_daily for {eval_date} has NULL exposure_pct — halting entries (fail-closed)"
+                    f"[MARKET REGIME] market_exposure_daily for {eval_date} has NULL exposure_pct - halting entries (fail-closed)"
                 )
                 return {
                     "is_entry_allowed": False,
                     "exposure_pct": 0,
                     "regime": "unknown",
-                    "halt_reasons": ["Market exposure_pct is NULL — cannot proceed with regime-aware sizing"],
+                    "halt_reasons": ["Market exposure_pct is NULL - cannot proceed with regime-aware sizing"],
                     "raw_score": 0,
                     "exposure_tier": exposure_tier or "unknown",
                 }
@@ -1374,7 +1374,7 @@ def read_market_regime(eval_date: _date) -> dict:
                         halt_reasons = []
                 except (json.JSONDecodeError, TypeError) as e:
                     logger.error(
-                        f"[MARKET REGIME] Malformed halt_reasons JSON for {eval_date}: {e} — treating as empty list"
+                        f"[MARKET REGIME] Malformed halt_reasons JSON for {eval_date}: {e} - treating as empty list"
                     )
                     halt_reasons = []
 
@@ -1389,7 +1389,7 @@ def read_market_regime(eval_date: _date) -> dict:
 
     except (psycopg2.DatabaseError, psycopg2.OperationalError) as e:
         logger.critical(
-            f"[MARKET REGIME] Could not read market regime for {eval_date}: {e} — halting entries (fail-closed)"
+            f"[MARKET REGIME] Could not read market regime for {eval_date}: {e} - halting entries (fail-closed)"
         )
         return {
             "is_entry_allowed": False,
@@ -1428,7 +1428,7 @@ if __name__ == "__main__":
                 exit(1)
             eval_d = result[0]
     result = me.compute(eval_d)
-    logger.info(f"MARKET EXPOSURE — {result['eval_date']}")
+    logger.info(f"MARKET EXPOSURE - {result['eval_date']}")
     logger.info(f"Regime: {result['regime']}")
     logger.info(f"Exposure %: {result['exposure_pct']}%")
     logger.info(f"Raw score: {result['raw_score']}")

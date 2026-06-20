@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Unified Metrics & Positions Fetcher — Single Source of Truth
+"""Unified Metrics & Positions Fetcher - Single Source of Truth
 
 This module consolidates ALL data fetching for:
 - Performance metrics (win_rate, sharpe, max_drawdown, etc.)
@@ -21,6 +21,8 @@ from typing import Any, Dict, List, Optional
 
 import psycopg2
 import psycopg2.extras
+
+from utils.safe_data_conversion import safe_float
 
 
 logger = logging.getLogger(__name__)
@@ -109,7 +111,7 @@ class AlgoMetricsFetcher:
                 logger.info("fetch_performance_metrics: No closed trades found")
                 return self._empty_performance_response()
 
-            # Extract P&L and R-multiple data (skip trades with missing P&L — don't mask with fallback to 0)
+            # Extract P&L and R-multiple data (skip trades with missing P&L - don't mask with fallback to 0)
             pnl_dollars = []
             pnl_pcts = []
             for t in trades:
@@ -120,16 +122,16 @@ class AlgoMetricsFetcher:
                         f"Trade {t.get('trade_id')} missing P&L: dollars={pnl_d}, pct={pnl_p}"
                     )
                     continue
-                pnl_dollars.append(float(pnl_d))
-                pnl_pcts.append(float(pnl_p))
+                pnl_dollars.append(safe_float(pnl_d, default=0.0))
+                pnl_pcts.append(safe_float(pnl_p, default=0.0))
 
             r_multiples = [
-                float(t["exit_r_multiple"])
+                safe_float(t["exit_r_multiple"], default=0.0)
                 for t in trades
                 if t.get("exit_r_multiple") is not None
             ]
             holding_days = [
-                float(t["holding_days"]) if t.get("holding_days") is not None else 0.0
+                safe_float(t["holding_days"], default=0.0) if t.get("holding_days") is not None else 0.0
                 for t in trades
                 if t.get("holding_days") is not None
             ]
@@ -162,19 +164,19 @@ class AlgoMetricsFetcher:
                 1
                 for t in open_trades
                 if t.get("unrealized_pnl_dollars")
-                and float(t["unrealized_pnl_dollars"]) > 0
+                and safe_float(t["unrealized_pnl_dollars"], default=0.0) > 0
             )
             open_losing = sum(
                 1
                 for t in open_trades
                 if t.get("unrealized_pnl_dollars")
-                and float(t["unrealized_pnl_dollars"]) < 0
+                and safe_float(t["unrealized_pnl_dollars"], default=0.0) < 0
             )
             open_breakeven = sum(
                 1
                 for t in open_trades
                 if t.get("unrealized_pnl_dollars")
-                and float(t["unrealized_pnl_dollars"]) == 0
+                and safe_float(t["unrealized_pnl_dollars"], default=0.0) == 0
             )
             open_total = len(open_trades)
 
@@ -225,7 +227,7 @@ class AlgoMetricsFetcher:
                                 f"Snapshot {s.get('snapshot_date')} missing total_portfolio_value"
                             )
                             continue
-                        vals.append(float(pv))
+                        vals.append(safe_float(pv, default=0.0))
 
                     returns = [
                         (vals[i] - vals[i - 1]) / vals[i - 1]
@@ -411,7 +413,7 @@ class AlgoMetricsFetcher:
                 unrealized_pnl_pct = d.get("unrealized_pnl_pct")
                 if position_value is not None and unrealized_pnl_pct is not None:
                     d["unrealized_pnl"] = round(
-                        float(position_value) * float(unrealized_pnl_pct) / 100, 2
+                        safe_float(position_value, default=0.0) * safe_float(unrealized_pnl_pct, default=0.0) / 100, 2
                     )
                 else:
                     d["unrealized_pnl"] = None
@@ -427,11 +429,11 @@ class AlgoMetricsFetcher:
                     current is not None
                     and avg_entry is not None
                     and stop_loss is not None
-                    and float(avg_entry) > float(stop_loss)
+                    and safe_float(avg_entry, default=0.0) > safe_float(stop_loss, default=0.0)
                 ):
                     d["r_multiple"] = round(
-                        (float(current) - float(avg_entry))
-                        / (float(avg_entry) - float(stop_loss)),
+                        (safe_float(current, default=0.0) - safe_float(avg_entry, default=0.0))
+                        / (safe_float(avg_entry, default=0.0) - safe_float(stop_loss, default=0.0)),
                         2,
                     )
                 else:
@@ -501,7 +503,7 @@ class AlgoMetricsFetcher:
             for r in rows:
                 pv = r.get("total_portfolio_value")
                 if pv is not None:
-                    values.append(float(pv))
+                    values.append(safe_float(pv, default=0.0))
             logger.debug(
                 f"fetch_equity_curve: {len(values)} snapshots found (skipped {len(rows)-len(values)} with missing values)"
             )
@@ -544,8 +546,8 @@ class AlgoMetricsFetcher:
                         f"Skipping return calculation: missing portfolio value at index {i-1} or {i}"
                     )
                     continue
-                prev_val = float(prev_pv)
-                curr_val = float(curr_pv)
+                prev_val = safe_float(prev_pv, default=0.0)
+                curr_val = safe_float(curr_pv, default=0.0)
                 if prev_val != 0:
                     ret_pct = ((curr_val - prev_val) / prev_val) * 100
                     date = rows[i].get("snapshot_date")

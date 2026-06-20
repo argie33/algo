@@ -31,6 +31,7 @@ import psycopg2
 from loaders.runner import run_loader
 from utils.db.context import DatabaseContext
 from utils.optimal_loader import OptimalLoader
+from utils.safe_data_conversion import safe_float
 
 
 logger = logging.getLogger(__name__)
@@ -203,13 +204,13 @@ class StockScoresLoader(OptimalLoader):
             row = cur.fetchone()
             if row:
                 return {
-                    "roe": float(row[0]) if row[0] else None,
-                    "roa": float(row[1]) if row[1] else None,
-                    "operating_margin": float(row[2]) if row[2] else None,
-                    "net_margin": float(row[3]) if row[3] else None,
-                    "debt_to_equity": float(row[4]) if row[4] else None,
-                    "current_ratio": float(row[5]) if row[5] else None,
-                    "quick_ratio": float(row[6]) if row[6] else None,
+                    "roe": safe_float(row[0], default=0.0) if row[0] else None,
+                    "roa": safe_float(row[1], default=0.0) if row[1] else None,
+                    "operating_margin": safe_float(row[2], default=0.0) if row[2] else None,
+                    "net_margin": safe_float(row[3], default=0.0) if row[3] else None,
+                    "debt_to_equity": safe_float(row[4], default=0.0) if row[4] else None,
+                    "current_ratio": safe_float(row[5], default=0.0) if row[5] else None,
+                    "quick_ratio": safe_float(row[6], default=0.0) if row[6] else None,
                 }
             return None
         except (psycopg2.DatabaseError, psycopg2.OperationalError) as e:
@@ -225,12 +226,12 @@ class StockScoresLoader(OptimalLoader):
             row = cur.fetchone()
             if row:
                 return {
-                    "revenue_growth_1y": float(row[0]) if row[0] else None,
-                    "revenue_growth_3y": float(row[1]) if row[1] else None,
-                    "revenue_growth_5y": float(row[2]) if row[2] else None,
-                    "eps_growth_1y": float(row[3]) if row[3] else None,
-                    "eps_growth_3y": float(row[4]) if row[4] else None,
-                    "eps_growth_5y": float(row[5]) if row[5] else None,
+                    "revenue_growth_1y": safe_float(row[0], default=0.0) if row[0] else None,
+                    "revenue_growth_3y": safe_float(row[1], default=0.0) if row[1] else None,
+                    "revenue_growth_5y": safe_float(row[2], default=0.0) if row[2] else None,
+                    "eps_growth_1y": safe_float(row[3], default=0.0) if row[3] else None,
+                    "eps_growth_3y": safe_float(row[4], default=0.0) if row[4] else None,
+                    "eps_growth_5y": safe_float(row[5], default=0.0) if row[5] else None,
                 }
             return None
         except (psycopg2.DatabaseError, psycopg2.OperationalError) as e:
@@ -246,12 +247,12 @@ class StockScoresLoader(OptimalLoader):
             row = cur.fetchone()
             if row:
                 return {
-                    "pe_ratio": float(row[0]) if row[0] else None,
-                    "pb_ratio": float(row[1]) if row[1] else None,
-                    "ps_ratio": float(row[2]) if row[2] else None,
-                    "peg_ratio": float(row[3]) if row[3] else None,
-                    "dividend_yield": float(row[4]) if row[4] else None,
-                    "fcf_yield": float(row[5]) if row[5] else None,
+                    "pe_ratio": safe_float(row[0], default=0.0) if row[0] else None,
+                    "pb_ratio": safe_float(row[1], default=0.0) if row[1] else None,
+                    "ps_ratio": safe_float(row[2], default=0.0) if row[2] else None,
+                    "peg_ratio": safe_float(row[3], default=0.0) if row[3] else None,
+                    "dividend_yield": safe_float(row[4], default=0.0) if row[4] else None,
+                    "fcf_yield": safe_float(row[5], default=0.0) if row[5] else None,
                 }
             return None
         except (psycopg2.DatabaseError, psycopg2.OperationalError) as e:
@@ -267,9 +268,9 @@ class StockScoresLoader(OptimalLoader):
             row = cur.fetchone()
             if row:
                 return {
-                    "institutional_ownership": float(row[0]) if row[0] else None,
-                    "insider_ownership": float(row[1]) if row[1] else None,
-                    "short_interest": float(row[2]) if row[2] else None,
+                    "institutional_ownership": safe_float(row[0], default=0.0) if row[0] else None,
+                    "insider_ownership": safe_float(row[1], default=0.0) if row[1] else None,
+                    "short_interest": safe_float(row[2], default=0.0) if row[2] else None,
                 }
             return None
         except (psycopg2.DatabaseError, psycopg2.OperationalError) as e:
@@ -285,11 +286,11 @@ class StockScoresLoader(OptimalLoader):
             row = cur.fetchone()
             if row:
                 return {
-                    "volatility_252d": float(row[0]) if row[0] else None,
-                    "volatility_60d": float(row[1]) if row[1] else None,
-                    "volatility_30d": float(row[2]) if row[2] else None,
-                    "beta": float(row[3]) if row[3] else None,
-                    "debt_to_assets": float(row[4]) if row[4] else None,
+                    "volatility_252d": safe_float(row[0], default=0.0) if row[0] else None,
+                    "volatility_60d": safe_float(row[1], default=0.0) if row[1] else None,
+                    "volatility_30d": safe_float(row[2], default=0.0) if row[2] else None,
+                    "beta": safe_float(row[3], default=0.0) if row[3] else None,
+                    "debt_to_assets": safe_float(row[4], default=0.0) if row[4] else None,
                 }
             return None
         except (psycopg2.DatabaseError, psycopg2.OperationalError) as e:
@@ -317,11 +318,11 @@ class StockScoresLoader(OptimalLoader):
 
             if row and row[0]:
                 prices = {
-                    "current": float(row[0]) if row[0] else None,
-                    "price_1m_ago": float(row[1]) if row[1] else None,
-                    "price_3m_ago": float(row[2]) if row[2] else None,
-                    "price_6m_ago": float(row[3]) if row[3] else None,
-                    "price_12m_ago": float(row[4]) if row[4] else None,
+                    "current": safe_float(row[0], default=0.0) if row[0] else None,
+                    "price_1m_ago": safe_float(row[1], default=0.0) if row[1] else None,
+                    "price_3m_ago": safe_float(row[2], default=0.0) if row[2] else None,
+                    "price_6m_ago": safe_float(row[3], default=0.0) if row[3] else None,
+                    "price_12m_ago": safe_float(row[4], default=0.0) if row[4] else None,
                 }
 
                 current = prices["current"]
@@ -477,9 +478,9 @@ class StockScoresLoader(OptimalLoader):
             elif pe <= 20:
                 pe_score = 60 + (pe - 10) * 4   # good range
             elif pe <= 35:
-                pe_score = 100 - (pe - 20) * 2   # growth premium zone → 70 at pe=35
+                pe_score = 100 - (pe - 20) * 2   # growth premium zone ? 70 at pe=35
             else:
-                pe_score = max(0, 70 - (pe - 35) * 1.4)  # expensive → 0 at pe~85
+                pe_score = max(0, 70 - (pe - 35) * 1.4)  # expensive ? 0 at pe~85
             weighted_sum += pe_score * 0.50
             total_weight += 0.50
 
@@ -489,9 +490,9 @@ class StockScoresLoader(OptimalLoader):
             if pb <= 1.0:
                 pb_score = 100
             elif pb <= 3.0:
-                pb_score = 100 - ((pb - 1.0) / 2.0) * 30   # 100→70 in [1,3]
+                pb_score = 100 - ((pb - 1.0) / 2.0) * 30   # 100?70 in [1,3]
             elif pb <= 7.0:
-                pb_score = 70 - ((pb - 3.0) / 4.0) * 40    # 70→30 in [3,7]
+                pb_score = 70 - ((pb - 3.0) / 4.0) * 40    # 70?30 in [3,7]
             else:
                 pb_score = max(0, 30 - (pb - 7.0) * 3)
             weighted_sum += pb_score * 0.25
@@ -506,7 +507,7 @@ class StockScoresLoader(OptimalLoader):
 
         # Dividend yield: bonus signal for income/quality (optional)
         if metrics.get("dividend_yield") and metrics["dividend_yield"] > 0:
-            div = min(metrics["dividend_yield"] * 100, 6)   # decimal → percent, cap 6%
+            div = min(metrics["dividend_yield"] * 100, 6)   # decimal ? percent, cap 6%
             div_score = min(100, div * 16.7)
             weighted_sum += div_score * 0.10
             total_weight += 0.10
@@ -574,9 +575,9 @@ class StockScoresLoader(OptimalLoader):
             if vol <= 0.15:
                 vol_score = 100
             elif vol <= 0.30:
-                vol_score = 100 - ((vol - 0.15) / 0.15) * 50   # 100→50 in [15%,30%]
+                vol_score = 100 - ((vol - 0.15) / 0.15) * 50   # 100?50 in [15%,30%]
             elif vol <= 0.60:
-                vol_score = 50 - ((vol - 0.30) / 0.30) * 40    # 50→10 in [30%,60%]
+                vol_score = 50 - ((vol - 0.30) / 0.30) * 40    # 50?10 in [30%,60%]
             else:
                 vol_score = max(0, 10 - (vol - 0.60) * 20)
             weighted_sum += vol_score * 0.50

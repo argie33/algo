@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Market Health Daily Loader – Market stage, distribution days, advance/decline.
+"""Market Health Daily Loader - Market stage, distribution days, advance/decline.
 
 Computes market-wide health metrics from SPY price data and market indicators.
 Populates all required market_health_daily columns.
@@ -20,6 +20,7 @@ from loaders.technical_indicators import compute_moving_averages
 from utils.db.context import DatabaseContext
 from utils.infrastructure.timezone import EASTERN_TZ
 from utils.optimal_loader import OptimalLoader
+from utils.safe_data_conversion import safe_float
 
 
 logger = logging.getLogger(__name__)
@@ -225,7 +226,7 @@ class MarketHealthDailyLoader(OptimalLoader):
                 if close_val is None or is_nan:
                     continue
 
-                close_float = float(close_val)
+                close_float = safe_float(close_val, default=0.0)
                 # VIX must be > 0 (can never be 0 in real market data)
                 # If yfinance returns 0, it's a data quality issue - skip it
                 if close_float <= 0:
@@ -275,7 +276,7 @@ class MarketHealthDailyLoader(OptimalLoader):
 
         if not MarketCalendar.is_trading_day(eval_date):
             logger.debug(f"Put/call: skipping {eval_date} (not a trading day)")
-            return None  # OK to return None on non-trading days—no options data expected
+            return None  # OK to return None on non-trading days-no options data expected
         try:
             from utils.external.yfinance import YFinanceWrapper, _throttled_yf_request
 
@@ -286,7 +287,7 @@ class MarketHealthDailyLoader(OptimalLoader):
                     "Cannot compute put/call ratio for market health."
                 )
 
-            # ticker.options makes an outbound request — run through the rate limiter
+            # ticker.options makes an outbound request - run through the rate limiter
             # so it doesn't race against other yfinance calls sharing the NAT gateway IP.
             try:
                 expirations = _throttled_yf_request(lambda: ticker.options)
@@ -317,7 +318,7 @@ class MarketHealthDailyLoader(OptimalLoader):
 
             if chain_errors == min(4, len(expirations)):
                 raise RuntimeError(
-                    "Put/call: all option chain fetches failed — cannot compute market health without this data."
+                    "Put/call: all option chain fetches failed - cannot compute market health without this data."
                 )
 
             if total_calls > 0:
@@ -350,7 +351,7 @@ class MarketHealthDailyLoader(OptimalLoader):
                     (start, end),
                 )
                 rows = cur.fetchall()
-            result = {str(row[0]): float(row[1]) for row in rows}
+            result = {str(row[0]): safe_float(row[1], default=0.0) for row in rows}
             if result:
                 logger.info(f"Fetched yield curve data: {len(result)} days")
             return result
@@ -389,7 +390,7 @@ class MarketHealthDailyLoader(OptimalLoader):
 
                         for r in cur.fetchall():
                             result[r[0].isoformat()] = {
-                                "advance_decline_ratio": float(r[1]),
+                                "advance_decline_ratio": safe_float(r[1], default=0.0),
                                 "new_highs_count": int(r[2]),
                                 "new_lows_count": int(r[3]),
                             }
@@ -402,7 +403,7 @@ class MarketHealthDailyLoader(OptimalLoader):
                 # Now compute breadth data only for recent dates (more efficient).
                 # 90s timeout: this query joins 365-day price history for 5000+ symbols.
                 # Under write load from stock_prices_daily ECS tasks the query can block
-                # for minutes — fail fast and let the loader write market health rows
+                # for minutes - fail fast and let the loader write market health rows
                 # without breadth columns (orchestrator Phase 1 only checks date freshness,
                 # not whether advance_decline_ratio is populated).
                 cur.execute("SET LOCAL statement_timeout = '90s'")
@@ -445,7 +446,7 @@ class MarketHealthDailyLoader(OptimalLoader):
                 for r in cur.fetchall():
                     result[r[0].isoformat()] = {
                         "advance_decline_ratio": (
-                            float(r[3]) if r[3] is not None else 1.0
+                            safe_float(r[3], default=0.0) if r[3] is not None else 1.0
                         ),
                         "new_highs_count": int(r[4]) if r[4] is not None else 0,
                         "new_lows_count": int(r[5]) if r[5] is not None else 0,
@@ -469,10 +470,10 @@ class MarketHealthDailyLoader(OptimalLoader):
                 return [
                     {
                         "date": r[0].isoformat() if r[0] else None,
-                        "open": float(r[1]) if r[1] is not None else None,
-                        "high": float(r[2]) if r[2] is not None else None,
-                        "low": float(r[3]) if r[3] is not None else None,
-                        "close": float(r[4]) if r[4] is not None else None,
+                        "open": safe_float(r[1], default=0.0) if r[1] is not None else None,
+                        "high": safe_float(r[2], default=0.0) if r[2] is not None else None,
+                        "low": safe_float(r[3], default=0.0) if r[3] is not None else None,
+                        "close": safe_float(r[4], default=0.0) if r[4] is not None else None,
                         "volume": int(r[5]) if r[5] is not None else None,
                     }
                     for r in cur.fetchall()
@@ -518,9 +519,9 @@ class MarketHealthDailyLoader(OptimalLoader):
 
         results = []
         for idx, row in df.iterrows():
-            close = float(row["close"]) if pd.notna(row["close"]) else 0
-            sma_200 = float(row["sma_200"]) if pd.notna(row["sma_200"]) else None
-            sma_50 = float(row["sma_50"]) if pd.notna(row["sma_50"]) else None
+            close = safe_float(row["close"], default=0.0) if pd.notna(row["close"]) else 0
+            sma_200 = safe_float(row["sma_200"], default=0.0) if pd.notna(row["sma_200"]) else None
+            sma_50 = safe_float(row["sma_50"], default=0.0) if pd.notna(row["sma_50"]) else None
 
             # Determine market trend and stage
             market_trend = "neutral"
@@ -589,7 +590,7 @@ class MarketHealthDailyLoader(OptimalLoader):
                     "new_highs_count": None,  # filled from _fetch_breadth_data
                     "new_lows_count": None,  # filled from _fetch_breadth_data
                     "breadth_momentum_10d": (
-                        float(row["breadth_10d"])
+                        safe_float(row["breadth_10d"], default=0.0)
                         if pd.notna(row["breadth_10d"])
                         else 50
                     ),
@@ -629,13 +630,13 @@ def _write_vix_family_prices(start: date, end: date) -> int:
     Returns the number of rows upserted.
     """
     # On non-trading days yfinance aggressively rate-limits index/VIX fetches.
-    # Skip the fetch — existing price_daily data is still current from the last trading day.
+    # Skip the fetch - existing price_daily data is still current from the last trading day.
     from algo.infrastructure import MarketCalendar
 
     today = datetime.now(EASTERN_TZ).date()
     if not MarketCalendar.is_trading_day(today):
         logger.info(
-            f"Market closed today ({today}) — skipping VIX/index yfinance fetch"
+            f"Market closed today ({today}) - skipping VIX/index yfinance fetch"
         )
         return 0
     try:
@@ -676,7 +677,7 @@ def _write_vix_family_prices(start: date, end: date) -> int:
                             except (IndexError, AttributeError):
                                 val = None
                         try:
-                            f = float(val)
+                            f = safe_float(val, default=0.0)
                             if f != f:  # NaN check
                                 return None
                             return round(f, 4)
