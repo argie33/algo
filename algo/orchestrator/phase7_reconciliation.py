@@ -18,6 +18,7 @@ def run(
     config: Any,
     run_date: _date,
     log_phase_result_fn: Callable,
+    dry_run: bool = False,
 ) -> PhaseResult:
     """Execute Phase 7: Reconciliation & Snapshot.
 
@@ -37,7 +38,7 @@ def run(
         from algo.signals.trade_performance import SignalTradePerformancePopulator
 
         recon = DailyReconciliation(config)
-        result = recon.run_daily_reconciliation(run_date)
+        result = recon.run_daily_reconciliation(run_date, dry_run=dry_run)
         reconciliation_succeeded = result.get("success", False)
         status = "success" if reconciliation_succeeded else "error"
 

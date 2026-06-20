@@ -49,8 +49,21 @@ class DailyReconciliation:
                 logger.warning(f"Failed to send credential failure notification: {notify_e}")
             raise ValueError(f"Alpaca credential initialization failed: {e}") from e
 
-    def run_daily_reconciliation(self, reconcile_date=None):
-        """Run full daily reconciliation."""
+    def run_daily_reconciliation(self, reconcile_date=None, dry_run=False):
+        """Run full daily reconciliation. If dry_run=True, skip Alpaca API calls and return mock data."""
+        if dry_run:
+            logger.info("[RECONCILIATION] DRY RUN: Returning mock portfolio snapshot")
+            return {
+                "success": True,
+                "portfolio_value": 100000.0,
+                "cash": 50000.0,
+                "positions": 0,
+                "unrealized_pnl": 0.0,
+                "unrealized_pnl_pct": 0.0,
+                "trades_closed_today": [],
+                "snapshot_date": reconcile_date or datetime.now(timezone.utc).date(),
+            }
+
         if not reconcile_date:
             reconcile_date = datetime.now(timezone.utc).date()
         elif isinstance(reconcile_date, str):
