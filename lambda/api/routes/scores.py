@@ -37,7 +37,7 @@ def handle(
             or path.startswith("/api/scores/stockscores?")
         ):
             limit_str = params.get("limit", [None])[0] if params else None
-            limit = safe_limit(limit_str, max_val=1000, default=1000)
+            limit = safe_limit(limit_str or "1000", max_val=1000)
             offset_str = params.get("offset", [None])[0] if params else None
             offset = safe_offset(offset_str)
             sort_by = (

@@ -21,6 +21,7 @@ from routes.utils import (
     normalize_to_utc_datetime,
     safe_json_serialize,
 )
+from types import JWTClaims, RouteBody, RouteParams, RouteResponse
 
 # setup_imports is imported by parent module (lambda_function or api_router),
 # so utils is already available in sys.path
@@ -75,10 +76,10 @@ def handle(
     cur,
     path: str,
     method: str,
-    params: dict,
-    body: dict | None = None,
-    jwt_claims: dict | None = None,
-) -> dict:
+    params: RouteParams,
+    body: RouteBody | None = None,
+    jwt_claims: JWTClaims | None = None,
+) -> RouteResponse:
     """Handle /api/admin/* endpoints for operational visibility."""
     try:
         # Require admin role for all admin endpoints (bypass in dev mode)

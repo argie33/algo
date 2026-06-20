@@ -59,8 +59,8 @@ def handle(
     try:
         limit_str = params.get("limit", [None])[0] if params else None
         offset_str = params.get("offset", [None])[0] if params else None
-        limit = safe_limit(limit_str, max_val=5000, default=500)
-        offset = safe_offset(offset_str)
+        limit = safe_limit(limit_str or "500", max_val=5000)
+        offset = safe_offset(offset_str or "0")
         cur.execute("SET LOCAL statement_timeout = '10000ms'")
 
         if path == "/api/audit/trail" or path.startswith("/api/audit/trail?"):

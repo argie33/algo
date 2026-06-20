@@ -18,6 +18,8 @@ from utils.trading import PositionStatus, TradeStatus
 
 logger = logging.getLogger(__name__)
 
+PORTFOLIO_SNAPSHOT_LOCK_ID = 2147483647
+
 
 class DailyReconciliation:
     """Daily reconciliation and portfolio snapshot creation."""
@@ -227,22 +229,18 @@ class DailyReconciliation:
                 # When price_daily has no entry, current_price must be NULL to indicate missing data.
                 # This prevents position_value from being calculated incorrectly (showing 0% gain/loss).
                 cur.execute("""
-                    WITH open_trades AS (
+                    WITH latest_prices AS (
+                        SELECT DISTINCT ON (symbol) symbol, close as current_price
+                        FROM price_daily
+                        ORDER BY symbol, date DESC
+                    ),
+                    open_trades AS (
                         SELECT DISTINCT ON (at.symbol)
                             at.symbol, at.entry_quantity as quantity, at.entry_price as avg_entry_price,
                             lp.current_price,
                             (at.entry_quantity * lp.current_price) as position_value
                         FROM algo_trades at
-                        LEFT JOIN (
-                            SELECT DISTINCT ON (symbol) symbol, close as current_price
-                            FROM price_daily
-                            WHERE symbol IN (
-                                SELECT DISTINCT symbol FROM algo_trades
-                                WHERE status IN ('open', 'filled', 'active', 'partially_filled')
-                                  AND exit_date IS NULL
-                            )
-                            ORDER BY symbol, date DESC
-                        ) lp ON at.symbol = lp.symbol
+                        LEFT JOIN latest_prices lp ON at.symbol = lp.symbol
                         WHERE at.status IN ('open', 'filled', 'active', 'partially_filled')
                           AND at.exit_date IS NULL
                         ORDER BY at.symbol, at.trade_date DESC
@@ -389,7 +387,6 @@ class DailyReconciliation:
 
                 market = cur.fetchone()
                 market_trend = market[0] if market else "unknown"
-                market[1] if market else 0
 
                 # Calculate additional metrics
                 cur.execute(
@@ -467,22 +464,25 @@ class DailyReconciliation:
                     except Exception as e:
                         logger.warning(f"Sharpe calculation failed: {e}")
 
-                cur.execute(
-                    """
-                    INSERT INTO algo_portfolio_snapshots (
-                        snapshot_date, total_portfolio_value, total_cash, total_equity,
-                        position_count, largest_position_pct, average_position_size_pct,
-                        concentration_risk_pct,
-                        realized_pnl_today, unrealized_pnl_total, unrealized_pnl_pct,
-                        unrealized_pnl_winning_count, unrealized_pnl_losing_count, unrealized_pnl_breakeven_count,
-                        unrealized_pnl_source,
-                        win_count_today, loss_count_today,
-                        daily_return_pct, cumulative_return_pct, max_drawdown_pct,
-                        sharpe_ratio, market_health_status, created_at
-                    ) VALUES (
-                        %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, CURRENT_TIMESTAMP
-                    )
-                    ON CONFLICT (snapshot_date) DO UPDATE SET
+                cur.execute("SELECT pg_advisory_lock(%s)", (PORTFOLIO_SNAPSHOT_LOCK_ID,))
+                cur.fetchone()
+                try:
+                    cur.execute(
+                        """
+                        INSERT INTO algo_portfolio_snapshots (
+                            snapshot_date, total_portfolio_value, total_cash, total_equity,
+                            position_count, largest_position_pct, average_position_size_pct,
+                            concentration_risk_pct,
+                            realized_pnl_today, unrealized_pnl_total, unrealized_pnl_pct,
+                            unrealized_pnl_winning_count, unrealized_pnl_losing_count, unrealized_pnl_breakeven_count,
+                            unrealized_pnl_source,
+                            win_count_today, loss_count_today,
+                            daily_return_pct, cumulative_return_pct, max_drawdown_pct,
+                            sharpe_ratio, market_health_status, created_at
+                        ) VALUES (
+                            %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, CURRENT_TIMESTAMP
+                        )
+                        ON CONFLICT (snapshot_date) DO UPDATE SET
                         total_portfolio_value = EXCLUDED.total_portfolio_value,
                         total_cash = EXCLUDED.total_cash,
                         total_equity = EXCLUDED.total_equity,
@@ -533,7 +533,9 @@ class DailyReconciliation:
                         sharpe_ratio,
                         market_trend,
                     ),
-                )
+                    )
+                finally:
+                    cur.execute("SELECT pg_advisory_unlock(%s)", (PORTFOLIO_SNAPSHOT_LOCK_ID,))
 
             logger.info("\n3. Portfolio Summary:")
             logger.info(f"   Total Value: ${total_equity:,.2f}")
@@ -1254,6 +1256,44 @@ class DailyReconciliation:
                 trade_id = f"EXT-{sym}"
                 cur.execute("SAVEPOINT retry_sp")
                 try:
+                    # Use ATR-based risk calculation (same as main import path)
+                    stop_loss_price_retry = None
+                    target_1_retry = None
+                    target_2_retry = None
+                    target_3_retry = None
+                    stop_loss_method_retry = "imported_retry_no_risk_calc"
+
+                    try:
+                        cur.execute(
+                            """
+                            SELECT atr FROM technical_data_daily
+                            WHERE symbol = %s AND atr IS NOT NULL
+                            ORDER BY date DESC LIMIT 1
+                        """,
+                            (sym,),
+                        )
+                        atr_retry_row = cur.fetchone()
+                        if atr_retry_row is not None and atr_retry_row[0] is not None:
+                            atr_retry = float(atr_retry_row[0])
+                            stop_loss_price_retry = max(0.01, avg_entry - (2 * atr_retry))
+                            stop_loss_method_retry = "imported_retry_2x_atr"
+                            r = avg_entry - stop_loss_price_retry
+                            target_1_retry = avg_entry + (2 * r)
+                            target_2_retry = avg_entry + (3 * r)
+                            target_3_retry = avg_entry + (4 * r)
+                    except Exception as atr_e:
+                        logger.error(
+                            f"[RETRY_IMPORT] Failed to calculate ATR-based stops for {sym}: {atr_e}"
+                        )
+
+                    # Fail hard if ATR calculation failed — don't fall back to percentages
+                    if stop_loss_price_retry is None:
+                        logger.warning(
+                            f"[RETRY_IMPORT] Skipping retry for {sym}: cannot calculate risk limits without ATR"
+                        )
+                        cur.execute("RELEASE SAVEPOINT retry_sp")
+                        continue
+
                     cur.execute(
                         "INSERT INTO algo_trades "
                         "(trade_id, symbol, signal_date, trade_date, entry_time, "
@@ -1267,9 +1307,9 @@ class DailyReconciliation:
                         "ON CONFLICT (trade_id) DO NOTHING",
                         (
                             trade_id, sym, avg_entry, int(qty),
-                            "EXTERNAL: retried import", avg_entry * 0.95,
-                            "imported_retry_default", avg_entry * 1.05,
-                            avg_entry * 1.10, avg_entry * 1.15,
+                            "EXTERNAL: retried import", stop_loss_price_retry,
+                            stop_loss_method_retry, target_1_retry,
+                            target_2_retry, target_3_retry,
                             PositionStatus.OPEN.value, "external",
                             f"ALPACA-EXT-{sym}", 0.0, "imported_external",
                         ),
@@ -1286,7 +1326,7 @@ class DailyReconciliation:
                         (
                             position_id, sym, int(qty), avg_entry, cur_price,
                             pos_value, pnl, pnl_pct, PositionStatus.OPEN.value,
-                            [trade_id], avg_entry * 0.95, avg_entry * 0.95,
+                            [trade_id], stop_loss_price_retry, stop_loss_price_retry,
                         ),
                     )
                     cur.execute(

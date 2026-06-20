@@ -263,7 +263,7 @@ def _dispatch(
         return _get_algo_status(cur)
     elif path == "/api/algo/trades":
         limit_str = params.get("limit", [None])[0] if params else None
-        limit = safe_limit(limit_str, max_val=10000, default=100)
+        limit = safe_limit(limit_str or "100", max_val=10000)
         status_filter = params.get("status", [None])[0] if params else None
         if status_filter and status_filter not in ("open", "closed", "halted", "cancelled"):
             raise_api_error(400, "bad_request", f"Invalid status '{status_filter}'. Must be one of: open, closed, halted, cancelled")
@@ -280,7 +280,7 @@ def _dispatch(
         return _get_circuit_breakers(cur)
     elif path == "/api/algo/equity-curve":
         days_str = params.get("limit", [None])[0] if params else None
-        days = safe_days(days_str, max_val=365, default=180)
+        days = safe_days(days_str or "180", max_val=365)
         return _get_equity_curve(cur, days)
     elif path == "/api/algo/data-status":
         return _get_data_status(cur)
@@ -302,13 +302,13 @@ def _dispatch(
             )
             raise_api_error(403, "forbidden", "Admin access required")
         limit_str = params.get("limit", [None])[0] if params else None
-        limit = safe_limit(limit_str, max_val=10000, default=100)
+        limit = safe_limit(limit_str or "100", max_val=10000)
         offset_str = params.get("offset", [None])[0] if params else None
-        offset = safe_offset(offset_str)
+        offset = safe_offset(offset_str or "0")
         return _get_patrol_log(cur, limit, offset)
     elif path == "/api/algo/sector-rotation":
         days_str = params.get("limit", [None])[0] if params else None
-        days = safe_days(days_str, max_val=365, default=180)
+        days = safe_days(days_str or "180", max_val=365)
         return _get_sector_rotation(cur, days)
     elif path == "/api/algo/sector-breadth":
         return _get_sector_breadth(cur)
@@ -316,7 +316,7 @@ def _dispatch(
         return _get_sector_position_warnings(cur)
     elif path == "/api/algo/swing-scores":
         limit_str = params.get("limit", [None])[0] if params else None
-        limit = safe_limit(limit_str, max_val=10000, default=100)
+        limit = safe_limit(limit_str or "100", max_val=10000)
         min_score_str = params.get("min_score", [None])[0] if params else None
         min_score = (
             safe_float_strict(min_score_str, context="query param min_score")
@@ -332,7 +332,7 @@ def _dispatch(
         return _get_swing_scores(cur, limit, min_score, symbol_filter)
     elif path == "/api/algo/swing-scores-history":
         days_str = params.get("days", [None])[0] if params else None
-        days = safe_days(days_str, max_val=365, default=30)
+        days = safe_days(days_str or "30", max_val=365)
         return _get_swing_scores_history(cur, days)
     elif path == "/api/algo/rejection-funnel":
         return _get_rejection_funnel(cur)
@@ -392,9 +392,9 @@ def _dispatch(
             )
             raise_api_error(403, "forbidden", "Admin access required")
         limit_str = params.get("limit", [None])[0] if params else None
-        limit = safe_limit(limit_str, max_val=10000, default=100)
+        limit = safe_limit(limit_str or "100", max_val=10000)
         offset_str = params.get("offset", [None])[0] if params else None
-        offset = safe_offset(offset_str)
+        offset = safe_offset(offset_str or "0")
         action_type = params.get("action_type", [None])[0] if params else None
         if action_type:
             action_type = action_type.lower()
@@ -425,9 +425,9 @@ def _dispatch(
             )
             raise_api_error(403, "forbidden", "Admin access required")
         days_str = params.get("days", [None])[0] if params else None
-        days = safe_days(days_str, default=7, max_val=90)
+        days = safe_days(days_str or "7", max_val=90)
         limit_str = params.get("limit", [None])[0] if params else None
-        limit = safe_limit(limit_str, max_val=1000, default=50)
+        limit = safe_limit(limit_str or "50", max_val=1000)
         return _get_orchestrator_execution_recent(cur, days, limit)
     elif path == "/api/algo/execution/failed":
         if not _check_admin_access(
@@ -438,7 +438,7 @@ def _dispatch(
             )
             raise_api_error(403, "forbidden", "Admin access required")
         days_str = params.get("days", [None])[0] if params else None
-        days = safe_days(days_str, default=30, max_val=90)
+        days = safe_days(days_str or "30", max_val=90)
         return _get_orchestrator_execution_failed(cur, days)
     elif path.startswith("/api/algo/execution/details/"):
         if not _check_admin_access(
@@ -459,7 +459,7 @@ def _dispatch(
             )
             raise_api_error(403, "forbidden", "Admin access required")
         days_str = params.get("days", [None])[0] if params else None
-        days = safe_days(days_str, default=30, max_val=90)
+        days = safe_days(days_str or "30", max_val=90)
         return _get_orchestrator_execution_patterns(cur, days)
     elif path == "/api/algo/execution/stats":
         if not _check_admin_access(
@@ -470,7 +470,7 @@ def _dispatch(
             )
             raise_api_error(403, "forbidden", "Admin access required")
         days_str = params.get("days", [None])[0] if params else None
-        days = safe_days(days_str, default=7, max_val=90)
+        days = safe_days(days_str or "7", max_val=90)
         return _get_orchestrator_execution_stats(cur, days)
     elif path == "/api/algo/daily-return-histogram":
         if path in ADMIN_RATE_LIMITS:

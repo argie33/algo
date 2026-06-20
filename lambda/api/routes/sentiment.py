@@ -140,9 +140,9 @@ def handle(
             )
         elif path == "/api/sentiment/data" or path.startswith("/api/sentiment/data?"):
             limit_str = params.get("limit", [None])[0] if params else None
-            limit = safe_limit(limit_str, max_val=50000, default=50000)
+            limit = safe_limit(limit_str or "50000", max_val=50000)
             page_str = params.get("page", [None])[0] if params else None
-            page = safe_page(page_str, default=1)
+            page = safe_page(page_str or "1")
             offset = (page - 1) * limit
             sentiment = execute_with_timeout(
                 cur,

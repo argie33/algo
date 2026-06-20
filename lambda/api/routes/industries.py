@@ -77,9 +77,9 @@ def handle(
 def _industry_list(cur, params):
     """Return all industries ranked by composite score with price-based performance."""
     limit_str = params.get("limit", [None])[0] if params else None
-    limit = safe_limit(limit_str, max_val=50000, default=500)
+    limit = safe_limit(limit_str or "500", max_val=50000)
     page_str = params.get("page", [None])[0] if params else None
-    page = safe_page(page_str, default=1)
+    page = safe_page(page_str or "1")
     offset = (page - 1) * limit
 
     industries_data = execute_with_timeout(
@@ -310,9 +310,9 @@ def _industry_detail(cur, industry_name):
 def _industry_trend(cur, industry_name, params):
     """Return daily price series for an industry (from price_daily, indexed to 100)."""
     days_str = params.get("days", [None])[0] if params else None
-    days = safe_days(days_str, max_val=365, default=90)
+    days = safe_days(days_str or "90", max_val=365)
     limit_str = params.get("limit", [None])[0] if params else None
-    limit = safe_limit(limit_str, max_val=252, default=90)
+    limit = safe_limit(limit_str or "90", max_val=252)
 
     cur.execute(
         """

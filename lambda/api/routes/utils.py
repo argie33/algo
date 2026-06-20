@@ -26,6 +26,29 @@ from utils.validation import APIResponseValidator
 
 logger = logging.getLogger(__name__)
 
+# Centralized query timeout configuration (milliseconds)
+# Values chosen based on expected query complexity and business impact
+QUERY_TIMEOUTS = {
+    "default": 5000,        # Standard list/filter queries
+    "count": 3000,          # COUNT(*) queries (fast)
+    "complex_join": 8000,   # Multi-table joins
+    "analytical": 15000,    # Analytical/aggregation queries
+    "list": 5000,           # Paginated list queries
+}
+
+
+def set_query_timeout(cur, timeout_ms: int = None, timeout_name: str = "default"):
+    """Set statement timeout for the current transaction.
+
+    Args:
+        cur: Database cursor
+        timeout_ms: Explicit timeout in milliseconds (overrides timeout_name)
+        timeout_name: Named timeout from QUERY_TIMEOUTS (default, count, complex_join, etc.)
+    """
+    if timeout_ms is None:
+        timeout_ms = QUERY_TIMEOUTS.get(timeout_name, QUERY_TIMEOUTS["default"])
+    cur.execute(f"SET LOCAL statement_timeout = '{timeout_ms}ms'")
+
 
 def normalize_to_utc_datetime(dt):
     """Convert date or naive/aware datetime to UTC-aware datetime.

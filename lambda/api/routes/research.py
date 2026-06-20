@@ -37,7 +37,7 @@ def handle(
             "/api/research/backtests?"
         ):
             limit_str = params.get("limit", [None])[0] if params else None
-            limit = safe_limit(limit_str, max_val=50000, default=50000)
+            limit = safe_limit(limit_str or "50000", max_val=50000)
             backtests = execute_with_timeout(
                 cur,
                 """
@@ -89,8 +89,8 @@ def handle(
 
             limit_str = params.get("limit", [None])[0] if params else None
             offset_str = params.get("offset", [None])[0] if params else None
-            limit = safe_limit(limit_str, max_val=50000, default=50000)
-            offset = safe_offset(offset_str)
+            limit = safe_limit(limit_str or "50000", max_val=50000)
+            offset = safe_offset(offset_str or "0")
 
             trades = execute_with_timeout(
                 cur,

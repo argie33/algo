@@ -68,9 +68,8 @@ def handle(
 
         if path == "/api/stocks/deep-value":
             limit = safe_limit(
-                params.get("limit", [None])[0] if params else None,
+                (params.get("limit", [None])[0] if params else None) or "200",
                 max_val=1000,
-                default=200,
             )
             # Fast check: return empty if financial data not loaded yet (table missing or empty)
             try:

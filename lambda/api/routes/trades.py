@@ -1,5 +1,7 @@
 """Route: trades"""
 
+import hashlib
+import json as _json
 import logging
 import os
 import uuid
@@ -34,6 +36,53 @@ def _check_admin_access(jwt_claims: Optional[Dict]) -> bool:
     return CognitoValidator.validate_admin_access(jwt_claims)
 
 
+def _compute_request_signature(idempotency_key: str, body: Dict) -> str:
+    """Compute a hash of the idempotency key and request body.
+
+    Returns a deterministic signature to detect duplicate requests.
+    """
+    content = _json.dumps({"key": idempotency_key, "body": body}, sort_keys=True)
+    return hashlib.sha256(content.encode()).hexdigest()
+
+
+def _check_idempotency(cur, signature: str) -> Optional[Dict]:
+    """Check if this request signature has been processed before.
+
+    Returns the cached response if found, None otherwise.
+    """
+    try:
+        cur.execute(
+            """
+            SELECT response_data FROM api_idempotency_cache
+            WHERE request_signature = %s AND created_at > NOW() - INTERVAL '24 hours'
+            LIMIT 1
+            """,
+            (signature,),
+        )
+        row = cur.fetchone()
+        if row:
+            return _json.loads(row[0])
+        return None
+    except (psycopg2.Error, _json.JSONDecodeError) as e:
+        logger.warning(f"Idempotency check failed: {e}")
+        return None
+
+
+def _store_idempotent_response(cur, signature: str, response: Dict) -> None:
+    """Cache the response for this idempotent request signature."""
+    try:
+        cur.execute(
+            """
+            INSERT INTO api_idempotency_cache (request_signature, response_data, created_at)
+            VALUES (%s, %s, NOW())
+            ON CONFLICT (request_signature) DO NOTHING
+            """,
+            (signature, _json.dumps(response)),
+        )
+    except psycopg2.Error as e:
+        logger.warning(f"Failed to cache idempotent response: {e}")
+
+
 def handle(
     cur,
     path: str,
@@ -41,20 +90,22 @@ def handle(
     params: Dict,
     body: Optional[Dict] = None,
     jwt_claims: Optional[Dict] = None,
+    headers: Optional[Dict] = None,
 ) -> Dict:
     """Handle /api/trades and /api/trades/* endpoints."""
     try:
         if path == "/api/trades/manual" and method == "POST":
             if os.environ.get("DEV_BYPASS_AUTH") != "true" and not _check_admin_access(jwt_claims):
                 raise_api_error(403, "forbidden", "Admin access required")
-            return _create_manual_trade(cur, body or {})
+            idempotency_key = (headers or {}).get("idempotency-key") if headers else None
+            return _create_manual_trade(cur, body or {}, idempotency_key)
         if path == "/api/trades":
             if os.environ.get("DEV_BYPASS_AUTH") != "true" and not _check_admin_access(jwt_claims):
                 raise_api_error(403, "forbidden", "Admin access required")
             limit_str = params.get("limit", [None])[0] if params else None
-            limit = safe_limit(limit_str, max_val=5000, default=500)
+            limit = safe_limit(limit_str or "500", max_val=5000)
             offset_str = params.get("offset", [None])[0] if params else None
-            offset = safe_offset(offset_str)
+            offset = safe_offset(offset_str or "0")
             status_filter = params.get("status", [None])[0] if params else None
 
             # SECURITY FIX: Validate status filter against whitelist (enum validation)
@@ -73,35 +124,34 @@ def handle(
                     )
                 status_filter = status_filter.lower()
 
-            query = """
-                    SELECT trade_id, symbol, signal_date, trade_date, entry_time,
-                           entry_price, entry_quantity, entry_reason,
-                           exit_price, exit_date, exit_reason,
-                           stop_loss_price, status, profit_loss_dollars, profit_loss_pct,
-                           execution_mode, created_at
-                    FROM algo_trades
-                    WHERE 1=1
-                """
+            where_clauses = []
             args = []
             if status_filter:
-                query += " AND status = %s"
+                where_clauses.append("status = %s")
                 args.append(status_filter)
-            query += " ORDER BY created_at DESC LIMIT %s OFFSET %s"
+
+            where_sql = " AND ".join(where_clauses) if where_clauses else "1=1"
+            query = f"""
+                SELECT trade_id, symbol, signal_date, trade_date, entry_time,
+                       entry_price, entry_quantity, entry_reason,
+                       exit_price, exit_date, exit_reason,
+                       stop_loss_price, status, profit_loss_dollars, profit_loss_pct,
+                       execution_mode, created_at
+                FROM algo_trades
+                WHERE {where_sql}
+                ORDER BY created_at DESC LIMIT %s OFFSET %s
+            """
             args.extend([limit, offset])
             cur.execute("SET LOCAL statement_timeout = '5000ms'")
-            cur.execute(query, args)
+            cur.execute(query, args[:-2])  # Exclude limit and offset from trade query
             trades = cur.fetchall()
-            # Count total trades
-            count_query = "SELECT COUNT(*) FROM algo_trades WHERE 1=1"
-            count_args = []
-            if status_filter:
-                count_query += " AND status = %s"
-                count_args.append(status_filter)
+            # Count total trades (reuse where_sql and first N args, exclude limit/offset)
+            count_query = f"SELECT COUNT(*) FROM algo_trades WHERE {where_sql}"
+            count_args = args[:-2]
             cur.execute("SET LOCAL statement_timeout = '3000ms'")
             cur.execute(count_query, count_args)
-            total = next(
-                iter(safe_json_serialize(dict(cur.fetchone() or {})).values()), 0
-            )
+            count_row = cur.fetchone()
+            total = count_row[0] if count_row and count_row[0] is not None else 0
             freshness = check_data_freshness(
                 cur, "algo_trades", "created_at", warning_days=1
             )
@@ -135,9 +185,21 @@ def handle(
         raise_db_error(e, "handle trades")
 
 
-def _create_manual_trade(cur, body: Dict) -> Dict:
-    """POST /api/trades/manual — manually log a trade entry."""
+def _create_manual_trade(cur, body: Dict, idempotency_key: Optional[str] = None) -> Dict:
+    """POST /api/trades/manual — manually log a trade entry.
+
+    If idempotency_key is provided, uses it to prevent duplicate requests.
+    Returns cached response if the same request is retried within 24 hours.
+    """
     try:
+        signature = None
+        if idempotency_key:
+            signature = _compute_request_signature(idempotency_key, body)
+            cached = _check_idempotency(cur, signature)
+            if cached:
+                logger.info(f"Returning cached response for idempotent request: {idempotency_key}")
+                return cached
+
         try:
             req = ManualTradeRequest(**body)
         except ValidationError as e:
@@ -182,13 +244,18 @@ def _create_manual_trade(cur, body: Dict) -> Dict:
             ),
         )
         row = cur.fetchone()
-        return json_response(
+        response = json_response(
             201,
             {
                 "success": True,
                 "data": {"id": row["trade_id"], "trade_id": row["trade_id"]},
             },
         )
+
+        if signature:
+            _store_idempotent_response(cur, signature, response)
+
+        return response
     except (
         psycopg2.errors.UndefinedTable,
         psycopg2.errors.UndefinedColumn,

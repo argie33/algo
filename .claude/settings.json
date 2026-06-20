@@ -1,15 +1,21 @@
 {
   "permissions": {
     "allow": [
+      "Bash",
+      "PowerShell",
       "Bash(aws *)",
       "PowerShell(aws *)",
       "Bash(git *)",
       "PowerShell(git *)",
       "Bash(npm *)",
+      "Bash(python *)",
+      "PowerShell(python *)",
       "Bash(node *)",
       "Read",
       "Glob",
-      "Grep"
+      "Grep",
+      "Edit",
+      "Write"
     ]
   },
   "todoFeatureEnabled": true,

@@ -38,7 +38,7 @@ def handle(
         ):
             sectors_str = params.get("sectors", [None])[0] if params else None
             days_str = params.get("days", [None])[0] if params else None
-            days = safe_days(days_str, max_val=365, default=90)
+            days = safe_days(days_str or "90", max_val=365)
 
             if not sectors_str:
                 return error_response(
@@ -82,7 +82,7 @@ def handle(
         if sector_name and sector_name not in ("performance", "trends-batch"):
             if path.endswith("/trend") or path.endswith("/trend/"):
                 days_str = params.get("days", [None])[0] if params else None
-                days = safe_days(days_str, max_val=365, default=90)
+                days = safe_days(days_str or "90", max_val=365)
                 # Set timeout for trend query (10s for window function aggregations)
                 cur.execute("SET LOCAL statement_timeout = '10000ms'")
                 # All camelCase aliases double-quoted so psycopg2 preserves case
@@ -133,7 +133,7 @@ def handle(
                 return json_response(200, {"trendData": trend_data})
             else:
                 days_str = params.get("days", [None])[0] if params else None
-                days = safe_days(days_str, max_val=365, default=90)
+                days = safe_days(days_str or "90", max_val=365)
                 cur.execute("SET LOCAL statement_timeout = '5000ms'")
                 cur.execute(
                     """
@@ -148,9 +148,9 @@ def handle(
                 return list_response([safe_json_serialize(dict(r)) for r in rows])
         elif path in ("/api/sectors", "/api/sectors/performance"):
             limit_str = params.get("limit", [None])[0] if params else None
-            limit = safe_limit(limit_str, max_val=50000, default=50000)
+            limit = safe_limit(limit_str or "50000", max_val=50000)
             page_str = params.get("page", [None])[0] if params else None
-            page = safe_page(page_str, default=1)
+            page = safe_page(page_str or "1")
             offset = (page - 1) * limit
 
             # Set timeout for complex sector ranking query with multiple CTEs and joins
@@ -402,7 +402,7 @@ def handle(
             parts = path.split("/")
             sector_name = parts[3] if len(parts) > 3 else None
             days_str = params.get("days", [None])[0] if params else None
-            days = safe_days(days_str, max_val=365, default=90)
+            days = safe_days(days_str or "90", max_val=365)
             if not sector_name:
                 return error_response(400, "bad_request", "Sector name required")
             cur.execute("SET LOCAL statement_timeout = '10000ms'")

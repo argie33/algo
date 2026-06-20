@@ -77,33 +77,30 @@ def handle(
                 start_date = params.get("start_date", [None])[0] if params else None
                 end_date = params.get("end_date", [None])[0] if params else None
                 query_params = []
-                date_filter = ""
+
+                where_clauses = []
                 if start_date:
-                    date_filter += " AND event_date >= %s"
+                    where_clauses.append("event_date >= %s")
                     query_params.append(start_date)
                 if end_date:
-                    date_filter += " AND event_date <= %s"
+                    where_clauses.append("event_date <= %s")
                     query_params.append(end_date)
                 else:
-                    date_filter += (
-                        " AND event_date >= CURRENT_DATE - INTERVAL '90 days'"
-                    )
-                query = (
-                    """
-                        SELECT event_date, event_name, country, importance,
-                               category, event_time,
-                               forecast_value AS forecast,
-                               actual_value AS actual,
-                               previous_value AS previous
-                        FROM economic_calendar
-                        WHERE 1=1
-                    """
-                    + date_filter
-                    + """
-                        ORDER BY event_date DESC
-                        LIMIT 200
-                    """
-                )
+                    where_clauses.append("event_date >= CURRENT_DATE - INTERVAL '90 days'")
+
+                where_sql = " AND ".join(where_clauses)
+
+                query = f"""
+                    SELECT event_date, event_name, country, importance,
+                           category, event_time,
+                           forecast_value AS forecast,
+                           actual_value AS actual,
+                           previous_value AS previous
+                    FROM economic_calendar
+                    WHERE {where_sql}
+                    ORDER BY event_date DESC
+                    LIMIT 200
+                """
                 cur.execute(query, tuple(query_params))
                 events = cur.fetchall()
                 freshness = check_data_freshness(
