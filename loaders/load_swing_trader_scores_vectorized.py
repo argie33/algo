@@ -80,11 +80,23 @@ class VectorizedSwingScoresLoader:
                     "Add signal_quality_scores back to EOD pipeline if this persists."
                 )
 
-            # STEP 2: Fetch technical data
+            # STEP 2: Fetch technical data (critical — cannot compute without)
             technical_data = self._fetch_technical_data(symbols, start_date, end_date)
+            if technical_data.empty:
+                raise RuntimeError(
+                    "[TECHNICAL] No technical indicator data found. "
+                    "technical_data_daily table may be empty or stale. "
+                    "Run load_technical_data_daily_vectorized.py first."
+                )
 
-            # STEP 3: Fetch trend template data
+            # STEP 3: Fetch trend template data (critical — cannot compute without)
             trend_data = self._fetch_trend_template_data(symbols, start_date, end_date)
+            if trend_data.empty:
+                raise RuntimeError(
+                    "[TREND] No trend template data found. "
+                    "trend_template_data table may be empty or stale. "
+                    "Run load_trend_template_data.py first."
+                )
 
             # STEP 4: Compute scores for ALL symbols vectorized
             scores_df = self._compute_all_scores_vectorized(
@@ -92,8 +104,10 @@ class VectorizedSwingScoresLoader:
             )
 
             if scores_df.empty:
-                logger.warning("No scores computed")
-                return {"symbols_processed": 0, "rows_inserted": 0, "duration_sec": 0}
+                raise RuntimeError(
+                    "Score computation resulted in empty dataset. "
+                    "Check that technical and trend data have overlapping symbol/date ranges."
+                )
 
             # STEP 5: Bulk insert
             inserted = self._bulk_insert(scores_df)
