@@ -154,8 +154,8 @@ def run(
         return PhaseResult(
             "3b",
             "exposure_policy",
-            "ok",
+            "degraded",
             {"constraints": conservative_constraints, "actions": []},
             False,
-            None,
+            str(e),
         )

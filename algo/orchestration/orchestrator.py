@@ -950,8 +950,10 @@ class Orchestrator:
             self.verbose,
             self.log_phase_result,
         )
+        if not result.ok:
+            return False
         self._position_recs = result.data.get("recommendations", [])
-        return True  # fail-open
+        return True
 
     def phase_3b_exposure_policy(self) -> bool:
         """Thin delegation to phase3b_exposure_policy module."""
@@ -966,9 +968,11 @@ class Orchestrator:
             self.verbose,
             self.log_phase_result,
         )
+        if not result.ok:
+            return False
         self._exposure_constraints = result.data.get("constraints")
         self._exposure_actions = result.data.get("actions", [])
-        return True  # fail-open
+        return True
 
     def phase_4_exit_execution(self) -> bool:
         """Thin delegation to phase4_exit_execution module."""

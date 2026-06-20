@@ -114,5 +114,5 @@ def run(
         traceback.print_exc()
         log_phase_result_fn(3, "position_monitor", "error", str(e))
         return PhaseResult(
-            3, "position_monitor", "ok", {"recommendations": []}, False, str(e)
+            3, "position_monitor", "degraded", {"recommendations": []}, False, str(e)
         )
