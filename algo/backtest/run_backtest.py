@@ -53,8 +53,7 @@ def _get_trading_dates(start: date, end: date) -> list[date]:
             )
             return [row[0] for row in cur.fetchall()]
     except Exception as e:
-        logger.error(f"Failed to get trading dates: {e}")
-        return []
+        raise RuntimeError(f"[BACKTEST] FATAL: Cannot fetch trading dates from price_daily: {e}") from e
 
 
 def _get_daily_buy_signals(signal_date: date, min_composite: float) -> list[dict]:
@@ -107,8 +106,7 @@ def _get_daily_buy_signals(signal_date: date, min_composite: float) -> list[dict
 
         return signals
     except Exception as e:
-        logger.warning(f"Failed to get buy signals for {signal_date}: {e}")
-        return []
+        raise RuntimeError(f"[BACKTEST] FATAL: Cannot fetch buy signals for {signal_date}: {e}") from e
 
 
 def _get_daily_sell_signals(signal_date: date) -> set:
@@ -121,8 +119,7 @@ def _get_daily_sell_signals(signal_date: date) -> set:
             )
             return {row[0] for row in cur.fetchall()}
     except Exception as e:
-        logger.warning(f"Failed to get sell signals for {signal_date}: {e}")
-        return set()
+        raise RuntimeError(f"[BACKTEST] FATAL: Cannot fetch sell signals for {signal_date}: {e}") from e
 
 
 def _get_price_on_date(symbol: str, target_date: date) -> float | None:
@@ -156,8 +153,7 @@ def _get_prices_batch(symbols: list[str], target_date: date) -> dict[str, float]
             )
             return {r[0]: float(r[1]) for r in cur.fetchall() if r[1] is not None}
     except Exception as e:
-        logger.warning(f"Failed to batch fetch prices: {e}")
-        return {}
+        raise RuntimeError(f"[BACKTEST] FATAL: Cannot fetch prices for symbols: {e}") from e
 
 
 def run_backtest(
@@ -181,8 +177,7 @@ def run_backtest(
 
     trading_dates = _get_trading_dates(start_date, end_date)
     if not trading_dates:
-        logger.error("[BACKTEST] No trading dates found in price_daily")
-        return {}
+        raise RuntimeError(f"[BACKTEST] FATAL: No trading dates found in price_daily between {start_date} and {end_date}")
 
     logger.info(f"[BACKTEST] {len(trading_dates)} trading days to simulate")
 

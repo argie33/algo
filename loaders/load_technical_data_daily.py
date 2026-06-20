@@ -7,7 +7,6 @@ Required by Phase 1 data freshness check.
 Run: python3 load_technical_data_daily.py [--symbols AAPL,MSFT] [--parallelism 8]
 """
 
-import argparse
 import logging
 import sys
 from datetime import date, datetime, timedelta, timezone
@@ -18,6 +17,7 @@ import psycopg2
 import psycopg2.sql
 from pandas.tseries.offsets import CustomBusinessDay
 
+from loaders.runner import run_loader
 from loaders.technical_indicators import (
     compute_adx,
     compute_atr,
@@ -30,8 +30,6 @@ from loaders.technical_indicators import (
 from utils.db.context import DatabaseContext
 from utils.db.sql_safety import assert_safe_table
 from utils.infrastructure.timezone import EASTERN_TZ
-from utils.loaders.config import get_default_parallelism
-from utils.loaders.helpers import get_active_symbols
 from utils.optimal_loader import OptimalLoader
 
 
@@ -44,7 +42,7 @@ class TechnicalDataDailyLoader(OptimalLoader):
     watermark_field = "date"
 
     def fetch_incremental(self, symbol: str, since: date | None):
-        from datetime import datetime, timezone
+        from datetime import datetime
 
         from algo.infrastructure import MarketCalendar
 
@@ -287,6 +285,7 @@ class TechnicalDataDailyLoader(OptimalLoader):
         # rs_line = close / spy_close; requires SPY prices aligned to same dates
         if spy_rows:
             import numpy as np
+
             from algo.infrastructure.market_calendar import US_HOLIDAYS
 
             spy_df = pd.DataFrame(spy_rows)
@@ -402,117 +401,6 @@ class TechnicalDataDailyLoader(OptimalLoader):
         return records
 
 
-def main():
-    import time
-    from datetime import datetime
-
-    from utils.db.context import DatabaseContext
-
-    start_time = time.time()
-    parser = argparse.ArgumentParser(description="Load technical indicators")
-    parser.add_argument("--symbols", type=str, help="Comma-separated symbols")
-    parser.add_argument(
-        "--parallelism",
-        type=int,
-        default=get_default_parallelism("technical_data_daily"),
-        help="Parallel workers",
-    )
-    args = parser.parse_args()
-
-    try:
-        if args.symbols:
-            symbols = args.symbols.split(",")
-            logger.info(f"Using {len(symbols)} symbols from command line")
-        else:
-            logger.info("Fetching active symbols from database...")
-            symbols = get_active_symbols(timeout_secs=300)
-            if not symbols:
-                logger.warning("No symbols found in stock_symbols table - exiting")
-                return 1
-            logger.info(f"Loaded {len(symbols)} active symbols")
-    except Exception as e:
-        logger.error(f"Failed to get symbols: {e}", exc_info=True)
-        return 1
-
-    logger.info(
-        f"Starting technical data loader with {len(symbols)} symbols, parallelism={args.parallelism}"
-    )
-
-    # NOTE: For large-scale production (5000+ symbols), consider using load_technical_data_daily_vectorized.py
-    # which is 4-6x faster by fetching all prices in 1 query and computing indicators vectorized.
-    # The per-symbol approach below is kept for backward compatibility and incremental loads.
-
-    loader = TechnicalDataDailyLoader()
-    try:
-        result = loader.run(symbols, parallelism=args.parallelism)
-        logger.info(f"Technical data daily load completed: {result}")
-        duration_seconds = time.time() - start_time
-
-        # Log execution time for performance monitoring
-        try:
-            with DatabaseContext("write") as cur:
-                cur.execute(
-                    """
-                    INSERT INTO data_loader_runs (
-                        loader_name, table_name, run_date, status, records_loaded,
-                        duration_seconds, started_at, completed_at
-                    ) VALUES (
-                        %s, %s, %s, %s, %s, %s, NOW(), NOW()
-                    )
-                    ON CONFLICT (loader_name, run_date) DO UPDATE SET
-                        status = EXCLUDED.status,
-                        records_loaded = EXCLUDED.records_loaded,
-                        duration_seconds = EXCLUDED.duration_seconds,
-                        completed_at = NOW()
-                """,
-                    (
-                        "technical_data_daily",
-                        "technical_data_daily",
-                        datetime.now(timezone.utc).date(),
-                        "completed",
-                        result.get("rows_inserted", 0) if result else 0,
-                        round(duration_seconds, 2),
-                    ),
-                )
-        except Exception as e:
-            logger.error(f"Failed to log execution time: {e}")
-
-        return 0
-    except Exception as e:
-        duration_seconds = time.time() - start_time
-        logger.error(f"Technical data daily load failed: {e}", exc_info=True)
-
-        # Log failure
-        try:
-            with DatabaseContext("write") as cur:
-                cur.execute(
-                    """
-                    INSERT INTO data_loader_runs (
-                        loader_name, table_name, run_date, status, error_message,
-                        duration_seconds, started_at, completed_at
-                    ) VALUES (
-                        %s, %s, %s, %s, %s, %s, NOW(), NOW()
-                    )
-                    ON CONFLICT (loader_name, run_date) DO UPDATE SET
-                        status = EXCLUDED.status,
-                        error_message = EXCLUDED.error_message,
-                        duration_seconds = EXCLUDED.duration_seconds,
-                        completed_at = NOW()
-                """,
-                    (
-                        "technical_data_daily",
-                        "technical_data_daily",
-                        datetime.now(timezone.utc).date(),
-                        "failed",
-                        str(e),
-                        round(duration_seconds, 2),
-                    ),
-                )
-        except Exception as log_err:
-            logger.error(f"Failed to log failure: {log_err}")
-
-        return 1
-
 
 if __name__ == "__main__":
-    sys.exit(main())
+    sys.exit(run_loader(TechnicalDataDailyLoader))

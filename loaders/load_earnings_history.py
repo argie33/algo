@@ -12,17 +12,14 @@ Run:
     python3 loadearningshistory.py [--symbols AAPL,MSFT] [--parallelism 8]
 """
 
-import argparse
 import logging
-
-from utils.loaders.helpers import get_active_symbols
 
 
 logger = logging.getLogger(__name__)
 from datetime import date
 from typing import Optional
 
-from utils.loaders.config import get_default_parallelism
+from loaders.runner import run_loader
 from utils.optimal_loader import OptimalLoader
 
 
@@ -117,38 +114,6 @@ class EarningsHistoryLoader(OptimalLoader):
         return bool(row.get("quarter")) and bool(row.get("earnings_date"))
 
 
-def main():
-    parser = argparse.ArgumentParser(description="Optimal earnings_history loader")
-    parser.add_argument(
-        "--symbols", help="Comma-separated symbols. Default: all from stocks table."
-    )
-    parser.add_argument(
-        "--parallelism",
-        type=int,
-        default=get_default_parallelism("earnings_history"),
-        help="Concurrent workers",
-    )
-    args = parser.parse_args()
-
-    if args.symbols:
-        symbols = [s.strip().upper() for s in args.symbols.split(",")]
-    else:
-        symbols = get_active_symbols(timeout_secs=60)
-
-    loader = EarningsHistoryLoader()
-    try:
-        stats = loader.run(symbols, parallelism=args.parallelism)
-    finally:
-        loader.close()
-
-    fail_rate = stats.get("symbols_failed", 0) / max(len(symbols), 1)
-    if fail_rate > 0.05:
-        logger.error(
-            f"Too many failures: {stats['symbols_failed']}/{len(symbols)} ({fail_rate*100:.1f}%)"
-        )
-        return 1
-    return 0
-
 
 if __name__ == "__main__":
-    sys.exit(main())
+    sys.exit(run_loader(EarningsHistoryLoader))

@@ -192,7 +192,7 @@ def _compute_weekly_loss(cur, today: date) -> float:
     return round(loss, 2)
 
 
-def _compute_market_stage(cur) -> Optional[int]:
+def _compute_market_stage(cur) -> int | None:
     """Get latest market stage from market_health_daily. Returns None if not available (fail-closed)."""
     cur.execute("""
         SELECT market_stage FROM market_health_daily

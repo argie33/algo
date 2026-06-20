@@ -14,6 +14,7 @@ import sys
 from datetime import date, datetime
 from typing import Any, List, Optional
 
+from loaders.runner import run_loader
 from utils.db.context import DatabaseContext
 from utils.infrastructure.timezone import EASTERN_TZ
 from utils.optimal_loader import OptimalLoader
@@ -186,21 +187,6 @@ class EconomicMetricsDailyLoader(OptimalLoader):
             )
 
 
-def main():
-    try:
-        loader = EconomicMetricsDailyLoader()
-        result = loader.load_global()
-
-        if result > 0:
-            logger.info(f"SUCCESS: {result} economic metric records computed")
-            return 0
-        else:
-            logger.error("FAILED: No economic metrics computed (insufficient data)")
-            return 1
-    except Exception as e:
-        logger.error(f"Economic metrics daily load failed: {e}", exc_info=True)
-        return 1
-
 
 if __name__ == "__main__":
-    sys.exit(main())
+    sys.exit(run_loader(EconomicMetricsDailyLoader, global_mode=True))

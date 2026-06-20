@@ -6,6 +6,7 @@ import sys
 from datetime import date, datetime, timezone
 from typing import Any, List, Optional
 
+from loaders.runner import run_loader
 from utils.db.context import DatabaseContext
 from utils.infrastructure.timezone import EASTERN_TZ
 from utils.optimal_loader import OptimalLoader
@@ -173,17 +174,6 @@ class RLadderDistributionDailyLoader(OptimalLoader):
             return "> 2R"
 
 
-def main():
-    loader = RLadderDistributionDailyLoader()
-    result = loader.load_global()
-
-    if result and result > 0:
-        logger.info(f"SUCCESS: {result} R-ladder buckets computed")
-        return 0
-    else:
-        logger.warning("COMPLETED: No buckets computed")
-        return 0
-
 
 if __name__ == "__main__":
-    sys.exit(main())
+    sys.exit(run_loader(RLadderDistributionDailyLoader, global_mode=True))

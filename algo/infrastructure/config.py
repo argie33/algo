@@ -20,9 +20,13 @@ logger = logging.getLogger(__name__)
 
 
 def validate_environment():
-    """Validate that all required environment variables are set."""
+    """Validate that all required environment variables are set at startup.
+
+    Fails FAST with RuntimeError if any critical credential is missing.
+    This prevents the app from starting and trading with incomplete credentials.
+    """
     try:
-        assert_credentials(on_failure="warn")
+        assert_credentials(on_failure="raise")
     except Exception as e:
         logger.error(f"Credential validation failed: {e}")
         raise RuntimeError(f"Critical credential error: {e}")
@@ -1362,9 +1366,18 @@ class AlgoConfig:
 
         value = self._config.get(key)
         if value is None:
+            # Check if this is a critical parameter using fallback
+            if key in self.VALIDATION_SCHEMA:
+                is_critical = self.VALIDATION_SCHEMA[key][3]
+                if is_critical:
+                    logger.warning(
+                        f"[CONFIG FALLBACK] Critical parameter {key!r} not in database. "
+                        f"Using default: {default!r}. Set via config.set() to override."
+                    )
             return default
 
         # FIXED Issue #8: Validate type safety at retrieval time
+        # FIXED Cluster 6: Detect runtime safety gate corruption (zero critical values)
         if key in self.VALIDATION_SCHEMA:
             expected_type = self.VALIDATION_SCHEMA[key][0]
             is_critical = self.VALIDATION_SCHEMA[key][3]
@@ -1388,6 +1401,21 @@ class AlgoConfig:
                 else:
                     # Return provided default for non-critical values
                     return default
+
+            # Detect safety gate corruption at runtime (critical value set to zero after startup)
+            if is_critical and expected_type in ("int", "float"):
+                try:
+                    f_val = float(value)
+                    if abs(f_val) < 0.001:
+                        logger.error(
+                            f"[CONFIG SAFETY GATE CORRUPTION] Critical parameter {key!r} = {f_val} (zero/near-zero). "
+                            f"This disables a safety protection. Returning fail-closed value {fail_closed_value}. "
+                            f"Action: Restore valid value in database or run migration-033 to reset to safe defaults."
+                        )
+                        if fail_closed_value is not None:
+                            return fail_closed_value
+                except (ValueError, TypeError):
+                    pass  # Type validation already caught this above
 
         return value
 

@@ -1797,7 +1797,7 @@ class DailyReconciliation:
                             f"Using oldest database snapshot as initial capital: ${val:,.2f}"
                         )
                         return val
-            except Exception as e:
+            except (psycopg2.DatabaseError, psycopg2.OperationalError, ValueError, TypeError) as e:
                 logger.warning(f"Could not query database for initial capital: {e}")
             raise ValueError(
                 "Cannot determine initial capital: no Alpaca credentials and no database history"
@@ -1829,7 +1829,7 @@ class DailyReconciliation:
             logger.warning(
                 f"Alpaca portfolio history unavailable (HTTP {resp.status_code}); checking database"
             )
-        except Exception as e:
+        except (requests.RequestException, requests.Timeout, ValueError, KeyError) as e:
             logger.warning(
                 f"Could not fetch Alpaca portfolio history: {e}; checking database"
             )
@@ -1847,7 +1847,7 @@ class DailyReconciliation:
                         f"Using oldest database snapshot as initial capital: ${val:,.2f}"
                     )
                     return val
-        except Exception as e:
+        except (psycopg2.DatabaseError, psycopg2.OperationalError, ValueError, TypeError) as e:
             logger.warning(f"Could not query database for initial capital: {e}")
 
         raise ValueError(

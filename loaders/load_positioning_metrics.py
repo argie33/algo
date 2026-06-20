@@ -17,13 +17,11 @@ from loaders.loader_helper import setup_imports
 
 setup_imports()
 
-import argparse
 import logging
 from datetime import date, datetime, timezone
 from typing import Dict, Optional
 
-from utils.loaders.config import get_default_parallelism
-from utils.loaders.helpers import get_active_symbols
+from loaders.runner import run_loader
 from utils.optimal_loader import OptimalLoader
 
 
@@ -135,34 +133,6 @@ class PositioningMetricsLoader(OptimalLoader):
         return row.get("symbol") is not None
 
 
-def main():
-    parser = argparse.ArgumentParser(description="Positioning Metrics Loader")
-    parser.add_argument("--symbols", type=str, help="Comma-separated symbols")
-    parser.add_argument(
-        "--parallelism",
-        type=int,
-        default=get_default_parallelism("positioning_metrics"),
-        help="Concurrent workers",
-    )
-    args = parser.parse_args()
-
-    symbols = (
-        args.symbols.split(",") if args.symbols else get_active_symbols(timeout_secs=60)
-    )
-    loader = PositioningMetricsLoader()
-    try:
-        stats = loader.run(symbols, parallelism=args.parallelism)
-    finally:
-        loader.close()
-
-    fail_rate = stats.get("symbols_failed", 0) / max(len(symbols), 1)
-    if fail_rate > 0.05:
-        logger.error(
-            f"Too many failures: {stats['symbols_failed']}/{len(symbols)} ({fail_rate*100:.1f}%)"
-        )
-        return 1
-    return 0
-
 
 if __name__ == "__main__":
-    sys.exit(main())
+    sys.exit(run_loader(PositioningMetricsLoader))

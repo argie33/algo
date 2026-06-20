@@ -6,6 +6,7 @@ import sys
 from datetime import date
 from typing import List, Optional
 
+from loaders.runner import run_loader
 from utils.optimal_loader import OptimalLoader
 
 
@@ -75,21 +76,6 @@ class SentimentAggregateLoader(OptimalLoader):
             raise RuntimeError(f"Operation failed: {e}") from e
 
 
-def main():
-    try:
-        loader = SentimentAggregateLoader()
-        result = loader.load_global()
-
-        if result > 0:
-            logger.info("SUCCESS: Sentiment aggregate loaded")
-            return 0
-        else:
-            logger.error("FAILED: No sentiment aggregated")
-            return 1
-    except Exception as e:
-        logger.error(f"Sentiment aggregate load failed: {e}", exc_info=True)
-        return 1
-
 
 if __name__ == "__main__":
-    sys.exit(main())
+    sys.exit(run_loader(SentimentAggregateLoader, global_mode=True))

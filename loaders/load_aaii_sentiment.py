@@ -13,6 +13,7 @@ import pandas as pd
 import requests
 
 from config.api_endpoints import get_aaii_sentiment_url
+from loaders.runner import run_loader
 from utils.infrastructure.timeout import ExecutionTimeout
 from utils.infrastructure.url_validator import validate_redirect_url, validate_url
 from utils.optimal_loader import OptimalLoader
@@ -228,24 +229,6 @@ class AAIISentimentLoader(OptimalLoader):
         )
 
 
-def main():
-    try:
-        # Execution timeout: AAII Excel download + parsing typically takes 30-60s
-        # Set limit to 5 min (300s) to catch hanging downloads early
-        with ExecutionTimeout(max_seconds=300, label="load_aaii_sentiment"):
-            loader = AAIISentimentLoader()
-            result = loader.load_global()
-
-            if result > 0:
-                logger.info(f"SUCCESS: {result} AAII sentiment records loaded")
-                return 0
-            else:
-                logger.error("FAILED: No AAII sentiment records loaded")
-                return 1
-    except Exception as e:
-        logger.error(f"AAII sentiment load failed: {e}", exc_info=True)
-        return 1
-
 
 if __name__ == "__main__":
-    sys.exit(main())
+    sys.exit(run_loader(AAIISentimentLoader, global_mode=True))

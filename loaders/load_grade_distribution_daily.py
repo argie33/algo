@@ -18,9 +18,9 @@ Runs after swing_trader_scores is loaded (end of day pipeline).
 import logging
 import sys
 from datetime import date, datetime
-from typing import Any
-from typing import List, Optional
+from typing import Any, List, Optional
 
+from loaders.runner import run_loader
 from utils.db.context import DatabaseContext
 from utils.infrastructure.timezone import EASTERN_TZ
 from utils.optimal_loader import OptimalLoader
@@ -113,21 +113,6 @@ class GradeDistributionDailyLoader(OptimalLoader):
             raise RuntimeError(f"Operation failed: {e}") from e
 
 
-def main():
-    try:
-        loader = GradeDistributionDailyLoader()
-        result = loader.load_global()
-
-        if result > 0:
-            logger.info(f"SUCCESS: {result} grade distribution records computed")
-            return 0
-        else:
-            logger.error("FAILED: No grade distribution computed (insufficient data)")
-            return 1
-    except Exception as e:
-        logger.error(f"Grade distribution daily load failed: {e}", exc_info=True)
-        return 1
-
 
 if __name__ == "__main__":
-    sys.exit(main())
+    sys.exit(run_loader(GradeDistributionDailyLoader, global_mode=True))

@@ -6,6 +6,7 @@ import sys
 from datetime import date, datetime, timezone
 from typing import List, Optional
 
+from loaders.runner import run_loader
 from utils.db.context import DatabaseContext
 from utils.infrastructure.timezone import EASTERN_TZ
 from utils.optimal_loader import OptimalLoader
@@ -96,17 +97,6 @@ class SectorAllocationDailyLoader(OptimalLoader):
             raise RuntimeError(f"Operation failed: {e}") from e
 
 
-def main():
-    loader = SectorAllocationDailyLoader()
-    result = loader.load_global()
-
-    if result and result > 0:
-        logger.info(f"SUCCESS: {result} sector allocations computed")
-        return 0
-    else:
-        logger.warning("COMPLETED: No allocations computed")
-        return 0
-
 
 if __name__ == "__main__":
-    sys.exit(main())
+    sys.exit(run_loader(SectorAllocationDailyLoader, global_mode=True))

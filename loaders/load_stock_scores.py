@@ -22,14 +22,12 @@ from loaders.loader_helper import setup_imports
 
 setup_imports()
 
-import argparse
 import logging
 from datetime import date, datetime, timezone
 from typing import Optional
 
+from loaders.runner import run_loader
 from utils.db.context import DatabaseContext
-from utils.loaders.config import get_default_parallelism
-from utils.loaders.helpers import get_active_symbols
 from utils.optimal_loader import OptimalLoader
 
 
@@ -669,75 +667,6 @@ class StockScoresLoader(OptimalLoader):
             logger.warning(f"RS percentile batch update failed: {e}")
 
 
-def main():
-    parser = argparse.ArgumentParser(description="Load stock scores")
-    parser.add_argument("--symbols", type=str, help="Comma-separated symbols")
-    parser.add_argument(
-        "--parallelism",
-        type=int,
-        default=get_default_parallelism("stock_scores"),
-        help="Parallel workers",
-    )
-    args = parser.parse_args()
-
-    try:
-        all_symbols = (
-            args.symbols.split(",")
-            if args.symbols
-            else get_active_symbols(timeout_secs=60)
-        )
-        # This ensures ETFs are excluded even if either source is incomplete
-        with DatabaseContext("read") as cur:
-            cur.execute("""
-                SELECT DISTINCT symbol FROM (
-                    SELECT symbol FROM stock_symbols WHERE etf = 'Y'
-                    UNION ALL
-                    SELECT symbol FROM etf_symbols
-                ) etf_sources
-            """)
-            etf_symbol_set = {row[0] for row in cur.fetchall()}
-
-        excluded_count = sum(1 for s in all_symbols if s in etf_symbol_set)
-        symbols = [s for s in all_symbols if s not in etf_symbol_set]
-        logger.info(
-            f"Filtering out {excluded_count} ETFs from {len(all_symbols)} total symbols"
-        )
-
-        # Check upstream dependencies (ISSUE #28 FIX: dependency validation)
-        dependencies = [
-            "value_metrics",
-            "positioning_metrics",
-            "stability_metrics",
-        ]
-        with DatabaseContext("read") as cur:
-            for dep in dependencies:
-                cur.execute(
-                    "SELECT status FROM data_loader_status WHERE table_name = %s",
-                    (dep,),
-                )
-                result = cur.fetchone()
-                dep_status = result[0] if result else None
-
-                if dep_status in ("RUNNING", "PENDING"):
-                    error_msg = f"Upstream dependency {dep} is {dep_status} - cannot proceed"
-                    logger.error(error_msg)
-                    raise RuntimeError(error_msg)
-
-        loader = StockScoresLoader()
-        stats = loader.run(symbols, parallelism=args.parallelism)
-        logger.info("Stock scores load completed")
-
-        fail_rate = stats.get("symbols_failed", 0) / max(len(symbols), 1)
-        if fail_rate > 0.05:
-            logger.error(f"Too many failures: {stats['symbols_failed']}/{len(symbols)}")
-            return 1
-
-        loader.update_rs_percentiles()
-        return 0
-    except Exception as e:
-        logger.error(f"Stock scores load failed: {e}")
-        return 1
-
 
 if __name__ == "__main__":
-    sys.exit(main())
+    sys.exit(run_loader(StockScoresLoader))

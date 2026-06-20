@@ -9,6 +9,7 @@ from typing import List, Optional
 
 import requests
 
+from loaders.runner import run_loader
 from utils.infrastructure.timeout import ExecutionTimeout
 from utils.infrastructure.url_validator import validate_url
 from utils.optimal_loader import OptimalLoader
@@ -185,24 +186,6 @@ class FearGreedIndexLoader(OptimalLoader):
         )
 
 
-def main():
-    try:
-        # Execution timeout: CNN API typically responds in 1-5s
-        # Set limit to 2 min (120s) to catch blocking/rate limiting early
-        with ExecutionTimeout(max_seconds=120, label="load_fear_greed_index"):
-            loader = FearGreedIndexLoader()
-            result = loader.load_global()
-
-            if result > 0:
-                logger.info("SUCCESS: Fear & Greed data loaded")
-                return 0
-            else:
-                logger.error("FAILED: No Fear & Greed data loaded")
-                return 1
-    except Exception as e:
-        logger.error(f"Fear & Greed load failed: {e}", exc_info=True)
-        return 1
-
 
 if __name__ == "__main__":
-    sys.exit(main())
+    sys.exit(run_loader(FearGreedIndexLoader, global_mode=True))

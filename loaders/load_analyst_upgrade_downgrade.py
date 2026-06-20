@@ -10,7 +10,6 @@ Run:
     python3 loadanalystupgradedowngrade.py [--symbols AAPL,MSFT] [--parallelism 8]
 """
 
-import argparse
 import logging
 import sys
 
@@ -19,7 +18,7 @@ logger = logging.getLogger(__name__)
 from datetime import date
 from typing import Optional
 
-from utils.loaders.helpers import get_active_symbols
+from loaders.runner import run_loader
 from utils.optimal_loader import OptimalLoader
 
 
@@ -79,27 +78,6 @@ class AnalystRatingsLoader(OptimalLoader):
         return super()._validate_row(row)
 
 
-def main():
-    parser = argparse.ArgumentParser(description="Optimal analyst_ratings loader")
-    parser.add_argument(
-        "--symbols", help="Comma-separated symbols. Default: all from stocks table."
-    )
-    parser.add_argument("--parallelism", type=int, default=2, help="Concurrent workers")
-    args = parser.parse_args()
-
-    if args.symbols:
-        symbols = [s.strip().upper() for s in args.symbols.split(",")]
-    else:
-        symbols = get_active_symbols(timeout_secs=60)
-
-    loader = AnalystRatingsLoader()
-    try:
-        stats = loader.run(symbols, parallelism=args.parallelism)
-    finally:
-        loader.close()
-
-    return 0 if stats["symbols_failed"] == 0 else 1
-
 
 if __name__ == "__main__":
-    sys.exit(main())
+    sys.exit(run_loader(AnalystRatingsLoader))

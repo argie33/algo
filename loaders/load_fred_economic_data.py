@@ -11,6 +11,7 @@ from typing import List, Optional
 import requests
 
 from config.api_endpoints import get_fred_url
+from loaders.runner import run_loader
 from utils.infrastructure.timeout import ExecutionTimeout
 from utils.infrastructure.url_validator import validate_url
 from utils.loaders.helpers import get_api_key
@@ -262,24 +263,6 @@ class FredEconomicDataLoader(OptimalLoader):
         return all_rows
 
 
-def main():
-    try:
-        # Execution timeout: FRED has ~40 series, 5s delay between + 30s per request = ~5-10 min normally
-        # Set limit to 20 min (1200s) to catch hanging requests early
-        with ExecutionTimeout(max_seconds=1200, label="load_fred_economic_data"):
-            loader = FredEconomicDataLoader()
-            result = loader.load_global()
-
-            if result > 0:
-                logger.info(f"SUCCESS: {result} economic data records loaded")
-                return 0
-            else:
-                logger.error("FAILED: No FRED economic data records loaded")
-                return 1
-    except Exception as e:
-        logger.error(f"FRED economic data load failed: {e}", exc_info=True)
-        return 1
-
 
 if __name__ == "__main__":
-    sys.exit(main())
+    sys.exit(run_loader(FredEconomicDataLoader, global_mode=True))

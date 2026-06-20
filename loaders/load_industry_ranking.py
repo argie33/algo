@@ -6,6 +6,7 @@ import sys
 from datetime import date
 from typing import List, Optional
 
+from loaders.runner import run_loader
 from utils.db.context import DatabaseContext
 from utils.optimal_loader import OptimalLoader
 
@@ -118,21 +119,6 @@ class IndustryRankingLoader(OptimalLoader):
             raise RuntimeError(f"Operation failed: {e}") from e
 
 
-def main():
-    try:
-        loader = IndustryRankingLoader()
-        result = loader.load_global()
-
-        if result > 0:
-            logger.info(f"SUCCESS: {result} industries ranked")
-            return 0
-        else:
-            logger.error("FAILED: No industry rankings computed")
-            return 1
-    except Exception as e:
-        logger.error(f"Industry ranking load failed: {e}", exc_info=True)
-        return 1
-
 
 if __name__ == "__main__":
-    sys.exit(main())
+    sys.exit(run_loader(IndustryRankingLoader, global_mode=True))

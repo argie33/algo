@@ -6,6 +6,7 @@ import sys
 from datetime import date
 from typing import List, Optional
 
+from loaders.runner import run_loader
 from utils.db.context import DatabaseContext
 from utils.infrastructure.timezone import EASTERN_TZ
 from utils.optimal_loader import OptimalLoader
@@ -70,21 +71,6 @@ class AlgoMetricsDailyLoader(OptimalLoader):
             )
 
 
-def main():
-    try:
-        loader = AlgoMetricsDailyLoader()
-        result = loader.load_global()
-
-        if result > 0:
-            logger.info(f"SUCCESS: {result} daily metrics computed")
-            return 0
-        else:
-            logger.error("FAILED: No daily metrics computed")
-            return 1
-    except Exception as e:
-        logger.error(f"Algo metrics daily load failed: {e}", exc_info=True)
-        return 1
-
 
 if __name__ == "__main__":
-    sys.exit(main())
+    sys.exit(run_loader(AlgoMetricsDailyLoader, global_mode=True))

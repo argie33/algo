@@ -9,6 +9,7 @@ from typing import List, Optional
 import pandas as pd
 import requests
 
+from loaders.runner import run_loader
 from utils.infrastructure.url_validator import validate_url
 from utils.optimal_loader import OptimalLoader
 
@@ -126,21 +127,6 @@ class NAAIMExposureLoader(OptimalLoader):
             raise RuntimeError(f"Operation failed: {e}") from e
 
 
-def main():
-    try:
-        loader = NAAIMExposureLoader()
-        result = loader.load_global()
-
-        if result > 0:
-            logger.info("SUCCESS: NAAIM data loaded")
-            return 0
-        else:
-            logger.error("FAILED: No NAAIM data loaded")
-            return 1
-    except Exception as e:
-        logger.error(f"NAAIM load failed: {e}", exc_info=True)
-        return 1
-
 
 if __name__ == "__main__":
-    sys.exit(main())
+    sys.exit(run_loader(NAAIMExposureLoader, global_mode=True))

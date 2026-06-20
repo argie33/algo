@@ -6,6 +6,7 @@ import sys
 from datetime import date
 from typing import List, Optional
 
+from loaders.runner import run_loader
 from utils.db.context import DatabaseContext
 from utils.optimal_loader import OptimalLoader
 
@@ -79,21 +80,6 @@ class SignalThemesLoader(OptimalLoader):
             raise RuntimeError(f"Operation failed: {e}") from e
 
 
-def main():
-    try:
-        loader = SignalThemesLoader()
-        result = loader.load_global()
-
-        if result > 0:
-            logger.info(f"SUCCESS: {result} signal themes loaded")
-            return 0
-        else:
-            logger.error("FAILED: No signal themes loaded")
-            return 1
-    except Exception as e:
-        logger.error(f"Signal themes load failed: {e}", exc_info=True)
-        return 1
-
 
 if __name__ == "__main__":
-    sys.exit(main())
+    sys.exit(run_loader(SignalThemesLoader, global_mode=True))

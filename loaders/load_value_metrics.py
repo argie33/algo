@@ -8,14 +8,12 @@ from loaders.loader_helper import setup_imports
 
 setup_imports()
 
-import argparse
 import logging
 import time
 from datetime import date, datetime, timezone
 
+from loaders.runner import run_loader
 from utils.external.yfinance import get_ticker
-from utils.loaders.config import get_default_parallelism
-from utils.loaders.helpers import get_active_symbols
 from utils.optimal_loader import OptimalLoader
 
 
@@ -123,39 +121,6 @@ def _apply_schema_migrations():
         logger.warning(f"Schema migration failed (non-fatal): {e}")
 
 
-def main():
-    parser = argparse.ArgumentParser(description="Value Metrics Loader")
-    parser.add_argument(
-        "--symbols", type=str, help="Comma-separated symbols or blank for all"
-    )
-    parser.add_argument(
-        "--parallelism",
-        type=int,
-        default=get_default_parallelism("value_metrics"),
-        help="Parallel workers",
-    )
-    args = parser.parse_args()
-
-    _apply_schema_migrations()
-
-    loader = ValueMetricsLoader()
-
-    if args.symbols:
-        symbols = args.symbols.split(",")
-    else:
-        symbols = get_active_symbols()
-
-    result = loader.run(symbols, parallelism=args.parallelism)
-
-    if result["rows_inserted"] > 0:
-        logger.info(f"SUCCESS: {result['rows_inserted']} value metrics loaded")
-        return 0
-    else:
-        logger.warning(
-            f"COMPLETED: No metrics loaded (rows_fetched={result['rows_fetched']})"
-        )
-        return 0
-
 
 if __name__ == "__main__":
-    sys.exit(main())
+    sys.exit(run_loader(ValueMetricsLoader))

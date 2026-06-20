@@ -7,7 +7,6 @@ Required by Phase 1 data freshness check.
 Run: python3 load_trend_criteria_data.py [--symbols AAPL,MSFT] [--parallelism 4]
 """
 
-import argparse
 import logging
 import sys
 from datetime import date, timedelta
@@ -15,11 +14,10 @@ from typing import List, Optional
 
 import pandas as pd
 
+from loaders.runner import run_loader
 from loaders.technical_indicators import compute_moving_averages
 from utils.db.context import DatabaseContext
 from utils.infrastructure.timezone import EASTERN_TZ
-from utils.loaders.config import get_default_parallelism
-from utils.loaders.helpers import get_active_symbols
 from utils.optimal_loader import OptimalLoader
 
 
@@ -273,31 +271,6 @@ class TrendCriteriaLoader(OptimalLoader):
         return results
 
 
-def main():
-    parser = argparse.ArgumentParser(description="Load trend criteria data")
-    parser.add_argument("--symbols", help="Comma-separated symbols")
-    parser.add_argument(
-        "--parallelism",
-        type=int,
-        default=get_default_parallelism("trend_criteria_data"),
-        help="Parallel workers",
-    )
-    args = parser.parse_args()
-
-    try:
-        symbols = (
-            args.symbols.split(",")
-            if args.symbols
-            else get_active_symbols(timeout_secs=60)
-        )
-        loader = TrendCriteriaLoader()
-        loader.run(symbols, parallelism=args.parallelism)
-        logger.info("Trend criteria data load completed")
-        return 0
-    except Exception as e:
-        logger.error(f"Trend criteria data load failed: {e}")
-        return 1
-
 
 if __name__ == "__main__":
-    sys.exit(main())
+    sys.exit(run_loader(TrendCriteriaLoader))

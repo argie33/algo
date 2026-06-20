@@ -12,6 +12,7 @@ from typing import List, Optional
 
 import requests
 
+from loaders.runner import run_loader
 from utils.infrastructure.timeout import ExecutionTimeout
 from utils.infrastructure.url_validator import validate_url
 from utils.optimal_loader import OptimalLoader
@@ -181,24 +182,6 @@ class StockSymbolsLoader(OptimalLoader):
             logger.warning(f"Failed to refresh etf_symbols: {e}")
 
 
-def main():
-    try:
-        # Execution timeout: Fetch 2 files + parse typically takes 10-20s
-        # Set limit to 2 min (120s) to catch hanging requests early
-        with ExecutionTimeout(max_seconds=120, label="load_stock_symbols"):
-            loader = StockSymbolsLoader()
-            result = loader.load_global()
-
-            if result > 0:
-                logger.info(f"SUCCESS: {result} symbols loaded")
-                return 0
-            else:
-                logger.error("FAILED: No stock symbols loaded")
-                return 1
-    except Exception as e:
-        logger.error(f"Stock symbols load failed: {e}", exc_info=True)
-        return 1
-
 
 if __name__ == "__main__":
-    sys.exit(main())
+    sys.exit(run_loader(StockSymbolsLoader, global_mode=True))

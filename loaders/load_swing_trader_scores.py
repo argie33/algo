@@ -26,7 +26,6 @@ from loaders.loader_helper import setup_imports
 
 setup_imports()
 
-import argparse
 import json
 import logging
 from datetime import date, timedelta, timezone
@@ -39,9 +38,8 @@ from utils.db.sql_safety import assert_safe_table
 
 
 logger = logging.getLogger(__name__)
+from loaders.runner import run_loader
 from utils.infrastructure.timezone import EASTERN_TZ
-from utils.loaders.config import get_default_parallelism
-from utils.loaders.helpers import get_active_symbols
 from utils.optimal_loader import OptimalLoader
 from utils.signals.grade_classifier import GradeClassifier
 
@@ -56,7 +54,7 @@ class SwingTraderScoresLoader(OptimalLoader):
 
         Caches end_date and signal_quality_scores max date to avoid per-symbol computation.
         """
-        from datetime import datetime, timezone
+        from datetime import datetime
 
         from algo.infrastructure import MarketCalendar
 
@@ -101,7 +99,7 @@ class SwingTraderScoresLoader(OptimalLoader):
 
         Validates all 3 source tables before computing scores.
         """
-        from datetime import datetime, timezone
+        from datetime import datetime
 
         from algo.infrastructure import MarketCalendar
 
@@ -517,81 +515,6 @@ class SwingTraderScoresLoader(OptimalLoader):
             )
 
 
-def main():
-    import time
-    from datetime import datetime
-
-    from utils.db.context import DatabaseContext
-
-    start_time = time.time()
-    parser = argparse.ArgumentParser(description="Swing Trader Scores Loader")
-    parser.add_argument("--symbols", type=str, help="Comma-separated symbols")
-    parser.add_argument(
-        "--parallelism",
-        type=int,
-        default=get_default_parallelism("swing_trader_scores"),
-        help="Concurrent workers",
-    )
-    args = parser.parse_args()
-
-    symbols = (
-        args.symbols.split(",") if args.symbols else get_active_symbols(timeout_secs=60)
-    )
-
-    logger.info(
-        f"Starting swing_trader_scores loader with {len(symbols)} symbols, parallelism={args.parallelism}"
-    )
-
-    # NOTE: For large-scale production (5000+ symbols), consider using load_swing_trader_scores_vectorized.py
-    # which is 3-5x faster by fetching all data in bulk queries and computing scores vectorized.
-    # For intraday updates during market hours, use: python3 load_swing_trader_scores_vectorized.py --today (5-15 min)
-
-    loader = SwingTraderScoresLoader()
-    try:
-        stats = loader.run(symbols, parallelism=args.parallelism)
-    finally:
-        loader.close()
-
-    fail_rate = stats.get("symbols_failed", 0) / max(len(symbols), 1)
-    duration_seconds = time.time() - start_time
-
-    # Log execution time for performance monitoring
-    try:
-        with DatabaseContext("write") as cur:
-            cur.execute(
-                """
-                INSERT INTO data_loader_runs (
-                    loader_name, table_name, run_date, status, records_loaded,
-                    error_message, duration_seconds, started_at, completed_at
-                ) VALUES (
-                    %s, %s, %s, %s, %s, %s, %s, NOW(), NOW()
-                )
-                ON CONFLICT (loader_name, run_date) DO UPDATE SET
-                    status = EXCLUDED.status,
-                    records_loaded = EXCLUDED.records_loaded,
-                    duration_seconds = EXCLUDED.duration_seconds,
-                    completed_at = NOW()
-            """,
-                (
-                    "swing_trader_scores",
-                    "swing_trader_scores",
-                    datetime.now(timezone.utc).date(),
-                    "completed" if fail_rate <= 0.05 else "failed",
-                    stats.get("symbols_processed", 0),
-                    str(stats.get("symbols_failed", 0)) if fail_rate > 0.05 else None,
-                    round(duration_seconds, 2),
-                ),
-            )
-    except Exception as e:
-        logger.error(f"Failed to log execution time: {e}")
-
-    if fail_rate > 0.05:
-        logger.error(
-            f"Too many failures: {stats['symbols_failed']}/{len(symbols)} ({fail_rate*100:.1f}%)"
-        )
-        return 1
-    return 0
-
 
 if __name__ == "__main__":
-    sys.exit(main())
+    sys.exit(run_loader(SwingTraderScoresLoader))

@@ -9,7 +9,6 @@ Period determined by LOADER_PERIOD env var (financials_annual_cashflow / financi
 or --period CLI flag for manual runs.
 """
 
-import argparse
 import logging
 
 
@@ -18,9 +17,9 @@ import os
 from datetime import date
 from typing import Optional
 
+from loaders.runner import run_loader
 from utils.external.sec_edgar import SecEdgarClient
 from utils.loaders.config import get_parallelism
-from utils.loaders.helpers import get_active_symbols
 from utils.optimal_loader import OptimalLoader
 
 
@@ -207,44 +206,6 @@ class CashFlowLoader(OptimalLoader):
         return True
 
 
-def main():
-    parser = argparse.ArgumentParser(description="Cash flow loader (annual/quarterly)")
-    parser.add_argument(
-        "--period",
-        choices=["annual", "quarterly"],
-        help="Statement period (defaults to LOADER_PERIOD env var)",
-    )
-    parser.add_argument("--symbols", help="Comma-separated symbols. Default: all.")
-    default_parallelism = get_parallelism("cash_flow")
-    parser.add_argument(
-        "--parallelism",
-        type=int,
-        default=default_parallelism,
-        help=f"Worker threads (default from LOADER_PARALLELISM env var: {default_parallelism})",
-    )
-    args = parser.parse_args()
-
-    period = _resolve_period(args.period)
-    symbols = (
-        [s.strip().upper() for s in args.symbols.split(",")]
-        if args.symbols
-        else get_active_symbols(timeout_secs=60)
-    )
-
-    loader = CashFlowLoader(period)
-    try:
-        stats = loader.run(symbols, parallelism=args.parallelism)
-    finally:
-        loader.close()
-
-    fail_rate = stats.get("symbols_failed", 0) / max(len(symbols), 1)
-    if fail_rate > 0.05:
-        logger.error(
-            f"Too many failures: {stats['symbols_failed']}/{len(symbols)} ({fail_rate*100:.1f}%)"
-        )
-        return 1
-    return 0
-
 
 if __name__ == "__main__":
-    sys.exit(main())
+    sys.exit(run_loader(CashFlowLoader))

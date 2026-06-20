@@ -10,6 +10,8 @@ from datetime import datetime, timedelta, timezone
 from pathlib import Path
 from typing import Any, cast
 
+import psycopg2
+
 from algo.infrastructure import MarketCalendar
 from algo.reporting import AlertManager
 from monitoring.metrics_context import (
@@ -100,7 +102,7 @@ class Orchestrator:
             with DatabaseContext("read") as cur:
                 cur.execute("SELECT 1")
             return True
-        except Exception as e:
+        except (psycopg2.DatabaseError, psycopg2.OperationalError) as e:
             raise RuntimeError(f"Operation failed: {e}") from e
 
     def _check_halt_flag(self) -> bool:

@@ -14,6 +14,19 @@ logger = logging.getLogger(__name__)
 class SignalPatternsMixin:
     """Chart pattern detection signals."""
 
+    # Pattern detection thresholds (extracted from hardcoded values)
+    BASE_MIN_DEPTH_PCT = 8.0
+    BASE_MAX_DEPTH_PCT = 35.0
+    BASE_MIN_BARS = 10
+    BASE_MIN_HISTORY = 20
+    VCP_MIN_BARS = 30
+    VCP_MIN_CONTRACTIONS = 2
+    VCP_MIN_DEPTHS = 3
+    VCP_TIGHT_PATTERN_PCT = 5.0
+    VCP_CONTRACTION_FACTOR = 0.7  # Depth must be <= 70% of previous
+    LOOKBACK_DAYS_DEFAULT = 60
+    LOOKBACK_BARS_SHORT = 25
+
     def _with_cursor(self, operation):
         """Execute an operation with a cursor via DatabaseContext."""
         try:
@@ -60,7 +73,7 @@ class SignalPatternsMixin:
                 (symbol, eval_date),
             )
             rows = cur.fetchall()
-            if len(rows) < 20:
+            if len(rows) < self.BASE_MIN_HISTORY:
                 return {"in_base": False, "reason": "Insufficient history"}
 
             highs = [float(r[1]) for r in rows]
@@ -74,7 +87,7 @@ class SignalPatternsMixin:
             base_lows = lows[: peak_idx + 1]
             base_vols = volumes[: peak_idx + 1]
 
-            if len(base_highs) < 10:
+            if len(base_highs) < self.BASE_MIN_BARS:
                 return {
                     "in_base": False,
                     "reason": f"Base too short ({len(base_highs)} bars)",
@@ -88,14 +101,14 @@ class SignalPatternsMixin:
             weeks_in_base = len(base_highs) // 5
 
             cur_price = closes[0]
-            in_base = (8.0 <= base_depth <= 35.0) and len(base_highs) >= 20
+            in_base = (self.BASE_MIN_DEPTH_PCT <= base_depth <= self.BASE_MAX_DEPTH_PCT) and len(base_highs) >= self.BASE_MIN_HISTORY
 
             pct_to_pivot = (
                 ((base_high - cur_price) / base_high * 100.0) if base_high > 0 else 100
             )
             breakout_imminent = in_base and pct_to_pivot <= 2.0
 
-            recent_vol = sum(base_vols[:10]) / 10 if len(base_vols) >= 10 else 0
+            recent_vol = sum(base_vols[:self.LOOKBACK_BARS_SHORT]) / self.LOOKBACK_BARS_SHORT if len(base_vols) >= self.LOOKBACK_BARS_SHORT else 0
             prior_vol = sum(volumes[20:50]) / 30 if len(volumes) >= 50 else recent_vol
             volume_dryup = prior_vol > 0 and recent_vol < prior_vol * 0.8
 
@@ -147,7 +160,7 @@ class SignalPatternsMixin:
                 (symbol, eval_date),
             )
             rows = cur.fetchall()
-            if len(rows) < 30:
+            if len(rows) < self.VCP_MIN_BARS:
                 return {"is_vcp": False, "reason": "Insufficient bars"}
 
             rows = list(reversed(rows))
@@ -174,10 +187,10 @@ class SignalPatternsMixin:
 
             contractions = 0
             for i in range(1, len(depths)):
-                if depths[i] <= depths[i - 1] * 0.7:
+                if depths[i] <= depths[i - 1] * self.VCP_CONTRACTION_FACTOR:
                     contractions += 1
-            is_vcp = contractions >= 2 and len(depths) >= 3
-            tight_pattern = depths[-1] <= 5.0 if depths else False
+            is_vcp = contractions >= self.VCP_MIN_CONTRACTIONS and len(depths) >= self.VCP_MIN_DEPTHS
+            tight_pattern = depths[-1] <= self.VCP_TIGHT_PATTERN_PCT if depths else False
 
             return {
                 "is_vcp": is_vcp,
@@ -246,9 +259,6 @@ class SignalPatternsMixin:
                     "vcp": vcp,
                 }
 
-            spread = (
-                (max(highs) - min(lows)) / max(highs) * 100.0 if max(highs) > 0 else 0
-            )
             recent_closes = closes[-25:] if len(closes) >= 25 else closes
             recent_high = max(recent_closes)
             recent_low = min(recent_closes)
@@ -361,7 +371,7 @@ class SignalPatternsMixin:
           - cup_with_handle: stop below handle low (last 5-10 bars low) - O'Neil
           - flat_base:        stop below base low - Minervini
           - vcp:              stop below last contraction low (tightest) - Minervini
-          - double_bottom:    stop below 2nd low - 0.5×ATR (allow shake-out room)
+          - double_bottom:    stop below 2nd low - 0.5x ATR (allow shake-out room)
           - ascending_base:   stop below last higher-low (most recent pullback)
           - saucer:           stop below saucer low (longer cushion)
           - 3wt:              stop below 3-week range low
@@ -444,7 +454,7 @@ class SignalPatternsMixin:
                     second_low = float(r[0])
                     candidate = second_low - (0.5 * atr)
                     method = "double_bottom_low_minus_half_atr"
-                    reasoning = f"Double-bottom: 2nd low ${second_low:.2f} - 0.5×ATR (${atr:.2f})"
+                    reasoning = f"Double-bottom: 2nd low ${second_low:.2f} - 0.5x ATR (${atr:.2f})"
 
             elif base_type == "ascending_base":
                 cur.execute(

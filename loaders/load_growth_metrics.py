@@ -9,7 +9,6 @@ Metrics: Revenue Growth (1Y, 3Y, 5Y), EPS Growth (1Y, 3Y, 5Y), Growth Score (0-1
 Requires: annual_income_statement populated.
 """
 
-import argparse
 import logging
 from datetime import date
 from typing import Any, Optional
@@ -17,9 +16,8 @@ from typing import Any, Optional
 
 logger = logging.getLogger(__name__)
 
+from loaders.runner import run_loader
 from utils.db.context import DatabaseContext
-from utils.loaders.config import get_default_parallelism
-from utils.loaders.helpers import get_active_symbols
 from utils.optimal_loader import OptimalLoader
 
 
@@ -111,34 +109,6 @@ class GrowthMetricsLoader(OptimalLoader):
         return rows
 
 
-def main():
-    parser = argparse.ArgumentParser(description="Growth metrics loader")
-    parser.add_argument("--symbols", help="Comma-separated symbols. Default: all.")
-    parser.add_argument(
-        "--parallelism", type=int, default=get_default_parallelism("growth_metrics")
-    )
-    args = parser.parse_args()
-
-    symbols = (
-        [s.strip().upper() for s in args.symbols.split(",")]
-        if args.symbols
-        else get_active_symbols(timeout_secs=60)
-    )
-
-    loader = GrowthMetricsLoader()
-    try:
-        stats = loader.run(symbols, parallelism=args.parallelism)
-    finally:
-        loader.close()
-
-    fail_rate = stats.get("symbols_failed", 0) / max(len(symbols), 1)
-    if fail_rate > 0.05:
-        logger.error(
-            f"Too many failures: {stats['symbols_failed']}/{len(symbols)} ({fail_rate*100:.1f}%)"
-        )
-        return 1
-    return 0
-
 
 if __name__ == "__main__":
-    sys.exit(main())
+    sys.exit(run_loader(GrowthMetricsLoader))

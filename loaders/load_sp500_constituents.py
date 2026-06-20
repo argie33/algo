@@ -11,6 +11,7 @@ from typing import List, Optional
 import pandas as pd
 import requests
 
+from loaders.runner import run_loader
 from utils.infrastructure.timeout import ExecutionTimeout
 from utils.infrastructure.url_validator import validate_url
 from utils.optimal_loader import OptimalLoader
@@ -84,24 +85,6 @@ class SP500ConstituentsLoader(OptimalLoader):
             raise RuntimeError(f"Operation failed: {e}") from e
 
 
-def main():
-    try:
-        # Execution timeout: Fetch + parse typically takes 10-20s
-        # Set limit to 2 min (120s) to catch hanging requests early
-        with ExecutionTimeout(max_seconds=120, label="load_sp500_constituents"):
-            loader = SP500ConstituentsLoader()
-            result = loader.load_global()
-
-            if result > 0:
-                logger.info(f"SUCCESS: {result} S&P 500 symbols marked")
-                return 0
-            else:
-                logger.error("FAILED: No S&P 500 symbols loaded")
-                return 1
-    except Exception as e:
-        logger.error(f"S&P 500 constituents load failed: {e}", exc_info=True)
-        return 1
-
 
 if __name__ == "__main__":
-    sys.exit(main())
+    sys.exit(run_loader(SP500ConstituentsLoader, global_mode=True))

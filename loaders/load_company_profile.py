@@ -6,9 +6,8 @@ import sys
 from datetime import date
 from typing import List, Optional
 
+from loaders.runner import run_loader
 from utils.external.yfinance import get_ticker
-from utils.loaders.config import get_default_parallelism
-from utils.loaders.helpers import get_active_symbols
 from utils.optimal_loader import OptimalLoader
 
 
@@ -59,39 +58,6 @@ class CompanyProfileLoader(OptimalLoader):
             )
 
 
-def main():
-    import argparse
-
-    parser = argparse.ArgumentParser(description="Company Profile Loader")
-    parser.add_argument(
-        "--symbols", type=str, help="Comma-separated symbols, or blank for all active"
-    )
-    parser.add_argument(
-        "--parallelism",
-        type=int,
-        default=get_default_parallelism("company_profile"),
-        help="Number of parallel workers",
-    )
-    args = parser.parse_args()
-
-    loader = CompanyProfileLoader()
-
-    if args.symbols:
-        symbols = args.symbols.split(",")
-    else:
-        symbols = get_active_symbols()
-
-    result = loader.run(symbols, parallelism=args.parallelism)
-
-    if result["rows_inserted"] > 0:
-        logger.info(f"SUCCESS: {result['rows_inserted']} company profiles loaded")
-        return 0
-    else:
-        logger.warning(
-            f"COMPLETED: No profiles loaded (rows_fetched={result['rows_fetched']})"
-        )
-        return 0
-
 
 if __name__ == "__main__":
-    sys.exit(main())
+    sys.exit(run_loader(CompanyProfileLoader))
