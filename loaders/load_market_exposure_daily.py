@@ -29,9 +29,24 @@ logger = logging.getLogger(__name__)
 
 def main():
     """Compute and persist market_exposure_daily for latest trading date."""
+    from utils.db.context import DatabaseContext
+
+    table_name = "market_exposure_daily"
+
     try:
+        # Mark loader as RUNNING
+        with DatabaseContext("write") as cur:
+            cur.execute(
+                "UPDATE data_loader_status SET status = %s, last_updated = NOW(), execution_started = NOW() WHERE table_name = %s",
+                ("RUNNING", table_name),
+            )
+            if cur.rowcount == 0:
+                cur.execute(
+                    "INSERT INTO data_loader_status (table_name, status, last_updated, execution_started) VALUES (%s, %s, NOW(), NOW())",
+                    (table_name, "RUNNING"),
+                )
+
         from algo.risk import MarketExposure
-        from utils.db.context import DatabaseContext
 
         # Determine the latest trading date from price_daily
         latest_date = None
@@ -47,6 +62,11 @@ def main():
             logger.error(
                 "No price data available for SPY — cannot compute market exposure"
             )
+            with DatabaseContext("write") as cur:
+                cur.execute(
+                    "UPDATE data_loader_status SET status = %s, last_updated = NOW(), error_message = %s WHERE table_name = %s",
+                    ("FAILED", "No price data available for SPY", table_name),
+                )
             return 1
 
         logger.info(f"Computing market exposure for {latest_date}")
@@ -57,6 +77,11 @@ def main():
 
         if result.get("success") is False:
             logger.error(f"Market exposure computation failed: {result.get('error')}")
+            with DatabaseContext("write") as cur:
+                cur.execute(
+                    "UPDATE data_loader_status SET status = %s, last_updated = NOW(), error_message = %s WHERE table_name = %s",
+                    ("FAILED", result.get('error'), table_name),
+                )
             return 1
 
         logger.info("✓ Market exposure computed:")
@@ -67,11 +92,52 @@ def main():
         if result.get("halt_reasons"):
             logger.info(f"  Halt reasons: {'; '.join(result['halt_reasons'])}")
 
+        # Mark loader as COMPLETED
+        with DatabaseContext("write") as cur:
+            cur.execute(
+                "SELECT row_count, latest_date FROM data_loader_status WHERE table_name = %s",
+                (table_name,),
+            )
+            existing = cur.fetchone()
+
+            cur.execute(
+                "DELETE FROM data_loader_status WHERE table_name = %s",
+                (table_name,),
+            )
+
+            cur.execute(
+                """
+                INSERT INTO data_loader_status
+                (table_name, row_count, latest_date, last_updated, status,
+                 completion_pct, symbol_count, symbols_loaded, execution_started, execution_completed)
+                VALUES (%s, %s, %s, NOW(), %s, %s, %s, %s,
+                        COALESCE((SELECT execution_started FROM (SELECT %s::timestamp as execution_started) t), NOW()), NOW())
+                """,
+                (
+                    table_name,
+                    1,  # market_exposure_daily has 1 "symbol" (daily aggregate)
+                    latest_date,
+                    "COMPLETED",
+                    100.0,  # 100% completion
+                    1,
+                    1,
+                    existing[0] if existing and existing[0] else None,  # execution_started
+                ),
+            )
+
         logger.info("✓ Loader completed successfully")
         return 0
 
     except Exception as e:
         logger.error(f"Market exposure loader failed: {e}", exc_info=True)
+        try:
+            with DatabaseContext("write") as cur:
+                cur.execute(
+                    "UPDATE data_loader_status SET status = %s, last_updated = NOW(), error_message = %s WHERE table_name = %s",
+                    ("FAILED", str(e)[:200], table_name),
+                )
+        except Exception as db_err:
+            logger.error(f"Failed to update loader status: {db_err}")
         return 1
 
 

@@ -1212,7 +1212,11 @@ class DailyReconciliation:
     def _process_failed_imports(self, cur, alpaca_positions):
         """Retry failed imports and alert on multiple failures."""
         if not alpaca_positions:
-            return 0
+            raise RuntimeError(
+                "CRITICAL: Alpaca position data unavailable. "
+                "Cannot safely retry failed imports without current Alpaca positions. "
+                "Reconciliation halted to prevent orphaned/stale position records."
+            )
         alpaca_map = {ap.symbol: ap for ap in alpaca_positions}
         cur.execute(
             "SELECT DISTINCT symbol FROM alpaca_import_failures "
@@ -1687,7 +1691,11 @@ class DailyReconciliation:
     def _fetch_alpaca_account(self):
         """Fetch account data from Alpaca via direct HTTP REST call."""
         if not self._alpaca_key or not self._alpaca_secret:
-            return None
+            raise RuntimeError(
+                "CRITICAL: Alpaca API credentials not available. "
+                "Cannot reconcile account without valid credentials. "
+                "Reconciliation requires live Alpaca connection."
+            )
         try:
             import requests
 
