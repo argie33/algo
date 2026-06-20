@@ -26,6 +26,8 @@ import logging
 from datetime import date, datetime, timezone
 from typing import Optional
 
+import psycopg2
+
 from loaders.runner import run_loader
 from utils.db.context import DatabaseContext
 from utils.optimal_loader import OptimalLoader
@@ -663,7 +665,7 @@ class StockScoresLoader(OptimalLoader):
                     WHERE ss.symbol = ranked.symbol
                 """)
             logger.info("RS percentiles updated via batch rank")
-        except Exception as e:
+        except (psycopg2.DatabaseError, psycopg2.OperationalError) as e:
             logger.warning(f"RS percentile batch update failed: {e}")
 
 

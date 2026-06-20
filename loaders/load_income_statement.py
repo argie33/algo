@@ -11,6 +11,8 @@ or --period CLI flag for manual runs.
 
 import logging
 
+import psycopg2
+
 
 logger = logging.getLogger(__name__)
 import os

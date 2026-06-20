@@ -13,6 +13,8 @@ import logging
 from datetime import date
 from typing import Any, Optional
 
+import psycopg2
+
 
 logger = logging.getLogger(__name__)
 
@@ -57,7 +59,7 @@ class GrowthMetricsLoader(OptimalLoader):
                     return [metrics]
                 return None
 
-        except Exception as e:
+        except (psycopg2.DatabaseError, psycopg2.OperationalError) as e:
             raise RuntimeError(f"Operation failed: {e}") from e
 
     @staticmethod
