@@ -42,6 +42,7 @@ from ._helpers import _error_panel
 from .data_extractors import (
     extract_config_params,
     extract_performance_metrics,
+    safe_get_field,
 )
 
 
@@ -54,8 +55,8 @@ def _calculate_adjusted_win_rate(perf, pos):
     if not perf or has_error(perf):
         return 0, 0, 0
 
-    closed_wins = perf.get("w")
-    closed_losses = perf.get("l")
+    closed_wins = safe_get_field(perf, "w")
+    closed_losses = safe_get_field(perf, "l")
     if closed_wins is None or closed_losses is None:
         return 0, 0, 0
     losing_open = 0
@@ -64,7 +65,7 @@ def _calculate_adjusted_win_rate(perf, pos):
         pos_items, _, _ = normalize_positions_data(pos)
         for p in pos_items:
             if isinstance(p, dict):
-                pnl = safe_float(p.get("unrealized_pnl_pct"), default=None)
+                pnl = safe_float(safe_get_field(p, "unrealized_pnl_pct"), default=None)
                 if pnl is not None and pnl < 0:
                     losing_open += 1
 
@@ -78,8 +79,8 @@ def _calculate_adjusted_win_rate(perf, pos):
 
 def _build_portfolio_header(port_data: dict, cfg_data: dict | None) -> Text:
     """Build portfolio header with value and age."""
-    pv = safe_float(port_data.get("total_portfolio_value"), default=None)
-    snap = port_data.get("snapshot_date")
+    pv = safe_float(safe_get_field(port_data, "total_portfolio_value"), default=None)
+    snap = safe_get_field(port_data, "snapshot_date")
     snap_s = f"  [dim]{fmt_age(snap)}[/]" if snap is not None else ""
     return Text.from_markup(f"[bold white]{fmt_money(pv)}[/]{snap_s}")
 
@@ -93,16 +94,16 @@ def _build_portfolio_metrics_grid(port_data: dict, cfg_data: dict) -> Table:
     tbl.add_column("left", ratio=1)
     tbl.add_column("right", ratio=1)
 
-    dr = safe_float(port_data.get("daily_return_pct"), default=None)
-    urp = safe_float(port_data.get("unrealized_pnl_pct"), default=None)
-    cash = safe_float(port_data.get("total_cash"), default=None)
-    npos_val = port_data.get("position_count")
+    dr = safe_float(safe_get_field(port_data, "daily_return_pct"), default=None)
+    urp = safe_float(safe_get_field(port_data, "unrealized_pnl_pct"), default=None)
+    cash = safe_float(safe_get_field(port_data, "total_cash"), default=None)
+    npos_val = safe_get_field(port_data, "position_count")
     npos = int(npos_val) if npos_val is not None else None
-    cum = port_data.get("cumulative_return_pct")
-    mxdd = port_data.get("max_drawdown_pct")
-    lgpos = port_data.get("largest_position_pct")
+    cum = safe_get_field(port_data, "cumulative_return_pct")
+    mxdd = safe_get_field(port_data, "max_drawdown_pct")
+    lgpos = safe_get_field(port_data, "largest_position_pct")
 
-    max_n_val = cfg_data.get("max_pos_n")
+    max_n_val = safe_get_field(cfg_data, "max_pos_n") if cfg_data else None
     max_n = int(max_n_val) if max_n_val else None
 
     if npos is not None:
@@ -144,17 +145,18 @@ def _build_portfolio_metrics_grid(port_data: dict, cfg_data: dict) -> Table:
 def _build_risk_rows(risk_data: dict) -> list:
     """Build risk metrics rows for display."""
     rows = []
-    if not risk_data or risk_data.get("var95") is None or float(risk_data.get("var95", 0)) <= 0:
+    var95_check = safe_get_field(risk_data, "var95") if risk_data else None
+    if not risk_data or var95_check is None or float(var95_check) <= 0:
         return rows
 
     def cell(label, value_markup):
         return Text.from_markup(f"[dim]{label}[/] {value_markup}")
 
-    var_v = risk_data.get("var95")
-    cvar_v = risk_data.get("cvar95")
-    beta_v = risk_data.get("beta")
-    conc5_v = risk_data.get("conc5")
-    svar_v = risk_data.get("svar")
+    var_v = safe_get_field(risk_data, "var95")
+    cvar_v = safe_get_field(risk_data, "cvar95")
+    beta_v = safe_get_field(risk_data, "beta")
+    conc5_v = safe_get_field(risk_data, "conc5")
+    svar_v = safe_get_field(risk_data, "svar")
 
     conc_c = R if conc5_v is not None and conc5_v >= 35 else (Y if conc5_v is not None and conc5_v >= 25 else "white")
     var_c = R if var_v is not None and var_v >= 4 else (Y if var_v is not None and var_v >= 2 else "white")
@@ -214,9 +216,9 @@ def panel_portfolio(port, cfg, risk=None, perf=None):
 def _build_perf_header(perf_data: dict, pos) -> Text:
     """Build performance header with trade count and win rate."""
     perf = extract_performance_metrics(perf_data)
-    w = perf.get("w") or 0
-    closed_losses = perf.get("l") or 0
-    streak = perf.get("streak")
+    w = safe_get_field(perf, "w") or 0
+    closed_losses = safe_get_field(perf, "l") or 0
+    streak = safe_get_field(perf, "streak")
 
     wr_v, _adj_w, adj_l = _calculate_adjusted_win_rate(perf_data, pos)
 
@@ -250,13 +252,13 @@ def _build_perf_metrics_grid(perf_data: dict) -> Table:
     tbl.add_column("left", ratio=1)
     tbl.add_column("right", ratio=1)
 
-    pnl_val = perf.get("pnl")
-    unrlzd = perf.get("unrlzd")
-    pf = perf.get("pf")
-    sharpe_v = perf.get("sharpe")
-    exp = perf.get("exp")
-    avg_win_v = perf.get("avg_win")
-    avg_loss_v = perf.get("avg_loss")
+    pnl_val = safe_get_field(perf, "pnl")
+    unrlzd = safe_get_field(perf, "unrlzd")
+    pf = safe_get_field(perf, "pf")
+    sharpe_v = safe_get_field(perf, "sharpe")
+    exp = safe_get_field(perf, "exp")
+    avg_win_v = safe_get_field(perf, "avg_win")
+    avg_loss_v = safe_get_field(perf, "avg_loss")
 
     pnl_c = G if pnl_val is not None and pnl_val >= 0 else R
     pnl_s = f"[{pnl_c}]{fmt_money(pnl_val)}[/]"
