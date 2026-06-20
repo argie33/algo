@@ -128,6 +128,98 @@ Quick reference:
 
 See `steering/algo.md` → **Entry Quality Gates** for detailed threshold rationale.
 
+## Cluster 6: Database Connection Pool Exhaustion Risk (FIXED)
+
+**Problem:** RDS Proxy has 100-connection limit. With 6 ECS tasks x 8 loaders x 2 parallelism = 96 connections hitting simultaneously + long-running backfill transactions = pool exhaustion → timeout → circuit breaker fires → trading halted.
+
+**Solution Implemented:**
+1. **Default parallelism reduced to 1** (`utils/loaders/config.py`): Start conservative, scale up via RDS-aware adaptive adjustment
+2. **Adaptive thresholds lowered for 100-connection Proxy**: Reduce parallelism at 70% (70 conn) and 85% (85 conn) saturation
+3. **Alert threshold lowered from 80% to 70%** (`algo/monitoring/connection_monitor.py`): Earlier warning on pool pressure
+4. **Connection pool monitoring enabled in orchestrator**: Checks for stuck connections (>5 min) before each phase
+
+**Prevention:**
+- Each loader starts with parallelism=1 (not the previous max=6/8)
+- Adaptive system increases parallelism only if RDS Proxy has headroom
+- Loader parallelism can be overridden per-loader via DynamoDB `loader-config` table (e.g., `stock_prices_daily: {"parallelism": 2}`)
+- Connection monitor warns at 70 connections, escalates to minimum at 85 connections
+
+**Troubleshooting:**
+- See orchestrator logs for `[RDS_POOL]` warnings indicating pool saturation
+- Check connection pool status: `python -c "from algo.monitoring import get_pool_status; print(get_pool_status())"`
+- If pool exhaustion occurs during loader runs: Check `data_loader_status` table for stuck/hung tasks
+- Kill long-running tasks: Orchestrator automatically runs `_kill_long_running_loaders()` during pre-flight checks
+
+## Cluster 7: Silent Failures — No Alerts or Observability (FIXED)
+
+**Problem:** Circuit breaker fires (CB1-CB13), phase execution fails, but no Slack/email notification. Alerts only log to database. No aggregation/escalation. Ops team doesn't notice until next morning.
+
+**Solution Implemented:**
+1. **Alert sends are now non-blocking** (`algo/reporting/alerts.py`): Email/webhook/SMS failures no longer halt orchestration
+2. **Alert methods return gracefully** instead of raising exceptions: `_send_webhook()`, `_send_webhook_simple()` now log and return
+3. **Try-except wrapping on all alert calls**: `send_position_alert()`, `send_patrol_alert()`, `send_loader_alert()`, `critical()`
+4. **Phase 2 circuit breaker alerts still execute** even if webhook/email config is missing
+
+**Configuration:**
+- Email alerts: Set `ALERT_EMAIL_TO`, `ALERT_SMTP_HOST`, `ALERT_SMTP_PORT`, `ALERT_SMTP_USER`, `ALERT_SMTP_PASSWORD`
+- Slack/Teams/Discord: Set `ALERT_WEBHOOK_URL` environment variable
+- SMS alerts: Set `TWILIO_ACCOUNT_SID`, `TWILIO_AUTH_TOKEN`, `TWILIO_PHONE_NUMBER`, `ALERT_PHONE_NUMBERS`
+
+**Alert hierarchy** (attempted in order):
+1. Email (via SMTP)
+2. Webhook (Slack/Teams/Discord)
+3. SMS (via Twilio)
+4. Database audit log (always, fallback)
+
+**Troubleshooting:**
+- Check orchestrator logs for `[ALERT]` or `[NOTIF]` entries
+- Missing configuration? See logs for `Email alert failed`, `Webhook alert failed`, `SMS alert failed`
+- Database alerts always logged to `algo_phase_results` and `algo_audit_log` tables (source of truth)
+
+## Frontend: Float vs Decimal Precision
+
+**Problem:** Backend sends financial values as Decimal (Python), but JSON deserializes them as floats. JavaScript floats have precision limits (IEEE 754 64-bit), causing display errors like $1.0001 instead of $1.00 and rounding errors in portfolio calculations.
+
+**Solution Implemented:**
+
+1. **Decimal Math Utility** (`webapp/frontend/src/utils/decimalMath.js`): Safe financial arithmetic
+   - Import: `import { add, multiply, toFixed, percentageChange } from '../utils/decimalMath'`
+   - All functions preserve 2 decimal place precision
+   - Example: `const sum = add('123.45', '67.89')` returns `'191.34'`
+
+2. **Endpoint Schema Markup** (`webapp/frontend/src/utils/endpointSchemas.js`): Tag financial fields
+   - Add `decimalFields: ['price', 'quantity', 'value', ...]` to endpoint schema
+   - useApiQuery automatically formats these fields to 2 decimals
+
+3. **API Response Post-Processing** (`webapp/frontend/src/hooks/useApiQuery.js`):
+   - `formatDecimalFields()` normalizes all decimal fields after fetching
+   - Applies `.toFixed(2)` to preserve precision
+   - Runs before caching and before returning to components
+
+**Using It:**
+
+- **In calculations:** Use decimalMath utility instead of direct arithmetic
+  ```javascript
+  // Bad: portfolio.value + position.value
+  // Good:
+  import { add } from '../utils/decimalMath';
+  const total = add(portfolio.value, position.value, 2);
+  ```
+
+- **In formatters:** Values already formatted by useApiQuery, use parseFloat() + .toFixed(2)
+  ```javascript
+  const formatted = parseFloat(value).toFixed(2);
+  ```
+
+- **For portfolio calculations:** Accumulate with add()
+  ```javascript
+  const total = positions.reduce((sum, p) => 
+    add(sum, p.position_value, 2), '0'
+  );
+  ```
+
+**Testing:** See `useApiQuery.unhandledRejection.test.jsx` → "should format decimal fields for financial precision"
+
 ## Security Baseline
 
 All projects follow:

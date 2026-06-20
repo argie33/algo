@@ -1,4 +1,5 @@
 import numeral from "numeral";
+import { toFixed } from './decimalMath';
 
 // Format null/undefined values as "-" (for clean UI display)
 export const formatValue = (value) => {

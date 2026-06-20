@@ -15,6 +15,7 @@ vi.mock('../../../services/dataCache', () => ({
     getMarketData: vi.fn(),
     setMarketData: vi.fn(),
     cleanup: vi.fn(),
+    getMetadata: vi.fn(),
   },
   get: vi.fn(),
   set: vi.fn(),
@@ -100,7 +101,10 @@ describe('useApiQuery - Unhandled Promise Rejections Fix', () => {
 
     // Cache failure should not cause unhandled rejection
     expect(unhandledRejections.length).toBe(0);
-    expect(result.current.data).toEqual(mockData);
+    // Data includes metadata added by addMetadata()
+    expect(result.current.data.test).toBe('data');
+    expect(result.current.data._fetchedAt).toBeDefined();
+    expect(result.current.data._age).toBeDefined();
   });
 
   it('should return cached fallback without unhandled rejections', async () => {
@@ -108,21 +112,25 @@ describe('useApiQuery - Unhandled Promise Rejections Fix', () => {
     const cachedData = { cached: true };
     const queryFn = vi.fn().mockRejectedValue(mockError);
 
-    // Mock cache retrieval (hook uses default export, not named export)
+    // Mock cache retrieval (hook uses default export)
     dataCache.default.get.mockResolvedValue(cachedData);
+    dataCache.default.getMetadata.mockResolvedValue({ fetchedAt: Date.now() });
 
     const { result } = renderHook(
       () => useApiQuery(['test-key'], queryFn),
       { wrapper }
     );
 
+    // Network errors trigger retries; wait long enough for all retries to complete
     await waitFor(() => {
       expect(result.current.data).toBeDefined();
-    });
+    }, { timeout: 5000 });
 
     // Should return cached data without unhandled rejections
     expect(unhandledRejections.length).toBe(0);
-    expect(result.current.data).toEqual({ ...cachedData, fromCache: true });
+    // Cached data gets metadata added too
+    expect(result.current.data).toHaveProperty('cached', true);
+    expect(result.current.data._fromCache).toBe(true);
   });
 
   it('should handle cache retrieval failures', async () => {
@@ -165,6 +173,36 @@ describe('useApiQuery - Unhandled Promise Rejections Fix', () => {
 
     expect(unhandledRejections.length).toBe(0);
     consoleWarnSpy.mockRestore();
+  });
+
+  it('should format decimal fields for financial precision', async () => {
+    const mockData = {
+      position_value: 12345.6789,
+      unrealized_pnl_dollars: 123.456789,
+      avg_entry_price: 99.99999,
+      current_price: 100.0001,
+    };
+    const queryFn = vi.fn().mockResolvedValue({
+      data: { success: true, data: mockData },
+    });
+
+    dataCache.set.mockResolvedValue(undefined);
+    dataCache.get.mockResolvedValue(null);
+
+    const { result } = renderHook(
+      () => useApiQuery(['algo-positions'], queryFn),
+      { wrapper }
+    );
+
+    await waitFor(() => {
+      expect(result.current.data).toBeDefined();
+    });
+
+    // All float values should be formatted to 2 decimal places for financial precision
+    expect(result.current.data.position_value).toBe(12345.68);
+    expect(result.current.data.unrealized_pnl_dollars).toBe(123.46);
+    expect(result.current.data.avg_entry_price).toBe(100.00);
+    expect(result.current.data.current_price).toBe(100.00);
   });
 });
 

@@ -1,7 +1,11 @@
 import { useQuery } from '@tanstack/react-query';
-import { extractData, extractPaginatedData } from '../utils/responseNormalizer';
-import { validateResponseEnvelope } from '../utils/responseValidator';
+import { extractData, extractPaginatedData, validateItems } from '../utils/responseNormalizer';
+import { validateResponse, validateArrayItems } from '../utils/responseValidator';
+import {
+  getEndpointSchema, getRequiredFields, getItemRequiredFields, getDecimalFields,
+} from '../utils/endpointSchemas';
 import dataCache from '../services/dataCache';
+import { toFixed } from '../utils/decimalMath';
 
 /**
  * React Query wrapper with standardized error/loading/data handling.
@@ -59,6 +63,42 @@ export const useApiQuery = (
     return Promise.race([promise, timeoutPromise]);
   };
 
+  // Helper to format decimal fields for financial precision
+  const formatDecimalFields = (data, endpoint) => {
+    if (!data || typeof data !== 'object') return data;
+
+    const decimalFields = getDecimalFields(endpoint);
+    if (decimalFields.length === 0) return data;
+
+    const formatValue = (val) => {
+      if (val === null || val === undefined) return val;
+      const num = parseFloat(val);
+      if (isNaN(num)) return val;
+      return parseFloat(num.toFixed(2));
+    };
+
+    if (Array.isArray(data)) {
+      return data.map(item => {
+        if (!item || typeof item !== 'object') return item;
+        const formatted = { ...item };
+        for (const field of decimalFields) {
+          if (field in formatted) {
+            formatted[field] = formatValue(formatted[field]);
+          }
+        }
+        return formatted;
+      });
+    }
+
+    const formatted = { ...data };
+    for (const field of decimalFields) {
+      if (field in formatted) {
+        formatted[field] = formatValue(formatted[field]);
+      }
+    }
+    return formatted;
+  };
+
   // Helper to add fetch metadata to data
   const addMetadata = (data, fetchedAt = Date.now(), isFromCache = false) => {
     if (!data || typeof data !== 'object') return data;
@@ -94,38 +134,57 @@ export const useApiQuery = (
         const response = await withTimeout(queryFn(), timeout);
         const freshData = extractData(response);
 
-        // Validate and unwrap envelope with explicit structure checks
-        // Lambda responses come wrapped as {data: payload, statusCode, success}
-        // We need to unwrap safely while validating the envelope is valid.
-        let result;
-        if (freshData && typeof freshData === 'object' && !Array.isArray(freshData) && freshData.data !== undefined && !freshData.items) {
-          // Has single-object envelope structure
-          const envelopeValidation = validateResponseEnvelope(freshData, 'Query result');
-          if (!envelopeValidation.valid) {
-            throw new Error(`Invalid response envelope: ${envelopeValidation.errors.join('; ')}`);
-          }
+        // Get endpoint schema to validate required fields
+        const endpointSchema = getEndpointSchema(actualCacheKey);
+        const requiredFields = getRequiredFields(actualCacheKey);
 
-          // Ensure unwrapped data is not null or problematic
-          result = envelopeValidation.unwrapped;
-          if (result === null) {
-            throw new Error('Response envelope.data unwrapped to null — API returned {data: null}');
-          }
-          if (typeof result === 'object' && Object.keys(result).length === 0 && !Array.isArray(result)) {
-            console.warn('[useApiQuery] Warning: envelope.data is empty object {}', { endpoint: actualCacheKey });
-            // Still use it but log warning — some endpoints may legitimately return empty state
+        // Validate response based on schema
+        let result;
+        if (freshData && typeof freshData === 'object' && !Array.isArray(freshData)) {
+          if (freshData.data !== undefined && !freshData.items) {
+            // Single-object response structure
+            const validation = validateResponse(freshData, {
+              requiredFields,
+              requireNonEmpty: endpointSchema?.requireNonEmpty || false,
+              context: `${actualCacheKey} response`,
+            });
+
+            // Log warnings even if validation passed
+            if (validation.warnings && validation.warnings.length > 0) {
+              validation.warnings.forEach(w => console.warn(w, { endpoint: actualCacheKey }));
+            }
+
+            if (!validation.valid) {
+              throw new Error(`Invalid response envelope: ${validation.errors.join('; ')}`);
+            }
+
+            result = validation.data;
+            if (result === null) {
+              throw new Error(`Response validation failed: ${actualCacheKey} returned null data`);
+            }
+          } else if (freshData.items !== undefined) {
+            // Paginated structure detected (shouldn't happen in useApiQuery, but handle it)
+            result = freshData;
+          } else {
+            // No standard envelope
+            result = freshData;
           }
         } else {
-          // No envelope or already unwrapped (items list, direct array, etc.)
+          // Direct array or other format
           result = freshData;
         }
-        // Cache the unwrapped result for consistent access on cache hit
+
+        // Format decimal fields for financial precision
+        const formattedResult = formatDecimalFields(result, actualCacheKey);
+
+        // Cache the validated result
         try {
-          await dataCache.set(actualCacheKey, result, { ttl: 30 * 60 * 1000 });
+          await dataCache.set(actualCacheKey, formattedResult, { ttl: 30 * 60 * 1000 });
         } catch (cacheErr) {
           console.warn('[useApiQuery] Failed to cache data:', cacheErr.message);
           // Continue anyway - cache failure shouldn't break the query
         }
-        return addMetadata(result, fetchStartTime, false);
+        return addMetadata(formattedResult, fetchStartTime, false);
       } catch (err) {
         console.warn('[useApiQuery] Query failed', err);
         // Try to return cached data as fallback when all retries exhausted
@@ -254,6 +313,39 @@ export const useApiPaginatedQuery = (
       try {
         const response = await queryFn();
         const freshData = extractPaginatedData(response);
+
+        // Validate items array structure
+        const endpointSchema = getEndpointSchema(actualCacheKey);
+        const itemRequiredFields = getItemRequiredFields(actualCacheKey);
+        const requireNonEmptyList = endpointSchema?.requireNonEmptyList || false;
+
+        const itemValidation = validateArrayItems(
+          freshData.items || [],
+          itemRequiredFields,
+          `${actualCacheKey} items`,
+          { requireNonEmpty: requireNonEmptyList }
+        );
+
+        if (!itemValidation.valid) {
+          // If array is non-empty and has malformed items, filter them out
+          // If array must be non-empty but is empty, that's an error that should propagate
+          if ((freshData.items?.length || 0) > 0 && itemValidation.invalidItems.length > 0) {
+            console.warn(`[useApiPaginatedQuery] ${itemValidation.errors[0]}`, {
+              endpoint: actualCacheKey,
+              invalidItemIndices: itemValidation.invalidItems.map(iv => iv.index),
+              totalItems: freshData.items.length,
+            });
+            // Filter out invalid items
+            const validItems = freshData.items.filter((_, idx) =>
+              !itemValidation.invalidItems.some(iv => iv.index === idx)
+            );
+            freshData.items = validItems;
+            freshData.pagination.total = Math.max(0, freshData.pagination.total - itemValidation.invalidItems.length);
+          } else if (requireNonEmptyList && freshData.items?.length === 0) {
+            throw new Error(`Invalid response: ${itemValidation.errors.join('; ')}`);
+          }
+        }
+
         // Cache successful result for fallback
         try {
           await dataCache.set(actualCacheKey, freshData, { ttl: 30 * 60 * 1000 });
@@ -263,7 +355,7 @@ export const useApiPaginatedQuery = (
         }
         return freshData;
       } catch (err) {
-        console.warn('[useApiQuery] Query failed', err);
+        console.warn('[useApiPaginatedQuery] Query failed', err);
         // Try to return cached data as fallback when all retries exhausted
         try {
           const cachedData = await dataCache.get(actualCacheKey);

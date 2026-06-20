@@ -30,6 +30,7 @@ import { DataAgeIndicator, StaleDataWarning, SafeDataAgeIndicator } from '../com
 import { SkeletonKpi, SkeletonChart, SkeletonTable, SkeletonCircuitBreaker, SkeletonChartContent, AddGlobalStyles } from '../components/Skeleton';
 import { fmtMoney, fmtMoneyShort, num, pct } from '../components/dashboard/shared/utils/dashboardFormatters';
 import { safeGetMarketCurrent, safeNumericValue, ensureArray } from '../utils/dataValidation';
+import { add } from '../utils/decimalMath';
 
 const Pnl = ({ value, suffix = '' }) => {
   if (value == null) return <span className="muted">—</span>;
@@ -240,12 +241,14 @@ function PortfolioDashboardPage() {
     distribution_days: currentExp.distribution_days_4w ?? currentExp.distribution_days ?? 0,
   };
 
-  // Compute portfolio metrics
+  // Compute portfolio metrics with decimal precision
   const unrealizedPnl = portfolio.unrealized_pnl_dollars ?? 0;
-  const totalPositionValue = safePositionsList.reduce((s, p) => {
-    const val = Number(p?.position_value ?? 0);
-    return s + (isNaN(val) ? 0 : val);
-  }, 0);
+  const totalPositionValue = safePositionsList.length > 0
+    ? parseFloat(safePositionsList.reduce((s, p) => {
+        const val = p?.position_value ?? '0';
+        return add(s, val, 2);
+      }, '0'))
+    : 0;
   const totalValue = (portfolio.total_value != null && !isNaN(Number(portfolio.total_value)))
     ? parseFloat(portfolio.total_value)
     : (totalPositionValue || 0);
