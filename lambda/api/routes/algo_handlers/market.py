@@ -54,20 +54,16 @@ def _get_data_quality(cur) -> dict:
         patrol_rows = cur.fetchall()
 
         if not patrol_rows:
-            return json_response(
-                200,
-                {
-                    "accuracy_check": "no_data",
-                    "last_check": None,
-                    "tables": [],
-                    "summary": {
-                        "critical": 0,
-                        "errors": 0,
-                        "warnings": 0,
-                        "healthy": 0,
-                    },
-                },
-            )
+            response = list_response([], total=0, limit=None, offset=None)
+            response["data"]["accuracy_check"] = "no_data"
+            response["data"]["last_check"] = None
+            response["data"]["summary"] = {
+                "critical": 0,
+                "errors": 0,
+                "warnings": 0,
+                "healthy": 0,
+            }
+            return response
 
         # Organize by table, keeping latest status per table
         tables_dict = {}
@@ -120,21 +116,17 @@ def _get_data_quality(cur) -> dict:
         status_order = {"failed": 0, "error": 1, "warning": 2, "passed": 3}
         table_statuses.sort(key=lambda x: status_order.get(x["status"], 4))
 
-        return json_response(
-            200,
-            {
-                "accuracy_check": accuracy,
-                "last_check": latest_ts.isoformat() if latest_ts else None,
-                "tables": table_statuses,
-                "summary": {
-                    "critical": severity_counts["critical"],
-                    "errors": severity_counts["error"],
-                    "warnings": severity_counts["warn"],
-                    "healthy": severity_counts["healthy"],
-                    "total_tables_checked": len(tables_dict),
-                },
-            },
-        )
+        response = list_response(table_statuses, total=len(table_statuses), limit=None, offset=None)
+        response["data"]["accuracy_check"] = accuracy
+        response["data"]["last_check"] = latest_ts.isoformat() if latest_ts else None
+        response["data"]["summary"] = {
+            "critical": severity_counts["critical"],
+            "errors": severity_counts["error"],
+            "warnings": severity_counts["warn"],
+            "healthy": severity_counts["healthy"],
+            "total_tables_checked": len(tables_dict),
+        }
+        return response
     except (
         psycopg2.errors.UndefinedTable,
         psycopg2.errors.UndefinedColumn,
@@ -276,17 +268,13 @@ def _get_data_status(cur) -> dict:
 
         ready_to_trade = len(critical_stale) == 0 and summary.get("ok", 0) > 0
 
-        return json_response(
-            200,
-            {
-                "ready_to_trade": ready_to_trade,
-                "summary": summary,
-                "sources": sources,
-                "critical_stale": critical_stale,
-                "expected_date": str(expected_date),
-                "as_of": datetime.now(timezone.utc).isoformat(),
-            },
-        )
+        response = list_response(sources, total=len(sources), limit=None, offset=None)
+        response["ready_to_trade"] = ready_to_trade
+        response["summary"] = summary
+        response["critical_stale"] = critical_stale
+        response["expected_date"] = str(expected_date)
+        response["as_of"] = datetime.now(timezone.utc).isoformat()
+        return response
     except (
         psycopg2.errors.UndefinedTable,
         psycopg2.errors.UndefinedColumn,
@@ -574,9 +562,11 @@ def _get_markets(cur) -> dict:
         row = cur.fetchone()
 
         if not row:
-            return json_response(
-                200, {"current": None, "active_tier": None, "history": []}
-            )
+            response = list_response([], total=0, limit=None, offset=None)
+            response["current"] = None
+            response["active_tier"] = None
+            response["history"] = []
+            return response
 
         row = safe_json_serialize(safe_dict_convert(row))
 
@@ -704,37 +694,33 @@ def _get_markets(cur) -> dict:
                 f"Check load_market_health_daily logs and yfinance availability."
             )
 
-        return json_response(
-            200,
-            {
-                "current": {
-                    "exposure_pct": (
-                        float(row["exposure_pct"])
-                        if row.get("exposure_pct") is not None
-                        else None
-                    ),
-                    "raw_score": (
-                        float(row["raw_score"])
-                        if row.get("raw_score") is not None
-                        else None
-                    ),
-                    "regime": row.get("regime"),
-                    "halt_reasons": halt_reasons,
-                    "distribution_days": row.get("distribution_days", 0),
-                    "factors": factors,
-                    "spy_close": spy_close,
-                    "date": (
-                        current_date.isoformat()
-                        if hasattr(current_date, "isoformat")
-                        else str(current_date)
-                    ),
-                },
-                "active_tier": active_tier,
-                "history": history,
-                "sectors": sectors,
-                "market_health": market_health,
-            },
-        )
+        response = list_response(sectors, total=len(sectors), limit=None, offset=None)
+        response["current"] = {
+            "exposure_pct": (
+                float(row["exposure_pct"])
+                if row.get("exposure_pct") is not None
+                else None
+            ),
+            "raw_score": (
+                float(row["raw_score"])
+                if row.get("raw_score") is not None
+                else None
+            ),
+            "regime": row.get("regime"),
+            "halt_reasons": halt_reasons,
+            "distribution_days": row.get("distribution_days", 0),
+            "factors": factors,
+            "spy_close": spy_close,
+            "date": (
+                current_date.isoformat()
+                if hasattr(current_date, "isoformat")
+                else str(current_date)
+            ),
+        }
+        response["active_tier"] = active_tier
+        response["history"] = history
+        response["market_health"] = market_health
+        return response
     except (
         psycopg2.errors.UndefinedTable,
         psycopg2.errors.UndefinedColumn,
