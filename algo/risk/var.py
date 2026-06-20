@@ -529,11 +529,11 @@ class ValueAtRisk:
 
             try:
                 with DatabaseContext("write") as cur:
-                    var_pct_val = float(var_metrics["var_pct"]) if var_metrics else None
-                    cvar_pct_val = float(cvar_metrics["cvar_pct"]) if cvar_metrics else None
-                    stressed_var_pct_val = float(stressed_var["stressed_var_pct"]) if stressed_var else None
-                    portfolio_beta_val = float(beta["portfolio_beta"]) if beta else None
-                    top_5_conc_val = float(concentration["top_5_concentration_pct"]) if concentration else None
+                    var_pct_val = safe_float(var_metrics["var_pct"], default=0.0, context="var_pct") if var_metrics else None
+                    cvar_pct_val = safe_float(cvar_metrics["cvar_pct"], default=0.0, context="cvar_pct") if cvar_metrics else None
+                    stressed_var_pct_val = safe_float(stressed_var["stressed_var_pct"], default=0.0, context="stressed_var_pct") if stressed_var else None
+                    portfolio_beta_val = safe_float(beta["portfolio_beta"], default=0.0, context="portfolio_beta") if beta else None
+                    top_5_conc_val = safe_float(concentration["top_5_concentration_pct"], default=0.0, context="top_5_concentration_pct") if concentration else None
 
                     cur.execute(
                         """

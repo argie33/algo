@@ -26,6 +26,7 @@ from utils.infrastructure.timezone import EASTERN_TZ
 from utils.loaders.config import get_default_parallelism
 from utils.loaders.helpers import get_active_symbols
 from utils.optimal_loader import OptimalLoader
+from utils.safe_data_conversion import safe_float
 from utils.validation import safe_parse_date
 
 
@@ -422,7 +423,7 @@ class SignalQualityScoresLoader(OptimalLoader):
                 )
                 row = cur.fetchone()
                 if row and row[0] is not None:
-                    return {"institutional_ownership": float(row[0])}
+                    return {"institutional_ownership": safe_float(row[0], default=0.0, context="row[0]")}
         except (psycopg2.DatabaseError, psycopg2.OperationalError) as e:
             logger.debug(f"Failed to fetch positioning data for {symbol}: {e}")
         return {}

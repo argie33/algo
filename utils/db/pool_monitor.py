@@ -10,8 +10,11 @@ Monitors connection pool saturation during high-load periods:
 import logging
 import os
 from datetime import datetime
-from typing import Any, Dict
+from typing import Any
+
 import psycopg2
+
+from utils.safe_data_conversion import safe_float
 
 
 # Inlined from algo.infrastructure.constants — avoids importing the algo package
@@ -33,7 +36,7 @@ class RDSPoolMonitor:
     def __init__(self):
         self.region = os.getenv("AWS_REGION", "us-east-1")
 
-    def get_connection_pool_status(self) -> Dict[str, Any]:
+    def get_connection_pool_status(self) -> dict[str, Any]:
         """Query RDS for current connection pool usage.
 
         Returns:
@@ -131,7 +134,7 @@ class RDSPoolMonitor:
                             "pid": row[0],
                             "user": row[1],
                             "query": row[2][:100],  # Truncate long queries
-                            "duration_sec": round(float(row[3]), 1) if row[3] else 0,
+                            "duration_sec": round(safe_float(row[3], default=0.0, context="row[3]"), 1) if row[3] else 0,
                             "state": row[4],
                         }
                     )
@@ -142,7 +145,7 @@ class RDSPoolMonitor:
             logger.error(f"Failed to query slow queries: {e}")
             raise
 
-    def get_connection_by_state(self) -> Dict[str, int]:
+    def get_connection_by_state(self) -> dict[str, int]:
         """Get breakdown of connections by state.
 
         Returns:
@@ -216,7 +219,7 @@ class RDSPoolMonitor:
             except (psycopg2.DatabaseError, psycopg2.OperationalError) as e:
                 logger.error(f"[RDS-POOL] Failed to query slow queries: {e}")
 
-    def check_eod_readiness(self) -> Dict[str, Any]:
+    def check_eod_readiness(self) -> dict[str, Any]:
         """Check if RDS is ready for EOD pipeline (4:05 PM).
 
         Returns:

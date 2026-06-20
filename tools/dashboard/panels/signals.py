@@ -1,6 +1,7 @@
 """Signal analysis panel functions."""
 
 import logging
+from utils.safe_data_conversion import safe_float
 
 
 logger = logging.getLogger(__name__)
@@ -392,7 +393,7 @@ def panel_signals_compact(sig, sig_eval=None, scores=None):
         rows.append(Rule(style="dim"))
         parts = []
         for a in near[:8]:
-            sc = float(a.get("score")) if a.get("score") is not None else None
+            sc = safe_float(a.get("score"), default=0.0, context="score") if a.get("score") is not None else None
             sc_s = f"{sc:.0f}" if sc is not None else "--"
             sym = a.get('symbol', '')
             parts.append(f"[{CY}]{sym}[/][dim]{sc_s}[/]")
@@ -452,7 +453,7 @@ def panel_signals_expanded(sig, sig_eval=None, scores=None):
     if top_a:
         parts = []
         for s in top_a:
-            sc = float(s.get("score")) if s.get("score") is not None else None
+            sc = safe_float(s.get("score"), default=0.0, context="score") if s.get("score") is not None else None
             if sc is not None:
                 sc_c = G if sc >= 90 else ("bright_green" if sc >= 85 else "green")
                 parts.append(f"[{sc_c}]{s.get('symbol', '')}[/][dim]{sc:.0f}[/]")

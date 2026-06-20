@@ -683,15 +683,15 @@ class PositionMonitor:
         if row is None:
             raise ValueError(f"Price data missing for {symbol} on {current_date} or earlier â€” no price_daily entry")
 
-        close_price = float(row[0]) if row[0] is not None else None
+        close_price = safe_float(row[0], default=0.0, context="row[0]") if row[0] is not None else None
         if close_price is None:
             raise ValueError(f"Invalid price for {symbol} on {current_date} â€” close price is NULL")
 
         return (
             close_price,
-            float(row[1]) if row[1] is not None else None,
-            float(row[2]) if row[2] is not None else None,
-            float(row[3]) if row[3] is not None else None,
+            safe_float(row[1], default=0.0, context="row[1]") if row[1] is not None else None,
+            safe_float(row[2], default=0.0, context="row[2]") if row[2] is not None else None,
+            safe_float(row[3], default=0.0, context="row[3]") if row[3] is not None else None,
         )
 
     def _compute_trailing_stop(self, entry_price, active_stop, cur_price, atr, sma_50, target_hits):
@@ -852,7 +852,7 @@ class PositionMonitor:
                 f"No price data available for {symbol} from {trade_date} to {current_date}. Cannot calculate peak unrealized gain."
             )
 
-        max_close = float(row[0])
+        max_close = safe_float(row[0], default=0.0, context="row[0]")
         if max_close <= 0:
             raise PositionValidationError(f"Invalid price data for {symbol}: max close {max_close} <= 0")
         return ((max_close - entry_price) / entry_price) * 100.0
@@ -942,7 +942,7 @@ class PositionMonitor:
             raise ValueError(
                 f"Period return data missing for {symbol} on {end_date} ({lookback_days}d lookback) â€” insufficient price history"
             )
-        recent, oldest = float(row[0]), float(row[1])
+        recent, oldest = safe_float(row[0], default=0.0, context="row[0]"), safe_float(row[1], default=0.0, context="row[1]")
         if oldest <= 0:
             raise ValueError(f"Invalid historical price for {symbol}: oldest close {oldest} <= 0")
         return (recent - oldest) / oldest
@@ -968,11 +968,11 @@ class PositionMonitor:
                 WHERE position_id = %s
                 """,
                 (
-                    float(rec["current_price"]),
-                    float(rec["quantity"]),
-                    float(rec["current_price"]),
-                    float(rec["current_price"]),
-                    float(rec["current_price"]),
+                    safe_float(rec["current_price"], default=0.0, context="current_price"),
+                    safe_float(rec["quantity"], default=0.0, context="quantity"),
+                    safe_float(rec["current_price"], default=0.0, context="current_price"),
+                    safe_float(rec["current_price"], default=0.0, context="current_price"),
+                    safe_float(rec["current_price"], default=0.0, context="current_price"),
                     int(rec["days_held"]),
                     rec["position_id"],
                 ),
@@ -998,7 +998,7 @@ class PositionMonitor:
                             "action": rec["action"],
                             "action_reason": rec["action_reason"],
                             "days_to_earnings": rec["days_to_earnings"],
-                            "proposed_stop": float(rec["proposed_stop"]),
+                            "proposed_stop": safe_float(rec["proposed_stop"], default=0.0, context="proposed_stop"),
                         }
                     ),
                     rec["action"],

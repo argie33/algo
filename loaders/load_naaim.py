@@ -12,6 +12,7 @@ import requests
 from loaders.runner import run_loader
 from utils.infrastructure.url_validator import validate_url
 from utils.optimal_loader import OptimalLoader
+from utils.safe_data_conversion import safe_float
 
 
 logger = logging.getLogger(__name__)
@@ -113,10 +114,10 @@ class NAAIMExposureLoader(OptimalLoader):
                             else None
                         ),
                         "bullish_alloc": (
-                            float(row["Bullish"]) if pd.notna(row["Bullish"]) else None
+                            safe_float(row["Bullish"], default=0.0, context="Bullish") if pd.notna(row["Bullish"]) else None
                         ),
                         "bearish_alloc": (
-                            float(row["Bearish"]) if pd.notna(row["Bearish"]) else None
+                            safe_float(row["Bearish"], default=0.0, context="Bearish") if pd.notna(row["Bearish"]) else None
                         ),
                     }
                 )

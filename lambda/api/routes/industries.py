@@ -1,7 +1,6 @@
 """Route: industries"""
 
 import logging
-from typing import Dict
 
 import psycopg2
 import psycopg2.errors
@@ -18,6 +17,8 @@ from routes.utils import (
     safe_limit,
     safe_page,
 )
+
+from utils.safe_data_conversion import safe_float
 
 
 logger = logging.getLogger(__name__)
@@ -38,10 +39,10 @@ def handle(
     cur,
     path: str,
     method: str,
-    params: Dict,
-    body: Dict = None,
-    jwt_claims: Dict = None,
-) -> Dict:
+    params: dict,
+    body: dict = None,
+    jwt_claims: dict = None,
+) -> dict:
     """Handle /api/industries, /api/industries/{name}, /api/industries/{name}/trend."""
     try:
         parts = [p for p in path.split("/") if p]
@@ -186,7 +187,7 @@ def _industry_list(cur, params):
         timeout_sec=10,
     )
     total = (
-        int((count_rows[0].get("cnt", 0) if count_rows else {})) if count_rows else 0
+        int(count_rows[0].get("cnt", 0) if count_rows else {}) if count_rows else 0
     )
 
     industries = []
@@ -344,12 +345,12 @@ def _industry_trend(cur, industry_name, params):
     trend_data = [
         {
             "date": str(r["date"]),
-            "avgPrice": float(r["avg_price"]) if r["avg_price"] is not None else None,
+            "avgPrice": safe_float(r["avg_price"], default=0.0, context="avg_price") if r["avg_price"] is not None else None,
             "stockCount": (
                 int(r["stock_count"]) if r["stock_count"] is not None else None
             ),
             "dailyStrengthScore": (
-                float(r["daily_strength_score"])
+                safe_float(r["daily_strength_score"], default=0.0, context="daily_strength_score")
                 if r["daily_strength_score"] is not None
                 else None
             ),

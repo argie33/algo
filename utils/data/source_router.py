@@ -25,22 +25,24 @@ Usage:
     logger.info(router.last_source)  # "alpaca" / "polygon" / "yfinance"
 """
 
+import json
 import logging
 import threading
 import time
 from collections import deque
+from collections.abc import Callable
 from concurrent.futures import ThreadPoolExecutor
 from concurrent.futures import TimeoutError as FuturesTimeoutError
 from dataclasses import dataclass, field
 from datetime import date
-from typing import Any, Callable, Deque, Dict, List, Optional
+from typing import Any
 
+import requests
 import yfinance as yf
 
 from algo.infrastructure import RateLimiter, retry
 from utils.infrastructure import EASTERN_TZ
-import json
-import requests
+from utils.safe_data_conversion import safe_float
 
 
 logger = logging.getLogger(__name__)
@@ -95,11 +97,11 @@ class SourceHealth:
     """Rolling health stats for a data source."""
 
     name: str
-    recent_results: Deque[bool] = field(default_factory=lambda: deque(maxlen=20))
+    recent_results: deque[bool] = field(default_factory=lambda: deque(maxlen=20))
     paused_until: float = 0.0
     total_requests: int = 0
     total_failures: int = 0
-    last_error: Optional[str] = None
+    last_error: str | None = None
 
     @property
     def success_rate(self) -> float:
@@ -111,7 +113,7 @@ class SourceHealth:
     def is_paused(self) -> bool:
         return time.monotonic() < self.paused_until
 
-    def record(self, success: bool, error: Optional[str] = None) -> None:
+    def record(self, success: bool, error: str | None = None) -> None:
         self.recent_results.append(success)
         self.total_requests += 1
         if not success:
@@ -132,9 +134,9 @@ class DataSourceRouter:
     """Routes data fetches across providers with fallback + health tracking."""
 
     def __init__(self):
-        self._health: Dict[str, SourceHealth] = {}
+        self._health: dict[str, SourceHealth] = {}
         self._lock = threading.Lock()
-        self.last_source: Optional[str] = None
+        self.last_source: str | None = None
 
         # Lazy clients — only construct when needed
         self._alpaca = None
@@ -148,9 +150,9 @@ class DataSourceRouter:
 
     def _try_chain(
         self,
-        sources: List[tuple],  # [(name, callable), ...]
+        sources: list[tuple],  # [(name, callable), ...]
         request_desc: str,
-    ) -> Optional[Any]:
+    ) -> Any | None:
         """Try sources in order, skipping paused ones, recording outcomes."""
         last_exc = None
         for i, (name, fn) in enumerate(sources):
@@ -196,7 +198,7 @@ class DataSourceRouter:
         symbol: str,
         start: date,
         end: date,
-    ) -> Optional[Any]:
+    ) -> Any | None:
         """Daily OHLCV bars. Returns DataFrame-shaped data or None."""
         sources = [
             ("yfinance", lambda: self._fetch_yfinance_ohlcv(symbol, start, end)),
@@ -209,7 +211,7 @@ class DataSourceRouter:
         start: date,
         end: date,
         interval: str = "1d",
-    ) -> Optional[Any]:
+    ) -> Any | None:
         """OHLCV bars at a specified yfinance interval (1d/1wk/1mo)."""
         sources = [
             (
@@ -223,11 +225,11 @@ class DataSourceRouter:
 
     def fetch_ohlcv_batch(
         self,
-        symbols: List[str],
+        symbols: list[str],
         start: date,
         end: date,
         interval: str = "1d",
-    ) -> Dict[str, Optional[List[dict]]]:
+    ) -> dict[str, list[dict] | None]:
         """Batch fetch OHLCV for multiple symbols. Returns dict[symbol] -> rows or None."""
         sources = [
             (
@@ -240,7 +242,7 @@ class DataSourceRouter:
         results = self._try_chain(
             sources, f"OHLCV_BATCH[{len(symbols)} symbols {start}..{end} {interval}]"
         )
-        return results if results else {sym: None for sym in symbols}
+        return results if results else dict.fromkeys(symbols)
 
     @retry(max_attempts=2, base_delay=2.0, exceptions=(Exception,))
     def _fetch_yfinance_ohlcv(
@@ -254,7 +256,6 @@ class DataSourceRouter:
         )
         yf_symbol = symbol.replace(".", "-") if "." in symbol else symbol
         try:
-            pass
 
             def do_download():
                 # yfinance 0.2.40+ requires curl_cffi and doesn't accept requests.Session
@@ -295,10 +296,10 @@ class DataSourceRouter:
                                 if hasattr(idx, "date")
                                 else str(idx)[:10]
                             ),
-                            "open": float(row["Open"]),
-                            "high": float(row["High"]),
-                            "low": float(row["Low"]),
-                            "close": float(row["Close"]),
+                            "open": safe_float(row["Open"], default=0.0, context="Open"),
+                            "high": safe_float(row["High"], default=0.0, context="High"),
+                            "low": safe_float(row["Low"], default=0.0, context="Low"),
+                            "close": safe_float(row["Close"], default=0.0, context="Close"),
                             "volume": int(row["Volume"]),
                         }
                     )
@@ -336,12 +337,12 @@ class DataSourceRouter:
 
     @retry(max_attempts=2, base_delay=2.0, exceptions=(Exception,))
     def _fetch_yfinance_ohlcv_batch(
-        self, symbols: List[str], start: date, end: date, interval: str = "1d"
+        self, symbols: list[str], start: date, end: date, interval: str = "1d"
     ):
         """Batch fetch multiple symbols in one API call. Returns dict[symbol] -> rows."""
         if yf is None:
             logger.error("[yfinance] yfinance not installed")
-            return {sym: None for sym in symbols}
+            return dict.fromkeys(symbols)
 
         if not symbols:
             return {}
@@ -354,7 +355,6 @@ class DataSourceRouter:
         yf_symbols = [sym.replace(".", "-") if "." in sym else sym for sym in symbols]
 
         try:
-            pass
 
             def do_download():
                 # yfinance 0.2.40+ requires curl_cffi and doesn't accept requests.Session
@@ -390,7 +390,7 @@ class DataSourceRouter:
                 logger.debug(
                     f"[yfinance] No data returned for batch of {len(symbols)} symbols"
                 )
-                return {sym: None for sym in symbols}
+                return dict.fromkeys(symbols)
 
             logger.debug(
                 f"[yfinance] Batch got {len(hist)} rows total for {len(symbols)} symbols"
@@ -741,7 +741,7 @@ class DataSourceRouter:
 
     # ============== HEALTH REPORT ==============
 
-    def health_report(self) -> Dict[str, Any]:
+    def health_report(self) -> dict[str, Any]:
         """Snapshot of source health. Useful for dashboards/alerts."""
         with self._lock:
             return {

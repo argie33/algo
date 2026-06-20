@@ -18,6 +18,7 @@ from loaders.runner import run_loader
 from utils.infrastructure.timeout import ExecutionTimeout
 from utils.infrastructure.url_validator import validate_redirect_url, validate_url
 from utils.optimal_loader import OptimalLoader
+from utils.safe_data_conversion import safe_float
 
 
 logger = logging.getLogger(__name__)
@@ -163,17 +164,17 @@ class AAIISentimentLoader(OptimalLoader):
                             "bullish": (
                                 None
                                 if pd.isna(row["Bullish"])
-                                else float(row["Bullish"])
+                                else safe_float(row["Bullish"], default=0.0, context="Bullish")
                             ),
                             "neutral": (
                                 None
                                 if pd.isna(row["Neutral"])
-                                else float(row["Neutral"])
+                                else safe_float(row["Neutral"], default=0.0, context="Neutral")
                             ),
                             "bearish": (
                                 None
                                 if pd.isna(row["Bearish"])
-                                else float(row["Bearish"])
+                                else safe_float(row["Bearish"], default=0.0, context="Bearish")
                             ),
                         }
                     )

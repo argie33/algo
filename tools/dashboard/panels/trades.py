@@ -2,6 +2,7 @@
 
 import logging
 from typing import Any
+from utils.safe_data_conversion import safe_float
 
 
 logger = logging.getLogger(__name__)
@@ -210,12 +211,12 @@ def panel_trades_expanded(trades):
     # Summary stats (from displayed trades; see Performance panel for all-time stats)
     total = len(closed)
     # Count wins: only trades with profit_loss_pct data
-    wins = sum(1 for t in closed if t.get("profit_loss_pct") is not None and float(t.get("profit_loss_pct")) > 0)
+    wins = sum(1 for t in closed if t.get("profit_loss_pct") is not None and safe_float(t.get("profit_loss_pct"), default=0.0, context="profit_loss_pct") > 0)
     losses = total - wins
     wr = wins / total * 100 if total else 0
     # Sum P&L only from trades with profit_loss_dollars data
-    total_pnl = sum(float(t.get("profit_loss_dollars")) for t in closed if t.get("profit_loss_dollars") is not None)
-    avg_r_list = [float(t["exit_r_multiple"]) for t in closed if t.get("exit_r_multiple") is not None]
+    total_pnl = sum(safe_float(t.get("profit_loss_dollars"), default=0.0, context="profit_loss_dollars") for t in closed if t.get("profit_loss_dollars") is not None)
+    avg_r_list = [safe_float(t["exit_r_multiple"], default=0.0, context="exit_r_multiple") for t in closed if t.get("exit_r_multiple") is not None]
     avg_r = sum(avg_r_list) / len(avg_r_list) if avg_r_list else None
     wc = G if wr >= 45 else (Y if wr >= 40 else R)
     pnl_c = G if total_pnl >= 0 else R
