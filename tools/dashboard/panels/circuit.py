@@ -51,7 +51,9 @@ def panel_circuit(cb):
     tbl = Table.grid(padding=(0, 1), expand=True)
     tbl.add_column("a", ratio=1)
     tbl.add_column("b", ratio=1)
-    bs = cb.get("bs", [])
+    bs = cb.get("bs")
+    if bs is None:
+        bs = []
     for a, b in zip(bs[::2], [*bs[1::2], None], strict=False):
 
         def fmt_b(br):
@@ -119,7 +121,7 @@ def panel_circuit_expanded(cb):
         rows.append(Text.from_markup(f"[bold {G}]✓  ALL CLEAR  —  NO BREAKERS ACTIVE[/]"))
     rows.append(Rule(style="dim"))
 
-    bs = cb.get("bs", [])
+    bs = cb.get("bs")
     if not bs:
         rows.append(Text("no breaker data", style="dim"))
     else:

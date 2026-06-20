@@ -175,6 +175,15 @@ def panel_recent_trades(trades):
 
 def panel_trades_expanded(trades):
     """Full-screen closed trade history with all columns."""
+    if error_boundary.has_error(trades):
+        error_msg = error_boundary.get_error_message(trades)
+        return Panel(
+            Text(error_msg or "Data unavailable", style="red"),
+            title="[bold cyan]TRADE HISTORY - EXPANDED[/]  [dim][t] return[/]",
+            border_style="red",
+            padding=(0, 1),
+        )
+
     trades_timestamp = None
     if isinstance(trades, dict):
         trades_timestamp = trades.get("timestamp")

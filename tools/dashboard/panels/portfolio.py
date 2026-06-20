@@ -290,13 +290,13 @@ def panel_performance_spark(perf, rec, perf_anl=None, pos=None):
             sc1 = G if sharpe252 >= 1.0 else (Y if sharpe252 >= 0 else R)
             grid_rows.append((cell("Sharpe (1-Year):", f"[{sc1}]{sharpe252:.2f}[/]"), Text("")))
 
-        total_trades = perf.get("n", 0) if perf else 0
+        total_trades = perf.get("n") if perf else None
         calmar_cell = None
         wr50_cell = None
         if calmar is not None and calmar != 0.0:
             cc = G if calmar >= 0.5 else (Y if calmar >= 0 else R)
             calmar_cell = cell("Calmar Ratio:", f"[{cc}]{calmar:.2f}[/]")
-        if wr50 is not None and wr50 != 0.0 and (total_trades >= 10 or wr50 > 0):
+        if wr50 is not None and wr50 != 0.0 and (total_trades is not None and total_trades >= 10 or wr50 > 0):
             wc = G if wr50 >= 50 else (Y if wr50 >= 42 else R)
             wr50_cell = cell("Win Rate (50 trades):", f"[{wc}]{wr50:.0f}%[/]")
         if calmar_cell is not None or wr50_cell is not None:
@@ -313,8 +313,8 @@ def panel_performance_spark(perf, rec, perf_anl=None, pos=None):
     rows = [header, tbl]
 
     # Equity curve sparkline
-    equity_vals = perf.get("equity_vals", [])
-    if len(equity_vals) >= 3:
+    equity_vals = perf.get("equity_vals")
+    if equity_vals and len(equity_vals) >= 3:
         sp = sparkline(equity_vals, width=28)
         rows.append(Text.from_markup(f"[dim]Equity curve:[/] {sp}"))
 

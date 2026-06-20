@@ -117,13 +117,16 @@ def extract_run_info(run: dict[str, Any]) -> dict[str, Any]:
     """
     if not isinstance(run, dict) or has_error(run):
         return {}
+    phase_results = run.get("phase_results")
+    if phase_results is None:
+        phase_results = []
     return {
         "success": run["success"],
         "halted": run["halted"],
         "errored": run["errored"],
         "run_at": run.get("run_at"),
         "run_id": run.get("run_id"),
-        "phase_results": run.get("phase_results", []),
+        "phase_results": phase_results,
         "halt_reason": run.get("halt_reason"),
         "summary": run.get("summary"),
         "_source": run.get("_source"),
