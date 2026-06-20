@@ -74,8 +74,8 @@ def validate_performance_response(data: dict[str, Any]) -> dict[str, Any]:
     if not isinstance(data, dict):
         raise ResponseValidationError(f"Performance response not a dict: {type(data)}")
 
-    if has_error(data) or data.get("_no_data"):
-        return data  # Propagate error responses
+    if has_error(data):
+        return data  # Propagate error responses (fail-fast: no _no_data fallbacks)
 
     # If performance data exists, ensure all core fields are present
     # Empty performance data (no trades yet) is valid, but if we have n trades,

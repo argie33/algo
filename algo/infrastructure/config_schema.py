@@ -224,9 +224,9 @@ VALIDATION_SCHEMA = {
     "swing_score_excellent_threshold": ("int", 0, 100, False, None),
     "swing_score_good_threshold": ("int", 0, 100, False, None),
     # Loader Rate Limiting Configuration
-    "loader_rate_limit_circuit_break_threshold_morning": ("float", 0.0, 100.0, False, None),
-    "loader_rate_limit_circuit_break_threshold_eod": ("float", 0.0, 100.0, False, None),
+    "loader_rate_limit_circuit_break_threshold_morning": ("int", 0, 3600, False, None),
+    "loader_rate_limit_circuit_break_threshold_eod": ("int", 0, 3600, False, None),
     "loader_rate_limit_requests_per_min": ("int", 0, 10000, False, None),
-    "loader_timeout_seconds": ("int", 0, 600, False, None),
+    "loader_timeout_seconds": ("int", 0, 36000, False, None),
     "loader_emergency_mode_threshold_multiplier": ("float", 0.01, 100.0, False, None),
 }

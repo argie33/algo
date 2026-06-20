@@ -13,7 +13,6 @@ from zoneinfo import ZoneInfo
 from rich.console import Console
 
 from .data_validation import safe_float
-from .error_boundary import has_error
 
 
 # ── globals ───────────────────────────────────────────────────────────────────
@@ -120,8 +119,10 @@ def normalize_positions_data(data):
     Returns:
         (positions_list, timestamp, has_error) tuple
     """
+    from .error_boundary import has_error as check_has_error
+
     if isinstance(data, dict):
-        if has_error(data):
+        if check_has_error(data):
             return data, None, True
         if "items" in data:
             return data.get("items", []), data.get("timestamp"), False
@@ -217,7 +218,7 @@ def extract_items_and_error(data):
     Returns:
         (items_list, error_msg) tuple
     """
-    from .error_boundary import get_error_message
+    from .error_boundary import get_error_message, has_error
 
     if isinstance(data, dict):
         if has_error(data):

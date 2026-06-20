@@ -418,7 +418,7 @@ def panel_portfolio_perf_expanded(port, cfg, risk=None, perf=None, perf_anl=None
     rows.append(Rule(style="dim"))
 
     # ── Performance metrics ────────────────────────────────────────────────────
-    if perf and not has_error(perf) and not perf.get("_no_data"):
+    if perf and not has_error(perf):
         rows.append(Text.from_markup("[dim bold]PERFORMANCE METRICS[/]"))
         n = perf.get("n")
         w = perf.get("w")

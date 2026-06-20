@@ -733,8 +733,10 @@ class AlgoConfig:
                 for key, value, dtype in rows:
                     if value is not None:
                         try:
-                            self._validate_value(key, value, dtype)
-                            self._config[key] = self._parse_value(value, dtype)
+                            # Normalize PostgreSQL type names to schema type names
+                            normalized_dtype = self._normalize_db_type(dtype)
+                            self._validate_value(key, value, normalized_dtype)
+                            self._config[key] = self._parse_value(value, normalized_dtype)
                             self._sources[key] = "database"
                         except ValueError as e:
                             # Check if this is a critical safety threshold
@@ -774,6 +776,38 @@ class AlgoConfig:
                 f"Config initialization failed: cannot load safety thresholds from database. "
                 f"System will not trade with undefined safety configuration. Caused by: {e}"
             ) from e
+
+    def _normalize_db_type(self, db_type: str) -> str:
+        """Convert PostgreSQL type names to schema type names.
+
+        Database stores PostgreSQL native types like 'integer', 'double precision', etc.
+        Schema expects Python type names like 'int', 'float', 'bool', 'string'.
+        """
+        if db_type is None:
+            return "string"
+
+        db_type_lower = db_type.lower().strip()
+
+        # Map PostgreSQL types to schema types
+        type_mapping = {
+            "integer": "int",
+            "int": "int",
+            "bigint": "int",
+            "smallint": "int",
+            "double precision": "float",
+            "double": "float",
+            "float": "float",
+            "numeric": "float",
+            "decimal": "float",
+            "boolean": "bool",
+            "bool": "bool",
+            "text": "string",
+            "varchar": "string",
+            "string": "string",
+            "character varying": "string",
+        }
+
+        return type_mapping.get(db_type_lower, "string")
 
     def _parse_value(self, value, dtype):
         """Parse configuration value to correct type."""
