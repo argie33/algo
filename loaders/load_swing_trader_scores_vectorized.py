@@ -29,6 +29,7 @@ import psycopg2
 from utils.db.context import DatabaseContext
 from utils.infrastructure.timezone import EASTERN_TZ
 from utils.loaders.helpers import get_active_symbols
+from utils.safe_data_conversion import safe_float
 
 
 logger = logging.getLogger(__name__)

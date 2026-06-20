@@ -13,7 +13,8 @@ from routes.utils import (
     safe_json_serialize,
     success_response,
 )
-from utils.validation import DatabaseResultValidator
+
+from utils.safe_data_conversion import safe_float
 
 
 # C-4 FIX: Import route status for health endpoint
@@ -395,7 +396,7 @@ def _handle_pipeline(cur, jwt_claims: dict[str, Any] | None) -> dict[str, Any]:
         config = get_config()
         tables = []
         for row in rows:
-            age = float(row.get("age_days")) if row.get("age_days") is not None else 999
+            age = safe_float(row.get("age_days"), default=0.0, context="age_days") if row.get("age_days") is not None else 999
             row_count = row.get("row_count")
             if (
                 age <= config.pipeline_healthy_days
