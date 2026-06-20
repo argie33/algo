@@ -56,6 +56,8 @@ class SectorRotationDetector:
     """Detect defensive sector leadership patterns."""
 
     def __init__(self, config=None):
+        if config is not None and not isinstance(config, dict):
+            raise TypeError(f"config must be a dict, got {type(config).__name__}")
         self.config = config
 
     def compute(self, eval_date=None):
@@ -91,13 +93,42 @@ class SectorRotationDetector:
                 if rank is None:
                     continue
                 rank = int(rank)
-                imp_4w = (int(r4w) - rank) if r4w else 0
-                imp_12w = (int(r12w) - rank) if r12w else 0
-                imp_1w = (int(r1w) - rank) if r1w else 0
+
+                # Fail-fast: missing historical ranks means incomplete data for rotation analysis
+                if r1w is None:
+                    logger.warning(f"[SECTOR ROTATION] {sector_name}: missing 1w rank data for {eval_date}")
+                    raise ValueError(
+                        f"Sector {sector_name} missing rank_1w_ago for {eval_date} — "
+                        "incomplete sector_ranking data; cannot compute rotation signal"
+                    )
+                if r4w is None:
+                    logger.warning(f"[SECTOR ROTATION] {sector_name}: missing 4w rank data for {eval_date}")
+                    raise ValueError(
+                        f"Sector {sector_name} missing rank_4w_ago for {eval_date} — "
+                        "incomplete sector_ranking data; cannot compute rotation signal"
+                    )
+                if r12w is None:
+                    logger.warning(f"[SECTOR ROTATION] {sector_name}: missing 12w rank data for {eval_date}")
+                    raise ValueError(
+                        f"Sector {sector_name} missing rank_12w_ago for {eval_date} — "
+                        "incomplete sector_ranking data; cannot compute rotation signal"
+                    )
+
+                imp_4w = int(r4w) - rank
+                imp_12w = int(r12w) - rank
+                imp_1w = int(r1w) - rank
+
+                # Fail-fast: missing momentum data indicates incomplete calculation
+                if momentum is None:
+                    logger.warning(f"[SECTOR ROTATION] {sector_name}: missing momentum_score for {eval_date}")
+                    raise ValueError(
+                        f"Sector {sector_name} missing momentum_score for {eval_date} — "
+                        "incomplete sector_ranking data"
+                    )
 
                 sector_data[sector_name] = {
                     "rank": rank,
-                    "momentum": float(momentum or 0),
+                    "momentum": float(momentum),
                     "rank_improvement_1w": imp_1w,
                     "rank_improvement_4w": imp_4w,
                     "rank_improvement_12w": imp_12w,
@@ -108,9 +139,16 @@ class SectorRotationDetector:
             defensive = [d for d in sector_data.values() if d["is_defensive"]]
             cyclical = [d for d in sector_data.values() if d["is_cyclical"]]
 
-            if not defensive or not cyclical:
+            if not sector_data:
                 raise ValueError(
-                    f"Insufficient sector data for rotation analysis on {eval_date} — missing defensive or cyclical sectors"
+                    f"No sector ranking data found for {eval_date} — sector_ranking table may be empty"
+                )
+            if not defensive or not cyclical:
+                missing_defensive = [s for s in DEFENSIVE_SECTORS if s not in sector_data]
+                missing_cyclical = [s for s in CYCLICAL_SECTORS if s not in sector_data]
+                raise ValueError(
+                    f"Incomplete sector data for {eval_date}: "
+                    f"missing defensive={missing_defensive}, missing cyclical={missing_cyclical}"
                 )
 
             def_imp_4w = sum(d["rank_improvement_4w"] for d in defensive) / len(
