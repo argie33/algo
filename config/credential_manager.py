@@ -487,12 +487,14 @@ class CredentialManager:
         # Step 4: Fall back to individual secrets (legacy format)
         try:
             key = self.get_password("alpaca/key", default=None)
-        except ValueError:
+        except ValueError as e:
+            logger.debug(f"[CREDENTIALS] Failed to retrieve alpaca/key secret: {e}, falling back to APCA_API_KEY_ID env var")
             key = os.getenv("APCA_API_KEY_ID")
 
         try:
             secret = self.get_password("alpaca/secret", default=None)
-        except ValueError:
+        except ValueError as e:
+            logger.debug(f"[CREDENTIALS] Failed to retrieve alpaca/secret secret: {e}, falling back to APCA_API_SECRET_KEY env var")
             secret = os.getenv("APCA_API_SECRET_KEY")
 
         if key and secret:
