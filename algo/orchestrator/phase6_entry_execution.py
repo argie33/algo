@@ -17,8 +17,9 @@ For each qualified signal from Phase 5:
 import logging
 import os
 import time
+from collections.abc import Callable
 from datetime import date as _date
-from typing import Any, Callable, Dict, List, Optional
+from typing import Any
 
 from algo.orchestrator.phase_result import PhaseResult
 from algo.risk import LiquidityChecks
@@ -31,7 +32,7 @@ logger = logging.getLogger(__name__)
 
 def _compute_true_atr(
     symbol: str, run_date: _date, period: int = 14
-) -> Optional[float]:
+) -> float | None:
     """True ATR: GREATEST(H-L, |H-prev_C|, |L-prev_C|) averaged over `period` days.
 
     Fetches period+1 rows so the oldest row has a valid LAG(close). Anchored
@@ -65,7 +66,7 @@ def _compute_true_atr(
             raise RuntimeError(f"Operation failed: {e}") from e
 
 
-def _compute_sma_50(symbol: str, run_date: _date) -> Optional[float]:
+def _compute_sma_50(symbol: str, run_date: _date) -> float | None:
     """50-day SMA anchored to run_date."""
     try:
         with DatabaseContext("read") as cur:
@@ -85,7 +86,7 @@ def _compute_sma_50(symbol: str, run_date: _date) -> Optional[float]:
             raise RuntimeError(f"Operation failed: {e}") from e
 
 
-def _get_latest_close(symbol: str, run_date: _date) -> Optional[float]:
+def _get_latest_close(symbol: str, run_date: _date) -> float | None:
     """Latest close price at or before run_date."""
     try:
         with DatabaseContext("read") as cur:
@@ -105,9 +106,9 @@ def run(
     dry_run: bool,
     verbose: bool,
     log_phase_result_fn: Callable,
-    qualified_trades: Optional[List[Dict[str, Any]]] = None,
-    exposure_constraints: Optional[Dict] = None,
-    check_halt_flag: Optional[Callable] = None,
+    qualified_trades: list[dict[str, Any]] | None = None,
+    exposure_constraints: dict | None = None,
+    check_halt_flag: Callable | None = None,
 ) -> PhaseResult:
     phase_start = time.time()
     logger.info("[PHASE 6] Starting entry execution")
