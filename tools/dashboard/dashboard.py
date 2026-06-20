@@ -518,6 +518,8 @@ def render_dashboard(
         logger.warning(f"Invalid view_mode '{view_mode}', falling back to 'normal'")
         view_mode = "normal"
 
+    from .error_boundary import has_error
+
     run = data.get("run")
     cfg = data.get("cfg")
     mkt = data.get("mkt")
@@ -544,6 +546,14 @@ def render_dashboard(
     audit = _extract_items(data.get("audit"))
     exec_hist = _extract_items(data.get("exec_hist"))
     scores = data.get("scores")
+
+    # CRITICAL: Check for errors in extracted data before using
+    # Any data with _error marker should not be passed to panels expecting real data
+    data_errors = {k: v for k, v in {
+        "run": run, "cfg": cfg, "mkt": mkt, "port": port, "perf": perf, "pos": pos,
+        "sig": sig, "health": hlth, "cb": cb, "trades": rec, "eco": eco, "risk": risk,
+        "perf_anl": perf_anl, "sig_eval": sig_eval, "sec_rot": sec_rot, "scores": scores,
+    }.items() if has_error(v)}
 
     now_et = datetime.now(ET)
     _mkt_badge, _mkt_cdown = mkt_hours_str()
@@ -658,7 +668,15 @@ def render_dashboard(
 
     if view_mode == "positions":
         hint = Text.from_markup("[dim]press [/][bold cyan]p[/][dim] to return to dashboard[/]")
-        _pos_items = pos.get("items", []) if isinstance(pos, dict) else (pos or [])
+        # FIXED: No fallback to [] — if pos has error, show it instead
+        if has_error(pos):
+            _pos_items = []
+        elif isinstance(pos, dict) and "items" in pos:
+            _pos_items = pos.get("items", [])
+        elif isinstance(pos, list):
+            _pos_items = pos
+        else:
+            _pos_items = []
         return _expanded_layout(
             *_exp_top,
             Panel(
