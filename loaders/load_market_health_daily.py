@@ -109,14 +109,24 @@ class MarketHealthDailyLoader(OptimalLoader):
         # Merge VIX data (non-critical enrichment - fail gracefully if unavailable)
         try:
             vix = self._fetch_vix_data(start, end)
+            matched_count = 0
             for m in health_metrics:
-                m["vix_level"] = vix.get(m["date"])
+                if m["date"] in vix:
+                    m["vix_level"] = vix[m["date"]]
+                    matched_count += 1
+                else:
+                    m["vix_level"] = None
+            logger.info(f"VIX enrichment: matched {matched_count}/{len(health_metrics)} dates")
         except RuntimeError as e:
             error_msg = str(e)
             if "DATA QUALITY" in error_msg:
                 logger.error(f"VIX data quality issue (operator action required): {e}")
             else:
                 logger.warning(f"VIX unavailable: {e}. Continuing with missing VIX values.")
+            # Ensure vix_level is set to None for all rows if fetch fails
+            for m in health_metrics:
+                if "vix_level" not in m:
+                    m["vix_level"] = None
 
         # Merge today's put/call ratio from SPY options (non-critical enrichment - fail gracefully)
         # Put/call_ratio and VIX both depend on yfinance API which has rate limits and outages.
@@ -124,25 +134,44 @@ class MarketHealthDailyLoader(OptimalLoader):
         # Graceful degradation allows data pipeline to continue and signal generation to proceed.
         try:
             today_pc = self._fetch_put_call_ratio(end)
+            end_str = end.isoformat()
+            matched_count = 0
+            for m in health_metrics:
+                if m["date"] == end_str:
+                    m["put_call_ratio"] = today_pc
+                    if today_pc is not None:
+                        matched_count += 1
+                else:
+                    m["put_call_ratio"] = None
             if today_pc is not None:
-                for m in health_metrics:
-                    if m["date"] == end.isoformat():
-                        m["put_call_ratio"] = today_pc
+                logger.info(f"Put/call ratio: {today_pc:.3f} (matched {matched_count} rows)")
             else:
                 # On non-trading days, put/call is legitimately unavailable
                 logger.debug("Put/call ratio unavailable (non-trading day or no options data)")
         except RuntimeError as e:
             logger.warning(f"Put/call ratio unavailable: {e}. Continuing with missing put/call data.")
+            # Ensure put_call_ratio is set to None for all rows if fetch fails
+            for m in health_metrics:
+                if "put_call_ratio" not in m:
+                    m["put_call_ratio"] = None
 
         # Merge yield curve slope from economic_metrics_daily (non-critical enrichment - fail gracefully)
         # Yield curve data is computed by economic_metrics_daily loader which runs separately.
         # If that loader has issues, yield curve will be missing, but market health should still load.
         try:
             yield_curve = self._fetch_yield_curve_data(start, end)
+            matched_count = 0
             for m in health_metrics:
                 m["yield_curve_slope"] = yield_curve.get(m["date"])
+                if m["yield_curve_slope"] is not None:
+                    matched_count += 1
+            logger.info(f"Yield curve enrichment: matched {matched_count}/{len(health_metrics)} dates")
         except RuntimeError as e:
             logger.warning(f"Yield curve unavailable: {e}. Continuing with missing yield curve data.")
+            # Ensure yield_curve_slope is set to None for all rows if fetch fails
+            for m in health_metrics:
+                if "yield_curve_slope" not in m:
+                    m["yield_curve_slope"] = None
 
         # Optimize breadth data fetching for incremental updates: only compute for dates we'll keep
         if since is not None:
@@ -167,16 +196,18 @@ class MarketHealthDailyLoader(OptimalLoader):
 
             ticker = YFinanceWrapper.get_ticker("^VIX")
             if not ticker:
-                raise RuntimeError(
-                    f"[VIX DATA ISSUE] Ticker ^VIX not available from yfinance for {start} to {end}. "
-                    "VIX is a required input for market health computation."
+                logger.warning(
+                    f"[VIX] Ticker ^VIX not available from yfinance for {start} to {end}. "
+                    "Continuing with missing VIX data."
                 )
+                return {}
             df = ticker.history(start=start, end=end, interval="1d", auto_adjust=True)
             if df is None or df.empty:
-                raise RuntimeError(
-                    f"[VIX DATA ISSUE] yfinance ^VIX returned no data for {start} to {end}. "
-                    "Cannot compute market health without VIX price data."
+                logger.debug(
+                    f"[VIX] yfinance returned no data for {start} to {end}. "
+                    "This is expected for non-trading date ranges."
                 )
+                return {}
 
             result = {}
             low_value_count = 0  # Track but don't reject low values

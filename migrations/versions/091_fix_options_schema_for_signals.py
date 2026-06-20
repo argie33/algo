@@ -6,11 +6,32 @@ Migration 091: Fix options_chains and iv_history schema to match signal code exp
 - options_chains: Rename data_date to quote_date, add iv and days_to_expiration columns
 """
 
+import os
 import psycopg2
 
 
-def up(conn):
+def up():
     """Upgrade: Add missing columns to support options signals."""
+    # Map DB_SSL values to psycopg2 SSL modes
+    ssl_map = {
+        "true": "require",
+        "false": "disable",
+        "disable": "disable",
+        "prefer": "prefer",
+        "require": "require",
+    }
+    db_ssl = ssl_map.get(os.getenv("DB_SSL", "require").lower(), "require")
+
+    # Connect to database using environment variables
+    conn = psycopg2.connect(
+        host=os.getenv("DB_HOST", "localhost"),
+        port=int(os.getenv("DB_PORT", 5432)),
+        user=os.getenv("DB_USER", "postgres"),
+        password=os.getenv("DB_PASSWORD", ""),
+        database=os.getenv("DB_NAME", "algo"),
+        sslmode=db_ssl,
+    )
+
     with conn.cursor() as cur:
         # Fix iv_history: Add columns expected by signal_options.py
         cur.execute(
@@ -67,8 +88,28 @@ def up(conn):
     conn.commit()
 
 
-def down(conn):
+def down():
     """Downgrade: Revert schema changes (destructive - only for dev)."""
+    # Map DB_SSL values to psycopg2 SSL modes
+    ssl_map = {
+        "true": "require",
+        "false": "disable",
+        "disable": "disable",
+        "prefer": "prefer",
+        "require": "require",
+    }
+    db_ssl = ssl_map.get(os.getenv("DB_SSL", "require").lower(), "require")
+
+    # Connect to database using environment variables
+    conn = psycopg2.connect(
+        host=os.getenv("DB_HOST", "localhost"),
+        port=int(os.getenv("DB_PORT", 5432)),
+        user=os.getenv("DB_USER", "postgres"),
+        password=os.getenv("DB_PASSWORD", ""),
+        database=os.getenv("DB_NAME", "algo"),
+        sslmode=db_ssl,
+    )
+
     with conn.cursor() as cur:
         # Drop indexes
         cur.execute("DROP INDEX IF EXISTS idx_iv_history_symbol_date;")
