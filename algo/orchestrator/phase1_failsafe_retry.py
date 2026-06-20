@@ -20,6 +20,7 @@ Strategy:
 import concurrent.futures
 import importlib
 import logging
+import sys
 import time
 from datetime import datetime, timedelta, timezone
 from typing import Any
@@ -259,8 +260,15 @@ def invoke_loader_retry(loader_name: str, is_critical: bool) -> bool:
                 logger.info(
                     f"[PHASE 1 FAILSAFE] Running {loader_name} via main() function"
                 )
-                # Call main() in a subprocess to isolate and timeout
-                return _run_loader_with_timeout(lambda: module.main(), loader_name)
+                # Call main() with sys.argv cleared to avoid argparse conflicts
+                def run_main():
+                    old_argv = sys.argv[:]
+                    try:
+                        sys.argv = [sys.argv[0]]  # Keep program name only
+                        return module.main()
+                    finally:
+                        sys.argv = old_argv
+                return _run_loader_with_timeout(run_main, loader_name)
             else:
                 # Try to find the loader class and instantiate
                 loader_class_name = "".join(
