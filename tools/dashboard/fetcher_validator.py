@@ -11,6 +11,7 @@ Centralizes validation logic across all fetchers to:
 import logging
 from datetime import datetime, timezone
 from typing import Any
+from utils.safe_data_conversion import safe_float
 
 
 logger = logging.getLogger(__name__)
@@ -81,7 +82,7 @@ class FetcherValidator:
             return False, f"{field_name}: Value is None"
 
         try:
-            num = float(value)
+            num = safe_float(value, default=0.0)
         except (TypeError, ValueError):
             return False, f"{field_name}: Cannot convert to numeric ({value})"
 

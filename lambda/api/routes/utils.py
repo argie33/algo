@@ -189,7 +189,7 @@ def safe_float(float_str, min_val=None, max_val=None):
     if float_str is None or float_str == "":
         raise_api_error(400, "BadRequest", "parameter is required")
     try:
-        value = float(float_str)
+        value = safe_float(float_str, default=0.0)
         if min_val is not None and value < min_val:
             raise_api_error(400, "BadRequest", f"value must be at least {min_val}")
         if max_val is not None and value > max_val:
@@ -427,7 +427,7 @@ def execute_with_timeout(
     """
     from utils.error_handlers import log_sanitizer
 
-    current_timeout: float = float(timeout_sec)
+    current_timeout: float = safe_float(timeout_sec, default=0.0)
     last_error = None
 
     for attempt in range(max_attempts):
@@ -662,7 +662,7 @@ def safe_json_serialize(obj):
     elif isinstance(obj, list):
         return [safe_json_serialize(item) for item in obj]
     elif isinstance(obj, Decimal):
-        return float(obj)
+        return safe_float(obj, default=0.0)
     elif isinstance(obj, datetime):
         return obj.isoformat()
     elif isinstance(obj, date):

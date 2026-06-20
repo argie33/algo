@@ -17,6 +17,7 @@ from utils.infrastructure.timeout import ExecutionTimeout
 from utils.infrastructure.url_validator import validate_url
 from utils.loaders.helpers import get_api_key
 from utils.optimal_loader import OptimalLoader
+from utils.safe_data_conversion import safe_float
 
 
 logger = logging.getLogger(__name__)
@@ -176,7 +177,7 @@ class FredEconomicDataLoader(OptimalLoader):
                                 {
                                     "series_id": series_id,
                                     "date": obs["date"],
-                                    "value": float(val_str),
+                                    "value": safe_float(val_str, default=0.0),
                                 }
                             )
                         except KeyError as e:

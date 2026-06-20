@@ -1,7 +1,6 @@
 """Route: sentiment"""
 
 import logging
-from typing import Dict
 
 import psycopg2
 import psycopg2.errors
@@ -18,6 +17,8 @@ from routes.utils import (
     safe_limit,
     safe_page,
 )
+
+from utils.safe_data_conversion import safe_float
 from utils.validation import DatabaseResultValidator
 
 
@@ -28,10 +29,10 @@ def handle(
     cur,
     path: str,
     method: str,
-    params: Dict,
-    body: Dict = None,
-    jwt_claims: Dict = None,
-) -> Dict:
+    params: dict,
+    body: dict = None,
+    jwt_claims: dict = None,
+) -> dict:
     """Handle /api/sentiment/* endpoints."""
     try:
         if path == "/api/sentiment/summary":
@@ -49,7 +50,7 @@ def handle(
             )
             row = fg_rows[0] if fg_rows else None
             fg_value = (
-                float(row["fear_greed_value"])
+                safe_float(row["fear_greed_value"], default=0.0)
                 if row and row["fear_greed_value"]
                 else None
             )
@@ -129,12 +130,12 @@ def handle(
                         else None
                     ),
                     "put_call_ratio": (
-                        float(row["put_call_ratio"])
+                        safe_float(row["put_call_ratio"], default=0.0)
                         if row and row["put_call_ratio"]
                         else None
                     ),
                     "vix_level": (
-                        float(row["vix_level"]) if row and row["vix_level"] else None
+                        safe_float(row["vix_level"], default=0.0) if row and row["vix_level"] else None
                     ),
                     "date": str(row["date"]) if row else None,
                 },
@@ -243,12 +244,12 @@ def handle(
                 "bearishPercent": bep,
                 "neutralPercent": np_,
                 "avgPriceTarget": (
-                    float(latest["target_price"])
+                    safe_float(latest["target_price"], default=0.0)
                     if latest.get("target_price")
                     else None
                 ),
                 "priceTargetVsCurrent": (
-                    float(latest["upside_downside_percent"])
+                    safe_float(latest["upside_downside_percent"], default=0.0)
                     if latest.get("upside_downside_percent")
                     else None
                 ),
@@ -344,12 +345,12 @@ def handle(
                 "bearishPercent": bep,
                 "neutralPercent": np_,
                 "avgPriceTarget": (
-                    float(latest["target_price"])
+                    safe_float(latest["target_price"], default=0.0)
                     if latest.get("target_price")
                     else None
                 ),
                 "priceTargetVsCurrent": (
-                    float(latest["upside_downside_percent"])
+                    safe_float(latest["upside_downside_percent"], default=0.0)
                     if latest.get("upside_downside_percent")
                     else None
                 ),
@@ -408,19 +409,19 @@ def handle(
                     {
                         "fear_greed": (
                             {
-                                "value": float(row["fear_greed_value"]),
+                                "value": safe_float(row["fear_greed_value"], default=0.0),
                                 "label": row["fear_greed_label"],
                             }
                             if row["fear_greed_value"]
                             else None
                         ),
                         "put_call_ratio": (
-                            float(row["put_call_ratio"])
+                            safe_float(row["put_call_ratio"], default=0.0)
                             if row["put_call_ratio"]
                             else None
                         ),
                         "vix_level": (
-                            float(row["vix_level"]) if row["vix_level"] else None
+                            safe_float(row["vix_level"], default=0.0) if row["vix_level"] else None
                         ),
                         "date": str(row["date"]),
                     },
@@ -442,7 +443,7 @@ def handle(
         return error_response(code, error_type, message)
 
 
-def _get_vix_data(cur) -> Dict:
+def _get_vix_data(cur) -> dict:
     """Get latest VIX data and historical trend."""
     try:
         cur.execute("""

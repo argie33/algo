@@ -21,6 +21,7 @@ import yfinance as yf
 from utils.db.context import DatabaseContext
 from utils.infrastructure.timezone import EASTERN_TZ
 from utils.loaders.helpers import get_active_symbols
+from utils.safe_data_conversion import safe_float
 
 
 logger = logging.getLogger(__name__)
@@ -130,7 +131,7 @@ class OptionsLoader:
                         (symbol, option_type, strike_price, volume, quote_date)
                         VALUES (%s, %s, %s, %s, %s)
                         """,
-                        (symbol, "call", float(row["strike"]), int(vol), eval_date),
+                        (symbol, "call", safe_float(row["strike"], default=0.0), int(vol), eval_date),
                     )
                     inserted += 1
             except Exception as e:
@@ -147,7 +148,7 @@ class OptionsLoader:
                         (symbol, option_type, strike_price, volume, quote_date)
                         VALUES (%s, %s, %s, %s, %s)
                         """,
-                        (symbol, "put", float(row["strike"]), int(vol), eval_date),
+                        (symbol, "put", safe_float(row["strike"], default=0.0), int(vol), eval_date),
                     )
                     inserted += 1
             except Exception as e:
@@ -187,7 +188,7 @@ class OptionsLoader:
                     (symbol, date, current_iv, iv_52w_high, iv_52w_low)
                     VALUES (%s, %s, %s, %s, %s)
                     """,
-                    (symbol, eval_date, float(current_iv), float(iv_52w_high), float(iv_52w_low)),
+                    (symbol, eval_date, safe_float(current_iv, default=0.0), safe_float(iv_52w_high, default=0.0), safe_float(iv_52w_low, default=0.0)),
                 )
             except Exception:
                 # Row already exists, update it
@@ -197,7 +198,7 @@ class OptionsLoader:
                     SET current_iv = %s, iv_52w_high = %s, iv_52w_low = %s
                     WHERE symbol = %s AND date = %s
                     """,
-                    (float(current_iv), float(iv_52w_high), float(iv_52w_low), symbol, eval_date),
+                    (safe_float(current_iv, default=0.0), safe_float(iv_52w_high, default=0.0), safe_float(iv_52w_low, default=0.0), symbol, eval_date),
                 )
 
             return 1

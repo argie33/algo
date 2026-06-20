@@ -117,7 +117,7 @@ class TechnicalDataDailyLoader(OptimalLoader):
                 skipped_count = 0
                 for r in cur.fetchall():
                     # Validate: reject zero-price or zero-volume rows (data errors or halted stocks)
-                    close = float(r[4]) if r[4] is not None else None
+                    close = safe_float(r[4], default=0.0) if r[4] is not None else None
                     volume = int(r[5]) if r[5] is not None else None
 
                     if close is None or close <= 0:
@@ -138,9 +138,9 @@ class TechnicalDataDailyLoader(OptimalLoader):
                     rows.append(
                         {
                             "date": r[0].isoformat() if r[0] else None,
-                            "open": float(r[1]) if r[1] is not None else None,
-                            "high": float(r[2]) if r[2] is not None else None,
-                            "low": float(r[3]) if r[3] is not None else None,
+                            "open": safe_float(r[1], default=0.0) if r[1] is not None else None,
+                            "high": safe_float(r[2], default=0.0) if r[2] is not None else None,
+                            "low": safe_float(r[3], default=0.0) if r[3] is not None else None,
                             "close": close,
                             "volume": volume,
                         }
@@ -376,7 +376,7 @@ class TechnicalDataDailyLoader(OptimalLoader):
         df["date"] = df["date"].dt.date.astype(str)
 
         def safe_float(v):
-            return float(v) if pd.notna(v) else None
+            return safe_float(v, default=0.0) if pd.notna(v) else None
 
         for col in columns[2:]:
             if col not in ("price_data_age_days",):

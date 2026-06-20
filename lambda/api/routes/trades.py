@@ -26,6 +26,7 @@ from routes.utils import (
     safe_offset,
 )
 
+from utils.safe_data_conversion import safe_float
 from utils.validation import CognitoValidator
 
 
@@ -253,7 +254,7 @@ def _create_manual_trade(cur, body: dict, idempotency_key: str | None = None) ->
                 f"manual_{trade_type}",
                 status,
                 "manual",
-                float(stop_loss) if stop_loss else None,
+                safe_float(stop_loss, default=0.0) if stop_loss else None,
             ),
         )
         row = cur.fetchone()

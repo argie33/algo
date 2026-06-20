@@ -23,6 +23,7 @@ from typing import Any
 from loaders.runner import run_loader
 from utils.db.context import DatabaseContext
 from utils.optimal_loader import OptimalLoader
+from utils.safe_data_conversion import safe_float
 
 
 logger = logging.getLogger(__name__)
@@ -147,13 +148,13 @@ class QualityMetricsLoader(OptimalLoader):
             and current_assets is not None
         ):
             if inventory and inventory > 0:
-                quick_assets = float(current_assets) - float(inventory)
+                quick_assets = safe_float(current_assets, default=0.0) - safe_float(inventory, default=0.0)
             else:
                 quick_assets = float(
                     current_assets
                 )  # No inventory data, use all current assets
             metrics["quick_ratio"] = float(
-                round(quick_assets / float(current_liabilities), 2)
+                round(quick_assets / safe_float(current_liabilities, default=0.0), 2)
             )
         else:
             metrics["quick_ratio"] = None

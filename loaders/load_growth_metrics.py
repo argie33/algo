@@ -21,6 +21,7 @@ logger = logging.getLogger(__name__)
 from loaders.runner import run_loader
 from utils.db.context import DatabaseContext
 from utils.optimal_loader import OptimalLoader
+from utils.safe_data_conversion import safe_float
 
 
 class GrowthMetricsLoader(OptimalLoader):
@@ -76,10 +77,10 @@ class GrowthMetricsLoader(OptimalLoader):
             if len(all_years) > lookback and all_years[idx] and latest_rev:
                 _prev_year, prev_rev, _prev_eps = all_years[idx]
                 try:
-                    if prev_rev is not None and float(prev_rev) > 0 and float(latest_rev) > 0:
+                    if prev_rev is not None and safe_float(prev_rev, default=0.0) > 0 and safe_float(latest_rev, default=0.0) > 0:
                         # Convert to float to support Decimal types from database
-                        latest_rev_f = float(latest_rev)
-                        prev_rev_f = float(prev_rev)
+                        latest_rev_f = safe_float(latest_rev, default=0.0)
+                        prev_rev_f = safe_float(prev_rev, default=0.0)
                         rev_growth = (
                             ((latest_rev_f / prev_rev_f) ** (1.0 / lookback)) - 1
                         ) * 100
@@ -95,10 +96,10 @@ class GrowthMetricsLoader(OptimalLoader):
             if len(all_years) > lookback and all_years[idx] and latest_eps:
                 _prev_year2, _prev_rev2, prev_eps = all_years[idx]
                 try:
-                    if prev_eps is not None and float(prev_eps) > 0 and float(latest_eps) > 0:
+                    if prev_eps is not None and safe_float(prev_eps, default=0.0) > 0 and safe_float(latest_eps, default=0.0) > 0:
                         # Convert to float to support Decimal types from database
-                        latest_eps_f = float(latest_eps)
-                        prev_eps_f = float(prev_eps)
+                        latest_eps_f = safe_float(latest_eps, default=0.0)
+                        prev_eps_f = safe_float(prev_eps, default=0.0)
                         eps_growth = (
                             ((latest_eps_f / prev_eps_f) ** (1.0 / lookback)) - 1
                         ) * 100

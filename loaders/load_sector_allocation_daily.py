@@ -17,6 +17,7 @@ from utils.optimal_loader import OptimalLoader
 logger = logging.getLogger(__name__)
 
 from loaders.loader_helper import setup_imports
+from utils.safe_data_conversion import safe_float
 
 
 setup_imports()
@@ -62,7 +63,7 @@ class SectorAllocationDailyLoader(OptimalLoader):
                 """)
                 total_value_row = cur.fetchone()
                 total_portfolio_value = (
-                    float(total_value_row[0])
+                    safe_float(total_value_row[0], default=0.0)
                     if total_value_row and total_value_row[0]
                     else 0
                 )
@@ -72,8 +73,8 @@ class SectorAllocationDailyLoader(OptimalLoader):
                 for row in rows:
                     sector_name = row[0] or "Unknown"
                     symbol_count = int(row[1]) if row[1] else 0
-                    sector_value = float(row[2]) if row[2] else 0
-                    avg_pnl = float(row[3]) if row[3] else 0
+                    sector_value = safe_float(row[2], default=0.0) if row[2] else 0
+                    avg_pnl = safe_float(row[3], default=0.0) if row[3] else 0
 
                     pct_portfolio = 0.0
                     if total_portfolio_value > 0:

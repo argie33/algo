@@ -13,6 +13,7 @@ This fix ensures the config validation warning is resolved.
 """
 
 from migrations.migration_helper import DatabaseContext
+from utils.safe_data_conversion import safe_float
 
 
 DESCRIPTION = "Fix halt_drawdown_pct sign error (should be negative)"
@@ -26,7 +27,7 @@ def up():
         row = cur.fetchone()
 
         if row and row[0]:
-            current = float(row[0])
+            current = safe_float(row[0], default=0.0)
             # If positive, negate it
             if current > 0:
                 new_value = str(-current)
@@ -50,7 +51,7 @@ def down():
         row = cur.fetchone()
 
         if row and row[0]:
-            current = float(row[0])
+            current = safe_float(row[0], default=0.0)
             # If negative, make it positive (reverting the fix)
             if current < 0:
                 new_value = str(-current)

@@ -14,6 +14,7 @@ from utils.optimal_loader import OptimalLoader
 logger = logging.getLogger(__name__)
 
 from loaders.loader_helper import setup_imports
+from utils.safe_data_conversion import safe_float
 
 
 setup_imports()
@@ -104,7 +105,7 @@ class IndustryRankingLoader(OptimalLoader):
                         "date_recorded": latest_date,
                         "current_rank": r["current_rank"],
                         "momentum_score": (
-                            float(r["momentum_score"])
+                            safe_float(r["momentum_score"], default=0.0)
                             if r["momentum_score"] is not None
                             else None
                         ),
