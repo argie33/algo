@@ -228,6 +228,10 @@ class PositionSizer:
         dd = self.get_current_drawdown()
 
         if dd >= 20:
+            logger.critical(
+                "CIRCUIT BREAKER TRIGGERED: Portfolio drawdown >= 20%. "
+                "Position sizing halted. All entries blocked until recovery."
+            )
             return 0.0
         elif dd >= 15:
             val = self.config.get("risk_reduction_at_minus_15")

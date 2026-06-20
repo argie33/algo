@@ -243,7 +243,7 @@ class ExitEngine:
                 import traceback
 
                 traceback.print_exc()
-                return 0
+                raise
 
     # ---------- Decision logic ----------
 

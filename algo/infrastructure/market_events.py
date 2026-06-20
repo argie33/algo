@@ -102,8 +102,9 @@ class MarketEventHandler:
                 url = f"{self.alpaca_base_url}/v2/stocks/SPY/quotes/latest"
                 try:
                     resp = requests.get(url, headers=headers, timeout=get_api_timeout())
-                    if resp.status_code == 200:
-                        return resp.json().get("quote", {}).get("ap")
+                    if resp.status_code != 200:
+                        raise RuntimeError(f"Quotes API error: status {resp.status_code}")
+                    return resp.json().get("quote", {}).get("ap")
                 except Exception as e:
                     raise RuntimeError(f"Operation failed: {e}") from e
 
@@ -113,8 +114,9 @@ class MarketEventHandler:
                     resp = requests.get(
                         url, headers=headers, timeout=get_market_data_timeout()
                     )
-                    if resp.status_code == 200:
-                        return resp.json().get("bar", {}).get("o")
+                    if resp.status_code != 200:
+                        raise RuntimeError(f"Bars API error: status {resp.status_code}")
+                    return resp.json().get("bar", {}).get("o")
                 except Exception as e:
                     raise RuntimeError(f"Operation failed: {e}") from e
 
