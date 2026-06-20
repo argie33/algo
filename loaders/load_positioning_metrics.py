@@ -61,10 +61,11 @@ class PositioningMetricsLoader(OptimalLoader):
         try:
             info = ticker.info
 
-            # Early exit for illiquid symbols (< $50M market cap)
+            # Early exit for extremely illiquid symbols (< $1M market cap)
+            # These symbols typically lack reliable positioning data and aren't trading candidates
             mkt_cap = info.get("marketCap")
-            if mkt_cap and mkt_cap < 50_000_000:
-                logger.debug(f"Skipping {symbol} (market cap ${mkt_cap:,} < $50M threshold)")
+            if mkt_cap and mkt_cap < 1_000_000:
+                logger.debug(f"Skipping {symbol} (market cap ${mkt_cap:,} < $1M threshold)")
                 return None
 
             institutional_ownership = None

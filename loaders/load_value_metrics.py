@@ -49,10 +49,10 @@ class ValueMetricsLoader(OptimalLoader):
 
                 mkt_cap = info.get("marketCap")
 
-                # Skip illiquid symbols (market cap < $50M) to reduce unnecessary API calls
-                # These symbols typically lack reliable value metrics anyway
-                if mkt_cap and mkt_cap < 50_000_000:
-                    logger.debug(f"Skipping {symbol} (market cap ${mkt_cap:,} < $50M threshold)")
+                # Skip extremely illiquid symbols (market cap < $1M) to reduce unnecessary API calls
+                # These typically lack reliable metrics and aren't suitable for trading
+                if mkt_cap and mkt_cap < 1_000_000:
+                    logger.debug(f"Skipping {symbol} (market cap ${mkt_cap:,} < $1M threshold)")
                     return None
 
                 pe = info.get("trailingPE")

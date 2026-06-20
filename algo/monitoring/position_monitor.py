@@ -133,13 +133,20 @@ class PositionMonitor:
 
                         # Auto-cancel if > 2 hours (or configured threshold)
                         if age_minutes >= auto_cancel_threshold:
-                            # Try Alpaca cancellation
+                            # Fail fast on Alpaca cancellation — don't mark DB as cancelled if API call fails
                             try:
                                 self._cancel_on_alpaca(trade_id)
                             except (ValueError, ZeroDivisionError, TypeError) as api_e:
-                                logger.warning(f"Could not cancel {trade_id} on Alpaca: {api_e}")
+                                logger.critical(
+                                    f"[STALE_ORDER] Could not cancel {trade_id} on Alpaca: {api_e}. "
+                                    f"Alpaca and database will diverge if we mark cancelled in DB. Aborting auto-cancel."
+                                )
+                                raise RuntimeError(
+                                    f"Alpaca cancellation failed for {trade_id}: {api_e}. "
+                                    f"Cannot proceed with DB update to avoid state divergence."
+                                ) from api_e
 
-                            # Collect for batch DB update
+                            # Only mark as cancelled after successful Alpaca cancellation
                             trades_to_update.append(trade_id)
                             audit_entries.append((
                                 "STALE_ORDER_AUTO_CANCELLED",
