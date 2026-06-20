@@ -110,19 +110,24 @@ def check_and_retry_incomplete_loaders(dry_run: bool = False) -> dict[str, Any]:
                 _exec_started,
                 _last_updated,
             ) in incomplete_rows:
-                completion_pct = completion_pct or 0
                 symbols_missing = (symbol_count or 0) - (symbols_loaded or 0)
                 is_critical = table_name in CRITICAL_INCOMPLETE_LOADERS
 
-                logger.warning(
-                    f"[PHASE 1 FAILSAFE] Incomplete loader detected: {table_name} "
-                    f"{completion_pct:.1f}% ({symbols_loaded}/{symbol_count} symbols, {symbols_missing} missing)"
-                )
+                if completion_pct is None:
+                    logger.warning(
+                        f"[PHASE 1 FAILSAFE] Incomplete loader detected: {table_name} "
+                        f"status unknown ({symbols_loaded}/{symbol_count} symbols, {symbols_missing} missing) — loader may still be running"
+                    )
+                else:
+                    logger.warning(
+                        f"[PHASE 1 FAILSAFE] Incomplete loader detected: {table_name} "
+                        f"{completion_pct:.1f}% ({symbols_loaded}/{symbol_count} symbols, {symbols_missing} missing)"
+                    )
 
                 results["incomplete_loaders"].append(
                     {
                         "loader": table_name,
-                        "completion_pct": completion_pct,
+                        "completion_pct": completion_pct,  # Preserve NULL (unknown) vs 0 (failed)
                         "symbols_missing": symbols_missing,
                         "error": error_msg[:100] if error_msg else None,
                         "is_critical": is_critical,
@@ -140,15 +145,19 @@ def check_and_retry_incomplete_loaders(dry_run: bool = False) -> dict[str, Any]:
 
                         if retry_result["recovered"]:
                             results["recovered"].append(table_name)
+                            final_pct = retry_result.get("final_completion_pct")
+                            pct_str = f"{final_pct:.1f}%" if final_pct is not None else "unknown"
                             logger.info(
                                 f"[PHASE 1 FAILSAFE] Loader recovered: {table_name} "
-                                f"-> {retry_result.get('final_completion_pct', 0):.1f}%"
+                                f"-> {pct_str}"
                             )
                         else:
                             results["still_failing"].append(table_name)
+                            final_pct = retry_result.get("final_completion_pct")
+                            pct_str = f"{final_pct:.1f}%" if final_pct is not None else "unknown"
                             logger.error(
                                 f"[PHASE 1 FAILSAFE] Loader still failing after retry: {table_name} "
-                                f"-> {retry_result.get('final_completion_pct', 0):.1f}%"
+                                f"-> {pct_str}"
                             )
 
                             if is_critical:
@@ -348,7 +357,7 @@ def _run_loader_with_timeout(
 
 def monitor_loader_retry(
     loader_name: str, timeout_seconds: int
-) -> tuple[bool, float]:
+) -> tuple[bool, float | None]:
     """Monitor loader status during retry.
 
     Args:
@@ -358,7 +367,7 @@ def monitor_loader_retry(
     Returns:
         (recovered, final_completion_pct):
         - recovered: True if loader reached >=95% completion
-        - final_completion_pct: Latest completion percentage
+        - final_completion_pct: Latest completion percentage, or None if status unknown
     """
     deadline = datetime.now(timezone.utc) + timedelta(seconds=timeout_seconds)
 
@@ -373,9 +382,13 @@ def monitor_loader_retry(
                 row = cur.fetchone()
                 if row:
                     status, completion_pct = row
-                    completion_pct = completion_pct or 0
 
-                    if completion_pct >= 95.0:
+                    if completion_pct is None:
+                        # Status unknown, likely still running — wait before checking again
+                        logger.debug(
+                            f"[PHASE 1 FAILSAFE] {loader_name} status unknown, still running (will check again in 10s)"
+                        )
+                    elif completion_pct >= 95.0:
                         logger.info(
                             f"[PHASE 1 FAILSAFE] Loader recovered: {loader_name} {completion_pct:.1f}%"
                         )
@@ -398,6 +411,6 @@ def monitor_loader_retry(
 
     # Timeout reached
     logger.error(
-        f"[PHASE 1 FAILSAFE] Timeout waiting for retry of {loader_name} (waited {timeout_seconds}s)"
+        f"[PHASE 1 FAILSAFE] Timeout waiting for retry of {loader_name} (waited {timeout_seconds}s) — status unknown"
     )
-    return False, 0.0
+    return False, None  # None indicates we couldn't determine final status

@@ -18,7 +18,6 @@ import logging
 import time
 from collections.abc import Callable
 from datetime import date as _date
-from datetime import timedelta
 from typing import Any
 
 from algo.orchestrator.phase1_failsafe_retry import check_and_retry_incomplete_loaders
@@ -46,6 +45,8 @@ def run(
     stale but trading can continue.
     Excludes stock_scores (orchestrator-generated output, not pipeline input).
     """
+    from datetime import timedelta as td
+
     phase_start = time.time()
 
     min_coverage_pct = config.get("phase1_min_coverage_pct", 75) if config else 75
@@ -114,11 +115,11 @@ def run(
 
             from algo.infrastructure import MarketCalendar
 
-            last_trading_day = run_date - timedelta(days=1)
-            while last_trading_day > run_date - timedelta(days=10):
+            last_trading_day = run_date - td(days=1)
+            while last_trading_day > run_date - td(days=10):
                 if MarketCalendar.is_trading_day(last_trading_day):
                     break
-                last_trading_day -= timedelta(days=1)
+                last_trading_day -= td(days=1)
 
             if max_date < last_trading_day:
                 days_stale = (last_trading_day - max_date).days
@@ -139,13 +140,13 @@ def run(
 
             # Verify price coverage - accept symbols with recent data (past 2 trading days)
             # This handles asynchronous data loading where different symbols update on different dates
-            recent_cutoff = max_date - timedelta(days=2)
+            recent_cutoff = max_date - td(days=2)
             cur.execute(
                 "SELECT COUNT(DISTINCT symbol) FROM price_daily WHERE date >= %s AND date <= %s",
                 (recent_cutoff, max_date),
             )
             symbols_loaded = cur.fetchone()[0]
-            prior_cutoff = recent_cutoff - timedelta(days=2)
+            prior_cutoff = recent_cutoff - td(days=2)
             cur.execute(
                 "SELECT COUNT(DISTINCT symbol) FROM price_daily WHERE date >= %s AND date < %s",
                 (prior_cutoff, recent_cutoff),

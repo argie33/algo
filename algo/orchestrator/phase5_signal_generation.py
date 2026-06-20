@@ -52,6 +52,7 @@ _REQUIRED_SIGNAL_FIELDS = {
     "entry_price": float,
     "close": float,
     "sma_50": float,
+    "signal_strength": float,
 }
 
 
@@ -238,6 +239,7 @@ def _get_candidates_from_buysell(
 
         candidates = []
         swing_score_missing = 0
+        signal_strength_missing = 0
         for r in rows:
             swing_score_val = r[18]
             if swing_score_val is None:
@@ -245,12 +247,15 @@ def _get_candidates_from_buysell(
                 logger.debug(f"[PHASE 5] {r[0]}: swing_score is NULL — rejecting candidate (gate: swing validation required)")
                 continue
 
+            raw_strength = float(r[14]) if r[14] is not None else None
+            if raw_strength is None:
+                signal_strength_missing += 1
+                logger.warning(f"[PHASE 5] {r[0]}: signal_strength is NULL — rejecting candidate (gate: raw signal strength required)")
+                continue
+
             close = float(r[6]) if r[6] is not None else None
             composite = float(r[1]) if r[1] is not None else None
-            raw_strength = float(r[14]) if r[14] is not None else None
-            strength = raw_strength if raw_strength is not None else (
-                composite / 100.0 if composite else 0.5
-            )
+            strength = raw_strength
             swing_score = float(swing_score_val)
             swing_components = r[19] if r[19] is not None else None
             candidates.append({
@@ -277,10 +282,10 @@ def _get_candidates_from_buysell(
                 "signal_date": str(r[17]) if r[17] is not None else None,
             })
 
-        swing_score_count = sum(1 for c in candidates if c.get("swing_score", 0) > 0)
+        swing_score_positive = sum(1 for c in candidates if c["swing_score"] > 0)
         logger.info(
             f"[PHASE 5] {len(candidates)} candidates from buy_sell_daily + stock_scores + swing_trader_scores "
-            f"(swing_scores: {swing_score_count}, missing: {swing_score_missing}, lookback: {lookback_date} to {run_date})"
+            f"(swing_scores: {swing_score_positive}, swing_missing: {swing_score_missing}, strength_missing: {signal_strength_missing}, lookback: {lookback_date} to {run_date})"
         )
 
         # ISSUE #8 FIX: Validate signal data completeness before returning to Phase 6
@@ -373,15 +378,15 @@ def _get_candidates(run_date: _date, min_score: float, limit: int = 100) -> List
                 "low": float(r[8]) if r[8] is not None else None,
                 "sma_50": float(r[9]) if r[9] is not None else None,
                 "entry_price": close,
-                "signal_strength": (float(r[1]) / 100.0) if r[1] is not None else 0.5,
+                "signal_strength": None,
                 "sector": r[10],
                 "industry": r[11],
             })
 
-        swing_score_count = sum(1 for c in candidates if c.get("swing_score", 0) > 0)
+        swing_score_positive = sum(1 for c in candidates if c["swing_score"] > 0)
         logger.info(
             f"[PHASE 5] {len(candidates)} candidates from stock_scores + swing_trader_scores + price_daily "
-            f"(swing_scores: {swing_score_count}, missing: {swing_score_missing})"
+            f"(swing_scores: {swing_score_positive}, missing: {swing_score_missing})"
         )
 
         # ISSUE #8 FIX: Validate signal data completeness before returning to Phase 6

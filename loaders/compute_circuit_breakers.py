@@ -192,8 +192,8 @@ def _compute_weekly_loss(cur, today: date) -> float:
     return round(loss, 2)
 
 
-def _compute_market_stage(cur) -> int:
-    """Get latest market stage from market_health_daily. Returns 0 if not available."""
+def _compute_market_stage(cur) -> Optional[int]:
+    """Get latest market stage from market_health_daily. Returns None if not available (fail-closed)."""
     cur.execute("""
         SELECT market_stage FROM market_health_daily
         WHERE market_stage IS NOT NULL
@@ -201,8 +201,8 @@ def _compute_market_stage(cur) -> int:
     """)
     row = cur.fetchone()
     if not row or row[0] is None:
-        logger.warning("Market stage not available in market_health_daily")
-        return 0
+        logger.warning("Market stage not available in market_health_daily — circuit breaker CB6 will fail-closed")
+        return None
     stage = int(safe_int(row[0]))
     return stage
 
