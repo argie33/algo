@@ -69,15 +69,15 @@ class VectorizedSwingScoresLoader:
             )
 
         try:
-            # STEP 1: Fetch signal quality scores (optional — fall back to defaults if table empty)
+            # STEP 1: Fetch signal quality scores (critical — cannot compute without)
             signal_scores = self._fetch_signal_quality_scores(
                 symbols, start_date, end_date
             )
             if signal_scores.empty:
-                logger.warning(
-                    "No signal quality scores found — signal_quality_scores table may be empty or stale. "
-                    "Computing swing scores with default fundamentals_score=50. "
-                    "Add signal_quality_scores back to EOD pipeline if this persists."
+                raise RuntimeError(
+                    "[SIGNAL QUALITY] No signal quality scores found. "
+                    "signal_quality_scores table may be empty or stale. "
+                    "Run load_signal_quality_scores.py first."
                 )
 
             # STEP 2: Fetch technical data (critical — cannot compute without)
@@ -238,13 +238,13 @@ class VectorizedSwingScoresLoader:
                 weinstein = trend.get("weinstein_stage", 2)
                 trend_score = float(weinstein) * 25.0 if pd.notna(weinstein) else 50.0
 
-                rsi = tech.get("rsi", 50) if tech is not None else None
-                rsi = rsi if pd.notna(rsi) else 50.0
-                momentum_score = self._calculate_momentum_score(float(rsi))
+                rsi = tech.get("rsi", 50) if tech is not None else 50.0
+                rsi = float(rsi) if pd.notna(rsi) else 50.0
+                momentum_score = self._calculate_momentum_score(rsi)
 
                 volume_score = 70.0  # From price ROC
 
-                sqs = sig.get("composite_sqs", 50) if sig is not None else None
+                sqs = sig.get("composite_sqs", 50) if sig is not None else 50
                 fundamentals_score = float(sqs) if pd.notna(sqs) else 50.0
 
                 total_score = (
@@ -330,18 +330,16 @@ class VectorizedSwingScoresLoader:
 
                     cur.execute(
                         """INSERT INTO swing_trader_scores
-                           (symbol, date, score, components, grade, created_at)
-                           VALUES (%s, %s, %s, %s, %s, NOW())
+                           (symbol, date, score, components, created_at)
+                           VALUES (%s, %s, %s, %s, NOW())
                            ON CONFLICT (symbol, date) DO UPDATE
-                           SET score = EXCLUDED.score, components = EXCLUDED.components,
-                               grade = EXCLUDED.grade
+                           SET score = EXCLUDED.score, components = EXCLUDED.components
                         """,
                         (
                             row["symbol"],
                             row["date"],
                             float(row.get("total_score", 50)),
                             json.dumps(components),
-                            grade,
                         ),
                     )
                     inserted += cur.rowcount if hasattr(cur, "rowcount") else 1

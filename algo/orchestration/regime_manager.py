@@ -237,8 +237,10 @@ class RegimeManager:
             return history
 
         except Exception as e:
-            logger.warning(f"Could not fetch regime history: {e}")
-            return []
+            raise RuntimeError(
+                f"Failed to fetch regime history: {e}. "
+                "Cannot compute regime transitions without historical data."
+            ) from e
 
     def get_regime_strength(self, as_of_date: Optional[_date] = None) -> float:
         """
@@ -263,18 +265,19 @@ class RegimeManager:
             if row is not None and row[0] is not None:
                 score = float(row[0])
                 return min(1.0, max(0.0, score / 100.0))
-            # CRITICAL: Market exposure data unavailable. Default to neutral (0.5) masks infrastructure failure.
-            # Log as error to alert ops that market exposure loader may have failed.
-            logger.error(
+            raise RuntimeError(
                 f"Market exposure score unavailable as of {as_of_date}. "
-                "Defaulting to neutral 0.5 confidence. Check if market_exposure_daily loader succeeded."
+                "market_exposure_daily table empty or stale. "
+                "Position sizing and entry thresholds cannot proceed without market regime data. "
+                "Verify market_exposure_daily loader succeeded."
             )
-            return 0.5  # Conservative: default to neutral only after alerting
+        except RuntimeError:
+            raise
         except Exception as e:
-            logger.error(
-                f"Failed to fetch market exposure confidence: {e} — defaulting to neutral 0.5"
-            )
-            return 0.5
+            raise RuntimeError(
+                f"Failed to fetch market exposure confidence: {e}. "
+                "Cannot compute position size multipliers without regime data."
+            ) from e
 
 
 if __name__ == "__main__":
