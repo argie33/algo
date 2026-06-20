@@ -82,10 +82,10 @@ class AdvancedFilters:
                 row[0]: float(row[2]) for row in sectors[:top_n] if row[2] is not None
             }
 
-            # Graceful degradation: if no sector data, continue with empty dict
             if not self._strong_sectors:
-                logger.warning(
-                    f"No sector ranking data available for {eval_date} — sector filters disabled"
+                raise ValueError(
+                    f"No sector ranking data available for {eval_date} — "
+                    f"cannot proceed without sector ranking for signal evaluation"
                 )
 
             cur.execute(
