@@ -5,7 +5,6 @@ import argparse
 import logging
 import sys
 from datetime import date, timedelta
-from typing import List, Optional
 
 from utils.loaders.config import get_default_parallelism
 from utils.loaders.helpers import get_active_symbols

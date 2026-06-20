@@ -17,7 +17,7 @@ Implementation:
 import logging
 import time
 from datetime import datetime, timedelta, timezone
-from typing import Any, Dict, Optional
+from typing import Any
 
 from utils.db.context import DatabaseContext
 
