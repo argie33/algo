@@ -60,12 +60,15 @@ def panel_sector_compact(srank, pos, port, sec_rot=None, irank=None):
     if sec_rot and not sec_rot.get("_error") and sec_rot.get("signal"):
         sig_name = (sec_rot.get("signal") or "").replace("_", " ").title()
         wks = sec_rot.get("weeks", 1)
-        def_s = float(sec_rot.get("def_score") or 0)
-        cyc_s = float(sec_rot.get("cyc_score") or 0)
-        strength = float(sec_rot.get("strength") or 0)
-        sig_c = R if def_s >= 60 else (Y if def_s >= 40 else G)
-        scores_s = f" [dim]def:{def_s:.0f} cyc:{cyc_s:.0f}[/]" if def_s or cyc_s else ""
-        str_s = f" [dim]spread:{strength:.1f}[/]" if strength else ""
+        def_s = sec_rot.get("def_score")
+        cyc_s = sec_rot.get("cyc_score")
+        strength = sec_rot.get("strength")
+        def_f = float(def_s) if def_s is not None else None
+        cyc_f = float(cyc_s) if cyc_s is not None else None
+        strength_f = float(strength) if strength is not None else None
+        sig_c = R if def_f is not None and def_f >= 60 else (Y if def_f is not None and def_f >= 40 else G)
+        scores_s = f" [dim]def:{def_f:.0f} cyc:{cyc_f:.0f}[/]" if def_f is not None or cyc_f is not None else ""
+        str_s = f" [dim]spread:{strength_f:.1f}[/]" if strength_f is not None else ""
         rows.append(
             Text.from_markup(f"[dim]Sector Rotation:[/] [{sig_c}]{sig_name[:24]}[/] [dim]{wks}wk[/]{scores_s}{str_s}")
         )

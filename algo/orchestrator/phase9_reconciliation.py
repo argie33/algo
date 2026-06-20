@@ -130,6 +130,8 @@ def run(
 
         # Record exits for recently closed positions (batch operation to avoid N+1 queries)
         try:
+            # FIX: Fetch all data in single read context, then perform writes in separate context
+            # Prevents nested transaction deadlocks and maintains ACID isolation
             with DatabaseContext("read") as cursor:
                 cursor.execute(
                     """
@@ -143,6 +145,7 @@ def run(
 
             if closed_positions:
                 exits_recorded = 0
+                # Single write context for all updates (no nested contexts)
                 with DatabaseContext("write") as write_cursor:
                     for symbol, entry_price, exit_price, quantity in closed_positions:
                         if not exit_price:
@@ -376,6 +379,9 @@ def run(
         metrics_status = "warn"
         metrics_summary = "N/A"
         try:
+            # FIX: Read data first, close context, then perform write in separate transaction
+            # Prevents nested transaction deadlocks and maintains ACID isolation
+            row_data = None
             with DatabaseContext("read") as cur:
                 cur.execute(
                     """
@@ -389,34 +395,35 @@ def run(
                 """,
                     (run_date,),
                 )
-                row = cur.fetchone()
-                if row:
-                    total_actions, entries, exits, avg_score = row
-                    # UPSERTable into algo_metrics_daily
-                    with DatabaseContext("write") as write_cur:
-                        write_cur.execute(
-                            """
-                            INSERT INTO algo_metrics_daily (date, total_actions, entries, exits, avg_signal_score)
-                            VALUES (%s, %s, %s, %s, %s)
-                            ON CONFLICT (date) DO UPDATE SET
-                                total_actions = EXCLUDED.total_actions,
-                                entries = EXCLUDED.entries,
-                                exits = EXCLUDED.exits,
-                                avg_signal_score = EXCLUDED.avg_signal_score
-                        """,
-                            (
-                                run_date,
-                                total_actions or 0,
-                                entries or 0,
-                                exits or 0,
-                                avg_score,
-                            ),
-                        )
-                    metrics_status = "success"
-                    metrics_summary = f"{total_actions or 0} actions, {entries or 0} entries, {exits or 0} exits"
-                    logger.info(f"Updated algo_metrics_daily: {metrics_summary}")
-                else:
-                    logger.info("No trades recorded today (metrics not updated)")
+                row_data = cur.fetchone()
+
+            if row_data:
+                total_actions, entries, exits, avg_score = row_data
+                # Single write context for UPSERT (no nested contexts)
+                with DatabaseContext("write") as write_cur:
+                    write_cur.execute(
+                        """
+                        INSERT INTO algo_metrics_daily (date, total_actions, entries, exits, avg_signal_score)
+                        VALUES (%s, %s, %s, %s, %s)
+                        ON CONFLICT (date) DO UPDATE SET
+                            total_actions = EXCLUDED.total_actions,
+                            entries = EXCLUDED.entries,
+                            exits = EXCLUDED.exits,
+                            avg_signal_score = EXCLUDED.avg_signal_score
+                    """,
+                        (
+                            run_date,
+                            total_actions or 0,
+                            entries or 0,
+                            exits or 0,
+                            avg_score,
+                        ),
+                    )
+                metrics_status = "success"
+                metrics_summary = f"{total_actions or 0} actions, {entries or 0} entries, {exits or 0} exits"
+                logger.info(f"Updated algo_metrics_daily: {metrics_summary}")
+            else:
+                logger.info("No trades recorded today (metrics not updated)")
                     metrics_status = "warn"
                     metrics_summary = "No trades recorded"
         except (psycopg2.DatabaseError, psycopg2.OperationalError) as e:

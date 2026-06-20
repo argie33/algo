@@ -128,6 +128,26 @@ def get_cognito_auth():
         return _cognito_auth
 
 
+def _log_missing_fields(endpoint: str, data: dict) -> None:
+    """Log any missing or None fields in API response for data quality diagnostics.
+
+    Helps identify which fields are missing in the actual API data vs. what panels expect.
+    This reveals data loading issues at the source rather than hidden by panel defaults.
+    """
+    if not isinstance(data, dict) or data.get("_error"):
+        return
+
+    none_fields = [k for k, v in data.items() if v is None and not k.startswith("_")]
+    if none_fields:
+        logger.warning(f"API {endpoint}: fields with None value: {none_fields}")
+
+    # Warn about empty collections that might indicate missing loaders
+    for k, v in data.items():
+        if isinstance(v, (list, dict)) and not v and not k.startswith("_"):
+            if k not in ("items", "data"):  # These can legitimately be empty
+                logger.debug(f"API {endpoint}: empty collection in field '{k}'")
+
+
 def _check_circuit_breaker():
     """Check if circuit breaker is open; attempt half-open state after reset time."""
     global _circuit_breaker_state
@@ -308,6 +328,8 @@ def api_call(endpoint: str, params: dict | None = None, method: str = "GET") -> 
             cache_response(endpoint, data)
             _record_api_success()
             unwrapped = _unwrap_api_response(data)
+            # Log any missing fields for data quality diagnostics
+            _log_missing_fields(endpoint, unwrapped)
             # Validate response at boundary (fail fast if critical fields missing)
             try:
                 validated = validate_response(endpoint, unwrapped)

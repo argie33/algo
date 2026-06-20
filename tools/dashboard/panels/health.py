@@ -385,7 +385,14 @@ def panel_status(
             err_s = f"  [{R}]{n_err} errored[/]" if n_err else ""
             rows.append(Text.from_markup(f"  {ok_s}{hlt_s}{err_s}"))
     elif act and not act.get("_error"):
-        for p in act.get("phases") or []:
+        phases_list = act.get("phases")
+        if not phases_list:
+            logger.warning(
+                f"[HEALTH] Activity log missing 'phases' field. Available keys: {list(act.keys())}. "
+                "Activity phase status will not be displayed."
+            )
+            phases_list = []
+        for p in phases_list:
             at = p.get("action_type", "")
             if not at.startswith("phase_"):
                 continue
@@ -655,7 +662,14 @@ def panel_algo_health(
                 exits_exec = max(exits_exec, int(xe))
     elif run_valid or act_valid:
         src = run if run_valid else act
-        for p in src.get("phase_results") or src.get("phases") or []:
+        phases_list = src.get("phase_results") or src.get("phases")
+        if not phases_list:
+            logger.warning(
+                f"[HEALTH] Data source missing both 'phase_results' and 'phases'. Available keys: {list(src.keys())}. "
+                "Phase status will not be displayed."
+            )
+            phases_list = []
+        for p in phases_list:
             at = p.get("action_type", "")
             if not at.startswith("phase_"):
                 continue

@@ -317,7 +317,13 @@ class ExitEngine:
             }
 
         # 3. RS-LINE BREAK vs SPY (O'Neil) — exit if relative strength deteriorates
-        if self.config.get("exit_on_rs_line_break_50dma", True):
+        if "exit_on_rs_line_break_50dma" not in self.config:
+            raise ValueError(
+                "CRITICAL: 'exit_on_rs_line_break_50dma' config missing. "
+                "Cannot proceed with exit rules — risk controls undefined. "
+                "Check configuration setup."
+            )
+        if self.config["exit_on_rs_line_break_50dma"]:
             if self._rs_line_breaking(cur, symbol, current_date):
                 return {
                     "stage": "stop",

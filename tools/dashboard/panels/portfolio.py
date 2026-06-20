@@ -119,17 +119,17 @@ def panel_portfolio(port, cfg, risk=None, perf=None):
     )
 
     # Daily return / Unrealized P&L
-    dr_s = f"[{G if (dr or 0) >= 0 else R}]{sign(dr or 0)}{(dr or 0):.2f}%[/]" if dr is not None else "[dim]--[/]"
-    urp_s = f"[{G if (urp or 0) >= 0 else R}]{sign(urp or 0)}{(urp or 0):.2f}%[/]" if urp is not None else "[dim]--[/]"
+    dr_s = f"[{G if dr is not None and dr >= 0 else R}]{sign(dr)}{dr:.2f}%[/]" if dr is not None else "[dim]--[/]"
+    urp_s = f"[{G if urp is not None and urp >= 0 else R}]{sign(urp)}{urp:.2f}%[/]" if urp is not None else "[dim]--[/]"
     tbl.add_row(cell("Daily Return:", dr_s), cell("Unrealized P&L:", urp_s))
 
     # Total return / Max drawdown
     cum_v = float(cum) if cum is not None else None
     mxdd_v = float(mxdd) if mxdd is not None else None
-    cc = G if (cum_v or 0) >= 0 else R
-    cum_val = f"[{cc}]{sign(cum_v or 0)}{(cum_v or 0):.2f}%[/]" if cum_v is not None else "[dim]--[/]"
+    cc = G if cum_v is not None and cum_v >= 0 else R
+    cum_val = f"[{cc}]{sign(cum_v)}{cum_v:.2f}%[/]" if cum_v is not None else "[dim]--[/]"
     dd_v = abs(mxdd_v) if mxdd_v is not None else None
-    dd_c = R if (dd_v or 0) >= 15 else (Y if (dd_v or 0) >= 5 else G)
+    dd_c = R if dd_v is not None and dd_v >= 15 else (Y if dd_v is not None and dd_v >= 5 else G)
     dd_val = f"[{dd_c}]-{dd_v:.1f}%[/]" if dd_v is not None else "[dim]--[/]"
     tbl.add_row(cell("Total Return:", cum_val), cell("Max Drawdown:", dd_val))
 
@@ -142,24 +142,24 @@ def panel_portfolio(port, cfg, risk=None, perf=None):
         )
 
     # Risk metrics (VaR, CVaR, Beta, concentration, Stressed VaR)
-    if risk and not risk.get("_error") and risk.get("var95") and float(risk.get("var95") or 0) > 0:
-        var_v = risk.get("var95") or 0
-        cvar_v = risk.get("cvar95") or 0
-        beta_v = risk.get("beta") or 0
-        conc5_v = risk.get("conc5") or 0
+    if risk and not risk.get("_error") and risk.get("var95") is not None and float(risk.get("var95")) > 0:
+        var_v = risk.get("var95")
+        cvar_v = risk.get("cvar95")
+        beta_v = risk.get("beta")
+        conc5_v = risk.get("conc5")
         svar_v = risk.get("svar")
-        conc_c = R if conc5_v >= 35 else (Y if conc5_v >= 25 else "white")
-        var_c = R if var_v >= 4 else (Y if var_v >= 2 else "white")
-        beta_c = R if beta_v >= 1.2 else (Y if beta_v >= 0.8 else G)
+        conc_c = R if conc5_v is not None and conc5_v >= 35 else (Y if conc5_v is not None and conc5_v >= 25 else "white")
+        var_c = R if var_v is not None and var_v >= 4 else (Y if var_v is not None and var_v >= 2 else "white")
+        beta_c = R if beta_v is not None and beta_v >= 1.2 else (Y if beta_v is not None and beta_v >= 0.8 else G)
         tbl.add_row(
-            cell("Value at Risk (95%):", f"[{var_c}]{var_v:.2f}%[/]"),
-            cell("Cond. VaR (95%):", f"[{var_c}]{cvar_v:.2f}%[/]"),
+            cell("Value at Risk (95%):", f"[{var_c}]{var_v:.2f}%[/]" if var_v is not None else "[dim]--[/]"),
+            cell("Cond. VaR (95%):", f"[{var_c}]{cvar_v:.2f}%[/]" if cvar_v is not None else "[dim]--[/]"),
         )
         tbl.add_row(
-            cell("Portfolio Beta:", f"[{beta_c}]{beta_v:.2f}[/]"),
-            cell("Top 5 Concentration:", f"[{conc_c}]{conc5_v:.0f}%[/]"),
+            cell("Portfolio Beta:", f"[{beta_c}]{beta_v:.2f}[/]" if beta_v is not None else "[dim]--[/]"),
+            cell("Top 5 Concentration:", f"[{conc_c}]{conc5_v:.0f}%[/]" if conc5_v is not None else "[dim]--[/]"),
         )
-        if svar_v and float(svar_v) > 0:
+        if svar_v is not None and float(svar_v) > 0:
             tbl.add_row(
                 cell("Stressed VaR:", f"[{R}]{float(svar_v):.2f}%[/]"),
                 Text(""),
@@ -230,9 +230,9 @@ def panel_performance_spark(perf, rec, perf_anl=None, pos=None):
     grid_rows = []
 
     # P&L row
-    pnl_s = f"[{pnl_c}]{fmt_money(perf.get('pnl'))}[/]"
+    pnl_s = f"[{pnl_c}]{fmt_money(pnl_val)}[/]"
     if unrlzd is not None:
-        unrlzd_s = f"[{G if (unrlzd or 0) >= 0 else R}]{fmt_money(unrlzd)}[/]"
+        unrlzd_s = f"[{G if unrlzd is not None and unrlzd >= 0 else R}]{fmt_money(unrlzd)}[/]"
         grid_rows.append((cell("Realized P&L:", pnl_s), cell("Unrealized P&L:", unrlzd_s)))
     else:
         grid_rows.append((cell("Realized P&L:", pnl_s), Text("")))

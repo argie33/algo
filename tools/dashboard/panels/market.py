@@ -73,28 +73,28 @@ def panel_market_full(mkt, sentiment=None):
     bmom = mkt.get("bmom")
     fed = mkt.get("fed")
 
-    uvc = G if (upvol or 0) >= 60 else (Y if (upvol or 0) >= 50 else R)
+    uvc = G if upvol is not None and upvol >= 60 else (Y if upvol is not None and upvol >= 50 else R)
     pcr_c = DIM if pcr is None else (G if pcr <= 0.8 else (Y if pcr <= 1.0 else R))
     nhnl = (nh - nl) if (nh is not None and nl is not None) else None
-    nhnl_c = (G if (nhnl or 0) >= 50 else (Y if (nhnl or 0) >= 0 else R)) if nhnl is not None else DIM
+    nhnl_c = (G if nhnl is not None and nhnl >= 50 else (Y if nhnl is not None and nhnl >= 0 else R)) if nhnl is not None else DIM
 
-    spy_raw = mkt.get("spy")
-    spy_chg = mkt.get("spy_chg")
-    spy_chg_s = (
-        f" [{G if (spy_chg or 0) >= 0 else R}]{sign(spy_chg or 0)}{spy_chg:.1f}%[/]" if spy_chg is not None else ""
-    )
-    spy_s = f"SPY:[white]${float(spy_raw):.2f}[/]{spy_chg_s}  " if spy_raw else ""
+    # SPY is guaranteed by fetcher validation, but spy_chg may be missing
+    spy_s = f"SPY:[white]${float(spy_raw):.2f}[/]"
+    if spy_chg is not None:
+        spy_chg_s = f" [{G if spy_chg >= 0 else R}]{sign(spy_chg)}{spy_chg:.1f}%[/]"
+        spy_s += spy_chg_s
+
     lines = [
         f"[{tc}][bold]{lbl}[/]  [dim]exposure[/][{tc}]{exp_s}[/]  {bar}",
         f"VIX:[{vc}]{vix}[/]  [dim]Dist Days:[/][white]{dist}[/]  [dim]Stage:[/][white]{stage}[/]"
         + (f"  [dim]Trend:[/][white]{trend_s}[/]" if trend_s else "")
-        + (f"  {spy_s}" if spy_s else ""),
+        + f"  {spy_s}",
     ]
     if upvol is not None:
-        adr_s = f"  [dim]Adv/Dec:[/][white]{float(adr or 0):.1f}[/]" if adr is not None else ""
-        nhnl_s = f"  [dim]NH-NL:[/][{nhnl_c}]{sign(nhnl or 0)}{int(nhnl or 0)}[/]" if nhnl is not None else ""
+        adr_s = f"  [dim]Adv/Dec:[/][white]{float(adr):.1f}[/]" if adr is not None else ""
+        nhnl_s = f"  [dim]NH-NL:[/][{nhnl_c}]{sign(nhnl)}{int(nhnl)}[/]" if nhnl is not None else ""
         lines.append(
-            f"[dim]Up Volume:[/][{uvc}]{float(upvol or 0):.0f}%[/]{adr_s}  [dim]New Highs:[/][{G}]{nh or '--'!s}[/] [dim]Lows:[/][{R}]{nl or '--'!s}[/]{nhnl_s}"
+            f"[dim]Up Volume:[/][{uvc}]{float(upvol):.0f}%[/]{adr_s}  [dim]New Highs:[/][{G}]{nh or '--'!s}[/] [dim]Lows:[/][{R}]{nl or '--'!s}[/]{nhnl_s}"
         )
     ycs = mkt.get("ycs")
     bmom_pcr = []

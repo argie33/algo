@@ -64,7 +64,7 @@ def panel_exposure_compact(exp_f):
             return ""
         if key == "trend_30wk":
             v = f.get("price_vs_ma_pct")
-            return f" {'+' if (v or 0) >= 0 else ''}{v:.1f}%" if v is not None else ""
+            return f" {'+' if v is not None and v >= 0 else ''}{v:.1f}%" if v is not None else ""
         if key == "breadth_50dma":
             v = f.get("value")
             return f" {v:.0f}%" if v is not None else ""

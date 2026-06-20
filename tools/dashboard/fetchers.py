@@ -223,17 +223,35 @@ def fetch_market(c):
         current = mkt.get("current", {})
         market_health = mkt.get("market_health", {})
 
-        # VIX is under market_health, not top-level data
+        # VIX and SPY are critical - fail if missing or invalid
         try:
             vix_raw = market_health.get("vix_level")
-            vix = safe_float_strict(vix_raw, "market.vix_level") if vix_raw is not None else None
-            if vix is not None and vix <= 0:
-                vix = None  # VIX = 0 is bad data; loader now rejects values <= 5
-            spy = safe_float(current.get("spy_close"), default=None)
+            spy_raw = current.get("spy_close")
+
+            # Both SPY and VIX are REQUIRED for position sizing
+            if vix_raw is None:
+                error_msg = "Critical market data missing: VIX level required but not provided by API"
+                logger.error(error_msg)
+                record_data_quality_issue("market", "critical_field", "missing_vix")
+                return {"_error": error_msg}
+            if spy_raw is None:
+                error_msg = "Critical market data missing: SPY close required but not provided by API"
+                logger.error(error_msg)
+                record_data_quality_issue("market", "critical_field", "missing_spy")
+                return {"_error": error_msg}
+
+            vix = safe_float_strict(vix_raw, "market.vix_level")
+            spy = safe_float_strict(spy_raw, "market.spy_close")
+
+            if vix <= 0:
+                error_msg = f"Critical market data invalid: VIX = {vix} (must be > 0). Data quality issue in yfinance pipeline."
+                logger.error(error_msg)
+                record_data_quality_issue("market", "critical_field", "invalid_vix", f"vix={vix}")
+                return {"_error": error_msg}
         except StrictValidationError as e:
-            error_msg = f"Critical market data missing: {e!s}"
+            error_msg = f"Critical market data conversion failed: {e!s}"
             logger.error(error_msg)
-            record_data_quality_issue("market", "critical_field", "missing_or_invalid", str(e))
+            record_data_quality_issue("market", "critical_field", "conversion_failed", str(e))
             return {"_error": error_msg}
 
         # regime is in current; fall back to active_tier.name
@@ -303,7 +321,10 @@ def _check_data_freshness(
         - (False, error_msg) if data is stale
     """
     if not timestamp_str:
-        return True, None  # No timestamp provided, can't check
+        # No timestamp provided - this is a data quality issue for time-sensitive data
+        error_msg = f"{source_name} data missing required timestamp field"
+        logger.warning(error_msg)
+        return False, error_msg
 
     try:
         ts = datetime.fromisoformat(timestamp_str.replace("Z", "+00:00"))
