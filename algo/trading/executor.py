@@ -1,4 +1,4 @@
-#!/usr/bin/env python3
+﻿#!/usr/bin/env python3
 """
 Trade Executor - Execute trades via Alpaca and track positions
 
@@ -37,7 +37,7 @@ from algo.trading.exceptions import (
     PretradeCheckFailedError,
     TradingError,
 )
-from config.alpaca_config import get_alpaca_base_url
+from config.api_endpoints import get_alpaca_base_url
 from config.credential_manager import get_alpaca_credentials
 from utils.db import DatabaseContext, OptimisticLockRetry
 from utils.db.advisory_locks import (
@@ -65,11 +65,11 @@ def _redact_for_logs(message: str) -> str:
     """Redact sensitive trade data from log messages. Masks prices and shares."""
     import re
 
-    # Mask prices: $123.45 → $***
+    # Mask prices: $123.45 â†’ $***
     message = re.sub(r"\$[\d.]+", "$***", message)
-    # Mask shares: 100sh → ***sh
+    # Mask shares: 100sh â†’ ***sh
     message = re.sub(r"(\d+)sh\b", "***sh", message)
-    # Mask slippage: +1.23% → +***%
+    # Mask slippage: +1.23% â†’ +***%
     message = re.sub(r"([+-]\d+\.\d+)%", "***%", message)
     return message
 
@@ -132,18 +132,18 @@ class TradeExecutor:
 
         logger.info(
             f"[EXECUTOR] mode={execution_mode} live_intent={live_intent} "
-            f"({'LIVE TRADING → api.alpaca.markets' if live_intent else 'PAPER TRADING → paper-api.alpaca.markets'}) | "
+            f"({'LIVE TRADING â†’ api.alpaca.markets' if live_intent else 'PAPER TRADING â†’ paper-api.alpaca.markets'}) | "
             f"live_ack={'SET' if live_ack == 'I_UNDERSTAND_REAL_MONEY' else 'NOT SET'} "
             f"paper_flag={paper_flag} url_says_paper={url_says_paper} "
             f"key_set={bool(self.alpaca_key)} secret_set={bool(self.alpaca_secret)}"
         )
 
         if not live_intent:
-            # Force paper trading — CRITICAL: explicitly use paper URL, ignore APCA_API_BASE_URL
+            # Force paper trading â€” CRITICAL: explicitly use paper URL, ignore APCA_API_BASE_URL
             self.alpaca_base_url = "https://paper-api.alpaca.markets"
             self.is_paper = True
             if execution_mode == "auto":
-                # execution_mode is auto but live_intent is False — log exactly why
+                # execution_mode is auto but live_intent is False â€” log exactly why
                 reasons = []
                 if live_ack != "I_UNDERSTAND_REAL_MONEY":
                     reasons.append(f"ALGO_LIVE_TRADING not set to 'I_UNDERSTAND_REAL_MONEY' (got '{live_ack}')")
@@ -403,7 +403,7 @@ class TradeExecutor:
                 alpaca_order_id = f"PENDING-{trade_id}"
                 order_status = "pending"  # P4: Standardized status
                 executed_price = entry_price
-            else:  # 'auto' — actually send to Alpaca as BRACKET ORDER
+            else:  # 'auto' â€” actually send to Alpaca as BRACKET ORDER
                 logger.info(f"[ENTRY] {symbol}: AUTO mode - SENDING LIVE ORDER TO ALPACA")
                 logger.info(f"[ENTRY] {symbol}: Using Alpaca endpoint: {self.alpaca_base_url}")
                 self._order_send_time = time.time()  # Track for execution latency (TCA)
@@ -455,10 +455,10 @@ class TradeExecutor:
                 # reconciliation time, not here, so this doesn't corrupt fill data.
                 executed_price = order_result.get("executed_price") or entry_price
 
-                # Verify bracket legs were created successfully — FAIL-CLOSED if missing stop leg
+                # Verify bracket legs were created successfully â€” FAIL-CLOSED if missing stop leg
                 legs = order_result.get("legs", [])
                 if order_result.get("order_class") == "bracket" and len(legs) < 2:
-                    # Bracket order MUST have stop loss leg — cancel and reject if missing
+                    # Bracket order MUST have stop loss leg â€” cancel and reject if missing
                     try:
                         self._cancel_bracket_orders(alpaca_order_id)
                     except (OrderExecutionError, DatabaseError) as e:
@@ -469,18 +469,18 @@ class TradeExecutor:
                         "success": False,
                         "trade_id": trade_id,
                         "status": "failed",
-                        "message": f"Bracket order {alpaca_order_id} missing stop loss leg ({len(legs)} legs) — order cancelled and rejected",
+                        "message": f"Bracket order {alpaca_order_id} missing stop loss leg ({len(legs)} legs) â€” order cancelled and rejected",
                     }
 
                 if order_status not in ("filled", "partially_filled"):
-                    # Order pending, rejected, or cancelled — don't create position yet
+                    # Order pending, rejected, or cancelled â€” don't create position yet
                     if order_status in ("rejected", "cancelled", "expired"):
                         # B7: Alert on order rejection (non-blocking)
                         try:
                             notify(
                                 "critical",
                                 title=f"Order {order_status.upper()}: {symbol}",
-                                message=f"Trade {trade_id}: {shares}sh @ ${entry_price:.2f} (stop ${stop_loss_price:.2f}) — {order_status}",
+                                message=f"Trade {trade_id}: {shares}sh @ ${entry_price:.2f} (stop ${stop_loss_price:.2f}) â€” {order_status}",
                             )
                         except NotificationError as alert_e:
                             logger.warning(f"Failed to send rejection alert (non-blocking): {alert_e}")
@@ -505,7 +505,7 @@ class TradeExecutor:
                 )
                 logger.info(
                     _redact_for_logs(
-                        f"Slippage detected: {slippage_pct:+.2f}% (signal ${entry_price:.2f} → fill ${executed_price:.2f})"
+                        f"Slippage detected: {slippage_pct:+.2f}% (signal ${entry_price:.2f} â†’ fill ${executed_price:.2f})"
                     )
                 )
                 # Recalculate targets from actual fill price, keeping all math in Decimal
@@ -544,7 +544,7 @@ class TradeExecutor:
                 )
 
             # Build comprehensive entry reason
-            entry_reason_parts = ["Algo signal — all tiers passed"]
+            entry_reason_parts = ["Algo signal â€” all tiers passed"]
             if swing_grade:
                 entry_reason_parts.append(f"swing_grade={swing_grade}")
             if base_type:
@@ -644,7 +644,7 @@ class TradeExecutor:
                             "success": False,
                             "trade_id": trade_id,
                             "status": verified_status or "unknown",
-                            "message": f"Order status changed from {order_status} to {verified_status} — position not created",
+                            "message": f"Order status changed from {order_status} to {verified_status} â€” position not created",
                         }
                     order_status = verified_status
 
@@ -1216,7 +1216,7 @@ class TradeExecutor:
             )
 
             if not update_success:
-                # Position update failed — transaction will be rolled back by caller
+                # Position update failed â€” transaction will be rolled back by caller
                 # This prevents orphaned state where trade is marked closed but position is still open
                 raise DatabaseError(update_error or "Position update failed during exit")
 
@@ -1275,7 +1275,7 @@ class TradeExecutor:
                 logger.critical(
                     f"[AUDIT_FAILURE] Could not audit log trade exit {trade_id}: {type(audit_e).__name__}: {audit_e}"
                 )
-                # Raise error to trigger transaction rollback — audit log failures prevent data integrity
+                # Raise error to trigger transaction rollback â€” audit log failures prevent data integrity
                 raise AuditLogError(f"Failed to log trade exit: {audit_e}") from audit_e
 
             try:
@@ -1412,7 +1412,7 @@ class TradeExecutor:
             db_qty = self._with_cursor(_check_db_quantity)
 
             if db_qty is None:
-                # No DB record yet — this is fine (async order, not yet in DB)
+                # No DB record yet â€” this is fine (async order, not yet in DB)
                 return {
                     "valid": True,
                     "db_quantity": None,
@@ -1431,7 +1431,7 @@ class TradeExecutor:
                     "message": f"{symbol}: quantities match ({alpaca_qty}sh)",
                 }
 
-            # Mismatch detected — correct DB to match Alpaca (source of truth)
+            # Mismatch detected â€” correct DB to match Alpaca (source of truth)
             def _correct_quantity(cur):
                 cur.execute(
                     """
@@ -1446,14 +1446,14 @@ class TradeExecutor:
 
             self._with_cursor(_correct_quantity)
             logger.warning(
-                f"[POSITION_DRIFT] {symbol}: corrected DB quantity {db_qty} → {alpaca_qty} (Alpaca source of truth)"
+                f"[POSITION_DRIFT] {symbol}: corrected DB quantity {db_qty} â†’ {alpaca_qty} (Alpaca source of truth)"
             )
 
             try:
                 notify(
                     severity="warning",
                     title="Position Quantity Corrected",
-                    message=f"{symbol}: Corrected quantity {db_qty} → {alpaca_qty} to match Alpaca after partial fill.",
+                    message=f"{symbol}: Corrected quantity {db_qty} â†’ {alpaca_qty} to match Alpaca after partial fill.",
                     symbol=symbol,
                     details={
                         "symbol": symbol,
@@ -1469,7 +1469,7 @@ class TradeExecutor:
                 "db_quantity": db_qty,
                 "alpaca_quantity": alpaca_qty,
                 "corrected": True,
-                "message": f"{symbol}: partial fill detected and corrected ({db_qty} → {alpaca_qty})",
+                "message": f"{symbol}: partial fill detected and corrected ({db_qty} â†’ {alpaca_qty})",
             }
 
         except requests.RequestException as e:
@@ -1481,3 +1481,4 @@ class TradeExecutor:
                 "corrected": False,
                 "message": f"Alpaca connection error: {e}",
             }
+

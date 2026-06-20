@@ -1,4 +1,4 @@
-#!/usr/bin/env python3
+﻿#!/usr/bin/env python3
 """Alpaca account synchronization and position management.
 
 Extracted from DailyReconciliation to reduce monolithic design and enable
@@ -8,7 +8,7 @@ independent testing of position sync logic.
 import logging
 from typing import Any
 
-from config.alpaca_config import get_alpaca_base_url
+from config.api_endpoints import get_alpaca_base_url
 from config.credential_manager import get_credential_manager
 from utils.db import DatabaseContext
 
@@ -67,3 +67,4 @@ class AlpacaSyncManager:
         """
         # Placeholder: full implementation would handle import failures
         return {"recovered": 0, "failed": 0}
+

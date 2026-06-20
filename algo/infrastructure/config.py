@@ -1,4 +1,4 @@
-import psycopg2
+﻿import psycopg2
 
 
 #!/usr/bin/env python3
@@ -132,7 +132,7 @@ class AlgoConfig:
             "float",
             "Risk multiplier when VIX > caution threshold",
         ),
-        # Market Exposure Engine — Veto Thresholds (H12)
+        # Market Exposure Engine â€” Veto Thresholds (H12)
         "market_exposure_veto1_breadth_pct": (
             "30",
             "int",
@@ -222,12 +222,12 @@ class AlgoConfig:
         "econ_stress_financial_severe": (
             "25.0",
             "float",
-            "Stress score for severe financial stress (>1.5σ)",
+            "Stress score for severe financial stress (>1.5Ïƒ)",
         ),
         "econ_stress_financial_elevated": (
             "12.0",
             "float",
-            "Stress score for elevated financial stress (>0.8σ)",
+            "Stress score for elevated financial stress (>0.8Ïƒ)",
         ),
         "econ_stress_moderate_threshold": (
             "40",
@@ -446,7 +446,7 @@ class AlgoConfig:
         "min_price_history_days": (
             "200",
             "int",
-            "Min trading days of price history (IPO age gate — Minervini avoids stocks <1yr post-IPO)",
+            "Min trading days of price history (IPO age gate â€” Minervini avoids stocks <1yr post-IPO)",
         ),
         "min_daily_volume_shares": ("500000", "int", "Minimum daily volume shares"),
         "max_spread_pct": ("0.5", "float", "Maximum bid-ask spread %"),
@@ -624,7 +624,7 @@ class AlgoConfig:
         "db_connection_timeout_seconds": (
             "15",
             "int",
-            "Database connection timeout (seconds) — RDS Proxy adds latency",
+            "Database connection timeout (seconds) â€” RDS Proxy adds latency",
         ),
         # Failsafe Configuration
         "failsafe_ecs_timeout_sec": (
@@ -635,7 +635,7 @@ class AlgoConfig:
         "failsafe_grace_period_minutes": (
             "240",
             "int",
-            "Grace period before triggering second failsafe (min). Morning window 2-9:30AM=450min; expected load ~285min; allows 2:00+240m=6:00 expiry, second loader 6:00+285m≈11:30am (acceptable). Must be <390 (450-60 Phase 2-7 buffer). Too long: no retry time. Too short: false positives if load is slow.",
+            "Grace period before triggering second failsafe (min). Morning window 2-9:30AM=450min; expected load ~285min; allows 2:00+240m=6:00 expiry, second loader 6:00+285mâ‰ˆ11:30am (acceptable). Must be <390 (450-60 Phase 2-7 buffer). Too long: no retry time. Too short: false positives if load is slow.",
         ),
     }
 
@@ -746,7 +746,7 @@ class AlgoConfig:
                                 self._config[key] = fail_closed
                                 self._sources[key] = "fail_closed_default"
                                 invalid_critical_values.append(
-                                    f"  {key}={value}: {e} → using fail-closed default {fail_closed}"
+                                    f"  {key}={value}: {e} â†’ using fail-closed default {fail_closed}"
                                 )
                                 logger.error(
                                     f"ALERT: Critical safety gate {key} has invalid value {value}. "
@@ -754,7 +754,7 @@ class AlgoConfig:
                                     f"Admin must fix database value: {e}"
                                 )
                             else:
-                                logger.warning(f"Warning: Invalid config {key}={value}: {e} — using default")
+                                logger.warning(f"Warning: Invalid config {key}={value}: {e} â€” using default")
                                 self._sources[key] = "default_fallback"
 
                 if invalid_critical_values:
@@ -828,7 +828,7 @@ class AlgoConfig:
         """
         # Use validation schema if available; otherwise fall back to basic checks
         if key not in self.VALIDATION_SCHEMA:
-            logger.warning(f"[CONFIG VALIDATE] Key {key!r} not in validation schema — using basic checks")
+            logger.warning(f"[CONFIG VALIDATE] Key {key!r} not in validation schema â€” using basic checks")
             return True
 
         schema_type, min_val, max_val, is_critical, fail_closed = self.VALIDATION_SCHEMA[key]
@@ -928,7 +928,7 @@ class AlgoConfig:
                 + "\n".join(errors)
                 + "\n\nAction: Restore valid thresholds in database before trading.\n"
                 "Run: python migrations/runner.py up (migration-033) to restore safe defaults\n"
-                "OR manually fix the database values per CLAUDE.md → Trading Safety Configuration"
+                "OR manually fix the database values per CLAUDE.md â†’ Trading Safety Configuration"
             )
             logger.error(error_msg)
             raise RuntimeError(error_msg)
@@ -1160,7 +1160,7 @@ class AlgoConfig:
                 # Return fail-closed value for critical thresholds
                 if is_critical and fail_closed_value is not None:
                     logger.warning(
-                        f"[CONFIG TYPE ERROR] {key!r} is critical — returning fail-closed value {fail_closed_value!r}"
+                        f"[CONFIG TYPE ERROR] {key!r} is critical â€” returning fail-closed value {fail_closed_value!r}"
                     )
                     return fail_closed_value
                 else:
@@ -1202,7 +1202,7 @@ class AlgoConfig:
         Used for command-line args and event-level test overrides that should not persist.
         """
         if key not in self.DEFAULTS:
-            logger.warning(f"[CONFIG OVERRIDE] Unknown key {key!r} — ignored")
+            logger.warning(f"[CONFIG OVERRIDE] Unknown key {key!r} â€” ignored")
             return
         _, dtype, _ = self.DEFAULTS[key]
         try:
@@ -1211,7 +1211,7 @@ class AlgoConfig:
             self._sources[key] = "override"
             logger.info(f"[CONFIG OVERRIDE] {key} = {value} ({dtype})")
         except ValueError as e:
-            logger.error(f"[CONFIG OVERRIDE] Invalid value for {key}: {e} — ignored")
+            logger.error(f"[CONFIG OVERRIDE] Invalid value for {key}: {e} â€” ignored")
 
     def set(self, key, value, value_type, description="", changed_by="system"):
         """Set configuration value in database, memory, and audit log.
@@ -1354,7 +1354,7 @@ def get_config():
 
 
 def reset_config() -> None:
-    """Reset singleton — call at Lambda invocation start so config is fresh each run.
+    """Reset singleton â€” call at Lambda invocation start so config is fresh each run.
 
     This ensures warm Lambda invocations reload config from the DB, picking up
     any changes made between invocations (e.g., lowering a risk threshold).
@@ -1363,7 +1363,7 @@ def reset_config() -> None:
     global _instance
     with _instance_lock:
         _instance = None
-    logger.info("[AlgoConfig] Singleton reset — will reload from DB on next get_config() call")
+    logger.info("[AlgoConfig] Singleton reset â€” will reload from DB on next get_config() call")
 
 
 def get_api_timeout() -> int:
@@ -1411,9 +1411,9 @@ def get_subprocess_timeout() -> int:
 def get_alpaca_base_url() -> str:
     """Get Alpaca API base URL from unified config.
 
-    Delegates to config/alpaca_config.py (single source of truth).
+    Delegates to config/api_endpoints.py (single source of truth for all external APIs).
     """
-    from config.alpaca_config import get_alpaca_base_url as get_unified_url
+    from config.api_endpoints import get_alpaca_base_url as get_unified_url
 
     return get_unified_url()
 
@@ -1426,3 +1426,4 @@ if __name__ == "__main__":
     for key, val in sorted(config.to_dict().items()):
         logger.info(f"  {key:.<40} {val}")
     logger.info("=" * 60)
+

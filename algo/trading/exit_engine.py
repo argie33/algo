@@ -1,20 +1,20 @@
-#!/usr/bin/env python3
+﻿#!/usr/bin/env python3
 
 """
 Exit Engine - Monitor positions and execute exits (HARDENED)
 
 Exit hierarchy (checked in order):
-1. STOP    — current price <= active stop (initial or trailed)
-2. MINERVINI BREAK — close < 21-EMA on volume > 50d avg (or close < 50-DMA cleanly)
-3. TIME    — held >= max_hold_days
-4. T3      — price >= target_3 (4R) → exit final 25%
-5. T2      — price >= target_2 (3R) → exit 25% on pullback, raise stop to T1 area
-6. T1      — price >= target_1 (1.5R) → exit 50% on pullback, raise stop to entry (breakeven)
-7. CHANDELIER TRAIL — 3xATR from highest high (or 21-EMA after 10d)
-8. TD SEQUENTIAL — 9-count (50%) or 13-count (100%) exhaustion
-9. FIRST RED DAY — after 2.5R+ gain, first big down day on heavy volume → exit 50%
-10. CLIMAX RUN EXHAUSTION — 30+ days, 5R+ gain, 20%+ in last 10d → exit 50%
-11. DISTRIBUTION — market distribution day count exceeds limit (config-gated)
+1. STOP    â€” current price <= active stop (initial or trailed)
+2. MINERVINI BREAK â€” close < 21-EMA on volume > 50d avg (or close < 50-DMA cleanly)
+3. TIME    â€” held >= max_hold_days
+4. T3      â€” price >= target_3 (4R) â†’ exit final 25%
+5. T2      â€” price >= target_2 (3R) â†’ exit 25% on pullback, raise stop to T1 area
+6. T1      â€” price >= target_1 (1.5R) â†’ exit 50% on pullback, raise stop to entry (breakeven)
+7. CHANDELIER TRAIL â€” 3xATR from highest high (or 21-EMA after 10d)
+8. TD SEQUENTIAL â€” 9-count (50%) or 13-count (100%) exhaustion
+9. FIRST RED DAY â€” after 2.5R+ gain, first big down day on heavy volume â†’ exit 50%
+10. CLIMAX RUN EXHAUSTION â€” 30+ days, 5R+ gain, 20%+ in last 10d â†’ exit 50%
+11. DISTRIBUTION â€” market distribution day count exceeds limit (config-gated)
 
 State tracked on algo_positions:
   - target_levels_hit (0/1/2/3): which T-levels have already triggered
@@ -42,7 +42,7 @@ from algo.infrastructure import get_alpaca_timeout
 from algo.infrastructure.market_calendar import MarketCalendar
 from algo.signals import SignalComputer
 from algo.trading import TradeExecutor
-from config.alpaca_config import get_alpaca_data_url
+from config.api_endpoints import get_alpaca_data_url
 from config.credential_manager import get_alpaca_credentials
 from utils.trading import PositionStatus, TradeStatus
 
@@ -136,16 +136,16 @@ class ExitEngine:
                         t2_price = Decimal(str(t2_price)) if t2_price else None
                         t3_price = Decimal(str(t3_price)) if t3_price else None
                         if target_hits is None:
-                            raise ValueError(f"{symbol}: target_hits is NULL in database — data corruption detected")
+                            raise ValueError(f"{symbol}: target_hits is NULL in database â€” data corruption detected")
                         target_hits = int(target_hits)
                     except (TypeError, ValueError) as e:
-                        raise ValueError(f"Cannot evaluate exit checks for {symbol}: invalid price data — {e}") from e
+                        raise ValueError(f"Cannot evaluate exit checks for {symbol}: invalid price data â€” {e}") from e
 
                     cur_price, prev_close = self._fetch_recent_prices(cur, symbol, current_date)
                     if cur_price is None:
                         raise RuntimeError(
                             f"[EXIT ENGINE] Critical: current price unavailable for {symbol} "
-                            "— cannot evaluate exits without market data"
+                            "â€” cannot evaluate exits without market data"
                         )
 
                     days_held = (current_date - trade_date).days
@@ -177,7 +177,7 @@ class ExitEngine:
                     )
 
                     if not exit_signal:
-                        t1_str = f"${float(t1_price):.2f}" if t1_price is not None else "—"
+                        t1_str = f"${float(t1_price):.2f}" if t1_price is not None else "â€”"
                         logger.info(
                             f"  {symbol}: hold (cur ${float(cur_price):.2f}, "
                             f"stop ${float(active_stop):.2f}, t1 {t1_str}, "
@@ -191,7 +191,7 @@ class ExitEngine:
 
                     # Route exit through executor (atomicity + audit logging)
                     # Stop-raise-only (fraction=0) skips exit_trade, just updates stop
-                    logger.info(f"  {symbol}: {stage.upper()} — {exit_signal['reason']}")
+                    logger.info(f"  {symbol}: {stage.upper()} â€” {exit_signal['reason']}")
                     if fraction > 0:
                         logger.info(f"      (exit {int(fraction * 100)}%)")
 
@@ -290,7 +290,7 @@ class ExitEngine:
         if risk_per_share <= 0:
             logger.warning(
                 f"[exit_engine] {symbol}: init_stop ({float(init_stop):.2f}) >= entry ({float(entry_price):.2f}) "
-                "— R-based exits disabled for this position; hard stop still active"
+                "â€” R-based exits disabled for this position; hard stop still active"
             )
         r_mult = (
             ((Decimal(str(cur_price)) - entry_price) / risk_per_share).quantize(
@@ -308,7 +308,7 @@ class ExitEngine:
                 "reason": f"STOP hit: ${float(cur_price):.2f} <= ${float(active_stop):.2f}",
             }
 
-        # 2. MINERVINI BREAK — close < 21-EMA on volume, OR clean break of 50-DMA
+        # 2. MINERVINI BREAK â€” close < 21-EMA on volume, OR clean break of 50-DMA
         if self._is_minervini_break(cur, symbol, current_date, cur_price):
             return {
                 "stage": "stop",
@@ -316,11 +316,11 @@ class ExitEngine:
                 "reason": "Minervini trend break: closed below key MA on volume",
             }
 
-        # 3. RS-LINE BREAK vs SPY (O'Neil) — exit if relative strength deteriorates
+        # 3. RS-LINE BREAK vs SPY (O'Neil) â€” exit if relative strength deteriorates
         if "exit_on_rs_line_break_50dma" not in self.config:
             raise ValueError(
                 "CRITICAL: 'exit_on_rs_line_break_50dma' config missing. "
-                "Cannot proceed with exit rules — risk controls undefined. "
+                "Cannot proceed with exit rules â€” risk controls undefined. "
                 "Check configuration setup."
             )
         if self.config["exit_on_rs_line_break_50dma"]:
@@ -328,10 +328,10 @@ class ExitEngine:
                 return {
                     "stage": "stop",
                     "fraction": 1.0,
-                    "reason": "RS line broke below 50-DMA — relative strength deterioration",
+                    "reason": "RS line broke below 50-DMA â€” relative strength deterioration",
                 }
 
-        # 4. TIME — but with O'Neil 8-week rule override for big winners
+        # 4. TIME â€” but with O'Neil 8-week rule override for big winners
         max_hold_val = self.config.get("max_hold_days")
         if max_hold_val is None:
             raise ValueError("CRITICAL: max_hold_days config missing. Cannot enforce maximum holding period for exits.")
@@ -365,7 +365,7 @@ class ExitEngine:
                     "reason": f"TIME exit: {days_held} days >= {max_hold} max",
                 }
 
-        # 5. BREAKEVEN STOP MOVE at +1R (Curtis Faith research — premature is worse)
+        # 5. BREAKEVEN STOP MOVE at +1R (Curtis Faith research â€” premature is worse)
         # This is a "raise stop" not an exit. The orchestrator handles via new_stop.
         move_be_val = self.config.get("move_be_at_r")
         if move_be_val is None:
@@ -374,11 +374,11 @@ class ExitEngine:
             return {
                 "stage": "raise_stop_be",
                 "fraction": 0.0,  # 0 = no exit, just raise stop
-                "reason": f"+{float(r_mult):.2f}R achieved — raise stop to breakeven",
+                "reason": f"+{float(r_mult):.2f}R achieved â€” raise stop to breakeven",
                 "new_stop": float(entry_price),
             }
 
-        # 6-8. Tiered target exits — must scale sequentially T1 → T2 → T3
+        # 6-8. Tiered target exits â€” must scale sequentially T1 â†’ T2 â†’ T3
         # target_hits: 0=no targets, 1=T1 hit, 2=T1+T2 hit, 3=all hit
         # This ensures we scale out properly instead of jumping to final exit
         # target_*_hit_time prevents duplicate exits if price bounces around target levels
@@ -428,7 +428,7 @@ class ExitEngine:
                     "reason": f"T3 target hit: ${float(cur_price):.2f} >= ${float(t3_price):.2f} (4R) - FINAL EXIT",
                 }
 
-        # 9. CHANDELIER TRAIL — once profitable, trail by 3xATR from highest high
+        # 9. CHANDELIER TRAIL â€” once profitable, trail by 3xATR from highest high
         # Switches to 21-EMA trail after 10 days for tighter management
         chandelier_enabled = self.config.get("use_chandelier_trail")
         if chandelier_enabled is None:
@@ -465,8 +465,8 @@ class ExitEngine:
                         "new_stop": float(max(active_stop, entry_price)),
                     }
 
-        # 9. FIRST RED DAY (O'Neill) — after 20%+ gain, first big down day on heavy volume
-        # Institutional distribution day after parabolic run — exit 50%
+        # 9. FIRST RED DAY (O'Neill) â€” after 20%+ gain, first big down day on heavy volume
+        # Institutional distribution day after parabolic run â€” exit 50%
         if r_mult >= Decimal("2.5") and prev_close is not None and prev_close > 0:
             down_pct = float(
                 (
@@ -483,7 +483,7 @@ class ExitEngine:
                         "new_stop": float(max(active_stop, entry_price)),
                     }
 
-        # 13. CLIMAX RUN EXHAUSTION — parabolic moves exhaust and reverse sharply
+        # 13. CLIMAX RUN EXHAUSTION â€” parabolic moves exhaust and reverse sharply
         # Trigger: 30+ days held, 5R+ gain, 20%+ gain in last 10 days = institutional climax distribution
         if days_held > 30 and r_mult >= Decimal("5.0"):
             gain_10d = self._compute_gain_last_n_days(cur, symbol, current_date, 10)
@@ -495,7 +495,7 @@ class ExitEngine:
                     "new_stop": float(max(active_stop, entry_price)),
                 }
 
-        # 8. DISTRIBUTION — reduce position and raise stop to at least breakeven.
+        # 8. DISTRIBUTION â€” reduce position and raise stop to at least breakeven.
         # Full exit on market distribution is too blunt: it forces out positions that
         # may still be working. Minervini/O'Neil use distribution days as a signal to
         # tighten risk, not automatically liquidate. Partial exit books some profit while
@@ -517,7 +517,7 @@ class ExitEngine:
                     "stage": "distribution",
                     "fraction": 0.5,
                     "new_stop": max(active_stop, entry_price),
-                    "reason": f"Market distribution: {dist_days_today} dist days > {max_dd} — reducing 50%, stop raised to breakeven",
+                    "reason": f"Market distribution: {dist_days_today} dist days > {max_dd} â€” reducing 50%, stop raised to breakeven",
                 }
 
         return None
@@ -814,7 +814,7 @@ class ExitEngine:
     def _get_td_state(self, cur, symbol, current_date) -> dict[str, Any]:
         """Return full TD state dict (for both 9 and 13 detection).
 
-        Fail-fast — if TD Sequential cannot be computed, raises exception.
+        Fail-fast â€” if TD Sequential cannot be computed, raises exception.
         TD Sequential is a required exit signal for positions.
         """
         sc = SignalComputer()
@@ -911,3 +911,4 @@ if __name__ == "__main__":
     engine = ExitEngine(config)
     exits = engine.check_and_execute_exits()
     logger.info(f"Exits executed: {exits}")
+

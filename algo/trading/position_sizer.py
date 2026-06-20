@@ -1,4 +1,4 @@
-#!/usr/bin/env python3
+﻿#!/usr/bin/env python3
 """
 Position Sizer - Calculates trade size based on risk management rules
 
@@ -58,7 +58,7 @@ class PositionSizer:
 
         CRITICAL: Does NOT fall back to default $100k. If neither is available,
         raises RuntimeError to fail-closed. Position sizing requires accurate
-        portfolio value — guessing is worse than not trading.
+        portfolio value â€” guessing is worse than not trading.
 
         THREAD SAFETY: Uses PostgreSQL advisory lock to prevent race condition
         where Phase 6 (position sizing) reads while Phase 7 (reconciliation) updates.
@@ -133,7 +133,7 @@ class PositionSizer:
         base = os.getenv("APCA_API_BASE_URL")
         if not base:
             try:
-                from config.alpaca_config import get_alpaca_base_url
+                from config.api_endpoints import get_alpaca_base_url
 
                 base = get_alpaca_base_url()
             except (ImportError, AttributeError) as cfg_e:
@@ -198,7 +198,7 @@ class PositionSizer:
     def get_current_drawdown(self) -> Decimal:
         """Calculate current drawdown from peak.
 
-        Fails fast — raises if any data missing. Position sizing requires accurate
+        Fails fast â€” raises if any data missing. Position sizing requires accurate
         drawdown to adjust risk multiplier correctly. Guessing is worse than not trading.
         """
 
@@ -245,7 +245,7 @@ class PositionSizer:
             effective_risk = base_risk x dd_adjustment x (exposure_pct / 100)
 
         CRITICAL: Risk adjustment thresholds are hard risk gates. Fails closed if any
-        config value is missing — these must NEVER use fallback defaults.
+        config value is missing â€” these must NEVER use fallback defaults.
         """
         dd = self.get_current_drawdown()
 
@@ -282,7 +282,7 @@ class PositionSizer:
     def get_market_exposure_multiplier(self) -> Decimal:
         """Look up the most recent market exposure pct (0-100). Returns multiplier 0.0-1.0.
 
-        Fail-fast — if data unavailable, raises exception. Position sizing requires
+        Fail-fast â€” if data unavailable, raises exception. Position sizing requires
         current market exposure to avoid over-committing during risk-off periods.
         """
 
@@ -302,7 +302,7 @@ class PositionSizer:
         """Reduce risk if VIX is in caution zone (caution_threshold < VIX < max_threshold).
 
         Returns risk multiplier: 1.0 if VIX is normal, reduced multiplier if in caution zone.
-        Fail-fast — if data unavailable, raises exception.
+        Fail-fast â€” if data unavailable, raises exception.
 
         CRITICAL: VIX thresholds are hard risk gates. Fails closed if config missing.
         """
@@ -346,7 +346,7 @@ class PositionSizer:
     def get_position_size_multiplier_from_regime(self, signal_date=None) -> float:
         """Get position size multiplier from current market regime.
 
-        Fail-fast — if regime cannot be determined, raises exception. Position sizing
+        Fail-fast â€” if regime cannot be determined, raises exception. Position sizing
         must account for current market regime to avoid inappropriate sizing.
         """
         try:
@@ -367,7 +367,7 @@ class PositionSizer:
     def get_active_positions_value(self) -> Decimal:
         """Get sum of active position values.
 
-        B13: Fail-closed — on error, assume high value to prevent over-sizing.
+        B13: Fail-closed â€” on error, assume high value to prevent over-sizing.
         """
 
         def fetch_positions_value(cur):
@@ -394,7 +394,7 @@ class PositionSizer:
     def get_position_count(self) -> int:
         """Get count of active positions (Issue #26: Now checks capital, not just count).
 
-        Fail-fast — if data unavailable, raises exception. Cannot size positions
+        Fail-fast â€” if data unavailable, raises exception. Cannot size positions
         without knowing how many are already open.
         """
 
@@ -416,7 +416,7 @@ class PositionSizer:
         """Issue #26: Get total capital invested as % of portfolio.
 
         Returns capital-based position limit, not just count-based.
-        Fail-fast — if data unavailable, raises exception.
+        Fail-fast â€” if data unavailable, raises exception.
         """
         portfolio_value = self.get_portfolio_value()
         if portfolio_value <= 0:
@@ -568,7 +568,7 @@ class PositionSizer:
                     "position_size_pct": 0,
                     "risk_dollars": 0,
                     "status": "phase_climax",
-                    "reason": f"{symbol} in Stage-2 climax phase — skip entry",
+                    "reason": f"{symbol} in Stage-2 climax phase â€” skip entry",
                 }
 
             if entry_price <= 0 or stop_loss_price >= entry_price:
@@ -684,3 +684,4 @@ class PositionSizer:
                 "status": "error",
                 "reason": f"Unexpected error: {type(e).__name__}",
             }
+

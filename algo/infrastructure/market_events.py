@@ -1,4 +1,4 @@
-#!/usr/bin/env python3
+﻿#!/usr/bin/env python3
 """Market Events & Corporate Actions Handler
 
 Detects and responds to market anomalies:
@@ -23,7 +23,7 @@ from algo.infrastructure import (
     get_api_timeout,
     get_market_data_timeout,
 )
-from config.alpaca_config import get_alpaca_base_url
+from config.api_endpoints import get_alpaca_base_url
 from config.credential_manager import get_credential_manager
 from utils.db import DatabaseContext
 from utils.infrastructure import EASTERN_TZ
@@ -87,9 +87,9 @@ class MarketEventHandler:
         """Check if market circuit breaker is active (S&P 500 down 7%+) with concurrent API calls.
 
         Circuit breaker levels:
-        - L1: S&P 500 down 7% intraday → 15-min halt
-        - L2: S&P 500 down 13% intraday → 15-min halt
-        - L3: S&P 500 down 20% intraday → halt for rest of day
+        - L1: S&P 500 down 7% intraday â†’ 15-min halt
+        - L2: S&P 500 down 13% intraday â†’ 15-min halt
+        - L3: S&P 500 down 20% intraday â†’ halt for rest of day
 
         Fetches quotes and bars concurrently to reduce timeout latency from 15s sequential
         to ~10s concurrent (both timeout at 10s, run in parallel).
@@ -137,7 +137,7 @@ class MarketEventHandler:
             if pct_down >= 20.0:
                 return {
                     "level": 3,
-                    "description": "20%+ down — market halted for rest of day",
+                    "description": "20%+ down â€” market halted for rest of day",
                     "pct_down": round(pct_down, 2),
                     "action": "HALT_ALL_ENTRIES",
                     "timestamp": datetime.now(timezone.utc).isoformat(),
@@ -145,7 +145,7 @@ class MarketEventHandler:
             elif pct_down >= 13.0:
                 return {
                     "level": 2,
-                    "description": "13%+ down — 15-minute halt",
+                    "description": "13%+ down â€” 15-minute halt",
                     "pct_down": round(pct_down, 2),
                     "action": "PAUSE_NEW_ENTRIES_15MIN",
                     "timestamp": datetime.now(timezone.utc).isoformat(),
@@ -153,7 +153,7 @@ class MarketEventHandler:
             elif pct_down >= 7.0:
                 return {
                     "level": 1,
-                    "description": "7%+ down — 15-minute halt",
+                    "description": "7%+ down â€” 15-minute halt",
                     "pct_down": round(pct_down, 2),
                     "action": "PAUSE_NEW_ENTRIES_15MIN",
                     "timestamp": datetime.now(timezone.utc).isoformat(),
@@ -275,7 +275,7 @@ class MarketEventHandler:
                     (
                         "SINGLE_STOCK_HALT",
                         datetime.now(timezone.utc),
-                        f"Symbol {symbol} halted — pending orders cancelled",
+                        f"Symbol {symbol} halted â€” pending orders cancelled",
                         "WARN",
                     ),
                 )
@@ -305,14 +305,14 @@ class MarketEventHandler:
                 # L3: Full halt, no new orders, close positions
                 action = "HALT_ALL_ENTRIES"
                 message = (
-                    "Market circuit breaker L3 (20%+ down) — halting all new entries and preparing for forced exit"
+                    "Market circuit breaker L3 (20%+ down) â€” halting all new entries and preparing for forced exit"
                 )
                 severity = "CRITICAL"
                 action_type = "CIRCUIT_BREAKER_L3"
             elif level in (1, 2):
                 # L1/L2: Pause new entries for 15 minutes, tighten stops
                 action = "PAUSE_ENTRIES_15MIN"
-                message = f"Market circuit breaker L{level} ({'7' if level == 1 else '13'}%+ down) — pausing new entries for 15 minutes"
+                message = f"Market circuit breaker L{level} ({'7' if level == 1 else '13'}%+ down) â€” pausing new entries for 15 minutes"
                 severity = "ERROR"
                 action_type = f"CIRCUIT_BREAKER_L{level}"
             else:
@@ -414,3 +414,4 @@ class MarketEventHandler:
             result["alerts"].append(f"CIRCUIT BREAKER LEVEL {cb['level']}: {cb['description']}")
 
         return result
+

@@ -34,3 +34,23 @@ def get_aaii_sentiment_url() -> str:
     Note: Direct Excel download (no API key required). Returns XLS or XLSX depending on AAII.
     """
     return "https://www.aaii.com/files/surveys/sentiment.xls"
+
+
+def get_alpaca_base_url() -> str:
+    """Return Alpaca API base URL.
+
+    Used by: market_events, orchestrator phases, reconciliation
+    Pattern: https://api.alpaca.markets (paper trading)
+    Requires: ALPACA_API_KEY and ALPACA_SECRET_KEY environment variables
+    """
+    return "https://api.alpaca.markets"
+
+
+def get_alpaca_data_url() -> str:
+    """Return Alpaca Market Data API base URL.
+
+    Used by: exit_engine, market data retrieval
+    Pattern: https://data.alpaca.markets
+    Requires: ALPACA_API_KEY environment variable
+    """
+    return "https://data.alpaca.markets"

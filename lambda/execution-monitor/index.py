@@ -1,4 +1,4 @@
-#!/usr/bin/env python3
+﻿#!/usr/bin/env python3
 """Monitor algo orchestrator execution - query RDS and Alpaca for results."""
 
 import json
@@ -74,7 +74,7 @@ def query_rds_signals(credentials):
 
 def get_alpaca_credentials():
     """Get Alpaca credentials from credential_manager."""
-    from config.alpaca_config import get_alpaca_base_url
+    from config.api_endpoints import get_alpaca_base_url
     from config.credential_manager import get_alpaca_credentials as get_alpaca_creds
 
     base_url = get_alpaca_base_url()
@@ -172,3 +172,4 @@ def lambda_handler(event, context):
 
 if __name__ == "__main__":
     lambda_handler({}, {})
+

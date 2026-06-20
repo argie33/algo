@@ -11,12 +11,11 @@ Usage:
 
 import argparse
 import re
-import sys
 from pathlib import Path
-from typing import List, Tuple
+from typing import Tuple
 
 
-def find_unsafe_floats(content: str) -> List[Tuple[int, str]]:
+def find_unsafe_floats(content: str) -> list[tuple[int, str]]:
     """Find all unsafe float() calls (not already wrapped in safe_float)."""
     lines = content.split('\n')
     unsafe = []
@@ -63,7 +62,7 @@ def add_safe_float_import(content: str) -> str:
     return '\n'.join(lines)
 
 
-def fix_unsafe_floats_in_file(file_path: Path, context_prefix: str = "") -> Tuple[str, int]:
+def fix_unsafe_floats_in_file(file_path: Path, context_prefix: str = "") -> tuple[str, int]:
     """
     Fix unsafe float() calls in a file.
 
