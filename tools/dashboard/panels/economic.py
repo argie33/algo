@@ -29,7 +29,72 @@ from ..utilities import (
     Y,
 )
 from ._helpers import _error_panel
-from .data_extractors import extract_economic_indicators, safe_get_list
+from .data_extractors import extract_economic_indicators
+
+
+def _build_calendar_rows(econ_cal) -> list:
+    """Extract and format economic calendar events."""
+    rows = []
+    econ_cal_items = (
+        econ_cal.get("items", [])
+        if isinstance(econ_cal, dict) and "items" in econ_cal
+        else (econ_cal if isinstance(econ_cal, list) else [])
+    )
+    econ_cal_error = has_error(econ_cal) if isinstance(econ_cal, dict) else None
+    valid_cal = econ_cal_items if econ_cal_items and not econ_cal_error else []
+
+    if not valid_cal:
+        return rows
+
+    from datetime import date
+
+    rows.append(Rule(style="dim"))
+    imp_c = {"HIGH": "bold bright_red", "MEDIUM": "yellow", "LOW": "dim"}
+    today = date.today()
+    seen_keys = set()
+
+    for ev in valid_cal[:6]:
+        ed_raw = ev.get("event_date")
+        try:
+            ed = date.fromisoformat(str(ed_raw)) if ed_raw else None
+        except (ValueError, TypeError):
+            ed = None
+        full_nm = ev.get("event_name") or ""
+        name = str(full_nm)[:24]
+        key = (str(ed_raw) + str(full_nm)[:24]).lower()
+        if key in seen_keys:
+            continue
+        seen_keys.add(key)
+        imp = (ev.get("importance") or "LOW").upper()
+        ic = imp_c.get(imp, "dim")
+        f_v = ev.get("forecast") if ev.get("forecast") is not None else ev.get("forecast_value")
+        a_v = ev.get("actual") if ev.get("actual") is not None else ev.get("actual_value")
+        p_v = ev.get("previous") if ev.get("previous") is not None else ev.get("previous_value")
+        if ed == today:
+            when = "TODAY"
+        elif ed is not None:
+            delta = (ed - today).days
+            when = f"+{delta}d" if delta > 0 else "YST"
+        else:
+            when = "--"
+        vals = ""
+        try:
+            if a_v is not None:
+                a_f = float(a_v)
+                f_f = float(f_v) if f_v is not None else a_f
+                ac = G if a_f <= f_f else R
+                vals = f" [{ac}]A={a_f:.1f}[/]"
+            elif f_v is not None:
+                vals = f" [dim]F={float(f_v):.1f}[/]"
+            if p_v is not None:
+                vals += f"[dim] P={float(p_v):.1f}[/]"
+        except (ValueError, TypeError):
+            pass
+        et = ev.get("event_time")
+        et_s = f" [dim]{str(et)[:5]}[/]" if et else ""
+        rows.append(Text.from_markup(f"[{ic}]{when!s:<5}[/]{et_s} [white]{name!s}[/]{vals}"))
+
+    return rows
 
 
 @register_panel(
@@ -45,14 +110,25 @@ def panel_economic_pulse(eco, econ_cal=None):
         return err_panel
     rows: list = []
 
-    # Extract all economic indicators at once (after error check)
-    field_names = [
-        "t10", "t2", "t3m", "t6m", "yc_10_2", "yc_10_3m", "hy", "ig", "oil",
-        "nfci", "fed_funds", "cpi_yoy", "unrate", "be10", "be5", "dxy", "mortgage", "umcsent"
-    ]
-    t10, t2, t3m, t6m, yc10_2, yc10_3m, hy, ig, oil, nfci, fed_funds, cpi_yoy, unrate, be10, be5, dxy, mortgage, umcsent = (
-        eco.get(f) for f in field_names
-    )
+    indicators = extract_economic_indicators(eco)
+    t10 = indicators.get("t10")
+    t2 = indicators.get("t2")
+    t3m = indicators.get("t3m")
+    t6m = indicators.get("t6m")
+    yc10_2 = indicators.get("yc_10_2")
+    yc10_3m = indicators.get("yc_10_3m")
+    hy = indicators.get("hy")
+    ig = indicators.get("ig")
+    oil = indicators.get("oil")
+    nfci = indicators.get("nfci")
+    fed_funds = indicators.get("fed_funds")
+    cpi_yoy = indicators.get("cpi_yoy")
+    unrate = indicators.get("unrate")
+    be10 = indicators.get("be10")
+    be5 = indicators.get("be5")
+    dxy = indicators.get("dxy")
+    mortgage = indicators.get("mortgage")
+    umcsent = indicators.get("umcsent")
 
     # Treasury yields (short to long) + Fed Funds Rate
     y_parts = []
@@ -144,63 +220,7 @@ def panel_economic_pulse(eco, econ_cal=None):
             _ex.add_row(Text.from_markup(left), Text.from_markup(right) if right else Text(""))
         rows.append(_ex)
 
-    # Economic calendar (upcoming events)
-    econ_cal_items = (
-        econ_cal.get("items", [])
-        if isinstance(econ_cal, dict) and "items" in econ_cal
-        else (econ_cal if isinstance(econ_cal, list) else [])
-    )
-    econ_cal_error = has_error(econ_cal) if isinstance(econ_cal, dict) else None
-    valid_cal = econ_cal_items if econ_cal_items and not econ_cal_error else []
-    if valid_cal:
-        rows.append(Rule(style="dim"))
-        imp_c = {"HIGH": "bold bright_red", "MEDIUM": "yellow", "LOW": "dim"}
-        from datetime import date
-
-        today = date.today()
-        seen_keys = set()
-        for ev in valid_cal[:6]:
-            ed_raw = ev.get("event_date")
-            # API returns event_date as ISO string; parse to date for arithmetic
-            try:
-                ed = date.fromisoformat(str(ed_raw)) if ed_raw else None
-            except (ValueError, TypeError):
-                ed = None
-            full_nm = ev.get("event_name") or ""
-            name = str(full_nm)[:24]
-            key = (str(ed_raw) + str(full_nm)[:24]).lower()
-            if key in seen_keys:
-                continue
-            seen_keys.add(key)
-            imp = (ev.get("importance") or "LOW").upper()
-            ic = imp_c.get(imp, "dim")
-            # API fields: forecast, actual, previous (not *_value suffixes)
-            f_v = ev.get("forecast") if ev.get("forecast") is not None else ev.get("forecast_value")
-            a_v = ev.get("actual") if ev.get("actual") is not None else ev.get("actual_value")
-            p_v = ev.get("previous") if ev.get("previous") is not None else ev.get("previous_value")
-            if ed == today:
-                when = "TODAY"
-            elif ed is not None:
-                delta = (ed - today).days
-                when = f"+{delta}d" if delta > 0 else "YST"
-            else:
-                when = "--"
-            vals = ""
-            try:
-                if a_v is not None:
-                    a_f = float(a_v)
-                    f_f = float(f_v) if f_v is not None else a_f
-                    ac = G if a_f <= f_f else R
-                    vals = f" [{ac}]A={a_f:.1f}[/]"
-                elif f_v is not None:
-                    vals = f" [dim]F={float(f_v):.1f}[/]"
-                if p_v is not None:
-                    vals += f"[dim] P={float(p_v):.1f}[/]"
-            except (ValueError, TypeError) as e:
-                logger.debug(f"Failed to parse economic calendar values: {e}")
-            et = ev.get("event_time")
-            et_s = f" [dim]{str(et)[:5]}[/]" if et else ""
-            rows.append(Text.from_markup(f"[{ic}]{when!s:<5}[/]{et_s} [white]{name!s}[/]{vals}"))
+    rows.extend(_build_calendar_rows(econ_cal))
 
     if not rows:
         rows.append(Text("[dim]no economic data[/]"))
@@ -223,24 +243,25 @@ def panel_economic_expanded(eco, econ_cal=None):
         Rule(style="dim"),
     ]
 
-    t10 = eco.get("t10")
-    t2 = eco.get("t2")
-    t3m = eco.get("t3m")
-    t6m = eco.get("t6m")
-    yc10_2 = eco.get("yc_10_2")
-    yc10_3m = eco.get("yc_10_3m")
-    hy = eco.get("hy")
-    ig = eco.get("ig")
-    oil = eco.get("oil")
-    nfci = eco.get("nfci")
-    fed_funds = eco.get("fed_funds")
-    cpi_yoy = eco.get("cpi_yoy")
-    unrate = eco.get("unrate")
-    be10 = eco.get("be10")
-    be5 = eco.get("be5")
-    dxy = eco.get("dxy")
-    mortgage = eco.get("mortgage")
-    umcsent = eco.get("umcsent")
+    indicators = extract_economic_indicators(eco)
+    t10 = indicators.get("t10")
+    t2 = indicators.get("t2")
+    t3m = indicators.get("t3m")
+    t6m = indicators.get("t6m")
+    yc10_2 = indicators.get("yc_10_2")
+    yc10_3m = indicators.get("yc_10_3m")
+    hy = indicators.get("hy")
+    ig = indicators.get("ig")
+    oil = indicators.get("oil")
+    nfci = indicators.get("nfci")
+    fed_funds = indicators.get("fed_funds")
+    cpi_yoy = indicators.get("cpi_yoy")
+    unrate = indicators.get("unrate")
+    be10 = indicators.get("be10")
+    be5 = indicators.get("be5")
+    dxy = indicators.get("dxy")
+    mortgage = indicators.get("mortgage")
+    umcsent = indicators.get("umcsent")
 
     # Treasury Yields table
     rows.append(Text.from_markup("[dim bold]TREASURY YIELDS & YIELD CURVE[/]"))
@@ -347,64 +368,11 @@ def panel_economic_expanded(eco, econ_cal=None):
             btbl.add_row("5Y Breakeven:", Text.from_markup(f"[{be5_c}]{be5:.2f}%[/]"), "5Y forward expectation")
         rows.append(btbl)
 
-    # Economic calendar
-    econ_cal_items = (
-        econ_cal.get("items", [])
-        if isinstance(econ_cal, dict) and "items" in econ_cal
-        else (econ_cal if isinstance(econ_cal, list) else [])
-    )
-    econ_cal_error = has_error(econ_cal) if isinstance(econ_cal, dict) else None
-    valid_cal = econ_cal_items if econ_cal_items and not econ_cal_error else []
-    if valid_cal:
+    cal_rows = _build_calendar_rows(econ_cal)
+    if cal_rows:
         rows.append(Rule(style="dim"))
         rows.append(Text.from_markup("[dim bold]ECONOMIC CALENDAR (UPCOMING)[/]"))
-        imp_c = {"HIGH": "bold bright_red", "MEDIUM": "yellow", "LOW": "dim"}
-        from datetime import date
-
-        today = date.today()
-        seen_keys = set()
-        for ev in valid_cal[:20]:
-            ed_raw = ev.get("event_date")
-            try:
-                ed = date.fromisoformat(str(ed_raw)) if ed_raw else None
-            except (ValueError, TypeError):
-                ed = None
-            full_nm = ev.get("event_name") or ""
-            key = (str(ed_raw) + str(full_nm)[:32]).lower()
-            if key in seen_keys:
-                continue
-            seen_keys.add(key)
-            imp = (ev.get("importance") or "LOW").upper()
-            ic = imp_c.get(imp, "dim")
-            if ed == today:
-                when = "TODAY"
-            elif ed is not None:
-                delta = (ed - today).days
-                when = f"+{delta}d" if delta > 0 else "YST"
-            else:
-                when = "--"
-            f_v = ev.get("forecast") if ev.get("forecast") is not None else ev.get("forecast_value")
-            a_v = ev.get("actual") if ev.get("actual") is not None else ev.get("actual_value")
-            p_v = ev.get("previous") if ev.get("previous") is not None else ev.get("previous_value")
-            vals = ""
-            try:
-                if a_v is not None:
-                    a_f = float(a_v)
-                    f_f = float(f_v) if f_v is not None else a_f
-                    ac = G if a_f <= f_f else R
-                    vals = f"  [{ac}]A={a_f:.1f}[/]"
-                elif f_v is not None:
-                    vals = f"  [dim]F={float(f_v):.1f}[/]"
-                if p_v is not None:
-                    vals += f"[dim]  P={float(p_v):.1f}[/]"
-            except (ValueError, TypeError) as e:
-                logger.debug(f"Failed to parse economic calendar values: {e}")
-            et_s = f"  [dim]{str(ev.get('event_time') or '')[:5]}[/]" if ev.get("event_time") else ""
-            rows.append(
-                Text.from_markup(
-                    f"  [{ic}]{when!s:<5}[/]{et_s}  [{ic}]{imp[:1]}[/]  [white]{str(full_nm)[:40]}[/]{vals}"
-                )
-            )
+        rows.extend(cal_rows[1:])
 
     if not rows:
         rows.append(Text("[dim]no economic data[/]"))
