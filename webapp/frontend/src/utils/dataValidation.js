@@ -195,3 +195,68 @@ export const getErrorMessage = (data) => {
     'An error occurred while loading data'
   );
 };
+
+/**
+ * Safe numeric conversion preventing NaN renders
+ */
+export const safeGetNumber = (value, defaultValue = 0) => {
+  const num = Number(value);
+  return isNaN(num) ? defaultValue : num;
+};
+
+/**
+ * Check if value can be safely displayed
+ * Rejects null/undefined/NaN
+ */
+export const isSafeValue = (val) => {
+  if (val === null || val === undefined) return false;
+  if (typeof val === 'number' && isNaN(val)) return false;
+  return true;
+};
+
+/**
+ * Safe fallback rendering for optional values
+ */
+export const renderOrFallback = (value, fallback = '—') => {
+  return isSafeValue(value) ? value : fallback;
+};
+
+/**
+ * Ensure array from various response formats
+ * Handles {items: []}, {data: []}, [], null
+ */
+export const ensureArray = (data, defaultValue = []) => {
+  if (Array.isArray(data)) return data;
+  if (data && typeof data === 'object') {
+    if (Array.isArray(data.items)) return data.items;
+    if (Array.isArray(data.data)) return data.data;
+    if (Array.isArray(data.results)) return data.results;
+  }
+  return defaultValue;
+};
+
+/**
+ * Phantom data check: stale OR empty OR has null values
+ */
+export const hasPhantomData = (data) => {
+  if (!data) return true;
+  if (typeof data !== 'object') return true;
+  if (data._isStale === true) return true;
+  if (Array.isArray(data) && data.length === 0) return true;
+  return false;
+};
+
+/**
+ * Get safe numeric value from potentially phantom data
+ * Used for percentages, prices, counts that render in display
+ */
+export const safeNumericValue = (data, keys = [], defaultValue = null) => {
+  let current = data;
+  for (const key of keys) {
+    if (current == null || typeof current !== 'object') return defaultValue;
+    current = current[key];
+  }
+  if (current == null) return defaultValue;
+  const num = Number(current);
+  return isNaN(num) ? defaultValue : num;
+};

@@ -792,8 +792,14 @@ export default function PortfolioDashboard() {
 
 // ─── Circuit breaker panel ──────────────────────────────────────────────────
 function CircuitBreakerPanel({ data, loading, error: queryError }) {
-  const breakers = Array.isArray(data) ? data : (data && typeof data === 'object' && Array.isArray(data.breakers) ? data.breakers : []);
-  const dataError = data && typeof data === 'object' ? data._error : null;
+  let breakers = [];
+  if (Array.isArray(data)) {
+    breakers = data;
+  } else if (data && typeof data === 'object' && Array.isArray(data.breakers)) {
+    breakers = data.breakers;
+  }
+
+  const dataError = (data && typeof data === 'object') ? data._error : null;
   const error = queryError?.responseData?.message || queryError?.responseData?._error || queryError?.message || dataError;
 
   if (loading) {
@@ -1002,8 +1008,10 @@ function DrawdownChart({ series, loading }) {
 // ─── Daily-return histogram (bell-curve overlay style) ─────────────────────
 function DailyReturnHistogram({ histogram_data, loading, error }) {
   const { buckets, stats } = useMemo(() => {
-    if (!histogram_data) return { buckets: [], stats: null };
-    return { buckets: histogram_data.buckets || [], stats: histogram_data.stats || null };
+    if (!histogram_data || typeof histogram_data !== 'object') return { buckets: [], stats: null };
+    const bucketList = Array.isArray(histogram_data.buckets) ? histogram_data.buckets : [];
+    const statData = histogram_data.stats && typeof histogram_data.stats === 'object' ? histogram_data.stats : null;
+    return { buckets: bucketList, stats: statData };
   }, [histogram_data]);
 
   return (
@@ -1062,8 +1070,8 @@ function DailyReturnHistogram({ histogram_data, loading, error }) {
 // ─── Trade outcome distribution ────────────────────────────────────────────
 function TradeDistribution({ distribution_data, loading, error }) {
   const buckets = useMemo(() => {
-    if (!distribution_data) return [];
-    return distribution_data.buckets || [];
+    if (!distribution_data || typeof distribution_data !== 'object') return [];
+    return Array.isArray(distribution_data.buckets) ? distribution_data.buckets : [];
   }, [distribution_data]);
 
   return (
@@ -1363,7 +1371,9 @@ function StagePhaseDonut({ distribution, loading, error }) {
   const data = useMemo(() => {
     if (!distribution || typeof distribution !== 'object') return [];
     const distArray = Array.isArray(distribution.distribution) ? distribution.distribution : [];
-    return distArray.length > 0 ? distArray : [];
+    return distArray.filter(item => item && typeof item === 'object').length > 0
+      ? distArray.filter(item => item && typeof item === 'object')
+      : [];
   }, [distribution]);
 
   const colorFor = (p) => {
