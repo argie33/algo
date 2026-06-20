@@ -1134,10 +1134,28 @@ class OptimalLoader(ABC):
                 mode,
             )
 
-            if parallelism == 1:
-                self._run_serial(symbols)
-            else:
-                self._run_parallel(symbols, parallelism)
+            # Get SLA timeout from configuration (default 3 hours max per loader)
+            sla_timeout_seconds = int(os.getenv("LOADER_SLA_TIMEOUT_SECONDS", "10800"))  # 3 hours default
+
+            try:
+                if parallelism == 1:
+                    self._run_serial(symbols)
+                else:
+                    self._run_parallel(symbols, parallelism)
+            finally:
+                # Check if we exceeded SLA timeout
+                elapsed = time.time() - start
+                if elapsed > sla_timeout_seconds:
+                    logger.critical(
+                        f"[{self.table_name}] TIMEOUT: Exceeded SLA timeout of {sla_timeout_seconds/3600:.1f}h (ran {elapsed/3600:.1f}h). "
+                        f"Marking as FAILED to unblock orchestrator. Retry on next run."
+                    )
+                    # Mark as failed so Phase 1 failsafe can retry
+                    self._update_loader_status("FAILED")
+                    raise RuntimeError(
+                        f"Loader exceeded SLA timeout ({sla_timeout_seconds}s). "
+                        f"This indicates hung API calls or database contention. Marked FAILED for retry."
+                    )
 
             self._stats["duration_sec"] = round(time.time() - start, 2)
             logger.info(
