@@ -1217,38 +1217,28 @@ def _build_results_panel(
             risk_parts_e.append(f"[dim]StressVaR:[/][{R}]{float(svar_val_e):.2f}%[/]")
         right_rows.append(Text.from_markup("  ".join(risk_parts_e)))
 
-    notifs_items_exp = (
-        notifs.get("items", [])
-        if isinstance(notifs, dict) and "items" in notifs
-        else (notifs if isinstance(notifs, list) else [])
-    )
-    notifs_error_exp = has_error(notifs) if isinstance(notifs, dict) else None
-    valid_notifs = notifs_items_exp if notifs_items_exp and not notifs_error_exp else []
+    valid_notifs = safe_get_list(notifs)
     if valid_notifs:
         right_rows.append(Rule(style="dim"))
         right_rows.append(Text.from_markup("[dim]Notifications:[/]"))
         sev_colors = {"critical": R, "warning": Y, "info": CY, "debug": DIM}
         for n in valid_notifs:
-            if not isinstance(n, dict):
-                continue
-            sc = sev_colors.get(n.get("severity", "info"), DIM)
-            title = n.get("title") or ""
+            sc = sev_colors.get(safe_get_field(n, "severity", "info"), DIM)
+            title = safe_get_field(n, "title", "") or ""
             age = fmt_age(safe_get_field(n, "created_at"))
             unread = "-" if not safe_get_field(n, "seen", True) else "."
             right_rows.append(Text.from_markup(f"  [{sc}]{unread} {title}[/] [dim]{age}[/]"))
 
-    valid_audit_exp = audit if (audit and not (isinstance(audit, dict) and has_error(audit))) else []
+    valid_audit_exp = safe_get_list(audit)
     if valid_audit_exp:
         right_rows.append(Rule(style="dim"))
         right_rows.append(Text.from_markup("[dim]Audit log:[/]"))
         for a in valid_audit_exp[:20]:
-            if not isinstance(a, dict):
-                continue
-            at = (a.get("action_type") or "").replace("_", " ")
-            sym = a.get("symbol") or ""
-            st_a = a.get("status", "")
+            at = (safe_get_field(a, "action_type", "") or "").replace("_", " ")
+            sym = safe_get_field(a, "symbol", "") or ""
+            st_a = safe_get_field(a, "status", "")
             sc = G if st_a in ("success", "ok") else (Y if st_a in ("warn", "warning") else R)
-            ts_s = fmt_age(a.get("created_at") or a.get("timestamp"))
+            ts_s = fmt_age(safe_get_field(a, "created_at") or safe_get_field(a, "timestamp"))
             right_rows.append(
                 Text.from_markup(
                     f"  [{sc}]{at[:32]}[/]"
