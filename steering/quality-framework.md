@@ -204,6 +204,38 @@ This prevents legitimate commits from being blocked by pre-existing issues in de
 
 ---
 
+## Supply Chain Security & SBOM
+
+**Software Bill of Materials (SBOM)** documents all dependencies, layers, and artifacts in the container image.
+
+**Generated in CI:** Every commit generates SBOM artifacts in CycloneDX (XML) and SPDX (JSON) formats.
+
+**Storage:** Artifacts available in GitHub Actions workflow run → Artifacts tab (90-day retention).
+
+**Usage:**
+- Compliance audits: Share SBOM with security teams
+- Vulnerability tracking: Reference against CVE databases
+- License compliance: Review dependency licenses in SBOM
+- Supply chain transparency: Audit tool versions in production builds
+
+**Tools:**
+- **Syft:** Generates SBOM from container images (open source, maintained by Anchore)
+- **Grype:** Scans SBOM for known vulnerabilities in supply chain (complementary to Trivy, which scans for OS-level CVEs)
+
+**CI Integration:**
+- `generate-sbom` job: Creates SBOM in multiple formats
+- `scan-supply-chain` job: Vulnerability scans using Grype, results uploaded to GitHub Security tab
+
+**Difference from Other Scanning:**
+| Tool | What It Does | When It Runs |
+|------|--------------|--------------|
+| Trivy | OS package vulnerabilities (Dockerfile) | During container build |
+| Grype | Dependency vulnerabilities (from SBOM) | On generated SBOM |
+| Syft | Generates SBOM artifact | Always, for compliance |
+| pip-audit | Python dependencies only | During CI |
+
+---
+
 ## Next Steps (Quarterly)
 
 - **Month 1:** Review coverage goals, prioritize gap areas
