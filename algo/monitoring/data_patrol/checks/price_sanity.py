@@ -60,7 +60,7 @@ class PriceSanityChecker(BaseCheck):
                     f"{len(extreme)} symbols with >{max_move_pct * 100:.0f}% day-over-day move",
                     {
                         "count": len(extreme),
-                        "samples": [{"symbol": r[0], "pct_change": float(r[4])} for r in extreme[:5]],
+                        "samples": [{"symbol": r[0], "pct_change": safe_float(r[4], default=0.0, context="r[4]")} for r in extreme[:5]],
                     },
                 )
             elif extreme:
@@ -69,7 +69,7 @@ class PriceSanityChecker(BaseCheck):
                     INFO,
                     "price_daily",
                     f"{len(extreme)} extreme moves (likely real events)",
-                    {"samples": [{"symbol": r[0], "pct_change": float(r[4])} for r in extreme[:5]]},
+                    {"samples": [{"symbol": r[0], "pct_change": safe_float(r[4], default=0.0, context="r[4]")} for r in extreme[:5]]},
                 )
             else:
                 self.log(

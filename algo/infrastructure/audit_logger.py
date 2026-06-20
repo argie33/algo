@@ -17,6 +17,7 @@ from typing import Any
 import psycopg2
 
 from utils.db import DatabaseContext
+from utils.safe_data_conversion import safe_float
 
 
 logger = logging.getLogger(__name__)
@@ -275,10 +276,10 @@ class TradeAuditLogger:
                 if row:
                     return {
                         "total_trades": row[0],
-                        "avg_cascade_multiplier": float(row[1]) if row[1] else 1.0,
-                        "min_cascade_multiplier": float(row[2]) if row[2] else 1.0,
-                        "max_cascade_multiplier": float(row[3]) if row[3] else 1.0,
-                        "avg_position_size_pct": float(row[4]) if row[4] else 0,
+                        "avg_cascade_multiplier": safe_float(row[1], default=0.0, context="row[1]") if row[1] else 1.0,
+                        "min_cascade_multiplier": safe_float(row[2], default=0.0, context="row[2]") if row[2] else 1.0,
+                        "max_cascade_multiplier": safe_float(row[3], default=0.0, context="row[3]") if row[3] else 1.0,
+                        "avg_position_size_pct": safe_float(row[4], default=0.0, context="row[4]") if row[4] else 0,
                     }
             return {"error": "No data"}
         except (psycopg2.DatabaseError, psycopg2.OperationalError) as e:

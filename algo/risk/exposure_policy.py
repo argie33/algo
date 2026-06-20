@@ -8,6 +8,7 @@ from typing import Any
 import psycopg2
 
 from utils.db import DatabaseContext
+from utils.safe_data_conversion import safe_float
 
 
 logger = logging.getLogger(__name__)
@@ -128,7 +129,7 @@ class ExposurePolicy:
                 row = cur.fetchone()
                 if row is None:
                     return None
-                exposure = float(row[1])
+                exposure = safe_float(row[1], default=0.0, context="row[1]")
                 tier = tier_for_exposure(exposure)
                 return {
                     "as_of_date": row[0].isoformat(),
@@ -198,9 +199,9 @@ class ExposurePolicy:
             _pnl_pct,
         ) = row
 
-        entry_price = float(entry_price)
-        init_stop = float(init_stop)
-        active_stop = float(cur_stop) if cur_stop else init_stop
+        entry_price = safe_float(entry_price, default=0.0, context="entry_price")
+        init_stop = safe_float(init_stop, default=0.0, context="init_stop")
+        active_stop = safe_float(cur_stop, default=0.0, context="cur_stop") if cur_stop else init_stop
 
         # CRITICAL: target_hits configuration must be present. Do not mask missing config with fallback to 0.
         if target_hits is None:
@@ -210,11 +211,11 @@ class ExposurePolicy:
 
         # CRITICAL: Do NOT use entry_price as fallback for cur_price. This distorts risk evaluation.
         # cur_price must be valid; if missing, skip this position.
-        if not cur_price or float(cur_price) <= 0:
+        if not cur_price or safe_float(cur_price, default=0.0, context="cur_price") <= 0:
             logger.warning(f"SKIP {symbol}: No valid current price in algo_positions. Cannot evaluate exposure policy.")
             return None
 
-        cur_price = float(cur_price)
+        cur_price = safe_float(cur_price, default=0.0, context="cur_price")
 
         # R-multiple
         risk_per_share = entry_price - init_stop

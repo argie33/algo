@@ -27,6 +27,7 @@ import logging
 from datetime import date as _date
 
 from utils.db import DatabaseContext
+from utils.safe_data_conversion import safe_float
 
 
 logger = logging.getLogger(__name__)
@@ -130,7 +131,7 @@ class SectorRotationDetector:
 
                 sector_data[sector_name] = {
                     "rank": rank,
-                    "momentum": float(momentum),
+                    "momentum": safe_float(momentum, default=0.0, context="momentum"),
                     "rank_improvement_1w": imp_1w,
                     "rank_improvement_4w": imp_4w,
                     "rank_improvement_12w": imp_12w,

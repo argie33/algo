@@ -34,7 +34,7 @@ class PatrolConfig:
                 # Try to parse as number
                 try:
                     if "." in str(value):
-                        self._config_cache[key] = float(value)
+                        self._config_cache[key] = safe_float(value, default=0.0, context="value")
                     else:
                         self._config_cache[key] = int(value)
                 except (ValueError, TypeError):

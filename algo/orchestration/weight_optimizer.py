@@ -28,6 +28,7 @@ except ImportError:
 
 from algo.signals.attribution import SignalAttributionEngine
 from utils.db import DatabaseContext
+from utils.safe_data_conversion import safe_float
 
 
 logger = logging.getLogger(__name__)
@@ -106,7 +107,7 @@ class WeightOptimizer:
             ic_list: list[float] = []
             for comp in self.COMPONENTS:
                 ic = ic_values.get(comp, {}).get("ic_value", 0)
-                ic_list.append(float(ic))
+                ic_list.append(safe_float(ic, default=0.0, context="ic"))
 
             ic_array = np.array(ic_list)
 

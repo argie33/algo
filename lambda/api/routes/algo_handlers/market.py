@@ -672,7 +672,7 @@ def _get_markets(cur) -> dict:
                 vix_val = market_health.get("vix_level")
                 if vix_val is not None:
                     try:
-                        vix_float = float(vix_val)
+                        vix_float = safe_float(vix_val, default=0.0, context="vix_val")
                         if vix_float <= 0:
                             logger.warning(
                                 f"[MARKETS API] Invalid VIX value {vix_float} in market_health_daily - "

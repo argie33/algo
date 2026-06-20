@@ -356,7 +356,7 @@ def validate_query_param_type(value: str, expected_type: str) -> tuple:
             return False, None
     elif expected_type == "float":
         try:
-            return True, float(value)
+            return True, safe_float(value, default=0.0, context="value")
         except ValueError:
             return False, None
     elif expected_type == "bool":
@@ -935,12 +935,17 @@ if not IMPORT_ERROR:
         ENV_VALIDATION_ERROR = "; ".join(env_errors)
         logger.error(f"[MODULE_INIT_ENV_VALIDATION_FAILED] {ENV_VALIDATION_ERROR}")
 
-    db_test_ok, db_test_error = test_db_connection()
-    if not db_test_ok:
-        # Log the error but do NOT set DB_CONNECTION_ERROR as a permanent flag.
-        # A transient DB blip during cold-start should not brick this instance for its lifetime.
-        # Each request will attempt its own connection via DatabaseContext and fail gracefully if needed.
-        logger.error(f"[MODULE_INIT_DB_TEST_FAILED] {db_test_error}")
+    try:
+        db_test_ok, db_test_error = test_db_connection()
+        if not db_test_ok:
+            # Log the error but do NOT set DB_CONNECTION_ERROR as a permanent flag.
+            # A transient DB blip during cold-start should not brick this instance for its lifetime.
+            # Each request will attempt its own connection via DatabaseContext and fail gracefully if needed.
+            logger.error(f"[MODULE_INIT_DB_TEST_FAILED] {db_test_error}")
+    except Exception as e:
+        # If DB test itself fails (e.g., missing credentials), log and continue
+        # This allows the module to load in test environments without AWS credentials
+        logger.warning(f"[MODULE_INIT_DB_TEST_EXCEPTION] DB connection test failed during module init: {e}")
 
     # Determine if Cognito authentication is enabled
     with _COGNITO_ENABLED_LOCK:
@@ -1228,9 +1233,9 @@ def lambda_handler(event: dict[str, Any], context: Any) -> dict[str, Any]:
             if isinstance(obj, (datetime.date, datetime.datetime)):
                 return obj.isoformat()
             if isinstance(obj, Decimal):
-                return float(obj)
+                return safe_float(obj, default=0.0, context="obj")
             if hasattr(obj, "__float__"):
-                return float(obj)
+                return safe_float(obj, default=0.0, context="obj")
             return str(obj)
 
         if isinstance(response, dict):

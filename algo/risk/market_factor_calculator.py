@@ -54,7 +54,7 @@ class MarketFactorCalculator:
             )
             row = cur.fetchone()
             if row and row[0] is not None:
-                pct = float(row[0])
+                pct = safe_float(row[0], default=0.0, context="row[0]")
                 # Linear: 20% → 0, 50% → 50, 80% → 100
                 score = (pct - 20) / 0.6 if pct >= 20 else 0
                 score = min(100, max(0, score))
@@ -142,8 +142,8 @@ class MarketFactorCalculator:
             )
             row = cur.fetchone()
             if row and row[0] and row[1]:
-                spy = float(row[0])
-                sma = float(row[1])
+                spy = safe_float(row[0], default=0.0, context="row[0]")
+                sma = safe_float(row[1], default=0.0, context="row[1]")
                 score = 100.0 if spy > sma else 0.0
                 return {"above_30wma": spy > sma, "score": score}
             return {"error": "No trend data"}
@@ -170,8 +170,8 @@ class MarketFactorCalculator:
             )
             row = cur.fetchone()
             if row and row[0] and row[1]:
-                current = float(row[0])
-                year_ago = float(row[1])
+                current = safe_float(row[0], default=0.0, context="row[0]")
+                year_ago = safe_float(row[1], default=0.0, context="row[1]")
                 ret = (current - year_ago) / year_ago
                 score = min(100, max(0, ret * 200))
                 return {"return_12m": round(ret * 100, 1), "score": score}
@@ -216,7 +216,7 @@ class MarketFactorCalculator:
             )
             row = cur.fetchone()
             if row and row[0]:
-                vix = float(row[0])
+                vix = safe_float(row[0], default=0.0, context="row[0]")
                 # Simplified: no term structure data
                 score, detail = self._vix_score(vix, vix > 20)
                 return {"vix": round(vix, 1), "score": score, **detail}
@@ -234,7 +234,7 @@ class MarketFactorCalculator:
             )
             row = cur.fetchone()
             if row and row[0]:
-                pcr = float(row[0])
+                pcr = safe_float(row[0], default=0.0, context="row[0]")
                 # Contrarian: PCR > 1.0 = fear = bullish (100 pts), < 0.7 = greed = bearish (0 pts)
                 score = max(0, min(100, (pcr - 0.7) * 100))
                 return {"put_call_ratio": round(pcr, 2), "score": score}
@@ -299,7 +299,7 @@ class MarketFactorCalculator:
             )
             row = cur.fetchone()
             if row and row[0]:
-                oas = float(row[0])
+                oas = safe_float(row[0], default=0.0, context="row[0]")
                 # Higher OAS = higher stress = lower score. 300bps = 100, 500bps = 0
                 score = max(0, min(100, 100 - (oas - 300) / 2))
                 return {"hy_oas": round(oas, 0), "score": score}
@@ -317,8 +317,8 @@ class MarketFactorCalculator:
             )
             row = cur.fetchone()
             if row and row[0] and row[1]:
-                bull = float(row[0])
-                bear = float(row[1])
+                bull = safe_float(row[0], default=0.0, context="row[0]")
+                bear = safe_float(row[1], default=0.0, context="row[1]")
                 spread = bull - bear
                 # Contrarian: spread > 15 or < -15 = extreme = 100, neutral = 0
                 score = min(100, max(0, (abs(spread) - 15) * 5))
@@ -342,7 +342,7 @@ class MarketFactorCalculator:
             )
             row = cur.fetchone()
             if row and row[0]:
-                exp = float(row[0])
+                exp = safe_float(row[0], default=0.0, context="row[0]")
                 # NAAIM 0-100 scale: > 80 = greed = lower score, < 30 = fear = higher score
                 score = min(100, max(0, 100 - exp / 2))
                 return {"exposure": round(exp, 1), "score": score}

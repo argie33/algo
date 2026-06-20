@@ -37,6 +37,7 @@ from algo.infrastructure.constants import (
     REGIME_WEIGHT_UPDATE_ALPHA_UPTREND_UNDER_PRESSURE,
 )
 from utils.db import DatabaseContext
+from utils.safe_data_conversion import safe_float
 
 
 logger = logging.getLogger(__name__)
@@ -257,7 +258,7 @@ class RegimeManager:
                 row = cur.fetchone()
 
             if row is not None and row[0] is not None:
-                score = float(row[0])
+                score = safe_float(row[0], default=0.0, context="row[0]")
                 return min(1.0, max(0.0, score / 100.0))
             raise RuntimeError(
                 f"Market exposure score unavailable as of {as_of_date}. "

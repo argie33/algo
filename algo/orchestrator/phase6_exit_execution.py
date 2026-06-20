@@ -11,6 +11,7 @@ import psycopg2
 from algo.orchestrator.phase_result import PhaseResult
 from algo.reporting import AlertManager
 from utils.db.advisory_locks import (
+from utils.safe_data_conversion import safe_float
     ALGO_POSITIONS_LOCK_ID,
     acquire_advisory_lock,
     release_advisory_lock,
@@ -138,7 +139,7 @@ def run(
                                 (action["position_id"],),
                             )
                             row = cur.fetchone()
-                            cur_price = float(row[0]) if row is not None and row[0] is not None else 0
+                            cur_price = safe_float(row[0], default=0.0, context="row[0]") if row is not None and row[0] is not None else 0
                     except (RuntimeError, TypeError, ValueError) as e:
                         logger.warning(f"  Warning: Could not fetch current price for {action['position_id']}: {e}")
                     if cur_price > 0:

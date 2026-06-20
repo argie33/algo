@@ -14,6 +14,7 @@ from typing import Any
 import psycopg2
 
 from utils.db import DatabaseContext
+from utils.safe_data_conversion import safe_float
 
 
 logger = logging.getLogger(__name__)
@@ -173,9 +174,9 @@ class SwingComponentScorer:
             if not row or not row[0]:
                 return 0, {"error": "No trend data"}
 
-            minervini_score = float(row[0]) if row[0] else 0
+            minervini_score = safe_float(row[0], default=0.0, context="row[0]") if row[0] else 0
             weinstein_stage = int(row[1]) if row[1] else 0
-            ma_slope = float(row[2]) if row[2] else 0
+            ma_slope = safe_float(row[2], default=0.0, context="row[2]") if row[2] else 0
 
             minervini_pts = min(10, minervini_score * 1.25)
             stage_pts = 7 if weinstein_stage == 2 else (5 if weinstein_stage == 1 else 0)
@@ -202,10 +203,10 @@ class SwingComponentScorer:
             if not row or not row[0]:
                 return 0, {"error": "No momentum data"}
 
-            rs_pct = float(row[0]) if row[0] else 0
-            r1m = float(row[1]) if row[1] else 0
-            r3m = float(row[2]) if row[2] else 0
-            r6m = float(row[3]) if row[3] else 0
+            rs_pct = safe_float(row[0], default=0.0, context="row[0]") if row[0] else 0
+            r1m = safe_float(row[1], default=0.0, context="row[1]") if row[1] else 0
+            r3m = safe_float(row[2], default=0.0, context="row[2]") if row[2] else 0
+            r6m = safe_float(row[3], default=0.0, context="row[3]") if row[3] else 0
 
             rs_pts = min(10, rs_pct / 10)
             return_blend = (r1m * 0.5 + r3m * 0.3 + r6m * 0.2) / 100
@@ -233,7 +234,7 @@ class SwingComponentScorer:
             if not row:
                 return 0, {"error": "No volume data"}
 
-            vol_ratio = float(row[0]) if row[0] else 1.0
+            vol_ratio = safe_float(row[0], default=0.0, context="row[0]") if row[0] else 1.0
             accum_days = int(row[1]) if row[1] else 0
 
             vol_pts = min(8, (vol_ratio - 1) * 4) if vol_ratio > 1 else 0
@@ -259,9 +260,9 @@ class SwingComponentScorer:
             if not row:
                 return 0, {"error": "No fundamentals data"}
 
-            eps_growth = float(row[0]) if row[0] else 0
-            rev_growth = float(row[1]) if row[1] else 0
-            roe = float(row[2]) if row[2] else 0
+            eps_growth = safe_float(row[0], default=0.0, context="row[0]") if row[0] else 0
+            rev_growth = safe_float(row[1], default=0.0, context="row[1]") if row[1] else 0
+            roe = safe_float(row[2], default=0.0, context="row[2]") if row[2] else 0
 
             eps_pts = min(4, eps_growth / 50) if eps_growth > 0 else 0
             rev_pts = min(3, rev_growth / 20) if rev_growth > 0 else 0
@@ -293,8 +294,8 @@ class SwingComponentScorer:
             if not row:
                 return 0, {"reason": "No ranking data"}
 
-            industry_rank = float(row[0]) if row[0] else None
-            sector_rank = float(row[1]) if row[1] else None
+            industry_rank = safe_float(row[0], default=0.0, context="row[0]") if row[0] else None
+            sector_rank = safe_float(row[1], default=0.0, context="row[1]") if row[1] else None
 
             if not industry_rank:
                 return 0, {"reason": "No industry rank"}

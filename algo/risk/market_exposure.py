@@ -478,7 +478,7 @@ class MarketExposure:
         don't silently skew the result toward neutral.
         """
         sf = factor.get("score_factor")
-        return (float(weight) * sf, float(weight)) if sf is not None else (0.0, 0.0)
+        return (safe_float(weight, default=0.0, context="weight") * sf, safe_float(weight, default=0.0, context="weight")) if sf is not None else (0.0, 0.0)
 
     def _spy_momentum(self, eval_date, cur):
         """SPY 12-month price momentum — trailing return over ~252 trading days.
@@ -832,7 +832,7 @@ class MarketExposure:
         if not row or row[0] is None:
             return {"score_factor": None, "value": None, "reason": "No put/call data"}
 
-        pc = float(row[0])
+        pc = safe_float(row[0], default=0.0, context="row[0]")
 
         # Contrarian scoring: high P/C = fear = bullish for markets
         if pc > 1.2:
@@ -941,14 +941,14 @@ class MarketExposure:
                 )
                 logger.critical(msg)
                 raise RuntimeError(msg)
-            nets.append((float(ratio) - 1) / (float(ratio) + 1))
+            nets.append((safe_float(ratio, default=0.0, context="ratio") - 1) / (safe_float(ratio, default=0.0, context="ratio") + 1))
         first_net = nets[0]
         last_net = nets[-1]
         ad_change = last_net - first_net
         first_spy_val = rows[0].get("spy_close")
-        first_spy = float(first_spy_val) if first_spy_val is not None else 0.0
+        first_spy = safe_float(first_spy_val, default=0.0, context="first_spy_val") if first_spy_val is not None else 0.0
         last_spy_val = rows[-1].get("spy_close")
-        last_spy = float(last_spy_val) if last_spy_val is not None else 0.0
+        last_spy = safe_float(last_spy_val, default=0.0, context="last_spy_val") if last_spy_val is not None else 0.0
         spy_change_pct = (last_spy - first_spy) / first_spy * 100.0 if first_spy > 0 else 0
         # Confirmation: both same direction. Divergence: opposite.
         if (ad_change > 0 and spy_change_pct > 0) or (ad_change < 0 and spy_change_pct < 0):
@@ -987,8 +987,8 @@ class MarketExposure:
         if not row or row[0] is None:
             return {"score_factor": None, "value": None, "reason": "No AAII data"}
 
-        bullish = float(row[0])
-        bearish = float(row[1]) if row[1] is not None else 0.0
+        bullish = safe_float(row[0], default=0.0, context="row[0]")
+        bearish = safe_float(row[1], default=0.0, context="row[1]") if row[1] is not None else 0.0
         spread = bullish - bearish  # positive = more bulls than bears
 
         # Extremes-only scoring: neutral in the normal range (-15 to +15)
@@ -1031,7 +1031,7 @@ class MarketExposure:
         if not row or row[0] is None:
             return {"score_factor": None, "value": None, "reason": "No NAAIM data"}
 
-        exposure = float(row[0])
+        exposure = safe_float(row[0], default=0.0, context="row[0]")
         clamped = max(0.0, min(100.0, exposure))
 
         if clamped < 20:
@@ -1131,7 +1131,7 @@ class MarketExposure:
         if curve_rows:
             latest_spread = float(curve_rows[0][0])
             # How many consecutive weeks inverted?
-            weeks_inverted = sum(1 for r in curve_rows[:12] if float(r[0]) < 0)
+            weeks_inverted = sum(1 for r in curve_rows[:12] if safe_float(r[0], default=0.0, context="r[0]") < 0)
             if latest_spread < -0.5 and weeks_inverted >= 8:
                 stress += 35.0
                 signals.append(f"Curve inverted {latest_spread:.2f}% for {weeks_inverted}+ weeks")
@@ -1193,7 +1193,7 @@ class MarketExposure:
         )
         cfnai_rows = cur.fetchall()
         if cfnai_rows:
-            cfnai_avg = sum(float(r[0]) for r in cfnai_rows[:3]) / min(3, len(cfnai_rows))
+            cfnai_avg = sum(safe_float(r[0], default=0.0, context="r[0]") for r in cfnai_rows[:3]) / min(3, len(cfnai_rows))
             if cfnai_avg < -0.7:
                 stress += 20.0
                 signals.append(f"CFNAI 3-mo avg {cfnai_avg:.2f} (below recession threshold)")
@@ -1380,10 +1380,10 @@ def read_market_regime(eval_date: _date) -> dict:
 
             return {
                 "is_entry_allowed": bool(is_entry_allowed),
-                "exposure_pct": float(exposure_pct),
+                "exposure_pct": safe_float(exposure_pct, default=0.0, context="exposure_pct"),
                 "regime": regime or "unknown",
                 "halt_reasons": halt_reasons,
-                "raw_score": float(raw_score) if raw_score is not None else 0,
+                "raw_score": safe_float(raw_score, default=0.0, context="raw_score") if raw_score is not None else 0,
                 "exposure_tier": exposure_tier or "unknown",
             }
 

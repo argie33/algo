@@ -12,7 +12,6 @@ Usage:
 import argparse
 import re
 from pathlib import Path
-from typing import Tuple
 
 
 def find_unsafe_floats(content: str) -> list[tuple[int, str]]:
@@ -51,7 +50,7 @@ def add_safe_float_import(content: str) -> str:
     lines = content.split('\n')
     last_import_idx = -1
     for i, line in enumerate(lines):
-        if line.startswith('from ') or line.startswith('import '):
+        if line.startswith(('from ', 'import ')):
             last_import_idx = i
 
     if last_import_idx == -1:

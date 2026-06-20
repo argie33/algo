@@ -30,6 +30,7 @@ import requests
 
 from algo.trading.exceptions import DatabaseError, ExchangeAPIError
 from utils.db import DatabaseContext
+from utils.safe_data_conversion import safe_float
 
 
 try:
@@ -177,11 +178,11 @@ class ExitEngine:
                     )
 
                     if not exit_signal:
-                        t1_str = f"${float(t1_price):.2f}" if t1_price is not None else "â€”"
+                        t1_str = f”${safe_float(t1_price, default=0.0, context='t1_price'):.2f}” if t1_price is not None else “â€””
                         logger.info(
-                            f"  {symbol}: hold (cur ${float(cur_price):.2f}, "
-                            f"stop ${float(active_stop):.2f}, t1 {t1_str}, "
-                            f"day {days_held}, hits {target_hits})"
+                            f”  {symbol}: hold (cur ${safe_float(cur_price, default=0.0, context='cur_price'):.2f}, “
+                            f”stop ${safe_float(active_stop, default=0.0, context='active_stop'):.2f}, t1 {t1_str}, “
+                            f”day {days_held}, hits {target_hits})”
                         )
                         continue
 

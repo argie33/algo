@@ -13,6 +13,10 @@ Verify pipeline-loaded tables are fresh before trading:
 
 Phase 5 generates stock_scores and signals on-the-fly from price_daily input.
 Excluded: stock_scores (orchestrator output), technical_data_daily, buy_sell_daily (no longer in pipeline).
+
+TIMEZONE REQUIREMENT: All dates passed to phases are ET (Eastern Time) dates, not UTC.
+Market trading hours are 9:30 AM - 4:00 PM ET. The orchestrator ensures run_date is always ET.
+Phases should NOT convert run_date to UTC or use UTC timestamps for trading logic.
 """
 
 import logging

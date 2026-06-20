@@ -66,7 +66,7 @@ def _safe_float(value, default=None, context=""):
     if value is None:
         return default
     try:
-        f = float(value)
+        f = safe_float(value, default=0.0, context="value")
         if math.isnan(f) or math.isinf(f):
             logger.warning(f"Invalid float {value!r} (NaN/Inf) {context}")
             return default
@@ -214,8 +214,8 @@ class CircuitBreaker:
         if row is None or row[0] is None or row[1] is None:
             return {"halted": False, "reason": "No halt history"}
 
-        peak = float(row[0])
-        cur_val = float(row[1])
+        peak = safe_float(row[0], default=0.0, context="row[0]")
+        cur_val = safe_float(row[1], default=0.0, context="row[1]")
         if peak <= 0 or cur_val <= 0:
             return {"halted": False, "reason": "Invalid values"}
 
@@ -564,7 +564,7 @@ class CircuitBreaker:
         row = cur.fetchone()
         if not row or not row[0] or not row[1]:
             return {"halted": False, "reason": "Insufficient history"}
-        cur_val, week_ago_val = float(row[0]), float(row[1])
+        cur_val, week_ago_val = safe_float(row[0], default=0.0, context="row[0]"), safe_float(row[1], default=0.0, context="row[1]")
         weekly = ((cur_val - week_ago_val) / week_ago_val * 100.0) if week_ago_val > 0 else 0
         threshold = -float(self.config.get("max_weekly_loss_pct", 5.0))
         return {
@@ -652,8 +652,8 @@ class CircuitBreaker:
             if len(rows) < 2:
                 return {"halted": False, "reason": "Insufficient price history"}
 
-            latest = float(rows[0][0]) if rows[0][0] else None
-            prior = float(rows[1][0]) if rows[1][0] else None
+            latest = safe_float(rows[0][0], default=0.0, context="rows[0][0]") if rows[0][0] else None
+            prior = safe_float(rows[1][0], default=0.0, context="rows[1][0]") if rows[1][0] else None
 
             if not latest or not prior or prior <= 0:
                 return {"halted": False, "reason": "Invalid price data"}
@@ -732,7 +732,7 @@ class CircuitBreaker:
         row = cur.fetchone()
         if not row or row[0] is None:
             return {"halted": False, "reason": "No today snapshot yet"}
-        daily = float(row[0])
+        daily = safe_float(row[0], default=0.0, context="row[0]")
         threshold = float(self.config.get("daily_profit_cap_pct", 2.0))
         # This check is a SOFT warning, not a halt — it's logged but doesn't block trading
         # Orchestrator uses this to skip NEW entries only, not to exit existing positions

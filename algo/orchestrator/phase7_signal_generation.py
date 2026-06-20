@@ -45,6 +45,7 @@ from algo.orchestrator.phase_result import PhaseResult
 from algo.risk import LiquidityChecks
 from config.thresholds import ThresholdConfig
 from utils.db.context import DatabaseContext
+from utils.safe_data_conversion import safe_float
 
 
 logger = logging.getLogger(__name__)
@@ -316,33 +317,33 @@ def _get_candidates_from_buysell(
 
         candidates = []
         for r in rows:
-            close = float(r[6]) if r[6] is not None else None
-            composite = float(r[1]) if r[1] is not None else None
-            raw_strength = float(r[15]) if r[15] is not None else None
-            swing_score = float(r[19]) if r[19] is not None else 0.0
+            close = safe_float(r[6], default=0.0, context="r[6]") if r[6] is not None else None
+            composite = safe_float(r[1], default=0.0, context="r[1]") if r[1] is not None else None
+            raw_strength = safe_float(r[15], default=0.0, context="r[15]") if r[15] is not None else None
+            swing_score = safe_float(r[19], default=0.0, context="r[19]") if r[19] is not None else 0.0
             swing_components = r[20] if r[20] is not None else None
             candidates.append(
                 {
                     "symbol": r[0],
                     "composite_score": composite,
-                    "quality_score": float(r[2]) if r[2] is not None else None,
-                    "growth_score": float(r[3]) if r[3] is not None else None,
-                    "momentum_score": float(r[4]) if r[4] is not None else None,
-                    "rs_percentile": float(r[5]) if r[5] is not None else None,
+                    "quality_score": safe_float(r[2], default=0.0, context="r[2]") if r[2] is not None else None,
+                    "growth_score": safe_float(r[3], default=0.0, context="r[3]") if r[3] is not None else None,
+                    "momentum_score": safe_float(r[4], default=0.0, context="r[4]") if r[4] is not None else None,
+                    "rs_percentile": safe_float(r[5], default=0.0, context="r[5]") if r[5] is not None else None,
                     "swing_score": swing_score,
                     "swing_components": swing_components,
                     "close": close,
-                    "high": float(r[7]) if r[7] is not None else None,
-                    "low": float(r[8]) if r[8] is not None else None,
-                    "sma_50": float(r[9]) if r[9] is not None else None,
-                    "atr_14": float(r[10]) if r[10] is not None else None,
+                    "high": safe_float(r[7], default=0.0, context="r[7]") if r[7] is not None else None,
+                    "low": safe_float(r[8], default=0.0, context="r[8]") if r[8] is not None else None,
+                    "sma_50": safe_float(r[9], default=0.0, context="r[9]") if r[9] is not None else None,
+                    "atr_14": safe_float(r[10], default=0.0, context="r[10]") if r[10] is not None else None,
                     "entry_price": close,
                     "signal_strength": raw_strength,
                     "sector": r[11],
                     "industry": r[12],
-                    "buylevel": float(r[13]) if r[13] is not None else None,
-                    "stoplevel": float(r[14]) if r[14] is not None else None,
-                    "volume_surge_pct": float(r[16]) if r[16] is not None else None,
+                    "buylevel": safe_float(r[13], default=0.0, context="r[13]") if r[13] is not None else None,
+                    "stoplevel": safe_float(r[14], default=0.0, context="r[14]") if r[14] is not None else None,
+                    "volume_surge_pct": safe_float(r[16], default=0.0, context="r[16]") if r[16] is not None else None,
                     "market_stage": r[17],
                     "signal_date": str(r[18]) if r[18] is not None else None,
                 }

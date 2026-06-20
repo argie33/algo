@@ -21,6 +21,7 @@ import psycopg2
 
 from algo.risk import EarningsBlackout
 from utils.db import DatabaseContext
+from utils.safe_data_conversion import safe_float
 
 
 logger = logging.getLogger(__name__)
@@ -113,7 +114,7 @@ class PreTradeChecks:
             return (
                 False,
                 f"Position ${position_value:.2f} exceeds max "
-                f"${float(max_position_value):.2f} ({float(max_position_pct * Decimal(100)):.1f}% of portfolio)",
+                f"${safe_float(max_position_value, default=0.0, context="max_position_value"):.2f} ({float(max_position_pct * Decimal(100)):.1f}% of portfolio)",
             )
 
         try:
@@ -135,7 +136,7 @@ class PreTradeChecks:
         if position_value_dec < min_order_size:
             return (
                 False,
-                f"Position value ${position_value:.2f} below minimum ${float(min_order_size):.2f}",
+                f"Position value ${position_value:.2f} below minimum ${safe_float(min_order_size, default=0.0, context="min_order_size"):.2f}",
             )
 
         try:

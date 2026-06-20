@@ -7,6 +7,7 @@ import psycopg2
 
 from algo.signals import SignalComputer
 from utils.db import DatabaseContext
+from utils.safe_data_conversion import safe_float
 from utils.signals import GradeClassifier
 
 
@@ -78,7 +79,7 @@ class AdvancedFilters:
             sectors = cur.fetchall()
             top_n = int(self.config.get("strong_sector_top_n", 5))
             self._sector_full_ranking = {row[0]: int(row[1]) for row in sectors}
-            self._strong_sectors = {row[0]: float(row[2]) for row in sectors[:top_n] if row[2] is not None}
+            self._strong_sectors = {row[0]: safe_float(row[2], default=0.0, context="row[2]") for row in sectors[:top_n] if row[2] is not None}
 
             if not self._strong_sectors:
                 raise ValueError(
@@ -103,7 +104,7 @@ class AdvancedFilters:
             industries = cur.fetchall()
             if industries:
                 cutoff_idx = max(1, len(industries) // 4)
-                self._strong_industries = {row[0]: float(row[1]) for row in industries[:cutoff_idx]}
+                self._strong_industries = {row[0]: safe_float(row[1], default=0.0, context="row[1]") for row in industries[:cutoff_idx]}
             else:
                 self._strong_industries = {}
 
@@ -351,8 +352,8 @@ class AdvancedFilters:
         row = cur.fetchone()
         if not row or not row[0] or not row[1]:
             raise ValueError(f"Volume data missing for {symbol} on {signal_date} — cannot confirm volume strength")
-        vol = float(row[0])
-        avg = float(row[1])
+        vol = safe_float(row[0], default=0.0, context="row[0]")
+        avg = safe_float(row[1], default=0.0, context="row[1]")
         if avg <= 0:
             raise ValueError(f"Invalid volume average (≤0) for {symbol} on {signal_date} — data corruption")
         ratio = vol / avg
@@ -471,8 +472,8 @@ class AdvancedFilters:
             raise ValueError(
                 f"Period return data missing for {symbol} on {end_date} ({lookback_days}d lookback) — insufficient price history"
             )
-        recent = float(row[0])
-        oldest = float(row[1])
+        recent = safe_float(row[0], default=0.0, context="row[0]")
+        oldest = safe_float(row[1], default=0.0, context="row[1]")
         if oldest <= 0:
             raise ValueError(f"Invalid historical price for {symbol}: oldest close {oldest} <= 0")
         return (recent - oldest) / oldest
@@ -492,7 +493,7 @@ class AdvancedFilters:
             error_msg = f"IBD Composite missing for {symbol} - cannot score signal"
             logger.error(error_msg)
             raise ValueError(error_msg)
-        composite = float(row[0])
+        composite = safe_float(row[0], default=0.0, context="row[0]")
         # 40 = 0pts, 90+ = full pts
         pts = max(0.0, min(self.W_QUALITY_IBD, (composite - 40.0) * self.W_QUALITY_IBD / 50.0))
 
@@ -502,9 +503,9 @@ class AdvancedFilters:
         return pts, {
             "composite": round(composite, 1),
             "grade": grade,
-            "quality": round(float(row[1]), 1) if row[1] is not None else None,
-            "growth": round(float(row[2]), 1) if row[2] is not None else None,
-            "momentum": round(float(row[3]), 1) if row[3] is not None else None,
+            "quality": round(safe_float(row[1], default=0.0, context="row[1]"), 1) if row[1] is not None else None,
+            "growth": round(safe_float(row[2], default=0.0, context="row[2]"), 1) if row[2] is not None else None,
+            "momentum": round(safe_float(row[3], default=0.0, context="row[3]"), 1) if row[3] is not None else None,
         }
 
     def _financial_quality_score(self, symbol, cur):
@@ -522,7 +523,7 @@ class AdvancedFilters:
             error_msg = f"Financial quality metrics missing for {symbol}"
             logger.error(error_msg)
             raise ValueError(error_msg)
-        q = float(row[0]) if row[0] is not None else 50.0
+        q = safe_float(row[0], default=0.0, context="row[0]") if row[0] is not None else 50.0
         # Linear scale: 50 = 0 pts (neutral quality), 100 = W_QUALITY_FIN pts (maximum)
         pts = max(0.0, min(self.W_QUALITY_FIN, (q - 50.0) * self.W_QUALITY_FIN / 50.0))
         return pts, round(q, 1)
@@ -546,7 +547,7 @@ class AdvancedFilters:
             error_msg = f"Earnings quality metrics missing for {symbol}"
             logger.error(error_msg)
             raise ValueError(error_msg)
-        score = float(row[0])
+        score = safe_float(row[0], default=0.0, context="row[0]")
         pts = (score / 100.0) * self.W_QUALITY_EARNINGS
         return pts, round(score, 1)
 
@@ -570,10 +571,10 @@ class AdvancedFilters:
                 "growth_metrics table empty or missing data. "
                 "Cannot compute growth catalyst score without 3-year CAGR data."
             )
-        rev_3y = float(row[0]) if row[0] is not None else 0.0
-        eps_3y = float(row[1]) if row[1] is not None else 0.0
-        mom = float(row[2]) if row[2] is not None else 0.0
-        rev_yoy = float(row[3]) if row[3] is not None else 0.0
+        rev_3y = safe_float(row[0], default=0.0, context="row[0]") if row[0] is not None else 0.0
+        eps_3y = safe_float(row[1], default=0.0, context="row[1]") if row[1] is not None else 0.0
+        mom = safe_float(row[2], default=0.0, context="row[2]") if row[2] is not None else 0.0
+        rev_yoy = safe_float(row[3], default=0.0, context="row[3]") if row[3] is not None else 0.0
         # 3 pts each for EPS 3y >20%, rev 3y >15%, positive momentum (within W_CATALYST_GROWTH=7)
         eps_p = max(0.0, min(2.5, eps_3y / 20.0 * 2.5)) if eps_3y > 0 else 0.0
         rev_p = max(0.0, min(2.5, rev_3y / 15.0 * 2.5)) if rev_3y > 0 else 0.0
@@ -633,8 +634,8 @@ class AdvancedFilters:
                 "insider_transactions table empty or missing data. "
                 "Cannot compute insider activity catalyst score."
             )
-        buys = float(row[0]) if row[0] is not None else 0
-        sells = float(row[1]) if row[1] is not None else 0
+        buys = safe_float(row[0], default=0.0, context="row[0]") if row[0] is not None else 0
+        sells = safe_float(row[1], default=0.0, context="row[1]") if row[1] is not None else 0
         net = buys - sells
         if net <= 0:
             return 0.0, net
@@ -654,9 +655,9 @@ class AdvancedFilters:
             (symbol, signal_date),
         )
         row = cur.fetchone()
-        if not row or not row[0] or float(row[0]) <= 0:
+        if not row or not row[0] or safe_float(row[0], default=0.0, context="row[0]") <= 0:
             raise ValueError(f"50-day SMA not available for {symbol} on {signal_date}")
-        sma_50 = float(row[0])
+        sma_50 = safe_float(row[0], default=0.0, context="row[0]")
         return ((entry_price - sma_50) / sma_50) * 100.0
 
     def _extension_risk_score(self, ext_pct):
@@ -707,7 +708,7 @@ class AdvancedFilters:
             raise ValueError(
                 f"Price/volume data missing for {symbol} on {signal_date} — cannot calculate average daily dollar volume"
             )
-        return float(row[0])
+        return safe_float(row[0], default=0.0, context="row[0]")
 
     def _estimate_days_to_earnings(self, symbol, signal_date, cur):
         """Estimate days until next earnings. Tries calendar → estimates → quarterly estimate.

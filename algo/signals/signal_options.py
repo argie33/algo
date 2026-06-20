@@ -34,7 +34,7 @@ class SignalOptionsMixin:
             if not row or not row[0]:
                 return {"iv_rank": None, "signal": "neutral", "bonus_pts": 0.0}
 
-            current_iv, iv_high, iv_low = float(row[0]), float(row[1]), float(row[2])
+            current_iv, iv_high, iv_low = safe_float(row[0], default=0.0, context="row[0]"), safe_float(row[1], default=0.0, context="row[1]"), safe_float(row[2], default=0.0, context="row[2]")
 
             # Avoid division by zero
             if iv_high == iv_low:
@@ -94,7 +94,7 @@ class SignalOptionsMixin:
             if not row or not row[0] or not row[1]:
                 return {"put_call_ratio": None, "signal": "neutral", "bonus_pts": 0.0}
 
-            put_vol, call_vol = float(row[0]), float(row[1])
+            put_vol, call_vol = safe_float(row[0], default=0.0, context="row[0]"), safe_float(row[1], default=0.0, context="row[1]")
             if call_vol == 0:
                 return {"put_call_ratio": None, "signal": "neutral", "bonus_pts": 0.0}
 

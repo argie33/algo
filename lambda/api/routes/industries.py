@@ -29,7 +29,8 @@ def _sf(v):
         return None
     try:
         return float(v)
-    except (TypeError, ValueError):
+    except (TypeError, ValueError) as e:
+        logger.debug(f"Failed to convert industry value to float: {v!r} - {e}")
         return None
 
 

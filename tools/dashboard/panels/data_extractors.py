@@ -264,3 +264,29 @@ def extract_risk_data(risk: dict[str, Any]) -> dict[str, Any]:
         "svar": risk.get("svar"),
         "date": risk.get("date"),
     }
+
+
+def extract_economic_indicators(eco: dict[str, Any]) -> dict[str, Any]:
+    """Extract all economic indicator fields for display (error already checked)."""
+    if not isinstance(eco, dict) or has_error(eco):
+        return {"_error": "Economic data unavailable"}
+    return {
+        "t10": eco.get("t10"),
+        "t2": eco.get("t2"),
+        "t3m": eco.get("t3m"),
+        "t6m": eco.get("t6m"),
+        "yc_10_2": eco.get("yc_10_2"),
+        "yc_10_3m": eco.get("yc_10_3m"),
+        "hy": eco.get("hy"),
+        "ig": eco.get("ig"),
+        "oil": eco.get("oil"),
+        "nfci": eco.get("nfci"),
+        "fed_funds": eco.get("fed_funds"),
+        "cpi_yoy": eco.get("cpi_yoy"),
+        "unrate": eco.get("unrate"),
+        "be10": eco.get("be10"),
+        "be5": eco.get("be5"),
+        "dxy": eco.get("dxy"),
+        "mortgage": eco.get("mortgage"),
+        "umcsent": eco.get("umcsent"),
+    }

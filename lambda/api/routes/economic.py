@@ -17,6 +17,7 @@ from routes.utils import (
 )
 
 from utils.validation import DatabaseResultValidator
+from utils.safe_data_conversion import safe_float
 
 
 logger = logging.getLogger(__name__)
@@ -294,13 +295,13 @@ def _get_leading_indicators(cur) -> dict:
                 for idx in range(12, len(history)):
                     cur_v = history[idx].get("value")
                     yr_v = history[idx - 12].get("value")
-                    if cur_v is not None and yr_v and float(yr_v) != 0:
+                    if cur_v is not None and yr_v and safe_float(yr_v, default=0.0, context="yr_v") != 0:
                         yoy_history.append(
                             {
                                 "date": history[idx]["date"],
                                 "value": round(
-                                    (float(cur_v) - float(yr_v))
-                                    / abs(float(yr_v))
+                                    (safe_float(cur_v, default=0.0, context="cur_v") - safe_float(yr_v, default=0.0, context="yr_v"))
+                                    / abs(safe_float(yr_v, default=0.0, context="yr_v"))
                                     * 100,
                                     2,
                                 ),
@@ -335,10 +336,10 @@ def _get_leading_indicators(cur) -> dict:
                 cur_v = history[-1].get("value")
                 prev_v = history[-2].get("value")
                 if cur_v is not None and prev_v is not None:
-                    change = round(float(cur_v) - float(prev_v), 2)
+                    change = round(safe_float(cur_v, default=0.0, context="cur_v") - safe_float(prev_v, default=0.0, context="prev_v"), 2)
 
             display_str = (
-                str(round(float(display_value), 2))
+                str(round(safe_float(display_value, default=0.0, context="display_value"), 2))
                 if display_value is not None
                 else None
             )

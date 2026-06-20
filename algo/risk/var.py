@@ -402,14 +402,14 @@ class ValueAtRisk:
                 excluded_count = 0
                 for symbol, qty, cur_price, _entry_price, sector, industry in positions:
                     # CRITICAL: Do NOT use entry_price as fallback for current_price
-                    if cur_price is None or float(cur_price) <= 0:
+                    if cur_price is None or safe_float(cur_price, default=0.0, context="cur_price") <= 0:
                         excluded_count += 1
                         logger.warning(
                             f"[CONCENTRATION] {symbol}: excluded (current_price={cur_price}). "
                             f"Check positions table current_price column."
                         )
                         continue
-                    position_value = float(qty) * float(cur_price)
+                    position_value = safe_float(qty, default=0.0, context="qty") * safe_float(cur_price, default=0.0, context="cur_price")
                     position_pct = position_value / portfolio_value * 100 if portfolio_value > 0 else 0
 
                     top_holdings.append(

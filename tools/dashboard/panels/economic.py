@@ -29,6 +29,7 @@ from ..utilities import (
     Y,
 )
 from ._helpers import _error_panel
+from .data_extractors import extract_economic_indicators, safe_get_list
 
 
 @register_panel(

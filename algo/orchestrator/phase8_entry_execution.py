@@ -2,30 +2,24 @@
 
 """
 
-PHASE 6: ENTRY EXECUTION
-
-
+PHASE 8: ENTRY EXECUTION
 
 For each qualified signal from Phase 5:
 
 1. Check halt flag before any entry
-
 2. Check exposure constraints from Phase 3b
-
 3. Run liquidity checks (ADV, dollar volume, price history age)
-
 4. Compute true ATR (max of H-L, |H-prev_C|, |L-prev_C|) anchored to run_date
-
 5. Compute SMA_50 anchored to run_date
-
 6. Stop loss: min(SMA_50 - ATR, entry - 2*ATR) — lower stop = more room for the trade
-
 7. Use PositionSizer for regime-aware, drawdown-adjusted sizing
-
 8. Run PreTradeChecks (size cap, duplicate prevention, minimum order)
-
 9. Execute trade
 
+TIMEZONE REQUIREMENT: run_date parameter is always ET (Eastern Time), not UTC.
+Market trading hours are 9:30 AM - 4:00 PM ET. Do NOT convert run_date to UTC or query
+CURRENT_DATE/CURRENT_TIMESTAMP directly for trading decisions. All database queries should
+use the run_date parameter or query price_daily MAX(date) to align with ET-based trading.
 """
 
 import logging
@@ -41,6 +35,7 @@ from algo.orchestrator.phase_result import PhaseResult
 from algo.risk import LiquidityChecks
 from algo.trading import PositionSizer, PreTradeChecks, TradeExecutor
 from utils.db.context import DatabaseContext
+from utils.safe_data_conversion import safe_float
 
 
 logger = logging.getLogger(__name__)
@@ -223,9 +218,9 @@ def _batch_fetch_technical_data(
                 result[symbol] = cast(
                     dict[str, float | None],
                     {
-                        "atr": float(atr) if atr else None,
-                        "sma_50": float(sma_50) if sma_50 else None,
-                        "close": float(close) if close else None,
+                        "atr": safe_float(atr, default=0.0, context="atr") if atr else None,
+                        "sma_50": safe_float(sma_50, default=0.0, context="sma_50") if sma_50 else None,
+                        "close": safe_float(close, default=0.0, context="close") if close else None,
                     },
                 )
 
@@ -476,7 +471,7 @@ def run(
 
             liq_ok, liq_reason = liquidity.run_all(
                 str(symbol),
-                float(entry_price_hint) if entry_price_hint else 0.0,
+                safe_float(entry_price_hint, default=0.0, context="entry_price_hint") if entry_price_hint else 0.0,
                 run_date,
             )
 
@@ -505,11 +500,11 @@ def run(
                     f"Verify technical_data_daily loader completed successfully."
                 )
 
-            entry_price = float(close)  # type: ignore[arg-type]
+            entry_price = safe_float(close, default=0.0, context="close")  # type: ignore[arg-type]
 
-            atr = float(atr)  # type: ignore[arg-type]
+            atr = safe_float(atr, default=0.0, context="atr")  # type: ignore[arg-type]
 
-            sma_50 = float(sma_50)  # type: ignore[arg-type]
+            sma_50 = safe_float(sma_50, default=0.0, context="sma_50")  # type: ignore[arg-type]
 
             # Stop loss: min() picks the LOWER (wider) stop, giving the trade more room.
 
@@ -573,7 +568,7 @@ def run(
             # Final hard-stop validation (includes earnings blackout check)
 
             try:
-                pt_ok, pt_reason = pretrade.run_all(symbol, position_value, float(portfolio_value), eval_date=run_date)
+                pt_ok, pt_reason = pretrade.run_all(symbol, position_value, safe_float(portfolio_value, default=0.0, context="portfolio_value"), eval_date=run_date)
 
             except ValueError as e:
                 raise RuntimeError(
@@ -600,7 +595,7 @@ def run(
                     result = trade_executor.execute_trade(
                         symbol=symbol,
                         entry_price=entry_price,
-                        shares=float(shares),
+                        shares=safe_float(shares, default=0.0, context="shares"),
                         stop_loss_price=stop_loss,
                         signal_date=run_date,
                         entry_date=run_date,
