@@ -17,6 +17,8 @@ from datetime import date as _date
 from decimal import ROUND_HALF_UP, Decimal
 from typing import Any
 
+import psycopg2
+
 from algo.risk import EarningsBlackout
 from utils.db import DatabaseContext
 
@@ -100,7 +102,10 @@ class PreTradeChecks:
             except ValueError as e:
                 return (False, f"Earnings blackout check failed: {e}")
 
-        max_position_pct = Decimal(str(self.config.get("max_position_size_pct", 8.0))) / Decimal(100)
+        try:
+            max_position_pct = Decimal(str(self.config["max_position_size_pct"])) / Decimal(100)
+        except KeyError as e:
+            raise KeyError(f"[CONFIG] Missing required field: {e}. Check algo_config table.") from e
         max_position_value = Decimal(str(portfolio_value)) * max_position_pct
 
         position_value_dec = Decimal(str(position_value))
@@ -123,7 +128,10 @@ class PreTradeChecks:
             logger.critical(f"[PRE-TRADE] Database error checking duplicate position for {symbol}: {e}")
             raise ValueError(f"Cannot validate duplicate position check for {symbol}: {e}") from e
 
-        min_order_size = Decimal(str(self.config.get("min_order_size_dollars", 100.0)))
+        try:
+            min_order_size = Decimal(str(self.config["min_order_size_dollars"]))
+        except KeyError as e:
+            raise KeyError(f"[CONFIG] Missing required field: {e}. Check algo_config table.") from e
         if position_value_dec < min_order_size:
             return (
                 False,
@@ -151,8 +159,11 @@ class PreTradeChecks:
                 if row:
                     sector, industry = row
 
-                    max_sector_positions = int(self.config.get("max_positions_per_sector", 10))
-                    max_industry_positions = int(self.config.get("max_positions_per_industry", 8))
+                    try:
+                        max_sector_positions = int(self.config["max_positions_per_sector"])
+                        max_industry_positions = int(self.config["max_positions_per_industry"])
+                    except KeyError as e:
+                        raise KeyError(f"[CONFIG] Missing required field: {e}. Check algo_config table.") from e
 
                     cur.execute(
                         """SELECT COUNT(*) FROM algo_positions ap

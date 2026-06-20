@@ -48,7 +48,7 @@ def _validate_webhook_url(url: str) -> bool:
 
     try:
         parsed = urlparse(url)
-    except Exception:
+    except (ValueError, AttributeError):
         return False
 
     # Must be HTTPS
@@ -159,7 +159,7 @@ class AlertManager:
                     os.getenv("TWILIO_ACCOUNT_SID"), os.getenv("TWILIO_AUTH_TOKEN")
                 )
                 self.twilio_from = os.getenv("TWILIO_PHONE_NUMBER", "")
-            except Exception as e:
+            except (ImportError, ValueError, AttributeError) as e:
                 raise RuntimeError(f"Twilio client initialization failed: {e}") from e
 
         # Fail fast if no alert channels configured
@@ -287,13 +287,13 @@ class AlertManager:
         if self.email_to:
             try:
                 self._send_email(subject, body_text)
-            except Exception as e:
+            except (smtplib.SMTPException, RuntimeError, OSError, ConnectionError) as e:
                 logger.error(f"Position alert email failed (non-blocking): {e}")
 
         if self.webhook_url:
             try:
                 self._send_webhook_simple(subject, message, alert_type)
-            except Exception as e:
+            except (requests.RequestException, RuntimeError, ConnectionError) as e:
                 logger.error(f"Position alert webhook failed (non-blocking): {e}")
 
     def send_loader_alert(self, findings):
@@ -371,19 +371,19 @@ class AlertManager:
         if self.email_to:
             try:
                 self._send_email(subject, body_text)
-            except Exception as e:
+            except (smtplib.SMTPException, RuntimeError, OSError, ConnectionError) as e:
                 logger.error(f"Critical alert email failed (non-blocking): {e}")
 
         if self.webhook_url:
             try:
                 self._send_webhook_simple(subject, message, "CRITICAL")
-            except Exception as e:
+            except (requests.RequestException, RuntimeError, ConnectionError) as e:
                 logger.error(f"Critical alert webhook failed (non-blocking): {e}")
 
         if self.phone_numbers and self.twilio_client:
             try:
                 self._send_sms(f"[ALGO CRITICAL] {message[:160]}")
-            except Exception as e:
+            except (RuntimeError, ValueError, ConnectionError) as e:
                 logger.error(f"Critical alert SMS failed (non-blocking): {e}")
 
     def _send_email(self, subject, body):
@@ -409,7 +409,7 @@ class AlertManager:
                 server.login(self.smtp_user, self.smtp_password)
                 server.send_message(msg)
             logger.info(f"Email sent: {subject}")
-        except Exception as e:
+        except (smtplib.SMTPException, RuntimeError, OSError, ConnectionError) as e:
             logger.error(f"Email failed: {e}")
             raise
 
@@ -453,7 +453,7 @@ class AlertManager:
             }
             requests.post(self.webhook_url, json=payload, timeout=get_webhook_timeout())
             logger.info(f"Webhook sent: {subject}")
-        except Exception as e:
+        except (requests.RequestException, RuntimeError, ConnectionError) as e:
             logger.error(f"Webhook delivery failed: {e}")
             raise
 
@@ -482,7 +482,7 @@ class AlertManager:
             }
             requests.post(self.webhook_url, json=payload, timeout=get_webhook_timeout())
             logger.info(f"Webhook sent: {title}")
-        except Exception as e:
+        except (requests.RequestException, RuntimeError, ConnectionError) as e:
             logger.error(f"Webhook delivery failed: {e}")
             raise
 
@@ -497,7 +497,7 @@ class AlertManager:
                     body=message, from_=self.twilio_from, to=phone
                 )
                 logger.info(f"SMS sent to {phone}")
-            except Exception as e:
+            except (RuntimeError, ValueError, ConnectionError) as e:
                 logger.error(f"SMS to {phone} failed: {e}")
                 raise
 

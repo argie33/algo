@@ -1,6 +1,3 @@
-import psycopg2
-
-
 #!/usr/bin/env python3
 """
 Position Monitor - Institutional-grade daily position health checks
@@ -28,6 +25,7 @@ from datetime import date as _date
 from datetime import datetime, timedelta, timezone
 from decimal import ROUND_HALF_UP, Decimal
 
+import psycopg2
 import requests
 
 from config.alpaca_config import get_alpaca_base_url
@@ -69,8 +67,11 @@ class PositionMonitor:
         if not current_date:
             current_date = _date.today()
 
-        alert_threshold = int(self.config.get("stale_order_alert_minutes", 60))
-        auto_cancel_threshold = int(self.config.get("stale_order_auto_cancel_minutes", 120))
+        try:
+            alert_threshold = int(self.config["stale_order_alert_minutes"])
+            auto_cancel_threshold = int(self.config["stale_order_auto_cancel_minutes"])
+        except KeyError as e:
+            raise KeyError(f"[CONFIG] Missing required field: {e}. Check algo_config table.") from e
 
         with DatabaseContext("write") as cur:
             try:
@@ -378,7 +379,10 @@ class PositionMonitor:
         active_stop = float(current_stop) if current_stop else init_stop
         target_hits = int(target_hits or 0)
         days_held = (current_date - trade_date).days
-        max_hold = int(self.config.get("max_hold_days", 20))
+        try:
+            max_hold = int(self.config["max_hold_days"])
+        except KeyError as e:
+            raise KeyError(f"[CONFIG] Missing required field: {e}. Check algo_config table.") from e
 
         # 1. Current market data
         try:
@@ -474,13 +478,16 @@ class PositionMonitor:
         except (ValueError, RuntimeError) as e:
             logger.debug(f"Market distribution days unavailable for {current_date}: {e}")
 
-        if market_dist_days is not None and market_dist_days > int(
-            self.config.get("max_distribution_days", 4)
-        ):
+        try:
+            max_dist_days = int(self.config["max_distribution_days"])
+            halt_flag_count = int(self.config["position_halt_flag_count"])
+        except KeyError as e:
+            raise KeyError(f"[CONFIG] Missing required field: {e}. Check algo_config table.") from e
+
+        if market_dist_days is not None and market_dist_days > max_dist_days:
             flags.append("MARKET_DISTRIBUTION_STRESS")
 
         # Decision logic
-        halt_flag_count = int(self.config.get("position_halt_flag_count", 2))
         action = "HOLD"
         action_reason = ""
         urgent_exit = False
@@ -546,7 +553,10 @@ class PositionMonitor:
                 "APCA-API-KEY-ID": alpaca_key,
                 "APCA-API-SECRET-KEY": alpaca_secret,
             }
-            timeout = self.config.get("api_request_timeout_seconds", 5)
+            try:
+                timeout = int(self.config["api_request_timeout_seconds"])
+            except KeyError as e:
+                raise KeyError(f"[CONFIG] Missing required field: {e}. Check algo_config table.") from e
             resp = requests.delete(url, headers=headers, timeout=timeout)
 
             if resp.status_code == 204 or resp.status_code == 200:
@@ -590,7 +600,10 @@ class PositionMonitor:
                     "APCA-API-KEY-ID": alpaca_key,
                     "APCA-API-SECRET-KEY": alpaca_secret,
                 }
-                timeout = self.config.get("api_request_timeout_seconds", 5)
+                try:
+                    timeout = int(self.config["api_request_timeout_seconds"])
+                except KeyError as e:
+                    raise KeyError(f"[CONFIG] Missing required field: {e}. Check algo_config table.") from e
                 resp = requests.delete(url, headers=headers, timeout=timeout)
 
                 if resp.status_code == 204 or resp.status_code == 200:
@@ -1026,10 +1039,14 @@ class PositionMonitor:
                         "APCA-API-KEY-ID": alpaca_key,
                         "APCA-API-SECRET-KEY": alpaca_secret,
                     }
+                    try:
+                        timeout = int(self.config["api_request_timeout_seconds"])
+                    except KeyError as e:
+                        raise KeyError(f"[CONFIG] Missing required field: {e}. Check algo_config table.") from e
                     resp = requests.get(
                         url,
                         headers=headers,
-                        timeout=self.config.get("api_request_timeout_seconds", 5),
+                        timeout=timeout,
                     )
                     if resp.status_code != 200:
                         continue
