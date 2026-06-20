@@ -60,14 +60,17 @@ def run(
                     cur_chk.execute(
                         "SELECT COUNT(*) FROM algo_positions WHERE status = 'open'"
                     )
-                    open_count = cur_chk.fetchone()[0]
+                    row = cur_chk.fetchone()
+                    if row is None or row[0] is None:
+                        raise RuntimeError("Open position count query failed")
+                    open_count = row[0]
                 if open_count > 0:
                     logger.error(
                         f"Phase 4: position_recs is empty but {open_count} open positions exist "
                         "— Phase 3 likely crashed (fail-open). Early-exit logic will be skipped."
                     )
-            except Exception as e:
-                logger.error(f"Unhandled exception: {e}")
+            except RuntimeError as e:
+                logger.error(f"Position count check failed: {e}")
 
         # In dry-run mode, skip TradeExecutor initialization (no Alpaca credentials needed)
         if dry_run:
@@ -106,7 +109,7 @@ def run(
                             cur_price = (
                                 float(row_tmp[0]) if row_tmp and row_tmp[0] else 0
                             )
-                    except Exception as e:
+                    except (RuntimeError, TypeError, ValueError) as e:
                         logger.warning(
                             f"  Warning: Could not fetch price for force_exit: {e}"
                         )
@@ -147,7 +150,7 @@ def run(
                                 if row is not None and row[0] is not None
                                 else 0
                             )
-                    except Exception as e:
+                    except (RuntimeError, TypeError, ValueError) as e:
                         logger.warning(
                             f"  Warning: Could not fetch current price for {action['position_id']}: {e}"
                         )
@@ -176,10 +179,10 @@ def run(
                                 logger.info(
                                     f"  EXPOSURE TIGHTEN {action['symbol']}: stop -> ${action['new_stop']:.2f}"
                                 )
-                    except Exception as e:
+                    except (RuntimeError, ValueError, TypeError) as e:
                         errors += 1
                         logger.error(f"  Tighten failed for {action['symbol']}: {e}")
-            except Exception as e:
+            except (RuntimeError, ValueError, TypeError, AttributeError) as e:
                 errors += 1
                 logger.error(f"  Error on exposure action {action.get('symbol')}: {e}")
 
@@ -224,10 +227,10 @@ def run(
                                 logger.info(
                                     f"  RAISED STOP {rec['symbol']}: ${rec['active_stop']:.2f} -> ${rec['new_stop_recommended']:.2f}"
                                 )
-                    except Exception as e:
+                    except (RuntimeError, ValueError, TypeError) as e:
                         errors += 1
                         logger.error(f"  Stop-raise failed for {rec['symbol']}: {e}")
-            except Exception as e:
+            except (RuntimeError, ValueError, TypeError, AttributeError) as e:
                 errors += 1
                 logger.error(f"  Error on {rec.get('symbol')}: {e}")
 

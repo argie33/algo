@@ -63,7 +63,7 @@ def run(
                     "warn",
                     f'{len(halts_found)} symbols halted: {", ".join(halts_found)}',
                 )
-        except Exception as e:
+        except (OSError, RuntimeError, ValueError) as e:
             logger.warning(f"Halt check failed for position: {e}")
             log_phase_result_fn(
                 3, "halt_check_error", "warn", f"Halt check failed: {str(e)[:100]}"

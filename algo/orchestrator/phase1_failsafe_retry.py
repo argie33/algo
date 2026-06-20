@@ -171,7 +171,7 @@ def check_and_retry_incomplete_loaders(dry_run: bool = False) -> dict[str, Any]:
                             if is_critical:
                                 results["halt_required"] = True
 
-    except Exception as e:
+    except (OSError, RuntimeError, ValueError) as e:
         logger.error(
             f"[PHASE 1 FAILSAFE] Error checking incomplete loaders: {e}", exc_info=True
         )
@@ -226,7 +226,7 @@ def retry_loader(
             result["final_completion_pct"] = final_pct  # type: ignore[assignment]
             result["status_reason"] = status_reason
 
-    except Exception as e:
+    except (RuntimeError, ValueError, TimeoutError) as e:
         logger.error(
             f"[PHASE 1 FAILSAFE] Error retrying loader {loader_name}: {e}", exc_info=True
         )
@@ -323,7 +323,7 @@ def invoke_loader_retry(loader_name: str, is_critical: bool) -> bool:
             )
             return False
 
-    except Exception as e:
+    except (RuntimeError, ValueError, ModuleNotFoundError) as e:
         logger.error(
             f"[PHASE 1 FAILSAFE] Failed to invoke retry for {loader_name}: {e}",
             exc_info=True,
@@ -359,7 +359,7 @@ def _run_loader_with_timeout(
         )
         return False
 
-    except Exception as e:
+    except (RuntimeError, ValueError, TypeError) as e:
         logger.error(
             f"[PHASE 1 FAILSAFE] Loader {loader_name} failed: {e}", exc_info=True
         )
@@ -416,7 +416,7 @@ def monitor_loader_retry(
             # Check again in 10 seconds
             time.sleep(10)
 
-        except Exception as e:
+        except (OSError, RuntimeError, ValueError) as e:
             logger.debug(
                 f"[PHASE 1 FAILSAFE] Error monitoring retry for {loader_name}: {e}"
             )

@@ -10,7 +10,7 @@ Maps regime to config multipliers that flow into PositionSizer, ExposurePolicy, 
 import logging
 from datetime import date as _date
 from datetime import timedelta
-from typing import Any, ClassVar
+from typing import Any, ClassVar, cast
 
 from algo.infrastructure.constants import (
     REGIME_HOLD_DAYS_CAUTION,
@@ -128,7 +128,7 @@ class RegimeManager:
 
             return regime
 
-        except Exception as e:
+        except (OSError, RuntimeError, ValueError) as e:
             logger.warning(
                 f"Could not fetch regime: {e}. Defaulting to caution (conservative)"
             )
@@ -137,7 +137,7 @@ class RegimeManager:
     def get_regime_params(self, as_of_date: _date | None = None) -> dict[str, Any]:
         """Get parameter overrides for current regime."""
         regime = self.get_current_regime(as_of_date)
-        return self.REGIME_PARAMS.get(regime, self.REGIME_PARAMS["caution"])
+        return cast(dict[str, Any], self.REGIME_PARAMS.get(regime, self.REGIME_PARAMS["caution"]))
 
     def get_position_size_multiplier(self, as_of_date: _date | None = None) -> float:
         """Get position size multiplier (0.0 - 1.0)."""
@@ -278,7 +278,7 @@ class RegimeManager:
             )
         except RuntimeError:
             raise
-        except Exception as e:
+        except (OSError, ValueError, KeyError) as e:
             raise RuntimeError(
                 f"Failed to fetch market exposure confidence: {e}. "
                 "Cannot compute position size multipliers without regime data."

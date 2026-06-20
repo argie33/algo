@@ -118,12 +118,9 @@ def run(
         except Exception as e:
             logger.error(f"[PHASE 7] Exit price audit failed: {e}")
 
-        # Record exits for recently closed positions
+        # Record exits for recently closed positions (batch operation to avoid N+1 queries)
         try:
-            recorder = TradeRecorder()
-
             with DatabaseContext("read") as cursor:
-                # Find positions that were closed today
                 cursor.execute(
                     """
                     SELECT symbol, avg_entry_price, current_price, quantity
@@ -132,28 +129,58 @@ def run(
                 """,
                     (run_date,),
                 )
-
                 closed_positions = cursor.fetchall()
+
+            if closed_positions:
                 exits_recorded = 0
+                with DatabaseContext("write") as write_cursor:
+                    for symbol, entry_price, exit_price, quantity in closed_positions:
+                        if not exit_price:
+                            logger.critical(
+                                f"[CRITICAL] Exit price missing for {symbol}: cannot use entry price "
+                                f"(${entry_price}) as fallback. This corrupts P&L. Skipping exit record."
+                            )
+                            continue
 
-                for symbol, entry_price, exit_price, quantity in closed_positions:
-                    if not exit_price:
-                        logger.critical(
-                            f"[CRITICAL] Exit price missing for {symbol}: cannot use entry price "
-                            f"(${entry_price}) as fallback. This corrupts P&L. Skipping exit record."
+                        pnl = (exit_price - entry_price) * quantity
+                        pnl_pct = (
+                            ((exit_price - entry_price) / entry_price * 100)
+                            if entry_price > 0
+                            else 0
                         )
-                        continue
-                    if recorder.record_exit(
-                        symbol=symbol,
-                        exit_date=run_date,
-                        exit_price=float(exit_price),
-                        quantity=int(quantity),
-                        reason="Closed position recorded during reconciliation",
-                    ):
-                        exits_recorded += 1
 
-                if exits_recorded > 0:
-                    logger.info(f"Recorded {exits_recorded} exits in trade history")
+                        try:
+                            write_cursor.execute(
+                                """
+                                UPDATE algo_trades
+                                SET exit_date = %s, exit_price = %s, profit_loss_dollars = %s,
+                                    profit_loss_pct = %s, exit_reason = %s, updated_at = CURRENT_TIMESTAMP
+                                WHERE symbol = %s AND exit_date IS NULL
+                                ORDER BY entry_date DESC LIMIT 1
+                            """,
+                                (run_date, exit_price, pnl, pnl_pct, "Closed position recorded during reconciliation", symbol),
+                            )
+                            write_cursor.execute(
+                                """
+                                UPDATE algo_positions
+                                SET status = 'CLOSED', current_price = %s, unrealized_pnl = %s,
+                                    updated_at = CURRENT_TIMESTAMP
+                                WHERE symbol = %s
+                            """,
+                                (exit_price, pnl, symbol),
+                            )
+                            exits_recorded += 1
+                            logger.info(
+                                f"Recorded exit: {symbol} {quantity}sh @ ${exit_price:.2f} on {run_date} "
+                                f"(P&L: ${pnl:.2f} / {pnl_pct:.1f}%)"
+                            )
+                        except Exception as e:
+                            logger.error(f"Failed to record exit for {symbol}: {e}")
+
+                    if exits_recorded > 0:
+                        logger.info(f"Recorded {exits_recorded} exits in trade history")
+            else:
+                logger.info("No closed positions found for exit recording")
         except Exception as e:
             raise RuntimeError(
                 f"Failed to record exits in trade history: {e}. "

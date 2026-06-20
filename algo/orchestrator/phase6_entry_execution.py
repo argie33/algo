@@ -30,74 +30,79 @@ from utils.db.context import DatabaseContext
 logger = logging.getLogger(__name__)
 
 
-def _compute_true_atr(
-    symbol: str, run_date: _date, period: int = 14
-) -> float | None:
-    """True ATR: GREATEST(H-L, |H-prev_C|, |L-prev_C|) averaged over `period` days.
+def _batch_fetch_technical_data(
+    symbols: list[str], run_date: _date, period: int = 14
+) -> dict[str, dict]:
+    """Batch-fetch ATR, SMA_50, and latest close for multiple symbols in one query.
 
-    Fetches period+1 rows so the oldest row has a valid LAG(close). Anchored
-    to run_date to avoid look-ahead contamination in historical replays.
+    Returns dict keyed by symbol with {atr, sma_50, close} values.
+    Eliminates N+1 query pattern by fetching all data in a single query.
     """
+    if not symbols:
+        return {}
+
+    placeholders = ",".join(["%s"] * len(symbols))
     try:
         with DatabaseContext("read") as cur:
             cur.execute(
-                """
-                SELECT AVG(tr) AS atr
-                FROM (
-                    SELECT
-                        GREATEST(
-                            high - low,
-                            ABS(high - LAG(close) OVER (ORDER BY date)),
-                            ABS(low  - LAG(close) OVER (ORDER BY date))
-                        ) AS tr,
-                        ROW_NUMBER() OVER (ORDER BY date DESC) AS rn
+                f"""
+                WITH latest_prices AS (
+                    SELECT DISTINCT ON (symbol) symbol, close
                     FROM price_daily
-                    WHERE symbol = %s AND date <= %s
-                    ORDER BY date DESC
-                    LIMIT %s
-                ) tr_data
-                WHERE tr IS NOT NULL AND rn <= %s
-            """,
-                (symbol, run_date, period + 1, period),
+                    WHERE symbol IN ({placeholders}) AND date <= %s
+                    ORDER BY symbol, date DESC
+                ),
+                sma_50_data AS (
+                    SELECT symbol, AVG(close) AS sma_50
+                    FROM (
+                        SELECT symbol, close,
+                               ROW_NUMBER() OVER (PARTITION BY symbol ORDER BY date DESC) AS rn
+                        FROM price_daily
+                        WHERE symbol IN ({placeholders}) AND date <= %s
+                    ) t
+                    WHERE rn <= 50
+                    GROUP BY symbol
+                ),
+                atr_data AS (
+                    SELECT symbol, AVG(tr) AS atr
+                    FROM (
+                        SELECT
+                            symbol,
+                            GREATEST(
+                                high - low,
+                                ABS(high - LAG(close) OVER (PARTITION BY symbol ORDER BY date)),
+                                ABS(low - LAG(close) OVER (PARTITION BY symbol ORDER BY date))
+                            ) AS tr,
+                            ROW_NUMBER() OVER (PARTITION BY symbol ORDER BY date DESC) AS rn
+                        FROM price_daily
+                        WHERE symbol IN ({placeholders}) AND date <= %s
+                    ) t
+                    WHERE tr IS NOT NULL AND rn <= %s
+                    GROUP BY symbol
+                )
+                SELECT
+                    lp.symbol,
+                    COALESCE(atr.atr, 0.0) AS atr,
+                    COALESCE(sma.sma_50, 0.0) AS sma_50,
+                    lp.close
+                FROM latest_prices lp
+                LEFT JOIN sma_50_data sma ON sma.symbol = lp.symbol
+                LEFT JOIN atr_data atr ON atr.symbol = lp.symbol
+                """,
+                symbols + [run_date] + symbols + [run_date] + symbols + [run_date, period],
             )
-            row = cur.fetchone()
-            return float(row[0]) if row is not None and row[0] is not None else None
+            rows = cur.fetchall()
+            result = {}
+            for row in rows:
+                symbol, atr, sma_50, close = row
+                result[symbol] = {
+                    "atr": float(atr) if atr else None,
+                    "sma_50": float(sma_50) if sma_50 else None,
+                    "close": float(close) if close else None,
+                }
+            return result
     except Exception as e:
-            raise RuntimeError(f"Operation failed: {e}") from e
-
-
-def _compute_sma_50(symbol: str, run_date: _date) -> float | None:
-    """50-day SMA anchored to run_date."""
-    try:
-        with DatabaseContext("read") as cur:
-            cur.execute(
-                """
-                SELECT AVG(close) FROM (
-                    SELECT close FROM price_daily
-                    WHERE symbol = %s AND date <= %s
-                    ORDER BY date DESC LIMIT 50
-                ) recent
-            """,
-                (symbol, run_date),
-            )
-            row = cur.fetchone()
-            return float(row[0]) if row is not None and row[0] is not None else None
-    except Exception as e:
-            raise RuntimeError(f"Operation failed: {e}") from e
-
-
-def _get_latest_close(symbol: str, run_date: _date) -> float | None:
-    """Latest close price at or before run_date."""
-    try:
-        with DatabaseContext("read") as cur:
-            cur.execute(
-                "SELECT close FROM price_daily WHERE symbol = %s AND date <= %s ORDER BY date DESC LIMIT 1",
-                (symbol, run_date),
-            )
-            row = cur.fetchone()
-            return float(row[0]) if row is not None and row[0] is not None else None
-    except Exception as e:
-            raise RuntimeError(f"Operation failed: {e}") from e
+        raise RuntimeError(f"Batch fetch technical data failed: {e}") from e
 
 
 def run(
@@ -211,7 +216,8 @@ def run(
         creds = get_credential_manager().get_alpaca_credentials()
         alpaca_key = creds.get("key")
         alpaca_secret = creds.get("secret")
-    except Exception:
+    except (RuntimeError, ValueError, KeyError) as e:
+        logger.warning(f"Could not fetch Alpaca credentials: {e}")
         alpaca_key = None
         alpaca_secret = None
 
@@ -225,6 +231,9 @@ def run(
     executed_count = 0
     skipped_count = 0
     failed_count = 0
+
+    symbols_to_check = [sig.get("symbol") for sig in qualified_trades if sig.get("symbol")]
+    technical_data = _batch_fetch_technical_data(symbols_to_check, run_date)
 
     for signal in qualified_trades:
         try:
@@ -255,12 +264,11 @@ def run(
                 skipped_count += 1
                 continue
 
-            # Compute price inputs anchored to run_date
-            atr = _compute_true_atr(str(symbol), run_date)
-            sma_50 = _compute_sma_50(str(symbol), run_date)
-            # CRITICAL: Always use latest market close, not signal's stale entry_price
-            # Signal entry_price may be from old price_date if Phase 5 fell back to prior date
-            close = _get_latest_close(str(symbol), run_date)
+            # Fetch pre-computed price inputs from batch cache
+            tech_data = technical_data.get(str(symbol), {})
+            atr = tech_data.get("atr")
+            sma_50 = tech_data.get("sma_50")
+            close = tech_data.get("close")
 
             if not all([atr, sma_50, close]):
                 raise RuntimeError(
@@ -318,7 +326,7 @@ def run(
             # Final hard-stop validation (includes earnings blackout check)
             try:
                 pt_ok, pt_reason = pretrade.run_all(
-                    symbol, position_value, portfolio_value, eval_date=run_date
+                    symbol, position_value, float(portfolio_value), eval_date=run_date
                 )
             except ValueError as e:
                 raise RuntimeError(
@@ -382,7 +390,7 @@ def run(
                     )
                     break
 
-        except Exception as e:
+        except (RuntimeError, ValueError, TypeError, AttributeError) as e:
             logger.error(
                 f"[PHASE 6] Error processing {signal.get('symbol', '?')}: {e}",
                 exc_info=True,

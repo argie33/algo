@@ -68,7 +68,7 @@ def run(
 
         try:
             actions = policy.review_existing_positions(run_date)
-        except Exception as e:
+        except (RuntimeError, ValueError) as e:
             # If transaction is aborted (from prior phase), retry with fresh connection
             if "transaction is aborted" in str(
                 e

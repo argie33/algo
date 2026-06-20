@@ -50,8 +50,8 @@ def run(
             with MetricsPublisher(dry_run=dry_run) as _m:
                 for name, state in result.get("checks", {}).items():
                     _m.put_circuit_breaker(name, bool(state.get("halted")))
-        except Exception as e:
-            logger.error(f"Unhandled exception: {e}")
+        except (OSError, RuntimeError) as e:
+            logger.error(f"Metrics publishing failed (non-critical): {e}")
 
         try:
             from algo.infrastructure import MarketEventHandler
@@ -86,7 +86,8 @@ def run(
                 return PhaseResult(
                     2, "market_circuit_breaker", "halted", {}, True, halt_reason
                 )
-        except Exception as e:
+        except (OSError, RuntimeError, ValueError) as e:
+            logger.warning(f"Market circuit breaker check failed: {e}")
             log_phase_result_fn(
                 2, "market_circuit_breaker", "warn", f"check failed: {e}"
             )
