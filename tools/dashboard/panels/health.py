@@ -64,6 +64,28 @@ def _var_color(var95: float | None) -> str:
     return "white"
 
 
+def _format_phase_badge(phase_status: str) -> tuple[str, str]:
+    """Format phase status to (color, icon) badge.
+
+    Args:
+        phase_status: Phase status string (success, halt, halted, warn, degraded, skipped, error, etc.)
+
+    Returns:
+        Tuple of (color, icon) for phase badge
+    """
+    ps_lower = phase_status.lower() if phase_status else ""
+
+    success_states = ("success", "completed", "ok")
+    halted_states = ("halt", "halted", "warn", "degraded", "skipped")
+
+    if ps_lower in success_states:
+        return G, "✓"
+    elif ps_lower in halted_states:
+        return Y, "~"
+    else:
+        return R, "✗"
+
+
 def _build_freshness_panel(hlth_items: list, ready_to_trade: bool | None) -> Panel:
     """Build LEFT panel: data freshness table with status summary.
 
@@ -558,8 +580,7 @@ def panel_status(
             default_short = "_".join(name_parts)[:7] if name_parts else f"P{num}"
             short = PHASE_NAMES.get(phase_key, default_short)[:9]
             st = safe_get_field(p, "status", "")
-            sc = G if st == "success" else (Y if st in ("halt", "warn", "halted") else R)
-            si = "✓" if st == "success" else ("~" if st in ("halt", "warn", "halted") else "✗")
+            sc, si = _format_phase_badge(st)
             phase_badges.append(f"[{sc}]{si}[dim]{short}[/][/]")
         if phase_badges:
             rows.append(Text.from_markup("  ".join(phase_badges)))
@@ -795,17 +816,8 @@ def panel_algo_health(
             parts_p = raw.split("_")
             base = "_".join(parts_p[:2]) if len(parts_p) >= 2 else raw
             short = PHASE_NAMES.get(base, base.replace("phase_", "P"))[:8]
-            ps = (safe_get_field(p, "status", "")).lower()
-            sc = (
-                G
-                if ps in ("success", "completed", "ok")
-                else (Y if ps in ("halt", "halted", "warn", "degraded", "skipped") else R)
-            )
-            si = (
-                "✓"
-                if ps in ("success", "completed", "ok")
-                else ("~" if ps in ("halt", "halted", "warn", "degraded", "skipped") else "✗")
-            )
+            ps = safe_get_field(p, "status", "")
+            sc, si = _format_phase_badge(ps)
             phase_badges.append(f"[{sc}]{si}[dim]{short}[/][/]")
             pdata = safe_get_field(p, "data")
             if isinstance(pdata, str):
@@ -848,8 +860,7 @@ def panel_algo_health(
             default_short = "_".join(name_parts)[:7] if name_parts else f"P{num}"
             short = PHASE_NAMES.get(phase_key, default_short)[:8]
             st = safe_get_field(p, "status", "")
-            sc = G if st == "success" else (Y if st in ("halt", "warn", "halted") else R)
-            si = "✓" if st == "success" else ("~" if st in ("halt", "warn", "halted") else "✗")
+            sc, si = _format_phase_badge(st)
             phase_badges.append(f"[{sc}]{si}[dim]{short}[/][/]")
 
     if phase_badges:
@@ -1103,17 +1114,8 @@ def _build_results_panel(
             parts_p = raw.split("_")
             base = "_".join(parts_p[:2]) if len(parts_p) >= 2 else raw
             short = PHASE_NAMES.get(base, base.replace("phase_", "P"))[:8]
-            ps = (safe_get_field(p, "status", "")).lower()
-            sc = (
-                G
-                if ps in ("success", "completed", "ok")
-                else (Y if ps in ("halt", "halted", "warn", "degraded", "skipped") else R)
-            )
-            si = (
-                "v"
-                if ps in ("success", "completed", "ok")
-                else ("~" if ps in ("halt", "halted", "warn", "degraded", "skipped") else "x")
-            )
+            ps = safe_get_field(p, "status", "")
+            sc, si = _format_phase_badge(ps)
             phase_badges_e.append(f"[{sc}]{si}[dim]{short}[/][/]")
     if phase_badges_e:
         right_rows.append(Text.from_markup("  ".join(phase_badges_e)))

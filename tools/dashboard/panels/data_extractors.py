@@ -177,3 +177,36 @@ def extract_item_field(item: dict[str, Any], field: str, default: Any = None) ->
     if not isinstance(item, dict):
         return default
     return item.get(field, default)
+
+
+def extract_signal_overview(sig: dict[str, Any]) -> dict[str, Any]:
+    """Extract signal overview fields for compact & expanded displays (error already checked)."""
+    if not isinstance(sig, dict) or has_error(sig):
+        return {"_error": "Signal data unavailable"}
+    return {
+        "n": sig.get("n"),
+        "total": sig.get("total"),
+        "date": sig.get("date"),
+        "grades": sig.get("grades") or {},
+        "top_a": sig.get("top_a") or [],
+        "near": sig.get("near") or [],
+        "trend": sig.get("trend") or [],
+        "buy_sigs": sig.get("buy_sigs") or [],
+        "timestamp": sig.get("timestamp"),
+    }
+
+
+def extract_eval_funnel(sig_eval: dict[str, Any] | None) -> dict[str, Any]:
+    """Extract evaluation funnel data (error already checked, data optional)."""
+    if not sig_eval or not isinstance(sig_eval, dict) or has_error(sig_eval):
+        return {}
+    return {
+        "total": sig_eval.get("total"),
+        "t1": sig_eval.get("t1"),
+        "t2": sig_eval.get("t2"),
+        "t3": sig_eval.get("t3"),
+        "t4": sig_eval.get("t4"),
+        "t5": sig_eval.get("t5"),
+        "avg_score": sig_eval.get("avg_score"),
+        "rejected": sig_eval.get("rejected") or [],
+    }
