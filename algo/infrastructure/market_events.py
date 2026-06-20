@@ -10,6 +10,7 @@ Detects and responds to market anomalies:
 Implements fail-safe protocols that override strategy logic.
 """
 
+import json
 import logging
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from datetime import date, datetime, timezone
@@ -58,7 +59,7 @@ class MarketEventHandler:
 
             try:
                 data = resp.json()
-            except (ValueError, Exception) as e:
+            except (json.JSONDecodeError, ValueError) as e:
                 logger.warning(f"Invalid JSON response from {url}: {e}")
                 return None
             status = data.get("status", "").upper()
@@ -75,7 +76,7 @@ class MarketEventHandler:
 
             return None
 
-        except Exception as e:
+        except requests.RequestException as e:
             raise RuntimeError(f"Operation failed: {e}") from e
 
     def check_market_circuit_breaker(self) -> dict[str, Any] | None:
@@ -105,7 +106,7 @@ class MarketEventHandler:
                     if resp.status_code != 200:
                         raise RuntimeError(f"Quotes API error: status {resp.status_code}")
                     return resp.json().get("quote", {}).get("ap")
-                except Exception as e:
+                except (requests.RequestException, json.JSONDecodeError, RuntimeError) as e:
                     raise RuntimeError(f"Operation failed: {e}") from e
 
             def fetch_bars():
@@ -117,7 +118,7 @@ class MarketEventHandler:
                     if resp.status_code != 200:
                         raise RuntimeError(f"Bars API error: status {resp.status_code}")
                     return resp.json().get("bar", {}).get("o")
-                except Exception as e:
+                except (requests.RequestException, json.JSONDecodeError, RuntimeError) as e:
                     raise RuntimeError(f"Operation failed: {e}") from e
 
             with ThreadPoolExecutor(max_workers=2) as executor:
@@ -158,7 +159,7 @@ class MarketEventHandler:
 
             return None
 
-        except Exception as e:
+        except (RuntimeError, TypeError, ValueError) as e:
             raise RuntimeError(f"Operation failed: {e}") from e
 
     def check_early_close(self, check_date: date | None = None) -> bool:
@@ -208,7 +209,7 @@ class MarketEventHandler:
 
             return False
 
-        except Exception as e:
+        except (RuntimeError, TypeError, ValueError, KeyError) as e:
             raise RuntimeError(f"Operation failed: {e}") from e
 
     def check_after_hours_window(self, check_time: datetime | None = None) -> bool:
@@ -374,7 +375,7 @@ class MarketEventHandler:
 
             return None
 
-        except Exception as e:
+        except (RuntimeError, TypeError, ValueError, KeyError) as e:
             raise RuntimeError(f"Operation failed: {e}") from e
 
     def run_pre_market_checks(self) -> dict[str, Any]:
