@@ -33,6 +33,29 @@ logger = logging.getLogger(__name__)
 
 
 
+def _ensure_portfolio_fields(data: dict) -> dict:
+    """Ensure portfolio response includes all required fields.
+
+    This is a defensive guard to prevent validator failures when fields
+    are missing due to database schema mismatches or response building issues.
+    """
+    if not isinstance(data, dict):
+        return data
+
+    if data.get("_error"):
+        return data
+
+    # Ensure critical fields exist with valid defaults
+    if "total_portfolio_value" not in data:
+        data["total_portfolio_value"] = None
+    if "total_cash" not in data:
+        data["total_cash"] = None
+    if "position_count" not in data:
+        data["position_count"] = 0
+
+    return data
+
+
 @db_route_handler("get algo metrics")
 def _get_algo_metrics(cur) -> dict:
     """Get daily algo metrics (total actions, entries, exits)."""
@@ -388,56 +411,54 @@ def _get_algo_portfolio(cur) -> dict:
         """)
         row = cur.fetchone()
         if row is None:
-            return success_response(
-                {
-                    "total_portfolio_value": None,
-                    "total_cash": None,
-                    "position_count": 0,
-                    "daily_return_pct": None,
-                    "unrealized_pnl": {
-                        "total_dollars": 0.0,
-                        "total_pct": 0.0,
-                        "winning_positions": 0,
-                        "losing_positions": 0,
-                        "breakeven_positions": 0,
-                        "source": "open_positions_only",
-                        "note": "Includes only open positions (no closed trades, no dividends)",
-                    },
-                    "cumulative_return_pct": None,
-                    "max_drawdown_pct": None,
-                    "largest_position_pct": None,
-                    "last_run": None,
-                }
-            )
-        data = safe_dict_convert(row)
-        pv = format_decimal_string(data.get("total_portfolio_value"), precision=2, allow_none=True)
-        return success_response(
-            {
-                "total_portfolio_value": pv,
-                "total_cash": format_decimal_string(data.get("total_cash"), precision=2, allow_none=True),
-                "position_count": safe_int(data.get("position_count")),
-                "daily_return_pct": format_decimal_string(data.get("daily_return_pct"), precision=2, allow_none=True),
+            response_data = {
+                "total_portfolio_value": None,
+                "total_cash": None,
+                "position_count": 0,
+                "daily_return_pct": None,
                 "unrealized_pnl": {
-                    "total_dollars": format_decimal_string(data.get("unrealized_pnl_total"), precision=2, allow_none=True),
-                    "total_pct": format_decimal_string(data.get("unrealized_pnl_pct"), precision=2, allow_none=True),
-                    "winning_positions": safe_int(
-                        data.get("unrealized_pnl_winning_count")
-                    ),
-                    "losing_positions": safe_int(
-                        data.get("unrealized_pnl_losing_count")
-                    ),
-                    "breakeven_positions": safe_int(
-                        data.get("unrealized_pnl_breakeven_count")
-                    ),
-                    "source": data.get("unrealized_pnl_source", "open_positions_only"),
+                    "total_dollars": 0.0,
+                    "total_pct": 0.0,
+                    "winning_positions": 0,
+                    "losing_positions": 0,
+                    "breakeven_positions": 0,
+                    "source": "open_positions_only",
                     "note": "Includes only open positions (no closed trades, no dividends)",
                 },
-                "cumulative_return_pct": format_decimal_string(data.get("cumulative_return_pct"), precision=2, allow_none=True),
-                "max_drawdown_pct": format_decimal_string(data.get("max_drawdown_pct"), precision=2, allow_none=True),
-                "largest_position_pct": format_decimal_string(data.get("largest_position_pct"), precision=2, allow_none=True),
-                "last_run": data.get("snapshot_date"),
+                "cumulative_return_pct": None,
+                "max_drawdown_pct": None,
+                "largest_position_pct": None,
+                "last_run": None,
             }
-        )
+            return success_response(_ensure_portfolio_fields(response_data))
+        data = safe_dict_convert(row)
+        pv = format_decimal_string(data.get("total_portfolio_value"), precision=2, allow_none=True)
+        response_data = {
+            "total_portfolio_value": pv,
+            "total_cash": format_decimal_string(data.get("total_cash"), precision=2, allow_none=True),
+            "position_count": safe_int(data.get("position_count")),
+            "daily_return_pct": format_decimal_string(data.get("daily_return_pct"), precision=2, allow_none=True),
+            "unrealized_pnl": {
+                "total_dollars": format_decimal_string(data.get("unrealized_pnl_total"), precision=2, allow_none=True),
+                "total_pct": format_decimal_string(data.get("unrealized_pnl_pct"), precision=2, allow_none=True),
+                "winning_positions": safe_int(
+                    data.get("unrealized_pnl_winning_count")
+                ),
+                "losing_positions": safe_int(
+                    data.get("unrealized_pnl_losing_count")
+                ),
+                "breakeven_positions": safe_int(
+                    data.get("unrealized_pnl_breakeven_count")
+                ),
+                "source": data.get("unrealized_pnl_source", "open_positions_only"),
+                "note": "Includes only open positions (no closed trades, no dividends)",
+            },
+            "cumulative_return_pct": format_decimal_string(data.get("cumulative_return_pct"), precision=2, allow_none=True),
+            "max_drawdown_pct": format_decimal_string(data.get("max_drawdown_pct"), precision=2, allow_none=True),
+            "largest_position_pct": format_decimal_string(data.get("largest_position_pct"), precision=2, allow_none=True),
+            "last_run": data.get("snapshot_date"),
+        }
+        return success_response(_ensure_portfolio_fields(response_data))
     except (ValueError, ZeroDivisionError, TypeError) as e:
         logger.error(f"Portfolio fetch error: {type(e).__name__}: {e}")
         return error_response(503, "service_unavailable", "Portfolio data unavailable")
