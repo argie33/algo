@@ -108,7 +108,7 @@ def panel_exposure_compact(exp_f):
             return f" {cnt}d/{regime}" if cnt is not None else ""
         return ""
 
-    FACTOR_MAP = [
+    factor_map = [
         ("trend_30wk", "30-Week Trend", 15),
         ("spy_momentum", "SPY 12mo Mom", 10),
         ("breadth_200dma", "Breadth 200MA", 10),
@@ -128,7 +128,7 @@ def panel_exposure_compact(exp_f):
     tbl.add_column("b", ratio=1)
 
     items = []
-    for key, label, max_pts in FACTOR_MAP:
+    for key, label, max_pts in factor_map:
         if not factors or key not in factors:
             f = {}
         else:
@@ -168,7 +168,7 @@ def panel_exposure_compact(exp_f):
     )
     return Panel(
         Group(header, tbl),
-        title=f"[bold blue]EXPOSURE SCORE BREAKDOWN ({len(FACTOR_MAP)} factors / 100pts)[/]  [dim][x] expand[/]",
+        title=f"[bold blue]EXPOSURE SCORE BREAKDOWN ({len(factor_map)} factors / 100pts)[/]  [dim][x] expand[/]",
         border_style="blue",
         padding=(0, 1),
     )

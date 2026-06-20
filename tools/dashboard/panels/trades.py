@@ -113,18 +113,21 @@ def panel_recent_trades(trades):
         return str(d or "--")[:5]
 
     for tr in closed_trades[:12]:
+        # Extract trade fields once, then convert to typed values
         sym = tr.get("symbol", "--")
         pnl_d_raw = tr.get("profit_loss_dollars")
         pnl_p_raw = tr.get("profit_loss_pct")
-        pnl_d = float(pnl_d_raw) if pnl_d_raw is not None else None
-        pnl_p = float(pnl_p_raw) if pnl_p_raw is not None else None
         rmul_raw = tr.get("exit_r_multiple")
-        rmul = float(rmul_raw) if rmul_raw is not None else None
         entry_raw = tr.get("entry_price")
         exit_raw = tr.get("exit_price")
+        dur_raw = tr.get("trade_duration_days")
+
+        # Convert to typed values
+        pnl_d = float(pnl_d_raw) if pnl_d_raw is not None else None
+        pnl_p = float(pnl_p_raw) if pnl_p_raw is not None else None
+        rmul = float(rmul_raw) if rmul_raw is not None else None
         entry_p = float(entry_raw) if entry_raw is not None else None
         exit_p = float(exit_raw) if exit_raw is not None else None
-        dur_raw = tr.get("trade_duration_days")
         dur = int(dur_raw) if dur_raw is not None else None
         exit_date = tr.get("exit_date") or tr.get("trade_date")
 
