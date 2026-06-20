@@ -21,11 +21,11 @@ import json
 import logging
 import os
 from datetime import datetime, timedelta, timezone
-from typing import Dict, Optional, Tuple
+
+import psycopg2
 
 from utils.db.context import DatabaseContext
 from utils.infrastructure.timezone import EASTERN_TZ
-import psycopg2
 
 
 logger = logging.getLogger(__name__)
@@ -90,7 +90,7 @@ class HaltFlagManager:
 
         return False
 
-    def check_halt_flag(self) -> Tuple[Optional[bool], Optional[str]]:
+    def check_halt_flag(self) -> tuple[bool | None, str | None]:
         """Check if halt flag is set.
 
         Returns:
@@ -113,7 +113,7 @@ class HaltFlagManager:
             halt_flag, reason = self._check_halt_flag_dynamodb()
             if halt_flag is not None:
                 return halt_flag, reason
-        except (FileNotFoundError, IOError, OSError) as e:
+        except (FileNotFoundError, OSError) as e:
             logger.warning(
                 f"[HALT_FLAG] DynamoDB check failed: {e}. Falling back to RDS."
             )
@@ -124,7 +124,7 @@ class HaltFlagManager:
             halt_flag, reason = self._check_halt_flag_rds()
             if halt_flag is not None:
                 return halt_flag, reason
-        except (FileNotFoundError, IOError, OSError) as e:
+        except (FileNotFoundError, OSError) as e:
             logger.error(f"[HALT_FLAG] RDS fallback failed: {e}")
 
         # Both failed: cannot proceed safely
@@ -132,7 +132,7 @@ class HaltFlagManager:
         logger.critical(error_msg)
         raise RuntimeError(error_msg)
 
-    def _check_halt_flag_dynamodb(self) -> Tuple[Optional[bool], Optional[str]]:
+    def _check_halt_flag_dynamodb(self) -> tuple[bool | None, str | None]:
         """Check halt flag in DynamoDB. Returns (halt_flag, reason) or (None, None) on timeout/error."""
         try:
             import boto3
@@ -193,7 +193,7 @@ class HaltFlagManager:
         except Exception as e:
             raise RuntimeError(f"Operation failed: {e}") from e
 
-    def _check_halt_flag_rds(self) -> Tuple[Optional[bool], Optional[str]]:
+    def _check_halt_flag_rds(self) -> tuple[bool | None, str | None]:
         """Check halt flag in RDS. Returns (halt_flag, reason) or (None, None) on error."""
         try:
             with DatabaseContext("read") as cur:
@@ -248,7 +248,12 @@ class HaltFlagManager:
             raise RuntimeError(f"Operation failed: {e}") from e
 
     def set_halt_flag(self, reason: str = "") -> bool:
-        """Set halt flag in both DynamoDB and RDS. Returns True if set successfully."""
+        """Set halt flag atomically. RDS is source of truth; DynamoDB is read cache.
+
+        Returns True ONLY if RDS write succeeds (source of truth). DynamoDB write failure
+        is logged but non-blocking, since reads fall back to RDS. This prevents split-brain
+        where DynamoDB succeeds but RDS fails (inconsistent state across runs).
+        """
         now_utc = datetime.now(timezone.utc)
         now_et = now_utc.astimezone(EASTERN_TZ)
 
@@ -265,22 +270,23 @@ class HaltFlagManager:
             if existing:
                 halt_data["halt_count"] = 2  # Escalation
         except Exception as e:
+            raise RuntimeError(f"Unexpected error: {e}") from e
 
-                raise RuntimeError(f"Unexpected error: {e}") from e
-
-        success_dynamodb = self._set_halt_flag_dynamodb(halt_data, now_utc)
+        # RDS is source of truth: must succeed
         success_rds = self._set_halt_flag_rds(halt_data, now_et)
 
-        if success_dynamodb or success_rds:
+        # DynamoDB is read cache: best-effort, failure is tolerable
+        if success_rds:
+            success_dynamodb = self._set_halt_flag_dynamodb(halt_data, now_utc)
             logger.critical(
-                f"[HALT_FLAG_SET] {reason} (DynamoDB: {success_dynamodb}, RDS: {success_rds})"
+                f"[HALT_FLAG_SET] {reason} (RDS: True, DynamoDB: {success_dynamodb})"
             )
             return True
 
-        logger.error("[HALT_FLAG_SET_FAILED] Could not set halt flag in either storage")
+        logger.error("[HALT_FLAG_SET_FAILED] Could not set halt flag in RDS (source of truth)")
         return False
 
-    def _set_halt_flag_dynamodb(self, halt_data: Dict, now_utc: datetime) -> bool:
+    def _set_halt_flag_dynamodb(self, halt_data: dict, now_utc: datetime) -> bool:
         """Set halt flag in DynamoDB. Returns True if successful."""
         try:
             import boto3
@@ -302,7 +308,7 @@ class HaltFlagManager:
             self._record_dynamodb_failure()
             return False
 
-    def _set_halt_flag_rds(self, halt_data: Dict, now_et: datetime) -> bool:
+    def _set_halt_flag_rds(self, halt_data: dict, now_et: datetime) -> bool:
         """Set halt flag in RDS. Returns True if successful."""
         try:
             with DatabaseContext("write") as cur:
@@ -338,17 +344,23 @@ class HaltFlagManager:
             return False
 
     def clear_halt_flag(self, reason: str = "") -> bool:
-        """Clear halt flag in both DynamoDB and RDS. Returns True if cleared successfully."""
-        success_dynamodb = self._clear_halt_flag_dynamodb()
+        """Clear halt flag atomically. RDS is source of truth; DynamoDB is read cache.
+
+        Returns True ONLY if RDS write succeeds (source of truth). DynamoDB write failure
+        is logged but non-blocking, since reads fall back to RDS.
+        """
+        # RDS is source of truth: must succeed
         success_rds = self._clear_halt_flag_rds()
 
-        if success_dynamodb or success_rds:
+        # DynamoDB is read cache: best-effort, failure is tolerable
+        if success_rds:
+            success_dynamodb = self._clear_halt_flag_dynamodb()
             logger.critical(
-                f"[HALT_FLAG_CLEARED] {reason} (DynamoDB: {success_dynamodb}, RDS: {success_rds})"
+                f"[HALT_FLAG_CLEARED] {reason} (RDS: True, DynamoDB: {success_dynamodb})"
             )
             return True
 
-        logger.warning("[HALT_FLAG_CLEAR_PARTIAL] Could not clear in all storages")
+        logger.warning("[HALT_FLAG_CLEAR_FAILED] Could not clear halt flag in RDS (source of truth)")
         return False
 
     def _clear_halt_flag_dynamodb(self) -> bool:

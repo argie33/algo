@@ -136,16 +136,94 @@ def get_portfolio_pnl(max_attempts: int = 3):
     return None, None, None
 
 
-def _set_halt(table, halt: bool, reason: str, check_time: str) -> None:
-    item = {
-        "key": "orchestrator_halt",
-        "halt_flag": halt,
-        "reason": reason,
-        "check_time": check_time,
-    }
-    ts_key = "triggered_at" if halt else "reset_at"
-    item[ts_key] = datetime.now(timezone.utc).isoformat()
-    table.put_item(Item=item)
+def _set_halt_flag_rds(halt: bool, reason: str, check_time: str) -> bool:
+    """Set halt flag in RDS (source of truth). Returns True if successful."""
+    try:
+        creds = get_db_credentials()
+        conn = psycopg2.connect(
+            host=creds["host"],
+            port=creds["port"],
+            database=creds["database"],
+            user=creds["user"],
+            password=creds["password"],
+            sslmode="require",
+            connect_timeout=10,
+        )
+        cur = conn.cursor()
+        now_utc = datetime.now(timezone.utc)
+        cur.execute("""
+            INSERT INTO algo_runtime_state (
+                state_key, state_value, halt_flag, halt_triggered_at,
+                halt_reason, halt_count, updated_by, expires_at
+            ) VALUES (%s, %s, %s, %s, %s, %s, %s, %s)
+            ON CONFLICT (state_key) DO UPDATE SET
+                halt_flag = EXCLUDED.halt_flag,
+                halt_triggered_at = EXCLUDED.halt_triggered_at,
+                halt_reason = EXCLUDED.halt_reason,
+                halt_count = EXCLUDED.halt_count,
+                last_updated_at = CURRENT_TIMESTAMP,
+                expires_at = EXCLUDED.expires_at
+        """, (
+            "orchestrator_halt",
+            json.dumps({"halt_flag": halt, "triggered_at": now_utc.isoformat(), "reason": reason}),
+            halt,
+            now_utc.isoformat(),
+            reason,
+            1,
+            "circuit_breaker",
+            (now_utc.timestamp() + 86400),  # 24 hours from now
+        ))
+        conn.commit()
+        cur.close()
+        conn.close()
+        logger.debug(f"[CIRCUIT_BREAKER] Set halt_flag={halt} in RDS: {reason}")
+        return True
+    except Exception as e:
+        logger.warning(f"[CIRCUIT_BREAKER] Failed to set halt flag in RDS: {e}")
+        return False
+
+
+def _set_halt_flag_dynamodb(table, halt: bool, reason: str, check_time: str) -> bool:
+    """Set halt flag in DynamoDB (cache). Returns True if successful."""
+    try:
+        item = {
+            "key": "orchestrator_halt",
+            "halt_flag": halt,
+            "reason": reason,
+            "check_time": check_time,
+        }
+        ts_key = "triggered_at" if halt else "reset_at"
+        item[ts_key] = datetime.now(timezone.utc).isoformat()
+        table.put_item(Item=item)
+        logger.debug(f"[CIRCUIT_BREAKER] Set halt_flag={halt} in DynamoDB: {reason}")
+        return True
+    except Exception as e:
+        logger.warning(f"[CIRCUIT_BREAKER] Failed to set halt flag in DynamoDB: {e}")
+        return False
+
+
+def _set_halt(table, halt: bool, reason: str, check_time: str) -> bool:
+    """Set halt flag atomically in RDS (source of truth) and DynamoDB (cache).
+
+    RDS is the source of truth. DynamoDB write failure is tolerable since reads
+    fall back to RDS. This prevents split-brain where one store succeeds and the
+    other fails, causing inconsistent state across orchestrator runs.
+
+    Returns True if RDS write succeeds (source of truth), False otherwise.
+    """
+    # RDS is source of truth: must succeed
+    rds_success = _set_halt_flag_rds(halt, reason, check_time)
+
+    # DynamoDB is read cache: best-effort, failure is tolerable
+    if rds_success:
+        ddb_success = _set_halt_flag_dynamodb(table, halt, reason, check_time)
+        logger.critical(
+            f"[CIRCUIT_BREAKER] Halt flag={halt} set: RDS=True, DynamoDB={ddb_success}, reason={reason}"
+        )
+        return True
+
+    logger.error(f"[CIRCUIT_BREAKER] Failed to set halt flag in RDS (source of truth): {reason}")
+    return False
 
 
 def lambda_handler(event, context):
@@ -154,7 +232,7 @@ def lambda_handler(event, context):
     table = dynamodb.Table("algo_orchestrator_state")
 
     try:
-        current_pnl, open_pnl, variance = get_portfolio_pnl()
+        current_pnl, _, variance = get_portfolio_pnl()
 
         if variance is None:
             logger.error(

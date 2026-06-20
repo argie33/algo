@@ -146,10 +146,70 @@ def _check_critical_table_freshness() -> dict:
         return {"status": "error", "error": str(e)[:100], "age_details": {}}
 
 
-def _set_halt_flag_dynamodb(reason: str) -> bool:
-    """Set halt flag in DynamoDB so the orchestrator stops trading."""
-    table_name = os.environ.get("HALT_FLAG_TABLE", "algo_orchestrator_state")
+def _set_halt_flag_atomically(reason: str) -> bool:
+    """Set halt flag atomically in RDS (source of truth) and DynamoDB (cache).
+
+    RDS is the source of truth. DynamoDB write failure is tolerable since reads
+    fall back to RDS. This prevents split-brain where one store succeeds and the
+    other fails, causing inconsistent state across orchestrator runs.
+    """
     now_utc = datetime.now(timezone.utc)
+
+    # Write to RDS first (source of truth)
+    rds_success = _set_halt_flag_rds(reason, now_utc)
+
+    # Write to DynamoDB (cache) as best-effort if RDS succeeded
+    if rds_success:
+        ddb_success = _set_halt_flag_dynamodb(reason, now_utc)
+        logger.critical(
+            f"[FRESHNESS] Halt flag set: RDS=True, DynamoDB={ddb_success}, reason={reason}"
+        )
+        return True
+
+    logger.error(f"[FRESHNESS] Failed to set halt flag in RDS (source of truth): {reason}")
+    return False
+
+
+def _set_halt_flag_rds(reason: str, now_utc: datetime) -> bool:
+    """Set halt flag in RDS. Returns True if successful."""
+    try:
+        conn = _get_db_connection()
+        cur = conn.cursor()
+        cur.execute("""
+            INSERT INTO algo_runtime_state (
+                state_key, state_value, halt_flag, halt_triggered_at,
+                halt_reason, halt_count, updated_by, expires_at
+            ) VALUES (%s, %s, %s, %s, %s, %s, %s, %s)
+            ON CONFLICT (state_key) DO UPDATE SET
+                halt_flag = EXCLUDED.halt_flag,
+                halt_triggered_at = EXCLUDED.halt_triggered_at,
+                halt_reason = EXCLUDED.halt_reason,
+                halt_count = EXCLUDED.halt_count,
+                last_updated_at = CURRENT_TIMESTAMP,
+                expires_at = EXCLUDED.expires_at
+        """, (
+            "orchestrator_halt",
+            json.dumps({"halt_flag": True, "triggered_at": now_utc.isoformat(), "reason": reason}),
+            True,
+            now_utc.isoformat(),
+            reason,
+            1,
+            "data_freshness_monitor",
+            (now_utc.timestamp() + 86400),  # 24 hours from now
+        ))
+        conn.commit()
+        cur.close()
+        conn.close()
+        logger.debug(f"[FRESHNESS] Set halt flag in RDS: {reason}")
+        return True
+    except Exception as e:
+        logger.warning(f"[FRESHNESS] Failed to set halt flag in RDS: {e}")
+        return False
+
+
+def _set_halt_flag_dynamodb(reason: str, now_utc: datetime) -> bool:
+    """Set halt flag in DynamoDB (cache). Returns True if successful."""
+    table_name = os.environ.get("HALT_FLAG_TABLE", "algo_orchestrator_state")
     try:
         ddb = boto3.resource("dynamodb", region_name=os.environ.get("AWS_REGION", "us-east-1"))
         table = ddb.Table(table_name)
@@ -160,10 +220,11 @@ def _set_halt_flag_dynamodb(reason: str) -> bool:
             "halt_triggered_at": now_utc.isoformat(),
             "source": "data_freshness_monitor",
         })
-        logger.info(f"[FRESHNESS] Set DynamoDB halt flag: {reason}")
+        logger.debug(f"[FRESHNESS] Set halt flag in DynamoDB: {reason}")
         return True
     except Exception as e:
-            raise RuntimeError(f"Operation failed: {e}") from e
+        logger.warning(f"[FRESHNESS] Failed to set halt flag in DynamoDB: {e}")
+        return False
 
 
 def lambda_handler(event, context):
@@ -179,7 +240,7 @@ def lambda_handler(event, context):
             f"[FRESHNESS] HALT-table staleness detected: {halt_stale}"
         )
         reason = f"Critical pipeline data stale: {'; '.join(halt_stale[:3])}"
-        _set_halt_flag_dynamodb(reason)
+        _set_halt_flag_atomically(reason)
     elif freshness["status"] in ["degraded", "critical"]:
         logger.warning(
             f"[FRESHNESS] Warn-only staleness (no halt): {freshness.get('stale_tables', [])}"
