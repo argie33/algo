@@ -9,6 +9,7 @@ from enum import Enum
 
 from utils.db import DatabaseContext, assert_safe_column, assert_safe_table
 from utils.infrastructure import EASTERN_TZ
+import psycopg2
 
 
 logger = logging.getLogger(__name__)

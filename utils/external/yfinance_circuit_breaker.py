@@ -20,6 +20,7 @@ from datetime import datetime, timedelta, timezone
 from typing import Any
 
 from utils.db.context import DatabaseContext
+import psycopg2
 
 
 logger = logging.getLogger(__name__)

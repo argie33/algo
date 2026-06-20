@@ -5,6 +5,7 @@ import logging
 
 from ..base import BaseCheck, CheckResult
 from ..config import ERROR, INFO, WARN
+import psycopg2
 
 
 logger = logging.getLogger(__name__)

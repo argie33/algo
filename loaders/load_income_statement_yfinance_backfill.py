@@ -19,6 +19,7 @@ import yfinance
 from loaders.runner import run_loader
 from utils.db.context import DatabaseContext
 from utils.optimal_loader import OptimalLoader
+import psycopg2
 
 
 logger = logging.getLogger(__name__)
@@ -71,7 +72,7 @@ class IncomeStatementYFinanceBackfillLoader(OptimalLoader):
                         f"{symbol}: yfinance has no income statement data. Cannot backfill."
                     )
                     return None
-            except (psycopg2.DatabaseError, psycopg2.OperationalError) as e:
+            except (ValueError, KeyError, AttributeError, TypeError, Exception) as e:
                 logger.debug(
                     f"{symbol}: yfinance fetch failed: {e}. Skipping backfill."
                 )

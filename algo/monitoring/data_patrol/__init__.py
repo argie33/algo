@@ -7,6 +7,7 @@ This module coordinates multiple data quality checks and logs results.
 import argparse
 import json
 import logging
+import psycopg2
 import socket
 import time
 from datetime import datetime, timezone

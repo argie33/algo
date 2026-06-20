@@ -12,6 +12,8 @@ import logging
 import time
 from contextlib import contextmanager
 from typing import Optional
+import psycopg2
+import requests
 
 
 logger = logging.getLogger(__name__)

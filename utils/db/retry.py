@@ -13,6 +13,7 @@ from collections.abc import Callable
 from typing import Any, TypeVar
 
 from utils.db.structured_logging import StructuredDBLogger
+import psycopg2
 
 
 logger = logging.getLogger(__name__)

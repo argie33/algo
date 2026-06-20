@@ -118,7 +118,10 @@ class MarketHealthDailyLoader(OptimalLoader):
             else:
                 logger.warning(f"VIX unavailable: {e}. Continuing with missing VIX values.")
 
-        # Merge today's put/call ratio from SPY options (REQUIRED - fail if unavailable)
+        # Merge today's put/call ratio from SPY options (non-critical enrichment - fail gracefully)
+        # Put/call_ratio and VIX both depend on yfinance API which has rate limits and outages.
+        # Making this REQUIRED would block entire pipeline on yfinance issues.
+        # Graceful degradation allows data pipeline to continue and signal generation to proceed.
         try:
             today_pc = self._fetch_put_call_ratio(end)
             if today_pc is not None:
@@ -129,21 +132,17 @@ class MarketHealthDailyLoader(OptimalLoader):
                 # On non-trading days, put/call is legitimately unavailable
                 logger.debug("Put/call ratio unavailable (non-trading day or no options data)")
         except RuntimeError as e:
-            raise RuntimeError(
-                f"[MARKET_HEALTH] Put/call ratio computation failed: {e}. "
-                "This is a REQUIRED metric for market health. Failing loudly per fail-fast policy."
-            ) from e
+            logger.warning(f"Put/call ratio unavailable: {e}. Continuing with missing put/call data.")
 
-        # Merge yield curve slope from economic_metrics_daily (REQUIRED - fail if unavailable)
+        # Merge yield curve slope from economic_metrics_daily (non-critical enrichment - fail gracefully)
+        # Yield curve data is computed by economic_metrics_daily loader which runs separately.
+        # If that loader has issues, yield curve will be missing, but market health should still load.
         try:
             yield_curve = self._fetch_yield_curve_data(start, end)
             for m in health_metrics:
                 m["yield_curve_slope"] = yield_curve.get(m["date"])
         except RuntimeError as e:
-            raise RuntimeError(
-                f"[MARKET_HEALTH] Yield curve data fetch failed: {e}. "
-                "This is a REQUIRED metric for market health. Failing loudly per fail-fast policy."
-            ) from e
+            logger.warning(f"Yield curve unavailable: {e}. Continuing with missing yield curve data.")
 
         # Optimize breadth data fetching for incremental updates: only compute for dates we'll keep
         if since is not None:

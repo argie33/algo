@@ -12,6 +12,7 @@ from datetime import date as _date
 from datetime import timedelta
 from typing import Any, ClassVar, cast
 
+import psycopg2
 from algo.infrastructure.constants import (
     REGIME_HOLD_DAYS_CAUTION,
     REGIME_HOLD_DAYS_CONFIRMED_UPTREND,

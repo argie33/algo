@@ -28,6 +28,7 @@ import pandas as pd
 from utils.db.context import DatabaseContext
 from utils.infrastructure.timezone import EASTERN_TZ
 from utils.loaders.helpers import get_active_symbols
+import psycopg2
 
 
 logger = logging.getLogger(__name__)

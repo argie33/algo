@@ -2,6 +2,7 @@
 """Economic Calendar Loader — Upcoming macro events (FOMC, CPI, NFP, GDP)."""
 
 from loaders.loader_helper import setup_imports
+import psycopg2
 
 
 setup_imports()

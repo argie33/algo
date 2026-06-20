@@ -13,6 +13,7 @@ Requires: price_daily table populated with at least 252 days of data.
 import sys
 
 from loaders.loader_helper import setup_imports
+import psycopg2
 
 
 setup_imports()

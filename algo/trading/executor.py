@@ -14,13 +14,13 @@ Features:
 import json
 import logging
 import os
+import psycopg2
+import requests
 import time
 import uuid
 from datetime import datetime, timezone
 from decimal import ROUND_HALF_UP, Decimal
 from typing import Any
-
-import requests
 
 from algo.infrastructure import get_api_timeout
 from algo.reporting import TradeNotificationService, notify

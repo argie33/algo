@@ -9,6 +9,7 @@ import logging
 import os
 import threading
 from typing import Any
+import psycopg2
 
 
 # Set up imports for Lambda API - ensures routes, api_utils, utils, and other packages are importable

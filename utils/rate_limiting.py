@@ -15,6 +15,7 @@ import logging
 import os
 from time import time
 from typing import Dict, Optional, Tuple, cast
+import requests
 
 
 logger = logging.getLogger(__name__)

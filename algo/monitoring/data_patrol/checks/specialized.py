@@ -9,6 +9,7 @@ from utils.db import assert_safe_table
 
 from ..base import BaseCheck, CheckResult
 from ..config import ERROR, INFO, WARN
+import psycopg2
 
 
 logger = logging.getLogger(__name__)

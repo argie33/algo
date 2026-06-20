@@ -13,6 +13,7 @@ import logging
 
 from utils.db.context import DatabaseContext
 from utils.db.query_cache import CacheStrategy, QueryCache
+import psycopg2
 
 
 logger = logging.getLogger(__name__)

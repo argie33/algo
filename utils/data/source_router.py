@@ -39,6 +39,8 @@ import yfinance as yf
 
 from algo.infrastructure import RateLimiter, retry
 from utils.infrastructure import EASTERN_TZ
+import json
+import requests
 
 
 logger = logging.getLogger(__name__)

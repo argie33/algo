@@ -4,6 +4,7 @@
 import sys
 
 from loaders.loader_helper import setup_imports
+import psycopg2
 
 
 setup_imports()

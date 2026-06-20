@@ -17,6 +17,8 @@ Usage in loader scripts:
 import socket
 import sys
 from pathlib import Path
+import json
+import requests
 
 
 def setup_imports():

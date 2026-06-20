@@ -12,6 +12,7 @@ import os
 import sys
 from datetime import date as _date
 from pathlib import Path
+import psycopg2
 
 
 # Setup logging

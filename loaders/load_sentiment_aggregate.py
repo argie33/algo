@@ -8,6 +8,7 @@ from typing import List, Optional
 
 from loaders.runner import run_loader
 from utils.optimal_loader import OptimalLoader
+import psycopg2
 
 
 logger = logging.getLogger(__name__)

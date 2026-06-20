@@ -18,6 +18,7 @@ Time: ~2-5 seconds (vectorized computation, minimal DB load)
 
 import logging
 import sys
+import psycopg2
 
 
 # Configure logging

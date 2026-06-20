@@ -25,6 +25,7 @@ from algo.orchestrator.phase_result import PhaseResult
 from algo.risk import LiquidityChecks
 from algo.trading import PositionSizer, PreTradeChecks, TradeExecutor
 from utils.db.context import DatabaseContext
+import psycopg2
 
 
 logger = logging.getLogger(__name__)

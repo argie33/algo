@@ -12,6 +12,7 @@ import time
 from typing import List
 
 from utils.db import DatabaseContext
+import psycopg2
 
 
 logger = logging.getLogger(__name__)

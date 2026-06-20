@@ -19,6 +19,7 @@ from loaders.technical_indicators import compute_moving_averages
 from utils.db.context import DatabaseContext
 from utils.infrastructure.timezone import EASTERN_TZ
 from utils.optimal_loader import OptimalLoader
+import psycopg2
 
 
 logger = logging.getLogger(__name__)

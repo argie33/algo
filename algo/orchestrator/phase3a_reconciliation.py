@@ -8,6 +8,7 @@ from typing import Any
 
 from algo.orchestrator.phase_result import PhaseResult
 from algo.reporting import AlertManager
+import psycopg2
 
 
 logger = logging.getLogger(__name__)

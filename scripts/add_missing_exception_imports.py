@@ -19,30 +19,70 @@ def add_imports_to_file(file_path: Path) -> bool:
     # Check what exception types are used in except clauses
     for line in lines:
         if "except" in line:
-            if "psycopg2" in line and "import psycopg2" not in content:
-                imports_needed.add("psycopg2")
-            if "requests.RequestException" in line and "import requests" not in content:
+            if "psycopg2." in line:
+                main_import = "import psycopg2"
+                from_import = "from psycopg2"
+                if main_import not in content and from_import not in content:
+                    imports_needed.add("psycopg2")
+            if "requests." in line and "import requests" not in content:
                 imports_needed.add("requests")
-            if "json.JSONDecodeError" in line and "import json" not in content:
+            if "json." in line and "import json" not in content:
                 imports_needed.add("json")
 
     if not imports_needed:
         return False
 
-    # Find where to insert imports (after existing imports)
+    # Find where to insert imports (after shebang, docstrings, and existing imports)
     insert_pos = 0
+    in_docstring = False
+    docstring_char = None
+
     for i, line in enumerate(lines):
         stripped = line.strip()
+
+        # Skip shebang
+        if i == 0 and stripped.startswith("#!"):
+            insert_pos = i + 1
+            continue
+
+        # Handle docstrings (both """ and ''')
+        if '"""' in line or "'''" in line:
+            quote_type = '"""' if '"""' in line else "'''"
+            if not in_docstring:
+                in_docstring = True
+                docstring_char = quote_type
+                # Check if it ends on the same line
+                count = line.count(quote_type)
+                if count >= 2:
+                    in_docstring = False
+            elif docstring_char in line:
+                in_docstring = False
+            insert_pos = i + 1
+            continue
+
+        if in_docstring:
+            insert_pos = i + 1
+            continue
+
+        # Look for imports or first code
         if stripped.startswith("import ") or stripped.startswith("from "):
             insert_pos = i + 1
         elif stripped and not stripped.startswith("#"):
-            # First non-import, non-comment line
+            # First real code line - stop
             break
 
-    # Add imports
+    # Add imports (smart check for actual imports)
     new_imports = []
     for module in sorted(imports_needed):
-        if module not in content:  # Double-check not already imported
+        has_import = False
+        if module == "psycopg2":
+            # For psycopg2, check for main module import only
+            has_import = "import psycopg2" in content or re.search(r"^import psycopg2\b", content, re.MULTILINE)
+        else:
+            # For json/requests, either main or submodule import is fine
+            has_import = f"import {module}" in content or re.search(rf"^from {module}", content, re.MULTILINE)
+
+        if not has_import:
             new_imports.append(f"import {module}")
 
     if new_imports:

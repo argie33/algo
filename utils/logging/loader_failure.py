@@ -13,6 +13,7 @@ from datetime import date, timedelta
 from typing import Any, Dict, Optional, Tuple
 
 from utils.db import DatabaseContext
+import psycopg2
 
 
 logger = logging.getLogger(__name__)

@@ -12,6 +12,7 @@ Rules:
 
 import logging
 import os
+import psycopg2
 from datetime import date as _date
 from decimal import ROUND_HALF_UP, Decimal
 from typing import Any, cast

@@ -2,6 +2,7 @@
 
 import json
 import logging
+import psycopg2
 from typing import Dict
 
 # Ensure imports work - setup_imports is imported by parent module (lambda_function or api_router)

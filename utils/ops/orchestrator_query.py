@@ -10,6 +10,7 @@ import logging
 from typing import Any, Dict, List, Optional
 
 from utils.db import DatabaseContext
+import psycopg2
 
 
 logger = logging.getLogger(__name__)

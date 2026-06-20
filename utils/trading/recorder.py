@@ -11,6 +11,7 @@ from decimal import Decimal
 from typing import Optional
 
 from utils.db import DatabaseContext
+import psycopg2
 
 
 logger = logging.getLogger(__name__)

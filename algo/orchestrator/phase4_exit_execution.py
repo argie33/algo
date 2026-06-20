@@ -10,6 +10,7 @@ from algo.orchestrator.phase_result import PhaseResult
 from algo.reporting import AlertManager
 from utils.db.context import DatabaseContext
 from utils.trading.status import PositionStatus
+import psycopg2
 
 
 logger = logging.getLogger(__name__)

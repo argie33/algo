@@ -8,6 +8,7 @@ import logging
 from datetime import timedelta
 
 from utils.db import DatabaseContext
+import psycopg2
 
 
 logger = logging.getLogger(__name__)

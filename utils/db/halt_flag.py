@@ -25,6 +25,7 @@ from typing import Dict, Optional, Tuple
 
 from utils.db.context import DatabaseContext
 from utils.infrastructure.timezone import EASTERN_TZ
+import psycopg2
 
 
 logger = logging.getLogger(__name__)

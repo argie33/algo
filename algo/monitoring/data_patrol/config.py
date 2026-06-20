@@ -3,6 +3,7 @@
 
 import logging
 from typing import Any, cast
+import psycopg2
 
 
 logger = logging.getLogger(__name__)

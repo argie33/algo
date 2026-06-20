@@ -7,6 +7,7 @@ from typing import Any, cast
 
 from algo.signals.swing_component_scorer import SwingComponentScorer
 from utils.db import DatabaseContext
+import psycopg2
 
 
 logger = logging.getLogger(__name__)

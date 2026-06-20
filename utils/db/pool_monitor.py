@@ -11,6 +11,7 @@ import logging
 import os
 from datetime import datetime
 from typing import Any, Dict
+import psycopg2
 
 
 # Inlined from algo.infrastructure.constants — avoids importing the algo package

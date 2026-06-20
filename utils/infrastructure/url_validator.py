@@ -13,6 +13,7 @@ import ipaddress
 import logging
 from typing import List, Optional
 from urllib.parse import urlparse
+import requests
 
 
 logger = logging.getLogger(__name__)

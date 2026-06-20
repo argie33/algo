@@ -19,6 +19,7 @@ import logging
 from dataclasses import dataclass
 
 from utils.db.context import DatabaseContext
+import psycopg2
 
 
 logger = logging.getLogger(__name__)

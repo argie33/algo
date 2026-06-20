@@ -10,6 +10,7 @@ Gracefully handle missing options data (many small-caps have no options).
 import logging
 from datetime import date as _date
 from typing import Any
+import psycopg2
 
 
 logger = logging.getLogger(__name__)

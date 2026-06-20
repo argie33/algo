@@ -25,6 +25,7 @@ from algo.orchestrator.phase1_failsafe_retry import check_and_retry_incomplete_l
 from algo.orchestrator.phase_result import PhaseResult
 from algo.reporting import AlertManager
 from utils.db.context import DatabaseContext
+import psycopg2
 
 
 logger = logging.getLogger(__name__)

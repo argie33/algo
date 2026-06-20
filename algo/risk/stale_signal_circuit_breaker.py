@@ -6,6 +6,7 @@ from datetime import datetime, timezone
 
 from utils.db.context import DatabaseContext
 from utils.infrastructure.timezone import EASTERN_TZ
+import psycopg2
 
 
 logger = logging.getLogger(__name__)

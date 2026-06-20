@@ -11,6 +11,7 @@ Run: python3 loaders/enrich_buy_sell_daily_technical.py [--since YYYY-MM-DD] [--
 
 import sys
 from pathlib import Path
+import psycopg2
 
 
 sys.path.insert(0, str(Path(__file__).parent.parent))

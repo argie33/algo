@@ -13,6 +13,7 @@ THE RIGHT WAY: All database access goes through this context manager.
 import logging
 from typing import Any
 
+import psycopg2
 from psycopg2.extras import DictCursor
 
 from utils.db.connection import get_db_connection

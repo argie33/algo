@@ -33,6 +33,8 @@ import logging
 import sys
 from datetime import date, timedelta
 
+import psycopg2
+
 from utils.db.context import DatabaseContext
 
 
