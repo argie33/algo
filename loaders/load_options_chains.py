@@ -32,7 +32,7 @@ class OptionsLoader:
     def __init__(self):
         self.batch_size = 50
 
-    def run(self, symbols: Optional[list] = None, eval_date: Optional[date] = None) -> dict:
+    def run(self, symbols: list | None = None, eval_date: date | None = None) -> dict:
         """Load options data for all symbols."""
         start_time = time.time()
 
@@ -172,7 +172,7 @@ class OptionsLoader:
                         iv_col = calls_df.get("impliedVolatility")
                         if iv_col is not None:
                             iv_values.extend(iv_col.dropna().tolist())
-                except:
+                except Exception:
                     continue
 
             if not iv_values:
