@@ -13,7 +13,7 @@ persists to algo_config (live reloading via SwingTraderScore._load_config_weight
 
 import logging
 from datetime import date as _date
-from typing import Any, Dict, List, Optional
+from typing import Any, ClassVar, Dict, List
 
 
 try:
@@ -36,7 +36,7 @@ logger = logging.getLogger(__name__)
 class WeightOptimizer:
     """Dynamically optimize swing score component weights based on IC."""
 
-    COMPONENT_KEYS = {
+    COMPONENT_KEYS: ClassVar[dict[str, str]] = {
         "setup_quality": "swing_weight_setup",
         "trend_quality": "swing_weight_trend",
         "momentum_rs": "swing_weight_momentum",
@@ -46,14 +46,14 @@ class WeightOptimizer:
         "multi_timeframe": "swing_weight_multi_timeframe",
     }
 
-    COMPONENTS = list(COMPONENT_KEYS.keys())
+    COMPONENTS: ClassVar[list[str]] = list(COMPONENT_KEYS.keys())
 
-    MIN_WEIGHT = 3  # No component below 3%
-    MAX_WEIGHT = 40  # No component above 40%
-    MIN_TRADES = 20  # Don't optimize if < 20 closed trades
+    MIN_WEIGHT: ClassVar[int] = 3  # No component below 3%
+    MAX_WEIGHT: ClassVar[int] = 40  # No component above 40%
+    MIN_TRADES: ClassVar[int] = 20  # Don't optimize if < 20 closed trades
 
     # Regime-specific blending factors (how fast to adapt)
-    BLEND_FACTORS = {
+    BLEND_FACTORS: ClassVar[dict[str, float]] = {
         "confirmed_uptrend": 0.10,
         "uptrend_under_pressure": 0.05,
         "caution": 0.05,
@@ -77,7 +77,7 @@ class WeightOptimizer:
 
     def optimize(
         self, report_date: _date, lookback_trades: int = 40
-    ) -> Optional[Dict[str, int]]:
+    ) -> Dict[str, int] | None:
         """
         Compute optimal weights from IC values.
 
@@ -132,7 +132,7 @@ class WeightOptimizer:
         except Exception as e:
             raise RuntimeError(f"Operation failed: {e}") from e
 
-    def _solve_weights(self, ic_array: np.ndarray) -> Optional[Dict[str, int]]:
+    def _solve_weights(self, ic_array: np.ndarray) -> Dict[str, int] | None:
         """
         Solve constrained optimization for weights.
 
