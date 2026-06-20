@@ -258,11 +258,17 @@ def fetch_market(c):
     Issue 14 FIX: Uses cached markets endpoint to avoid duplicate API calls
     when fetch_exp_factors also needs the same data.
     """
+    from tools.dashboard.fetcher_validator import FetcherValidator
+
     try:
         mkt = _get_markets_cached()
-        if mkt.get("_error"):
-            record_data_quality_issue("market", "api_call", "api_error", mkt.get("_error"))
+
+        # Check for API error
+        is_error, error_msg = FetcherValidator.check_api_error(mkt)
+        if is_error:
+            record_data_quality_issue("market", "api_call", "api_error", error_msg)
             return mkt
+
         # API response is unwrapped so data is at top level (statusCode + fields)
         current = mkt.get("current") or {}
         market_health = mkt.get("market_health") or {}
@@ -277,12 +283,12 @@ def fetch_market(c):
                 error_msg = "Critical market data missing: VIX level required but not provided by API"
                 logger.error(error_msg)
                 record_data_quality_issue("market", "critical_field", "missing_vix")
-                return {"_error": error_msg}
+                return FetcherValidator.build_error_response(error_msg)
             if spy_raw is None:
                 error_msg = "Critical market data missing: SPY close required but not provided by API"
                 logger.error(error_msg)
                 record_data_quality_issue("market", "critical_field", "missing_spy")
-                return {"_error": error_msg}
+                return FetcherValidator.build_error_response(error_msg)
 
             vix = safe_float_strict(vix_raw, "market.vix_level")
             spy = safe_float_strict(spy_raw, "market.spy_close")
@@ -291,12 +297,12 @@ def fetch_market(c):
                 error_msg = f"Critical market data invalid: VIX = {vix} (must be > 0). Data quality issue in yfinance pipeline."
                 logger.error(error_msg)
                 record_data_quality_issue("market", "critical_field", "invalid_vix", f"vix={vix}")
-                return {"_error": error_msg}
+                return FetcherValidator.build_error_response(error_msg)
         except StrictValidationError as e:
             error_msg = f"Critical market data conversion failed: {e!s}"
             logger.error(error_msg)
             record_data_quality_issue("market", "critical_field", "conversion_failed", str(e))
-            return {"_error": error_msg}
+            return FetcherValidator.build_error_response(error_msg)
 
         # Issue #9: Market regime is REQUIRED — no fallback to "unknown"
         tier = current.get("regime")
@@ -308,7 +314,7 @@ def fetch_market(c):
             )
             logger.error(error_msg)
             record_data_quality_issue("market", "critical_field", "missing_regime")
-            return {"_error": error_msg}
+            return FetcherValidator.build_error_response(error_msg)
 
         return {
             "pct": safe_float(current.get("exposure_pct"), default=None),
