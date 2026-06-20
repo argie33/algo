@@ -2,7 +2,7 @@
 
 import time
 from datetime import date as _date
-from datetime import datetime, timedelta, timezone
+from datetime import datetime, timedelta
 from typing import Any
 
 from .utilities import (
@@ -27,10 +27,10 @@ def fmt_age(ts):
     if isinstance(ts, str):
         ts = datetime.fromisoformat(ts)
     if isinstance(ts, _date) and not isinstance(ts, datetime):
-        ts = datetime(ts.year, ts.month, ts.day, tzinfo=timezone.utc)
+        ts = datetime(ts.year, ts.month, ts.day, tzinfo=ET)
     if ts.tzinfo is None:
-        ts = ts.replace(tzinfo=timezone.utc)
-    m = int((datetime.now(timezone.utc) - ts).total_seconds() / 60)
+        ts = ts.replace(tzinfo=ET)
+    m = int((datetime.now(ET) - ts).total_seconds() / 60)
     if m < 60:
         return f"{m}m ago"
     if m < 1440:
@@ -41,6 +41,18 @@ def fmt_age(ts):
 def fmt_money(v):
     if v is None:
         return "--"
+    from decimal import ROUND_HALF_UP, Decimal
+    if isinstance(v, Decimal):
+        is_neg = v < 0
+        av = abs(v)
+        if av >= 1e6:
+            result = (av / Decimal("1e6")).quantize(Decimal("0.01"), rounding=ROUND_HALF_UP)
+            return f"{'-' if is_neg else ''}${result}M"
+        if av >= 1e3:
+            result = av.quantize(Decimal("1"), rounding=ROUND_HALF_UP)
+            return f"{'-' if is_neg else ''}${result:,}"
+        result = av.quantize(Decimal("0.01"), rounding=ROUND_HALF_UP)
+        return f"{'-' if is_neg else ''}${result}"
     v = float(v)
     s = "-" if v < 0 else ""
     av = abs(v)
@@ -55,6 +67,18 @@ def fmt_money_short(v):
     """Compact dollar format: $45K, $1.2M, $850 - for narrow table columns."""
     if v is None:
         return "--"
+    from decimal import ROUND_HALF_UP, Decimal
+    if isinstance(v, Decimal):
+        is_neg = v < 0
+        av = abs(v)
+        if av >= 1e6:
+            result = (av / Decimal("1e6")).quantize(Decimal("0.1"), rounding=ROUND_HALF_UP)
+            return f"{'-' if is_neg else ''}${result}M"
+        if av >= 1e3:
+            result = (av / Decimal("1e3")).quantize(Decimal("0"), rounding=ROUND_HALF_UP)
+            return f"{'-' if is_neg else ''}${result}K"
+        result = av.quantize(Decimal("0"), rounding=ROUND_HALF_UP)
+        return f"{'-' if is_neg else ''}${result}"
     v = float(v)
     s = "-" if v < 0 else ""
     av = abs(v)

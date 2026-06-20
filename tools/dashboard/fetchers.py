@@ -4,7 +4,11 @@ import random
 import threading
 import time
 from concurrent.futures import ThreadPoolExecutor, as_completed
-from datetime import datetime, timezone
+from datetime import datetime
+from zoneinfo import ZoneInfo
+
+
+ET = ZoneInfo("America/New_York")
 
 from .api_data_layer import API_MAX_BACKOFF, api_call
 from .data_validation import (
@@ -382,8 +386,8 @@ def _check_data_freshness(
     try:
         ts = datetime.fromisoformat(timestamp_str.replace("Z", "+00:00"))
         if ts.tzinfo is None:
-            ts = ts.replace(tzinfo=timezone.utc)
-        age_seconds = (datetime.now(timezone.utc) - ts).total_seconds()
+            ts = ts.replace(tzinfo=ET)
+        age_seconds = (datetime.now(ET) - ts).total_seconds()
         if age_seconds > max_age_seconds:
             age_minutes = age_seconds / 60
             error_msg = (
@@ -702,18 +706,18 @@ def fetch_positions(c):
             return {
                 "_error": _get_error_message(data),
                 "items": [],
-                "timestamp": datetime.now(timezone.utc),
+                "timestamp": datetime.now(ET),
             }
         result = data
         items = result.get("items", []) if isinstance(result, dict) else result if isinstance(result, list) else []
-        return {"items": items, "timestamp": datetime.now(timezone.utc)}
+        return {"items": items, "timestamp": datetime.now(ET)}
     except Exception as e:
         error_msg = _format_fetcher_error("pos", e)
         logger.error(error_msg)
         return {
             "_error": error_msg,
             "items": [],
-            "timestamp": datetime.now(timezone.utc),
+            "timestamp": datetime.now(ET),
         }
 
 
@@ -733,23 +737,23 @@ def fetch_recent_trades(c):
                 return {
                     "_no_data": True,
                     "items": [],
-                    "timestamp": datetime.now(timezone.utc),
+                    "timestamp": datetime.now(ET),
                 }
             return {
                 "_error": _get_error_message(data),
                 "items": [],
-                "timestamp": datetime.now(timezone.utc),
+                "timestamp": datetime.now(ET),
             }
         result = data
         trades = result.get("items", []) if isinstance(result, dict) else result if isinstance(result, list) else []
-        return {"items": trades, "timestamp": datetime.now(timezone.utc)}
+        return {"items": trades, "timestamp": datetime.now(ET)}
     except Exception as e:
         error_msg = _format_fetcher_error("trades", e)
         logger.error(error_msg)
         return {
             "_error": error_msg,
             "items": [],
-            "timestamp": datetime.now(timezone.utc),
+            "timestamp": datetime.now(ET),
         }
 
 
@@ -767,7 +771,7 @@ def fetch_signals(c):
                 "near": [],
                 "top_a": [],
                 "trend": [],
-                "timestamp": datetime.now(timezone.utc),
+                "timestamp": datetime.now(ET),
             }
         if not data:
             return {
@@ -779,7 +783,7 @@ def fetch_signals(c):
                 "near": [],
                 "top_a": [],
                 "trend": [],
-                "timestamp": datetime.now(timezone.utc),
+                "timestamp": datetime.now(ET),
             }
 
         result = data
@@ -795,7 +799,7 @@ def fetch_signals(c):
             "top_a": top_a,
             "trend": result.get("trend", []),
             "date": result.get("date"),
-            "timestamp": datetime.now(timezone.utc),
+            "timestamp": datetime.now(ET),
         }
     except Exception as e:
         error_msg = _format_fetcher_error("sig", e)
@@ -809,7 +813,7 @@ def fetch_signals(c):
             "near": [],
             "top_a": [],
             "trend": [],
-            "timestamp": datetime.now(timezone.utc),
+            "timestamp": datetime.now(ET),
         }
 
 

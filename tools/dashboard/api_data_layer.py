@@ -32,7 +32,11 @@ import os
 import random
 import threading
 import time
-from datetime import datetime, timezone
+from datetime import datetime
+from zoneinfo import ZoneInfo
+
+
+ET = ZoneInfo("America/New_York")
 from typing import Any, cast
 
 import requests
@@ -171,7 +175,7 @@ def cache_response(endpoint: str, data: dict) -> None:
     with _response_cache_lock:
         _response_cache[endpoint] = {
             "data": data,
-            "timestamp": datetime.now(timezone.utc),
+            "timestamp": datetime.now(ET),
         }
 
 
@@ -196,7 +200,7 @@ def get_cached_response(endpoint: str, mark_stale: bool = False) -> dict | None:
             return None
     cached_data = cached.get("data", {})
     timestamp = cached.get("timestamp")
-    age_seconds = (datetime.now(timezone.utc) - timestamp).total_seconds()
+    age_seconds = (datetime.now(ET) - timestamp).total_seconds()
 
     if age_seconds > 1800:
         if not mark_stale:

@@ -6,7 +6,7 @@ import logging
 import os
 import threading
 from collections import OrderedDict
-from datetime import datetime, timedelta, timezone
+from datetime import datetime, timedelta
 from typing import Any
 from zoneinfo import ZoneInfo
 
@@ -256,8 +256,8 @@ def validate_data_freshness(data: dict, max_age_hours: int = 24, field_name: str
     if not isinstance(ts, datetime):
         return True
     if ts.tzinfo is None:
-        ts = ts.replace(tzinfo=timezone.utc)
-    age_hours = (datetime.now(timezone.utc) - ts).total_seconds() / 3600
+        ts = ts.replace(tzinfo=ET)
+    age_hours = (datetime.now(ET) - ts).total_seconds() / 3600
     if age_hours > max_age_hours:
         logger.warning(f"Data stale: {field_name} is {age_hours:.1f}h old (threshold: {max_age_hours}h)")
         return False
@@ -283,7 +283,7 @@ def record_data_quality_issue(fetcher: str, field: str, issue: str, value: Any =
     with _data_quality_lock:
         _data_quality_issues.append(
             {
-                "timestamp": datetime.now(timezone.utc),
+                "timestamp": datetime.now(ET),
                 "fetcher": fetcher,
                 "field": field,
                 "issue": issue,
@@ -303,7 +303,7 @@ def get_data_quality_report(max_age_minutes: int = 30) -> list[dict[str, Any]]:
     Returns:
         List of issue dicts with timestamp, fetcher, field, issue, value
     """
-    cutoff = datetime.now(timezone.utc) - timedelta(minutes=max_age_minutes)
+    cutoff = datetime.now(ET) - timedelta(minutes=max_age_minutes)
     with _data_quality_lock:
         recent = [i for i in _data_quality_issues if i["timestamp"] >= cutoff]
     return recent
