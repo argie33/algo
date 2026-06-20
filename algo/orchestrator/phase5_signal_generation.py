@@ -149,6 +149,59 @@ def _check_market_regime(run_date: _date) -> Dict:
         }
 
 
+def _detect_upstream_data_quality_drift(run_date: _date, signal_source: str) -> Dict:
+    """Detect upstream data quality issues by comparing expected vs. actual swing_trader_scores coverage.
+
+    Returns dict with: {"swing_scores_missing": count_by_symbol, "has_drift": bool, "drift_symbols": list}
+    """
+    drift = {"swing_scores_missing": 0, "has_drift": False, "drift_symbols": []}
+
+    try:
+        with DatabaseContext("read") as cur:
+            lookback_date = run_date - timedelta(days=_BUYSELL_LOOKBACK_DAYS) if signal_source == "buysell_breakout" else None
+
+            if signal_source == "buysell_breakout":
+                cur.execute(
+                    """
+                    SELECT COUNT(DISTINCT bsd.symbol)
+                    FROM (
+                        SELECT DISTINCT ON (symbol) *
+                        FROM buy_sell_daily
+                        WHERE signal_type = 'BUY' AND date >= %s AND date <= %s
+                        ORDER BY symbol, date DESC
+                    ) bsd
+                    LEFT JOIN swing_trader_scores sts ON sts.symbol = bsd.symbol
+                        AND sts.date <= %s AND sts.score IS NOT NULL
+                    WHERE sts.symbol IS NULL
+                    """,
+                    (lookback_date, run_date, run_date),
+                )
+            else:
+                cur.execute(
+                    """
+                    SELECT COUNT(DISTINCT ss.symbol)
+                    FROM stock_scores ss
+                    LEFT JOIN swing_trader_scores sts ON sts.symbol = ss.symbol
+                        AND sts.date <= %s AND sts.score IS NOT NULL
+                    WHERE sts.symbol IS NULL LIMIT 1
+                    """,
+                    (run_date,),
+                )
+
+            row = cur.fetchone()
+            if row and row[0] and row[0] > 0:
+                drift["swing_scores_missing"] = int(row[0])
+                drift["has_drift"] = True
+                logger.warning(
+                    f"[PHASE 5] DATA QUALITY ALERT: {row[0]} symbols missing swing_trader_scores "
+                    f"(source={signal_source}, date={run_date}). Check swing_trader_scores loader."
+                )
+    except Exception as e:
+        logger.debug(f"[PHASE 5] Could not check upstream data quality: {e}")
+
+    return drift
+
+
 def _check_liquidity_parallel(candidate: Dict, run_date: _date) -> Tuple[Dict, bool]:
     """Check liquidity for a single candidate. Returns (candidate, passed)."""
     try:
@@ -165,7 +218,7 @@ def _check_liquidity_parallel(candidate: Dict, run_date: _date) -> Tuple[Dict, b
 
 
 def _get_candidates_from_buysell(
-    run_date: _date, min_score: float, limit: int = 100
+    run_date: _date, min_score: float, limit: int = 100, min_close_quality: float = 0.3
 ) -> List[Dict]:
     """Primary signal source: buy_sell_daily pivot-breakout BUY signals + stock_scores ranking + swing_trader_scores.
 
@@ -175,6 +228,9 @@ def _get_candidates_from_buysell(
 
     Lookback: last _BUYSELL_LOOKBACK_DAYS calendar days — covers the prior EOD pipeline's
     signals for morning/afternoon orchestrator runs, plus today's signals for the 5:30 PM run.
+
+    ISSUE #3 FIX: All validation filters (swing_score, trend, close quality) moved to SQL WHERE clauses
+    for efficiency and to detect upstream data quality drift immediately.
     """
     lookback_date = run_date - timedelta(days=_BUYSELL_LOOKBACK_DAYS)
     try:
@@ -182,81 +238,74 @@ def _get_candidates_from_buysell(
             cur.execute("SET LOCAL statement_timeout = '15000ms'")
             cur.execute(
                 """
-                SELECT
-                    bsd.symbol,
-                    ss.composite_score,
-                    ss.quality_score,
-                    ss.growth_score,
-                    ss.momentum_score,
-                    ss.rs_percentile,
-                    p.close,
-                    p.high,
-                    p.low,
-                    sma.avg_close AS sma_50,
-                    cp.sector,
-                    cp.industry,
-                    bsd.buylevel,
-                    bsd.stoplevel,
-                    bsd.strength AS signal_strength,
-                    bsd.volume_surge_pct,
-                    bsd.market_stage,
-                    bsd.date AS signal_date,
-                    sts.score AS swing_score,
-                    sts.components AS swing_components
-                FROM (
-                    SELECT DISTINCT ON (symbol) *
-                    FROM buy_sell_daily
-                    WHERE signal_type = 'BUY'
-                      AND date >= %s
-                      AND date <= %s
-                    ORDER BY symbol, date DESC
-                ) bsd
-                JOIN stock_scores ss ON ss.symbol = bsd.symbol
-                LEFT JOIN swing_trader_scores sts ON sts.symbol = bsd.symbol
-                    AND sts.date <= %s
-                JOIN LATERAL (
-                    SELECT close, high, low
-                    FROM price_daily
-                    WHERE symbol = bsd.symbol AND date <= %s
-                    ORDER BY date DESC LIMIT 1
-                ) p ON TRUE
-                JOIN LATERAL (
-                    SELECT AVG(close) AS avg_close
+                WITH ranked AS (
+                    SELECT
+                        bsd.symbol,
+                        ss.composite_score,
+                        ss.quality_score,
+                        ss.growth_score,
+                        ss.momentum_score,
+                        ss.rs_percentile,
+                        p.close,
+                        p.high,
+                        p.low,
+                        sma.avg_close AS sma_50,
+                        cp.sector,
+                        cp.industry,
+                        bsd.buylevel,
+                        bsd.stoplevel,
+                        bsd.strength AS signal_strength,
+                        bsd.volume_surge_pct,
+                        bsd.market_stage,
+                        bsd.date AS signal_date,
+                        sts.score AS swing_score,
+                        sts.components AS swing_components
                     FROM (
-                        SELECT close FROM price_daily
+                        SELECT DISTINCT ON (symbol) *
+                        FROM buy_sell_daily
+                        WHERE signal_type = 'BUY'
+                          AND date >= %s
+                          AND date <= %s
+                        ORDER BY symbol, date DESC
+                    ) bsd
+                    JOIN stock_scores ss ON ss.symbol = bsd.symbol
+                    INNER JOIN swing_trader_scores sts ON sts.symbol = bsd.symbol
+                        AND sts.date <= %s AND sts.score IS NOT NULL
+                    JOIN LATERAL (
+                        SELECT close, high, low
+                        FROM price_daily
                         WHERE symbol = bsd.symbol AND date <= %s
-                        ORDER BY date DESC LIMIT 50
-                    ) t
-                ) sma ON TRUE
-                LEFT JOIN company_profile cp ON cp.ticker = bsd.symbol
-                WHERE ss.composite_score >= %s
-                ORDER BY COALESCE(sts.score, ss.composite_score/2) DESC NULLS LAST, ss.composite_score DESC NULLS LAST
+                        ORDER BY date DESC LIMIT 1
+                    ) p ON TRUE
+                    JOIN LATERAL (
+                        SELECT AVG(close) AS avg_close
+                        FROM (
+                            SELECT close FROM price_daily
+                            WHERE symbol = bsd.symbol AND date <= %s
+                            ORDER BY date DESC LIMIT 50
+                        ) t
+                    ) sma ON TRUE
+                    LEFT JOIN company_profile cp ON cp.ticker = bsd.symbol
+                    WHERE ss.composite_score >= %s
+                      AND p.close > sma.avg_close
+                      AND p.high > p.low
+                      AND ((p.close - p.low) / (p.high - p.low)) > %s
+                      AND bsd.strength IS NOT NULL
+                )
+                SELECT * FROM ranked
+                ORDER BY swing_score DESC, composite_score DESC
                 LIMIT %s
                 """,
-                (lookback_date, run_date, run_date, run_date, run_date, min_score, limit),
+                (lookback_date, run_date, run_date, run_date, run_date, min_score, min_close_quality, limit),
             )
             rows = cur.fetchall()
 
         candidates = []
-        swing_score_missing = 0
-        signal_strength_missing = 0
         for r in rows:
-            swing_score_val = r[18]
-            if swing_score_val is None:
-                swing_score_missing += 1
-                logger.debug(f"[PHASE 5] {r[0]}: swing_score is NULL — rejecting candidate (gate: swing validation required)")
-                continue
-
-            raw_strength = float(r[14]) if r[14] is not None else None
-            if raw_strength is None:
-                signal_strength_missing += 1
-                logger.warning(f"[PHASE 5] {r[0]}: signal_strength is NULL — rejecting candidate (gate: raw signal strength required)")
-                continue
-
             close = float(r[6]) if r[6] is not None else None
             composite = float(r[1]) if r[1] is not None else None
-            strength = raw_strength
-            swing_score = float(swing_score_val)
+            raw_strength = float(r[14]) if r[14] is not None else None
+            swing_score = float(r[18]) if r[18] is not None else 0.0
             swing_components = r[19] if r[19] is not None else None
             candidates.append({
                 "symbol": r[0],
@@ -272,7 +321,7 @@ def _get_candidates_from_buysell(
                 "low": float(r[8]) if r[8] is not None else None,
                 "sma_50": float(r[9]) if r[9] is not None else None,
                 "entry_price": close,
-                "signal_strength": strength,
+                "signal_strength": raw_strength,
                 "sector": r[10],
                 "industry": r[11],
                 "buylevel": float(r[12]) if r[12] is not None else None,
@@ -285,10 +334,10 @@ def _get_candidates_from_buysell(
         swing_score_positive = sum(1 for c in candidates if c["swing_score"] > 0)
         logger.info(
             f"[PHASE 5] {len(candidates)} candidates from buy_sell_daily + stock_scores + swing_trader_scores "
-            f"(swing_scores: {swing_score_positive}, swing_missing: {swing_score_missing}, strength_missing: {signal_strength_missing}, lookback: {lookback_date} to {run_date})"
+            f"(swing_scores: {swing_score_positive}, lookback: {lookback_date} to {run_date}, "
+            f"SQL filters: trend & close_quality applied at query level)"
         )
 
-        # ISSUE #8 FIX: Validate signal data completeness before returning to Phase 6
         complete_candidates, incomplete_count = _validate_signal_completeness(candidates, "buy_sell_daily path")
 
         return complete_candidates
@@ -299,12 +348,15 @@ def _get_candidates_from_buysell(
         ) from e
 
 
-def _get_candidates(run_date: _date, min_score: float, limit: int = 100) -> List[Dict]:
+def _get_candidates(run_date: _date, min_score: float, limit: int = 100, min_close_quality: float = 0.3) -> List[Dict]:
     """Fallback: fetch candidates from stock_scores + swing_trader_scores with current prices.
 
     Used when buy_sell_daily has no fresh BUY signals (e.g., EOD loader hasn't run yet).
     Returns symbols ranked by swing_score (if available) or composite_score — no breakout confirmation,
     just uptrend + quality + swing trading factors.
+
+    ISSUE #3 FIX: All validation filters (swing_score, trend, close quality) moved to SQL WHERE clauses
+    for efficiency and to detect upstream data quality drift immediately.
     """
     try:
         with DatabaseContext("read") as cur:
@@ -327,8 +379,8 @@ def _get_candidates(run_date: _date, min_score: float, limit: int = 100) -> List
                     sts.score AS swing_score,
                     sts.components AS swing_components
                 FROM stock_scores ss
-                LEFT JOIN swing_trader_scores sts ON sts.symbol = ss.symbol
-                    AND sts.date <= %s
+                INNER JOIN swing_trader_scores sts ON sts.symbol = ss.symbol
+                    AND sts.date <= %s AND sts.score IS NOT NULL
                 JOIN LATERAL (
                     SELECT close, high, low
                     FROM price_daily
@@ -345,24 +397,20 @@ def _get_candidates(run_date: _date, min_score: float, limit: int = 100) -> List
                 ) sma ON TRUE
                 LEFT JOIN company_profile cp ON cp.ticker = ss.symbol
                 WHERE ss.composite_score >= %s
-                ORDER BY COALESCE(sts.score, ss.composite_score/2) DESC NULLS LAST, ss.composite_score DESC NULLS LAST
+                  AND p.close > sma.avg_close
+                  AND p.high > p.low
+                  AND ((p.close - p.low) / (p.high - p.low)) > %s
+                ORDER BY sts.score DESC, ss.composite_score DESC
                 LIMIT %s
                 """,
-                (run_date, run_date, run_date, min_score, limit),
+                (run_date, run_date, run_date, min_score, min_close_quality, limit),
             )
             rows = cur.fetchall()
 
         candidates = []
-        swing_score_missing = 0
         for r in rows:
-            swing_score_val = r[12]
-            if swing_score_val is None:
-                swing_score_missing += 1
-                logger.debug(f"[PHASE 5] {r[0]}: swing_score is NULL — rejecting candidate (gate: swing validation required)")
-                continue
-
             close = float(r[6]) if r[6] is not None else None
-            swing_score = float(swing_score_val)
+            swing_score = float(r[12]) if r[12] is not None else 0.0
             swing_components = r[13] if r[13] is not None else None
             candidates.append({
                 "symbol": r[0],
@@ -386,10 +434,9 @@ def _get_candidates(run_date: _date, min_score: float, limit: int = 100) -> List
         swing_score_positive = sum(1 for c in candidates if c["swing_score"] > 0)
         logger.info(
             f"[PHASE 5] {len(candidates)} candidates from stock_scores + swing_trader_scores + price_daily "
-            f"(swing_scores: {swing_score_positive}, missing: {swing_score_missing})"
+            f"(swing_scores: {swing_score_positive}, SQL filters: trend & close_quality applied at query level)"
         )
 
-        # ISSUE #8 FIX: Validate signal data completeness before returning to Phase 6
         complete_candidates, incomplete_count = _validate_signal_completeness(candidates, "stock_scores fallback path")
 
         return complete_candidates
@@ -473,7 +520,7 @@ def run(
     # Primary: buy_sell_daily pivot-breakout BUY signals filtered by stock_scores ranking.
     # buy_sell_daily is REQUIRED (loaded by EOD pipeline at 4:05 PM ET before orchestrator runs).
     # Fail explicitly if unavailable — don't silently degrade to stock_scores.
-    raw_candidates = _get_candidates_from_buysell(run_date, min_composite_score)
+    raw_candidates = _get_candidates_from_buysell(run_date, min_composite_score, min_close_quality=min_close_quality)
     if not raw_candidates:
         msg = (
             f"[PHASE 5 CRITICAL] No buy_sell_daily BUY signals found within last {_BUYSELL_LOOKBACK_DAYS} "
@@ -492,46 +539,18 @@ def run(
         log_phase_result_fn(5, "signal_generation", "halt", msg)
         return PhaseResult(5, "signal_generation", "halted", {"qualified_trades": []}, True, msg)
 
-    # Filter: price must be above 50-day moving average (basic uptrend requirement)
-    trend_filtered = []
-    trend_skipped = 0
-    for sig in raw_candidates:
-        close = sig.get("close")
-        sma_50 = sig.get("sma_50")
-        if close and sma_50 and close < sma_50:
-            trend_skipped += 1
-            logger.debug(f"[PHASE 5] {sig['symbol']}: close {close:.2f} < sma_50 {sma_50:.2f} — skip")
-            continue
-        trend_filtered.append(sig)
+    # ISSUE #3 FIX: All trend and close quality validation now happens at SQL level in _get_candidates_from_buysell().
+    # Candidates here are already filtered for: close > sma_50, close_position > min_close_quality, swing_score IS NOT NULL.
+    # This eliminates wasted I/O and ensures silent data quality drift is detected immediately.
+    quality_filtered = raw_candidates
 
-    logger.info(
-        f"[PHASE 5] Trend filter (close > SMA50): {len(trend_filtered)} passed, {trend_skipped} skipped"
-    )
-
-    # composite_score already populated from stock_scores in _get_candidates
-    score_filtered = trend_filtered
-
-    # Close quality gate: skip if close is in bottom of day's range (distribution signal)
-    quality_filtered = []
-    weak_close_count = 0
-    for sig in score_filtered:
-        close = sig.get("close")
-        high = sig.get("high")
-        low = sig.get("low")
-        if high and low and close and high > low:
-            close_position = (close - low) / (high - low)
-            if close_position < min_close_quality:
-                weak_close_count += 1
-                logger.debug(
-                    f"[PHASE 5] {sig['symbol']}: weak close {close_position:.0%} of range "
-                    f"(threshold={min_close_quality:.0%}) — skip"
-                )
-                continue
-        quality_filtered.append(sig)
-
-    logger.info(
-        f"[PHASE 5] Close quality gate: {len(quality_filtered)} passed, {weak_close_count} weak closes skipped"
-    )
+    # Check for upstream data quality issues (e.g., swing_trader_scores not populated)
+    upstream_drift = _detect_upstream_data_quality_drift(run_date, signal_source)
+    if upstream_drift.get("has_drift"):
+        logger.warning(
+            f"[PHASE 5] Upstream data quality drift detected: {upstream_drift['swing_scores_missing']} symbols "
+            f"missing swing_trader_scores. This may suppress valid candidates."
+        )
 
     # Sort by composite_score descending
     quality_filtered.sort(key=lambda s: s.get("composite_score", 0), reverse=True)
@@ -593,9 +612,7 @@ def run(
         {
             "qualified_trades": liq_passed,
             "total_candidates": len(raw_candidates),
-            "trend_filtered": len(trend_filtered),
-            "score_filtered": len(score_filtered),
-            "quality_filtered": len(quality_filtered),
+            "pre_liquidity_check": len(quality_filtered),
             "liquidity_passed": len(liq_passed),
             "regime": regime,
             "signal_source": signal_source,
