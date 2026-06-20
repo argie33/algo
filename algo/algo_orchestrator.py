@@ -13,9 +13,11 @@ import json
 import logging
 import os
 import time
+from collections.abc import Generator
+from contextlib import contextmanager
 from datetime import date as _date
 from datetime import datetime, timedelta, timezone
-from typing import Any, Dict, Optional, Union
+from typing import Any
 
 import psycopg2
 import psycopg2.extensions
@@ -35,15 +37,14 @@ from utils.infrastructure.timezone import EASTERN_TZ
 from utils.logging.execution_tracker import get_tracker
 
 
-from contextlib import contextmanager
-from typing import Generator
-
 _time_block: Any
 _log_metrics: Any
 
 try:
     from monitoring.metrics_context import (
         TimeBlock as _imported_time_block,
+    )
+    from monitoring.metrics_context import (
         log_metrics_summary as _imported_log_metrics,
     )
     _time_block = _imported_time_block
@@ -79,10 +80,10 @@ class Orchestrator:
     def __init__(
         self,
         config: Any,
-        run_date: Optional[_date] = None,
+        run_date: _date | None = None,
         dry_run: bool = False,
         verbose: bool = True,
-        per_phase_timeout: Optional[int] = None,
+        per_phase_timeout: int | None = None,
     ) -> None:
         if config is None:
             raise ValueError(
@@ -104,7 +105,7 @@ class Orchestrator:
         self.verbose = verbose
         # FIXED Issue #7: Per-phase timeout enforcement (prevents hung phases from blocking orchestrator)
         self.per_phase_timeout = per_phase_timeout
-        self.phase_results: Dict[Union[int, str], Any] = {}
+        self.phase_results: dict[int | str, Any] = {}
         self.run_id = f"RUN-{self.run_date.isoformat()}-{datetime.now(timezone.utc).strftime('%H%M%S')}"
         # FIXED Issue #6: Initialize execution tracker for audit trail logging
         self.execution_tracker = get_tracker()
@@ -725,14 +726,14 @@ class Orchestrator:
         if self._lock_acquired:
             self.lock_manager.release()
 
-    def log_phase_start(self, phase_num: Union[int, str], name: str) -> None:
+    def log_phase_start(self, phase_num: int | str, name: str) -> None:
         if self.verbose:
             logger.info(f"\n{'='*70}")
             logger.info(f"PHASE {phase_num}: {name}")
             logger.info(f"{'='*70}")
 
     def log_phase_result(
-        self, phase_num: Union[int, str], name: str, status: str, summary: str
+        self, phase_num: int | str, name: str, status: str, summary: str
     ) -> None:
         self.phase_results[phase_num] = {
             "name": name,
@@ -998,7 +999,7 @@ class Orchestrator:
 
     # ---------- Main entrypoint ----------
 
-    def run(self) -> Dict[str, Any]:
+    def run(self) -> dict[str, Any]:
         run_start = time.time()
         logger.info(f"\n{'#'*70}")
         logger.info(
@@ -1167,7 +1168,6 @@ class Orchestrator:
                     f"[PHASE 3] Completed in {phase_3_elapsed:.2f}s at {datetime.now(timezone.utc).isoformat()}"
                 )
             except (psycopg2.OperationalError, psycopg2.DatabaseError, psycopg2.InterfaceError, TimeoutError, ValueError, RuntimeError) as e:
-                phase_3_failed = True
                 logger.error(f"✗ Phase 3 (Position Monitor) failed: {e}", exc_info=True)
                 self.log_phase_result(3, "position_monitor", "error", str(e))
 

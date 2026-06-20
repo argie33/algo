@@ -3,12 +3,12 @@
 import json
 import logging
 import traceback
+from collections.abc import Callable
 from datetime import date as _date
-from typing import Any, Callable, Dict
+from typing import Any
 
 from algo.orchestrator.phase_result import PhaseResult
 from utils.db.context import DatabaseContext
-from utils.trading.recorder import TradeRecorder
 
 
 logger = logging.getLogger(__name__)
@@ -246,7 +246,7 @@ def run(
         )
 
         # Step 3: Run weight optimization (if enough trades)
-        opt_result: Dict[str, Any] = {"changes": []}
+        opt_result: dict[str, Any] = {"changes": []}
         try:
             from algo.orchestration import RegimeManager as _RegimeManager
 

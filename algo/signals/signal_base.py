@@ -10,7 +10,6 @@ All SignalComputer mixins inherit indirectly through SignalBase for:
 """
 
 import logging
-from typing import Optional, cast
 
 from utils.db.context import DatabaseContext
 from utils.db.query_cache import CacheStrategy, QueryCache

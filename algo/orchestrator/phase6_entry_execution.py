@@ -133,6 +133,30 @@ def run(
             6, "entry_execution", "halted", {"entered": 0}, True, "Halt flag active"
         )
 
+    # CRITICAL: Verify data freshness before executing trades
+    # Trades should only execute on current market data (same day or previous trading day)
+    try:
+        with DatabaseContext("read") as cur:
+            cur.execute(
+                """SELECT MAX(date) as latest_price_date FROM price_daily"""
+            )
+            result = cur.fetchone()
+            latest_price_date = result[0] if result else None
+            if latest_price_date is None or latest_price_date != run_date:
+                msg = (
+                    f"[PHASE 6 CRITICAL] Price data is stale (latest: {latest_price_date}, run_date: {run_date}). "
+                    f"Cannot execute trades without current price data. "
+                    f"Phase 1 (Data Freshness) should have caught this. Verify loader pipeline."
+                )
+                logger.critical(msg)
+                log_phase_result_fn(6, "entry_execution", "halt", msg)
+                return PhaseResult(6, "entry_execution", "halted", {"entered": 0}, True, msg)
+    except Exception as e:
+        msg = f"[PHASE 6 CRITICAL] Data freshness check failed: {e}"
+        logger.critical(msg)
+        log_phase_result_fn(6, "entry_execution", "halt", msg)
+        return PhaseResult(6, "entry_execution", "halted", {"entered": 0}, True, msg)
+
     # Exposure policy validation (fail-closed if constraints invalid)
     # CRITICAL: exposure_constraints MUST be provided by Phase 3b and have valid fields
     if exposure_constraints is None:

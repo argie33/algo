@@ -5,7 +5,7 @@ import re
 import time
 from datetime import date, datetime, timezone
 from functools import wraps
-from typing import Any
+from typing import Any, Optional
 
 import psycopg2
 import psycopg2.errors
@@ -37,7 +37,7 @@ QUERY_TIMEOUTS = {
 }
 
 
-def set_query_timeout(cur, timeout_ms: int = None, timeout_name: str = "default"):
+def set_query_timeout(cur, timeout_ms: Optional[int] = None, timeout_name: str = "default"):
     """Set statement timeout for the current transaction.
 
     Args:
@@ -364,7 +364,7 @@ def execute_with_timeout(
     """
     from utils.error_handlers import log_sanitizer
 
-    current_timeout = timeout_sec
+    current_timeout: float = float(timeout_sec)
     last_error = None
 
     for attempt in range(max_attempts):

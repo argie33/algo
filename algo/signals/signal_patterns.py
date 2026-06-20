@@ -3,7 +3,7 @@
 """Pattern-based signal methods — base detection, VCP, 3WT, HTF."""
 
 import logging
-from typing import Any, Dict, Optional
+from typing import Any
 
 from utils.db.context import DatabaseContext
 
@@ -22,7 +22,7 @@ class SignalPatternsMixin:
         except Exception as e:
             raise RuntimeError(f"Operation failed: {e}") from e
 
-    def _get_signal_pattern_thresholds(self) -> Dict[str, int]:
+    def _get_signal_pattern_thresholds(self) -> dict[str, int]:
         """Load signal pattern date thresholds from config."""
         thresholds = {
             "signal_patterns_signal_age_days": 7,
@@ -49,7 +49,7 @@ class SignalPatternsMixin:
             )
         return thresholds
 
-    def base_detection(self, symbol: str, eval_date) -> Dict[str, Any]:
+    def base_detection(self, symbol: str, eval_date) -> dict[str, Any]:
         def _fetch_and_analyze(cur):
             cur.execute(
                 """
@@ -72,7 +72,6 @@ class SignalPatternsMixin:
             peak_idx = min(i for i, h in enumerate(highs) if h == peak_val)
             base_highs = highs[: peak_idx + 1]
             base_lows = lows[: peak_idx + 1]
-            base_closes = closes[: peak_idx + 1]
             base_vols = volumes[: peak_idx + 1]
 
             if len(base_highs) < 10:
@@ -122,7 +121,7 @@ class SignalPatternsMixin:
             logger.error(f"Unexpected error in base_detection({symbol}): {e}")
             return {"in_base": False, "reason": "Unexpected error"}
 
-    def vcp_detection(self, symbol: str, eval_date) -> Dict[str, Any]:
+    def vcp_detection(self, symbol: str, eval_date) -> dict[str, Any]:
         """
         Volatility Contraction Pattern (Minervini's signature setup).
 
@@ -189,7 +188,7 @@ class SignalPatternsMixin:
 
         return self._with_cursor(_analyze_vcp) or {"is_vcp": False, "contractions": 0}
 
-    def classify_base_type(self, symbol: str, eval_date) -> Dict[str, Any]:
+    def classify_base_type(self, symbol: str, eval_date) -> dict[str, Any]:
         """
         Classify the current base into canonical chart pattern types.
         """
@@ -354,8 +353,8 @@ class SignalPatternsMixin:
         }
 
     def base_type_stop(
-        self, symbol: str, eval_date, entry_price: float, atr: Optional[float] = None
-    ) -> Dict[str, Any]:
+        self, symbol: str, eval_date, entry_price: float, atr: float | None = None
+    ) -> dict[str, Any]:
         """Compute optimal stop loss based on the SPECIFIC base type detected.
 
         Different chart bases have proven-optimal stop placements per the canon:
@@ -526,7 +525,7 @@ class SignalPatternsMixin:
             "risk_pct": 7.0,
         }
 
-    def three_weeks_tight(self, symbol: str, eval_date) -> Dict[str, Any]:
+    def three_weeks_tight(self, symbol: str, eval_date) -> dict[str, Any]:
         """
         IBD's "3-Weeks-Tight" (3WT) — high-probability continuation pattern.
 
@@ -605,7 +604,7 @@ class SignalPatternsMixin:
             "reason": "Database error",
         }
 
-    def high_tight_flag(self, symbol: str, eval_date) -> Dict[str, Any]:
+    def high_tight_flag(self, symbol: str, eval_date) -> dict[str, Any]:
         """
         IBD's "High Tight Flag" (HTF) — rare but highly explosive continuation.
 
