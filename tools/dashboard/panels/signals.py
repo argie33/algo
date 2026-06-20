@@ -23,6 +23,7 @@ from rich.rule import Rule
 from rich.table import Table
 from rich.text import Text
 
+from ..error_boundary import has_error
 from ..formatters import (
     fmt_age,
 )
@@ -57,7 +58,7 @@ def panel_signals_compact(sig, sig_eval=None, scores=None):
     if scores and _error_panel("scores", scores, "SIGNALS", border="magenta"):
         return _error_panel("scores", scores, "SIGNALS", border="magenta")
 
-    top_scores = (scores or {}).get("top", [])
+    top_scores = (scores or {}).get("top", []) if not has_error(scores) else []
     buy_sigs = sig.get("buy_sigs", [])
     total_screened = sig.get("total", 0)
     is_placeholder = (
@@ -151,7 +152,7 @@ def panel_signals_compact(sig, sig_eval=None, scores=None):
         rows.append(Text.from_markup("[dim]Near threshold:[/]  " + "  ".join(parts)))
 
     # ── Row 3: Funnel arrow chain  ·  avg score  ·  top blockers ─────────────
-    if sig_eval and not sig_eval.get("_error"):
+    if sig_eval and not has_error(sig_eval):
         ev_tot = sig_eval.get("total", 0)
         ev_t1 = sig_eval.get("t1")
         ev_t2 = sig_eval.get("t2")
@@ -411,7 +412,7 @@ def panel_signals_expanded(sig, sig_eval=None, scores=None):
                 parts.append(f"[dim]{s.get('symbol', '')}[/][dim]--[/]")
         rows.append(Text.from_markup("[dim]A-grade radar:[/] " + "  ".join(parts)))
 
-    if sig_eval and not sig_eval.get("_error"):
+    if sig_eval and not sig_evalhas_error(PLACEHOLDER):
         ev_tot = sig_eval.get("total", 0)
         ev_t5 = sig_eval.get("t5", 0)
         ev_avg = sig_eval.get("avg_score", 0)

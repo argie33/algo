@@ -1,4 +1,4 @@
-"""Portfolio exposure and risk factor panel functions."""
+﻿"""Portfolio exposure and risk factor panel functions."""
 
 import logging
 
@@ -50,8 +50,8 @@ def panel_exposure_compact(exp_f):
         return err_panel
     raw = safe_float(exp_f.get("raw_score"), default=None)
     epct = safe_float(exp_f.get("exposure_pct"), default=None)
-    regime = exp_f.get("regime") or ""
-    factors = exp_f.get("factors") or {}
+    regime = exp_f.get("regime", "")
+    factors = exp_f.get("factors", {})
     tier = tier_from_pct(epct)
     tc = TIER_COLOR.get(tier, "dim")
 
@@ -93,7 +93,7 @@ def panel_exposure_compact(exp_f):
             v = f.get("value")
             return f" {v:.2f}" if v is not None else ""
         if key == "ad_line":
-            rel = (f.get("relation") or "").replace("_", " ")[:8]
+            rel = (f.get("relation", "")).replace("_", " ")[:8]
             return f" {rel}" if rel else ""
         if key == "aaii_sentiment":
             bull = f.get("bullish_pct")
@@ -104,7 +104,7 @@ def panel_exposure_compact(exp_f):
             return f" {v:.0f}" if v is not None else ""
         if key == "distribution_days":
             cnt = f.get("count")
-            regime = (f.get("regime") or "")[:5]
+            regime = (f.get("regime", ""))[:5]
             return f" {cnt}d/{regime}" if cnt is not None else ""
         return ""
 
@@ -139,7 +139,7 @@ def panel_exposure_compact(exp_f):
         if sf is None:
             items.append(f"[dim]{label}:[/] [yellow]⚠ N/A[/][dim] /{max_pts}[/]")
         else:
-            pts = float(f.get("pts") or 0)
+            pts = float(f.get("pts", 0))
             bar = mini_bar(pts, max_pts, w=4)
             fc = G if pts >= max_pts * 0.75 else (Y if pts >= max_pts * 0.35 else R)
             det = factor_detail(key)
@@ -151,10 +151,10 @@ def panel_exposure_compact(exp_f):
     sr_pen = safe_float(sr.get("pts") if sr else None, default=0)
     eco_pen = safe_float(eco.get("pts") if eco else None, default=0)
     if sr_pen < 0:
-        sig = (sr.get("signal") or "").replace("_", " ")[:18]
+        sig = (sr.get("signal", "")).replace("_", " ")[:18]
         items.append(f"[dim]Sector Rotation:[/] [{R}]{sr_pen:+.0f}[/] [dim]{sig}[/]")
     if eco_pen < 0:
-        eco_err = (eco.get("error") or "")[:18]
+        eco_err = (eco.get("error", ""))[:18]
         items.append(f"[dim]Economic Overlay:[/] [{R}]{eco_pen:+.0f}[/]" + (f" [dim]{eco_err}[/]" if eco_err else ""))
 
     for a, b in zip(items[::2], [*items[1::2], ""], strict=False):
@@ -186,8 +186,8 @@ def panel_exposure_expanded(exp_f):
 
     raw = safe_float(exp_f.get("raw_score"), default=None)
     epct = safe_float(exp_f.get("exposure_pct"), default=None)
-    regime = exp_f.get("regime") or ""
-    factors = exp_f.get("factors") or {}
+    regime = exp_f.get("regime", "")
+    factors = exp_f.get("factors", {})
     tier = tier_from_pct(epct)
     tc = TIER_COLOR.get(tier, "dim")
 
@@ -235,12 +235,12 @@ def panel_exposure_expanded(exp_f):
     tbl.add_column("Context", style="dim", no_wrap=False)
 
     for key, label, max_pts, context in FACTOR_MAP_EXP:
-        f = factors.get(key) or {}
+        f = factors.get(key, {})
         sf = f.get("score_factor")
 
         if sf is None:
             # Factor has no data — show ⚠ N/A rather than a misleading 0-point bar
-            reason = (f.get("reason") or ("stale" if f.get("stale") else "no data"))[:18]
+            reason = (f.get("reason", ("stale" if f.get("stale") else "no data"))[:18]
             bar_s = Text.from_markup(f"[yellow]⚠ N/A{'':>10}[/]  [dim]--/{max_pts}[/]")
             tbl.add_row(
                 Text(label, style="yellow"),
@@ -252,7 +252,7 @@ def panel_exposure_expanded(exp_f):
             )
             continue
 
-        pts = float(f.get("pts") or 0)
+        pts = float(f.get("pts", 0))
         bar_f = int(min(pts / max_pts, 1.0) * 12) if max_pts > 0 else 0
         fc = G if pts >= max_pts * 0.75 else (Y if pts >= max_pts * 0.35 else R)
         bar_s = Text.from_markup(f"[{fc}]{'█' * bar_f}[/][dim]{'░' * (12 - bar_f)}[/]  [{fc}]{pts:.0f}/{max_pts}[/]")
@@ -286,7 +286,7 @@ def panel_exposure_expanded(exp_f):
             v = f.get("value")
             val_s = f"{v:.2f}% OAS" if v is not None else "--"
         elif key == "ad_line":
-            rel = (f.get("relation") or "").replace("_", " ")
+            rel = (f.get("relation", "")).replace("_", " ")
             val_s = rel[:16] if rel else "--"
         elif key == "aaii_sentiment":
             bull = f.get("bullish_pct")
@@ -297,7 +297,7 @@ def panel_exposure_expanded(exp_f):
             val_s = f"{v:.0f}% allocated" if v is not None else "--"
         elif key == "distribution_days":
             cnt = f.get("count")
-            rg = (f.get("regime") or "")[:10]
+            rg = (f.get("regime", ""))[:10]
             val_s = f"{cnt}d / {rg}" if cnt is not None else "--"
 
         tbl.add_row(
@@ -320,11 +320,11 @@ def panel_exposure_expanded(exp_f):
         rows.append(Rule(style="dim"))
         rows.append(Text.from_markup("[dim bold]ADJUSTMENTS[/]"))
         if sr_pen != 0:
-            sig = (sr.get("signal") or "").replace("_", " ")
+            sig = (sr.get("signal", "")).replace("_", " ")
             sc = R if sr_pen < 0 else G
             rows.append(Text.from_markup(f"  [dim]Sector Rotation:[/] [{sc}]{sr_pen:+.0f} pts[/]  [dim]{sig}[/]"))
         if eco_pen != 0:
-            eco_err = (eco.get("error") or "")[:30]
+            eco_err = (eco.get("error", ""))[:30]
             ec = R if eco_pen < 0 else G
             rows.append(
                 Text.from_markup(
@@ -345,3 +345,4 @@ __all__ = [
     "panel_exposure_compact",
     "panel_exposure_expanded",
 ]
+

@@ -1,4 +1,4 @@
-"""Recent trades and expanded trades panel functions."""
+﻿"""Recent trades and expanded trades panel functions."""
 
 import logging
 from typing import Any
@@ -72,7 +72,7 @@ def panel_recent_trades(trades):
         trades_list = trades if isinstance(trades, list) else []
 
     # Filter to closed trades only — open/pending are in the positions panel
-    closed_trades = [tr for tr in trades_list if isinstance(tr, dict) and (tr.get("status") or "").lower() == "closed"]
+    closed_trades = [tr for tr in trades_list if isinstance(tr, dict) and (tr.get("status", "")).lower() == "closed"]
 
     if not closed_trades:
         age_s = f"  [dim]{fmt_age(trades_timestamp)}[/]" if trades_timestamp is not None else ""
@@ -113,7 +113,7 @@ def panel_recent_trades(trades):
         return str(d or "--")[:5]
 
     for tr in closed_trades[:12]:
-        sym = tr.get("symbol") or "--"
+        sym = tr.get("symbol", "--")
         pnl_d_raw = tr.get("profit_loss_dollars")
         pnl_p_raw = tr.get("profit_loss_pct")
         pnl_d = float(pnl_d_raw) if pnl_d_raw is not None else None
@@ -131,7 +131,7 @@ def panel_recent_trades(trades):
         has_pnl = pnl_p is not None
         pc = G if (pnl_d or pnl_p or 0) > 0 else R
         si = f"[{G}]▲[/]" if (pnl_p or 0) > 0 else f"[{R}]▼[/]"
-        grade = tr.get("swing_grade") or "--"
+        grade = tr.get("swing_grade", "--")
         grade_c = (
             G
             if grade in ("A", "A+", "A-")
@@ -167,7 +167,7 @@ def panel_trades_expanded(trades):
     else:
         trades_list = trades if isinstance(trades, list) else []
 
-    closed = [tr for tr in trades_list if isinstance(tr, dict) and (tr.get("status") or "").lower() == "closed"]
+    closed = [tr for tr in trades_list if isinstance(tr, dict) and (tr.get("status", "")).lower() == "closed"]
 
     rows = [
         Text.from_markup("[dim]press [/][bold cyan]t[/][dim] to return to dashboard[/]"),
@@ -185,10 +185,10 @@ def panel_trades_expanded(trades):
 
     # Summary stats (from displayed trades; see Performance panel for all-time stats)
     total = len(closed)
-    wins = sum(1 for t in closed if (t.get("profit_loss_pct") or 0) > 0)
+    wins = sum(1 for t in closed if (t.get("profit_loss_pct", 0)) > 0)
     losses = total - wins
     wr = wins / total * 100 if total else 0
-    total_pnl = sum(float(t.get("profit_loss_dollars") or 0) for t in closed)
+    total_pnl = sum(float(t.get("profit_loss_dollars", 0)) for t in closed)
     avg_r_list = [float(t["exit_r_multiple"]) for t in closed if t.get("exit_r_multiple") is not None]
     avg_r = sum(avg_r_list) / len(avg_r_list) if avg_r_list else None
     wc = G if wr >= 45 else (Y if wr >= 40 else R)
@@ -252,7 +252,7 @@ def panel_trades_expanded(trades):
         return str(d or "--")[:6]
 
     for tr in closed[:50]:
-        sym = tr.get("symbol") or "--"
+        sym = tr.get("symbol", "--")
         pnl_d_raw = tr.get("profit_loss_dollars")
         pnl_p_raw = tr.get("profit_loss_pct")
         pnl_d = float(pnl_d_raw) if pnl_d_raw is not None else None
@@ -265,14 +265,14 @@ def panel_trades_expanded(trades):
         exit_p = float(exit_raw) if exit_raw is not None else None
         dur_raw = tr.get("trade_duration_days")
         dur = int(dur_raw) if dur_raw is not None else None
-        grade = tr.get("swing_grade") or "--"
+        grade = tr.get("swing_grade", "--")
         mfe_raw = tr.get("mfe_pct")
         mae_raw = tr.get("mae_pct")
         mfe = float(mfe_raw) if mfe_raw is not None else None
         mae = float(mae_raw) if mae_raw is not None else None
         trade_date = tr.get("trade_date") or tr.get("signal_date")
         exit_date = tr.get("exit_date")
-        exit_rsn_raw = (tr.get("exit_reason") or "").lower().strip()
+        exit_rsn_raw = (tr.get("exit_reason", "")).lower().strip()
         exit_rsn = exit_short.get(exit_rsn_raw, exit_rsn_raw[:4] if exit_rsn_raw else "--")
         exit_rsn_c = R if exit_rsn == "stop" else (G if exit_rsn in ("T1", "T2") else (Y if exit_rsn == "man" else DIM))
 
@@ -316,3 +316,4 @@ __all__ = [
     "panel_recent_trades",
     "panel_trades_expanded",
 ]
+

@@ -1,4 +1,4 @@
-"""Sector analysis panel functions."""
+﻿"""Sector analysis panel functions."""
 
 import logging
 
@@ -33,6 +33,7 @@ from ..utilities import (
     normalize_positions_data,
 )
 from ._helpers import _error_panel
+from ..error_boundary import has_error
 
 
 def _rdelta(r, wk="rank_1w_ago", wk4=None):
@@ -67,7 +68,7 @@ def panel_sector_compact(srank, pos, port, sec_rot=None, irank=None):
 
     # Row 1: Rotation signal
     if sec_rot and not _error_panel("sec_rot", sec_rot, "SECTORS") and sec_rot.get("signal"):
-        sig_name = (sec_rot.get("signal") or "").replace("_", " ").title()
+        sig_name = (sec_rot.get("signal", "")).replace("_", " ").title()
         wks = sec_rot.get("weeks", 1)
         def_s = sec_rot.get("def_score")
         cyc_s = sec_rot.get("cyc_score")
@@ -117,7 +118,7 @@ def panel_sector_compact(srank, pos, port, sec_rot=None, irank=None):
         if isinstance(srank, dict) and "items" in srank
         else (srank if isinstance(srank, list) else [])
     )
-    srank_error = srank.get("_error") if isinstance(srank, dict) else None
+    srank_error = srankhas_error(PLACEHOLDER) if isinstance(srank, dict) else None
     valid_srank = [r for r in srank_items if not srank_error][:6]
     if valid_srank:
         if rows:
@@ -127,12 +128,12 @@ def panel_sector_compact(srank, pos, port, sec_rot=None, irank=None):
         srank_tbl.add_column("a", ratio=1)
         srank_tbl.add_column("b", ratio=1)
         for a, b in zip(valid_srank[::2], [*valid_srank[1::2], None], strict=False):
-            na = (a.get("sector_name") or "")[:13]
+            na = (a.get("sector_name", ""))[:13]
             mma = a.get("momentum_score")
             ms_a = f"[dim] mom:{float(mma):.0f}[/]" if mma is not None else ""
             la = f"[{G}]#{a['current_rank']:<2}[/] [dim]{na}[/]{ms_a}{_rdelta(a, wk4='rank_4w_ago')}"
             if b:
-                nb = (b.get("sector_name") or "")[:13]
+                nb = (b.get("sector_name", ""))[:13]
                 mmb = b.get("momentum_score")
                 ms_b = f"[dim] mom:{float(mmb):.0f}[/]" if mmb is not None else ""
                 lb = f"[{G}]#{b['current_rank']:<2}[/] [dim]{nb}[/]{ms_b}{_rdelta(b, wk4='rank_4w_ago')}"
@@ -147,7 +148,7 @@ def panel_sector_compact(srank, pos, port, sec_rot=None, irank=None):
         if isinstance(irank, dict) and "items" in irank
         else (irank if isinstance(irank, list) else [])
     )
-    irank_error = irank.get("_error") if isinstance(irank, dict) else None
+    irank_error = irankhas_error(PLACEHOLDER) if isinstance(irank, dict) else None
     valid_irank = irank_items if irank_items and not irank_error else []
     if valid_irank:
         rows.append(Rule(style="dim"))
@@ -156,12 +157,12 @@ def panel_sector_compact(srank, pos, port, sec_rot=None, irank=None):
         irank_tbl.add_column("a", ratio=1)
         irank_tbl.add_column("b", ratio=1)
         for a, b in zip(valid_irank[:4][::2], [*valid_irank[:4][1::2], None], strict=False):
-            na = (a.get("industry") or "")[:14]
+            na = (a.get("industry", ""))[:14]
             mma = a.get("momentum_score")
             ms_a = f"[dim] mom:{float(mma):.0f}[/]" if mma is not None else ""
             la = f"[{CY}]#{a['current_rank']:<2}[/] [white]{na}[/]{ms_a}{_rdelta(a)}"
             if b:
-                nb = (b.get("industry") or "")[:14]
+                nb = (b.get("industry", ""))[:14]
                 mmb = b.get("momentum_score")
                 ms_b = f"[dim] mom:{float(mmb):.0f}[/]" if mmb is not None else ""
                 lb = f"[{CY}]#{b['current_rank']:<2}[/] [white]{nb}[/]{ms_b}{_rdelta(b)}"
@@ -200,11 +201,11 @@ def panel_sectors_expanded(srank, pos, port, sec_rot=None, irank=None):
     ]
 
     if sec_rot and not _error_panel("sec_rot", sec_rot, "SECTORS") and sec_rot.get("signal"):
-        sig_name = (sec_rot.get("signal") or "").replace("_", " ").title()
+        sig_name = (sec_rot.get("signal", "")).replace("_", " ").title()
         wks = sec_rot.get("weeks", 1)
-        def_s = float(sec_rot.get("def_score") or 0)
-        cyc_s = float(sec_rot.get("cyc_score") or 0)
-        strength = float(sec_rot.get("strength") or 0)
+        def_s = float(sec_rot.get("def_score", 0))
+        cyc_s = float(sec_rot.get("cyc_score", 0))
+        strength = float(sec_rot.get("strength", 0))
         sig_c = R if def_s >= 60 else (Y if def_s >= 40 else G)
         rot_date = sec_rot.get("date")
         date_s = f"  [dim]as of {str(rot_date)[:10]}[/]" if rot_date else ""
@@ -220,7 +221,7 @@ def panel_sectors_expanded(srank, pos, port, sec_rot=None, irank=None):
     # Issue 3.1 FIX: Use unified normalization function
     pos_list, _, _ = normalize_positions_data(pos)
     if pos_list:
-        pv = float(port.get("total_portfolio_value") or 0)
+        pv = float(port.get("total_portfolio_value", 0))
         sd: dict = {}
         invalid_count = 0
         for p in pos_list:
@@ -228,7 +229,7 @@ def panel_sectors_expanded(srank, pos, port, sec_rot=None, irank=None):
                 invalid_count += 1
                 logger.error(f"panel_sectors_expanded: invalid position (not a dict): {type(p).__name__}")
                 continue
-            sec = p.get("sector") or "Unknown"
+            sec = p.get("sector", "Unknown")
             val = safe_float(p.get("position_value"), default=None)
             pnl = safe_float(p.get("unrealized_pnl_pct"), default=None)
             if sec not in sd:
@@ -264,15 +265,15 @@ def panel_sectors_expanded(srank, pos, port, sec_rot=None, irank=None):
         if isinstance(srank, dict) and "items" in srank
         else (srank if isinstance(srank, list) else [])
     )
-    srank_error_exp = srank.get("_error") if isinstance(srank, dict) else None
+    srank_error_exp = srankhas_error(PLACEHOLDER) if isinstance(srank, dict) else None
     valid_srank = [r for r in srank_items_exp if not srank_error_exp]
     if valid_srank:
         rows.append(Text.from_markup("[dim]All sectors  (rank  mom  ↑↓1wk/4wk):[/]"))
         for r in valid_srank:
-            nm = str(r.get("sector_name") or "")
+            nm = str(r.get("sector_name", ""))
             mm = r.get("momentum_score")
             ms = f"[dim]  mom:{float(mm):.0f}[/]" if mm is not None else ""
-            rank_str = str(r.get("current_rank") or "")
+            rank_str = str(r.get("current_rank", ""))
             rows.append(
                 Text.from_markup(f"  [{G}]#{rank_str:<2}[/]  [white]{nm:<28}[/]{ms}  {_rdelta(r, wk4='rank_4w_ago')}")
             )
@@ -284,15 +285,15 @@ def panel_sectors_expanded(srank, pos, port, sec_rot=None, irank=None):
         if isinstance(irank, dict) and "items" in irank
         else (irank if isinstance(irank, list) else [])
     )
-    irank_error_exp = irank.get("_error") if isinstance(irank, dict) else None
+    irank_error_exp = irankhas_error(PLACEHOLDER) if isinstance(irank, dict) else None
     valid_irank = irank_items_exp if irank_items_exp and not irank_error_exp else []
     if valid_irank:
         rows.append(Text.from_markup("[dim]All industries  (rank  mom  ↑↓1wk):[/]"))
         for r in valid_irank:
-            nm = str(r.get("industry") or "")
+            nm = str(r.get("industry", ""))
             mm = r.get("momentum_score")
             ms = f"[dim]  mom:{float(mm):.0f}[/]" if mm is not None else ""
-            rank_str = str(r.get("current_rank") or "")
+            rank_str = str(r.get("current_rank", ""))
             rows.append(Text.from_markup(f"  [{CY}]#{rank_str:<2}[/]  [white]{nm:<32}[/]{ms}  {_rdelta(r)}"))
 
     if not rows:
@@ -315,3 +316,4 @@ __all__ = [
     "panel_sector_compact",
     "panel_sectors_expanded",
 ]
+

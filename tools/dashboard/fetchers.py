@@ -264,8 +264,8 @@ def fetch_market(c):
             record_data_quality_issue("market", "api_call", "api_error", mkt.get("_error"))
             return mkt
         # API response is unwrapped so data is at top level (statusCode + fields)
-        current = mkt.get("current", {})
-        market_health = mkt.get("market_health", {})
+        current = mkt.get("current") or {}
+        market_health = mkt.get("market_health") or {}
 
         # VIX and SPY are critical - fail if missing or invalid
         try:
@@ -515,8 +515,8 @@ def fetch_perf(c):
             "profit_factor": safe_float(perf.get("profit_factor"), default=None),
             "expectancy": safe_float(perf.get("expectancy_r"), default=None),
             "avg_r": safe_float(perf.get("expectancy_r"), default=None),
-            "equity_vals": perf.get("equity_vals", []),
-            "recent_rets": perf.get("recent_rets", []),
+            "equity_vals": perf.get("equity_vals") or [],
+            "recent_rets": perf.get("recent_rets") or [],
         }
     except Exception as e:
         error_msg = _format_fetcher_error("perf", e)
@@ -532,7 +532,14 @@ def fetch_positions(c):
         if _is_api_error(data):
             return data
         result = data
-        items = result.get("items", []) if isinstance(result, dict) else result if isinstance(result, list) else []
+        if isinstance(result, dict):
+            items = result.get("items")
+            if not isinstance(items, list):
+                return {"_error": "Positions API response: 'items' field is not a list"}
+        elif isinstance(result, list):
+            items = result
+        else:
+            return {"_error": "Positions API response: expected dict or list"}
         return {"items": items, "timestamp": datetime.now(ET)}
     except Exception as e:
         error_msg = _format_fetcher_error("pos", e)
@@ -558,7 +565,14 @@ def fetch_recent_trades(c):
                 return {"_no_data": True}
             return {"_error": error_msg}
         result = data
-        trades = result.get("items", []) if isinstance(result, dict) else result if isinstance(result, list) else []
+        if isinstance(result, dict):
+            trades = result.get("items")
+            if not isinstance(trades, list):
+                return {"_error": "Trades API response: 'items' field is not a list"}
+        elif isinstance(result, list):
+            trades = result
+        else:
+            return {"_error": "Trades API response: expected dict or list"}
         return {"items": trades, "timestamp": datetime.now(ET)}
     except Exception as e:
         error_msg = _format_fetcher_error("trades", e)
@@ -576,17 +590,19 @@ def fetch_signals(c):
             return {"_error": "No data returned from /api/algo/dashboard-signals"}
 
         result = data
-        buy_sigs = result.get("buy_sigs", [])
-        near = result.get("near", [])
-        top_a = result.get("top_a", [])
+        buy_sigs = result.get("buy_sigs") or []
+        near = result.get("near") or []
+        top_a = result.get("top_a") or []
+        trend = result.get("trend") or []
+        grades = result.get("grades") or {}
         return {
             "n": result.get("n", len(buy_sigs)),
             "total": result.get("total", result.get("n", len(buy_sigs))),
             "buy_sigs": buy_sigs,
-            "grades": result.get("grades", {}),
+            "grades": grades,
             "near": near,
             "top_a": top_a,
-            "trend": result.get("trend", []),
+            "trend": trend,
             "date": result.get("date"),
             "timestamp": datetime.now(ET),
         }
@@ -603,7 +619,12 @@ def fetch_sector_ranking(c):
         if _is_api_error(data):
             return data
         raw = data
-        items = raw.get("items", []) if isinstance(raw, dict) else (raw if isinstance(raw, list) else [])
+        if isinstance(raw, dict):
+            items = raw.get("items") or []
+        elif isinstance(raw, list):
+            items = raw
+        else:
+            items = []
         return {"items": items}
     except Exception as e:
         error_msg = _format_fetcher_error("srank", e)
@@ -618,7 +639,7 @@ def fetch_activity(c):
         if _is_api_error(data):
             return data
         raw = data
-        items = raw.get("items", []) if isinstance(raw, dict) else []
+        items = raw.get("items") or [] if isinstance(raw, dict) else []
         run_at = items[0].get("action_date") if items else None
         phases = [i for i in items if (i.get("action_type") or "").startswith("phase_")]
         return {
@@ -697,8 +718,8 @@ def fetch_health(c):
         inner = data
         if not isinstance(inner, dict):
             inner = {}
-        raw_sources = inner.get("sources", [])
-        critical_stale = inner.get("critical_stale", []) or []
+        raw_sources = inner.get("sources") or []
+        critical_stale = inner.get("critical_stale") or []
         sources = []
         for s in raw_sources:
             name = s.get("name", "")

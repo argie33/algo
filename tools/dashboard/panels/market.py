@@ -1,4 +1,4 @@
-"""Market regime, internals, breadth, sentiment panel functions."""
+﻿"""Market regime, internals, breadth, sentiment panel functions."""
 
 import logging
 
@@ -36,6 +36,7 @@ from ..utilities import (
     Y,
 )
 from ._helpers import _error_panel
+from ..error_boundary import has_error
 
 
 @register_panel(
@@ -57,12 +58,12 @@ def panel_market_full(mkt, sentiment=None):
     bar = exp_bar(exp or 0, w=10)
     vix = f"{mkt['vix']:.1f}" if mkt.get("vix") is not None else "--"
     vc = DIM if mkt.get("vix") is None else (R if mkt.get("vix") >= 30 else (Y if mkt.get("vix") >= 20 else G))
-    dist = str(mkt.get("dist") or "--")
-    stage = str(mkt.get("stage") or "--")
+    dist = str(mkt.get("dist", "--"))
+    stage = str(mkt.get("stage", "--"))
     spy_raw = mkt.get("spy")
     spy_chg = mkt.get("spy_chg")
-    trend_s = (mkt.get("trend") or "").upper()
-    halts = mkt.get("halts") or []
+    trend_s = (mkt.get("trend", "")).upper()
+    halts = mkt.get("halts", [])
     halt_s = " ".join(str(h)[:16] for h in halts[:2]) if halts else "none"
     hc = Y if halts else DIM
 
@@ -116,9 +117,9 @@ def panel_market_full(mkt, sentiment=None):
     lines.append(halt_fed)
 
     # Fear & Greed
-    if sentiment and not sentiment.get("_error"):
-        fg_v = sentiment.get("fg") or 0
-        fg_lbl = (sentiment.get("label") or "")[:16]
+    if sentiment and not sentimenthas_error(PLACEHOLDER):
+        fg_v = sentiment.get("fg", 0)
+        fg_lbl = (sentiment.get("label", ""))[:16]
         fg_c = sentiment.get("color", "dim")
         fg_bar = int(fg_v / 100 * 8)
         fg_bar_s = f"[{fg_c}]{'█' * fg_bar}[/][dim]{'░' * (8 - fg_bar)}[/]"
@@ -162,8 +163,8 @@ def panel_market_expanded(mkt, sentiment=None):
 
     spy_raw = mkt.get("spy")
     spy_chg = mkt.get("spy_chg")
-    stage = str(mkt.get("stage") or "--")
-    trend = (mkt.get("trend") or "").upper() or "--"
+    stage = str(mkt.get("stage", "--"))
+    trend = (mkt.get("trend", "")).upper() or "--"
     dist = mkt.get("dist")
     _fed_raw = mkt.get("fed")
     fed = "--" if (_fed_raw is None or str(_fed_raw).lower() in ("unknown", "n/a", "none", "")) else str(_fed_raw)
@@ -174,7 +175,7 @@ def panel_market_expanded(mkt, sentiment=None):
     nl = mkt.get("nl")
     pcr = mkt.get("pcr")
     bmom = mkt.get("bmom")
-    halts = mkt.get("halts") or []
+    halts = mkt.get("halts", [])
 
     spy_s = f"${float(spy_raw):.2f}" if spy_raw else "--"
     spy_chg_c = G if (spy_chg or 0) >= 0 else R
@@ -232,10 +233,10 @@ def panel_market_expanded(mkt, sentiment=None):
         grid.add_row(left_item, right_item)
     rows.append(grid)
 
-    if sentiment and not sentiment.get("_error"):
+    if sentiment and not sentimenthas_error(PLACEHOLDER):
         rows.append(Rule(style="dim"))
-        fg_v = sentiment.get("fg") or 0
-        fg_lbl = (sentiment.get("label") or "")[:22]
+        fg_v = sentiment.get("fg", 0)
+        fg_lbl = (sentiment.get("label", ""))[:22]
         fg_c = sentiment.get("color", "dim")
         fg_bar_f = int(fg_v / 100 * 24)
         fg_bar_s = f"[{fg_c}]{'█' * fg_bar_f}[/][dim]{'░' * (24 - fg_bar_f)}[/]"
@@ -261,7 +262,7 @@ def panel_header_market(mkt, sentiment, ts, mkt_s, elapsed, refresh_s="", cfg=No
     rows = [
         Text.from_markup(f"{mkt_s}  [dim]{ts}[/]  [dim]{elapsed:.1f}s[/]{refresh_s}  [{source_color}]{data_source}[/]")
     ]
-    if mkt and not mkt.get("_error"):
+    if mkt and not mkthas_error(PLACEHOLDER):
         tier = mkt.get("tier", "unknown")
         tc = TIER_COLOR.get(tier, "dim")
         lbl = TIER_SHORT.get(tier, "LOADING")
@@ -270,9 +271,9 @@ def panel_header_market(mkt, sentiment, ts, mkt_s, elapsed, refresh_s="", cfg=No
         bar = exp_bar(exp or 0, w=8)
         vix = f"{mkt['vix']:.1f}" if mkt.get("vix") is not None else "--"
         vc = DIM if mkt.get("vix") is None else (R if mkt.get("vix") >= 30 else (Y if mkt.get("vix") >= 20 else G))
-        dist = str(mkt.get("dist") or "--")
-        stage = str(mkt.get("stage") or "--")
-        trend_raw = (mkt.get("trend") or "").upper()
+        dist = str(mkt.get("dist", "--"))
+        stage = str(mkt.get("stage", "--"))
+        trend_raw = (mkt.get("trend", "")).upper()
         trend_s = f"  [dim]Trend:[/][white]{trend_raw[:10]}[/]" if trend_raw else ""
         spy_raw = mkt.get("spy")
         spy_chg = mkt.get("spy_chg")
@@ -328,15 +329,15 @@ def panel_header_market(mkt, sentiment, ts, mkt_s, elapsed, refresh_s="", cfg=No
             parts4.append(f"[dim]Yield Curve:[/][{yc_c}]{ycs:+.2f}[/]")
         if parts4:
             rows.append(Text.from_markup("  ".join(parts4)))
-        halts = mkt.get("halts") or []
+        halts = mkt.get("halts", [])
         halt_s = " ".join(str(h)[:14] for h in halts[:2]) if halts else "none"
         hc_col = Y if halts else DIM
         line5 = f"[dim]Halt:[/][{hc_col}]{halt_s}[/]"
         if _fed_ok:
             line5 += f"  [dim]Fed:[/][white]{str(fed)[:18]}[/]"
-        if sentiment and not sentiment.get("_error"):
-            fg_v = sentiment.get("fg") or 0
-            fg_lbl = (sentiment.get("label") or "")[:14]
+        if sentiment and not sentimenthas_error(PLACEHOLDER):
+            fg_v = sentiment.get("fg", 0)
+            fg_lbl = (sentiment.get("label", ""))[:14]
             fg_c = sentiment.get("color", "dim")
             fg_bar = int(fg_v / 100 * 6)
             fg_bar_s = f"[{fg_c}]{'█' * fg_bar}[/][dim]{'░' * (6 - fg_bar)}[/]"
@@ -376,3 +377,4 @@ __all__ = [
     "panel_market_expanded",
     "panel_market_full",
 ]
+

@@ -28,6 +28,7 @@ from ..utilities import (
     Y,
 )
 from ._helpers import _error_panel
+from ..error_boundary import has_error
 
 
 @register_panel(
@@ -158,7 +159,7 @@ def panel_economic_pulse(eco, econ_cal=None):
         if isinstance(econ_cal, dict) and "items" in econ_cal
         else (econ_cal if isinstance(econ_cal, list) else [])
     )
-    econ_cal_error = econ_cal.get("_error") if isinstance(econ_cal, dict) else None
+    econ_cal_error = econ_calhas_error(PLACEHOLDER) if isinstance(econ_cal, dict) else None
     valid_cal = econ_cal_items if econ_cal_items and not econ_cal_error else []
     if valid_cal:
         rows.append(Rule(style="dim"))
@@ -361,7 +362,7 @@ def panel_economic_expanded(eco, econ_cal=None):
         if isinstance(econ_cal, dict) and "items" in econ_cal
         else (econ_cal if isinstance(econ_cal, list) else [])
     )
-    econ_cal_error = econ_cal.get("_error") if isinstance(econ_cal, dict) else None
+    econ_cal_error = econ_calhas_error(PLACEHOLDER) if isinstance(econ_cal, dict) else None
     valid_cal = econ_cal_items if econ_cal_items and not econ_cal_error else []
     if valid_cal:
         rows.append(Rule(style="dim"))

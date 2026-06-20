@@ -75,15 +75,18 @@ class GrowthMetricsLoader(OptimalLoader):
             idx = -(lookback + 1)
             if len(all_years) > lookback and all_years[idx] and latest_rev:
                 _prev_year, prev_rev, _prev_eps = all_years[idx]
-                if prev_rev and prev_rev > 0:
-                    # Convert to float to support Decimal types from database
-                    latest_rev_f = float(latest_rev)
-                    prev_rev_f = float(prev_rev)
-                    rev_growth = (
-                        ((latest_rev_f / prev_rev_f) ** (1.0 / lookback)) - 1
-                    ) * 100
-                    metrics[f"revenue_growth_{lookback}y"] = float(round(rev_growth, 2))
-                else:
+                try:
+                    if prev_rev is not None and float(prev_rev) > 0 and float(latest_rev) > 0:
+                        # Convert to float to support Decimal types from database
+                        latest_rev_f = float(latest_rev)
+                        prev_rev_f = float(prev_rev)
+                        rev_growth = (
+                            ((latest_rev_f / prev_rev_f) ** (1.0 / lookback)) - 1
+                        ) * 100
+                        metrics[f"revenue_growth_{lookback}y"] = float(round(rev_growth, 2))
+                    else:
+                        metrics[f"revenue_growth_{lookback}y"] = None
+                except (TypeError, ValueError):
                     metrics[f"revenue_growth_{lookback}y"] = None
             else:
                 metrics[f"revenue_growth_{lookback}y"] = None
@@ -91,15 +94,18 @@ class GrowthMetricsLoader(OptimalLoader):
             # EPS growth
             if len(all_years) > lookback and all_years[idx] and latest_eps:
                 _prev_year2, _prev_rev2, prev_eps = all_years[idx]
-                if prev_eps and prev_eps > 0 and float(latest_eps) > 0:
-                    # Convert to float to support Decimal types from database
-                    latest_eps_f = float(latest_eps)
-                    prev_eps_f = float(prev_eps)
-                    eps_growth = (
-                        ((latest_eps_f / prev_eps_f) ** (1.0 / lookback)) - 1
-                    ) * 100
-                    metrics[f"eps_growth_{lookback}y"] = float(round(eps_growth, 2))
-                else:
+                try:
+                    if prev_eps is not None and float(prev_eps) > 0 and float(latest_eps) > 0:
+                        # Convert to float to support Decimal types from database
+                        latest_eps_f = float(latest_eps)
+                        prev_eps_f = float(prev_eps)
+                        eps_growth = (
+                            ((latest_eps_f / prev_eps_f) ** (1.0 / lookback)) - 1
+                        ) * 100
+                        metrics[f"eps_growth_{lookback}y"] = float(round(eps_growth, 2))
+                    else:
+                        metrics[f"eps_growth_{lookback}y"] = None
+                except (TypeError, ValueError):
                     metrics[f"eps_growth_{lookback}y"] = None
             else:
                 metrics[f"eps_growth_{lookback}y"] = None
