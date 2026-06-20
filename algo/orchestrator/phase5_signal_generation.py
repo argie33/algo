@@ -32,11 +32,12 @@ from concurrent.futures import ThreadPoolExecutor, as_completed
 from datetime import date as _date
 from datetime import timedelta
 
+import psycopg2
+
 from algo.orchestrator.phase_result import PhaseResult
 from algo.risk import LiquidityChecks
 from config.thresholds import ThresholdConfig
 from utils.db.context import DatabaseContext
-import psycopg2
 
 
 logger = logging.getLogger(__name__)
@@ -96,68 +97,14 @@ def _validate_signal_completeness(candidates: list[dict], source: str) -> tuple[
 
 
 def _check_market_regime(run_date: _date) -> dict:
-    """Return current market regime from market_exposure_daily."""
+    """Return current market regime from market_exposure_daily.
 
-    try:
-        with DatabaseContext("read") as cur:
-            cur.execute(
-                """
-                SELECT is_entry_allowed, exposure_pct, regime, halt_reasons
-                FROM market_exposure_daily
-                WHERE date <= %s
-                ORDER BY date DESC LIMIT 1
-                """,
-                (run_date,),
-            )
-            row = cur.fetchone()
-            if row is None:
-                logger.warning(
-                    "[PHASE 5] No market_exposure_daily data — halting entries (fail-closed)"
-                )
-                return {
-                    "is_entry_allowed": False,
-                    "exposure_pct": 0,
-                    "regime": "unknown",
-                    "halt_reasons": ["No market regime data available"],
-                }
-            import json
+    Uses shared read_market_regime() to ensure consistent JSON deserialization
+    and error handling between Phase 3b and Phase 5.
+    """
+    from algo.risk import read_market_regime
 
-            if row[1] is None:
-                logger.critical(
-                    "[PHASE 5] market_exposure_daily exposure_pct is NULL — halting entries (fail-closed)"
-                )
-                return {
-                    "is_entry_allowed": False,
-                    "exposure_pct": 0,
-                    "regime": "unknown",
-                    "halt_reasons": ["Market exposure_pct is NULL — cannot proceed with regime-aware sizing"],
-                }
-
-            halt_reasons = []
-            if row[3]:
-                try:
-                    halt_reasons = json.loads(row[3])
-                    if not isinstance(halt_reasons, list):
-                        logger.warning(f"[PHASE 5] halt_reasons_json is not a list: {type(halt_reasons)}")
-                        halt_reasons = []
-                except (json.JSONDecodeError, TypeError) as e:
-                    logger.error(f"[PHASE 5] Malformed halt_reasons JSON: {e} — treating as empty list")
-                    halt_reasons = []
-
-            return {
-                "is_entry_allowed": bool(row[0]),
-                "exposure_pct": float(row[1]),
-                "regime": row[2] or "unknown",
-                "halt_reasons": halt_reasons,
-            }
-    except (json.JSONDecodeError, ValueError) as e:
-        logger.warning(f"[PHASE 5] Could not read market regime: {e} — halting entries (fail-closed)")
-        return {
-            "is_entry_allowed": False,
-            "exposure_pct": 0,
-            "regime": "unknown",
-            "halt_reasons": [f"Market regime read failed: {type(e).__name__}: {e!s}"],
-        }
+    return read_market_regime(run_date)
 
 
 def _detect_upstream_data_quality_drift(run_date: _date, signal_source: str) -> dict:
