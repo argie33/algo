@@ -44,7 +44,7 @@ logger = logging.getLogger(__name__)
 
 _LIQUIDITY_CHECK_LIMIT = 10
 _MAX_WORKERS = 4
-_MIN_COMPOSITE_SCORE = 50  # Minimum composite_score to qualify (0–100 scale)
+_MIN_COMPOSITE_SCORE = 50  # Minimum composite_score to qualify (0-100 scale)
 _BUYSELL_LOOKBACK_DAYS = 3  # Calendar days; covers 2 trading days including weekends
 
 # ISSUE #6 FIX: Define required signal fields for Phase 6 execution
@@ -73,7 +73,7 @@ def _validate_signal_completeness(candidates: list[dict], source: str) -> tuple[
     for sig in candidates:
         symbol = sig.get("symbol", "UNKNOWN")
         missing_fields = []
-        for field_name, field_type in _REQUIRED_SIGNAL_FIELDS.items():
+        for field_name, _field_type in _REQUIRED_SIGNAL_FIELDS.items():
             val = sig.get(field_name)
             if val is None:
                 missing_fields.append(field_name)
@@ -155,7 +155,13 @@ def _detect_upstream_data_quality_drift(run_date: _date, signal_source: str) -> 
                     f"(source={signal_source}, date={run_date}). Check swing_trader_scores loader."
                 )
     except (psycopg2.DatabaseError, psycopg2.OperationalError) as e:
-        logger.debug(f"[PHASE 5] Could not check upstream data quality: {e}")
+        # CRITICAL FIX: Log DB errors at WARNING, not DEBUG
+        # Silent debug-level errors hide data quality issues that cascade downstream
+        logger.warning(
+            f"[PHASE 5] DATABASE ERROR: Could not check upstream data quality drift "
+            f"(source={signal_source}, date={run_date}). "
+            f"Data quality issues may go undetected. Error: {e}"
+        )
 
     return drift
 
@@ -208,6 +214,7 @@ def _get_candidates_from_buysell(
                         p.high,
                         p.low,
                         sma.avg_close AS sma_50,
+                        atr_calc.atr_14,
                         cp.sector,
                         cp.industry,
                         bsd.buylevel,
@@ -243,6 +250,21 @@ def _get_candidates_from_buysell(
                             ORDER BY date DESC LIMIT 50
                         ) t
                     ) sma ON TRUE
+                    JOIN LATERAL (
+                        SELECT AVG(tr) AS atr_14
+                        FROM (
+                            SELECT
+                                GREATEST(
+                                    high - low,
+                                    ABS(high - LAG(close) OVER (ORDER BY date)),
+                                    ABS(low - LAG(close) OVER (ORDER BY date))
+                                ) AS tr,
+                                ROW_NUMBER() OVER (ORDER BY date DESC) AS rn
+                            FROM price_daily
+                            WHERE symbol = bsd.symbol AND date <= %s
+                        ) t
+                        WHERE tr IS NOT NULL AND rn <= 14
+                    ) atr_calc ON TRUE
                     LEFT JOIN company_profile cp ON cp.ticker = bsd.symbol
                     WHERE ss.composite_score >= %s
                       AND p.close > sma.avg_close
@@ -254,7 +276,7 @@ def _get_candidates_from_buysell(
                 ORDER BY swing_score DESC, composite_score DESC
                 LIMIT %s
                 """,
-                (lookback_date, run_date, run_date, run_date, run_date, min_score, min_close_quality, limit),
+                (lookback_date, run_date, run_date, run_date, run_date, run_date, min_score, min_close_quality, limit),
             )
             rows = cur.fetchall()
 
@@ -262,9 +284,9 @@ def _get_candidates_from_buysell(
         for r in rows:
             close = float(r[6]) if r[6] is not None else None
             composite = float(r[1]) if r[1] is not None else None
-            raw_strength = float(r[14]) if r[14] is not None else None
-            swing_score = float(r[18]) if r[18] is not None else 0.0
-            swing_components = r[19] if r[19] is not None else None
+            raw_strength = float(r[15]) if r[15] is not None else None
+            swing_score = float(r[19]) if r[19] is not None else 0.0
+            swing_components = r[20] if r[20] is not None else None
             candidates.append({
                 "symbol": r[0],
                 "composite_score": composite,
@@ -278,15 +300,16 @@ def _get_candidates_from_buysell(
                 "high": float(r[7]) if r[7] is not None else None,
                 "low": float(r[8]) if r[8] is not None else None,
                 "sma_50": float(r[9]) if r[9] is not None else None,
+                "atr_14": float(r[10]) if r[10] is not None else None,
                 "entry_price": close,
                 "signal_strength": raw_strength,
-                "sector": r[10],
-                "industry": r[11],
-                "buylevel": float(r[12]) if r[12] is not None else None,
-                "stoplevel": float(r[13]) if r[13] is not None else None,
-                "volume_surge_pct": float(r[15]) if r[15] is not None else None,
-                "market_stage": r[16],
-                "signal_date": str(r[17]) if r[17] is not None else None,
+                "sector": r[11],
+                "industry": r[12],
+                "buylevel": float(r[13]) if r[13] is not None else None,
+                "stoplevel": float(r[14]) if r[14] is not None else None,
+                "volume_surge_pct": float(r[16]) if r[16] is not None else None,
+                "market_stage": r[17],
+                "signal_date": str(r[18]) if r[18] is not None else None,
             })
 
         swing_score_positive = sum(1 for c in candidates if c["swing_score"] > 0)
@@ -297,6 +320,13 @@ def _get_candidates_from_buysell(
         )
 
         complete_candidates, incomplete_count = _validate_signal_completeness(candidates, "buy_sell_daily path")
+
+        if incomplete_count > 0:
+            logger.warning(
+                f"[PHASE 5 DATA LOSS ALERT] {incomplete_count} incomplete signals FILTERED OUT from {len(candidates)} candidates. "
+                f"Complete signals delivered to Phase 6: {len(complete_candidates)}. "
+                f"Data loss: {incomplete_count/max(1, len(candidates))*100:.0f}% of input signals discarded."
+            )
 
         return complete_candidates
     except (ValueError, ZeroDivisionError, TypeError) as e:
@@ -332,6 +362,7 @@ def _get_candidates(run_date: _date, min_score: float, limit: int = 100, min_clo
                     p.high,
                     p.low,
                     sma.avg_close AS sma_50,
+                    atr_calc.atr_14,
                     cp.sector,
                     cp.industry,
                     sts.score AS swing_score,
@@ -353,6 +384,21 @@ def _get_candidates(run_date: _date, min_score: float, limit: int = 100, min_clo
                         ORDER BY date DESC LIMIT 50
                     ) t
                 ) sma ON TRUE
+                JOIN LATERAL (
+                    SELECT AVG(tr) AS atr_14
+                    FROM (
+                        SELECT
+                            GREATEST(
+                                high - low,
+                                ABS(high - LAG(close) OVER (ORDER BY date)),
+                                ABS(low - LAG(close) OVER (ORDER BY date))
+                            ) AS tr,
+                            ROW_NUMBER() OVER (ORDER BY date DESC) AS rn
+                        FROM price_daily
+                        WHERE symbol = ss.symbol AND date <= %s
+                    ) t
+                    WHERE tr IS NOT NULL AND rn <= 14
+                ) atr_calc ON TRUE
                 LEFT JOIN company_profile cp ON cp.ticker = ss.symbol
                 WHERE ss.composite_score >= %s
                   AND p.close > sma.avg_close
@@ -361,15 +407,15 @@ def _get_candidates(run_date: _date, min_score: float, limit: int = 100, min_clo
                 ORDER BY sts.score DESC, ss.composite_score DESC
                 LIMIT %s
                 """,
-                (run_date, run_date, run_date, min_score, min_close_quality, limit),
+                (run_date, run_date, run_date, run_date, min_score, min_close_quality, limit),
             )
             rows = cur.fetchall()
 
         candidates = []
         for r in rows:
             close = float(r[6]) if r[6] is not None else None
-            swing_score = float(r[12]) if r[12] is not None else 0.0
-            swing_components = r[13] if r[13] is not None else None
+            swing_score = float(r[13]) if r[13] is not None else 0.0
+            swing_components = r[14] if r[14] is not None else None
             candidates.append({
                 "symbol": r[0],
                 "composite_score": float(r[1]) if r[1] is not None else None,
@@ -383,10 +429,11 @@ def _get_candidates(run_date: _date, min_score: float, limit: int = 100, min_clo
                 "high": float(r[7]) if r[7] is not None else None,
                 "low": float(r[8]) if r[8] is not None else None,
                 "sma_50": float(r[9]) if r[9] is not None else None,
+                "atr_14": float(r[10]) if r[10] is not None else None,
                 "entry_price": close,
                 "signal_strength": None,
-                "sector": r[10],
-                "industry": r[11],
+                "sector": r[11],
+                "industry": r[12],
             })
 
         swing_score_positive = sum(1 for c in candidates if c["swing_score"] > 0)
@@ -395,7 +442,7 @@ def _get_candidates(run_date: _date, min_score: float, limit: int = 100, min_clo
             f"(swing_scores: {swing_score_positive}, SQL filters: trend & close_quality applied at query level)"
         )
 
-        complete_candidates, incomplete_count = _validate_signal_completeness(candidates, "stock_scores fallback path")
+        complete_candidates, _ = _validate_signal_completeness(candidates, "stock_scores fallback path")
 
         return complete_candidates
     except (ValueError, ZeroDivisionError, TypeError) as e:
