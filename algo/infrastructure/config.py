@@ -636,6 +636,7 @@ class AlgoConfig:
         t0 = time.time()
         logger.info("[AlgoConfig] __init__ starting")
         self._config = {}
+        self._sources = {}  # Track source of each config value: "default" or "database"
         self._load_defaults()
         t1 = time.time()
         logger.info(f"[AlgoConfig] defaults loaded in {t1-t0:.2f}s")
@@ -648,11 +649,13 @@ class AlgoConfig:
         self._validate_config_interdependencies()
         t3 = time.time()
         logger.info(f"[AlgoConfig] interdependency validation completed in {t3-t_crit:.2f}s")
+        self._audit_config_sources()
 
     def _load_defaults(self):
         """Load default configuration."""
         for key, (value, dtype, desc) in self.DEFAULTS.items():
             self._config[key] = self._parse_value(value, dtype)
+            self._sources[key] = "default"
 
     def _load_from_database(self):
         """Load configuration from database, overriding defaults."""
@@ -675,10 +678,12 @@ class AlgoConfig:
                         try:
                             self._validate_value(key, value, dtype)
                             self._config[key] = self._parse_value(value, dtype)
+                            self._sources[key] = "database"
                         except ValueError as e:
                             logger.warning(
                                 f"Warning: Invalid config {key}={value}: {e} — using default"
                             )
+                            self._sources[key] = "default_fallback"
                 self._validate_r_multiple_ordering()
                 t_end = time.time()
                 logger.info(
@@ -941,6 +946,41 @@ class AlgoConfig:
         except Exception as e:
             logger.warning(f"[AlgoConfig] Interdependency validation error: {e}")
 
+    def _audit_config_sources(self):
+        """Log audit trail of which config values came from database vs defaults.
+
+        Helps detect silent fallbacks when database values are missing.
+        """
+        # Critical parameters that MUST come from database, never defaults
+        critical_keys = {
+            "min_signal_quality_score",
+            "min_swing_score",
+            "min_completeness_score",
+            "min_volume_ma_50d",
+            "min_avg_daily_dollar_volume",
+            "halt_drawdown_pct",
+            "base_risk_pct",
+            "max_position_size_pct",
+            "vix_max_threshold",
+            "earnings_blackout_days_before",
+            "earnings_blackout_days_after",
+        }
+
+        using_defaults = [k for k in critical_keys if self._sources.get(k) == "default"]
+        if using_defaults:
+            logger.warning(
+                f"[AlgoConfig] AUDIT: {len(using_defaults)} critical parameters using defaults (not in database): "
+                f"{sorted(using_defaults)}. Verify algo_config table is populated."
+            )
+
+        num_db = sum(1 for s in self._sources.values() if s == "database")
+        num_default = sum(1 for s in self._sources.values() if s == "default")
+        num_fallback = sum(1 for s in self._sources.values() if s == "default_fallback")
+        logger.info(
+            f"[AlgoConfig] SOURCES: {num_db} from database, {num_default} using defaults, "
+            f"{num_fallback} fallback-to-default (invalid DB values)"
+        )
+
     def get(self, key, default=None):
         """Get configuration value with validation of hardcoded defaults.
 
@@ -969,6 +1009,7 @@ class AlgoConfig:
         try:
             self._validate_value(key, str(value), dtype)
             self._config[key] = self._parse_value(str(value), dtype)
+            self._sources[key] = "override"
             logger.info(f"[CONFIG OVERRIDE] {key} = {value} ({dtype})")
         except ValueError as e:
             logger.error(f"[CONFIG OVERRIDE] Invalid value for {key}: {e} — ignored")
@@ -1019,6 +1060,7 @@ class AlgoConfig:
                 )
 
             self._config[key] = self._parse_value(str(value), value_type)
+            self._sources[key] = "database"
             logger.info(
                 f"[CONFIG SET] {key} = {value} (was {old_value}), actor={changed_by}"
             )
@@ -1054,8 +1096,10 @@ class AlgoConfig:
     def reload(self):
         """Reload configuration from database."""
         self._config.clear()
+        self._sources.clear()
         self._load_defaults()
         self._load_from_database()
+        self._audit_config_sources()
 
     def __repr__(self):
         return f"<AlgoConfig {len(self._config)} keys>"

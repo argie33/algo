@@ -266,12 +266,13 @@ class MarketExposure:
             )
 
             # --- 6. VIX regime (level + VIX3M term structure) ---
-            vix = self._vix_regime(eval_date, cur)
-            if vix.get("value") is None:
-                logger.warning(
-                    f"VIX data missing for {eval_date}: ^VIX not in price_daily and/or "
-                    f"vix_level not in market_health_daily — check data loaders"
-                )
+            # _vix_regime() raises RuntimeError if VIX data is unavailable (critical dependency).
+            # Term structure (VIX3M) is optional: if missing, calculation proceeds with level only.
+            try:
+                vix = self._vix_regime(eval_date, cur)
+            except RuntimeError as e:
+                logger.critical(f"[VIX CRITICAL] Exposure calculation halted: {e}")
+                raise
             vix_pts, vix_avail = self._wt_pts(vix, self.W_VIX)
             avail_max += vix_avail
             factors["vix_regime"] = {**vix, "pts": round(vix_pts, 1), "max": self.W_VIX}
