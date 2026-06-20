@@ -688,8 +688,11 @@ class AlgoConfig:
             logger.error(f"Config validation error: {e}")
             raise
         except Exception as e:
-            logger.warning(f"Warning: Could not load config from DB: {e}")
-            logger.info("  Using defaults...")
+            logger.error(f"CRITICAL: Failed to load config from database: {e}")
+            raise RuntimeError(
+                f"Config initialization failed: cannot load safety thresholds from database. "
+                f"System will not trade with undefined safety configuration. Caused by: {e}"
+            ) from e
 
     def _parse_value(self, value, dtype):
         """Parse configuration value to correct type."""

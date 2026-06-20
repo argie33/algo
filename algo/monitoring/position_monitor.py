@@ -853,19 +853,18 @@ class PositionMonitor:
             )
             row = cur.fetchone()
             if not row or not row[0]:
-                logger.warning(f"[POSITION] Earnings data unavailable for {symbol} — using fallback (45 days)")
-                return 45
+                raise ValueError(f"No earnings history available for {symbol}")
             est = row[0] + timedelta(days=45)
             while est < current_date:
                 est += timedelta(days=90)
             days = (est - current_date).days
             if days < 0 or days > 200:
-                logger.warning(f"[POSITION] Earnings estimate out of range for {symbol} ({days}d) — using fallback")
-                return 45
+                raise ValueError(f"Earnings estimate out of range for {symbol}: {days} days — estimated date {est} is invalid")
             return days
+        except ValueError:
+            raise
         except Exception as e:
-            logger.warning(f"[POSITION] Could not determine earnings for {symbol}: {e} — using fallback")
-            return 45
+            raise ValueError(f"Could not determine earnings for {symbol}: {e}") from e
 
     def _fetch_market_dist_days(self, current_date, cur):
         """Get market distribution days from health data.
