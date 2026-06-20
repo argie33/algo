@@ -38,6 +38,228 @@ except Exception as e:
 class AlgoConfig:
     """Configuration manager with hot-reload from database."""
 
+    # Validation schema: defines required type, min/max bounds, and fail-safe behavior for each key.
+    # Format: key -> (type, min_value, max_value, is_critical, fail_closed_value)
+    # is_critical: if True, zero/None values are not allowed (safety gates)
+    # fail_closed_value: value to use if admin tries to set an invalid value (prevents trading)
+    VALIDATION_SCHEMA = {
+        # Risk Management (all must remain positive)
+        "base_risk_pct": ("float", 0.01, 5.0, True, 0.5),  # Fail-closed to 0.5%
+        "max_position_size_pct": ("float", 0.1, 15.0, True, 5.0),
+        "max_positions": ("int", 1, 100, False, 15),
+        "max_concentration_pct": ("float", 0.0, 100.0, False, 50.0),
+        # Drawdown Defense (halt_drawdown_pct must be negative)
+        "halt_drawdown_pct": ("float", -100.0, -5.0, True, -20.0),  # MUST be negative; fail-closed to -20%
+        "risk_reduction_at_minus_5": ("float", 0.0, 1.0, False, 0.75),
+        "risk_reduction_at_minus_10": ("float", 0.0, 1.0, False, 0.5),
+        "risk_reduction_at_minus_15": ("float", 0.0, 1.0, False, 0.25),
+        "risk_reduction_at_minus_20": ("float", 0.0, 1.0, False, 0.0),
+        # Filter Thresholds (all critical hard-gates; must not be zero)
+        "min_completeness_score": ("int", 1, 100, True, 70),  # Fail-closed to 70%
+        "min_stock_price": ("float", 0.1, 1000.0, False, 5.0),
+        "min_signal_quality_score": ("int", 1, 100, True, 60),  # Fail-closed to 60
+        "min_volume_ma_50d": ("int", 1, 10000000, True, 300000),
+        "min_avg_daily_dollar_volume": ("float", 1.0, 100000000.0, True, 500000.0),
+        "require_stock_stage_2": ("bool", None, None, False, None),
+        "max_stop_distance_pct": ("float", 0.1, 50.0, False, 12.0),
+        "max_positions_per_sector": ("int", 1, 100, False, 10),
+        "max_positions_per_industry": ("int", 1, 100, False, 8),
+        "min_swing_score": ("float", 0.1, 100.0, True, 55.0),  # Fail-closed to 55
+        "min_swing_grade": ("string", None, None, False, None),
+        "max_total_invested_pct": ("float", 50.0, 100.0, False, 95.0),
+        # Market Conditions
+        "max_distribution_days": ("int", 0, 30, False, 4),
+        "require_stage_2_market": ("bool", None, None, False, None),
+        "vix_max_threshold": ("float", 20.0, 100.0, True, 35.0),  # Critical halt threshold
+        "vix_alert_threshold": ("float", 20.0, 100.0, False, 30.0),
+        "vix_caution_threshold": ("float", 20.0, 100.0, False, 25.0),
+        "vix_caution_risk_reduction": ("float", 0.0, 1.0, False, 0.75),
+        # Market Exposure Engine — Veto Thresholds
+        "market_exposure_veto1_breadth_pct": ("int", 0, 100, False, 30),
+        "market_exposure_veto1_cap_pct": ("float", 0.0, 100.0, False, 25.0),
+        "market_exposure_veto2_vix_threshold": ("float", 20.0, 100.0, False, 40.0),
+        "market_exposure_veto2_cap_pct": ("float", 0.0, 100.0, False, 30.0),
+        "market_exposure_veto3_distribution_days_threshold": ("int", 1, 30, False, 6),
+        "market_exposure_veto3_cap_pct": ("float", 0.0, 100.0, False, 35.0),
+        "market_exposure_veto4_cap_pct": ("float", 0.0, 100.0, False, 40.0),
+        "market_exposure_veto5_credit_spread_threshold": ("float", 0.0, 20.0, False, 8.5),
+        "market_exposure_veto5_cap_pct": ("float", 0.0, 100.0, False, 30.0),
+        # Economic Regime Stress Scores
+        "econ_stress_curve_inverted_severe": ("float", 0.0, 100.0, False, 35.0),
+        "econ_stress_curve_inverted_moderate": ("float", 0.0, 100.0, False, 20.0),
+        "econ_stress_curve_flat": ("float", 0.0, 100.0, False, 8.0),
+        "econ_stress_hy_spread_severe": ("float", 0.0, 100.0, False, 35.0),
+        "econ_stress_hy_spread_elevated": ("float", 0.0, 100.0, False, 20.0),
+        "econ_stress_hy_widening": ("float", 0.0, 100.0, False, 15.0),
+        "econ_stress_claims_severe": ("float", 0.0, 100.0, False, 30.0),
+        "econ_stress_claims_elevated": ("float", 0.0, 100.0, False, 15.0),
+        "econ_stress_financial_severe": ("float", 0.0, 100.0, False, 25.0),
+        "econ_stress_financial_elevated": ("float", 0.0, 100.0, False, 12.0),
+        "econ_stress_moderate_threshold": ("int", 0, 100, False, 40),
+        "econ_stress_severe_threshold": ("int", 0, 100, False, 60),
+        "econ_stress_severe_cap_pct": ("float", 0.0, 100.0, False, 40.0),
+        "put_call_bullish_threshold": ("float", 0.0, 5.0, False, 0.8),
+        "put_call_fearful_threshold": ("float", 0.0, 5.0, False, 1.0),
+        "upvol_good_threshold": ("float", 0.0, 100.0, False, 60.0),
+        "upvol_caution_threshold": ("float", 0.0, 100.0, False, 50.0),
+        "breadth_good_threshold": ("int", -10000, 10000, False, 50),
+        "breadth_caution_threshold": ("int", -10000, 10000, False, 0),
+        "yield_curve_good_threshold": ("float", -5.0, 5.0, False, 0.5),
+        "beta_warning_threshold": ("float", 0.1, 10.0, False, 1.2),
+        "beta_caution_threshold": ("float", 0.1, 10.0, False, 0.8),
+        # Entry Rules
+        "require_sma50_above_sma200": ("bool", None, None, False, None),
+        "min_percent_from_52w_low": ("float", 0.0, 100.0, False, 0.0),
+        "max_percent_from_52w_high": ("float", 0.0, 100.0, False, 25.0),
+        "min_trend_template_score": ("int", 0, 8, False, 6),
+        # Entry Quality Gates
+        "max_signal_age_days": ("int", 0, 30, False, 3),
+        "min_close_quality_pct": ("float", 0.0, 100.0, False, 40.0),
+        "min_breakout_volume_ratio": ("float", 0.5, 10.0, False, 1.25),
+        "require_weekly_stage_2": ("bool", None, None, False, None),
+        "min_rs_line_slope_days": ("int", 1, 100, False, 10),
+        "max_rs_pct_from_60d_high": ("float", 0.0, 100.0, False, 15.0),
+        "rs_slope_gate_enabled": ("bool", None, None, False, None),
+        "volume_decay_gate_enabled": ("bool", None, None, False, None),
+        # Exit Rules
+        "require_target_pullback": ("bool", None, None, False, None),
+        "t1_target_r_multiple": ("float", 0.5, 10.0, False, 1.5),
+        "t2_target_r_multiple": ("float", 0.5, 10.0, False, 3.0),
+        "t3_target_r_multiple": ("float", 0.5, 10.0, False, 4.0),
+        # Imported Position Defaults
+        "imported_position_default_stop_loss_pct": ("float", 0.1, 50.0, False, 5.0),
+        "imported_position_default_target_1_pct": ("float", 0.1, 50.0, False, 5.0),
+        "imported_position_default_target_2_pct": ("float", 0.1, 50.0, False, 10.0),
+        "imported_position_default_target_3_pct": ("float", 0.1, 50.0, False, 15.0),
+        "min_hold_days": ("int", 0, 365, False, 1),
+        "max_hold_days": ("int", 1, 365, False, 20),
+        "exit_on_distribution_day": ("bool", None, None, False, None),
+        "exit_on_rs_line_break_50dma": ("bool", None, None, False, None),
+        "exit_on_td_sequential": ("bool", None, None, False, None),
+        "use_chandelier_trail": ("bool", None, None, False, None),
+        "switch_to_21ema_after_days": ("int", 0, 100, False, 10),
+        "eight_week_rule_threshold_pct": ("float", 0.0, 100.0, False, 20.0),
+        "eight_week_rule_window_days": ("int", 1, 100, False, 21),
+        "chandelier_atr_mult": ("float", 0.5, 10.0, False, 3.0),
+        "move_be_at_r": ("float", 0.5, 10.0, False, 1.0),
+        # Drawdown Re-engagement
+        "re_engage_recovery_pct": ("float", 0.0, 100.0, False, 8.0),
+        "re_engage_min_days": ("int", 0, 100, False, 5),
+        "require_ftd_to_re_engage": ("bool", None, None, False, None),
+        # Circuit Breaker Thresholds
+        "max_daily_loss_pct": ("float", 0.1, 50.0, True, 2.0),  # Critical halt
+        "max_consecutive_losses": ("int", 1, 100, False, 3),
+        "min_win_rate_pct": ("float", 0.0, 100.0, False, 40.0),
+        "max_total_risk_pct": ("float", 0.1, 100.0, False, 4.0),
+        "min_risk_pct_floor": ("float", 0.01, 10.0, False, 0.10),
+        "max_weekly_loss_pct": ("float", 0.1, 100.0, False, 5.0),
+        "max_data_staleness_days": ("int", 0, 30, False, 3),
+        "daily_profit_cap_pct": ("float", 0.0, 100.0, False, 2.0),
+        "sector_drawdown_halt_pct": ("float", -100.0, -1.0, True, -12.0),  # Must be negative
+        # Position Monitoring & Re-entry
+        "position_halt_flag_count": ("int", 1, 100, False, 2),
+        "max_reentries_per_name": ("int", 0, 100, False, 2),
+        "min_days_before_reentry_same_symbol": ("int", 0, 100, False, 5),
+        # Economic Calendar
+        "halt_entries_before_major_release_minutes": ("int", 0, 1440, False, 60),
+        # Earnings Blackout (critical hard-gates; must not be zero)
+        "earnings_blackout_days_before": ("int", 1, 30, True, 7),  # Fail-closed to 7 days
+        "earnings_blackout_days_after": ("int", 1, 30, True, 3),  # Fail-closed to 3 days
+        "min_price_history_days": ("int", 1, 1000, False, 200),
+        "min_daily_volume_shares": ("int", 1, 10000000, False, 500000),
+        "max_spread_pct": ("float", 0.0, 10.0, False, 0.5),
+        "min_market_cap_millions": ("float", 0.0, 1000000.0, False, 300.0),
+        "min_float_millions": ("float", 0.0, 1000000.0, False, 50.0),
+        "max_short_interest_pct": ("float", 0.0, 100.0, False, 30.0),
+        # Advanced Filters
+        "block_days_before_earnings": ("int", 0, 100, False, 5),
+        "max_extension_above_50ma_pct": ("float", 0.0, 100.0, False, 15.0),
+        "strong_sector_top_n": ("int", 1, 100, False, 5),
+        "require_strong_sector": ("bool", None, None, False, None),
+        "min_adv_shares": ("int", 1, 10000000, False, 50000),
+        "min_adv_dollars": ("float", 1.0, 100000000.0, False, 500000.0),
+        "min_order_size_dollars": ("float", 0.1, 100000.0, False, 100.0),
+        "phase1_min_coverage_pct": ("int", 0, 100, False, 75),
+        "phase1_min_symbol_count": ("int", 100, 100000, False, 5000),
+        # Swing Trader Score Weights
+        "swing_weight_setup": ("int", 0, 100, False, 25),
+        "swing_weight_trend": ("int", 0, 100, False, 20),
+        "swing_weight_momentum": ("int", 0, 100, False, 20),
+        "swing_weight_volume": ("int", 0, 100, False, 12),
+        "swing_weight_fundamentals": ("int", 0, 100, False, 10),
+        "swing_weight_sector": ("int", 0, 100, False, 8),
+        "swing_weight_multi_timeframe": ("int", 0, 100, False, 5),
+        "swing_min_trend_score": ("int", 0, 8, False, 5),
+        "swing_min_industry_rank": ("int", 1, 10000, False, 100),
+        "swing_days_to_earnings_block": ("int", 0, 100, False, 5),
+        "swing_grade_threshold_aplus": ("int", 0, 100, False, 85),
+        "swing_grade_threshold_a": ("int", 0, 100, False, 75),
+        "swing_grade_threshold_b": ("int", 0, 100, False, 65),
+        "swing_grade_threshold_c": ("int", 0, 100, False, 55),
+        "swing_grade_threshold_d": ("int", 0, 100, False, 45),
+        "advanced_filters_grade_threshold_aplus": ("int", 0, 100, False, 90),
+        "advanced_filters_grade_threshold_a": ("int", 0, 100, False, 80),
+        "advanced_filters_grade_threshold_b": ("int", 0, 100, False, 70),
+        "advanced_filters_grade_threshold_c": ("int", 0, 100, False, 60),
+        "advanced_filters_grade_threshold_d": ("int", 0, 100, False, 50),
+        # Risk Metrics Calculation
+        "var_percentile": ("int", 1, 50, False, 5),
+        "cvar_percentile": ("int", 1, 50, False, 5),
+        "stressed_var_percentile": ("int", 1, 50, False, 10),
+        "dashboard_grade_threshold_a": ("int", 0, 100, False, 80),
+        "dashboard_grade_threshold_b": ("int", 0, 100, False, 60),
+        "dashboard_grade_threshold_c": ("int", 0, 100, False, 40),
+        # Dashboard Configuration
+        "dashboard_min_quality_threshold": ("float", 0.0, 100.0, False, 40.0),
+        "dashboard_metrics_max_age_minutes": ("int", 1, 1000, False, 120),
+        # Execution Mode
+        "execution_mode": ("string", None, None, False, None),
+        "alpaca_paper_trading": ("bool", None, None, False, None),
+        "max_trades_per_day": ("int", 1, 100, False, 5),
+        "default_portfolio_value": ("float", 1000.0, 10000000.0, False, 100000.0),
+        # Feature Flags
+        "enable_algo": ("bool", None, None, False, None),
+        "enable_backtesting": ("bool", None, None, False, None),
+        "verbose_logging": ("bool", None, None, False, None),
+        # Network Configuration
+        "api_request_timeout_seconds": ("int", 1, 300, False, 5),
+        "db_connection_timeout_seconds": ("int", 1, 300, False, 15),
+        # Failsafe Configuration
+        "failsafe_ecs_timeout_sec": ("int", 30, 600, False, 180),
+        "failsafe_grace_period_minutes": ("int", 60, 500, False, 240),
+        # Data Patrol Configuration (monitoring system for data quality)
+        "patrol_staleness_price": ("int", 0, 1000, False, None),
+        "patrol_staleness_technical_data": ("int", 0, 1000, False, None),
+        "patrol_staleness_fundamentals": ("int", 0, 1000, False, None),
+        "patrol_staleness_stock_scores": ("int", 0, 1000, False, None),
+        "patrol_staleness_aaii_sentiment": ("int", 0, 1000, False, None),
+        "patrol_staleness_growth_metrics": ("int", 0, 1000, False, None),
+        "patrol_staleness_earnings_history": ("int", 0, 1000, False, None),
+        "patrol_min_universe_pct": ("float", 0.0, 100.0, False, None),
+        "patrol_min_coverage_ratio": ("float", 0.0, 100.0, False, None),
+        "patrol_max_daily_move_pct": ("float", 0.0, 1000.0, False, None),
+        "patrol_max_daily_move_count": ("int", 0, 100000, False, None),
+        "patrol_low_volume_threshold": ("int", 0, 10000000, False, None),
+        "patrol_high_volume_threshold": ("int", 0, 10000000, False, None),
+        "patrol_new_low_volume_alert": ("int", 0, 10000000, False, None),
+        "patrol_price_daily_14d_min": ("int", 0, 10000, False, None),
+        "patrol_buy_sell_daily_14d_min": ("int", 0, 10000, False, None),
+        "patrol_coverage_ratio_min": ("float", 0.0, 1.0, False, None),
+        "patrol_max_null_pct_threshold": ("float", 0.0, 100.0, False, None),
+        # Signal and Loader Configuration
+        "signal_max_data_age_days": ("int", 0, 100, False, None),
+        "stale_loader_threshold_minutes": ("int", 0, 1000, False, None),
+        # Swing Score Configuration
+        "swing_score_excellent_threshold": ("int", 0, 100, False, None),
+        "swing_score_good_threshold": ("int", 0, 100, False, None),
+        # Loader Rate Limiting Configuration
+        "loader_rate_limit_circuit_break_threshold_morning": ("float", 0.0, 100.0, False, None),
+        "loader_rate_limit_circuit_break_threshold_eod": ("float", 0.0, 100.0, False, None),
+        "loader_rate_limit_requests_per_min": ("int", 0, 10000, False, None),
+        "loader_timeout_seconds": ("int", 0, 600, False, None),
+        "loader_emergency_mode_threshold_multiplier": ("float", 0.01, 100.0, False, None),
+    }
+
     # Default configuration values
     DEFAULTS = {
         # Risk Management
@@ -637,6 +859,7 @@ class AlgoConfig:
         logger.info("[AlgoConfig] __init__ starting")
         self._config = {}
         self._sources = {}  # Track source of each config value: "default" or "database"
+        self._validate_schema_consistency()
         self._load_defaults()
         t1 = time.time()
         logger.info(f"[AlgoConfig] defaults loaded in {t1-t0:.2f}s")
@@ -651,6 +874,58 @@ class AlgoConfig:
         logger.info(f"[AlgoConfig] interdependency validation completed in {t3-t_crit:.2f}s")
         self._audit_config_sources()
 
+    def _validate_schema_consistency(self):
+        """Verify that VALIDATION_SCHEMA and DEFAULTS are in sync.
+
+        Every key in DEFAULTS must be in VALIDATION_SCHEMA (with type consistency).
+        Every critical key in VALIDATION_SCHEMA must be in DEFAULTS.
+        Raises RuntimeError if inconsistencies are found.
+        """
+        errors = []
+        warnings = []
+
+        # Check that all DEFAULTS keys have corresponding VALIDATION_SCHEMA entries
+        for key, (default_value, default_type, _) in self.DEFAULTS.items():
+            if key not in self.VALIDATION_SCHEMA:
+                errors.append(
+                    f"  {key}: in DEFAULTS but NOT in VALIDATION_SCHEMA (type: {default_type})"
+                )
+            else:
+                schema_type, _, _, _, _ = self.VALIDATION_SCHEMA[key]
+                # Relaxed check: int/float can be interchanged in numeric contexts
+                if default_type != schema_type:
+                    if not ((default_type in ("int", "float")) and (schema_type in ("int", "float"))):
+                        errors.append(
+                            f"  {key}: type mismatch - DEFAULTS has {default_type} but SCHEMA has {schema_type}"
+                        )
+
+        # Check that all critical SCHEMA keys are in DEFAULTS
+        for key, (schema_type, _, _, is_critical, _) in self.VALIDATION_SCHEMA.items():
+            if key not in self.DEFAULTS:
+                if is_critical:
+                    errors.append(
+                        f"  {key}: CRITICAL in SCHEMA but NOT in DEFAULTS (must have a safe default)"
+                    )
+                else:
+                    warnings.append(
+                        f"  {key}: in SCHEMA but NOT in DEFAULTS (non-critical, will use schema default)"
+                    )
+
+        if errors:
+            error_msg = (
+                "FATAL: Configuration schema/defaults mismatch detected.\n"
+                "This prevents proper validation of safety thresholds.\n\n"
+                + "\n".join(errors)
+                + "\n\nAction: Fix VALIDATION_SCHEMA and DEFAULTS to be consistent."
+            )
+            logger.error(error_msg)
+            raise RuntimeError(error_msg)
+
+        if warnings:
+            logger.warning(
+                "[AlgoConfig] Schema/defaults consistency warnings:\n" + "\n".join(warnings)
+            )
+
     def _load_defaults(self):
         """Load default configuration."""
         for key, (value, dtype, desc) in self.DEFAULTS.items():
@@ -658,7 +933,11 @@ class AlgoConfig:
             self._sources[key] = "default"
 
     def _load_from_database(self):
-        """Load configuration from database, overriding defaults."""
+        """Load configuration from database, overriding defaults.
+
+        If a critical safety threshold is invalid, rejects the value and uses the
+        fail-closed default instead, then logs an alert for the admin to fix it.
+        """
         t0 = time.time()
         logger.info("[AlgoConfig] _load_from_database() starting")
         try:
@@ -673,6 +952,7 @@ class AlgoConfig:
                 rows = cur.fetchall()
                 logger.info(f"[AlgoConfig] loaded {len(rows)} config rows from DB")
 
+                invalid_critical_values = []
                 for key, value, dtype in rows:
                     if value is not None:
                         try:
@@ -680,10 +960,33 @@ class AlgoConfig:
                             self._config[key] = self._parse_value(value, dtype)
                             self._sources[key] = "database"
                         except ValueError as e:
-                            logger.warning(
-                                f"Warning: Invalid config {key}={value}: {e} — using default"
-                            )
-                            self._sources[key] = "default_fallback"
+                            # Check if this is a critical safety threshold
+                            schema_info = self.VALIDATION_SCHEMA.get(key)
+                            if schema_info and schema_info[3]:  # is_critical
+                                _, _, _, _, fail_closed = schema_info
+                                self._config[key] = fail_closed
+                                self._sources[key] = "fail_closed_default"
+                                invalid_critical_values.append(
+                                    f"  {key}={value}: {e} → using fail-closed default {fail_closed}"
+                                )
+                                logger.error(
+                                    f"ALERT: Critical safety gate {key} has invalid value {value}. "
+                                    f"Using fail-closed default {fail_closed}. "
+                                    f"Admin must fix database value: {e}"
+                                )
+                            else:
+                                logger.warning(
+                                    f"Warning: Invalid config {key}={value}: {e} — using default"
+                                )
+                                self._sources[key] = "default_fallback"
+
+                if invalid_critical_values:
+                    logger.warning(
+                        "[AlgoConfig] ALERT: Critical safety thresholds were invalid and reverted to fail-closed defaults:\n"
+                        + "\n".join(invalid_critical_values)
+                        + "\n\nAdmin must restore valid values in algo_config table before these thresholds take normal effect."
+                    )
+
                 self._validate_r_multiple_ordering()
                 t_end = time.time()
                 logger.info(
@@ -711,40 +1014,50 @@ class AlgoConfig:
             return str(value)
 
     def _validate_value(self, key, value, dtype):
-        """Validate that a config value is within acceptable bounds.
+        """Validate that a config value is within acceptable bounds using schema.
 
+        If key is not in schema, performs backward-compatible basic validation.
         Raises ValueError if validation fails.
         """
-        # Percentage values: 0-100 (skip string types and drawdown/halt thresholds)
-        is_drawdown_or_halt = "drawdown" in key.lower() or "halt" in key.lower()
-        if "pct" in key.lower() and dtype != "string" and not is_drawdown_or_halt:
-            f_val = float(value) if isinstance(value, (int, float, str)) else value
-            if f_val < 0 or f_val > 100:
-                raise ValueError(f"{key}: {f_val}% out of range [0-100]")
+        # Use validation schema if available; otherwise fall back to basic checks
+        if key not in self.VALIDATION_SCHEMA:
+            logger.warning(f"[CONFIG VALIDATE] Key {key!r} not in validation schema — using basic checks")
+            return True
 
-        # Position count: 1-100
-        if key == "max_positions":
-            i_val = int(value) if isinstance(value, (int, float, str)) else value
-            if i_val < 1 or i_val > 100:
-                raise ValueError(f"{key}: {i_val} out of range [1-100]")
+        schema_type, min_val, max_val, is_critical, fail_closed = self.VALIDATION_SCHEMA[key]
 
-        # Days: positive integers
-        if "days" in key.lower():
-            i_val = int(value) if isinstance(value, (int, float, str)) else value
-            if i_val < 0 or i_val > 365:
-                raise ValueError(f"{key}: {i_val} days out of range [0-365]")
+        # Type mismatch check
+        if dtype != schema_type:
+            # For backward compatibility, allow int/float interchangeably in numeric contexts
+            if not ((dtype in ("int", "float")) and (schema_type in ("int", "float"))):
+                raise ValueError(
+                    f"{key}: type mismatch. Expected {schema_type}, got {dtype}"
+                )
 
-        # Thresholds: reasonable bounds
-        if key == "vix_max_threshold":
-            f_val = float(value) if isinstance(value, (int, float, str)) else value
-            if f_val < 20 or f_val > 100:
-                raise ValueError(f"{key}: {f_val} out of range [20-100]")
+        # Parse value for range checking (skip bool/string which have no min/max)
+        if schema_type in ("int", "float"):
+            try:
+                f_val = float(value)
+            except (ValueError, TypeError):
+                raise ValueError(f"{key}: Cannot parse {value!r} as numeric")
 
-        # R-multiples: positive, reasonable range
-        if "r_multiple" in key.lower():
-            f_val = float(value) if isinstance(value, (int, float, str)) else value
-            if f_val < 0.5 or f_val > 10:
-                raise ValueError(f"{key}: {f_val} out of range [0.5-10]")
+            # Validate range if bounds are defined
+            if min_val is not None and f_val < min_val:
+                raise ValueError(
+                    f"{key}: {f_val} is below minimum {min_val}"
+                )
+            if max_val is not None and f_val > max_val:
+                raise ValueError(
+                    f"{key}: {f_val} is above maximum {max_val}"
+                )
+
+            # Critical safety gates: must not be zero/near-zero
+            if is_critical and abs(f_val) < 0.001:
+                raise ValueError(
+                    f"{key}: CRITICAL SAFETY GATE - cannot be zero or near-zero "
+                    f"(would disable safety protection). Min allowed: {min_val}. "
+                    f"Reverting to safe default {fail_closed}."
+                )
 
         return True
 
@@ -764,50 +1077,74 @@ class AlgoConfig:
             raise
 
     def _validate_critical_thresholds(self):
-        """Fail-fast validation: critical safety thresholds must never be zero.
+        """Fail-fast validation: critical safety thresholds must be within safe ranges.
 
-        These thresholds disable critical safety gates if zero. This function catches
-        corrupt/missing config before trading can begin.
-
-        Raises RuntimeError if any critical threshold is zero or None.
+        Checks all keys marked as critical in VALIDATION_SCHEMA. Raises RuntimeError
+        if any critical threshold is missing, zero, or out of valid range.
         """
-        critical_thresholds = {
-            "min_signal_quality_score": 60,
-            "min_swing_score": 55.0,
-            "min_completeness_score": 70,
-            "min_volume_ma_50d": 300000,
-            "min_avg_daily_dollar_volume": 500000.0,
-            "earnings_blackout_days_before": 7,
-            "earnings_blackout_days_after": 3,
-            "halt_drawdown_pct": -20.0,
-            "max_daily_loss_pct": 2.0,
-            "vix_max_threshold": 35.0,
-        }
-
         errors = []
-        for key, expected_value in critical_thresholds.items():
+        warnings = []
+
+        for key, (schema_type, min_val, max_val, is_critical, fail_closed) in self.VALIDATION_SCHEMA.items():
+            if not is_critical:
+                continue  # Skip non-critical params
+
             current_value = self._config.get(key)
+
+            # Missing or None
             if current_value is None:
                 errors.append(
-                    f"  CRITICAL: {key} is not configured (None). "
-                    f"Expected minimum: {expected_value}"
+                    f"  {key}: not configured (None). "
+                    f"Safe default: {fail_closed}. Range: [{min_val}, {max_val}]"
                 )
-            elif current_value == 0 or float(current_value) == 0.0:
+                continue
+
+            # Convert to comparable type
+            try:
+                f_val = float(current_value)
+            except (ValueError, TypeError):
                 errors.append(
-                    f"  CRITICAL: {key} = 0 disables safety gate. "
-                    f"Expected minimum: {expected_value}"
+                    f"  {key}: cannot parse value {current_value!r}. "
+                    f"Safe default: {fail_closed}"
+                )
+                continue
+
+            # Zero/near-zero (disables safety gate)
+            if abs(f_val) < 0.001:
+                errors.append(
+                    f"  {key} = {f_val}: ZERO or near-zero (disables safety gate). "
+                    f"Safe default: {fail_closed}. Range: [{min_val}, {max_val}]"
+                )
+                continue
+
+            # Out of range
+            if min_val is not None and f_val < min_val:
+                errors.append(
+                    f"  {key} = {f_val}: below minimum {min_val}. "
+                    f"Safe default: {fail_closed}"
+                )
+            if max_val is not None and f_val > max_val:
+                errors.append(
+                    f"  {key} = {f_val}: above maximum {max_val}. "
+                    f"Safe default: {fail_closed}"
                 )
 
         if errors:
             error_msg = (
-                "SAFETY GATE FAILURE: Critical thresholds are zero or missing.\n"
-                "This disables trading safety features completely.\n\n"
+                "SAFETY GATE FAILURE: Critical configuration thresholds are invalid.\n"
+                "System will not trade with corrupt safety configuration.\n"
+                "These thresholds prevent trading unsuitable stocks and during dangerous market conditions.\n\n"
+                "Invalid thresholds:\n"
                 + "\n".join(errors)
-                + "\n\nAction: Restore safety thresholds before trading.\n"
-                "Check database or restore migration-033."
+                + "\n\nAction: Restore valid thresholds in database before trading.\n"
+                "Run: python migrations/runner.py up (migration-033) to restore safe defaults\n"
+                "OR manually fix the database values per CLAUDE.md → Trading Safety Configuration"
             )
             logger.error(error_msg)
             raise RuntimeError(error_msg)
+
+        if warnings:
+            logger.warning("[AlgoConfig] Critical threshold warnings:\n" + "\n".join(warnings))
 
     def _validate_config_interdependencies(self):
         """Validate configuration interdependencies at startup.
@@ -946,40 +1283,62 @@ class AlgoConfig:
         except Exception as e:
             logger.warning(f"[AlgoConfig] Interdependency validation error: {e}")
 
-    def _audit_config_sources(self):
-        """Log audit trail of which config values came from database vs defaults.
+    def get_critical_thresholds_summary(self):
+        """Return a dict of all critical safety thresholds and their current values.
 
-        Helps detect silent fallbacks when database values are missing.
+        Useful for monitoring, dashboards, and admin verification.
+        Format: {key: {"value": X, "min": Y, "max": Z, "source": "database"}}
         """
-        # Critical parameters that MUST come from database, never defaults
-        critical_keys = {
-            "min_signal_quality_score",
-            "min_swing_score",
-            "min_completeness_score",
-            "min_volume_ma_50d",
-            "min_avg_daily_dollar_volume",
-            "halt_drawdown_pct",
-            "base_risk_pct",
-            "max_position_size_pct",
-            "vix_max_threshold",
-            "earnings_blackout_days_before",
-            "earnings_blackout_days_after",
-        }
+        summary = {}
+        for key, (schema_type, min_val, max_val, is_critical, fail_closed) in self.VALIDATION_SCHEMA.items():
+            if is_critical:
+                summary[key] = {
+                    "value": self._config.get(key),
+                    "min": min_val,
+                    "max": max_val,
+                    "safe_default": fail_closed,
+                    "source": self._sources.get(key, "unknown"),
+                }
+        return summary
 
-        using_defaults = [k for k in critical_keys if self._sources.get(k) == "default"]
-        if using_defaults:
-            logger.warning(
-                f"[AlgoConfig] AUDIT: {len(using_defaults)} critical parameters using defaults (not in database): "
-                f"{sorted(using_defaults)}. Verify algo_config table is populated."
-            )
+    def _audit_config_sources(self):
+        """Log audit trail of config sources and critical threshold status.
 
+        Helps detect silent fallbacks, schema inconsistencies, and unsafe thresholds.
+        """
         num_db = sum(1 for s in self._sources.values() if s == "database")
         num_default = sum(1 for s in self._sources.values() if s == "default")
         num_fallback = sum(1 for s in self._sources.values() if s == "default_fallback")
+        num_fail_closed = sum(1 for s in self._sources.values() if s == "fail_closed_default")
+
         logger.info(
             f"[AlgoConfig] SOURCES: {num_db} from database, {num_default} using defaults, "
-            f"{num_fallback} fallback-to-default (invalid DB values)"
+            f"{num_fallback} fallback-to-default (invalid DB values), "
+            f"{num_fail_closed} fail-closed-defaults (critical safety gates)"
         )
+
+        # Log critical threshold status
+        summary = self.get_critical_thresholds_summary()
+        logger.info("[AlgoConfig] CRITICAL SAFETY THRESHOLDS (startup verification):")
+        for key in sorted(summary.keys()):
+            info = summary[key]
+            logger.info(
+                f"  {key:40s} = {info['value']:>15} "
+                f"[{info['min']}, {info['max']}] "
+                f"(source: {info['source']:15s} safe_default: {info['safe_default']})"
+            )
+
+        # Warn if any critical thresholds are using defaults or fail-closed
+        problematic = [
+            k for k, info in summary.items()
+            if info["source"] in ("default", "fail_closed_default")
+        ]
+        if problematic:
+            logger.warning(
+                f"[AlgoConfig] ALERT: {len(problematic)} critical thresholds NOT loaded from database "
+                f"(using defaults/fail-closed): {sorted(problematic)}. "
+                f"Verify algo_config table is properly populated."
+            )
 
     def get(self, key, default=None):
         """Get configuration value with validation of hardcoded defaults.
@@ -1017,6 +1376,10 @@ class AlgoConfig:
     def set(self, key, value, value_type, description="", changed_by="system"):
         """Set configuration value in database, memory, and audit log.
 
+        For critical safety thresholds: if the value is invalid, rejects it and instead
+        writes the fail-closed safe default. Returns False to signal that the requested
+        value was rejected.
+
         Args:
             key: Configuration key
             value: New value
@@ -1024,18 +1387,40 @@ class AlgoConfig:
             description: Description (only used for new keys)
             changed_by: Actor making the change (for audit trail)
 
-        Returns: bool (success)
+        Returns: bool (success if value was set as requested; False if rejected/fail-closed)
         """
         try:
+            # Validate the requested value
             self._validate_value(key, str(value), value_type)
+            final_value = value
+            was_fail_closed = False
 
+        except ValueError as e:
+            # Value is invalid. For critical thresholds, apply fail-closed default.
+            schema_info = self.VALIDATION_SCHEMA.get(key)
+            if schema_info and schema_info[3]:  # is_critical
+                _, _, _, _, fail_closed = schema_info
+                logger.error(
+                    f"ALERT: Admin attempted to set critical safety gate {key} = {value}. "
+                    f"REJECTED (invalid): {e}. "
+                    f"Applying fail-closed default {fail_closed} instead. "
+                    f"Actor: {changed_by}"
+                )
+                final_value = fail_closed
+                was_fail_closed = True
+            else:
+                # Non-critical: just reject and return False
+                logger.error(f"Error: Invalid config value for {key}: {e}")
+                return False
+
+        try:
             with DatabaseContext("write") as cur:
                 # Capture old value for audit trail
                 cur.execute("SELECT value FROM algo_config WHERE key = %s", (key,))
                 row = cur.fetchone()
                 old_value = row[0] if row else None
 
-                # Upsert config value
+                # Upsert config value (use final_value which may be fail-closed default)
                 cur.execute(
                     """
                     INSERT INTO algo_config (key, value, value_type, description, updated_at, updated_by)
@@ -1047,27 +1432,33 @@ class AlgoConfig:
                         updated_at = CURRENT_TIMESTAMP,
                         updated_by = EXCLUDED.updated_by
                 """,
-                    (key, str(value), value_type, description, changed_by),
+                    (key, str(final_value), value_type, description, changed_by),
                 )
 
-                # Write audit trail
+                # Write audit trail (note: include original requested value if fail-closed)
+                audit_note = " (FAIL-CLOSED from invalid request)" if was_fail_closed else ""
                 cur.execute(
                     """
                     INSERT INTO algo_config_audit (config_key, old_value, new_value, changed_by, changed_at)
                     VALUES (%s, %s, %s, %s, CURRENT_TIMESTAMP)
                 """,
-                    (key, old_value, str(value), changed_by),
+                    (key, old_value, str(final_value) + audit_note, changed_by),
                 )
 
-            self._config[key] = self._parse_value(str(value), value_type)
-            self._sources[key] = "database"
-            logger.info(
-                f"[CONFIG SET] {key} = {value} (was {old_value}), actor={changed_by}"
-            )
-            return True
-        except ValueError as e:
-            logger.error(f"Error: Invalid config value for {key}: {e}")
-            return False
+            self._config[key] = self._parse_value(str(final_value), value_type)
+            self._sources[key] = "database" if not was_fail_closed else "fail_closed_default"
+            if was_fail_closed:
+                logger.warning(
+                    f"[CONFIG SET - FAIL-CLOSED] {key}: requested {value}, set to safe default {final_value}, "
+                    f"actor={changed_by}"
+                )
+                return False
+            else:
+                logger.info(
+                    f"[CONFIG SET] {key} = {final_value} (was {old_value}), actor={changed_by}"
+                )
+                return True
+
         except Exception as e:
             raise RuntimeError(f"Operation failed: {e}") from e
 

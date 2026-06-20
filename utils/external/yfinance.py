@@ -1,11 +1,13 @@
 #!/usr/bin/env python3
-"""yfinance wrapper with AWS VPC compatibility and retry logic.
+"""yfinance wrapper with AWS VPC compatibility and shared IP circuit breaker.
 
 Handles 'Invalid Crumb' errors common in AWS Lambda/ECS environments.
 
-Rate limiting: All yfinance requests from this process share a global throttle
-(max 2 concurrent, 500ms minimum between requests) to avoid Yahoo Finance banning
-the shared NAT gateway IP used by all ECS tasks.
+Rate limiting: 6 ECS tasks share the same NAT IP when accessing yfinance. To prevent
+IP bans from overwhelming other tasks, this wrapper:
+1. Uses a SHARED circuit breaker (in PostgreSQL) to coordinate across all ECS tasks
+2. When any task detects 429/401, ALL tasks respect an exponential backoff
+3. Falls back to process-local throttling if PostgreSQL is unavailable
 """
 
 import logging
@@ -15,29 +17,37 @@ import time
 import requests
 import yfinance as yf
 
+from utils.external.yfinance_circuit_breaker import get_circuit_breaker
+
 
 logger = logging.getLogger(__name__)
 
-# Global per-process rate limiter: prevents concurrent requests and enforces
-# a minimum interval between consecutive requests. This reduces Yahoo Finance
-# crumb invalidation when multiple threads share the same ECS task.
-# CRITICAL: Each ECS task runs one loader, so this per-process limit applies to
-# all symbols processed by that loader in parallel. Analytics loaders with 5000+ symbols
-# and parallelism=2 need aggressive throttling to avoid rate limits.
-_yf_semaphore = threading.Semaphore(1)  # Reduced from 2 to 1 for stricter control
+# Global per-process rate limiter: enforces minimum interval between requests
+# This is a BACKUP to the shared circuit breaker (DynamoDB-based).
+# CRITICAL: Each ECS task runs one loader with parallelism=2, so this per-process
+# limit applies to all symbols processed in parallel.
+_yf_semaphore = threading.Semaphore(1)  # Max 1 concurrent request
 _yf_rate_lock = threading.Lock()
 _yf_last_request_time = [0.0]  # list for mutable access across threads
-_YF_MIN_INTERVAL_SECS = 2.0  # Increased from 0.5s to 2s (1 req/2s = ~1800 req/hour)
-
-# When Yahoo bans this process (all retries exhausted with 401/429), pause the
-# entire process briefly so the shared IP can cool down before next attempt.
-_yf_ban_lock = threading.Lock()
-_yf_ban_until = [0.0]
-_YF_BAN_COOLDOWN_SECS = 120  # Increased from 30s to 120s (2 min) when Yahoo bans our IP
+_YF_MIN_INTERVAL_SECS = 2.0  # 1 request per 2 seconds = ~1800 req/hour per task
 
 
 def _throttled_yf_request(fn):
-    """Call fn() under global rate limiting (semaphore + min interval)."""
+    """Call fn() under shared IP circuit breaker + local rate limiting.
+
+    First checks if the shared IP is banned (from any ECS task). If banned,
+    waits for the exponential backoff period. Then applies per-process throttling.
+    """
+    # Check shared IP ban state (coordinates across all ECS tasks)
+    circuit_breaker = get_circuit_breaker()
+    if circuit_breaker.is_banned():
+        backoff = circuit_breaker.get_backoff_seconds()
+        logger.warning(
+            f"Shared IP banned across all ECS tasks. Waiting {backoff:.0f}s before retry..."
+        )
+        time.sleep(backoff)
+
+    # Apply per-process rate limiting (throttles this specific task)
     with _yf_semaphore:
         with _yf_rate_lock:
             elapsed = time.time() - _yf_last_request_time[0]
@@ -92,22 +102,22 @@ class YFinanceWrapper:
 
     @classmethod
     def get_ticker(cls, symbol: str, max_retries: int = 5):
-        """Get yfinance Ticker with retry logic for Invalid Crumb/401 errors.
+        """Get yfinance Ticker with retry logic and shared IP circuit breaker.
 
-        Uses longer exponential backoff for 401 auth errors (2s, 4s, 8s, 16s, 32s).
-        All requests go through the global rate limiter to stay within Yahoo's limits.
+        Uses exponential backoff controlled by shared circuit breaker that coordinates
+        across all ECS tasks (prevents IP ban cascades).
+
+        When 429/401 errors are detected:
+        1. Report to shared circuit breaker (PostgreSQL)
+        2. All ECS tasks automatically respect the exponential backoff
+        3. Reduces per-task retries since the shared state handles coordination
         """
         if not yf:
             raise RuntimeError("yfinance not installed")
 
         import random
 
-        # Respect IP-level ban cooldown set by a previous exhausted caller
-        ban_until = _yf_ban_until[0]
-        if ban_until > time.time():
-            wait = ban_until - time.time()
-            logger.info(f"[{symbol}] Yahoo IP cooldown active, waiting {wait:.0f}s...")
-            time.sleep(wait)
+        circuit_breaker = get_circuit_breaker()
 
         for attempt in range(max_retries):
             try:
@@ -124,58 +134,51 @@ class YFinanceWrapper:
 
                 ticker = _throttled_yf_request(_make_ticker)
                 logger.debug(f"Successfully created ticker for {symbol}")
+
+                # Report success to shared circuit breaker (resets failure counter)
+                circuit_breaker.report_success()
                 return ticker
 
             except Exception as e:
                 error_str = str(e).lower()
 
-                if (
+                is_rate_limit_error = (
                     "invalid crumb" in error_str
                     or "401" in error_str
                     or "429" in error_str
                     or "unauthorized" in error_str
                     or "too many requests" in error_str
                     or "rate" in error_str
-                ):
+                )
+
+                if is_rate_limit_error:
                     logger.warning(
-                        f"Auth/rate-limit error for {symbol} (attempt {attempt + 1}): {e}"
+                        f"Rate/auth error for {symbol} (attempt {attempt + 1}/{max_retries}): {e}"
                     )
+
+                    # Report to shared circuit breaker (notifies all ECS tasks)
+                    circuit_breaker.report_rate_limit_error()
 
                     # Reset session so next attempt gets a fresh crumb
                     cls._session = None
                     cls._last_session_time = 0
 
                     if attempt < max_retries - 1:
-                        # For rate-limit errors (429), use longer backoff to respect API limits
-                        if (
-                            "429" in error_str
-                            or "too many requests" in error_str
-                            or "rate" in error_str
-                        ):
-                            base_wait = 10 * (
-                                2**attempt
-                            )  # 10s, 20s, 40s, 80s, 160s for rate limits
-                            logger.warning(
-                                f"Rate-limited for {symbol}, backing off {base_wait + random.uniform(0, base_wait * 0.2):.0f}s..."
-                            )
-                        else:
-                            base_wait = 2 * (
-                                2**attempt
-                            )  # 2s, 4s, 8s, 16s, 32s for auth errors
-
+                        # Use shorter per-task backoff (shared circuit breaker handles IP-level coordination)
+                        # Per-task backoff: 1s, 2s, 4s, 8s, 16s (quick per-symbol retries)
+                        base_wait = 2**attempt
                         jitter = random.uniform(0, base_wait * 0.2)
                         wait_time = base_wait + jitter
                         logger.info(
-                            f"Retrying {symbol} in {wait_time:.1f}s (attempt {attempt + 1}/{max_retries})..."
+                            f"Retrying {symbol} in {wait_time:.1f}s (attempt {attempt + 1}/{max_retries}). "
+                            f"Shared circuit breaker handling IP-level backoff."
                         )
                         time.sleep(wait_time)
                     else:
-                        # All retries exhausted — set process-level ban cooldown so other
-                        # threads back off and give Yahoo's per-IP limit time to reset.
-                        with _yf_ban_lock:
-                            _yf_ban_until[0] = time.time() + _YF_BAN_COOLDOWN_SECS
+                        # Per-task retries exhausted. Circuit breaker continues managing IP-level backoff.
                         logger.warning(
-                            f"[{symbol}] All retries exhausted; setting {_YF_BAN_COOLDOWN_SECS}s IP cooldown"
+                            f"[{symbol}] All per-task retries exhausted. "
+                            f"Shared circuit breaker will manage IP recovery."
                         )
                     continue
                 else:
