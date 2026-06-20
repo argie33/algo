@@ -573,33 +573,13 @@ def fetch_recent_trades(c):
 
 
 def fetch_signals(c):
-    """Fetch dashboard signals from API."""
+    """Fetch dashboard signals from API. Fail-fast: error only on failure."""
     try:
         data = api_call(_get_endpoint_path("sig"))
         if _is_api_error(data):
-            return {
-                "_error": _get_error_message(data),
-                "n": 0,
-                "total": 0,
-                "buy_sigs": [],
-                "grades": {},
-                "near": [],
-                "top_a": [],
-                "trend": [],
-                "timestamp": datetime.now(ET),
-            }
+            return {"_error": _get_error_message(data)}
         if not data:
-            return {
-                "_error": "No data returned from /api/algo/dashboard-signals",
-                "n": 0,
-                "total": 0,
-                "buy_sigs": [],
-                "grades": {},
-                "near": [],
-                "top_a": [],
-                "trend": [],
-                "timestamp": datetime.now(ET),
-            }
+            return {"_error": "No data returned from /api/algo/dashboard-signals"}
 
         result = data
         buy_sigs = result.get("buy_sigs", [])
@@ -619,17 +599,7 @@ def fetch_signals(c):
     except Exception as e:
         error_msg = _format_fetcher_error("sig", e)
         logger.error(error_msg)
-        return {
-            "_error": error_msg,
-            "n": 0,
-            "total": 0,
-            "buy_sigs": [],
-            "grades": {},
-            "near": [],
-            "top_a": [],
-            "trend": [],
-            "timestamp": datetime.now(ET),
-        }
+        return {"_error": error_msg}
 
 
 def fetch_sector_ranking(c):
@@ -935,17 +905,11 @@ def fetch_notifications(c):
 
 
 def fetch_sentiment(c):
-    """Issue 3 FIX: API-only sentiment data."""
+    """API-only sentiment data. Fail-fast: error only on failure."""
     try:
         data = api_call(_get_endpoint_path("sentiment"))
         if _is_api_error(data):
-            return {
-                "_error": _get_error_message(data),
-                "fg": 50,
-                "label": "Unknown",
-                "date": None,
-                "color": CY,
-            }
+            return {"_error": _get_error_message(data)}
         d = data
         fg = safe_float(d.get("fear_greed_index"), default=50)
         label = d.get("label", "Neutral")
@@ -959,13 +923,7 @@ def fetch_sentiment(c):
     except Exception as e:
         error_msg = _format_fetcher_error("sentiment", e)
         logger.error(error_msg)
-        return {
-            "_error": error_msg,
-            "fg": 50,
-            "label": "Unknown",
-            "date": None,
-            "color": CY,
-        }
+        return {"_error": error_msg}
 
 
 def fetch_economic_calendar(c):
