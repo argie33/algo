@@ -174,7 +174,7 @@ def validate_config_response(data: dict[str, Any]) -> dict[str, Any]:
     try:
         for field, expected_type in optional_numeric.items():
             if field in data and data[field] is not None:
-                if expected_type == int:
+                if expected_type is int:
                     safe_int(data[field], strict=True, field_name=field)
                 else:
                     safe_float(data[field], strict=True, field_name=field)
