@@ -158,8 +158,7 @@ class OptimisticLockRetry:
                     )
                     time.sleep(delay)
 
-        logger.error(
-            f"[Retry] {operation_name} failed after {max_attempts} attempts: {last_error}"
-        )
-        return None
+        error_msg = f"[Retry] {operation_name} failed after {max_attempts} attempts: {last_error}"
+        logger.error(error_msg)
+        raise RuntimeError(error_msg)
 

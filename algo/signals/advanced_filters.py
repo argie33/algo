@@ -49,7 +49,7 @@ class AdvancedFilters:
         try:
             val = self.config.get(key)
             return val if val is not None else default
-        except (RuntimeError, IOError, OSError) as e:
+        except (RuntimeError, OSError) as e:
             raise RuntimeError(
                 f"CRITICAL: Database/connection error loading config[{key}]: {e}"
             ) from e
@@ -336,7 +336,7 @@ class AdvancedFilters:
         if not self._strong_sectors:
             raise ValueError("Sector ranking data not loaded — call load_market_context() first")
         if not sector:
-            return 0.0
+            raise ValueError("Sector name is missing or empty")
         rank = (
             self._sector_full_ranking.get(sector, 99)
             if self._sector_full_ranking
@@ -349,7 +349,7 @@ class AdvancedFilters:
         if self._strong_industries is None:
             raise ValueError("Industry ranking data not loaded — call load_market_context() first")
         if not industry:
-            return 0.0
+            raise ValueError("Industry name is missing or empty")
         return self.W_MOMENTUM_INDUSTRY if industry in self._strong_industries else 0.0
 
     def _volume_confirmation_score(self, symbol, signal_date, cur):
@@ -441,9 +441,9 @@ class AdvancedFilters:
             pivot = self._signals.pivot_breakout(symbol, signal_date)
             power = self._signals.power_trend(symbol, signal_date)
         except ValueError as e:
-            # Missing setup detection data — graceful degradation to 0 score
-            logger.debug(f"Setup quality data unavailable for {symbol}: {e}")
-            return 0.0, {}
+            # Missing setup detection data — cannot proceed safely
+            logger.error(f"Setup quality data unavailable for {symbol}: {e}")
+            raise
         # Other exceptions (RuntimeError, ConnectionError, etc.) propagate to caller
 
         pts = 0.0
@@ -515,7 +515,9 @@ class AdvancedFilters:
         )
         row = cur.fetchone()
         if not row or row[0] is None:
-            return 0.0, {"composite": None, "grade": "NA"}
+            error_msg = f"IBD Composite missing for {symbol} - cannot score signal"
+            logger.error(error_msg)
+            raise ValueError(error_msg)
         composite = float(row[0])
         # 40 = 0pts, 90+ = full pts
         pts = max(
@@ -545,7 +547,9 @@ class AdvancedFilters:
         )
         row = cur.fetchone()
         if row is None:
-            return 0.0, None
+            error_msg = f"Financial quality metrics missing for {symbol}"
+            logger.error(error_msg)
+            raise ValueError(error_msg)
         q = float(row[0]) if row[0] is not None else 50.0
         # Linear scale: 50 = 0 pts (neutral quality), 100 = W_QUALITY_FIN pts (maximum)
         pts = max(0.0, min(self.W_QUALITY_FIN, (q - 50.0) * self.W_QUALITY_FIN / 50.0))
@@ -567,9 +571,9 @@ class AdvancedFilters:
         )
         row = cur.fetchone()
         if not row or row[0] is None:
-            # Missing earnings quality data — graceful degradation
-            logger.debug(f"Earnings quality data unavailable for {symbol}")
-            return 0.0, None
+            error_msg = f"Earnings quality metrics missing for {symbol}"
+            logger.error(error_msg)
+            raise ValueError(error_msg)
         score = float(row[0])
         pts = (score / 100.0) * self.W_QUALITY_EARNINGS
         return pts, round(score, 1)

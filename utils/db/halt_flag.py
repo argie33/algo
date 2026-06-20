@@ -126,11 +126,10 @@ class HaltFlagManager:
         except Exception as e:
             logger.error(f"[HALT_FLAG] RDS fallback failed: {e}")
 
-        # Both failed: conservative approach
-        logger.critical(
-            "[HALT_FLAG] Both DynamoDB and RDS unavailable. Returning None (will fail-closed)."
-        )
-        return None, None
+        # Both failed: cannot proceed safely
+        error_msg = "[HALT_FLAG] Both DynamoDB and RDS unavailable - cannot determine halt status"
+        logger.critical(error_msg)
+        raise RuntimeError(error_msg)
 
     def _check_halt_flag_dynamodb(self) -> Tuple[Optional[bool], Optional[str]]:
         """Check halt flag in DynamoDB. Returns (halt_flag, reason) or (None, None) on timeout/error."""

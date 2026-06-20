@@ -719,11 +719,9 @@ def main():
                 dep_status = result[0] if result else None
 
                 if dep_status in ("RUNNING", "PENDING"):
-                    logger.warning(
-                        f"[SKIP] Aborting stock_scores: upstream {dep} is {dep_status} - "
-                        "waiting for completion"
-                    )
-                    return 0  # Exit cleanly, will retry on next pipeline run
+                    error_msg = f"Upstream dependency {dep} is {dep_status} - cannot proceed"
+                    logger.error(error_msg)
+                    raise RuntimeError(error_msg)
 
         loader = StockScoresLoader()
         stats = loader.run(symbols, parallelism=args.parallelism)

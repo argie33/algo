@@ -174,7 +174,8 @@ class DatabaseContext:
 
             cid = get_correlation_id()
             return cid if cid else None
-        except Exception:
+        except Exception as e:
+            logger.warning(f"Failed to get correlation ID for tracing: {e}")
             return None
 
     def __enter__(self):

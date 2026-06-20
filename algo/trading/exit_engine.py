@@ -33,7 +33,7 @@ try:
 except ImportError:
     TradePerformanceAuditor = None
 import logging
-from typing import Any, Dict, Optional, cast
+from typing import Any, cast
 
 from algo.infrastructure import get_alpaca_timeout
 from algo.infrastructure.market_calendar import MarketCalendar
@@ -267,7 +267,7 @@ class ExitEngine:
         t1_hit_time=None,
         t2_hit_time=None,
         t3_hit_time=None,
-    ) -> Dict[str, Any] | None:
+    ) -> dict[str, Any] | None:
         """Decide what (if any) exit to take. Returns dict or None.
 
         Target hit times prevent duplicate exits when price bounces around target levels.
@@ -514,7 +514,7 @@ class ExitEngine:
 
     # ---------- Data helpers ----------
 
-    def _fetch_alpaca_quote(self, symbol: str) -> Optional[float]:
+    def _fetch_alpaca_quote(self, symbol: str) -> float | None:
         """Fetch real-time quote from Alpaca Data API.
 
         Raises on API failure or missing credentials. Returns None only if market is closed.
@@ -619,16 +619,20 @@ class ExitEngine:
         )
         rows = cur.fetchall()
         if not rows or len(rows[0]) < 2:
-            return None, None
+            error_msg = f"Price data missing for {symbol} - cannot evaluate exits"
+            logger.error(error_msg)
+            raise RuntimeError(error_msg)
         cur_price = float(rows[0][1]) if rows[0][1] is not None else None
         if cur_price is None:
-            return None, None
+            error_msg = f"Current price is NULL for {symbol}"
+            logger.error(error_msg)
+            raise RuntimeError(error_msg)
         prev_close = (
             float(rows[1][1]) if len(rows) > 1 and rows[1][1] is not None else None
         )
         return cur_price, prev_close
 
-    def _fetch_market_dist_days(self, cur, current_date) -> Optional[int]:
+    def _fetch_market_dist_days(self, cur, current_date) -> int | None:
         cur.execute(
             """
             SELECT distribution_days_4w FROM market_health_daily
@@ -793,7 +797,7 @@ class ExitEngine:
             mult = float(mult_val)
             return round(hh - (mult * atr), 2)
 
-    def _get_td_state(self, cur, symbol, current_date) -> Dict[str, Any]:
+    def _get_td_state(self, cur, symbol, current_date) -> dict[str, Any]:
         """Return full TD state dict (for both 9 and 13 detection).
 
         Fail-fast — if TD Sequential cannot be computed, raises exception.
@@ -860,7 +864,7 @@ class ExitEngine:
 
     def _compute_gain_last_n_days(
         self, cur, symbol, current_date, n_days
-    ) -> Optional[float]:
+    ) -> float | None:
         """Compute % gain over the last N days (from close N days ago to current close)."""
         cur.execute(
             """

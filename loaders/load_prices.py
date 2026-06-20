@@ -801,7 +801,9 @@ class PriceLoader(OptimalLoader):
             start = since
 
         if start > end:
-            return None
+            error_msg = f"Invalid date range: start ({start}) > end ({end})"
+            logger.error(error_msg)
+            raise ValueError(error_msg)
 
         # Try to fetch fresh data from live APIs
         rows = self._try_fetch(symbol, start, end)

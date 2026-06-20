@@ -351,7 +351,7 @@ class PositionSizer:
             result = self._with_cursor(fetch_positions_value)
             if result is not None:
                 return result
-            return 0.0
+            raise RuntimeError("Portfolio value query returned no data")
         except Exception as e:
             logger.error(
                 f"ERROR: Could not fetch position values: {e} - failing closed to prevent inaccurate position sizing"

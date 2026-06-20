@@ -92,7 +92,7 @@ class EarningsHistoryLoader(OptimalLoader):
 
             # Deduplicate by (symbol, quarter) - keep most recent earnings_date
             if rows:
-                seen = {}
+                seen: dict[tuple[str, str], dict] = {}
                 for row in rows:
                     key = (row["symbol"], row["quarter"])
                     if (
@@ -104,8 +104,9 @@ class EarningsHistoryLoader(OptimalLoader):
 
             return rows
         except Exception as e:
-            logging.debug(f"Earnings fetch error for {symbol}: {e}")
-            return []
+            error_msg = f"Failed to fetch earnings history for {symbol}: {e}"
+            logger.error(error_msg)
+            raise RuntimeError(error_msg) from e
 
     def transform(self, rows):
         return rows

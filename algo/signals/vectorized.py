@@ -102,8 +102,9 @@ class VectorizedSignalGenerator:
 
                 return data_by_symbol, price_date
         except Exception as e:
-            logger.error(f"[VECTORIZED] Failed to fetch price data: {e}")
-            return {}, eval_date
+            error_msg = f"[VECTORIZED] Failed to fetch price data: {e}"
+            logger.error(error_msg)
+            raise RuntimeError(error_msg) from e
 
     def compute_minervini_parallel(
         self, data_by_symbol: Dict, eval_date: _date

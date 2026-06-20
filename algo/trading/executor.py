@@ -1596,8 +1596,10 @@ class TradeExecutor:
 
         Returns: float or None if not filled yet
         """
-        if not self.alpaca_key or not self.alpaca_secret or not alpaca_order_id:
-            return None
+        if not self.alpaca_key or not self.alpaca_secret:
+            raise RuntimeError("Alpaca credentials not configured")
+        if not alpaca_order_id:
+            raise ValueError("alpaca_order_id required")
 
         if alpaca_order_id.startswith(("LOCAL-", "PENDING-")):
             return None  # Paper mode, no real fill
@@ -1619,10 +1621,9 @@ class TradeExecutor:
 
                 validation = validator.validate_order_status_response(data)
                 if not validation["valid"]:
-                    logger.debug(
-                        f"[GET_ORDER_PRICE] {alpaca_order_id}: Invalid response: {validation['errors']}"
-                    )
-                    return None
+                    error_msg = f"[GET_ORDER_PRICE] {alpaca_order_id}: Invalid response from Alpaca: {validation['errors']}"
+                    logger.error(error_msg)
+                    raise RuntimeError(error_msg)
 
                 if validation["status"] == "filled":
                     return cast(float, validation["filled_avg_price"])
@@ -1637,8 +1638,10 @@ class TradeExecutor:
 
         Returns: int (filled_qty) or None if not available after retries
         """
-        if not self.alpaca_key or not self.alpaca_secret or not alpaca_order_id:
-            return None
+        if not self.alpaca_key or not self.alpaca_secret:
+            raise RuntimeError("Alpaca credentials not configured")
+        if not alpaca_order_id:
+            raise ValueError("alpaca_order_id required")
 
         if alpaca_order_id.startswith(("LOCAL-", "PENDING-")):
             return None  # Paper mode, no real order

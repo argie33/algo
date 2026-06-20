@@ -215,8 +215,8 @@ class TestFetchRecentPrices:
             assert current_price == 149.80
             assert prev_close == 149.75
 
-    def test_fetch_recent_prices_handles_missing_data(self, exit_engine):
-        """Test that missing data is handled gracefully."""
+    def test_fetch_recent_prices_raises_on_missing_data(self, exit_engine):
+        """Test that missing price data raises error (fail-closed)."""
         current_date = _date(2025, 6, 14)
 
         with patch.object(exit_engine, "_fetch_alpaca_quote") as mock_alpaca:
@@ -226,12 +226,11 @@ class TestFetchRecentPrices:
             mock_cur = Mock()
             mock_cur.fetchall.return_value = []
 
-            current_price, prev_close = exit_engine._fetch_recent_prices(
-                mock_cur, "AAPL", current_date
-            )
-
-            assert current_price is None
-            assert prev_close is None
+            # Should raise error when price data unavailable, not return None
+            with pytest.raises(RuntimeError, match="Price data missing"):
+                exit_engine._fetch_recent_prices(
+                    mock_cur, "AAPL", current_date
+                )
 
     def test_fetch_recent_prices_propagates_alpaca_error(self, exit_engine):
         """Test that API errors from Alpaca are propagated to caller."""

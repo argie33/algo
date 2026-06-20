@@ -117,10 +117,11 @@ class SignalQualityScoresLoader(OptimalLoader):
 
         from algo.infrastructure import MarketCalendar
 
-        # ISSUE #27 FIX: Skip if buy_sell_daily is blocked
+        # ISSUE #27 FIX: Fail if buy_sell_daily is blocked
         if self._batch_context and self._batch_context.get("_blocked"):
-            logger.debug(f"[{self.table_name}] Skipping {symbol} - buy_sell_daily not ready")
-            return []
+            error_msg = "Upstream dependency buy_sell_daily is not ready - cannot compute signal_quality_scores"
+            logger.error(error_msg)
+            raise RuntimeError(error_msg)
 
         # ROOT CAUSE #4 FIX: Use cached end_date from batch context (computed once for all symbols)
         # instead of recomputing trading day verification for each symbol.
@@ -216,13 +217,14 @@ class SignalQualityScoresLoader(OptimalLoader):
         # Hard limit: if signals drop below 50 (<0.5% coverage), reject all scores
         # This indicates a systemic problem (broken pivot logic, missing price data, etc)
         if actual_symbols < 50:
-            logger.critical(
-                f"[SIGNAL_QUALITY_SKIPPED] {symbol} {end}: CRITICAL signal shortage. "
+            error_msg = (
+                f"CRITICAL signal shortage for {symbol} {end}: "
                 f"buy_sell_daily has only {actual_symbols} signals ({signal_metric['coverage_pct']}% coverage). "
                 "This indicates a broken data pipeline (missing price_daily, technical_data_daily, or filter misconfiguration). "
-                "Rejecting signal_quality_scores until root cause is fixed."
+                "Cannot safely compute signal_quality_scores."
             )
-            return []
+            logger.error(error_msg)
+            raise RuntimeError(error_msg)
 
         # Warning threshold: if signals drop below 100 (1% coverage), log warning but continue
         # This allows operations to proceed while signaling that signal generation may be suboptimal

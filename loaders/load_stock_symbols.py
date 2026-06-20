@@ -84,22 +84,26 @@ class StockSymbolsLoader(OptimalLoader):
             logger.info("Downloading NASDAQ list")
             try:
                 nas_text = requests.get(NASDAQ_URL, timeout=15).text
-            except requests.exceptions.Timeout:
-                logger.error("NASDAQ symbols fetch timeout")
-                return None
-            except requests.exceptions.ConnectionError:
-                logger.error("NASDAQ symbols connection error")
-                return None
+            except requests.exceptions.Timeout as e:
+                error_msg = "NASDAQ symbols fetch timeout"
+                logger.error(error_msg)
+                raise RuntimeError(error_msg) from e
+            except requests.exceptions.ConnectionError as e:
+                error_msg = "NASDAQ symbols connection error"
+                logger.error(error_msg)
+                raise RuntimeError(error_msg) from e
 
             logger.info("Downloading OTHER list")
             try:
                 oth_text = requests.get(OTHER_URL, timeout=15).text
-            except requests.exceptions.Timeout:
-                logger.error("Other symbols fetch timeout")
-                return None
-            except requests.exceptions.ConnectionError:
-                logger.error("Other symbols connection error")
-                return None
+            except requests.exceptions.Timeout as e:
+                error_msg = "Other symbols fetch timeout"
+                logger.error(error_msg)
+                raise RuntimeError(error_msg) from e
+            except requests.exceptions.ConnectionError as e:
+                error_msg = "Other symbols connection error"
+                logger.error(error_msg)
+                raise RuntimeError(error_msg) from e
 
             rows = []
             etf_rows = []
