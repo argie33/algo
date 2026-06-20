@@ -136,7 +136,11 @@ def _dispatch(
     jwt_claims: dict | None = None,
     idempotency_key: str | None = None,
 ) -> dict:
-    user_id = (jwt_claims or {}).get("sub", "")
+    if not jwt_claims:
+        raise_api_error(401, "missing_jwt_claims", "JWT claims required for request attribution")
+    if "sub" not in jwt_claims or not jwt_claims["sub"]:
+        raise_api_error(401, "missing_user_id", "JWT missing 'sub' (user ID) — cannot audit request")
+    user_id = jwt_claims["sub"]
 
     # SECURITY: Rate limit public endpoints to prevent DoS attacks
     if path in PUBLIC_RATE_LIMITS:
@@ -381,10 +385,14 @@ def _dispatch(
         elif method == "PUT":
             if not body or not isinstance(body, dict):
                 raise_api_error(400, "bad_request", "Request body must be a JSON object")
-            actor = (jwt_claims or {}).get("sub", "unknown")
+            if not jwt_claims or "sub" not in jwt_claims:
+                raise_api_error(401, "missing_actor", "Cannot audit config change without user ID")
+            actor = jwt_claims["sub"]
             return _update_algo_config_key(cur, key, body, actor)
         elif method == "DELETE":
-            actor = (jwt_claims or {}).get("sub", "unknown")
+            if not jwt_claims or "sub" not in jwt_claims:
+                raise_api_error(401, "missing_actor", "Cannot audit config reset without user ID")
+            actor = jwt_claims["sub"]
             return _reset_algo_config_key(cur, key, actor)
     elif path == "/api/algo/last-run":
         return _get_last_run(cur)
@@ -409,10 +417,10 @@ def _dispatch(
                 "phase_1_data_freshness", "phase_1_data_patrol", "phase_1_pipeline_health",
                 "phase_1_signal_quality_scores", "phase_2_circuit_breakers", "phase_2_market_circuit_breaker",
                 "phase_3_position_monitor", "phase_3_single_stock_halts", "phase_3_halt_check_error",
-                "phase_3a_reconciliation", "phase_3b_exposure_policy", "phase_4_exit_execution",
-                "phase_5_signal_generation", "phase_6_entry_execution", "phase_7_reconciliation",
-                "phase_7_daily_report", "phase_7_ic_computation", "phase_7_performance",
-                "phase_7_risk_metrics", "phase_7_signal_attribution", "phase_7_weight_optimization",
+                "phase_4_reconciliation", "phase_5_exposure_policy", "phase_6_exit_execution",
+                "phase_7_signal_generation", "phase_8_entry_execution", "phase_9_reconciliation",
+                "phase_9_daily_report", "phase_9_ic_computation", "phase_9_performance",
+                "phase_9_risk_metrics", "phase_9_signal_attribution", "phase_9_weight_optimization",
                 "halt_flag_detected", "position_review", "position_monitor", "pipeline_health",
                 "single_stock_halts", "halt_check_error",
             }

@@ -111,7 +111,14 @@ def panel_orch(run, cfg, risk=None):
         pbadges = []
         # exec_log source: structured per-phase objects with names + statuses
         if run.get("_source") == "exec_log":
-            for p in run.get("phase_results") or []:
+            phase_results = run.get("phase_results")
+            if not phase_results:
+                logger.warning(
+                    f"[HEALTH] exec_log source missing 'phase_results'. Available keys: {list(run.keys())}. "
+                    "Phase status will not be displayed."
+                )
+                phase_results = []
+            for p in phase_results:
                 raw = (p.get("name") or p.get("phase", "")).lower()
                 parts = raw.split("_")
                 base = "_".join(parts[:2]) if len(parts) >= 2 else raw
@@ -131,7 +138,14 @@ def panel_orch(run, cfg, risk=None):
                 extra = f"\n[dim]{summary[:50]}[/]" if summary else ""
         else:
             # audit_log fallback: phase_N or phase_N_name format
-            for p in run.get("phase_results") or run.get("phases") or []:
+            phases_list = run.get("phase_results") or run.get("phases")
+            if not phases_list:
+                logger.warning(
+                    f"[HEALTH] audit_log missing both 'phase_results' and 'phases'. Available keys: {list(run.keys())}. "
+                    "Phase status will not be displayed."
+                )
+                phases_list = []
+            for p in phases_list:
                 at = p.get("action_type", "")
                 if not at.startswith("phase_"):
                     continue

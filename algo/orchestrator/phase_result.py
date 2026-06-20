@@ -57,7 +57,7 @@ class Phase2Result(PhaseResult):
 class Phase3Result(PhaseResult):
     """Phase 3: Position Monitor.
 
-    Depends on: Phase 2
+    Runs independently to review positions regardless of Phase 2 outcome.
     Produces: position recommendations
     """
 
@@ -66,22 +66,22 @@ class Phase3Result(PhaseResult):
             phase_num=3,
             phase_name="POSITION MONITOR",
             status=status,
-            dependencies=[2],
+            dependencies=[],
             data={"recommendations": recommendations or []},
             **kwargs,
         )
 
 
 @dataclass
-class Phase3aResult(PhaseResult):
-    """Phase 3a: Reconciliation (lightweight).
+class Phase4Result(PhaseResult):
+    """Phase 4: Reconciliation (lightweight).
 
     Depends on: Phase 3
     """
 
     def __init__(self, status: str, **kwargs):
         super().__init__(
-            phase_num="3a",
+            phase_num=4,
             phase_name="RECONCILIATION",
             status=status,
             dependencies=[3],
@@ -90,10 +90,10 @@ class Phase3aResult(PhaseResult):
 
 
 @dataclass
-class Phase3bResult(PhaseResult):
-    """Phase 3b: Exposure Policy Actions.
+class Phase5Result(PhaseResult):
+    """Phase 5: Exposure Policy Actions.
 
-    Depends on: Phase 3a
+    Depends on: Phase 4
     Produces: constraints, actions
     """
 
@@ -105,75 +105,75 @@ class Phase3bResult(PhaseResult):
         **kwargs,
     ):
         super().__init__(
-            phase_num="3b",
+            phase_num=5,
             phase_name="EXPOSURE POLICY ACTIONS",
             status=status,
-            dependencies=["3a"],
+            dependencies=[4],
             data={"constraints": constraints or {}, "actions": actions or []},
             **kwargs,
         )
 
 
 @dataclass
-class Phase4Result(PhaseResult):
-    """Phase 4: Exit Execution.
+class Phase6Result(PhaseResult):
+    """Phase 6: Exit Execution.
 
-    Depends on: Phase 3b
+    Depends on: Phase 5
     Produces: exit summary
     """
 
     def __init__(self, status: str, exits_executed: int = 0, **kwargs):
         super().__init__(
-            phase_num=4,
+            phase_num=6,
             phase_name="EXIT EXECUTION",
             status=status,
-            dependencies=["3b"],
+            dependencies=[5],
             data={"exits_executed": exits_executed},
             **kwargs,
         )
 
 
 @dataclass
-class Phase5Result(PhaseResult):
-    """Phase 5: Signal Generation & Ranking.
+class Phase7Result(PhaseResult):
+    """Phase 7: Signal Generation & Ranking.
 
-    Depends on: Phase 3b (for exposure_constraints)
+    Depends on: Phase 5 (for exposure_constraints)
     Produces: qualified_trades
     """
 
     def __init__(self, status: str, qualified_trades: list[dict] | None = None, **kwargs):
         super().__init__(
-            phase_num=5,
+            phase_num=7,
             phase_name="SIGNAL GENERATION & RANKING",
             status=status,
-            dependencies=["3b"],
+            dependencies=[5],
             data={"qualified_trades": qualified_trades or []},
             **kwargs,
         )
 
 
 @dataclass
-class Phase6Result(PhaseResult):
-    """Phase 6: Entry Execution.
+class Phase8Result(PhaseResult):
+    """Phase 8: Entry Execution.
 
-    Depends on: Phase 5 (for qualified_trades), Phase 3b (for exposure_constraints)
+    Depends on: Phase 7 (for qualified_trades), Phase 5 (for exposure_constraints)
     Produces: entry summary
     """
 
     def __init__(self, status: str, entered: int = 0, **kwargs):
         super().__init__(
-            phase_num=6,
+            phase_num=8,
             phase_name="ENTRY EXECUTION",
             status=status,
-            dependencies=[5, "3b"],
+            dependencies=[7, 5],
             data={"entered": entered},
             **kwargs,
         )
 
 
 @dataclass
-class Phase7Result(PhaseResult):
-    """Phase 7: Reconciliation & Snapshot.
+class Phase9Result(PhaseResult):
+    """Phase 9: Reconciliation & Snapshot.
 
     Depends on: All prior phases (for snapshot finality)
     Produces: portfolio snapshot
@@ -181,10 +181,10 @@ class Phase7Result(PhaseResult):
 
     def __init__(self, status: str, positions: int = 0, **kwargs):
         super().__init__(
-            phase_num=7,
+            phase_num=9,
             phase_name="RECONCILIATION & SNAPSHOT",
             status=status,
-            dependencies=[6],
+            dependencies=[8],
             data={"positions": positions},
             **kwargs,
         )

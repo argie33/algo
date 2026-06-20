@@ -41,7 +41,15 @@ def run(
 
         recon = DailyReconciliation(config)
         result = recon.run_daily_reconciliation(run_date, dry_run=dry_run)
-        reconciliation_succeeded = result.get("success", False)
+
+        if "success" not in result:
+            raise ValueError(
+                "Reconciliation result missing 'success' field. "
+                f"Available keys: {list(result.keys())}. "
+                "Check DailyReconciliation.run_daily_reconciliation() implementation."
+            )
+
+        reconciliation_succeeded = result["success"]
         status = "success" if reconciliation_succeeded else "error"
 
         # CRITICAL: Detect and warn if mock data is being returned (indicates dry run mode)
@@ -82,7 +90,13 @@ def run(
                             "'portfolio_value'. Available keys: " + str(list(alpaca_data.keys()))
                         )
                         raise ValueError("Alpaca data missing equity and portfolio_value — cannot validate P&L")
-                local_equity = result.get("portfolio_value", 0)
+
+                if "portfolio_value" not in result:
+                    raise ValueError(
+                        "Reconciliation succeeded but missing portfolio_value (required for P&L validation). "
+                        f"Available keys: {list(result.keys())}"
+                    )
+                local_equity = result["portfolio_value"]
 
                 pnl_check = recon.validate_pnl(alpaca_equity, local_equity)
                 pnl_validation_status = pnl_check["status"]

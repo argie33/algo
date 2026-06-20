@@ -23,6 +23,25 @@ class MissingPhaseDataError(DataContractError):
 
 
 
+# Phase 1 produces this schema
+class Phase1Contract(TypedDict, total=False):
+    """Data contract: what Phase 1 (Data Freshness) produces."""
+
+    status: str  # "ok", "degraded", "warning"
+    summary: str
+    tables_checked: int
+    tables_stale: list[str]
+
+
+# Phase 2 produces this schema
+class Phase2Contract(TypedDict, total=False):
+    """Data contract: what Phase 2 (Circuit Breakers) produces."""
+
+    status: str  # "ok", "halted"
+    checks: dict[str, dict[str, Any]]  # {check_name: {halted, label, reason}}
+    breaker_triggered: bool
+
+
 # Phase 3 produces this schema
 class PositionRecommendation(TypedDict, total=False):
     """Schema for position recommendations from Phase 3."""
@@ -38,15 +57,23 @@ class PositionRecommendation(TypedDict, total=False):
 
 
 class Phase3Contract(TypedDict):
-    """Data contract: what Phase 3 produces."""
+    """Data contract: what Phase 3 (Position Monitor) produces."""
 
     recommendations: list[PositionRecommendation]
-    count: int
 
 
-# Phase 3b produces this schema
+# Phase 4 produces this schema
+class Phase4Contract(TypedDict, total=False):
+    """Data contract: what Phase 4 (Position Reconciliation) produces."""
+
+    success: bool
+    positions: int
+    reason: str
+
+
+# Phase 5 produces this schema
 class ExposureAction(TypedDict, total=False):
-    """Schema for exposure policy actions from Phase 3b."""
+    """Schema for exposure policy actions from Phase 5."""
 
     symbol: str
     position_id: str
@@ -57,26 +84,50 @@ class ExposureAction(TypedDict, total=False):
     exit_fraction: float
 
 
-class Phase3bContract(TypedDict):
-    """Data contract: what Phase 3b produces."""
+class Phase5Contract(TypedDict):
+    """Data contract: what Phase 5 (Exposure Policy) produces."""
 
     constraints: dict[str, Any]
     actions: list[ExposureAction]
 
 
-# Phase 5 produces this schema
+# Phase 6 produces this schema
+class Phase6Contract(TypedDict, total=False):
+    """Data contract: what Phase 6 (Exit Execution) produces."""
+
+    exits_executed: int
+    summary: str
+
+
+# Phase 7 produces this schema
 class QualifiedTrade(TypedDict, total=False):
-    """Schema for qualified trades from Phase 5."""
+    """Schema for qualified trades from Phase 7."""
 
     symbol: str
     signal: str
     score: float
 
 
-class Phase5Contract(TypedDict):
-    """Data contract: what Phase 5 produces."""
+class Phase7Contract(TypedDict):
+    """Data contract: what Phase 7 (Signal Generation) produces."""
 
     qualified_trades: list[QualifiedTrade]
+
+
+# Phase 8 produces this schema
+class Phase8Contract(TypedDict, total=False):
+    """Data contract: what Phase 8 (Entry Execution) produces."""
+
+    entered: int
+    summary: str
+
+
+# Phase 9 produces this schema
+class Phase9Contract(TypedDict, total=False):
+    """Data contract: what Phase 9 (Final Reconciliation) produces."""
+
+    positions: int
+    summary: str
 
 
 @dataclass
@@ -86,6 +137,7 @@ class PhaseDataSchema:
     phase_num: int | str
     phase_name: str
     required_keys: list[str] = field(default_factory=list)
+    optional_keys: list[str] = field(default_factory=list)
 
     def validate(self, data: dict[str, Any]) -> None:
         """Validate that data matches this schema.
@@ -101,39 +153,32 @@ class PhaseDataSchema:
 
         missing = [k for k in self.required_keys if k not in data]
         if missing:
-            raise DataContractError(f"Phase {self.phase_num} data missing required keys: {missing}")
+            raise DataContractError(
+                f"Phase {self.phase_num} ({self.phase_name}) data missing required keys: {missing}. "
+                f"Available: {list(data.keys())}"
+            )
 
 
 # Define what each phase produces
 PHASE_CONTRACTS = {
-    3: PhaseDataSchema(3, "POSITION MONITOR", ["recommendations"]),
-    "3b": PhaseDataSchema("3b", "EXPOSURE POLICY", ["constraints", "actions"]),
-    5: PhaseDataSchema(5, "SIGNAL GENERATION", ["qualified_trades"]),
+    1: PhaseDataSchema(1, "DATA FRESHNESS CHECK", required_keys=["status"], optional_keys=["summary", "tables_checked"]),
+    2: PhaseDataSchema(2, "CIRCUIT BREAKERS", required_keys=["status"], optional_keys=["checks", "breaker_triggered"]),
+    3: PhaseDataSchema(3, "POSITION MONITOR", required_keys=["recommendations"]),
+    4: PhaseDataSchema(4, "RECONCILIATION", required_keys=["success"], optional_keys=["positions", "reason"]),
+    # Phase 5 is CRITICAL: constraints MUST be validated separately with validate_phase_5_constraints()
+    5: PhaseDataSchema(5, "EXPOSURE POLICY", required_keys=["constraints", "actions"]),
+    6: PhaseDataSchema(6, "EXIT EXECUTION", optional_keys=["exits_executed", "summary"]),
+    7: PhaseDataSchema(7, "SIGNAL GENERATION", required_keys=["qualified_trades"]),
+    8: PhaseDataSchema(8, "ENTRY EXECUTION", optional_keys=["entered", "summary"]),
+    9: PhaseDataSchema(9, "RECONCILIATION & SNAPSHOT", optional_keys=["positions", "summary"]),
 }
-
-
-def validate_phase_3b_constraints(constraints: dict) -> None:
-    """Validate Phase 3b constraints have required fields.
-
-    Phase 5 depends on these fields for position sizing.
-
-    Raises:
-        DataContractError: If constraints are missing required fields
-    """
-    if not isinstance(constraints, dict):
-        raise DataContractError(f"Phase 3b constraints must be dict, got {type(constraints).__name__}")
-
-    if not constraints:
-        raise DataContractError("Phase 3b constraints is empty. Cannot proceed with signal generation.")
-
-    required_fields = ["tier_name", "risk_multiplier", "max_new_positions_today"]
-    missing = [f for f in required_fields if f not in constraints]
-    if missing:
-        raise DataContractError(f"Phase 3b constraints missing required fields: {missing}")
 
 
 def validate_phase_data(phase_num: int | str, data: dict[str, Any]) -> None:
     """Validate phase data against its contract.
+
+    ISSUE #7 FIX: Validate all phase outputs to prevent silent data loss.
+    Fails if phase data is missing required keys.
 
     Args:
         phase_num: Phase number
@@ -142,12 +187,90 @@ def validate_phase_data(phase_num: int | str, data: dict[str, Any]) -> None:
     Raises:
         DataContractError: If validation fails
     """
-    if phase_num in PHASE_CONTRACTS:
-        PHASE_CONTRACTS[phase_num].validate(data)
+    if phase_num not in PHASE_CONTRACTS:
+        logger.debug(f"No schema defined for Phase {phase_num}, skipping validation")
+        return
+
+    schema = PHASE_CONTRACTS[phase_num]
+    schema.validate(data)
+
+
+def validate_phase_5_constraints(constraints: dict) -> None:
+    """Validate Phase 5 constraints have required fields.
+
+    Phases 7 and 8 depend on these fields for position sizing.
+    This is a strict contract: empty or incomplete constraints block downstream phases.
+
+    Args:
+        constraints: Dictionary to validate
+
+    Raises:
+        DataContractError: If constraints are missing required fields
+    """
+    if not isinstance(constraints, dict):
+        raise DataContractError(f"Phase 5 constraints must be dict, got {type(constraints).__name__}")
+
+    if not constraints:
+        raise DataContractError("Phase 5 constraints is empty. Cannot proceed with signal generation.")
+
+    required_fields = ["tier_name", "risk_multiplier", "max_new_positions_today"]
+    missing = [f for f in required_fields if f not in constraints]
+    if missing:
+        raise DataContractError(
+            f"Phase 5 constraints missing required fields: {missing}. "
+            f"Available: {list(constraints.keys())}. "
+            f"Phase 5 must provide all constraint fields for Phase 7/8 to execute."
+        )
+
+
+def validate_dependency_executed(phase_num: int | str, dep_num: int | str, result: Any) -> None:
+    """Validate that a dependency phase executed and produced valid data.
+
+    ISSUE #7 FIX: Check both that phase ran AND that it produced valid output.
+    Prevents downstream phases from receiving incomplete data.
+
+    Args:
+        phase_num: Phase that depends on data
+        dep_num: Dependency phase number
+        result: PhaseResult from dependency
+
+    Raises:
+        MissingPhaseDataError: If dependency failed or data is invalid
+    """
+    from algo.orchestrator.phase_result import PhaseResult
+
+    if result is None:
+        raise MissingPhaseDataError(
+            f"Phase {phase_num} depends on Phase {dep_num} but Phase {dep_num} never executed. "
+            f"Dependency chain broken."
+        )
+
+    if not isinstance(result, PhaseResult):
+        raise MissingPhaseDataError(
+            f"Phase {phase_num} depends on Phase {dep_num} but got invalid result type: {type(result).__name__}"
+        )
+
+    if not result.ok:
+        raise MissingPhaseDataError(
+            f"Phase {phase_num} depends on Phase {dep_num} but Phase {dep_num} failed: "
+            f"status={result.status}, error={result.error}. "
+            f"Cannot proceed without successful Phase {dep_num}."
+        )
+
+    # Validate dependency data schema
+    try:
+        validate_phase_data(dep_num, result.data)
+    except DataContractError as e:
+        raise MissingPhaseDataError(
+            f"Phase {phase_num} depends on Phase {dep_num} but Phase {dep_num}'s data is invalid: {e}"
+        ) from e
 
 
 def extract_required_data(phase_num: int | str, data: dict[str, Any], *keys: str) -> tuple[Any, ...]:
     """Extract required data from phase result with validation.
+
+    ISSUE #7 FIX: Fail explicitly if required data is missing.
+    Never silently return None or empty values.
 
     Args:
         phase_num: Phase that produced this data
@@ -155,7 +278,7 @@ def extract_required_data(phase_num: int | str, data: dict[str, Any], *keys: str
         *keys: Required keys to extract
 
     Returns:
-        Tuple of extracted values
+        Tuple of extracted values (single value if one key)
 
     Raises:
         DataContractError: If any required key is missing or data is invalid
@@ -166,7 +289,8 @@ def extract_required_data(phase_num: int | str, data: dict[str, Any], *keys: str
     missing = [k for k in keys if k not in data]
     if missing:
         raise DataContractError(
-            f"Phase {phase_num} missing required keys: {missing}. Available keys: {list(data.keys())}"
+            f"Phase {phase_num} missing required keys: {missing}. "
+            f"Expected: {list(keys)}. Available: {list(data.keys())}"
         )
 
     return tuple(data[k] for k in keys)

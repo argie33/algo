@@ -33,7 +33,7 @@ import os
 import time
 from collections.abc import Callable
 from datetime import date as _date
-from typing import Any
+from typing import Any, cast
 
 import psycopg2
 
@@ -48,7 +48,7 @@ logger = logging.getLogger(__name__)
 
 def _batch_fetch_technical_data(
     symbols_with_precomputed: dict[str, dict], run_date: _date, period: int = 14
-) -> dict[str, dict]:
+) -> dict[str, dict[str, float | None]]:
     """Batch-fetch missing ATR and SMA_50 data, using pre-computed values from Phase 5 when available.
 
 
@@ -106,13 +106,13 @@ def _batch_fetch_technical_data(
     if not symbols_needing_fetch:
         # All data precomputed in Phase 5, no DB fetch needed
 
-        return precomputed_by_symbol
+        return cast(dict[str, dict[str, float | None]], precomputed_by_symbol)
 
     # Fetch missing data only for symbols that lack precomputed values
 
     placeholders = ",".join(["%s"] * len(symbols_needing_fetch))
 
-    result = precomputed_by_symbol.copy()
+    result: dict[str, dict[str, float | None]] = cast(dict[str, dict[str, float | None]], precomputed_by_symbol.copy())
 
     try:
         with DatabaseContext("read") as cur:
@@ -220,11 +220,14 @@ def _batch_fetch_technical_data(
             for row in rows:
                 symbol, atr, sma_50, close = row
 
-                result[symbol] = {
-                    "atr": float(atr) if atr else None,
-                    "sma_50": float(sma_50) if sma_50 else None,
-                    "close": float(close) if close else None,
-                }
+                result[symbol] = cast(
+                    dict[str, float | None],
+                    {
+                        "atr": float(atr) if atr else None,
+                        "sma_50": float(sma_50) if sma_50 else None,
+                        "close": float(close) if close else None,
+                    },
+                )
 
             return result
 
@@ -545,8 +548,19 @@ def run(
                 portfolio_value=portfolio_value,
             )
 
-            if sizing.get("status") != "ok" or sizing.get("shares", 0) < 1:
+            if sizing.get("status") != "ok":
                 logger.info(f"[PHASE 6] {symbol}: sizer blocked — {sizing.get('reason', 'unknown')}")
+            elif "shares" not in sizing:
+                logger.error(
+                    f"[PHASE 6] {symbol}: CRITICAL - sizer did not return shares field. "
+                    f"Response: {sizing}. Check position_sizer module."
+                )
+                raise RuntimeError(
+                    f"Position sizer failed to provide shares for {symbol}. "
+                    f"Cannot proceed with zero-share position."
+                )
+            elif sizing["shares"] < 1:
+                logger.info(f"[PHASE 6] {symbol}: sizer blocked — insufficient shares ({sizing['shares']})")
 
                 skipped_count += 1
 

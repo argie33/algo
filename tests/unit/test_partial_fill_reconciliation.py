@@ -165,11 +165,11 @@ class TestPartialFillDetection:
 class TestPartialFillIntegration:
     """Integration tests for partial fill reconciliation."""
 
-    @patch("algo.orchestrator.phase3a_reconciliation.DatabaseContext")
-    @patch("algo.orchestrator.phase3a_reconciliation.DailyReconciliation")
-    def test_phase3a_calls_partial_fill_check(self, mock_recon_class, mock_db_context):
+    @patch("algo.orchestrator.phase4_reconciliation.DatabaseContext")
+    @patch("algo.orchestrator.phase4_reconciliation.DailyReconciliation")
+    def test_phase4_calls_partial_fill_check(self, mock_recon_class, mock_db_context):
         """Test that Phase 3a reconciliation calls partial fill check."""
-        from algo.orchestrator.phase3a_reconciliation import run
+        from algo.orchestrator.phase4_reconciliation import run
 
         # Mock reconciliation instance
         mock_recon = Mock()

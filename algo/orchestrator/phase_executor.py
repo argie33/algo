@@ -124,17 +124,15 @@ class OrchestratorPhaseExecutor:
 
         ISSUE #7 FIX: Validates both execution status AND data contracts (schema validation).
         Prevents phases from proceeding with incomplete dependency data.
-        Raises exceptions instead of silently returning defaults.
+        Ensures dependencies ran, succeeded, and produced valid output.
 
         Returns:
             None if all dependencies satisfied, error message otherwise.
-
-        Raises:
-            Exception: On missing dependencies with full context about what failed
         """
         from algo.orchestrator.phase_data_contract import (
             DataContractError,
-            validate_phase_data,
+            MissingPhaseDataError,
+            validate_dependency_executed,
         )
 
         phase = self.phases.get(phase_num)
@@ -143,36 +141,12 @@ class OrchestratorPhaseExecutor:
 
         for dep in phase.dependencies:
             dep_result = self.phase_results.get(dep)
-            if not dep_result:
-                error_msg = (
-                    f"[PHASE {phase_num} DEPENDENCY FAILED] Phase {phase_num} requires Phase {dep} output "
-                    f"but Phase {dep} was never executed. Available phases: {list(self.phase_results.keys())}. "
-                    f"Cannot proceed without {dep}'s output."
-                )
-                logger.critical(error_msg)
-                return error_msg
 
-            if not dep_result.ok:
-                error_msg = (
-                    f"[PHASE {phase_num} DEPENDENCY FAILED] Phase {phase_num} requires Phase {dep} "
-                    f"but Phase {dep} failed with status={dep_result.status}. "
-                    f"Reason: {dep_result.error or 'unknown'}. "
-                    f"Cannot proceed without successful Phase {dep}."
-                )
-                logger.critical(error_msg)
-                return error_msg
-
-            # CRITICAL: Validate dependency produced valid data schema
-            # ISSUE #7 FIX: Never silently return defaults - fail loudly if data is incomplete
+            # Check all three aspects: execution, success, and data validity
             try:
-                validate_phase_data(dep, dep_result.data)
-            except DataContractError as e:
-                error_msg = (
-                    f"[PHASE {phase_num} DATA CONTRACT VIOLATION] Phase {phase_num} depends on Phase {dep} "
-                    f"but Phase {dep}'s output is invalid: {e}. "
-                    f"Expected data: {dep_result.data.keys() if hasattr(dep_result, 'data') else 'unknown'}. "
-                    f"Cannot proceed with invalid upstream data."
-                )
+                validate_dependency_executed(phase_num, dep, dep_result)
+            except (MissingPhaseDataError, DataContractError) as e:
+                error_msg = f"[PHASE {phase_num} DEPENDENCY FAILED] {e}"
                 logger.critical(error_msg)
                 return error_msg
 
@@ -183,6 +157,12 @@ class OrchestratorPhaseExecutor:
 
         ISSUE #7 FIX: Ensure all dependency failures are loud and actionable.
         Never silently skip a phase with dependencies - if dependencies fail, the phase must fail too.
+
+        Flow:
+        1. Check dependencies (execution, success, data validity)
+        2. Check halt flag
+        3. Execute phase and capture result
+        4. Report any errors clearly
 
         Args:
             phase_num: Phase to execute
@@ -200,11 +180,10 @@ class OrchestratorPhaseExecutor:
         dep_error = self._check_dependencies(phase_num)
         if dep_error:
             logger.critical(f"[DEP-CHECK FAILED] {dep_error}")
-            # CRITICAL: If a phase has dependencies and they fail, the phase MUST fail
-            # Never skip phases with unsatisfied dependencies
             if phase.dependencies:
                 logger.critical(
-                    f"[PHASE {phase_num}] Cannot proceed: has {len(phase.dependencies)} unsatisfied dependencies"
+                    f"[PHASE {phase_num}] BLOCKING: Cannot execute phase with {len(phase.dependencies)} "
+                    f"unsatisfied dependencies. Dependency chain: {phase.dependencies}"
                 )
             return False, dep_error
 
@@ -248,15 +227,16 @@ class OrchestratorPhaseExecutor:
 
         except Exception as e:
             logger.exception(f"[PHASE {phase_num}] Exception during execution: {e}")
+            error_msg = str(e)
             result = PhaseResult(
                 phase_num=phase_num,
                 phase_name=phase.phase_name,
                 status="error",
-                error=str(e),
+                error=error_msg,
                 dependencies=phase.dependencies,
             )
             self.phase_results[phase_num] = result
-            return False, str(e)
+            return False, error_msg
 
     def run(self) -> dict[str, Any]:
         """Execute all registered phases in order.

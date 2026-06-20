@@ -468,7 +468,8 @@ class Orchestrator:
         for attempt in range(1, max_retries + 1):
             try:
                 response = ecs.describe_tasks(cluster=cluster, tasks=[task_arn])
-                if not response.get("tasks"):
+                tasks = response.get("tasks")
+                if not tasks or not isinstance(tasks, list) or len(tasks) == 0:
                     logger.error(
                         f"[TASK_TERMINATION] Attempt {attempt}: Task {task_arn} not found in describe_tasks response"
                     )
@@ -477,8 +478,8 @@ class Orchestrator:
                         retry_delay_sec *= 1.5  # Exponential backoff
                     continue
 
-                task_status = response["tasks"][0].get("lastStatus", "UNKNOWN")
-                desired_status = response["tasks"][0].get("desiredStatus", "UNKNOWN")
+                task_status = tasks[0].get("lastStatus", "UNKNOWN")
+                desired_status = tasks[0].get("desiredStatus", "UNKNOWN")
 
                 logger.debug(
                     f"[TASK_TERMINATION] Attempt {attempt}: {loader_name} lastStatus={task_status}, desiredStatus={desired_status}"
@@ -605,15 +606,29 @@ class Orchestrator:
 
             # List running tasks
             response = ecs.list_tasks(cluster=cluster, desiredStatus="RUNNING")
-            if not response.get("taskArns"):
+            task_arns = response.get("taskArns")
+            if not task_arns:
+                return
+            if not isinstance(task_arns, list):
+                logger.error(f"[OOM_PREVENTION] Unexpected taskArns type: {type(task_arns)}, expected list")
                 return
 
             # Get task details (includes startedAt timestamp)
-            task_details = ecs.describe_tasks(cluster=cluster, tasks=response["taskArns"])
+            task_details = ecs.describe_tasks(cluster=cluster, tasks=task_arns)
             now = datetime.now(timezone.utc)
 
+            # Validate DynamoDB response schema
+            if not isinstance(task_details, dict):
+                logger.error(f"[OOM_PREVENTION] Unexpected task_details type: {type(task_details)}, expected dict")
+                return
+
+            tasks = task_details.get("tasks")
+            if not isinstance(tasks, list):
+                logger.error(f"[OOM_PREVENTION] Unexpected tasks type: {type(tasks)}, expected list")
+                return
+
             failed_terminations = []
-            for task in task_details.get("tasks", []):
+            for task in tasks:
                 # Extract loader name from task definition (format: algo-LOADER_NAME-loader:1)
                 task_def = task.get("taskDefinitionArn", "")
                 loader_name = None
@@ -881,12 +896,12 @@ class Orchestrator:
         self._position_recs = result.data.get("recommendations", [])
         return True
 
-    def phase_3b_exposure_policy(self) -> bool:
-        """Thin delegation to phase3b_exposure_policy module."""
-        self.log_phase_start("3b", "EXPOSURE POLICY ACTIONS")
-        from algo.orchestrator.phase3b_exposure_policy import run as run_phase3b
+    def phase_5_exposure_policy(self) -> bool:
+        """Thin delegation to phase5_exposure_policy module."""
+        self.log_phase_start(5, "EXPOSURE POLICY ACTIONS")
+        from algo.orchestrator.phase5_exposure_policy import run as run_phase5
 
-        result = run_phase3b(
+        result = run_phase5(
             self.config,
             self.run_date,
             self.dry_run,
@@ -894,73 +909,76 @@ class Orchestrator:
             self.verbose,
             self.log_phase_result,
         )
-        self._phase3b_result = result
+        self._phase5_result = result
         if not result.ok:
             return False
         self._exposure_constraints = result.data.get("constraints")
         self._exposure_actions = result.data.get("actions", [])
         return True
 
-    def phase_4_exit_execution(self) -> bool:
-        """Thin delegation to phase4_exit_execution module."""
-        self.log_phase_start(4, "EXIT EXECUTION")
+    def phase_6_exit_execution(self) -> bool:
+        """Thin delegation to phase6_exit_execution module."""
+        self.log_phase_start(6, "EXIT EXECUTION")
         # No halt flag check: exits must always run to reduce risk even when entries are halted.
-        from algo.orchestrator.phase4_exit_execution import run as run_phase4
+        from algo.orchestrator.phase6_exit_execution import run as run_phase6
 
-        result = run_phase4(
+        # Phase 6 depends on Phase 3 and 5 producing position_recs and exposure_actions
+        if not hasattr(self, "_position_recs"):
+            raise RuntimeError(
+                "[PHASE 6 CRITICAL] _position_recs not set by Phase 3. Phase 3 must run and succeed before Phase 6."
+            )
+        if not hasattr(self, "_exposure_actions"):
+            raise RuntimeError(
+                "[PHASE 6 CRITICAL] _exposure_actions not set by Phase 5. Phase 5 must run and succeed before Phase 6."
+            )
+
+        result = run_phase6(
             self.config,
             self.run_date,
             self.dry_run,
             self.alerts,
             self.verbose,
             self.log_phase_result,
-            getattr(self, "_position_recs", []),
-            getattr(self, "_exposure_actions", []),
+            self._position_recs,
+            self._exposure_actions,
             self._check_halt_flag,
         )
-        self._phase4_result = result
+        self._phase6_result = result
         return not result.halted
 
-    def phase_5_signal_generation(self) -> bool:
-        """Thin delegation to phase5_signal_generation module.
+    def phase_7_signal_generation(self) -> bool:
+        """Thin delegation to phase7_signal_generation module.
 
         ISSUE #4 FIX: Explicit dependency validation.
-        Phase 5 depends on Phase 3b producing valid exposure_constraints.
+        Phase 7 depends on Phase 5 producing valid exposure_constraints.
         If constraints are missing or invalid, fail loudly instead of silently degrading.
 
         New version: Compute signals on-the-fly from price data.
         No dependency on technical_data_daily.
         """
-        self.log_phase_start(5, "SIGNAL GENERATION & RANKING")
-        from algo.orchestrator.phase5_signal_generation import run as run_phase5
-        from algo.orchestrator.phase_data_contract import validate_phase_3b_constraints
+        self.log_phase_start(7, "SIGNAL GENERATION & RANKING")
+        from algo.orchestrator.phase7_signal_generation import run as run_phase7
+        from algo.orchestrator.phase_data_contract import validate_phase_5_constraints
 
-        # CRITICAL VALIDATION: Phase 3b must have produced valid exposure constraints
-        exposure_constraints = getattr(self, "_exposure_constraints", None)
+        # CRITICAL VALIDATION: Phase 5 must have produced valid exposure constraints
+        if not hasattr(self, "_exposure_constraints"):
+            raise RuntimeError(
+                "[PHASE 7 CRITICAL] Exposure constraints not set by Phase 5. Phase 5 must run and succeed before Phase 7."
+            )
 
-        # Validate constraints exist and are not empty
+        exposure_constraints = self._exposure_constraints
         if exposure_constraints is None:
-            msg = "[PHASE 5 CRITICAL] Exposure constraints not set by Phase 3b. Cannot proceed with signal generation."
-            logger.critical(msg)
-            self.log_phase_result(5, "signal_generation", "halt", msg)
-            from algo.orchestrator.phase_result import PhaseResult
-
-            self._phase5_result = PhaseResult(5, "signal_generation", "halted", {"qualified_trades": []}, True, msg)
-            return False
+            raise ValueError(
+                "[PHASE 7 CRITICAL] Exposure constraints are None. Phase 5 must produce valid constraints."
+            )
 
         # Validate constraints schema
         try:
-            validate_phase_3b_constraints(exposure_constraints)
+            validate_phase_5_constraints(exposure_constraints)
         except Exception as e:
-            msg = f"[PHASE 5 CRITICAL] Exposure constraints invalid: {e}. Cannot proceed with signal generation."
-            logger.critical(msg)
-            self.log_phase_result(5, "signal_generation", "halt", msg)
-            from algo.orchestrator.phase_result import PhaseResult
+            raise ValueError(f"[PHASE 7 CRITICAL] Exposure constraints invalid: {e}") from e
 
-            self._phase5_result = PhaseResult(5, "signal_generation", "halted", {"qualified_trades": []}, True, msg)
-            return False
-
-        result = run_phase5(
+        result = run_phase7(
             self.run_date,
             self.dry_run,
             self.verbose,
@@ -970,43 +988,53 @@ class Orchestrator:
             phase1_degraded=False,
             config=self.config,
         )
-        self._phase5_result = result
+        self._phase7_result = result
         self._qualified_trades = result.data.get("qualified_trades", [])
-        self.phase_results.setdefault(5, {})["signals_evaluated"] = len(self._qualified_trades)
+        self.phase_results.setdefault(7, {})["signals_evaluated"] = len(self._qualified_trades)
         return not result.halted
 
-    def phase_6_entry_execution(self) -> bool:
-        """Thin delegation to phase6_entry_execution module.
+    def phase_8_entry_execution(self) -> bool:
+        """Thin delegation to phase8_entry_execution module.
 
         New version: Compute ATR + SMA_50 on-demand, execute immediately.
         """
-        self.log_phase_start(6, "ENTRY EXECUTION")
-        from algo.orchestrator.phase6_entry_execution import run as run_phase6
+        self.log_phase_start(8, "ENTRY EXECUTION")
+        from algo.orchestrator.phase8_entry_execution import run as run_phase8
 
-        result = run_phase6(
+        # Phase 8 depends on Phase 7 and 5 producing qualified_trades and exposure_constraints
+        if not hasattr(self, "_qualified_trades"):
+            raise RuntimeError(
+                "[PHASE 8 CRITICAL] _qualified_trades not set by Phase 7. Phase 7 must run and succeed before Phase 8."
+            )
+        if not hasattr(self, "_exposure_constraints"):
+            raise RuntimeError(
+                "[PHASE 8 CRITICAL] _exposure_constraints not set by Phase 5. Phase 5 must run and succeed before Phase 8."
+            )
+
+        result = run_phase8(
             self.config,
             self.run_date,
             self.dry_run,
             self.verbose,
             self.log_phase_result,
-            getattr(self, "_qualified_trades", []),
-            getattr(self, "_exposure_constraints", None),
+            self._qualified_trades,
+            self._exposure_constraints,
             self._check_halt_flag,
         )
-        self._phase6_result = result
-        self.phase_results.setdefault(6, {})["trades_executed"] = result.data.get("entered", 0)
+        self._phase8_result = result
+        self.phase_results.setdefault(8, {})["trades_executed"] = result.data.get("entered", 0)
         return not result.halted
 
-    def phase_7_reconcile(self) -> bool:
-        """Thin delegation to phase7_reconciliation module."""
-        self.log_phase_start(7, "RECONCILIATION & SNAPSHOT")
+    def phase_9_reconcile(self) -> bool:
+        """Thin delegation to phase9_reconciliation module."""
+        self.log_phase_start(9, "RECONCILIATION & SNAPSHOT")
         # No halt flag check: snapshot must always be written so circuit breakers
         # have accurate portfolio state on the next invocation.
-        from algo.orchestrator.phase7_reconciliation import run as run_phase7
+        from algo.orchestrator.phase9_reconciliation import run as run_phase9
 
-        result = run_phase7(self.config, self.run_date, self.log_phase_result)
-        self._phase7_result = result
-        self.phase_results.setdefault(7, {})["open_positions"] = result.data.get("positions", 0)
+        result = run_phase9(self.config, self.run_date, self.log_phase_result)
+        self._phase9_result = result
+        self.phase_results.setdefault(9, {})["open_positions"] = result.data.get("positions", 0)
         return not result.halted
 
     # ---------- Executor setup (Phase 2: Phase Executor Framework) ----------
@@ -1055,69 +1083,69 @@ class Orchestrator:
             )
         )
 
-        # Phase 3a: Reconciliation (depends on Phase 3)
-        executor.register_phase(
-            PhaseDefinition(
-                phase_num="3a",
-                phase_name="RECONCILIATION",
-                dependencies=[3],
-                execute_fn=self._executor_phase_3a,
-                skip_if_halted=True,
-            )
-        )
-
-        # Phase 3b: Exposure Policy (depends on Phase 3a)
-        executor.register_phase(
-            PhaseDefinition(
-                phase_num="3b",
-                phase_name="EXPOSURE POLICY ACTIONS",
-                dependencies=["3a"],
-                execute_fn=self._executor_phase_3b,
-                skip_if_halted=True,
-            )
-        )
-
-        # Phase 4: Exit Execution (always runs, depends on Phase 3b)
+        # Phase 4: Reconciliation (depends on Phase 3)
         executor.register_phase(
             PhaseDefinition(
                 phase_num=4,
-                phase_name="EXIT EXECUTION",
-                dependencies=["3b"],
+                phase_name="RECONCILIATION",
+                dependencies=[3],
                 execute_fn=self._executor_phase_4,
-                skip_if_halted=False,
-                always_run=True,
+                skip_if_halted=True,
             )
         )
 
-        # Phase 5: Signal Generation (depends on Phase 3b)
+        # Phase 5: Exposure Policy (depends on Phase 4)
         executor.register_phase(
             PhaseDefinition(
                 phase_num=5,
-                phase_name="SIGNAL GENERATION & RANKING",
-                dependencies=["3b"],
+                phase_name="EXPOSURE POLICY ACTIONS",
+                dependencies=[4],
                 execute_fn=self._executor_phase_5,
                 skip_if_halted=True,
             )
         )
 
-        # Phase 6: Entry Execution (depends on Phase 5 and 3b)
+        # Phase 6: Exit Execution (always runs, depends on Phase 5)
         executor.register_phase(
             PhaseDefinition(
                 phase_num=6,
-                phase_name="ENTRY EXECUTION",
-                dependencies=[5, "3b"],
+                phase_name="EXIT EXECUTION",
+                dependencies=[5],
                 execute_fn=self._executor_phase_6,
+                skip_if_halted=False,
+                always_run=True,
+            )
+        )
+
+        # Phase 7: Signal Generation (depends on Phase 5)
+        executor.register_phase(
+            PhaseDefinition(
+                phase_num=7,
+                phase_name="SIGNAL GENERATION & RANKING",
+                dependencies=[5],
+                execute_fn=self._executor_phase_7,
                 skip_if_halted=True,
             )
         )
 
-        # Phase 7: Reconciliation (always runs, final snapshot)
+        # Phase 8: Entry Execution (depends on Phase 7 and 5)
         executor.register_phase(
             PhaseDefinition(
-                phase_num=7,
+                phase_num=8,
+                phase_name="ENTRY EXECUTION",
+                dependencies=[7, 5],
+                execute_fn=self._executor_phase_8,
+                skip_if_halted=True,
+            )
+        )
+
+        # Phase 9: Reconciliation (always runs, final snapshot)
+        executor.register_phase(
+            PhaseDefinition(
+                phase_num=9,
                 phase_name="RECONCILIATION & SNAPSHOT",
-                dependencies=[6],
-                execute_fn=self._executor_phase_7,
+                dependencies=[8],
+                execute_fn=self._executor_phase_9,
                 skip_if_halted=False,
                 always_run=True,
             )
@@ -1128,23 +1156,29 @@ class Orchestrator:
     def _executor_phase_1(self, **kwargs):
         """Executor wrapper for Phase 1."""
         self.phase_1_data_freshness()
-        return getattr(self, "_phase1_result", None)
+        if not hasattr(self, "_phase1_result"):
+            raise RuntimeError("[PHASE 1] phase_1_data_freshness() did not set _phase1_result")
+        return self._phase1_result
 
     def _executor_phase_2(self, **kwargs):
         """Executor wrapper for Phase 2."""
         self.phase_2_circuit_breakers()
-        return getattr(self, "_phase2_result", None)
+        if not hasattr(self, "_phase2_result"):
+            raise RuntimeError("[PHASE 2] phase_2_circuit_breakers() did not set _phase2_result")
+        return self._phase2_result
 
     def _executor_phase_3(self, **kwargs):
         """Executor wrapper for Phase 3."""
         self.phase_3_position_monitor()
-        return getattr(self, "_phase3_result", None)
+        if not hasattr(self, "_phase3_result"):
+            raise RuntimeError("[PHASE 3] phase_3_position_monitor() did not set _phase3_result")
+        return self._phase3_result
 
-    def _executor_phase_3a(self, **kwargs):
-        """Executor wrapper for Phase 3a."""
-        from algo.orchestrator.phase3a_reconciliation import run as run_phase3a
+    def _executor_phase_4(self, **kwargs):
+        """Executor wrapper for Phase 4: Reconciliation."""
+        from algo.orchestrator.phase4_reconciliation import run as run_phase4
 
-        result = run_phase3a(
+        result = run_phase4(
             self.config,
             self.run_date,
             self.dry_run,
@@ -1154,30 +1188,40 @@ class Orchestrator:
         )
         return result
 
-    def _executor_phase_3b(self, **kwargs):
-        """Executor wrapper for Phase 3b."""
-        self.phase_3b_exposure_policy()
-        return getattr(self, "_phase3b_result", None)
-
-    def _executor_phase_4(self, **kwargs):
-        """Executor wrapper for Phase 4."""
-        self.phase_4_exit_execution()
-        return getattr(self, "_phase4_result", None)
-
     def _executor_phase_5(self, **kwargs):
-        """Executor wrapper for Phase 5."""
-        self.phase_5_signal_generation()
-        return getattr(self, "_phase5_result", None)
+        """Executor wrapper for Phase 5: Exposure Policy."""
+        self.phase_5_exposure_policy()
+        if not hasattr(self, "_phase5_result"):
+            raise RuntimeError("[PHASE 5] phase_5_exposure_policy() did not set _phase5_result")
+        return self._phase5_result
 
     def _executor_phase_6(self, **kwargs):
-        """Executor wrapper for Phase 6."""
-        self.phase_6_entry_execution()
-        return getattr(self, "_phase6_result", None)
+        """Executor wrapper for Phase 6: Exit Execution."""
+        self.phase_6_exit_execution()
+        if not hasattr(self, "_phase6_result"):
+            raise RuntimeError("[PHASE 6] phase_6_exit_execution() did not set _phase6_result")
+        return self._phase6_result
 
     def _executor_phase_7(self, **kwargs):
-        """Executor wrapper for Phase 7."""
-        self.phase_7_reconcile()
-        return getattr(self, "_phase7_result", None)
+        """Executor wrapper for Phase 7: Signal Generation."""
+        self.phase_7_signal_generation()
+        if not hasattr(self, "_phase7_result"):
+            raise RuntimeError("[PHASE 7] phase_7_signal_generation() did not set _phase7_result")
+        return self._phase7_result
+
+    def _executor_phase_8(self, **kwargs):
+        """Executor wrapper for Phase 8: Entry Execution."""
+        self.phase_8_entry_execution()
+        if not hasattr(self, "_phase8_result"):
+            raise RuntimeError("[PHASE 8] phase_8_entry_execution() did not set _phase8_result")
+        return self._phase8_result
+
+    def _executor_phase_9(self, **kwargs):
+        """Executor wrapper for Phase 9: Final Reconciliation."""
+        self.phase_9_reconcile()
+        if not hasattr(self, "_phase9_result"):
+            raise RuntimeError("[PHASE 9] phase_9_reconcile() did not set _phase9_result")
+        return self._phase9_result
 
     # ---------- Main entrypoint ----------
 

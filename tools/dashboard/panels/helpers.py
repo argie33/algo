@@ -38,7 +38,8 @@ def _get_safe_frame_index(frame_index: int) -> int:
 
 def mascot_pose(data: dict, frame: int) -> int:
     """Get mascot pose index based on circuit breaker status and frame."""
-    if (data.get("cb") or {}).get("any"):
+    cb = data.get("cb")
+    if cb and isinstance(cb, dict) and cb.get("any") is True:
         seq = [4, 0, 1, 3, 4, 1, 0, 3, 4, 0, 1, 3, 4, 1, 0, 3, 4, 0, 1, 7]
         idx = seq[(frame // 2) % len(seq)]
     else:
@@ -65,7 +66,15 @@ def _build_buy_sig_map(buy_sigs) -> dict:
         sym = bs.get("symbol")
         if sym:
             sym_norm = str(sym).upper().strip()
-            out[sym_norm] = float(bs.get("signal_quality_score") or bs.get("swing_score") or 0)
+            score = bs.get("signal_quality_score")
+            if score is None:
+                score = bs.get("swing_score")
+            if score is None:
+                score = 0
+            try:
+                out[sym_norm] = float(score)
+            except (ValueError, TypeError):
+                out[sym_norm] = 0.0
     return out
 
 

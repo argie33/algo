@@ -12,13 +12,14 @@ Pre-computes daily economic metrics for dashboard consumption:
 import logging
 import sys
 from datetime import date, datetime
-from typing import Any, List, Optional
+from typing import Any
+
+import psycopg2
 
 from loaders.runner import run_loader
 from utils.db.context import DatabaseContext
 from utils.infrastructure.timezone import EASTERN_TZ
 from utils.optimal_loader import OptimalLoader
-import psycopg2
 
 
 logger = logging.getLogger(__name__)
@@ -57,9 +58,13 @@ class EconomicMetricsDailyLoader(OptimalLoader):
                         WHERE series_id='CPIAUCSL'
                         ORDER BY date DESC LIMIT 1
                     """)
-                    cpi_cur_row: dict[str, Any] = cur.fetchone() or {}
-                    cpi_val = cpi_cur_row.get("value")
-                    cpi_cur = float(cpi_val) if cpi_val is not None else None
+                    cpi_cur_row = cur.fetchone()
+                    if cpi_cur_row is None:
+                        cpi_error = "no_current_cpi_data"
+                        cpi_cur = None
+                    else:
+                        cpi_val = cpi_cur_row.get("value")
+                        cpi_cur = float(cpi_val) if cpi_val is not None else None
 
                     if cpi_cur is not None:
                         # Get CPI from 1 year ago
@@ -69,9 +74,13 @@ class EconomicMetricsDailyLoader(OptimalLoader):
                               AND date <= CURRENT_DATE - 365
                             ORDER BY date DESC LIMIT 1
                         """)
-                        cpi_yoy_row: dict[str, Any] = cur.fetchone() or {}
-                        cpi_prev_val = cpi_yoy_row.get("value")
-                        cpi_prev = float(cpi_prev_val) if cpi_prev_val is not None else None
+                        cpi_yoy_row = cur.fetchone()
+                        if cpi_yoy_row is None:
+                            cpi_error = "no_historical_cpi_data"
+                            cpi_prev = None
+                        else:
+                            cpi_prev_val = cpi_yoy_row.get("value")
+                            cpi_prev = float(cpi_prev_val) if cpi_prev_val is not None else None
 
                         if cpi_prev is not None and cpi_prev > 0:
                             cpi_yoy = round((cpi_cur - cpi_prev) / cpi_prev * 100, 2)
@@ -92,7 +101,9 @@ class EconomicMetricsDailyLoader(OptimalLoader):
                         WHERE symbol='SPY'
                         ORDER BY date DESC LIMIT 2
                     """)
-                    spy_rows = cur.fetchall() or []
+                    spy_rows = cur.fetchall()
+                    if spy_rows is None:
+                        spy_rows = []
 
                     if len(spy_rows) >= 2:
                         cur_price = (

@@ -89,9 +89,15 @@ class CredentialManager:
                 _cfg = botocore.config.Config(
                     connect_timeout=10, read_timeout=15, retries={"max_attempts": 2}
                 )
+                aws_region = os.getenv("AWS_REGION")
+                if not aws_region:
+                    raise ValueError(
+                        "AWS_REGION environment variable is REQUIRED for Secrets Manager access. "
+                        "Set it to your deployment region (e.g., us-east-1, us-west-2)."
+                    )
                 self._secrets_client = boto3.client(
                     "secretsmanager",
-                    region_name=os.getenv("AWS_REGION", "us-east-1"),
+                    region_name=aws_region,
                     config=_cfg,
                 )
             except ImportError as e:

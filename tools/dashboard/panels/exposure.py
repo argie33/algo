@@ -57,8 +57,10 @@ def panel_exposure_compact(exp_f):
 
     def factor_detail(key):
         """Return a short value string for a factor key."""
-        f = factors.get(key) or {}
-        if not f:
+        if not factors or key not in factors:
+            return ""
+        f = factors[key]
+        if not isinstance(f, dict):
             return ""
         if key == "trend_30wk":
             v = f.get("price_vs_ma_pct")
@@ -125,7 +127,12 @@ def panel_exposure_compact(exp_f):
 
     items = []
     for key, label, max_pts in FACTOR_MAP:
-        f = factors.get(key) or {}
+        if not factors or key not in factors:
+            f = {}
+        else:
+            f = factors[key]
+            if not isinstance(f, dict):
+                f = {}
         sf = f.get("score_factor")
         if sf is None:
             items.append(f"[dim]{label}:[/] [yellow]⚠ N/A[/][dim] /{max_pts}[/]")
@@ -137,10 +144,10 @@ def panel_exposure_compact(exp_f):
             det_s = f" [dim]{det.strip()}[/]" if det else ""
             items.append(f"[dim]{label}:[/] {bar} [{fc}]{pts:.0f}/{max_pts}[/]{det_s}")
 
-    sr = factors.get("sector_rotation") or {}
-    eco = factors.get("economic_overlay") or {}
-    sr_pen = float(sr.get("pts") or 0)
-    eco_pen = float(eco.get("pts") or 0)
+    sr = factors.get("sector_rotation") if factors and isinstance(factors.get("sector_rotation"), dict) else {}
+    eco = factors.get("economic_overlay") if factors and isinstance(factors.get("economic_overlay"), dict) else {}
+    sr_pen = safe_float(sr.get("pts") if sr else None, default=0)
+    eco_pen = safe_float(eco.get("pts") if eco else None, default=0)
     if sr_pen < 0:
         sig = (sr.get("signal") or "").replace("_", " ")[:18]
         items.append(f"[dim]Sector Rotation:[/] [{R}]{sr_pen:+.0f}[/] [dim]{sig}[/]")
@@ -303,10 +310,10 @@ def panel_exposure_expanded(exp_f):
     rows.append(tbl)
 
     # Penalty/bonus adjustments
-    sr = factors.get("sector_rotation") or {}
-    eco = factors.get("economic_overlay") or {}
-    sr_pen = float(sr.get("pts") or 0)
-    eco_pen = float(eco.get("pts") or 0)
+    sr = factors.get("sector_rotation") if factors and isinstance(factors.get("sector_rotation"), dict) else {}
+    eco = factors.get("economic_overlay") if factors and isinstance(factors.get("economic_overlay"), dict) else {}
+    sr_pen = safe_float(sr.get("pts") if sr else None, default=0)
+    eco_pen = safe_float(eco.get("pts") if eco else None, default=0)
     if sr_pen != 0 or eco_pen != 0:
         rows.append(Rule(style="dim"))
         rows.append(Text.from_markup("[dim bold]ADJUSTMENTS[/]"))

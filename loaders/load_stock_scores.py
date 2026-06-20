@@ -46,13 +46,18 @@ class StockScoresLoader(OptimalLoader):
     def fetch_incremental(self, symbol: str, since: date | None):
         """Compute stock scores for this symbol.
 
-        Returns list with score if computed successfully, or empty list if data insufficient.
-        Raises exception on actual errors (database, calculation failures).
+        Returns list with score if computed successfully.
+        Raises exception if data insufficient or actual errors (database, calculation failures).
         """
         score_result = self._compute_stock_score(symbol)
         if score_result:
             return [score_result]
-        return []
+        raise RuntimeError(
+            f"[STOCK_SCORES] Failed to compute score for {symbol}: "
+            "Insufficient real data (completeness < 50%) or all metrics NULL. "
+            "Check: quality_metrics, growth_metrics, value_metrics, positioning_metrics, "
+            "stability_metrics, momentum_metrics tables for missing data."
+        )
 
     def _compute_stock_score(self, symbol: str) -> dict | None:
         """Compute composite stock score from REAL metrics only (no fake defaults).

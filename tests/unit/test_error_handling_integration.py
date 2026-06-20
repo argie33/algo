@@ -19,7 +19,7 @@ class TestPhase5ErrorHandling:
     def test_phase5_fails_when_validation_finds_incomplete_signals(self):
         """Incomplete signals now raise exceptions (not silently filtered)."""
         # This test verifies the fix: incomplete signals cause validation to fail
-        from algo.orchestrator.phase5_signal_generation import _validate_signal_completeness
+        from algo.orchestrator.phase7_signal_generation import _validate_signal_completeness
 
         # Mock candidates with incomplete data (missing composite_score)
         candidates = [
@@ -54,10 +54,10 @@ class TestPhase5ErrorHandling:
         """DB errors now raise exceptions (not return empty dict)."""
         import psycopg2
 
-        from algo.orchestrator.phase5_signal_generation import _detect_upstream_data_quality_drift
+        from algo.orchestrator.phase7_signal_generation import _detect_upstream_data_quality_drift
 
         # Mock DatabaseContext to raise DB error
-        with patch("algo.orchestrator.phase5_signal_generation.DatabaseContext") as mock_db:
+        with patch("algo.orchestrator.phase7_signal_generation.DatabaseContext") as mock_db:
             mock_db.return_value.__enter__.return_value.execute.side_effect = psycopg2.OperationalError(
                 "connection timeout"
             )

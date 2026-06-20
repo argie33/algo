@@ -14,7 +14,7 @@ from unittest.mock import MagicMock, patch
 
 sys.path.insert(0, str(Path(__file__).parent.parent))
 
-from algo.orchestrator.phase5_signal_generation import _check_market_regime
+from algo.orchestrator.phase7_signal_generation import _check_market_regime
 
 
 def test_market_regime_no_data_failclosed():

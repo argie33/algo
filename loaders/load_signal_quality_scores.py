@@ -44,7 +44,9 @@ class SignalQualityScoresLoader(OptimalLoader):
         to avoid per-symbol computation.
 
         ISSUE #27 FIX: Check that buy_sell_daily is not RUNNING/PENDING before proceeding.
-        If buy_sell_daily loader is stuck, abort this loader to prevent incomplete data.
+        If buy_sell_daily loader is stuck, sets _batch_context = {"_blocked": True} and returns.
+        This signals to fetch_incremental() to raise an error — callers MUST NOT ignore this.
+        See fetch_incremental() for the enforcement of the _blocked flag.
         """
         from datetime import datetime, timezone
 
@@ -245,7 +247,10 @@ class SignalQualityScoresLoader(OptimalLoader):
 
         buy_sell_rows = self._fetch_buy_sell_signals(symbol, start, end)
         if not buy_sell_rows:
-            return []
+            raise RuntimeError(
+                f"[SIGNAL_QUALITY] {symbol} {start}..{end}: "
+                "No buy/sell signals found. Check buy_sell_daily table for symbol and date range."
+            )
 
         technical_rows = self._fetch_technical_data(symbol, start, end)
         trend_rows = self._fetch_trend_data(symbol, start, end)
@@ -256,7 +261,10 @@ class SignalQualityScoresLoader(OptimalLoader):
             symbol, buy_sell_rows, technical_rows, trend_rows, vcp_rows, positioning_data
         )
         if not scores:
-            return []
+            raise RuntimeError(
+                f"[SIGNAL_QUALITY] {symbol} {start}..{end}: "
+                "Failed to compute quality scores from signals. Check technical/trend/vcp data availability."
+            )
 
         # Filter to incremental range using datetime comparison (not string)
         if since is not None:
@@ -572,8 +580,8 @@ class SignalQualityScoresLoader(OptimalLoader):
                                 distance_from_high_score = 8
                             elif pct >= -30:
                                 distance_from_high_score = 4
-                    except (ValueError, TypeError):
-                        pass
+                    except (ValueError, TypeError) as e:
+                        logger.warning(f"[SQS] Could not parse percent_from_52w_high '{pct_from_high}' for distance score: {e} — using default 0")
 
                 # Institutional ownership score (0-10)
                 institutional_ownership_score = 0
@@ -598,8 +606,8 @@ class SignalQualityScoresLoader(OptimalLoader):
                             market_stage_score = 5
                         else:
                             market_stage_score = 2
-                    except (ValueError, TypeError):
-                        pass
+                    except (ValueError, TypeError) as e:
+                        logger.warning(f"[SQS] Could not parse weinstein_stage '{weinstein_stage}' for market stage score: {e} — using default 0")
 
                 # VCP pattern score (0-10)
                 vcp_pattern_score = 0
@@ -615,8 +623,8 @@ class SignalQualityScoresLoader(OptimalLoader):
                             vcp_pattern_score = 5
                         else:
                             vcp_pattern_score = 2
-                    except (ValueError, TypeError):
-                        pass
+                    except (ValueError, TypeError) as e:
+                        logger.warning(f"[SQS] Could not parse vcp_strength '{vcp_strength}' for VCP pattern score: {e} — using default 0")
 
                 # Distribution days score (placeholder - would need distribution_days table)
                 distribution_days_score = 5

@@ -44,15 +44,37 @@ class SwingComponentScorer:
             logger.debug(f"Could not load swing weights from config: {e} — using defaults")
         return weights
 
-    def _load_config_val(self, key: str, default):
-        """Load a single config value from database or return default."""
-        try:
-            with DatabaseContext("read") as cur:
+    def _load_config_val(self, key: str, default, cur=None):
+        """Load a single config value from database or return default.
+
+        Args:
+            key: Config key to load
+            default: Default value if key not found or error occurs
+            cur: Optional database cursor. If provided, uses existing transaction.
+                 If None, opens new transaction (nested transaction risk if called within existing context).
+        """
+        if cur is not None:
+            # Use provided cursor (avoid nested transaction)
+            try:
                 cur.execute(
                     "SELECT value FROM algo_config WHERE key = %s",
                     (key,),
                 )
                 row = cur.fetchone()
+                if row:
+                    return type(default)(row[0])
+            except (psycopg2.DatabaseError, psycopg2.OperationalError) as e:
+                logger.debug(f"Could not load config key {key}: {e}")
+            return default
+
+        # Fallback: open new transaction (only for standalone calls)
+        try:
+            with DatabaseContext("read") as new_cur:
+                new_cur.execute(
+                    "SELECT value FROM algo_config WHERE key = %s",
+                    (key,),
+                )
+                row = new_cur.fetchone()
                 if row:
                     return type(default)(row[0])
         except (psycopg2.DatabaseError, psycopg2.OperationalError) as e:
@@ -98,11 +120,8 @@ class SwingComponentScorer:
 
     def _setup_component(self, symbol: str, eval_date) -> tuple[float, dict[str, Any]]:
         """Setup quality component: base type, breakout proximity, consolidation quality."""
-        from algo.signals import TrendlinePatterns
-
         try:
-            patterns = TrendlinePatterns()
-            setup = patterns.identify(symbol, eval_date)
+            setup = self._signals.classify_base_type(symbol, eval_date)
             if not setup or not setup.get("base_type"):
                 return 0, {"error": "No setup found"}
 
@@ -280,9 +299,9 @@ class SwingComponentScorer:
             if not industry_rank:
                 return 0, {"reason": "No industry rank"}
 
-            pts = 0
+            pts = 0.0
             if sector_rank and industry_rank < sector_rank:
-                pts = min(8, (sector_rank - industry_rank) / 50)
+                pts = min(8.0, (sector_rank - industry_rank) / 50)
 
             return pts, {
                 "industry_rank": round(industry_rank, 1) if industry_rank else None,
@@ -311,11 +330,11 @@ class SwingComponentScorer:
             weekly_buy = weekly_signal and weekly_signal.lower() in ("buy", "strong_buy")
             monthly_up = monthly_signal and monthly_signal.lower() in ("buy", "strong_buy")
 
-            pts = 0
+            pts = 0.0
             if weekly_buy:
                 pts += 2.5
             if weekly_above:
-                pts += 1
+                pts += 1.0
             if monthly_up:
                 pts += 1.5
 

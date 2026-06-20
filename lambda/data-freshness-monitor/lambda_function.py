@@ -40,15 +40,30 @@ def _get_db_password() -> str:
 
 
 def _get_db_connection():
+    db_host = os.environ.get("DB_HOST")
+    db_port_str = os.environ.get("DB_PORT")
+    db_name = os.environ.get("DB_NAME")
+    db_user = os.environ.get("DB_USER")
+    db_ssl = os.environ.get("DB_SSL", "require")
+
+    if not db_host:
+        raise ValueError("DB_HOST environment variable is REQUIRED")
+    if not db_port_str:
+        raise ValueError("DB_PORT environment variable is REQUIRED")
+    if not db_name:
+        raise ValueError("DB_NAME environment variable is REQUIRED")
+    if not db_user:
+        raise ValueError("DB_USER environment variable is REQUIRED")
+
     try:
         return psycopg2.connect(
-            host=os.environ.get("DB_HOST"),
-            port=int(os.environ.get("DB_PORT", "5432")),
-            database=os.environ.get("DB_NAME"),
-            user=os.environ.get("DB_USER"),
+            host=db_host,
+            port=int(db_port_str),
+            database=db_name,
+            user=db_user,
             password=_get_db_password(),
             connect_timeout=10,
-            sslmode=os.environ.get("DB_SSL", "require"),
+            sslmode=db_ssl,
         )
     except (json.JSONDecodeError, ValueError) as e:
         logger.error(f"Database connection failed: {e}")

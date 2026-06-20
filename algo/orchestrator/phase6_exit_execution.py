@@ -28,7 +28,7 @@ def run(
     exposure_actions: list[dict[str, Any]],
     check_halt_flag: Callable | None = None,
 ) -> PhaseResult:
-    """Execute Phase 4: Exit Execution.
+    """Execute Phase 6: Exit Execution.
 
     Args:
         config: Configuration object
@@ -38,7 +38,7 @@ def run(
         verbose: Whether to log verbose output
         log_phase_result_fn: Function to log phase results
         position_recs: Recommendations from phase_3_position_monitor
-        exposure_actions: Actions from phase_3b_exposure_policy
+        exposure_actions: Actions from phase_5_exposure_policy
         check_halt_flag: Unused (kept for API compatibility). Exits always run.
 
     Returns:
@@ -47,7 +47,7 @@ def run(
     # No halt flag check here: exits MUST run regardless of halt state.
     # When circuit breaker fires, we still need to exit stressed positions
     # to reduce risk. Blocking exits compounds losses.
-    # New entries are blocked by Phase 2/6 — exits are always executed.
+    # New entries are blocked by Phase 2/8 — exits are always executed.
     try:
         from algo.trading import ExitEngine
         from algo.trading.executor import TradeExecutor
@@ -55,7 +55,7 @@ def run(
         # Detect Phase 3 crash: if position monitor errored, _position_recs is []
         # but we may have real open positions. Log a critical alert so we know.
         if position_recs is None:
-            logger.critical("Phase 4: position_recs not set — Phase 3 may not have run")
+            logger.critical("Phase 6: position_recs not set — Phase 3 may not have run")
         elif len(position_recs) == 0:
             # "no positions" from "Phase 3 crashed with fail-open"
             try:
@@ -67,7 +67,7 @@ def run(
                     open_count = row[0]
                 if open_count > 0:
                     logger.error(
-                        f"Phase 4: position_recs is empty but {open_count} open positions exist "
+                        f"Phase 6: position_recs is empty but {open_count} open positions exist "
                         "— Phase 3 likely crashed (fail-open). Early-exit logic will be skipped."
                     )
             except RuntimeError as e:
@@ -75,9 +75,9 @@ def run(
 
         # In dry-run mode, skip TradeExecutor initialization (no Alpaca credentials needed)
         if dry_run:
-            logger.info("[DRY-RUN] Phase 4: Skipping trade execution (dry-run mode)")
-            log_phase_result_fn(4, "exit_execution", "success", "DRY-RUN: execution skipped")
-            return PhaseResult(4, "exit_execution", "ok", {}, False, None)
+            logger.info("[DRY-RUN] Phase 6: Skipping trade execution (dry-run mode)")
+            log_phase_result_fn(6, "exit_execution", "success", "DRY-RUN: execution skipped")
+            return PhaseResult(6, "exit_execution", "ok", {}, False, None)
 
         executor = TradeExecutor(config)
         exit_count = 0

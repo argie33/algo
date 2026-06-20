@@ -239,8 +239,12 @@ def api_call(endpoint: str, params: dict | None = None, method: str = "GET") -> 
         or {"_error": message} on failure (never cached fallback on transient failures)
     """
     if not API_BASE_URL:
-        logger.error("DASHBOARD_API_URL environment variable not set - cannot make API calls")
-        return {"_error": ("API_BASE_URL not configured - set DASHBOARD_API_URL environment variable")}
+        error_msg = (
+            "CRITICAL: DASHBOARD_API_URL not configured. Cannot make API calls to endpoint. "
+            "Set environment variable: export DASHBOARD_API_URL=https://api.example.com"
+        )
+        logger.error(error_msg)
+        return {"_error": error_msg}
 
     if _check_circuit_breaker():
         try:

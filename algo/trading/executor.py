@@ -28,6 +28,7 @@ from algo.reporting import TradeNotificationService, notify
 from algo.trading.exceptions import (
     AuditLogError,
     DatabaseError,
+    DataUnavailableError,
     DuplicatePositionError,
     NotificationError,
     OrderExecutionError,
@@ -149,6 +150,24 @@ class TradeExecutor:
         except (psycopg2.DatabaseError, psycopg2.OperationalError) as e:
             logger.debug(f"Database operation failed: {e}")
             raise
+
+    def _get_portfolio_value(self) -> Decimal | None:
+        """Get current portfolio value from Alpaca or database snapshot."""
+        from algo.trading import PositionSizer
+
+        try:
+            sizer = PositionSizer(self.config)
+            pv = sizer.get_portfolio_value()
+            return pv
+        except PortfolioValueError as e:
+            logger.error(f"Portfolio value unavailable (critical): {e}")
+            raise PortfolioValueError(f"Cannot determine portfolio value: {e}") from e
+        except (DatabaseError, ValueError) as e:
+            logger.error(f"Failed to get portfolio value ({type(e).__name__}): {e}")
+            raise DataUnavailableError(f"Portfolio value calculation failed: {e}") from e
+        except (requests.RequestException, requests.Timeout) as e:
+            logger.error(f"Alpaca API error getting portfolio value: {e}")
+            raise DataUnavailableError(f"Cannot reach Alpaca: {e}") from e
 
     # ---------- Entry ----------
 
@@ -291,8 +310,8 @@ class TradeExecutor:
                     "message": f"Symbol {symbol} already has an open position. Close it before entering another.",
                     "duplicate": True,
                 }
-        except (DatabaseError, Exception) as e:
-            logger.error(f"Failed to check for duplicate position: {type(e).__name__}: {e}")
+        except DatabaseError as e:
+            logger.error(f"Failed to check for duplicate position (database error): {e}")
             raise DuplicatePositionError(
                 f"Cannot verify duplicate position status: {e!s}. Order halted for safety."
             ) from e
@@ -575,8 +594,10 @@ class TradeExecutor:
                     # Bracket order MUST have stop loss leg — cancel and reject if missing
                     try:
                         self._cancel_bracket_orders(alpaca_order_id)
-                    except Exception as e:
-                        logger.warning(f"Failed to cancel bracket order {alpaca_order_id}: {e}")
+                    except (OrderExecutionError, DatabaseError) as e:
+                        logger.warning(f"Failed to cancel bracket order {alpaca_order_id} ({type(e).__name__}): {e}")
+                    except (requests.RequestException, requests.Timeout) as e:
+                        logger.warning(f"API error cancelling bracket order {alpaca_order_id}: {e}")
                     return {
                         "success": False,
                         "trade_id": trade_id,
@@ -631,13 +652,13 @@ class TradeExecutor:
                     t1_r_dec = Decimal(str(t1_r_config))
                     t2_r_dec = Decimal(str(t2_r_config))
                     t3_r_dec = Decimal(str(t3_r_config))
-                    # Recalculate all targets in Decimal, then quantize and convert to float
-                    target_1_price_dec = executed_price_dec + (actual_risk_per_share * t1_r_dec)
-                    target_1_price = float(target_1_price_dec.quantize(Decimal("0.01"), rounding=ROUND_HALF_UP))
-                    target_2_price_dec = executed_price_dec + (actual_risk_per_share * t2_r_dec)
-                    target_2_price = float(target_2_price_dec.quantize(Decimal("0.01"), rounding=ROUND_HALF_UP))
-                    target_3_price_dec = executed_price_dec + (actual_risk_per_share * t3_r_dec)
-                    target_3_price = float(target_3_price_dec.quantize(Decimal("0.01"), rounding=ROUND_HALF_UP))
+                    # Recalculate all targets in Decimal, keep as Decimal until storage
+                    target_1_price = executed_price_dec + (actual_risk_per_share * t1_r_dec)
+                    target_1_price = target_1_price.quantize(Decimal("0.01"), rounding=ROUND_HALF_UP)
+                    target_2_price = executed_price_dec + (actual_risk_per_share * t2_r_dec)
+                    target_2_price = target_2_price.quantize(Decimal("0.01"), rounding=ROUND_HALF_UP)
+                    target_3_price = executed_price_dec + (actual_risk_per_share * t3_r_dec)
+                    target_3_price = target_3_price.quantize(Decimal("0.01"), rounding=ROUND_HALF_UP)
 
             # Compute initial position size pct using live or snapshot portfolio value
             _pv_for_pct = self._get_portfolio_value()
@@ -648,13 +669,11 @@ class TradeExecutor:
                 # For pending orders, executed_price is None; use entry_price as estimate for pct calculation only
                 price_for_pct = executed_price if executed_price else entry_price
                 position_size_pct = (
-                    float(
-                        (
-                            Decimal(shares) * Decimal(str(price_for_pct)) / Decimal(str(_pv_for_pct)) * Decimal(100)
-                        ).quantize(Decimal("0.01"), rounding=ROUND_HALF_UP)
-                    )
+                    (
+                        Decimal(shares) * Decimal(str(price_for_pct)) / Decimal(str(_pv_for_pct)) * Decimal(100)
+                    ).quantize(Decimal("0.01"), rounding=ROUND_HALF_UP)
                     if _pv_for_pct > 0
-                    else 0
+                    else Decimal(0)
                 )
 
             # Build comprehensive entry reason
@@ -774,7 +793,7 @@ class TradeExecutor:
                         )
 
                 # B3: Defensive check for position value (ensure Decimal precision)
-                position_value = float(Decimal(str(actual_shares)) * Decimal(str(executed_price)))
+                position_value = Decimal(str(actual_shares)) * Decimal(str(executed_price))
                 if position_value <= 0:
                     return {
                         "success": False,
@@ -832,8 +851,8 @@ class TradeExecutor:
                             )
                         except NotificationError as alert_e:
                             logger.warning(f"Failed to send TCA alert (non-blocking): {alert_e}")
-                except (DatabaseError, Exception) as tca_e:
-                    logger.warning(f"TCA recording failed: {type(tca_e).__name__}: {tca_e} (non-blocking)")
+                except DatabaseError as tca_e:
+                    logger.warning(f"TCA recording failed (database error): {tca_e} (non-blocking)")
 
             # Send trade entry notification (non-blocking)
             try:

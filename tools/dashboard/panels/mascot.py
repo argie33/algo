@@ -153,7 +153,8 @@ def _get_safe_frame_index(frame_index: int) -> int:
 
 def mascot_pose(data: dict, frame: int) -> int:
     """Determine mascot pose based on circuit breaker status."""
-    if (data.get("cb") or {}).get("any"):
+    cb = data.get("cb")
+    if cb and isinstance(cb, dict) and cb.get("any") is True:
         seq = [4, 0, 1, 3, 4, 1, 0, 3, 4, 0, 1, 3, 4, 1, 0, 3, 4, 0, 1, 7]
         idx = seq[(frame // 2) % len(seq)]
     else:

@@ -1,8 +1,8 @@
 #!/usr/bin/env python3
 """
-Test Phase 5 Enforcement: Verify buy_sell_daily is required and not silently degraded
+Test Phase 7 Enforcement: Verify buy_sell_daily is required and not silently degraded
 
-Tests that Phase 5 now explicitly fails if buy_sell_daily is unavailable,
+Tests that Phase 7 now explicitly fails if buy_sell_daily is unavailable,
 instead of silently falling back to stock_scores-only signals.
 """
 
@@ -14,22 +14,22 @@ from unittest.mock import MagicMock, Mock, patch
 
 sys.path.insert(0, str(Path(__file__).parent.parent))
 
-from algo.orchestrator.phase5_signal_generation import run as run_phase5
+from algo.orchestrator.phase7_signal_generation import run as run_phase7
 from algo.orchestrator.phase_result import PhaseResult
 
 
-def test_phase5_fails_without_buysell_signals():
+def test_phase7_fails_without_buysell_signals():
     """
-    CRITICAL TEST: Phase 5 must FAIL if buy_sell_daily signals are unavailable.
-    This verifies the fix: Phase 5 no longer falls back to stock_scores.
+    CRITICAL TEST: Phase 7 must FAIL if buy_sell_daily signals are unavailable.
+    This verifies the fix: Phase 7 no longer falls back to stock_scores.
     """
     print("\n" + "=" * 80)
-    print("TEST: Phase 5 Enforcement - Explicit Failure Without buy_sell_daily")
+    print("TEST: Phase 7 Enforcement - Explicit Failure Without buy_sell_daily")
     print("=" * 80)
 
     test_date = date(2026, 6, 16)
 
-    # Mock functions that Phase 5 depends on
+    # Mock functions that Phase 7 depends on
     def mock_check_halt_flag():
         """Halt flag is not set, so we proceed to signal generation"""
         return False
@@ -49,9 +49,9 @@ def test_phase5_fails_without_buysell_signals():
 
     # Mock the database context to return NO buy_sell_daily signals
     # This simulates the scenario where EOD pipeline hasn't completed
-    with patch("algo.orchestrator.phase5_signal_generation.DatabaseContext") as mock_db_context:
+    with patch("algo.orchestrator.phase7_signal_generation.DatabaseContext") as mock_db_context:
         with patch(
-            "algo.orchestrator.phase5_signal_generation._check_market_regime", side_effect=mock_check_market_regime
+            "algo.orchestrator.phase7_signal_generation._check_market_regime", side_effect=mock_check_market_regime
         ):
             # Mock cursor that handles both validation queries and candidate fetch queries
             mock_cursor = MagicMock()
@@ -81,7 +81,7 @@ def test_phase5_fails_without_buysell_signals():
 
             mock_db_context.return_value = mock_context_manager
 
-            # Run Phase 5
+            # Run Phase 7
             config = {"phase5_min_composite_score": 50}
             exposure_constraints = {
                 "max_positions": 12,
@@ -89,7 +89,7 @@ def test_phase5_fails_without_buysell_signals():
                 "sector_limits": {},
                 "industry_limits": {},
             }
-            result = run_phase5(
+            result = run_phase7(
                 run_date=test_date,
                 dry_run=False,
                 verbose=True,
@@ -100,29 +100,29 @@ def test_phase5_fails_without_buysell_signals():
                 config=config,
             )
 
-    # Verify Phase 5 HALTS (doesn't degrade gracefully)
-    print(f"\nPhase 5 Result: {result.status}")
+    # Verify Phase 7 HALTS (doesn't degrade gracefully)
+    print(f"\nPhase 7 Result: {result.status}")
     print(f"Halted: {result.halted}")
     print(f"Error: {result.error}")
 
-    assert result.halted, "Phase 5 should halt when buy_sell_daily is unavailable"
+    assert result.halted, "Phase 7 should halt when buy_sell_daily is unavailable"
     assert result.status == "halted", f"Expected status 'halted', got '{result.status}'"
     assert "buy_sell_daily" in result.error, "Error message should mention buy_sell_daily"
     assert "EOD pipeline" in result.error, "Error message should mention EOD pipeline"
     assert "phase_name" not in str(result.data), "Should not produce qualified trades"
 
-    print("\n[OK] Phase 5 correctly fails when buy_sell_daily is unavailable")
+    print("\n[OK] Phase 7 correctly fails when buy_sell_daily is unavailable")
     print("[OK] No silent fallback to stock_scores")
     print("[OK] Clear error message about EOD pipeline\n")
 
 
-def test_phase5_works_with_buysell_signals():
+def test_phase7_works_with_buysell_signals():
     """
-    HAPPY PATH TEST: Phase 5 should work when buy_sell_daily signals ARE available.
+    HAPPY PATH TEST: Phase 7 should work when buy_sell_daily signals ARE available.
     This verifies the fix doesn't break normal operation.
     """
     print("\n" + "=" * 80)
-    print("TEST: Phase 5 Happy Path - Works With buy_sell_daily Signals")
+    print("TEST: Phase 7 Happy Path - Works With buy_sell_daily Signals")
     print("=" * 80)
 
     test_date = date(2026, 6, 16)
@@ -142,11 +142,11 @@ def test_phase5_works_with_buysell_signals():
         }
 
     # Mock database with VALID signals
-    with patch("algo.orchestrator.phase5_signal_generation.DatabaseContext") as mock_db_context:
+    with patch("algo.orchestrator.phase7_signal_generation.DatabaseContext") as mock_db_context:
         with patch(
-            "algo.orchestrator.phase5_signal_generation._check_market_regime", side_effect=mock_check_market_regime
+            "algo.orchestrator.phase7_signal_generation._check_market_regime", side_effect=mock_check_market_regime
         ):
-            with patch("algo.orchestrator.phase5_signal_generation._check_liquidity_parallel") as mock_liquidity:
+            with patch("algo.orchestrator.phase7_signal_generation._check_liquidity_parallel") as mock_liquidity:
                 mock_cursor = MagicMock()
 
                 # Setup for validation queries (stock_scores count and market_exposure_daily check)
@@ -217,7 +217,7 @@ def test_phase5_works_with_buysell_signals():
                     "sector_limits": {},
                     "industry_limits": {},
                 }
-                result = run_phase5(
+                result = run_phase7(
                     run_date=test_date,
                     dry_run=False,
                     verbose=True,
@@ -228,28 +228,28 @@ def test_phase5_works_with_buysell_signals():
                     config=config,
                 )
 
-    print(f"\nPhase 5 Result: {result.status}")
+    print(f"\nPhase 7 Result: {result.status}")
     print(f"Halted: {result.halted}")
     print(f"Qualified trades: {len(result.data.get('qualified_trades', []))}")
 
-    # Phase 5 might still return halted=True if no signals pass all filters,
+    # Phase 7 might still return halted=True if no signals pass all filters,
     # but it should at least TRY to process buy_sell_daily signals
     # The important thing is it's using the buy_sell_daily signal source
     assert result.data.get("signal_source") == "buysell_breakout", (
         f"Expected signal_source 'buysell_breakout', got {result.data.get('signal_source')}"
     )
 
-    print("\n[OK] Phase 5 uses buy_sell_daily signals when available")
+    print("\n[OK] Phase 7 uses buy_sell_daily signals when available")
     print("[OK] Signal source is 'buysell_breakout' (not 'stock_scores_fallback')\n")
 
 
-def test_phase5_rejects_null_swing_scores():
+def test_phase7_rejects_null_swing_scores():
     """
-    CRITICAL TEST: Phase 5 must REJECT candidates with NULL swing_score.
+    CRITICAL TEST: Phase 7 must REJECT candidates with NULL swing_score.
     This verifies the fix: swing_score NULL defaults to 0.0 no longer allowed.
     """
     print("\n" + "=" * 80)
-    print("TEST: Phase 5 Enforcement - Reject NULL swing_scores")
+    print("TEST: Phase 7 Enforcement - Reject NULL swing_scores")
     print("=" * 80)
 
     test_date = date(2026, 6, 16)
@@ -269,9 +269,9 @@ def test_phase5_rejects_null_swing_scores():
         }
 
     # Mock database with a signal that has NULL swing_score
-    with patch("algo.orchestrator.phase5_signal_generation.DatabaseContext") as mock_db_context:
+    with patch("algo.orchestrator.phase7_signal_generation.DatabaseContext") as mock_db_context:
         with patch(
-            "algo.orchestrator.phase5_signal_generation._check_market_regime", side_effect=mock_check_market_regime
+            "algo.orchestrator.phase7_signal_generation._check_market_regime", side_effect=mock_check_market_regime
         ):
             mock_cursor = MagicMock()
 
@@ -324,7 +324,7 @@ def test_phase5_rejects_null_swing_scores():
             mock_db_context.return_value = mock_context_manager
 
             config = {"phase5_min_composite_score": 50}
-            result = run_phase5(
+            result = run_phase7(
                 run_date=test_date,
                 dry_run=False,
                 verbose=True,
@@ -335,7 +335,7 @@ def test_phase5_rejects_null_swing_scores():
                 config=config,
             )
 
-    print(f"\nPhase 5 Result: {result.status}")
+    print(f"\nPhase 7 Result: {result.status}")
     print(f"Halted: {result.halted}")
     print(f"Qualified trades: {len(result.data.get('qualified_trades', []))}")
 
@@ -344,17 +344,17 @@ def test_phase5_rejects_null_swing_scores():
         f"Candidates with NULL swing_score should be rejected, but got {len(result.data.get('qualified_trades', []))} signals"
     )
 
-    print("\n[OK] Phase 5 correctly rejects candidates with NULL swing_score")
+    print("\n[OK] Phase 7 correctly rejects candidates with NULL swing_score")
     print("[OK] No candidates produced when swing_score validation is missing\n")
 
 
-def test_phase5_rejects_null_signal_strength():
+def test_phase7_rejects_null_signal_strength():
     """
-    CRITICAL TEST: Phase 5 must REJECT candidates with NULL signal_strength.
+    CRITICAL TEST: Phase 7 must REJECT candidates with NULL signal_strength.
     This verifies the fix: signal_strength is now a required field and cannot be guessed.
     """
     print("\n" + "=" * 80)
-    print("TEST: Phase 5 Enforcement - Reject NULL signal_strength")
+    print("TEST: Phase 7 Enforcement - Reject NULL signal_strength")
     print("=" * 80)
 
     test_date = date(2026, 6, 16)
@@ -374,9 +374,9 @@ def test_phase5_rejects_null_signal_strength():
         }
 
     # Mock database with a signal that has NULL signal_strength
-    with patch("algo.orchestrator.phase5_signal_generation.DatabaseContext") as mock_db_context:
+    with patch("algo.orchestrator.phase7_signal_generation.DatabaseContext") as mock_db_context:
         with patch(
-            "algo.orchestrator.phase5_signal_generation._check_market_regime", side_effect=mock_check_market_regime
+            "algo.orchestrator.phase7_signal_generation._check_market_regime", side_effect=mock_check_market_regime
         ):
             mock_cursor = MagicMock()
 
@@ -429,7 +429,7 @@ def test_phase5_rejects_null_signal_strength():
             mock_db_context.return_value = mock_context_manager
 
             config = {"phase5_min_composite_score": 50}
-            result = run_phase5(
+            result = run_phase7(
                 run_date=test_date,
                 dry_run=False,
                 verbose=True,
@@ -440,7 +440,7 @@ def test_phase5_rejects_null_signal_strength():
                 config=config,
             )
 
-    print(f"\nPhase 5 Result: {result.status}")
+    print(f"\nPhase 7 Result: {result.status}")
     print(f"Halted: {result.halted}")
     print(f"Qualified trades: {len(result.data.get('qualified_trades', []))}")
 
@@ -449,12 +449,12 @@ def test_phase5_rejects_null_signal_strength():
         f"Candidates with NULL signal_strength should be rejected, but got {len(result.data.get('qualified_trades', []))} signals"
     )
 
-    print("\n[OK] Phase 5 correctly rejects candidates with NULL signal_strength")
+    print("\n[OK] Phase 7 correctly rejects candidates with NULL signal_strength")
     print("[OK] No synthetic signal strength derived from composite_score\n")
 
 
 def main():
-    """Run all Phase 5 enforcement tests."""
+    """Run all Phase 7 enforcement tests."""
     print("\n" + "=" * 80)
     print("PHASE 5 ENFORCEMENT TEST SUITE")
     print("Verifies buy_sell_daily is required (no silent fallback)")
@@ -466,28 +466,28 @@ def main():
     failed = 0
 
     try:
-        test_phase5_fails_without_buysell_signals()
+        test_phase7_fails_without_buysell_signals()
         passed += 1
     except Exception as e:
         print(f"\n✗ FAIL: {e}")
         failed += 1
 
     try:
-        test_phase5_works_with_buysell_signals()
+        test_phase7_works_with_buysell_signals()
         passed += 1
     except Exception as e:
         print(f"\n✗ FAIL: {e}")
         failed += 1
 
     try:
-        test_phase5_rejects_null_swing_scores()
+        test_phase7_rejects_null_swing_scores()
         passed += 1
     except Exception as e:
         print(f"\n✗ FAIL: {e}")
         failed += 1
 
     try:
-        test_phase5_rejects_null_signal_strength()
+        test_phase7_rejects_null_signal_strength()
         passed += 1
     except Exception as e:
         print(f"\n✗ FAIL: {e}")

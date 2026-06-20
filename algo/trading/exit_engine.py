@@ -129,12 +129,12 @@ class ExitEngine:
                         continue
 
                     try:
-                        entry_price = float(entry_price)
-                        init_stop = float(init_stop)
-                        active_stop = float(current_stop) if current_stop else init_stop
-                        t1_price = float(t1_price) if t1_price else None
-                        t2_price = float(t2_price) if t2_price else None
-                        t3_price = float(t3_price) if t3_price else None
+                        entry_price = Decimal(str(entry_price))
+                        init_stop = Decimal(str(init_stop))
+                        active_stop = Decimal(str(current_stop)) if current_stop else init_stop
+                        t1_price = Decimal(str(t1_price)) if t1_price else None
+                        t2_price = Decimal(str(t2_price)) if t2_price else None
+                        t3_price = Decimal(str(t3_price)) if t3_price else None
                         if target_hits is None:
                             raise ValueError(f"{symbol}: target_hits is NULL in database — data corruption detected")
                         target_hits = int(target_hits)
@@ -177,10 +177,10 @@ class ExitEngine:
                     )
 
                     if not exit_signal:
-                        t1_str = f"${t1_price:.2f}" if t1_price is not None else "—"
+                        t1_str = f"${float(t1_price):.2f}" if t1_price is not None else "—"
                         logger.info(
-                            f"  {symbol}: hold (cur ${cur_price:.2f}, "
-                            f"stop ${active_stop:.2f}, t1 {t1_str}, "
+                            f"  {symbol}: hold (cur ${float(cur_price):.2f}, "
+                            f"stop ${float(active_stop):.2f}, t1 {t1_str}, "
                             f"day {days_held}, hits {target_hits})"
                         )
                         continue
@@ -286,20 +286,18 @@ class ExitEngine:
             return None  # Not ready to exit yet
 
         # Compute R-multiple for use across rules (Curtis Faith's R-unit framework)
-        risk_per_share = Decimal(str(entry_price)) - Decimal(str(init_stop))
+        risk_per_share = entry_price - init_stop
         if risk_per_share <= 0:
             logger.warning(
-                f"[exit_engine] {symbol}: init_stop ({init_stop:.2f}) >= entry ({entry_price:.2f}) "
+                f"[exit_engine] {symbol}: init_stop ({float(init_stop):.2f}) >= entry ({float(entry_price):.2f}) "
                 "— R-based exits disabled for this position; hard stop still active"
             )
         r_mult = (
-            float(
-                ((Decimal(str(cur_price)) - Decimal(str(entry_price))) / risk_per_share).quantize(
-                    Decimal("0.01"), rounding=ROUND_HALF_UP
-                )
+            ((Decimal(str(cur_price)) - entry_price) / risk_per_share).quantize(
+                Decimal("0.01"), rounding=ROUND_HALF_UP
             )
             if risk_per_share > 0
-            else 0
+            else Decimal(0)
         )
 
         # 1. STOP (capital preservation always wins)
@@ -307,7 +305,7 @@ class ExitEngine:
             return {
                 "stage": "stop",
                 "fraction": 1.0,
-                "reason": f"STOP hit: ${cur_price:.2f} <= ${active_stop:.2f}",
+                "reason": f"STOP hit: ${float(cur_price):.2f} <= ${float(active_stop):.2f}",
             }
 
         # 2. MINERVINI BREAK — close < 21-EMA on volume, OR clean break of 50-DMA
@@ -366,12 +364,12 @@ class ExitEngine:
         move_be_val = self.config.get("move_be_at_r")
         if move_be_val is None:
             raise ValueError("CRITICAL: move_be_at_r config missing. Cannot determine breakeven stop move trigger.")
-        if r_mult >= float(move_be_val) and active_stop < entry_price:
+        if r_mult >= Decimal(str(move_be_val)) and active_stop < entry_price:
             return {
                 "stage": "raise_stop_be",
                 "fraction": 0.0,  # 0 = no exit, just raise stop
-                "reason": f"+{r_mult:.2f}R achieved — raise stop to breakeven",
-                "new_stop": entry_price,
+                "reason": f"+{float(r_mult):.2f}R achieved — raise stop to breakeven",
+                "new_stop": float(entry_price),
             }
 
         # 6-8. Tiered target exits — must scale sequentially T1 → T2 → T3
@@ -394,8 +392,8 @@ class ExitEngine:
                 return {
                     "stage": "target_1",
                     "fraction": 0.50,
-                    "reason": f"T1 exit: ${cur_price:.2f} >= ${t1_price:.2f} (1.5R)",
-                    "new_stop": max(active_stop, entry_price),
+                    "reason": f"T1 exit: ${float(cur_price):.2f} >= ${float(t1_price):.2f} (1.5R)",
+                    "new_stop": float(max(active_stop, entry_price)),
                 }
 
         # Then check T2 only if T1 already hit
@@ -405,8 +403,8 @@ class ExitEngine:
                 return {
                     "stage": "target_2",
                     "fraction": 0.50,
-                    "reason": f"T2 exit: ${cur_price:.2f} >= ${t2_price:.2f} (3R)",
-                    "new_stop": stop_for_t2,
+                    "reason": f"T2 exit: ${float(cur_price):.2f} >= ${float(t2_price):.2f} (3R)",
+                    "new_stop": float(stop_for_t2),
                 }
 
         # Finally check T3 only if T1 and T2 already hit
@@ -415,7 +413,7 @@ class ExitEngine:
                 return {
                     "stage": "target_3",
                     "fraction": 1.0,
-                    "reason": f"T3 target hit: ${cur_price:.2f} >= ${t3_price:.2f} (4R) - FINAL EXIT",
+                    "reason": f"T3 target hit: ${float(cur_price):.2f} >= ${float(t3_price):.2f} (4R) - FINAL EXIT",
                 }
 
         # 9. CHANDELIER TRAIL — once profitable, trail by 3xATR from highest high
@@ -423,9 +421,9 @@ class ExitEngine:
         chandelier_enabled = self.config.get("use_chandelier_trail")
         if chandelier_enabled is None:
             raise ValueError("CRITICAL: use_chandelier_trail config missing. Cannot determine trailing stop behavior.")
-        if bool(chandelier_enabled) and r_mult >= 1.0:
+        if bool(chandelier_enabled) and r_mult >= Decimal(1):
             chand_stop = self._chandelier_or_ema_stop(cur, symbol, current_date, days_held)
-            if chand_stop and chand_stop > active_stop:
+            if chand_stop and Decimal(str(chand_stop)) > active_stop:
                 return {
                     "stage": "raise_stop_trail",
                     "fraction": 0.0,
@@ -439,25 +437,25 @@ class ExitEngine:
                 "CRITICAL: exit_on_td_sequential config missing. Cannot determine TD Sequential exit behavior."
             )
         if bool(td_seq_enabled) and target_hits >= 1:
-            if r_mult >= 0.5:
+            if r_mult >= Decimal("0.5"):
                 td_state = self._get_td_state(cur, symbol, current_date)
                 if td_state.get("combo_13_complete") and td_state.get("setup_type") == "sell":
                     return {
                         "stage": "td_combo_13",
                         "fraction": 1.0,  # full exit on 13
-                        "reason": f"TD Combo 13-count exhaustion (FULL EXIT, R={r_mult:.2f})",
+                        "reason": f"TD Combo 13-count exhaustion (FULL EXIT, R={float(r_mult):.2f})",
                     }
                 if td_state.get("completed_9") and td_state.get("setup_type") == "sell":
                     return {
                         "stage": "td_exhaustion",
                         "fraction": 0.50,
-                        "reason": f"TD Sequential 9-count exhaustion (R={r_mult:.2f})",
-                        "new_stop": max(active_stop, entry_price),
+                        "reason": f"TD Sequential 9-count exhaustion (R={float(r_mult):.2f})",
+                        "new_stop": float(max(active_stop, entry_price)),
                     }
 
         # 9. FIRST RED DAY (O'Neill) — after 20%+ gain, first big down day on heavy volume
         # Institutional distribution day after parabolic run — exit 50%
-        if r_mult >= 2.5 and prev_close is not None and prev_close > 0:
+        if r_mult >= Decimal("2.5") and prev_close is not None and prev_close > 0:
             down_pct = float(
                 (
                     (Decimal(str(prev_close)) - Decimal(str(cur_price))) / Decimal(str(prev_close)) * Decimal(100)
@@ -469,20 +467,20 @@ class ExitEngine:
                     return {
                         "stage": "first_red_day",
                         "fraction": 0.50,
-                        "reason": f"First Red Day: down {down_pct:.2f}% on heavy volume (R={r_mult:.2f})",
-                        "new_stop": max(active_stop, entry_price),
+                        "reason": f"First Red Day: down {down_pct:.2f}% on heavy volume (R={float(r_mult):.2f})",
+                        "new_stop": float(max(active_stop, entry_price)),
                     }
 
         # 13. CLIMAX RUN EXHAUSTION — parabolic moves exhaust and reverse sharply
         # Trigger: 30+ days held, 5R+ gain, 20%+ gain in last 10 days = institutional climax distribution
-        if days_held > 30 and r_mult >= 5.0:
+        if days_held > 30 and r_mult >= Decimal("5.0"):
             gain_10d = self._compute_gain_last_n_days(cur, symbol, current_date, 10)
             if gain_10d is not None and gain_10d >= 20.0:
                 return {
                     "stage": "climax_exhaustion",
                     "fraction": 0.50,
-                    "reason": f"Climax run exhaustion: gained {gain_10d:.1f}% in last 10d (R={r_mult:.2f})",
-                    "new_stop": max(active_stop, entry_price),
+                    "reason": f"Climax run exhaustion: gained {gain_10d:.1f}% in last 10d (R={float(r_mult):.2f})",
+                    "new_stop": float(max(active_stop, entry_price)),
                 }
 
         # 8. DISTRIBUTION — reduce position and raise stop to at least breakeven.

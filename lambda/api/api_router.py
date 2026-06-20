@@ -245,6 +245,15 @@ def _wrap_response(response):
     response utility functions (success_response, list_response, json_response).
     Also cleans up responses that have extra fields added by intermediate processing
     and fixes double-nested data issues.
+
+    IMPORTANT: ALL route handlers MUST return dicts (never strings or other types).
+    The route_request dispatcher applies _wrap_response to every response from:
+    - PUBLIC_HANDLERS (lines 376)
+    - HANDLERS (line 387)
+    - Error handlers (lines 378, 389)
+    - Import errors (line 419)
+    - 404 fallback (line 425)
+    So routes are guaranteed to be wrapped regardless of handler implementation.
     """
     if not isinstance(response, dict):
         return response
@@ -522,6 +531,7 @@ def _format_handler_error(e):
     error_msg = str(e)
 
     # Handle APIException first (has explicit status code and error type)
+    api_exception_failed = False
     try:
         from exceptions import APIException
         if isinstance(e, APIException):
@@ -529,7 +539,8 @@ def _format_handler_error(e):
             try:
                 from utils.error_handlers import sanitize_error_message
                 msg = sanitize_error_message(e.message)
-            except (ImportError, AttributeError):
+            except (ImportError, AttributeError) as sanitize_err:
+                logger.warning(f"[ERROR_HANDLER] Failed to sanitize error message: {sanitize_err} — using fallback sanitization")
                 import re
                 msg = re.sub(r"password=\S+|api.?key=\S+", "***", e.message)
             return {
@@ -539,11 +550,14 @@ def _format_handler_error(e):
                 "_error": msg,
             }
     except ImportError as import_err:
-        # Log import failure but continue with fallback error handling (don't suppress)
-        logger.debug(f"APIException not available ({import_err}), using fallback error handling for {error_type}")
+        logger.warning(f"[ERROR_HANDLER] APIException not available ({import_err}) — using generic error mapping")
+        api_exception_failed = True
     except Exception as handler_err:
-        # Log unexpected error in exception handler, continue with fallback
-        logger.warning(f"Error handling APIException check ({type(handler_err).__name__}: {handler_err}), using fallback error handling for {error_type}")
+        logger.error(f"[ERROR_HANDLER] Unexpected error in exception handler ({type(handler_err).__name__}: {handler_err}) — using generic error mapping", exc_info=True)
+        api_exception_failed = True
+
+    if api_exception_failed:
+        logger.info(f"[ERROR_HANDLER] Falling back to generic error mapping for {error_type}: {error_msg[:100]}")
 
     # Map exception types to documented diagnostic error codes
     # Schema errors: missing tables, columns, or migration issues

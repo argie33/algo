@@ -659,9 +659,9 @@ class PositionSizer:
 
             return {
                 "shares": shares,
-                "position_size_pct": float(position_pct_of_portfolio),
-                "risk_dollars": float(risk_dollars),
-                "position_value": float(position_value),
+                "position_size_pct": position_pct_of_portfolio,
+                "risk_dollars": risk_dollars,
+                "position_value": position_value,
                 "status": "ok",
                 "reason": f"{shares} shares @ ${entry_price:.2f} = ${float(position_value):.2f} ({float(position_pct_of_portfolio):.1f}%)",
             }

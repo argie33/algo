@@ -171,36 +171,14 @@ def fetch_run(c):
 
 
 def fetch_algo_config(c):
-    """AWS-only algo configuration (no local fallback)."""
+    """AWS-only algo configuration (fail-fast: error if unavailable)."""
     try:
         data = api_call("/api/algo/config")
         if _is_api_error(data):
-            return {
-                "_error": _get_error_message(data),
-                "enabled": False,
-                "mode": "unknown",
-                "max_pos_pct": None,
-                "max_pos_n": None,
-                "max_sec_n": None,
-                "min_score": None,
-                "base_risk": None,
-                "t1_r": None,
-            }
+            return data
         raw = data
         if not isinstance(raw, dict):
-            raw = {}
-        if "_error" in raw:
-            return {
-                "_error": raw["_error"],
-                "enabled": False,
-                "mode": "unknown",
-                "max_pos_pct": None,
-                "max_pos_n": None,
-                "max_sec_n": None,
-                "min_score": None,
-                "base_risk": None,
-                "t1_r": None,
-            }
+            return {"_error": "Config response is not a dict"}
         # API returns {items: [{key, value, value_type, ...}], total: N}
         items = raw.get("items", [])
         cfg = {i["key"]: i.get("value") for i in items if "key" in i}
@@ -209,7 +187,7 @@ def fetch_algo_config(c):
         enabled = str(en_raw).lower() in ("true", "1", "yes") if en_raw is not None else True
         return {
             "enabled": enabled,
-            "mode": cfg.get("execution_mode", "unknown"),
+            "mode": cfg.get("execution_mode"),
             "max_pos_pct": safe_float(cfg.get("max_position_size_pct")),
             "max_pos_n": safe_int(cfg.get("max_positions")),
             "max_sec_n": safe_int(cfg.get("max_positions_per_sector")),
@@ -220,17 +198,7 @@ def fetch_algo_config(c):
     except Exception as e:
         error_msg = _format_fetcher_error("cfg", e)
         logger.error(error_msg)
-        return {
-            "_error": error_msg,
-            "enabled": False,
-            "mode": "unknown",
-            "max_pos_pct": None,
-            "max_pos_n": None,
-            "max_sec_n": None,
-            "min_score": None,
-            "base_risk": None,
-            "t1_r": None,
-        }
+        return {"_error": error_msg}
 
 
 def fetch_market(c):
@@ -250,26 +218,7 @@ def fetch_market(c):
         mkt = _get_markets_cached()
         if mkt.get("_error"):
             record_data_quality_issue("market", "api_call", "api_error", mkt.get("_error"))
-            return {
-                "_error": mkt.get("_error"),
-                "pct": None,
-                "tier": "unknown",
-                "halts": [],
-                "vix": None,
-                "stage": None,
-                "trend": None,
-                "dist": None,
-                "spy": None,
-                "spy_chg": None,
-                "upvol": None,
-                "adr": None,
-                "nh": None,
-                "nl": None,
-                "pcr": None,
-                "bmom": None,
-                "ycs": None,
-                "fed": None,
-            }
+            return mkt
         # API response is unwrapped so data is at top level (statusCode + fields)
         current = mkt.get("current", {})
         market_health = mkt.get("market_health", {})
@@ -285,29 +234,21 @@ def fetch_market(c):
             error_msg = f"Critical market data missing: {e!s}"
             logger.error(error_msg)
             record_data_quality_issue("market", "critical_field", "missing_or_invalid", str(e))
-            return {
-                "_error": error_msg,
-                "pct": None,
-                "tier": "unknown",
-                "halts": [],
-                "vix": None,
-                "stage": None,
-                "trend": None,
-                "dist": None,
-                "spy": None,
-                "spy_chg": None,
-                "upvol": None,
-                "adr": None,
-                "nh": None,
-                "nl": None,
-                "pcr": None,
-                "bmom": None,
-                "ycs": None,
-                "fed": None,
-            }
+            return {"_error": error_msg}
 
         # regime is in current; fall back to active_tier.name
-        tier = current.get("regime") or mkt.get("active_tier", {}).get("name") or "unknown"
+        tier = current.get("regime")
+        if not tier:
+            active_tier = mkt.get("active_tier")
+            if isinstance(active_tier, dict):
+                tier = active_tier.get("name")
+        if not tier:
+            logger.warning(
+                f"[MARKET] Missing market regime and active_tier.name. "
+                f"Current keys: {list(current.keys())}, Mkt keys: {list(mkt.keys())}. "
+                "Using 'unknown' but data quality issue detected."
+            )
+            tier = "unknown"
 
         return {
             "pct": safe_float(current.get("exposure_pct"), default=None),
@@ -332,26 +273,7 @@ def fetch_market(c):
         error_msg = _format_fetcher_error("mkt", e)
         logger.error(error_msg)
         record_data_quality_issue("market", "exception", type(e).__name__, str(e))
-        return {
-            "_error": error_msg,
-            "pct": None,
-            "tier": "unknown",
-            "halts": [],
-            "vix": None,
-            "stage": None,
-            "trend": None,
-            "dist": None,
-            "spy": None,
-            "spy_chg": None,
-            "upvol": None,
-            "adr": None,
-            "nh": None,
-            "nl": None,
-            "pcr": None,
-            "bmom": None,
-            "ycs": None,
-            "fed": None,
-        }
+        return {"_error": error_msg}
 
 
 def _validate_required_fields(data_dict, required_fields, source_name):
@@ -410,19 +332,7 @@ def fetch_portfolio(c):
         data = api_call("/api/algo/portfolio")
         if _is_api_error(data):
             record_data_quality_issue("portfolio", "api_call", "api_error", _get_error_message(data))
-            return {
-                "_error": _get_error_message(data),
-                "snapshot_date": None,
-                "total_portfolio_value": None,
-                "total_cash": None,
-                "position_count": None,
-                "daily_return_pct": None,
-                "unrealized_pnl_pct": None,
-                "cumulative_return_pct": None,
-                "max_drawdown_pct": None,
-                "largest_position_pct": None,
-                "data_age_seconds": None,
-            }
+            return data
         port = data
 
         # Check data freshness before validation (portfolio data > 5 days old is stale;
@@ -438,16 +348,6 @@ def fetch_portfolio(c):
             return {
                 "_error": freshness_error,
                 "_data_stale": True,
-                "snapshot_date": snapshot_date,
-                "total_portfolio_value": None,
-                "total_cash": None,
-                "position_count": None,
-                "daily_return_pct": None,
-                "unrealized_pnl_pct": None,
-                "cumulative_return_pct": None,
-                "max_drawdown_pct": None,
-                "largest_position_pct": None,
-                "data_age_seconds": None,
             }
 
         required_fields = ["total_portfolio_value", "total_cash", "position_count"]
@@ -456,19 +356,7 @@ def fetch_portfolio(c):
             for field in required_fields:
                 if field not in port or port[field] is None:
                     record_data_quality_issue("portfolio", field, "missing_required_field")
-            return {
-                **validation_error,
-                "snapshot_date": None,
-                "total_portfolio_value": None,
-                "total_cash": None,
-                "position_count": None,
-                "daily_return_pct": None,
-                "unrealized_pnl_pct": None,
-                "cumulative_return_pct": None,
-                "max_drawdown_pct": None,
-                "largest_position_pct": None,
-                "data_age_seconds": None,
-            }
+            return validation_error
 
         # Strict conversion for critical financial fields
         try:
@@ -479,19 +367,7 @@ def fetch_portfolio(c):
             error_msg = f"Portfolio data conversion failed: {e!s}"
             logger.error(error_msg)
             record_data_quality_issue("portfolio", "type_conversion", "conversion_failed", str(e))
-            return {
-                "_error": error_msg,
-                "snapshot_date": None,
-                "total_portfolio_value": None,
-                "total_cash": None,
-                "position_count": None,
-                "daily_return_pct": None,
-                "unrealized_pnl_pct": None,
-                "cumulative_return_pct": None,
-                "max_drawdown_pct": None,
-                "largest_position_pct": None,
-                "data_age_seconds": None,
-            }
+            return {"_error": error_msg}
 
         return {
             "snapshot_date": port.get("last_run"),
@@ -509,19 +385,7 @@ def fetch_portfolio(c):
         error_msg = _format_fetcher_error("port", e)
         logger.error(error_msg)
         record_data_quality_issue("portfolio", "exception", type(e).__name__, str(e))
-        return {
-            "_error": error_msg,
-            "snapshot_date": None,
-            "total_portfolio_value": None,
-            "total_cash": None,
-            "position_count": None,
-            "daily_return_pct": None,
-            "unrealized_pnl_pct": None,
-            "cumulative_return_pct": None,
-            "max_drawdown_pct": None,
-            "largest_position_pct": None,
-            "data_age_seconds": None,
-        }
+        return {"_error": error_msg}
 
 
 def fetch_perf(c):
@@ -533,45 +397,11 @@ def fetch_perf(c):
     try:
         data = api_call("/api/algo/performance")
         if _is_api_error(data):
-            # 503 means no performance data yet (no completed trades) — not a true error
+            # 503 means no performance data yet (no completed trades) — mark as no data
             if "503" in str(_get_error_message(data)):
-                return {
-                    "_no_data": True,
-                    "n": 0,
-                    "w": 0,
-                    "l": 0,
-                    "wr": None,
-                    "pnl": None,
-                    "streak": None,
-                    "sharpe": None,
-                    "maxdd": None,
-                    "avg_win": None,
-                    "avg_loss": None,
-                    "profit_factor": None,
-                    "expectancy": None,
-                    "avg_r": None,
-                    "equity_vals": [],
-                    "recent_rets": [],
-                }
+                return {"_no_data": True}
             record_data_quality_issue("per", "api_call", "api_error", _get_error_message(data))
-            return {
-                "_error": _get_error_message(data),
-                "n": None,
-                "w": None,
-                "l": None,
-                "wr": None,
-                "pnl": None,
-                "streak": None,
-                "sharpe": None,
-                "maxdd": None,
-                "avg_win": None,
-                "avg_loss": None,
-                "profit_factor": None,
-                "expectancy": None,
-                "avg_r": None,
-                "equity_vals": [],
-                "recent_rets": [],
-            }
+            return data
         perf = data
 
         # Check data freshness (performance data > 1 hour old is stale)
@@ -585,21 +415,6 @@ def fetch_perf(c):
             return {
                 "_error": freshness_error,
                 "_data_stale": True,
-                "n": None,
-                "w": None,
-                "l": None,
-                "wr": None,
-                "pnl": None,
-                "streak": None,
-                "sharpe": None,
-                "maxdd": None,
-                "avg_win": None,
-                "avg_loss": None,
-                "profit_factor": None,
-                "expectancy": None,
-                "avg_r": None,
-                "equity_vals": [],
-                "recent_rets": [],
             }
 
         required_fields = ["total_trades", "winning_trades", "losing_trades"]
@@ -608,24 +423,7 @@ def fetch_perf(c):
             for field in required_fields:
                 if field not in perf or perf[field] is None:
                     record_data_quality_issue("per", field, "missing_required_field")
-            return {
-                **validation_error,
-                "n": None,
-                "w": None,
-                "l": None,
-                "wr": None,
-                "pnl": None,
-                "streak": None,
-                "sharpe": None,
-                "maxdd": None,
-                "avg_win": None,
-                "avg_loss": None,
-                "profit_factor": None,
-                "expectancy": None,
-                "avg_r": None,
-                "equity_vals": [],
-                "recent_rets": [],
-            }
+            return validation_error
 
         # Strict conversion for critical trade count fields
         try:
@@ -636,24 +434,7 @@ def fetch_perf(c):
             error_msg = f"Performance data conversion failed: {e!s}"
             logger.error(error_msg)
             record_data_quality_issue("per", "type_conversion", "conversion_failed", str(e))
-            return {
-                "_error": error_msg,
-                "n": None,
-                "w": None,
-                "l": None,
-                "wr": None,
-                "pnl": None,
-                "streak": None,
-                "sharpe": None,
-                "maxdd": None,
-                "avg_win": None,
-                "avg_loss": None,
-                "profit_factor": None,
-                "expectancy": None,
-                "avg_r": None,
-                "equity_vals": [],
-                "recent_rets": [],
-            }
+            return {"_error": error_msg}
 
         return {
             "n": n,
@@ -678,47 +459,22 @@ def fetch_perf(c):
         error_msg = _format_fetcher_error("perf", e)
         logger.error(error_msg)
         record_data_quality_issue("per", "exception", type(e).__name__, str(e))
-        return {
-            "_error": error_msg,
-            "n": None,
-            "w": None,
-            "l": None,
-            "wr": None,
-            "pnl": None,
-            "streak": None,
-            "sharpe": None,
-            "maxdd": None,
-            "avg_win": None,
-            "avg_loss": None,
-            "profit_factor": None,
-            "expectancy": None,
-            "avg_r": None,
-            "equity_vals": [],
-            "recent_rets": [],
-        }
+        return {"_error": error_msg}
 
 
 def fetch_positions(c):
-    """Fetch positions via AWS API only (no local database fallback)."""
+    """Fetch positions via AWS API only (fail-fast: error if unavailable)."""
     try:
         data = api_call(_get_endpoint_path("pos"))
         if _is_api_error(data):
-            return {
-                "_error": _get_error_message(data),
-                "items": [],
-                "timestamp": datetime.now(ET),
-            }
+            return data
         result = data
         items = result.get("items", []) if isinstance(result, dict) else result if isinstance(result, list) else []
         return {"items": items, "timestamp": datetime.now(ET)}
     except Exception as e:
         error_msg = _format_fetcher_error("pos", e)
         logger.error(error_msg)
-        return {
-            "_error": error_msg,
-            "items": [],
-            "timestamp": datetime.now(ET),
-        }
+        return {"_error": error_msg}
 
 
 def fetch_recent_trades(c):
@@ -750,11 +506,7 @@ def fetch_recent_trades(c):
     except Exception as e:
         error_msg = _format_fetcher_error("trades", e)
         logger.error(error_msg)
-        return {
-            "_error": error_msg,
-            "items": [],
-            "timestamp": datetime.now(ET),
-        }
+        return {"_error": error_msg}
 
 
 def fetch_signals(c):
@@ -818,41 +570,26 @@ def fetch_signals(c):
 
 
 def fetch_sector_ranking(c):
-    """Fetch per-sector rankings from /api/sectors.
-
-    Returns items with sector_name, current_rank, momentum_score, rank_1w_ago,
-    rank_4w_ago fields that the sector panel needs.
-    """
+    """Fetch per-sector rankings from /api/sectors (fail-fast: error if unavailable)."""
     try:
         data = api_call("/api/sectors")
         if _is_api_error(data):
-            return {"_error": _get_error_message(data), "items": []}
+            return data
         raw = data
         items = raw.get("items", []) if isinstance(raw, dict) else (raw if isinstance(raw, list) else [])
         return {"items": items}
     except Exception as e:
         error_msg = _format_fetcher_error("srank", e)
         logger.error(error_msg)
-        return {"_error": error_msg, "items": []}
+        return {"_error": error_msg}
 
 
 def fetch_activity(c):
-    """Fetch activity from audit log API.
-
-    API returns {items: [{id, action_type, symbol, action_date, details, actor,
-    status, error}], total, limit, offset}. Restructures into the activity format
-    the panel expects: {run_at, phases, recent_actions}.
-    """
+    """Fetch activity from audit log API (fail-fast: error if unavailable)."""
     try:
         data = api_call(_get_endpoint_path("activity"))
         if _is_api_error(data):
-            return {
-                "_error": _get_error_message(data),
-                "run_id": None,
-                "run_at": None,
-                "phases": [],
-                "recent_actions": [],
-            }
+            return data
         raw = data
         items = raw.get("items", []) if isinstance(raw, dict) else []
         run_at = items[0].get("action_date") if items else None
@@ -866,13 +603,7 @@ def fetch_activity(c):
     except Exception as e:
         error_msg = _format_fetcher_error("activity", e)
         logger.error(error_msg)
-        return {
-            "_error": error_msg,
-            "run_id": None,
-            "run_at": None,
-            "phases": [],
-            "recent_actions": [],
-        }
+        return {"_error": error_msg}
 
 
 _data_status_cache: dict = {}
@@ -931,15 +662,11 @@ def _get_markets_cached():
 
 
 def fetch_health(c):
-    """Fetch data loader health status from API. Uses cached data-status.
-
-    Normalizes API field names to panel-expected short names:
-      name → tbl, status → st, age_hours → age (in days), adds role field.
-    """
+    """Fetch data loader health status from API. Uses cached data-status (fail-fast: error if unavailable)."""
     try:
         data = _get_data_status_cached()
         if _is_api_error(data):
-            return {"_error": _get_error_message(data), "items": []}
+            return data
         inner = data
         if not isinstance(inner, dict):
             inner = {}
@@ -981,7 +708,7 @@ def fetch_health(c):
     except Exception as e:
         error_msg = _format_fetcher_error("health", e)
         logger.error(error_msg)
-        return {"_error": error_msg, "items": []}
+        return {"_error": error_msg}
 
 
 def fetch_exp_factors(c):
@@ -1134,14 +861,14 @@ def fetch_notifications(c):
     try:
         data = api_call(_get_endpoint_path("notifs"))
         if _is_api_error(data):
-            return {"_error": _get_error_message(data), "items": []}
+            return data
         raw = data
         items = raw.get("items", []) if isinstance(raw, dict) else (raw if isinstance(raw, list) else [])
         return {"items": items}
     except Exception as e:
         error_msg = _format_fetcher_error("notifs", e)
         logger.error(error_msg)
-        return {"_error": error_msg, "items": []}
+        return {"_error": error_msg}
 
 
 def fetch_sentiment(c):
@@ -1184,14 +911,14 @@ def fetch_economic_calendar(c):
     try:
         data = api_call(_get_endpoint_path("econ_cal"))
         if _is_api_error(data):
-            return {"_error": _get_error_message(data), "items": []}
+            return data
         raw = data
         items = raw.get("items", []) if isinstance(raw, dict) else (raw if isinstance(raw, list) else [])
         return {"items": items}
     except Exception as e:
         error_msg = _format_fetcher_error("econ_cal", e)
         logger.error(error_msg)
-        return {"_error": error_msg, "items": []}
+        return {"_error": error_msg}
 
 
 def fetch_risk_metrics(c):
@@ -1356,14 +1083,14 @@ def fetch_industry_ranking(c):
     try:
         data = api_call(_get_endpoint_path("irank"))
         if _is_api_error(data):
-            return {"_error": _get_error_message(data), "items": []}
+            return data
         raw = data
         items = raw.get("items", []) if isinstance(raw, dict) else (raw if isinstance(raw, list) else [])
         return {"items": items}
     except Exception as e:
         error_msg = _format_fetcher_error("irank", e)
         logger.error(error_msg)
-        return {"_error": error_msg, "items": []}
+        return {"_error": error_msg}
 
 
 def fetch_exec_history(c):

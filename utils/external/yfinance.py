@@ -13,7 +13,7 @@ IP bans from overwhelming other tasks, this wrapper:
 import logging
 import threading
 import time
-from functools import lru_cache
+from typing import Any
 
 import requests
 import yfinance as yf
@@ -68,7 +68,7 @@ class YFinanceWrapper:
     _session = None
     _last_session_time = 0
     SESSION_TIMEOUT = 3600  # Refresh session every hour
-    _ticker_cache = {}  # Cache ticker objects to reduce API calls
+    _ticker_cache: dict[str, Any] = {}  # Cache ticker objects to reduce API calls
     _ticker_cache_lock = threading.Lock()
     TICKER_CACHE_TTL = 3600  # Cache ticker objects for 1 hour
 
