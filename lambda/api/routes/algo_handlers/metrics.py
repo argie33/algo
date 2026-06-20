@@ -406,11 +406,11 @@ def _get_algo_portfolio(cur) -> dict:
                 }
             )
         data = safe_dict_convert(row)
-        pv = safe_float_strict(data.get("total_portfolio_value"))
+        pv = safe_float_strict(data.get("total_portfolio_value"), allow_none=True)
         return success_response(
             {
                 "total_portfolio_value": pv,
-                "total_cash": safe_float_strict(data.get("total_cash")),
+                "total_cash": safe_float_strict(data.get("total_cash"), allow_none=True),
                 "position_count": safe_int(data.get("position_count")),
                 "daily_return_pct": safe_float_strict(data.get("daily_return_pct"), allow_none=True),
                 "unrealized_pnl": {

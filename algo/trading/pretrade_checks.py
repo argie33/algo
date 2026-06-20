@@ -118,11 +118,8 @@ class PreTradeChecks:
                 if cur.fetchone():
                     return (False, f"Position already open for {symbol}")
         except Exception as e:
-            logger.warning(f"Failed to check for duplicate position: {e}")
-            return (
-                False,
-                f"Duplicate position check unavailable for {symbol} — blocking as safety measure",
-            )
+            logger.critical(f"[PRE-TRADE] Database error checking duplicate position for {symbol}: {e}")
+            raise ValueError(f"Cannot validate duplicate position check for {symbol}: {e}") from e
 
         min_order_size = float(self.config.get("min_order_size_dollars", 100.0))
         if position_value < min_order_size:
@@ -181,8 +178,8 @@ class PreTradeChecks:
                             f"Industry {industry} at limit ({industry_count}/{max_industry_positions} positions)",
                         )
         except Exception as e:
-            logger.warning(f"Failed to check sector/industry concentration: {e}")
-            return (False, f"Sector/industry check unavailable for {symbol} — blocking as safety measure")
+            logger.critical(f"[PRE-TRADE] Database error checking sector/industry concentration for {symbol}: {e}")
+            raise ValueError(f"Cannot validate sector/industry limits for {symbol}: {e}") from e
 
         logger.info(
             f"[PRE-TRADE] {symbol}: position ${position_value:.2f}, "

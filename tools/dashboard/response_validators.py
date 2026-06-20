@@ -31,8 +31,8 @@ def _check_required_fields(
 def validate_portfolio_response(data: Dict[str, Any]) -> Dict[str, Any]:
     """Validate portfolio endpoint response.
 
-    Critical fields: total_portfolio_value, total_cash, position_count
-    These fields determine portfolio health; missing them masks data gaps.
+    Critical fields: position_count (required)
+    Optional fields: total_portfolio_value, total_cash (can be None when no data available)
     """
     if not isinstance(data, dict):
         raise ResponseValidationError(f"Portfolio response not a dict: {type(data)}")
@@ -40,22 +40,34 @@ def validate_portfolio_response(data: Dict[str, Any]) -> Dict[str, Any]:
     if data.get("_error"):
         return data  # Propagate error responses as-is
 
-    required = ["total_portfolio_value", "total_cash", "position_count"]
-    _check_required_fields(data, required, "portfolio")
+    # Check that all field keys are present (values can be None for optional fields)
+    required_keys = ["total_portfolio_value", "total_cash", "position_count"]
+    missing_keys = [k for k in required_keys if k not in data]
+    if missing_keys:
+        raise ResponseValidationError(
+            f"Missing critical fields in portfolio: {missing_keys}"
+        )
 
     # Validate critical numeric fields can be converted
+    # total_portfolio_value and total_cash can be None when no data available
+    # position_count must be a valid int (but can be 0)
     try:
-        safe_float(
-            data["total_portfolio_value"],
-            strict=True,
-            field_name="total_portfolio_value",
-        )
-        safe_float(
-            data["total_cash"], strict=True, field_name="total_cash"
-        )
-        safe_int(
-            data["position_count"], strict=True, field_name="position_count"
-        )
+        # Optional fields (None is allowed for missing data)
+        if data["total_portfolio_value"] is not None:
+            safe_float(
+                data["total_portfolio_value"],
+                strict=True,
+                field_name="total_portfolio_value",
+            )
+        if data["total_cash"] is not None:
+            safe_float(
+                data["total_cash"], strict=True, field_name="total_cash"
+            )
+        # position_count must be present but can be 0 or None
+        if data["position_count"] is not None:
+            safe_int(
+                data["position_count"], strict=True, field_name="position_count"
+            )
     except StrictValidationError as e:
         raise ResponseValidationError(
             f"Portfolio field validation failed: {e}"

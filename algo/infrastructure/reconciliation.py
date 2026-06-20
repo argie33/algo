@@ -1018,31 +1018,27 @@ class DailyReconciliation:
                         target_2 = avg_entry + (3 * r)  # 3R
                         target_3 = avg_entry + (4 * r)  # 4R
                 except Exception as e:
-                    logger.debug(
-                        f"Failed to calculate stop/targets for imported {sym}: {e}"
+                    logger.critical(
+                        f"[RECONCILIATION] Failed to calculate stop/targets for imported {sym}: {e} — "
+                        f"cannot proceed with risk calculation. Position cannot be imported without proper risk limits."
                     )
-                    # Fall through to defaults below
+                    raise ValueError(
+                        f"Cannot import external position for {sym}: "
+                        f"risk/target calculation failed ({type(e).__name__}: {str(e)[:100]}). "
+                        "Reconciliation requires ATR-based risk management; fall-through to defaults is not allowed "
+                        "to prevent incorrect stop prices."
+                    ) from e
 
-                # If risk calculation failed, use configured defaults
-                if stop_loss_price is None:
-                    stop_loss_pct = self.config.get(
-                        "imported_position_default_stop_loss_pct", 5.0
+                # Verify risk calculation succeeded before proceeding
+                if stop_loss_price is None or target_1 is None:
+                    logger.critical(
+                        f"[RECONCILIATION] Stop/target calculation for {sym} produced None values "
+                        f"(stop={stop_loss_price}, target_1={target_1}); this should not happen if exception was raised"
                     )
-                    stop_loss_price = avg_entry * (1.0 - stop_loss_pct / 100.0)
-                    stop_loss_method = "imported_conservative_default"
-                if target_1 is None:
-                    target_1_pct = self.config.get(
-                        "imported_position_default_target_1_pct", 5.0
+                    raise ValueError(
+                        f"Internal error: stop/target calculation for {sym} incomplete. "
+                        "Risk limits are critical; cannot use percentage defaults without explicit retry."
                     )
-                    target_2_pct = self.config.get(
-                        "imported_position_default_target_2_pct", 10.0
-                    )
-                    target_3_pct = self.config.get(
-                        "imported_position_default_target_3_pct", 15.0
-                    )
-                    target_1 = avg_entry * (1.0 + target_1_pct / 100.0)
-                    target_2 = avg_entry * (1.0 + target_2_pct / 100.0)
-                    target_3 = avg_entry * (1.0 + target_3_pct / 100.0)
 
                 cur.execute(
                     """
