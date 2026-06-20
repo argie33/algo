@@ -13,6 +13,7 @@ from typing import Any, cast
 import psycopg2
 
 from algo.infrastructure import MarketCalendar
+from algo.orchestrator.phase_executor import OrchestratorPhaseExecutor, PhaseDefinition
 from algo.reporting import AlertManager
 from monitoring.metrics_context import (
     TimeBlock,
@@ -217,7 +218,7 @@ class Orchestrator:
 
             # Halt flag not set in DynamoDB
             return False
-        except Exception as e:
+        except (ValueError, ZeroDivisionError, TypeError) as e:
             # CRITICAL SAFETY: DynamoDB unavailable means we cannot verify halt flag status
             # MUST FAIL-CLOSED: Assume halt is set if we can't verify the flag
             # Better to stop trading unnecessarily than to trade when halt was set
@@ -780,7 +781,7 @@ class Orchestrator:
                         logger.error(
                             f"[TABLE-CHECK] Missing required table: {table_name}"
                         )
-                except Exception as e:
+                except (psycopg2.DatabaseError, psycopg2.OperationalError) as e:
                     logger.error(
                         f"[TABLE-CHECK] Failed to check table {table_name}: {e}"
                     )
@@ -860,7 +861,7 @@ class Orchestrator:
                         status,
                     ),
                 )
-        except Exception as e:
+        except (psycopg2.DatabaseError, psycopg2.OperationalError) as e:
             logger.warning(f"Warning: Could not persist audit log entry: {e}")
 
     # ---------- Phase implementations ----------
@@ -903,7 +904,7 @@ class Orchestrator:
                     "ttl": int(time.time()) + 3600,  # 1-hour TTL
                 }
             )
-        except Exception as e:
+        except (ValueError, ZeroDivisionError, TypeError) as e:
             logger.debug(f"Failed to write Phase 1 degraded_mode status to DynamoDB: {e}")
 
         # Halt flag lifecycle: always run regardless of informational write success above.
@@ -918,7 +919,7 @@ class Orchestrator:
                 self._clear_halt_flag(
                     f"Phase 1 verified data is fresh at {datetime.now(timezone.utc).isoformat()}"
                 )
-        except Exception as e:
+        except (ValueError, ZeroDivisionError, TypeError) as e:
             logger.warning(f"Failed to manage halt flag after Phase 1: {e}")
 
         return not result.halted
@@ -952,6 +953,7 @@ class Orchestrator:
             self.verbose,
             self.log_phase_result,
         )
+        self._phase3_result = result
         if not result.ok:
             return False
         self._position_recs = result.data.get("recommendations", [])
@@ -970,6 +972,7 @@ class Orchestrator:
             self.verbose,
             self.log_phase_result,
         )
+        self._phase3b_result = result
         if not result.ok:
             return False
         self._exposure_constraints = result.data.get("constraints")
@@ -993,6 +996,7 @@ class Orchestrator:
             getattr(self, "_exposure_actions", []),
             self._check_halt_flag,
         )
+        self._phase4_result = result
         return not result.halted
 
     def phase_5_signal_generation(self) -> bool:
@@ -1014,6 +1018,7 @@ class Orchestrator:
             phase1_degraded=False,
             config=self.config,
         )
+        self._phase5_result = result
         self._qualified_trades = result.data.get("qualified_trades", [])
         self.phase_results.setdefault(5, {})["signals_evaluated"] = len(
             self._qualified_trades
@@ -1038,6 +1043,7 @@ class Orchestrator:
             getattr(self, "_exposure_constraints", None),
             self._check_halt_flag,
         )
+        self._phase6_result = result
         self.phase_results.setdefault(6, {})["trades_executed"] = result.data.get(
             "entered", 0
         )
@@ -1051,10 +1057,189 @@ class Orchestrator:
         from algo.orchestrator.phase7_reconciliation import run as run_phase7
 
         result = run_phase7(self.config, self.run_date, self.log_phase_result)
+        self._phase7_result = result
         self.phase_results.setdefault(7, {})["open_positions"] = result.data.get(
             "positions", 0
         )
         return not result.halted
+
+    # ---------- Executor setup (Phase 2: Phase Executor Framework) ----------
+
+    def _setup_executor(self) -> OrchestratorPhaseExecutor:
+        """Create and configure the phase executor.
+
+        Registers all phases with their dependencies, transforming the monolithic
+        run() control flow into a declarative phase graph.
+
+        Returns:
+            OrchestratorPhaseExecutor ready to execute all phases.
+        """
+        executor = OrchestratorPhaseExecutor(
+            config=self.config, halt_check_fn=self._check_halt_flag
+        )
+
+        # Phase 1: Data Freshness
+        executor.register_phase(
+            PhaseDefinition(
+                phase_num=1,
+                phase_name="DATA FRESHNESS CHECK",
+                dependencies=[],
+                execute_fn=self._executor_phase_1,
+                skip_if_halted=False,
+            )
+        )
+
+        # Phase 2: Circuit Breakers (depends on Phase 1)
+        executor.register_phase(
+            PhaseDefinition(
+                phase_num=2,
+                phase_name="CIRCUIT BREAKERS",
+                dependencies=[1],
+                execute_fn=self._executor_phase_2,
+                skip_if_halted=False,
+            )
+        )
+
+        # Phase 3: Position Monitor (depends on Phase 2)
+        executor.register_phase(
+            PhaseDefinition(
+                phase_num=3,
+                phase_name="POSITION MONITOR",
+                dependencies=[2],
+                execute_fn=self._executor_phase_3,
+                skip_if_halted=True,
+            )
+        )
+
+        # Phase 3a: Reconciliation (depends on Phase 3)
+        executor.register_phase(
+            PhaseDefinition(
+                phase_num="3a",
+                phase_name="RECONCILIATION",
+                dependencies=[3],
+                execute_fn=self._executor_phase_3a,
+                skip_if_halted=True,
+            )
+        )
+
+        # Phase 3b: Exposure Policy (depends on Phase 3a)
+        executor.register_phase(
+            PhaseDefinition(
+                phase_num="3b",
+                phase_name="EXPOSURE POLICY ACTIONS",
+                dependencies=["3a"],
+                execute_fn=self._executor_phase_3b,
+                skip_if_halted=True,
+            )
+        )
+
+        # Phase 4: Exit Execution (always runs, depends on Phase 3b)
+        executor.register_phase(
+            PhaseDefinition(
+                phase_num=4,
+                phase_name="EXIT EXECUTION",
+                dependencies=["3b"],
+                execute_fn=self._executor_phase_4,
+                skip_if_halted=False,
+                always_run=True,
+            )
+        )
+
+        # Phase 5: Signal Generation (depends on Phase 3b)
+        executor.register_phase(
+            PhaseDefinition(
+                phase_num=5,
+                phase_name="SIGNAL GENERATION & RANKING",
+                dependencies=["3b"],
+                execute_fn=self._executor_phase_5,
+                skip_if_halted=True,
+            )
+        )
+
+        # Phase 6: Entry Execution (depends on Phase 5 and 3b)
+        executor.register_phase(
+            PhaseDefinition(
+                phase_num=6,
+                phase_name="ENTRY EXECUTION",
+                dependencies=[5, "3b"],
+                execute_fn=self._executor_phase_6,
+                skip_if_halted=True,
+            )
+        )
+
+        # Phase 7: Reconciliation (always runs, final snapshot)
+        executor.register_phase(
+            PhaseDefinition(
+                phase_num=7,
+                phase_name="RECONCILIATION & SNAPSHOT",
+                dependencies=[6],
+                execute_fn=self._executor_phase_7,
+                skip_if_halted=False,
+                always_run=True,
+            )
+        )
+
+        return executor
+
+    def _executor_phase_1(self, **kwargs):
+        """Executor wrapper for Phase 1."""
+        result = self.phase_1_data_freshness()
+        # phase_1_data_freshness already returns result; just pass it through
+        return getattr(self, "_phase1_result", None) or result
+
+    def _executor_phase_2(self, **kwargs):
+        """Executor wrapper for Phase 2."""
+        self.phase_2_circuit_breakers()
+        return getattr(self, "_phase2_result", None)
+
+    def _executor_phase_3(self, **kwargs):
+        """Executor wrapper for Phase 3."""
+        self.phase_3_position_monitor()
+        return getattr(self, "_phase3_result", None)
+
+    def _executor_phase_3a(self, **kwargs):
+        """Executor wrapper for Phase 3a."""
+        # Import phase function
+        from algo.orchestrator.phase3a_reconciliation import run as run_phase3a
+
+        result = run_phase3a(
+            self.config,
+            self.run_date,
+            self.dry_run,
+            self.alerts,
+            self.verbose,
+            self.log_phase_result,
+        )
+        return result
+
+    def _executor_phase_3b(self, **kwargs):
+        """Executor wrapper for Phase 3b."""
+        self.phase_3b_exposure_policy()
+        return getattr(self, "_phase3b_result", None)
+
+    def _executor_phase_4(self, **kwargs):
+        """Executor wrapper for Phase 4."""
+        self.phase_4_exit_execution()
+        result = getattr(self, "_phase4_result", None)
+        if result is None:
+            # Fallback if phase didn't set result
+            result = self.phase_4_exit_execution()
+        return result
+
+    def _executor_phase_5(self, **kwargs):
+        """Executor wrapper for Phase 5."""
+        self.phase_5_signal_generation()
+        return getattr(self, "_phase5_result", None)
+
+    def _executor_phase_6(self, **kwargs):
+        """Executor wrapper for Phase 6."""
+        self.phase_6_entry_execution()
+        return getattr(self, "_phase6_result", None)
+
+    def _executor_phase_7(self, **kwargs):
+        """Executor wrapper for Phase 7."""
+        self.phase_7_reconcile()
+        return getattr(self, "_phase7_result", None)
 
     # ---------- Main entrypoint ----------
 
@@ -1125,7 +1310,7 @@ class Orchestrator:
                 report["skipped"] = True
                 report["reason"] = "database_timeout"
                 return report
-            except Exception as e:
+            except (psycopg2.DatabaseError, psycopg2.OperationalError) as e:
                 logger.error(f"  [HALT] Pre-flight check failed: {type(e).__name__}: {e}", exc_info=True)
                 # Return skipped=True when DB is unreachable so test verification
                 # treats this as a transient skip, not a code bug (phases={})
