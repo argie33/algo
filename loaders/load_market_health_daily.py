@@ -273,9 +273,8 @@ class MarketHealthDailyLoader(OptimalLoader):
         """
         from algo.infrastructure import MarketCalendar
 
-        today = datetime.now(EASTERN_TZ).date()
-        if not MarketCalendar.is_trading_day(today):
-            logger.debug("Put/call: skipping (not a trading day)")
+        if not MarketCalendar.is_trading_day(eval_date):
+            logger.debug(f"Put/call: skipping {eval_date} (not a trading day)")
             return None  # OK to return None on non-trading days—no options data expected
         try:
             from utils.external.yfinance import YFinanceWrapper, _throttled_yf_request

@@ -43,6 +43,14 @@ from ._helpers import (
     _error_panel,
     _fmt_phases_halted,
 )
+from .data_extractors import (
+    extract_config_params,
+    extract_risk_metrics,
+    extract_run_info,
+    safe_get_dict,
+    safe_get_field,
+    safe_get_list,
+)
 
 
 def _var_color(var95: float | None) -> str:
@@ -80,7 +88,7 @@ def panel_orch(run, cfg, risk=None):
 
     # VaR line — only show if table is populated with real data
     var_line = ""
-    if risk and not has_error(risk) and risk.get("var95") and float(risk["var95"]) > 0:
+    if risk and not has_error(risk) and risk["var95"] and float(risk["var95"]) > 0:
         var95_val = risk["var95"]
         beta_val = risk["beta"]
         cvar95_val = risk["cvar95"]
@@ -334,7 +342,7 @@ def panel_status(
 
     # Phase detail — named phases from exec_log with per-phase status and key data
     phase_badges = []
-    if run and not has_error(run) and run.get("_source") == "exec_log":
+    if run and not has_error(run) and run["_source"] == "exec_log":
         halt_r = run.get("halt_reason", "")
         summary = run.get("summary", "")
         if run.get("halted") or halt_r:
@@ -859,7 +867,7 @@ def panel_algo_health(
             rows.append(Text.from_markup(f"{rtt_pfx}" + "  ".join(stale_parts)))
 
     # ── E: Risk snapshot (VaR / CVaR / Beta / Concentration) ────────────────────
-    if risk and not has_error(risk) and risk.get("var95") and float(risk["var95"]) > 0:
+    if risk and not has_error(risk) and risk["var95"] and float(risk["var95"]) > 0:
         rows.append(Rule(style="dim"))
         var95_val = risk["var95"]
         beta_val = risk["beta"]

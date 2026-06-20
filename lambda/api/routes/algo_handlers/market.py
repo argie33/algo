@@ -256,7 +256,8 @@ def _get_data_status(cur) -> dict:
             else:
                 role = "NORM"
 
-            summary[status] = summary.get(status, 0) + 1
+            current_count = summary.get(status, 0) if isinstance(summary.get(status), int) else 0
+            summary[status] = current_count + 1
             if status in ("stale", "empty") and row["table_name"] in critical_tables:
                 critical_stale.append(row["table_name"])
             sources.append(
@@ -270,7 +271,8 @@ def _get_data_status(cur) -> dict:
                 }
             )
 
-        ready_to_trade = len(critical_stale) == 0 and summary.get("ok", 0) > 0
+        ok_count = summary.get("ok", 0) if isinstance(summary.get("ok"), int) else 0
+        ready_to_trade = len(critical_stale) == 0 and ok_count > 0
 
         response = list_response(sources, total=len(sources), limit=None, offset=None)
         response["data"]["ready_to_trade"] = ready_to_trade

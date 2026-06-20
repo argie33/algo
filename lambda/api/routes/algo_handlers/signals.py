@@ -253,15 +253,44 @@ def _get_rejection_funnel(cur) -> dict:
                 WHERE date >= CURRENT_DATE - INTERVAL '14 days'
             """)
         row = cur.fetchone()
-        if row:
-            row_data = safe_json_serialize(safe_dict_convert(row))
-            initial_count = row_data.get("total_signals", 0)
-            scored_count = row_data.get("scored", 0)
-            high_quality_count = row_data.get("high_quality", 0)
-        else:
-            initial_count = 0
-            scored_count = 0
-            high_quality_count = 0
+        if not row:
+            error_msg = "No signal data available in swing_trader_scores (no records in last 14 days)"
+            logger.error(error_msg)
+            return json_response(
+                503,
+                {
+                    "stage": "no_data",
+                    "total": 0,
+                    "t1": 0,
+                    "t2": 0,
+                    "t3": 0,
+                    "t4": 0,
+                    "t5": 0,
+                    "avg_score": None,
+                    "rejected": [],
+                    "_error": error_msg,
+                },
+            )
+
+        row_data = safe_json_serialize(safe_dict_convert(row))
+        # Fail-fast: required fields must be present
+        required_fields = ["total_signals", "scored", "high_quality"]
+        missing = [f for f in required_fields if row_data.get(f) is None]
+        if missing:
+            error_msg = f"Signal data incomplete: missing {missing}"
+            logger.error(error_msg)
+            return json_response(
+                503,
+                {
+                    "stage": "incomplete_data",
+                    "total": 0,
+                    "_error": error_msg,
+                },
+            )
+
+        initial_count = int(row_data.get("total_signals") or 0)
+        scored_count = int(row_data.get("scored") or 0)
+        high_quality_count = int(row_data.get("high_quality") or 0)
 
         # Build funnel stages with rejection reasons
         funnel = [

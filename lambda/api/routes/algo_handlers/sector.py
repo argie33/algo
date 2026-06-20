@@ -108,25 +108,88 @@ def _get_algo_evaluate(cur) -> dict:
                 FROM algo_portfolio_snapshots
             """)
         risk_row = cur.fetchone()
-        today_return = risk_row.get("today_return_pct", 0) if risk_row else 0
-        unrealized_pnl_total = (
-            risk_row.get("unrealized_pnl_total", 0) if risk_row else 0
-        )
-        unrealized_pnl_pct = risk_row.get("unrealized_pnl_pct", 0) if risk_row else 0
-        winning_count = risk_row.get("winning_count", 0) if risk_row else 0
-        losing_count = risk_row.get("losing_count", 0) if risk_row else 0
-        breakeven_count = risk_row.get("breakeven_count", 0) if risk_row else 0
+        if not risk_row:
+            # No portfolio snapshot data yet (algo just started) — fail-fast
+            return json_response(
+                200,
+                {
+                    "stage": "no_data",
+                    "candidates_screened": 0,
+                    "candidates_passing": 0,
+                    "constraints": {
+                        "max_positions": 15,
+                        "current_positions": 0,
+                        "available_slots": 15,
+                    },
+                    "portfolio_health": {
+                        "today_return_pct": None,
+                        "unrealized_pnl": {
+                            "total_dollars": None,
+                            "total_pct": None,
+                            "winning_positions": 0,
+                            "losing_positions": 0,
+                            "breakeven_positions": 0,
+                            "source": "no_data",
+                        },
+                    },
+                },
+            )
+
+        # Fail-fast: critical fields must be present
+        critical_fields = [
+            "today_return_pct",
+            "unrealized_pnl_total",
+            "unrealized_pnl_pct",
+            "winning_count",
+            "losing_count",
+            "breakeven_count",
+        ]
+        missing = [f for f in critical_fields if risk_row.get(f) is None]
+        if missing:
+            logger.error(f"Portfolio snapshot data incomplete: missing {missing}")
+            return json_response(
+                503,
+                {
+                    "stage": "incomplete_data",
+                    "_error": f"Portfolio health metrics incomplete: {', '.join(missing)}",
+                },
+            )
+
+        today_return = risk_row.get("today_return_pct")
+        unrealized_pnl_total = risk_row.get("unrealized_pnl_total")
+        unrealized_pnl_pct = risk_row.get("unrealized_pnl_pct")
+        winning_count = risk_row.get("winning_count")
+        losing_count = risk_row.get("losing_count")
+        breakeven_count = risk_row.get("breakeven_count")
 
         sig_dict = safe_json_serialize(safe_dict_convert(sig_row))
+        # Fail-fast: candidate counts must be present (not missing, but may be 0)
+        candidate_fields = [
+            "candidates_screened",
+            "candidates_passing",
+            "candidates_excellent",
+            "candidates_exceptional",
+        ]
+        missing_candidates = [f for f in candidate_fields if f not in sig_dict]
+        if missing_candidates:
+            logger.error(f"Signal candidate counts incomplete: missing {missing_candidates}")
+            return json_response(
+                503,
+                {
+                    "stage": "incomplete_data",
+                    "_error": f"Signal evaluation incomplete: {', '.join(missing_candidates)}",
+                },
+            )
+
         return json_response(
             200,
             {
                 "stage": "evaluated",
                 "candidates": {
-                    "screened": sig_dict.get("candidates_screened", 0),
-                    "passing_sqs_60": sig_dict.get("candidates_passing", 0),
-                    "excellent_sqs_70": sig_dict.get("candidates_excellent", 0),
-                    "exceptional_sqs_80": sig_dict.get("candidates_exceptional", 0),
+                    "screened": sig_dict["candidates_screened"],
+                    "passing_sqs_60": sig_dict["candidates_passing"],
+                    "excellent_sqs_70": sig_dict["candidates_excellent"],
+                    "exceptional_sqs_80": sig_dict["candidates_exceptional"],
                     "score_range": {
                         "min": (
                             float(sig_dict.get("min_score"))
