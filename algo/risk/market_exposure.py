@@ -60,6 +60,7 @@ import json
 import logging
 from datetime import date as _date
 
+import psycopg2
 from psycopg2 import sql as pgsql
 
 from algo.risk.market_factor_calculator import MarketFactorCalculator
@@ -1326,6 +1327,115 @@ class MarketExposure:
             logger.error(
                 f"persist market_exposure failed for {eval_date}: {e}", exc_info=True
             )
+
+
+def read_market_regime(eval_date: _date) -> dict:
+    """Read market regime from market_exposure_daily (latest snapshot on or before eval_date).
+
+    This is the canonical way for orchestrator phases to read market regime data.
+    Ensures Phase 3b and Phase 5 read from the same source and same snapshot with
+    consistent JSON deserialization and error handling.
+
+    CRITICAL: Reads the latest available market_exposure_daily snapshot (date <= eval_date).
+    This ensures all orchestrator phases running on the same day read the same market regime,
+    regardless of execution order. The 4:05 PM EOD pipeline populates the daily snapshot once;
+    all subsequent orchestrator runs use that snapshot.
+
+    Args:
+        eval_date: Date to read regime for (reads latest snapshot on or before this date)
+
+    Returns:
+        dict with: is_entry_allowed, exposure_pct, regime, halt_reasons, raw_score, exposure_tier
+    """
+    try:
+        with DatabaseContext("read") as cur:
+            cur.execute(
+                """
+                SELECT
+                    is_entry_allowed, exposure_pct, regime, halt_reasons,
+                    raw_score, exposure_tier, date
+                FROM market_exposure_daily
+                WHERE date <= %s
+                ORDER BY date DESC
+                LIMIT 1
+                """,
+                (eval_date,),
+            )
+            row = cur.fetchone()
+            if row is None:
+                logger.warning(
+                    f"[MARKET REGIME] No market_exposure_daily data on or before {eval_date} — halting entries (fail-closed)"
+                )
+                return {
+                    "is_entry_allowed": False,
+                    "exposure_pct": 0,
+                    "regime": "unknown",
+                    "halt_reasons": ["No market regime data available"],
+                    "raw_score": 0,
+                    "exposure_tier": "unknown",
+                }
+
+            (
+                is_entry_allowed,
+                exposure_pct,
+                regime,
+                halt_reasons_str,
+                raw_score,
+                exposure_tier,
+                _cached_date,
+            ) = row
+
+            # Validate exposure_pct is not NULL — critical for position sizing
+            if exposure_pct is None:
+                logger.critical(
+                    f"[MARKET REGIME] market_exposure_daily for {eval_date} has NULL exposure_pct — halting entries (fail-closed)"
+                )
+                return {
+                    "is_entry_allowed": False,
+                    "exposure_pct": 0,
+                    "regime": "unknown",
+                    "halt_reasons": ["Market exposure_pct is NULL — cannot proceed with regime-aware sizing"],
+                    "raw_score": 0,
+                    "exposure_tier": exposure_tier or "unknown",
+                }
+
+            # Deserialize halt_reasons JSON with consistent error handling
+            halt_reasons = []
+            if halt_reasons_str:
+                try:
+                    halt_reasons = json.loads(halt_reasons_str)
+                    if not isinstance(halt_reasons, list):
+                        logger.warning(
+                            f"[MARKET REGIME] halt_reasons is not a list: {type(halt_reasons)} for {eval_date}"
+                        )
+                        halt_reasons = []
+                except (json.JSONDecodeError, TypeError) as e:
+                    logger.error(
+                        f"[MARKET REGIME] Malformed halt_reasons JSON for {eval_date}: {e} — treating as empty list"
+                    )
+                    halt_reasons = []
+
+            return {
+                "is_entry_allowed": bool(is_entry_allowed),
+                "exposure_pct": float(exposure_pct),
+                "regime": regime or "unknown",
+                "halt_reasons": halt_reasons,
+                "raw_score": float(raw_score) if raw_score is not None else 0,
+                "exposure_tier": exposure_tier or "unknown",
+            }
+
+    except (psycopg2.DatabaseError, psycopg2.OperationalError) as e:
+        logger.critical(
+            f"[MARKET REGIME] Could not read market regime for {eval_date}: {e} — halting entries (fail-closed)"
+        )
+        return {
+            "is_entry_allowed": False,
+            "exposure_pct": 0,
+            "regime": "unknown",
+            "halt_reasons": [f"Market regime read failed: {type(e).__name__}"],
+            "raw_score": 0,
+            "exposure_tier": "unknown",
+        }
 
 
 if __name__ == "__main__":

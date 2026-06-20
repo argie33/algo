@@ -34,21 +34,14 @@ def run(
         PhaseResult with status 'ok', data containing exposure constraints and actions
     """
     try:
-        # Load cached market exposure from EOD pipeline (4:05 PM is sole source of truth)
-        # All orchestrator runs use the cached value — no recomputation.
-        # This ensures single source of truth and prevents divergence between EOD and evening runs.
-        from algo.risk import ExposurePolicy, MarketExposure
+        # Read market exposure from market_exposure_daily (4:05 PM EOD pipeline is sole source of truth)
+        # Uses shared read_market_regime() to ensure Phase 3b and Phase 5 read same snapshot
+        # with consistent JSON deserialization error handling.
+        from algo.risk import ExposurePolicy, read_market_regime
 
-        me = MarketExposure()
-        # Always use cached exposure (computed once per day at 4:05 PM EOD pipeline)
-        exposure = me.compute(run_date, force_recompute=False)
-        cache_status = (
-            " ✓ cached"
-            if exposure.get("_cached")
-            else " (WARNING: not cached, using fallback)"
-        )
+        exposure = read_market_regime(run_date)
         logger.info(
-            f"  Exposure: {exposure['exposure_pct']}% ({exposure['regime']}){cache_status}"
+            f"  Exposure: {exposure['exposure_pct']}% ({exposure['regime']})"
         )
         if exposure.get("halt_reasons"):
             logger.info(f"  Halt reasons: {'; '.join(exposure['halt_reasons'])}")
