@@ -85,7 +85,7 @@ class AdvancedFilters:
 
     # ---------- Pre-load: market context ----------
 
-    def load_market_context(self, eval_date: Any) -> None:
+    def load_market_context(self, eval_date: Any) -> dict[str, Any]:
         with DatabaseContext("read") as cur:
             cur.execute(
                 """

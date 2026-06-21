@@ -1161,7 +1161,7 @@ class TradeExecutor:
                         f"Failed to cancel bracket for {trade_id}: {cancel_result.get('message', 'Unknown error')}"
                     )
 
-            execution_mode = self.config.get("execution_mode") or "paper"
+            execution_mode = self.execution_mode
             actual_fill_price = None
             exit_order_result = {"success": False, "message": "No order sent"}
             is_estimated_price = True
