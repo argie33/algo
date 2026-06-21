@@ -1393,8 +1393,8 @@ def fetch_sector_rotation(c):
             "signal": row.get("signal", ""),
             "strength": safe_float(row.get("spread"), default=None, field_name="sec_rot.spread"),
             "weeks": row.get("weeks_persistent", 1),
-            "def_score": safe_float(row.get("defensive_lead_score"), default=0, field_name="sec_rot.defensive_lead_score"),
-            "cyc_score": safe_float(row.get("cyclical_weak_score"), default=0, field_name="sec_rot.cyclical_weak_score"),
+            "def_score": safe_float(row.get("defensive_lead_score"), default=None, field_name="sec_rot.defensive_lead_score"),
+            "cyc_score": safe_float(row.get("cyclical_weak_score"), default=None, field_name="sec_rot.cyclical_weak_score"),
         }
     except Exception as e:
         error_msg = _format_fetcher_error("sec_rot", e)
