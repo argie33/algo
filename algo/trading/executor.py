@@ -607,11 +607,11 @@ class TradeExecutor:
                     stop_loss_price,
                     stop_method or "minervini_break_or_swing_low",
                     target_1_price,
-                    float(self.config.get("t1_target_r_multiple", 1.5)),
+                    safe_float(self.config.get("t1_target_r_multiple", 1.5), default=1.5, field_name="t1_target_r_multiple"),
                     target_2_price,
-                    float(self.config.get("t2_target_r_multiple", 3.0)),
+                    safe_float(self.config.get("t2_target_r_multiple", 3.0), default=3.0, field_name="t2_target_r_multiple"),
                     target_3_price,
-                    float(self.config.get("t3_target_r_multiple", 4.0)),
+                    safe_float(self.config.get("t3_target_r_multiple", 4.0), default=4.0, field_name="t3_target_r_multiple"),
                     order_status,
                     execution_mode,
                     alpaca_order_id,
@@ -748,7 +748,7 @@ class TradeExecutor:
                     symbol=symbol,
                     details={
                         "entry_price": executed_price,
-                        "shares": float(shares),
+                        "shares": safe_float(shares, default=0.0, field_name="shares"),
                         "stop_loss": stop_loss_price,
                         "target_1": target_1_price,
                         "swing_score": swing_score,
@@ -862,7 +862,7 @@ class TradeExecutor:
                 raise ValueError(f"Position {position_id} not found")
 
             current_qty = result[0]
-            current_stop = float(result[1]) if result[1] else 0
+            current_stop = safe_float(result[1], default=0.0, field_name="current_stop_from_db")
 
             effective_stop = new_stop_price
             if new_stop_price and current_stop >= new_stop_price:
@@ -1048,9 +1048,9 @@ class TradeExecutor:
                 position_status,
             ) = row
 
-            entry_price = float(entry_price)
+            entry_price = safe_float(entry_price, default=None, strict=True, field_name="entry_price")
             entry_qty = int(entry_qty)
-            stop_loss_price = float(stop_loss_price)
+            stop_loss_price = safe_float(stop_loss_price, default=None, strict=True, field_name="stop_loss_price")
             current_qty = int(current_qty) if current_qty else 0
             target_hits = int(target_hits) if target_hits else 0
 
@@ -1069,7 +1069,7 @@ class TradeExecutor:
             shares_to_exit_dec = (current_qty_dec * exit_frac_dec).quantize(Decimal("0.01"), rounding=ROUND_HALF_UP)
             shares_to_exit_dec = max(Decimal("0.01"), shares_to_exit_dec)
             shares_to_exit_dec = min(shares_to_exit_dec, current_qty_dec)
-            shares_to_exit = float(shares_to_exit_dec)
+            shares_to_exit = safe_float(float(shares_to_exit_dec), default=0.01, field_name="shares_to_exit")
             full_exit = shares_to_exit >= current_qty
 
             if full_exit and alpaca_order_id:
@@ -1118,26 +1118,36 @@ class TradeExecutor:
 
             risk_per_share = Decimal(str(entry_price)) - Decimal(str(stop_loss_price))
             r_multiple = (
-                float(
-                    ((Decimal(str(final_exit_price)) - Decimal(str(entry_price))) / risk_per_share).quantize(
-                        Decimal("0.01"), rounding=ROUND_HALF_UP
-                    )
+                safe_float(
+                    float(
+                        ((Decimal(str(final_exit_price)) - Decimal(str(entry_price))) / risk_per_share).quantize(
+                            Decimal("0.01"), rounding=ROUND_HALF_UP
+                        )
+                    ),
+                    default=0.0,
+                    field_name="r_multiple"
                 )
                 if risk_per_share > 0
-                else 0
+                else 0.0
             )
             pnl_per_share = Decimal(str(final_exit_price)) - Decimal(str(entry_price))
-            pnl_dollars = float(
-                (pnl_per_share * Decimal(str(shares_to_exit))).quantize(Decimal("0.01"), rounding=ROUND_HALF_UP)
+            pnl_dollars = safe_float(
+                float((pnl_per_share * Decimal(str(shares_to_exit))).quantize(Decimal("0.01"), rounding=ROUND_HALF_UP)),
+                default=0.0,
+                field_name="pnl_dollars"
             )
             pnl_pct = (
-                float(
-                    (pnl_per_share / Decimal(str(entry_price)) * Decimal(100)).quantize(
-                        Decimal("0.01"), rounding=ROUND_HALF_UP
-                    )
+                safe_float(
+                    float(
+                        (pnl_per_share / Decimal(str(entry_price)) * Decimal(100)).quantize(
+                            Decimal("0.01"), rounding=ROUND_HALF_UP
+                        )
+                    ),
+                    default=0.0,
+                    field_name="pnl_pct"
                 )
                 if entry_price > 0
-                else 0
+                else 0.0
             )
 
             if not isinstance(pnl_dollars, (int, float)) or pnl_dollars != pnl_dollars:
