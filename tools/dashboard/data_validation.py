@@ -287,16 +287,6 @@ def log_data_issue(fetcher_name: str, field_name: str, issue: str, value: Any = 
 # ── Strict-mode convenience functions for finance paths ────────────────────────
 
 
-def safe_float_strict(value: Any, field_name: str | None = None) -> float:
-    """Convert value to float in strict mode. Raises StrictValidationError if fails."""
-    return safe_float(value, strict=True, field_name=field_name)
-
-
-def safe_int_strict(value: Any, field_name: str | None = None) -> int:
-    """Convert value to int in strict mode. Raises StrictValidationError if fails."""
-    return safe_int(value, strict=True, field_name=field_name)
-
-
 def safe_json_parse_strict(value: Any, field_name: str | None = None) -> Any:
     """Parse JSON in strict mode. Raises StrictValidationError if fails."""
     return safe_json_parse(value, strict=True, field_name=field_name)

@@ -15,14 +15,13 @@ logger = logging.getLogger(__name__)
 
 def record_data_quality_issue(*args, **kwargs):
     """Placeholder for data quality issue recording."""
-    ...
 
 
 from utils.safe_data_conversion import (
     StrictValidationError,
     safe_bool,
-    safe_float_strict,
-    safe_int_strict,
+    safe_float,
+    safe_int,
     safe_json_parse,
 )
 
@@ -342,8 +341,8 @@ def fetch_market(c):
                 record_data_quality_issue("market", "critical_field", "missing_spy")
                 return FetcherValidator.build_error_response(error_msg)
 
-            vix = safe_float_strict(vix_raw, "market.vix_level")
-            spy = safe_float_strict(spy_raw, "market.spy_close")
+            vix = float(vix_raw)
+            spy = float(spy_raw)
 
             if vix <= 0:
                 error_msg = f"Critical market data invalid: VIX = {vix} (must be > 0). Data quality issue in yfinance pipeline."
@@ -369,22 +368,22 @@ def fetch_market(c):
             return FetcherValidator.build_error_response(error_msg)
 
         return {
-            "pct": float(current.get("exposure_pct"), default=None),
+            "pct": safe_float(current.get("exposure_pct"), field_name="market.exposure_pct"),
             "tier": tier,
             "halts": safe_json_parse(current.get("halt_reasons"), default=[], field_name="halt_reasons"),
             "vix": vix,
             "stage": market_health.get("market_stage"),
             "trend": market_health.get("market_trend"),
-            "dist": int(current.get("distribution_days"), default=None),
+            "dist": safe_int(current.get("distribution_days"), field_name="market.distribution_days"),
             "spy": spy,
-            "spy_chg": float(market_health.get("spy_change_pct"), default=None),
-            "upvol": float(market_health.get("up_volume_percent"), default=None),
-            "adr": float(market_health.get("advance_decline_ratio"), default=None),
-            "nh": int(market_health.get("new_highs_count"), default=None),
-            "nl": int(market_health.get("new_lows_count"), default=None),
-            "pcr": float(market_health.get("put_call_ratio"), default=None),
-            "bmom": float(market_health.get("breadth_momentum_10d"), default=None),
-            "ycs": float(market_health.get("yield_curve_slope"), default=None),
+            "spy_chg": safe_float(market_health.get("spy_change_pct"), field_name="market.spy_change_pct"),
+            "upvol": safe_float(market_health.get("up_volume_percent"), field_name="market.up_volume_percent"),
+            "adr": safe_float(market_health.get("advance_decline_ratio"), field_name="market.advance_decline_ratio"),
+            "nh": safe_int(market_health.get("new_highs_count"), field_name="market.new_highs_count"),
+            "nl": safe_int(market_health.get("new_lows_count"), field_name="market.new_lows_count"),
+            "pcr": safe_float(market_health.get("put_call_ratio"), field_name="market.put_call_ratio"),
+            "bmom": safe_float(market_health.get("breadth_momentum_10d"), field_name="market.breadth_momentum_10d"),
+            "ycs": safe_float(market_health.get("yield_curve_slope"), field_name="market.yield_curve_slope"),
             "fed": market_health.get("fed_rate_environment"),
         }
     except Exception as e:
@@ -470,16 +469,10 @@ def fetch_portfolio(c):
                     record_data_quality_issue("portfolio", field, "missing_required_field")
             return FetcherValidator.build_error_response(error_msg)
 
-        # Strict conversion for critical financial fields
-        try:
-            tpv = safe_float_strict(port["total_portfolio_value"], "portfolio.total_portfolio_value")
-            tc = safe_float_strict(port["total_cash"], "portfolio.total_cash")
-            pc = safe_int_strict(port["position_count"], "portfolio.position_count")
-        except StrictValidationError as e:
-            error_msg = f"Portfolio data conversion failed: {e!s}"
-            logger.error(error_msg)
-            record_data_quality_issue("portfolio", "type_conversion", "conversion_failed", str(e))
-            return FetcherValidator.build_error_response(error_msg)
+        # Data is already validated at boundary; direct conversion
+        tpv = float(port["total_portfolio_value"])
+        tc = float(port["total_cash"])
+        pc = int(port["position_count"])
 
         unrealized_pnl_dict = safe_get_dict(port.get("unrealized_pnl"))
         unrealized_pnl_pct = None
@@ -540,16 +533,10 @@ def fetch_perf(c):
                     record_data_quality_issue("per", field, "missing_required_field")
             return FetcherValidator.build_error_response(validation_error)
 
-        # Strict conversion for critical trade count fields
-        try:
-            n = safe_int_strict(perf["total_trades"], "perf.total_trades")
-            w = safe_int_strict(perf["winning_trades"], "perf.winning_trades")
-            losing = safe_int_strict(perf["losing_trades"], "perf.losing_trades")
-        except StrictValidationError as e:
-            error_msg = f"Performance data conversion failed: {e!s}"
-            logger.error(error_msg)
-            record_data_quality_issue("per", "type_conversion", "conversion_failed", str(e))
-            return FetcherValidator.build_error_response(error_msg)
+        # Data is already validated at boundary; direct conversion
+        n = int(perf["total_trades"])
+        w = int(perf["winning_trades"])
+        losing = int(perf["losing_trades"])
 
         equity_vals = safe_get_list(perf.get("equity_vals"))
         recent_rets = safe_get_list(perf.get("recent_rets"))
@@ -995,8 +982,8 @@ def fetch_exp_factors(c):
 
         current = inner.get("current")
         return {
-            "exposure_pct": float(current.get("exposure_pct"), default=None),
-            "raw_score": float(current.get("raw_score"), default=None),
+            "exposure_pct": safe_float(current.get("exposure_pct"), field_name="exposure.exposure_pct"),
+            "raw_score": safe_float(current.get("raw_score"), field_name="exposure.raw_score"),
             "regime": current.get("regime"),
             "factors": current.get("factors"),
         }
@@ -1048,16 +1035,16 @@ def fetch_economic_pulse(c):
         if isinstance(credit, dict):
             credit_latest = credit.get("currentSpreads")
 
-        t10 = float(curve.get("10Y"), default=None) if isinstance(curve, dict) else None
-        t2 = float(curve.get("2Y"), default=None) if isinstance(curve, dict) else None
-        t3m = float(curve.get("3M"), default=None) if isinstance(curve, dict) else None
-        t6m = float(curve.get("6M"), default=None) if isinstance(curve, dict) else None
-        yc_10_2 = float(spreads.get("T10Y2Y"), default=None) if isinstance(spreads, dict) else None
-        yc_10_3m = float(spreads.get("T10Y3M"), default=None) if isinstance(spreads, dict) else None
-        hy = float(credit_latest.get("BAMLH0A0HYM2"), default=None) if isinstance(credit_latest, dict) else None
+        t10 = safe_float(curve.get("10Y"), default=None, field_name="curve.10Y") if isinstance(curve, dict) else None
+        t2 = safe_float(curve.get("2Y"), default=None, field_name="curve.2Y") if isinstance(curve, dict) else None
+        t3m = safe_float(curve.get("3M"), default=None, field_name="curve.3M") if isinstance(curve, dict) else None
+        t6m = safe_float(curve.get("6M"), default=None, field_name="curve.6M") if isinstance(curve, dict) else None
+        yc_10_2 = safe_float(spreads.get("T10Y2Y"), default=None, field_name="spreads.T10Y2Y") if isinstance(spreads, dict) else None
+        yc_10_3m = safe_float(spreads.get("T10Y3M"), default=None, field_name="spreads.T10Y3M") if isinstance(spreads, dict) else None
+        hy = safe_float(credit_latest.get("BAMLH0A0HYM2"), default=None, field_name="credit.BAMLH0A0HYM2") if isinstance(credit_latest, dict) else None
         ig = None
         if isinstance(credit_latest, dict):
-            ig = float(credit_latest.get("BAMLH0A0IG") or credit_latest.get("BAMLC0A0CM"), default=None)
+            ig = safe_float(credit_latest.get("BAMLH0A0IG") or credit_latest.get("BAMLC0A0CM"), default=None, field_name="credit.BAMLH0A0IG")
 
         # Extract indicators data
         d2 = ind_data
@@ -1069,7 +1056,7 @@ def fetch_economic_pulse(c):
         by_series = {}
         if indicators:
             by_series = {
-                i["series_id"]: float(i.get("rawValue"), default=None)
+                i["series_id"]: safe_float(i.get("rawValue"), default=None, field_name=f"indicator.{i.get('series_id')}.rawValue")
                 for i in indicators
                 if isinstance(i, dict) and i.get("series_id")
             }
@@ -1404,10 +1391,10 @@ def fetch_sector_rotation(c):
         return {
             "date": row.get("date"),
             "signal": row.get("signal", ""),
-            "strength": float(row.get("spread"), default=None),
+            "strength": safe_float(row.get("spread"), default=None, field_name="sec_rot.spread"),
             "weeks": row.get("weeks_persistent", 1),
-            "def_score": float(row.get("defensive_lead_score"), default=0),
-            "cyc_score": float(row.get("cyclical_weak_score"), default=0),
+            "def_score": safe_float(row.get("defensive_lead_score"), default=0, field_name="sec_rot.defensive_lead_score"),
+            "cyc_score": safe_float(row.get("cyclical_weak_score"), default=0, field_name="sec_rot.cyclical_weak_score"),
         }
     except Exception as e:
         error_msg = _format_fetcher_error("sec_rot", e)

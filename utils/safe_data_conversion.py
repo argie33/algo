@@ -106,26 +106,6 @@ def safe_float(
     return f
 
 
-def safe_float_strict(value: Any, context: str = "", field_name: str | None = None) -> float:
-    """Convert value to float in strict mode. Raises StrictValidationError if fails.
-
-    For use in critical financial paths where None is NOT acceptable.
-
-    Args:
-        value: Value to convert
-        context: Context string for logging (deprecated, use field_name)
-        field_name: Field name for error logging
-
-    Returns:
-        float (never None)
-
-    Raises:
-        StrictValidationError: If conversion fails or value is None/NaN/Infinity
-    """
-    result = float(value)
-    if result is None:
-        raise StrictValidationError(f"safe_float_strict returned None for {field_name or context}")
-    return result
 
 
 # ──────────────────────────────────────────────────────────────────────────────
@@ -182,26 +162,6 @@ def safe_int(
         return default
 
 
-def safe_int_strict(value: Any, context: str = "", field_name: str | None = None) -> int:
-    """Convert value to int in strict mode. Raises StrictValidationError if fails.
-
-    For use in critical paths where None is NOT acceptable.
-
-    Args:
-        value: Value to convert
-        context: Context string for logging (deprecated, use field_name)
-        field_name: Field name for error logging
-
-    Returns:
-        int (never None)
-
-    Raises:
-        StrictValidationError: If conversion fails or value is None
-    """
-    result = safe_int(value, default=None, context=context, strict=True, field_name=field_name)
-    if result is None:
-        raise StrictValidationError(f"safe_int_strict returned None for {field_name or context}")
-    return result
 
 
 # ──────────────────────────────────────────────────────────────────────────────

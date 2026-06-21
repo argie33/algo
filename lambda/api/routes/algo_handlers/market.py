@@ -24,7 +24,6 @@ from routes.utils import (
 
 from utils.validation import (
     format_decimal_string,
-    safe_int_strict,
 )
 
 from .signals import _TIER_CONFIG
@@ -388,13 +387,9 @@ def _get_market(cur) -> dict:
             "halt_reasons": exposure["halt_reasons"],
             "vix_level": float(
                 market_health["vix_level"]),
-            "market_stage": safe_int_strict(
-                market_health["market_stage"], context="market_health.market_stage"
-            ),
+            "market_stage": int(market_health["market_stage"]),
             "market_trend": market_health["market_trend"],
-            "distribution_days_4w": safe_int_strict(
-                exposure["distribution_days"], context="exposure.distribution_days"
-            ),
+            "distribution_days_4w": int(exposure["distribution_days"]),
             "spy_close": spy_close,
             "spy_change_pct": float(
                 market_health["spy_change_pct"]),
@@ -402,14 +397,8 @@ def _get_market(cur) -> dict:
                 market_health["up_volume_percent"]),
             "advance_decline_ratio": float(
                 market_health["advance_decline_ratio"]),
-            "new_highs_count": safe_int_strict(
-                market_health["new_highs_count"],
-                context="market_health.new_highs_count",
-            ),
-            "new_lows_count": safe_int_strict(
-                market_health["new_lows_count"],
-                context="market_health.new_lows_count",
-            ),
+            "new_highs_count": int(market_health["new_highs_count"]),
+            "new_lows_count": int(market_health["new_lows_count"]),
             "put_call_ratio": float(
                 market_health["put_call_ratio"]),
             "breadth_momentum_10d": float(

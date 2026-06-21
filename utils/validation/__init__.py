@@ -36,7 +36,6 @@ from .framework import (
     safe_bool,
     # Functional API - numeric
     safe_int,
-    safe_int_strict,
     safe_json_loads,
     safe_json_parse,
     # Functional API - temporal
@@ -75,9 +74,7 @@ __all__ = [
     # Numeric conversions
     "format_decimal_string",
     "safe_float",
-    "safe_float_strict",
     "safe_int",
-    "safe_int_strict",
     # Temporal conversions
     "safe_parse_date",
     "safe_parse_datetime_et",

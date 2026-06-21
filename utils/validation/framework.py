@@ -293,39 +293,6 @@ def safe_float(value: Any, default: float = 0.0, context: str = "") -> float:
         return default
 
 
-def safe_float_strict(value: Any, context: str = "", allow_none: bool = False) -> Any:
-    """Convert value to float in strict mode, raising on failure.
-
-    Args:
-        value: Value to convert
-        context: Context string for logging
-        allow_none: If True, return None for None values instead of raising error
-
-    Returns:
-        Float value, or None if allow_none=True and value is None
-
-    Raises:
-        ValueError: If value is None (unless allow_none=True), bool, or conversion fails
-    """
-    if value is None:
-        if allow_none:
-            return None
-        raise ValueError(f"{context}: cannot convert None to float")
-
-    if isinstance(value, bool):
-        raise ValueError(f"{context}: cannot convert bool to float")
-
-    try:
-        f = float(value)
-        if math.isnan(f):
-            raise ValueError(f"{context}: NaN value rejected")
-        if math.isinf(f):
-            raise ValueError(f"{context}: Infinity value rejected")
-        return f
-    except (ValueError, TypeError) as e:
-        raise ValueError(f"{context}: cannot convert {value!r} to float") from e
-
-
 def format_decimal_string(value: Any, precision: int = 2, allow_none: bool = True) -> str | None:
     """Convert financial value to string with fixed precision to prevent JSON float precision loss.
 
@@ -386,34 +353,6 @@ def safe_int(value: Any, default: int = 0, context: str = "") -> int:
     except (ValueError, TypeError) as e:
         logger.warning(f"Failed to convert {value!r} to int {context}: {e}")
         return default
-
-
-def safe_int_strict(value: Any, context: str = "", allow_none: bool = False) -> Any:
-    """Convert value to int in strict mode.
-
-    Args:
-        value: Value to convert
-        context: Context string for logging
-        allow_none: If True, return None for None values instead of raising error
-
-    Returns:
-        Int value, or None if allow_none=True and value is None
-
-    Raises:
-        ValueError: If value is None (unless allow_none=True), bool, or conversion fails
-    """
-    if value is None:
-        if allow_none:
-            return None
-        raise ValueError(f"{context}: cannot convert None to int")
-
-    if isinstance(value, bool):
-        raise ValueError(f"{context}: cannot convert bool to int")
-
-    try:
-        return int(value)
-    except (ValueError, TypeError) as e:
-        raise ValueError(f"{context}: cannot convert {value!r} to int") from e
 
 
 def safe_parse_date(value: Any, context: str = "") -> Optional[date]:
