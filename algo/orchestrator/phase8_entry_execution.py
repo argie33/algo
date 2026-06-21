@@ -238,14 +238,32 @@ def run(
     qualified_trades: list[dict[str, Any]] | None = None,
     exposure_constraints: dict | None = None,
     check_halt_flag: Callable | None = None,
+    executor: Any = None,
 ) -> PhaseResult:
+    """Execute Phase 8: Entry Execution.
+
+    DEPENDENCY VALIDATION: Phase 8 requires data from Phase 7 (qualified trades)
+    and Phase 5 (exposure constraints). If executor is provided, dependencies are
+    fetched via validated contract. Otherwise, data must be passed directly (legacy API).
+    """
 
     phase_start = time.time()
 
     logger.info("[PHASE 8] Starting entry execution")
 
+    # EXPLICIT DEPENDENCY RESOLUTION: Use executor if available (preferred pattern)
+    if executor is not None:
+        try:
+            qualified_trades = executor.get_phase_data_required(7, "qualified_trades")
+            exposure_constraints = executor.get_phase_data_required(5, "constraints")
+            logger.info("[PHASE 8 CONTRACTS] ✓ Retrieved validated data from Phase 7 & 5")
+        except Exception as e:
+            logger.critical(f"[PHASE 8 DEPENDENCY FAILURE] {e}")
+            log_phase_result_fn(8, "entry_execution", "halt", str(e))
+            return PhaseResult(8, "entry_execution", "halted", {"entered": 0}, True, str(e))
+
     if not qualified_trades:
-        logger.info("[PHASE 8] No qualified trades from Phase 5")
+        logger.info("[PHASE 8] No qualified trades from Phase 7")
 
         log_phase_result_fn(8, "entry_execution", "success", "No qualified signals")
 
@@ -263,8 +281,8 @@ def run(
     # CRITICAL: Validate exposure constraints (fail-fast)
     if not exposure_constraints:
         msg = (
-            "[PHASE 6 CRITICAL] Exposure constraints not provided. "
-            "Phase 5 (Exposure Policy) must produce exposure_constraints before Phase 6 executes."
+            "[PHASE 8 CRITICAL] Exposure constraints not provided. "
+            "Phase 5 (Exposure Policy) must produce constraints before Phase 8 executes."
         )
         logger.critical(msg)
         log_phase_result_fn(8, "entry_execution", "halt", msg)
