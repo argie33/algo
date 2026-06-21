@@ -29,7 +29,7 @@ def handle(
     params: dict,
     body: dict | None = None,
     jwt_claims: dict | None = None,
-) -> dict[Any, Any]:
+) -> "dict":
     try:
         parts = path.split("/")
         known_non_symbol_paths = (

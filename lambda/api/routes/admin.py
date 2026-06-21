@@ -27,7 +27,15 @@ from routes.utils import (
 from utils.rate_limiting import ADMIN_RATE_LIMITS, check_admin_rate_limit
 from utils.validation import CognitoValidator
 
-from ..types import JWTClaims, RouteBody, RouteParams, RouteResponse
+# Import types from lambda/api (avoid circular imports and built-in types collision)
+from pathlib import Path
+
+_types_file = Path(__file__).parent.parent / "types.py"
+exec(_types_file.read_text(), (_types_ns := {}))
+JWTClaims = _types_ns["JWTClaims"]
+RouteBody = _types_ns["RouteBody"]
+RouteParams = _types_ns["RouteParams"]
+RouteResponse = _types_ns["RouteResponse"]
 
 
 logger = logging.getLogger(__name__)

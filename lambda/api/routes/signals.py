@@ -29,7 +29,7 @@ def handle(
     params: Dict,
     body: Dict | None = None,
     jwt_claims: Dict | None = None,
-) -> Dict[Any, Any]:
+) -> "Dict":
     """Handle /api/signals/* endpoints."""
     try:
         if not params:
