@@ -152,6 +152,12 @@ variable "api_lambda_layer_version" {
   default     = 0 # 0 means use latest
 }
 
+variable "api_lambda_layer_enabled" {
+  description = "Whether API Lambda layer exists (built by GitHub Actions)"
+  type        = bool
+  default     = false
+}
+
 variable "lambda_layer_version" {
   description = "Version number of the shared Lambda layer (optional, default: latest)"
   type        = number
