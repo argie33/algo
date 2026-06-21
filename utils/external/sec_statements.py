@@ -105,11 +105,13 @@ def _aggregate_concepts(
     """Pivot multiple concepts into rows keyed by (fiscal_year, fiscal_period).
 
     Optimized: Uses get_company_facts (1 API call) instead of multiple get_concept calls.
+    Gracefully skips concepts that don't exist for this company (e.g., different revenue
+    reporting standards across companies).
 
     Args:
         client: SecEdgarClient instance
         symbol: Stock ticker
-        concepts: List of XBRL concept names
+        concepts: List of XBRL concept names (will skip those not reported by this company)
         period: "annual" or "quarterly"
 
     Returns:
@@ -128,20 +130,11 @@ def _aggregate_concepts(
     for concept in concepts:
         concept_data = us_gaap_facts.get(concept)
         if concept_data is None:
-            raise DataLoadError(
-                source="SEC EDGAR",
-                message=f"Concept '{concept}' not found in us-gaap facts for {symbol}",
-                retry_eligible=False,
-                context={"symbol": symbol, "concept": concept, "available_concepts": list(us_gaap_facts.keys())[:10]}
-            )
+            continue
+
         units = concept_data.get("units")
         if not units:
-            raise DataLoadError(
-                source="SEC EDGAR",
-                message=f"No unit data for concept '{concept}' in {symbol}",
-                retry_eligible=False,
-                context={"symbol": symbol, "concept": concept}
-            )
+            continue
 
         for unit, entries in units.items():
             for entry in entries:

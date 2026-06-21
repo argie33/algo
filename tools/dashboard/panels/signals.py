@@ -442,7 +442,8 @@ def panel_signals_compact(sig, sig_eval=None, scores=None):
         rows.append(Rule(style="dim"))
         parts = []
         for a in near[:8]:
-            sc = safe_float(safe_get_field(a, "score"), default=0.0, context="score") if safe_get_field(a, "score") is not None else None
+            score_val = safe_get_field(a, "score")
+            sc = float(score_val) if score_val is not None else None
             sc_s = f"{sc:.0f}" if sc is not None else "--"
             sym = safe_get_field(a, 'symbol', '')
             parts.append(f"[{CY}]{sym}[/][dim]{sc_s}[/]")
@@ -512,7 +513,8 @@ def panel_signals_expanded(sig, sig_eval=None, scores=None):
     if top_a:
         parts = []
         for s in top_a:
-            sc = safe_float(safe_get_field(s, "score"), default=0.0, context="score") if safe_get_field(s, "score") is not None else None
+            score_val = safe_get_field(s, "score")
+            sc = float(score_val) if score_val is not None else None
             if sc is not None:
                 sc_c = G if sc >= 90 else ("bright_green" if sc >= 85 else "green")
                 parts.append(f"[{sc_c}]{safe_get_field(s, 'symbol', '')}[/][dim]{sc:.0f}[/]")

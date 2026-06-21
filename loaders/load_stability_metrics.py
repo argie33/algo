@@ -15,7 +15,6 @@ import sys
 import psycopg2
 
 from loaders.loader_helper import setup_imports
-from utils.safe_data_conversion import safe_float
 
 
 setup_imports()
@@ -74,7 +73,7 @@ class StabilityMetricsLoader(OptimalLoader):
                 [
                     (
                         (date(row[0].year, row[0].month, row[0].day) if hasattr(row[0], "year") else row[0]),
-                        safe_float(row[1], default=0.0, context="row[1]"),
+                        float(row[1]),
                     )
                     for row in rows
                 ]
@@ -136,9 +135,9 @@ class StabilityMetricsLoader(OptimalLoader):
             info = ticker.info
             beta = None
             if "beta" in info and info["beta"] is not None:
-                beta = safe_float(info["beta"], default=0.0, context="beta")
+                beta = float(info["beta"])
             elif "beta3Year" in info and info["beta3Year"] is not None:
-                beta = safe_float(info["beta3Year"], default=0.0, context="beta3Year")
+                beta = float(info["beta3Year"])
             if beta is not None and abs(beta) > 200:
                 logger.debug(f"Dropping extreme beta for {symbol}: {beta}")
                 return None

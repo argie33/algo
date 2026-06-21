@@ -149,17 +149,11 @@ class EconomicMetricsDailyLoader(OptimalLoader):
                     dgs2 = None
                     for row in ycs_rows:
                         if row.get("series_id") == "DGS10":
-                            dgs10 = (
-                                float(row.get("value"), default=0.0)
-                                if row.get("value") is not None
-                                else None
-                            )
+                            val = row.get("value")
+                            dgs10 = float(val) if val is not None else None
                         elif row.get("series_id") == "DGS2":
-                            dgs2 = (
-                                float(row.get("value"), default=0.0)
-                                if row.get("value") is not None
-                                else None
-                            )
+                            val = row.get("value")
+                            dgs2 = float(val) if val is not None else None
 
                     if dgs10 is not None and dgs2 is not None:
                         ycs_10y2y = round(dgs10 - dgs2, 3)

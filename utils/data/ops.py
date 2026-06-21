@@ -4,11 +4,10 @@ Data Operations Integration - Unified API for freshness, validation, caching
 """
 
 import logging
-from typing import Any, Callable, Dict, Optional
+from typing import Any, Callable, Optional
 
 from utils.data.age_validator import check_freshness, is_fresh
 from utils.db.query_cache import get_or_create_cache
-from utils.validation.registry import validate_record
 
 
 logger = logging.getLogger(__name__)
@@ -59,21 +58,6 @@ def get_or_cache(
         )
     except Exception as e:
             raise RuntimeError(f"Operation failed: {e}") from e
-
-
-def validate_and_log(
-    record: Dict[str, Any],
-    schema: Dict[str, str],
-    context: str = "",
-) -> Dict[str, Any]:
-    """Validate record against schema and raise on failure."""
-    try:
-        return validate_record(record, schema, context=context)
-    except Exception as e:
-        raise RuntimeError(
-            f"Record validation failed for {context}: {e}. "
-            "Cannot proceed with invalid data."
-        ) from e
 
 
 def check_data_fresh(

@@ -481,12 +481,16 @@ def _format_data_health_summary(hlth_items: list) -> list[Text]:
             rc = r.get("role", "")
             cc = "bold white" if rc == "CRIT" else "white"
             lat = r.get("last_updated") or r.get("latest")
-            if hasattr(lat, "strftime"):
-                lat_s = f" ({lat.strftime('%m/%d')})"
-            elif isinstance(lat, str) and len(lat) >= 10:
-                lat_s = f" ({lat[5:10]})"
+            if lat is not None:
+                try:
+                    lat_s = f" ({lat.strftime('%m/%d')})"
+                except (AttributeError, TypeError):
+                    if isinstance(lat, str) and len(lat) >= 10:
+                        lat_s = f" ({lat[5:10]})"
+                    else:
+                        lat_s = f" ({str(lat)[:5]})"
             else:
-                lat_s = f" ({str(lat)[:5]})" if lat else ""
+                lat_s = ""
             rows.append(Text.from_markup(f"[{R}]X[/] [{cc}]{nm:<13}[/] [dim]{age_s} stale{lat_s}[/]"))
 
     return rows
@@ -1365,15 +1369,18 @@ def _build_results_panel(
         conc5_val_e = risk_dict_b.get("conc5")
         cvar95_val_e = risk_dict_b.get("cvar95")
         svar_val_e = risk_dict_b.get("svar")
-        beta_c = R if beta_val_e >= 1.2 else (Y if beta_val_e >= 0.8 else G)
-        conc_c = R if conc5_val_e >= 35 else (Y if conc5_val_e >= 25 else "white")
+        beta_c = R if beta_val_e is not None and beta_val_e >= 1.2 else (Y if beta_val_e is not None and beta_val_e >= 0.8 else G)
+        conc_c = R if conc5_val_e is not None and conc5_val_e >= 35 else (Y if conc5_val_e is not None and conc5_val_e >= 25 else "white")
         var_c = R if var95_val_e >= 4 else (Y if var95_val_e >= 2 else "white")
         risk_parts_e = [
             f"[dim]VaR95:[/][{var_c}]{var95_val_e:.2f}%[/]",
-            f"[dim]CVaR:[/][{var_c}]{cvar95_val_e:.2f}%[/]",
-            f"[dim]Beta:[/][{beta_c}]{beta_val_e:.2f}[/]",
-            f"[dim]Top5:[/][{conc_c}]{conc5_val_e:.0f}%[/]",
         ]
+        if cvar95_val_e is not None:
+            risk_parts_e.append(f"[dim]CVaR:[/][{var_c}]{cvar95_val_e:.2f}%[/]")
+        if beta_val_e is not None:
+            risk_parts_e.append(f"[dim]Beta:[/][{beta_c}]{beta_val_e:.2f}[/]")
+        if conc5_val_e is not None:
+            risk_parts_e.append(f"[dim]Top5:[/][{conc_c}]{conc5_val_e:.0f}%[/]")
         if svar_val_e and float(svar_val_e) > 0:
             risk_parts_e.append(f"[dim]StressVaR:[/][{R}]{float(svar_val_e):.2f}%[/]")
         right_rows.append(Text.from_markup("  ".join(risk_parts_e)))
