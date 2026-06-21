@@ -12,14 +12,14 @@ Metrics computed:
 - Live vs. backtest comparison
 """
 
-import psycopg2
-
 import json
 import logging
 from datetime import date, datetime, timezone
 from decimal import ROUND_HALF_UP, Decimal
 from pathlib import Path
 from typing import Any
+
+import psycopg2
 
 from utils.db import DatabaseContext
 from utils.metrics_calculator import MetricsCalculator
