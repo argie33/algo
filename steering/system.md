@@ -207,11 +207,11 @@ unzip -l terraform/lambda_api.zip | head -30  # What's deployed
 
 ## Data Loader Outage Handling - Three-Tier Pattern
 
-**CRITICAL Data** (fail-fast): VIX, portfolio value, market prices — used for position sizing/risk decisions. Retry exponentially, NEVER silently use stale cache.
+**CRITICAL Data** (fail-fast): VIX, portfolio value, market prices for position sizing/risk decisions. Retry exponentially, NEVER silently use stale cache.
 
-**REQUIRED Data** (fail with context): Financial statements, technical indicators — needed for computation. Fail cleanly; orchestrator retries later.
+**REQUIRED Data** (fail with context): Financial statements, technical indicators needed for computation. Fail cleanly; orchestrator retries later.
 
-**OPTIONAL Enrichment** (graceful degradation): Put/call, yield curve, sector rotation — improves output but optional. Return None on failure, log warning.
+**OPTIONAL Enrichment** (graceful degradation): Put/call, yield curve, sector rotation. Return None on failure, log warning.
 
 **Implementation:**
 ```python
@@ -221,20 +221,20 @@ breaker = CircuitBreaker(name="vix", importance=DataImportance.CRITICAL)
 vix = breaker.execute(fetch_func=lambda: yfinance.get("^VIX"))
 ```
 
-See **Circuit Breaker Patterns** section below for testing, monitoring, and migration path.
+See **Circuit Breaker Patterns** below for testing, monitoring, and migration path.
 
 ## API Response Validation Strategy
 
 **Two-tier validation** (DO NOT CONFLATE):
 
-**Layer 1 - Outbound** (`lambda/api/routes/*.py`): `ResponseValidator.validate_endpoint_response()` from `shared_contracts/response_validator.py`. Purpose: Validate Lambda responses match contract. Failure: logs warning (optional mode). Implementation:
+**Layer 1 - Outbound** (`lambda/api/routes/*.py`): `ResponseValidator.validate_endpoint_response()` from `shared_contracts/response_validator.py`. Validates Lambda responses match contract; failure logs warning (optional mode). Implementation:
 ```python
 is_valid, msg = ResponseValidator.validate_endpoint_response("port", response_data)
 if not is_valid: logger.warning(msg)
 return json_response(200, response_data)
 ```
 
-**Layer 2 - Inbound** (`tools/dashboard/api_data_layer.py`): 15+ specialized validators in `tools/dashboard/response_validators.py`. Purpose: Validate API responses at dashboard boundary (fail-fast). Failure: returns `{"_error": "message"}` only. **Never mix error dict with fallback fields.**
+**Layer 2 - Inbound** (`tools/dashboard/api_data_layer.py`): 15+ specialized validators in `tools/dashboard/response_validators.py`. Validates API responses at dashboard boundary (fail-fast); failure returns `{"_error": "message"}` only. **Never mix error dict with fallback fields.**
 
 **Error Response Format:** All errors include `_error` field. No silent `.get()` defaults. Validate at boundary once, assume valid inside.
 
@@ -252,21 +252,21 @@ When adding endpoints: (1) Update `shared_contracts/dashboard_api_contract.py` w
 - **Examples:** VIX level, portfolio value, SPY price, market close data
 - **Behavior:** Retry with exponential backoff (2s, 4s, 8s, 16s, 32s). Fail immediately after 3 failures.
 - **Code:** `DataImportance.CRITICAL`
-- **Failure:** Raises RuntimeError → phase fails → orchestrator retries later
+- **Failure:** Raises RuntimeError / phase fails / orchestrator retries later
 - **NEVER:** Silently use stale cache
 
 ### Tier 2: REQUIRED (Fail with Context)
 - **Examples:** Financial statements, technical indicators, market breadth
 - **Behavior:** Retry exponentially. Fail cleanly if exhausted.
 - **Code:** `DataImportance.REQUIRED`
-- **Failure:** Raises RuntimeError → phase can skip or retry
+- **Failure:** Raises RuntimeError / phase can skip or retry
 - **NEVER:** Continue computation without this data
 
 ### Tier 3: OPTIONAL (Graceful Degradation)
 - **Examples:** Put/call ratio, yield curve slope, sector rotation
 - **Behavior:** Short timeout (no full retry loop). On failure: log warning, return None.
 - **Code:** `DataImportance.OPTIONAL`
-- **Failure:** Returns `None` → downstream checks for None and skips enrichment
+- **Failure:** Returns `None` / downstream checks for None and skips enrichment
 - **NEVER:** Silently fill with stale value
 
 **For Each Loader:**
@@ -276,9 +276,9 @@ When adding endpoints: (1) Update `shared_contracts/dashboard_api_contract.py` w
 4. Document criticality in docstring
 5. For OPTIONAL: Check `if vix is not None` before using
 
-**Testing:** (1) Cut network → loader fails <30s (not timeout). (2) API returns 503 → retry 3x then fail (no cache). (3) Verify logs show "CIRCUIT OPEN" or graceful degradation messages.
+**Testing:** (1) Cut network / loader fails <30s (not timeout). (2) API returns 503 / retry 3x then fail (no cache). (3) Verify logs show "CIRCUIT OPEN" or graceful degradation messages.
 
-**Monitoring:** CloudWatch alerts on CIRCUIT OPEN for CRITICAL/REQUIRED data (immediate escalation). Logs show state transitions: `CLOSED → OPEN → HALF_OPEN → CLOSED`.
+**Monitoring:** CloudWatch alerts on CIRCUIT OPEN for CRITICAL/REQUIRED data (immediate escalation). Logs show state transitions: `CLOSED / OPEN / HALF_OPEN / CLOSED`.
 
 **Migration:**
 - Phase 1 (2026-06-27): VIX, prices, portfolio value (CRITICAL)
