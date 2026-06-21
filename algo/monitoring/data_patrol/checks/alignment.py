@@ -289,11 +289,11 @@ class AlignmentChecker(BaseCheck):
         ]
 
         try:
-            for tbl, where, min_ratio, sev in checks:
+            for tbl, _where, _min_ratio, _sev in checks:
                 assert_safe_table(tbl)
 
             union_parts = []
-            for tbl, where, min_ratio, sev in checks:
+            for tbl, where, _min_ratio, _sev in checks:
                 tbl_safe = assert_safe_table(tbl)
                 union_parts.append(
                     f"SELECT '{tbl}' as tbl_name, COUNT(DISTINCT symbol) as cnt FROM {tbl_safe} WHERE {where}"

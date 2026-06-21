@@ -53,12 +53,12 @@ class SignalMomentumMixin:
             for r in rows:
                 c = float(r[3])
                 h = float(r[1])
-                l = float(r[2])
-                if c is None or h is None or l is None:
-                    raise ValueError(f"Price data missing for {symbol}: close={c}, high={h}, low={l}")
+                lo = float(r[2])
+                if c is None or h is None or lo is None:
+                    raise ValueError(f"Price data missing for {symbol}: close={c}, high={h}, low={lo}")
                 closes.append(c)
                 highs.append(h)
-                lows.append(l)
+                lows.append(lo)
             dates = [r[0] for r in rows]
 
             # Walk forward, tracking sell-setup and buy-setup independently

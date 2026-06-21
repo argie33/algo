@@ -489,12 +489,21 @@ def main():
 
         logger.info(f"Result: {result}")
 
+        # Validate result structure upfront
+        required_fields = ["rows_inserted", "error"]
+        missing = [f for f in required_fields if f not in result or result[f] is None]
+        if missing:
+            raise RuntimeError(
+                f"Loader returned incomplete result: missing {missing}. "
+                f"Expected fields: {required_fields}, got: {list(result.keys())}"
+            )
+
         # Update status to COMPLETED or FAILED based on result
-        if result.get("rows_inserted", 0) > 0 or result.get("error") is None:
+        if result["rows_inserted"] > 0 or result["error"] is None:
             _update_swing_loader_status("COMPLETED")
             final_status = "completed"
         else:
-            _update_swing_loader_status("FAILED", result.get("error", "Unknown error"))
+            _update_swing_loader_status("FAILED", result["error"])
             final_status = "failed"
 
         # Log execution time
@@ -519,8 +528,8 @@ def main():
                         "swing_trader_scores",
                         date.today(),
                         final_status,
-                        result.get("rows_inserted", 0),
-                        result.get("duration_sec", 0),
+                        result["rows_inserted"],
+                        result.get("duration_sec", 0),  # duration_sec is optional
                     ),
                 )
         except (psycopg2.DatabaseError, psycopg2.OperationalError) as e:

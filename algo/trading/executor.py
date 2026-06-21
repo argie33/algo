@@ -157,6 +157,188 @@ class TradeExecutor:
         else:
             self.is_paper = False
 
+    def _submit_and_validate_order(
+        self,
+        symbol: str,
+        trade_id: str,
+        shares: Decimal,
+        entry_price: Decimal,
+        stop_loss_price: Decimal,
+        target_1_price: Decimal | None,
+        execution_mode: str,
+    ) -> tuple[bool, str, str, str, Decimal | None, str | None]:
+        """Submit order via Alpaca or create placeholder for paper/review mode.
+
+        Returns: (success, alpaca_order_id, order_status, error_message, executed_price, rejection_reason)
+        """
+        if execution_mode in ("paper", "dry"):
+            logger.info(f"[ENTRY] {symbol}: {execution_mode.upper()} mode - creating LOCAL order {trade_id}")
+            logger.warning(f"[ENTRY] {symbol}: NOT TRADING LIVE - execution_mode is {execution_mode} (not 'auto')")
+            return (
+                True,
+                f"LOCAL-{trade_id}",
+                "open",
+                "",
+                entry_price,
+                None,
+            )
+
+        if execution_mode == "review":
+            logger.info(f"[ENTRY] {symbol}: REVIEW mode - creating PENDING order {trade_id}")
+            return (
+                True,
+                f"PENDING-{trade_id}",
+                "pending",
+                "",
+                entry_price,
+                None,
+            )
+
+        # Auto mode: send to Alpaca
+        logger.info(f"[ENTRY] {symbol}: AUTO mode - SENDING LIVE ORDER TO ALPACA")
+        logger.info(f"[ENTRY] {symbol}: Using Alpaca endpoint: {self.alpaca_base_url}")
+        self._order_send_time = time.time()
+
+        order_result = self._send_alpaca_order(
+            symbol,
+            shares,
+            entry_price,
+            stop_loss_price=stop_loss_price,
+            take_profit_price=target_1_price,
+            order_class="bracket",
+        )
+        self._last_order_result = order_result  # Store for bracket validation
+
+        if not order_result["success"]:
+            try:
+                from algo.reporting import AlertManager
+
+                AlertManager().send_position_alert(
+                    symbol,
+                    "EXECUTION_FAILURE",
+                    "CRITICAL",
+                    f"Order submission failed: {order_result.get('message', 'Unknown error')}",
+                )
+            except NotificationError as alert_e:
+                logger.warning(f"Failed to send execution failure alert (non-blocking): {alert_e}")
+            return (False, trade_id, "", order_result.get("message", "Order failed"), None, None)
+
+        # Validate order response has required fields
+        if "order_id" not in order_result or not order_result["order_id"]:
+            raise RuntimeError(
+                f"Alpaca order response missing/empty 'order_id'. Response: {order_result}"
+            )
+        if "status" not in order_result or not order_result["status"]:
+            raise RuntimeError(
+                f"Alpaca order response missing/empty 'status'. Response: {order_result}"
+            )
+
+        alpaca_order_id = order_result["order_id"]
+        order_status = order_result["status"]
+
+        rejection_reason = None
+        if order_status == "rejected":
+            rejection_reason = order_result.get("rejection_reason") or "Order rejected by Alpaca (no reason provided)"
+
+        executed_price = order_result.get("executed_price")
+        if executed_price is None:
+            executed_price = entry_price
+
+        return (True, alpaca_order_id, order_status, "", executed_price, rejection_reason)
+
+    def _validate_entry_conditions(
+        self, cur, symbol: str, signal_date: Any, entry_price: Decimal, stop_loss_price: Decimal
+    ) -> tuple[bool, str, dict[str, Any] | None]:
+        """Validate all entry conditions in a single consolidated check.
+
+        Returns: (is_valid, error_message, error_details_dict_or_none)
+        """
+        checks = [
+            (
+                self.validator.check_idempotent_duplicate,
+                (cur, symbol, signal_date, entry_price, stop_loss_price),
+                "idempotent",
+            ),
+            (
+                self.validator.check_open_position_in_symbol,
+                (cur, symbol),
+                "open_position",
+            ),
+            (
+                self.validator.check_signal_fingerprint_duplicate,
+                (cur, symbol, signal_date, entry_price, stop_loss_price),
+                "fingerprint",
+            ),
+            (
+                self.validator.check_pending_trades,
+                (cur, symbol),
+                "pending",
+            ),
+            (
+                self.validator.check_reentry_rules,
+                (cur, symbol),
+                "reentry",
+            ),
+        ]
+
+        for check_fn, args, check_name in checks:
+            result = check_fn(*args)
+
+            if check_name == "idempotent":
+                is_dup, error_msg, existing_trade_id = result
+                if is_dup:
+                    return (
+                        False,
+                        error_msg,
+                        {
+                            "status": "duplicate",
+                            "trade_id": existing_trade_id or "",
+                            "duplicate": True,
+                        },
+                    )
+            elif check_name == "open_position":
+                is_dup, error_msg = result
+                if is_dup:
+                    return (
+                        False,
+                        error_msg,
+                        {"status": "duplicate", "duplicate": True},
+                    )
+            elif check_name == "fingerprint":
+                is_dup, error_msg, existing_trade_id = result
+                if is_dup:
+                    return (
+                        False,
+                        error_msg,
+                        {
+                            "status": "duplicate",
+                            "trade_id": existing_trade_id or "",
+                            "duplicate": True,
+                        },
+                    )
+            elif check_name == "pending":
+                has_pending, error_msg, _ = result
+                if has_pending:
+                    return (
+                        False,
+                        error_msg,
+                        {"status": "pending_trade_exists"},
+                    )
+            elif check_name == "reentry":
+                valid, error_msg, _ = result
+                if not valid:
+                    status = "reentry_blocked" if "prior re-entries" in (error_msg or "") else "reentry_cooldown"
+                    return (
+                        False,
+                        error_msg,
+                        {
+                            "status": status,
+                            "reentry_blocked": "prior" in (error_msg or "").lower(),
+                        },
+                    )
+
+        return True, "", None
+
     def _with_cursor(self, operation, acquire_locks: bool = False) -> Any:
         """Execute an operation with a cursor via DatabaseContext.
 
@@ -339,186 +521,79 @@ class TradeExecutor:
             prior_trade_id = None
             reentry_count = 0
 
-            # Check idempotency key
-            is_dup, error_msg, existing_trade_id = self.validator.check_idempotent_duplicate(
+            # Consolidated validation of all entry conditions
+            is_valid, error_msg, error_details = self._validate_entry_conditions(
                 cur, symbol, signal_date, entry_price, stop_loss_price
             )
-            if is_dup:
-                return {
+            if not is_valid:
+                result = {
                     "success": False,
-                    "trade_id": existing_trade_id or "",
-                    "status": "duplicate",
-                    "duplicate": True,
+                    "trade_id": error_details.get("trade_id", ""),
                     "message": error_msg,
                 }
-
-            # Check for open position in symbol
-            is_dup, error_msg = self.validator.check_open_position_in_symbol(cur, symbol)
-            if is_dup:
-                return {
-                    "success": False,
-                    "trade_id": "",
-                    "status": "duplicate",
-                    "duplicate": True,
-                    "message": error_msg,
-                }
-
-            # Check for signal fingerprint duplicate
-            is_dup, error_msg, existing_trade_id = self.validator.check_signal_fingerprint_duplicate(
-                cur, symbol, signal_date, entry_price, stop_loss_price
-            )
-            if is_dup:
-                return {
-                    "success": False,
-                    "trade_id": existing_trade_id or "",
-                    "status": "duplicate",
-                    "duplicate": True,
-                    "message": error_msg,
-                }
-
-            # Check for pending trades
-            has_pending, error_msg, _ = self.validator.check_pending_trades(cur, symbol)
-            if has_pending:
-                return {
-                    "success": False,
-                    "trade_id": "",
-                    "status": "pending_trade_exists",
-                    "message": error_msg,
-                }
-
-            # Check re-entry rules
-            valid, error_msg, reentry_count = self.validator.check_reentry_rules(cur, symbol)
-            if not valid:
-                return {
-                    "success": False,
-                    "trade_id": "",
-                    "status": "reentry_blocked" if "prior re-entries" in (error_msg or "") else "reentry_cooldown",
-                    "reentry_blocked": True,
-                    "message": error_msg,
-                }
+                result.update({k: v for k, v in error_details.items() if k != "trade_id"})
+                return result
 
             execution_mode = self.config.get("execution_mode", "paper")
             trade_id = f"TRD-{uuid.uuid4().hex[:10].upper()}"
-            rejection_reason = None  # Initialize for all code paths
 
-            if execution_mode in ("paper", "dry"):
-                logger.info(f"[ENTRY] {symbol}: {execution_mode.upper()} mode - creating LOCAL order {trade_id}")
-                logger.warning(f"[ENTRY] {symbol}: NOT TRADING LIVE - execution_mode is {execution_mode} (not 'auto')")
-                alpaca_order_id = f"LOCAL-{trade_id}"
-                order_status = "open"  # P4: Changed from 'filled' to standardized 'open'
-                executed_price = entry_price
-            elif execution_mode == "review":
-                logger.info(f"[ENTRY] {symbol}: REVIEW mode - creating PENDING order {trade_id}")
-                alpaca_order_id = f"PENDING-{trade_id}"
-                order_status = "pending"  # P4: Standardized status
-                executed_price = entry_price
-            else:  # 'auto' - actually send to Alpaca as BRACKET ORDER
-                logger.info(f"[ENTRY] {symbol}: AUTO mode - SENDING LIVE ORDER TO ALPACA")
-                logger.info(f"[ENTRY] {symbol}: Using Alpaca endpoint: {self.alpaca_base_url}")
-                self._order_send_time = time.time()  # Track for execution latency (TCA)
-                order_result = self._send_alpaca_order(
+            order_ok, alpaca_order_id, order_status, order_error, executed_price, rejection_reason = (
+                self._submit_and_validate_order(
                     symbol,
+                    trade_id,
                     shares,
                     entry_price,
-                    stop_loss_price=stop_loss_price,
-                    take_profit_price=target_1_price,  # T1 as take-profit leg
-                    order_class="bracket",
+                    stop_loss_price,
+                    target_1_price,
+                    execution_mode,
                 )
-                if not order_result["success"]:
-                    # Alert on Alpaca API failure (non-blocking)
-                    try:
-                        from algo.reporting import AlertManager
+            )
 
-                        AlertManager().send_position_alert(
-                            symbol,
-                            "EXECUTION_FAILURE",
-                            "CRITICAL",
-                            f"Order submission failed: {order_result.get('message', 'Unknown error')}",
-                        )
-                    except NotificationError as alert_e:
-                        logger.warning(f"Failed to send execution failure alert (non-blocking): {alert_e}")
-                    return {
-                        "success": False,
-                        "trade_id": trade_id,
-                        "status": "failed",
-                        "message": order_result.get("message", "Order failed"),
-                    }
-                if "order_id" not in order_result:
-                    raise RuntimeError(
-                        f"Alpaca order submission response missing required field 'order_id'. "
-                        f"Response: {order_result}. Cannot proceed without order ID."
-                    )
-                alpaca_order_id = order_result["order_id"]
-                if not alpaca_order_id:
-                    raise RuntimeError(
-                        f"Alpaca order submission response returned empty order_id. "
-                        f"Response: {order_result}. Cannot proceed with empty order ID."
-                    )
-                if "status" not in order_result:
-                    raise RuntimeError(
-                        f"Alpaca order submission response missing required field 'status'. "
-                        f"Response: {order_result}. Cannot proceed without order status."
-                    )
-                order_status = order_result["status"]
-                if not order_status:
-                    raise RuntimeError(
-                        f"Alpaca order submission response returned empty status. "
-                        f"Response: {order_result}. Cannot proceed with empty order status."
-                    )
-                # Capture rejection reason if order was rejected
-                rejection_reason = None
-                if order_status == "rejected":
-                    rejection_reason = (
-                        order_result.get("rejection_reason") or "Order rejected by Alpaca (no reason provided)"
-                    )
-                # For pending orders, executed_price is None (order not yet filled).
-                # Use entry_price as the initial DB value; reconciliation updates it to
-                # the actual fill price when the order executes. Slippage is computed at
-                # reconciliation time, not here, so this doesn't corrupt fill data.
-                executed_price = order_result.get("executed_price")
-                if executed_price is None:
-                    executed_price = entry_price
+            if not order_ok:
+                return {
+                    "success": False,
+                    "trade_id": trade_id,
+                    "status": "failed",
+                    "message": order_error,
+                }
 
-                # Verify bracket legs were created successfully - FAIL-CLOSED if missing stop leg
-                legs = order_result.get("legs")
-                if legs is None:
-                    legs = []
+            # For auto mode, verify bracket legs and check for rejection
+            if execution_mode == "auto":
+                # Verify bracket legs - FAIL-CLOSED if missing stop leg
+                order_result = self._last_order_result if hasattr(self, "_last_order_result") else {}
+                legs = order_result.get("legs", [])
                 if order_result.get("order_class") == "bracket" and len(legs) < 2:
-                    # Bracket order MUST have stop loss leg - cancel and reject if missing
                     try:
                         self._cancel_bracket_orders(alpaca_order_id)
-                    except (OrderExecutionError, DatabaseError) as e:
+                    except (OrderExecutionError, DatabaseError, requests.RequestException, requests.Timeout) as e:
                         logger.warning(f"Failed to cancel bracket order {alpaca_order_id} ({type(e).__name__}): {e}")
-                    except (requests.RequestException, requests.Timeout) as e:
-                        logger.warning(f"API error cancelling bracket order {alpaca_order_id}: {e}")
                     return {
                         "success": False,
                         "trade_id": trade_id,
                         "status": "failed",
-                        "message": f"Bracket order {alpaca_order_id} missing stop loss leg ({len(legs)} legs) - order cancelled and rejected",
+                        "message": f"Bracket order {alpaca_order_id} missing stop loss leg ({len(legs)} legs) - order cancelled",
+                    }
+
+                # Check for order rejection/cancellation
+                if order_status in ("rejected", "cancelled", "expired"):
+                    try:
+                        notify(
+                            "critical",
+                            title=f"Order {order_status.upper()}: {symbol}",
+                            message=f"Trade {trade_id}: {shares}sh @ ${entry_price:.2f} (stop ${stop_loss_price:.2f}) - {order_status}",
+                        )
+                    except NotificationError as alert_e:
+                        logger.warning(f"Failed to send rejection alert (non-blocking): {alert_e}")
+                    return {
+                        "success": False,
+                        "trade_id": trade_id,
+                        "status": order_status,
+                        "message": f"Alpaca {order_status} order: {symbol}",
                     }
 
                 if order_status not in ("filled", "partially_filled"):
-                    # Order pending, rejected, or cancelled - don't create position yet
-                    if order_status in ("rejected", "cancelled", "expired"):
-                        # B7: Alert on order rejection (non-blocking)
-                        try:
-                            notify(
-                                "critical",
-                                title=f"Order {order_status.upper()}: {symbol}",
-                                message=f"Trade {trade_id}: {shares}sh @ ${entry_price:.2f} (stop ${stop_loss_price:.2f}) - {order_status}",
-                            )
-                        except NotificationError as alert_e:
-                            logger.warning(f"Failed to send rejection alert (non-blocking): {alert_e}")
-                        # Alpaca rejected the order
-                        return {
-                            "success": False,
-                            "trade_id": trade_id,
-                            "status": order_status,
-                            "message": f"Alpaca {order_status} order: {symbol}",
-                        }
                     # For pending orders, still create the trade record but mark as pending
-                    # Position will be created when/if order fills (via reconciliation)
+                    pass  # Continue to create trade record below
 
             # If fill price differs from signal price (slippage), recalculate targets based on actual fill
             if executed_price and executed_price != entry_price:
