@@ -139,7 +139,7 @@ class ExitEngine:
 
     def _check_minervini_break(self, cur, ctx: PositionContext) -> tuple[bool, dict[str, Any] | None]:
         """Minervini break: trend-following exit on moving average break."""
-        if self._is_minervini_break(cur, ctx.symbol, ctx.current_date, ctx.cur_price):
+        if self._is_minervini_break(cur, ctx.symbol, ctx.current_date, float(ctx.cur_price)):
             return (
                 True,
                 {
@@ -755,9 +755,9 @@ class ExitEngine:
         ]
 
         for rule_func, rule_args in rules:
-            should_exit, decision = rule_func(*rule_args)
-            if should_exit:
-                return decision
+            should_exit, decision = rule_func(*rule_args)  # type: ignore[operator]
+            if should_exit and decision is not None:
+                return cast(dict[str, Any], decision)
 
         # No exit conditions met - hold the position
         return {

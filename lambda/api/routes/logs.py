@@ -35,16 +35,24 @@ from routes.utils import error_response, success_response
 
 logger = logging.getLogger(__name__)
 
-# CloudWatch Logs client
-logs_client = boto3.client("logs")
+# CloudWatch Logs client (lazy init to avoid NoRegionError at import time)
+_logs_client = None
 LOG_GROUP = "/aws/frontend/algo-trading-dashboard"
+
+
+def _get_logs_client():
+    global _logs_client
+    if _logs_client is None:
+        _logs_client = boto3.client("logs")
+    return _logs_client
 
 
 def ensure_log_stream(stream_name: str):
     """Ensure CloudWatch log stream exists."""
     try:
-        logs_client.create_log_stream(logGroupName=LOG_GROUP, logStreamName=stream_name)
-    except logs_client.exceptions.ResourceAlreadyExistsException:
+        client = _get_logs_client()
+        client.create_log_stream(logGroupName=LOG_GROUP, logStreamName=stream_name)
+    except _get_logs_client().exceptions.ResourceAlreadyExistsException:
         pass  # Stream already exists
     except Exception as e:
         logger.warning(f"Could not create log stream {stream_name}: {e}")
@@ -143,7 +151,7 @@ def handle(
         if log_events:
             try:
                 # Put logs to CloudWatch (batch up to 1MB)
-                logs_client.put_log_events(
+                _get_logs_client().put_log_events(
                     logGroupName=LOG_GROUP,
                     logStreamName=stream_name,
                     logEvents=log_events,

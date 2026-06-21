@@ -273,12 +273,12 @@ class TradeExecutor:
 
             try:
                 tca_result = self.tca.record_fill(
-                    trade_id=trade_id,
+                    trade_id=int(trade_id) if isinstance(trade_id, str) and trade_id.isdigit() else 0,
                     symbol=symbol,
-                    signal_price=entry_price,
-                    fill_price=executed_price,
-                    shares_requested=shares,
-                    shares_filled=actual_shares,
+                    signal_price=float(entry_price),
+                    fill_price=float(executed_price),
+                    shares_requested=int(shares),
+                    shares_filled=int(actual_shares),
                     side="BUY",
                     execution_latency_ms=execution_latency_ms,
                 )
