@@ -14,6 +14,7 @@ from routes.utils import (
     success_response,
 )
 
+from shared_contracts.response_validator import ResponseValidator
 
 
 # C-4 FIX: Import route status for health endpoint
@@ -157,6 +158,12 @@ def _handle_basic(cur) -> dict[str, Any]:
 
         if has_critical:
             health["status"] = "degraded"
+
+        # Validate response matches contract before returning
+        is_valid, error_msg = ResponseValidator.validate_endpoint_response("health", health)
+        if not is_valid:
+            logger.error(f"Health response validation failed: {error_msg}")
+            return error_response(500, "response_validation_error", error_msg)
 
         return success_response(health)
 

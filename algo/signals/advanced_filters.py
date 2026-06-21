@@ -2,6 +2,7 @@
 
 import logging
 from datetime import date as _date
+from typing import Any
 
 import psycopg2
 
@@ -42,7 +43,7 @@ class AdvancedFilters:
         self._sector_full_ranking = None
         self._signals = None  # SignalComputer, lazy-init
 
-    def _load_config_val(self, key: str, default):
+    def _load_config_val(self, key: str, default: Any) -> Any:
         """Load a config value from AlgoConfig, with fallback to default.
 
         Raises on database/connection errors — those indicate system failure.
@@ -59,7 +60,7 @@ class AdvancedFilters:
 
     # ---------- Pre-load: market context ----------
 
-    def load_market_context(self, eval_date):
+    def load_market_context(self, eval_date: Any) -> None:
         with DatabaseContext("read") as cur:
             cur.execute(
                 """
@@ -127,7 +128,7 @@ class AdvancedFilters:
 
     # ---------- Per-candidate evaluation ----------
 
-    def evaluate_candidate(self, symbol, signal_date, entry_price, sector, industry):
+    def evaluate_candidate(self, symbol: str, signal_date: Any, entry_price: float, sector: str | None, industry: str | None) -> dict[str, Any]:
         """Run all advanced filters for one candidate.
 
         Returns dict with:

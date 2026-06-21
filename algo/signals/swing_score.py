@@ -25,7 +25,7 @@ class SwingTraderScore:
     W_SECTOR = 8
     W_MULTI_TF = 5
 
-    def __init__(self, config):
+    def __init__(self, config: Any) -> None:
         if config is None:
             raise ValueError("SwingTraderScore requires explicit config parameter (dependency injection)")
         self.config = config
@@ -34,7 +34,7 @@ class SwingTraderScore:
         self._signals = SignalComputer()
         self.scorer = SwingComponentScorer(config, self._signals)
 
-    def _with_cursor(self, operation, mode="read"):
+    def _with_cursor(self, operation: Any, mode: str = "read") -> Any:
         """Execute operation with a cursor via DatabaseContext."""
         try:
             with DatabaseContext(mode) as cur:
@@ -42,7 +42,7 @@ class SwingTraderScore:
         except (psycopg2.DatabaseError, psycopg2.OperationalError) as e:
             raise RuntimeError(f"Operation failed: {e}") from e
 
-    def _load_config_val(self, key: str, default):
+    def _load_config_val(self, key: str, default: Any) -> Any:
         """Load a config value, with fallback to default."""
         try:
             val = self.config.get(key)
@@ -55,7 +55,7 @@ class SwingTraderScore:
     def compute(
         self,
         symbol: str,
-        eval_date,
+        eval_date: Any,
         sector: str | None = None,
         industry: str | None = None,
     ) -> dict[str, Any]:

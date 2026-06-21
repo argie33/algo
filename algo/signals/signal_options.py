@@ -32,7 +32,16 @@ class SignalOptionsMixin:
             if not row or not row[0]:
                 return {"iv_rank": None, "signal": "neutral", "bonus_pts": 0.0}
 
-            current_iv, iv_high, iv_low = float(row[0]), float(row[1]), float(row[2])
+            # Validate all three IV values are present (fail-fast on incomplete data)
+            if row[1] is None or row[2] is None:
+                logger.warning(f"IV data incomplete for {symbol}: iv_high or iv_low is NULL")
+                return {"iv_rank": None, "signal": "neutral", "bonus_pts": 0.0}
+
+            try:
+                current_iv, iv_high, iv_low = float(row[0]), float(row[1]), float(row[2])
+            except (ValueError, TypeError) as e:
+                logger.error(f"IV conversion failed for {symbol}: {e}")
+                return {"iv_rank": None, "signal": "neutral", "bonus_pts": 0.0}
 
             # Avoid division by zero
             if iv_high == iv_low:

@@ -27,7 +27,7 @@ class SignalPatternsMixin:
     LOOKBACK_DAYS_DEFAULT = 60
     LOOKBACK_BARS_SHORT = 25
 
-    def _with_cursor(self, operation):
+    def _with_cursor(self, operation: Any) -> Any:
         """Execute an operation with a cursor via DatabaseContext."""
         try:
             with DatabaseContext("read") as cur:
@@ -58,7 +58,7 @@ class SignalPatternsMixin:
             logger.debug(f"Could not load signal pattern thresholds: {e} — using defaults")
         return thresholds
 
-    def base_detection(self, symbol: str, eval_date) -> dict[str, Any]:
+    def base_detection(self, symbol: str, eval_date: Any) -> dict[str, Any]:
         def _fetch_and_analyze(cur):
             cur.execute(
                 """
