@@ -208,8 +208,8 @@ module "lambda_layers" {
 
   project_name               = var.project_name
   environment                = var.environment
-  orchestrator_layer_enabled = true   # Built by GitHub Actions before Terraform Apply
-  api_layer_enabled          = true   # Built by GitHub Actions before Terraform Apply
+  orchestrator_layer_enabled = false  # Layers built but NOT published to AWS (would need separate publish step)
+  api_layer_enabled          = false  # Layers built but NOT published to AWS (would need separate publish step)
   common_tags                = local.common_tags
 }
 
@@ -308,7 +308,7 @@ module "services" {
   alert_smtp_from                        = var.alert_smtp_from
   task_execution_role_arn                = module.iam.ecs_task_execution_role_arn
   task_role_arn                          = module.iam.ecs_task_role_arn
-  api_lambda_layer_enabled               = true   # Built by GitHub Actions before Terraform Apply
+  api_lambda_layer_enabled               = false  # Layers built but NOT published to AWS (would need separate publish step)
   common_tags                            = local.common_tags
 }
 
