@@ -3,6 +3,8 @@
 Re-exports AlgoConfig and helper functions from main.py for backward compatibility.
 """
 
+from utils.db import DatabaseContext
+
 from .main import (
     AlgoConfig,
     get_alpaca_base_url,
@@ -20,6 +22,7 @@ from .main import (
 
 __all__ = [
     "AlgoConfig",
+    "DatabaseContext",
     "get_alpaca_base_url",
     "get_alpaca_timeout",
     "get_api_timeout",
