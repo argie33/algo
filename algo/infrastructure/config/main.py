@@ -46,17 +46,19 @@ class AlgoConfig:
     from ..config_schema import VALIDATION_SCHEMA
 
     # Default configuration values
+    # Format: (value, type, description, category) - category enables metadata-driven grouping
     DEFAULTS = {
         # Risk Management
-        "base_risk_pct": ("0.75", "float", "Base portfolio risk per trade"),
-        "max_position_size_pct": ("6.3", "float", "Maximum single position size"),
-        "max_positions": ("15", "int", "Maximum concurrent positions"),
-        "max_concentration_pct": ("50.0", "float", "Max concentration in top position"),
+        "base_risk_pct": ("0.75", "float", "Base portfolio risk per trade", "Risk Management"),
+        "max_position_size_pct": ("6.3", "float", "Maximum single position size", "Risk Management"),
+        "max_positions": ("15", "int", "Maximum concurrent positions", "Risk Management"),
+        "max_concentration_pct": ("50.0", "float", "Max concentration in top position", "Risk Management"),
         # Drawdown Defense
         "halt_drawdown_pct": (
             "-20.0",
             "float",
             "Portfolio drawdown % to halt trading (CB1)",
+            "Drawdown Defense",
         ),
         "risk_reduction_at_minus_5": ("0.75", "float", "Risk % at -5% drawdown"),
         "risk_reduction_at_minus_10": ("0.5", "float", "Risk % at -10% drawdown"),
@@ -707,6 +709,109 @@ class AlgoConfig:
         ),
     }
 
+    # Configuration category mappings (pattern-based categorization)
+    # Maps key patterns (substrings) to their category for UI grouping
+    CONFIG_CATEGORY_PATTERNS = [
+        ("drawdown", "Drawdown Defense"),
+        ("halt", "Drawdown Defense"),
+        ("risk_reduction", "Drawdown Defense"),
+        ("circuit", "Circuit Breakers"),
+        ("max_daily_loss", "Circuit Breakers"),
+        ("max_consecutive", "Circuit Breakers"),
+        ("min_win_rate", "Circuit Breakers"),
+        ("max_total_risk", "Circuit Breakers"),
+        ("max_weekly", "Circuit Breakers"),
+        ("daily_profit_cap", "Circuit Breakers"),
+        ("sector_drawdown", "Circuit Breakers"),
+        ("swing", "Swing Trader Scoring"),
+        ("vix", "Market Conditions"),
+        ("put_call", "Market Conditions"),
+        ("upvol", "Market Conditions"),
+        ("breadth", "Market Conditions"),
+        ("yield_curve", "Market Conditions"),
+        ("beta", "Market Conditions"),
+        ("max_distribution", "Market Conditions"),
+        ("require_stage", "Market Conditions"),
+        ("min_completeness", "Filter Thresholds"),
+        ("min_stock_price", "Filter Thresholds"),
+        ("min_signal", "Filter Thresholds"),
+        ("min_volume", "Filter Thresholds"),
+        ("min_avg_daily", "Filter Thresholds"),
+        ("require_stock_stage", "Filter Thresholds"),
+        ("max_stop_distance", "Filter Thresholds"),
+        ("max_positions_per", "Filter Thresholds"),
+        ("min_swing_score", "Filter Thresholds"),
+        ("max_total_invested", "Filter Thresholds"),
+        ("advanced_filters_grade", "Filter Thresholds"),
+        ("require_sma50", "Entry Rules (Minervini)"),
+        ("min_percent_from", "Entry Rules (Minervini)"),
+        ("max_percent_from", "Entry Rules (Minervini)"),
+        ("min_trend_template", "Entry Rules (Minervini)"),
+        ("max_signal_age", "Entry Quality Gates"),
+        ("min_close_quality", "Entry Quality Gates"),
+        ("min_breakout_volume", "Entry Quality Gates"),
+        ("require_weekly_stage", "Entry Quality Gates"),
+        ("min_rs_line", "Entry Quality Gates"),
+        ("max_rs_pct", "Entry Quality Gates"),
+        ("rs_slope_gate", "Entry Quality Gates"),
+        ("volume_decay_gate", "Entry Quality Gates"),
+        ("require_target_pullback", "Exit Rules"),
+        ("t1_target", "Exit Rules"),
+        ("t2_target", "Exit Rules"),
+        ("t3_target", "Exit Rules"),
+        ("imported_position", "Exit Rules"),
+        ("min_hold", "Exit Rules"),
+        ("max_hold", "Exit Rules"),
+        ("exit_on", "Exit Rules"),
+        ("use_chandelier", "Exit Rules"),
+        ("switch_to_21ema", "Exit Rules"),
+        ("eight_week_rule", "Exit Rules"),
+        ("chandelier_atr", "Exit Rules"),
+        ("move_be", "Exit Rules"),
+        ("re_engage", "Re-engagement"),
+        ("position_halt_flag", "Position Monitoring"),
+        ("max_reentries", "Position Monitoring"),
+        ("min_days_before_reentry", "Position Monitoring"),
+        ("earnings", "Economic & Earnings"),
+        ("halt_entries_before", "Economic & Earnings"),
+        ("block_days_before", "Economic & Earnings"),
+        ("min_price_history", "Fundamental Filters"),
+        ("min_daily_volume", "Fundamental Filters"),
+        ("max_spread", "Fundamental Filters"),
+        ("min_market_cap", "Fundamental Filters"),
+        ("min_float", "Fundamental Filters"),
+        ("max_short_interest", "Fundamental Filters"),
+        ("max_extension", "Advanced Filters"),
+        ("strong_sector", "Advanced Filters"),
+        ("var_percentile", "Risk Metrics"),
+        ("cvar_percentile", "Risk Metrics"),
+        ("stressed_var", "Risk Metrics"),
+        ("dashboard_grade", "Risk Metrics"),
+        ("execution_mode", "Execution Mode"),
+        ("alpaca_paper", "Execution Mode"),
+        ("max_trades_per_day", "Execution Mode"),
+        ("default_portfolio", "Execution Mode"),
+        ("enable_", "Feature Flags"),
+        ("verbose_", "Feature Flags"),
+        ("api_request", "Network Configuration"),
+        ("db_connection", "Network Configuration"),
+        ("failsafe", "Failsafe Configuration"),
+        ("base_risk", "Risk Management"),
+        ("max_position_size", "Risk Management"),
+        ("max_concentration", "Risk Management"),
+    ]
+
+    @classmethod
+    def get_config_category(cls, key: str) -> str:
+        """Get category for a config key based on pattern matching.
+
+        Returns first matching category pattern, or 'Other' if no match.
+        """
+        for pattern, category in cls.CONFIG_CATEGORY_PATTERNS:
+            if pattern in key:
+                return category
+        return "Other"
+
     def __init__(self):
         import time
 
@@ -797,6 +902,42 @@ class AlgoConfig:
 
             self._timeout_config = TimeoutConfig(self)
         return self._timeout_config
+
+    @property
+    def execution(self):
+        """Get ExecutionConfig specialist (lazy-loaded on first access).
+
+        Returns:
+            ExecutionConfig instance (cached after first access)
+
+        Usage:
+            config = get_config()
+            mode = config.execution.get_execution_mode()
+            all_exec = config.execution.get_execution_config()
+        """
+        if not hasattr(self, "_execution_config"):
+            from .execution_config import ExecutionConfig
+
+            self._execution_config = ExecutionConfig(self)
+        return self._execution_config
+
+    @property
+    def economic_stress(self):
+        """Get EconomicStressConfig specialist (lazy-loaded on first access).
+
+        Returns:
+            EconomicStressConfig instance (cached after first access)
+
+        Usage:
+            config = get_config()
+            hy_spreads = config.economic_stress.get_hy_spread_stress()
+            all_stress = config.economic_stress.get_all_stress_scores()
+        """
+        if not hasattr(self, "_economic_stress_config"):
+            from .economic_stress_config import EconomicStressConfig
+
+            self._economic_stress_config = EconomicStressConfig(self)
+        return self._economic_stress_config
 
     def _validate_schema_consistency(self):
         """Verify that VALIDATION_SCHEMA and DEFAULTS are in sync.
