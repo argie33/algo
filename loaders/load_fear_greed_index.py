@@ -14,6 +14,7 @@ from utils.infrastructure.timeout import ExecutionTimeout
 from utils.infrastructure.url_validator import validate_url
 from utils.optimal_loader import OptimalLoader
 
+
 logger = logging.getLogger(__name__)
 
 class FearGreedIndexLoader(OptimalLoader):
@@ -77,9 +78,15 @@ class FearGreedIndexLoader(OptimalLoader):
                 # Old: {"fear_and_greed": [{"x": ms_ts, "y": val, "rating": "..."}]}
                 raw = data.get("fear_and_greed")
                 if isinstance(raw, dict):
-                    entries = list(
-                        data.get("fear_and_greed_historical").get("data")
-                    )
+                    historical = data.get("fear_and_greed_historical")
+                    if historical is None:
+                        logger.warning("fear_and_greed_historical missing from CNN API response")
+                        continue
+                    historical_data = historical.get("data")
+                    if historical_data is None:
+                        logger.warning("fear_and_greed_historical.data missing from CNN API response")
+                        continue
+                    entries = list(historical_data)
                     score = raw.get("score") or raw.get("value")
                     if score is not None:
                         from datetime import datetime as _dt
