@@ -296,6 +296,14 @@ jobs:
         run: |
           mypy algo/ --ignore-missing-imports --show-error-codes
           mypy tools/ --ignore-missing-imports --show-error-codes
+      - name: Validate API response validation coverage
+        run: |
+          echo "Checking that dashboard endpoints have response validation..."
+          python scripts/validate_api_responses.py
+      - name: Validate endpoint contracts
+        run: |
+          echo "Checking that all contract endpoints are implemented..."
+          python scripts/validate_endpoint_contracts.py
 
   tests:
     runs-on: ubuntu-latest

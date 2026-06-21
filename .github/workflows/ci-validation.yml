@@ -26,7 +26,7 @@ jobs:
           pip install psycopg2-binary yfinance requests pandas scipy boto3 Flask pydantic
 
       - name: Run CI validation script (all modules)
-        run: python scripts/ci_validation_expanded.py
+        run: python scripts/ci_validation.py
 
       - name: Check syntax with ruff
         run: ruff check tools/ lambda/ algo/ loaders/ --select=E,F
