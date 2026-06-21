@@ -2,7 +2,6 @@
 
 import json
 import logging
-import statistics
 from datetime import date as _date_type
 from datetime import datetime, timedelta, timezone
 from decimal import ROUND_HALF_UP, Decimal
@@ -18,7 +17,7 @@ from algo.infrastructure.price_auditor import PriceAuditor
 from algo.infrastructure.reconciliation_analytics import ReconciliationAnalytics
 from algo.reporting import notify
 from utils.db import DatabaseContext
-from utils.trading import PositionStatus, TradeStatus
+from utils.trading import PositionStatus
 
 
 logger = logging.getLogger(__name__)
@@ -156,6 +155,20 @@ class DailyReconciliation:
                     except (ValueError, ZeroDivisionError, TypeError) as e:
                         logger.warning(f"Failed to send notification: {e}")
                     raise ValueError("Alpaca cash required for reconciliation - cannot proceed")
+
+                # CRITICAL: Validate cash is non-negative (indicates account in consistent state)
+                if cash < 0:
+                    logger.critical(f"Alpaca reported NEGATIVE cash: ${cash:,.2f} - account in corrupted state")
+                    try:
+                        notify(
+                            "critical",
+                            title="Account State Error",
+                            message=f"Alpaca account reports negative cash (${cash:,.2f}). "
+                            "Account may be in corrupted state. Halting trading until resolved.",
+                        )
+                    except (ValueError, ZeroDivisionError, TypeError) as e:
+                        logger.warning(f"Failed to send notification: {e}")
+                    raise ValueError(f"CRITICAL: Alpaca cash is negative (${cash:,.2f}) - account corrupted")
 
                 logger.info(f"   Portfolio Value: ${pv:,.2f}")
                 logger.info(f"   Cash: ${cash:,.2f}")
