@@ -95,11 +95,11 @@ data "archive_file" "rds_start_zip" {
   }
 }
 
-# EventBridge: Stop RDS at 1am ET (6am UTC) — after 9pm ET loaders, before 3am ET loaders
+# EventBridge: Stop RDS at 11pm ET (4am UTC next day) — after all evening loaders (until 5pm ET)
 resource "aws_cloudwatch_event_rule" "rds_stop" {
   name                = "${var.project_name}-rds-stop-${var.environment}"
-  description         = "Stop RDS at 1am ET (6am UTC) to save costs — after evening loaders"
-  schedule_expression = "cron(0 6 * * ? *)"
+  description         = "Stop RDS at 11pm ET (4am UTC) to save costs — after evening loaders complete"
+  schedule_expression = "cron(0 4 * * ? *)"
   tags                = var.common_tags
 }
 
@@ -117,11 +117,11 @@ resource "aws_lambda_permission" "rds_stop_eventbridge" {
   source_arn    = aws_cloudwatch_event_rule.rds_stop.arn
 }
 
-# EventBridge: Start RDS at 7am ET (11am UTC)
+# EventBridge: Start RDS at 2am ET (7am UTC) — before morning loaders at 3:25am ET
 resource "aws_cloudwatch_event_rule" "rds_start" {
   name                = "${var.project_name}-rds-start-${var.environment}"
-  description         = "Start RDS at 7am ET (11am UTC) before market open"
-  schedule_expression = "cron(0 11 * * ? *)"
+  description         = "Start RDS at 2am ET (7am UTC) — before morning pre-market loaders"
+  schedule_expression = "cron(0 7 * * ? *)"
   tags                = var.common_tags
 }
 
