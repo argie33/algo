@@ -794,12 +794,16 @@ class AlgoConfig:
         # Check that all DEFAULTS keys have corresponding VALIDATION_SCHEMA entries
         for key, (_default_value, default_type, _) in self.DEFAULTS.items():
             if key not in self.VALIDATION_SCHEMA:
-                errors.append(f"  {key}: in DEFAULTS but NOT in VALIDATION_SCHEMA (type: {default_type})")
+                errors.append(
+                    f"  {key}: in DEFAULTS but NOT in VALIDATION_SCHEMA (type: {default_type})"
+                )
             else:
                 schema_type, _, _, _, _ = self.VALIDATION_SCHEMA[key]
                 # Relaxed check: int/float can be interchanged in numeric contexts
                 if default_type != schema_type:
-                    if not ((default_type in ("int", "float")) and (schema_type in ("int", "float"))):
+                    if not (
+                        (default_type in ("int", "float")) and (schema_type in ("int", "float"))
+                    ):
                         errors.append(
                             f"  {key}: type mismatch - DEFAULTS has {default_type} but SCHEMA has {schema_type}"
                         )
@@ -808,9 +812,13 @@ class AlgoConfig:
         for key, (_schema_type, _, _, is_critical, _) in self.VALIDATION_SCHEMA.items():
             if key not in self.DEFAULTS:
                 if is_critical:
-                    errors.append(f"  {key}: CRITICAL in SCHEMA but NOT in DEFAULTS (must have a safe default)")
+                    errors.append(
+                        f"  {key}: CRITICAL in SCHEMA but NOT in DEFAULTS (must have a safe default)"
+                    )
                 else:
-                    warnings.append(f"  {key}: in SCHEMA but NOT in DEFAULTS (non-critical, will use schema default)")
+                    warnings.append(
+                        f"  {key}: in SCHEMA but NOT in DEFAULTS (non-critical, will use schema default)"
+                    )
 
         if errors:
             error_msg = (
@@ -823,7 +831,9 @@ class AlgoConfig:
             raise RuntimeError(error_msg)
 
         if warnings:
-            logger.warning("[AlgoConfig] Schema/defaults consistency warnings:\n" + "\n".join(warnings))
+            logger.warning(
+                "[AlgoConfig] Schema/defaults consistency warnings:\n" + "\n".join(warnings)
+            )
 
     def _load_defaults(self):
         """Load default configuration."""
@@ -843,7 +853,9 @@ class AlgoConfig:
             t_conn_start = time.time()
             with DatabaseContext("read", timeout=15) as cur:
                 t_conn_done = time.time()
-                logger.info(f"[AlgoConfig] database connection took {t_conn_done - t_conn_start:.2f}s")
+                logger.info(
+                    f"[AlgoConfig] database connection took {t_conn_done - t_conn_start:.2f}s"
+                )
 
                 cur.execute("SELECT key, value, value_type FROM algo_config")
                 rows = cur.fetchall()
@@ -874,7 +886,9 @@ class AlgoConfig:
                                     f"Admin must fix database value: {e}"
                                 )
                             else:
-                                logger.warning(f"Warning: Invalid config {key}={value}: {e}  -” using default")
+                                logger.warning(
+                                    f"Warning: Invalid config {key}={value}: {e}  -” using default"
+                                )
                                 self._sources[key] = "default_fallback"
 
                 if invalid_critical_values:
@@ -948,7 +962,9 @@ class AlgoConfig:
         """
         # Use validation schema if available; otherwise fall back to basic checks
         if key not in self.VALIDATION_SCHEMA:
-            logger.warning(f"[CONFIG VALIDATE] Key {key!r} not in validation schema  -” using basic checks")
+            logger.warning(
+                f"[CONFIG VALIDATE] Key {key!r} not in validation schema  -” using basic checks"
+            )
             return True
 
         schema_type, min_val, max_val, is_critical, fail_closed = self.VALIDATION_SCHEMA[key]
@@ -1023,7 +1039,13 @@ class AlgoConfig:
         errors = []
         warnings = []
 
-        for key, (_schema_type, min_val, max_val, is_critical, fail_closed) in self.VALIDATION_SCHEMA.items():
+        for key, (
+            _schema_type,
+            min_val,
+            max_val,
+            is_critical,
+            fail_closed,
+        ) in self.VALIDATION_SCHEMA.items():
             if not is_critical:
                 continue  # Skip non-critical params
 
@@ -1040,7 +1062,9 @@ class AlgoConfig:
             try:
                 f_val = float(current_value)
             except (ValueError, TypeError):
-                errors.append(f"  {key}: cannot parse value {current_value!r}. Safe default: {fail_closed}")
+                errors.append(
+                    f"  {key}: cannot parse value {current_value!r}. Safe default: {fail_closed}"
+                )
                 continue
 
             # Zero/near-zero (disables safety gate)
@@ -1053,9 +1077,13 @@ class AlgoConfig:
 
             # Out of range
             if min_val is not None and f_val < min_val:
-                errors.append(f"  {key} = {f_val}: below minimum {min_val}. Safe default: {fail_closed}")
+                errors.append(
+                    f"  {key} = {f_val}: below minimum {min_val}. Safe default: {fail_closed}"
+                )
             if max_val is not None and f_val > max_val:
-                errors.append(f"  {key} = {f_val}: above maximum {max_val}. Safe default: {fail_closed}")
+                errors.append(
+                    f"  {key} = {f_val}: above maximum {max_val}. Safe default: {fail_closed}"
+                )
 
         if errors:
             error_msg = (
@@ -1158,7 +1186,9 @@ class AlgoConfig:
             r_at_minus_20 = float(self._config["risk_reduction_at_minus_20"])
 
             if halt_dd >= 0:
-                logger.warning(f"Config: halt_drawdown_pct ({halt_dd}) should be negative (represents downside loss)")
+                logger.warning(
+                    f"Config: halt_drawdown_pct ({halt_dd}) should be negative (represents downside loss)"
+                )
 
             if not (r_at_minus_20 <= r_at_minus_15 <= r_at_minus_10 <= r_at_minus_5):
                 logger.warning(
@@ -1182,21 +1212,27 @@ class AlgoConfig:
             if max_stop <= 0:
                 logger.warning(f"Config: max_stop_distance_pct ({max_stop}) should be positive")
             if max_stop > 50:
-                logger.warning(f"Config: max_stop_distance_pct ({max_stop}) is very wide (typical range 5-20%)")
+                logger.warning(
+                    f"Config: max_stop_distance_pct ({max_stop}) is very wide (typical range 5-20%)"
+                )
 
             # Risk percentages: should be positive
             base_risk = float(self._config["base_risk_pct"])
             if base_risk <= 0:
                 logger.warning(f"Config: base_risk_pct ({base_risk}) should be positive")
             if base_risk > 5:
-                logger.warning(f"Config: base_risk_pct ({base_risk}) is very high (typical: 0.5-2%)")
+                logger.warning(
+                    f"Config: base_risk_pct ({base_risk}) is very high (typical: 0.5-2%)"
+                )
 
             # Daily/weekly loss caps should be positive
             daily_loss = float(self._config["max_daily_loss_pct"])
             weekly_loss = float(self._config["max_weekly_loss_pct"])
 
             if daily_loss <= 0 or weekly_loss <= 0:
-                logger.warning(f"Config: Max loss caps should be positive (daily={daily_loss}, weekly={weekly_loss})")
+                logger.warning(
+                    f"Config: Max loss caps should be positive (daily={daily_loss}, weekly={weekly_loss})"
+                )
 
             if daily_loss >= weekly_loss:
                 logger.warning(
@@ -1210,7 +1246,12 @@ class AlgoConfig:
             min_swing_score = float(self._config["min_swing_score"])
             min_stock_price = float(self._config["min_stock_price"])
 
-            if min_completeness < 0 or min_signal_quality < 0 or min_swing_score < 0 or min_stock_price < 0:
+            if (
+                min_completeness < 0
+                or min_signal_quality < 0
+                or min_swing_score < 0
+                or min_stock_price < 0
+            ):
                 logger.warning(
                     f"Config: Score/price thresholds should be non-negative "
                     f"(completeness={min_completeness}, signal_quality={min_signal_quality}, "
@@ -1232,7 +1273,13 @@ class AlgoConfig:
         Format: {key: {"value": X, "min": Y, "max": Z, "source": "database"}}
         """
         summary = {}
-        for key, (_schema_type, min_val, max_val, is_critical, fail_closed) in self.VALIDATION_SCHEMA.items():
+        for key, (
+            _schema_type,
+            min_val,
+            max_val,
+            is_critical,
+            fail_closed,
+        ) in self.VALIDATION_SCHEMA.items():
             if is_critical:
                 summary[key] = {
                     "value": self._config.get(key),
@@ -1271,7 +1318,9 @@ class AlgoConfig:
             )
 
         # Warn if any critical thresholds are using defaults or fail-closed
-        problematic = [k for k, info in summary.items() if info["source"] in ("default", "fail_closed_default")]
+        problematic = [
+            k for k, info in summary.items() if info["source"] in ("default", "fail_closed_default")
+        ]
         if problematic:
             logger.warning(
                 f"[AlgoConfig] ALERT: {len(problematic)} critical thresholds NOT loaded from database "
@@ -1315,7 +1364,9 @@ class AlgoConfig:
         if key in self.VALIDATION_SCHEMA:
             expected_type = self.VALIDATION_SCHEMA[key][0]
             is_critical = self.VALIDATION_SCHEMA[key][3]
-            fail_closed_value = self.VALIDATION_SCHEMA[key][4] if len(self.VALIDATION_SCHEMA[key]) > 4 else None
+            fail_closed_value = (
+                self.VALIDATION_SCHEMA[key][4] if len(self.VALIDATION_SCHEMA[key]) > 4 else None
+            )
 
             # Check if value has correct type
             type_ok = self._check_type(value, expected_type)
@@ -1474,7 +1525,9 @@ class AlgoConfig:
                 )
                 return False
             else:
-                logger.info(f"[CONFIG SET] {key} = {final_value} (was {old_value}), actor={changed_by}")
+                logger.info(
+                    f"[CONFIG SET] {key} = {final_value} (was {old_value}), actor={changed_by}"
+                )
                 return True
 
         except (psycopg2.DatabaseError, psycopg2.OperationalError) as e:
@@ -1573,7 +1626,8 @@ class AlgoConfig:
     def get_corporate_actions_config(self) -> dict[str, Any]:
         """Deprecated: Use config.data_patrol.get_corporate_actions_config() instead."""
         logger.warning(
-            "get_corporate_actions_config() is deprecated. Use config.data_patrol.get_corporate_actions_config() instead."
+            "get_corporate_actions_config() is deprecated. "
+            "Use config.data_patrol.get_corporate_actions_config() instead."
         )
         return cast(dict[str, Any], self.data_patrol.get_corporate_actions_config())
 
