@@ -308,7 +308,7 @@ class AdvancedFilters:
                 hard_fail = hard_fail or f"Extension risk assessment failed: {str(e)[:40]}"
 
             try:
-                ep_pts = self._earnings_proximity_score(days_to_earnings, block_window)
+                ep_pts = self._earnings_proximity_score(days_to_earnings, self.block_days_before_earnings)
                 components["earnings_proximity_pts"] = round(ep_pts, 1)
                 subscores["risk"] += ep_pts
             except ValueError as e:
