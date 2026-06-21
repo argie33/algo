@@ -35,6 +35,7 @@ from ..utilities import (
     Y,
     normalize_positions_data,
 )
+from .data_extractors import safe_get_field
 
 
 @register_panel(
@@ -48,7 +49,7 @@ def panel_positions(pos, compact=False, trades=None, extended=False):
     # Issue 3.1 FIX: Use unified normalization function
     pos_items, pos_timestamp, has_err = normalize_positions_data(pos)
     if has_err:
-        err_msg = pos.get("_error") if isinstance(pos, dict) else None
+        err_msg = safe_get_field(pos, "_error") if isinstance(pos, dict) else None
         if err_msg is None:
             err_msg = "Unknown error"
         return Panel(
@@ -100,25 +101,25 @@ def panel_positions(pos, compact=False, trades=None, extended=False):
             invalid_count += 1
             logger.error(f"panel_positions: invalid position (not a dict): {type(p).__name__}")
             continue
-        entry = safe_float(p.get("avg_entry_price"), default=None)
-        price = safe_float(p.get("current_price"), default=None)
-        pval = safe_float(p.get("position_value"), default=None)
-        stop = safe_float(p.get("stop_loss_price"), default=None)
-        safe_float(p.get("target_1_price"), default=None)
-        pnl = safe_float(p.get("unrealized_pnl_pct"), default=None)
-        days = p.get("days_since_entry", "--")
-        stg = p.get("weinstein_stage")
-        swg = p.get("swing_score")
-        sec = (p.get("sector", "--"))[:12]
-        rmul = float(p.get("r_multiple")) if p.get("r_multiple") is not None else None
-        dist = float(p.get("distance_to_stop_pct")) if p.get("distance_to_stop_pct") is not None else None
-        t1pct = float(p.get("distance_to_t1_pct")) if p.get("distance_to_t1_pct") is not None else None
+        entry = safe_float(safe_get_field(p, "avg_entry_price"), default=None)
+        price = safe_float(safe_get_field(p, "current_price"), default=None)
+        pval = safe_float(safe_get_field(p, "position_value"), default=None)
+        stop = safe_float(safe_get_field(p, "stop_loss_price"), default=None)
+        safe_float(safe_get_field(p, "target_1_price"), default=None)
+        pnl = safe_float(safe_get_field(p, "unrealized_pnl_pct"), default=None)
+        days = safe_get_field(p, "days_since_entry", "--")
+        stg = safe_get_field(p, "weinstein_stage")
+        swg = safe_get_field(p, "swing_score")
+        sec = (safe_get_field(p, "sector", "--"))[:12]
+        rmul = float(safe_get_field(p, "r_multiple")) if safe_get_field(p, "r_multiple") is not None else None
+        dist = float(safe_get_field(p, "distance_to_stop_pct")) if safe_get_field(p, "distance_to_stop_pct") is not None else None
+        t1pct = float(safe_get_field(p, "distance_to_t1_pct")) if safe_get_field(p, "distance_to_t1_pct") is not None else None
         pc = G if (pnl is not None and pnl >= 0) else R
         rc = G if (rmul is not None and rmul >= 0) else R
         dc = R if (dist is not None and dist < 3) else (Y if (dist is not None and dist < 5) else "white")
-        name = (p.get("company_name", "") or p.get("name", "") or "")[:16]
+        name = (safe_get_field(p, "company_name", "") or safe_get_field(p, "name", "") or "")[:16]
         row = [
-            p.get("symbol", "--"),
+            safe_get_field(p, "symbol", "--"),
             Text(name, style="dim"),
             fmt_money_short(pval) if pval is not None else "--",
             f"${entry:.2f}" if entry is not None else "--",
