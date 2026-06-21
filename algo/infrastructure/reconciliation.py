@@ -1266,6 +1266,8 @@ class DailyReconciliation:
                         "WHERE symbol = %s AND resolved = FALSE",
                         (sym,),
                     )
+
+                    cur.execute("RELEASE SAVEPOINT retry_sp")
                     retried += 1
                     logger.info(f"  Retried import of {sym} successfully")
                 except (psycopg2.DatabaseError, psycopg2.OperationalError) as retry_e:
