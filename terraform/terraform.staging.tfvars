@@ -60,9 +60,9 @@ orchestrator_log_level = "debug"
 alpaca_paper_trading = true
 alpaca_api_base_url  = "https://paper-api.alpaca.markets"
 
-# ---- DATABASE: SAME SIZE AS DEV ----
+# ---- DATABASE: MINIMAL STAGING SIZE ----
 rds_instance_class          = "db.t4g.micro"
-rds_backup_retention_period = 1
+rds_backup_retention_period = 1  # Minimum retention: staging data is ephemeral
 rds_multi_az                = false
 
 # ---- AUTH: DISABLED ----

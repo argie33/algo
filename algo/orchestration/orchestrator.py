@@ -858,7 +858,7 @@ class Orchestrator:
                     "key": "phase1_degraded_mode",
                     "degraded": degraded_status,
                     "timestamp": datetime.now(timezone.utc).isoformat(),
-                    "reason": result.summary if degraded_status else None,
+                    "reason": result.error if degraded_status else None,
                     "ttl": int(time.time()) + 3600,  # 1-hour TTL
                 }
             )
@@ -869,8 +869,8 @@ class Orchestrator:
         try:
             degraded_status = result.status == "degraded"
             if degraded_status:
-                logger.info(f"[DEGRADED_MODE] Phase 1 returned degraded status: {result.summary}")
-                self._set_halt_flag(f"Phase 1 degraded: {result.summary}")
+                logger.info(f"[DEGRADED_MODE] Phase 1 returned degraded status: {result.error}")
+                self._set_halt_flag(f"Phase 1 degraded: {result.error}")
             elif result.status == "ok":
                 self._clear_halt_flag(f"Phase 1 verified data is fresh at {datetime.now(timezone.utc).isoformat()}")
         except (ValueError, KeyError, AttributeError) as e:
@@ -1044,10 +1044,12 @@ class Orchestrator:
     def _executor_phase_6(self, executor=None, **kwargs):
         """Executor wrapper for Phase 6: Exit Execution.
 
-        PHASE DEPENDENCY FIX: Now passes executor so phase can fetch validated data
-        from Phase 3 and 5 instead of relying on instance attributes.
+        PHASE DEPENDENCY FIX: Fetches validated data from Phase 3 and 5.
         """
         from algo.orchestrator.phase6_exit_execution import run as run_phase6
+
+        position_recs = executor.get_phase_data(3, "recommendations", []) if executor else []
+        exposure_actions = executor.get_phase_data(5, "actions", []) if executor else []
 
         result = run_phase6(
             self.config,
@@ -1056,25 +1058,27 @@ class Orchestrator:
             self.alerts,
             self.verbose,
             self.log_phase_result,
-            executor=executor,
+            position_recs,
+            exposure_actions,
         )
         return result
 
     def _executor_phase_7(self, executor=None, **kwargs):
         """Executor wrapper for Phase 7: Signal Generation.
 
-        PHASE DEPENDENCY FIX: Now passes executor so phase can fetch validated data
-        from Phase 5 instead of relying on instance attributes.
+        PHASE DEPENDENCY FIX: Fetches validated data from Phase 5.
         """
         from algo.orchestrator.phase7_signal_generation import run as run_phase7
+
+        exposure_constraints = executor.get_phase_data(5, "constraints") if executor else None
 
         result = run_phase7(
             self.run_date,
             self.dry_run,
             self.verbose,
             self.log_phase_result,
+            exposure_constraints=exposure_constraints,
             config=self.config,
-            executor=executor,
         )
         return result
 
