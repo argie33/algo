@@ -175,7 +175,9 @@ class DailyReconciliation:
 
                 # 1b3. Check for trades pending Phase 7 price reconciliation
                 pending_result = self.check_pending_reconciliations(cur)
-                if pending_result.get("pending_count", 0) > 0:
+                if "pending_count" not in pending_result:
+                    raise RuntimeError("check_pending_reconciliations() returned dict without pending_count key")
+                if pending_result["pending_count"] > 0:
                     logger.info("\n1b3. Pending Reconciliations:")
                     logger.info(f"   {pending_result['message']}")
                     if pending_result.get("stuck_count", 0) > 0:
@@ -1605,9 +1607,12 @@ class DailyReconciliation:
             # Check each order against our DB records
             mismatches = []
             for order in orders:
-                symbol = order.get("symbol")
-                alpaca_filled_qty = float(order.get("filled_qty", 0))
-                order_status = order.get("status")
+                if "symbol" not in order or "filled_qty" not in order or "status" not in order:
+                    logger.warning(f"Order from Alpaca missing required fields: {order}")
+                    continue
+                symbol = order["symbol"]
+                alpaca_filled_qty = float(order["filled_qty"])
+                order_status = order["status"]
 
                 if not symbol or alpaca_filled_qty <= 0:
                     continue
