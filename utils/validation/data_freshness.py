@@ -140,6 +140,36 @@ class FreshnessValidator:
         age = reference_time - last_update
         max_age = timedelta(hours=self.max_age_hours[data_name])
 
+        # TRADING DAY AWARENESS: For price_data on non-trading days, allow older data
+        # If it's a weekend/holiday and data is from last trading day, that's fresh enough
+        if "price" in data_name.lower():
+            try:
+                from algo.infrastructure import MarketCalendar
+
+                ref_date = reference_time.date()
+                update_date = last_update.date()
+
+                # If reference_time is NOT a trading day (e.g., Saturday)
+                # but data is from the most recent trading day, allow it
+                if not MarketCalendar.is_trading_day(ref_date):
+                    # Find the last trading day before reference_time
+                    check_date = ref_date
+                    for _ in range(10):  # Check up to 10 days back for last trading day
+                        check_date = check_date - timedelta(days=1)
+                        if MarketCalendar.is_trading_day(check_date):
+                            # Found last trading day
+                            if update_date == check_date:
+                                # Data is from last trading day - it's fresh!
+                                age_hours = age.total_seconds() / 3600
+                                logger.debug(
+                                    f"[FRESHNESS_OK] {data_name}: {age_hours:.2f}h old "
+                                    f"(from last trading day {update_date}, threshold: {self.max_age_hours[data_name]}h)"
+                                )
+                                return True
+                            break
+            except Exception as e:
+                logger.debug(f"Could not check trading day for {data_name}: {e}. Using strict freshness check.")
+
         if age > max_age:
             raise StaleDataError(
                 data_name=data_name,
