@@ -311,3 +311,82 @@ class TradeAuditLogger:
                 f"Cannot compute exit rule distribution. Database error: {e}. "
                 f"Check database connectivity and exit_rules table schema."
             ) from e
+
+    def log_portfolio_snapshot_audit(
+        self,
+        snapshot_date,
+        total_portfolio_value: float,
+        total_cash: float,
+        position_count: int,
+        unrealized_pnl_total: float,
+        unrealized_pnl_pct: float,
+    ) -> None:
+        """Log portfolio snapshot to audit trail for traceability.
+
+        Tracks: who created/updated snapshot, when, with what values.
+        """
+        try:
+            audit_msg = (
+                f"Portfolio snapshot: {snapshot_date} | "
+                f"Value: ${total_portfolio_value:,.2f} | "
+                f"Cash: ${total_cash:,.2f} | "
+                f"Positions: {position_count} | "
+                f"P&L: ${unrealized_pnl_total:,.2f} ({unrealized_pnl_pct:+.2f}%)"
+            )
+            logger.info(f"[AUDIT] {audit_msg}")
+
+            with DatabaseContext("write") as cur:
+                cur.execute(
+                    """
+                    INSERT INTO algo_audit_log (
+                        operation_type, entity_type, entity_id, actor,
+                        operation_details, created_at
+                    ) VALUES (%s, %s, %s, %s, %s, CURRENT_TIMESTAMP)
+                    """,
+                    (
+                        "PORTFOLIO_SNAPSHOT",
+                        "PORTFOLIO",
+                        str(snapshot_date),
+                        "reconciliation",
+                        audit_msg,
+                    ),
+                )
+        except (psycopg2.DatabaseError, psycopg2.OperationalError) as e:
+            logger.warning(f"Portfolio snapshot audit log failed: {e}")
+
+    def log_position_reconciliation_audit(
+        self,
+        symbol: str,
+        action: str,
+        quantity_before: int,
+        quantity_after: int,
+        reason: str,
+    ) -> None:
+        """Log position reconciliation corrections for audit trail."""
+        try:
+            audit_msg = (
+                f"Position {action}: {symbol} | "
+                f"Before: {quantity_before} | "
+                f"After: {quantity_after} | "
+                f"Reason: {reason}"
+            )
+            logger.info(f"[AUDIT] {audit_msg}")
+
+            with DatabaseContext("write") as cur:
+                cur.execute(
+                    """
+                    INSERT INTO algo_audit_log (
+                        operation_type, entity_type, entity_id, actor,
+                        operation_details, created_at
+                    ) VALUES (%s, %s, %s, %s, %s, CURRENT_TIMESTAMP)
+                    """,
+                    (
+                        "POSITION_RECONCILIATION",
+                        "POSITION",
+                        symbol,
+                        "reconciliation",
+                        audit_msg,
+                    ),
+                )
+        except (psycopg2.DatabaseError, psycopg2.OperationalError) as e:
+            logger.warning(f"Position reconciliation audit log failed: {e}")
