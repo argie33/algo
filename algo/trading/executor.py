@@ -29,6 +29,7 @@ from algo.trading.exceptions import (
     PretradeCheckFailedError,
     TradingError,
 )
+from algo.trading.executor_entry_handler import EntryHandler
 from config.api_endpoints import get_alpaca_base_url
 from config.credential_manager import get_alpaca_credentials
 from utils.db import DatabaseContext, OptimisticLockRetry
@@ -145,6 +146,9 @@ class TradeExecutor:
         from algo.trading.trade_validator import TradeValidator
 
         self.validator = TradeValidator(config, self.pretrade)
+
+        # Initialize entry handler for focused entry execution logic
+        self.entry_handler = EntryHandler(self)
 
         # Get execution mode from config (supports both dict and AlgoConfig objects)
         if "execution_mode" not in config or not config["execution_mode"]:
