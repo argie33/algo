@@ -102,56 +102,56 @@ class DailyReconciliation:
             logger.info(f"{'=' * 70}\n")
 
             # 1. Fetch Alpaca account (required - no fallback to stale DB data)
-            account_data = self._fetch_account()
-            if not account_data:
-                logger.critical("Broker account fetch failed - reconciliation cannot proceed without live account data")
+            alpaca_data = self._fetch_alpaca_account()
+            if not alpaca_data:
+                logger.critical("Alpaca account fetch failed - reconciliation cannot proceed without live account data")
                 try:
                     notify(
                         "critical",
                         title="Reconciliation Halted",
-                        message="Broker unavailable. Reconciliation requires live account data - cannot use stale DB cache.",
+                        message="Alpaca unavailable. Reconciliation requires live account data - cannot use stale DB cache.",
                     )
                 except (ValueError, ZeroDivisionError, TypeError) as e:
                     logger.warning(f"Failed to send notification: {e}")
                 raise ValueError(
-                    "Broker account data required for reconciliation - cannot proceed with DB-only fallback"
+                    "Alpaca account data required for reconciliation - cannot proceed with DB-only fallback"
                 )
             else:
-                logger.info("1. Broker Account:")
-                pv = account_data.get("portfolio_value")
-                cash = account_data.get("cash")
-                equity = account_data.get("equity")
+                logger.info("1. Alpaca Account:")
+                pv = alpaca_data.get("portfolio_value")
+                cash = alpaca_data.get("cash")
+                equity = alpaca_data.get("equity")
 
                 # Validate critical fields are present - fail immediately, not silently
                 if pv is None:
                     logger.critical(
-                        "Broker portfolio_value is missing - reconciliation cannot proceed without live portfolio value"
+                        "Alpaca portfolio_value is missing - reconciliation cannot proceed without live portfolio value"
                     )
                     try:
                         notify(
                             "critical",
                             title="Reconciliation Halted",
-                            message="Broker portfolio_value missing - reconciliation requires live portfolio value for drawdown limits. Cannot use stale DB cache.",
+                            message="Alpaca portfolio_value missing - reconciliation requires live portfolio value for drawdown limits. Cannot use stale DB cache.",
                         )
                     except (ValueError, ZeroDivisionError, TypeError) as e:
                         logger.warning(f"Failed to send notification: {e}")
-                    raise ValueError("Broker portfolio_value required for reconciliation - cannot proceed")
+                    raise ValueError("Alpaca portfolio_value required for reconciliation - cannot proceed")
 
                 if cash is None:
-                    logger.critical("Broker cash is missing - reconciliation cannot proceed without live cash value")
+                    logger.critical("Alpaca cash is missing - reconciliation cannot proceed without live cash value")
                     try:
                         notify(
                             "critical",
                             title="Reconciliation Halted",
-                            message="Broker cash missing - reconciliation requires live cash value for position sizing. Cannot use stale DB cache.",
+                            message="Alpaca cash missing - reconciliation requires live cash value for position sizing. Cannot use stale DB cache.",
                         )
                     except (ValueError, ZeroDivisionError, TypeError) as e:
                         logger.warning(f"Failed to send notification: {e}")
-                    raise ValueError("Broker cash required for reconciliation - cannot proceed")
+                    raise ValueError("Alpaca cash required for reconciliation - cannot proceed")
 
                 # CRITICAL: Validate cash is non-negative (indicates account in consistent state)
                 if cash < 0:
-                    logger.critical(f"Broker reported NEGATIVE cash: ${cash:,.2f} - account in corrupted state")
+                    logger.critical(f"Alpaca reported NEGATIVE cash: ${cash:,.2f} - account in corrupted state")
                     try:
                         notify(
                             "critical",
@@ -161,21 +161,21 @@ class DailyReconciliation:
                         )
                     except (ValueError, ZeroDivisionError, TypeError) as e:
                         logger.warning(f"Failed to send notification: {e}")
-                    raise ValueError(f"CRITICAL: Broker cash is negative (${cash:,.2f}) - account corrupted")
+                    raise ValueError(f"CRITICAL: Alpaca cash is negative (${cash:,.2f}) - account corrupted")
 
                 logger.info(f"   Portfolio Value: ${pv:,.2f}")
                 logger.info(f"   Cash: ${cash:,.2f}")
                 logger.info(f"   Equity: ${equity:,.2f}" if equity is not None else "   Equity: UNAVAILABLE")
 
             with DatabaseContext("write") as cur:
-                # 1b. Sync broker positions into our DB (imports any external positions)
-                sync_result = self.sync_positions(cur)
+                # 1b. Sync Alpaca positions into our DB (imports any external positions)
+                sync_result = self.sync_alpaca_positions(cur)
                 logger.info("\n1b. Position Sync:")
                 logger.info(f"   {sync_result['message']}")
                 if sync_result.get("orphan_symbols"):
                     logger.info(f"   Orphans flagged: {', '.join(sync_result['orphan_symbols'][:5])}")
 
-                # 1b2. Reconcile actual fill prices with DB exit records
+                # 1b2. Reconcile actual Alpaca fill prices with DB exit records
                 fill_result = self.reconcile_exit_fills(cur, reconcile_date)
                 logger.info("\n1b2. Exit Fill Reconciliation:")
                 logger.info(f"   {fill_result['message']}")
@@ -263,26 +263,26 @@ class DailyReconciliation:
                 unrealized_pnl_breakeven_count = analysis["breakeven_count"]
 
                 # 3. Calculate metrics
-                # Values already validated at initial broker fetch; keep as Decimal for precision
-                # Use broker's authoritative portfolio_value for the snapshot (includes live prices).
-                # Our DB position_value sum may lag - Broker is the ground truth for drawdown math.
+                # Values already validated at initial Alpaca fetch; keep as Decimal for precision
+                # Use Alpaca's authoritative portfolio_value for the snapshot (includes live prices).
+                # Our DB position_value sum may lag - Alpaca is the ground truth for drawdown math.
                 from decimal import Decimal
 
                 cash_dec = Decimal(str(cash))
                 alpaca_portfolio_value_dec = Decimal(str(pv))
                 if alpaca_portfolio_value_dec <= 0:
                     logger.critical(
-                        "Broker portfolio_value is zero/negative - cannot proceed with drawdown calculations. Halting."
+                        "Alpaca portfolio_value is zero/negative - cannot proceed with drawdown calculations. Halting."
                     )
                     try:
                         notify(
                             "critical",
                             title="Reconciliation Halted",
-                            message="Broker portfolio_value zero/negative - reconciliation requires positive portfolio value. Cannot use stale DB cache.",
+                            message="Alpaca portfolio_value zero/negative - reconciliation requires positive portfolio value. Cannot use stale DB cache.",
                         )
                     except (ValueError, ZeroDivisionError, TypeError) as e:
                         logger.warning(f"Failed to send notification: {e}")
-                    raise ValueError("Broker portfolio_value must be positive for reconciliation - cannot proceed")
+                    raise ValueError("Alpaca portfolio_value must be positive for reconciliation - cannot proceed")
 
                 # DB-computed total (kept for drift reporting)
                 from decimal import Decimal
@@ -701,7 +701,7 @@ class DailyReconciliation:
         """Audit for trades with estimated exit prices (stub - returns empty result)."""
         return {"stale_count": 0, "stale_symbols": [], "details": {}}
 
-    def sync_positions(self, cur):
+    def sync_alpaca_positions(self, cur):
         """Sync broker positions via BrokerAdapter."""
         return self.broker.sync_positions(cur)
 
@@ -1109,7 +1109,7 @@ class DailyReconciliation:
             logger.warning(f"Failed to check pending reconciliations: {e}")
             return {"pending_count": 0, "message": f"Error: {e}"}
 
-    def _fetch_account(self):
+    def _fetch_alpaca_account(self):
         """Fetch account data from broker via BrokerAdapter."""
         return self.broker.fetch_account()
 
@@ -1180,17 +1180,17 @@ class DailyReconciliation:
 
         raise ValueError("Cannot determine initial capital: Alpaca history unavailable and no database snapshots found")
 
-    def validate_pnl(self, broker_equity: float, local_equity: float) -> dict:
+    def validate_pnl(self, alpaca_equity: float, local_equity: float) -> dict:
         """Validate that local P&L matches Alpaca P&L within tolerance.
 
         Args:
-            broker_equity: Equity reported by Alpaca
+            alpaca_equity: Equity reported by Alpaca
             local_equity: Equity calculated from local positions and cash
 
         Returns:
             Dict with validation results: {
                 'valid': bool,
-                'broker_equity': float,
+                'alpaca_equity': float,
                 'local_equity': float,
                 'variance_pct': float,
                 'variance_dollars': float,
@@ -1198,10 +1198,10 @@ class DailyReconciliation:
                 'message': str
             }
         """
-        if broker_equity is None or local_equity is None:
+        if alpaca_equity is None or local_equity is None:
             return {
                 "valid": False,
-                "broker_equity": broker_equity,
+                "alpaca_equity": alpaca_equity,
                 "local_equity": local_equity,
                 "variance_pct": None,
                 "variance_dollars": None,
@@ -1209,10 +1209,10 @@ class DailyReconciliation:
                 "message": "Cannot validate P&L: missing Alpaca or local equity data",
             }
 
-        if broker_equity <= 0 or local_equity <= 0:
+        if alpaca_equity <= 0 or local_equity <= 0:
             return {
                 "valid": False,
-                "broker_equity": broker_equity,
+                "alpaca_equity": alpaca_equity,
                 "local_equity": local_equity,
                 "variance_pct": None,
                 "variance_dollars": None,
@@ -1220,27 +1220,27 @@ class DailyReconciliation:
                 "message": "Cannot validate P&L: equity values must be positive",
             }
 
-        variance_dollars = broker_equity - local_equity
-        variance_pct = (variance_dollars / broker_equity) * 100.0 if broker_equity > 0 else 0.0
+        variance_dollars = alpaca_equity - local_equity
+        variance_pct = (variance_dollars / alpaca_equity) * 100.0 if alpaca_equity > 0 else 0.0
 
         threshold = 0.1  # 0.1% tolerance
 
         if abs(variance_pct) <= threshold:
             status = "ok"
-            message = f"P&L validated: Alpaca ${broker_equity:,.2f} vs Local ${local_equity:,.2f} (variance {variance_pct:+.3f}%)"
+            message = f"P&L validated: Alpaca ${alpaca_equity:,.2f} vs Local ${local_equity:,.2f} (variance {variance_pct:+.3f}%)"
             valid = True
         elif abs(variance_pct) <= 1.0:
             status = "alert"
-            message = f"P&L variance ALERT: Alpaca ${broker_equity:,.2f} vs Local ${local_equity:,.2f} (variance {variance_pct:+.3f}%, ${variance_dollars:+,.2f})"
+            message = f"P&L variance ALERT: Alpaca ${alpaca_equity:,.2f} vs Local ${local_equity:,.2f} (variance {variance_pct:+.3f}%, ${variance_dollars:+,.2f})"
             valid = False
         else:
             status = "critical"
-            message = f"P&L MISMATCH CRITICAL: Alpaca ${broker_equity:,.2f} vs Local ${local_equity:,.2f} (variance {variance_pct:+.3f}%, ${variance_dollars:+,.2f}) - verify position prices and trade exit prices"
+            message = f"P&L MISMATCH CRITICAL: Alpaca ${alpaca_equity:,.2f} vs Local ${local_equity:,.2f} (variance {variance_pct:+.3f}%, ${variance_dollars:+,.2f}) - verify position prices and trade exit prices"
             valid = False
 
         return {
             "valid": valid,
-            "broker_equity": broker_equity,
+            "alpaca_equity": alpaca_equity,
             "local_equity": local_equity,
             "variance_pct": variance_pct,
             "variance_dollars": variance_dollars,
