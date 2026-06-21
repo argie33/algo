@@ -35,7 +35,6 @@ from algo.orchestrator.phase_result import PhaseResult
 from algo.risk import LiquidityChecks
 from algo.trading import PositionSizer, PreTradeChecks, TradeExecutor
 from utils.db.context import DatabaseContext
-from utils.safe_data_conversion import safe_float
 
 
 logger = logging.getLogger(__name__)
@@ -218,9 +217,9 @@ def _batch_fetch_technical_data(
                 result[symbol] = cast(
                     dict[str, float | None],
                     {
-                        "atr": safe_float(atr, default=0.0, context="atr") if atr else None,
-                        "sma_50": safe_float(sma_50, default=0.0, context="sma_50") if sma_50 else None,
-                        "close": safe_float(close, default=0.0, context="close") if close else None,
+                        "atr": atr if atr else None,
+                        "sma_50": sma_50 if sma_50 else None,
+                        "close": close if close else None,
                     },
                 )
 
@@ -243,23 +242,23 @@ def run(
 
     phase_start = time.time()
 
-    logger.info("[PHASE 6] Starting entry execution")
+    logger.info("[PHASE 8] Starting entry execution")
 
     if not qualified_trades:
-        logger.info("[PHASE 6] No qualified trades from Phase 5")
+        logger.info("[PHASE 8] No qualified trades from Phase 5")
 
-        log_phase_result_fn(6, "entry_execution", "success", "No qualified signals")
+        log_phase_result_fn(8, "entry_execution", "success", "No qualified signals")
 
-        return PhaseResult(6, "entry_execution", "ok", {"entered": 0}, False, "No signals to execute")
+        return PhaseResult(8, "entry_execution", "ok", {"entered": 0}, False, "No signals to execute")
 
     # Halt flag check before any trades
 
     if check_halt_flag and check_halt_flag():
-        logger.warning("[PHASE 6] Halt flag set — skipping all entries")
+        logger.warning("[PHASE 8] Halt flag set — skipping all entries")
 
-        log_phase_result_fn(6, "entry_execution", "halt", "Halt flag active")
+        log_phase_result_fn(8, "entry_execution", "halt", "Halt flag active")
 
-        return PhaseResult(6, "entry_execution", "halted", {"entered": 0}, True, "Halt flag active")
+        return PhaseResult(8, "entry_execution", "halted", {"entered": 0}, True, "Halt flag active")
 
     # CRITICAL: Validate exposure constraints (fail-fast)
     if not exposure_constraints:
@@ -268,8 +267,8 @@ def run(
             "Phase 5 (Exposure Policy) must produce exposure_constraints before Phase 6 executes."
         )
         logger.critical(msg)
-        log_phase_result_fn(6, "entry_execution", "halt", msg)
-        return PhaseResult(6, "entry_execution", "halted", {"entered": 0}, True, msg)
+        log_phase_result_fn(8, "entry_execution", "halt", msg)
+        return PhaseResult(8, "entry_execution", "halted", {"entered": 0}, True, msg)
 
     required_constraint_keys = ["halt_new_entries", "max_new_positions_today", "max_concentration_pct"]
     missing_keys = [k for k in required_constraint_keys if k not in exposure_constraints]
@@ -279,8 +278,8 @@ def run(
             f"Phase 5 output must include: {required_constraint_keys}"
         )
         logger.critical(msg)
-        log_phase_result_fn(6, "entry_execution", "halt", msg)
-        return PhaseResult(6, "entry_execution", "halted", {"entered": 0}, True, msg)
+        log_phase_result_fn(8, "entry_execution", "halt", msg)
+        return PhaseResult(8, "entry_execution", "halted", {"entered": 0}, True, msg)
 
     # CRITICAL: Verify data freshness before executing trades
 
@@ -303,18 +302,18 @@ def run(
 
                 logger.critical(msg)
 
-                log_phase_result_fn(6, "entry_execution", "halt", msg)
+                log_phase_result_fn(8, "entry_execution", "halt", msg)
 
-                return PhaseResult(6, "entry_execution", "halted", {"entered": 0}, True, msg)
+                return PhaseResult(8, "entry_execution", "halted", {"entered": 0}, True, msg)
 
     except (psycopg2.DatabaseError, psycopg2.OperationalError) as e:
         msg = f"[PHASE 6 CRITICAL] Data freshness check failed: {e}"
 
         logger.critical(msg)
 
-        log_phase_result_fn(6, "entry_execution", "halt", msg)
+        log_phase_result_fn(8, "entry_execution", "halt", msg)
 
-        return PhaseResult(6, "entry_execution", "halted", {"entered": 0}, True, msg)
+        return PhaseResult(8, "entry_execution", "halted", {"entered": 0}, True, msg)
 
     # Exposure policy validation (fail-closed if constraints invalid)
 
@@ -329,9 +328,9 @@ def run(
 
         logger.critical(msg)
 
-        log_phase_result_fn(6, "entry_execution", "halt", msg)
+        log_phase_result_fn(8, "entry_execution", "halt", msg)
 
-        return PhaseResult(6, "entry_execution", "halted", {"entered": 0}, True, msg)
+        return PhaseResult(8, "entry_execution", "halted", {"entered": 0}, True, msg)
 
     # Validate that exposure_constraints has required fields
 
@@ -347,25 +346,25 @@ def run(
 
         logger.critical(msg)
 
-        log_phase_result_fn(6, "entry_execution", "halt", msg)
+        log_phase_result_fn(8, "entry_execution", "halt", msg)
 
-        return PhaseResult(6, "entry_execution", "halted", {"entered": 0}, True, msg)
+        return PhaseResult(8, "entry_execution", "halted", {"entered": 0}, True, msg)
 
     # Check for halt flag set by exposure policy
     # exposure_constraints validated above - always exists and has required keys
     if exposure_constraints["halt_new_entries"]:
         reason = exposure_constraints.get("halt_reason", "Exposure policy halted new entries")
 
-        logger.warning(f"[PHASE 6] {reason}")
+        logger.warning(f"[PHASE 8] {reason}")
 
-        log_phase_result_fn(6, "entry_execution", "halt", reason)
+        log_phase_result_fn(8, "entry_execution", "halt", reason)
 
-        return PhaseResult(6, "entry_execution", "halted", {"entered": 0}, True, reason)
+        return PhaseResult(8, "entry_execution", "halted", {"entered": 0}, True, reason)
 
     max_entries = exposure_constraints["max_new_positions_today"]
 
     logger.info(
-        f"[PHASE 6] Processing {len(qualified_trades)} qualified signals"
+        f"[PHASE 8] Processing {len(qualified_trades)} qualified signals"
         + (f" (cap: {max_entries}/day)" if max_entries else "")
     )
 
@@ -384,7 +383,7 @@ def run(
     if tier_max_conc is not None:
         sizer_config["max_concentration_pct"] = tier_max_conc
 
-        logger.info(f"[PHASE 6] Position sizer: max_concentration_pct={tier_max_conc:.0f}% (from tier)")
+        logger.info(f"[PHASE 8] Position sizer: max_concentration_pct={tier_max_conc:.0f}% (from tier)")
 
     sizer = PositionSizer(config=sizer_config)
 
@@ -397,7 +396,7 @@ def run(
     try:
         portfolio_value = sizer.get_portfolio_value()
 
-        logger.info(f"[PHASE 6] Portfolio value: ${portfolio_value:,.0f}")
+        logger.info(f"[PHASE 8] Portfolio value: ${portfolio_value:,.0f}")
 
     except RuntimeError as e:
         # Portfolio value unavailable — fail-closed, halt all entries
@@ -406,9 +405,9 @@ def run(
 
         logger.critical(error_msg)
 
-        log_phase_result_fn(6, "entry_execution", "halt", error_msg)
+        log_phase_result_fn(8, "entry_execution", "halt", error_msg)
 
-        return PhaseResult(6, "entry_execution", "halted", {"entered": 0}, True, error_msg)
+        return PhaseResult(8, "entry_execution", "halted", {"entered": 0}, True, error_msg)
 
     try:
         from config.credential_manager import get_credential_manager
@@ -464,7 +463,7 @@ def run(
     )
 
     logger.info(
-        f"[PHASE 6] Technical data: {precomputed_count}/{len(symbols_with_precomputed)} symbols reused from Phase 5. "
+        f"[PHASE 8] Technical data: {precomputed_count}/{len(symbols_with_precomputed)} symbols reused from Phase 5. "
         f"ISSUE #8 FIX: Eliminated {precomputed_count} redundant SMA_50/ATR calculations."
     )
 
@@ -474,7 +473,7 @@ def run(
 
             if not symbol:
                 raise RuntimeError(
-                    "[PHASE 6] Signal missing symbol. "
+                    "[PHASE 8] Signal missing symbol. "
                     "Cannot execute trade without stock symbol. "
                     "Verify signal_generation phase produced valid signals."
                 )
@@ -482,7 +481,7 @@ def run(
             # Re-check halt flag each iteration — this loop can run for minutes
 
             if check_halt_flag and check_halt_flag():
-                logger.warning(f"[PHASE 6] Halt flag set mid-loop at {symbol}, stopping")
+                logger.warning(f"[PHASE 8] Halt flag set mid-loop at {symbol}, stopping")
 
                 break
 
@@ -492,12 +491,12 @@ def run(
 
             liq_ok, liq_reason = liquidity.run_all(
                 str(symbol),
-                safe_float(entry_price_hint, default=0.0, context="entry_price_hint") if entry_price_hint else 0.0,
+                float(entry_price_hint) if entry_price_hint else 0.0,
                 run_date,
             )
 
             if not liq_ok:
-                logger.debug(f"[PHASE 6] {symbol}: liquidity — {liq_reason}")
+                logger.debug(f"[PHASE 8] {symbol}: liquidity — {liq_reason}")
 
                 skipped_count += 1
 
@@ -515,17 +514,15 @@ def run(
 
             if not all([atr, sma_50, close]):
                 raise RuntimeError(
-                    f"[PHASE 6] {symbol}: missing technical data. "
+                    f"[PHASE 8] {symbol}: missing technical data. "
                     f"ATR={atr}, SMA_50={sma_50}, close={close}. "
                     f"Cannot compute stop loss or position size without complete technical indicators. "
                     f"Verify technical_data_daily loader completed successfully."
                 )
 
-            entry_price = safe_float(close, default=0.0, context="close")
-
-            atr = safe_float(atr, default=0.0, context="atr")
-
-            sma_50 = safe_float(sma_50, default=0.0, context="sma_50")
+            entry_price = cast(float, close)
+            atr = cast(float, atr)
+            sma_50 = cast(float, sma_50)
 
             # Stop loss: min() picks the LOWER (wider) stop, giving the trade more room.
 
@@ -541,14 +538,14 @@ def run(
             risk_pct = (entry_price - stop_loss) / entry_price * 100
 
             if risk_pct < 1.5:
-                logger.info(f"[PHASE 6] {symbol}: stop too tight ({risk_pct:.1f}%), skipping")
+                logger.info(f"[PHASE 8] {symbol}: stop too tight ({risk_pct:.1f}%), skipping")
 
                 skipped_count += 1
 
                 continue
 
             if risk_pct > 12.0:
-                logger.info(f"[PHASE 6] {symbol}: stop too wide ({risk_pct:.1f}%), skipping")
+                logger.info(f"[PHASE 8] {symbol}: stop too wide ({risk_pct:.1f}%), skipping")
 
                 skipped_count += 1
 
@@ -565,10 +562,10 @@ def run(
             )
 
             if sizing.get("status") != "ok":
-                logger.info(f"[PHASE 6] {symbol}: sizer blocked — {sizing.get('reason', 'unknown')}")
+                logger.info(f"[PHASE 8] {symbol}: sizer blocked — {sizing.get('reason', 'unknown')}")
             elif "shares" not in sizing:
                 logger.error(
-                    f"[PHASE 6] {symbol}: CRITICAL - sizer did not return shares field. "
+                    f"[PHASE 8] {symbol}: CRITICAL - sizer did not return shares field. "
                     f"Response: {sizing}. Check position_sizer module."
                 )
                 raise RuntimeError(
@@ -576,7 +573,7 @@ def run(
                     f"Cannot proceed with zero-share position."
                 )
             elif sizing["shares"] < 1:
-                logger.info(f"[PHASE 6] {symbol}: sizer blocked — insufficient shares ({sizing['shares']})")
+                logger.info(f"[PHASE 8] {symbol}: sizer blocked — insufficient shares ({sizing['shares']})")
 
                 skipped_count += 1
 
@@ -589,23 +586,23 @@ def run(
             # Final hard-stop validation (includes earnings blackout check)
 
             try:
-                pt_ok, pt_reason = pretrade.run_all(symbol, position_value, safe_float(portfolio_value, default=0.0, context="portfolio_value"), eval_date=run_date)
+                pt_ok, pt_reason = pretrade.run_all(symbol, position_value, float(portfolio_value), eval_date=run_date)
 
             except ValueError as e:
                 raise RuntimeError(
-                    f"[PHASE 6] {symbol}: pre-trade validation critical failure: {e}. "
+                    f"[PHASE 8] {symbol}: pre-trade validation critical failure: {e}. "
                     f"System cannot proceed with entry execution if pre-trade checks fail."
                 ) from e
 
             if not pt_ok:
-                logger.info(f"[PHASE 6] {symbol}: pre-trade check — {pt_reason}")
+                logger.info(f"[PHASE 8] {symbol}: pre-trade check — {pt_reason}")
 
                 skipped_count += 1
 
                 continue
 
             logger.info(
-                f"[PHASE 6] {symbol}: BUY entry=${entry_price:.2f} stop=${stop_loss:.2f} "
+                f"[PHASE 8] {symbol}: BUY entry=${entry_price:.2f} stop=${stop_loss:.2f} "
                 f"risk={risk_pct:.1f}% shares={shares} value=${position_value:,.0f} "
                 f"composite={signal.get('composite_score', '?')} "
                 f"rs_pct={signal.get('rs_percentile', '?')}"
@@ -616,7 +613,7 @@ def run(
                     result = trade_executor.execute_trade(
                         symbol=symbol,
                         entry_price=entry_price,
-                        shares=safe_float(shares, default=0.0, context="shares"),
+                        shares=shares,
                         stop_loss_price=stop_loss,
                         signal_date=run_date,
                         entry_date=run_date,
@@ -629,42 +626,42 @@ def run(
                         executed_count += 1
 
                         logger.info(
-                            f"[PHASE 6] {symbol}: ENTERED trade_id={result.get('trade_id')} alpaca_order_id={result.get('alpaca_order_id')} status={result.get('status')}"
+                            f"[PHASE 8] {symbol}: ENTERED trade_id={result.get('trade_id')} alpaca_order_id={result.get('alpaca_order_id')} status={result.get('status')}"
                         )
 
                         if max_entries and executed_count >= max_entries:
-                            logger.info(f"[PHASE 6] Reached max_new_positions_today={max_entries}, stopping")
+                            logger.info(f"[PHASE 8] Reached max_new_positions_today={max_entries}, stopping")
 
                             break
 
                     else:
                         logger.error(
-                            f"[PHASE 6] {symbol}: FAILED to execute trade: {result.get('message')} (status={result.get('status')})"
+                            f"[PHASE 8] {symbol}: FAILED to execute trade: {result.get('message')} (status={result.get('status')})"
                         )
 
                         failed_count += 1
 
                 except (ValueError, ZeroDivisionError, TypeError) as exec_err:
                     logger.error(
-                        f"[PHASE 6] {symbol}: execution error: {exec_err}",
+                        f"[PHASE 8] {symbol}: execution error: {exec_err}",
                         exc_info=True,
                     )
 
                     failed_count += 1
 
             else:
-                logger.info(f"[PHASE 6] DRY-RUN: Would execute {symbol} ({shares} shares @ ${entry_price:.2f})")
+                logger.info(f"[PHASE 8] DRY-RUN: Would execute {symbol} ({shares} shares @ ${entry_price:.2f})")
 
                 executed_count += 1
 
                 if max_entries and executed_count >= max_entries:
-                    logger.info(f"[PHASE 6] Reached max_new_positions_today={max_entries}, stopping")
+                    logger.info(f"[PHASE 8] Reached max_new_positions_today={max_entries}, stopping")
 
                     break
 
         except (RuntimeError, ValueError, TypeError, AttributeError) as e:
             logger.error(
-                f"[PHASE 6] Error processing {signal.get('symbol', '?')}: {e}",
+                f"[PHASE 8] Error processing {signal.get('symbol', '?')}: {e}",
                 exc_info=True,
             )
 
@@ -673,10 +670,10 @@ def run(
     elapsed = time.time() - phase_start
 
     logger.info(
-        f"[PHASE 6] Done in {elapsed:.1f}s: {executed_count} executed, {skipped_count} skipped, {failed_count} failed"
+        f"[PHASE 8] Done in {elapsed:.1f}s: {executed_count} executed, {skipped_count} skipped, {failed_count} failed"
     )
 
-    log_phase_result_fn(6, "entry_execution", "success", f"{executed_count} trades executed")
+    log_phase_result_fn(8, "entry_execution", "success", f"{executed_count} trades executed")
 
     return PhaseResult(
         6,

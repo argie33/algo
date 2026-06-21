@@ -23,7 +23,6 @@ from rich.rule import Rule
 from rich.table import Table
 from rich.text import Text
 
-
 from ..formatters import (
     mini_bar,
     tier_from_pct,
@@ -48,8 +47,8 @@ def panel_exposure_compact(exp_f):
     err_panel = _error_panel("exposure factors", exp_f, "EXPOSURE FACTORS", border="blue")
     if err_panel:
         return err_panel
-    raw = safe_float(exp_f.get("raw_score"), default=None)
-    epct = safe_float(exp_f.get("exposure_pct"), default=None)
+    raw = exp_f.get("raw_score")
+    epct = exp_f.get("exposure_pct")
     regime = exp_f.get("regime", "")
     factors = exp_f.get("factors", {})
     tier = tier_from_pct(epct)
@@ -157,8 +156,8 @@ def panel_exposure_compact(exp_f):
         if isinstance(eco_raw, dict):
             eco = eco_raw
 
-    sr_pen = safe_float(sr.get("pts") if sr else None, default=0)
-    eco_pen = safe_float(eco.get("pts") if eco else None, default=0)
+    sr_pen = float(sr.get("pts", 0)) if sr else 0
+    eco_pen = float(eco.get("pts", 0)) if eco else 0
     if sr_pen < 0 and sr:
         sig = (sr.get("signal", "")).replace("_", " ")[:18]
         items.append(f"[dim]Sector Rotation:[/] [{R}]{sr_pen:+.0f}[/] [dim]{sig}[/]")
@@ -193,8 +192,8 @@ def panel_exposure_expanded(exp_f):
     if err_panel:
         return err_panel
 
-    raw = safe_float(exp_f.get("raw_score"), default=None)
-    epct = safe_float(exp_f.get("exposure_pct"), default=None)
+    raw = exp_f.get("raw_score")
+    epct = exp_f.get("exposure_pct")
     regime = exp_f.get("regime", "")
     factors = exp_f.get("factors", {})
     tier = tier_from_pct(epct)
@@ -332,8 +331,8 @@ def panel_exposure_expanded(exp_f):
         if isinstance(eco_raw, dict):
             eco = eco_raw
 
-    sr_pen = safe_float(sr.get("pts") if sr else None, default=0)
-    eco_pen = safe_float(eco.get("pts") if eco else None, default=0)
+    sr_pen = float(sr.get("pts", 0)) if sr else 0
+    eco_pen = float(eco.get("pts", 0)) if eco else 0
     if sr_pen != 0 or eco_pen != 0:
         rows.append(Rule(style="dim"))
         rows.append(Text.from_markup("[dim bold]ADJUSTMENTS[/]"))

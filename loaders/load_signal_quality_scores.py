@@ -57,9 +57,7 @@ class SignalQualityScoresLoader(OptimalLoader):
         try:
             with DatabaseContext("read") as cur:
                 # Check if buy_sell_daily is ready (ISSUE #27 FIX)
-                cur.execute(
-                    "SELECT status FROM data_loader_status WHERE table_name = 'buy_sell_daily'"
-                )
+                cur.execute("SELECT status FROM data_loader_status WHERE table_name = 'buy_sell_daily'")
                 result = cur.fetchone()
                 bs_status = result[0] if result else None
 
@@ -83,9 +81,7 @@ class SignalQualityScoresLoader(OptimalLoader):
                     (end,),
                 )
                 row = cur.fetchone()
-                last_bs_date = (
-                    row[0] if row is not None and row[0] is not None else None
-                )
+                last_bs_date = row[0] if row is not None and row[0] is not None else None
                 if last_bs_date:
                     last_bs = safe_parse_date(last_bs_date, "buy_sell_daily max date")
                     if last_bs and last_bs < end:
@@ -98,9 +94,7 @@ class SignalQualityScoresLoader(OptimalLoader):
                 cur_row = cur.fetchone()
                 actual_symbols = cur_row[0] if cur_row else 0
 
-                cur.execute(
-                    "SELECT symbol, MAX(date) FROM signal_quality_scores GROUP BY symbol"
-                )
+                cur.execute("SELECT symbol, MAX(date) FROM signal_quality_scores GROUP BY symbol")
                 watermarks = {row[0]: row[1] for row in cur.fetchall()}
 
             self._batch_context = {
@@ -148,13 +142,9 @@ class SignalQualityScoresLoader(OptimalLoader):
                         (end,),
                     )
                     row = cur.fetchone()
-                    last_bs_date = (
-                        row[0] if row is not None and row[0] is not None else None
-                    )
+                    last_bs_date = row[0] if row is not None and row[0] is not None else None
                     if last_bs_date:
-                        last_bs = safe_parse_date(
-                            last_bs_date, "buy_sell_daily max date"
-                        )
+                        last_bs = safe_parse_date(last_bs_date, "buy_sell_daily max date")
                         if last_bs and last_bs < end:
                             end = last_bs
             except (psycopg2.DatabaseError, psycopg2.OperationalError) as e:
@@ -166,9 +156,7 @@ class SignalQualityScoresLoader(OptimalLoader):
         if since is None and self._batch_context and "watermarks" in self._batch_context:
             watermarks = self._batch_context["watermarks"]
             if watermarks.get(symbol):
-                parsed = safe_parse_date(
-                    watermarks[symbol], f"signal_quality_scores watermark for {symbol}"
-                )
+                parsed = safe_parse_date(watermarks[symbol], f"signal_quality_scores watermark for {symbol}")
                 if parsed:
                     since = parsed
 
@@ -271,11 +259,7 @@ class SignalQualityScoresLoader(OptimalLoader):
 
         # Filter to incremental range using datetime comparison (not string)
         if since is not None:
-            since_date = (
-                since
-                if isinstance(since, date)
-                else safe_parse_date(since, "score filtering watermark")
-            )
+            since_date = since if isinstance(since, date) else safe_parse_date(since, "score filtering watermark")
             if since_date:
                 # Filter scores by date, handling potential None returns from safe_parse_date
                 filtered_scores = []
@@ -287,9 +271,7 @@ class SignalQualityScoresLoader(OptimalLoader):
 
         return scores
 
-    def _fetch_buy_sell_signals(
-        self, symbol: str, start: date, end: date
-    ) -> list[dict]:
+    def _fetch_buy_sell_signals(self, symbol: str, start: date, end: date) -> list[dict]:
         try:
             with DatabaseContext("read") as cur:
                 cur.execute(
@@ -297,10 +279,7 @@ class SignalQualityScoresLoader(OptimalLoader):
                     "WHERE symbol = %s AND date >= %s AND date <= %s AND signal_type IN ('BUY', 'SELL') ORDER BY date ASC",
                     (symbol, start, end),
                 )
-                return [
-                    {"date": r[0].isoformat(), "signal_type": r[1]}
-                    for r in cur.fetchall()
-                ]
+                return [{"date": r[0].isoformat(), "signal_type": r[1]} for r in cur.fetchall()]
         except (psycopg2.DatabaseError, psycopg2.OperationalError) as e:
             raise RuntimeError(
                 f"[SIGNALS] Failed to fetch buy/sell signals for {symbol}: {e}. "
@@ -380,8 +359,7 @@ class SignalQualityScoresLoader(OptimalLoader):
 
                 # Check if vcp_patterns table has been populated for the symbol
                 cur.execute(
-                    "SELECT COUNT(*) FROM vcp_patterns "
-                    "WHERE symbol = %s AND date >= %s AND date <= %s",
+                    "SELECT COUNT(*) FROM vcp_patterns WHERE symbol = %s AND date >= %s AND date <= %s",
                     (symbol, start, end),
                 )
                 row = cur.fetchone()
@@ -389,10 +367,7 @@ class SignalQualityScoresLoader(OptimalLoader):
                     raise RuntimeError(f"VCP count query failed for {symbol}")
                 count = row[0]
                 if count == 0:
-                    logger.debug(
-                        f"[VCP_NO_DATA] No VCP patterns found for {symbol} "
-                        f"in date range {start} to {end}"
-                    )
+                    logger.debug(f"[VCP_NO_DATA] No VCP patterns found for {symbol} in date range {start} to {end}")
                     return []
 
                 cur.execute(
@@ -413,7 +388,7 @@ class SignalQualityScoresLoader(OptimalLoader):
                 "VCP pattern recognition is authoritative for trend confirmation."
             )
 
-    def _fetch_positioning_data(self, symbol: str) -> dict:
+    def _fetch_positioning_data(self, symbol: str) -> dict | None:
         from utils.db.context import DatabaseContext
 
         try:
@@ -513,12 +488,7 @@ class SignalQualityScoresLoader(OptimalLoader):
                                 volume_confirmation_score += 10
                         except (ValueError, TypeError) as e:
                             logger.debug(f"Failed to convert RSI to float: {e}")
-                    if (
-                        macd is not None
-                        and macd_signal is not None
-                        and not pd.isna(macd)
-                        and not pd.isna(macd_signal)
-                    ):
+                    if macd is not None and macd_signal is not None and not pd.isna(macd) and not pd.isna(macd_signal):
                         try:
                             if float(macd) > float(macd_signal):
                                 volume_confirmation_score += 10
@@ -532,12 +502,7 @@ class SignalQualityScoresLoader(OptimalLoader):
                                 volume_confirmation_score += 10
                         except (ValueError, TypeError) as e:
                             logger.debug(f"Failed to convert RSI to float: {e}")
-                    if (
-                        macd is not None
-                        and macd_signal is not None
-                        and not pd.isna(macd)
-                        and not pd.isna(macd_signal)
-                    ):
+                    if macd is not None and macd_signal is not None and not pd.isna(macd) and not pd.isna(macd_signal):
                         try:
                             if float(macd) < float(macd_signal):
                                 volume_confirmation_score += 10
@@ -591,7 +556,9 @@ class SignalQualityScoresLoader(OptimalLoader):
                             elif pct >= -30:
                                 distance_from_high_score = 4
                     except (ValueError, TypeError) as e:
-                        logger.warning(f"[SQS] Could not parse percent_from_52w_high '{pct_from_high}' for distance score: {e} — using default 0")
+                        logger.warning(
+                            f"[SQS] Could not parse percent_from_52w_high '{pct_from_high}' for distance score: {e} — using default 0"
+                        )
 
                 # Institutional ownership score (0-10)
                 institutional_ownership_score = 0
@@ -617,7 +584,9 @@ class SignalQualityScoresLoader(OptimalLoader):
                         else:
                             market_stage_score = 2
                     except (ValueError, TypeError) as e:
-                        logger.warning(f"[SQS] Could not parse weinstein_stage '{weinstein_stage}' for market stage score: {e} — using default 0")
+                        logger.warning(
+                            f"[SQS] Could not parse weinstein_stage '{weinstein_stage}' for market stage score: {e} — using default 0"
+                        )
 
                 # VCP pattern score (0-10)
                 vcp_pattern_score = 0
@@ -634,7 +603,9 @@ class SignalQualityScoresLoader(OptimalLoader):
                         else:
                             vcp_pattern_score = 2
                     except (ValueError, TypeError) as e:
-                        logger.warning(f"[SQS] Could not parse vcp_strength '{vcp_strength}' for VCP pattern score: {e} — using default 0")
+                        logger.warning(
+                            f"[SQS] Could not parse vcp_strength '{vcp_strength}' for VCP pattern score: {e} — using default 0"
+                        )
 
                 # Distribution days score (placeholder - would need distribution_days table)
                 distribution_days_score = 5
@@ -658,29 +629,13 @@ class SignalQualityScoresLoader(OptimalLoader):
 
                 date_val = row.get("date")
                 if date_val is not None:
-                    date_str = (
-                        date_val.date().isoformat()
-                        if hasattr(date_val, "date")
-                        else str(date_val)
-                    )
+                    date_str = date_val.date().isoformat() if hasattr(date_val, "date") else str(date_val)
                     signal_date = pd.Timestamp(date_str).date()
 
                     # Compute staleness: how many days old is the underlying data?
-                    bs_age = (
-                        (signal_date - max_bs_date.date()).days
-                        if max_bs_date is not None
-                        else None
-                    )
-                    tech_age = (
-                        (signal_date - max_tech_date.date()).days
-                        if max_tech_date is not None
-                        else None
-                    )
-                    trend_age = (
-                        (signal_date - max_trend_date.date()).days
-                        if max_trend_date is not None
-                        else None
-                    )
+                    bs_age = (signal_date - max_bs_date.date()).days if max_bs_date is not None else None
+                    tech_age = (signal_date - max_tech_date.date()).days if max_tech_date is not None else None
+                    trend_age = (signal_date - max_trend_date.date()).days if max_trend_date is not None else None
 
                     results.append(
                         {
@@ -690,9 +645,7 @@ class SignalQualityScoresLoader(OptimalLoader):
                             "volume_confirmation_score": int(volume_confirmation_score),
                             "trend_template_score": int(trend_template_score),
                             "distance_from_high_score": int(distance_from_high_score),
-                            "institutional_ownership_score": int(
-                                institutional_ownership_score
-                            ),
+                            "institutional_ownership_score": int(institutional_ownership_score),
                             "market_stage_score": int(market_stage_score),
                             "vcp_pattern_score": int(vcp_pattern_score),
                             "distribution_days_score": int(distribution_days_score),
@@ -736,11 +689,7 @@ def main():
     args = parser.parse_args()
 
     try:
-        symbols = (
-            args.symbols.split(",")
-            if args.symbols
-            else get_active_symbols(timeout_secs=300)
-        )
+        symbols = args.symbols.split(",") if args.symbols else get_active_symbols(timeout_secs=300)
 
         logger.info(
             f"Starting signal_quality_scores loader with {len(symbols)} symbols, parallelism={args.parallelism}"

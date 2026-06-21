@@ -224,10 +224,9 @@ def api_call(endpoint: str, params: dict | None = None, method: str = "GET") -> 
     Circuit breaker pattern prevents hammering downed API.
     Supports Cognito auth.
 
-    CRITICAL: Does NOT return cached data on transient failures (retries exhausted).
-    Returns error dict to surface data unavailability to callers. Circuit breaker
-    may use stale cache as last resort only when breaker is fully open and stale
-    data is explicitly checked via get_cached_response().
+    CRITICAL: Returns error dict on all failures (retries exhausted or circuit open).
+    Never returns stale cached data—fails fast to surface unavailability to callers.
+    Fetchers/consumers can optionally use get_cached_response() if they need stale data.
 
     Args:
         endpoint: API endpoint path (e.g., "/api/algo/positions")
@@ -236,24 +235,14 @@ def api_call(endpoint: str, params: dict | None = None, method: str = "GET") -> 
 
     Returns:
         Unwrapped response dict containing actual data fields (no statusCode wrapper),
-        or {"_error": message} on failure (never cached fallback on transient failures)
+        or {"_error": message} on failure
     """
     if not API_BASE_URL:
         logger.error("DASHBOARD_API_URL environment variable not set - cannot make API calls")
         return {"_error": ("API_BASE_URL not configured - set DASHBOARD_API_URL environment variable")}
 
     if _check_circuit_breaker():
-        try:
-            cached = get_cached_response(endpoint, mark_stale=True)
-            if cached:
-                logger.warning(
-                    f"Circuit breaker open - returning cached data for {endpoint} "
-                    f"(age: {cached.get('_cache_age_seconds', 0)}s)"
-                )
-                return cached
-        except RuntimeError as e:
-            logger.error(str(e))
-            return {"_error": str(e)}
+        logger.error("Circuit breaker open - API unavailable")
         return {
             "_error": "API unavailable - circuit breaker open",
             "_circuit_open": True,

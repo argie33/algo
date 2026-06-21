@@ -1,5 +1,6 @@
 """Fetcher functions for dashboard data from API endpoints."""
 
+import logging
 import random
 import threading
 import time
@@ -9,13 +10,18 @@ from zoneinfo import ZoneInfo
 
 
 ET = ZoneInfo("America/New_York")
+logger = logging.getLogger(__name__)
+
+
+def record_data_quality_issue(*args, **kwargs):
+    """Placeholder for data quality issue recording."""
+    ...
+
 
 from utils.safe_data_conversion import (
     StrictValidationError,
     safe_bool,
-    safe_float,
     safe_float_strict,
-    safe_int,
     safe_int_strict,
     safe_json_parse,
 )
@@ -27,8 +33,6 @@ from .utilities import (
     G,
     R,
     Y,
-    logger,
-    record_data_quality_issue,
 )
 
 
@@ -479,19 +483,20 @@ def fetch_portfolio(c):
 
         unrealized_pnl_dict = safe_get_dict(port.get("unrealized_pnl"))
         unrealized_pnl_pct = None
-        if unrealized_pnl_dict:
-            unrealized_pnl_pct = safe_float(unrealized_pnl_dict.get("total_pct"), default=None)
+        if unrealized_pnl_dict and "total_pct" in unrealized_pnl_dict:
+            val = unrealized_pnl_dict.get("total_pct")
+            unrealized_pnl_pct = float(val) if val is not None else None
 
         return {
             "snapshot_date": port.get("last_run"),
             "total_portfolio_value": tpv,
             "total_cash": tc,
             "position_count": pc,
-            "daily_return_pct": safe_float(port.get("daily_return_pct"), default=None),
+            "daily_return_pct": port.get("daily_return_pct"),
             "unrealized_pnl_pct": unrealized_pnl_pct,
-            "cumulative_return_pct": safe_float(port.get("cumulative_return_pct"), default=None),
-            "max_drawdown_pct": safe_float(port.get("max_drawdown_pct"), default=None),
-            "largest_position_pct": safe_float(port.get("largest_position_pct"), default=None),
+            "cumulative_return_pct": port.get("cumulative_return_pct"),
+            "max_drawdown_pct": port.get("max_drawdown_pct"),
+            "largest_position_pct": port.get("largest_position_pct"),
             "data_age_seconds": port.get("data_age_seconds"),
         }
     except Exception as e:
@@ -553,18 +558,18 @@ def fetch_perf(c):
             "n": n,
             "w": w,
             "l": losing,
-            "wr": safe_float(perf.get("win_rate_pct"), default=None),
-            "open_count": safe_int(perf.get("open_losses_count") or perf.get("open_positions"), default=None),
-            "pnl": safe_float(perf.get("total_pnl_dollars"), default=None),
-            "unrealized_pnl": safe_float(perf.get("unrealized_pnl"), default=None),
-            "streak": safe_int(perf.get("current_streak"), default=None),
-            "sharpe": safe_float(perf.get("sharpe_annualized"), default=None),
-            "maxdd": safe_float(perf.get("max_drawdown_pct"), default=None),
-            "avg_win": safe_float(perf.get("avg_win_pct"), default=None),
-            "avg_loss": safe_float(perf.get("avg_loss_pct"), default=None),
-            "profit_factor": safe_float(perf.get("profit_factor"), default=None),
-            "expectancy": float(perf.get("expectancy_r"), default=None),
-            "avg_r": float(perf.get("expectancy_r"), default=None),
+            "wr": perf.get("win_rate_pct"),
+            "open_count": perf.get("open_losses_count") or perf.get("open_positions"),
+            "pnl": perf.get("total_pnl_dollars"),
+            "unrealized_pnl": perf.get("unrealized_pnl"),
+            "streak": perf.get("current_streak"),
+            "sharpe": perf.get("sharpe_annualized"),
+            "maxdd": perf.get("max_drawdown_pct"),
+            "avg_win": perf.get("avg_win_pct"),
+            "avg_loss": perf.get("avg_loss_pct"),
+            "profit_factor": perf.get("profit_factor"),
+            "expectancy": perf.get("expectancy_r"),
+            "avg_r": perf.get("expectancy_r"),
             "equity_vals": equity_vals,
             "recent_rets": recent_rets,
         }

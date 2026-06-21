@@ -142,16 +142,12 @@ class StockScoresLoader(OptimalLoader):
             }
 
             # Normalize weights: keep weights of available metrics, redistribute missing weights
-            available_weight_sum = sum(
-                w for k, w in base_weights.items() if score_availability[k]
-            )
+            available_weight_sum = sum(w for k, w in base_weights.items() if score_availability[k])
             normalized_weights = {}
             for key, weight in base_weights.items():
                 if score_availability[key]:
                     # Scale up available weights to sum to 1.0
-                    normalized_weights[key] = (
-                        weight / available_weight_sum if available_weight_sum > 0 else 0
-                    )
+                    normalized_weights[key] = weight / available_weight_sum if available_weight_sum > 0 else 0
                 else:
                     normalized_weights[key] = 0
 
@@ -327,24 +323,16 @@ class StockScoresLoader(OptimalLoader):
 
                 current = prices["current"]
                 momentum_1m = (
-                    ((current / prices["price_1m_ago"] - 1) * 100)
-                    if current and prices["price_1m_ago"]
-                    else None
+                    ((current / prices["price_1m_ago"] - 1) * 100) if current and prices["price_1m_ago"] else None
                 )
                 momentum_3m = (
-                    ((current / prices["price_3m_ago"] - 1) * 100)
-                    if current and prices["price_3m_ago"]
-                    else None
+                    ((current / prices["price_3m_ago"] - 1) * 100) if current and prices["price_3m_ago"] else None
                 )
                 momentum_6m = (
-                    ((current / prices["price_6m_ago"] - 1) * 100)
-                    if current and prices["price_6m_ago"]
-                    else None
+                    ((current / prices["price_6m_ago"] - 1) * 100) if current and prices["price_6m_ago"] else None
                 )
                 momentum_12m = (
-                    ((current / prices["price_12m_ago"] - 1) * 100)
-                    if current and prices["price_12m_ago"]
-                    else None
+                    ((current / prices["price_12m_ago"] - 1) * 100) if current and prices["price_12m_ago"] else None
                 )
 
                 return {
@@ -474,11 +462,11 @@ class StockScoresLoader(OptimalLoader):
         if metrics.get("pe_ratio") and metrics["pe_ratio"] > 0:
             pe = metrics["pe_ratio"]
             if pe <= 10:
-                pe_score = 40 + pe * 2    # very cheap / possibly value trap
+                pe_score = 40 + pe * 2  # very cheap / possibly value trap
             elif pe <= 20:
-                pe_score = 60 + (pe - 10) * 4   # good range
+                pe_score = 60 + (pe - 10) * 4  # good range
             elif pe <= 35:
-                pe_score = 100 - (pe - 20) * 2   # growth premium zone ? 70 at pe=35
+                pe_score = 100 - (pe - 20) * 2  # growth premium zone ? 70 at pe=35
             else:
                 pe_score = max(0, 70 - (pe - 35) * 1.4)  # expensive ? 0 at pe~85
             weighted_sum += pe_score * 0.50
@@ -490,9 +478,9 @@ class StockScoresLoader(OptimalLoader):
             if pb <= 1.0:
                 pb_score = 100
             elif pb <= 3.0:
-                pb_score = 100 - ((pb - 1.0) / 2.0) * 30   # 100?70 in [1,3]
+                pb_score = 100 - ((pb - 1.0) / 2.0) * 30  # 100?70 in [1,3]
             elif pb <= 7.0:
-                pb_score = 70 - ((pb - 3.0) / 4.0) * 40    # 70?30 in [3,7]
+                pb_score = 70 - ((pb - 3.0) / 4.0) * 40  # 70?30 in [3,7]
             else:
                 pb_score = max(0, 30 - (pb - 7.0) * 3)
             weighted_sum += pb_score * 0.25
@@ -501,13 +489,13 @@ class StockScoresLoader(OptimalLoader):
         # FCF yield: positive FCF yield is healthy; > 3% is good
         if metrics.get("fcf_yield") is not None and metrics["fcf_yield"] > 0:
             fcf_pct = metrics["fcf_yield"] * 100  # stored as decimal fraction
-            fcf_score = min(100, fcf_pct * 20)    # 5% FCF yield = 100 score
+            fcf_score = min(100, fcf_pct * 20)  # 5% FCF yield = 100 score
             weighted_sum += fcf_score * 0.15
             total_weight += 0.15
 
         # Dividend yield: bonus signal for income/quality (optional)
         if metrics.get("dividend_yield") and metrics["dividend_yield"] > 0:
-            div = min(metrics["dividend_yield"] * 100, 6)   # decimal ? percent, cap 6%
+            div = min(metrics["dividend_yield"] * 100, 6)  # decimal ? percent, cap 6%
             div_score = min(100, div * 16.7)
             weighted_sum += div_score * 0.10
             total_weight += 0.10
@@ -575,9 +563,9 @@ class StockScoresLoader(OptimalLoader):
             if vol <= 0.15:
                 vol_score = 100
             elif vol <= 0.30:
-                vol_score = 100 - ((vol - 0.15) / 0.15) * 50   # 100?50 in [15%,30%]
+                vol_score = 100 - ((vol - 0.15) / 0.15) * 50  # 100?50 in [15%,30%]
             elif vol <= 0.60:
-                vol_score = 50 - ((vol - 0.30) / 0.30) * 40    # 50?10 in [30%,60%]
+                vol_score = 50 - ((vol - 0.30) / 0.30) * 40  # 50?10 in [30%,60%]
             else:
                 vol_score = max(0, 10 - (vol - 0.60) * 20)
             weighted_sum += vol_score * 0.50
@@ -673,7 +661,6 @@ class StockScoresLoader(OptimalLoader):
             logger.info("RS percentiles updated via batch rank")
         except (psycopg2.DatabaseError, psycopg2.OperationalError) as e:
             logger.warning(f"RS percentile batch update failed: {e}")
-
 
 
 if __name__ == "__main__":
