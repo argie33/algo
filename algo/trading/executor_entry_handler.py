@@ -14,8 +14,8 @@ import json
 import logging
 import time
 import uuid
-from decimal import ROUND_HALF_UP, Decimal
 from datetime import datetime, timezone
+from decimal import ROUND_HALF_UP, Decimal
 from typing import Any
 
 import requests
@@ -26,6 +26,7 @@ from algo.trading.exceptions import (
     NotificationError,
     OrderExecutionError,
 )
+
 
 logger = logging.getLogger(__name__)
 
@@ -181,10 +182,10 @@ class EntryHandler:
         # Execute entry in database transaction with locks
         def _execute_entry_txn(cur: Any) -> dict[str, Any]:
             """Execute entry transaction with database locks."""
-            # Local variables for this transaction
-            tgt_1_price = target_1_price
-            tgt_2_price = target_2_price
-            tgt_3_price = target_3_price
+            # Local variables for this transaction (converted to Decimal for type safety)
+            tgt_1_price: Decimal | None = Decimal(str(target_1_price)) if target_1_price else None
+            tgt_2_price: Decimal | None = Decimal(str(target_2_price)) if target_2_price else None
+            tgt_3_price: Decimal | None = Decimal(str(target_3_price)) if target_3_price else None
 
             # Validate entry conditions within transaction
             is_valid, error_msg, error_details = self.executor._validate_entry_conditions(
