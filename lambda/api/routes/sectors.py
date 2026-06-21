@@ -18,6 +18,7 @@ from routes.utils import (
     safe_limit,
     safe_page,
 )
+from utils.safe_data_conversion import safe_float, safe_int
 
 
 logger = logging.getLogger(__name__)
@@ -275,13 +276,13 @@ def handle(
             for row in sectors_data:
                 s = safe_json_serialize(dict(row))
                 composite_val = s.get("composite_score")
-                composite = float(composite_val) if composite_val is not None else None
+                composite = safe_float(composite_val, default=None, context="composite")
                 perf1d_val = s.get("perf_1d")
-                perf1d = float(perf1d_val) if perf1d_val is not None else None
+                perf1d = safe_float(perf1d_val, default=None, context="perf1d")
                 perf5d_val = s.get("perf_5d")
-                perf5d = float(perf5d_val) if perf5d_val is not None else None
+                perf5d = safe_float(perf5d_val, default=None, context="perf5d")
                 perf20d_val = s.get("perf_20d")
-                perf20d = float(perf20d_val) if perf20d_val is not None else None
+                perf20d = safe_float(perf20d_val, default=None, context="perf20d")
                 if composite is not None:
                     if composite >= 60:
                         momentum_label = "Strong"
@@ -316,30 +317,30 @@ def handle(
                 sectors.append(
                     {
                         "sector_name": s.get("sector_name"),
-                        "current_rank": int(rank_val) if rank_val is not None else None,
+                        "current_rank": safe_int(rank_val, default=None, context="rank"),
                         "rank_1w_ago": (
-                            int(s["rank_1w_ago"])
+                            safe_int(s["rank_1w_ago"], default=0, context="rank_1w_ago")
                             if s.get("rank_1w_ago") is not None
                             else None
                         ),
                         "rank_4w_ago": (
-                            int(s["rank_4w_ago"])
+                            safe_int(s["rank_4w_ago"], default=0, context="rank_4w_ago")
                             if s.get("rank_4w_ago") is not None
                             else None
                         ),
                         "rank_12w_ago": (
-                            int(s["rank_12w_ago"])
+                            safe_int(s["rank_12w_ago"], default=0, context="rank_12w_ago")
                             if s.get("rank_12w_ago") is not None
                             else None
                         ),
                         "stock_count": (
-                            int(stock_count_val)
+                            safe_int(stock_count_val, default=0, context="stock_count")
                             if stock_count_val is not None
                             else None
                         ),
                         "composite_score": composite,
                         "momentum_score": (
-                            float(momentum_score_val)
+                            safe_float(momentum_score_val, default=0.0, context="momentum_score")
                             if momentum_score_val is not None
                             else None
                         ),
