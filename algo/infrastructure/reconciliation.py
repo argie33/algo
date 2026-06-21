@@ -5,6 +5,7 @@ import logging
 import statistics
 from datetime import date as _date_type
 from datetime import datetime, timedelta, timezone
+from decimal import ROUND_HALF_UP, Decimal
 from typing import Any, cast
 
 import psycopg2
@@ -618,10 +619,19 @@ class DailyReconciliation:
                             f"[RECONCILIATION CRITICAL] Trade {trade_id} ({symbol}) has invalid prices/qty (entry={entry_price}, stop={stop_loss_price}, qty={entry_qty}) - must be > 0"
                         )
 
-                    pnl_pct = (filled_price - entry_price) / entry_price * 100.0
-                    pnl_dollars = (filled_price - entry_price) * entry_qty
+                    filled_dec = Decimal(str(filled_price))
+                    entry_dec = Decimal(str(entry_price))
+                    qty_dec = Decimal(str(entry_qty))
+                    pnl_pct = float(
+                        ((filled_dec - entry_dec) / entry_dec * Decimal(100)).quantize(Decimal("0.01"), ROUND_HALF_UP)
+                    )
+                    pnl_dollars = float(((filled_dec - entry_dec) * qty_dec).quantize(Decimal("0.01"), ROUND_HALF_UP))
                     risk = entry_price - stop_loss_price
-                    exit_r_multiple = ((filled_price - entry_price) / risk) if risk > 0 else 0.0
+                    exit_r_multiple = (
+                        float(((filled_dec - entry_dec) / Decimal(str(risk))).quantize(Decimal("0.01"), ROUND_HALF_UP))
+                        if risk > 0
+                        else 0.0
+                    )
 
                     # Check if this trade had an estimated exit price (Phase 4 pre-market exit)
                     cur.execute(

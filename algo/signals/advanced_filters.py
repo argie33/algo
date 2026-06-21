@@ -221,7 +221,10 @@ class AdvancedFilters:
 
             components["avg_dollar_volume"] = avg_dollar_vol
             if avg_dollar_vol is not None and avg_dollar_vol < self.min_avg_daily_dollar_volume:
-                hard_fail = hard_fail or f"Liquidity ${avg_dollar_vol / 1e6:.1f}M < ${self.min_avg_daily_dollar_volume / 1e6:.1f}M"
+                hard_fail = (
+                    hard_fail
+                    or f"Liquidity ${avg_dollar_vol / 1e6:.1f}M < ${self.min_avg_daily_dollar_volume / 1e6:.1f}M"
+                )
 
             # H5. Strong-sector requirement
             if self.require_strong_sector:

@@ -571,8 +571,7 @@ def run(
 
             if "status" not in sizing or sizing["status"] is None:
                 raise RuntimeError(
-                    f"Position sizer returned invalid result for {symbol}: missing 'status' field. "
-                    f"Response: {sizing}"
+                    f"Position sizer returned invalid result for {symbol}: missing 'status' field. Response: {sizing}"
                 )
 
             if sizing["status"] != "ok":
@@ -645,8 +644,7 @@ def run(
                     if result["success"]:
                         if "trade_id" not in result:
                             raise RuntimeError(
-                                f"Trade succeeded for {symbol} but missing 'trade_id' field. "
-                                f"Response: {result}"
+                                f"Trade succeeded for {symbol} but missing 'trade_id' field. Response: {result}"
                             )
 
                         executed_count += 1
@@ -663,9 +661,7 @@ def run(
                     else:
                         message = result.get("message", "unknown error")
                         status = result.get("status", "unknown")
-                        logger.error(
-                            f"[PHASE 8] {symbol}: FAILED to execute trade: {message} (status={status})"
-                        )
+                        logger.error(f"[PHASE 8] {symbol}: FAILED to execute trade: {message} (status={status})")
 
                         failed_count += 1
 

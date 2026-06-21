@@ -158,8 +158,7 @@ class RegimeManager:
         # Fail-fast: base_config must have critical values (validated at init time)
         if "max_hold_days" not in base_config or base_config["max_hold_days"] is None:
             raise ValueError(
-                "CRITICAL: max_hold_days missing from base config. "
-                "Config must be validated before regime adaptation."
+                "CRITICAL: max_hold_days missing from base config. Config must be validated before regime adaptation."
             )
         if "t1_target_r_multiple" not in base_config or base_config["t1_target_r_multiple"] is None:
             raise ValueError(

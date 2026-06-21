@@ -45,9 +45,7 @@ class PositionAnalyzer:
         for symbol, qty, entry, current, pos_value in positions:
             # Validate critical fields - fail fast on missing data
             if entry is None:
-                raise ValueError(
-                    f"[POSITION ANALYSIS] {symbol}: ENTRY PRICE MISSING - cannot compute P&L"
-                )
+                raise ValueError(f"[POSITION ANALYSIS] {symbol}: ENTRY PRICE MISSING - cannot compute P&L")
             if current is None:
                 entry_dec = Decimal(str(entry))
                 qty_dec = Decimal(str(qty)) if qty is not None else Decimal(0)
@@ -55,9 +53,7 @@ class PositionAnalyzer:
                     f"[POSITION ANALYSIS] {symbol}: {qty_dec:.0f} @ ${entry_dec:.2f} -> CURRENT PRICE MISSING"
                 )
             if qty is None or pos_value is None:
-                raise ValueError(
-                    f"[POSITION ANALYSIS] {symbol}: QUANTITY OR VALUE MISSING"
-                )
+                raise ValueError(f"[POSITION ANALYSIS] {symbol}: QUANTITY OR VALUE MISSING")
 
             # Keep all calculations in Decimal for precision
             entry_dec = Decimal(str(entry))
@@ -66,11 +62,7 @@ class PositionAnalyzer:
             pos_value_dec = Decimal(str(pos_value))
 
             pnl_dec = (current_dec - entry_dec) * qty_dec
-            pnl_pct_dec = (
-                ((current_dec - entry_dec) / entry_dec * Decimal(100))
-                if entry_dec > 0
-                else Decimal(0)
-            )
+            pnl_pct_dec = ((current_dec - entry_dec) / entry_dec * Decimal(100)) if entry_dec > 0 else Decimal(0)
 
             total_position_value += pos_value_dec
             unrealized_pnl += pnl_dec
@@ -98,9 +90,7 @@ class PositionAnalyzer:
 
         # Compute total unrealized P&L percentage
         unrealized_pnl_pct = (
-            float(unrealized_pnl / total_position_value * Decimal(100))
-            if total_position_value > 0
-            else 0.0
+            float(unrealized_pnl / total_position_value * Decimal(100)) if total_position_value > 0 else 0.0
         )
 
         return {
@@ -130,12 +120,9 @@ class PositionAnalyzer:
                 f"{pos['unrealized_pnl']:+,.2f} ({pos['unrealized_pnl_pct']:+.2f}%)"
             )
 
+        logger_obj.info(f"\n   Total Position Value: ${float(analysis['total_position_value']):,.2f}")
         logger_obj.info(
-            f"\n   Total Position Value: ${float(analysis['total_position_value']):,.2f}"
-        )
-        logger_obj.info(
-            f"   Unrealized P&L: {float(analysis['unrealized_pnl']):+,.2f} "
-            f"({analysis['unrealized_pnl_pct']:+.2f}%)"
+            f"   Unrealized P&L: {float(analysis['unrealized_pnl']):+,.2f} ({analysis['unrealized_pnl_pct']:+.2f}%)"
         )
         logger_obj.info(
             f"   Position Breakdown: {analysis['winning_count']} winning, "

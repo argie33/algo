@@ -698,8 +698,8 @@ class TradeExecutor:
                     execution_mode,
                     alpaca_order_id,
                     position_size_pct,
-                    int(sqs) if sqs is not None else None,
-                    int(trend_score) if trend_score is not None else None,
+                    float(sqs) if sqs is not None else None,
+                    float(trend_score) if trend_score is not None else None,
                     swing_score,
                     swing_grade,
                     base_type,
@@ -1209,8 +1209,14 @@ class TradeExecutor:
                 else 0.0
             )
             pnl_per_share = Decimal(str(final_exit_price)) - Decimal(str(entry_price))
-            pnl_dollars = float(pnl_per_share * Decimal(str(shares_to_exit)))
-            pnl_pct = float(pnl_per_share / Decimal(str(entry_price)) * Decimal(100)) if entry_price > 0 else 0.0
+            pnl_dollars = float((pnl_per_share * Decimal(str(shares_to_exit))).quantize(Decimal("0.01"), ROUND_HALF_UP))
+            pnl_pct = (
+                float(
+                    (pnl_per_share / Decimal(str(entry_price)) * Decimal(100)).quantize(Decimal("0.01"), ROUND_HALF_UP)
+                )
+                if entry_price > 0
+                else 0.0
+            )
 
             if not isinstance(pnl_dollars, (int, float)) or pnl_dollars != pnl_dollars:
                 pnl_dollars = 0.0

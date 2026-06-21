@@ -1,4 +1,4 @@
-﻿#!/usr/bin/env python3
+#!/usr/bin/env python3
 """
 Position Monitor - Institutional-grade daily position health checks
 
@@ -438,12 +438,8 @@ class PositionMonitor:
         if entry_price_dec <= 0:
             raise PositionValidationError(f"Invalid entry price for {symbol}: {entry_price_dec} <= 0")
 
-        unrealized_pnl = float(
-            (price_diff * quantity_dec).quantize(Decimal("0.01"), ROUND_HALF_UP)
-        )
-        unrealized_pct = float(
-            (price_diff / entry_price_dec * 100).quantize(Decimal("0.01"), ROUND_HALF_UP)
-        )
+        unrealized_pnl = float((price_diff * quantity_dec).quantize(Decimal("0.01"), ROUND_HALF_UP))
+        unrealized_pct = float((price_diff / entry_price_dec * 100).quantize(Decimal("0.01"), ROUND_HALF_UP))
 
         # 2. Recompute trailing stop (only ratchet UP, never down)
         proposed_stop = self._compute_trailing_stop(
@@ -1219,4 +1215,3 @@ if __name__ == "__main__":
 
     monitor = PositionMonitor(get_config())
     monitor.review_positions()
-
