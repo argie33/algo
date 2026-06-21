@@ -8,14 +8,12 @@ This script:
 4. Fails CI if critical endpoints lack validation
 """
 
-import os
-import sys
 import re
+import sys
 from pathlib import Path
-from typing import Dict, List, Set, Tuple
 
 
-def get_all_routes() -> Dict[str, Path]:
+def get_all_routes() -> dict[str, Path]:
     """Get all Python files in lambda/api/routes."""
     routes = {}
     routes_dir = Path("lambda/api/routes")
@@ -46,7 +44,7 @@ def has_validate_endpoint_response_call(content: str) -> bool:
     return "validate_endpoint_response" in content
 
 
-def get_handle_function_signature(content: str) -> Tuple[bool, bool]:
+def get_handle_function_signature(content: str) -> tuple[bool, bool]:
     """Check if handle() function exists and what it returns.
 
     Returns: (has_handle_func, returns_dict)
@@ -111,8 +109,7 @@ def main():
     print("=" * 80)
 
     routes = get_all_routes()
-    issues: List[str] = []
-    missing_validation: List[str] = []
+    missing_validation: list[str] = []
 
     print(f"\nScanning {len(routes)} route files...\n")
 
@@ -138,13 +135,13 @@ def main():
 
             if has_import and has_call:
                 dashboard_endpoints_validated += 1
-                print(f"       - Has ResponseValidator")
+                print("       - Has ResponseValidator")
             else:
                 missing_validation.append(route_name)
                 if not has_import:
-                    print(f"       - Missing ResponseValidator import")
+                    print("       - Missing ResponseValidator import")
                 if not has_call:
-                    print(f"       - Missing validate_endpoint_response() call")
+                    print("       - Missing validate_endpoint_response() call")
         else:
             # Non-dashboard routes
             if has_handle and returns_dict and has_import and not has_call:
@@ -154,13 +151,13 @@ def main():
     print("SUMMARY")
     print("=" * 80)
 
-    print(f"\nDashboard Endpoints:")
+    print("\nDashboard Endpoints:")
     print(f"  Found: {dashboard_endpoints_found}")
     print(f"  Validated: {dashboard_endpoints_validated}")
     print(f"  Missing: {len(missing_validation)}")
 
     if missing_validation:
-        print(f"\nMissing Validation:")
+        print("\nMissing Validation:")
         for route in missing_validation:
             print(f"  - {route}")
         print(f"\nFAILURE: {len(missing_validation)} dashboard endpoints lack response validation")

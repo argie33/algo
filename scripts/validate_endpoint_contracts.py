@@ -8,13 +8,12 @@ This script ensures:
 4. No undocumented endpoints exist in the API
 """
 
-import sys
 import re
+import sys
 from pathlib import Path
-from typing import Dict, List, Set
 
 
-def get_dashboard_contract_endpoints() -> Dict[str, str]:
+def get_dashboard_contract_endpoints() -> dict[str, str]:
     """Extract endpoint paths from dashboard_api_contract.py."""
     contract_file = Path("shared_contracts/dashboard_api_contract.py")
     if not contract_file.exists():
@@ -33,7 +32,7 @@ def get_dashboard_contract_endpoints() -> Dict[str, str]:
     return endpoints
 
 
-def get_api_route_endpoints() -> Set[str]:
+def get_api_route_endpoints() -> set[str]:
     """Extract endpoint paths from API route files.
 
     Routes in this system are module-based:
@@ -44,7 +43,6 @@ def get_api_route_endpoints() -> Set[str]:
     """
     routes_dir = Path("lambda/api/routes")
     endpoints = set()
-    route_modules = {}  # Map module name to base endpoint
 
     # Map route module names to their base endpoints
     module_endpoint_map = {
