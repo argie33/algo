@@ -213,12 +213,12 @@ def panel_trades_expanded(trades):
     # Summary stats (from displayed trades; see Performance panel for all-time stats)
     total = len(closed)
     # Count wins: only trades with profit_loss_pct data
-    wins = sum(1 for t in closed if t.get("profit_loss_pct") is not None and safe_float(t.get("profit_loss_pct"), default=0.0, context="profit_loss_pct") > 0)
+    wins = sum(1 for t in closed if safe_get_field(t, "profit_loss_pct") is not None and safe_float(safe_get_field(t, "profit_loss_pct"), default=0.0, context="profit_loss_pct") > 0)
     losses = total - wins
     wr = wins / total * 100 if total else 0
     # Sum P&L only from trades with profit_loss_dollars data
-    total_pnl = sum(safe_float(t.get("profit_loss_dollars"), default=0.0, context="profit_loss_dollars") for t in closed if t.get("profit_loss_dollars") is not None)
-    avg_r_list = [safe_float(t["exit_r_multiple"], default=0.0, context="exit_r_multiple") for t in closed if t.get("exit_r_multiple") is not None]
+    total_pnl = sum(safe_float(safe_get_field(t, "profit_loss_dollars"), default=0.0, context="profit_loss_dollars") for t in closed if safe_get_field(t, "profit_loss_dollars") is not None)
+    avg_r_list = [safe_float(safe_get_field(t, "exit_r_multiple"), default=0.0, context="exit_r_multiple") for t in closed if safe_get_field(t, "exit_r_multiple") is not None]
     avg_r = sum(avg_r_list) / len(avg_r_list) if avg_r_list else None
     wc = G if wr >= 45 else (Y if wr >= 40 else R)
     pnl_c = G if total_pnl >= 0 else R
@@ -281,27 +281,27 @@ def panel_trades_expanded(trades):
         return str(d or "--")[:6]
 
     for tr in closed[:50]:
-        sym = tr.get("symbol", "--")
-        pnl_d_raw = tr.get("profit_loss_dollars")
-        pnl_p_raw = tr.get("profit_loss_pct")
+        sym = safe_get_field(tr, "symbol", "--")
+        pnl_d_raw = safe_get_field(tr, "profit_loss_dollars")
+        pnl_p_raw = safe_get_field(tr, "profit_loss_pct")
         pnl_d = float(pnl_d_raw) if pnl_d_raw is not None else None
         pnl_p = float(pnl_p_raw) if pnl_p_raw is not None else None
-        rmul_raw = tr.get("exit_r_multiple")
+        rmul_raw = safe_get_field(tr, "exit_r_multiple")
         rmul = float(rmul_raw) if rmul_raw is not None else None
-        entry_raw = tr.get("entry_price")
-        exit_raw = tr.get("exit_price")
+        entry_raw = safe_get_field(tr, "entry_price")
+        exit_raw = safe_get_field(tr, "exit_price")
         entry_p = float(entry_raw) if entry_raw is not None else None
         exit_p = float(exit_raw) if exit_raw is not None else None
-        dur_raw = tr.get("trade_duration_days")
+        dur_raw = safe_get_field(tr, "trade_duration_days")
         dur = int(dur_raw) if dur_raw is not None else None
-        grade = tr.get("swing_grade", "--")
-        mfe_raw = tr.get("mfe_pct")
-        mae_raw = tr.get("mae_pct")
+        grade = safe_get_field(tr, "swing_grade", "--")
+        mfe_raw = safe_get_field(tr, "mfe_pct")
+        mae_raw = safe_get_field(tr, "mae_pct")
         mfe = float(mfe_raw) if mfe_raw is not None else None
         mae = float(mae_raw) if mae_raw is not None else None
-        trade_date = tr.get("trade_date") or tr.get("signal_date")
-        exit_date = tr.get("exit_date")
-        exit_rsn_raw = (tr.get("exit_reason", "")).lower().strip()
+        trade_date = safe_get_field(tr, "trade_date") or safe_get_field(tr, "signal_date")
+        exit_date = safe_get_field(tr, "exit_date")
+        exit_rsn_raw = (safe_get_field(tr, "exit_reason", "")).lower().strip()
         exit_rsn = exit_short.get(exit_rsn_raw, exit_rsn_raw[:4] if exit_rsn_raw else "--")
         exit_rsn_c = R if exit_rsn == "stop" else (G if exit_rsn in ("T1", "T2") else (Y if exit_rsn == "man" else DIM))
 
