@@ -50,6 +50,29 @@ TIER_SHORT = {
 
 SPARKLINE_CHARS = "▁▂▃▄▅▆▇█"
 
+# Mascot animation sequence
+LOAD_SEQ = [0, 1, 4, 3]
+
+MASCOT_COLORS = [
+    "bright_green",
+    "cyan",
+    "magenta",
+    "yellow",
+    "bright_yellow",
+    "white",
+    "yellow",
+    "bright_red",
+]
+
+MASCOT_FRAMES = [
+    "zzZ",
+    "zzz",
+    "...",
+    "Zzz",
+]
+
+MASCOT_W = 3
+
 PHASE_NAMES = {
     "phase_0": "Pre-flight",
     "phase_1": "Data",

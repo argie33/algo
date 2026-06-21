@@ -82,13 +82,6 @@ def safe_get_list(data: Any) -> list | None:
     raise TypeError(f"Expected dict or list but got {type(data).__name__}")
 
 
-def safe_get_field(data: dict[str, Any], field: str, default: Any = None) -> Any:
-    """Get field from validated data dict (error already checked)."""
-    if not isinstance(data, dict):
-        return default
-    return data.get(field, default)
-
-
 # Extract common field accessors as functions to reduce repetition in panels
 def extract_config_params(cfg: dict[str, Any]) -> dict[str, Any]:
     """Extract common config display parameters.

@@ -38,8 +38,7 @@ from ..utilities import (
 )
 from ._helpers import _error_panel
 from .data_extractors import (
-    safe_get_field,
-    safe_get_list,
+        safe_get_list,
 )
 
 
@@ -56,12 +55,12 @@ def panel_market_full(mkt, sentiment=None):
         return err_panel
 
     # Extract market fields in batch after error check
-    tier = safe_get_field(mkt, "tier", "unknown")
+    tier = mkt.get("tier", "unknown")
     tc = TIER_COLOR.get(tier, "dim")
     lbl = TIER_SHORT.get(tier, "LOADING")
-    exp = safe_get_field(mkt, "pct")
-    vix = safe_get_field(mkt, "vix")
-    spy_raw = safe_get_field(mkt, "spy")
+    exp = mkt.get("pct")
+    vix = mkt.get("vix")
+    spy_raw = mkt.get("spy")
 
     # Critical fields validation (should never be None after successful fetch)
     if vix is None or spy_raw is None:
@@ -72,18 +71,18 @@ def panel_market_full(mkt, sentiment=None):
             padding=(0, 1),
         )
 
-    dist = safe_get_field(mkt, "dist", "N/A")
-    stage = safe_get_field(mkt, "stage", "N/A")
-    spy_chg = safe_get_field(mkt, "spy_chg")
-    trend = safe_get_field(mkt, "trend", "")
-    halts = safe_get_list(safe_get_field(mkt, "halts")) or []
-    upvol = safe_get_field(mkt, "upvol")
-    adr = safe_get_field(mkt, "adr")
-    nh = safe_get_field(mkt, "nh")
-    nl = safe_get_field(mkt, "nl")
-    pcr = safe_get_field(mkt, "pcr")
-    bmom = safe_get_field(mkt, "bmom")
-    fed = safe_get_field(mkt, "fed")
+    dist = mkt.get("dist", "N/A")
+    stage = mkt.get("stage", "N/A")
+    spy_chg = mkt.get("spy_chg")
+    trend = mkt.get("trend", "")
+    halts = safe_get_list(mkt.get("halts")) or []
+    upvol = mkt.get("upvol")
+    adr = mkt.get("adr")
+    nh = mkt.get("nh")
+    nl = mkt.get("nl")
+    pcr = mkt.get("pcr")
+    bmom = mkt.get("bmom")
+    fed = mkt.get("fed")
 
     # Derived values from extracted fields (critical fields guaranteed non-None)
     exp_s = f"{float(exp):.0f}%" if exp is not None else "N/A"
@@ -116,7 +115,7 @@ def panel_market_full(mkt, sentiment=None):
         lines.append(
             f"[dim]Up Volume:[/][{uvc}]{float(upvol):.0f}%[/]{adr_s}  [dim]New Highs:[/][{G}]{nh or '--'!s}[/] [dim]Lows:[/][{R}]{nl or '--'!s}[/]{nhnl_s}"
         )
-    ycs = safe_get_field(mkt, "ycs")
+    ycs = mkt.get("ycs")
     bmom_pcr = []
     if pcr is not None:
         bmom_pcr.append(f"[dim]Put/Call:[/][{pcr_c}]{pcr:.3f}[/]")
@@ -137,10 +136,10 @@ def panel_market_full(mkt, sentiment=None):
 
     # Fear & Greed
     if sentiment and not has_error(sentiment):
-        fg_v = safe_get_field(sentiment, "fg")
+        fg_v = sentiment.get("fg")
         if fg_v is not None:
-            fg_lbl = (safe_get_field(sentiment, "label", ""))[:16]
-            fg_c = safe_get_field(sentiment, "color", "dim")
+            fg_lbl = (sentiment.get("label", ""))[:16]
+            fg_c = sentiment.get("color", "dim")
             fg_bar = int(fg_v / 100 * 8)
             fg_bar_s = f"[{fg_c}]{'█' * fg_bar}[/][dim]{'░' * (8 - fg_bar)}[/]"
             lines.append(f"[dim]Fear & Greed:[/][{fg_c}]{fg_v:.0f}%  {fg_lbl}[/] {fg_bar_s}")
@@ -165,13 +164,13 @@ def panel_market_expanded(mkt, sentiment=None):
     if err_panel:
         return err_panel
 
-    tier = safe_get_field(mkt, "tier", "unknown")
+    tier = mkt.get("tier", "unknown")
     tc = TIER_COLOR.get(tier, "dim")
     lbl = TIER_SHORT.get(tier, "LOADING")
-    exp = safe_get_field(mkt, "pct")
+    exp = mkt.get("pct")
     exp_s = f"{float(exp):.0f}%" if exp is not None else "--"
     bar = exp_bar(exp or 0, w=14)
-    vix = safe_get_field(mkt, "vix")
+    vix = mkt.get("vix")
     vc = DIM if vix is None else (R if vix >= 30 else (Y if vix >= 20 else G))
     vix_s = f"{vix:.1f}" if vix is not None else "--"
     rows.append(
@@ -181,21 +180,21 @@ def panel_market_expanded(mkt, sentiment=None):
     )
     rows.append(Rule(style="dim"))
 
-    spy_raw = safe_get_field(mkt, "spy")
-    spy_chg = safe_get_field(mkt, "spy_chg")
-    stage = str(safe_get_field(mkt, "stage", "--"))
-    trend = (safe_get_field(mkt, "trend", "")).upper() or "--"
-    dist = safe_get_field(mkt, "dist")
-    _fed_raw = safe_get_field(mkt, "fed")
+    spy_raw = mkt.get("spy")
+    spy_chg = mkt.get("spy_chg")
+    stage = str(mkt.get("stage", "--"))
+    trend = (mkt.get("trend", "")).upper() or "--"
+    dist = mkt.get("dist")
+    _fed_raw = mkt.get("fed")
     fed = "--" if (_fed_raw is None or str(_fed_raw).lower() in ("unknown", "n/a", "none", "")) else str(_fed_raw)
-    ycs = safe_get_field(mkt, "ycs")
-    upvol = safe_get_field(mkt, "upvol")
-    adr = safe_get_field(mkt, "adr")
-    nh = safe_get_field(mkt, "nh")
-    nl = safe_get_field(mkt, "nl")
-    pcr = safe_get_field(mkt, "pcr")
-    bmom = safe_get_field(mkt, "bmom")
-    halts = safe_get_list(safe_get_field(mkt, "halts")) or []
+    ycs = mkt.get("ycs")
+    upvol = mkt.get("upvol")
+    adr = mkt.get("adr")
+    nh = mkt.get("nh")
+    nl = mkt.get("nl")
+    pcr = mkt.get("pcr")
+    bmom = mkt.get("bmom")
+    halts = safe_get_list(mkt.get("halts")) or []
 
     spy_s = f"${float(spy_raw):.2f}" if spy_raw else "--"
     spy_chg_c = G if (spy_chg or 0) >= 0 else R
@@ -254,11 +253,11 @@ def panel_market_expanded(mkt, sentiment=None):
     rows.append(grid)
 
     if sentiment and not has_error(sentiment):
-        fg_v = safe_get_field(sentiment, "fg")
+        fg_v = sentiment.get("fg")
         if fg_v is not None:
             rows.append(Rule(style="dim"))
-            fg_lbl = (safe_get_field(sentiment, "label", ""))[:22]
-            fg_c = safe_get_field(sentiment, "color", "dim")
+            fg_lbl = (sentiment.get("label", ""))[:22]
+            fg_c = sentiment.get("color", "dim")
             fg_bar_f = int(fg_v / 100 * 24)
             fg_bar_s = f"[{fg_c}]{'█' * fg_bar_f}[/][dim]{'░' * (24 - fg_bar_f)}[/]"
             rows.append(Text.from_markup(f"  [dim]Fear & Greed:[/]  [{fg_c}]{fg_v:.0f}  {fg_lbl}[/]  {fg_bar_s}"))
@@ -284,21 +283,21 @@ def panel_header_market(mkt, sentiment, ts, mkt_s, elapsed, refresh_s="", cfg=No
         Text.from_markup(f"{mkt_s}  [dim]{ts}[/]  [dim]{elapsed:.1f}s[/]{refresh_s}  [{source_color}]{data_source}[/]")
     ]
     if mkt and not has_error(mkt):
-        tier = safe_get_field(mkt, "tier", "unknown")
+        tier = mkt.get("tier", "unknown")
         tc = TIER_COLOR.get(tier, "dim")
         lbl = TIER_SHORT.get(tier, "LOADING")
-        exp = safe_get_field(mkt, "pct")
+        exp = mkt.get("pct")
         exp_s = f"{float(exp):.0f}%" if exp is not None else "--"
         bar = exp_bar(exp or 0, w=8)
-        vix_val = safe_get_field(mkt, "vix")
+        vix_val = mkt.get("vix")
         vix = f"{vix_val:.1f}" if vix_val is not None else "--"
-        vc = DIM if safe_get_field(mkt, "vix") is None else (R if safe_get_field(mkt, "vix") >= 30 else (Y if safe_get_field(mkt, "vix") >= 20 else G))
-        dist = str(safe_get_field(mkt, "dist", "--"))
-        stage = str(safe_get_field(mkt, "stage", "--"))
-        trend_raw = (safe_get_field(mkt, "trend", "")).upper()
+        vc = DIM if mkt.get("vix") is None else (R if mkt.get("vix") >= 30 else (Y if mkt.get("vix") >= 20 else G))
+        dist = str(mkt.get("dist", "--"))
+        stage = str(mkt.get("stage", "--"))
+        trend_raw = (mkt.get("trend", "")).upper()
         trend_s = f"  [dim]Trend:[/][white]{trend_raw[:10]}[/]" if trend_raw else ""
-        spy_raw = safe_get_field(mkt, "spy")
-        spy_chg = safe_get_field(mkt, "spy_chg")
+        spy_raw = mkt.get("spy")
+        spy_chg = mkt.get("spy_chg")
         spy_chg_s = (
             f" [{G if (spy_chg or 0) >= 0 else R}]{sign(spy_chg or 0)}{spy_chg:.1f}%[/]" if spy_chg is not None else ""
         )
@@ -309,10 +308,10 @@ def panel_header_market(mkt, sentiment, ts, mkt_s, elapsed, refresh_s="", cfg=No
                 f"VIX:[{vc}]{vix}[/]  [dim]Dist. Days:[/][white]{dist}[/]  [dim]Stage:[/][white]{stage}[/]{trend_s}{spy_s}"
             )
         )
-        upvol = safe_get_field(mkt, "upvol")
-        nh = safe_get_field(mkt, "nh")
-        nl = safe_get_field(mkt, "nl")
-        adr = safe_get_field(mkt, "adr")
+        upvol = mkt.get("upvol")
+        nh = mkt.get("nh")
+        nl = mkt.get("nl")
+        adr = mkt.get("adr")
         if upvol is not None:
             uvc = G if upvol >= 60 else (Y if upvol >= 50 else R)
             nhnl = (nh - nl) if (nh is not None and nl is not None) else None
@@ -330,10 +329,10 @@ def panel_header_market(mkt, sentiment, ts, mkt_s, elapsed, refresh_s="", cfg=No
                     f"{nhnl_s}"
                 )
             )
-        pcr = safe_get_field(mkt, "pcr")
-        bmom = safe_get_field(mkt, "bmom")
-        ycs = safe_get_field(mkt, "ycs")
-        fed = safe_get_field(mkt, "fed")
+        pcr = mkt.get("pcr")
+        bmom = mkt.get("bmom")
+        ycs = mkt.get("ycs")
+        fed = mkt.get("fed")
         _fed_ok = fed and str(fed).lower() not in ("unknown", "n/a", "none", "")
         parts4 = []
         if pcr is not None:
@@ -351,17 +350,17 @@ def panel_header_market(mkt, sentiment, ts, mkt_s, elapsed, refresh_s="", cfg=No
             parts4.append(f"[dim]Yield Curve:[/][{yc_c}]{ycs:+.2f}[/]")
         if parts4:
             rows.append(Text.from_markup("  ".join(parts4)))
-        halts = safe_get_list(safe_get_field(mkt, "halts")) or []
+        halts = safe_get_list(mkt.get("halts")) or []
         halt_s = " ".join(str(h)[:14] for h in halts[:2]) if halts else "none"
         hc_col = Y if halts else DIM
         line5 = f"[dim]Halt:[/][{hc_col}]{halt_s}[/]"
         if _fed_ok:
             line5 += f"  [dim]Fed:[/][white]{str(fed)[:18]}[/]"
         if sentiment and not has_error(sentiment):
-            fg_v = safe_get_field(sentiment, "fg")
+            fg_v = sentiment.get("fg")
             if fg_v is not None:
-                fg_lbl = (safe_get_field(sentiment, "label") or "")[:14]
-                fg_c = safe_get_field(sentiment, "color")
+                fg_lbl = (sentiment.get("label") or "")[:14]
+                fg_c = sentiment.get("color")
                 if fg_c is None:
                     fg_c = "dim"
                 fg_bar = int(fg_v / 100 * 6)
@@ -369,20 +368,20 @@ def panel_header_market(mkt, sentiment, ts, mkt_s, elapsed, refresh_s="", cfg=No
                 line5 += f"  [dim]Fear/Greed:[/][{fg_c}]{fg_v:.0f}%  {fg_lbl}[/] {fg_bar_s}"
         rows.append(Text.from_markup(line5))
         if cfg:
-            mode = safe_get_field(cfg, "mode")
+            mode = cfg.get("mode")
             if mode is None:
                 mode = "?"
             mc2 = G if "LIVE" in str(mode) else Y
-            enabled = safe_get_field(cfg, "enabled")
+            enabled = cfg.get("enabled")
             if enabled is None:
                 enabled = True
             en_s = "ENABLED" if enabled else "DISABLED"
             ec = G if enabled else R
-            min_score = safe_get_field(cfg, "min_score")
-            max_n = safe_get_field(cfg, "max_pos_n")
-            max_sec = safe_get_field(cfg, "max_sec_n")
-            base_risk = safe_get_field(cfg, "base_risk")
-            t1r = safe_get_field(cfg, "t1_r")
+            min_score = cfg.get("min_score")
+            max_n = cfg.get("max_pos_n")
+            max_sec = cfg.get("max_sec_n")
+            base_risk = cfg.get("base_risk")
+            t1r = cfg.get("t1_r")
             parts6 = [f"[{mc2}]{mode}[/]", f"[{ec}]{en_s}[/]"]
             if min_score:
                 parts6.append(f"[dim]score≥[/][white]{float(min_score):.0f}[/]")

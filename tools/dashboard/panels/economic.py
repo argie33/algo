@@ -29,7 +29,7 @@ from ..utilities import (
     Y,
 )
 from ._helpers import _error_panel
-from .data_extractors import extract_economic_indicators, safe_get_field
+from .data_extractors import extract_economic_indicators
 
 
 def _build_calendar_rows(econ_cal) -> list:
@@ -40,7 +40,7 @@ def _build_calendar_rows(econ_cal) -> list:
         return rows
 
     econ_cal_items = (
-        safe_get_field(econ_cal, "items")
+        econ_cal.get("items")
         if isinstance(econ_cal, dict) and "items" in econ_cal
         else (econ_cal if isinstance(econ_cal, list) else [])
     )
@@ -57,22 +57,22 @@ def _build_calendar_rows(econ_cal) -> list:
     seen_keys = set()
 
     for ev in valid_cal[:6]:
-        ed_raw = safe_get_field(ev, "event_date")
+        ed_raw = ev.get("event_date")
         try:
             ed = date.fromisoformat(str(ed_raw)) if ed_raw else None
         except (ValueError, TypeError):
             ed = None
-        full_nm = safe_get_field(ev, "event_name") or ""
+        full_nm = ev.get("event_name") or ""
         name = str(full_nm)[:24]
         key = (str(ed_raw) + str(full_nm)[:24]).lower()
         if key in seen_keys:
             continue
         seen_keys.add(key)
-        imp = (safe_get_field(ev, "importance") or "LOW").upper()
+        imp = (ev.get("importance") or "LOW").upper()
         ic = imp_c.get(imp, "dim")
-        f_v = safe_get_field(ev, "forecast") if safe_get_field(ev, "forecast") is not None else safe_get_field(ev, "forecast_value")
-        a_v = safe_get_field(ev, "actual") if safe_get_field(ev, "actual") is not None else safe_get_field(ev, "actual_value")
-        p_v = safe_get_field(ev, "previous") if safe_get_field(ev, "previous") is not None else safe_get_field(ev, "previous_value")
+        f_v = ev.get("forecast") if ev.get("forecast") is not None else ev.get("forecast_value")
+        a_v = ev.get("actual") if ev.get("actual") is not None else ev.get("actual_value")
+        p_v = ev.get("previous") if ev.get("previous") is not None else ev.get("previous_value")
         if ed == today:
             when = "TODAY"
         elif ed is not None:
@@ -93,7 +93,7 @@ def _build_calendar_rows(econ_cal) -> list:
                 vals += f"[dim] P={float(p_v):.1f}[/]"
         except (ValueError, TypeError):
             pass
-        et = safe_get_field(ev, "event_time")
+        et = ev.get("event_time")
         et_s = f" [dim]{str(et)[:5]}[/]" if et else ""
         rows.append(Text.from_markup(f"[{ic}]{when!s:<5}[/]{et_s} [white]{name!s}[/]{vals}"))
 

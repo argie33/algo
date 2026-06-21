@@ -159,7 +159,7 @@ def _dispatch(
             jwt_claims
         ):
             logger.warning(
-                f"Unauthorized notification mark-read attempt by {(jwt_claims or {}).get('sub')}"
+                f"Unauthorized notification mark-read attempt by {user_id}"
             )
             raise_api_error(403, "forbidden", "Admin access required")
         try:
@@ -196,7 +196,7 @@ def _dispatch(
             jwt_claims
         ):
             logger.warning(
-                f"Unauthorized notification delete attempt by {(jwt_claims or {}).get('sub')}"
+                f"Unauthorized notification delete attempt by {user_id}"
             )
             raise_api_error(403, "forbidden", "Admin access required")
         try:
@@ -229,7 +229,7 @@ def _dispatch(
             jwt_claims
         ):
             logger.warning(
-                f"Unauthorized algo patrol access attempt by {(jwt_claims or {}).get('sub')}"
+                f"Unauthorized algo patrol access attempt by {user_id}"
             )
             raise_api_error(403, "forbidden", "Admin access required")
 
@@ -298,7 +298,7 @@ def _dispatch(
             jwt_claims
         ):
             logger.warning(
-                f"Unauthorized notifications access attempt by {(jwt_claims or {}).get('sub')}"
+                f"Unauthorized notifications access attempt by {user_id}"
             )
             raise_api_error(403, "forbidden", "Admin access required")
         return _get_notifications(cur, params, jwt_claims)
@@ -307,7 +307,7 @@ def _dispatch(
             jwt_claims
         ):
             logger.warning(
-                f"Unauthorized algo patrol-log access attempt by {(jwt_claims or {}).get('sub')}"
+                f"Unauthorized algo patrol-log access attempt by {user_id}"
             )
             raise_api_error(403, "forbidden", "Admin access required")
         limit_str = params.get("limit", [None])[0] if params and params.get("limit") else None
@@ -375,7 +375,7 @@ def _dispatch(
             jwt_claims
         ):
             logger.warning(
-                f"Unauthorized algo config access attempt by {(jwt_claims or {}).get('sub')}"
+                f"Unauthorized algo config access attempt by {user_id}"
             )
             raise_api_error(403, "forbidden", "Admin access required")
         key = path[len("/api/algo/config/") :]
@@ -400,7 +400,7 @@ def _dispatch(
             jwt_claims
         ):
             logger.warning(
-                f"Unauthorized algo audit-log access attempt by {(jwt_claims or {}).get('sub')}"
+                f"Unauthorized algo audit-log access attempt by {user_id}"
             )
             raise_api_error(403, "forbidden", "Admin access required")
         limit_str = params.get("limit", [None])[0] if params and params.get("limit") else None
@@ -433,7 +433,7 @@ def _dispatch(
             jwt_claims
         ):
             logger.warning(
-                f"Unauthorized execution history access attempt by {(jwt_claims or {}).get('sub')}"
+                f"Unauthorized execution history access attempt by {user_id}"
             )
             raise_api_error(403, "forbidden", "Admin access required")
         days_str = params.get("days", [None])[0] if params else None
@@ -446,7 +446,7 @@ def _dispatch(
             jwt_claims
         ):
             logger.warning(
-                f"Unauthorized execution history access attempt by {(jwt_claims or {}).get('sub')}"
+                f"Unauthorized execution history access attempt by {user_id}"
             )
             raise_api_error(403, "forbidden", "Admin access required")
         days_str = params.get("days", [None])[0] if params else None
@@ -457,7 +457,7 @@ def _dispatch(
             jwt_claims
         ):
             logger.warning(
-                f"Unauthorized execution history access attempt by {(jwt_claims or {}).get('sub')}"
+                f"Unauthorized execution history access attempt by {user_id}"
             )
             raise_api_error(403, "forbidden", "Admin access required")
         run_id = path.split("/api/algo/execution/details/")[-1]
@@ -467,7 +467,7 @@ def _dispatch(
             jwt_claims
         ):
             logger.warning(
-                f"Unauthorized execution history access attempt by {(jwt_claims or {}).get('sub')}"
+                f"Unauthorized execution history access attempt by {user_id}"
             )
             raise_api_error(403, "forbidden", "Admin access required")
         days_str = params.get("days", [None])[0] if params else None
@@ -478,7 +478,7 @@ def _dispatch(
             jwt_claims
         ):
             logger.warning(
-                f"Unauthorized execution history access attempt by {(jwt_claims or {}).get('sub')}"
+                f"Unauthorized execution history access attempt by {user_id}"
             )
             raise_api_error(403, "forbidden", "Admin access required")
         days_str = params.get("days", [None])[0] if params else None

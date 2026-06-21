@@ -76,19 +76,19 @@ def run(
             "and phase1_min_symbol_count thresholds. Config must be passed from algo_config table."
         )
 
-    if "phase1_min_coverage_pct" not in config:
+    min_coverage_pct = config.get("phase1_min_coverage_pct")
+    if min_coverage_pct is None:
         raise RuntimeError(
             "[PHASE 1] Config missing required key 'phase1_min_coverage_pct'. "
             "Cannot proceed without explicit data freshness threshold (no hardcoded fallback)."
         )
-    if "phase1_min_symbol_count" not in config:
+
+    min_symbol_count = config.get("phase1_min_symbol_count")
+    if min_symbol_count is None:
         raise RuntimeError(
             "[PHASE 1] Config missing required key 'phase1_min_symbol_count'. "
             "Cannot proceed without explicit symbol count threshold (no hardcoded fallback)."
         )
-
-    min_coverage_pct = config["phase1_min_coverage_pct"]
-    min_symbol_count = config["phase1_min_symbol_count"]
 
     from datetime import datetime as dt
     from zoneinfo import ZoneInfo

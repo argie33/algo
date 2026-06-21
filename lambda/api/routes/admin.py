@@ -83,17 +83,21 @@ def handle(
 ) -> RouteResponse:
     """Handle /api/admin/* endpoints for operational visibility."""
     try:
+        # Validate jwt_claims at entry point
+        if not jwt_claims:
+            return error_response(401, "missing_jwt_claims", "JWT claims required for request attribution")
+        if "sub" not in jwt_claims or not jwt_claims["sub"]:
+            return error_response(401, "missing_user_id", "JWT missing 'sub' (user ID) — cannot audit request")
+        user_id = jwt_claims["sub"]
+
         # Require admin role for all admin endpoints (bypass in dev mode)
         if not _check_admin_access(
             jwt_claims
         ):
-            user_id = (jwt_claims or {}).get("sub", "unknown")
             _audit_log_admin_action(
                 cur, user_id, path, "denied", "insufficient permissions"
             )
             return error_response(403, "forbidden", "Admin access required")
-
-        user_id = (jwt_claims or {}).get("sub", "unknown")
 
         # SECURITY FIX S-09: Rate limit admin endpoints to prevent abuse
         if path in ADMIN_RATE_LIMITS:
