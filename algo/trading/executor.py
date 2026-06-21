@@ -111,7 +111,7 @@ class TradeExecutor:
         self.validator = TradeValidator(config, self.pretrade)
 
         # Get execution mode from config (supports both dict and AlgoConfig objects)
-        if "execution_mode" not in config or not config.get("execution_mode"):
+        if "execution_mode" not in config or not config["execution_mode"]:
             raise ValueError(
                 "CRITICAL: 'execution_mode' config missing or empty. "
                 "Cannot proceed without explicit execution mode (paper/review/auto). "
@@ -225,7 +225,7 @@ class TradeExecutor:
         )
 
     def _validate_entry_conditions(
-        self, cur, symbol: str, signal_date: Any, entry_price: Decimal, stop_loss_price: Decimal
+        self, cur: Any, symbol: str, signal_date: Any, entry_price: Decimal, stop_loss_price: Decimal
     ) -> tuple[bool, str, dict[str, Any] | None]:
         """Validate all entry conditions in a single consolidated check.
 
@@ -317,7 +317,7 @@ class TradeExecutor:
 
         return True, "", None
 
-    def _with_cursor(self, operation, acquire_locks: bool = False) -> Any:
+    def _with_cursor(self, operation: Any, acquire_locks: bool = False) -> Any:
         """Execute an operation with a cursor via DatabaseContext.
 
         Args:
@@ -506,10 +506,11 @@ class TradeExecutor:
             if not is_valid:
                 result = {
                     "success": False,
-                    "trade_id": error_details.get("trade_id", ""),
+                    "trade_id": error_details["trade_id"] if error_details else "",
                     "message": error_msg,
                 }
-                result.update({k: v for k, v in error_details.items() if k != "trade_id"})
+                if error_details:
+                    result.update({k: v for k, v in error_details.items() if k != "trade_id"})
                 return result
 
             execution_mode = self.execution_mode
@@ -538,7 +539,14 @@ class TradeExecutor:
             # For auto mode, verify bracket legs and check for rejection
             if execution_mode == "auto":
                 # Verify bracket legs - FAIL-CLOSED if missing stop leg
-                order_result = self._last_order_result if hasattr(self, "_last_order_result") else {}
+                order_result = self._last_order_result if hasattr(self, "_last_order_result") else None
+                if order_result is None:
+                    return {
+                        "success": False,
+                        "trade_id": trade_id,
+                        "status": "failed",
+                        "message": "Order result missing - bracket validation failed",
+                    }
                 legs = order_result.get("legs", [])
                 if order_result.get("order_class") == "bracket" and len(legs) < 2:
                     try:
@@ -693,7 +701,7 @@ class TradeExecutor:
                     swing_grade,
                     base_type,
                     base_quality,
-                    STAGE_PHASE_MAPPING.get(stage_phase) if stage_phase else None,
+                    STAGE_PHASE_MAPPING[stage_phase] if stage_phase and stage_phase in STAGE_PHASE_MAPPING else None,
                     stage_phase,
                     sector,
                     industry,
@@ -1146,9 +1154,9 @@ class TradeExecutor:
             if full_exit and alpaca_order_id:
                 cancel_result = self._cancel_bracket_orders(alpaca_order_id)
                 if not cancel_result.get("success"):
-                    logger.warning(f"Failed to cancel bracket for {trade_id}: {cancel_result['message']}")
+                    logger.warning(f"Failed to cancel bracket for {trade_id}: {cancel_result.get('message', 'Unknown error')}")
 
-            execution_mode = self.config.get("execution_mode", "paper")
+            execution_mode = self.config.get("execution_mode") or "paper"
             actual_fill_price = None
             exit_order_result = {"success": False, "message": "No order sent"}
             is_estimated_price = True
@@ -1156,20 +1164,20 @@ class TradeExecutor:
             if execution_mode == "auto":
                 exit_order_result = self._send_alpaca_exit(symbol, shares_to_exit)
                 if exit_order_result.get("success"):
-                    actual_fill_price = exit_order_result.get("filled_price")
+                    actual_fill_price = exit_order_result["filled_price"] if "filled_price" in exit_order_result else None
                     is_estimated_price = False
                 else:
                     try:
                         notify(
                             "critical",
                             title=f"EXIT ORDER FAILED: {symbol}",
-                            message=f"Trade {trade_id}: Failed to exit {shares_to_exit}sh. {exit_order_result.get('message')}",
+                            message=f"Trade {trade_id}: Failed to exit {shares_to_exit}sh. {exit_order_result['message'] if 'message' in exit_order_result else 'Unknown error'}",
                         )
                     except NotificationError as e:
                         logger.warning(f"Failed to send exit failure alert (non-blocking): {e}")
                     return {
                         "success": False,
-                        "message": f"Exit order failed: {exit_order_result.get('message')}",
+                        "message": f"Exit order failed: {exit_order_result.get('message', 'Unknown error')}",
                     }
 
             final_exit_price = actual_fill_price if actual_fill_price else exit_price
@@ -1430,7 +1438,9 @@ class TradeExecutor:
                 }
 
             alpaca_pos = resp.json()
-            qty_raw = alpaca_pos.get("qty")
+            qty_raw = alpaca_pos["qty"] if "qty" in alpaca_pos else None
+            if qty_raw is None:
+                raise DataUnavailableError(f"Alpaca position missing 'qty' field: {alpaca_pos.keys()}")
             if qty_raw is None:
                 return {
                     "valid": False,
