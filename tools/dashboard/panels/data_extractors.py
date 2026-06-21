@@ -149,7 +149,9 @@ def extract_health_items(hlth: dict[str, Any] | list) -> tuple[list, bool]:
     ready_to_trade = None
 
     if isinstance(hlth, dict):
-        items = hlth.get("items", []) if isinstance(hlth.get("items"), list) else []
+        # Fail-fast: if items field exists but is not a list, caller should have caught this error
+        if "items" in hlth and isinstance(hlth.get("items"), list):
+            items = hlth["items"]
         ready_to_trade = hlth.get("ready_to_trade")
     elif isinstance(hlth, list):
         items = hlth
@@ -161,11 +163,15 @@ def extract_phase_results(run: dict[str, Any]) -> list[dict[str, Any]]:
     """Extract and normalize phase results from run data.
 
     Handles various phase result formats and ensures consistent structure.
+    Fail-fast: If phase_results is present but invalid, error should have been caught at API layer.
     """
     if not isinstance(run, dict):
         return []
-    results = run.get("phase_results", [])
-    return results if isinstance(results, list) else []
+    # Only return phase_results if it's explicitly a list; don't fall back to empty list
+    if "phase_results" in run:
+        results = run.get("phase_results")
+        return results if isinstance(results, list) else []
+    return []
 
 
 def extract_item_field(item: dict[str, Any], field: str, default: Any = None) -> Any:
@@ -180,24 +186,33 @@ def extract_item_field(item: dict[str, Any], field: str, default: Any = None) ->
 
 
 def extract_signal_overview(sig: dict[str, Any]) -> dict[str, Any]:
-    """Extract signal overview fields for compact & expanded displays (error already checked)."""
+    """Extract signal overview fields for compact & expanded displays (error already checked).
+
+    Fail-fast: Do not fall back to empty dicts/lists. If optional fields are truly optional,
+    caller should check them for None. If they should never be None, validation at API layer
+    should have caught missing data and returned error.
+    """
     if not isinstance(sig, dict) or has_error(sig):
         return {"_error": "Signal data unavailable"}
     return {
         "n": sig.get("n"),
         "total": sig.get("total"),
         "date": sig.get("date"),
-        "grades": sig.get("grades") or {},
-        "top_a": sig.get("top_a") or [],
-        "near": sig.get("near") or [],
-        "trend": sig.get("trend") or [],
-        "buy_sigs": sig.get("buy_sigs") or [],
+        "grades": sig.get("grades"),
+        "top_a": sig.get("top_a"),
+        "near": sig.get("near"),
+        "trend": sig.get("trend"),
+        "buy_sigs": sig.get("buy_sigs"),
         "timestamp": sig.get("timestamp"),
     }
 
 
 def extract_eval_funnel(sig_eval: dict[str, Any] | None) -> dict[str, Any]:
-    """Extract evaluation funnel data (error already checked, data optional)."""
+    """Extract evaluation funnel data (error already checked, data optional).
+
+    Fail-fast: Do not fall back to empty list. If rejected field is optional,
+    caller should handle None values.
+    """
     if not sig_eval or not isinstance(sig_eval, dict) or has_error(sig_eval):
         return {}
     return {
@@ -208,7 +223,7 @@ def extract_eval_funnel(sig_eval: dict[str, Any] | None) -> dict[str, Any]:
         "t4": sig_eval.get("t4"),
         "t5": sig_eval.get("t5"),
         "avg_score": sig_eval.get("avg_score"),
-        "rejected": sig_eval.get("rejected") or [],
+        "rejected": sig_eval.get("rejected"),
     }
 
 
@@ -230,7 +245,12 @@ def extract_portfolio_metrics(port: dict[str, Any]) -> dict[str, Any]:
 
 
 def extract_performance_metrics(perf: dict[str, Any]) -> dict[str, Any]:
-    """Extract performance metrics for display (error already checked)."""
+    """Extract performance metrics for display (error already checked).
+
+    Fail-fast: Do not fall back to empty lists for equity_vals and recent_rets.
+    If these are expected to exist, validation at API layer should have caught
+    missing data. If they're optional, caller should handle None values.
+    """
     if not isinstance(perf, dict) or has_error(perf):
         return {"_error": "Performance data unavailable"}
     return {
@@ -245,8 +265,8 @@ def extract_performance_metrics(perf: dict[str, Any]) -> dict[str, Any]:
         "exp": perf.get("expectancy"),
         "avg_win": perf.get("avg_win"),
         "avg_loss": perf.get("avg_loss"),
-        "equity_vals": perf.get("equity_vals") or [],
-        "recent_rets": perf.get("recent_rets") or [],
+        "equity_vals": perf.get("equity_vals"),
+        "recent_rets": perf.get("recent_rets"),
         "open_count": perf.get("open_count"),
         "maxdd": perf.get("maxdd"),
     }

@@ -5,11 +5,12 @@ Validates core risk calculations, position sizing math, and performance metrics.
 These tests ensure regressions in financial math are caught before live trading.
 """
 
-import pytest
-from decimal import Decimal
 from datetime import date, datetime, timedelta
-from unittest.mock import MagicMock, patch, call
+from decimal import Decimal
+from unittest.mock import MagicMock, call, patch
+
 import numpy as np
+import pytest
 
 
 class TestPositionSizer:
@@ -183,7 +184,6 @@ class TestValueAtRisk:
     def test_zero_return_portfolio(self):
         """Verify VaR handling when portfolio value is zero."""
         current_value = Decimal("0")
-        var_pct = 0.05
         if current_value == 0:
             pytest.skip("Cannot calculate VaR for zero portfolio value")
 
@@ -229,7 +229,7 @@ class TestPerformanceMetrics:
         assert win_rate == 60.0
 
     def test_expectancy_calculation(self):
-        """Verify expectancy (E = WR × AvgWin - LR × AvgLoss)."""
+        """Verify expectancy (E = WR x AvgWin - LR x AvgLoss)."""
         win_rate = 0.6
         avg_win = 2.0  # R-multiples
         loss_rate = 0.4
@@ -279,7 +279,7 @@ class TestFinancialMathEdgeCases:
         portfolio_value = Decimal("100000")
         initial_value = Decimal("0")
         try:
-            return_pct = (portfolio_value - initial_value) / initial_value
+            _ = (portfolio_value - initial_value) / initial_value
             pytest.fail("Should raise ZeroDivisionError")
         except ZeroDivisionError:
             pass  # Expected
@@ -330,7 +330,6 @@ class TestFinancialCalculationIntegration:
         """Verify position sizing reduces correctly with drawdown."""
         portfolio_value = Decimal("100000")
         base_risk_pct = Decimal("0.75")
-        drawdown = -0.10  # -10% drawdown
 
         # Base risk
         base_risk_dollars = portfolio_value * base_risk_pct / Decimal("100")

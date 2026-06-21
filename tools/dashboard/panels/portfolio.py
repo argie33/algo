@@ -231,10 +231,18 @@ def panel_portfolio(port, cfg, risk=None, perf=None):
 
 
 def _build_perf_header(perf_data: dict, pos) -> Text:
-    """Build performance header with trade count and win rate."""
+    """Build performance header with trade count and win rate.
+
+    Critical fields (wins, losses) must be present from successful fetch.
+    """
     perf = extract_performance_metrics(perf_data)
-    w = safe_get_field(perf, "w") or 0
-    closed_losses = safe_get_field(perf, "l") or 0
+    w = safe_get_field(perf, "w")
+    closed_losses = safe_get_field(perf, "l")
+
+    # Critical fields should not be None after successful fetch
+    if w is None or closed_losses is None:
+        return Text.from_markup("[dim]Performance data incomplete - missing trade counts[/]")
+
     streak = safe_get_field(perf, "streak")
 
     wr_v, _adj_w, adj_l = _calculate_adjusted_win_rate(perf_data, pos)

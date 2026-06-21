@@ -84,6 +84,5 @@ def test_dashboard_shows_error_panel_when_data_broken():
     # error_summary_panel should catch these errors
     error_panel = error_summary_panel(data_with_errors)
     assert error_panel is not None, "Error panel should show when data has errors"
-    error_str = str(error_panel)
     # Check that error panel contains reference to errors (content varies by implementation)
-    print(f"OK Error panel generated for broken data")
+    print("OK Error panel generated for broken data")
