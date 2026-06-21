@@ -1,4 +1,4 @@
-#!/usr/bin/env python3
+﻿#!/usr/bin/env python3
 """
 Position Monitor - Institutional-grade daily position health checks
 
@@ -213,7 +213,7 @@ class PositionMonitor:
                         "count": len(stale_orders),
                         "orders": stale_orders,
                     }
-                return {"status": "OK", "count": 0}
+            return {"status": "OK", "count": 0}
 
     def check_sector_concentration(self, current_date: Any | None = None) -> dict[str, Any]:
         """Check if portfolio is overly concentrated in one sector.
@@ -244,7 +244,7 @@ class PositionMonitor:
             except (psycopg2.DatabaseError, psycopg2.OperationalError) as e:
                 return {"status": "ERROR", "error": str(e)}
 
-    def review_positions(self, current_date: Any | None = None) -> dict[str, Any]:
+    def review_positions(self, current_date: Any | None = None) -> list[dict[str, Any]]:
         """Review every open position. Returns list of recommendations."""
         if not current_date:
             current_date = _date.today()
@@ -435,17 +435,14 @@ class PositionMonitor:
         entry_price_dec = Decimal(str(entry_price))
         quantity_dec = Decimal(str(quantity))
 
-        unrealized_pnl = float(
-            float((price_diff * quantity_dec).quantize(Decimal("0.01"), ROUND_HALF_UP)),
-            default=0.0,
-            context="unrealized_pnl",
-        )
         if entry_price_dec <= 0:
             raise PositionValidationError(f"Invalid entry price for {symbol}: {entry_price_dec} <= 0")
+
+        unrealized_pnl = float(
+            (price_diff * quantity_dec).quantize(Decimal("0.01"), ROUND_HALF_UP)
+        )
         unrealized_pct = float(
-            float((price_diff / entry_price_dec * 100).quantize(Decimal("0.01"), ROUND_HALF_UP)),
-            default=0.0,
-            context="unrealized_pct",
+            (price_diff / entry_price_dec * 100).quantize(Decimal("0.01"), ROUND_HALF_UP)
         )
 
         # 2. Recompute trailing stop (only ratchet UP, never down)
@@ -562,7 +559,7 @@ class PositionMonitor:
 
     # ---------- Helpers ----------
 
-    def _cancel_on_alpaca(self, trade_id: str) -> dict[str, Any]:
+    def _cancel_on_alpaca(self, trade_id: str) -> None:
         """Cancel a stale pending order on Alpaca API only (idempotent)."""
         try:
             creds = get_alpaca_credentials()
@@ -572,7 +569,7 @@ class PositionMonitor:
 
             if not alpaca_key or not alpaca_secret:
                 logger.warning(f"Alpaca credentials unavailable for {trade_id}")
-                return
+                return None
 
             url = f"{base_url}/v2/orders/{trade_id}"
             headers = {
@@ -672,7 +669,7 @@ class PositionMonitor:
 
     def _fetch_current_market(
         self, symbol: str, current_date: Any, cur: Any
-    ) -> tuple[float | None, float | None, float | None]:
+    ) -> tuple[float, float | None, float | None, float | None]:
         """Fetch current price and technical indicators for a symbol.
 
         Raises:
@@ -977,7 +974,7 @@ class PositionMonitor:
                 UPDATE algo_positions
                 SET current_price = %s,
                     position_value = %s * %s,
-                    unrealized_pnl = (%s - avg_entry_price) * quantity,
+                    unrealized_pnl = (%s - avg_entry_price) * %s,
                     unrealized_pnl_pct = ((%s - avg_entry_price) / avg_entry_price) * 100,
                     days_since_entry = %s,
                     updated_at = CURRENT_TIMESTAMP
@@ -988,6 +985,7 @@ class PositionMonitor:
                     quantity,
                     current_price,
                     current_price,
+                    quantity,
                     current_price,
                     int(rec["days_held"]),
                     rec["position_id"],
@@ -1221,3 +1219,4 @@ if __name__ == "__main__":
 
     monitor = PositionMonitor(get_config())
     monitor.review_positions()
+
