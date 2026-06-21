@@ -53,6 +53,45 @@ from .data_extractors import (
 )
 
 
+# Status state constants
+SUCCESS_STATES = ("success", "completed", "ok")
+HALTED_STATES = ("halt", "halted", "warn", "degraded", "skipped")
+ERROR_STATES = ("error", "failed")
+
+# Role priority ordering for health items
+ROLE_ORDER = {"CRIT": 0, "IMP": 1, "NORM": 2}
+
+# Severity to color mapping
+SEV_COLORS = {"critical": R, "warning": Y, "info": CY, "debug": DIM}
+
+# Notification title short names
+NOTIF_SHORT_NAMES = {
+    "trading halted by circuit": "Halted: CB",
+    "circuit breaker": "CB fired",
+    "position entered": "Entered",
+    "position exited": "Exited",
+    "daily loss limit": "DailyLoss",
+    "max drawdown": "MaxDD hit",
+}
+
+# Loader status indicators
+LOADER_STATUS_ERROR = ("error", "failed", "stale")
+LOADER_STATUS_LOADING = "loading"
+
+# Key phase data fields (in priority order)
+PHASE_DATA_KEYS = (
+    "signals_generated",
+    "entries_executed",
+    "exits_executed",
+    "positions_checked",
+    "orders_placed",
+    "symbols_checked",
+    "trades_executed",
+    "checks_passed",
+    "score",
+)
+
+
 def _var_color(var95: float | None) -> str:
     """Choose color for VaR 95% value: red if ≥4%, yellow if ≥2%, white otherwise."""
     if var95 is None:
@@ -74,13 +113,9 @@ def _format_phase_badge(phase_status: str) -> tuple[str, str]:
         Tuple of (color, icon) for phase badge
     """
     ps_lower = phase_status.lower() if phase_status else ""
-
-    success_states = ("success", "completed", "ok")
-    halted_states = ("halt", "halted", "warn", "degraded", "skipped")
-
-    if ps_lower in success_states:
+    if ps_lower in SUCCESS_STATES:
         return G, "✓"
-    elif ps_lower in halted_states:
+    elif ps_lower in HALTED_STATES:
         return Y, "~"
     else:
         return R, "✗"
@@ -334,6 +369,231 @@ def panel_orch(run, cfg, risk=None):
     return Panel(body, title="[bold cyan]ORCHESTRATOR[/]", border_style="cyan", padding=(0, 1))
 
 
+def _format_exec_history_summary(exec_hist: list) -> list[Text]:
+    """Format last N runs summary (used in panel_status and panel_algo_health)."""
+    rows = []
+    valid_hist = safe_get_list(exec_hist)
+    if not valid_hist:
+        return rows
+
+    n_ok = sum(1 for r in valid_hist if (safe_get_field(r, "overall_status", "") or "").lower() in ("success", "completed"))
+    n_hlt = sum(1 for r in valid_hist if (safe_get_field(r, "overall_status", "") or "").lower() == "halted")
+    n_err = sum(1 for r in valid_hist if (safe_get_field(r, "overall_status", "") or "").lower() in ("error", "failed"))
+    total_h = len(valid_hist)
+    wr_h = n_ok / total_h * 100 if total_h else 0
+    wc_h = G if wr_h >= 80 else (Y if wr_h >= 50 else R)
+
+    badges = []
+    for r in valid_hist[:7]:
+        s = (safe_get_field(r, "overall_status", "") or "").lower()
+        if s in ("success", "completed"):
+            badges.append(f"[{G}]OK[/]")
+        elif s == "halted":
+            badges.append(f"[{Y}]~[/]")
+        else:
+            badges.append(f"[{R}]X[/]")
+
+    rows.append(
+        Text.from_markup(
+            f"[dim]Last {total_h} runs:[/] {''.join(badges)}"
+            f"  [{wc_h}]{n_ok}/{total_h} success[/]"
+            + (f"  [{Y}]{n_hlt} halted[/]" if n_hlt else "")
+            + (f"  [{R}]{n_err} error[/]" if n_err else "")
+        )
+    )
+
+    last_halt = next(
+        (r for r in valid_hist if (safe_get_field(r, "overall_status", "") or "").lower() == "halted"),
+        None,
+    )
+    if last_halt:
+        lhr = safe_get_field(last_halt, "halt_reason", "")
+        lph = _fmt_phases_halted(safe_get_field(last_halt, "phases_halted"))
+        body = lhr or lph
+        if body:
+            ph_s = f"  [dim]({lph})[/]" if lph and lph not in lhr else ""
+            rows.append(Text.from_markup(f"  [{Y}]a†³ {body[:55]}[/]{ph_s}"))
+
+    return rows
+
+
+def _format_recent_trade_events(act: dict) -> list[Text]:
+    """Format recent trade events (entry/exit/order)."""
+    rows = []
+    act_valid = act and not has_error(act)
+    recent = safe_get_field(act, "recent_actions", []) if act_valid else []
+
+    trade_evts = [
+        a
+        for a in recent
+        if safe_get_field(a, "action_type")
+        in (
+            "entry_executed",
+            "exit_executed",
+            "entry_rejected",
+            "position_exited",
+            "order_placed",
+            "order_rejected",
+        )
+    ]
+    for a in trade_evts[:4]:
+        at = safe_get_field(a, "action_type", "")
+        det = safe_get_field(a, "details")
+        if isinstance(det, str):
+            try:
+                det = json.loads(det)
+            except (json.JSONDecodeError, ValueError) as e:
+                logger.warning(f"Failed to parse action details JSON: {e}")
+                det = None
+        elif not isinstance(det, dict) and det is not None:
+            det = None
+        sym = safe_get_field(det, "symbol", "") if det else ""
+        ic = G if ("executed" in at or at == "position_exited") else (Y if "placed" in at else R)
+        lbl = at.replace("_", " ").title()[:20]
+        rows.append(Text.from_markup(f"  [{ic}]{lbl}{(' ' + sym) if sym else ''}[/]"))
+
+    return rows
+
+
+def _format_data_health_summary(hlth_items: list) -> list[Text]:
+    """Format data health section (stale tables only)."""
+    rows = []
+    if not hlth_items:
+        return rows
+
+    stale = [r for r in hlth_items if isinstance(r, dict) and safe_get_field(r, "st") != "ok"]
+    if not stale:
+        rows.append(Text.from_markup(f"[{G}]OK Data OK[/]  [dim]{len(hlth_items)} tables[/]"))
+        crit = [r for r in hlth_items if isinstance(r, dict) and safe_get_field(r, "role") == "CRIT"]
+        if crit:
+            crit_parts = "  ".join(f"[{G}]OK[/][dim]{safe_get_field(r, 'tbl', '')[:13]}[/]" for r in crit)
+            rows.append(Text.from_markup(f"  {crit_parts}"))
+    else:
+        for r in stale[:4]:
+            nm = str((safe_get_field(r, "tbl", "") or "--")[:13])
+            age_hours = safe_get_field(r, "age_hours")
+            age_days = safe_get_field(r, "age")
+            if age_hours is not None:
+                age_s = f"{age_hours:.0f}h" if age_hours < 24 else f"{age_hours / 24:.1f}d"
+            elif age_days is not None:
+                age_s = f"{float(age_days):.1f}d"
+            else:
+                age_s = "?"
+            rc = safe_get_field(r, "role", "")
+            cc = "bold white" if rc == "CRIT" else "white"
+            lat = safe_get_field(r, "last_updated") or safe_get_field(r, "latest")
+            if hasattr(lat, "strftime"):
+                lat_s = f" ({lat.strftime('%m/%d')})"
+            elif isinstance(lat, str) and len(lat) >= 10:
+                lat_s = f" ({lat[5:10]})"
+            else:
+                lat_s = f" ({str(lat)[:5]})" if lat else ""
+            rows.append(Text.from_markup(f"[{R}]X[/] [{cc}]{nm:<13}[/] [dim]{age_s} stale{lat_s}[/]"))
+
+    return rows
+
+
+def _format_loader_status(loader: list) -> list[Text]:
+    """Format data loader status section."""
+    rows = []
+    valid_loader = safe_get_list(loader)
+    problem_loader = [r for r in valid_loader if (safe_get_field(r, "status", "")) in LOADER_STATUS_ERROR]
+    running_loader = [r for r in valid_loader if (safe_get_field(r, "status", "")) == LOADER_STATUS_LOADING]
+    ok_count = len(valid_loader) - len(problem_loader) - len(running_loader)
+
+    if problem_loader:
+        ok_s = f"  [dim]{ok_count} ok[/]" if ok_count > 0 else ""
+        rows.append(Text.from_markup(f"[{Y}]Loaders ({len(problem_loader)} issues){ok_s}:[/]"))
+        for r in problem_loader[:3]:
+            nm = str((safe_get_field(r, "table_name", "") or "--")[:14])
+            st = safe_get_field(r, "status") or "?"
+            age = safe_get_field(r, "age_days")
+            age_s = str(f"{int(age)}d" if age is not None else "--")
+            sc = R if st in ("error", "failed") else Y
+            err = (safe_get_field(r, "error_message", "") or "")[:20]
+            rows.append(Text.from_markup(f"  [{sc}]{nm:<14}[/] [dim]{age_s}[/]" + (f" [dim]{err}[/]" if err else "")))
+    elif valid_loader:
+        if running_loader:
+            for r in running_loader[:3]:
+                nm = (safe_get_field(r, "table_name", "") or "")[:12]
+                pct = safe_get_field(r, "completion_pct")
+                pct_s = f" {float(pct):.0f}%" if pct is not None else ""
+                rows.append(Text.from_markup(f"[{CY}]Loading:[/][dim] {nm}{pct_s}[/]"))
+        elif ok_count > 0:
+            rows.append(Text.from_markup(f"[{G}]OK Loaders[/]  [dim]{ok_count} feeds healthy[/]"))
+
+    return rows
+
+
+def _format_notifications_summary(notifs: list) -> list[Text]:
+    """Format notifications section."""
+    rows = []
+    valid_notifs = safe_get_list(notifs)
+    if not valid_notifs:
+        return rows
+
+    for n in valid_notifs[:4]:
+        sc = SEV_COLORS.get(safe_get_field(n, "severity", "info"), DIM)
+        raw_t = safe_get_field(n, "title", "") or ""
+        tl = raw_t.lower()
+        title = next((v for k, v in NOTIF_SHORT_NAMES.items() if k in tl), raw_t[:24])
+        age = fmt_age(safe_get_field(n, "created_at"))
+        unread = "-" if not safe_get_field(n, "seen", True) else " "
+        rows.append(Text.from_markup(f"[{sc}]{unread}[/] [{sc}]{title}[/] [dim]{age}[/]"))
+
+    return rows
+
+
+def _format_daily_metrics_summary(algo_metrics: list) -> list[Text]:
+    """Format daily trade activity summary."""
+    rows = []
+    valid_metrics = safe_get_list(algo_metrics)
+    if not valid_metrics:
+        return rows
+
+    rows.append(Text.from_markup("[dim]Daily trade activity:[/]"))
+    for m in valid_metrics[:5]:
+        d = safe_get_field(m, "date")
+        d_s = d.strftime("%b %d") if hasattr(d, "strftime") else str(d or "--")
+        ta = int(safe_get_field(m, "total_actions", 0)) if "total_actions" in m else 0
+        en = int(safe_get_field(m, "entries", 0)) if "entries" in m else 0
+        ex = int(safe_get_field(m, "exits", 0)) if "exits" in m else 0
+        rows.append(
+            Text.from_markup(
+                f"  [dim]{d_s}:[/] [white]{ta}[/][dim] total actions,  [/][{G}]{en}[/][dim] entries  [/][{R}]{ex}[/][dim] exits[/]"
+            )
+        )
+
+    return rows
+
+
+def _format_audit_log_summary(audit: list) -> list[Text]:
+    """Format audit log section (notable actions only)."""
+    rows = []
+    valid_audit = safe_get_list(audit)
+    if not valid_audit:
+        return rows
+
+    notable = [
+        a
+        for a in valid_audit
+        if any(k in (safe_get_field(a, "action_type", "") or "") for k in ("entry", "exit", "halt", "resume", "circuit"))
+    ][:3]
+
+    if not notable:
+        return rows
+
+    rows.append(Text.from_markup("[dim]Audit:[/]"))
+    for a in notable:
+        at = (safe_get_field(a, "action_type", "") or "").replace("_", " ")
+        sym = safe_get_field(a, "symbol", "") or ""
+        st = safe_get_field(a, "status", "")
+        sc = G if st == "success" else (Y if st == "warn" else R)
+        rows.append(Text.from_markup(f"  [{sc}]{at[:22]}[/]" + (f" [white]{sym}[/]" if sym else "")))
+
+    return rows
+
+
 def panel_status(
     act,
     hlth,
@@ -412,42 +672,9 @@ def panel_status(
     rows.append(Rule(style="dim"))
 
     # Execution history summary — last 7 runs
-    valid_hist = safe_get_list(exec_hist)
-    if valid_hist:
-        n_ok = sum(1 for r in valid_hist if (safe_get_field(r, "overall_status", "") or "").lower() in ("success", "completed"))
-        n_hlt = sum(1 for r in valid_hist if (safe_get_field(r, "overall_status", "") or "").lower() == "halted")
-        n_err = sum(1 for r in valid_hist if (safe_get_field(r, "overall_status", "") or "").lower() in ("error", "failed"))
-        total_h = len(valid_hist)
-        wr_h = n_ok / total_h * 100 if total_h else 0
-        wc_h = G if wr_h >= 80 else (Y if wr_h >= 50 else R)
-        badges = []
-        for r in valid_hist[:7]:
-            s = (safe_get_field(r, "overall_status", "") or "").lower()
-            if s in ("success", "completed"):
-                badges.append(f"[{G}]OK[/]")
-            elif s == "halted":
-                badges.append(f"[{Y}]~[/]")
-            else:
-                badges.append(f"[{R}]X[/]")
-        rows.append(
-            Text.from_markup(
-                f"[dim]Last {total_h} runs:[/] {''.join(badges)}"
-                f"  [{wc_h}]{n_ok}/{total_h} success[/]"
-                + (f"  [{Y}]{n_hlt} halted[/]" if n_hlt else "")
-                + (f"  [{R}]{n_err} error[/]" if n_err else "")
-            )
-        )
-        last_halt = next(
-            (r for r in valid_hist if (safe_get_field(r, "overall_status", "") or "").lower() == "halted"),
-            None,
-        )
-        if last_halt:
-            lhr = safe_get_field(last_halt, "halt_reason", "")
-            lph = _fmt_phases_halted(safe_get_field(last_halt, "phases_halted"))
-            body = lhr or lph
-            if body:
-                ph_s = f"  [dim]({lph})[/]" if lph and lph not in lhr else ""
-                rows.append(Text.from_markup(f"  [{Y}]a†³ {body[:55]}[/]{ph_s}"))
+    hist_rows = _format_exec_history_summary(exec_hist)
+    if hist_rows:
+        rows.extend(hist_rows)
         rows.append(Rule(style="dim"))
 
     # Current run status — shown prominently even when history is empty

@@ -725,14 +725,28 @@ def fetch_sector_ranking(c):
             return FetcherValidator.build_error_response(error_msg)
 
         raw = data
+        items = None
         if isinstance(raw, dict):
             items = raw.get("items")
             if not isinstance(items, list):
-                items = None
+                error_msg = "Sector ranking API response: 'items' field is not a list"
+                logger.error(error_msg)
+                record_data_quality_issue("srank", "validation", "items_not_list")
+                return FetcherValidator.build_error_response(error_msg)
         elif isinstance(raw, list):
             items = raw
         else:
-            items = None
+            error_msg = f"Sector ranking API response: expected dict or list, got {type(raw).__name__}"
+            logger.error(error_msg)
+            record_data_quality_issue("srank", "validation", "invalid_response_type")
+            return FetcherValidator.build_error_response(error_msg)
+
+        if not items:
+            error_msg = "No sector ranking data available"
+            logger.error(error_msg)
+            record_data_quality_issue("srank", "validation", "no_items")
+            return FetcherValidator.build_error_response(error_msg)
+
         return {"items": items}
     except Exception as e:
         error_msg = _format_fetcher_error("srank", e)
@@ -759,17 +773,31 @@ def fetch_activity(c):
         if isinstance(raw, dict):
             items = raw.get("items")
             if not isinstance(items, list):
-                items = None
-        run_at = None
-        phases = []
-        if items:
-            run_at = items[0].get("action_date") if items else None
-            phases = [i for i in items if (i.get("action_type") or "").startswith("phase_")]
+                error_msg = "Activity API response: 'items' field is not a list"
+                logger.error(error_msg)
+                record_data_quality_issue("activity", "validation", "items_not_list")
+                return FetcherValidator.build_error_response(error_msg)
+        elif isinstance(raw, list):
+            items = raw
+        else:
+            error_msg = f"Activity API response: expected dict or list, got {type(raw).__name__}"
+            logger.error(error_msg)
+            record_data_quality_issue("activity", "validation", "invalid_response_type")
+            return FetcherValidator.build_error_response(error_msg)
+
+        if not items:
+            error_msg = "No activity data available"
+            logger.error(error_msg)
+            record_data_quality_issue("activity", "validation", "no_items")
+            return FetcherValidator.build_error_response(error_msg)
+
+        run_at = items[0].get("action_date")
+        phases = [i for i in items if (i.get("action_type") or "").startswith("phase_")]
         return {
             "run_id": None,
             "run_at": run_at,
             "phases": phases,
-            "recent_actions": items[:20] if items else None,
+            "recent_actions": items[:20],
         }
     except Exception as e:
         error_msg = _format_fetcher_error("activity", e)
@@ -1102,9 +1130,24 @@ def fetch_notifications(c):
         if isinstance(raw, dict):
             items = raw.get("items")
             if not isinstance(items, list):
-                items = None
+                error_msg = "Notifications API response: 'items' field is not a list"
+                logger.error(error_msg)
+                record_data_quality_issue("notifs", "validation", "items_not_list")
+                return FetcherValidator.build_error_response(error_msg)
         elif isinstance(raw, list):
             items = raw
+        else:
+            error_msg = f"Notifications API response: expected dict or list, got {type(raw).__name__}"
+            logger.error(error_msg)
+            record_data_quality_issue("notifs", "validation", "invalid_response_type")
+            return FetcherValidator.build_error_response(error_msg)
+
+        if not items:
+            error_msg = "No notifications available"
+            logger.error(error_msg)
+            record_data_quality_issue("notifs", "validation", "no_items")
+            return FetcherValidator.build_error_response(error_msg)
+
         return {"items": items}
     except Exception as e:
         error_msg = _format_fetcher_error("notifs", e)
@@ -1170,9 +1213,24 @@ def fetch_economic_calendar(c):
         if isinstance(raw, dict):
             items = raw.get("items")
             if not isinstance(items, list):
-                items = None
+                error_msg = "Economic calendar API response: 'items' field is not a list"
+                logger.error(error_msg)
+                record_data_quality_issue("econ_cal", "validation", "items_not_list")
+                return FetcherValidator.build_error_response(error_msg)
         elif isinstance(raw, list):
             items = raw
+        else:
+            error_msg = f"Economic calendar API response: expected dict or list, got {type(raw).__name__}"
+            logger.error(error_msg)
+            record_data_quality_issue("econ_cal", "validation", "invalid_response_type")
+            return FetcherValidator.build_error_response(error_msg)
+
+        if not items:
+            error_msg = "No economic calendar events available"
+            logger.error(error_msg)
+            record_data_quality_issue("econ_cal", "validation", "no_items")
+            return FetcherValidator.build_error_response(error_msg)
+
         return {"items": items}
     except Exception as e:
         error_msg = _format_fetcher_error("econ_cal", e)
@@ -1333,9 +1391,24 @@ def fetch_industry_ranking(c):
         if isinstance(raw, dict):
             items = raw.get("items")
             if not isinstance(items, list):
-                items = None
+                error_msg = "Industry ranking API response: 'items' field is not a list"
+                logger.error(error_msg)
+                record_data_quality_issue("irank", "validation", "items_not_list")
+                return FetcherValidator.build_error_response(error_msg)
         elif isinstance(raw, list):
             items = raw
+        else:
+            error_msg = f"Industry ranking API response: expected dict or list, got {type(raw).__name__}"
+            logger.error(error_msg)
+            record_data_quality_issue("irank", "validation", "invalid_response_type")
+            return FetcherValidator.build_error_response(error_msg)
+
+        if not items:
+            error_msg = "No industry ranking data available"
+            logger.error(error_msg)
+            record_data_quality_issue("irank", "validation", "no_items")
+            return FetcherValidator.build_error_response(error_msg)
+
         return {"items": items}
     except Exception as e:
         error_msg = _format_fetcher_error("irank", e)
@@ -1365,9 +1438,22 @@ def fetch_exec_history(c):
         if isinstance(raw, dict):
             items = raw.get("items")
             if not isinstance(items, list):
-                items = None
+                error_msg = "Execution history API response: 'items' field is not a list"
+                logger.error(error_msg)
+                record_data_quality_issue("exec_hist", "validation", "items_not_list")
+                return FetcherValidator.build_error_response(error_msg)
+            if not items:
+                error_msg = "No execution history available"
+                logger.error(error_msg)
+                record_data_quality_issue("exec_hist", "validation", "no_items")
+                return FetcherValidator.build_error_response(error_msg)
             return items
         if isinstance(raw, list):
+            if not raw:
+                error_msg = "Execution history API returned empty list"
+                logger.error(error_msg)
+                record_data_quality_issue("exec_hist", "validation", "empty_list")
+                return FetcherValidator.build_error_response(error_msg)
             return raw
         error_msg = f"Execution history API response unexpected type: expected list or dict, got {type(raw).__name__}"
         logger.error(error_msg)
@@ -1393,8 +1479,26 @@ def fetch_scores(c):
             record_data_quality_issue("scores", "api_call", "api_error", error_msg)
             return FetcherValidator.build_error_response(error_msg)
 
-        # API response is unwrapped so items is at top level, not under data
-        items = top_data.get("items", [])
+        # Validate response structure — fail-fast if missing items field
+        if not isinstance(top_data, dict):
+            error_msg = f"Scores API response: expected dict, got {type(top_data).__name__}"
+            logger.error(error_msg)
+            record_data_quality_issue("scores", "validation", "invalid_response_type")
+            return FetcherValidator.build_error_response(error_msg)
+
+        if "items" not in top_data:
+            error_msg = "Scores API response: missing required 'items' field"
+            logger.error(error_msg)
+            record_data_quality_issue("scores", "validation", "missing_items_field")
+            return FetcherValidator.build_error_response(error_msg)
+
+        items = top_data["items"]
+        if not isinstance(items, list):
+            error_msg = "Scores API response: 'items' field is not a list"
+            logger.error(error_msg)
+            record_data_quality_issue("scores", "validation", "items_not_list")
+            return FetcherValidator.build_error_response(error_msg)
+
         if not items:
             error_msg = "No score data available"
             logger.error(error_msg)
@@ -1427,9 +1531,22 @@ def fetch_audit_log(c):
         if isinstance(raw, dict):
             items = raw.get("items")
             if not isinstance(items, list):
-                items = None
+                error_msg = "Audit log API response: 'items' field is not a list"
+                logger.error(error_msg)
+                record_data_quality_issue("audit", "validation", "items_not_list")
+                return FetcherValidator.build_error_response(error_msg)
+            if not items:
+                error_msg = "No audit log entries available"
+                logger.error(error_msg)
+                record_data_quality_issue("audit", "validation", "no_items")
+                return FetcherValidator.build_error_response(error_msg)
             return items
         if isinstance(raw, list):
+            if not raw:
+                error_msg = "Audit log API returned empty list"
+                logger.error(error_msg)
+                record_data_quality_issue("audit", "validation", "empty_list")
+                return FetcherValidator.build_error_response(error_msg)
             return raw
         error_msg = f"Audit log API response unexpected type: expected list or dict, got {type(raw).__name__}"
         logger.error(error_msg)
