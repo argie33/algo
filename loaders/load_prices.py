@@ -904,15 +904,21 @@ class PriceLoader(OptimalLoader):
                 f"[BATCH FETCH TIMEOUT] Batch=1 with {elapsed_sec/60:.1f}min elapsed. "
                 "Failing immediately to prevent Step Function timeout. yfinance severely degraded."
             )
-            return dict.fromkeys(symbols)
+            raise RuntimeError(
+                f"[BATCH FETCH TIMEOUT] Batch=1 with {elapsed_sec/60:.1f}min elapsed. "
+                "yfinance API severely degraded - cannot proceed without data."
+            )
 
         # ISSUE #6 FIX: If we've shrunk to batch_size=1 and still rate limiting, give up immediately
         # This prevents infinite reduction and timeout cascade
         if batch_size <= 0 or attempt >= max_attempts:
-            logger.warning(
-                f"[BATCH FETCH] Giving up after {attempt} attempts with batch_size={batch_size}, elapsed {elapsed_sec:.0f}s"
+            logger.critical(
+                f"[BATCH FETCH] Exhausted all retry attempts: {attempt}/{max_attempts} with batch_size={batch_size}, elapsed {elapsed_sec:.0f}s"
             )
-            return dict.fromkeys(symbols)
+            raise RuntimeError(
+                f"[BATCH FETCH EXHAUSTED] Max attempts ({max_attempts}) exceeded with batch_size={batch_size}. "
+                "yfinance API unavailable - cannot fetch price data."
+            )
 
         # Issue #1 FIX (Blocker #1): Proactive early abort if rate limiting detected at batch >= 20
         # CRITICAL: Fail-fast rather than wait through hopeless retry loops.
@@ -936,10 +942,12 @@ class PriceLoader(OptimalLoader):
                 )
                 logger.critical(
                     f"[RATE_LIMIT_EARLY_ABORT] Batch size {batch_size} with {self._rate_limit_errors} rate limit errors ({context}). "
-                    "yfinance API severely degraded. Aborting early to prevent timeout cascade. "
-                    "Phase 1 failsafe will retry when API recovers."
+                    "yfinance API severely degraded. Aborting early to prevent timeout cascade."
                 )
-                return dict.fromkeys(symbols)
+                raise RuntimeError(
+                    f"[RATE_LIMIT_EARLY_ABORT] {self._rate_limit_errors} rate limit errors at batch={batch_size} ({context}). "
+                    "yfinance API severely degraded - cannot fetch price data."
+                )
 
         # Issue #20 FIX: At batch=1, try longer wait before giving up
         if batch_size == 1 and self._rate_limit_errors > 3:
@@ -986,7 +994,10 @@ class PriceLoader(OptimalLoader):
                     logger.debug(
                         f"Could not publish batch fetch minimum size metric: {metric_err}"
                     )
-                return dict.fromkeys(symbols)
+                raise RuntimeError(
+                    f"[BATCH FETCH ABORT] Batch at minimum with {self._rate_limit_errors} rate limit errors for {error_duration/60:.1f}min. "
+                    "yfinance API severely degraded - cannot fetch price data."
+                )
 
         # Check circuit breaker: if rate limiting has persisted for > threshold, try smaller batch size
         # Issue #6: Instead of failing completely, reduce batch size to avoid timeout
@@ -1004,11 +1015,14 @@ class PriceLoader(OptimalLoader):
                 # Try with progressively smaller batch sizes (10, 5, 1)
                 # ISSUE #6 FIX: Stop trying if already spent too long on rate limiting
                 if elapsed_sec > max_single_batch_wait * 0.8:  # 8 minutes threshold
-                    logger.warning(
+                    logger.critical(
                         f"[CIRCUIT BREAKER] Rate limiting {elapsed_sec/60:.1f}min, approaching timeout. "
                         "Skipping reduced batch size attempts, failing batch immediately."
                     )
-                    return dict.fromkeys(symbols)
+                    raise RuntimeError(
+                        f"[CIRCUIT BREAKER TIMEOUT] Rate limiting for {elapsed_sec/60:.1f}min, approaching Step Function timeout. "
+                        "yfinance API unavailable - cannot fetch price data."
+                    )
 
                 reduced_batch_sizes = [10, 5, 1]
                 for reduced_size in reduced_batch_sizes:

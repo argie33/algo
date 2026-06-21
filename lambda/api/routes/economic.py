@@ -75,8 +75,8 @@ def handle(
         elif path == "/api/economic/calendar":
             try:
                 cur.execute("SET LOCAL statement_timeout = '5000ms'")
-                start_date = params.get("start_date", [None])[0] if params else None
-                end_date = params.get("end_date", [None])[0] if params else None
+                start_date = params.get("start_date", [None])[0] if params and params.get("start_date") else None
+                end_date = params.get("end_date", [None])[0] if params and params.get("end_date") else None
                 query_params = []
 
                 where_clauses = []

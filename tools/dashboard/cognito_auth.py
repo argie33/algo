@@ -337,7 +337,16 @@ def get_cognito_auth(require_auth: bool = True, interactive: bool = True) -> Cog
             logger.info("[Cognito] Authentication cancelled")
             return None
 
-    # 6. Fallback: return unauthenticated instance (will fail on protected endpoints)
+    # 6. All auth methods failed
+    if require_auth:
+        msg = (
+            "No credentials available — run deploy workflow to provision credentials in Secrets Manager, "
+            "or set COGNITO_USERNAME + COGNITO_PASSWORD environment variables"
+        )
+        logger.error(f"[Cognito] Authentication required but failed: {msg}")
+        raise RuntimeError(msg)
+
+    # If require_auth=False, return unauthenticated instance for optional auth scenarios
     logger.warning(
         "[Cognito] No credentials available — run deploy workflow to provision credentials in Secrets Manager"
     )

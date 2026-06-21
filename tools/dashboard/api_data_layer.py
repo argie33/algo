@@ -267,19 +267,8 @@ def api_call(endpoint: str, params: dict | None = None, method: str = "GET") -> 
         return {"_error": error_msg}
 
     if _check_circuit_breaker():
-        try:
-            cached = get_cached_response(endpoint, mark_stale=True)
-            if cached:
-                logger.warning(
-                    f"Circuit breaker open - returning cached data for {endpoint} "
-                    f"(age: {cached.get('_cache_age_seconds', 0)}s)"
-                )
-                return cached
-        except RuntimeError as e:
-            logger.error(str(e))
-            return {"_error": str(e)}
         return {
-            "_error": "API unavailable - circuit breaker open",
+            "_error": "API unavailable - circuit breaker open after repeated failures",
             "_circuit_open": True,
         }
 

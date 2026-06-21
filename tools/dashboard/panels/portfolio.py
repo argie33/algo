@@ -445,16 +445,16 @@ def panel_portfolio_perf_expanded(port, cfg, risk=None, perf=None, perf_anl=None
         ptbl.add_column("label2", style="dim")
         ptbl.add_column("val2", style="white")
 
-        pv = safe_float(port.get("total_portfolio_value"), default=None)
-        cash = safe_float(port.get("total_cash"), default=None)
-        npos_val = port.get("position_count")
+        pv = safe_float(safe_get_field(port, "total_portfolio_value"), default=None)
+        cash = safe_float(safe_get_field(port, "total_cash"), default=None)
+        npos_val = safe_get_field(port, "position_count")
         npos = int(npos_val) if npos_val is not None else None
-        dr = safe_float(port.get("daily_return_pct"), default=None)
-        urp = safe_float(port.get("unrealized_pnl_pct"), default=None)
-        cum = safe_float(port.get("cumulative_return_pct"), default=None)
-        mxdd = safe_float(port.get("max_drawdown_pct"), default=None)
-        lgpos = safe_float(port.get("largest_position_pct"), default=None)
-        snap = port.get("snapshot_date")
+        dr = safe_float(safe_get_field(port, "daily_return_pct"), default=None)
+        urp = safe_float(safe_get_field(port, "unrealized_pnl_pct"), default=None)
+        cum = safe_float(safe_get_field(port, "cumulative_return_pct"), default=None)
+        mxdd = safe_float(safe_get_field(port, "max_drawdown_pct"), default=None)
+        lgpos = safe_float(safe_get_field(port, "largest_position_pct"), default=None)
+        snap = safe_get_field(port, "snapshot_date")
 
         ptbl.add_row(
             "Total Value:",
@@ -462,7 +462,7 @@ def panel_portfolio_perf_expanded(port, cfg, risk=None, perf=None, perf_anl=None
             "Cash:",
             fmt_money(cash),
         )
-        max_n_val = cfg.get("max_pos_n") if cfg else None
+        max_n_val = safe_get_field(cfg, "max_pos_n") if cfg else None
         max_n = int(max_n_val) if max_n_val else 0
         slots_s = f"{npos}/{max_n}" if (npos is not None and max_n) else (str(npos) if npos is not None else "--")
         dr_s = f"{dr:+.2f}%" if dr is not None else "--"
@@ -645,18 +645,18 @@ def panel_portfolio_perf_expanded(port, cfg, risk=None, perf=None, perf_anl=None
         rows.append(anl)
         rows.append(Rule(style="dim"))
 
-    if risk and not has_error(risk) and risk.get("var95") is not None and float(risk.get("var95", 0)) > 0:
+    if risk and not has_error(risk) and safe_get_field(risk, "var95") is not None and float(safe_get_field(risk, "var95", 0)) > 0:
         rows.append(Text.from_markup("[dim bold]RISK METRICS[/]"))
         rtbl = Table.grid(padding=(0, 3), expand=False)
         rtbl.add_column("label", style="dim")
         rtbl.add_column("val")
         rtbl.add_column("label2", style="dim")
         rtbl.add_column("val2")
-        var95_val = risk.get("var95")
-        beta_val = risk.get("beta")
-        conc5_val = risk.get("conc5")
-        svar_val = risk.get("svar")
-        cvar95_val = risk.get("cvar95")
+        var95_val = safe_get_field(risk, "var95")
+        beta_val = safe_get_field(risk, "beta")
+        conc5_val = safe_get_field(risk, "conc5")
+        svar_val = safe_get_field(risk, "svar")
+        cvar95_val = safe_get_field(risk, "cvar95")
         beta_c = R if beta_val >= 1.2 else (Y if beta_val >= 0.8 else G)
         conc_c = R if conc5_val >= 35 else (Y if conc5_val >= 25 else "white")
         var_c = R if var95_val >= 4 else (Y if var95_val >= 2 else "white")
@@ -677,7 +677,7 @@ def panel_portfolio_perf_expanded(port, cfg, risk=None, perf=None, perf_anl=None
                 "Stressed VaR:",
                 Text(f"{float(svar_val):.2f}%", style=R),
                 "Risk Date:",
-                Text(str(risk.get("date", "--"))[:10], style="dim"),
+                Text(str(safe_get_field(risk, "date", "--"))[:10], style="dim"),
             )
         rows.append(rtbl)
 
@@ -687,7 +687,7 @@ def panel_portfolio_perf_expanded(port, cfg, risk=None, perf=None, perf_anl=None
             rows.append(Rule(style="dim"))
             rows.append(Text.from_markup("[dim bold]POSITION CONCENTRATION[/]"))
             pv_total = (
-                safe_float(port.get("total_portfolio_value"), default=0) if port and not has_error(port) else 0
+                safe_float(safe_get_field(port, "total_portfolio_value"), default=0) if port and not has_error(port) else 0
             )
             conc_rows = []
             for p in pos_items:

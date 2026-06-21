@@ -295,11 +295,11 @@ class ValueAtRisk:
                             f"[VAR] {symbol}: missing or invalid current_price/quantity, skipping from VAR calculation"
                         )
                         continue
-                    position_value = safe_qty * safe_price
-                    position_weight = position_value / portfolio_value if portfolio_value > 0 else 0
+                    position_value = Decimal(str(safe_qty)) * Decimal(str(safe_price))
+                    position_weight = position_value / portfolio_value if portfolio_value > 0 else Decimal(0)
 
                     # Compute 60-day beta via covariance with SPY
-                    estimated_beta = 1.0
+                    estimated_beta = Decimal("1.0")
                     if spy_returns and spy_var > 0:
                         try:
                             cur.execute(
@@ -318,7 +318,7 @@ class ValueAtRisk:
                                     if price is None or price <= 0:
                                         logger.warning(f"[VAR] {symbol}: invalid historical price for beta calc, skipping")
                                         break
-                                    stock_prices.append(price)
+                                    stock_prices.append(Decimal(str(price)))
                                 stock_prices = list(reversed(stock_prices))
                                 if len(stock_prices) < 2:
                                     continue
@@ -335,7 +335,7 @@ class ValueAtRisk:
                                     cov = sum((s_rets[i] - s_mean) * (m_rets[i] - m_mean) for i in range(n)) / n
                                     var = sum((r - m_mean) ** 2 for r in m_rets) / n
                                     if var > 0:
-                                        estimated_beta = round(cov / var, 2)
+                                        estimated_beta = (cov / var).quantize(Decimal("0.01"), rounding=ROUND_HALF_UP)
                         except (ValueError, ZeroDivisionError, TypeError) as e:
                             raise RuntimeError(f"Beta calculation failed for {symbol}: {e}") from e
 
@@ -345,17 +345,17 @@ class ValueAtRisk:
                     positions_list.append(
                         {
                             "symbol": symbol,
-                            "weight_pct": round(position_weight * 100, 2),
-                            "estimated_beta": round(estimated_beta, 2),
-                            "contribution": round(weighted_beta, 3),
+                            "weight_pct": float((position_weight * Decimal(100)).quantize(Decimal("0.01"), rounding=ROUND_HALF_UP)),
+                            "estimated_beta": float(estimated_beta),
+                            "contribution": float(weighted_beta.quantize(Decimal("0.001"), rounding=ROUND_HALF_UP)),
                         }
                     )
 
                 return {
-                    "portfolio_beta": round(total_beta_exposure, 2),
-                    "interpretation": f"Portfolio is {round(total_beta_exposure, 1)}× market risk",
+                    "portfolio_beta": float(total_beta_exposure.quantize(Decimal("0.01"), rounding=ROUND_HALF_UP)),
+                    "interpretation": f"Portfolio is {float(total_beta_exposure.quantize(Decimal('0.1'), rounding=ROUND_HALF_UP))}× market risk",
                     "positions": positions_list,
-                    "portfolio_value": portfolio_value,
+                    "portfolio_value": float(portfolio_value.quantize(Decimal("0.01"), rounding=ROUND_HALF_UP)),
                 }
 
         except (psycopg2.DatabaseError, psycopg2.OperationalError) as e:
@@ -414,11 +414,11 @@ class ValueAtRisk:
                         "Cannot compute concentration without portfolio snapshot. "
                         "Portfolio must have been reconciled at least once."
                     )
-                portfolio_value = safe_float(portfolio_row[0], default=0.0, context="concentration_portfolio_value")
+                portfolio_value = Decimal(str(portfolio_row[0]))
 
                 top_holdings = []
-                sector_exposure: dict[str, float] = {}
-                industry_exposure: dict[str, float] = {}
+                sector_exposure: dict[str, Decimal] = {}
+                industry_exposure: dict[str, Decimal] = {}
 
                 excluded_count = 0
                 for symbol, qty, cur_price, _entry_price, sector, industry in positions:
