@@ -16,6 +16,7 @@ from routes.utils import (
     safe_json_serialize,
 )
 
+from shared_contracts.response_validator import ResponseValidator
 from utils.validation import DatabaseResultValidator
 
 
