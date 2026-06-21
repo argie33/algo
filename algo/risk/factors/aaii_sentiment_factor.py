@@ -30,53 +30,50 @@ class AAIISentimentFactor(MarketFactorStrategy):
     def calculate(self, eval_date: Any, cur: Any) -> dict[str, Any]:
         """Calculate AAII sentiment factor.
 
+        Raises ValueError if AAII sentiment data unavailable.
+
         Returns score based on AAII bullish-bearish spread.
         Contrarian: high bearish spread (many bears) = bullish signal.
         """
-        try:
-            cur.execute("""
-                SELECT bullish_pct, bearish_pct, date
-                FROM aaii_sentiment_daily
-                ORDER BY date DESC
-                LIMIT 1
-            """)
-            row = cur.fetchone()
-            if not row:
-                return {"score": 50, "reason": "No AAII data available", "error": "missing_data"}
+        cur.execute("""
+            SELECT bullish_pct, bearish_pct, date
+            FROM aaii_sentiment_daily
+            ORDER BY date DESC
+            LIMIT 1
+        """)
+        row = cur.fetchone()
+        if not row:
+            raise ValueError("AAII sentiment factor: no AAII sentiment data available")
 
-            bullish_pct, bearish_pct, date = row
-            if bullish_pct is None or bearish_pct is None:
-                return {"score": 50, "reason": "AAII percentages are NULL", "error": "null_data"}
+        bullish_pct, bearish_pct, _date = row
+        if bullish_pct is None or bearish_pct is None:
+            raise ValueError("AAII sentiment factor: AAII percentages are NULL")
 
-            bullish_pct = float(bullish_pct)
-            bearish_pct = float(bearish_pct)
-            spread = bullish_pct - bearish_pct
+        bullish_pct = float(bullish_pct)
+        bearish_pct = float(bearish_pct)
+        spread = bullish_pct - bearish_pct
 
-            # Contrarian scoring: look for extremes
-            # Extremely bearish (spread < -15) = bullish signal
-            if spread < -15:
-                score = 75 + min(10, abs(spread + 15) / 5)
-                return {
-                    "score": min(100, score),
-                    "reason": f"Extreme bearish (spread={spread:.1f}) - contrarian bullish",
-                    "details": {"bullish": bullish_pct, "bearish": bearish_pct, "spread": spread},
-                }
-            # Extremely bullish (spread > 15) = bearish signal
-            elif spread > 15:
-                score = 25 - min(10, (spread - 15) / 5)
-                return {
-                    "score": max(0, score),
-                    "reason": f"Extreme bullish (spread={spread:.1f}) - contrarian bearish",
-                    "details": {"bullish": bullish_pct, "bearish": bearish_pct, "spread": spread},
-                }
-            # Neutral range: -15 ≤ spread ≤ 15
-            else:
-                return {
-                    "score": 50,
-                    "reason": f"Neutral range (spread={spread:.1f})",
-                    "details": {"bullish": bullish_pct, "bearish": bearish_pct, "spread": spread},
-                }
-
-        except Exception as e:
-            logger.error(f"Failed to calculate AAII sentiment factor: {e}")
-            return {"score": 50, "reason": f"Calculation error: {e}", "error": str(e)}
+        # Contrarian scoring: look for extremes
+        # Extremely bearish (spread < -15) = bullish signal
+        if spread < -15:
+            score = 75 + min(10, abs(spread + 15) / 5)
+            return {
+                "score": min(100, score),
+                "reason": f"Extreme bearish (spread={spread:.1f}) - contrarian bullish",
+                "details": {"bullish": bullish_pct, "bearish": bearish_pct, "spread": spread},
+            }
+        # Extremely bullish (spread > 15) = bearish signal
+        elif spread > 15:
+            score = 25 - min(10, (spread - 15) / 5)
+            return {
+                "score": max(0, score),
+                "reason": f"Extreme bullish (spread={spread:.1f}) - contrarian bearish",
+                "details": {"bullish": bullish_pct, "bearish": bearish_pct, "spread": spread},
+            }
+        # Neutral range: -15 ≤ spread ≤ 15
+        else:
+            return {
+                "score": 50,
+                "reason": f"Neutral range (spread={spread:.1f})",
+                "details": {"bullish": bullish_pct, "bearish": bearish_pct, "spread": spread},
+            }
