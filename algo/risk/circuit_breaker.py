@@ -1,12 +1,12 @@
+import psycopg2
+
+
 #!/usr/bin/env python3
 
 """
-Trading Risk Management Gates (Pre-Trade Kill-Switches)
+Circuit Breakers - Kill-switch risk halts (institutional safety layer)
 
-IMPORTANT: This is NOT a general-purpose circuit breaker for API/data handling.
-Use utils.infrastructure.circuit_breaker:CircuitBreaker for data loader outage handling.
-
-This module implements pre-trade risk checks that halt new position entry:
+Halts trading when any of these fire:
   CB1. PORTFOLIO DRAWDOWN  >= halt_drawdown_pct (default 20%)
   CB2. DAILY LOSS          >= max_daily_loss_pct (default 2%)
   CB3. CONSECUTIVE LOSSES  >= max_consecutive_losses (default 3)
@@ -33,10 +33,7 @@ from datetime import date as _date
 from datetime import datetime, timedelta
 from typing import Any
 
-import psycopg2
-
 from utils.db import DatabaseContext
-from utils.safe_data_conversion import safe_bool, safe_float, safe_int
 from utils.trading import PositionStatus, TradeStatus
 
 
@@ -69,7 +66,7 @@ def _safe_float(value, default=None, context=""):
     if value is None:
         return default
     try:
-        f = safe_float(value, default=0.0, context="value")
+        f = float(value)
         if math.isnan(f) or math.isinf(f):
             logger.warning(f"Invalid float {value!r} (NaN/Inf) {context}")
             return default
@@ -205,7 +202,7 @@ class CircuitBreaker:
         2. Market shows Follow-Through Day signal (optional)
         3. At least N days have passed since halt
         """
-        threshold = safe_float(self.config.get("halt_drawdown_pct", 20.0), default=20.0, context="halt_drawdown_pct")
+        threshold = float(self.config.get("halt_drawdown_pct", 20.0))
 
         # First check: is current drawdown >= threshold? If not, no re-engagement needed
         cur.execute("""
@@ -217,10 +214,9 @@ class CircuitBreaker:
         if row is None or row[0] is None or row[1] is None:
             return {"halted": False, "reason": "No halt history"}
 
-        peak = safe_float(row[0], default=None, context="row[0]")
-        cur_val = safe_float(row[1], default=None, context="row[1]")
-        if peak is None or cur_val is None or peak <= 0 or cur_val <= 0:
-            logger.warning("Portfolio values missing/invalid for re-engagement check")
+        peak = float(row[0])
+        cur_val = float(row[1])
+        if peak <= 0 or cur_val <= 0:
             return {"halted": False, "reason": "Invalid values"}
 
         dd = (peak - cur_val) / peak * 100.0
@@ -229,9 +225,9 @@ class CircuitBreaker:
         if dd < threshold:
             return {"halted": False, "reason": "Not in drawdown halt"}
 
-        recovery_threshold = safe_float(self.config.get("re_engage_recovery_pct", 8.0), default=8.0, context="re_engage_recovery_pct")
-        min_days_elapsed = safe_int(self.config.get("re_engage_min_days", 5), default=5, context="re_engage_min_days")
-        require_ftd = safe_bool(self.config.get("require_ftd_to_re_engage", True), default=True)
+        recovery_threshold = float(self.config.get("re_engage_recovery_pct", 8.0))
+        min_days_elapsed = int(self.config.get("re_engage_min_days", 5))
+        require_ftd = bool(self.config.get("require_ftd_to_re_engage", True))
 
         recovery_pct = (peak - cur_val) / peak * 100.0  # Current distance from peak
         if recovery_pct > recovery_threshold:
@@ -328,9 +324,7 @@ class CircuitBreaker:
                 streak += 1
             else:
                 break
-        threshold = safe_int(self.config.get("max_consecutive_losses", 3), default=3, context="max_consecutive_losses")
-        threshold = threshold if threshold is not None else 3
-        streak = streak if streak is not None else 0
+        threshold = int(self.config.get("max_consecutive_losses", 3))
         return {
             "halted": streak >= threshold,
             "reason": (f"{streak} consecutive losses >= {threshold}" if streak >= threshold else f"{streak} losses"),
@@ -370,22 +364,19 @@ class CircuitBreaker:
             (TradeStatus.CLOSED.value,),
         )
         row = cur.fetchone()
-        if row is None or row[3] is None or safe_int(row[3], default=0, context="trade_count") < 10:
+        if row is None or row[3] is None or int(row[3]) < 10:
             return {"halted": False, "reason": "Insufficient closed trades (< 10)"}
 
-        wins_val = safe_int(row[0], default=0, context="win_count")
-        wins = wins_val if wins_val is not None else 0
-        losses_val = safe_int(row[1], default=0, context="loss_count")
-        losses = losses_val if losses_val is not None else 0
-        safe_int(row[2], default=0, context="breakeven_count") if row[2] is not None else 0
-        total_val = safe_int(row[3], default=0, context="total_count")
-        total = total_val if total_val is not None else 0
+        wins = int(row[0]) if row[0] is not None else 0
+        losses = int(row[1]) if row[1] is not None else 0
+        int(row[2]) if row[2] is not None else 0
+        total = int(row[3]) if row[3] is not None else 0
 
         # Win rate based on wins vs (wins + losses), excluding break-even trades
         # This avoids dilution where many break-even trades inflate the denominator
         decisive_trades = wins + losses
         win_rate = (wins / decisive_trades * 100.0) if decisive_trades > 0 else 0
-        threshold = safe_float(self.config.get("min_win_rate_pct", 40.0), default=40.0, context="min_win_rate_pct")
+        threshold = float(self.config.get("min_win_rate_pct", 40.0))
         return {
             "halted": win_rate < threshold,
             "reason": (
@@ -549,7 +540,7 @@ class CircuitBreaker:
                 "reason": "Market stage NULL — fail-closed to prevent trading in unknown stage",
             }
 
-        stage = safe_int(row[1], default=2, context="market_stage")
+        stage = int(row[1])
         trend = row[2] or "unknown"
         # Stage 4 = halt new entries (full downtrend). Stage 3 = caution but allow.
         halted = stage == 4
@@ -573,9 +564,9 @@ class CircuitBreaker:
         row = cur.fetchone()
         if not row or not row[0] or not row[1]:
             return {"halted": False, "reason": "Insufficient history"}
-        cur_val, week_ago_val = safe_float(row[0], default=0.0, context="row[0]"), safe_float(row[1], default=0.0, context="row[1]")
+        cur_val, week_ago_val = float(row[0]), float(row[1])
         weekly = ((cur_val - week_ago_val) / week_ago_val * 100.0) if week_ago_val > 0 else 0
-        threshold = -safe_float(self.config.get("max_weekly_loss_pct", 5.0), default=5.0, context="max_weekly_loss_pct")
+        threshold = -float(self.config.get("max_weekly_loss_pct", 5.0))
         return {
             "halted": weekly <= threshold,
             "reason": (
@@ -661,8 +652,8 @@ class CircuitBreaker:
             if len(rows) < 2:
                 return {"halted": False, "reason": "Insufficient price history"}
 
-            latest = safe_float(rows[0][0], default=0.0, context="rows[0][0]") if rows[0][0] else None
-            prior = safe_float(rows[1][0], default=0.0, context="rows[1][0]") if rows[1][0] else None
+            latest = float(rows[0][0]) if rows[0][0] else None
+            prior = float(rows[1][0]) if rows[1][0] else None
 
             if not latest or not prior or prior <= 0:
                 return {"halted": False, "reason": "Invalid price data"}
@@ -697,8 +688,7 @@ class CircuitBreaker:
         Sector concentration is a soft limit; the circuit breaker warns but does not block.
         """
         try:
-            max_sector_val = safe_int(self.config.get("max_positions_per_sector", 5), default=5, context="max_positions_per_sector")
-            max_sector_positions = max_sector_val if max_sector_val is not None else 5
+            max_sector_positions = int(self.config.get("max_positions_per_sector", 5))
 
             cur.execute("""
                 SELECT ap.symbol, COALESCE(cp.sector, 'Unknown') AS sector
@@ -742,8 +732,8 @@ class CircuitBreaker:
         row = cur.fetchone()
         if not row or row[0] is None:
             return {"halted": False, "reason": "No today snapshot yet"}
-        daily = safe_float(row[0], default=0.0, context="row[0]")
-        threshold = safe_float(self.config.get("daily_profit_cap_pct", 2.0), default=2.0, context="daily_profit_cap_pct")
+        daily = float(row[0])
+        threshold = float(self.config.get("daily_profit_cap_pct", 2.0))
         # This check is a SOFT warning, not a halt — it's logged but doesn't block trading
         # Orchestrator uses this to skip NEW entries only, not to exit existing positions
         return {
@@ -773,7 +763,7 @@ class CircuitBreaker:
             notify(
                 severity="critical",
                 title="Trading Halted by Circuit Breaker",
-                message="; ".join(results.get("halt_reasons")),
+                message="; ".join(results.get("halt_reasons", [])),
                 details=results.get("checks"),
             )
         except (ValueError, ZeroDivisionError, TypeError) as e:

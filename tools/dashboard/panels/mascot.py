@@ -1,6 +1,7 @@
 """Mascot animation and loading layout functions."""
 
 import logging
+from typing import cast
 
 from rich.align import Align
 from rich.console import Group
@@ -26,7 +27,7 @@ class _RenderCache:
     def get_mascot_panel(self, pose_index: int, data: dict) -> Panel:
         """Return cached Panel if pose hasn't changed, otherwise render new one."""
         if self.mascot_compact_pose_index == pose_index:
-            return self.mascot_compact_panel
+            return cast(Panel, self.mascot_compact_panel)
 
         self.mascot_compact_pose_index = pose_index
         mc = MASCOT_COLORS[pose_index]
@@ -43,7 +44,7 @@ class _RenderCache:
             border_style=mc,
             padding=(0, 0),
         )
-        return self.mascot_compact_panel
+        return cast(Panel, self.mascot_compact_panel)
 
     def get_loading_layout(self, pose_index: int, dots_idx: int, data_source: str) -> Layout:
         """Return cached Layout if pose and dots haven't changed."""
@@ -52,7 +53,7 @@ class _RenderCache:
             and self.loading_layout_dots_idx == dots_idx
             and self.loading_layout_data_source == data_source
         ):
-            return self.loading_layout_cache
+            return cast(Layout, self.loading_layout_cache)
 
         self.loading_layout_pose_index = pose_index
         self.loading_layout_dots_idx = dots_idx
@@ -153,8 +154,7 @@ def _get_safe_frame_index(frame_index: int) -> int:
 
 def mascot_pose(data: dict, frame: int) -> int:
     """Determine mascot pose based on circuit breaker status."""
-    cb = data.get("cb")
-    if cb and isinstance(cb, dict) and cb.get("any") is True:
+    if (data.get("cb") or {}).get("any"):
         seq = [4, 0, 1, 3, 4, 1, 0, 3, 4, 0, 1, 3, 4, 1, 0, 3, 4, 0, 1, 7]
         idx = seq[(frame // 2) % len(seq)]
     else:

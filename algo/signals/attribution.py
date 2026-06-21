@@ -1,3 +1,6 @@
+import psycopg2
+
+
 #!/usr/bin/env python3
 
 """
@@ -12,8 +15,6 @@ import logging
 from datetime import date as _date
 from typing import Any
 
-import psycopg2
-
 
 try:
     import numpy as np
@@ -26,7 +27,6 @@ except ImportError:
     stats = None
 
 from utils.db import DatabaseContext
-from utils.safe_data_conversion import safe_float
 
 
 logger = logging.getLogger(__name__)
@@ -122,11 +122,11 @@ class SignalAttributionEngine:
                         try:
                             swing_components = json.loads(swing_components_json) if swing_components_json else {}
                             comp_data = swing_components.get(component)
-                            comp_score = comp_data.get("pts", 0)
-                            r_mult = safe_float(r_multiple, default=0.0, context="r_multiple") if r_multiple is not None else 0
+                            comp_score = comp_data.get("pts", 0) if comp_data else 0
+                            r_mult = float(r_multiple) if r_multiple is not None else 0
 
                             if comp_score is not None and r_mult is not None:
-                                comp_scores.append(safe_float(comp_score, default=0.0, context="comp_score"))
+                                comp_scores.append(float(comp_score))
                                 r_multiples.append(r_mult)
                         except (json.JSONDecodeError, ValueError) as e:
                             logger.debug(f"Could not extract {component} from trade {trade_id}: {e}")
@@ -153,8 +153,8 @@ class SignalAttributionEngine:
                             interpretation = "weak"
 
                         ic_results[component] = {
-                            "ic_value": round(safe_float(ic_value, default=0.0, context="ic_value"), 4),
-                            "ic_pvalue": round(safe_float(ic_pvalue, default=0.0, context="ic_pvalue"), 4),
+                            "ic_value": round(float(ic_value), 4),
+                            "ic_pvalue": round(float(ic_pvalue), 4),
                             "sample_size": len(comp_scores),
                             "avg_component_score": round(float(comp_scores_arr.mean()), 2),
                             "avg_realized_pnl": round(float(r_mult_arr.mean()), 2),
@@ -268,8 +268,8 @@ class SignalAttributionEngine:
                                 )
                                 comp_value = comp_data.get("pts") if isinstance(comp_data, dict) else comp_data
                                 if comp_value is not None:
-                                    comp_scores.append(safe_float(comp_value, default=0.0, context="comp_value"))
-                                    r_multiples.append(safe_float(exit_r_multiple, default=0.0, context="exit_r_multiple"))
+                                    comp_scores.append(float(comp_value))
+                                    r_multiples.append(float(exit_r_multiple))
                             except (json.JSONDecodeError, ValueError) as e:
                                 logger.debug(f"Could not extract {component} from trade {trade_id}: {e}")
                                 continue
@@ -294,8 +294,8 @@ class SignalAttributionEngine:
                                 interpretation = "weak"
 
                             ic_data[component] = {
-                                "ic_value": round(safe_float(ic_value, default=0.0, context="ic_value"), 4),
-                                "ic_pvalue": round(safe_float(ic_pvalue, default=0.0, context="ic_pvalue"), 4),
+                                "ic_value": round(float(ic_value), 4),
+                                "ic_pvalue": round(float(ic_pvalue), 4),
                                 "sample_size": len(comp_scores),
                                 "avg_component_score": round(float(comp_scores_arr.mean()), 2),
                                 "avg_realized_pnl": round(float(r_mult_arr.mean()), 2),
@@ -395,7 +395,7 @@ class SignalAttributionEngine:
                     """,
                     (component, days),
                 )
-                return [(row[0], safe_float(row[1], default=0.0, context="row[1]")) for row in cur.fetchall()]
+                return [(row[0], float(row[1])) for row in cur.fetchall()]
         except (psycopg2.DatabaseError, psycopg2.OperationalError) as e:
             logger.error(f"Failed to get trailing IC: {e}")
             return []

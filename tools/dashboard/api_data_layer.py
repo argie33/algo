@@ -32,11 +32,7 @@ import os
 import random
 import threading
 import time
-from datetime import datetime
-from zoneinfo import ZoneInfo
-
-
-ET = ZoneInfo("America/New_York")
+from datetime import datetime, timezone
 from typing import Any, cast
 
 import requests
@@ -128,26 +124,6 @@ def get_cognito_auth():
         return _cognito_auth
 
 
-def _log_missing_fields(endpoint: str, data: dict) -> None:
-    """Log any missing or None fields in API response for data quality diagnostics.
-
-    Helps identify which fields are missing in the actual API data vs. what panels expect.
-    This reveals data loading issues at the source rather than hidden by panel defaults.
-    """
-    if not isinstance(data, dict) or data.get("_error"):
-        return
-
-    none_fields = [k for k, v in data.items() if v is None and not k.startswith("_")]
-    if none_fields:
-        logger.warning(f"API {endpoint}: fields with None value: {none_fields}")
-
-    # Warn about empty collections that might indicate missing loaders
-    for k, v in data.items():
-        if isinstance(v, (list, dict)) and not v and not k.startswith("_"):
-            if k not in ("items", "data"):  # These can legitimately be empty
-                logger.debug(f"API {endpoint}: empty collection in field '{k}'")
-
-
 def _check_circuit_breaker():
     """Check if circuit breaker is open; attempt half-open state after reset time."""
     global _circuit_breaker_state
@@ -195,7 +171,7 @@ def cache_response(endpoint: str, data: dict) -> None:
     with _response_cache_lock:
         _response_cache[endpoint] = {
             "data": data,
-            "timestamp": datetime.now(ET),
+            "timestamp": datetime.now(timezone.utc),
         }
 
 
@@ -218,9 +194,13 @@ def get_cached_response(endpoint: str, mark_stale: bool = False) -> dict | None:
         cached = _response_cache.get(endpoint)
         if not cached:
             return None
-    cached_data = cached.get("data")
+    cached_data = cached.get("data", {})
     timestamp = cached.get("timestamp")
-    age_seconds = (datetime.now(ET) - timestamp).total_seconds()
+    if timestamp is None:
+        return None
+    if not isinstance(cached_data, dict):
+        cached_data = {}
+    age_seconds = (datetime.now(timezone.utc) - timestamp).total_seconds()
 
     if age_seconds > 1800:
         if not mark_stale:
@@ -259,16 +239,23 @@ def api_call(endpoint: str, params: dict | None = None, method: str = "GET") -> 
         or {"_error": message} on failure (never cached fallback on transient failures)
     """
     if not API_BASE_URL:
-        error_msg = (
-            "CRITICAL: DASHBOARD_API_URL not configured. Cannot make API calls to endpoint. "
-            "Set environment variable: export DASHBOARD_API_URL=https://api.example.com"
-        )
-        logger.error(error_msg)
-        return {"_error": error_msg}
+        logger.error("DASHBOARD_API_URL environment variable not set - cannot make API calls")
+        return {"_error": ("API_BASE_URL not configured - set DASHBOARD_API_URL environment variable")}
 
     if _check_circuit_breaker():
+        try:
+            cached = get_cached_response(endpoint, mark_stale=True)
+            if cached:
+                logger.warning(
+                    f"Circuit breaker open - returning cached data for {endpoint} "
+                    f"(age: {cached.get('_cache_age_seconds', 0)}s)"
+                )
+                return cached
+        except RuntimeError as e:
+            logger.error(str(e))
+            return {"_error": str(e)}
         return {
-            "_error": "API unavailable - circuit breaker open after repeated failures",
+            "_error": "API unavailable - circuit breaker open",
             "_circuit_open": True,
         }
 
@@ -279,12 +266,8 @@ def api_call(endpoint: str, params: dict | None = None, method: str = "GET") -> 
     with _cognito_auth_lock:
         cognito_auth = _cognito_auth
     if cognito_auth:
-        try:
-            auth_headers = cognito_auth.get_authorization_header()
-            headers.update(auth_headers)
-        except RuntimeError as e:
-            logger.error(f"Authentication lost: {e}")
-            return {"_error": str(e)}
+        auth_headers = cognito_auth.get_authorization_header()
+        headers.update(auth_headers)
 
     for attempt in range(API_MAX_RETRIES + 1):
         try:
@@ -321,8 +304,6 @@ def api_call(endpoint: str, params: dict | None = None, method: str = "GET") -> 
             cache_response(endpoint, data)
             _record_api_success()
             unwrapped = _unwrap_api_response(data)
-            # Log any missing fields for data quality diagnostics
-            _log_missing_fields(endpoint, unwrapped)
             # Validate response at boundary (fail fast if critical fields missing)
             try:
                 validated = validate_response(endpoint, unwrapped)

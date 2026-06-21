@@ -12,7 +12,6 @@ import threading
 from datetime import datetime, timezone
 
 from algo.infrastructure.config import get_config
-from utils.safe_data_conversion import safe_bool, safe_int
 
 
 logger = logging.getLogger(__name__)
@@ -27,13 +26,14 @@ def is_grade_override_enabled() -> bool:
     Returns: bool (True if override is active and enabled)
     """
     config = get_config()
-    return safe_bool(config.get("grade_override_enabled", False), default=False)
+    return bool(config.get("grade_override_enabled", False))
 
 
 def get_override_duration_minutes() -> int:
     """Get configured max duration for override in minutes."""
     config = get_config()
-    return safe_int(config.get("grade_override_max_duration_minutes", 60), default=60, context="grade_override_max_duration_minutes")
+    val = config.get("grade_override_max_duration_minutes", 60)
+    return int(val) if val is not None else 60
 
 
 def get_override_state() -> tuple[bool, datetime | None, int | None]:

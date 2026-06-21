@@ -17,7 +17,7 @@ import logging
 from datetime import date, datetime, timezone
 from decimal import ROUND_HALF_UP, Decimal
 from pathlib import Path
-from typing import Any
+from typing import Any, cast
 
 import psycopg2
 
@@ -29,7 +29,7 @@ from utils.safe_data_conversion import safe_float
 logger = logging.getLogger(__name__)
 
 
-def _dec_round(val, places):
+def _dec_round(val: Any, places: int) -> float:
     if val is None or val == 0:
         return 0.0
     d = Decimal(str(val))
@@ -171,7 +171,7 @@ class LivePerformance:
             raise RuntimeError(f"Operation failed: {e}") from e
 
     def expectancy(self, lookback_trades: int = 50) -> float | None:
-        """Compute expectancy: E = (WR × Avg Win R) - (LR × Avg Loss R).
+        """Compute expectancy: E = (WR x Avg Win R) - (LR x Avg Loss R).
 
         Args:
             lookback_trades: Number of trades for calculation
@@ -218,7 +218,7 @@ class LivePerformance:
                 if val is None:
                     raise ValueError(f"Portfolio snapshot {i} has missing/invalid value for max_drawdown calculation")
                 values.append(val)
-            return MetricsCalculator.calculate_max_drawdown(values)
+            return cast(float, MetricsCalculator.calculate_max_drawdown(values))
         except (psycopg2.DatabaseError, psycopg2.OperationalError) as e:
             raise RuntimeError(f"Operation failed: {e}") from e
 

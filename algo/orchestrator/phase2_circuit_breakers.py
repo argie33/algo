@@ -49,7 +49,8 @@ def run(
         # Publish per-breaker CloudWatch metrics (non-blocking)
         try:
             with MetricsPublisher(dry_run=dry_run) as _m:
-                for name, state in result.get("checks").items():
+                checks = result.get("checks") or {}
+                for name, state in checks.items():
                     _m.put_circuit_breaker(name, bool(state.get("halted")))
         except (OSError, RuntimeError) as e:
             logger.error(f"Metrics publishing failed (non-critical): {e}")

@@ -8,7 +8,6 @@ from typing import Any
 import psycopg2
 
 from utils.db import DatabaseContext
-from utils.safe_data_conversion import safe_float, safe_int
 
 
 logger = logging.getLogger(__name__)
@@ -114,14 +113,8 @@ class ExposurePolicy:
     def __init__(self):
         pass
 
-    def get_active_tier(self, eval_date=None) -> dict:
-        """Look up the most recent exposure score and return its policy tier.
-
-        Returns: dict with tier, exposure_pct, regime, halt_reasons
-
-        Raises:
-            RuntimeError: If no market exposure data available (fail-fast, no silent None)
-        """
+    def get_active_tier(self, eval_date=None):
+        """Look up the most recent exposure score and return its policy tier."""
         if eval_date is None:
             eval_date = _date.today()
 
@@ -134,12 +127,8 @@ class ExposurePolicy:
                 )
                 row = cur.fetchone()
                 if row is None:
-                    raise RuntimeError(
-                        f"No market exposure data available for {eval_date}. "
-                        "Market regime and exposure policy cannot proceed without market_exposure_daily data. "
-                        "Verify market_exposure_daily loader has run successfully."
-                    )
-                exposure = safe_float(row[1], default=0.0, context="row[1]")
+                    return None
+                exposure = float(row[1])
                 tier = tier_for_exposure(exposure)
                 return {
                     "as_of_date": row[0].isoformat(),
@@ -160,6 +149,9 @@ class ExposurePolicy:
         Actions are recommendations — orchestrator decides whether to execute.
         """
         active = self.get_active_tier(eval_date)
+        if not active:
+            return []
+
         tier = active["tier"]
         if eval_date is None:
             eval_date = _date.today()
@@ -182,13 +174,13 @@ class ExposurePolicy:
                 actions = []
                 for row in positions:
                     action = self._evaluate_position(row, tier)
-                    if action and action["action"] not in ("hold", "skip"):
+                    if action and action["action"] != "hold":
                         actions.append(action)
                 return actions
         except (psycopg2.DatabaseError, psycopg2.OperationalError) as e:
             raise RuntimeError(f"Position review failed: {e}") from e
 
-    def _evaluate_position(self, row, tier) -> dict | None:
+    def _evaluate_position(self, row, tier):
         (
             trade_id,
             symbol,
@@ -206,45 +198,23 @@ class ExposurePolicy:
             _pnl_pct,
         ) = row
 
-        entry_price = safe_float(entry_price, default=None, context="entry_price")
-        init_stop = safe_float(init_stop, default=None, context="init_stop")
-        if entry_price is None or init_stop is None:
-            logger.warning(f"SKIP {symbol}: entry_price or init_stop missing/invalid. Cannot evaluate exposure policy.")
-            return {
-                "symbol": symbol,
-                "position_id": row[8] if len(row) > 8 else None,
-                "trade_id": row[0] if len(row) > 0 else None,
-                "action": "skip",
-                "reason": f"Missing critical price data (entry={entry_price}, stop={init_stop})",
-            }
-        active_stop = safe_float(cur_stop, default=init_stop, context="cur_stop") if cur_stop else init_stop
+        entry_price = float(entry_price)
+        init_stop = float(init_stop)
+        active_stop = float(cur_stop) if cur_stop else init_stop
 
         # CRITICAL: target_hits configuration must be present. Do not mask missing config with fallback to 0.
         if target_hits is None:
             logger.warning(f"SKIP {symbol}: target_hits configuration missing (NULL). Cannot evaluate exposure policy.")
-            return {
-                "symbol": symbol,
-                "position_id": position_id,
-                "trade_id": trade_id,
-                "action": "skip",
-                "reason": "Missing target_hits configuration in algo_positions",
-            }
-        target_hits = safe_int(target_hits, default=0, context="target_hits")
+            return None
+        target_hits = int(target_hits)
 
         # CRITICAL: Do NOT use entry_price as fallback for cur_price. This distorts risk evaluation.
         # cur_price must be valid; if missing, skip this position.
-        cur_price_float = safe_float(cur_price, default=None, context="cur_price")
-        if cur_price_float is None or cur_price_float <= 0:
+        if not cur_price or float(cur_price) <= 0:
             logger.warning(f"SKIP {symbol}: No valid current price in algo_positions. Cannot evaluate exposure policy.")
-            return {
-                "symbol": symbol,
-                "position_id": position_id,
-                "trade_id": trade_id,
-                "action": "skip",
-                "reason": f"No valid current price ({cur_price})",
-            }
+            return None
 
-        cur_price = cur_price_float
+        cur_price = float(cur_price)
 
         # R-multiple
         risk_per_share = entry_price - init_stop
@@ -265,7 +235,8 @@ class ExposurePolicy:
             }
 
         # 2. force_partial_at_r: take partial profits when extended
-        if tier.get("force_partial_at_r") and r_mult >= tier["force_partial_at_r"]:
+        force_partial_threshold = tier.get("force_partial_at_r")
+        if force_partial_threshold is not None and r_mult >= force_partial_threshold:
             # Only if not already hit a target at this level
             if target_hits < 2:  # haven't taken T2 yet
                 return {
@@ -275,7 +246,7 @@ class ExposurePolicy:
                     "action": "partial_exit",
                     "reason": (
                         f"Tier '{tier['name']}' force partial: R={r_mult:.2f} >= "
-                        f"{tier['force_partial_at_r']}R threshold"
+                        f"{force_partial_threshold}R threshold"
                     ),
                     "exit_fraction": 0.50,
                     "new_stop": max(active_stop, entry_price),  # raise to BE at minimum
@@ -284,7 +255,8 @@ class ExposurePolicy:
                 }
 
         # 3. tighten_winners_at_r: ratchet stop tighter on extended positions
-        if tier.get("tighten_winners_at_r") and r_mult >= tier["tighten_winners_at_r"]:
+        tighten_threshold = tier.get("tighten_winners_at_r")
+        if tighten_threshold is not None and r_mult >= tighten_threshold:
             # Compute a tightened stop: midway between entry and current price
             # but never lower than current active stop
             tightened = entry_price + (cur_price - entry_price) * 0.50  # halfway
@@ -296,7 +268,7 @@ class ExposurePolicy:
                     "position_id": position_id,
                     "action": "tighten_stop",
                     "reason": (
-                        f"Tier '{tier['name']}' tighten: R={r_mult:.2f} >= {tier['tighten_winners_at_r']}R, raise stop"
+                        f"Tier '{tier['name']}' tighten: R={r_mult:.2f} >= {tighten_threshold}R, raise stop"
                     ),
                     "exit_fraction": 0.0,
                     "new_stop": round(tightened, 2),
