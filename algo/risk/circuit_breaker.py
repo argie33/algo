@@ -242,7 +242,9 @@ class CircuitBreaker:
         min_days_val = self.config.get("re_engage_min_days")
         require_ftd_val = self.config.get("require_ftd_to_re_engage")
         if recovery_val is None or min_days_val is None or require_ftd_val is None:
-            logger.error(f"CRITICAL: Re-engagement config missing (recovery={recovery_val}, days={min_days_val}, ftd={require_ftd_val})")
+            logger.error(
+                f"CRITICAL: Re-engagement config missing (recovery={recovery_val}, days={min_days_val}, ftd={require_ftd_val})"
+            )
             return {"halted": True, "reason": "CRITICAL: Re-engagement config missing"}
         recovery_threshold = float(recovery_val)
         min_days_elapsed = int(min_days_val)
@@ -352,7 +354,9 @@ class CircuitBreaker:
                 break
         max_consec_val = self.config.get("max_consecutive_losses")
         if max_consec_val is None:
-            logger.error("CRITICAL: max_consecutive_losses config missing. Cannot enforce consecutive loss circuit breaker.")
+            logger.error(
+                "CRITICAL: max_consecutive_losses config missing. Cannot enforce consecutive loss circuit breaker."
+            )
             return {"halted": True, "reason": "CRITICAL: max_consecutive_losses config missing"}
         threshold = int(max_consec_val)
         return {

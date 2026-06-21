@@ -149,7 +149,7 @@ class TradeExecutor:
 
         logger.info(
             f"[EXECUTOR] mode={self.execution_mode} live_intent={live_intent} "
-            f"({'LIVE TRADING '' api.alpaca.markets' if live_intent else 'PAPER TRADING '' paper-api.alpaca.markets'}) | "
+            f"({'LIVE TRADING  api.alpaca.markets' if live_intent else 'PAPER TRADING  paper-api.alpaca.markets'}) | "
             f"live_ack={'SET' if live_ack == 'I_UNDERSTAND_REAL_MONEY' else 'NOT SET'} "
             f"paper_flag={paper_flag} url_says_paper={url_says_paper} "
             f"key_set={bool(self.alpaca_key)} secret_set={bool(self.alpaca_secret)}"
@@ -624,9 +624,9 @@ class TradeExecutor:
                 # For pending orders, executed_price is None; use entry_price as estimate for pct calculation only
                 price_for_pct = executed_price if executed_price else entry_price
                 position_size_pct = (
-                    (
-                        Decimal(shares) * Decimal(str(price_for_pct)) / Decimal(str(_pv_for_pct)) * Decimal(100)
-                    ).quantize(Decimal("0.01"), rounding=ROUND_HALF_UP)
+                    (Decimal(shares) * Decimal(str(price_for_pct)) / Decimal(str(_pv_for_pct)) * Decimal(100)).quantize(
+                        Decimal("0.01"), rounding=ROUND_HALF_UP
+                    )
                     if _pv_for_pct > 0
                     else Decimal(0)
                 )
@@ -1158,7 +1158,9 @@ class TradeExecutor:
             if full_exit and alpaca_order_id:
                 cancel_result = self._cancel_bracket_orders(alpaca_order_id)
                 if not cancel_result.get("success"):
-                    logger.warning(f"Failed to cancel bracket for {trade_id}: {cancel_result.get('message', 'Unknown error')}")
+                    logger.warning(
+                        f"Failed to cancel bracket for {trade_id}: {cancel_result.get('message', 'Unknown error')}"
+                    )
 
             execution_mode = self.config.get("execution_mode") or "paper"
             actual_fill_price = None
@@ -1168,7 +1170,9 @@ class TradeExecutor:
             if execution_mode == "auto":
                 exit_order_result = self._send_alpaca_exit(symbol, shares_to_exit)
                 if exit_order_result.get("success"):
-                    actual_fill_price = exit_order_result["filled_price"] if "filled_price" in exit_order_result else None
+                    actual_fill_price = (
+                        exit_order_result["filled_price"] if "filled_price" in exit_order_result else None
+                    )
                     is_estimated_price = False
                 else:
                     try:
@@ -1207,11 +1211,7 @@ class TradeExecutor:
             )
             pnl_per_share = Decimal(str(final_exit_price)) - Decimal(str(entry_price))
             pnl_dollars = float(pnl_per_share * Decimal(str(shares_to_exit)))
-            pnl_pct = (
-                float(pnl_per_share / Decimal(str(entry_price)) * Decimal(100))
-                if entry_price > 0
-                else 0.0
-            )
+            pnl_pct = float(pnl_per_share / Decimal(str(entry_price)) * Decimal(100)) if entry_price > 0 else 0.0
 
             if not isinstance(pnl_dollars, (int, float)) or pnl_dollars != pnl_dollars:
                 pnl_dollars = 0.0
@@ -1549,4 +1549,3 @@ class TradeExecutor:
                 "corrected": False,
                 "message": f"Alpaca connection error: {e}",
             }
-
