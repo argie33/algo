@@ -63,7 +63,13 @@ def run(
                 )
                 result["partial_fill_corrections"] = partial_fill_result
 
-        if result.get("success"):
+        # Validate result structure upfront
+        if "success" not in result or result["success"] is None:
+            raise RuntimeError(
+                f"Reconciliation result missing 'success' field. Got keys: {list(result.keys())}"
+            )
+
+        if result["success"]:
             log_phase_result_fn(
                 "3a",
                 "reconciliation",
@@ -78,11 +84,16 @@ def run(
                 f"Skipped: {result.get('reason', 'alpaca unavailable')}",
             )
         else:
+            # Validate reason field exists for error logging
+            if "reason" not in result or result["reason"] is None:
+                reason = "reconciliation failed (no reason provided)"
+            else:
+                reason = result["reason"]
             log_phase_result_fn(
                 "3a",
                 "reconciliation",
                 "alert",
-                result.get("reason", "reconciliation failed"),
+                reason,
             )
 
         return PhaseResult("3a", "reconciliation", "ok", result, False, None)

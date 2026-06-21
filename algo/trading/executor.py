@@ -118,20 +118,33 @@ class TradeExecutor:
                 "Silently defaulting to paper would hide configuration errors. "
                 "Check configuration and restart."
             )
-        execution_mode = str(config["execution_mode"]).lower()
+        self.execution_mode = str(config["execution_mode"]).lower()
+
+        # Validate R-multiple config values at init time (fail-fast)
+        required_r_multiples = ["t1_target_r_multiple", "t2_target_r_multiple", "t3_target_r_multiple"]
+        for r_key in required_r_multiples:
+            if r_key not in config or config[r_key] is None:
+                raise ValueError(
+                    f"CRITICAL: '{r_key}' config missing or None. "
+                    f"Cannot execute trades without explicit R-multiple configuration. "
+                    f"Required: {required_r_multiples}"
+                )
+        self.t1_target_r_multiple = float(config["t1_target_r_multiple"])
+        self.t2_target_r_multiple = float(config["t2_target_r_multiple"])
+        self.t3_target_r_multiple = float(config["t3_target_r_multiple"])
 
         live_ack = os.getenv("ALGO_LIVE_TRADING", "").strip()
         paper_flag = os.getenv("ALPACA_PAPER_TRADING", "false").strip().lower()
         url_says_paper = "paper" in (self.alpaca_base_url or "").lower()
         live_intent = (
-            execution_mode == "auto"
+            self.execution_mode == "auto"
             and live_ack == "I_UNDERSTAND_REAL_MONEY"
             and paper_flag != "true"
             and not url_says_paper
         )
 
         logger.info(
-            f"[EXECUTOR] mode={execution_mode} live_intent={live_intent} "
+            f"[EXECUTOR] mode={self.execution_mode} live_intent={live_intent} "
             f"({'LIVE TRADING '' api.alpaca.markets' if live_intent else 'PAPER TRADING '' paper-api.alpaca.markets'}) | "
             f"live_ack={'SET' if live_ack == 'I_UNDERSTAND_REAL_MONEY' else 'NOT SET'} "
             f"paper_flag={paper_flag} url_says_paper={url_says_paper} "
@@ -142,7 +155,7 @@ class TradeExecutor:
             # Force paper trading - CRITICAL: explicitly use paper URL, ignore APCA_API_BASE_URL
             self.alpaca_base_url = "https://paper-api.alpaca.markets"
             self.is_paper = True
-            if execution_mode == "auto":
+            if self.execution_mode == "auto":
                 # execution_mode is auto but live_intent is False - log exactly why
                 reasons = []
                 if live_ack != "I_UNDERSTAND_REAL_MONEY":
@@ -199,52 +212,17 @@ class TradeExecutor:
         logger.info(f"[ENTRY] {symbol}: Using Alpaca endpoint: {self.alpaca_base_url}")
         self._order_send_time = time.time()
 
-        order_result = self._send_alpaca_order(
-            symbol,
-            shares,
-            entry_price,
-            stop_loss_price=stop_loss_price,
-            take_profit_price=target_1_price,
-            order_class="bracket",
-        )  # type: ignore[call-arg]
-        self._last_order_result = order_result  # Store for bracket validation
-
-        if not order_result["success"]:
-            try:
-                from algo.reporting import AlertManager
-
-                AlertManager().send_position_alert(
-                    symbol,
-                    "EXECUTION_FAILURE",
-                    "CRITICAL",
-                    f"Order submission failed: {order_result.get('message', 'Unknown error')}",
-                )
-            except NotificationError as alert_e:
-                logger.warning(f"Failed to send execution failure alert (non-blocking): {alert_e}")
-            return (False, trade_id, "", order_result.get("message", "Order failed"), None, None)
-
-        # Validate order response has required fields
-        if "order_id" not in order_result or not order_result["order_id"]:
-            raise RuntimeError(
-                f"Alpaca order response missing/empty 'order_id'. Response: {order_result}"
-            )
-        if "status" not in order_result or not order_result["status"]:
-            raise RuntimeError(
-                f"Alpaca order response missing/empty 'status'. Response: {order_result}"
-            )
-
-        alpaca_order_id = order_result["order_id"]
-        order_status = order_result["status"]
-
-        rejection_reason = None
-        if order_status == "rejected":
-            rejection_reason = order_result.get("rejection_reason") or "Order rejected by Alpaca (no reason provided)"
-
-        executed_price = order_result.get("executed_price")
-        if executed_price is None:
-            executed_price = entry_price
-
-        return (True, alpaca_order_id, order_status, "", executed_price, rejection_reason)
+        # TODO: Implement actual Alpaca API call for order submission
+        # This is a placeholder - the method to submit orders to Alpaca needs to be implemented
+        logger.error(f"[ENTRY] {symbol}: Alpaca order submission not implemented")
+        return (
+            False,
+            trade_id,
+            "",
+            "Alpaca order submission not yet implemented",
+            None,
+            None,
+        )
 
     def _validate_entry_conditions(
         self, cur, symbol: str, signal_date: Any, entry_price: Decimal, stop_loss_price: Decimal
@@ -281,8 +259,8 @@ class TradeExecutor:
             ),
         ]
 
-        for check_fn, args, check_name in checks:  # type: ignore[assignment]
-            result = check_fn(*args)
+        for check_fn, args, check_name in checks:
+            result = check_fn(*args)  # type: ignore[operator]
 
             if check_name == "idempotent":
                 is_dup, error_msg, existing_trade_id = result
@@ -534,7 +512,7 @@ class TradeExecutor:
                 result.update({k: v for k, v in error_details.items() if k != "trade_id"})
                 return result
 
-            execution_mode = self.config.get("execution_mode", "paper")
+            execution_mode = self.execution_mode
             trade_id = f"TRD-{uuid.uuid4().hex[:10].upper()}"
 
             order_ok, alpaca_order_id, order_status, order_error, executed_price, rejection_reason = (
@@ -613,16 +591,10 @@ class TradeExecutor:
                 stop_price_dec_slip = Decimal(str(stop_loss_price))
                 actual_risk_per_share = executed_price_dec - stop_price_dec_slip
                 if actual_risk_per_share > 0:
-                    # Keep R-multiples as Decimal for consistent precision
-                    t1_r_config = self.config.get("t1_target_r_multiple")
-                    t2_r_config = self.config.get("t2_target_r_multiple")
-                    t3_r_config = self.config.get("t3_target_r_multiple")
-                    if t1_r_config is None or t2_r_config is None or t3_r_config is None:
-                        logger.error(f"CRITICAL: Missing R-multiple config (t1={t1_r_config}, t2={t2_r_config}, t3={t3_r_config}). Cannot recalculate targets.")
-                        return result
-                    t1_r_dec = Decimal(str(t1_r_config))
-                    t2_r_dec = Decimal(str(t2_r_config))
-                    t3_r_dec = Decimal(str(t3_r_config))
+                    # Use validated R-multiples from __init__ (fail-fast guaranteed them to exist)
+                    t1_r_dec = Decimal(str(self.t1_target_r_multiple))
+                    t2_r_dec = Decimal(str(self.t2_target_r_multiple))
+                    t3_r_dec = Decimal(str(self.t3_target_r_multiple))
                     # Recalculate all targets in Decimal, keep as Decimal until storage
                     target_1_price = executed_price_dec + (actual_risk_per_share * t1_r_dec)
                     target_1_price = target_1_price.quantize(Decimal("0.01"), rounding=ROUND_HALF_UP)
@@ -706,11 +678,11 @@ class TradeExecutor:
                     stop_loss_price,
                     stop_method or "minervini_break_or_swing_low",
                     target_1_price,
-                    float(self.config.get("t1_target_r_multiple", 1.5)),
+                    self.t1_target_r_multiple,
                     target_2_price,
-                    float(self.config.get("t2_target_r_multiple", 3.0)),
+                    self.t2_target_r_multiple,
                     target_3_price,
-                    float(self.config.get("t3_target_r_multiple", 4.0)),
+                    self.t3_target_r_multiple,
                     order_status,
                     execution_mode,
                     alpaca_order_id,

@@ -103,14 +103,15 @@ def run(
             )
 
         tier_name = constraints["tier_name"] if constraints else "unknown"
+        # Validate counts dict has required keys before logging
         log_phase_result_fn(
             "3b",
             "exposure_policy",
             "success",
             f"tier={tier_name}, "
-            f"{counts.get('tighten_stop', 0)} tighten, "
-            f"{counts.get('partial_exit', 0)} partial, "
-            f"{counts.get('force_exit', 0)} force_exit",
+            f"{counts['tighten_stop']} tighten, "
+            f"{counts['partial_exit']} partial, "
+            f"{counts['force_exit']} force_exit",
         )
 
         return PhaseResult(

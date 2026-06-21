@@ -420,6 +420,9 @@ def _format_recent_trade_events(act: dict) -> list[Text]:
     """Format recent trade events (entry/exit/order)."""
     rows: list[Text] = []
     act_valid = act and not has_error(act)
+    if act_valid and "recent_actions" not in act:
+        rows.append(Text.from_markup("[dim]⚠ recent_actions data missing[/]"))
+        return rows
     recent = act.get("recent_actions", []) if act_valid else []
 
     trade_evts = [
@@ -724,7 +727,10 @@ def panel_status(
         elif summary and isinstance(summary, str):
             rows.append(Text.from_markup(f"[dim]{summary[:65]}[/]"))
 
-        phase_results = run.get("phase_results", [])
+        if "phase_results" not in run:
+            rows.append(Text.from_markup("[dim]⚠ phase_results data missing[/]"))
+            return rows
+        phase_results = run["phase_results"]
         for p in phase_results:
             raw = (p.get("name") or p.get("phase", "")).lower()
             parts = raw.split("_")
@@ -978,7 +984,9 @@ def panel_algo_health(
         return 0
 
     if run_valid and run.get("_source") == "exec_log":
-        phase_results = run.get("phase_results", [])
+        if "phase_results" not in run:
+            return 0
+        phase_results = run["phase_results"]
         for p in phase_results:
             raw = (p.get("name") or p.get("phase", "")).lower()
             parts_p = raw.split("_")
@@ -1268,38 +1276,40 @@ def _build_results_panel(
 
     phase_badges_e: list = []
     if run_valid and run.get("_source") == "exec_log":
-        for p in safe_get_list(run.get("phase_results", [])) or []:
-            raw = (p.get("name") or p.get("phase", "")).lower()
-            parts_p = raw.split("_")
-            base = "_".join(parts_p[:2]) if len(parts_p) >= 2 else raw
-            short = PHASE_NAMES.get(base, base.replace("phase_", "P"))[:8]
-            ps = p.get("status", "")
-            sc, si = _format_phase_badge(ps)
+        if "phase_results" in run:
+            for p in safe_get_list(run["phase_results"]) or []:
+                raw = (p.get("name") or p.get("phase", "")).lower()
+                parts_p = raw.split("_")
+                base = "_".join(parts_p[:2]) if len(parts_p) >= 2 else raw
+                short = PHASE_NAMES.get(base, base.replace("phase_", "P"))[:8]
+                ps = p.get("status", "")
+                sc, si = _format_phase_badge(ps)
             phase_badges_e.append(f"[{sc}]{si}[dim]{short}[/][/]")
     if phase_badges_e:
         right_rows.append(Text.from_markup("  ".join(phase_badges_e)))
 
     signals_gen = entries_exec = exits_exec = 0
     if run_valid and run.get("_source") == "exec_log":
-        for p in safe_get_list(run.get("phase_results", [])) or []:
-            pdata = p.get("data")
-            if isinstance(pdata, str):
-                try:
-                    pdata = json.loads(pdata)
-                except Exception:
+        if "phase_results" in run:
+            for p in safe_get_list(run["phase_results"]) or []:
+                pdata = p.get("data")
+                if isinstance(pdata, str):
+                    try:
+                        pdata = json.loads(pdata)
+                    except Exception:
+                        pdata = None
+                elif not isinstance(pdata, dict):
                     pdata = None
-            elif not isinstance(pdata, dict):
-                pdata = None
-            if pdata:
-                sg = pdata.get("signals_generated")
-                ee = pdata.get("entries_executed") or pdata.get("trades_executed")
-                xe = pdata.get("exits_executed")
-                if sg:
-                    signals_gen = max(signals_gen, int(sg))
-                if ee:
-                    entries_exec = max(entries_exec, int(ee))
-                if xe:
-                    exits_exec = max(exits_exec, int(xe))
+                if pdata:
+                    sg = pdata.get("signals_generated")
+                    ee = pdata.get("entries_executed") or pdata.get("trades_executed")
+                    xe = pdata.get("exits_executed")
+                    if sg:
+                        signals_gen = max(signals_gen, int(sg))
+                    if ee:
+                        entries_exec = max(entries_exec, int(ee))
+                    if xe:
+                        exits_exec = max(exits_exec, int(xe))
 
     valid_metrics_e = algo_metrics if (algo_metrics and not (isinstance(algo_metrics, dict) and has_error(algo_metrics))) else []
     today_m_e = valid_metrics_e[0] if valid_metrics_e else {}

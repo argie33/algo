@@ -487,13 +487,18 @@ def run(
             "Get config at orchestrator level and pass it explicitly."
         )
 
+    # Validate critical config values (fail-fast)
+    if "phase7_min_composite_score" not in config or config["phase7_min_composite_score"] is None:
+        raise ValueError(
+            f"CRITICAL: phase7_min_composite_score config missing or None. "
+            f"Required for signal filtering. Set to a value between 0-100 (default: {_MIN_COMPOSITE_SCORE})."
+        )
+    min_composite_score = float(config["phase7_min_composite_score"])
+
     phase_start = time.time()
     logger.info("[PHASE 7] Starting signal generation")
 
     min_close_quality = ThresholdConfig.min_close_quality_pct() / 100.0
-    min_composite_score = (
-        config.get("phase7_min_composite_score", _MIN_COMPOSITE_SCORE) if config else _MIN_COMPOSITE_SCORE
-    )
 
     # ISSUE #8 FIX: Guard rails — check critical dependencies BEFORE signal generation
     # Fails fast if ANY dependency is unavailable, preventing silent degradation

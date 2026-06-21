@@ -47,10 +47,12 @@ def panel_exposure_compact(exp_f):
     err_panel = _error_panel("exposure factors", exp_f, "EXPOSURE FACTORS", border="blue")
     if err_panel:
         return err_panel
+    if "factors" not in exp_f:
+        return Text.from_markup("[red]✗ Exposure data missing 'factors' field[/] (API schema issue)")
     raw = exp_f.get("raw_score")
     epct = exp_f.get("exposure_pct")
     regime = exp_f.get("regime", "")
-    factors = exp_f.get("factors", {})
+    factors = exp_f["factors"]
     tier = tier_from_pct(epct)
     tc = TIER_COLOR.get(tier, "dim")
 
@@ -192,10 +194,13 @@ def panel_exposure_expanded(exp_f):
     if err_panel:
         return err_panel
 
+    if "factors" not in exp_f:
+        rows.append(Text.from_markup("[red]✗ Exposure data missing 'factors' field[/] (API schema issue)"))
+        return rows
     raw = exp_f.get("raw_score")
     epct = exp_f.get("exposure_pct")
     regime = exp_f.get("regime", "")
-    factors = exp_f.get("factors", {})
+    factors = exp_f["factors"]
     tier = tier_from_pct(epct)
     tc = TIER_COLOR.get(tier, "dim")
 
@@ -243,8 +248,16 @@ def panel_exposure_expanded(exp_f):
     tbl.add_column("Context", style="dim", no_wrap=False)
 
     for key, label, max_pts, context in factor_map_exp:
-        f = factors.get(key, {})
-        sf = f.get("score_factor")
+        if key not in factors:
+            # Factor missing from API response — skip (should rarely happen)
+            f = {}
+            sf = None
+        else:
+            f = factors[key]
+            if not isinstance(f, dict):
+                sf = None
+            else:
+                sf = f.get("score_factor")
 
         if sf is None:
             # Factor has no data — show ⚠ N/A rather than a misleading 0-point bar

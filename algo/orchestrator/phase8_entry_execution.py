@@ -506,23 +506,27 @@ def run(
 
                 continue
 
-            # Fetch pre-computed price inputs from batch cache
-
-            tech_data = technical_data.get(str(symbol), {})
-
-            atr = tech_data.get("atr")
-
-            sma_50 = tech_data.get("sma_50")
-
-            close = tech_data.get("close")
-
-            if not all([atr, sma_50, close]):
+            # Fetch pre-computed price inputs from batch cache (fail-fast if missing)
+            if str(symbol) not in technical_data:
                 raise RuntimeError(
-                    f"[PHASE 8] {symbol}: missing technical data. "
-                    f"ATR={atr}, SMA_50={sma_50}, close={close}. "
+                    f"[PHASE 8] {symbol}: technical data not in batch cache. "
+                    f"Symbol missing from technical_data_daily loader results. "
+                    f"Cannot compute stop loss or position size without technical indicators. "
+                    f"Verify technical_data_daily loader completed successfully."
+                )
+            tech_data = technical_data[str(symbol)]
+
+            # All technical indicators are required
+            if "atr" not in tech_data or "sma_50" not in tech_data or "close" not in tech_data:
+                raise RuntimeError(
+                    f"[PHASE 8] {symbol}: incomplete technical data in cache. "
+                    f"Missing fields: {[f for f in ['atr', 'sma_50', 'close'] if f not in tech_data]}. "
                     f"Cannot compute stop loss or position size without complete technical indicators. "
                     f"Verify technical_data_daily loader completed successfully."
                 )
+            atr = tech_data["atr"]
+            sma_50 = tech_data["sma_50"]
+            close = tech_data["close"]
 
             entry_price = cast(float, close)
             atr = cast(float, atr)

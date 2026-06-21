@@ -811,10 +811,23 @@ class CircuitBreaker:
         try:
             from algo.reporting import notify
 
+            if "halt_reasons" not in results:
+                logger.error("Circuit breaker results missing 'halt_reasons' field")
+                halt_msg = "Trading halted (reason unavailable)"
+            else:
+                halt_reasons = results["halt_reasons"]
+                if not isinstance(halt_reasons, list):
+                    logger.error(f"halt_reasons is not a list: {type(halt_reasons)}")
+                    halt_msg = "Trading halted (reason unavailable)"
+                elif not halt_reasons:
+                    halt_msg = "Trading halted (no specific reason provided)"
+                else:
+                    halt_msg = "; ".join(halt_reasons)
+
             notify(
                 severity="critical",
                 title="Trading Halted by Circuit Breaker",
-                message="; ".join(results.get("halt_reasons", [])),
+                message=halt_msg,
                 details=results.get("checks"),
             )
         except (ValueError, ZeroDivisionError, TypeError) as e:

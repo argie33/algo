@@ -51,7 +51,6 @@ from decimal import ROUND_DOWN, ROUND_HALF_UP, Decimal
 import psycopg2
 import requests
 
-from algo.trading.contexts import PositionContext
 from algo.trading.exceptions import DatabaseError, ExchangeAPIError
 from utils.db import DatabaseContext
 
@@ -317,27 +316,24 @@ class ExitEngine:
 
 
 
-                    pos_ctx = PositionContext(
-                        symbol=symbol,
-                        current_price=cur_price,
-                        entry_price=entry_price,
-                        active_stop=active_stop,
-                        init_stop=init_stop,
-                        target_1_price=t1_price,
-                        target_2_price=t2_price,
-                        target_3_price=t3_price,
-                        target_hits=target_hits,
-                        current_date=current_date,
-                        days_held=days_held,
-                        dist_days_today=dist_days_today,
-                        prev_close=prev_close,
-                        t1_hit_time=t1_hit_time,
-                        t2_hit_time=t2_hit_time,
-                        t3_hit_time=t3_hit_time,
-                    )
                     exit_signal = self._evaluate_position(
                         cur,
-                        pos_ctx=pos_ctx,
+                        symbol,
+                        current_date,
+                        cur_price,
+                        prev_close,
+                        entry_price,
+                        active_stop,
+                        init_stop,
+                        t1_price,
+                        t2_price,
+                        t3_price,
+                        target_hits,
+                        days_held,
+                        dist_days_today,
+                        t1_hit_time,
+                        t2_hit_time,
+                        t3_hit_time,
                     )
 
 

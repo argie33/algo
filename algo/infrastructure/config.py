@@ -1018,10 +1018,29 @@ class AlgoConfig:
         Raises ValueError for hard constraints; warns for soft conflicts.
         """
         try:
+            # Validate all required config keys exist upfront
+            required_keys = [
+                "max_positions", "max_position_size_pct", "max_total_invested_pct",
+                "vix_caution_threshold", "vix_max_threshold", "vix_alert_threshold",
+                "halt_drawdown_pct", "risk_reduction_at_minus_5", "risk_reduction_at_minus_10",
+                "risk_reduction_at_minus_15", "risk_reduction_at_minus_20",
+                "earnings_blackout_days_before", "earnings_blackout_days_after",
+                "max_stop_distance_pct", "base_risk_pct",
+                "max_daily_loss_pct", "max_weekly_loss_pct",
+                "min_completeness_score", "min_signal_quality_score",
+                "min_swing_score", "min_stock_price"
+            ]
+            missing = [k for k in required_keys if k not in self._config or self._config[k] is None]
+            if missing:
+                raise ValueError(
+                    f"Critical config keys missing (required for validation): {missing}. "
+                    f"Ensure AlgoConfig defaults are loaded and database values override them correctly."
+                )
+
             # Position geometry: max_positions * max_position_size_pct <= max_total_invested_pct
-            max_pos = float(self._config.get("max_positions", 15))
-            max_pos_size_pct = float(self._config.get("max_position_size_pct", 8.0))
-            max_total_pct = float(self._config.get("max_total_invested_pct", 95.0))
+            max_pos = float(self._config["max_positions"])
+            max_pos_size_pct = float(self._config["max_position_size_pct"])
+            max_total_pct = float(self._config["max_total_invested_pct"])
 
             theoretical_max_from_position_size = (
                 max_total_pct / max_pos_size_pct if max_pos_size_pct > 0 else float("inf")
@@ -1035,9 +1054,9 @@ class AlgoConfig:
                 )
 
             # VIX thresholds: caution < max (hard constraint)
-            vix_caution = float(self._config.get("vix_caution_threshold", 25.0))
-            vix_max = float(self._config.get("vix_max_threshold", 35.0))
-            vix_alert = float(self._config.get("vix_alert_threshold", 30.0))
+            vix_caution = float(self._config["vix_caution_threshold"])
+            vix_max = float(self._config["vix_max_threshold"])
+            vix_alert = float(self._config["vix_alert_threshold"])
 
             if vix_caution >= vix_max:
                 raise ValueError(
@@ -1057,11 +1076,11 @@ class AlgoConfig:
                 )
 
             # Drawdown thresholds: all should be negative and ordered
-            halt_dd = float(self._config.get("halt_drawdown_pct", -20.0))
-            r_at_minus_5 = float(self._config.get("risk_reduction_at_minus_5", 0.75))
-            r_at_minus_10 = float(self._config.get("risk_reduction_at_minus_10", 0.5))
-            r_at_minus_15 = float(self._config.get("risk_reduction_at_minus_15", 0.25))
-            r_at_minus_20 = float(self._config.get("risk_reduction_at_minus_20", 0.0))
+            halt_dd = float(self._config["halt_drawdown_pct"])
+            r_at_minus_5 = float(self._config["risk_reduction_at_minus_5"])
+            r_at_minus_10 = float(self._config["risk_reduction_at_minus_10"])
+            r_at_minus_15 = float(self._config["risk_reduction_at_minus_15"])
+            r_at_minus_20 = float(self._config["risk_reduction_at_minus_20"])
 
             if halt_dd >= 0:
                 logger.warning(f"Config: halt_drawdown_pct ({halt_dd}) should be negative (represents downside loss)")
@@ -1075,8 +1094,8 @@ class AlgoConfig:
                 )
 
             # Earnings blackout: both should be non-negative
-            eb_before = int(self._config.get("earnings_blackout_days_before", 7))
-            eb_after = int(self._config.get("earnings_blackout_days_after", 3))
+            eb_before = int(self._config["earnings_blackout_days_before"])
+            eb_after = int(self._config["earnings_blackout_days_after"])
 
             if eb_before < 0 or eb_after < 0:
                 logger.warning(
@@ -1084,22 +1103,22 @@ class AlgoConfig:
                 )
 
             # Stop loss: max_stop_distance_pct should be positive and reasonable
-            max_stop = float(self._config.get("max_stop_distance_pct", 12.0))
+            max_stop = float(self._config["max_stop_distance_pct"])
             if max_stop <= 0:
                 logger.warning(f"Config: max_stop_distance_pct ({max_stop}) should be positive")
             if max_stop > 50:
                 logger.warning(f"Config: max_stop_distance_pct ({max_stop}) is very wide (typical range 5-20%)")
 
             # Risk percentages: should be positive
-            base_risk = float(self._config.get("base_risk_pct", 0.75))
+            base_risk = float(self._config["base_risk_pct"])
             if base_risk <= 0:
                 logger.warning(f"Config: base_risk_pct ({base_risk}) should be positive")
             if base_risk > 5:
                 logger.warning(f"Config: base_risk_pct ({base_risk}) is very high (typical: 0.5-2%)")
 
             # Daily/weekly loss caps should be positive
-            daily_loss = float(self._config.get("max_daily_loss_pct", 2.0))
-            weekly_loss = float(self._config.get("max_weekly_loss_pct", 5.0))
+            daily_loss = float(self._config["max_daily_loss_pct"])
+            weekly_loss = float(self._config["max_weekly_loss_pct"])
 
             if daily_loss <= 0 or weekly_loss <= 0:
                 logger.warning(f"Config: Max loss caps should be positive (daily={daily_loss}, weekly={weekly_loss})")
@@ -1111,10 +1130,10 @@ class AlgoConfig:
                 )
 
             # Minimum thresholds should be non-negative
-            min_completeness = int(self._config.get("min_completeness_score", 70))
-            min_signal_quality = int(self._config.get("min_signal_quality_score", 60))
-            min_swing_score = float(self._config.get("min_swing_score", 55.0))
-            min_stock_price = float(self._config.get("min_stock_price", 5.0))
+            min_completeness = int(self._config["min_completeness_score"])
+            min_signal_quality = int(self._config["min_signal_quality_score"])
+            min_swing_score = float(self._config["min_swing_score"])
+            min_stock_price = float(self._config["min_stock_price"])
 
             if min_completeness < 0 or min_signal_quality < 0 or min_swing_score < 0 or min_stock_price < 0:
                 logger.warning(

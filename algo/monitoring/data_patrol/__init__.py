@@ -85,6 +85,7 @@ class DataPatrol:
 
     def _run_checks(self, cur, quick: bool) -> None:
         """Execute all configured checks."""
+        assert self.config is not None, "Config must be initialized before running checks"
         checks = [
             ("staleness", StalenessChecker(self.config)),
             ("quality", QualityChecker(self.config)),
@@ -143,6 +144,7 @@ class DataPatrol:
         logger.info(f"ALGO READY TO TRADE: {'YES' if ready else 'NO'}")
 
         # Update DynamoDB completion status
+        assert self.logger is not None, "Logger must be initialized before updating completion status"
         try:
             self.logger.update_completion_status(ready, elapsed_seconds)
         except Exception as e:
