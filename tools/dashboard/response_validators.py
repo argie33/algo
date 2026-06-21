@@ -12,7 +12,7 @@ Separation of concerns:
 - Lambda validator (shared_contracts/response_validator.py): Validates OUTBOUND responses against contract
 
 Integration:
-- Uses safe_float()/safe_int() from tools/dashboard/data_validation.py for type conversion
+- Uses safe_float()/safe_int() from utils.safe_data_conversion for type conversion (consolidated from dashboard)
 - Uses error_boundary utilities for error detection
 - Raises ResponseValidationError for critical validation failures
 """

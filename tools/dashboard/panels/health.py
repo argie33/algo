@@ -419,7 +419,7 @@ def _format_exec_history_summary(exec_hist: list) -> list[Text]:
 
 def _format_recent_trade_events(act: dict) -> list[Text]:
     """Format recent trade events (entry/exit/order)."""
-    rows = []
+    rows: list[Text] = []
     act_valid = act and not has_error(act)
     recent = safe_get_field(act, "recent_actions", []) if act_valid else []
 
@@ -457,7 +457,7 @@ def _format_recent_trade_events(act: dict) -> list[Text]:
 
 def _format_data_health_summary(hlth_items: list) -> list[Text]:
     """Format data health section (stale tables only)."""
-    rows = []
+    rows: list[Text] = []
     if not hlth_items:
         return rows
 
@@ -495,7 +495,7 @@ def _format_data_health_summary(hlth_items: list) -> list[Text]:
 
 def _format_loader_status(loader: list) -> list[Text]:
     """Format data loader status section."""
-    rows = []
+    rows: list[Text] = []
     valid_loader = safe_get_list(loader)
     problem_loader = [r for r in valid_loader if (safe_get_field(r, "status", "")) in LOADER_STATUS_ERROR]
     running_loader = [r for r in valid_loader if (safe_get_field(r, "status", "")) == LOADER_STATUS_LOADING]
@@ -527,7 +527,7 @@ def _format_loader_status(loader: list) -> list[Text]:
 
 def _format_notifications_summary(notifs: list) -> list[Text]:
     """Format notifications section."""
-    rows = []
+    rows: list[Text] = []
     valid_notifs = safe_get_list(notifs)
     if not valid_notifs:
         return rows
@@ -546,7 +546,7 @@ def _format_notifications_summary(notifs: list) -> list[Text]:
 
 def _format_daily_metrics_summary(algo_metrics: list) -> list[Text]:
     """Format daily trade activity summary."""
-    rows = []
+    rows: list[Text] = []
     valid_metrics = safe_get_list(algo_metrics)
     if not valid_metrics:
         return rows
@@ -569,7 +569,7 @@ def _format_daily_metrics_summary(algo_metrics: list) -> list[Text]:
 
 def _format_audit_log_summary(audit: list) -> list[Text]:
     """Format audit log section (notable actions only)."""
-    rows = []
+    rows: list[Text] = []
     valid_audit = safe_get_list(audit)
     if not valid_audit:
         return rows

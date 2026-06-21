@@ -269,8 +269,8 @@ class MarketFactorCalculator:
             )
             row = cur.fetchone()
             if row and row[0] and row[1]:
-                nh = int(row[0])
-                nl = int(row[1])
+                nh = safe_int(row[0], default=0, context="new_highs_count")
+                nl = safe_int(row[1], default=0, context="new_lows_count")
                 total = nh + nl
                 if total > 0:
                     nh_pct = nh * 100 / total

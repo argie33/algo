@@ -195,6 +195,10 @@ def _get_algo_positions(cur, user_id: str | None = None) -> dict:
         "data_freshness": freshness,
     }
     sanitized = APIResponseValidator.sanitize_response(response_data)
+
+    # Validate positions response matches contract schema
+    ensure_valid_response("pos", sanitized)
+
     return json_response(200, sanitized)
 
 

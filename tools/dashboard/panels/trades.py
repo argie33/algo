@@ -38,6 +38,7 @@ from ..utilities import (
     R,
     Y,
 )
+from .data_extractors import safe_get_field
 
 
 def _extract_items(data: Any) -> list | dict:
