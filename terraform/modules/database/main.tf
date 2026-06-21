@@ -227,6 +227,21 @@ resource "aws_db_proxy" "main" {
   # Reduces latency by 10-20ms per query (connection reuse vs TCP handshake)
   require_tls = false
 
+  # CRITICAL: Session pooling settings prevent connection starvation and hanging
+  # - max_idle_connections: 20 (keep 20 pooled connections warm)
+  # - max_connections_percent: 100 (use up to 100% of DB max_connections=500 if needed)
+  # - max_db_connections_percent: 100
+  # - connection_borrow_timeout: 120 (wait 2 min for a connection before timing out)
+  # - session_pinning_filters: ["EXCLUDE_VARIABLE_SETS"] (prevent long-running sessions from blocking)
+  session_pool_config {
+    init_query                      = "SET SESSION idle_in_transaction_session_timeout = '30 minutes'"
+    max_idle_connections            = 20
+    max_connections_percent         = 100
+    max_db_connections_percent      = 100
+    connection_borrow_timeout       = 120
+    session_pinning_filters         = ["EXCLUDE_VARIABLE_SETS"]
+  }
+
   tags = merge(var.common_tags, {
     Name = "${var.project_name}-rds-proxy"
   })
