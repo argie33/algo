@@ -6,6 +6,7 @@ import logging
 import os
 import time
 import uuid
+from dataclasses import dataclass
 from datetime import datetime, timezone
 from decimal import ROUND_HALF_UP, Decimal
 from typing import Any
@@ -75,6 +76,38 @@ def _redact_for_logs(message: str) -> str:
     # Mask slippage: +1.23% '' +***%
     message = re.sub(r"([+-]\d+\.\d+)%", "***%", message)
     return message
+
+
+@dataclass
+class ExecuteTradeParams:
+    """Parameters for executing a new trade entry."""
+
+    symbol: str
+    entry_price: Decimal
+    shares: Decimal
+    stop_loss_price: Decimal
+    target_1_price: Decimal | None = None
+    target_2_price: Decimal | None = None
+    target_3_price: Decimal | None = None
+    signal_date: Any | None = None
+    entry_date: Any | None = None
+    sqs: Any | None = None
+    trend_score: float | None = None
+    swing_score: float | None = None
+    swing_grade: str | None = None
+    base_type: str | None = None
+    base_quality: str | None = None
+    stage_phase: str | None = None
+    sector: str | None = None
+    industry: str | None = None
+    rs_percentile: float | None = None
+    market_exposure_at_entry: float | None = None
+    exposure_tier_at_entry: str | None = None
+    stop_method: str | None = None
+    stop_reasoning: str | None = None
+    swing_components: dict | None = None
+    advanced_components: dict | None = None
+    execution_mode: str = "auto"
 
 
 class TradeExecutor:
@@ -172,6 +205,118 @@ class TradeExecutor:
                 )
         else:
             self.is_paper = False
+
+    def _setup_position_data(
+        self,
+        trade_id: str,
+        symbol: str,
+        actual_shares: Decimal,
+        executed_price: Decimal,
+        stop_loss_price: Decimal,
+    ) -> dict[str, Any]:
+        """Build comprehensive position insertion data.
+
+        Returns dict with position_id, symbol, quantity, avg_entry_price, current_price,
+        position_value, and initial stop levels.
+        """
+        position_id = f"POS-{trade_id}"
+        position_value = Decimal(str(actual_shares)) * Decimal(str(executed_price))
+
+        if position_value <= 0:
+            raise ValueError(
+                f"Invalid position value: {actual_shares} shares @ ${executed_price:.2f} = ${position_value:.2f}"
+            )
+
+        return {
+            "position_id": position_id,
+            "symbol": symbol,
+            "quantity": actual_shares,
+            "avg_entry_price": executed_price,
+            "current_price": executed_price,
+            "position_value": position_value,
+            "stop_loss_price": stop_loss_price,
+            "current_stop_price": stop_loss_price,
+        }
+
+    def _record_tca_and_notify(
+        self,
+        trade_id: str,
+        symbol: str,
+        entry_price: Decimal,
+        executed_price: Decimal,
+        shares: Decimal,
+        actual_shares: Decimal,
+        stop_loss_price: Decimal,
+        target_1_price: Decimal | None,
+        swing_score: float | None,
+        base_type: str | None,
+        execution_mode: str,
+    ) -> dict[str, Any]:
+        """Record trade execution quality (TCA) and send notifications.
+
+        Returns dict with any alerts that were generated.
+        """
+        tca_result = {}
+
+        if execution_mode == "auto":
+            if not hasattr(self, "_order_send_time"):
+                raise RuntimeError(
+                    f"[TCA CRITICAL] {symbol}: _order_send_time not set in AUTO mode. "
+                    "Cannot record TCA without accurate send timestamp."
+                )
+            execution_latency_ms = int((time.time() - self._order_send_time) * 1000)
+            if execution_latency_ms < 0:
+                raise ValueError(
+                    f"[TCA CRITICAL] {symbol}: negative latency {execution_latency_ms}ms. "
+                    "Clock skew or time tracking error."
+                )
+
+            try:
+                tca_result = self.tca.record_fill(
+                    trade_id=trade_id,
+                    symbol=symbol,
+                    signal_price=entry_price,
+                    fill_price=executed_price,
+                    shares_requested=shares,
+                    shares_filled=actual_shares,
+                    side="BUY",
+                    execution_latency_ms=execution_latency_ms,
+                )
+                if "alert" in tca_result:
+                    try:
+                        alert_data = tca_result["alert"]
+                        notify(
+                            alert_data["severity"].lower(),
+                            title=f"TCA Alert: {alert_data['severity']}",
+                            message=alert_data["message"],
+                        )
+                    except NotificationError as alert_e:
+                        logger.warning(f"Failed to send TCA alert (non-blocking): {alert_e}")
+            except DatabaseError as tca_e:
+                logger.warning(f"TCA recording failed (database error): {tca_e} (non-blocking)")
+
+        try:
+            notif_service = TradeNotificationService()
+            notif_service._send_notification(
+                subject=f"ENTRY: {symbol}",
+                message=f"{actual_shares:.2f} sh {symbol} @ ${(executed_price or entry_price):.2f} (stop ${stop_loss_price:.2f})",
+                kind="trade_entry",
+                severity="info",
+                symbol=symbol,
+                details={
+                    "entry_price": executed_price,
+                    "shares": float(actual_shares),
+                    "stop_loss": stop_loss_price,
+                    "target_1": target_1_price,
+                    "swing_score": swing_score,
+                    "base_type": base_type,
+                    "trade_id": trade_id,
+                },
+            )
+        except NotificationError as notif_e:
+            logger.warning(f"Failed to send entry notification (non-blocking): {notif_e}")
+
+        return tca_result
 
     def _submit_and_validate_order(
         self,
