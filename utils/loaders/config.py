@@ -40,19 +40,20 @@ class LoaderConfigManager:
     LOADER_CONSTRAINTS = {
         "stock_prices_daily": (
             1,
-            6,
-        ),  # Rate limiter at 160 API calls/min protects against yfinance limits
-        "technical_data_daily": (1, 8),  # Can scale up if RDS available
-        "buy_sell_daily": (1, 6),  # Critical path, scale cautiously
-        "signal_quality_scores": (1, 6),  # Critical path
-        "swing_trader_scores": (1, 6),  # Critical path
-        # Analytics loaders can scale higher
-        "company_profile": (1, 8),
-        "analyst_sentiment": (1, 8),
-        "stability_metrics": (1, 8),
-        "value_metrics": (1, 8),
-        "growth_metrics": (1, 8),
-        "quality_metrics": (1, 8),
+            2,
+        ),  # yfinance via shared NAT IP across 6 ECS tasks; limit to 2 to prevent 429 cascades
+        "technical_data_daily": (1, 4),  # Can scale up if RDS available
+        "buy_sell_daily": (1, 3),  # Critical path, yfinance-dependent; conservative
+        "signal_quality_scores": (1, 3),  # Critical path
+        "swing_trader_scores": (1, 3),  # Critical path
+        # yfinance-dependent metrics: MUST stay low (shared IP across 6 tasks)
+        "positioning_metrics": (1, 1),  # CRITICAL FIX: Was unlimited, now 1 (pure yfinance, single-threaded)
+        "value_metrics": (1, 2),  # CRITICAL FIX: Was 1-8, now 1-2 (yfinance-heavy, rate limit prone)
+        "company_profile": (1, 2),
+        "analyst_sentiment": (1, 3),
+        "stability_metrics": (1, 3),
+        "growth_metrics": (1, 3),
+        "quality_metrics": (1, 3),
     }
 
     def __init__(self):

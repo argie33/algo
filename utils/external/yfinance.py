@@ -34,7 +34,7 @@ logger = logging.getLogger(__name__)
 _yf_semaphore = threading.Semaphore(1)  # Max 1 concurrent request
 _yf_rate_lock = threading.Lock()
 _yf_last_request_time = [0.0]  # list for mutable access across threads
-_YF_MIN_INTERVAL_SECS = 1.0  # 1 request per 1 second = ~3600 req/hour per task
+_YF_MIN_INTERVAL_SECS = 2.0  # CRITICAL FIX: 1 req/2s = ~1800 req/hour per task. 6 tasks = 10.8k/hour max. Stays under shared IP limits when combined with circuit breaker
 
 
 def _throttled_yf_request(fn):
@@ -70,7 +70,7 @@ class YFinanceWrapper:
     SESSION_TIMEOUT = 3600  # Refresh session every hour
     _ticker_cache: dict[str, Any] = {}  # Cache ticker objects to reduce API calls
     _ticker_cache_lock = threading.Lock()
-    TICKER_CACHE_TTL = 3600  # Cache ticker objects for 1 hour
+    TICKER_CACHE_TTL = 86400  # CRITICAL FIX: Cache ticker objects for 24 hours (stable data) instead of 1 hour. Reduces yfinance API calls under rate limit stress
 
     @classmethod
     def get_session(cls):
