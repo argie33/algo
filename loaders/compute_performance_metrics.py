@@ -86,12 +86,17 @@ def compute_performance_metrics(cur, metric_date: date | None = None) -> dict[st
 
         # Win rate
         decisive: int = winning + losing
-        win_rate: float = (winning / decisive * 100) if decisive > 0 else 0.0
+        if decisive == 0:
+            raise ValueError("Cannot calculate performance metrics — no trades in period")
+        win_rate: float = winning / decisive * 100
 
         # P&L metrics
         wins_sum: float = sum(p for p in pnl_dollars if p > 0)
         losses_sum: float = abs(sum(p for p in pnl_dollars if p < 0))
-        profit_factor: float = (wins_sum / losses_sum) if losses_sum > 0 else 0.0
+        if losses_sum == 0:
+            profit_factor: float = wins_sum if wins_sum > 0 else 1.0  # No losses = perfect when there are wins
+        else:
+            profit_factor = wins_sum / losses_sum
         total_pnl_dollars: float = sum(pnl_dollars)
         total_pnl_pct: float = sum(pnl_pcts)
 
@@ -223,7 +228,9 @@ def _compute_advanced_metrics(cur, metric_date: date):
         if n_days > 0 and start_val > 0 and end_val > 0:
             cagr = (end_val / start_val) ** (365.25 / n_days) - 1
 
-        max_dd_pct = (max_drawdown / 100.0) if max_drawdown is not None else 0.0
+        if max_drawdown is None:
+            raise ValueError("Cannot calculate max drawdown — no price data available")
+        max_dd_pct = max_drawdown / 100.0
         return sharpe, sortino, max_dd_pct, cagr, calmar
 
     except Exception as e:

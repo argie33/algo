@@ -66,12 +66,14 @@ class MarketFactorCalculator:
             )
             row = cur.fetchone()
             if row and row[0] is not None:
-                pct = safe_float(row[0], default=0.0, context="row[0]") or 0.0
+                pct = safe_float(row[0], default=None, context="row[0]")
+                if pct is None:
+                    raise ValueError(f"Breadth percentage is not numeric: {row[0]}")
                 # Linear: 20% → 0, 50% → 50, 80% → 100
                 score = (pct - 20) / 0.6 if pct >= 20 else 0
                 score = min(100, max(0, score))
                 return {"value": pct, "score": score}
-            return {"error": "No breadth data"}
+            raise RuntimeError("No breadth data available for calculation")
         except (psycopg2.DatabaseError, psycopg2.OperationalError) as e:
             logger.warning(f"Breadth calculation failed: {e}")
             return {"error": str(e)[:50]}
@@ -153,12 +155,14 @@ class MarketFactorCalculator:
                 (eval_date,),
             )
             row = cur.fetchone()
-            if row and row[0] and row[1]:
-                spy = safe_float(row[0], default=0.0, context="row[0]") or 0.0
-                sma = safe_float(row[1], default=0.0, context="row[1]") or 0.0
+            if row and row[0] is not None and row[1] is not None:
+                spy = safe_float(row[0], default=None, context="row[0]")
+                sma = safe_float(row[1], default=None, context="row[1]")
+                if spy is None or sma is None:
+                    raise ValueError(f"SPY trend data not numeric: close={row[0]}, sma={row[1]}")
                 score = 100.0 if spy > sma else 0.0
                 return {"above_30wma": spy > sma, "score": score}
-            return {"error": "No trend data"}
+            raise RuntimeError("No trend data available for SPY")
         except (psycopg2.DatabaseError, psycopg2.OperationalError) as e:
             logger.warning(f"Trend calculation failed: {e}")
             return {"error": str(e)[:50]}
@@ -181,15 +185,17 @@ class MarketFactorCalculator:
                 (eval_date, eval_date),
             )
             row = cur.fetchone()
-            if row and row[0] and row[1]:
-                current = safe_float(row[0], default=0.0, context="row[0]") or 0.0
-                year_ago = safe_float(row[1], default=0.0, context="row[1]") or 0.0
-                if year_ago == 0:
-                    return {"error": "Year-ago price is zero"}
+            if row and row[0] is not None and row[1] is not None:
+                current = safe_float(row[0], default=None, context="row[0]")
+                year_ago = safe_float(row[1], default=None, context="row[1]")
+                if current is None or year_ago is None:
+                    raise ValueError(f"SPY momentum data not numeric: current={row[0]}, year_ago={row[1]}")
+                if year_ago <= 0:
+                    raise ValueError(f"Year-ago price must be positive for momentum calculation: {year_ago}")
                 ret = (current - year_ago) / year_ago
                 score = min(100, max(0, ret * 200))
                 return {"return_12m": round(ret * 100, 1), "score": score}
-            return {"error": "No momentum data"}
+            raise RuntimeError("No momentum data available for 12-month SPY return")
         except (ValueError, ZeroDivisionError, TypeError) as e:
             logger.warning(f"Momentum calculation failed: {e}")
             return {"error": str(e)[:50]}
@@ -229,12 +235,14 @@ class MarketFactorCalculator:
                 (eval_date,),
             )
             row = cur.fetchone()
-            if row and row[0]:
-                vix = safe_float(row[0], default=0.0, context="row[0]") or 0.0
+            if row and row[0] is not None:
+                vix = safe_float(row[0], default=None, context="row[0]")
+                if vix is None:
+                    raise ValueError(f"VIX value not numeric: {row[0]}")
                 # Simplified: no term structure data
                 score, detail = self._vix_score(vix, vix > 20)
                 return {"vix": round(vix, 1), "score": score, **detail}
-            return {"error": "No VIX data"}
+            raise RuntimeError("No VIX data available for volatility regime calculation")
         except (psycopg2.DatabaseError, psycopg2.OperationalError) as e:
             logger.warning(f"VIX regime calculation failed: {e}")
             return {"error": str(e)[:50]}

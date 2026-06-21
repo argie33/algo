@@ -260,14 +260,22 @@ class VectorizedSwingScoresLoader:
 
                 trend_score = float(weinstein) * 25.0
 
-                rsi = tech.get("rsi", 50) if tech is not None else 50.0
-                rsi = float(rsi) if pd.notna(rsi) else 50.0
+                if tech is None or "rsi" not in tech:
+                    raise ValueError(f"RSI data missing for {symbol} on {date}")
+                rsi = tech.get("rsi")
+                if not pd.notna(rsi):
+                    raise ValueError(f"RSI value is NaN for {symbol} on {date}")
+                rsi = float(rsi)
                 momentum_score = self._calculate_momentum_score(rsi)
 
                 volume_score = 70.0  # From price ROC
 
-                sqs = sig.get("composite_sqs", 50) if sig is not None else 50
-                fundamentals_score = float(sqs) if pd.notna(sqs) else 50.0
+                if sig is None or "composite_sqs" not in sig:
+                    raise ValueError(f"Signal quality score missing for {symbol} on {date}")
+                sqs = sig.get("composite_sqs")
+                if not pd.notna(sqs):
+                    raise ValueError(f"Signal quality score is NaN for {symbol} on {date}")
+                fundamentals_score = float(sqs)
 
                 total_score = (
                     setup_score * 0.25

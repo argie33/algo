@@ -69,7 +69,7 @@ def _batch_fetch_technical_data(
     """
 
     if not symbols_with_precomputed:
-        return {}
+        raise ValueError("No precomputed technical data available for entry execution")
 
     # Separate symbols that have precomputed values from those that don't
 

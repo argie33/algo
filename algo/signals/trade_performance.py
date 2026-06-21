@@ -228,8 +228,7 @@ class SignalTradePerformancePopulator:
             [{'date': date, 'ic': float, 'sample_size': int, 'pvalue': float}, ...]
         """
         if component not in self._VALID_COMPONENTS:
-            logger.warning(f"get_trailing_ic: unknown component '{component}'")
-            return []
+            raise ValueError(f"Unknown component '{component}' — must be one of {self._VALID_COMPONENTS}")
         try:
             with DatabaseContext("read") as cur:
                 cutoff = _date.today() - timedelta(days=days)
@@ -265,5 +264,4 @@ class SignalTradePerformancePopulator:
                 ]
 
         except (ValueError, ZeroDivisionError, TypeError) as e:
-            logger.warning(f"Rolling IC calculation failed for {component}: {e}")
-            return []
+            raise RuntimeError(f"Cannot calculate rolling IC for {component}: {e}") from e

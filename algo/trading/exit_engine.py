@@ -586,7 +586,7 @@ class ExitEngine:
 
             logger.warning(
 
-                f"[exit_engine] {symbol}: init_stop ({float(init_stop):.2f}) >= entry ({float(entry_price):.2f}) "
+                f"[exit_engine] {symbol}: init_stop ({safe_float(init_stop, default=0.0, context='init_stop'):.2f}) >= entry ({safe_float(entry_price, default=0.0, context='entry_price'):.2f}) "
 
                 " - R-based exits disabled for this position; hard stop still active"
 
@@ -618,7 +618,7 @@ class ExitEngine:
 
                 "fraction": 1.0,
 
-                "reason": f"STOP hit: ${float(cur_price):.2f} <= ${float(active_stop):.2f}",
+                "reason": f"STOP hit: ${safe_float(cur_price, default=0.0, context='cur_price'):.2f} <= ${safe_float(active_stop, default=0.0, context='active_stop'):.2f}",
 
             }
 
@@ -690,7 +690,7 @@ class ExitEngine:
 
                 raise ValueError("CRITICAL: eight_week_rule_threshold_pct config missing. Cannot apply 8-week rule.")
 
-            eight_wk_threshold = float(eight_wk_val)
+            eight_wk_threshold = safe_float(eight_wk_val, default=0.0, context='eight_week_rule_threshold_pct')
 
             eight_wk_window_val = self.config.get("eight_week_rule_window_days")
 
@@ -756,9 +756,9 @@ class ExitEngine:
 
                 "fraction": 0.0,  # 0 = no exit, just raise stop
 
-                "reason": f"+{float(r_mult):.2f}R achieved  - raise stop to breakeven",
+                "reason": f"+{safe_float(r_mult, default=0.0, context='r_mult'):.2f}R achieved  - raise stop to breakeven",
 
-                "new_stop": float(entry_price),
+                "new_stop": safe_float(entry_price, default=0.0, context='entry_price'),
 
             }
 
@@ -816,9 +816,9 @@ class ExitEngine:
 
                     "fraction": 0.50,
 
-                    "reason": f"T1 exit: ${float(cur_price):.2f} >= ${float(t1_price):.2f} (1.5R)",
+                    "reason": f"T1 exit: ${safe_float(cur_price, default=0.0, context='cur_price'):.2f} >= ${safe_float(t1_price, default=0.0, context='t1_price'):.2f} (1.5R)",
 
-                    "new_stop": float(max(active_stop, entry_price)),
+                    "new_stop": safe_float(max(active_stop, entry_price), default=0.0, context='new_stop_t1'),
 
                 }
 
@@ -838,9 +838,9 @@ class ExitEngine:
 
                     "fraction": 0.50,
 
-                    "reason": f"T2 exit: ${float(cur_price):.2f} >= ${float(t2_price):.2f} (3R)",
+                    "reason": f"T2 exit: ${safe_float(cur_price, default=0.0, context='cur_price'):.2f} >= ${safe_float(t2_price, default=0.0, context='t2_price'):.2f} (3R)",
 
-                    "new_stop": float(stop_for_t2),
+                    "new_stop": safe_float(stop_for_t2, default=0.0, context='new_stop_t2'),
 
                 }
 
@@ -858,7 +858,7 @@ class ExitEngine:
 
                     "fraction": 1.0,
 
-                    "reason": f"T3 target hit: ${float(cur_price):.2f} >= ${float(t3_price):.2f} (4R) - FINAL EXIT",
+                    "reason": f"T3 target hit: ${safe_float(cur_price, default=0.0, context='cur_price'):.2f} >= ${safe_float(t3_price, default=0.0, context='t3_price'):.2f} (4R) - FINAL EXIT",
 
                 }
 
@@ -918,7 +918,7 @@ class ExitEngine:
 
                         "fraction": 1.0,  # full exit on 13
 
-                        "reason": f"TD Combo 13-count exhaustion (FULL EXIT, R={float(r_mult):.2f})",
+                        "reason": f"TD Combo 13-count exhaustion (FULL EXIT, R={safe_float(r_mult, default=0.0, context='r_mult'):.2f})",
 
                     }
 
@@ -930,9 +930,9 @@ class ExitEngine:
 
                         "fraction": 0.50,
 
-                        "reason": f"TD Sequential 9-count exhaustion (R={float(r_mult):.2f})",
+                        "reason": f"TD Sequential 9-count exhaustion (R={safe_float(r_mult, default=0.0, context='r_mult'):.2f})",
 
-                        "new_stop": float(max(active_stop, entry_price)),
+                        "new_stop": safe_float(max(active_stop, entry_price), default=0.0, context='new_stop_td'),
 
                     }
 
@@ -944,13 +944,15 @@ class ExitEngine:
 
         if r_mult >= Decimal("2.5") and prev_close is not None and prev_close > 0:
 
-            down_pct = float(
+            down_pct = safe_float(
 
                 (
 
                     (Decimal(str(prev_close)) - Decimal(str(cur_price))) / Decimal(str(prev_close)) * Decimal(100)
 
-                ).quantize(Decimal("0.01"), rounding=ROUND_HALF_UP)
+                ).quantize(Decimal("0.01"), rounding=ROUND_HALF_UP),
+                default=0.0,
+                context='down_pct'
 
             )
 
@@ -966,9 +968,9 @@ class ExitEngine:
 
                         "fraction": 0.50,
 
-                        "reason": f"First Red Day: down {down_pct:.2f}% on heavy volume (R={float(r_mult):.2f})",
+                        "reason": f"First Red Day: down {down_pct:.2f}% on heavy volume (R={safe_float(r_mult, default=0.0, context='r_mult'):.2f})",
 
-                        "new_stop": float(max(active_stop, entry_price)),
+                        "new_stop": safe_float(max(active_stop, entry_price), default=0.0, context='new_stop_first_red_day'),
 
                     }
 
@@ -990,9 +992,9 @@ class ExitEngine:
 
                     "fraction": 0.50,
 
-                    "reason": f"Climax run exhaustion: gained {gain_10d:.1f}% in last 10d (R={float(r_mult):.2f})",
+                    "reason": f"Climax run exhaustion: gained {gain_10d:.1f}% in last 10d (R={safe_float(r_mult, default=0.0, context='r_mult'):.2f})",
 
-                    "new_stop": float(max(active_stop, entry_price)),
+                    "new_stop": safe_float(max(active_stop, entry_price), default=0.0, context='new_stop_climax'),
 
                 }
 
@@ -1143,7 +1145,7 @@ class ExitEngine:
 
                 if bid is not None and ask is not None and bid > 0 and ask > 0:
 
-                    midpoint = (float(bid) + float(ask)) / 2.0
+                    midpoint = (safe_float(bid, default=0.0, context='bid') + safe_float(ask, default=0.0, context='ask')) / 2.0
 
                     return midpoint
 
@@ -1153,7 +1155,7 @@ class ExitEngine:
 
                 if last_price is not None:
 
-                    return float(last_price)
+                    return safe_float(last_price, default=0.0, context='last_price')
 
                 # Status 200 but no valid price data: check if market is open
 
@@ -1583,7 +1585,7 @@ class ExitEngine:
 
             stop_price = ema * Decimal("0.99")
 
-            return float(stop_price.quantize(Decimal("0.01"), rounding=ROUND_DOWN))
+            return safe_float(stop_price.quantize(Decimal("0.01"), rounding=ROUND_DOWN), default=0.0, context='ema_stop_price')
 
         else:
 
@@ -1625,9 +1627,9 @@ class ExitEngine:
 
                 raise ValueError(f"Insufficient data for {symbol} to calculate chandelier stop")
 
-            hh = float(row[0])
+            hh = safe_float(row[0], default=0.0, context='highest_high')
 
-            atr = float(row[1])
+            atr = safe_float(row[1], default=0.0, context='atr')
 
             mult_val = self.config.get("chandelier_atr_mult")
 
@@ -1639,7 +1641,7 @@ class ExitEngine:
 
                 )
 
-            mult = float(mult_val)
+            mult = safe_float(mult_val, default=0.0, context='chandelier_atr_mult')
 
             return round(hh - (mult * atr), 2)
 
@@ -1711,9 +1713,9 @@ class ExitEngine:
 
         ema_21 = Decimal(str(ema_21)) if ema_21 is not None else None
 
-        vol = float(vol) if vol is not None else 0
+        vol = safe_float(vol, default=0.0, context='volume') if vol is not None else 0
 
-        avg_vol_50 = float(avg_vol_50) if avg_vol_50 is not None else 0
+        avg_vol_50 = safe_float(avg_vol_50, default=0.0, context='avg_volume_50') if avg_vol_50 is not None else 0
 
         cur_price_decimal = Decimal(str(cur_price))
 

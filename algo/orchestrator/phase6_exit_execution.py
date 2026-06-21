@@ -16,7 +16,7 @@ from utils.db.advisory_locks import (
     release_advisory_lock,
 )
 from utils.db.context import DatabaseContext
-from utils.safe_data_conversion import safe_float
+from utils.safe_data_conversion import safe_float_strict
 from utils.trading.status import PositionStatus
 
 
@@ -137,7 +137,6 @@ def run(
 
                 elif action["action"] == "partial_exit":
                     # Need current price — fetch
-                    cur_price = 0.0
                     try:
                         with DatabaseContext("read") as cur:
                             cur.execute(
@@ -145,10 +144,13 @@ def run(
                                 (action["position_id"],),
                             )
                             row = cur.fetchone()
-                            cur_price = safe_float(row[0], default=0.0, context="row[0]") if row is not None and row[0] is not None else 0
+                            if row is None or row[0] is None:
+                                raise RuntimeError(f"No current price available for position {action['position_id']}")
+                            cur_price = safe_float_strict(row[0], field_name="current_price")
                     except (RuntimeError, TypeError, ValueError) as e:
-                        logger.warning(f"  Warning: Could not fetch current price for {action['position_id']}: {e}")
-                    if cur_price > 0:
+                        logger.critical(f"  CRITICAL: Cannot execute exit without current price for {action['position_id']}: {e}")
+                        raise
+                    if cur_price is not None and cur_price > 0:
                         result = executor.exit_trade(
                             trade_id=action["trade_id"],
                             exit_price=cur_price,

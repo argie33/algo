@@ -87,14 +87,20 @@ class PositionSizer:
                 snapshot_date = result[1]
                 age_days = (_date.today() - snapshot_date).days if snapshot_date else 999
                 if age_days <= 2:
-                    logger.warning(
-                        f"[PORTFOLIO] STALE: Using snapshot from {age_days}d ago (threshold: 2 days): ${snapshot_value:,.2f}"
+                    logger.info(
+                        f"[PORTFOLIO] Using snapshot from {age_days}d ago (threshold: 2 days): ${snapshot_value:,.2f}"
                     )
                     return snapshot_value
-                logger.error(
-                    f"Portfolio snapshot is {age_days} days old (threshold: 2 days). "
+                # CRITICAL: Snapshot is too stale. Don't proceed with position sizing on outdated data.
+                # Stale portfolio values lead to incorrect position sizes and risk miscalculation.
+                logger.critical(
+                    f"[PORTFOLIO] Snapshot is {age_days} days old (threshold: 2 days). "
                     "Cannot use stale snapshot for position sizing. "
                     "Phase 7 must run daily to maintain fresh snapshots."
+                )
+                raise RuntimeError(
+                    f"Portfolio snapshot too stale ({age_days}d old). "
+                    "Position sizing requires daily reconciliation. Phase 7 must run."
                 )
         except (ValueError, RuntimeError) as e:
             logger.error(f"Error fetching portfolio snapshot: {e}")

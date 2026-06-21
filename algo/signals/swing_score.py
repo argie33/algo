@@ -152,29 +152,10 @@ class SwingTraderScore:
                 trend_pts, trend_detail = self.scorer.compute_trend_component(symbol, eval_date, cur)
                 mom_pts, mom_detail = self.scorer.compute_momentum_component(symbol, eval_date, cur)
 
-                try:
-                    vol_pts, vol_detail = self.scorer.compute_volume_component(symbol, eval_date, cur)
-                except (psycopg2.DatabaseError, psycopg2.OperationalError) as e:
-                    logger.debug(f"Volume component failed for {symbol}: {e}")
-                    vol_pts, vol_detail = 0, {"error": str(e)[:50]}
-
-                try:
-                    fund_pts, fund_detail = self.scorer.compute_fundamentals_component(symbol, cur)
-                except (psycopg2.DatabaseError, psycopg2.OperationalError) as e:
-                    logger.debug(f"Fundamentals component failed for {symbol}: {e}")
-                    fund_pts, fund_detail = 0, {"error": str(e)[:50]}
-
-                try:
-                    sec_pts, sec_detail = self.scorer.compute_sector_component(symbol, eval_date, sector, industry, cur)
-                except Exception as e:
-                    logger.debug(f"Sector component failed for {symbol}: {e}")
-                    sec_pts, sec_detail = 0, {"error": str(e)[:50]}
-
-                try:
-                    mtf_pts, mtf_detail = self.scorer.compute_multi_timeframe_component(symbol, eval_date, cur)
-                except Exception as e:
-                    logger.debug(f"Multi-timeframe component failed for {symbol}: {e}")
-                    mtf_pts, mtf_detail = 0, {"error": str(e)[:50]}
+                vol_pts, vol_detail = self.scorer.compute_volume_component(symbol, eval_date, cur)
+                fund_pts, fund_detail = self.scorer.compute_fundamentals_component(symbol, cur)
+                sec_pts, sec_detail = self.scorer.compute_sector_component(symbol, eval_date, sector, industry, cur)
+                mtf_pts, mtf_detail = self.scorer.compute_multi_timeframe_component(symbol, eval_date, cur)
 
                 total = setup_pts + trend_pts + mom_pts + vol_pts + fund_pts + sec_pts + mtf_pts
 

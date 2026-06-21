@@ -1503,7 +1503,11 @@ class PriceLoader(OptimalLoader):
                 if total_input > 0
                 else 0
             )
-            symbol = rows[0].get("symbol", "unknown") if rows else "unknown"
+            if not rows:
+                raise ValueError("No price data rows available for validation")
+            symbol = rows[0].get("symbol")
+            if not symbol:
+                raise ValueError("Price row missing symbol")
 
             if filtered_pct > 5:
                 logger.warning(

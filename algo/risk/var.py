@@ -72,12 +72,45 @@ class ValueAtRisk:
                 if len(rows) < 30:
                     logger.warning(f"Risk metrics using limited historical data: {len(rows)} snapshots (recommend 30+)")
 
-                values = [Decimal(str(safe_float(row[1], default=0.0, context=f"portfolio_value row {i}"))) for i, row in enumerate(rows)]
+                # CRITICAL: Portfolio values must be present and valid — no defaults to 0.0
+                # Using 0.0 as fallback would cause VaR to be computed on corrupted data
+                values = []
+                for i, row in enumerate(rows):
+                    if row[1] is None:
+                        raise RuntimeError(
+                            f"Portfolio value NULL at row {i} (date {row[0]}). "
+                            "Cannot compute VaR with missing data. Check portfolio snapshot data."
+                        )
+                    try:
+                        val = Decimal(str(safe_float(row[1], context=f"portfolio_value row {i}")))
+                        if val <= 0:
+                            raise RuntimeError(
+                                f"Portfolio value invalid at row {i} (date {row[0]}): {val} "
+                                "(must be positive). Check snapshot data."
+                            )
+                        values.append(val)
+                    except (ValueError, TypeError) as e:
+                        raise RuntimeError(
+                            f"Portfolio value conversion failed at row {i} (date {row[0]}): {e}. "
+                            "Check snapshot data integrity."
+                        )
+
                 returns_decimal = [(values[i] - values[i - 1]) / values[i - 1] for i in range(1, len(values))]
                 if not returns_decimal:
                     logger.critical("Historical VaR calculation failed: no valid returns computed from portfolio snapshots")
                     raise RuntimeError("Cannot compute VaR: no valid portfolio return data available. Verify portfolio snapshots have valid values.")
-                returns = [float(r) for r in returns_decimal]
+
+                # CRITICAL: Returns must be valid — no defaults to 0.0
+                returns = []
+                for i, r in enumerate(returns_decimal):
+                    try:
+                        ret = safe_float(float(r), context=f"daily_return[{i}]")
+                        returns.append(ret)
+                    except (ValueError, TypeError) as e:
+                        raise RuntimeError(
+                            f"Return computation failed at index {i}: {e}. "
+                            "Portfolio snapshot data may be corrupted."
+                        )
 
                 if not returns:
                     logger.critical(
@@ -137,12 +170,45 @@ class ValueAtRisk:
                 if len(rows) < 30:
                     logger.warning(f"Risk metrics using limited historical data: {len(rows)} snapshots (recommend 30+)")
 
-                values = [Decimal(str(safe_float(row[1], default=0.0, context=f"portfolio_value row {i}"))) for i, row in enumerate(rows)]
+                # CRITICAL: Portfolio values must be present and valid — no defaults to 0.0
+                # Using 0.0 as fallback would cause VaR to be computed on corrupted data
+                values = []
+                for i, row in enumerate(rows):
+                    if row[1] is None:
+                        raise RuntimeError(
+                            f"Portfolio value NULL at row {i} (date {row[0]}). "
+                            "Cannot compute VaR with missing data. Check portfolio snapshot data."
+                        )
+                    try:
+                        val = Decimal(str(safe_float(row[1], context=f"portfolio_value row {i}")))
+                        if val <= 0:
+                            raise RuntimeError(
+                                f"Portfolio value invalid at row {i} (date {row[0]}): {val} "
+                                "(must be positive). Check snapshot data."
+                            )
+                        values.append(val)
+                    except (ValueError, TypeError) as e:
+                        raise RuntimeError(
+                            f"Portfolio value conversion failed at row {i} (date {row[0]}): {e}. "
+                            "Check snapshot data integrity."
+                        )
+
                 returns_decimal = [(values[i] - values[i - 1]) / values[i - 1] for i in range(1, len(values))]
                 if not returns_decimal:
                     logger.critical("Historical VaR calculation failed: no valid returns computed from portfolio snapshots")
                     raise RuntimeError("Cannot compute VaR: no valid portfolio return data available. Verify portfolio snapshots have valid values.")
-                returns = [float(r) for r in returns_decimal]
+
+                # CRITICAL: Returns must be valid — no defaults to 0.0
+                returns = []
+                for i, r in enumerate(returns_decimal):
+                    try:
+                        ret = safe_float(float(r), context=f"daily_return[{i}]")
+                        returns.append(ret)
+                    except (ValueError, TypeError) as e:
+                        raise RuntimeError(
+                            f"Return computation failed at index {i}: {e}. "
+                            "Portfolio snapshot data may be corrupted."
+                        )
 
                 if not returns:
                     logger.critical("CVaR calculation failed: no valid returns computed from portfolio snapshots")
@@ -204,7 +270,7 @@ class ValueAtRisk:
 
                 values = [Decimal(str(safe_float(row[1], default=0.0, context=f"portfolio_value row {i}"))) for i, row in enumerate(rows)]
                 returns_decimal = [(values[i] - values[i - 1]) / values[i - 1] for i in range(1, len(values))]
-                returns = np.array([float(r) for r in returns_decimal])
+                returns = np.array([safe_float(float(r), default=0.0, context=f"daily_return[{i}]") for i, r in enumerate(returns_decimal)])
 
                 worst_var = 0.0
                 worst_start_idx = 0
@@ -354,17 +420,17 @@ class ValueAtRisk:
                     positions_list.append(
                         {
                             "symbol": symbol,
-                            "weight_pct": float((position_weight * Decimal(100)).quantize(Decimal("0.01"), rounding=ROUND_HALF_UP)),
-                            "estimated_beta": float(estimated_beta),
-                            "contribution": float(weighted_beta.quantize(Decimal("0.001"), rounding=ROUND_HALF_UP)),
+                            "weight_pct": safe_float(float((position_weight * Decimal(100)).quantize(Decimal("0.01"), rounding=ROUND_HALF_UP)), default=0.0, context=f"{symbol} weight_pct"),
+                            "estimated_beta": safe_float(float(estimated_beta), default=1.0, context=f"{symbol} estimated_beta"),
+                            "contribution": safe_float(float(weighted_beta.quantize(Decimal("0.001"), rounding=ROUND_HALF_UP)), default=0.0, context=f"{symbol} contribution"),
                         }
                     )
 
                 return {
-                    "portfolio_beta": float(total_beta_exposure.quantize(Decimal("0.01"), rounding=ROUND_HALF_UP)),
-                    "interpretation": f"Portfolio is {float(total_beta_exposure.quantize(Decimal('0.1'), rounding=ROUND_HALF_UP))}x market risk",
+                    "portfolio_beta": safe_float(float(total_beta_exposure.quantize(Decimal("0.01"), rounding=ROUND_HALF_UP)), default=1.0, context="portfolio_beta"),
+                    "interpretation": f"Portfolio is {safe_float(float(total_beta_exposure.quantize(Decimal('0.1'), rounding=ROUND_HALF_UP)), default=1.0, context='portfolio_beta_interp')}x market risk",
                     "positions": positions_list,
-                    "portfolio_value": float(portfolio_value.quantize(Decimal("0.01"), rounding=ROUND_HALF_UP)),
+                    "portfolio_value": safe_float(float(portfolio_value.quantize(Decimal("0.01"), rounding=ROUND_HALF_UP)), default=0.0, context="portfolio_value"),
                 }
 
         except (psycopg2.DatabaseError, psycopg2.OperationalError) as e:
@@ -440,7 +506,8 @@ class ValueAtRisk:
                         )
                         continue
                     position_value = safe_float(qty, default=0.0, context="qty") * safe_float(cur_price, default=0.0, context="cur_price")
-                    position_pct = position_value / float(portfolio_value) * 100 if portfolio_value > 0 else 0
+                    portfolio_value_float = safe_float(float(portfolio_value), default=0.0, context="portfolio_value_concentration")
+                    position_pct = position_value / portfolio_value_float * 100 if portfolio_value_float > 0 else 0
 
                     top_holdings.append(
                         {
@@ -450,10 +517,12 @@ class ValueAtRisk:
                         }
                     )
 
-                    sector = sector or "Unknown"
-                    industry = industry or "Unknown"
-                    sector_exposure[sector] = (sector_exposure.get(sector, 0.0) or 0.0) + position_pct
-                    industry_exposure[industry] = (industry_exposure.get(industry, 0.0) or 0.0) + position_pct
+                    if not sector:
+                        sector = "Unknown"
+                    if not industry:
+                        industry = "Unknown"
+                    sector_exposure[sector] = sector_exposure.get(sector, 0.0) + position_pct
+                    industry_exposure[industry] = industry_exposure.get(industry, 0.0) + position_pct
 
                 top_5_pct = sum([h["pct_of_portfolio"] for h in top_holdings[:5]])
 

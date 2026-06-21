@@ -120,17 +120,23 @@ class SignalAttributionEngine:
                         ) = trade
 
                         try:
-                            swing_components = json.loads(swing_components_json) if swing_components_json else {}
+                            if not swing_components_json:
+                                raise ValueError(f"No swing components data for trade {trade_id}")
+                            swing_components = json.loads(swing_components_json)
                             comp_data = swing_components.get(component)
-                            comp_score = comp_data.get("pts", 0) if comp_data else 0
-                            r_mult = float(r_multiple) if r_multiple is not None else 0
+                            if not comp_data:
+                                raise ValueError(f"Component {component} not found in trade {trade_id}")
+                            comp_score = comp_data.get("pts")
+                            if comp_score is None:
+                                raise ValueError(f"Component {component} missing 'pts' field in trade {trade_id}")
+                            if r_multiple is None:
+                                raise ValueError(f"R-multiple missing for trade {trade_id}")
+                            r_mult = float(r_multiple)
 
-                            if comp_score is not None and r_mult is not None:
-                                comp_scores.append(float(comp_score))
-                                r_multiples.append(r_mult)
+                            comp_scores.append(float(comp_score))
+                            r_multiples.append(r_mult)
                         except (json.JSONDecodeError, ValueError) as e:
-                            logger.debug(f"Could not extract {component} from trade {trade_id}: {e}")
-                            continue
+                            raise ValueError(f"Cannot extract {component} data from trade {trade_id}: {e}") from e
 
                     # Calculate IC
                     if len(comp_scores) >= 10:
@@ -397,8 +403,7 @@ class SignalAttributionEngine:
                 )
                 return [(row[0], float(row[1])) for row in cur.fetchall()]
         except (psycopg2.DatabaseError, psycopg2.OperationalError) as e:
-            logger.error(f"Failed to get trailing IC: {e}")
-            return []
+            raise RuntimeError(f"Cannot retrieve trailing IC for attribution analysis: {e}") from e
 
 
 if __name__ == "__main__":

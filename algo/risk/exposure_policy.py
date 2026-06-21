@@ -114,7 +114,12 @@ class ExposurePolicy:
         pass
 
     def get_active_tier(self, eval_date=None):
-        """Look up the most recent exposure score and return its policy tier."""
+        """Look up the most recent exposure score and return its policy tier.
+
+        CRITICAL: Fails fast if exposure data unavailable. Market exposure tier
+        determines entry constraints, exit rules, and risk adjustments. Trading
+        without this data violates risk management.
+        """
         if eval_date is None:
             eval_date = _date.today()
 
@@ -127,7 +132,10 @@ class ExposurePolicy:
                 )
                 row = cur.fetchone()
                 if row is None:
-                    return None
+                    raise RuntimeError(
+                        f"CRITICAL: No market exposure data available for {eval_date}. "
+                        "Phase 4 must compute daily market exposure. Cannot apply entry/exit policies without it."
+                    )
                 exposure = float(row[1])
                 tier = tier_for_exposure(exposure)
                 return {
@@ -137,6 +145,8 @@ class ExposurePolicy:
                     "halt_reasons": row[3],
                     "tier": tier,
                 }
+        except RuntimeError:
+            raise
         except (psycopg2.DatabaseError, psycopg2.OperationalError) as e:
             raise RuntimeError(f"Operation failed: {e}") from e
 
@@ -150,7 +160,7 @@ class ExposurePolicy:
         """
         active = self.get_active_tier(eval_date)
         if not active:
-            return []
+            raise RuntimeError(f"No active exposure policy tier for {eval_date} — cannot generate position recommendations")
 
         tier = active["tier"]
         if eval_date is None:

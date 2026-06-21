@@ -387,8 +387,8 @@ class PositionMonitor:
             _db_current_price,
         ) = row
 
-        entry_price = float(entry_price)
-        init_stop = float(init_stop)
+        entry_price = safe_float(entry_price, default=0.0, context="entry_price")
+        init_stop = safe_float(init_stop, default=0.0, context="init_stop")
 
         if entry_price <= 0:
             msg = f"Invalid entry price {entry_price} for {symbol}  -” cannot monitor"
@@ -402,7 +402,7 @@ class PositionMonitor:
             msg = f"Stop {init_stop} >= entry {entry_price} for {symbol}  -” invalid trade"
             logger.error(f"ERROR: {msg}")
             raise PositionValidationError(msg)
-        active_stop = float(current_stop) if current_stop else init_stop
+        active_stop = safe_float(current_stop, default=init_stop, context="current_stop") if current_stop else init_stop
         target_hits = int(target_hits or 0)
         days_held = (current_date - trade_date).days
         try:
@@ -435,10 +435,10 @@ class PositionMonitor:
         entry_price_dec = Decimal(str(entry_price))
         quantity_dec = Decimal(str(quantity))
 
-        unrealized_pnl = float((price_diff * quantity_dec).quantize(Decimal("0.01"), ROUND_HALF_UP))
+        unrealized_pnl = safe_float(float((price_diff * quantity_dec).quantize(Decimal("0.01"), ROUND_HALF_UP)), default=0.0, context="unrealized_pnl")
         if entry_price_dec <= 0:
             raise PositionValidationError(f"Invalid entry price for {symbol}: {entry_price_dec} <= 0")
-        unrealized_pct = float((price_diff / entry_price_dec * 100).quantize(Decimal("0.01"), ROUND_HALF_UP))
+        unrealized_pct = safe_float(float((price_diff / entry_price_dec * 100).quantize(Decimal("0.01"), ROUND_HALF_UP)), default=0.0, context="unrealized_pct")
 
         # 2. Recompute trailing stop (only ratchet UP, never down)
         proposed_stop = self._compute_trailing_stop(

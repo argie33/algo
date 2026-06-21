@@ -143,7 +143,7 @@ class MarketExposure:
                     f"This requires recomputation (check Phase 4 data loader)."
                 )
                 logger.critical(msg)
-                return None
+                raise RuntimeError(msg)
 
             halt_reasons = []
             if halt_reasons_str:
@@ -249,7 +249,8 @@ class MarketExposure:
                 "max": self.W_BREADTH_50,
             }
             score += b50_pts
-            logger.debug(f"  Breadth 50-DMA: {(b50.get('value') or 0):.1f}%, {b50_pts:.1f} pts")
+            b50_val = b50.get('value')
+            logger.debug(f"  Breadth 50-DMA: {b50_val:.1f}% if isinstance(b50_val, (int, float)) else 'N/A', {b50_pts:.1f} pts")
 
             # --- 4. Breadth: % stocks above 200-DMA ---
             b200 = self.calculator._pct_above_ma(eval_date, ma_days=200, cur=cur)
@@ -261,7 +262,8 @@ class MarketExposure:
                 "max": self.W_BREADTH_200,
             }
             score += b200_pts
-            logger.debug(f"  Breadth 200-DMA: {(b200.get('value') or 0):.1f}%, {b200_pts:.1f} pts")
+            b200_val = b200.get('value')
+            logger.debug(f"  Breadth 200-DMA: {b200_val:.1f}% if isinstance(b200_val, (int, float)) else 'N/A', {b200_pts:.1f} pts")
 
             # --- 5. Selling pressure (heavy-volume down days) ---
             sp = self.calculator.selling_pressure(eval_date, cur)
