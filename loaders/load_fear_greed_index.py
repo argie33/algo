@@ -84,11 +84,15 @@ class FearGreedIndexLoader(OptimalLoader):
                     if score is not None:
                         from datetime import datetime as _dt
 
+                        rating = raw.get("rating")
+                        if rating is None:
+                            logger.warning("Fear & Greed entry missing 'rating' field; skipping")
+                            continue
                         entries.append(
                             {
                                 "_date": _dt.utcnow().strftime("%Y-%m-%d"),
                                 "y": score,
-                                "rating": raw.get("rating", "Neutral"),
+                                "rating": rating,
                             }
                         )
                 else:
@@ -120,7 +124,7 @@ class FearGreedIndexLoader(OptimalLoader):
                                 f"(y={entry.get('y')}, value={entry.get('value')})"
                             )
                             continue
-                        label = entry.get("rating", entry.get("description", "Neutral"))
+                        label = entry.get("rating") or entry.get("description", "Neutral")
                         rows.append(
                             {
                                 "date": entry_date,

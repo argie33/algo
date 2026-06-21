@@ -362,13 +362,13 @@ class VectorizedSwingScoresLoader:
                     # Include grade in components so API can read it via components->>'grade'
                     components = {
                         "grade": grade,
-                        "setup": float(row["setup_score"], default=50, context="setup_score"),
-                        "trend": float(row["trend_score"], default=50, context="trend_score"),
-                        "momentum": float(row["momentum_score"], default=50, context="momentum_score"),
-                        "volume": float(row["volume_score"], default=50, context="volume_score"),
-                        "fundamentals": float(row["fundamentals_score"], default=50, context="fundamentals_score"),
-                        "sector": float(row["sector_score"], default=50, context="sector_score"),
-                        "multi_t": float(row["multi_tf_score"], default=50, context="multi_tf_score"),
+                        "setup": float(row["setup_score"]),
+                        "trend": float(row["trend_score"]),
+                        "momentum": float(row["momentum_score"]),
+                        "volume": float(row["volume_score"]),
+                        "fundamentals": float(row["fundamentals_score"]),
+                        "sector": float(row["sector_score"]),
+                        "multi_t": float(row["multi_tf_score"]),
                     }
 
                     cur.execute(
@@ -381,7 +381,7 @@ class VectorizedSwingScoresLoader:
                         (
                             row["symbol"],
                             row["date"],
-                            float(row["total_score"], default=50, context="total_score"),
+                            float(row["total_score"]),
                             json.dumps(components),
                         ),
                     )

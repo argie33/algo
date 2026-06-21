@@ -12,7 +12,6 @@ from decimal import ROUND_HALF_UP, Decimal
 from typing import Any
 
 from utils.trading import PositionStatus, TradeStatus
-from utils.safe_data_conversion import safe_float
 
 
 logger = logging.getLogger(__name__)
@@ -89,8 +88,8 @@ class TradeValidator:
             try:
                 pretrade_passed, pretrade_reason = self.pretrade_checks.run_all(
                     symbol=symbol,
-                    position_value=safe_float(position_value, default=0.0, context="position_value"),
-                    portfolio_value=safe_float(portfolio_value, default=0.0, context="portfolio_value"),
+                    position_value=float(position_value),
+                    portfolio_value=float(portfolio_value),
                     side="BUY",
                 )
             except ValueError as e:

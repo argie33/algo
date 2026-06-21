@@ -250,7 +250,7 @@ class RejectionTracker:
 
             row = cur.fetchone()
             if not row:
-                return {}
+                raise RuntimeError(f"Failed to retrieve rejection summary for date {eval_date}")
 
             return {
                 "qualified": row[0] or 0,

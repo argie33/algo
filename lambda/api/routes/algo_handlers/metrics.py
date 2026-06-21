@@ -24,8 +24,6 @@ from routes.utils import (
 from utils.validation import (
     APIResponseValidator,
     format_decimal_string,
-    safe_float,
-    safe_float_strict,
     safe_int,
 )
 
@@ -679,11 +677,11 @@ def _get_portfolio_summary(cur) -> dict:
             503, "incomplete_data", "Portfolio snapshot missing required fields"
         )
 
-    total_value = safe_float_strict(row["total_portfolio_value"])
-    cash = safe_float_strict(row["total_cash"])
-    invested = safe_float_strict(row["total_equity"])
+    total_value = float(row["total_portfolio_value"])
+    cash = float(row["total_cash"])
+    invested = float(row["total_equity"])
     positions = safe_int(row["position_count"])
-    daily_return_pct = safe_float_strict(row["daily_return_pct"])
+    daily_return_pct = float(row["daily_return_pct"])
 
     daily_change_dollars = (
         (daily_return_pct / 100 * total_value)
@@ -736,11 +734,11 @@ def _get_risk_metrics(cur) -> dict:
         return success_response(
             {
                 "report_date": data.get("report_date"),
-                "var_pct_95": safe_float_strict(data.get("var_pct_95"), allow_none=True),
-                "cvar_pct_95": safe_float_strict(data.get("cvar_pct_95"), allow_none=True),
-                "stressed_var_pct": safe_float_strict(data.get("stressed_var_pct"), allow_none=True),
-                "portfolio_beta": safe_float_strict(data.get("portfolio_beta"), allow_none=True),
-                "top_5_concentration": safe_float_strict(data.get("top_5_concentration"), allow_none=True),
+                "var_pct_95": float(data.get("var_pct_95")) if data.get("var_pct_95") is not None else None,
+                "cvar_pct_95": float(data.get("cvar_pct_95")) if data.get("cvar_pct_95") is not None else None,
+                "stressed_var_pct": float(data.get("stressed_var_pct")) if data.get("stressed_var_pct") is not None else None,
+                "portfolio_beta": float(data.get("portfolio_beta")) if data.get("portfolio_beta") is not None else None,
+                "top_5_concentration": float(data.get("top_5_concentration")) if data.get("top_5_concentration") is not None else None,
             }
         )
     except (psycopg2.errors.UndefinedTable, psycopg2.errors.UndefinedColumn):
