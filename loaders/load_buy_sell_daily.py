@@ -15,11 +15,11 @@ setup_imports()
 import argparse
 import logging
 from datetime import date, datetime, timedelta
-from decimal import Decimal
 from typing import Optional
 
 import psycopg2.sql
 
+from loaders.buy_signal_generation_handler import BuySignalGenerationHandler
 from utils.db.context import DatabaseContext
 from utils.db.sql_safety import assert_safe_table
 from utils.infrastructure.timezone import EASTERN_TZ
@@ -357,7 +357,7 @@ class SignalsDailyLoader(OptimalLoader):
             raise RuntimeError(f"Operation failed: {e}") from e
         return None
 
-    def _log_rejection_if_available(self, symbol: str, signal_date: date, reason: str) from None:
+    def _log_rejection_if_available(self, symbol: str, signal_date: date, reason: str) -> None:
         """Log signal rejection to signal_rejection_log for observability (non-fatal)."""
         try:
             with DatabaseContext("write") as cur:
@@ -436,278 +436,8 @@ class SignalsDailyLoader(OptimalLoader):
         BUY: High > recent_swing_high AND close > SMA50 (breakout above pivot with trend filter)
         SELL: Low < recent_swing_low (stop loss trigger)
         """
-        if not rows:
-            return []
-
-        # Use batch-cached tech data age (computed once for all symbols, not per-symbol query)
-        tech_data_age = (self._batch_context or {}).get("tech_data_age")
-
-        signals = []
-        skipped_count = 0
-
-        for i, row in enumerate(rows):
-            high = row.get("high")
-            low = row.get("low")
-            close = row.get("close")
-            sma_50 = row.get("sma_50")
-            sma_200 = row.get("sma_200")
-            volume = row.get("volume")
-            atr = row.get("atr")
-            rsi = row.get("rsi")
-            macd = row.get("macd")
-            macd_signal = row.get("macd_signal")
-            ema_21 = row.get("ema_21")
-            adx = row.get("adx")
-            mansfield_rs = row.get("mansfield_rs")
-
-            if close is None or high is None or low is None:
-                skipped_count += 1
-                logger.debug(
-                    f"{symbol} [{row.get('date')}]: Skipping row - missing required OHLC field "
-                    f"(close={close}, high={high}, low={low})"
-                )
-                continue
-
-            signal_type = None
-            strength = 0.0
-            reason = ""
-            buylevel = None
-            stoplevel = None
-
-            # Find most recent swing high (3-bar pivot: high > high[i-3:i] AND high > high[i+1:i+4])
-            # Use 20-bar lookback for swing trading (captures swings over 3-4 weeks)
-            recent_swing_high = None
-            swing_high_sma50 = None
-            for j in range(max(0, i - 20), i):
-                candidate = rows[j].get("high")
-                if not candidate:
-                    continue
-                # Require complete data: all lookback and lookforward bars must have valid highs
-                lookback_bars = [rows[k].get("high") for k in range(max(0, j - 3), j)]
-                lookforward_bars = [
-                    rows[k].get("high") for k in range(j + 1, min(len(rows), j + 4))
-                ]
-                if not all(lookback_bars) or not all(lookforward_bars):
-                    continue
-                # Validate pivot: candidate must be higher than all lookback and lookforward bars
-                if all(candidate > b for b in lookback_bars) and all(
-                    candidate > b for b in lookforward_bars
-                ):
-                    if recent_swing_high is None or candidate > recent_swing_high:
-                        recent_swing_high = candidate
-                        swing_high_sma50 = rows[j].get(
-                            "sma_50"
-                        )  # SMA50 at the time swing high formed
-
-            # Find most recent swing low (3-bar pivot: low < low[i-3:i] AND low < low[i+1:i+4])
-            # Use 10-bar lookback for swing lows (more reactive stop loss, not stale entries)
-            recent_swing_low = None
-            for j in range(max(0, i - 10), i):
-                candidate = rows[j].get("low")
-                if not candidate:
-                    continue
-                # Require complete data: all lookback and lookforward bars must have valid lows
-                lookback_bars = [rows[k].get("low") for k in range(max(0, j - 3), j)]
-                lookforward_bars = [
-                    rows[k].get("low") for k in range(j + 1, min(len(rows), j + 4))
-                ]
-                if not all(lookback_bars) or not all(lookforward_bars):
-                    continue
-                # Validate pivot: candidate must be lower than all lookback and lookforward bars
-                if all(candidate < b for b in lookback_bars) and all(
-                    candidate < b for b in lookforward_bars
-                ):
-                    if recent_swing_low is None or candidate < recent_swing_low:
-                        recent_swing_low = candidate
-
-            # BUY: Breakout above swing high where swing_high > SMA50 (trend filter on pivot level, not current bar)
-            if (
-                recent_swing_high
-                and swing_high_sma50
-                and high > recent_swing_high
-                and recent_swing_high > swing_high_sma50
-            ):
-                signal_type = "BUY"
-                breakout_pct = (
-                    ((high - recent_swing_high) / recent_swing_high * 100)
-                    if recent_swing_high > 0
-                    else 0
-                )
-                strength = min(0.5 + (breakout_pct / 5.0), 1.0)
-                reason = f"Breakout above swing high ({abs(breakout_pct):.1f}%) with price > SMA50"
-                buylevel = round(recent_swing_high, 4)
-                stoplevel = (
-                    round(recent_swing_low, 4)
-                    if recent_swing_low
-                    else round(close * 0.92, 4)
-                )
-
-            # SELL: Breakdown below swing low (stop loss)
-            elif recent_swing_low and low < recent_swing_low:
-                signal_type = "SELL"
-                breakdown_pct = (
-                    ((recent_swing_low - low) / recent_swing_low * 100)
-                    if recent_swing_low > 0
-                    else 0
-                )
-                strength = min(0.5 + (breakdown_pct / 5.0), 1.0)
-                reason = f"Breakdown below swing low ({abs(breakdown_pct):.1f}%)"
-                buylevel = round(close, 4)
-                stoplevel = round(close * 1.08, 4)
-
-            if signal_type:
-                # Compute volume surge: compare to 20-bar average volume
-                vol_surge = None
-                volume_surge_capped = False
-                decimal84_max = 9999.9999
-                if volume is not None and i >= 5:
-                    recent_vols = [
-                        rows[j].get("volume")
-                        for j in range(max(0, i - 20), i)
-                        if rows[j].get("volume") is not None
-                    ]
-                    if recent_vols:
-                        avg_vol = sum(recent_vols) / len(recent_vols)  # type: ignore[arg-type]
-                        if avg_vol > 0:
-                            raw_surge = (volume / avg_vol - 1) * 100
-                            if raw_surge > decimal84_max:
-                                volume_surge_capped = True
-                            vol_surge = round(min(raw_surge, decimal84_max), 2)
-
-                # Compute 50-bar average volume
-                avg_vol_50d = None
-                if i >= 10:
-                    vols_50 = [
-                        rows[j].get("volume")
-                        for j in range(max(0, i - 50), i)
-                        if rows[j].get("volume") is not None
-                    ]
-                    if vols_50:
-                        avg_vol_50d = int(sum(vols_50) / len(vols_50))  # type: ignore[arg-type]
-
-                # Determine market stage from moving averages
-                market_stage = None
-                if close and sma_50 and sma_200:
-                    if close > sma_50 > sma_200:
-                        market_stage = "Stage 2"
-                    elif close > sma_200 and close < sma_50:
-                        market_stage = "Stage 1"
-                    elif close < sma_50 < sma_200:
-                        market_stage = "Stage 4"
-                    elif close < sma_200 and close > sma_50:
-                        market_stage = "Stage 3"
-
-                # Entry/exit planning based on signal type
-                risk_pct = 8.0
-                if signal_type == "BUY" and close:
-                    if buylevel is None:
-                        buylevel = Decimal(str(close)).quantize(Decimal("0.0001"))
-                    if stoplevel is None:
-                        stoplevel = (Decimal(str(close)) * (Decimal(1) - Decimal(str(risk_pct)) / Decimal(100))).quantize(Decimal("0.0001"))
-                    initial_stop = stoplevel
-                    trailing_stop = stoplevel
-                    sell_level = stoplevel
-                    pivot_price = buylevel
-                    buy_zone_start = (buylevel * Decimal("0.99")).quantize(Decimal("0.0001"))
-                    buy_zone_end = (buylevel * Decimal("1.05")).quantize(Decimal("0.0001"))
-                    profit_target_8pct = (buylevel * Decimal("1.08")).quantize(Decimal("0.0001"))
-                    profit_target_20pct = (buylevel * Decimal("1.20")).quantize(Decimal("0.0001"))
-                    profit_target_25pct = (buylevel * Decimal("1.25")).quantize(Decimal("0.0001"))
-                    exit_trigger_1 = profit_target_8pct
-                    exit_trigger_2 = profit_target_20pct
-                    rr = (
-                        (profit_target_20pct - buylevel)
-                        / max(buylevel - stoplevel, Decimal("0.01"))
-                    ).quantize(Decimal("0.01"))
-                elif signal_type == "SELL" and close:
-                    if buylevel is None:
-                        buylevel = Decimal(str(close)).quantize(Decimal("0.0001"))
-                    if stoplevel is None:
-                        stoplevel = (Decimal(str(close)) * (Decimal(1) + Decimal(str(risk_pct)) / Decimal(100))).quantize(Decimal("0.0001"))
-                    initial_stop = stoplevel
-                    trailing_stop = stoplevel
-                    sell_level = Decimal(str(close)).quantize(Decimal("0.0001"))
-                    pivot_price = buylevel
-                    buy_zone_start = None
-                    buy_zone_end = None
-                    profit_target_8pct = (buylevel * Decimal("0.92")).quantize(Decimal("0.0001"))
-                    profit_target_20pct = (buylevel * Decimal("0.80")).quantize(Decimal("0.0001"))
-                    profit_target_25pct = (buylevel * Decimal("0.75")).quantize(Decimal("0.0001"))
-                    exit_trigger_1 = profit_target_8pct
-                    exit_trigger_2 = profit_target_20pct
-                    rr = (
-                        (buylevel - profit_target_20pct)
-                        / max(stoplevel - buylevel, Decimal("0.01"))
-                    ).quantize(Decimal("0.01"))
-                else:
-                    initial_stop = trailing_stop = sell_level = pivot_price = None
-                    buy_zone_start = buy_zone_end = None
-                    profit_target_8pct = profit_target_20pct = profit_target_25pct = (
-                        None
-                    )
-                    exit_trigger_1 = exit_trigger_2 = None
-                    rr = None
-
-                signals.append(
-                    {
-                        "symbol": symbol,
-                        "date": row["date"],
-                        "signal_triggered_date": row["date"],
-                        "timeframe": "1d",
-                        "signal": signal_type,
-                        "signal_type": signal_type,
-                        "strength": float(strength),
-                        "reason": reason,
-                        "entry_quality_score": None,
-                        "signal_quality_score": None,
-                        "volume_surge_pct": vol_surge,
-                        "volume_surge_capped": volume_surge_capped,
-                        "risk_reward_ratio": rr,
-                        "risk_pct": risk_pct,
-                        "rsi": float(rsi) if rsi is not None else None,
-                        "sma_50": float(sma_50) if sma_50 is not None else None,
-                        "sma_200": float(sma_200) if sma_200 is not None else None,
-                        "ema_21": float(ema_21) if ema_21 is not None else None,
-                        "atr": float(atr) if atr is not None else None,
-                        "adx": float(adx) if adx is not None else None,
-                        "mansfield_rs": (
-                            float(mansfield_rs) if mansfield_rs is not None else None
-                        ),
-                        "macd": float(macd) if macd is not None else None,
-                        "macd_signal": (
-                            float(macd_signal) if macd_signal is not None else None
-                        ),
-                        "stage_number": None,
-                        "market_stage": market_stage,
-                        "open": row.get("open"),
-                        "high": float(high) if high is not None else None,
-                        "low": float(low) if low is not None else None,
-                        "close": float(close) if close is not None else None,
-                        "volume": volume,
-                        "avg_volume_50d": avg_vol_50d,
-                        "buylevel": buylevel,
-                        "stoplevel": stoplevel,
-                        "initial_stop": initial_stop,
-                        "trailing_stop": trailing_stop,
-                        "sell_level": sell_level,
-                        "pivot_price": pivot_price,
-                        "buy_zone_start": buy_zone_start,
-                        "buy_zone_end": buy_zone_end,
-                        "profit_target_8pct": profit_target_8pct,
-                        "profit_target_20pct": profit_target_20pct,
-                        "profit_target_25pct": profit_target_25pct,
-                        "exit_trigger_1_price": exit_trigger_1,
-                        "exit_trigger_2_price": exit_trigger_2,
-                        "technical_data_age_days": tech_data_age,
-                    }
-                )
-
-        if skipped_count > 0:
-            logger.warning(
-                f"{symbol}: Skipped {skipped_count} row(s) during signal generation "
-                f"due to missing OHLC fields - {len(signals)} signal(s) generated"
-            )
-        return signals
+        handler = BuySignalGenerationHandler(self)
+        return handler.run(symbol, rows, self._batch_context)
 
     # Columns with DECIMAL(8,4) precision - max 9999.9999
     # High-priced stocks (ASML, BLK, CAT, etc.) can produce values ≥10000 for
@@ -777,7 +507,7 @@ def main():
         raise RuntimeError(f"Failed to fetch active symbols: {e}. Cannot proceed without symbol list.") from None
 
     logger.info(
-        f"Starting buy_sell_daily loader with {len(symbols) from None} symbols, parallelism={args.parallelism}"
+        f"Starting buy_sell_daily loader with {len(symbols)} symbols, parallelism={args.parallelism}"
     )
 
     # VALIDATION: buy_sell_daily is critical path; parallelism should be 3 per steering doc line 44-48
@@ -924,7 +654,7 @@ def main():
 
 if __name__ == "__main__":
     try:
-        sys.exit(main()) from None
+        sys.exit(main())
     except RuntimeError as e:
         logger.error(str(e))
         sys.exit(1)

@@ -129,75 +129,88 @@ class Orchestrator:
             table = dynamodb.Table(table_name)
 
             response = table.get_item(Key={"key": self.HALT_FLAG_DYNAMODB_KEY})
-            if "Item" in response and response["Item"].get("halt_flag") is True:
-                triggered_at_str = response["Item"].get("triggered_at", "")
-                if triggered_at_str:
-                    try:
-                        trigger_dt = datetime.fromisoformat(triggered_at_str.replace("Z", "+00:00"))
-                        now_utc = datetime.now(timezone.utc)
+            if "Item" not in response:
+                return False
 
-                        # Convert to ET for trading hour comparison
-                        trigger_et = trigger_dt.astimezone(EASTERN_TZ)
-                        now_et = now_utc.astimezone(EASTERN_TZ)
+            item = response["Item"]
+            if item.get("halt_flag") is not True:
+                return False
 
-                        trigger_date = trigger_et.date()
-                        now_date_et = now_et.date()
+            triggered_at_str = item.get("triggered_at")
+            if triggered_at_str:
+                try:
+                    trigger_dt = datetime.fromisoformat(triggered_at_str.replace("Z", "+00:00"))
+                    now_utc = datetime.now(timezone.utc)
 
-                        # Check if halt is from a previous trading day
-                        if trigger_date < now_date_et:
-                            # Halt flag from previous day: auto-clear only if we've passed
-                            # market open (9:30 AM) of current trading day
-                            market_open_et = now_et.replace(
-                                hour=MARKET_OPEN_HOUR,
-                                minute=MARKET_OPEN_MINUTE,
-                                second=0,
-                                microsecond=0,
+                    # Convert to ET for trading hour comparison
+                    trigger_et = trigger_dt.astimezone(EASTERN_TZ)
+                    now_et = now_utc.astimezone(EASTERN_TZ)
+
+                    trigger_date = trigger_et.date()
+                    now_date_et = now_et.date()
+
+                    # Check if halt is from a previous trading day
+                    if trigger_date < now_date_et:
+                        # Halt flag from previous day: auto-clear only if we've passed
+                        # market open (9:30 AM) of current trading day
+                        market_open_et = now_et.replace(
+                            hour=MARKET_OPEN_HOUR,
+                            minute=MARKET_OPEN_MINUTE,
+                            second=0,
+                            microsecond=0,
+                        )
+                        market_open_et = market_open_et.replace(tzinfo=EASTERN_TZ)
+
+                        if now_et >= market_open_et:
+                            logger.info(
+                                f"[HALT_FLAG] Halt from {trigger_date} past market open ({MARKET_OPEN_HOUR}:{MARKET_OPEN_MINUTE:02d} ET) "
+                                f"on {now_date_et} — auto-clearing"
                             )
-                            market_open_et = market_open_et.replace(tzinfo=EASTERN_TZ)
-
-                            if now_et >= market_open_et:
-                                logger.info(
-                                    f"[HALT_FLAG] Halt from {trigger_date} past market open ({MARKET_OPEN_HOUR}:{MARKET_OPEN_MINUTE:02d} ET) "
-                                    f"on {now_date_et} — auto-clearing"
-                                )
-                                table.put_item(
-                                    Item={
-                                        "key": self.HALT_FLAG_DYNAMODB_KEY,
-                                        "halt_flag": False,
-                                        "reason": "Auto-expired: halt flag from prior trading day after market open",
-                                        "reset_at": now_utc.isoformat(),
-                                    }
-                                )
-                                return False
-                            else:
-                                # Pre-market on current day, keep halt from previous day active
-                                # (e.g., stale data from night loaders should halt all-day trading)
-                                logger.info(
-                                    f"[HALT_FLAG] Halt from {trigger_date} still active before market open today"
-                                )
-                                return True
-
-                        # Same trading day: halt persists throughout entire day
-                        # (early morning Phase 1 sets flag to protect all-day trading)
-                        if trigger_date == now_date_et:
-                            hours_halted = (now_utc - trigger_dt).total_seconds() / 3600
-                            logger.critical(
-                                f"[HALT_FLAG_ACTIVE] HALT FLAG DETECTED on {now_date_et}. "
-                                f"Triggered {hours_halted:.1f}h ago at {trigger_et.strftime('%H:%M ET')}. "
-                                f"Reason: {response['Item'].get('reason', 'Unknown')[:150]}"
+                            table.put_item(
+                                Item={
+                                    "key": self.HALT_FLAG_DYNAMODB_KEY,
+                                    "halt_flag": False,
+                                    "reason": "Auto-expired: halt flag from prior trading day after market open",
+                                    "reset_at": now_utc.isoformat(),
+                                }
                             )
-                            self.log_phase_result(
-                                0,
-                                "halt_flag_detected",
-                                "halted",
-                                f"Halt flag detected (triggered at {trigger_et.strftime('%H:%M ET')}: {response['Item'].get('reason', 'Unknown')[:100]})",
+                            return False
+                        else:
+                            # Pre-market on current day, keep halt from previous day active
+                            # (e.g., stale data from night loaders should halt all-day trading)
+                            logger.info(
+                                f"[HALT_FLAG] Halt from {trigger_date} still active before market open today"
                             )
                             return True
 
-                    except (ValueError, KeyError) as parse_err:
-                        logger.warning(f"[HALT_FLAG] Could not parse triggered_at: {parse_err}")
+                    # Same trading day: halt persists throughout entire day
+                    # (early morning Phase 1 sets flag to protect all-day trading)
+                    if trigger_date == now_date_et:
+                        hours_halted = (now_utc - trigger_dt).total_seconds() / 3600
+                        reason = item.get("reason")
+                        if not reason:
+                            logger.warning(f"[HALT_FLAG] Halt flag set but missing 'reason' field")
+                            reason = "Unknown"
+                        logger.critical(
+                            f"[HALT_FLAG_ACTIVE] HALT FLAG DETECTED on {now_date_et}. "
+                            f"Triggered {hours_halted:.1f}h ago at {trigger_et.strftime('%H:%M ET')}. "
+                            f"Reason: {reason[:150]}"
+                        )
+                        self.log_phase_result(
+                            0,
+                            "halt_flag_detected",
+                            "halted",
+                            f"Halt flag detected (triggered at {trigger_et.strftime('%H:%M ET')}: {reason[:100]})",
+                        )
+                        return True
 
-                reason = response["Item"].get("reason", "Unknown")
+                except (ValueError, KeyError) as parse_err:
+                    logger.warning(f"[HALT_FLAG] Could not parse triggered_at: {parse_err}")
+
+                reason = item.get("reason")
+                if not reason:
+                    logger.warning(f"[HALT_FLAG] Halt flag set but missing 'reason' field")
+                    reason = "Unknown"
                 logger.critical(
                     f"[HALT_FLAG_ACTIVE] HALT FLAG DETECTED (could not parse timestamp). Reason: {reason[:150]}"
                 )
@@ -266,17 +279,20 @@ class Orchestrator:
             halt_count = 1
             halt_escalated = False
             response = table.get_item(Key={"key": self.HALT_FLAG_DYNAMODB_KEY})
-            if "Item" in response and response["Item"].get("halt_flag") is True:
-                # Flag already set today - this is a repeat failure requiring escalation
-                first_trigger = response["Item"].get("triggered_at", "")
-                if first_trigger:
-                    try:
-                        first_dt = datetime.fromisoformat(first_trigger.replace("Z", "+00:00"))
-                        first_et = first_dt.astimezone(EASTERN_TZ)
-                        # Same trading day = escalate
-                        if first_et.date() == now_et.date():
-                            halt_count = response["Item"].get("halt_count", 1) + 1
-                            halt_escalated = True
+            if "Item" in response:
+                item = response["Item"]
+                if item.get("halt_flag") is True:
+                    # Flag already set today - this is a repeat failure requiring escalation
+                    first_trigger = item.get("triggered_at")
+                    if first_trigger:
+                        try:
+                            first_dt = datetime.fromisoformat(first_trigger.replace("Z", "+00:00"))
+                            first_et = first_dt.astimezone(EASTERN_TZ)
+                            # Same trading day = escalate
+                            if first_et.date() == now_et.date():
+                                prev_halt_count = item.get("halt_count")
+                                halt_count = (prev_halt_count if prev_halt_count else 0) + 1
+                                halt_escalated = True
                             logger.critical(
                                 f"[HALT_FLAG_ESCALATION] REPEATED HALT on {now_et.date()}: "
                                 f"Halt #{halt_count} in same day. "

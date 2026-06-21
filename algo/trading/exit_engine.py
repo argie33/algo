@@ -601,6 +601,13 @@ class ExitEngine:
                     if fraction > 0:
                         logger.info(f"      (exit {int(fraction * 100)}%)")
 
+                    # For stop-raise-only, new_stop is required
+                    if fraction == 0 and new_stop is None:
+                        raise RuntimeError(
+                            f"[EXIT_ENGINE] {symbol}: Stop-raise-only (fraction=0) requires new_stop price. "
+                            f"Exit signal missing new_stop field. Cannot update stop without price."
+                        )
+
                     # Route through executor for all cases (stop-raise-only when fraction=0)
 
                     # Pass cursor for transactional integrity: all exit updates in same transaction

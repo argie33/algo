@@ -24,7 +24,6 @@ from typing import Optional, cast
 
 import psycopg2.sql
 
-from loaders.load_prices_handler import LoadPricesHandler
 from monitoring.metrics_context import TimeBlock
 from utils.data.provenance import DataProvenanceTracker
 from utils.data.tick_validator import validate_price_tick
@@ -189,9 +188,6 @@ class PriceLoader(OptimalLoader):
         )
         self._api_lag_timeouts = 0  # Count of timeout errors (not rate limiting)
         self._api_lag_error_start_time = None  # When API lag started
-
-        # Initialize batch loading handler
-        self.load_prices_handler = LoadPricesHandler(self)
 
     def _detect_eod_pipeline_context(self) -> bool:
         """Detect if running during EOD pipeline (4:05-5:30 PM ET) for timing-aware rate limiting.

@@ -272,10 +272,20 @@ class PositionMonitor:
                 # Compute margin usage = (equity - buying_power) / equity
                 # Using proxy: if total open position value > 90% of equity, halt new entries
                 cur.execute("""
-                    SELECT SUM(position_value) FROM algo_positions WHERE status = 'open'
+                    SELECT COUNT(*), SUM(position_value) FROM algo_positions WHERE status = 'open'
                 """)
-                pos_val_row = cur.fetchone()
-                pos_value = float(pos_val_row[0]) if pos_val_row is not None and pos_val_row[0] is not None else 0
+                count_row = cur.fetchone()
+                position_count = count_row[0] if count_row else 0
+                pos_value_sum = count_row[1] if count_row and len(count_row) > 1 else None
+
+                # CRITICAL: If we have open positions but position_value is NULL, that's data corruption
+                if position_count > 0 and pos_value_sum is None:
+                    raise PositionValidationError(
+                        f"CRITICAL: {position_count} open positions exist but SUM(position_value) is NULL. "
+                        "Database corruption detected. Margin calculation halted."
+                    )
+
+                pos_value = float(pos_value_sum) if pos_value_sum is not None else 0
                 if pos_value < 0:
                     raise PositionValidationError(
                         f"Invalid position value: {pos_value} < 0. Database corruption detected."

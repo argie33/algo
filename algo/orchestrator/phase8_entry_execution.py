@@ -510,10 +510,16 @@ def run(
             # Liquidity: ADV, dollar volume, price history age
 
             entry_price_hint = signal.get("entry_price")
+            if entry_price_hint is None:
+                raise RuntimeError(
+                    f"[PHASE 8] {symbol}: Signal missing entry_price. "
+                    "Cannot run liquidity checks without entry price. "
+                    "Verify Phase 5 signals include entry_price field."
+                )
 
             liq_ok, liq_reason = liquidity.run_all(
                 str(symbol),
-                float(entry_price_hint) if entry_price_hint else 0.0,
+                float(entry_price_hint),
                 run_date,
             )
 
@@ -593,7 +599,12 @@ def run(
                 )
 
             if sizing["status"] != "ok":
-                reason = sizing.get("reason", "unknown")
+                reason = sizing.get("reason")
+                if not reason:
+                    raise RuntimeError(
+                        f"[PHASE 8] {symbol}: Position sizer returned status != 'ok' but no 'reason' field. "
+                        f"Sizer must provide reason for rejection. Response: {sizing}"
+                    )
                 logger.info(f"[PHASE 8] {symbol}: sizer blocked — {reason}")
             elif "shares" not in sizing:
                 logger.error(

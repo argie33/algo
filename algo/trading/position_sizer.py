@@ -24,6 +24,7 @@ from algo.trading.exceptions import (
     ConfigurationError,
     DatabaseError,
     DataUnavailableError,
+    PortfolioValueError,
 )
 from utils.db.context import DatabaseContext
 
@@ -64,10 +65,14 @@ class PositionSizer:
         THREAD SAFETY: Uses PostgreSQL advisory lock to prevent race condition
         where Phase 6 (position sizing) reads while Phase 7 (reconciliation) updates.
         """
-        alpaca_value = self._fetch_live_alpaca_equity()
-        if alpaca_value is not None:
-            logger.info(f"[PORTFOLIO] Using live Alpaca value: ${alpaca_value:,.2f}")
-            return alpaca_value
+        try:
+            alpaca_value = self._fetch_live_alpaca_equity()
+            if alpaca_value is not None:
+                logger.info(f"[PORTFOLIO] Using live Alpaca value: ${alpaca_value:,.2f}")
+                return alpaca_value
+        except RuntimeError as e:
+            logger.warning(f"Live Alpaca fetch failed, attempting snapshot fallback: {e}")
+            # Fall through to snapshot attempt below
 
         def fetch_snapshot(cur):
             cur.execute("SELECT pg_advisory_lock(%s)", (PORTFOLIO_SNAPSHOT_LOCK_ID,))
@@ -87,30 +92,30 @@ class PositionSizer:
                 snapshot_value = Decimal(str(result[0]))
                 snapshot_date = result[1]
                 age_days = (_date.today() - snapshot_date).days if snapshot_date else 999
-                if age_days <= 2:
+                if age_days <= 1:
                     logger.info(
-                        f"[PORTFOLIO] Using snapshot from {age_days}d ago (threshold: 2 days): ${snapshot_value:,.2f}"
+                        f"[PORTFOLIO] Using snapshot from {age_days}d ago (threshold: 1 day): ${snapshot_value:,.2f}"
                     )
                     return snapshot_value
-                # CRITICAL: Snapshot is too stale. Don't proceed with position sizing on outdated data.
-                # Stale portfolio values lead to incorrect position sizes and risk miscalculation.
-                logger.critical(
-                    f"[PORTFOLIO] Snapshot is {age_days} days old (threshold: 2 days). "
-                    "Cannot use stale snapshot for position sizing. "
-                    "Phase 7 must run daily to maintain fresh snapshots."
+                # CRITICAL: Snapshot is too stale. Stricter 1-day threshold prevents position
+                # sizing on multi-day-old data when Phase 7 fails. Better to halt than risk
+                # thousands of dollars in wrong position sizes.
+                error_msg = (
+                    f"Portfolio snapshot too stale ({age_days}d old, threshold 1 day). "
+                    "Phase 7 must run daily. Position sizing halted."
                 )
-                raise RuntimeError(
-                    f"Portfolio snapshot too stale ({age_days}d old). "
-                    "Position sizing requires daily reconciliation. Phase 7 must run."
-                )
-        except (ValueError, RuntimeError) as e:
-            logger.error(f"Error fetching portfolio snapshot: {e}")
+                logger.critical(error_msg)
+                raise PortfolioValueError(error_msg)
+        except PortfolioValueError:
+            raise
         except DatabaseError as e:
             logger.error(f"Database error fetching portfolio snapshot: {e}")
-            raise DataUnavailableError(f"Portfolio snapshot unavailable due to database error: {e}") from e
+            raise PortfolioValueError(f"Portfolio snapshot unavailable due to database error: {e}") from e
+        except (ValueError, RuntimeError) as e:
+            logger.error(f"Error processing portfolio snapshot: {e}")
+            raise PortfolioValueError(f"Portfolio snapshot processing failed: {e}") from e
 
         # CRITICAL: No valid portfolio value available. Fail-closed.
-        # Better to skip trading than risk wrong position sizing.
         error_msg = (
             "CRITICAL: Portfolio value unavailable. "
             "Cannot execute trades without knowing account size. "
@@ -119,7 +124,7 @@ class PositionSizer:
             "Phase 6 entry execution will be halted."
         )
         logger.critical(error_msg)
-        raise RuntimeError(error_msg)
+        raise PortfolioValueError(error_msg)
 
     def _fetch_live_alpaca_equity(self) -> Decimal:
         """Fetch live portfolio equity from Alpaca with retries. Raises on credential/API failure."""

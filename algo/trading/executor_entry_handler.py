@@ -236,7 +236,13 @@ class EntryHandler:
                         "status": "failed",
                         "message": "Order result missing - bracket validation failed",
                     }
-                legs = order_result.get("legs", [])
+                legs = order_result.get("legs")
+                if legs is None:
+                    raise RuntimeError(
+                        f"[ENTRY_HANDLER] {symbol}: OrderManager returned success=True but no 'legs' field. "
+                        f"Cannot validate bracket order without legs. OrderManager contract violated."
+                    )
+
                 if order_result.get("order_class") == "bracket" and len(legs) < 2:
                     try:
                         self.executor._cancel_bracket_orders(alpaca_order_id)

@@ -1,7 +1,6 @@
 #!/usr/bin/env python3
 from __future__ import annotations
 
-import json
 import logging
 import os
 import time
@@ -16,10 +15,10 @@ from algo.infrastructure import get_api_timeout
 from algo.infrastructure.config import AlgoConfig
 from algo.reporting import TradeNotificationService, notify
 from algo.trading.exceptions import (
-    AuditLogError,
     DatabaseError,
     DataUnavailableError,
     DuplicatePositionError,
+    ExchangeAPIError,
     NotificationError,
     OrderExecutionError,
     OrderRejectedError,
@@ -379,7 +378,12 @@ class TradeExecutor:
             )
 
             if not order_result.get("success"):
-                error_msg = order_result.get("message", "Order submission failed (unknown reason)")
+                error_msg = order_result.get("message")
+                if not error_msg:
+                    raise OrderExecutionError(
+                        f"[ENTRY] {symbol}: Order rejected but no error message provided. "
+                        f"OrderManager must return 'message' field on failure."
+                    )
                 logger.error(f"[ENTRY] {symbol}: Order rejected - {error_msg}")
                 return (
                     False,
@@ -390,10 +394,27 @@ class TradeExecutor:
                     order_result.get("rejection_reason"),
                 )
 
-            # Extract order details
-            alpaca_order_id = order_result.get("order_id", "")
-            order_status = order_result.get("status", "pending")
-            executed_price = order_result.get("executed_price", entry_price)
+            # Extract order details — all required when success=True
+            alpaca_order_id = order_result.get("order_id")
+            if not alpaca_order_id:
+                raise OrderExecutionError(
+                    f"[ENTRY] {symbol}: OrderManager returned success=True but no order_id. "
+                    f"Cannot proceed without order ID. OrderManager contract violated."
+                )
+
+            order_status = order_result.get("status")
+            if not order_status:
+                raise OrderExecutionError(
+                    f"[ENTRY] {symbol}: OrderManager returned success=True but no status. "
+                    f"Cannot track order without status. OrderManager contract violated."
+                )
+
+            executed_price = order_result.get("executed_price")
+            if executed_price is None:
+                raise OrderExecutionError(
+                    f"[ENTRY] {symbol}: OrderManager returned success=True but no executed_price. "
+                    f"Cannot record trade without execution price. OrderManager contract violated."
+                )
 
             logger.info(
                 f"[ENTRY] {symbol}: Order {alpaca_order_id} submitted successfully - "
@@ -409,13 +430,36 @@ class TradeExecutor:
                 None,
             )
 
-        except Exception as e:
-            logger.exception(f"[ENTRY] {symbol}: Exception during order submission: {e}")
+        except OrderExecutionError as e:
+            # Order submission contract violation or rejection (non-retryable)
+            logger.error(f"[ENTRY] {symbol}: Order execution error (contract violation): {e}")
             return (
                 False,
                 trade_id,
                 "",
                 f"Order submission error: {str(e)[:100]}",
+                None,
+                None,
+            )
+        except ExchangeAPIError as e:
+            # Transient API error (potentially retryable)
+            logger.warning(f"[ENTRY] {symbol}: Transient API error during order submission: {e}")
+            return (
+                False,
+                trade_id,
+                "",
+                f"API error (may retry): {str(e)[:100]}",
+                None,
+                None,
+            )
+        except Exception as e:
+            # Unexpected error - log fully for debugging
+            logger.exception(f"[ENTRY] {symbol}: Unexpected exception during order submission: {type(e).__name__}: {e}")
+            return (
+                False,
+                trade_id,
+                "",
+                f"Unexpected error: {str(e)[:100]}",
                 None,
                 None,
             )
@@ -916,6 +960,24 @@ class TradeExecutor:
                     ORDER BY trade_date DESC LIMIT 1
                 """,
                     (alpaca_qty, symbol),
+                )
+                # CRITICAL: Add audit trail for partial fill correction
+                # This ensures P&L calculations can be traced back to the correction event
+                cur.execute(
+                    """
+                    INSERT INTO algo_audit_log (
+                        operation_type, entity_type, entity_id, actor,
+                        operation_details, created_at
+                    ) VALUES (%s, %s, %s, %s, %s, CURRENT_TIMESTAMP)
+                    """,
+                    (
+                        "PARTIAL_FILL_CORRECTION",
+                        "trade",
+                        symbol,
+                        "system:position_validation",
+                        f"Partial fill detected and corrected: requested {db_qty} shares, Alpaca filled {alpaca_qty} shares. "
+                        f"DB entry_quantity updated from {db_qty} to {alpaca_qty} to match authoritative Alpaca position.",
+                    ),
                 )
                 return True
 

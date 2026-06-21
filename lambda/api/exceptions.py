@@ -90,10 +90,3 @@ class QueryTimeout(APIException):
 
     status_code = 504
     error_type = "timeout"
-
-
-class DataNotAvailable(APIException):
-    """503 Service Unavailable - Required data has not been loaded yet."""
-
-    status_code = 503
-    error_type = "no_data"
