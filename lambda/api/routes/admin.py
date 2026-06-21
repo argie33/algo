@@ -413,8 +413,10 @@ def _get_data_quality(cur) -> dict:
 
 def _verify_user_email(body: dict | None = None) -> dict:
     """Verify a user's email in Cognito (dev/testing only)."""
+    if not body:
+        return error_response(400, "bad_request", "Request body is required")
     try:
-        req = VerifyUserEmailRequest(**(body or {}))
+        req = VerifyUserEmailRequest(**body)
     except ValidationError as e:
         errors = e.errors()
         if errors:

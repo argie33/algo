@@ -220,6 +220,17 @@ def _get_data_status(cur) -> dict:
             last_updated = row["last_updated"]
             row_count = row.get("row_count")
 
+            # Get freshness rule once per table (consolidate lookups)
+            rule = _fr.get(row["table_name"], {})
+            table_name = row["table_name"]
+
+            # Extract max_age with consistent default of 1 day for unknown tables
+            max_age = rule.get("max_age_days")
+            if max_age is None:
+                max_age = 1
+                if table_name in _fr:
+                    logger.warning(f"Freshness rule for {table_name} missing max_age_days field")
+
             if row_count is None or row_count == 0:
                 status = "empty"
             elif last_updated is None:
@@ -230,8 +241,6 @@ def _get_data_status(cur) -> dict:
                     if hasattr(last_updated, "date")
                     else last_updated
                 )
-                rule = _fr.get(row["table_name"], {})
-                max_age = rule.get("max_age_days", 1)
                 if max_age <= 1:
                     # Daily tables: use trading-day-aware comparison
                     status = "stale" if data_date < expected_date else "ok"
@@ -248,10 +257,10 @@ def _get_data_status(cur) -> dict:
             else:
                 age_h = 999
 
-            rule = _fr.get(row["table_name"], {})
+            # Determine role based on criticality and freshness requirement
             if rule.get("critical"):
                 role = "CRIT"
-            elif rule.get("max_age_days", 999) <= 7:
+            elif max_age <= 7:
                 role = "IMP"
             else:
                 role = "NORM"

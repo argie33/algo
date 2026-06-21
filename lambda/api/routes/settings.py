@@ -46,7 +46,9 @@ def handle(
     if method == "GET":
         return _get_settings(cur, jwt_claims)
     if method in ("POST", "PUT", "PATCH"):
-        return _save_settings(cur, body or {}, jwt_claims)
+        if not body:
+            return error_response(400, "bad_request", "Request body is required")
+        return _save_settings(cur, body, jwt_claims)
     return error_response(405, "method_not_allowed", f"{method} not supported")
 
 
