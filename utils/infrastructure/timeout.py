@@ -60,9 +60,7 @@ def ExecutionTimeout(max_seconds: int = 5400, label: str = "loader"):
     try:
         # Unix: Use signal-based timeout (more reliable)
         if platform in ("linux", "linux2", "darwin"):
-            logger.info(
-                f"[TIMEOUT] Using signal-based timeout for {label}: {max_seconds}s"
-            )
+            logger.info(f"[TIMEOUT] Using signal-based timeout for {label}: {max_seconds}s")
 
             # Set SIGALRM handler
             old_handler = signal.signal(signal.SIGALRM, _timeout_handler_unix)  # type: ignore[attr-defined]
@@ -76,9 +74,7 @@ def ExecutionTimeout(max_seconds: int = 5400, label: str = "loader"):
 
         # Windows / Other: Use threading-based timeout
         else:
-            logger.info(
-                f"[TIMEOUT] Using threading-based timeout for {label}: {max_seconds}s (non-signal platform)"
-            )
+            logger.info(f"[TIMEOUT] Using threading-based timeout for {label}: {max_seconds}s (non-signal platform)")
 
             def _timeout_func():
                 logger.critical(
