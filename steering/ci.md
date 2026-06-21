@@ -45,12 +45,13 @@ Runs on every commit to `main` and every pull request to `main`. Blocks merges i
 ### Code Quality Gates (BLOCKING)
 
 7. **Linting & Type Checking** (~5 min)
-   - **Import validation:** Checks all `.py` files are importable (catches broken imports)
-   - **Ruff lint:** `ruff check algo/ tests/ tools/` (linting rules)
-   - **Ruff format:** `ruff format --check algo/ tests/ tools/` (formatting)
+   - **Import validation:** Runs `scripts/ci_validation.py` to ensure all `.py` files are importable (catches broken imports, incomplete refactors). This is critical because MyPy only does static analysis and doesn't execute imports, so broken function references can slip through linting.
+   - **Ruff lint:** `ruff check algo/ tests/ tools/` (linting rules E, F for errors and undefined names)
+   - **Ruff format:** `ruff format --check algo/ tests/ tools/` (code formatting)
    - **MyPy:** Type checking for `algo/` and `tools/`
    - **Fails:** If any import broken, linting violation, formatting mismatch, or type error
-   - **Local:** `make lint format type-check`
+   - **Local:** `make lint format type-check` or `python scripts/ci_validation.py`
+   - **Critical imports verified:** dashboard utilities, panels (portfolio/sectors), data extractors
 
 8. **Unit/Integration Tests** (~15 min)
    - **Unit tests:** `pytest tests/ -m unit`

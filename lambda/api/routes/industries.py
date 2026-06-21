@@ -18,6 +18,8 @@ from routes.utils import (
     safe_page,
 )
 
+from shared_contracts.response_validator import ResponseValidator
+
 
 logger = logging.getLogger(__name__)
 
@@ -257,16 +259,20 @@ def _industry_list(cur, params):
     freshness = check_data_freshness(
         cur, "industry_ranking", "date_recorded", warning_days=1
     )
-    return json_response(
-        200,
-        {
-            "items": industries,
-            "total": total,
-            "page": page,
-            "limit": limit,
-            "data_freshness": freshness,
-        },
-    )
+    result = {
+        "items": industries,
+        "total": total,
+        "page": page,
+        "limit": limit,
+        "data_freshness": freshness,
+    }
+
+    is_valid, error_msg = ResponseValidator.validate_endpoint_response("industries/list", result)
+    if not is_valid:
+        logger.error(f"Industries list response validation failed: {error_msg}")
+        return error_response(500, "response_validation_error", error_msg)
+
+    return json_response(200, result)
 
 
 def _industry_detail(cur, industry_name):
@@ -295,22 +301,26 @@ def _industry_detail(cur, industry_name):
 
     r = safe_json_serialize(dict(row))
     freshness = check_data_freshness(cur, "stock_scores", "date", warning_days=1)
-    return json_response(
-        200,
-        {
-            "industry_name": r.get("industry_name"),
-            "stock_count": (
-                int(r.get("stock_count")) if r.get("stock_count") is not None else None
-            ),
-            "composite_score": _sf(r.get("composite_score")),
-            "momentum_score": _sf(r.get("momentum_score")),
-            "value_score": _sf(r.get("value_score")),
-            "quality_score": _sf(r.get("quality_score")),
-            "growth_score": _sf(r.get("growth_score")),
-            "stability_score": _sf(r.get("stability_score")),
-            "data_freshness": freshness,
-        },
-    )
+    result = {
+        "industry_name": r.get("industry_name"),
+        "stock_count": (
+            int(r.get("stock_count")) if r.get("stock_count") is not None else None
+        ),
+        "composite_score": _sf(r.get("composite_score")),
+        "momentum_score": _sf(r.get("momentum_score")),
+        "value_score": _sf(r.get("value_score")),
+        "quality_score": _sf(r.get("quality_score")),
+        "growth_score": _sf(r.get("growth_score")),
+        "stability_score": _sf(r.get("stability_score")),
+        "data_freshness": freshness,
+    }
+
+    is_valid, error_msg = ResponseValidator.validate_endpoint_response("industries/detail", result)
+    if not is_valid:
+        logger.error(f"Industries detail response validation failed: {error_msg}")
+        return error_response(500, "response_validation_error", error_msg)
+
+    return json_response(200, result)
 
 
 def _industry_trend(cur, industry_name, params):
@@ -363,4 +373,11 @@ def _industry_trend(cur, industry_name, params):
     ]
 
     freshness = check_data_freshness(cur, "price_daily", "date", warning_days=1)
-    return json_response(200, {"industry": industry_name, "trendData": trend_data, "data_freshness": freshness})
+    result = {"industry": industry_name, "trendData": trend_data, "data_freshness": freshness}
+
+    is_valid, error_msg = ResponseValidator.validate_endpoint_response("industries/trend", result)
+    if not is_valid:
+        logger.error(f"Industries trend response validation failed: {error_msg}")
+        return error_response(500, "response_validation_error", error_msg)
+
+    return json_response(200, result)

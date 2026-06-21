@@ -395,7 +395,14 @@ def _get_leading_indicators(cur) -> dict:
                 }
             )
 
-        return json_response(200, {"indicators": indicators})
+        result = {"indicators": indicators}
+
+        is_valid, error_msg = ResponseValidator.validate_endpoint_response("economic/indicators", result)
+        if not is_valid:
+            logger.error(f"Economic indicators response validation failed: {error_msg}")
+            return error_response(500, "response_validation_error", error_msg)
+
+        return json_response(200, result)
 
     except (
         psycopg2.errors.UndefinedTable,
@@ -522,27 +529,31 @@ def _get_yield_curve_full(cur) -> dict:
             k: v[-1].get("value") if v else None for k, v in stress_history.items()
         }
 
-        return json_response(
-            200,
-            {
-                "currentCurve": current_curve,
-                "spreads": spreads,
-                "isInverted": is_inverted,
-                "history": history,
-                "credit": {
-                    "history": credit_history,
-                    "currentSpreads": credit_latest,
-                },
-                "breakevens": {
-                    "history": breakevens_history,
-                    "current": breakevens_latest,
-                },
-                "stress": {
-                    "history": stress_history,
-                    "current": stress_latest,
-                },
+        result = {
+            "currentCurve": current_curve,
+            "spreads": spreads,
+            "isInverted": is_inverted,
+            "history": history,
+            "credit": {
+                "history": credit_history,
+                "currentSpreads": credit_latest,
             },
-        )
+            "breakevens": {
+                "history": breakevens_history,
+                "current": breakevens_latest,
+            },
+            "stress": {
+                "history": stress_history,
+                "current": stress_latest,
+            },
+        }
+
+        is_valid, error_msg = ResponseValidator.validate_endpoint_response("economic/yield-curve", result)
+        if not is_valid:
+            logger.error(f"Economic yield curve response validation failed: {error_msg}")
+            return error_response(500, "response_validation_error", error_msg)
+
+        return json_response(200, result)
 
     except (
         psycopg2.errors.UndefinedTable,
