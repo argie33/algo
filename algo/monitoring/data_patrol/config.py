@@ -1,156 +1,74 @@
 #!/usr/bin/env python3
-"""Patrol configuration management - loads thresholds from algo_config table."""
+"""Patrol configuration management - delegates to AlgoConfig (consolidated)."""
 
 import logging
 from typing import Any, cast
 
-import psycopg2
-
 
 logger = logging.getLogger(__name__)
 
-# Severity levels
+# Severity levels (for backward compatibility)
 INFO, WARN, ERROR, CRIT = "info", "warn", "error", "critical"
 
 
 class PatrolConfig:
-    """Load and cache patrol configuration from algo_config table."""
+    """Patrol configuration - delegates to AlgoConfig for single source of truth.
+
+    This class is kept for backward compatibility. All methods delegate to AlgoConfig
+    which loads from algo_config table. This consolidation eliminates duplicate
+    database queries and ensures patrol thresholds are managed centrally.
+    """
 
     def __init__(self, cur=None):
-        self._config_cache: dict[str, Any] = {}
-        self._loaded = False
-        if cur:
-            self.load(cur)
+        """Legacy constructor for compatibility. Cursor parameter is ignored."""
+        from algo.infrastructure import get_config
+
+        self._config = get_config()
 
     def load(self, cur) -> None:
-        """Load configuration from algo_config table."""
-        try:
-            cur.execute("SELECT key, value FROM algo_config")
-            rows = cur.fetchall()
-            for row in rows:
-                key, value = row[0], row[1]
-                if value is None:
-                    continue
-                # Try to parse as number
-                try:
-                    if "." in str(value):
-                        self._config_cache[key] = float(value)
-                    else:
-                        self._config_cache[key] = int(value)
-                except (ValueError, TypeError):
-                    self._config_cache[key] = value
-            self._loaded = True
-        except (psycopg2.DatabaseError, psycopg2.OperationalError) as e:
-            logger.warning(f"Could not load patrol config: {e}")
-            self._loaded = False
+        """Legacy method - reload AlgoConfig instead."""
+        self._config.reload()
 
-    def get(self, key: str, default: int | float | str | None = None) -> int | float | str | None:
+    def get(
+        self, key: str, default: int | float | str | None = None
+    ) -> int | float | str | None:
         """Get config value with fallback to default."""
-        if key in self._config_cache:
-            return cast(int | float | str, self._config_cache[key])
-        return default
+        return cast(int | float | str | None, self._config.get(key, default))
 
     def get_staleness_windows(self) -> dict[str, Any]:
         """Get all staleness thresholds in days."""
-        return {
-            "price_daily": self.get("patrol_staleness_price_daily", 7),
-            "technical_data_daily": self.get("patrol_staleness_technical_daily", 7),
-            "buy_sell_daily": self.get("patrol_staleness_buy_sell_daily", 7),
-            "trend_data": self.get("patrol_staleness_trend_data", 7),
-            "signal_quality_scores": self.get("patrol_staleness_signal_quality_scores", 7),
-            "market_health": self.get("patrol_staleness_market_health", 7),
-            "sector_ranking": self.get("patrol_staleness_sector_ranking", 7),
-            "industry_ranking": self.get("patrol_staleness_industry_ranking", 7),
-            "insider_transactions": self.get("patrol_staleness_insider_transactions", 30),
-            "analyst_upgrades": self.get("patrol_staleness_analyst_upgrades", 30),
-            "stock_scores": self.get("patrol_staleness_stock_scores", 7),
-            "aaii_sentiment": self.get("patrol_staleness_aaii_sentiment", 7),
-            "growth_metrics": self.get("patrol_staleness_growth_metrics", 30),
-            "earnings_history": self.get("patrol_staleness_earnings_history", 120),
-        }
+        return self._config.get_staleness_windows()
 
     def get_coverage_thresholds(self) -> dict[str, Any]:
         """Get coverage ratio thresholds."""
-        return {
-            "error_pct": self.get("patrol_coverage_error_threshold_pct", 95),
-            "warn_pct": self.get("patrol_coverage_warning_threshold_pct", 90),
-        }
+        return self._config.get_coverage_thresholds()
 
     def get_price_sanity_config(self) -> dict[str, Any]:
         """Get OHLC/price sanity thresholds."""
-        return {
-            "max_daily_move_pct": self.get("patrol_max_daily_move_pct", 0.5),
-            "max_daily_move_count": self.get("patrol_max_daily_move_count", 10),
-        }
+        return self._config.get_price_sanity_config()
 
     def get_volume_config(self) -> dict[str, Any]:
         """Get volume sanity thresholds."""
-        return {
-            "low_threshold": self.get("patrol_low_volume_threshold", 1000),
-            "high_threshold": self.get("patrol_high_volume_threshold", 100000000),
-            "new_low_alert": self.get("patrol_new_low_volume_alert", 5),
-        }
+        return self._config.get_volume_config()
 
     def get_quality_config(self) -> dict[str, Any]:
         """Get data quality thresholds."""
-        return {
-            "max_null_pct": self.get("patrol_max_null_pct_threshold", 5),
-            "zero_symbols_error": self.get("patrol_new_zero_symbols_error", 10),
-            "zero_symbols_warn": self.get("patrol_new_zero_symbols_warn", 5),
-            "identical_ohlc_threshold": self.get("patrol_identical_ohlc_threshold", 50),
-        }
+        return self._config.get_quality_config()
 
     def get_cross_validation_config(self) -> dict[str, Any]:
         """Get cross-validation thresholds."""
-        return {
-            "price_mismatch_pct": self.get("patrol_price_xval_mismatch_pct", 2),
-            "top_n_symbols": self.get("patrol_xval_top_n_symbols", 50),
-        }
+        return self._config.get_cross_validation_config()
 
     def get_corporate_actions_config(self) -> dict[str, Any]:
         """Get corporate actions detection config."""
-        return {
-            "lookback_days": self.get("patrol_corporate_action_lookback_days", 90),
-            "drop_ratio": self.get("patrol_corporate_action_drop_ratio", -0.30),
-        }
+        return self._config.get_corporate_actions_config()
 
     def get_loader_contracts(self) -> dict[str, dict[str, Any]]:
         """Get loader contracts with expected output thresholds."""
-        return {
-            "price_daily": {
-                "condition": "date >= CURRENT_DATE - INTERVAL '14 days'",
-                "min_rows": self.get("patrol_price_daily_14d_min", 40000),
-                "severity": ERROR,
-                "description": "Daily price data should be ~5000 symbols x 14 days",
-            },
-            "technical_data_daily": {
-                "condition": "date >= CURRENT_DATE - INTERVAL '14 days'",
-                "min_rows": self.get("patrol_technical_daily_14d_min", 40000),
-                "severity": ERROR,
-                "description": "Technical indicators should match price coverage",
-            },
-            "buy_sell_daily": {
-                "condition": "date >= CURRENT_DATE - INTERVAL '14 days'",
-                "min_rows": self.get("patrol_buy_sell_daily_14d_min", 800),
-                "severity": ERROR,
-                "description": "Pine signals should produce 50+ per day minimum",
-            },
-            "trend_template_data": {
-                "condition": "date >= CURRENT_DATE - INTERVAL '14 days'",
-                "min_rows": self.get("patrol_trend_14d_min", 16000),
-                "severity": ERROR,
-                "description": "Trend template covers 4900+ symbols x 14 days",
-            },
-            "signal_quality_scores": {
-                "condition": "date >= CURRENT_DATE - INTERVAL '14 days'",
-                "min_rows": self.get("patrol_sqs_14d_min", 16000),
-                "severity": WARN,
-                "description": "SQS should match trend coverage",
-            },
-        }
+        return self._config.get_loader_contracts()
 
     def as_dict(self) -> dict[str, Any]:
-        """Return all config as a dict (for logging)."""
+        """Return patrol config as a dict (for logging)."""
         return {
             "staleness_windows": self.get_staleness_windows(),
             "coverage_thresholds": self.get_coverage_thresholds(),
