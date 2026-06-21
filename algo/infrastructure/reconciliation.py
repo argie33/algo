@@ -6,6 +6,7 @@ import statistics
 from datetime import date as _date_type
 from datetime import datetime, timedelta, timezone
 from decimal import Decimal
+from typing import Any, cast
 
 import psycopg2
 import requests
@@ -678,9 +679,9 @@ class DailyReconciliation:
             logger.warning(f"Exit fill reconciliation error: {e}")
             return {"updated": 0, "message": f"Error: {e}"}
 
-    def audit_stale_estimated_prices(self, cur) -> dict:
+    def audit_stale_estimated_prices(self, cur) -> dict[Any, Any]:
         """Audit for trades with estimated exit prices via PriceAuditor."""
-        return self.price_auditor.audit_stale_estimated_prices(cur)
+        return cast(dict, self.price_auditor.audit_stale_estimated_prices(cur))
 
     def _audit_stale_estimated_prices_legacy(self, cur) -> dict:
         """LEGACY: Original implementation kept for reference during transition."""
