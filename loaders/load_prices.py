@@ -1941,52 +1941,6 @@ class PriceLoader(OptimalLoader):
 
         self._update_loader_status()
 
-        start_time = self._stats.get("start_time")
-        symbols_total = self._stats.get("symbols_total", 1)
-        symbols_total_int = symbols_total if isinstance(symbols_total, int) else 1
-
-        if self._failed_symbols and len(self._failed_symbols) < symbols_total_int:
-            if isinstance(start_time, datetime):
-                start_time_sec = start_time.timestamp()
-            else:
-                start_time_sec = time.time()
-
-            elapsed_sec = time.time() - start_time_sec
-            if elapsed_sec < (25200 * 0.8):
-                logger.info(
-                    f"[FINAL_RETRY] {len(self._failed_symbols)} symbols failed. Attempting final retry pass..."
-                )
-                final_retry_symbols = [
-                    s
-                    for s in self._failed_symbols.keys()
-                    if s not in self._symbols_failed_final
-                ]
-
-                if final_retry_symbols:
-                    try:
-                        logger.info(
-                            f"[FINAL_RETRY] Retrying {len(final_retry_symbols)} failed symbols with batch_size=20..."
-                        )
-                        final_results = self._fetch_with_fallback(
-                            final_retry_symbols,
-                            start=datetime.now(timezone.utc).date() - timedelta(days=30),
-                            end=datetime.now(timezone.utc).date(),
-                            batch_size=20,
-                            attempt=0,
-                            max_attempts=2,
-                            elapsed_sec=int(elapsed_sec),
-                        )
-                        successful_final = sum(
-                            1 for v in final_results.values() if v is not None
-                        )
-                        logger.info(
-                            f"[FINAL_RETRY] Recovered {successful_final}/{len(final_retry_symbols)} symbols"
-                        )
-                    except (ValueError, ZeroDivisionError, TypeError) as final_retry_err:
-                        logger.warning(
-                            f"[FINAL_RETRY] Final retry failed: {final_retry_err}"
-                        )
-
     def _update_loader_status(self, status: str = "COMPLETED") -> None:
         """Update data_loader_status table with completion metrics."""
         try:
@@ -2131,45 +2085,6 @@ class PriceLoader(OptimalLoader):
             self._stats["source_distribution"],
             self._rate_limit_errors,
         )
-
-        # ISSUE #FULLFIX: Final symbol retry pass to recover from cascade failures
-        # Before returning, retry any symbols that failed in batches but have retry budget left
-        if self._failed_symbols and len(self._failed_symbols) < len(symbols):
-            logger.info(
-                f"[FINAL_RETRY] {len(self._failed_symbols)} symbols failed. Attempting final retry pass..."
-            )
-            final_retry_symbols = [
-                s
-                for s in self._failed_symbols.keys()
-                if s not in self._symbols_failed_final
-            ]
-
-            if final_retry_symbols and (time.time() - start) < (
-                25200 * 0.8
-            ):  # Only if time permits (80% of 7h limit)
-                try:
-                    logger.info(
-                        f"[FINAL_RETRY] Retrying {len(final_retry_symbols)} failed symbols with batch_size=20..."
-                    )
-                    final_results = self._fetch_with_fallback(
-                        final_retry_symbols,
-                        start=datetime.now(timezone.utc).date() - timedelta(days=30),
-                        end=datetime.now(timezone.utc).date(),
-                        batch_size=20,
-                        attempt=0,
-                        max_attempts=2,
-                        elapsed_sec=int(time.time() - start),
-                    )
-                    successful_final = sum(
-                        1 for v in final_results.values() if v is not None
-                    )
-                    logger.info(
-                        f"[FINAL_RETRY] Recovered {successful_final}/{len(final_retry_symbols)} symbols"
-                    )
-                except (ValueError, ZeroDivisionError, TypeError) as final_retry_err:
-                    logger.warning(
-                        f"[FINAL_RETRY] Final retry failed: {final_retry_err}"
-                    )
 
         return self._stats
 

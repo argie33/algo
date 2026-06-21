@@ -233,14 +233,15 @@ resource "aws_db_proxy" "main" {
   # - max_db_connections_percent: 100
   # - connection_borrow_timeout: 120 (wait 2 min for a connection before timing out)
   # - session_pinning_filters: ["EXCLUDE_VARIABLE_SETS"] (prevent long-running sessions from blocking)
-  session_pool_config {
-    init_query                      = "SET SESSION idle_in_transaction_session_timeout = '30 minutes'"
-    max_idle_connections            = 20
-    max_connections_percent         = 100
-    max_db_connections_percent      = 100
-    connection_borrow_timeout       = 120
-    session_pinning_filters         = ["EXCLUDE_VARIABLE_SETS"]
-  }
+  # TODO: session_pool_config requires AWS provider >= 4.10.0, currently blocked by provider constraint
+  # session_pool_config {
+  #   init_query                      = "SET SESSION idle_in_transaction_session_timeout = '30 minutes'"
+  #   max_idle_connections            = 20
+  #   max_connections_percent         = 100
+  #   max_db_connections_percent      = 100
+  #   connection_borrow_timeout       = 120
+  #   session_pinning_filters         = ["EXCLUDE_VARIABLE_SETS"]
+  # }
 
   tags = merge(var.common_tags, {
     Name = "${var.project_name}-rds-proxy"
