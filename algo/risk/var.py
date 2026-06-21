@@ -203,9 +203,10 @@ class ValueAtRisk:
                     )
 
                 values = [Decimal(str(safe_float(row[1], default=0.0, context=f"portfolio_value row {i}"))) for i, row in enumerate(rows)]
-                returns = np.array([(values[i] - values[i - 1]) / values[i - 1] for i in range(1, len(values))])
+                returns_decimal = [(values[i] - values[i - 1]) / values[i - 1] for i in range(1, len(values))]
+                returns = np.array([float(r) for r in returns_decimal])
 
-                worst_var = 0
+                worst_var = 0.0
                 worst_start_idx = 0
 
                 for start_idx in range(len(returns) - 252):
@@ -216,13 +217,13 @@ class ValueAtRisk:
                         worst_start_idx = start_idx
 
                 current_value = values[-1]
-                stressed_var_dollars = current_value * abs(worst_var)
-                stressed_var_pct = abs(worst_var) * 100
+                stressed_var_dollars = current_value * Decimal(str(abs(worst_var)))
+                stressed_var_pct = Decimal(str(abs(worst_var))) * Decimal(100)
 
                 return {
                     "confidence_level": confidence,
-                    "stressed_var_dollars": float(round(stressed_var_dollars, 2)),
-                    "stressed_var_pct": float(round(stressed_var_pct, 3)),
+                    "stressed_var_dollars": float(stressed_var_dollars.quantize(Decimal("0.01"), rounding=ROUND_HALF_UP)),
+                    "stressed_var_pct": float(stressed_var_pct.quantize(Decimal("0.001"), rounding=ROUND_HALF_UP)),
                     "worst_window_period": f"{rows[worst_start_idx][0]} to {rows[worst_start_idx + 252][0]}",
                     "interpretation": f"Potential loss using worst historical 12-month period: {stressed_var_pct:.2f}%",
                 }
@@ -261,7 +262,7 @@ class ValueAtRisk:
                         "Cannot compute beta exposure without portfolio snapshot. "
                         "Portfolio must have been reconciled at least once."
                     )
-                portfolio_value = safe_float(portfolio_row[0], default=0.0, context="portfolio_value")
+                portfolio_value = Decimal(str(safe_float(portfolio_row[0], default=0.0, context="portfolio_value")))
 
                 # Fetch SPY returns for the last 60 trading days (beta denominator)
                 cur.execute("""
@@ -272,17 +273,17 @@ class ValueAtRisk:
                 spy_rows = cur.fetchall()
                 spy_returns = []
                 if len(spy_rows) >= 2:
-                    spy_prices = list(reversed([safe_float(r[1], default=0.0, context=f"SPY close {i}") for i, r in enumerate(spy_rows)]))
+                    spy_prices = list(reversed([Decimal(str(safe_float(r[1], default=0.0, context=f"SPY close {i}"))) for i, r in enumerate(spy_rows)]))
                     spy_returns = [
                         (spy_prices[i] - spy_prices[i - 1]) / spy_prices[i - 1] for i in range(1, len(spy_prices))
                     ]
 
-                spy_var = 0.0
+                spy_var = Decimal(0)
                 if spy_returns:
                     spy_mean = sum(spy_returns) / len(spy_returns)
                     spy_var = sum((r - spy_mean) ** 2 for r in spy_returns) / len(spy_returns)
 
-                total_beta_exposure = 0.0
+                total_beta_exposure = Decimal(0)
                 positions_list = []
 
                 for symbol, qty, cur_price, _entry_price in positions:

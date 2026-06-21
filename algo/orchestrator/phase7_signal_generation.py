@@ -1,24 +1,33 @@
 #!/usr/bin/env python3
 """
-PHASE 5: SIGNAL GENERATION
+PHASE 7: SIGNAL GENERATION & RANKING
 
 Primary path: buy_sell_daily pivot-breakout BUY signals filtered by stock_scores ranking.
-NO fallback path: buy_sell_daily is REQUIRED. If it has no fresh data, Phase 5 halts.
+NO fallback path: buy_sell_daily is REQUIRED. If it has no fresh data, Phase 7 halts.
+
+GUARD RAILS (ISSUE #8 FIX):
+1. Critical dependency check BEFORE signal generation:
+   - stock_scores must have data
+   - market_exposure_daily must have valid exposure_pct
+   - buy_sell_daily must have BUY signals within lookback window
+2. Any missing dependency → immediate halt with clear error message
+3. Prevents silent degradation where empty signals show on dashboard
 
 Pipeline:
-1. Check halt flag (data freshness gate)
-2. Check market regime: halt if entries not allowed per market_exposure_daily
-3. Fetch candidates (primary): buy_sell_daily BUY signals within last 3 days
+1. Check all critical dependencies (fail-fast if any missing)
+2. Check halt flag (data freshness gate)
+3. Check market regime: halt if entries not allowed per market_exposure_daily
+4. Fetch candidates (primary): buy_sell_daily BUY signals within last 3 days
    joined to stock_scores (composite ranking) + price_daily (current prices + SMA_50)
-4. Filter: close > sma_50 (uptrend confirmation)
-5. Filter: composite_score >= min threshold
-6. Close quality gate: skip weak closes (bottom of day's range = distribution)
-7. Liquidity checks on top _LIQUIDITY_CHECK_LIMIT candidates
-8. Return composite-score-ranked candidates to Phase 6
+5. Filter: close > sma_50 (uptrend confirmation)
+6. Filter: composite_score >= min threshold
+7. Close quality gate: skip weak closes (bottom of day's range = distribution)
+8. Liquidity checks on top _LIQUIDITY_CHECK_LIMIT candidates
+9. Return composite-score-ranked candidates to Phase 8
 
 CRITICAL: buy_sell_daily is required for robust signal generation. The EOD pipeline
 (4:05 PM ET) must complete and populate buy_sell_daily before orchestrator runs.
-If buy_sell_daily is empty, Phase 5 halts (fail-closed) rather than degrading to
+If buy_sell_daily is empty, Phase 7 halts (fail-closed) rather than degrading to
 stock_scores-only signals.
 
 Why no fallback? Using stock_scores alone without buy_sell_daily confirmation means:
@@ -115,9 +124,9 @@ def _validate_signal_completeness(candidates: list[dict], source: str) -> tuple[
         )
         from algo.orchestrator.phase_error_handling import log_phase_error
 
-        log_phase_error(5, error)
+        log_phase_error(7, error)
         raise ValueError(
-            f"[PHASE 5 DATA VALIDATION] Cannot proceed with incomplete signals. "
+            f"[PHASE 7 DATA VALIDATION] Cannot proceed with incomplete signals. "
             f"Incomplete count: {len(incomplete_signals)}, Complete count: {len(complete_signals)}. "
             f"Required fields: {', '.join(_REQUIRED_SIGNAL_FIELDS.keys())}"
         )
