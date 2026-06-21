@@ -16,11 +16,32 @@ from routes.utils import (
     safe_json_serialize,
 )
 
-from shared_contracts.response_validator import ResponseValidator
 from utils.validation import DatabaseResultValidator
 
 
 logger = logging.getLogger(__name__)
+
+
+# Route registry: maps endpoint paths to handler functions
+# Handlers taking 'params' are marked with 'needs_params': True
+_ROUTE_REGISTRY = {
+    ("/api/economic/VIX",): {
+        "handler": "_get_vix",
+        "needs_params": False,
+    },
+    ("/api/economic/leading-indicators", "/api/economic/indicators", "/api/economic"): {
+        "handler": "_get_leading_indicators",
+        "needs_params": False,
+    },
+    ("/api/economic/yield-curve-full",): {
+        "handler": "_get_yield_curve_full",
+        "needs_params": False,
+    },
+    ("/api/economic/calendar",): {
+        "handler": "_get_calendar",
+        "needs_params": True,
+    },
+}
 
 
 def handle(
@@ -31,103 +52,28 @@ def handle(
     body: dict | None = None,
     jwt_claims: dict | None = None,
 ) -> dict:
-    """Handle /api/economic and /api/economic/* endpoints."""
+    """Handle /api/economic and /api/economic/* endpoints using registry dispatch."""
     try:
-        if path == "/api/economic/VIX":
-            try:
-                rows = execute_with_timeout(
-                    cur,
-                    """
-                        SELECT date, vix_level as vix
-                        FROM market_health_daily
-                        WHERE vix_level IS NOT NULL
-                        ORDER BY date DESC
-                        LIMIT 100
-                    """,
-                    timeout_sec=3,
-                )
-                freshness = check_data_freshness(
-                    cur, "market_health_daily", "date", warning_days=1
-                )
-                return list_response(
-                    [safe_json_serialize(dict(r)) for r in rows] if rows else [],
-                    data_freshness=freshness,
-                )
-            except (
-                psycopg2.errors.UndefinedTable,
-                psycopg2.errors.UndefinedColumn,
-                psycopg2.OperationalError,
-                psycopg2.DatabaseError,
-                Exception,
-            ) as e:
-                logger.error(
-                    f"VIX endpoint error - {type(e).__name__}: {e}",
-                    extra={"operation": "get VIX data"},
-                )
-                code, error_type, message = handle_db_error(e, "get VIX data")
-                return error_response(code, error_type, message)
-        elif path == "/api/economic/leading-indicators":
-            return _get_leading_indicators(cur)
-        elif path == "/api/economic/indicators":
-            return _get_leading_indicators(cur)
-        elif path == "/api/economic/yield-curve-full":
-            return _get_yield_curve_full(cur)
-        elif path == "/api/economic/calendar":
-            try:
-                cur.execute("SET LOCAL statement_timeout = '5000ms'")
-                start_date = params.get("start_date", [None])[0] if params and params.get("start_date") else None
-                end_date = params.get("end_date", [None])[0] if params and params.get("end_date") else None
-                query_params = []
+        # Find matching route in registry
+        handler_name = None
+        route_config = None
+        for route_paths, config in _ROUTE_REGISTRY.items():
+            if path in route_paths:
+                handler_name = config["handler"]
+                route_config = config
+                break
 
-                where_clauses = []
-                if start_date:
-                    where_clauses.append("event_date >= %s")
-                    query_params.append(start_date)
-                if end_date:
-                    where_clauses.append("event_date <= %s")
-                    query_params.append(end_date)
-                else:
-                    where_clauses.append("event_date >= CURRENT_DATE - INTERVAL '90 days'")
+        if not handler_name:
+            return error_response(404, "not_found", f"No economic handler for {path}")
 
-                where_sql = " AND ".join(where_clauses)
+        # Get handler function from module globals
+        handler_func = globals()[handler_name]
 
-                query = f"""
-                    SELECT event_date, event_name, country, importance,
-                           category, event_time,
-                           forecast_value AS forecast,
-                           actual_value AS actual,
-                           previous_value AS previous
-                    FROM economic_calendar
-                    WHERE {where_sql}
-                    ORDER BY event_date DESC
-                    LIMIT 200
-                """
-                cur.execute(query, tuple(query_params))
-                events = cur.fetchall()
-                freshness = check_data_freshness(
-                    cur, "economic_calendar", "event_date", warning_days=7
-                )
-                return list_response(
-                    [safe_json_serialize(dict(e)) for e in events] if events else [],
-                    data_freshness=freshness,
-                )
-            except (
-                psycopg2.errors.UndefinedTable,
-                psycopg2.errors.UndefinedColumn,
-                psycopg2.OperationalError,
-                psycopg2.DatabaseError,
-                Exception,
-            ) as e:
-                logger.error(
-                    f"Economic calendar endpoint error - {type(e).__name__}: {e}",
-                    extra={"operation": "get economic calendar"},
-                )
-                code, error_type, message = handle_db_error(e, "get economic calendar")
-                return error_response(code, error_type, message)
-        elif path == "/api/economic":
-            # Combine all economic data
-            return _get_leading_indicators(cur)
-        return error_response(404, "not_found", f"No economic handler for {path}")
+        # Call handler with appropriate parameters
+        if route_config["needs_params"]:
+            return handler_func(cur, params)
+        else:
+            return handler_func(cur)
     except (
         psycopg2.errors.QueryCanceled,
         psycopg2.errors.UndefinedTable,
@@ -142,6 +88,97 @@ def handle(
             extra={"operation": "get economic data"},
         )
         code, error_type, message = handle_db_error(e, "get economic data")
+        return error_response(code, error_type, message)
+
+
+def _get_vix(cur) -> dict:
+    """Get VIX historical data."""
+    try:
+        rows = execute_with_timeout(
+            cur,
+            """
+                SELECT date, vix_level as vix
+                FROM market_health_daily
+                WHERE vix_level IS NOT NULL
+                ORDER BY date DESC
+                LIMIT 100
+            """,
+            timeout_sec=3,
+        )
+        freshness = check_data_freshness(
+            cur, "market_health_daily", "date", warning_days=1
+        )
+        return list_response(
+            [safe_json_serialize(dict(r)) for r in rows] if rows else [],
+            data_freshness=freshness,
+        )
+    except (
+        psycopg2.errors.UndefinedTable,
+        psycopg2.errors.UndefinedColumn,
+        psycopg2.OperationalError,
+        psycopg2.DatabaseError,
+        Exception,
+    ) as e:
+        logger.error(
+            f"VIX endpoint error - {type(e).__name__}: {e}",
+            extra={"operation": "get VIX data"},
+        )
+        code, error_type, message = handle_db_error(e, "get VIX data")
+        return error_response(code, error_type, message)
+
+
+def _get_calendar(cur, params: dict) -> dict:
+    """Get economic calendar data with optional date filtering."""
+    try:
+        cur.execute("SET LOCAL statement_timeout = '5000ms'")
+        start_date = params.get("start_date", [None])[0] if params and params.get("start_date") else None
+        end_date = params.get("end_date", [None])[0] if params and params.get("end_date") else None
+        query_params = []
+
+        where_clauses = []
+        if start_date:
+            where_clauses.append("event_date >= %s")
+            query_params.append(start_date)
+        if end_date:
+            where_clauses.append("event_date <= %s")
+            query_params.append(end_date)
+        else:
+            where_clauses.append("event_date >= CURRENT_DATE - INTERVAL '90 days'")
+
+        where_sql = " AND ".join(where_clauses)
+
+        query = f"""
+            SELECT event_date, event_name, country, importance,
+                   category, event_time,
+                   forecast_value AS forecast,
+                   actual_value AS actual,
+                   previous_value AS previous
+            FROM economic_calendar
+            WHERE {where_sql}
+            ORDER BY event_date DESC
+            LIMIT 200
+        """
+        cur.execute(query, tuple(query_params))
+        events = cur.fetchall()
+        freshness = check_data_freshness(
+            cur, "economic_calendar", "event_date", warning_days=7
+        )
+        return list_response(
+            [safe_json_serialize(dict(e)) for e in events] if events else [],
+            data_freshness=freshness,
+        )
+    except (
+        psycopg2.errors.UndefinedTable,
+        psycopg2.errors.UndefinedColumn,
+        psycopg2.OperationalError,
+        psycopg2.DatabaseError,
+        Exception,
+    ) as e:
+        logger.error(
+            f"Economic calendar endpoint error - {type(e).__name__}: {e}",
+            extra={"operation": "get economic calendar"},
+        )
+        code, error_type, message = handle_db_error(e, "get economic calendar")
         return error_response(code, error_type, message)
 
 
