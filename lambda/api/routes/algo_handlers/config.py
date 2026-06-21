@@ -7,6 +7,7 @@ from typing import Dict
 # Ensure imports work - setup_imports is imported by parent module (lambda_function or api_router)
 from routes.utils import (
     db_route_handler,
+    ensure_valid_response,
     error_response,
     json_response,
     list_response,

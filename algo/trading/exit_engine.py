@@ -1241,7 +1241,7 @@ class ExitEngine:
 
             prev_row = cur.fetchone()
 
-            prev_close = float(prev_row[0]) if prev_row and prev_row[0] is not None else None
+            prev_close = safe_float(prev_row[0], default=None, field_name="prev_close") if prev_row and prev_row[0] is not None else None
 
             return current_price, prev_close
 
@@ -1275,7 +1275,7 @@ class ExitEngine:
 
             raise RuntimeError(error_msg)
 
-        cur_price = float(rows[0][1]) if rows[0][1] is not None else None
+        cur_price = safe_float(rows[0][1], default=None, field_name="cur_price") if rows[0][1] is not None else None
 
         if cur_price is None:
 
@@ -1285,7 +1285,7 @@ class ExitEngine:
 
             raise RuntimeError(error_msg)
 
-        prev_close = float(rows[1][1]) if len(rows) > 1 and rows[1][1] is not None else None
+        prev_close = safe_float(rows[1][1], default=None, field_name="prev_close") if len(rows) > 1 and rows[1][1] is not None else None
 
         return cur_price, prev_close
 

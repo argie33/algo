@@ -9,7 +9,7 @@ Finance principle: Missing data is NOT the same as zero. Use strict mode for cri
 
 import json
 import logging
-from typing import Any, Literal, TypeVar, cast, overload
+from typing import Any, Literal, TypeVar, overload
 
 
 logger = logging.getLogger(__name__)
@@ -289,14 +289,12 @@ def log_data_issue(fetcher_name: str, field_name: str, issue: str, value: Any = 
 
 def safe_float_strict(value: Any, field_name: str | None = None) -> float:
     """Convert value to float in strict mode. Raises StrictValidationError if fails."""
-    result = safe_float(value, strict=True, field_name=field_name)
-    return cast(float, result)
+    return safe_float(value, strict=True, field_name=field_name)
 
 
 def safe_int_strict(value: Any, field_name: str | None = None) -> int:
     """Convert value to int in strict mode. Raises StrictValidationError if fails."""
-    result = safe_int(value, strict=True, field_name=field_name)
-    return cast(int, result)
+    return safe_int(value, strict=True, field_name=field_name)
 
 
 def safe_json_parse_strict(value: Any, field_name: str | None = None) -> Any:
