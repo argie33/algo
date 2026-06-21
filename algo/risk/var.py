@@ -283,7 +283,7 @@ class ValueAtRisk:
                             f"[VAR] {symbol}: missing or invalid current_price, skipping from VAR calculation"
                         )
                         continue
-                    position_value = safe_float(qty, context=f"{symbol} quantity") * safe_price
+                    position_value = safe_float(qty, default=0.0, context=f"{symbol} quantity") * safe_price
                     position_weight = position_value / portfolio_value if portfolio_value > 0 else 0
 
                     # Compute 60-day beta via covariance with SPY
@@ -300,7 +300,7 @@ class ValueAtRisk:
                             )
                             stock_rows = cur.fetchall()
                             if len(stock_rows) >= 2:
-                                stock_prices = list(reversed([safe_float(r[0], context=f"{symbol} close {i}") for i, r in enumerate(stock_rows)]))
+                                stock_prices = list(reversed([safe_float(r[0], default=0.0, context=f"{symbol} close {i}") for i, r in enumerate(stock_rows)]))
                                 stock_returns = [
                                     (stock_prices[i] - stock_prices[i - 1]) / stock_prices[i - 1]
                                     for i in range(1, len(stock_prices))
