@@ -96,7 +96,7 @@ class FreshnessValidator:
     def check(
         self,
         data_name: str,
-        last_update: datetime,
+        last_update: datetime | None,
         reference_time: datetime | None = None,
         allow_missing: bool = False,
     ) -> bool:

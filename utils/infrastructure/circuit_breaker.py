@@ -168,10 +168,12 @@ class CircuitBreaker:
 
         # CRITICAL: Check circuit state and reject if appropriate
         if self.is_open():
+            failure_age = f"{(time.time() - self.last_failure_time):.0f}s ago" if self.last_failure_time is not None else "unknown"
+            retry_at = f"{(self.opened_at + self.recovery_timeout_sec):.0f} UTC" if self.opened_at is not None else "unknown"
             error_msg = (
                 f"[CIRCUIT_BREAKER:{self.name}] Circuit OPEN: API unavailable. "
-                f"Last failure: {time.time() - self.last_failure_time:.0f}s ago. "
-                f"Will retry at: {self.opened_at + self.recovery_timeout_sec:.0f} UTC"
+                f"Last failure: {failure_age}. "
+                f"Will retry at: {retry_at}"
             )
 
             if importance == DataImportance.CRITICAL:
