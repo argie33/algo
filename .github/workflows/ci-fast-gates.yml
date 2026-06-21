@@ -1,10 +1,11 @@
-name: CI — Required Checks (Security + Lint + Tests + Coverage)
+name: CI — Required Checks (Security + Lint + Tests + Coverage + Safety)
 
 # Runs on: every commit to main, every PR
-# Duration: ~27 minutes (security scans + linting + full test suite + coverage + CodeQL tools)
+# Duration: ~30 minutes (security scans + linting + full test suite + coverage + safety checks)
 # Cost: within GitHub free tier
 # All gates are BLOCKING — merge blocked if any gate fails
-# Priority 0 Security Gates Added: CodeQL (separate workflow), Trivy, Semgrep, OWASP ZAP DAST
+# Comprehensive validation includes: secrets scanning, dependency auditing, SAST, container scanning,
+# IaC validation, linting, type checking, import validation, safety threshold verification
 #
 # Performance Optimizations:
 # - Pip caching enabled (cache: 'pip') — saves 2-3 min on dependency installs
@@ -314,6 +315,11 @@ else:
         run: |
           echo "Checking that all contract endpoints are implemented..."
           python scripts/validate_endpoint_contracts.py
+      - name: Verify trading safety thresholds
+        run: |
+          echo "Verifying trading safety constraints (no thresholds set to zero)..."
+          python scripts/verify_safety_thresholds.py --strict
+          echo "OK: Trading safety thresholds verified"
 
   tests:
     runs-on: ubuntu-latest
