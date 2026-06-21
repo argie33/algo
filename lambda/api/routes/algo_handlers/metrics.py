@@ -95,7 +95,7 @@ def _get_algo_metrics(cur) -> dict:
                 "total_actions": total_actions,
                 "entries": entries,
                 "exits": exits,
-                "avg_signal_score": safe_float_strict(data.get("avg_signal_score"), allow_none=True),
+                "avg_signal_score": safe_float_strict(data.get("avg_signal_score")),
             }
         )
     except (
@@ -117,6 +117,9 @@ def _get_algo_performance(cur) -> dict:
     Queries latest row from algo_performance_metrics table (computed daily by
     compute_performance_metrics.py at 4:45 PM ET). Returns in ~20ms instead
     of 8+ seconds of on-the-fly calculation.
+
+    FAIL-FAST: Returns error if pre-computed metrics are unavailable.
+    Do NOT fall back to computing stats - that masks data loading issues.
     """
     cur.execute("""
             SELECT
@@ -130,74 +133,19 @@ def _get_algo_performance(cur) -> dict:
         """)
     row = cur.fetchone()
 
+    # FAIL-FAST: Return error immediately if pre-computed metrics unavailable
+    # Do NOT fall back to computing from algo_trades - that masks data loader issues
     if not row:
-        # Fallback: compute basic stats directly from algo_trades when pre-computed table is empty
-        try:
-            cur.execute("""
-                SELECT
-                    COUNT(*) AS total_trades,
-                    COUNT(*) FILTER (WHERE profit_loss_pct > 0) AS winning_trades,
-                    COUNT(*) FILTER (WHERE profit_loss_pct < 0) AS losing_trades,
-                    COUNT(*) FILTER (WHERE profit_loss_pct = 0) AS breakeven_trades,
-                    ROUND(AVG(CASE WHEN profit_loss_pct > 0 THEN profit_loss_pct END)::numeric, 2) AS avg_win_pct,
-                    ROUND(AVG(CASE WHEN profit_loss_pct < 0 THEN profit_loss_pct END)::numeric, 2) AS avg_loss_pct,
-                    ROUND(COALESCE(SUM(profit_loss_dollars), 0)::numeric, 2) AS total_pnl_dollars,
-                    ROUND(AVG(CASE WHEN exit_r_multiple > 0 THEN exit_r_multiple END)::numeric, 3) AS avg_win_r,
-                    ROUND(AVG(CASE WHEN exit_r_multiple < 0 THEN exit_r_multiple END)::numeric, 3) AS avg_loss_r,
-                    ROUND(MAX(profit_loss_pct)::numeric, 2) AS best_trade_pct,
-                    ROUND(MIN(profit_loss_pct)::numeric, 2) AS worst_trade_pct
-                FROM algo_trades
-                WHERE status = 'closed' AND exit_date IS NOT NULL
-            """)
-            fb = cur.fetchone()
-            fb = safe_dict_convert(fb) if fb else {}
-            total_fb_raw = fb.get("total_trades")
-            total_fb = int(total_fb_raw) if total_fb_raw is not None else 0
-            if total_fb == 0:
-                return error_response(503, "no_data", "Performance metrics not yet available")
-            winning_fb_raw = fb.get("winning_trades")
-            winning_fb = int(winning_fb_raw) if winning_fb_raw is not None else 0
-            losing_fb_raw = fb.get("losing_trades")
-            losing_fb = int(losing_fb_raw) if losing_fb_raw is not None else 0
-            wr_fb = round(winning_fb / total_fb * 100, 1) if total_fb else None
-            avg_win_r = safe_float(fb.get("avg_win_r"))
-            avg_loss_r = safe_float(fb.get("avg_loss_r"))
-            exp_r = None
-            if wr_fb is not None and avg_win_r is not None and avg_loss_r is not None:
-                exp_r = round((wr_fb / 100) * avg_win_r + (1 - wr_fb / 100) * avg_loss_r, 3)
-            pf_fb = None
-            if avg_win_r is not None and avg_loss_r is not None and avg_loss_r != 0:
-                pf_fb = round(abs(avg_win_r / avg_loss_r), 2)
-            breakeven_fb_raw = fb.get("breakeven_trades")
-            breakeven_fb = int(breakeven_fb_raw) if breakeven_fb_raw is not None else 0
-            fds = format_decimal_string  # Shorthand for readability
-            fallback_data: dict = {
-                "total_trades": total_fb,
-                "winning_trades": winning_fb,
-                "losing_trades": losing_fb,
-                "breakeven_trades": breakeven_fb,
-                "win_rate_pct": fds(wr_fb, precision=2, allow_none=True),
-                "win_rate": fds(wr_fb, precision=2, allow_none=True),
-                "profit_factor": fds(pf_fb, precision=2, allow_none=True),
-                "total_pnl_dollars": fds(fb.get("total_pnl_dollars"), 2, True),
-                "avg_win_pct": fds(fb.get("avg_win_pct"), 2, True),
-                "avg_loss_pct": fds(fb.get("avg_loss_pct"), 2, True),
-                "avg_win_r": fds(avg_win_r, 3, True),
-                "avg_loss_r": fds(avg_loss_r, 3, True),
-                "best_trade_pct": fds(fb.get("best_trade_pct"), 2, True),
-                "worst_trade_pct": fds(fb.get("worst_trade_pct"), 2, True),
-                "sharpe_annualized": None,
-                "max_drawdown_pct": None,
-                "expectancy_r": fds(exp_r, precision=3, allow_none=True),
-                "current_streak": 0,
-                "equity_vals": [],
-                "recent_rets": [],
-                "data_freshness": {"is_stale": False},
-            }
-            return json_response(200, APIResponseValidator.sanitize_response(fallback_data))
-        except (psycopg2.DatabaseError, psycopg2.OperationalError) as fb_err:
-            logger.warning(f"Performance fallback from algo_trades failed: {fb_err}")
-            return error_response(503, "no_data", "Performance metrics not yet available")
+        logger.warning(
+            "Performance metrics unavailable: algo_performance_metrics table empty. "
+            "Pre-computed metrics should be generated daily at 4:45 PM ET by compute_performance_metrics.py. "
+            "Check data loader health."
+        )
+        return error_response(
+            503,
+            "data_unavailable",
+            "Performance metrics not pre-computed. Check data loader health.",
+        )
 
     try:
 
@@ -422,7 +370,11 @@ def _get_algo_performance(cur) -> dict:
 
 @db_route_handler("get algo portfolio")
 def _get_algo_portfolio(cur) -> dict:
-    """Get latest portfolio snapshot data with structured unrealized PnL breakdown."""
+    """Get latest portfolio snapshot data with structured unrealized PnL breakdown.
+
+    FAIL-FAST: Returns error if portfolio snapshots are unavailable.
+    No placeholder/fallback data - portfolio value is critical for trading.
+    """
     try:
         cur.execute("""
             SELECT snapshot_date, total_portfolio_value, total_cash,
@@ -435,27 +387,17 @@ def _get_algo_portfolio(cur) -> dict:
             LIMIT 1
         """)
         row = cur.fetchone()
+        # FAIL-FAST: Return error if no portfolio snapshots available (no trading activity yet)
         if row is None:
-            response_data = {
-                "total_portfolio_value": None,
-                "total_cash": None,
-                "position_count": 0,
-                "daily_return_pct": None,
-                "unrealized_pnl": {
-                    "total_dollars": 0.0,
-                    "total_pct": 0.0,
-                    "winning_positions": 0,
-                    "losing_positions": 0,
-                    "breakeven_positions": 0,
-                    "source": "open_positions_only",
-                    "note": "Includes only open positions (no closed trades, no dividends)",
-                },
-                "cumulative_return_pct": None,
-                "max_drawdown_pct": None,
-                "largest_position_pct": None,
-                "last_run": None,
-            }
-            return success_response(_ensure_portfolio_fields(response_data))
+            logger.warning(
+                "Portfolio snapshot unavailable: algo_portfolio_snapshots table empty. "
+                "No snapshot created yet - algo may not have executed or data loader issue."
+            )
+            return error_response(
+                503,
+                "data_unavailable",
+                "Portfolio snapshots not available yet. Check data loader health.",
+            )
         data = safe_dict_convert(row)
         pv = format_decimal_string(data.get("total_portfolio_value"), precision=2, allow_none=True)
         response_data = {
@@ -614,17 +556,7 @@ def _get_holding_period_distribution(cur) -> dict:
 
 @db_route_handler("get performance analytics")
 def _get_performance_analytics(cur) -> dict:
-    """Get performance analytics data."""
-    _null_response = {
-        "rolling_sharpe_252d": None,
-        "rolling_sortino_252d": None,
-        "calmar_ratio": None,
-        "win_rate_50t": None,
-        "avg_win_r_50t": None,
-        "avg_loss_r_50t": None,
-        "expectancy": None,
-        "max_drawdown_pct": None,
-    }
+    """Get performance analytics data. Fail-fast if unavailable."""
     try:
         cur.execute("SAVEPOINT perf_analytics")
         cur.execute("""
@@ -636,8 +568,17 @@ def _get_performance_analytics(cur) -> dict:
         """)
         row = cur.fetchone()
         cur.execute("RELEASE SAVEPOINT perf_analytics")
+        # FAIL-FAST: Return error if no performance analytics available
         if row is None:
-            return success_response(_null_response)
+            logger.warning(
+                "Performance analytics unavailable: algo_performance_daily table empty. "
+                "Check data loader health - should be populated daily."
+            )
+            return error_response(
+                503,
+                "data_unavailable",
+                "Performance analytics not available. Check data loader health.",
+            )
         data = safe_dict_convert(row)
         return success_response(
             {
@@ -655,15 +596,14 @@ def _get_performance_analytics(cur) -> dict:
         try:
             cur.execute("ROLLBACK TO SAVEPOINT perf_analytics")
         except (psycopg2.DatabaseError, psycopg2.OperationalError) as e:
-
             raise RuntimeError(f"Unexpected error: {e}") from e
-        return success_response(_null_response)
+        logger.error("Performance analytics table missing or schema changed")
+        return error_response(503, "table_missing", "Performance analytics table not found")
     except (psycopg2.OperationalError, psycopg2.DatabaseError, Exception) as e:
         try:
             cur.execute("ROLLBACK TO SAVEPOINT perf_analytics")
-        except (psycopg2.DatabaseError, psycopg2.OperationalError) as e:
-
-            raise RuntimeError(f"Unexpected error: {e}") from e
+        except (psycopg2.DatabaseError, psycopg2.OperationalError) as save_err:
+            raise RuntimeError(f"Savepoint rollback failed: {save_err}") from save_err
         code, error_type, message = handle_db_error(e, "fetch performance analytics")
         return error_response(code, error_type, message)
 
@@ -751,15 +691,7 @@ def _get_portfolio_summary(cur) -> dict:
 
 @db_route_handler("get risk metrics")
 def _get_risk_metrics(cur) -> dict:
-    """Get portfolio risk metrics."""
-    _null_response = {
-        "report_date": None,
-        "var_pct_95": None,
-        "cvar_pct_95": None,
-        "stressed_var_pct": None,
-        "portfolio_beta": None,
-        "top_5_concentration": None,
-    }
+    """Get portfolio risk metrics. Fail-fast if unavailable."""
     try:
         cur.execute("SAVEPOINT risk_metrics")
         cur.execute("""
@@ -771,8 +703,17 @@ def _get_risk_metrics(cur) -> dict:
         """)
         row = cur.fetchone()
         cur.execute("RELEASE SAVEPOINT risk_metrics")
+        # FAIL-FAST: Return error if no risk metrics available
         if row is None:
-            return success_response(_null_response)
+            logger.warning(
+                "Risk metrics unavailable: algo_risk_daily table empty. "
+                "Check data loader health - should be populated daily."
+            )
+            return error_response(
+                503,
+                "data_unavailable",
+                "Risk metrics not available. Check data loader health.",
+            )
         data = safe_dict_convert(row)
         return success_response(
             {
@@ -788,9 +729,9 @@ def _get_risk_metrics(cur) -> dict:
         try:
             cur.execute("ROLLBACK TO SAVEPOINT risk_metrics")
         except (psycopg2.DatabaseError, psycopg2.OperationalError) as e:
-
             raise RuntimeError(f"Unexpected error: {e}") from e
-        return success_response(_null_response)
+        logger.error("Risk metrics table missing or schema changed")
+        return error_response(503, "table_missing", "Risk metrics table not found")
     except (psycopg2.OperationalError, psycopg2.DatabaseError, Exception) as e:
         try:
             cur.execute("ROLLBACK TO SAVEPOINT risk_metrics")
