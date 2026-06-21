@@ -9,17 +9,10 @@ import logging
 from dataclasses import dataclass, field
 from typing import Any, TypedDict
 
+from algo.exceptions import DataContractError, MissingPhaseDataError
+
 
 logger = logging.getLogger(__name__)
-
-
-class DataContractError(Exception):
-    """Raised when phase data does not match required schema."""
-
-
-
-class MissingPhaseDataError(DataContractError):
-    """Raised when required phase data is not available (phase didn't run or failed)."""
 
 
 
@@ -284,11 +277,11 @@ def extract_required_data(phase_num: int | str, data: dict[str, Any], *keys: str
         DataContractError: If any required key is missing or data is invalid
     """
     if not isinstance(data, dict):
-        raise DataContractError(f"Phase {phase_num} data must be dict, got {type(data).__name__}")
+        raise MissingPhaseDataError(f"Phase {phase_num} data must be dict, got {type(data).__name__}")
 
     missing = [k for k in keys if k not in data]
     if missing:
-        raise DataContractError(
+        raise MissingPhaseDataError(
             f"Phase {phase_num} missing required keys: {missing}. "
             f"Expected: {list(keys)}. Available: {list(data.keys())}"
         )

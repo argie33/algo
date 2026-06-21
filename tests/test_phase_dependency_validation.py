@@ -3,6 +3,7 @@
 
 import pytest
 
+from algo.exceptions import DataContractError, MissingPhaseDataError
 from algo.orchestrator.phase_data_contract import validate_phase_5_constraints
 from algo.orchestrator.phase_executor import OrchestratorPhaseExecutor, PhaseDefinition
 from algo.orchestrator.phase_result import Phase5Result, Phase7Result
@@ -10,10 +11,10 @@ from algo.orchestrator.phase_result import Phase5Result, Phase7Result
 
 def test_phase_5_constraints_validation():
     """Test that Phase 5 constraints validation catches empty or invalid constraints."""
-    with pytest.raises(Exception):
+    with pytest.raises(DataContractError):
         validate_phase_5_constraints({})
 
-    with pytest.raises(Exception):
+    with pytest.raises(DataContractError):
         validate_phase_5_constraints({"tier_name": "NORMAL"})
 
     valid_constraints = {"tier_name": "NORMAL", "risk_multiplier": 1.0, "max_new_positions_today": 5}
@@ -29,11 +30,11 @@ def test_phase7_dependency_validation():
     assert not hasattr(mock_orch, "_exposure_constraints")
 
     mock_orch._exposure_constraints = None
-    with pytest.raises(Exception):
+    with pytest.raises(DataContractError):
         validate_phase_5_constraints(mock_orch._exposure_constraints)
 
     mock_orch._exposure_constraints = {}
-    with pytest.raises(Exception):
+    with pytest.raises(DataContractError):
         validate_phase_5_constraints(mock_orch._exposure_constraints)
 
     mock_orch._exposure_constraints = {"tier_name": "NORMAL", "risk_multiplier": 1.0, "max_new_positions_today": 5}
@@ -56,5 +57,5 @@ def test_phase7_data_extraction():
     extracted_constraints = executor.get_phase_data_required(5, "constraints")
     assert extracted_constraints == constraints
 
-    with pytest.raises(Exception):
+    with pytest.raises(MissingPhaseDataError):
         executor.get_phase_data_required(5, "nonexistent_key")

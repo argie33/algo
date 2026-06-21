@@ -215,3 +215,33 @@ class PositionError(AlgoError):
             recovery_suggestion=f"Check {symbol} position state and market conditions",
             context=ctx,
         )
+
+
+class DataContractError(AlgoError):
+    """Data contract violation between phases or components."""
+
+    def __init__(
+        self,
+        message: str,
+        context: dict | None = None,
+    ):
+        """Init data contract error."""
+        super().__init__(
+            message=message,
+            error_category=ErrorCategory.PERMANENT,
+            retry_eligible=False,
+            recovery_suggestion="Verify data contracts are met between phases",
+            context=context,
+        )
+
+
+class MissingPhaseDataError(DataContractError):
+    """Required phase data is missing or phase execution failed."""
+
+    def __init__(
+        self,
+        message: str,
+        context: dict | None = None,
+    ):
+        """Init missing phase data error."""
+        super().__init__(message, context)
