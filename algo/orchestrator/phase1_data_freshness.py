@@ -520,6 +520,7 @@ def run(
                 "all_tables_fresh",
                 "ok",
                 {
+                    "status": "ok",
                     "price_date": str(max_date),
                     "symbols_loaded": symbols_loaded,
                     "coverage_pct": coverage_pct,
