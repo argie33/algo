@@ -144,3 +144,47 @@ vix = self._vix_breaker.execute(
 ```
 
 See `steering/circuit_breaker_patterns.md` for full implementation guide, migration timeline, and testing procedures.
+
+## Circuit Breaker Consolidation & Governance
+
+Three circuit breaker implementations exist in the codebase. **Use the canonical version for new code:**
+
+| Implementation | Purpose | Use Case | Status |
+|---|---|---|---|
+| `utils.infrastructure.circuit_breaker:CircuitBreaker` | General-purpose data loader outage handling | All new code, all data loaders | **CANONICAL** ✅ |
+| `algo.risk.circuit_breaker:CircuitBreaker` | Pre-trade risk management gate | Risk checks before new position entry | Domain-specific |
+| `utils.external.yfinance_circuit_breaker:YFinanceIPCircuitBreaker` | Distributed rate-limit coordination | yfinance IP bans across ECS tasks | Specialized |
+
+**Which to use:**
+- **Adding a data loader or fetching API data?** → Use `utils.infrastructure.circuit_breaker:CircuitBreaker` with `DataImportance` enum
+- **Adding trading risk limits?** → Use `algo.risk.circuit_breaker:CircuitBreaker` and call it from `phase2_circuit_breakers.py`
+- **Calling yfinance across multiple containers?** → Use `utils.external.yfinance_circuit_breaker:get_circuit_breaker()`
+
+**Old simple circuit breaker removed**: `utils.contexts:CircuitBreaker` was a simple failure counter with basic recovery. It has been removed as redundant (canonical version is more robust).
+
+## Response Validator Architecture
+
+**Two validators serve different purposes — do not conflate:**
+
+1. **Dashboard Validator** (`tools/dashboard/response_validators.py`) — CANONICAL for dashboard
+   - Specialization: 15+ endpoint-specific validators with business logic
+   - Approach: Fail-fast with StrictValidationError (prevents silent data corruption)
+   - Integration: Uses `safe_float()/safe_int()` from `tools/dashboard/data_validation.py`
+   - Used by: Dashboard API data layer (`tools/dashboard/api_data_layer.py`)
+   - Purpose: Validate inbound API responses at dashboard boundary
+
+2. **Lambda Validator** (`shared_contracts/response_validator.py`) — CANONICAL for Lambda API routes
+   - Specialization: Generic schema-based validation against contract schemas
+   - Approach: Configurable strict/permissive with boolean return values
+   - Integration: No external validation utilities (self-contained)
+   - Used by: Lambda API routes for outbound response validation (`lambda/api/routes/utils.py`)
+   - Purpose: Validate outbound responses conform to published API contract
+
+**When adding endpoints:**
+- Dashboard: Add specialized validator in `tools/dashboard/response_validators.py`, register in `VALIDATORS` dict
+- Lambda API: Update schema in `shared_contracts/dashboard_api_contract.py`, optionally add to `ResponseValidator`
+
+**Do NOT:**
+- Use Lambda validator in dashboard code
+- Use dashboard validator in Lambda routes
+- Conflate the two for the same endpoint

@@ -1,7 +1,20 @@
-"""API response validators for dashboard data integrity.
+"""Dashboard API Response Validator — validates inbound responses at dashboard boundary.
 
-Validates API responses at the boundary to ensure critical fields are present.
-Uses fail-fast approach instead of silent fallbacks.
+This is the CANONICAL validator for dashboard data integrity. It provides 15+ specialized
+validators for critical endpoints (Portfolio, Performance, Markets, etc.) that use a
+fail-fast approach with StrictValidationError to prevent silent data corruption.
+
+IMPORTANT: This is NOT used by Lambda API routes. Lambda uses shared_contracts/response_validator.py
+for validating outbound responses against the contract schema.
+
+Separation of concerns:
+- Dashboard validator (this file): Validates INBOUND API responses with fail-fast patterns
+- Lambda validator (shared_contracts/response_validator.py): Validates OUTBOUND responses against contract
+
+Integration:
+- Uses safe_float()/safe_int() from tools/dashboard/data_validation.py for type conversion
+- Uses error_boundary utilities for error detection
+- Raises ResponseValidationError for critical validation failures
 """
 
 import logging

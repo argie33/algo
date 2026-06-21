@@ -574,10 +574,7 @@ class SignalPatternsMixin:
                 "breakout_imminent": breakout_imminent,
             }
 
-        return self._with_cursor(_analyze_3wt) or {
-            "is_3wt": False,
-            "reason": "Database error",
-        }
+        return self._with_cursor(_analyze_3wt)  # type: ignore[no-any-return]
 
     def high_tight_flag(self, symbol: str, eval_date) -> dict[str, Any]:
         """
@@ -664,7 +661,4 @@ class SignalPatternsMixin:
                 }
             return {"is_htf": False}
 
-        return self._with_cursor(_analyze_htf) or {
-            "is_htf": False,
-            "reason": "Database error",
-        }
+        return self._with_cursor(_analyze_htf)  # type: ignore[no-any-return]

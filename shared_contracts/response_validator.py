@@ -1,7 +1,15 @@
-"""API Response Validator - validates responses against contract schemas.
+"""Lambda API Response Validator — validates outbound responses against contract schemas.
 
-Ensures both API responses and dashboard data conform to the shared contract.
-This prevents schema drift and catches breaking changes early.
+This validator is used ONLY by Lambda API routes to validate responses conform to the
+published dashboard API contract (DASHBOARD_ENDPOINTS). It ensures outbound responses
+match the contract schema and catches breaking changes early.
+
+IMPORTANT: This is NOT used for validating inbound API responses in the dashboard.
+For dashboard validation, use tools/dashboard/response_validators.py instead.
+
+Separation of concerns:
+- Lambda validator (this file): Validates OUTBOUND responses against contract
+- Dashboard validator (tools/dashboard/response_validators.py): Validates INBOUND responses with fail-fast patterns
 """
 
 import logging

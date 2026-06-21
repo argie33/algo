@@ -764,12 +764,7 @@ class TradeExecutor:
             }
 
         try:
-            return self._with_cursor(_execute_entry, acquire_locks=True) or {
-                "success": False,
-                "trade_id": "",
-                "status": "error",
-                "message": "Unknown error",
-            }
+            return self._with_cursor(_execute_entry, acquire_locks=True)  # type: ignore[no-any-return]
         except DuplicatePositionError as e:
             logger.error(f"Trade blocked (duplicate/idempotency): {e}")
             return {
@@ -987,15 +982,9 @@ class TradeExecutor:
 
             try:
                 if cur is not None:
-                    return _raise_stop(cur) or {
-                        "success": False,
-                        "message": "Stop raise failed",
-                    }
+                    return _raise_stop(cur)  # type: ignore[no-any-return]
                 else:
-                    return self._with_cursor(_raise_stop) or {
-                        "success": False,
-                        "message": "Stop raise failed",
-                    }
+                    return self._with_cursor(_raise_stop)  # type: ignore[no-any-return]
             except DatabaseError as e:
                 logger.error(f"Database error raising stop: {e}")
                 return {"success": False, "message": f"Database error: {e}"}
@@ -1316,19 +1305,9 @@ class TradeExecutor:
 
         try:
             if cur is not None:
-                return _execute_exit(cur) or {
-                    "success": False,
-                    "trade_id": "",
-                    "status": "error",
-                    "message": "Unknown error",
-                }
+                return _execute_exit(cur)  # type: ignore[no-any-return]
             else:
-                return self._with_cursor(_execute_exit, acquire_locks=True) or {
-                    "success": False,
-                    "trade_id": "",
-                    "status": "error",
-                    "message": "Unknown error",
-                }
+                return self._with_cursor(_execute_exit, acquire_locks=True)  # type: ignore[no-any-return]
         except AuditLogError as e:
             logger.critical(f"Audit log failure during exit (data integrity risk): {e}")
             return {"success": False, "message": f"Audit log failure: {e}"}
