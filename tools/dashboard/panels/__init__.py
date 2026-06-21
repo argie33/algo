@@ -54,7 +54,6 @@ from .positions import (
     panel_positions,
 )
 from .sectors import (
-    _rdelta,
     panel_sector_compact,
     panel_sectors_expanded,
 )
@@ -78,7 +77,6 @@ __all__ = [
     "_expanded_layout",
     "_extract_items",
     "_fmt_phases_halted",
-    "_rdelta",
     # Helper functions
     "_score_cell",
     "_swing_cell",

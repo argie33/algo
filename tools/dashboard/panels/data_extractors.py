@@ -194,6 +194,16 @@ def extract_phase_results(run: dict[str, Any]) -> list[dict[str, Any]]:
     return []
 
 
+def safe_get_field(data: dict[str, Any] | None, field: str, default: Any = None) -> Any:
+    """Safely get a field from a dict, returning default if missing.
+
+    Use for optional fields after has_error() check at function entry.
+    """
+    if not isinstance(data, dict):
+        return default
+    return data.get(field, default)
+
+
 def extract_item_field(item: dict[str, Any], field: str, default: Any = None) -> Any:
     """Extract field from health item (used in loops over items).
 

@@ -31,7 +31,6 @@ import psycopg2
 from loaders.runner import run_loader
 from utils.db.context import DatabaseContext
 from utils.optimal_loader import OptimalLoader
-from utils.safe_data_conversion import safe_float
 
 
 logger = logging.getLogger(__name__)
@@ -200,13 +199,13 @@ class StockScoresLoader(OptimalLoader):
             row = cur.fetchone()
             if row:
                 return {
-                    "roe": safe_float(row[0], default=0.0) if row[0] else None,
-                    "roa": safe_float(row[1], default=0.0) if row[1] else None,
-                    "operating_margin": safe_float(row[2], default=0.0) if row[2] else None,
-                    "net_margin": safe_float(row[3], default=0.0) if row[3] else None,
-                    "debt_to_equity": safe_float(row[4], default=0.0) if row[4] else None,
-                    "current_ratio": safe_float(row[5], default=0.0) if row[5] else None,
-                    "quick_ratio": safe_float(row[6], default=0.0) if row[6] else None,
+                    "roe": float(row[0]) if row[0] is not None else None,
+                    "roa": float(row[1]) if row[1] is not None else None,
+                    "operating_margin": float(row[2]) if row[2] is not None else None,
+                    "net_margin": float(row[3]) if row[3] is not None else None,
+                    "debt_to_equity": float(row[4]) if row[4] is not None else None,
+                    "current_ratio": float(row[5]) if row[5] is not None else None,
+                    "quick_ratio": float(row[6]) if row[6] is not None else None,
                 }
             return None
         except (psycopg2.DatabaseError, psycopg2.OperationalError) as e:
@@ -222,12 +221,12 @@ class StockScoresLoader(OptimalLoader):
             row = cur.fetchone()
             if row:
                 return {
-                    "revenue_growth_1y": safe_float(row[0], default=0.0) if row[0] else None,
-                    "revenue_growth_3y": safe_float(row[1], default=0.0) if row[1] else None,
-                    "revenue_growth_5y": safe_float(row[2], default=0.0) if row[2] else None,
-                    "eps_growth_1y": safe_float(row[3], default=0.0) if row[3] else None,
-                    "eps_growth_3y": safe_float(row[4], default=0.0) if row[4] else None,
-                    "eps_growth_5y": safe_float(row[5], default=0.0) if row[5] else None,
+                    "revenue_growth_1y": float(row[0]) if row[0] is not None else None,
+                    "revenue_growth_3y": float(row[1]) if row[1] is not None else None,
+                    "revenue_growth_5y": float(row[2]) if row[2] is not None else None,
+                    "eps_growth_1y": float(row[3]) if row[3] is not None else None,
+                    "eps_growth_3y": float(row[4]) if row[4] is not None else None,
+                    "eps_growth_5y": float(row[5]) if row[5] is not None else None,
                 }
             return None
         except (psycopg2.DatabaseError, psycopg2.OperationalError) as e:
@@ -243,12 +242,12 @@ class StockScoresLoader(OptimalLoader):
             row = cur.fetchone()
             if row:
                 return {
-                    "pe_ratio": safe_float(row[0], default=0.0) if row[0] else None,
-                    "pb_ratio": safe_float(row[1], default=0.0) if row[1] else None,
-                    "ps_ratio": safe_float(row[2], default=0.0) if row[2] else None,
-                    "peg_ratio": safe_float(row[3], default=0.0) if row[3] else None,
-                    "dividend_yield": safe_float(row[4], default=0.0) if row[4] else None,
-                    "fcf_yield": safe_float(row[5], default=0.0) if row[5] else None,
+                    "pe_ratio": float(row[0]) if row[0] is not None else None,
+                    "pb_ratio": float(row[1]) if row[1] is not None else None,
+                    "ps_ratio": float(row[2]) if row[2] is not None else None,
+                    "peg_ratio": float(row[3]) if row[3] is not None else None,
+                    "dividend_yield": float(row[4]) if row[4] is not None else None,
+                    "fcf_yield": float(row[5]) if row[5] is not None else None,
                 }
             return None
         except (psycopg2.DatabaseError, psycopg2.OperationalError) as e:
@@ -264,9 +263,9 @@ class StockScoresLoader(OptimalLoader):
             row = cur.fetchone()
             if row:
                 return {
-                    "institutional_ownership": safe_float(row[0], default=0.0) if row[0] else None,
-                    "insider_ownership": safe_float(row[1], default=0.0) if row[1] else None,
-                    "short_interest": safe_float(row[2], default=0.0) if row[2] else None,
+                    "institutional_ownership": float(row[0]) if row[0] is not None else None,
+                    "insider_ownership": float(row[1]) if row[1] is not None else None,
+                    "short_interest": float(row[2]) if row[2] is not None else None,
                 }
             return None
         except (psycopg2.DatabaseError, psycopg2.OperationalError) as e:
@@ -282,11 +281,11 @@ class StockScoresLoader(OptimalLoader):
             row = cur.fetchone()
             if row:
                 return {
-                    "volatility_252d": safe_float(row[0], default=0.0) if row[0] else None,
-                    "volatility_60d": safe_float(row[1], default=0.0) if row[1] else None,
-                    "volatility_30d": safe_float(row[2], default=0.0) if row[2] else None,
-                    "beta": safe_float(row[3], default=0.0) if row[3] else None,
-                    "debt_to_assets": safe_float(row[4], default=0.0) if row[4] else None,
+                    "volatility_252d": float(row[0]) if row[0] is not None else None,
+                    "volatility_60d": float(row[1]) if row[1] is not None else None,
+                    "volatility_30d": float(row[2]) if row[2] is not None else None,
+                    "beta": float(row[3]) if row[3] is not None else None,
+                    "debt_to_assets": float(row[4]) if row[4] is not None else None,
                 }
             return None
         except (psycopg2.DatabaseError, psycopg2.OperationalError) as e:
@@ -314,11 +313,11 @@ class StockScoresLoader(OptimalLoader):
 
             if row and row[0]:
                 prices = {
-                    "current": safe_float(row[0], default=0.0) if row[0] else None,
-                    "price_1m_ago": safe_float(row[1], default=0.0) if row[1] else None,
-                    "price_3m_ago": safe_float(row[2], default=0.0) if row[2] else None,
-                    "price_6m_ago": safe_float(row[3], default=0.0) if row[3] else None,
-                    "price_12m_ago": safe_float(row[4], default=0.0) if row[4] else None,
+                    "current": float(row[0]) if row[0] is not None else None,
+                    "price_1m_ago": float(row[1]) if row[1] is not None else None,
+                    "price_3m_ago": float(row[2]) if row[2] is not None else None,
+                    "price_6m_ago": float(row[3]) if row[3] is not None else None,
+                    "price_12m_ago": float(row[4]) if row[4] is not None else None,
                 }
 
                 current = prices["current"]
