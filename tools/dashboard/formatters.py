@@ -123,7 +123,7 @@ def is_open() -> bool:
     try:
         from algo.infrastructure import MarketCalendar
 
-        return MarketCalendar.is_market_open()
+        return cast(bool, MarketCalendar.is_market_open())
     except Exception:
         n = datetime.now(ET)
         if n.weekday() >= 5:

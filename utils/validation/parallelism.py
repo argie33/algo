@@ -227,7 +227,7 @@ class ParallelismValidator:
             "results": results,
             "summary": f"{passed}/{total} loaders validated successfully",
             "failures": [
-                f"{name}: {'; '.join(r.get('issues_found'))}"
+                f"{name}: {'; '.join(r.get('issues_found') or [])}"
                 for name, r in results.items()
                 if not r.get("test_passed", False)
             ],
