@@ -189,26 +189,10 @@ def _get_algo_evaluate(cur) -> dict:
                     "excellent_sqs_70": sig_dict["candidates_excellent"],
                     "exceptional_sqs_80": sig_dict["candidates_exceptional"],
                     "score_range": {
-                        "min": (
-                            float(sig_dict.get("min_score"), default=0.0, context="min_score")
-                            if sig_dict.get("min_score") is not None
-                            else None
-                        ),
-                        "median": (
-                            float(sig_dict.get("median_score"), default=0.0, context="median_score")
-                            if sig_dict.get("median_score") is not None
-                            else None
-                        ),
-                        "average": (
-                            float(sig_dict.get("avg_score"), default=0.0, context="avg_score")
-                            if sig_dict.get("avg_score") is not None
-                            else None
-                        ),
-                        "max": (
-                            float(sig_dict.get("top_score"), default=0.0, context="top_score")
-                            if sig_dict.get("top_score") is not None
-                            else None
-                        ),
+                        "min": float(sig_dict["min_score"]) if sig_dict.get("min_score") is not None else None,
+                        "median": float(sig_dict["median_score"]) if sig_dict.get("median_score") is not None else None,
+                        "average": float(sig_dict["avg_score"]) if sig_dict.get("avg_score") is not None else None,
+                        "max": float(sig_dict["top_score"]) if sig_dict.get("top_score") is not None else None,
                     },
                 },
                 "constraints": {

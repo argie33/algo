@@ -581,7 +581,7 @@ def handle(
                                     best_month.get("month_name") if best_month else None
                                 ),
                                 "avg_return_pct": (
-                                    float(best_month.get("avg_return"), default=0.0, context="avg_return")
+                                    float(best_month.get("avg_return"))
                                     if best_month
                                     and best_month.get("avg_return") is not None
                                     else None
@@ -589,8 +589,8 @@ def handle(
                                 "win_rate_pct": (
                                     round(
                                         (
-                                            float(best_month.get("winning_years"), default=0.0, context="winning_years")
-                                            / float(best_month.get("years_counted"), default=0.0, context="years_counted")
+                                            float(best_month.get("winning_years"))
+                                            / float(best_month.get("years_counted"))
                                             * 100
                                         ),
                                         1,
@@ -612,7 +612,7 @@ def handle(
                                     else None
                                 ),
                                 "avg_return_pct": (
-                                    float(worst_month.get("avg_return"), default=0.0, context="avg_return")
+                                    float(worst_month.get("avg_return"))
                                     if worst_month
                                     and worst_month.get("avg_return") is not None
                                     else None
@@ -620,8 +620,8 @@ def handle(
                                 "win_rate_pct": (
                                     round(
                                         (
-                                            float(worst_month.get("winning_years"), default=0.0, context="winning_years")
-                                            / float(worst_month.get("years_counted"), default=0.0, context="years_counted")
+                                            float(worst_month.get("winning_years"))
+                                            / float(worst_month.get("years_counted"))
                                             * 100
                                         ),
                                         1,
@@ -639,13 +639,13 @@ def handle(
                             {
                                 "name": best_dow.get("day") if best_dow else None,
                                 "avg_return_pct": (
-                                    float(best_dow.get("avg_return"), default=0.0, context="avg_return")
+                                    float(best_dow.get("avg_return"))
                                     if best_dow
                                     and best_dow.get("avg_return") is not None
                                     else None
                                 ),
                                 "win_rate_pct": (
-                                    float(best_dow.get("win_rate"), default=0.0, context="win_rate")
+                                    float(best_dow.get("win_rate"))
                                     if best_dow and best_dow.get("win_rate") is not None
                                     else None
                                 ),
@@ -657,13 +657,13 @@ def handle(
                             {
                                 "name": worst_dow.get("day") if worst_dow else None,
                                 "avg_return_pct": (
-                                    float(worst_dow.get("avg_return"), default=0.0, context="avg_return")
+                                    float(worst_dow.get("avg_return"))
                                     if worst_dow
                                     and worst_dow.get("avg_return") is not None
                                     else None
                                 ),
                                 "win_rate_pct": (
-                                    float(worst_dow.get("win_rate"), default=0.0, context="win_rate")
+                                    float(worst_dow.get("win_rate"))
                                     if worst_dow
                                     and worst_dow.get("win_rate") is not None
                                     else None

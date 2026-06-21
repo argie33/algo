@@ -1125,7 +1125,7 @@ def panel_algo_health(
     if hlth:
         hlth_list = safe_get_list(hlth)
         ready_to_trade = hlth.get("ready_to_trade") if isinstance(hlth, dict) else None
-        stale = [r for r in hlth_list if isinstance(r, dict) and r.get("st") != "ok"]
+        stale = [r for r in hlth_list if isinstance(r, dict) and r.get("st") != "ok"] if hlth_list else []
 
         def _age_h(r):
             ah = r.get("age_hours")
@@ -1142,7 +1142,7 @@ def panel_algo_health(
                 return "?"
             return f"{h:.0f}h" if h < 24 else f"{h / 24:.1f}d"
 
-        if not stale:
+        if not stale and hlth_list:
             crit = [r for r in hlth_list if r.get("role") == "CRIT"]
             if ready_to_trade is False:
                 rtt_badge = f"[bold {R}]✗ NOT READY[/]"
