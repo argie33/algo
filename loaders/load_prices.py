@@ -490,7 +490,7 @@ class PriceLoader(OptimalLoader):
             # CRITICAL FIX: Read timeout from algo_config with strict validation
             # Use context-aware defaults: EOD (1800s/30min) vs Morning (600s/10min)
             # Increased from 1200s to 1800s to handle yfinance lag of 10-15 minutes
-            default_timeout_sec = 1800 if self._is_eod_pipeline else 600
+            default_timeout_sec = 600 if self._is_eod_pipeline else 300
             config_key = (
                 "yfinance_market_close_timeout_eod_sec"
                 if self._is_eod_pipeline
