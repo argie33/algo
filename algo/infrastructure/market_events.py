@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Market Events & Corporate Actions Handler
+"""Market Events & Corporate Actions Handler.
 
 Detects and responds to market anomalies:
 - Single-stock halts (trading paused, then resumed)
@@ -47,6 +47,7 @@ class MarketEventHandler:
 
         Returns:
             dict with halt_status, reason if halted, else None
+
         """
         try:
             url = f"{self.alpaca_base_url}/v2/assets/{symbol}"
@@ -95,6 +96,7 @@ class MarketEventHandler:
 
         Returns:
             dict with level, % down, timestamp if triggered, else None
+
         """
         try:
             headers = {
@@ -173,6 +175,7 @@ class MarketEventHandler:
 
         Returns:
             True if early close, False otherwise
+
         """
         if not check_date:
             check_date = date.today()
@@ -201,10 +204,7 @@ class MarketEventHandler:
                     return True
 
             # Christmas Eve (Dec 24)
-            if check_date.month == 12 and check_date.day == 24:
-                return True
-
-            return False
+            return bool(check_date.month == 12 and check_date.day == 24)
 
         except (RuntimeError, TypeError, ValueError, KeyError) as e:
             raise RuntimeError(f"Operation failed: {e}") from e
@@ -219,6 +219,7 @@ class MarketEventHandler:
 
         Returns:
             True if in after-hours window, False otherwise
+
         """
         if not check_time:
             check_time = datetime.now(EASTERN_TZ)
@@ -249,6 +250,7 @@ class MarketEventHandler:
 
         Returns:
             dict with action taken
+
         """
         try:
             from utils.db import DatabaseContext
@@ -287,8 +289,9 @@ class MarketEventHandler:
             }
 
         except (psycopg2.DatabaseError, psycopg2.OperationalError) as e:
-            logger.error(f"MarketEventHandler: handle_single_stock_halt error: {e}")
-            return {"action": "ERROR", "message": str(e)}
+            raise RuntimeError(
+                f"Cannot record single stock halt for {symbol} (safety gate failed): {e}"
+            ) from e
 
     def handle_market_circuit_breaker(self, level: int) -> dict[str, Any]:
         """Handle market circuit breaker: halt entries, tighten stops, or close positions.
@@ -298,6 +301,7 @@ class MarketEventHandler:
 
         Returns:
             dict with action taken
+
         """
         try:
             if level == 3:
@@ -315,10 +319,9 @@ class MarketEventHandler:
                 severity = "ERROR"
                 action_type = f"CIRCUIT_BREAKER_L{level}"
             else:
-                return {
-                    "action": "ERROR",
-                    "message": f"Invalid circuit breaker level: {level}",
-                }
+                raise ValueError(
+                    f"Invalid circuit breaker level: {level}. Must be 1, 2, or 3 (safety gate requires valid level)."
+                )
 
             with DatabaseContext("write") as cur:
                 cur.execute(
@@ -338,14 +341,16 @@ class MarketEventHandler:
             }
 
         except (psycopg2.DatabaseError, psycopg2.OperationalError) as e:
-            logger.error(f"MarketEventHandler: handle_market_circuit_breaker error: {e}")
-            return {"action": "ERROR", "message": str(e)}
+            raise RuntimeError(
+                f"Circuit breaker activation (level {level}) failed - cannot record market halt (safety gate failed): {e}"
+            ) from e
 
     def check_delisting(self, symbol: str) -> dict[str, Any] | None:
         """Check if symbol is delisted or about to be delisted.
 
         Returns:
             dict with delisting info if delisted, else None
+
         """
         try:
             url = f"{self.alpaca_base_url}/v2/assets/{symbol}"
@@ -383,6 +388,7 @@ class MarketEventHandler:
 
         Returns:
             dict with all checks and any alerts
+
         """
         result: dict[str, Any] = {
             "timestamp": datetime.now(timezone.utc).isoformat(),
