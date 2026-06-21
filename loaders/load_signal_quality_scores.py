@@ -370,12 +370,11 @@ class SignalQualityScoresLoader(OptimalLoader):
                     raise RuntimeError("Table existence check query failed")
                 table_exists = row[0]
                 if not table_exists:
-                    logger.critical(
+                    raise RuntimeError(
                         "[VCP_TABLE_MISSING] VCP patterns table does not exist. "
-                        "Upstream loader (load_vcp_patterns.py) must run first. "
-                        "Failing closed: returning empty patterns."
+                        "Upstream loader (load_vcp_patterns.py) must run first before signal quality scores. "
+                        "Cannot compute quality scores without VCP pattern data."
                     )
-                    return []
 
                 # Check if vcp_patterns table has been populated for the symbol
                 cur.execute(
@@ -439,7 +438,11 @@ class SignalQualityScoresLoader(OptimalLoader):
         positioning_data: dict | None = None,
     ) -> list[dict]:
         if not buy_sell_rows:
-            return []
+            raise RuntimeError(
+                f"[QUALITY_SCORES] No buy/sell signals available for {symbol}. "
+                "Buy/sell signal data is required to compute quality scores. "
+                "Upstream loader (load_buy_sell_daily.py) must provide signals first."
+            )
 
         try:
             vcp_rows = vcp_rows or []
@@ -447,7 +450,10 @@ class SignalQualityScoresLoader(OptimalLoader):
 
             bs_df = pd.DataFrame(buy_sell_rows)
             if bs_df.empty:
-                return []
+                raise RuntimeError(
+                    f"[QUALITY_SCORES] Buy/sell dataframe is empty for {symbol}. "
+                    "Cannot compute quality scores without buy/sell signal data."
+                )
             bs_df["date"] = pd.to_datetime(bs_df["date"])
 
             tech_df = pd.DataFrame(technical_rows) if technical_rows else pd.DataFrame()

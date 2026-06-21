@@ -179,7 +179,10 @@ class DailyReconciliation:
                     logger.info("\n1b3. Pending Reconciliations:")
                     logger.info(f"   {pending_result['message']}")
                     if pending_result.get("stuck_count", 0) > 0:
-                        for p in pending_result.get("pending", [])[:5]:
+                        pending_list = pending_result.get("pending")
+                        if pending_list is None:
+                            pending_list = []
+                        for p in pending_list[:5]:
                             logger.warning(
                                 f"   STUCK: {p['symbol']} {p['trade_id']} "
                                 f"(Est: ${p['estimated_price']:.2f} vs ${p['current_exit_price']:.2f}, "
@@ -1825,7 +1828,9 @@ class DailyReconciliation:
             if resp.status_code == 200:
                 data = resp.json()
                 if isinstance(data, dict) and "equity" in data:
-                    equity_list = data.get("equity", [])
+                    equity_list = data.get("equity")
+                    if equity_list is None:
+                        equity_list = []
                     if equity_list:
                         initial_val = safe_float(equity_list[0], default=0.0)
                         if initial_val > 0:

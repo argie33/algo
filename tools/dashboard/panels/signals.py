@@ -106,7 +106,8 @@ def _build_signal_header(sig_data: dict, scores_data: dict | None) -> tuple[list
     total = safe_get_field(overview, "total") or 0
     ds = _format_signal_date(safe_get_field(overview, "date"))
 
-    grades = safe_get_dict(safe_get_field(overview, "grades", {}))
+    grades_field = safe_get_field(overview, "grades", {})
+    grades = safe_get_dict(grades_field) if grades_field else {}
     ga = int(safe_get_field(grades, "a")) if safe_get_field(grades, "a") is not None else None
     gb = int(safe_get_field(grades, "b")) if safe_get_field(grades, "b") is not None else None
     gc = int(safe_get_field(grades, "c")) if safe_get_field(grades, "c") is not None else None
@@ -115,15 +116,17 @@ def _build_signal_header(sig_data: dict, scores_data: dict | None) -> tuple[list
     buy_c = G if raw >= 5 else (Y if raw >= 1 else (DIM if total == 0 else R))
 
     spark_s = ""
-    trend = safe_get_list(safe_get_field(overview, "trend", []))
-    if len(trend) >= 2:
+    trend_field = safe_get_field(overview, "trend", [])
+    trend = safe_get_list(trend_field) if trend_field else []
+    if trend and len(trend) >= 2:
         counts = [int(safe_get_field(t, "buy_n")) if safe_get_field(t, "buy_n") is not None else 0 for t in reversed(trend)]
         max_b = max(counts) if counts else 1
         spark = "".join(SPARKLINE_CHARS[min(7, int(v / max(max_b, 1) * 7.9))] for v in counts)
         spark_s = f"  [{CY}]{spark}[/]"
 
-    near = safe_get_list(safe_get_field(overview, "near", []))
-    n_near = len(near)
+    near_field = safe_get_field(overview, "near", [])
+    near = safe_get_list(near_field) if near_field else []
+    n_near = len(near) if near else 0
     near_hint = f"  [{CY}]{n_near} near[/]" if n_near else ""
 
     ga_s = f"{ga}" if ga is not None else "--"

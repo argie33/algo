@@ -9,7 +9,7 @@ Finance principle: Missing data is NOT the same as zero. Use strict mode for cri
 
 import json
 import logging
-from typing import Any, TypeVar
+from typing import Any, TypeVar, overload
 
 
 logger = logging.getLogger(__name__)
@@ -19,6 +19,26 @@ T = TypeVar("T")
 
 class StrictValidationError(Exception):
     """Raised when data conversion fails in strict mode (required for finance paths)."""
+
+
+@overload
+def safe_float(
+    value: Any,
+    *,
+    default: float | None = None,
+    strict: bool = False,
+    field_name: str | None = None,
+) -> float | None: ...
+
+
+@overload
+def safe_float(
+    value: Any,
+    *,
+    default: float | None = None,
+    strict: bool = True,
+    field_name: str | None = None,
+) -> float: ...
 
 
 def safe_float(
@@ -64,6 +84,26 @@ def safe_float(
         elif default is not None:
             logger.warning(f"Failed to convert {field_name or 'value'}={value!r} to float (returning {default}): {e}")
         return default
+
+
+@overload
+def safe_int(
+    value: Any,
+    *,
+    default: int | None = None,
+    strict: bool = False,
+    field_name: str | None = None,
+) -> int | None: ...
+
+
+@overload
+def safe_int(
+    value: Any,
+    *,
+    default: int | None = None,
+    strict: bool = True,
+    field_name: str | None = None,
+) -> int: ...
 
 
 def safe_int(

@@ -97,7 +97,11 @@ class TechnicalDataDailyLoader(OptimalLoader):
         spy_rows = self._fetch_price_daily("SPY", start, end) if symbol != "SPY" else []
         indicators = self._compute_all_indicators(symbol, rows, spy_rows)
         if not indicators:
-            return []
+            raise RuntimeError(
+                f"[TECHNICAL_DATA] Failed to compute technical indicators for {symbol}. "
+                "Indicator computation returned empty result despite valid input data. "
+                "Check indicator calculation functions for errors."
+            )
 
         if since is not None:
             since_str = since.isoformat()
@@ -213,10 +217,11 @@ class TechnicalDataDailyLoader(OptimalLoader):
                 "Cannot compute technical indicators without price history."
             )
         if len(rows) < 50:
-            logger.debug(
-                f"[{symbol}] Insufficient price history ({len(rows)} rows, need >=50) to compute technical indicators"
+            raise RuntimeError(
+                f"[TECHNICAL_DATA] Insufficient price history for {symbol}: {len(rows)} rows available, "
+                "need >=50 days to compute meaningful technical indicators (SMA-200, RSI, MACD require lookback). "
+                "Cannot proceed without adequate historical data."
             )
-            return []
 
         # Precalculate source data age once per symbol (not per indicator row)
         price_data_age = self._calculate_data_source_age_days(symbol, "price_daily")

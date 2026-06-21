@@ -525,8 +525,8 @@ class MarketExposure:
         if len(rows) < 250:
             return {"score_factor": None, "value": None, "reason": "Insufficient history"}
 
-        current_close = float(rows[0][1])
-        past_close = float(rows[251][1])  # ~252 trading days ago
+        current_close = safe_float(rows[0][1], default=0.0, context="current_close")
+        past_close = safe_float(rows[251][1], default=0.0, context="past_close")  # ~252 trading days ago
         momentum_pct = (current_close - past_close) / past_close * 100 if past_close > 0 else 0
 
         if momentum_pct > 20:
@@ -604,7 +604,7 @@ class MarketExposure:
             (eval_date,),
         )
         row = cur.fetchone()
-        return int(row[0]) if row is not None and row[0] is not None else 0
+        return safe_int(row[0], default=0, context="distribution_day_count") if row is not None and row[0] is not None else 0
 
     def _has_market_confirmation(self, eval_date, cur):
         """Detect a volume-backed rally day in last 30 days.
@@ -660,9 +660,9 @@ class MarketExposure:
                 "reason": "Insufficient history",
             }
 
-        cur_close = float(rows[0][1])
-        sma_now = float(rows[0][2])
-        sma_30d_ago = float(rows[30][2]) if len(rows) > 30 and rows[30][2] is not None else sma_now
+        cur_close = safe_float(rows[0][1], default=0.0, context="cur_close")
+        sma_now = safe_float(rows[0][2], default=0.0, context="sma_now")
+        sma_30d_ago = safe_float(rows[30][2], default=0.0, context="sma_30d_ago") if len(rows) > 30 and rows[30][2] is not None else sma_now
 
         slope = (sma_now - sma_30d_ago) / sma_30d_ago * 100.0 if sma_30d_ago > 0 else 0
         price_pct = (cur_close - sma_now) / sma_now * 100.0 if sma_now > 0 else 0
@@ -715,7 +715,7 @@ class MarketExposure:
         row = cur.fetchone()
         if not row or not row[1]:
             return {"score_factor": None, "value": None}
-        above, total = int(row[0]), int(row[1])
+        above, total = safe_int(row[0], default=0, context="above"), safe_int(row[1], default=0, context="total")
         pct = above / total * 100.0 if total > 0 else 0
         # Linear: 20% -> 0pts, 80% -> 1.0
         if ma_days == 50:
@@ -893,8 +893,8 @@ class MarketExposure:
         row = cur.fetchone()
         if row is None:
             return {"score_factor": None, "value": None}
-        new_hi = int(row["new_highs_count"] or 0)
-        new_lo = int(row["new_lows_count"] or 0)
+        new_hi = safe_int(row["new_highs_count"], default=0, context="new_highs_count")
+        new_lo = safe_int(row["new_lows_count"], default=0, context="new_lows_count")
         net = new_hi - new_lo
         # Net +50 -> 1.0, 0 -> 0.5, -50 -> 0
         sf = max(0.0, min(1.0, 0.5 + net / 100.0))

@@ -218,6 +218,7 @@ def _get_aws_cfn_output(key: str) -> str | None:
                         return cast(str, output["OutputValue"])
     except Exception as e:
         raise RuntimeError(f"Operation failed: {e}") from e
+    return None
 
 
 def get_cognito_auth(require_auth: bool = True, interactive: bool = True) -> CognitoAuth | None:

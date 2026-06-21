@@ -274,9 +274,10 @@ def _get_leading_indicators(cur) -> dict:
                 continue
 
             value, dt = latest_rows[series_id]
-            history = sorted(
-                history_by_series.get(series_id, []), key=lambda x: x["date"]
-            )
+            series_history = history_by_series.get(series_id)
+            if series_history is None:
+                series_history = []
+            history = sorted(series_history, key=lambda x: x["date"])
 
             # For level series, compute YoY % change so the frontend gets a meaningful rate
             display_value = value
@@ -454,12 +455,13 @@ def _get_yield_curve_full(cur) -> dict:
             history[sid] = sorted(hist, key=lambda x: x["date"])
 
         # Build credit sub-object with the series names the frontend expects
+        bamlh = history.get("BAMLH0A0HYM2")
+        bamlc = history.get("BAMLC0A0CM")
+        vixcls = history.get("VIXCLS")
         credit_history = {
-            "BAMLH0A0HYM2": history.get("BAMLH0A0HYM2", []),
-            "BAMLH0A0IG": history.get(
-                "BAMLC0A0CM", []
-            ),  # BAMLC0A0CM is IG corporate OAS
-            "VIXCLS": history.get("VIXCLS", []),
+            "BAMLH0A0HYM2": bamlh if bamlh is not None else [],
+            "BAMLH0A0IG": bamlc if bamlc is not None else [],  # BAMLC0A0CM is IG corporate OAS
+            "VIXCLS": vixcls if vixcls is not None else [],
         }
         credit_latest = {
             k: v[-1].get("value") if v else None for k, v in credit_history.items()
