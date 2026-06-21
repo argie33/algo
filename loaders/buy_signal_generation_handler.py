@@ -12,6 +12,7 @@ import logging
 from decimal import Decimal
 from typing import Any
 
+
 logger = logging.getLogger(__name__)
 
 
@@ -22,21 +23,19 @@ class BuySignalGenerationHandler:
         """Initialize with reference to SignalsDailyLoader."""
         self.loader = loader
 
-    def run(self, symbol: str, rows: list[dict], batch_context: dict | None = None) -> list[dict]:
+    def run(self, symbol: str, rows: list[dict], tech_data_age: int | None = None) -> list[dict]:
         """Generate buy/sell signals from technical indicator data.
 
         Args:
             symbol: Ticker symbol
             rows: List of technical data rows with OHLCV and indicators
-            batch_context: Optional batch context with tech_data_age
+            tech_data_age: Optional age of technical data in days
 
         Returns:
             List of signal dicts with entry/exit levels and metrics
         """
         if not rows:
             return []
-
-        tech_data_age = (batch_context or {}).get("tech_data_age")
         signals = []
         skipped_count = 0
 
@@ -207,16 +206,9 @@ class BuySignalGenerationHandler:
         stoplevel = None
 
         # BUY: Breakout above swing high where swing_high > SMA50
-        if (
-            recent_swing_high
-            and swing_high_sma50
-            and high > recent_swing_high
-            and recent_swing_high > swing_high_sma50
-        ):
+        if recent_swing_high and swing_high_sma50 and high > recent_swing_high and recent_swing_high > swing_high_sma50:
             signal_type = "BUY"
-            breakout_pct = (
-                ((high - recent_swing_high) / recent_swing_high * 100) if recent_swing_high > 0 else 0
-            )
+            breakout_pct = ((high - recent_swing_high) / recent_swing_high * 100) if recent_swing_high > 0 else 0
             strength = min(0.5 + (breakout_pct / 5.0), 1.0)
             reason = f"Breakout above swing high ({abs(breakout_pct):.1f}%) with price > SMA50"
             buylevel = round(recent_swing_high, 4)
@@ -225,9 +217,7 @@ class BuySignalGenerationHandler:
         # SELL: Breakdown below swing low (stop loss)
         elif recent_swing_low and low < recent_swing_low:
             signal_type = "SELL"
-            breakdown_pct = (
-                ((recent_swing_low - low) / recent_swing_low * 100) if recent_swing_low > 0 else 0
-            )
+            breakdown_pct = ((recent_swing_low - low) / recent_swing_low * 100) if recent_swing_low > 0 else 0
             strength = min(0.5 + (breakdown_pct / 5.0), 1.0)
             reason = f"Breakdown below swing low ({abs(breakdown_pct):.1f}%)"
             buylevel = round(close, 4)
@@ -242,11 +232,7 @@ class BuySignalGenerationHandler:
         decimal84_max = 9999.9999
 
         if volume is not None and i >= 5:
-            recent_vols = [
-                rows[j].get("volume")
-                for j in range(max(0, i - 20), i)
-                if rows[j].get("volume") is not None
-            ]
+            recent_vols = [rows[j].get("volume") for j in range(max(0, i - 20), i) if rows[j].get("volume") is not None]
             if recent_vols:
                 avg_vol = sum(recent_vols) / len(recent_vols)
                 if avg_vol > 0:
@@ -260,18 +246,12 @@ class BuySignalGenerationHandler:
     def _compute_avg_volume_50d(self, rows: list[dict], i: int) -> int | None:
         """Compute 50-bar average volume."""
         if i >= 10:
-            vols_50 = [
-                rows[j].get("volume")
-                for j in range(max(0, i - 50), i)
-                if rows[j].get("volume") is not None
-            ]
+            vols_50 = [rows[j].get("volume") for j in range(max(0, i - 50), i) if rows[j].get("volume") is not None]
             if vols_50:
                 return int(sum(vols_50) / len(vols_50))
         return None
 
-    def _determine_market_stage(
-        self, close: float, sma_50: float | None, sma_200: float | None
-    ) -> str | None:
+    def _determine_market_stage(self, close: float, sma_50: float | None, sma_200: float | None) -> str | None:
         """Determine market stage from moving average positions."""
         if close and sma_50 and sma_200:
             if close > sma_50 > sma_200:
@@ -311,10 +291,9 @@ class BuySignalGenerationHandler:
             if buylevel is None:
                 buylevel = Decimal(str(close)).quantize(Decimal("0.0001"))
             if stoplevel is None:
-                stoplevel = (
-                    Decimal(str(close))
-                    * (Decimal(1) - Decimal(str(risk_pct)) / Decimal(100))
-                ).quantize(Decimal("0.0001"))
+                stoplevel = (Decimal(str(close)) * (Decimal(1) - Decimal(str(risk_pct)) / Decimal(100))).quantize(
+                    Decimal("0.0001")
+                )
 
             result["buylevel"] = buylevel
             result["stoplevel"] = stoplevel
@@ -330,18 +309,16 @@ class BuySignalGenerationHandler:
             result["exit_trigger_1"] = result["profit_target_8pct"]
             result["exit_trigger_2"] = result["profit_target_20pct"]
             result["rr"] = (
-                (result["profit_target_20pct"] - buylevel)
-                / max(buylevel - stoplevel, Decimal("0.01"))
+                (result["profit_target_20pct"] - buylevel) / max(buylevel - stoplevel, Decimal("0.01"))
             ).quantize(Decimal("0.01"))
 
         elif signal_type == "SELL" and close:
             if buylevel is None:
                 buylevel = Decimal(str(close)).quantize(Decimal("0.0001"))
             if stoplevel is None:
-                stoplevel = (
-                    Decimal(str(close))
-                    * (Decimal(1) + Decimal(str(risk_pct)) / Decimal(100))
-                ).quantize(Decimal("0.0001"))
+                stoplevel = (Decimal(str(close)) * (Decimal(1) + Decimal(str(risk_pct)) / Decimal(100))).quantize(
+                    Decimal("0.0001")
+                )
 
             result["buylevel"] = buylevel
             result["stoplevel"] = stoplevel
@@ -355,8 +332,7 @@ class BuySignalGenerationHandler:
             result["exit_trigger_1"] = result["profit_target_8pct"]
             result["exit_trigger_2"] = result["profit_target_20pct"]
             result["rr"] = (
-                (buylevel - result["profit_target_20pct"])
-                / max(stoplevel - buylevel, Decimal("0.01"))
+                (buylevel - result["profit_target_20pct"]) / max(stoplevel - buylevel, Decimal("0.01"))
             ).quantize(Decimal("0.01"))
 
         return result

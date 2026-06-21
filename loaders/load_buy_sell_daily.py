@@ -30,6 +30,7 @@ from utils.optimal_loader import OptimalLoader
 
 logger = logging.getLogger(__name__)
 
+
 class SignalsDailyLoader(OptimalLoader):
     """Daily signals loader that generates buy/sell signals from technical indicators."""
 
@@ -175,11 +176,7 @@ class SignalsDailyLoader(OptimalLoader):
         if since is None:
             try:
                 # Try cache first (populated in _prepare_batch_context)
-                symbol_watermarks = (
-                    self._batch_context.get("symbol_watermarks")
-                    if self._batch_context
-                    else {}
-                )
+                symbol_watermarks = self._batch_context.get("symbol_watermarks") if self._batch_context else {}
                 max_date = symbol_watermarks.get(symbol)
 
                 # Cache miss: query database as fallback
@@ -202,7 +199,7 @@ class SignalsDailyLoader(OptimalLoader):
                         since = max_date.date()
                     else:
                         # Try string conversion as fallback
-                        since = date.fromisoformat(str(max_date).split(' ')[0])
+                        since = date.fromisoformat(str(max_date).split(" ")[0])
             except (psycopg2.DatabaseError, psycopg2.OperationalError) as e:
                 raise RuntimeError(
                     f"[BUY_SELL_DAILY] Failed to read watermark for {symbol}: {e}. "
@@ -281,9 +278,7 @@ class SignalsDailyLoader(OptimalLoader):
                     )
                 # Technical coverage relative to price coverage (normal: 80-83%)
                 tech_coverage = (
-                    (tech_coverage_symbols / price_coverage_symbols * 100)
-                    if price_coverage_symbols > 0
-                    else 0
+                    (tech_coverage_symbols / price_coverage_symbols * 100) if price_coverage_symbols > 0 else 0
                 )
 
                 # Fail-fast if technical data covers < 70% of price symbols (normal is 80-83%)
@@ -316,6 +311,7 @@ class SignalsDailyLoader(OptimalLoader):
         # Filter to incremental range if needed
         if since is not None:
             from utils.validation import safe_parse_date
+
             filtered_signals = []
             for s in signals:
                 signal_date = safe_parse_date(s["date"], "signal filtering")
@@ -325,9 +321,7 @@ class SignalsDailyLoader(OptimalLoader):
 
         return signals
 
-    def _calculate_data_source_age_days(
-        self, symbol: str, source_table: str
-    ) -> int | None:
+    def _calculate_data_source_age_days(self, symbol: str, source_table: str) -> int | None:
         """Calculate age of most recent data in source table (in days).
 
         Returns:
@@ -337,18 +331,14 @@ class SignalsDailyLoader(OptimalLoader):
             with DatabaseContext("read") as cur:
                 table_safe = assert_safe_table(source_table)
                 cur.execute(
-                    psycopg2.sql.SQL(
-                        "SELECT MAX(date) FROM {} WHERE symbol = %s"
-                    ).format(psycopg2.sql.Identifier(table_safe)),
+                    psycopg2.sql.SQL("SELECT MAX(date) FROM {} WHERE symbol = %s").format(
+                        psycopg2.sql.Identifier(table_safe)
+                    ),
                     (symbol,),
                 )
                 row = cur.fetchone()
                 if row and row[0]:
-                    max_date = (
-                        row[0]
-                        if isinstance(row[0], date)
-                        else date.fromisoformat(str(row[0]))
-                    )
+                    max_date = row[0] if isinstance(row[0], date) else date.fromisoformat(str(row[0]))
                     # FIX: Use ET date, not system date (AWS runs in UTC but trading is ET-based)
                     today_et = datetime.now(EASTERN_TZ).date()
                     age_days = (today_et - max_date).days
@@ -370,9 +360,7 @@ class SignalsDailyLoader(OptimalLoader):
                     ("buy_sell_daily", reason, symbol, signal_date, "loader"),
                 )
         except (psycopg2.DatabaseError, psycopg2.OperationalError) as e:
-            logger.debug(
-                f"[SIGNAL_REJECTION_LOG] Could not log rejection for {symbol}: {e}"
-            )
+            logger.debug(f"[SIGNAL_REJECTION_LOG] Could not log rejection for {symbol}: {e}")
 
     def _fetch_signal_data(self, symbol: str, start: date, end: date) -> list[dict]:
         """Fetch technical and price data needed for signal generation."""
@@ -395,8 +383,7 @@ class SignalsDailyLoader(OptimalLoader):
                     if r[0] is None or r[11] is None:
                         dropped_rows += 1
                         logger.debug(
-                            f"{symbol} [{r[0]}]: Row dropped - missing required field "
-                            f"(date={r[0]}, close={r[11]})"
+                            f"{symbol} [{r[0]}]: Row dropped - missing required field (date={r[0]}, close={r[11]})"
                         )
                         continue
                     rows.append(
@@ -420,9 +407,7 @@ class SignalsDailyLoader(OptimalLoader):
                         }
                     )
                 if dropped_rows > 0:
-                    logger.warning(
-                        f"{symbol}: Dropped {dropped_rows} row(s) due to missing date or close price"
-                    )
+                    logger.warning(f"{symbol}: Dropped {dropped_rows} row(s) due to missing date or close price")
                 return rows
         except (ValueError, ZeroDivisionError, TypeError) as e:
             raise RuntimeError(
@@ -437,7 +422,8 @@ class SignalsDailyLoader(OptimalLoader):
         SELL: Low < recent_swing_low (stop loss trigger)
         """
         handler = BuySignalGenerationHandler(self)
-        return handler.run(symbol, rows, self._batch_context)
+        tech_data_age = self._batch_context.get("tech_data_age") if self._batch_context else None
+        return handler.run(symbol, rows, tech_data_age)
 
     # Columns with DECIMAL(8,4) precision - max 9999.9999
     # High-priced stocks (ASML, BLK, CAT, etc.) can produce values ≥10000 for
@@ -470,11 +456,7 @@ class SignalsDailyLoader(OptimalLoader):
             capped_cols = []
             for col in self._DECIMAL84_COLS:
                 v = row.get(col)
-                if (
-                    v is not None
-                    and isinstance(v, (int, float))
-                    and abs(v) > self.decimal84_max
-                ):
+                if v is not None and isinstance(v, (int, float)) and abs(v) > self.decimal84_max:
                     capped_cols.append(col)
                     row[col] = self.decimal84_max if v > 0 else -self.decimal84_max
             if capped_cols:
@@ -483,6 +465,7 @@ class SignalsDailyLoader(OptimalLoader):
                     f"{row.get('symbol')} [{row.get('date')}]: Metrics capped at {self.decimal84_max}: {capped_cols}"
                 )
         return rows
+
 
 def main():
     parser = argparse.ArgumentParser(description="Load daily trading signals")
@@ -506,9 +489,7 @@ def main():
     except Exception as e:
         raise RuntimeError(f"Failed to fetch active symbols: {e}. Cannot proceed without symbol list.") from None
 
-    logger.info(
-        f"Starting buy_sell_daily loader with {len(symbols)} symbols, parallelism={args.parallelism}"
-    )
+    logger.info(f"Starting buy_sell_daily loader with {len(symbols)} symbols, parallelism={args.parallelism}")
 
     # VALIDATION: buy_sell_daily is critical path; parallelism should be 3 per steering doc line 44-48
     # If parallelism > 4, log warning as it may cause RDS connection pool exhaustion
@@ -522,9 +503,7 @@ def main():
     try:
         with DatabaseContext("read") as cur:
             # Verify stock_prices_daily is not stuck RUNNING/PENDING
-            cur.execute(
-                "SELECT status FROM data_loader_status WHERE table_name = 'stock_prices_daily'"
-            )
+            cur.execute("SELECT status FROM data_loader_status WHERE table_name = 'stock_prices_daily'")
             result = cur.fetchone()
             prices_status = result[0] if result else None
             if prices_status in ("RUNNING", "PENDING"):
@@ -534,9 +513,7 @@ def main():
                 )
                 return 0  # Exit cleanly, will retry on next pipeline run
     except (psycopg2.DatabaseError, psycopg2.OperationalError) as status_err:
-        logger.warning(
-            f"[DEPENDENCY] Could not check stock_prices_daily status: {status_err}"
-        )
+        logger.warning(f"[DEPENDENCY] Could not check stock_prices_daily status: {status_err}")
 
     # ISSUE #7: Validate dependency - technical_data_daily must be fresh and have good coverage
     try:
@@ -544,9 +521,7 @@ def main():
             cur.execute("SELECT MAX(date) FROM technical_data_daily")
             result = cur.fetchone()
             if not result or not result[0]:
-                logger.error(
-                    "[DEPENDENCY] technical_data_daily is empty - cannot generate signals"
-                )
+                logger.error("[DEPENDENCY] technical_data_daily is empty - cannot generate signals")
                 return 1
 
             tech_data_date = result[0]
@@ -587,9 +562,7 @@ def main():
             cur_row = cur.fetchone()
             tech_symbol_count = cur_row[0] if cur_row else 0
 
-            coverage_pct = (
-                round(100 * tech_symbol_count / len(symbols), 1) if symbols else 0
-            )
+            coverage_pct = round(100 * tech_symbol_count / len(symbols), 1) if symbols else 0
             if coverage_pct < 75:
                 logger.error(
                     f"[DEPENDENCY] technical_data_daily coverage is {coverage_pct}% ({tech_symbol_count}/{len(symbols)} symbols) - below 75% threshold"
@@ -633,8 +606,7 @@ def main():
                 with DatabaseContext("write") as cur:
                     cur.execute("SET statement_timeout = 0")
                     cur.execute(
-                        "UPDATE data_loader_status SET status = %s, last_updated = NOW() "
-                        "WHERE table_name = %s",
+                        "UPDATE data_loader_status SET status = %s, last_updated = NOW() WHERE table_name = %s",
                         ("FAILED", "buy_sell_daily"),
                     )
                     logger.info("[STATUS] Marked buy_sell_daily as FAILED due to enrichment failure")
@@ -651,6 +623,7 @@ def main():
         return 0
     except (psycopg2.DatabaseError, psycopg2.OperationalError) as e:
         raise RuntimeError(f"Daily signals load failed: {e}") from None
+
 
 if __name__ == "__main__":
     try:
