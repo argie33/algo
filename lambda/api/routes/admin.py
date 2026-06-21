@@ -2,7 +2,9 @@
 
 import logging
 import os
+import sys
 from datetime import datetime, timedelta, timezone
+from pathlib import Path
 
 import boto3
 import psycopg2
@@ -27,8 +29,6 @@ from routes.utils import (
 from utils.rate_limiting import ADMIN_RATE_LIMITS, check_admin_rate_limit
 from utils.validation import CognitoValidator
 
-import sys
-from pathlib import Path
 
 # Add parent directory to sys.path to enable imports from lambda/api module
 sys.path.insert(0, str(Path(__file__).parent.parent))
