@@ -176,7 +176,8 @@ resource "aws_lambda_function" "api" {
 # Cost: ~$12/month per unit in us-east-1 (set api_lambda_provisioned_concurrency = 0 to disable).
 
 resource "aws_lambda_provisioned_concurrency_config" "api" {
-  count                             = var.api_lambda_provisioned_concurrency > 0 ? 1 : 0
+  # Only create if: provisioned concurrency is enabled AND API layer is available
+  count                             = (var.api_lambda_provisioned_concurrency > 0 && var.api_lambda_layer_enabled) ? 1 : 0
   function_name                     = aws_lambda_function.api.function_name
   qualifier                         = aws_lambda_function.api.version
   provisioned_concurrent_executions = var.api_lambda_provisioned_concurrency
