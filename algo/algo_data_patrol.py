@@ -12,8 +12,7 @@ import sys
 from pathlib import Path
 
 from algo.monitoring.data_patrol import DataPatrol
-from utils.infrastructure.timeout import ExecutionTimeout
-from utils.infrastructure.timeout import TimeoutError as ExecutionTimeoutError
+from utils.infrastructure.timeout import ExecutionTimeout, ExecutionTimeoutError
 
 
 root = Path(__file__).parent.parent
