@@ -7,7 +7,7 @@ import socket
 import sys
 from datetime import date
 from io import StringIO
-from typing import List, Optional
+from typing import Optional
 
 import pandas as pd
 import requests

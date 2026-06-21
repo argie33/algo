@@ -9,7 +9,7 @@ import re
 import socket
 import sys
 from datetime import date
-from typing import List, Optional
+from typing import Optional
 
 import psycopg2
 import requests

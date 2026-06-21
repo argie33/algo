@@ -5,7 +5,7 @@ import logging
 import socket
 import sys
 from datetime import date
-from typing import List, Optional
+from typing import Optional
 
 import requests
 

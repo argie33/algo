@@ -10,7 +10,7 @@ Run: python3 load_trend_criteria_data.py [--symbols AAPL,MSFT] [--parallelism 4]
 import logging
 import sys
 from datetime import date, timedelta
-from typing import List, Optional
+from typing import Optional
 
 import pandas as pd
 import psycopg2
