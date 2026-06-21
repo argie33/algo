@@ -10,7 +10,6 @@ Run: python3 load_technical_data_daily.py [--symbols AAPL,MSFT] [--parallelism 8
 import logging
 import sys
 from datetime import date, datetime, timedelta, timezone
-from typing import List, Optional
 
 import pandas as pd
 import psycopg2
@@ -31,6 +30,7 @@ from utils.db.context import DatabaseContext
 from utils.db.sql_safety import assert_safe_table
 from utils.infrastructure.timezone import EASTERN_TZ
 from utils.optimal_loader import OptimalLoader
+from utils.safe_data_conversion import safe_float
 
 
 logger = logging.getLogger(__name__)
@@ -396,7 +396,7 @@ class TechnicalDataDailyLoader(OptimalLoader):
         for r in records:
             vma = r.get("volume_ma_50")
             if isinstance(vma, float):
-                r["volume_ma_50"] = int(round(vma)) if not math.isnan(vma) else None
+                r["volume_ma_50"] = round(vma) if not math.isnan(vma) else None
 
             # price_data_age_days is already an integer (set once per symbol)
             age = r.get("price_data_age_days")

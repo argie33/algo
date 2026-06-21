@@ -289,12 +289,14 @@ def log_data_issue(fetcher_name: str, field_name: str, issue: str, value: Any = 
 
 def safe_float_strict(value: Any, field_name: str | None = None) -> float:
     """Convert value to float in strict mode. Raises StrictValidationError if fails."""
-    return safe_float(value, strict=True, field_name=field_name)
+    result = safe_float(value, strict=True, field_name=field_name)
+    return cast(float, result)
 
 
 def safe_int_strict(value: Any, field_name: str | None = None) -> int:
     """Convert value to int in strict mode. Raises StrictValidationError if fails."""
-    return safe_int(value, strict=True, field_name=field_name)
+    result = safe_int(value, strict=True, field_name=field_name)
+    return cast(int, result)
 
 
 def safe_json_parse_strict(value: Any, field_name: str | None = None) -> Any:

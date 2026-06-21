@@ -38,16 +38,33 @@ class CompanyProfileLoader(OptimalLoader):
                     "Cannot fetch company profile without valid info dict."
                 )
             market_cap = info.get("marketCap") or info.get("market_cap")
+
+            # Company name is REQUIRED - fail fast if missing
+            company_name = info.get("longName") or info.get("shortName")
+            if not company_name:
+                raise RuntimeError(
+                    f"[COMPANY_PROFILE] {symbol}: Missing company name (longName/shortName). "
+                    "Cannot store company profile without a name."
+                )
+
+            # Exchange is REQUIRED for routing/compliance
+            exchange = info.get("exchange")
+            if not exchange:
+                raise RuntimeError(
+                    f"[COMPANY_PROFILE] {symbol}: Missing exchange. "
+                    "Cannot store company profile without exchange information."
+                )
+
             return [
                 {
                     "symbol": symbol,
                     "ticker": symbol,
-                    "short_name": info.get("longName", ""),
-                    "long_name": info.get("longName", ""),
-                    "display_name": info.get("longName", ""),
+                    "short_name": company_name,
+                    "long_name": company_name,
+                    "display_name": company_name,
                     "sector": info.get("sector"),
                     "industry": info.get("industry"),
-                    "exchange": info.get("exchange", ""),
+                    "exchange": exchange,
                     "website": info.get("website"),
                     "employees": info.get("fullTimeEmployees"),
                     "market_cap": (

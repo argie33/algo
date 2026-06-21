@@ -1412,7 +1412,7 @@ def read_market_regime(eval_date: _date) -> dict:
                     halt_reasons = []
 
             return {
-                "is_entry_allowed": bool(is_entry_allowed),
+                "is_entry_allowed": safe_bool(is_entry_allowed, default=False, field_name="is_entry_allowed"),
                 "exposure_pct": safe_float(exposure_pct, default=0.0, context="exposure_pct"),
                 "regime": regime or "unknown",
                 "halt_reasons": halt_reasons,

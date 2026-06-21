@@ -39,16 +39,24 @@ def handle(
             or path.startswith("/api/signals?")
             or path.startswith("/api/signals/stocks?")
         ):
-            limit_list = params.get("limit", [])
+            limit_list = params.get("limit")
+            if limit_list is None:
+                limit_list = []
             limit_str = limit_list[0] if limit_list else None
             limit = safe_limit(limit_str or "500", max_val=10000)
-            timeframe_list = params.get("timeframe", [])
+            timeframe_list = params.get("timeframe")
+            if timeframe_list is None:
+                timeframe_list = []
             timeframe = timeframe_list[0] if timeframe_list else "daily"
-            symbol_list = params.get("symbol", [])
+            symbol_list = params.get("symbol")
+            if symbol_list is None:
+                symbol_list = []
             symbol_filter = symbol_list[0] if symbol_list else None
             return _get_signals_stocks(cur, limit, timeframe, symbol_filter)
         elif path == "/api/signals/etf":
-            limit_list = params.get("limit", [])
+            limit_list = params.get("limit")
+            if limit_list is None:
+                limit_list = []
             limit_str = limit_list[0] if limit_list else None
             limit = safe_limit(limit_str or "500", max_val=10000)
             return _get_signals_etf(cur, limit)

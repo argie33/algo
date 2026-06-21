@@ -9,7 +9,7 @@ callers to distinguish between "no data" and "error fetching data".
 """
 
 import logging
-from typing import Any
+from typing import Any, cast
 
 from .error_boundary import has_error
 
@@ -107,55 +107,55 @@ class DashboardDataExtractor:
 
     def run(self) -> dict[str, Any]:
         """Extract run state (circuit breaker, orchestrator state)."""
-        return extract_data_or_empty(self.data.get("run"), dict)
+        return cast(dict[str, Any], extract_data_or_empty(self.data.get("run"), dict))
 
     def config(self) -> dict[str, Any]:
         """Extract configuration."""
-        return extract_data_or_empty(self.data.get("cfg"), dict)
+        return cast(dict[str, Any], extract_data_or_empty(self.data.get("cfg"), dict))
 
     def market(self) -> dict[str, Any]:
         """Extract market data."""
-        return extract_data_or_empty(self.data.get("mkt"), dict)
+        return cast(dict[str, Any], extract_data_or_empty(self.data.get("mkt"), dict))
 
     def portfolio(self) -> dict[str, Any]:
         """Extract portfolio (validated at API boundary)."""
-        return extract_data_or_empty(self.data.get("port"), dict)
+        return cast(dict[str, Any], extract_data_or_empty(self.data.get("port"), dict))
 
     def performance(self) -> dict[str, Any]:
         """Extract performance metrics (validated at API boundary)."""
-        return extract_data_or_empty(self.data.get("perf"), dict)
+        return cast(dict[str, Any], extract_data_or_empty(self.data.get("perf"), dict))
 
     def positions(self) -> dict[str, Any]:
         """Extract positions (validated at API boundary)."""
-        return extract_data_or_empty(self.data.get("pos"), dict)
+        return cast(dict[str, Any], extract_data_or_empty(self.data.get("pos"), dict))
 
     def signals(self) -> dict[str, Any]:
         """Extract active signals (validated at API boundary)."""
-        return extract_data_or_empty(self.data.get("sig"), dict)
+        return cast(dict[str, Any], extract_data_or_empty(self.data.get("sig"), dict))
 
     def health(self) -> dict[str, Any]:
         """Extract health/readiness status."""
-        return extract_data_or_empty(self.data.get("health"), dict)
+        return cast(dict[str, Any], extract_data_or_empty(self.data.get("health"), dict))
 
     def circuit_breaker(self) -> dict[str, Any]:
         """Extract circuit breaker state."""
-        return extract_data_or_empty(self.data.get("cb"), dict)
+        return cast(dict[str, Any], extract_data_or_empty(self.data.get("cb"), dict))
 
     def trades(self) -> dict[str, Any]:
         """Extract recent trades."""
-        return extract_data_or_empty(self.data.get("trades"), dict)
+        return cast(dict[str, Any], extract_data_or_empty(self.data.get("trades"), dict))
 
     def activity(self) -> dict[str, Any]:
         """Extract activity log."""
-        return extract_data_or_empty(self.data.get("activity"), dict)
+        return cast(dict[str, Any], extract_data_or_empty(self.data.get("activity"), dict))
 
     def exposure(self) -> dict[str, Any]:
         """Extract exposure factors."""
-        return extract_data_or_empty(self.data.get("exp_factors"), dict)
+        return cast(dict[str, Any], extract_data_or_empty(self.data.get("exp_factors"), dict))
 
     def economic(self) -> dict[str, Any]:
         """Extract economic indicators."""
-        return extract_data_or_empty(self.data.get("eco"), dict)
+        return cast(dict[str, Any], extract_data_or_empty(self.data.get("eco"), dict))
 
     def notifications(self) -> list:
         """Extract notifications."""
@@ -164,8 +164,8 @@ class DashboardDataExtractor:
 
     def risk(self) -> dict[str, Any]:
         """Extract risk metrics."""
-        return extract_data_or_empty(self.data.get("risk"), dict)
+        return cast(dict[str, Any], extract_data_or_empty(self.data.get("risk"), dict))
 
     def perf_analytics(self) -> dict[str, Any]:
         """Extract performance analytics (rolling metrics)."""
-        return extract_data_or_empty(self.data.get("perf_anl"), dict)
+        return cast(dict[str, Any], extract_data_or_empty(self.data.get("perf_anl"), dict))

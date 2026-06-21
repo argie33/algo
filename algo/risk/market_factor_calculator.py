@@ -41,7 +41,7 @@ class MarketFactorCalculator:
             return 0.0, 0.0
 
         try:
-            score = float(score)
+            score = safe_float(score, default=0.0, context="factor_score")
         except (ValueError, TypeError):
             logger.error(f"Market factor score is not numeric: {score}")
             return 0.0, 0.0

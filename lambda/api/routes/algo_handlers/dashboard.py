@@ -12,6 +12,7 @@ import psycopg2.sql
 from routes.utils import (
     check_data_freshness,
     db_route_handler,
+    ensure_valid_response,
     error_response,
     handle_db_error,
     json_response,

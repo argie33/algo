@@ -371,7 +371,7 @@ def panel_orch(run, cfg, risk=None):
 
 def _format_exec_history_summary(exec_hist: list) -> list[Text]:
     """Format last N runs summary (used in panel_status and panel_algo_health)."""
-    rows = []
+    rows: list[Text] = []
     valid_hist = safe_get_list(exec_hist)
     if not valid_hist:
         return rows
