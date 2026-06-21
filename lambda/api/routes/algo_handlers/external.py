@@ -19,8 +19,6 @@ from routes.utils import (
     success_response,
 )
 
-from utils.validation import (
-)
 
 
 logger = logging.getLogger(__name__)

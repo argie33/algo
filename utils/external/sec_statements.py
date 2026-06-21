@@ -8,6 +8,8 @@ GAAP concepts into structured financial statements.
 
 from typing import Any, Dict, List
 
+from algo.exceptions import DataLoadError
+
 
 def get_balance_sheet(
     client: Any, symbol: str, period: str = "annual"
@@ -125,7 +127,21 @@ def _aggregate_concepts(
 
     for concept in concepts:
         concept_data = us_gaap_facts.get(concept)
+        if concept_data is None:
+            raise DataLoadError(
+                source="SEC EDGAR",
+                message=f"Concept '{concept}' not found in us-gaap facts for {symbol}",
+                retry_eligible=False,
+                context={"symbol": symbol, "concept": concept, "available_concepts": list(us_gaap_facts.keys())[:10]}
+            )
         units = concept_data.get("units")
+        if not units:
+            raise DataLoadError(
+                source="SEC EDGAR",
+                message=f"No unit data for concept '{concept}' in {symbol}",
+                retry_eligible=False,
+                context={"symbol": symbol, "concept": concept}
+            )
 
         for unit, entries in units.items():
             for entry in entries:
