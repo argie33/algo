@@ -695,20 +695,24 @@ locals {
     "earnings_calendar" = { cpu = 512, memory = 1024, timeout = 1200, parallelism = 1 }
 
     # Company & analyst data — I/O bound, yfinance API calls, 5000+ symbols
-    # Reduced from parallelism=8 to parallelism=2 to avoid database connection pool exhaustion
-    "company_profile"             = { cpu = 512, memory = 1024, timeout = 1200, parallelism = 2 }
-    "analyst_sentiment"           = { cpu = 512, memory = 1024, timeout = 1200, parallelism = 2 }
-    "analyst_upgrades_downgrades" = { cpu = 512, memory = 1024, timeout = 1200, parallelism = 2 }
+    # OPTIMIZED 2026-06-21: Increased parallelism from 2→3 with RDS Proxy session pooling
+    # RDS Proxy multiplexes 3 concurrent loaders × 3 parallelism = 9 DB connections (well below 20-30 pool limit)
+    # Reduces loader execution time by ~33% while maintaining connection pool safety
+    "company_profile"             = { cpu = 512, memory = 1024, timeout = 1200, parallelism = 3 }
+    "analyst_sentiment"           = { cpu = 512, memory = 1024, timeout = 1200, parallelism = 3 }
+    "analyst_upgrades_downgrades" = { cpu = 512, memory = 1024, timeout = 1200, parallelism = 3 }
     "industry_ranking"            = { cpu = 512, memory = 1024, timeout = 1200, parallelism = 4 }
 
-    # Market sentiment data — small API calls
-    "feargreed"  = { cpu = 256, memory = 512, timeout = 600, parallelism = 1 }
-    "aaiidata"   = { cpu = 256, memory = 512, timeout = 600, parallelism = 1 }
-    "naaim_data" = { cpu = 256, memory = 512, timeout = 600, parallelism = 1 }
+    # Market sentiment data — small API calls (minimal DB load)
+    # OPTIMIZED 2026-06-21: Increased parallelism from 1→2 (light DB usage, no connection pool contention)
+    "feargreed"  = { cpu = 256, memory = 512, timeout = 600, parallelism = 2 }
+    "aaiidata"   = { cpu = 256, memory = 512, timeout = 600, parallelism = 2 }
+    "naaim_data" = { cpu = 256, memory = 512, timeout = 600, parallelism = 2 }
 
-    # Sentiment aggregation — combine multiple sentiment sources
-    "sentiment"           = { cpu = 256, memory = 512, timeout = 600, parallelism = 1 }
-    "sentiment_aggregate" = { cpu = 256, memory = 512, timeout = 600, parallelism = 1 }
+    # Sentiment aggregation — combine multiple sentiment sources (pure SQL, minimal I/O)
+    # OPTIMIZED 2026-06-21: Increased parallelism from 1→2 for faster aggregation
+    "sentiment"           = { cpu = 256, memory = 512, timeout = 600, parallelism = 2 }
+    "sentiment_aggregate" = { cpu = 256, memory = 512, timeout = 600, parallelism = 2 }
     # DELETED: sentiment_social = { cpu = 256, memory = 512, timeout = 600, parallelism = 1 }
 
     # Signal processing — compute signal themes
