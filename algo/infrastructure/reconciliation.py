@@ -50,24 +50,6 @@ class DailyReconciliation:
                 logger.warning("Failed to send initialization failure notification")
             raise ValueError(f"Reconciliation initialization failed: {e}") from e
 
-    @property
-    def _alpaca_key(self) -> str | None:
-        """Delegate to alpaca_sync (fixes inappropriate intimacy)."""
-        key = self.alpaca_sync.alpaca_key
-        return key if isinstance(key, str) or key is None else None
-
-    @property
-    def _alpaca_secret(self) -> str | None:
-        """Delegate to alpaca_sync (fixes inappropriate intimacy)."""
-        secret = self.alpaca_sync.alpaca_secret
-        return secret if isinstance(secret, str) or secret is None else None
-
-    @property
-    def _alpaca_base_url(self) -> str | None:
-        """Delegate to alpaca_sync (fixes inappropriate intimacy)."""
-        url = self.alpaca_sync.alpaca_base_url
-        return url if isinstance(url, str) or url is None else None
-
     def run_daily_reconciliation(self, reconcile_date=None, dry_run=False):
         """Run full daily reconciliation. If dry_run=True, skip Alpaca API calls and return mock data.
 
