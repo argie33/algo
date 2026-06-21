@@ -231,7 +231,7 @@ class SectorRotationDetector:
                 "spread_4w": result.get("spread_4w"),
                 "weeks_persistent": result.get("weeks_persistent"),
                 "reduce_exposure_pts": result.get("reduce_exposure_pts"),
-                "sector_data": result.get("sector_data", {}),
+                "sector_data": result.get("sector_data") if result.get("sector_data") is not None else {},
             }
 
             details_json = json.dumps(details_dict)

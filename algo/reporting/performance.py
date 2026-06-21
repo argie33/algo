@@ -1,6 +1,3 @@
-import psycopg2
-
-
 """
 Live Performance Metrics — Compute Sharpe, win rate, expectancy, max drawdown.
 
@@ -10,10 +7,12 @@ This module validates live performance against backtest baselines and detects dr
 Metrics computed:
 - Rolling Sharpe ratio (252-day annualized from portfolio snapshots, includes unrealized gains/losses)
 - Win rate and average R-multiple (closed trades only for historical consistency; see load_algo_performance_daily.py for all-inclusive win rate with open trades)
-- Expectancy (E = (WR × Avg Win R) - (LR × Avg Loss R))
+- Expectancy (E = (WR x Avg Win R) - (LR x Avg Loss R))
 - Maximum drawdown from peak portfolio value
 - Live vs. backtest comparison
 """
+
+import psycopg2
 
 import json
 import logging

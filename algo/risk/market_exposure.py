@@ -381,7 +381,11 @@ class MarketExposure:
                 # Use detector's own connection (don't share) to avoid transaction abort propagation
                 rotation = detector.compute(eval_date)
                 if rotation:
-                    rot_penalty = rotation.get("reduce_exposure_pts", 0)
+                    if not isinstance(rotation, dict):
+                        logger.error(f"Rotation detector returned non-dict: {type(rotation).__name__}")
+                        factors["sector_rotation"] = {"error": "Invalid rotation data type"}
+                    else:
+                        rot_penalty = rotation.get("reduce_exposure_pts", 0)
                     if rot_penalty > 0:
                         score = max(0.0, score - rot_penalty)
                         factors["sector_rotation"] = {
@@ -404,8 +408,14 @@ class MarketExposure:
 
             try:
                 eco = self._economic_regime_overlay(eval_date, cur)
-                eco_penalty = eco.get("penalty", 0)
-                eco_cap = eco.get("cap", 100.0)
+                # Validate economic data structure
+                if not isinstance(eco, dict):
+                    logger.error(f"Economic overlay returned non-dict: {type(eco).__name__}")
+                    eco_penalty = 0
+                    eco_cap = 100.0
+                else:
+                    eco_penalty = eco.get("penalty", 0)
+                    eco_cap = eco.get("cap", 100.0)
                 if eco_penalty != 0 or eco_cap < 100.0:
                     score = max(0.0, min(100.0, score - eco_penalty))
                 factors["economic_overlay"] = {**eco, "pts": -eco_penalty, "max": 0}
