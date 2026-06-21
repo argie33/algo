@@ -475,10 +475,16 @@ class SignalPatternsMixin:
                     reasoning = f"3-Weeks-Tight: 1.5% below 3wk low ${three_wk_low:.2f}"
 
             if htf.get("is_ht") and htf.get("pivot_high"):
-                cons_low = htf.get("pivot_high", 0) * (1 - htf.get("consolidation_pct", 25) / 100)
-                candidate = max(candidate, cons_low * 0.95)
-                method = "htf_consolidation_low"
-                reasoning = f"HTF: 5% below consolidation low ${cons_low:.2f}"
+                pivot_high = htf.get("pivot_high")
+                consolidation_pct = htf.get("consolidation_pct")
+                if pivot_high is not None and consolidation_pct is not None:
+                    if isinstance(pivot_high, (int, float)) and isinstance(consolidation_pct, (int, float)):
+                        cons_low = pivot_high * (1 - consolidation_pct / 100)
+                        candidate = max(candidate, cons_low * 0.95)
+                        method = "htf_consolidation_low"
+                        reasoning = f"HTF: 5% below consolidation low ${cons_low:.2f}"
+                    else:
+                        logger.warning(f"HTF data invalid types for {symbol}: pivot_high={type(pivot_high).__name__}, consolidation_pct={type(consolidation_pct).__name__}")
 
             if candidate < floor_stop:
                 candidate = floor_stop

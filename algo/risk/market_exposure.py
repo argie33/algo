@@ -59,6 +59,7 @@ Persists daily to market_exposure_daily table for dashboard / audit.
 import json
 import logging
 from datetime import date as _date
+from decimal import ROUND_HALF_UP, Decimal
 
 import psycopg2
 from psycopg2 import sql as pgsql
@@ -69,6 +70,14 @@ from utils.safe_data_conversion import safe_float
 
 
 logger = logging.getLogger(__name__)
+
+
+def _precise_round(value, places: int) -> float:
+    """Round using Decimal for financial precision."""
+    if value is None or value == 0:
+        return 0.0
+    d = Decimal(str(value))
+    return float(d.quantize(Decimal(10) ** -places, rounding=ROUND_HALF_UP))
 
 
 class MarketExposure:
@@ -360,8 +369,9 @@ class MarketExposure:
             # Normalize to 100-point scale when some factors had no data,
             # so missing factors don't silently pull the score toward zero.
             if 0 < avail_max < 100:
-                score = score / avail_max * 100
-                logger.debug(f"  Score normalized: avail_max={avail_max:.1f}/100")
+                score_dec = Decimal(str(score)) / Decimal(str(avail_max)) * Decimal("100")
+                score = float(score_dec)
+                logger.debug(f"  Score normalized: avail_max={_precise_round(avail_max, 1)}/100")
             score = max(0.0, min(100.0, score))
 
             try:
@@ -408,7 +418,12 @@ class MarketExposure:
             cap = eco_cap  # Start with eco-overlay cap (may already restrict)
 
             # Veto 1: SPY < rising 30wk MA AND breadth weak
-            if t30.get("price_below_ma") and b50.get("value", 100) < 30:
+            b50_value = b50.get("value")
+            if b50_value is None:
+                logger.warning("Breadth data (50-DMA advance %) missing - cannot evaluate breadth veto")
+                b50_value = None
+
+            if t30.get("price_below_ma") and b50_value is not None and b50_value < 30:
                 halt_reasons.append("SPY < 30wk MA AND <30% above 50-DMA")
                 cap = min(cap, 25.0)
             # Veto 2: VIX > 40 rising (only if VIX data available)

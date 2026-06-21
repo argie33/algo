@@ -621,8 +621,17 @@ def validate_bearer_token(token: str | None) -> tuple:
             return (False, None, "Token has no key ID")
 
         # Find matching key
+        keys = jwks.get("keys")
+        if keys is None:
+            logger.error("Cognito JWKS response missing required 'keys' field - cannot verify token")
+            return (False, None, "JWKS validation failed: missing keys field")
+
+        if not isinstance(keys, list):
+            logger.error(f"Cognito JWKS 'keys' field must be list, got {type(keys).__name__}")
+            return (False, None, "JWKS validation failed: keys field is not a list")
+
         key_data = None
-        for key in jwks.get("keys", []):
+        for key in keys:
             if key.get("kid") == kid:
                 key_data = key
                 break

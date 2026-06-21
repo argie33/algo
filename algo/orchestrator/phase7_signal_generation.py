@@ -570,8 +570,17 @@ def run(
             f"missing swing_trader_scores. This may suppress valid candidates."
         )
 
+    # Validate all signals have composite_score before sorting
+    missing_score = [s.get("symbol") for s in quality_filtered if "composite_score" not in s or s.get("composite_score") is None]
+    if missing_score:
+        logger.warning(f"Signals missing composite_score (will be excluded): {missing_score}")
+        quality_filtered = [s for s in quality_filtered if s.get("composite_score") is not None]
+        if not quality_filtered:
+            logger.warning("[PHASE 7] No signals have valid composite_score - aborting signal generation")
+            return Phase7Result(status="degraded", data={"qualified_trades": [], "reason": "No valid signal scores"})
+
     # Sort by composite_score descending
-    quality_filtered.sort(key=lambda s: s.get("composite_score", 0), reverse=True)
+    quality_filtered.sort(key=lambda s: float(s["composite_score"]), reverse=True)
 
     # Liquidity checks on top candidates — parallelized
     liq_passed = []
@@ -588,12 +597,13 @@ def run(
                     liq_passed.append(candidate)
 
     logger.info(
-        f"[PHASE 5] Liquidity check: {liq_checked} checked, {len(liq_passed)} passed. "
+        f"[PHASE 7] Liquidity check: {liq_checked} checked, {len(liq_passed)} passed. "
         f"{len(quality_filtered) - liq_checked} unchecked candidates dropped."
     )
 
     # Final ranking by composite_score
-    liq_passed.sort(key=lambda s: s.get("composite_score", 0), reverse=True)
+    if liq_passed:
+        liq_passed.sort(key=lambda s: float(s["composite_score"]), reverse=True)
 
     logger.info(f"[PHASE 5] Top 10 qualified signals (source={signal_source}):")
     for i, sig in enumerate(liq_passed[:10]):
