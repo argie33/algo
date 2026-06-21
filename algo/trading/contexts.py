@@ -10,6 +10,8 @@ from datetime import date
 from decimal import Decimal
 from typing import Any
 
+from algo.trading.helpers import safe_decimal
+
 
 @dataclass
 class TradeContext:
@@ -60,20 +62,12 @@ class TradeContext:
 
     def __post_init__(self):
         """Convert prices to Decimal for consistency."""
-        if not isinstance(self.entry_price, Decimal):
-            self.entry_price = Decimal(str(self.entry_price))
-        if not isinstance(self.shares, Decimal):
-            self.shares = Decimal(str(self.shares))
-        if not isinstance(self.stop_loss_price, Decimal):
-            self.stop_loss_price = Decimal(str(self.stop_loss_price))
-
-        # Convert target prices to Decimal if present
-        if self.target_1_price is not None and not isinstance(self.target_1_price, Decimal):
-            self.target_1_price = Decimal(str(self.target_1_price))
-        if self.target_2_price is not None and not isinstance(self.target_2_price, Decimal):
-            self.target_2_price = Decimal(str(self.target_2_price))
-        if self.target_3_price is not None and not isinstance(self.target_3_price, Decimal):
-            self.target_3_price = Decimal(str(self.target_3_price))
+        self.entry_price = safe_decimal(self.entry_price, self.entry_price)
+        self.shares = safe_decimal(self.shares, self.shares)
+        self.stop_loss_price = safe_decimal(self.stop_loss_price, self.stop_loss_price)
+        self.target_1_price = safe_decimal(self.target_1_price, self.target_1_price)
+        self.target_2_price = safe_decimal(self.target_2_price, self.target_2_price)
+        self.target_3_price = safe_decimal(self.target_3_price, self.target_3_price)
 
 
 @dataclass
@@ -110,21 +104,11 @@ class PositionContext:
 
     def __post_init__(self):
         """Convert prices to Decimal."""
-        if not isinstance(self.current_price, Decimal):
-            self.current_price = Decimal(str(self.current_price))
-        if not isinstance(self.entry_price, Decimal):
-            self.entry_price = Decimal(str(self.entry_price))
-        if not isinstance(self.active_stop, Decimal):
-            self.active_stop = Decimal(str(self.active_stop))
-        if not isinstance(self.init_stop, Decimal):
-            self.init_stop = Decimal(str(self.init_stop))
-
-        # Convert targets if present
-        if self.target_1_price is not None and not isinstance(self.target_1_price, Decimal):
-            self.target_1_price = Decimal(str(self.target_1_price))
-        if self.target_2_price is not None and not isinstance(self.target_2_price, Decimal):
-            self.target_2_price = Decimal(str(self.target_2_price))
-        if self.target_3_price is not None and not isinstance(self.target_3_price, Decimal):
-            self.target_3_price = Decimal(str(self.target_3_price))
-        if self.prev_close is not None and not isinstance(self.prev_close, Decimal):
-            self.prev_close = Decimal(str(self.prev_close))
+        self.current_price = safe_decimal(self.current_price, self.current_price)
+        self.entry_price = safe_decimal(self.entry_price, self.entry_price)
+        self.active_stop = safe_decimal(self.active_stop, self.active_stop)
+        self.init_stop = safe_decimal(self.init_stop, self.init_stop)
+        self.target_1_price = safe_decimal(self.target_1_price, self.target_1_price)
+        self.target_2_price = safe_decimal(self.target_2_price, self.target_2_price)
+        self.target_3_price = safe_decimal(self.target_3_price, self.target_3_price)
+        self.prev_close = safe_decimal(self.prev_close, self.prev_close)
