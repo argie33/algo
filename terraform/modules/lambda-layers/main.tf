@@ -39,10 +39,6 @@ resource "aws_lambda_layer_version" "shared_deps" {
   source_code_hash         = filebase64sha256("${path.root}/lambda/shared-deps-layer.zip")
   compatible_architectures = ["x86_64"]
 
-  tags = merge(var.common_tags, {
-    Name = local.shared_deps.name
-  })
-
   lifecycle {
     create_before_destroy = true
   }
