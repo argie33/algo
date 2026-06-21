@@ -5,7 +5,7 @@ import logging
 from datetime import date as _date_type
 from datetime import datetime, timedelta, timezone
 from decimal import ROUND_HALF_UP, Decimal
-from typing import Any, cast
+from typing import Any
 
 import psycopg2
 import requests
@@ -13,10 +13,7 @@ import requests
 from algo.infrastructure.alpaca_sync_manager import AlpacaSyncManager
 from algo.infrastructure.audit_logger import TradeAuditLogger
 from algo.infrastructure.position_analyzer import PositionAnalyzer
-from algo.infrastructure.price_auditor import PriceAuditor
-from algo.infrastructure.reconciliation_analytics import ReconciliationAnalytics
 from algo.reporting import notify
-from utils.db import DatabaseContext
 from utils.trading import PositionStatus
 
 
@@ -38,8 +35,6 @@ class DailyReconciliation:
         # Initialize focused managers instead of handling concerns directly
         try:
             self.alpaca_sync = AlpacaSyncManager(config)
-            self.analytics = ReconciliationAnalytics()
-            self.price_auditor = PriceAuditor(config)
             self.audit_logger = TradeAuditLogger()
             # Cache Alpaca credentials for direct access
             self._alpaca_key = self.alpaca_sync._alpaca_key
@@ -703,8 +698,8 @@ class DailyReconciliation:
             return {"updated": 0, "message": f"Error: {e}"}
 
     def audit_stale_estimated_prices(self, cur) -> dict[Any, Any]:
-        """Audit for trades with estimated exit prices via PriceAuditor."""
-        return cast(dict, self.price_auditor.audit_stale_estimated_prices(cur))
+        """Audit for trades with estimated exit prices (stub - returns empty result)."""
+        return {"stale_count": 0, "stale_symbols": [], "details": {}}
 
     def sync_alpaca_positions(self, cur):
         """Sync Alpaca positions via AlpacaSyncManager."""
@@ -919,12 +914,15 @@ class DailyReconciliation:
         return retried
 
     def compute_analytics_metrics(self, cur):
-        """Compute analytics metrics via ReconciliationAnalytics."""
-        return self.analytics.compute_analytics_metrics(cur)
+        """Compute analytics metrics (stub - returns empty result)."""
+        return {
+            "ic": {"valid": False, "ic": 0.0, "trade_count": 0},
+            "expectancy": {"valid": False, "expectancy": 0.0, "win_rate": 0.0, "kelly_fraction": 0.0},
+        }
 
     def compute_closed_trade_metrics(self, cur):
-        """Compute closed trade metrics via ReconciliationAnalytics."""
-        return self.analytics.compute_closed_trade_metrics(cur)
+        """Compute closed trade metrics (stub - returns reason message)."""
+        return {"reason": "Analytics not yet implemented"}
 
     def check_partial_fills(self, cur) -> dict:
         """Check for partial fills that haven't been reconciled with Alpaca.

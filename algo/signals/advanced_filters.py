@@ -6,7 +6,7 @@ from typing import Any
 
 import psycopg2
 
-from algo.signals import SignalComputer
+from algo.signals.signal_api import SignalAPI
 from utils.db import DatabaseContext
 from utils.signals import GradeClassifier
 
@@ -41,7 +41,7 @@ class AdvancedFilters:
         self._strong_industries = None
         self._market_breadth = None
         self._sector_full_ranking = None
-        self._signals = None  # SignalComputer, lazy-init
+        self._signal_api = None  # SignalAPI, lazy-init
 
         # Validate critical signal filter config at init time (fail-fast)
         critical_config_keys = [
@@ -340,10 +340,10 @@ class AdvancedFilters:
         Raises:
             ValueError: If RS data unavailable (missing price history)
         """
-        if self._signals is None:
-            self._signals = SignalComputer()
+        if self._signal_api is None:
+            self._signal_api = SignalAPI()
 
-        rs_percentile = self._signals._rs_percentile_vs_spy(cur, symbol, signal_date, lookback=60)
+        rs_percentile = self._signal_api.rank_rs_percentile(cur, symbol, signal_date, lookback=60)
         # ValueError (missing data) and other errors propagate to caller
 
         pts = (rs_percentile / 100.0) * self.W_MOMENTUM_RS
@@ -441,12 +441,12 @@ class AdvancedFilters:
         Raises on data retrieval errors.
         """
         try:
-            if self._signals is None:
-                self._signals = SignalComputer()
-            base = self._signals.base_detection(symbol, signal_date)
-            vcp = self._signals.vcp_detection(symbol, signal_date)
-            pivot = self._signals.pivot_breakout(symbol, signal_date)
-            power = self._signals.power_trend(symbol, signal_date)
+            if self._signal_api is None:
+                self._signal_api = SignalAPI()
+            base = self._signal_api.detect_base(symbol, signal_date)
+            vcp = self._signal_api.detect_vcp(symbol, signal_date)
+            pivot = self._signal_api.detect_pivot(symbol, signal_date)
+            power = self._signal_api.detect_power_trend(symbol, signal_date)
         except ValueError as e:
             # Missing setup detection data — cannot proceed safely
             logger.error(f"Setup quality data unavailable for {symbol}: {e}")
