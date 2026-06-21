@@ -18,6 +18,7 @@ Alerts:
 
 import logging
 from datetime import date, datetime, timezone
+from decimal import ROUND_HALF_UP, Decimal
 from typing import Any
 
 import psycopg2
@@ -277,13 +278,14 @@ class ValueAtRisk:
 
                 for symbol, qty, cur_price, _entry_price in positions:
                     # CRITICAL: Do NOT use entry_price as fallback for current_price
-                    safe_price = safe_float(cur_price, default=0.0, context=f"{symbol} current_price")
-                    if cur_price is None or safe_price <= 0:
+                    safe_price = safe_float(cur_price, default=None, context=f"{symbol} current_price")
+                    safe_qty = safe_float(qty, default=None, context=f"{symbol} quantity")
+                    if cur_price is None or safe_price is None or safe_price <= 0 or safe_qty is None or safe_qty <= 0:
                         logger.warning(
-                            f"[VAR] {symbol}: missing or invalid current_price, skipping from VAR calculation"
+                            f"[VAR] {symbol}: missing or invalid current_price/quantity, skipping from VAR calculation"
                         )
                         continue
-                    position_value = safe_float(qty, default=0.0, context=f"{symbol} quantity") * safe_price
+                    position_value = safe_qty * safe_price
                     position_weight = position_value / portfolio_value if portfolio_value > 0 else 0
 
                     # Compute 60-day beta via covariance with SPY
@@ -300,7 +302,16 @@ class ValueAtRisk:
                             )
                             stock_rows = cur.fetchall()
                             if len(stock_rows) >= 2:
-                                stock_prices = list(reversed([safe_float(r[0], default=0.0, context=f"{symbol} close {i}") for i, r in enumerate(stock_rows)]))
+                                stock_prices = []
+                                for i, r in enumerate(stock_rows):
+                                    price = safe_float(r[0], default=None, context=f"{symbol} close {i}")
+                                    if price is None or price <= 0:
+                                        logger.warning(f"[VAR] {symbol}: invalid historical price for beta calc, skipping")
+                                        break
+                                    stock_prices.append(price)
+                                stock_prices = list(reversed(stock_prices))
+                                if len(stock_prices) < 2:
+                                    continue
                                 stock_returns = [
                                     (stock_prices[i] - stock_prices[i - 1]) / stock_prices[i - 1]
                                     for i in range(1, len(stock_prices))

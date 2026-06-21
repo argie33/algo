@@ -47,22 +47,27 @@ def safe_extract(data: dict[str, Any], *keys: str, defaults: dict[str, Any] | No
 
 
 def safe_get_dict(data: Any) -> dict[str, Any]:
-    """Get dict from data if not error, else empty dict."""
-    if isinstance(data, dict) and not has_error(data):
-        return data
-    return {}
+    """Get dict from data if not error. Fail-fast: raise if data is error or invalid."""
+    if not isinstance(data, dict):
+        raise TypeError(f"Expected dict but got {type(data).__name__}")
+    if has_error(data):
+        raise ValueError(f"Data contains error: {data.get('_error', 'unknown error')}")
+    return data
 
 
 def safe_get_list(data: Any) -> list:
-    """Get list from data if not error, else empty list."""
+    """Get list from data if not error. Fail-fast: raise if data is error or invalid."""
     if isinstance(data, list):
         return data
-    if isinstance(data, dict) and not has_error(data):
-        if "items" in data and isinstance(data["items"], list):
-            return data["items"]
-        if "data" in data and isinstance(data["data"], list):
-            return data["data"]
-    return []
+    if not isinstance(data, dict):
+        raise TypeError(f"Expected dict or list but got {type(data).__name__}")
+    if has_error(data):
+        raise ValueError(f"Data contains error: {data.get('_error', 'unknown error')}")
+    if "items" in data and isinstance(data["items"], list):
+        return data["items"]
+    if "data" in data and isinstance(data["data"], list):
+        return data["data"]
+    raise ValueError("No list found in data dict (expected 'items' or 'data' key)")
 
 
 def safe_get_field(data: dict[str, Any], field: str, default: Any = None) -> Any:
@@ -76,19 +81,23 @@ def safe_get_field(data: dict[str, Any], field: str, default: Any = None) -> Any
 def extract_config_params(cfg: dict[str, Any]) -> dict[str, Any]:
     """Extract common config display parameters.
 
-    Returns dict with all required config fields. No defaults—validation already
-    confirmed data presence at API boundary layer. Call only after has_error() check.
+    Fail-fast: All config fields are critical (validated at API boundary).
+    Raises KeyError if required fields missing.
     """
     if not isinstance(cfg, dict) or has_error(cfg):
         return {"_error": "Config data unavailable"}
+    required = ["mode", "enabled", "max_pos_n", "max_sec_n", "min_score", "base_risk", "t1_r"]
+    missing = [k for k in required if k not in cfg]
+    if missing:
+        raise KeyError(f"Config missing critical fields: {missing}")
     return {
-        "mode": cfg.get("mode"),
-        "enabled": cfg.get("enabled"),
-        "max_pos_n": cfg.get("max_pos_n"),
-        "max_sec_n": cfg.get("max_sec_n"),
-        "min_score": cfg.get("min_score"),
-        "base_risk": cfg.get("base_risk"),
-        "t1_r": cfg.get("t1_r"),
+        "mode": cfg["mode"],
+        "enabled": cfg["enabled"],
+        "max_pos_n": cfg["max_pos_n"],
+        "max_sec_n": cfg["max_sec_n"],
+        "min_score": cfg["min_score"],
+        "base_risk": cfg["base_risk"],
+        "t1_r": cfg["t1_r"],
     }
 
 
@@ -96,39 +105,45 @@ def extract_risk_metrics(risk: dict[str, Any]) -> dict[str, Any]:
     """Extract risk metrics for display (only if valid data).
 
     Fail-fast: Risk metrics (VaR, CVaR, Beta, concentration) are critical
-    financial data. Missing values are not replaced with 0; that would be
-    catastrophically misleading for position sizing. All fields must be
-    present after error check passes. Returns error marker if data invalid.
+    financial data. Missing values raise error—cannot position size with None.
+    Raises KeyError if required fields missing.
     """
     if not isinstance(risk, dict) or has_error(risk):
         return {"_error": "Risk metrics unavailable"}
+    required = ["var95", "cvar95", "svar", "beta", "conc5"]
+    missing = [k for k in required if k not in risk]
+    if missing:
+        raise KeyError(f"Risk metrics missing critical fields: {missing}")
     return {
-        "var95": risk.get("var95"),
-        "cvar95": risk.get("cvar95"),
-        "svar": risk.get("svar"),
-        "beta": risk.get("beta"),
-        "conc5": risk.get("conc5"),
+        "var95": risk["var95"],
+        "cvar95": risk["cvar95"],
+        "svar": risk["svar"],
+        "beta": risk["beta"],
+        "conc5": risk["conc5"],
     }
 
 
 def extract_run_info(run: dict[str, Any]) -> dict[str, Any]:
     """Extract run status info (error already checked).
 
-    Returns only for valid run data. If error present, caller should
-    have already checked has_error() and returned error panel.
-    Returns error marker if data invalid.
+    Fail-fast: success, halted, errored, run_id are critical.
+    Raises KeyError if required fields missing.
     """
     if not isinstance(run, dict) or has_error(run):
         return {"_error": "Run info unavailable"}
-    phase_results = run.get("phase_results")
-    if phase_results is None:
+    required = ["success", "halted", "errored", "run_id"]
+    missing = [k for k in required if k not in run]
+    if missing:
+        raise KeyError(f"Run info missing critical fields: {missing}")
+    phase_results = run.get("phase_results", [])
+    if not isinstance(phase_results, list):
         phase_results = []
     return {
-        "success": run.get("success"),
-        "halted": run.get("halted"),
-        "errored": run.get("errored"),
+        "success": run["success"],
+        "halted": run["halted"],
+        "errored": run["errored"],
         "run_at": run.get("run_at"),
-        "run_id": run.get("run_id"),
+        "run_id": run["run_id"],
         "phase_results": phase_results,
         "halt_reason": run.get("halt_reason"),
         "summary": run.get("summary"),
@@ -228,15 +243,23 @@ def extract_eval_funnel(sig_eval: dict[str, Any] | None) -> dict[str, Any]:
 
 
 def extract_portfolio_metrics(port: dict[str, Any]) -> dict[str, Any]:
-    """Extract portfolio metrics for display (error already checked)."""
+    """Extract portfolio metrics for display (error already checked).
+
+    Fail-fast: total_portfolio_value, total_cash, position_count are critical.
+    Raises KeyError if required fields missing.
+    """
     if not isinstance(port, dict) or has_error(port):
         return {"_error": "Portfolio data unavailable"}
+    required = ["total_portfolio_value", "total_cash", "position_count"]
+    missing = [k for k in required if k not in port]
+    if missing:
+        raise KeyError(f"Portfolio missing critical fields: {missing}")
     return {
-        "pv": port.get("total_portfolio_value"),
+        "pv": port["total_portfolio_value"],
         "dr": port.get("daily_return_pct"),
         "urp": port.get("unrealized_pnl_pct"),
-        "cash": port.get("total_cash"),
-        "npos": port.get("position_count"),
+        "cash": port["total_cash"],
+        "npos": port["position_count"],
         "cum": port.get("cumulative_return_pct"),
         "mxdd": port.get("max_drawdown_pct"),
         "lgpos": port.get("largest_position_pct"),
@@ -247,16 +270,19 @@ def extract_portfolio_metrics(port: dict[str, Any]) -> dict[str, Any]:
 def extract_performance_metrics(perf: dict[str, Any]) -> dict[str, Any]:
     """Extract performance metrics for display (error already checked).
 
-    Fail-fast: Do not fall back to empty lists for equity_vals and recent_rets.
-    If these are expected to exist, validation at API layer should have caught
-    missing data. If they're optional, caller should handle None values.
+    Fail-fast: total_trades, winning_trades, losing_trades are critical.
+    Raises KeyError if required fields missing.
     """
     if not isinstance(perf, dict) or has_error(perf):
         return {"_error": "Performance data unavailable"}
+    required = ["n", "w", "l"]
+    missing = [k for k in required if k not in perf]
+    if missing:
+        raise KeyError(f"Performance metrics missing critical fields: {missing}")
     return {
-        "n": perf.get("n"),
-        "w": perf.get("w"),
-        "l": perf.get("l"),
+        "n": perf["n"],
+        "w": perf["w"],
+        "l": perf["l"],
         "streak": perf.get("streak"),
         "pnl": perf.get("pnl"),
         "unrlzd": perf.get("unrealized_pnl"),
@@ -273,15 +299,23 @@ def extract_performance_metrics(perf: dict[str, Any]) -> dict[str, Any]:
 
 
 def extract_risk_data(risk: dict[str, Any]) -> dict[str, Any]:
-    """Extract risk data for display (error already checked)."""
+    """Extract risk data for display (error already checked).
+
+    Fail-fast: var95, cvar95, beta, conc5, svar are critical financial metrics.
+    Raises KeyError if required fields missing.
+    """
     if not isinstance(risk, dict) or has_error(risk):
         return {"_error": "Risk data unavailable"}
+    required = ["var95", "cvar95", "beta", "conc5", "svar"]
+    missing = [k for k in required if k not in risk]
+    if missing:
+        raise KeyError(f"Risk data missing critical fields: {missing}")
     return {
-        "var95": risk.get("var95"),
-        "cvar95": risk.get("cvar95"),
-        "beta": risk.get("beta"),
-        "conc5": risk.get("conc5"),
-        "svar": risk.get("svar"),
+        "var95": risk["var95"],
+        "cvar95": risk["cvar95"],
+        "beta": risk["beta"],
+        "conc5": risk["conc5"],
+        "svar": risk["svar"],
         "date": risk.get("date"),
     }
 

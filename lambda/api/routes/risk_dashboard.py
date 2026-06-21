@@ -337,10 +337,10 @@ def _get_position_sizing_audit(cur, days: int) -> dict:
                         row["signal_date"].isoformat() if row["signal_date"] else None
                     ),
                     "entry_price": (
-                        safe_float(row["entry_price"], default=0.0) if row["entry_price"] else None
+                        safe_float(row["entry_price"], default=None) if row["entry_price"] else None
                     ),
                     "stop_loss_price": (
-                        safe_float(row["stop_loss_price"], default=0.0)
+                        safe_float(row["stop_loss_price"], default=None)
                         if row["stop_loss_price"]
                         else None
                     ),
@@ -400,10 +400,10 @@ def _get_stop_loss_audit(cur, days: int) -> dict:
                         row["signal_date"].isoformat() if row["signal_date"] else None
                     ),
                     "entry_price": (
-                        safe_float(row["entry_price"], default=0.0) if row["entry_price"] else None
+                        safe_float(row["entry_price"], default=None) if row["entry_price"] else None
                     ),
                     "stop_loss_price": (
-                        safe_float(row["stop_loss_price"], default=0.0)
+                        safe_float(row["stop_loss_price"], default=None)
                         if row["stop_loss_price"]
                         else None
                     ),

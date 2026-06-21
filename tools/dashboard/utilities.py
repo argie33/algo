@@ -12,7 +12,7 @@ from zoneinfo import ZoneInfo
 
 from rich.console import Console
 
-from .data_validation import safe_float
+from utils.safe_data_conversion import safe_float
 
 
 # ── globals ───────────────────────────────────────────────────────────────────

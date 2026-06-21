@@ -199,9 +199,12 @@ class ExposurePolicy:
             _pnl_pct,
         ) = row
 
-        entry_price = safe_float(entry_price, default=0.0, context="entry_price")
-        init_stop = safe_float(init_stop, default=0.0, context="init_stop")
-        active_stop = safe_float(cur_stop, default=0.0, context="cur_stop") if cur_stop else init_stop
+        entry_price = safe_float(entry_price, default=None, context="entry_price")
+        init_stop = safe_float(init_stop, default=None, context="init_stop")
+        if entry_price is None or init_stop is None:
+            logger.warning(f"SKIP {symbol}: entry_price or init_stop missing/invalid. Cannot evaluate exposure policy.")
+            return None
+        active_stop = safe_float(cur_stop, default=init_stop, context="cur_stop") if cur_stop else init_stop
 
         # CRITICAL: target_hits configuration must be present. Do not mask missing config with fallback to 0.
         if target_hits is None:
@@ -211,11 +214,12 @@ class ExposurePolicy:
 
         # CRITICAL: Do NOT use entry_price as fallback for cur_price. This distorts risk evaluation.
         # cur_price must be valid; if missing, skip this position.
-        if not cur_price or safe_float(cur_price, default=0.0, context="cur_price") <= 0:
+        cur_price_float = safe_float(cur_price, default=None, context="cur_price")
+        if cur_price_float is None or cur_price_float <= 0:
             logger.warning(f"SKIP {symbol}: No valid current price in algo_positions. Cannot evaluate exposure policy.")
             return None
 
-        cur_price = safe_float(cur_price, default=0.0, context="cur_price")
+        cur_price = cur_price_float
 
         # R-multiple
         risk_per_share = entry_price - init_stop

@@ -86,6 +86,12 @@ def run(
 
         counts = {"tighten_stop": 0, "partial_exit": 0, "force_exit": 0}
         for action in actions:
+            if "action" not in action or "symbol" not in action or "reason" not in action:
+                raise RuntimeError(
+                    "[PHASE 3b] Exposure action missing required fields (action, symbol, reason). "
+                    "Cannot process exposure policy without all identifiers. "
+                    "Verify ExposurePolicy.review_existing_positions() returns valid action data."
+                )
             counts[action["action"]] = counts.get(action["action"], 0) + 1
 
         logger.info(f"\n  {len(actions)} exposure-policy actions:")

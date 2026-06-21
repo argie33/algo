@@ -11,7 +11,7 @@ from zoneinfo import ZoneInfo
 ET = ZoneInfo("America/New_York")
 
 from .api_data_layer import API_MAX_BACKOFF, api_call
-from .data_validation import (
+from utils.safe_data_conversion import (
     StrictValidationError,
     safe_bool,
     safe_float,

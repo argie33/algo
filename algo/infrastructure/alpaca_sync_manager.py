@@ -46,7 +46,7 @@ class AlpacaSyncManager:
             return cast(dict[str, Any], response.json())
         except (requests.RequestException, ValueError) as e:
             logger.error(f"Failed to fetch Alpaca account: {e}")
-            return {}
+            raise
 
     def sync_alpaca_positions(self, cur) -> dict[str, Any]:
         """Sync Alpaca positions to database.

@@ -22,7 +22,7 @@ from rich.panel import Panel
 from rich.table import Table
 from rich.text import Text
 
-from ..data_validation import safe_float
+from utils.safe_data_conversion import safe_float
 from ..formatters import (
     fmt_age,
     fmt_money_short,

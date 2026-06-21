@@ -586,7 +586,7 @@ def run(
                     liq_passed.append(candidate)
 
     logger.info(
-        f"[PHASE 7] Liquidity check: {liq_checked} checked, {len(liq_passed)} passed. "
+        f"[PHASE 5] Liquidity check: {liq_checked} checked, {len(liq_passed)} passed. "
         f"{len(quality_filtered) - liq_checked} unchecked candidates dropped."
     )
 

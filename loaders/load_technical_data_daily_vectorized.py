@@ -147,7 +147,7 @@ class VectorizedTechnicalLoader:
                     AND date >= %s AND date <= %s
                     ORDER BY symbol, date ASC
                 """
-                cur.execute(query, symbols + [start_date, end_date])
+                cur.execute(query, [*symbols, start_date, end_date])
                 rows = cur.fetchall()
 
                 # Convert to list of dicts for easier processing
@@ -332,14 +332,10 @@ class VectorizedTechnicalLoader:
 
                 results.append(symbol_df)
 
-            except (ValueError, TypeError, KeyError) as e:
+            except (ValueError, TypeError, KeyError, ZeroDivisionError) as e:
                 raise RuntimeError(
                     f"[INDICATORS] Failed to compute indicators for {symbol}: {e}. "
                     "Data may be corrupted or have invalid format."
-                ) from e
-            except (ValueError, ZeroDivisionError, TypeError) as e:
-                raise RuntimeError(
-                    f"[INDICATORS] Unexpected error computing indicators for {symbol}: {e}."
                 ) from e
 
         if not results:
@@ -435,7 +431,12 @@ class VectorizedTechnicalLoader:
             with DatabaseContext("write") as cur:
                 insert_df = df[columns]
 
+                # Prevent concurrent loaders from corrupting data: acquire explicit lock
+                # LOCK TABLE ensures serialized access to DELETE/INSERT operation
+                cur.execute("LOCK TABLE technical_data_daily IN EXCLUSIVE MODE")
+
                 # Delete existing rows for symbols being loaded (allows re-compute)
+                # Now protected by EXCLUSIVE lock — no other loader can interfere
                 symbols_to_load = insert_df["symbol"].unique().tolist()
                 placeholders = ",".join(["%s"] * len(symbols_to_load))
                 delete_sql = f"DELETE FROM technical_data_daily WHERE symbol IN ({placeholders})"

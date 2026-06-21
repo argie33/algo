@@ -425,8 +425,9 @@ class SignalQualityScoresLoader(OptimalLoader):
                 if row and row[0] is not None:
                     return {"institutional_ownership": safe_float(row[0], default=0.0, context="row[0]")}
         except (psycopg2.DatabaseError, psycopg2.OperationalError) as e:
-            logger.debug(f"Failed to fetch positioning data for {symbol}: {e}")
-        return {}
+            logger.error(f"Failed to fetch positioning data for {symbol}: {e}")
+            raise
+        return None
 
     def _compute_quality_scores(
         self,

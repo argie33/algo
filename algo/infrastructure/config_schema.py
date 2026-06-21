@@ -224,9 +224,21 @@ VALIDATION_SCHEMA = {
     "swing_score_excellent_threshold": ("int", 0, 100, False, None),
     "swing_score_good_threshold": ("int", 0, 100, False, None),
     # Loader Rate Limiting Configuration
-    "loader_rate_limit_circuit_break_threshold_morning": ("int", 0, 3600, False, None),
-    "loader_rate_limit_circuit_break_threshold_eod": ("int", 0, 3600, False, None),
-    "loader_rate_limit_requests_per_min": ("int", 0, 10000, False, None),
-    "loader_timeout_seconds": ("int", 0, 36000, False, None),
-    "loader_emergency_mode_threshold_multiplier": ("float", 0.01, 100.0, False, None),
+    "loader_rate_limit_circuit_break_threshold_morning": ("int", 0, 3600, False, 480),
+    "loader_rate_limit_circuit_break_threshold_eod": ("int", 0, 3600, False, 180),
+    "loader_rate_limit_requests_per_min": ("int", 0, 10000, False, 120),
+    "loader_timeout_seconds": ("int", 0, 36000, False, 300),
+    "loader_emergency_mode_threshold_multiplier": ("float", 0.01, 100.0, False, 0.5),
+    # Data Staleness Thresholds
+    "data_staleness_fresh_days": ("int", 1, 100, False, 3),
+    "data_staleness_stale_days_monday": ("int", 1, 100, False, 10),
+    "data_staleness_stale_days_other": ("int", 1, 100, False, 3),
+    # Signal Strength Thresholds
+    "signal_weak_threshold": ("float", 0.0, 100.0, False, 40.0),
+    "signal_medium_threshold": ("float", 0.0, 100.0, False, 60.0),
+    "signal_strong_threshold": ("float", 0.0, 100.0, False, 80.0),
+    # Dashboard Fetcher Failure Configuration
+    "dashboard_fetcher_failure_threshold": ("float", 0.0, 1.0, False, 0.5),
+    # Portfolio Variance Threshold
+    "portfolio_variance_threshold": ("float", 0.0, 1.0, False, 0.15),
 }

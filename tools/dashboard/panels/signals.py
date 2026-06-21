@@ -267,23 +267,23 @@ def _build_buy_signals_table(scored_with_signals: list, buy_sig_details: dict) -
     sig_table.add_column("Entry Q", justify="right", no_wrap=True, min_width=7)
 
     for score_item in scored_with_signals:
-        sym = score_item.get("symbol", "--")
-        comp_score = score_item.get("composite_score")
+        sym = safe_get_field(score_item, "symbol", "--")
+        comp_score = safe_get_field(score_item, "composite_score")
         sym_norm = str(sym).upper().strip()
         sig_obj = buy_sig_details.get(sym_norm)
 
         if sig_obj:
-            swing_score = sig_obj.get("swing_score") or sig_obj.get("signal_quality_score") or 0
-            entry_qual = sig_obj.get("entry_quality_score", swing_score)
-            buy_lvl = sig_obj.get("buylevel")
-            stop_lvl = sig_obj.get("stoplevel")
-            price = sig_obj.get("close") or score_item.get("current_price")
+            swing_score = safe_get_field(sig_obj, "swing_score") or safe_get_field(sig_obj, "signal_quality_score") or 0
+            entry_qual = safe_get_field(sig_obj, "entry_quality_score", swing_score)
+            buy_lvl = safe_get_field(sig_obj, "buylevel")
+            stop_lvl = safe_get_field(sig_obj, "stoplevel")
+            price = safe_get_field(sig_obj, "close") or safe_get_field(score_item, "current_price")
         else:
             swing_score = 0
             entry_qual = 0
             buy_lvl = None
             stop_lvl = None
-            price = score_item.get("current_price")
+            price = safe_get_field(score_item, "current_price")
 
         rr_ratio = None
         if buy_lvl and stop_lvl and float(stop_lvl) > 0:
@@ -345,15 +345,15 @@ def _build_scores_table(top_scores: list) -> list:
     t.add_column("Sector", no_wrap=True, max_width=12)
 
     for sc in top_scores[:15]:
-        sym = sc.get("symbol", "--")
-        comp = sc.get("composite_score")
-        mom = sc.get("momentum_score")
-        qual = sc.get("quality_score")
-        grwth = sc.get("growth_score")
-        stab = sc.get("stability_score")
-        rs_pct = sc.get("rs_percentile")
-        chg = sc.get("change_percent")
-        sector = (sc.get("sector", ""))[:12]
+        sym = safe_get_field(sc, "symbol", "--")
+        comp = safe_get_field(sc, "composite_score")
+        mom = safe_get_field(sc, "momentum_score")
+        qual = safe_get_field(sc, "quality_score")
+        grwth = safe_get_field(sc, "growth_score")
+        stab = safe_get_field(sc, "stability_score")
+        rs_pct = safe_get_field(sc, "rs_percentile")
+        chg = safe_get_field(sc, "change_percent")
+        sector = (safe_get_field(sc, "sector", ""))[:12]
         comp_v = float(comp) if comp is not None else 0
         sc_c = _composite_score_color(comp_v)
 
@@ -403,11 +403,11 @@ def panel_signals_compact(sig, sig_eval=None, scores=None):
 
     top_scores = None
     if scores and isinstance(scores, dict) and not has_error(scores):
-        top_scores = scores.get("top")
+        top_scores = safe_get_field(scores, "top")
     if not isinstance(top_scores, list):
         top_scores = []
 
-    buy_sigs = overview.get("buy_sigs")
+    buy_sigs = safe_get_field(overview, "buy_sigs")
     if not isinstance(buy_sigs, list):
         buy_sigs = []
 
@@ -432,19 +432,19 @@ def panel_signals_compact(sig, sig_eval=None, scores=None):
         rows.append(Text.from_markup(f"[{Y}][bold]TOP STOCK SCORES[/][/] [dim](all candidates)[/]"))
     rows.extend(_build_scores_table(top_scores))
 
-    near = overview.get("near") if overview.get("near") is not None else []
-    top_a = overview.get("top_a") if overview.get("top_a") is not None else []
+    near = safe_get_field(overview, "near") if safe_get_field(overview, "near") is not None else []
+    top_a = safe_get_field(overview, "top_a") if safe_get_field(overview, "top_a") is not None else []
     if near and top_a:
         rows.append(Rule(style="dim"))
         parts = []
         for a in near[:8]:
-            sc = safe_float(a.get("score"), default=0.0, context="score") if a.get("score") is not None else None
+            sc = safe_float(safe_get_field(a, "score"), default=0.0, context="score") if safe_get_field(a, "score") is not None else None
             sc_s = f"{sc:.0f}" if sc is not None else "--"
-            sym = a.get('symbol', '')
+            sym = safe_get_field(a, 'symbol', '')
             parts.append(f"[{CY}]{sym}[/][dim]{sc_s}[/]")
         rows.append(Text.from_markup("[dim]Near BUY (55-69):[/]  " + "  ".join(parts)))
 
-    age_s = f"  [dim]{fmt_age(overview.get('timestamp'))}[/]" if overview.get("timestamp") is not None else ""
+    age_s = f"  [dim]{fmt_age(safe_get_field(overview, 'timestamp'))}[/]" if safe_get_field(overview, "timestamp") is not None else ""
     title = "[bold magenta]TOP SCORES & SIGNALS[/]"
     return Panel(
         Group(*rows),
@@ -466,28 +466,28 @@ def panel_signals_expanded(sig, sig_eval=None, scores=None):
     if has_error(overview):
         return _error_panel("signals", {"_error": "Signal overview extraction failed"}, "SIGNALS", border="magenta")
 
-    raw = overview.get("n")
-    total = overview.get("total")
+    raw = safe_get_field(overview, "n")
+    total = safe_get_field(overview, "total")
 
     if raw is None or total is None:
         return _error_panel("signals", {"_error": "Missing signal counts"}, "SIGNALS", border="magenta")
 
     top_scores = None
     if scores and isinstance(scores, dict) and not has_error(scores):
-        top_scores = scores.get("top")
+        top_scores = safe_get_field(scores, "top")
     if not isinstance(top_scores, list):
         top_scores = []
 
-    buy_sigs = overview.get("buy_sigs")
+    buy_sigs = safe_get_field(overview, "buy_sigs")
     if not isinstance(buy_sigs, list):
         buy_sigs = []
-    ds = _format_signal_date(overview.get("date"))
+    ds = _format_signal_date(safe_get_field(overview, "date"))
 
-    grades = overview.get("grades") if overview.get("grades") is not None else {}
-    ga = int(grades.get("a")) if grades.get("a") is not None else None
-    gb = int(grades.get("b")) if grades.get("b") is not None else None
-    gc = int(grades.get("c")) if grades.get("c") is not None else None
-    gd = int(grades.get("d")) if grades.get("d") is not None else None
+    grades = safe_get_field(overview, "grades") if safe_get_field(overview, "grades") is not None else {}
+    ga = int(safe_get_field(grades, "a")) if safe_get_field(grades, "a") is not None else None
+    gb = int(safe_get_field(grades, "b")) if safe_get_field(grades, "b") is not None else None
+    gc = int(safe_get_field(grades, "c")) if safe_get_field(grades, "c") is not None else None
+    gd = int(safe_get_field(grades, "d")) if safe_get_field(grades, "d") is not None else None
 
     ga_s = f"{ga}" if ga is not None else "--"
     gb_s = f"{gb}" if gb is not None else "--"
@@ -504,16 +504,16 @@ def panel_signals_expanded(sig, sig_eval=None, scores=None):
         ),
     ]
 
-    top_a = overview.get("top_a") if overview.get("top_a") is not None else []
+    top_a = safe_get_field(overview, "top_a") if safe_get_field(overview, "top_a") is not None else []
     if top_a:
         parts = []
         for s in top_a:
-            sc = safe_float(s.get("score"), default=0.0, context="score") if s.get("score") is not None else None
+            sc = safe_float(safe_get_field(s, "score"), default=0.0, context="score") if safe_get_field(s, "score") is not None else None
             if sc is not None:
                 sc_c = G if sc >= 90 else ("bright_green" if sc >= 85 else "green")
-                parts.append(f"[{sc_c}]{s.get('symbol', '')}[/][dim]{sc:.0f}[/]")
+                parts.append(f"[{sc_c}]{safe_get_field(s, 'symbol', '')}[/][dim]{sc:.0f}[/]")
             else:
-                parts.append(f"[dim]{s.get('symbol', '')}[/][dim]--[/]")
+                parts.append(f"[dim]{safe_get_field(s, 'symbol', '')}[/][dim]--[/]")
         rows.append(Text.from_markup("[dim]A-grade radar:[/] " + "  ".join(parts)))
 
     rows.extend(_build_funnel_row(sig_eval))
@@ -549,26 +549,26 @@ def panel_signals_expanded(sig, sig_eval=None, scores=None):
         sig_tbl.add_column("Sector", no_wrap=True, max_width=14)
 
         for sc in top_scores:
-            sym = str(sc.get("symbol", "--"))
+            sym = str(safe_get_field(sc, "symbol", "--"))
             sym_norm = sym.upper().strip()
-            comp = sc.get("composite_score")
-            mom = sc.get("momentum_score")
-            qual = sc.get("quality_score")
-            val = sc.get("value_score")
-            grwth = sc.get("growth_score")
-            stab = sc.get("stability_score")
-            pos = sc.get("positioning_score")
-            rs_pct = sc.get("rs_percentile")
-            price = sc.get("current_price")
-            chg = sc.get("change_percent")
-            mom_inputs = sc.get("momentum_inputs")
-            vs50 = sc.get("price_vs_sma_50")
+            comp = safe_get_field(sc, "composite_score")
+            mom = safe_get_field(sc, "momentum_score")
+            qual = safe_get_field(sc, "quality_score")
+            val = safe_get_field(sc, "value_score")
+            grwth = safe_get_field(sc, "growth_score")
+            stab = safe_get_field(sc, "stability_score")
+            pos = safe_get_field(sc, "positioning_score")
+            rs_pct = safe_get_field(sc, "rs_percentile")
+            price = safe_get_field(sc, "current_price")
+            chg = safe_get_field(sc, "change_percent")
+            mom_inputs = safe_get_field(sc, "momentum_inputs")
+            vs50 = safe_get_field(sc, "price_vs_sma_50")
             if vs50 is None and mom_inputs and isinstance(mom_inputs, dict):
-                vs50 = mom_inputs.get("price_vs_sma_50")
-            vs200 = sc.get("price_vs_sma_200")
+                vs50 = safe_get_field(mom_inputs, "price_vs_sma_50")
+            vs200 = safe_get_field(sc, "price_vs_sma_200")
             if vs200 is None and mom_inputs and isinstance(mom_inputs, dict):
-                vs200 = mom_inputs.get("price_vs_sma_200")
-            sector = (sc.get("sector", ""))[:14]
+                vs200 = safe_get_field(mom_inputs, "price_vs_sma_200")
+            sector = (safe_get_field(sc, "sector", ""))[:14]
             comp_v = float(comp) if comp is not None else 0
             sc_c = _composite_score_color(comp_v)
 

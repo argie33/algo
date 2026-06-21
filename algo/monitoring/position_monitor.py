@@ -956,6 +956,10 @@ class PositionMonitor:
         sp_name = f"sp_persist_review_{rec['position_id']}"
         cur.execute(f"SAVEPOINT {sp_name}")
         try:
+            current_price = safe_float(rec["current_price"], default=None, context="current_price")
+            quantity = safe_float(rec["quantity"], default=None, context="quantity")
+            if current_price is None or quantity is None:
+                raise ValueError(f"Cannot persist review for position {rec['position_id']}: current_price or quantity missing")
             cur.execute(
                 """
                 UPDATE algo_positions
@@ -968,11 +972,11 @@ class PositionMonitor:
                 WHERE position_id = %s
                 """,
                 (
-                    safe_float(rec["current_price"], default=0.0, context="current_price"),
-                    safe_float(rec["quantity"], default=0.0, context="quantity"),
-                    safe_float(rec["current_price"], default=0.0, context="current_price"),
-                    safe_float(rec["current_price"], default=0.0, context="current_price"),
-                    safe_float(rec["current_price"], default=0.0, context="current_price"),
+                    current_price,
+                    quantity,
+                    current_price,
+                    current_price,
+                    current_price,
                     int(rec["days_held"]),
                     rec["position_id"],
                 ),

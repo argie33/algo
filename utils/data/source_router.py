@@ -152,8 +152,11 @@ class DataSourceRouter:
         self,
         sources: list[tuple],  # [(name, callable), ...]
         request_desc: str,
-    ) -> Any | None:
-        """Try sources in order, skipping paused ones, recording outcomes."""
+    ) -> Any:
+        """Try sources in order, fail-fast if all fail (no fallback to None).
+
+        Raises: Exception from last attempted source if all fail.
+        """
         last_exc = None
         for i, (name, fn) in enumerate(sources):
             health = self._get_health(name)
@@ -176,20 +179,18 @@ class DataSourceRouter:
                 if i < len(sources) - 1:
                     next_source = sources[i + 1][0]
                     logger.warning(
-                        "[DataSourceRouter] Primary source '%s' failed for %s: %s. Falling back to '%s'.",
+                        "[DataSourceRouter] Primary source '%s' failed for %s: %s. Trying '%s'.",
                         name,
                         request_desc,
                         e,
                         next_source,
                     )
                 else:
-                    logger.debug(f"Source '{name}' failed for {request_desc}: {e}")
+                    logger.error(f"All sources exhausted for {request_desc}: {e}")
                 continue
         if last_exc:
-            logger.warning(
-                "All sources failed for %s. Last error: %s", request_desc, last_exc
-            )
-        return None
+            raise last_exc
+        raise RuntimeError(f"All sources failed or paused for {request_desc} (no exception captured)")
 
     # ============== OHLCV ==============
 
@@ -230,7 +231,7 @@ class DataSourceRouter:
         end: date,
         interval: str = "1d",
     ) -> dict[str, list[dict] | None]:
-        """Batch fetch OHLCV for multiple symbols. Returns dict[symbol] -> rows or None."""
+        """Batch fetch OHLCV for multiple symbols. Fail-fast: raises on error."""
         sources = [
             (
                 "yfinance",
@@ -239,10 +240,9 @@ class DataSourceRouter:
                 ),
             ),
         ]
-        results = self._try_chain(
+        return self._try_chain(
             sources, f"OHLCV_BATCH[{len(symbols)} symbols {start}..{end} {interval}]"
         )
-        return results if results else dict.fromkeys(symbols)
 
     @retry(max_attempts=2, base_delay=2.0, exceptions=(Exception,))
     def _fetch_yfinance_ohlcv(

@@ -1,9 +1,12 @@
 #!/usr/bin/env python3
 
 """
-Circuit Breakers - Kill-switch risk halts (institutional safety layer)
+Trading Risk Management Gates (Pre-Trade Kill-Switches)
 
-Halts trading when any of these fire:
+IMPORTANT: This is NOT a general-purpose circuit breaker for API/data handling.
+Use utils.infrastructure.circuit_breaker:CircuitBreaker for data loader outage handling.
+
+This module implements pre-trade risk checks that halt new position entry:
   CB1. PORTFOLIO DRAWDOWN  >= halt_drawdown_pct (default 20%)
   CB2. DAILY LOSS          >= max_daily_loss_pct (default 2%)
   CB3. CONSECUTIVE LOSSES  >= max_consecutive_losses (default 3)

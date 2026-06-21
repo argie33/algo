@@ -637,6 +637,76 @@ class AlgoConfig:
             "int",
             "Grace period before triggering second failsafe (min). Morning window 2-9:30AM=450min; expected load ~285min; allows 2:00+240m=6:00 expiry, second loader 6:00+285mâ‰ˆ11:30am (acceptable). Must be <390 (450-60 Phase 2-7 buffer). Too long: no retry time. Too short: false positives if load is slow.",
         ),
+        # Loader Rate Limiting Configuration
+        "loader_rate_limit_circuit_break_threshold_morning": (
+            "480",
+            "int",
+            "Circuit break threshold (seconds) during morning prep (8 min)",
+        ),
+        "loader_rate_limit_circuit_break_threshold_eod": (
+            "180",
+            "int",
+            "Circuit break threshold (seconds) during EOD (3 min)",
+        ),
+        "loader_rate_limit_requests_per_min": (
+            "120",
+            "int",
+            "Rate limit: maximum requests per minute",
+        ),
+        "loader_timeout_seconds": (
+            "300",
+            "int",
+            "Loader operation timeout in seconds",
+        ),
+        "loader_emergency_mode_threshold_multiplier": (
+            "0.5",
+            "float",
+            "Emergency mode triggered at N% of task timeout",
+        ),
+        # Data Staleness Thresholds
+        "data_staleness_fresh_days": (
+            "3",
+            "int",
+            "Data age (days) considered fresh",
+        ),
+        "data_staleness_stale_days_monday": (
+            "10",
+            "int",
+            "Data age (days) on Monday to be considered stale",
+        ),
+        "data_staleness_stale_days_other": (
+            "3",
+            "int",
+            "Data age (days) on non-Monday to be considered stale",
+        ),
+        # Signal Strength Thresholds
+        "signal_weak_threshold": (
+            "40.0",
+            "float",
+            "Signal score below this = weak signal",
+        ),
+        "signal_medium_threshold": (
+            "60.0",
+            "float",
+            "Signal score 40-60 (by default) = medium strength",
+        ),
+        "signal_strong_threshold": (
+            "80.0",
+            "float",
+            "Signal score 60-80 = strong, >=80 = very strong",
+        ),
+        # Dashboard Fetcher Failure Configuration
+        "dashboard_fetcher_failure_threshold": (
+            "0.5",
+            "float",
+            "Dashboard: if >N% of fetchers fail, enter degraded mode",
+        ),
+        # Portfolio Variance Threshold
+        "portfolio_variance_threshold": (
+            "0.15",
+            "float",
+            "Portfolio variance threshold to trigger CB circuit breaker",
+        ),
     }
 
     def __init__(self):

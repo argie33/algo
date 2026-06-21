@@ -22,7 +22,7 @@ from rich.rule import Rule
 from rich.table import Table
 from rich.text import Text
 
-from ..data_validation import safe_float
+from utils.safe_data_conversion import safe_float
 from ..error_boundary import has_error
 from ..formatters import (
     fmt_age,

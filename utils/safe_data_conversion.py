@@ -17,6 +17,10 @@ from typing import Any, overload
 
 logger = logging.getLogger(__name__)
 
+
+class StrictValidationError(Exception):
+    """Raised when data conversion fails in strict mode (required for finance paths)."""
+
 # Eastern timezone for market hours
 EASTERN_TZ = timezone.utc
 
@@ -26,79 +30,102 @@ EASTERN_TZ = timezone.utc
 
 
 @overload
-def safe_float(value: Any, default: float, context: str = "") -> float: ...
+def safe_float(value: Any, default: float, *, context: str = "", strict: bool = False, field_name: str | None = None) -> float: ...
 
 
 @overload
-def safe_float(value: Any, default: None, context: str = "") -> float | None: ...
+def safe_float(value: Any, default: None, *, context: str = "", strict: bool = False, field_name: str | None = None) -> float | None: ...
 
 
 @overload
-def safe_float(value: Any, *, context: str = "") -> float | None: ...
+def safe_float(value: Any, *, context: str = "", strict: bool = False, field_name: str | None = None) -> float | None: ...
 
 
-def safe_float(value: Any, default: float | None = 0.0, context: str = "") -> float | None:
+def safe_float(
+    value: Any,
+    default: float | None = 0.0,
+    *,
+    context: str = "",
+    strict: bool = False,
+    field_name: str | None = None,
+) -> float | None:
     """Convert value to float safely, handling NaN, Infinity, None.
 
     Args:
         value: Value to convert (can be str, int, float, None)
-        default: Default value if conversion fails (can be None for optional fields)
+        default: Default value if conversion fails (0.0 for permissive, None for strict)
         context: Context string for logging (e.g., "symbol=AAPL, field=price")
+        strict: If True, raise StrictValidationError instead of returning default
+        field_name: Field name for error logging (preferred over context for new code)
 
     Returns:
         Float value or default if conversion fails
 
     Raises:
-        ValueError: If value is NaN or Infinity (fails fast — required for calculations like position sizing)
+        ValueError: If value is NaN or Infinity (always fails fast — required for calculations)
+        StrictValidationError: If strict=True and conversion fails
     """
+    # Use field_name if provided, otherwise fall back to context
+    error_ctx = f"for {field_name}" if field_name else context
+
     if value is None:
+        if strict:
+            raise StrictValidationError(f"Cannot convert None to float {error_ctx}")
+        if default == 0.0:
+            logger.warning(f"Converting None to 0.0 {error_ctx}—finance data should use strict=True or default=None")
         return default
 
     if isinstance(value, bool):
+        if strict:
+            raise StrictValidationError(f"Cannot convert bool to float {error_ctx}")
         return default
 
     try:
         f = float(value)
     except (ValueError, TypeError) as e:
-        logger.warning(f"Failed to convert {value!r} to float {context}: {e}")
+        if strict:
+            raise StrictValidationError(f"Cannot convert {field_name or 'value'}={value!r} to float {error_ctx}: {e}") from e
+        if default == 0.0:
+            logger.warning(f"Failed to convert {value!r} to float {error_ctx} (returning 0.0—use strict=True for finance): {e}")
+        else:
+            logger.warning(f"Failed to convert {value!r} to float {error_ctx}: {e}")
         return default
 
     # Reject NaN and Infinity explicitly — fail fast instead of silently returning 0.0.
     # Position sizing, risk calculations, and other critical paths require valid data.
     # Silent degradation to 0.0 masks data errors that should be fixed, not ignored.
     if math.isnan(f):
-        msg = f"NaN value in critical calculation {context} — data error must be fixed"
+        msg = f"NaN value in critical calculation {error_ctx} — data error must be fixed"
         logger.error(msg)
         raise ValueError(msg)
     if math.isinf(f):
-        msg = f"Infinity value in critical calculation {context} — data error must be fixed"
+        msg = f"Infinity value in critical calculation {error_ctx} — data error must be fixed"
         logger.error(msg)
         raise ValueError(msg)
 
     return f
 
 
-def safe_float_strict(value: Any, context: str = "") -> float | None:
-    """Convert value to float safely, returning None on failure (strict mode).
+def safe_float_strict(value: Any, context: str = "", field_name: str | None = None) -> float:
+    """Convert value to float in strict mode. Raises StrictValidationError if fails.
 
-    For use in optional fields where None is appropriate.
+    For use in critical financial paths where None is NOT acceptable.
+
+    Args:
+        value: Value to convert
+        context: Context string for logging (deprecated, use field_name)
+        field_name: Field name for error logging
+
+    Returns:
+        float (never None)
+
+    Raises:
+        StrictValidationError: If conversion fails or value is None/NaN/Infinity
     """
-    if value is None:
-        return None
-
-    if isinstance(value, bool):
-        return None
-
-    try:
-        f = float(value)
-
-        if math.isnan(f) or math.isinf(f):
-            logger.warning(f"Invalid float value {value!r} {context}")
-            return None
-
-        return f
-    except (ValueError, TypeError):
-        return None
+    result = safe_float(value, default=None, context=context, strict=True, field_name=field_name)
+    if result is None:
+        raise StrictValidationError(f"safe_float_strict returned None for {field_name or context}")
+    return result
 
 
 # ──────────────────────────────────────────────────────────────────────────────
@@ -106,53 +133,208 @@ def safe_float_strict(value: Any, context: str = "") -> float | None:
 # ──────────────────────────────────────────────────────────────────────────────
 
 
-def safe_int(value: Any, default: int = 0, context: str = "") -> int:
+def safe_int(
+    value: Any,
+    default: int | None = 0,
+    *,
+    context: str = "",
+    strict: bool = False,
+    field_name: str | None = None,
+) -> int | None:
     """Convert value to int safely, handling None, invalid strings.
 
     Args:
         value: Value to convert (can be str, int, float, None)
-        default: Default value if conversion fails
-        context: Context string for logging
+        default: Default value if conversion fails (0 for permissive, None for strict)
+        context: Context string for logging (deprecated, use field_name)
+        strict: If True, raise StrictValidationError instead of returning default
+        field_name: Field name for error logging
 
     Returns:
         Int value or default if conversion fails
+
+    Raises:
+        StrictValidationError: If strict=True and conversion fails
     """
+    error_ctx = f"for {field_name}" if field_name else context
+
     if value is None:
+        if strict:
+            raise StrictValidationError(f"Cannot convert None to int {error_ctx}")
+        if default == 0:
+            logger.warning(f"Converting None to 0 {error_ctx}—trade counts should use strict=True or default=None")
         return default
 
     if isinstance(value, bool):
+        if strict:
+            raise StrictValidationError(f"Cannot convert bool to int {error_ctx}")
         return default
 
     try:
         return int(value)
     except (ValueError, TypeError) as e:
-        logger.warning(f"Failed to convert {value!r} to int {context}: {e}")
+        if strict:
+            raise StrictValidationError(f"Cannot convert {field_name or 'value'}={value!r} to int {error_ctx}: {e}") from e
+        if default == 0:
+            logger.warning(f"Failed to convert {value!r} to int {error_ctx} (returning 0—use strict=True for finance): {e}")
+        else:
+            logger.warning(f"Failed to convert {value!r} to int {error_ctx}: {e}")
         return default
 
 
-def safe_int_strict(value: Any, context: str = "") -> int | None:
-    """Convert value to int safely, returning None on failure (strict mode).
+def safe_int_strict(value: Any, context: str = "", field_name: str | None = None) -> int:
+    """Convert value to int in strict mode. Raises StrictValidationError if fails.
 
-    For use in optional fields where None is appropriate.
+    For use in critical paths where None is NOT acceptable.
 
     Args:
-        value: Value to convert (can be str, int, float, None)
-        context: Context string for logging
+        value: Value to convert
+        context: Context string for logging (deprecated, use field_name)
+        field_name: Field name for error logging
 
     Returns:
-        Int value or None if conversion fails
+        int (never None)
+
+    Raises:
+        StrictValidationError: If conversion fails or value is None
+    """
+    result = safe_int(value, default=None, context=context, strict=True, field_name=field_name)
+    if result is None:
+        raise StrictValidationError(f"safe_int_strict returned None for {field_name or context}")
+    return result
+
+
+# ──────────────────────────────────────────────────────────────────────────────
+# JSON PARSING
+# ──────────────────────────────────────────────────────────────────────────────
+
+
+def safe_json_parse(
+    value: Any,
+    default: Any = None,
+    *,
+    context: str = "",
+    strict: bool = False,
+    field_name: str | None = None,
+) -> Any:
+    """Parse JSON string with configurable failure behavior.
+
+    Args:
+        value: Value to parse (string, dict, list, or None)
+        default: Value to return on parse failure (None for strict mode, {} for permissive)
+        context: Context string for logging (deprecated, use field_name)
+        strict: If True, raise StrictValidationError instead of returning default
+        field_name: Field name for error logging
+
+    Returns:
+        Parsed object, or default value, or raises StrictValidationError (if strict=True)
     """
     if value is None:
-        return None
+        if strict:
+            raise StrictValidationError(f"Cannot parse None as JSON {field_name or context}")
+        return default if default is not None else {}
+
+    # If it's already parsed, return as-is
+    if isinstance(value, (dict, list)):
+        return value
+
+    # If it's a string, try to parse
+    if isinstance(value, str):
+        try:
+            return json.loads(value)
+        except json.JSONDecodeError as e:
+            if strict:
+                raise StrictValidationError(f"Cannot parse JSON {field_name or context}: {e}. Value: {value[:100]}") from e
+            logger.warning(f"Failed to parse JSON {field_name or context}: {e}. Value: {value[:100]}")
+            return default if default is not None else {}
+
+    # For unexpected types
+    if strict:
+        raise StrictValidationError(f"Expected string or dict {field_name or context}, got {type(value).__name__}: {value!r}")
+    logger.warning(f"Expected string or dict {field_name or context}, got {type(value).__name__}: {value!r}")
+    return default if default is not None else {}
+
+
+def safe_json_parse_strict(value: Any, context: str = "", field_name: str | None = None) -> Any:
+    """Parse JSON in strict mode. Raises StrictValidationError if fails."""
+    return safe_json_parse(value, default=None, context=context, strict=True, field_name=field_name)
+
+
+# ──────────────────────────────────────────────────────────────────────────────
+# BOOL CONVERSION
+# ──────────────────────────────────────────────────────────────────────────────
+
+
+def safe_bool(value: Any, default: bool = False, field_name: str | None = None) -> bool:
+    """Safely convert value to bool with logging.
+
+    Args:
+        value: Value to convert (bool, str, int, etc.)
+        default: Default value if conversion fails
+        field_name: Field name for error logging
+
+    Returns:
+        bool value or default if conversion fails
+    """
+    if value is None:
+        return default
 
     if isinstance(value, bool):
-        return None
+        return value
+
+    if isinstance(value, str):
+        val_lower = value.lower().strip()
+        if val_lower in ("true", "1", "yes", "on"):
+            return True
+        elif val_lower in ("false", "0", "no", "off", ""):
+            return False
+        else:
+            if field_name:
+                logger.warning(f"Cannot convert {field_name}={value!r} to bool")
+            else:
+                logger.warning(f"Cannot convert {value!r} to bool")
+            return default
 
     try:
-        return int(value)
-    except (ValueError, TypeError):
-        logger.warning(f"Failed to convert {value!r} to int (strict) {context}")
-        return None
+        return bool(value)
+    except Exception as e:
+        if field_name:
+            logger.warning(f"Failed to convert {field_name}={value!r} to bool: {e}")
+        else:
+            logger.warning(f"Failed to convert {value!r} to bool: {e}")
+        return default
+
+
+# ──────────────────────────────────────────────────────────────────────────────
+# STRING CONVERSION
+# ──────────────────────────────────────────────────────────────────────────────
+
+
+def safe_str(value: Any, default: str = "", field_name: str | None = None) -> str:
+    """Safely convert value to string with logging.
+
+    Args:
+        value: Value to convert
+        default: Default value if conversion fails
+        field_name: Field name for error logging
+
+    Returns:
+        str value or default if conversion fails
+    """
+    if value is None:
+        return default
+
+    if isinstance(value, str):
+        return value
+
+    try:
+        return str(value)
+    except Exception as e:
+        if field_name:
+            logger.warning(f"Failed to convert {field_name}={value!r} to str: {e}")
+        else:
+            logger.warning(f"Failed to convert {value!r} to str: {e}")
+        return default
 
 
 # ──────────────────────────────────────────────────────────────────────────────
@@ -224,38 +406,6 @@ def safe_parse_datetime_et(value: Any, context: str = "") -> datetime | None:
             return None
 
     return None
-
-
-# ──────────────────────────────────────────────────────────────────────────────
-# JSON PARSING
-# ──────────────────────────────────────────────────────────────────────────────
-
-
-def safe_json_loads(json_str: Any, default: Any = None, context: str = "") -> Any:
-    """Parse JSON string safely with proper error logging.
-
-    Args:
-        json_str: JSON string or already-parsed object
-        default: Default value if parsing fails
-        context: Context string for logging
-
-    Returns:
-        Parsed object or default value
-    """
-    if isinstance(json_str, (dict, list)):
-        return json_str
-
-    if not isinstance(json_str, str):
-        logger.warning(
-            f"JSON parse: expected string, got {type(json_str).__name__} {context}"
-        )
-        return default
-
-    try:
-        return json.loads(json_str)
-    except (json.JSONDecodeError, ValueError) as e:
-        logger.warning(f"JSON parse failed {context}: {e}")
-        return default
 
 
 def safe_json_get(obj: Any, key: str, default: Any = None, context: str = "") -> Any:
