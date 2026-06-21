@@ -3,7 +3,7 @@
 import time
 from datetime import date as _date
 from datetime import datetime, timedelta
-from typing import Any
+from typing import Any, cast
 
 from .error_boundary import has_error
 from .utilities import (
@@ -132,7 +132,7 @@ def is_open() -> bool:
         return 570 <= t <= 960
 
 
-def mkt_hours_str() -> tuple:
+def mkt_hours_str() -> tuple[str, str]:
     """Returns (status_markup, countdown_str) reflecting pre-mkt/open/after-hrs/closed.
 
     Uses MarketCalendar for accurate trading hours including holidays and early closes.
@@ -216,7 +216,7 @@ def next_run_str() -> str:
         and _schedule_cache["timestamp"] is not None
         and (now - _schedule_cache["timestamp"]) < _SCHEDULE_CACHE_TTL
     ):
-        return _schedule_cache["result"]
+        return cast(str, _schedule_cache["result"])
 
     try:
         from .api_data_layer import api_call

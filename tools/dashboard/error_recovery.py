@@ -9,6 +9,7 @@ from collections.abc import Callable
 from dataclasses import dataclass, field
 from datetime import datetime, timedelta
 from enum import Enum
+from typing import cast
 
 from rich.layout import Layout
 from rich.panel import Panel
@@ -173,11 +174,11 @@ class RenderRecovery:
         For transient errors, reloading data may help recover from API issues.
         """
         with self._lock:
-            return (
+            return cast(bool, (
                 self.state.error_category == ErrorCategory.TRANSIENT
                 and self.state.retry_count > 0
                 and self.state.should_retry()
-            )
+            ))
 
     def get_recovery_status(self) -> str:
         """Get recovery status message (thread-safe).
@@ -186,7 +187,7 @@ class RenderRecovery:
             Human-readable recovery status string, or empty string if no error.
         """
         with self._lock:
-            return self.state.get_recovery_status()
+            return cast(str, self.state.get_recovery_status())
 
     def _create_loading_panel(self, status: str) -> Layout:
         """Create a loading panel for backoff periods."""
