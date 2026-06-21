@@ -13,6 +13,7 @@ from routes.utils import (
     safe_json_serialize,
     success_response,
 )
+from utils.safe_data_conversion import safe_float
 
 from utils.safe_data_conversion import safe_float
 
@@ -396,7 +397,7 @@ def _handle_pipeline(cur, jwt_claims: dict[str, Any] | None) -> dict[str, Any]:
         config = get_config()
         tables = []
         for row in rows:
-            age = safe_float(row.get("age_days"), default=0.0, context="age_days") if row.get("age_days") is not None else 999
+            age = safe_safe_float(row.get("age_days"), default=0.0, context="age_days") if row.get("age_days") is not None else 999
             row_count = row.get("row_count")
             if (
                 age <= config.pipeline_healthy_days
