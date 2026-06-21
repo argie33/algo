@@ -14,6 +14,7 @@ import psycopg2
 
 from algo.infrastructure import MarketCalendar
 from algo.orchestrator.phase_executor import OrchestratorPhaseExecutor, PhaseDefinition
+from algo.orchestrator.phase_registry import PhaseRegistry
 from algo.reporting import AlertManager
 from monitoring.metrics_context import (
     TimeBlock,
@@ -189,7 +190,7 @@ class Orchestrator:
                         hours_halted = (now_utc - trigger_dt).total_seconds() / 3600
                         reason = item.get("reason")
                         if not reason:
-                            logger.warning(f"[HALT_FLAG] Halt flag set but missing 'reason' field")
+                            logger.warning("[HALT_FLAG] Halt flag set but missing 'reason' field")
                             reason = "Unknown"
                         logger.critical(
                             f"[HALT_FLAG_ACTIVE] HALT FLAG DETECTED on {now_date_et}. "
@@ -209,7 +210,7 @@ class Orchestrator:
 
                 reason = item.get("reason")
                 if not reason:
-                    logger.warning(f"[HALT_FLAG] Halt flag set but missing 'reason' field")
+                    logger.warning("[HALT_FLAG] Halt flag set but missing 'reason' field")
                     reason = "Unknown"
                 logger.critical(
                     f"[HALT_FLAG_ACTIVE] HALT FLAG DETECTED (could not parse timestamp). Reason: {reason[:150]}"
@@ -956,114 +957,45 @@ class Orchestrator:
     def _setup_executor(self) -> OrchestratorPhaseExecutor:
         """Create and configure the phase executor.
 
-        Registers all phases with their dependencies, transforming the monolithic
-        run() control flow into a declarative phase graph.
+        Loads phase definitions from PhaseRegistry and wires executor methods.
+        Eliminates Shotgun Surgery: adding a phase is now a single registry entry,
+        not multiple method additions and orchestrator changes.
 
         Returns:
             OrchestratorPhaseExecutor ready to execute all phases.
         """
         executor = OrchestratorPhaseExecutor(config=self.config, halt_check_fn=self._check_halt_flag)
 
-        # Phase 1: Data Freshness
-        executor.register_phase(
-            PhaseDefinition(
-                phase_num=1,
-                phase_name="DATA FRESHNESS CHECK",
-                dependencies=[],
-                execute_fn=self._executor_phase_1,
-                skip_if_halted=False,
-            )
-        )
+        # Wire phase executor functions from registry
+        phase_executors: dict[int | str, Any] = {
+            1: self._executor_phase_1,
+            2: self._executor_phase_2,
+            3: self._executor_phase_3,
+            4: self._executor_phase_4,
+            5: self._executor_phase_5,
+            6: self._executor_phase_6,
+            7: self._executor_phase_7,
+            8: self._executor_phase_8,
+            9: self._executor_phase_9,
+        }
 
-        # Phase 2: Circuit Breakers (depends on Phase 1)
-        executor.register_phase(
-            PhaseDefinition(
-                phase_num=2,
-                phase_name="CIRCUIT BREAKERS",
-                dependencies=[1],
-                execute_fn=self._executor_phase_2,
-                skip_if_halted=False,
-            )
-        )
+        # Register all phases from registry with their metadata
+        for phase_entry in PhaseRegistry.get_all_phases():
+            # Wire the executor function for this phase
+            execute_fn = phase_executors.get(phase_entry.phase_num)
+            if execute_fn is None:
+                raise RuntimeError(f"No executor registered for phase {phase_entry.phase_num}")
 
-        # Phase 3: Position Monitor (always runs, even if Phase 2 fails)
-        executor.register_phase(
-            PhaseDefinition(
-                phase_num=3,
-                phase_name="POSITION MONITOR",
-                dependencies=[],
-                execute_fn=self._executor_phase_3,
-                skip_if_halted=True,
+            # Convert registry entry to PhaseDefinition for executor
+            phase_def = PhaseDefinition(
+                phase_num=phase_entry.phase_num,
+                phase_name=phase_entry.phase_name,
+                dependencies=phase_entry.dependencies,
+                execute_fn=execute_fn,
+                skip_if_halted=phase_entry.skip_if_halted,
+                always_run=phase_entry.always_run,
             )
-        )
-
-        # Phase 4: Reconciliation (depends on Phase 3)
-        executor.register_phase(
-            PhaseDefinition(
-                phase_num=4,
-                phase_name="RECONCILIATION",
-                dependencies=[3],
-                execute_fn=self._executor_phase_4,
-                skip_if_halted=True,
-            )
-        )
-
-        # Phase 5: Exposure Policy (depends on Phase 4)
-        executor.register_phase(
-            PhaseDefinition(
-                phase_num=5,
-                phase_name="EXPOSURE POLICY ACTIONS",
-                dependencies=[4],
-                execute_fn=self._executor_phase_5,
-                skip_if_halted=True,
-            )
-        )
-
-        # Phase 6: Exit Execution (always runs, depends on Phase 5)
-        executor.register_phase(
-            PhaseDefinition(
-                phase_num=6,
-                phase_name="EXIT EXECUTION",
-                dependencies=[5],
-                execute_fn=self._executor_phase_6,
-                skip_if_halted=False,
-                always_run=True,
-            )
-        )
-
-        # Phase 7: Signal Generation (depends on Phase 5)
-        executor.register_phase(
-            PhaseDefinition(
-                phase_num=7,
-                phase_name="SIGNAL GENERATION & RANKING",
-                dependencies=[5],
-                execute_fn=self._executor_phase_7,
-                skip_if_halted=True,
-            )
-        )
-
-        # Phase 8: Entry Execution (depends on Phase 7 and 5)
-        executor.register_phase(
-            PhaseDefinition(
-                phase_num=8,
-                phase_name="ENTRY EXECUTION",
-                dependencies=[7, 5],
-                execute_fn=self._executor_phase_8,
-                skip_if_halted=True,
-            )
-        )
-
-        # Phase 9: Reconciliation (always runs, final snapshot)
-        executor.register_phase(
-            PhaseDefinition(
-                phase_num=9,
-                phase_name="RECONCILIATION & SNAPSHOT",
-                dependencies=[8],
-                execute_fn=self._executor_phase_9,
-                skip_if_halted=False,
-                always_run=True,
-            )
-        )
+            executor.register_phase(phase_def)
 
         return executor
 
