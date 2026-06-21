@@ -47,11 +47,11 @@ def compute_performance_metrics(cur, metric_date: date | None = None) -> dict[st
         cur.execute("""
             SELECT COALESCE(at.profit_loss_dollars,
                            CASE WHEN at.status != 'closed'
-                                THEN (ap.current_price - at.entry_price) * at.entry_quantity
+                                THEN (COALESCE(ap.current_price, at.entry_price) - at.entry_price) * at.entry_quantity
                                 ELSE NULL END) as profit_loss_dollars,
                    COALESCE(at.profit_loss_pct,
                            CASE WHEN at.status != 'closed'
-                                THEN ((ap.current_price - at.entry_price) / at.entry_price * 100)
+                                THEN ((COALESCE(ap.current_price, at.entry_price) - at.entry_price) / at.entry_price * 100)
                                 ELSE NULL END) as profit_loss_pct,
                    at.exit_r_multiple,
                    (COALESCE(at.exit_date, CURRENT_DATE) - at.trade_date) as holding_days
@@ -187,6 +187,14 @@ def _compute_advanced_metrics(cur, metric_date: date):
             if vals[i - 1] != 0:
                 ret = (vals[i] - vals[i - 1]) / vals[i - 1]
                 returns.append(ret)
+
+        # Validate return scale: if max return > 1 (>100%), likely percentage scale not decimal
+        if returns and max(abs(r) for r in returns) > 1:
+            logger.warning(
+                f"Returns detected in percentage scale (max={max(abs(r) for r in returns):.2f}), "
+                "normalizing to decimal (dividing by 100)"
+            )
+            returns = [r / 100 for r in returns]
 
         if not returns:
             raise ValueError(

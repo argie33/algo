@@ -1363,10 +1363,22 @@ class TradeExecutor:
                 else 0.0
             )
 
-            if not isinstance(pnl_dollars, (int, float)) or pnl_dollars != pnl_dollars:
-                pnl_dollars = 0.0
-            if not isinstance(pnl_pct, (int, float)) or pnl_pct != pnl_pct:
-                pnl_pct = 0.0
+            # Validate P&L calculations for NaN and invalid types
+            if not isinstance(pnl_dollars, (int, float)):
+                raise ValueError(f"P&L dollars calculation produced invalid type: {type(pnl_dollars)}")
+            if isinstance(pnl_dollars, float) and pnl_dollars != pnl_dollars:  # NaN check
+                raise ValueError(
+                    f"P&L dollars calculation produced NaN; check price={final_exit_price} "
+                    f"and quantity={shares_to_exit} for zero or invalid values"
+                )
+
+            if not isinstance(pnl_pct, (int, float)):
+                raise ValueError(f"P&L percent calculation produced invalid type: {type(pnl_pct)}")
+            if isinstance(pnl_pct, float) and pnl_pct != pnl_pct:  # NaN check
+                raise ValueError(
+                    f"P&L percent calculation produced NaN; check entry_price={entry_price} "
+                    f"for zero value"
+                )
 
             # TRANSACTION GUARD 3: Update algo_trades and verify success (atomic with position update)
             if full_exit:
