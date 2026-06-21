@@ -443,7 +443,9 @@ def execute_with_timeout(
     """
     from utils.error_handlers import log_sanitizer
 
-    current_timeout: float = safe_float(timeout_sec, default=0.0)
+    if not isinstance(timeout_sec, (int, float)):
+        raise TypeError(f"timeout_sec must be numeric, got {type(timeout_sec).__name__}")
+    current_timeout: float = float(timeout_sec)
     last_error = None
 
     for attempt in range(max_attempts):

@@ -761,7 +761,8 @@ class MarketExposure:
         term_structure = None
         if vix3m_row and vix3m_row[0] is not None and vix > 0:
             vix3m = safe_float(vix3m_row[0], default=0.0)
-            term_structure = vix3m / vix  # >1.0 = contango, <1.0 = backwardation
+            if vix > 0:
+                term_structure = vix3m / vix
 
         logger.debug(
             f"[VIX] Computed from ^VIX: value={vix:.2f}, rising={rising}, "
@@ -1193,7 +1194,8 @@ class MarketExposure:
         )
         cfnai_rows = cur.fetchall()
         if cfnai_rows:
-            cfnai_avg = sum(safe_float(r[0], default=0.0, context="r[0]") for r in cfnai_rows[:3]) / min(3, len(cfnai_rows))
+            cfnai_count = min(3, len(cfnai_rows))
+            cfnai_avg = (sum(safe_float(r[0], default=0.0, context="r[0]") for r in cfnai_rows[:3]) / cfnai_count) if cfnai_count > 0 else 0.0
             if cfnai_avg < -0.7:
                 stress += 20.0
                 signals.append(f"CFNAI 3-mo avg {cfnai_avg:.2f} (below recession threshold)")

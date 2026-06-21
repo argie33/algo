@@ -98,8 +98,11 @@ def handle(
             rows = execute_with_timeout(
                 cur, income_query, params=(sym, limit), timeout_sec=5
             )
+            table_name = "quarterly_income_statement" if period == "quarterly" else "annual_income_statement"
+            freshness = check_data_freshness(cur, table_name, "fiscal_year", warning_days=30)
             return list_response(
-                [safe_json_serialize(dict(r)) for r in rows] if rows else []
+                [safe_json_serialize(dict(r)) for r in rows] if rows else [],
+                data_freshness=freshness,
             )
 
         if endpoint == "balance-sheet":
@@ -116,8 +119,11 @@ def handle(
             rows = execute_with_timeout(
                 cur, balance_query, params=(sym, limit), timeout_sec=5
             )
+            table_name = "quarterly_balance_sheet" if period == "quarterly" else "annual_balance_sheet"
+            freshness = check_data_freshness(cur, table_name, "fiscal_year", warning_days=30)
             return list_response(
-                [safe_json_serialize(dict(r)) for r in rows] if rows else []
+                [safe_json_serialize(dict(r)) for r in rows] if rows else [],
+                data_freshness=freshness,
             )
 
         if endpoint == "cash-flow":
@@ -141,8 +147,11 @@ def handle(
                     (sym, limit),
                     timeout_sec=5,
                 )
+            table_name = "quarterly_cash_flow" if period == "quarterly" else "annual_cash_flow"
+            freshness = check_data_freshness(cur, table_name, "fiscal_year", warning_days=30)
             return list_response(
-                [safe_json_serialize(dict(r)) for r in rows] if rows else []
+                [safe_json_serialize(dict(r)) for r in rows] if rows else [],
+                data_freshness=freshness,
             )
 
         return error_response(404, "not_found", f"No financials handler for {path}")

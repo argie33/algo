@@ -363,8 +363,10 @@ def panel_signals_compact(sig, sig_eval=None, scores=None):
         return _error_panel("scores", scores, "SIGNALS", border="magenta")
 
     overview = extract_signal_overview(sig)
-    top_scores = scores.get("top", []) if scores and not has_error(scores) else []
-    buy_sigs = overview.get("buy_sigs", [])
+    top_scores = scores.get("top") if scores and not has_error(scores) else None
+    if top_scores is None:
+        top_scores = []
+    buy_sigs = overview.get("buy_sigs") if overview.get("buy_sigs") is not None else []
 
     rows, _, _ = _build_signal_header(sig, scores)
     rows.extend(_build_grade_radar(sig))
@@ -387,8 +389,8 @@ def panel_signals_compact(sig, sig_eval=None, scores=None):
         rows.append(Text.from_markup(f"[{Y}][bold]TOP STOCK SCORES[/][/] [dim](all candidates)[/]"))
     rows.extend(_build_scores_table(top_scores))
 
-    near = overview.get("near", [])
-    top_a = overview.get("top_a", [])
+    near = overview.get("near") if overview.get("near") is not None else []
+    top_a = overview.get("top_a") if overview.get("top_a") is not None else []
     if near and top_a:
         rows.append(Rule(style="dim"))
         parts = []
@@ -424,11 +426,13 @@ def panel_signals_expanded(sig, sig_eval=None, scores=None):
     if raw is None or total is None:
         return _error_panel("signals", {"_error": "Missing signal counts"}, "SIGNALS", border="magenta")
 
-    top_scores = scores.get("top", []) if scores and not has_error(scores) else []
-    buy_sigs = overview.get("buy_sigs", [])
+    top_scores = scores.get("top") if scores and not has_error(scores) else None
+    if top_scores is None:
+        top_scores = []
+    buy_sigs = overview.get("buy_sigs") if overview.get("buy_sigs") is not None else []
     ds = _format_signal_date(overview.get("date"))
 
-    grades = overview.get("grades", {})
+    grades = overview.get("grades") if overview.get("grades") is not None else {}
     ga = int(grades.get("a")) if grades.get("a") is not None else None
     gb = int(grades.get("b")) if grades.get("b") is not None else None
     gc = int(grades.get("c")) if grades.get("c") is not None else None
@@ -449,7 +453,7 @@ def panel_signals_expanded(sig, sig_eval=None, scores=None):
         ),
     ]
 
-    top_a = overview.get("top_a", [])
+    top_a = overview.get("top_a") if overview.get("top_a") is not None else []
     if top_a:
         parts = []
         for s in top_a:

@@ -292,6 +292,7 @@ def _industry_detail(cur, industry_name):
         return error_response(404, "not_found", f"Industry not found: {industry_name}")
 
     r = safe_json_serialize(dict(row))
+    freshness = check_data_freshness(cur, "stock_scores", "date", warning_days=1)
     return json_response(
         200,
         {
@@ -305,6 +306,7 @@ def _industry_detail(cur, industry_name):
             "quality_score": _sf(r.get("quality_score")),
             "growth_score": _sf(r.get("growth_score")),
             "stability_score": _sf(r.get("stability_score")),
+            "data_freshness": freshness,
         },
     )
 
@@ -358,4 +360,5 @@ def _industry_trend(cur, industry_name, params):
         for r in rows
     ]
 
-    return json_response(200, {"industry": industry_name, "trendData": trend_data})
+    freshness = check_data_freshness(cur, "price_daily", "date", warning_days=1)
+    return json_response(200, {"industry": industry_name, "trendData": trend_data, "data_freshness": freshness})

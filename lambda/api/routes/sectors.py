@@ -73,7 +73,8 @@ def handle(
                             {"date": r["date"], "avgPrice": r["avgPrice"]}
                         )
 
-            return json_response(200, result)
+            freshness = check_data_freshness(cur, "price_daily", "date", warning_days=1)
+            return json_response(200, result, data_freshness=freshness)
 
         # Extract sector name if provided: /api/sectors/Technology
         parts = path.split("/")
@@ -130,7 +131,8 @@ def handle(
                     if rows
                     else []
                 )
-                return json_response(200, {"trendData": trend_data})
+                freshness = check_data_freshness(cur, "price_daily", "date", warning_days=1)
+                return json_response(200, {"trendData": trend_data}, data_freshness=freshness)
             else:
                 days_str = params.get("days", [None])[0] if params else None
                 days = safe_days(days_str or "90", max_val=365)
@@ -145,7 +147,8 @@ def handle(
                     (sector_name, days),
                 )
                 rows = cur.fetchall()
-                return list_response([safe_json_serialize(dict(r)) for r in rows])
+                freshness = check_data_freshness(cur, "sector_performance", "date", warning_days=1)
+                return list_response([safe_json_serialize(dict(r)) for r in rows], data_freshness=freshness)
         elif path in ("/api/sectors", "/api/sectors/performance"):
             limit_str = params.get("limit", [None])[0] if params else None
             limit = safe_limit(limit_str or "50000", max_val=50000)

@@ -111,10 +111,10 @@ class PreTradeChecks:
 
         position_value_dec = Decimal(str(position_value))
         if position_value_dec > max_position_value:
+            max_value_str = f"{safe_float(max_position_value, default=0.0, context='max_position_value'):.2f}"
             return (
                 False,
-                f"Position ${position_value:.2f} exceeds max "
-                f"${safe_float(max_position_value, default=0.0, context="max_position_value"):.2f} ({float(max_position_pct * Decimal(100)):.1f}% of portfolio)",
+                f"Position ${position_value:.2f} exceeds max ${max_value_str} ({float(max_position_pct * Decimal(100)):.1f}% of portfolio)",
             )
 
         try:
@@ -134,9 +134,10 @@ class PreTradeChecks:
         except KeyError as e:
             raise KeyError(f"[CONFIG] Missing required field: {e}. Check algo_config table.") from e
         if position_value_dec < min_order_size:
+            min_value_str = f"{safe_float(min_order_size, default=0.0, context='min_order_size'):.2f}"
             return (
                 False,
-                f"Position value ${position_value:.2f} below minimum ${safe_float(min_order_size, default=0.0, context="min_order_size"):.2f}",
+                f"Position value ${position_value:.2f} below minimum ${min_value_str}",
             )
 
         try:

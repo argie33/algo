@@ -34,10 +34,10 @@ logger = logging.getLogger(__name__)
 
 
 def _ensure_portfolio_fields(data: dict) -> dict:
-    """Ensure portfolio response includes all required fields.
+    """Validate portfolio response has all required fields. Fail-fast if missing.
 
-    This is a defensive guard to prevent validator failures when fields
-    are missing due to database schema mismatches or response building issues.
+    CRITICAL: Portfolio value and cash must never be None - they're essential for trading.
+    If data is missing, return error instead of adding defaults.
     """
     if not isinstance(data, dict):
         return data
@@ -45,20 +45,20 @@ def _ensure_portfolio_fields(data: dict) -> dict:
     if data.get("_error"):
         return data
 
-    # Ensure critical fields exist with valid defaults (also handle None values)
-    if "total_portfolio_value" not in data or data["total_portfolio_value"] is None:
-        data["total_portfolio_value"] = None
-    if "total_cash" not in data or data["total_cash"] is None:
-        data["total_cash"] = None
-    if "position_count" not in data or data["position_count"] is None:
-        data["position_count"] = 0
+    # FAIL-FAST: Critical fields must exist and be non-None
+    required_fields = ["total_portfolio_value", "total_cash", "position_count"]
+    for field in required_fields:
+        if field not in data:
+            return {"_error": f"Portfolio critical field missing: {field}"}
+        if data[field] is None:
+            return {"_error": f"Portfolio critical field is None: {field}"}
 
     return data
 
 
 @db_route_handler("get algo metrics")
 def _get_algo_metrics(cur) -> dict:
-    """Get daily algo metrics (total actions, entries, exits)."""
+    """Get daily algo metrics (total actions, entries, exits). Fail-fast if unavailable."""
     try:
         cur.execute("""
             SELECT date, total_actions, entries, exits, avg_signal_score
@@ -67,23 +67,34 @@ def _get_algo_metrics(cur) -> dict:
             LIMIT 1
         """)
         row = cur.fetchone()
+        # FAIL-FAST: Return error if metrics not yet available (no runs yet)
         if row is None:
-            return success_response(
-                {
-                    "date": None,
-                    "total_actions": None,
-                    "entries": None,
-                    "exits": None,
-                    "avg_signal_score": None,
-                }
+            return error_response(
+                503,
+                "no_data",
+                "Algo metrics not yet available - no daily runs have completed",
             )
         data = safe_dict_convert(row)
+
+        # Validate critical fields
+        date = data.get("date")
+        total_actions = safe_int(data.get("total_actions"))
+        entries = safe_int(data.get("entries"))
+        exits = safe_int(data.get("exits"))
+
+        if date is None:
+            return error_response(503, "incomplete_data", "Algo metrics date missing")
+        if total_actions is None or entries is None or exits is None:
+            return error_response(
+                503, "incomplete_data", "Algo metrics incomplete (missing actions/entries/exits)"
+            )
+
         return success_response(
             {
-                "date": data.get("date"),
-                "total_actions": safe_int(data.get("total_actions")),
-                "entries": safe_int(data.get("entries")),
-                "exits": safe_int(data.get("exits")),
+                "date": date,
+                "total_actions": total_actions,
+                "entries": entries,
+                "exits": exits,
                 "avg_signal_score": safe_float_strict(data.get("avg_signal_score"), allow_none=True),
             }
         )

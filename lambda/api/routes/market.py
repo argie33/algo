@@ -17,6 +17,7 @@ from routes.utils import (
     raise_db_error,
     safe_json_serialize,
 )
+
 from utils.safe_data_conversion import safe_float
 
 
@@ -402,13 +403,14 @@ def handle(
                         f"[SAVEPOINT_ROLLBACK] Error rolling back: {type(sp_err).__name__}"
                     )
             items = [safe_json_serialize(dict(m)) for m in movers] if movers else []
+            valid_items = [m for m in items if m.get("pct_change") is not None]
             gainers = sorted(
-                [m for m in items if (m.get("pct_change")) >= 0],
-                key=lambda x: -(x.get("pct_change")),
+                [m for m in valid_items if m.get("pct_change") >= 0],
+                key=lambda x: -(x["pct_change"]),
             )[:10]
             losers = sorted(
-                [m for m in items if (m.get("pct_change")) < 0],
-                key=lambda x: (x.get("pct_change")),
+                [m for m in valid_items if m.get("pct_change") < 0],
+                key=lambda x: x["pct_change"],
             )[:10]
             return json_response(
                 200, {"gainers": gainers or [], "losers": losers or [], "items": items}
@@ -529,14 +531,12 @@ def handle(
                 for r in monthly_rows:
                     r_dict = dict(r)
                     monthly_data.append(r_dict)
-                    if not best_month or r_dict.get("avg_return", 0) > best_month.get(
-                        "avg_return", 0
-                    ):
-                        best_month = r_dict
-                    if not worst_month or r_dict.get("avg_return", 0) < worst_month.get(
-                        "avg_return", 0
-                    ):
-                        worst_month = r_dict
+                    avg_ret = r_dict.get("avg_return")
+                    if avg_ret is not None:
+                        if not best_month or (best_month.get("avg_return") is None or avg_ret > best_month.get("avg_return")):
+                            best_month = r_dict
+                        if not worst_month or (worst_month.get("avg_return") is None or avg_ret < worst_month.get("avg_return")):
+                            worst_month = r_dict
             except psycopg2.errors.QueryCanceled as e:
                 logger.error(f"[SEASONALITY] Monthly query timeout: {type(e).__name__}")
                 raise_api_error(504, "timeout", "Seasonality data query exceeded timeout")
@@ -557,14 +557,12 @@ def handle(
                 for r in dow_rows:
                     r_dict = dict(r)
                     dow_data.append(r_dict)
-                    if not best_dow or r_dict.get("avg_return", 0) > best_dow.get(
-                        "avg_return", 0
-                    ):
-                        best_dow = r_dict
-                    if not worst_dow or r_dict.get("avg_return", 0) < worst_dow.get(
-                        "avg_return", 0
-                    ):
-                        worst_dow = r_dict
+                    avg_ret = r_dict.get("avg_return")
+                    if avg_ret is not None:
+                        if not best_dow or (best_dow.get("avg_return") is None or avg_ret > best_dow.get("avg_return")):
+                            best_dow = r_dict
+                        if not worst_dow or (worst_dow.get("avg_return") is None or avg_ret < worst_dow.get("avg_return")):
+                            worst_dow = r_dict
             except psycopg2.errors.QueryCanceled as e:
                 logger.error(f"[SEASONALITY] DOW query timeout: {type(e).__name__}")
                 raise_api_error(504, "timeout", "Seasonality data query exceeded timeout")
@@ -730,7 +728,7 @@ def handle(
                     "trend": aaii_trend,
                     "data": aaii_rows,
                     "bullish_pct": (
-                        float(aaii_current["bullish"])
+                        safe_float(aaii_current.get("bullish"), context="aaii_bullish")
                         if aaii_current and aaii_current.get("bullish") is not None
                         else None
                     ),
@@ -771,7 +769,7 @@ def handle(
 
                 sentiment_data["naaim"] = {
                     "current": (
-                        float(naaim_current["naaim_number_mean"])
+                        safe_float(naaim_current.get("naaim_number_mean"), context="naaim_number_mean")
                         if naaim_current
                         and naaim_current.get("naaim_number_mean") is not None
                         else None
@@ -779,12 +777,12 @@ def handle(
                     "history": naaim_rows,
                     "trend": naaim_trend,
                     "bullish_pct": (
-                        float(naaim_current["bullish"])
+                        safe_float(naaim_current.get("bullish"), context="naaim_bullish")
                         if naaim_current and naaim_current.get("bullish") is not None
                         else None
                     ),
                     "bearish_pct": (
-                        float(naaim_current["bearish"])
+                        safe_float(naaim_current.get("bearish"), context="naaim_bearish")
                         if naaim_current and naaim_current.get("bearish") is not None
                         else None
                     ),

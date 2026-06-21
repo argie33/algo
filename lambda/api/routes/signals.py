@@ -224,7 +224,8 @@ def _get_signals_etf(cur, limit: int = 500) -> Dict:
             (etf_symbols, limit),
         )
         signals = cur.fetchall()
-        return list_response([safe_json_serialize(dict(s)) for s in signals])
+        freshness = check_data_freshness(cur, "etf_price_daily", "date", warning_days=1)
+        return list_response([safe_json_serialize(dict(s)) for s in signals], data_freshness=freshness)
     except (
         psycopg2.errors.UndefinedTable,
         psycopg2.errors.UndefinedColumn,

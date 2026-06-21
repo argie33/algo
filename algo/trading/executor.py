@@ -1386,7 +1386,16 @@ class TradeExecutor:
                 }
 
             alpaca_pos = resp.json()
-            alpaca_qty = int(safe_float(alpaca_pos.get("qty", 0), default=0, context="qty"))
+            qty_raw = alpaca_pos.get("qty")
+            if qty_raw is None:
+                return {
+                    "valid": False,
+                    "db_quantity": None,
+                    "alpaca_quantity": None,
+                    "corrected": False,
+                    "message": f"Alpaca /v2/positions/{symbol} missing 'qty' field (API schema violation)",
+                }
+            alpaca_qty = int(safe_float(qty_raw, default=0, context="qty"))
 
             if alpaca_qty <= 0:
                 return {

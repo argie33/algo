@@ -94,26 +94,23 @@ def main():
         if result.get("halt_reasons"):
             logger.info(f"  Halt reasons: {'; '.join(result['halt_reasons'])}")
 
-        # Mark loader as COMPLETED
+        # Mark loader as COMPLETED (atomic upsert prevents race conditions from concurrent loaders)
         with DatabaseContext("write") as cur:
-            cur.execute(
-                "SELECT row_count, latest_date FROM data_loader_status WHERE table_name = %s",
-                (table_name,),
-            )
-            existing = cur.fetchone()
-
-            cur.execute(
-                "DELETE FROM data_loader_status WHERE table_name = %s",
-                (table_name,),
-            )
-
             cur.execute(
                 """
                 INSERT INTO data_loader_status
                 (table_name, row_count, latest_date, last_updated, status,
-                 completion_pct, symbol_count, symbols_loaded, execution_started, execution_completed)
-                VALUES (%s, %s, %s, NOW(), %s, %s, %s, %s,
-                        COALESCE((SELECT execution_started FROM (SELECT %s::timestamp as execution_started) t), NOW()), NOW())
+                 completion_pct, symbol_count, symbols_loaded, execution_completed)
+                VALUES (%s, %s, %s, NOW(), %s, %s, %s, %s, NOW())
+                ON CONFLICT (table_name) DO UPDATE SET
+                  row_count = EXCLUDED.row_count,
+                  latest_date = EXCLUDED.latest_date,
+                  last_updated = NOW(),
+                  status = EXCLUDED.status,
+                  completion_pct = EXCLUDED.completion_pct,
+                  symbol_count = EXCLUDED.symbol_count,
+                  symbols_loaded = EXCLUDED.symbols_loaded,
+                  execution_completed = NOW()
                 """,
                 (
                     table_name,
@@ -123,7 +120,6 @@ def main():
                     100.0,  # 100% completion
                     1,
                     1,
-                    existing[0] if existing and existing[0] else None,  # execution_started
                 ),
             )
 

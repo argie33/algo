@@ -71,7 +71,7 @@ class DailyFinanceReport:
             rows = cur.fetchall()
 
             if not rows:
-                return {}
+                raise RuntimeError(f"No portfolio snapshots available for {report_date}")
 
             current_value = float(rows[0][0]) if rows[0][0] is not None else 0
             prior_value = float(rows[1][0]) if len(rows) > 1 and rows[1][0] is not None else current_value
@@ -96,8 +96,7 @@ class DailyFinanceReport:
                 "open_positions": self._count_open_positions(cur, report_date),
             }
         except (ValueError, ZeroDivisionError, TypeError) as e:
-            logger.debug(f"Portfolio fetch failed: {e}")
-            return {}
+            raise RuntimeError(f"Portfolio data conversion failed for {report_date}: {e}") from e
 
     def _fetch_risk(self, cur, report_date: _date) -> dict[str, Any]:
         """Risk metrics: Sharpe, Sortino, max drawdown, Calmar ratio from pre-computed metrics."""
@@ -112,7 +111,7 @@ class DailyFinanceReport:
             row = cur.fetchone()
 
             if row is None:
-                return {}
+                raise RuntimeError(f"No performance metrics available for {report_date}")
 
             return {
                 "sharpe_ytd": round(safe_float(row[0], default=0.0), 4) if row[0] else None,
@@ -121,8 +120,7 @@ class DailyFinanceReport:
                 "calmar": round(safe_float(row[3], default=0.0), 4) if row[3] else None,
             }
         except (psycopg2.DatabaseError, psycopg2.OperationalError) as e:
-            logger.debug(f"Risk fetch failed: {e}")
-            return {}
+            raise RuntimeError(f"Database error fetching risk metrics for {report_date}: {e}") from e
 
     def _fetch_strategy(self, cur, report_date: _date) -> dict[str, Any]:
         """Win rate, profit factor, performance metrics from pre-computed daily metrics."""
@@ -137,7 +135,7 @@ class DailyFinanceReport:
             row = cur.fetchone()
 
             if row is None:
-                return {}
+                raise RuntimeError(f"No strategy performance data available for {report_date}")
 
             return {
                 "win_rate_pct": round(safe_float(row[0], default=0.0), 2) if row[0] else None,
@@ -146,8 +144,7 @@ class DailyFinanceReport:
                 "best_trade_pct": round(safe_float(row[3], default=0.0), 2) if row[3] else None,
             }
         except (psycopg2.DatabaseError, psycopg2.OperationalError) as e:
-            logger.debug(f"Strategy fetch failed: {e}")
-            return {}
+            raise RuntimeError(f"Database error fetching strategy metrics for {report_date}: {e}") from e
 
     def _fetch_components(self, cur, report_date: _date) -> dict[str, Any]:
         """IC and weight for each component."""
@@ -162,6 +159,9 @@ class DailyFinanceReport:
             )
             rows = cur.fetchall()
 
+            if not rows:
+                raise RuntimeError(f"No component attribution data available for {report_date}")
+
             components = {}
             for comp, ic, pval in rows:
                 if ic is not None and pval is not None:
@@ -175,28 +175,28 @@ class DailyFinanceReport:
 
             return components
         except (ValueError, ZeroDivisionError, TypeError) as e:
-            logger.debug(f"Components fetch failed: {e}")
-            return {}
+            raise RuntimeError(f"Component data conversion failed for {report_date}: {e}") from e
 
     def _fetch_regime(self, report_date: _date) -> dict[str, Any]:
         """Current regime and parameter multipliers."""
-        try:
-            regime = self.regime_mgr.get_current_regime(report_date)
-            params = self.regime_mgr.get_regime_params(report_date)
+        regime = self.regime_mgr.get_current_regime(report_date)
+        if regime is None:
+            raise RuntimeError(f"Regime manager returned None for {report_date}")
 
-            history = self.regime_mgr.regime_history(days=30)
-            days_in_regime = history[0]["days_in_regime"] if history else 0
+        params = self.regime_mgr.get_regime_params(report_date)
+        if not params or "position_size_mult" not in params:
+            raise RuntimeError(f"Regime params incomplete for {report_date}: {params}")
 
-            return {
-                "current": regime,
-                "days_in_regime": days_in_regime,
-                "position_size_mult": params["position_size_mult"],
-                "weight_update_alpha": params["weight_update_alpha"],
-                "description": params["description"],
-            }
-        except (ValueError, ZeroDivisionError, TypeError) as e:
-            logger.debug(f"Regime fetch failed: {e}")
-            return {}
+        history = self.regime_mgr.regime_history(days=30)
+        days_in_regime = history[0]["days_in_regime"] if history else 0
+
+        return {
+            "current": regime,
+            "days_in_regime": days_in_regime,
+            "position_size_mult": params["position_size_mult"],
+            "weight_update_alpha": params["weight_update_alpha"],
+            "description": params["description"],
+        }
 
     def _fetch_signals(self, cur, report_date: _date) -> dict[str, Any]:
         """Signal counts for today."""
@@ -231,8 +231,7 @@ class DailyFinanceReport:
                 "entries_today": entries,
             }
         except (psycopg2.DatabaseError, psycopg2.OperationalError) as e:
-            logger.debug(f"Signals fetch failed: {e}")
-            return {}
+            raise RuntimeError(f"Database error fetching signal counts for {report_date}: {e}") from e
 
     def format_text(self, report: dict[str, Any]) -> str:
         """Format report as text for logs."""

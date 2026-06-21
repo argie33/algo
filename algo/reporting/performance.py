@@ -63,7 +63,7 @@ class LivePerformance:
                 return None
 
             values = [safe_float(row[1], context=f"portfolio_value from row {i}") for i, row in enumerate(rows)]
-            daily_returns = [(values[i] - values[i - 1]) / values[i - 1] for i in range(1, len(values))]
+            daily_returns = [(values[i] - values[i - 1]) / values[i - 1] if values[i - 1] > 0 else 0.0 for i in range(1, len(values))]
 
             return MetricsCalculator.calculate_sharpe_ratio(daily_returns)
         except (ValueError, ZeroDivisionError, TypeError) as e:
@@ -216,7 +216,7 @@ class LivePerformance:
                 return None
 
             values = [safe_float(r[0], context=f"portfolio_value from row {i}") for i, r in enumerate(rows)]
-            daily_returns = [(values[i] - values[i - 1]) / values[i - 1] for i in range(1, len(values))]
+            daily_returns = [(values[i] - values[i - 1]) / values[i - 1] if values[i - 1] > 0 else 0.0 for i in range(1, len(values))]
 
             return MetricsCalculator.calculate_sortino_ratio(daily_returns)
         except (ValueError, ZeroDivisionError, TypeError) as e:

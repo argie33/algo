@@ -154,8 +154,8 @@ def _get_stock_scores(
                     sc.value_score, sc.growth_score, sc.positioning_score, sc.stability_score,
                     sc.rs_percentile, sc.data_completeness,
                     sc.updated_at AS last_updated,
-                    COALESCE(lp.current_close, 0) AS current_price,
-                    COALESCE(lp.current_close, 0) AS price,
+                    lp.current_close AS current_price,
+                    lp.current_close AS price,
                     (lp.current_close IS NULL) AS _is_fallback,
                     (qm.symbol IS NULL OR (qm.roe IS NULL AND qm.operating_margin IS NULL AND qm.net_margin IS NULL)) AS _financial_data_unavailable,
                     ROUND(CASE
@@ -248,8 +248,14 @@ def _get_stock_scores(
             return float(v) if v is not None else None
 
         items = []
+        prices_missing_count = 0
         for row in scores:
             d = dict(row)
+
+            # FAIL-FAST: Skip scores with missing price data (no fallback to 0)
+            if d.get("current_price") is None or d.get("price") is None:
+                prices_missing_count += 1
+                continue
 
             # Compute 12-3 momentum: 12-month return minus 3-month (skip short-term reversal)
             roc252 = _f(d.get("tdd_roc_252d"))
@@ -311,10 +317,28 @@ def _get_stock_scores(
             }
             items.append(d)
 
+        # FAIL-FAST: If no valid scores are available (all had missing prices), return error
+        if not items and prices_missing_count > 0:
+            logger.error(
+                f"Scores endpoint: filtered out {prices_missing_count} scores due to missing price data. "
+                f"yfinance data loading issue - cannot provide score data without prices."
+            )
+            return error_response(
+                503,
+                "data_unavailable",
+                f"Price data unavailable for {prices_missing_count} symbols. yfinance data loader needs attention.",
+            )
+
         # Check data freshness
         freshness = check_data_freshness(
             cur, "stock_scores", "updated_at", warning_days=7
         )
+
+        # Log warning if significant number of prices missing
+        if prices_missing_count > 0 and items:
+            logger.warning(
+                f"Scores endpoint: {prices_missing_count} scores filtered due to missing price data (out of {prices_missing_count + len(items)})"
+            )
 
         return list_response(items, data_freshness=freshness)
     except (

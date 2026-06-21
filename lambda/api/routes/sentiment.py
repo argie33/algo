@@ -112,6 +112,7 @@ def handle(
                     f"Failed to fetch analyst sentiment data: {type(e).__name__}: {e}"
                 )
 
+            freshness = check_data_freshness(cur, "fear_greed_index", "date", warning_days=1)
             return json_response(
                 200,
                 {
@@ -138,6 +139,7 @@ def handle(
                         safe_float(row["vix_level"], default=0.0) if row and row["vix_level"] else None
                     ),
                     "date": str(row["date"]) if row else None,
+                    "data_freshness": freshness,
                 },
             )
         elif path == "/api/sentiment/data" or path.startswith("/api/sentiment/data?"):
@@ -183,8 +185,10 @@ def handle(
                 """,
                 timeout_sec=5,
             )
+            freshness = check_data_freshness(cur, "analyst_sentiment_analysis", "date", warning_days=7)
             return list_response(
-                [safe_json_serialize(dict(r)) for r in rows] if rows else []
+                [safe_json_serialize(dict(r)) for r in rows] if rows else [],
+                data_freshness=freshness,
             )
         elif path.startswith("/api/sentiment/analyst/insights/"):
             symbol = path.split("/api/sentiment/analyst/insights/")[-1].upper()
@@ -279,6 +283,7 @@ def handle(
                 for r in rows
                 if dict(r).get("target_price")
             ]
+            freshness = check_data_freshness(cur, "analyst_sentiment_analysis", "date", warning_days=7)
             return json_response(
                 200,
                 {
@@ -287,6 +292,7 @@ def handle(
                     "momentum": None,
                     "coverage": None,
                     "recentUpgrades": [],
+                    "data_freshness": freshness,
                 },
             )
         elif path.startswith("/api/sentiment/social/insights/"):

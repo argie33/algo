@@ -11,12 +11,12 @@ import psycopg2
 from algo.orchestrator.phase_result import PhaseResult
 from algo.reporting import AlertManager
 from utils.db.advisory_locks import (
-from utils.safe_data_conversion import safe_float
     ALGO_POSITIONS_LOCK_ID,
     acquire_advisory_lock,
     release_advisory_lock,
 )
 from utils.db.context import DatabaseContext
+from utils.safe_data_conversion import safe_float
 from utils.trading.status import PositionStatus
 
 
