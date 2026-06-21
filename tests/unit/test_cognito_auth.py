@@ -52,8 +52,8 @@ class TestAuthorizationHeaderValidation:
         assert header["Authorization"].startswith("Bearer ")
         assert auth.access_token in header["Authorization"]
 
-    def test_expired_token_with_no_refresh_returns_empty(self):
-        """Should return empty dict when token is expired and no refresh token."""
+    def test_expired_token_with_no_refresh_raises_error(self):
+        """Should raise error when token is expired and no refresh token (fail-closed)."""
         auth = CognitoAuth("pool-123", "client-456")
         # Create an expired token
         past_exp = int(time.time()) - 3600
@@ -61,11 +61,11 @@ class TestAuthorizationHeaderValidation:
         auth.token_expires_at = past_exp
         auth.refresh_token = None
 
-        header = auth.get_authorization_header()
-        assert header == {}
+        with pytest.raises(RuntimeError, match="Token expired and no refresh token"):
+            auth.get_authorization_header()
 
-    def test_expired_token_with_failed_refresh_returns_empty(self):
-        """Should return empty dict when token refresh fails."""
+    def test_expired_token_with_failed_refresh_raises_error(self):
+        """Should raise error when token refresh fails (fail-closed)."""
         auth = CognitoAuth("pool-123", "client-456")
         # Create an expired token
         past_exp = int(time.time()) - 3600
@@ -75,9 +75,8 @@ class TestAuthorizationHeaderValidation:
 
         # Mock refresh_access_token to return False (failure)
         with patch.object(auth, "refresh_access_token", return_value=False):
-            header = auth.get_authorization_header()
-            # Should NOT return the expired token
-            assert header == {}
+            with pytest.raises(RuntimeError, match="Token refresh failed"):
+                auth.get_authorization_header()
 
     def test_expired_token_with_successful_refresh_returns_new_token(self):
         """Should return new token when refresh succeeds."""
@@ -105,35 +104,35 @@ class TestAuthorizationHeaderValidation:
             assert new_token in header["Authorization"]
             assert old_token not in header["Authorization"]
 
-    def test_malformed_token_returns_empty_header(self):
-        """Should return empty dict when token is not a valid JWT."""
+    def test_malformed_token_raises_error(self):
+        """Should raise error when token is not a valid JWT (fail-closed)."""
         auth = CognitoAuth("pool-123", "client-456")
         # Malformed token (not 3 dot-separated parts)
         auth.access_token = "not-a-valid-jwt"
         auth.token_expires_at = int(time.time()) + 3600
 
-        header = auth.get_authorization_header()
-        assert header == {}
+        with pytest.raises(RuntimeError, match="token is not a valid JWT"):
+            auth.get_authorization_header()
 
-    def test_jwt_with_missing_parts_rejected(self):
-        """Should reject JWT with missing parts."""
+    def test_jwt_with_missing_parts_raises_error(self):
+        """Should raise error when JWT has missing parts (fail-closed)."""
         auth = CognitoAuth("pool-123", "client-456")
         # JWT with only 2 parts
         auth.access_token = "header.payload"
         auth.token_expires_at = int(time.time()) + 3600
 
-        header = auth.get_authorization_header()
-        assert header == {}
+        with pytest.raises(RuntimeError, match="token is not a valid JWT"):
+            auth.get_authorization_header()
 
-    def test_jwt_with_empty_parts_rejected(self):
-        """Should reject JWT with empty parts."""
+    def test_jwt_with_empty_parts_raises_error(self):
+        """Should raise error when JWT has empty parts (fail-closed)."""
         auth = CognitoAuth("pool-123", "client-456")
         # JWT with empty part
         auth.access_token = "header..signature"
         auth.token_expires_at = int(time.time()) + 3600
 
-        header = auth.get_authorization_header()
-        assert header == {}
+        with pytest.raises(RuntimeError, match="token is not a valid JWT"):
+            auth.get_authorization_header()
 
     def test_jwt_format_validation(self):
         """Test _is_valid_jwt method with proper JWT structure and claims."""
