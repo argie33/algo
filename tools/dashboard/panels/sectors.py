@@ -35,12 +35,13 @@ from ..utilities import (
     normalize_positions_data,
 )
 from ._helpers import _error_panel
+from .data_extractors import safe_get_field
 
 
 def _rdelta(r, wk="rank_1w_ago", wk4=None):
     """Format rank delta: show change and direction arrow."""
-    cur = r.get("rank")
-    prev = r.get(wk)
+    cur = safe_get_field(r, "rank")
+    prev = safe_get_field(r, wk)
     if cur is None or prev is None:
         return "--"
     delta = prev - cur
@@ -68,12 +69,12 @@ def panel_sector_compact(srank, pos, port, sec_rot=None, irank=None):
     rows = []
 
     # Row 1: Rotation signal
-    if sec_rot and not _error_panel("sec_rot", sec_rot, "SECTORS") and sec_rot.get("signal"):
-        sig_name = (sec_rot.get("signal") or "").replace("_", " ").title()
-        wks = sec_rot.get("weeks") or 1
-        def_s = sec_rot.get("def_score")
-        cyc_s = sec_rot.get("cyc_score")
-        strength = sec_rot.get("strength")
+    if sec_rot and not _error_panel("sec_rot", sec_rot, "SECTORS") and safe_get_field(sec_rot, "signal"):
+        sig_name = (safe_get_field(sec_rot, "signal") or "").replace("_", " ").title()
+        wks = safe_get_field(sec_rot, "weeks") or 1
+        def_s = safe_get_field(sec_rot, "def_score")
+        cyc_s = safe_get_field(sec_rot, "cyc_score")
+        strength = safe_get_field(sec_rot, "strength")
         def_f = float(def_s) if def_s is not None else None
         cyc_f = float(cyc_s) if cyc_s is not None else None
         strength_f = float(strength) if strength is not None else None
@@ -120,7 +121,7 @@ def panel_sector_compact(srank, pos, port, sec_rot=None, irank=None):
 
     srank_items = None
     if isinstance(srank, dict) and "items" in srank:
-        srank_items = srank.get("items")
+        srank_items = safe_get_field(srank, "items")
         if not isinstance(srank_items, list):
             srank_items = None
     elif isinstance(srank, list):
@@ -136,13 +137,13 @@ def panel_sector_compact(srank, pos, port, sec_rot=None, irank=None):
         srank_tbl.add_column("a", ratio=1)
         srank_tbl.add_column("b", ratio=1)
         for a, b in zip(valid_srank[::2], [*valid_srank[1::2], None], strict=False):
-            na = (a.get("sector_name", ""))[:13]
-            mma = a.get("momentum_score")
+            na = (safe_get_field(a, "sector_name", ""))[:13]
+            mma = safe_get_field(a, "momentum_score")
             ms_a = f"[dim] mom:{float(mma):.0f}[/]" if mma is not None else ""
             la = f"[{G}]#{a['current_rank']:<2}[/] [dim]{na}[/]{ms_a}{_rdelta(a, wk4='rank_4w_ago')}"
             if b:
-                nb = (b.get("sector_name", ""))[:13]
-                mmb = b.get("momentum_score")
+                nb = (safe_get_field(b, "sector_name", ""))[:13]
+                mmb = safe_get_field(b, "momentum_score")
                 ms_b = f"[dim] mom:{float(mmb):.0f}[/]" if mmb is not None else ""
                 lb = f"[{G}]#{b['current_rank']:<2}[/] [dim]{nb}[/]{ms_b}{_rdelta(b, wk4='rank_4w_ago')}"
             else:
@@ -157,7 +158,7 @@ def panel_sector_compact(srank, pos, port, sec_rot=None, irank=None):
 
     irank_items = None
     if isinstance(irank, dict) and "items" in irank:
-        irank_items = irank.get("items")
+        irank_items = safe_get_field(irank, "items")
         if not isinstance(irank_items, list):
             irank_items = None
     elif isinstance(irank, list):
@@ -172,13 +173,13 @@ def panel_sector_compact(srank, pos, port, sec_rot=None, irank=None):
         irank_tbl.add_column("a", ratio=1)
         irank_tbl.add_column("b", ratio=1)
         for a, b in zip(valid_irank[:4][::2], [*valid_irank[:4][1::2], None], strict=False):
-            na = (a.get("industry", ""))[:14]
-            mma = a.get("momentum_score")
+            na = (safe_get_field(a, "industry", ""))[:14]
+            mma = safe_get_field(a, "momentum_score")
             ms_a = f"[dim] mom:{float(mma):.0f}[/]" if mma is not None else ""
             la = f"[{CY}]#{a['current_rank']:<2}[/] [white]{na}[/]{ms_a}{_rdelta(a)}"
             if b:
-                nb = (b.get("industry", ""))[:14]
-                mmb = b.get("momentum_score")
+                nb = (safe_get_field(b, "industry", ""))[:14]
+                mmb = safe_get_field(b, "momentum_score")
                 ms_b = f"[dim] mom:{float(mmb):.0f}[/]" if mmb is not None else ""
                 lb = f"[{CY}]#{b['current_rank']:<2}[/] [white]{nb}[/]{ms_b}{_rdelta(b)}"
             else:
@@ -215,20 +216,20 @@ def panel_sectors_expanded(srank, pos, port, sec_rot=None, irank=None):
         Rule(style="dim"),
     ]
 
-    if sec_rot and not _error_panel("sec_rot", sec_rot, "SECTORS") and sec_rot.get("signal"):
-        sig_name = (sec_rot.get("signal") or "").replace("_", " ").title()
-        wks = sec_rot.get("weeks")
+    if sec_rot and not _error_panel("sec_rot", sec_rot, "SECTORS") and safe_get_field(sec_rot, "signal"):
+        sig_name = (safe_get_field(sec_rot, "signal") or "").replace("_", " ").title()
+        wks = safe_get_field(sec_rot, "weeks")
         if wks is None:
             wks = 1
-        def_s_raw = sec_rot.get("def_score")
-        cyc_s_raw = sec_rot.get("cyc_score")
-        strength_raw = sec_rot.get("strength")
+        def_s_raw = safe_get_field(sec_rot, "def_score")
+        cyc_s_raw = safe_get_field(sec_rot, "cyc_score")
+        strength_raw = safe_get_field(sec_rot, "strength")
         if def_s_raw is not None and cyc_s_raw is not None and strength_raw is not None:
             def_s = float(def_s_raw)
             cyc_s = float(cyc_s_raw)
             strength = float(strength_raw)
             sig_c = R if def_s >= 60 else (Y if def_s >= 40 else G)
-            rot_date = sec_rot.get("date")
+            rot_date = safe_get_field(sec_rot, "date")
             date_s = f"  [dim]as of {str(rot_date)[:10]}[/]" if rot_date else ""
             rows.append(
                 Text.from_markup(
@@ -244,7 +245,7 @@ def panel_sectors_expanded(srank, pos, port, sec_rot=None, irank=None):
     # Issue 3.1 FIX: Use unified normalization function
     pos_list, _, _ = normalize_positions_data(pos)
     if pos_list:
-        pv_raw = port.get("total_portfolio_value")
+        pv_raw = safe_get_field(port, "total_portfolio_value")
         if pv_raw is None:
             logger.warning("Total portfolio value unavailable for sector breakdown")
             pv = None
@@ -257,9 +258,9 @@ def panel_sectors_expanded(srank, pos, port, sec_rot=None, irank=None):
                 invalid_count += 1
                 logger.error(f"panel_sectors_expanded: invalid position (not a dict): {type(p).__name__}")
                 continue
-            sec = p.get("sector", "Unknown")
-            val = safe_float(p.get("position_value"), default=None)
-            pnl = safe_float(p.get("unrealized_pnl_pct"), default=None)
+            sec = safe_get_field(p, "sector", "Unknown")
+            val = safe_float(safe_get_field(p, "position_value"), default=None)
+            pnl = safe_float(safe_get_field(p, "unrealized_pnl_pct"), default=None)
             if sec not in sd:
                 sd[sec] = {"val": 0.0, "n": 0, "pnls": []}
             if val is not None:
