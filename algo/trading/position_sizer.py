@@ -568,7 +568,7 @@ class PositionSizer:
                 * vix_mult
                 * Decimal(str(regime_mult))
             )
-            risk_dollars = portfolio_value * adjusted_risk_pct
+            risk_dollars = (portfolio_value * adjusted_risk_pct).quantize(Decimal("0.01"), ROUND_HALF_UP)
 
             if phase_mult == 0.0:
                 logger.warning(
