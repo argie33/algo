@@ -186,7 +186,7 @@ def safe_int(int_str, min_val=None, max_val=None):
     except (ValueError, TypeError):
         raise_api_error(400, "BadRequest", "value must be a valid integer")
 
-def safe_float(float_str, min_val=None, max_val=None):
+def float(float_str, min_val=None, max_val=None):
     """Parse and validate float parameter. Always fails fast on invalid input."""
     if float_str is None or float_str == "":
         raise_api_error(400, "BadRequest", "parameter is required")

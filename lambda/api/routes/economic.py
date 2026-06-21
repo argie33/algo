@@ -233,7 +233,7 @@ def _get_leading_indicators(cur) -> dict:
                 logger.warning("Row missing series_id in economic latest data")
                 continue
             # Safely convert value to float
-            value = DatabaseResultValidator.safe_get_safe_float(
+            value = DatabaseResultValidator.safe_get_float(
                 row, "value", default=None, strict=False
             )
             date = row.get("date")
