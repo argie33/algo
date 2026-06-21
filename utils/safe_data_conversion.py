@@ -12,7 +12,7 @@ import json
 import logging
 import math
 from datetime import date, datetime, timezone
-from typing import Any
+from typing import Any, overload
 
 
 logger = logging.getLogger(__name__)
@@ -23,6 +23,18 @@ EASTERN_TZ = timezone.utc
 # ──────────────────────────────────────────────────────────────────────────────
 # FLOAT CONVERSION
 # ──────────────────────────────────────────────────────────────────────────────
+
+
+@overload
+def safe_float(value: Any, default: float, context: str = "") -> float: ...
+
+
+@overload
+def safe_float(value: Any, default: None, context: str = "") -> float | None: ...
+
+
+@overload
+def safe_float(value: Any, *, context: str = "") -> float | None: ...
 
 
 def safe_float(value: Any, default: float | None = 0.0, context: str = "") -> float | None:
