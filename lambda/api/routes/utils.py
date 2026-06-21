@@ -36,7 +36,7 @@ QUERY_TIMEOUTS = {
 }
 
 
-def set_query_timeout(cur, timeout_ms: int | None = None, timeout_name: str = "default"):
+def set_query_timeout(cur: Any, timeout_ms: int | None = None, timeout_name: str = "default") -> None:
     """Set statement timeout for the current transaction.
 
     Args:
@@ -52,7 +52,7 @@ def set_query_timeout(cur, timeout_ms: int | None = None, timeout_name: str = "d
     cur.execute(f"SET LOCAL statement_timeout = {timeout_ms}ms")
 
 
-def normalize_to_utc_datetime(dt):
+def normalize_to_utc_datetime(dt: date | datetime | None) -> datetime | None:
     """Convert date or naive/aware datetime to UTC-aware datetime.
 
     Handles three cases:
@@ -82,7 +82,7 @@ def normalize_to_utc_datetime(dt):
     )
 
 
-def safe_limit(limit_str, max_val=5000, default=None):
+def safe_limit(limit_str: str | None, max_val: int = 5000, default: int | None = None) -> int:
     """Parse and validate limit parameter. Optionally use default if missing.
 
     Args:
@@ -99,29 +99,35 @@ def safe_limit(limit_str, max_val=5000, default=None):
     if not limit_str:
         if default is not None:
             return min(max(default, 1), max_val)
-        raise_api_error(400, "BadRequest", "limit parameter is required")
+        raise_api_error(400, "BadRequest", "limit parameter is required")  # noqa: F631
+        return max_val  # unreachable
     try:
         value = int(limit_str)
         if value <= 0:
-            raise_api_error(400, "BadRequest", "limit must be greater than 0")
+            raise_api_error(400, "BadRequest", "limit must be greater than 0")  # noqa: F631
+            return max_val  # unreachable
         return min(value, max_val)
     except (ValueError, TypeError):
-        raise_api_error(400, "BadRequest", "limit must be a valid integer")
+        raise_api_error(400, "BadRequest", "limit must be a valid integer")  # noqa: F631
+        return max_val  # unreachable
 
 
-def safe_offset(offset_str, max_val=1000000):
+def safe_offset(offset_str: str | None, max_val: int = 1000000) -> int:
     """Parse and validate offset parameter. Always fails fast on invalid input."""
     if not offset_str:
-        raise_api_error(400, "BadRequest", "offset parameter is required")
+        raise_api_error(400, "BadRequest", "offset parameter is required")  # noqa: F631
+        return 0  # unreachable
     try:
         value = int(offset_str)
         if value < 0:
-            raise_api_error(400, "BadRequest", "offset must be non-negative")
+            raise_api_error(400, "BadRequest", "offset must be non-negative")  # noqa: F631
+            return 0  # unreachable
         return min(value, max_val)
     except (ValueError, TypeError):
-        raise_api_error(400, "BadRequest", "offset must be a valid integer")
+        raise_api_error(400, "BadRequest", "offset must be a valid integer")  # noqa: F631
+        return 0  # unreachable
 
-def safe_days(days_str, max_val=365, default=None):
+def safe_days(days_str: str | None, max_val: int = 365, default: int | None = None) -> int:
     """Parse and validate days parameter. Optionally use default if missing.
 
     Args:
@@ -138,16 +144,19 @@ def safe_days(days_str, max_val=365, default=None):
     if not days_str:
         if default is not None:
             return min(max(default, 1), max_val)
-        raise_api_error(400, "BadRequest", "days parameter is required")
+        raise_api_error(400, "BadRequest", "days parameter is required")  # noqa: F631
+        return max_val  # unreachable
     try:
         value = int(days_str)
         if value < 1:
-            raise_api_error(400, "BadRequest", "days must be at least 1")
+            raise_api_error(400, "BadRequest", "days must be at least 1")  # noqa: F631
+            return max_val  # unreachable
         return min(value, max_val)
     except (ValueError, TypeError):
-        raise_api_error(400, "BadRequest", "days must be a valid integer")
+        raise_api_error(400, "BadRequest", "days must be a valid integer")  # noqa: F631
+        return max_val  # unreachable
 
-def safe_page(page_str, default=None):
+def safe_page(page_str: str | None, default: int | None = None) -> int:
     """Parse and validate page parameter. Optionally use default if missing.
 
     Args:
@@ -163,16 +172,19 @@ def safe_page(page_str, default=None):
     if not page_str:
         if default is not None:
             return max(default, 1)
-        raise_api_error(400, "BadRequest", "page parameter is required")
+        raise_api_error(400, "BadRequest", "page parameter is required")  # noqa: F631
+        return 1  # unreachable
     try:
         value = int(page_str)
         if value < 1:
-            raise_api_error(400, "BadRequest", "page must be at least 1")
+            raise_api_error(400, "BadRequest", "page must be at least 1")  # noqa: F631
+            return 1  # unreachable
         return value
     except (ValueError, TypeError):
-        raise_api_error(400, "BadRequest", "page must be a valid integer")
+        raise_api_error(400, "BadRequest", "page must be a valid integer")  # noqa: F631
+        return 1  # unreachable
 
-def safe_int(int_str, min_val=None, max_val=None):
+def safe_int(int_str: str | None, min_val: int | None = None, max_val: int | None = None) -> int:
     """Parse and validate integer parameter. Always fails fast on invalid input."""
     if int_str is None or int_str == "":
         raise_api_error(400, "BadRequest", "parameter is required")
@@ -186,7 +198,7 @@ def safe_int(int_str, min_val=None, max_val=None):
     except (ValueError, TypeError):
         raise_api_error(400, "BadRequest", "value must be a valid integer")
 
-def float(float_str, min_val=None, max_val=None):
+def safe_float(float_str: str | None, min_val: float | None = None, max_val: float | None = None) -> float:
     """Parse and validate float parameter. Always fails fast on invalid input."""
     if float_str is None or float_str == "":
         raise_api_error(400, "BadRequest", "parameter is required")
@@ -200,7 +212,7 @@ def float(float_str, min_val=None, max_val=None):
     except (ValueError, TypeError):
         raise_api_error(400, "BadRequest", "value must be a valid float")
 
-def safe_string(value_str, allowed_values=None, max_length=100):
+def safe_string(value_str: str | None, allowed_values: set[str] | None = None, max_length: int = 100) -> str:
     """Validate and sanitize string parameter. Always fails fast on invalid input.
 
     Args:
@@ -231,7 +243,7 @@ def safe_string(value_str, allowed_values=None, max_length=100):
     return value_str
 
 
-def safe_symbol(symbol_str):
+def safe_symbol(symbol_str: str | None) -> str:
     """Validate stock symbol (alphanumeric + dash + caret for indices). Always fails fast.
 
     Args:
@@ -269,7 +281,7 @@ def get_api_version_headers() -> dict[str, str]:
     return {API_VERSION_HEADER: API_VERSION}
 
 
-def error_response(code, typ, msg):
+def error_response(code: int, typ: str, msg: str) -> dict[str, Any]:
     """Standardized error response.
 
     Returns consistent error format with statusCode, errorType, message, and _error.
@@ -287,7 +299,7 @@ def error_response(code, typ, msg):
     return {"statusCode": code, "errorType": typ, "message": msg, "_error": msg}
 
 
-def raise_db_error(error, context="database operation"):
+def raise_db_error(error: Exception, context: str = "database operation") -> Any:
     """Convert database error to APIException.
 
     Maps psycopg2 exceptions to appropriate HTTP status codes:
@@ -349,7 +361,7 @@ def extract_param(params, key: str, required: bool = False, default: str | None 
     ))
 
 
-def raise_api_error(status_code, error_type, message):
+def raise_api_error(status_code: int, error_type: str, message: str) -> Any:
     """Raise APIException with explicit status code and error type.
 
     Selects the appropriate exception subclass based on status code.
@@ -375,7 +387,7 @@ def raise_api_error(status_code, error_type, message):
     raise exc_class(message, error_type=error_type, status_code=status_code)
 
 
-def success_response(data, metadata=None):
+def success_response(data: dict[str, Any], metadata: dict[str, Any] | None = None) -> dict[str, Any]:
     """Standardized success response for single object.
 
     Always returns object with statusCode=200 and data field.
@@ -389,7 +401,7 @@ def success_response(data, metadata=None):
     return response
 
 
-def list_response(items, total=None, data_freshness=None, limit=None, offset=None):
+def list_response(items: list[Any], total: int | None = None, data_freshness: dict[str, Any] | None = None, limit: int | None = None, offset: int | None = None) -> dict[str, Any]:
     """Standardized list response for paginated data.
 
     Always returns array in 'data.items' field with total count.
