@@ -14,6 +14,7 @@ from algo.infrastructure.alpaca_sync_manager import AlpacaSyncManager
 from algo.infrastructure.audit_logger import TradeAuditLogger
 from algo.infrastructure.position_analyzer import PositionAnalyzer
 from algo.reporting import notify
+from utils.db import DatabaseContext
 from utils.trading import PositionStatus
 
 
