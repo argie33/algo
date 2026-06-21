@@ -20,8 +20,14 @@ class LiquidityChecks:
 
     def __init__(self, config: dict):
         self.config = config
-        self.min_adv_shares = config.get("min_adv_shares", 50_000)
-        self.min_adv_dollars = config.get("min_adv_dollars", 500_000)
+        min_adv_shares_val = config.get("min_adv_shares")
+        min_adv_dollars_val = config.get("min_adv_dollars")
+        if min_adv_shares_val is None:
+            raise ValueError("CRITICAL: min_adv_shares config missing. Cannot enforce liquidity checks.")
+        if min_adv_dollars_val is None:
+            raise ValueError("CRITICAL: min_adv_dollars config missing. Cannot enforce liquidity checks.")
+        self.min_adv_shares = min_adv_shares_val
+        self.min_adv_dollars = min_adv_dollars_val
 
     def run_all(self, symbol: str, entry_price: float, signal_date=None) -> tuple:
         if signal_date is None:
@@ -153,7 +159,12 @@ class LiquidityChecks:
             Tuple[bool, str]: (passed, reason)
         """
         try:
-            min_days = int(self.config.get("min_price_history_days", 200))
+            min_days_val = self.config.get("min_price_history_days")
+            if min_days_val is None:
+                logger.error("CRITICAL: min_price_history_days config missing. Using safe default 200.")
+                min_days = 200
+            else:
+                min_days = int(min_days_val)
             with DatabaseContext("read") as cur:
                 cur.execute(
                     """

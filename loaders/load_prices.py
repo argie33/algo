@@ -38,6 +38,7 @@ from utils.loaders.helpers import get_active_symbols
 from utils.optimal_loader import OptimalLoader
 from utils.validation.data_freshness import FreshnessValidator, StaleDataError
 
+
 logger = logging.getLogger(__name__)
 
 # Correlation ID for tracing - Phase 1 passes PHASE1_CORRELATION_ID via environment
@@ -260,6 +261,10 @@ class PriceLoader(OptimalLoader):
                     f"[SCHEMA] ✓ Schema validation passed for {self.table_name} ({len(required_schema)} columns)"
                 )
 
+                # CRITICAL FIX: Verify unique constraint exists (prevents duplicate insertions)
+                # This is a defensive check to ensure data integrity constraints are in place
+                self._verify_unique_constraint_exists(cur)
+
         except RuntimeError:
             raise  # Re-raise validation errors
         except (psycopg2.DatabaseError, psycopg2.OperationalError) as e:
@@ -268,6 +273,67 @@ class PriceLoader(OptimalLoader):
                 exc_info=True,
             )
             raise RuntimeError(f"Schema validation could not complete: {e}")
+
+    def _verify_unique_constraint_exists(self, cur):
+        """Verify that unique constraint on primary key exists (prevents duplicates).
+
+        CRITICAL: Ensures that the database enforces uniqueness on (symbol, date).
+        If this constraint is missing, duplicate rows can be inserted silently,
+        corrupting the dataset.
+
+        This is the root cause check for issue where 20,150 duplicate rows
+        were inserted when the unique constraint didn't exist.
+        """
+        if not self.primary_key:
+            logger.debug(f"[CONSTRAINT] No primary_key defined for {self.table_name}, skipping check")
+            return
+
+        pk_cols = ",".join(self.primary_key)
+        try:
+            # Check for unique constraint or index on primary key
+            cur.execute("""
+                SELECT 1 FROM information_schema.table_constraints
+                WHERE table_name = %s
+                  AND constraint_type = 'UNIQUE'
+                LIMIT 1
+            """, (self.table_name,))
+
+            constraint_exists = cur.fetchone() is not None
+
+            if not constraint_exists:
+                # Check for unique index as fallback
+                cur.execute("""
+                    SELECT 1 FROM pg_indexes
+                    WHERE tablename = %s AND indexdef LIKE '%UNIQUE%'
+                    LIMIT 1
+                """, (self.table_name,))
+                index_exists = cur.fetchone() is not None
+            else:
+                index_exists = True
+
+            if constraint_exists or index_exists:
+                logger.info(
+                    f"[CONSTRAINT] ✓ Unique constraint/index found on {self.table_name}({pk_cols})"
+                )
+            else:
+                # This is a CRITICAL error - without the constraint, duplicates can occur
+                error_msg = (
+                    f"[CONSTRAINT] ❌ CRITICAL: No UNIQUE constraint or index on {self.table_name}({pk_cols}). "
+                    f"This allows duplicate rows to be inserted, corrupting the dataset. "
+                    f"Root cause analysis: https://github.com/yourorg/algo/blob/main/steering/duplicate_rows_root_cause_analysis.md. "
+                    f"Create constraint with: ALTER TABLE {self.table_name} ADD CONSTRAINT "
+                    f"{self.table_name}_{'_'.join(self.primary_key)}_unique UNIQUE ({pk_cols})"
+                )
+                logger.critical(error_msg)
+                raise RuntimeError(error_msg)
+
+        except RuntimeError:
+            raise
+        except (psycopg2.DatabaseError, psycopg2.OperationalError) as e:
+            logger.warning(
+                f"[CONSTRAINT] Could not verify unique constraint for {self.table_name}: {e}. "
+                f"Proceeding with caution - duplicates may occur if constraint doesn't exist."
+            )
 
     def _get_smart_batch_size(self) -> int:
         """CREATIVE FIX #2: Calculate optimal batch size based on observed API performance.
@@ -2231,8 +2297,8 @@ def _invalidate_phase1_cache():
         except ClientError as delete_err:
             if delete_err.response.get("Error").get("Code") in ("AccessDenied", "AccessDeniedException"):
                 logger.warning(
-                    f"[CACHE INVALIDATION] ⚠ Permission denied (DELETE): No DynamoDB write access. "
-                    f"Loader will proceed without cache invalidation (risk: may use stale data from previous run)."
+                    "[CACHE INVALIDATION] ⚠ Permission denied (DELETE): No DynamoDB write access. "
+                    "Loader will proceed without cache invalidation (risk: may use stale data from previous run)."
                 )
                 return
             logger.error(

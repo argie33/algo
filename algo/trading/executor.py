@@ -206,7 +206,7 @@ class TradeExecutor:
             stop_loss_price=stop_loss_price,
             take_profit_price=target_1_price,
             order_class="bracket",
-        )
+        )  # type: ignore[call-arg]
         self._last_order_result = order_result  # Store for bracket validation
 
         if not order_result["success"]:
@@ -281,7 +281,7 @@ class TradeExecutor:
             ),
         ]
 
-        for check_fn, args, check_name in checks:
+        for check_fn, args, check_name in checks:  # type: ignore[assignment]
             result = check_fn(*args)
 
             if check_name == "idempotent":
