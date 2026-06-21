@@ -61,9 +61,19 @@ def panel_market_full(mkt, sentiment=None):
     lbl = TIER_SHORT.get(tier, "LOADING")
     exp = safe_get_field(mkt, "pct")
     vix = safe_get_field(mkt, "vix")
-    dist = safe_get_field(mkt, "dist", "--")
-    stage = safe_get_field(mkt, "stage", "--")
     spy_raw = safe_get_field(mkt, "spy")
+
+    # Critical fields validation (should never be None after successful fetch)
+    if vix is None or spy_raw is None:
+        return Panel(
+            Text.from_markup("[dim]Market data validation failed - critical fields missing (VIX or SPY).[/]\nCheck data loading status."),
+            title="[bold blue]MARKET (CRITICAL DATA MISSING)[/]",
+            border_style="red",
+            padding=(0, 1),
+        )
+
+    dist = safe_get_field(mkt, "dist", "N/A")
+    stage = safe_get_field(mkt, "stage", "N/A")
     spy_chg = safe_get_field(mkt, "spy_chg")
     trend = safe_get_field(mkt, "trend", "")
     halts = safe_get_list(safe_get_field(mkt, "halts")) or []
@@ -75,11 +85,11 @@ def panel_market_full(mkt, sentiment=None):
     bmom = safe_get_field(mkt, "bmom")
     fed = safe_get_field(mkt, "fed")
 
-    # Derived values from extracted fields
-    exp_s = f"{float(exp):.0f}%" if exp is not None else "--"
+    # Derived values from extracted fields (critical fields guaranteed non-None)
+    exp_s = f"{float(exp):.0f}%" if exp is not None else "N/A"
     bar = exp_bar(exp or 0, w=10)
-    vix_s = f"{vix:.1f}" if vix is not None else "--"
-    vc = DIM if vix is None else (R if vix >= 30 else (Y if vix >= 20 else G))
+    vix_s = f"{vix:.1f}"
+    vc = R if vix >= 30 else (Y if vix >= 20 else G)
     trend_s = trend.upper()
     halt_s = " ".join(str(h)[:16] for h in halts[:2]) if halts else "none"
     hc = Y if halts else DIM
@@ -89,7 +99,7 @@ def panel_market_full(mkt, sentiment=None):
     nhnl = (nh - nl) if (nh is not None and nl is not None) else None
     nhnl_c = (G if nhnl is not None and nhnl >= 50 else (Y if nhnl is not None and nhnl >= 0 else R)) if nhnl is not None else DIM
 
-    spy_s = f"SPY:[white]${float(spy_raw):.2f}[/]" if spy_raw is not None else "SPY:--"
+    spy_s = f"SPY:[white]${float(spy_raw):.2f}[/]"
     if spy_chg is not None:
         spy_chg_s = f" [{G if spy_chg >= 0 else R}]{sign(spy_chg)}{spy_chg:.1f}%[/]"
         spy_s += spy_chg_s

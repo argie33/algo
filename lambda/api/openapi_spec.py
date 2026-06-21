@@ -8,6 +8,8 @@ Provides complete OpenAPI 3.0 spec for:
 - Data freshness metadata
 """
 
+from api_utils.config import API_VERSION
+
 
 def generate_openapi_spec():
     """Generate complete OpenAPI 3.0 specification.
@@ -19,7 +21,7 @@ def generate_openapi_spec():
         "openapi": "3.0.0",
         "info": {
             "title": "Algo Trading API",
-            "version": "v2-2026-06-14",
+            "version": API_VERSION,
             "description": "RESTful API for algorithmic trading signals, market data, and portfolio management",
             "contact": {"name": "API Support", "email": "argeropolos@gmail.com"},
         },

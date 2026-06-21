@@ -18,6 +18,7 @@ import psycopg2
 
 from loaders.technical_indicators import compute_moving_averages
 from utils.db.context import DatabaseContext
+from utils.infrastructure.circuit_breaker import CircuitBreaker, DataImportance
 from utils.infrastructure.timezone import EASTERN_TZ
 from utils.optimal_loader import OptimalLoader
 from utils.safe_data_conversion import safe_float
@@ -27,9 +28,38 @@ logger = logging.getLogger(__name__)
 
 
 class MarketHealthDailyLoader(OptimalLoader):
+    """Market health metrics loader with standardized circuit breaker patterns.
+
+    CRITICAL DATA: SPY prices (market_health computation cannot proceed without)
+    REQUIRED DATA: Market breadth (A/D ratio, new highs/lows)
+    OPTIONAL ENRICHMENTS: VIX, put/call ratio, yield curve (missing is OK, computation continues)
+    """
     table_name = "market_health_daily"
     primary_key = ("date",)
     watermark_field = "date"
+
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        # Circuit breakers for optional enrichments
+        # These follow GRACEFUL DEGRADATION pattern: warn on failure, continue with None
+        self._vix_breaker = CircuitBreaker(
+            name="yfinance_vix",
+            failure_threshold=3,
+            recovery_timeout_sec=300,
+            importance=DataImportance.OPTIONAL,
+        )
+        self._put_call_breaker = CircuitBreaker(
+            name="yfinance_put_call",
+            failure_threshold=3,
+            recovery_timeout_sec=300,
+            importance=DataImportance.OPTIONAL,
+        )
+        self._yield_curve_breaker = CircuitBreaker(
+            name="economic_metrics_yield_curve",
+            failure_threshold=3,
+            recovery_timeout_sec=300,
+            importance=DataImportance.OPTIONAL,
+        )
 
     def fetch_incremental(self, symbol: str = "SPY", since: date | None = None):
         """Fetch SPY price data and compute market health metrics."""
@@ -107,72 +137,64 @@ class MarketHealthDailyLoader(OptimalLoader):
             m["new_highs_count"] = b.get("new_highs_count", 0)
             m["new_lows_count"] = b.get("new_lows_count", 0)
 
-        # Merge VIX data (non-critical enrichment - fail gracefully if unavailable)
-        try:
-            vix = self._fetch_vix_data(start, end)
-            matched_count = 0
-            for m in health_metrics:
-                if m["date"] in vix:
-                    m["vix_level"] = vix[m["date"]]
-                    matched_count += 1
-                else:
-                    m["vix_level"] = None
-            logger.info(f"VIX enrichment: matched {matched_count}/{len(health_metrics)} dates")
-        except RuntimeError as e:
-            error_msg = str(e)
-            if "DATA QUALITY" in error_msg:
-                logger.error(f"VIX data quality issue (operator action required): {e}")
+        # Merge VIX data (OPTIONAL enrichment - fail gracefully if unavailable)
+        vix = self._vix_breaker.execute(
+            fetch_func=lambda: self._fetch_vix_data(start, end),
+            importance=DataImportance.OPTIONAL,
+            fallback_value={},
+        )
+        matched_count = 0
+        for m in health_metrics:
+            if m["date"] in vix:
+                m["vix_level"] = vix[m["date"]]
+                matched_count += 1
             else:
-                logger.warning(f"VIX unavailable: {e}. Continuing with missing VIX values.")
-            # Ensure vix_level is set to None for all rows if fetch fails
-            for m in health_metrics:
-                if "vix_level" not in m:
-                    m["vix_level"] = None
+                m["vix_level"] = None
+        if matched_count > 0:
+            logger.info(f"VIX enrichment: matched {matched_count}/{len(health_metrics)} dates")
+        else:
+            logger.debug("VIX enrichment: no data available (optional enrichment skipped)")
 
-        # Merge today's put/call ratio from SPY options (non-critical enrichment - fail gracefully)
+        # Merge today's put/call ratio from SPY options (OPTIONAL enrichment)
         # Put/call_ratio and VIX both depend on yfinance API which has rate limits and outages.
         # Making this REQUIRED would block entire pipeline on yfinance issues.
         # Graceful degradation allows data pipeline to continue and signal generation to proceed.
-        try:
-            today_pc = self._fetch_put_call_ratio(end)
-            end_str = end.isoformat()
-            matched_count = 0
-            for m in health_metrics:
-                if m["date"] == end_str:
-                    m["put_call_ratio"] = today_pc
-                    if today_pc is not None:
-                        matched_count += 1
-                else:
-                    m["put_call_ratio"] = None
-            if today_pc is not None:
-                logger.info(f"Put/call ratio: {today_pc:.3f} (matched {matched_count} rows)")
+        today_pc = self._put_call_breaker.execute(
+            fetch_func=lambda: self._fetch_put_call_ratio(end),
+            importance=DataImportance.OPTIONAL,
+            fallback_value=None,
+        )
+        end_str = end.isoformat()
+        matched_count = 0
+        for m in health_metrics:
+            if m["date"] == end_str:
+                m["put_call_ratio"] = today_pc
+                if today_pc is not None:
+                    matched_count += 1
             else:
-                # On non-trading days, put/call is legitimately unavailable
-                logger.debug("Put/call ratio unavailable (non-trading day or no options data)")
-        except RuntimeError as e:
-            logger.warning(f"Put/call ratio unavailable: {e}. Continuing with missing put/call data.")
-            # Ensure put_call_ratio is set to None for all rows if fetch fails
-            for m in health_metrics:
-                if "put_call_ratio" not in m:
-                    m["put_call_ratio"] = None
+                m["put_call_ratio"] = None
+        if today_pc is not None:
+            logger.info(f"Put/call ratio: {today_pc:.3f} (matched {matched_count} rows)")
+        else:
+            logger.debug("Put/call ratio unavailable (optional enrichment skipped)")
 
-        # Merge yield curve slope from economic_metrics_daily (non-critical enrichment - fail gracefully)
+        # Merge yield curve slope from economic_metrics_daily (OPTIONAL enrichment)
         # Yield curve data is computed by economic_metrics_daily loader which runs separately.
         # If that loader has issues, yield curve will be missing, but market health should still load.
-        try:
-            yield_curve = self._fetch_yield_curve_data(start, end)
-            matched_count = 0
-            for m in health_metrics:
-                m["yield_curve_slope"] = yield_curve.get(m["date"])
-                if m["yield_curve_slope"] is not None:
-                    matched_count += 1
+        yield_curve = self._yield_curve_breaker.execute(
+            fetch_func=lambda: self._fetch_yield_curve_data(start, end),
+            importance=DataImportance.OPTIONAL,
+            fallback_value={},
+        )
+        matched_count = 0
+        for m in health_metrics:
+            m["yield_curve_slope"] = yield_curve.get(m["date"])
+            if m["yield_curve_slope"] is not None:
+                matched_count += 1
+        if matched_count > 0:
             logger.info(f"Yield curve enrichment: matched {matched_count}/{len(health_metrics)} dates")
-        except RuntimeError as e:
-            logger.warning(f"Yield curve unavailable: {e}. Continuing with missing yield curve data.")
-            # Ensure yield_curve_slope is set to None for all rows if fetch fails
-            for m in health_metrics:
-                if "yield_curve_slope" not in m:
-                    m["yield_curve_slope"] = None
+        else:
+            logger.debug("Yield curve enrichment: no data available (optional enrichment skipped)")
 
         # Optimize breadth data fetching for incremental updates: only compute for dates we'll keep
         if since is not None:

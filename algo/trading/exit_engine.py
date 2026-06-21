@@ -178,7 +178,7 @@ class ExitEngine:
                     )
 
                     if not exit_signal:
-                        t1_str = f”${safe_float(t1_price, default=0.0, context='t1_price'):.2f}” if t1_price is not None else “â€””
+                        t1_str = f”${safe_float(t1_price, default=0.0, context='t1_price'):.2f}” if t1_price is not None else “--”
                         logger.info(
                             f”  {symbol}: hold (cur ${safe_float(cur_price, default=0.0, context='cur_price'):.2f}, “
                             f”stop ${safe_float(active_stop, default=0.0, context='active_stop'):.2f}, t1 {t1_str}, “
@@ -192,7 +192,7 @@ class ExitEngine:
 
                     # Route exit through executor (atomicity + audit logging)
                     # Stop-raise-only (fraction=0) skips exit_trade, just updates stop
-                    logger.info(f"  {symbol}: {stage.upper()} â€” {exit_signal['reason']}")
+                    logger.info(f”  {symbol}: {stage.upper()} - {exit_signal['reason']}”)
                     if fraction > 0:
                         logger.info(f"      (exit {int(fraction * 100)}%)")
 

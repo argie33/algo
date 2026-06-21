@@ -477,6 +477,8 @@ def get_json_content_type() -> str:
 
 def get_security_headers() -> dict[str, str]:
     """Return security headers for all responses."""
+    from routes.utils import get_api_version_headers
+
     return {
         "Strict-Transport-Security": "max-age=31536000; includeSubDomains; preload",
         "X-Content-Type-Options": "nosniff",
@@ -485,6 +487,7 @@ def get_security_headers() -> dict[str, str]:
         "Referrer-Policy": "strict-origin-when-cross-origin",
         "Permissions-Policy": "geolocation=(), microphone=(), camera=()",
         "Content-Security-Policy": "default-src 'self'; img-src 'self' data: https:; frame-ancestors 'none'; base-uri 'self'",
+        **get_api_version_headers(),
     }
 
 

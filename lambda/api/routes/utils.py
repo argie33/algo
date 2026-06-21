@@ -47,7 +47,10 @@ def set_query_timeout(cur, timeout_ms: int | None = None, timeout_name: str = "d
     """
     if timeout_ms is None:
         timeout_ms = QUERY_TIMEOUTS.get(timeout_name, QUERY_TIMEOUTS["default"])
-    cur.execute(f"SET LOCAL statement_timeout = '{timeout_ms}ms'")
+    # Validate timeout_ms is an integer to prevent injection
+    if not isinstance(timeout_ms, int) or timeout_ms < 0:
+        raise ValueError(f"Invalid timeout_ms: must be non-negative integer, got {timeout_ms}")
+    cur.execute(f"SET LOCAL statement_timeout = {timeout_ms}ms")
 
 
 def normalize_to_utc_datetime(dt):
@@ -254,6 +257,19 @@ def safe_symbol(symbol_str):
     return symbol
 
 
+def get_api_version_headers() -> dict[str, str]:
+    """Return API version header for all responses.
+
+    Includes X-API-Version header so clients and monitoring systems can detect
+    schema changes and breaking API modifications.
+
+    Returns:
+        Dict with X-API-Version header
+    """
+    from api_utils.config import API_VERSION, API_VERSION_HEADER
+    return {API_VERSION_HEADER: API_VERSION}
+
+
 def error_response(code, typ, msg):
     """Standardized error response.
 
@@ -433,9 +449,10 @@ def execute_with_timeout(
     for attempt in range(max_attempts):
         try:
             # Set LOCAL timeout (connection-scoped, not global)
-            cur.execute(
-                f"SET LOCAL statement_timeout = '{int(current_timeout * 1000)}ms'"
-            )
+            timeout_ms = int(current_timeout * 1000)
+            if timeout_ms < 0:
+                raise ValueError(f"Invalid timeout: {timeout_ms}ms must be non-negative")
+            cur.execute(f"SET LOCAL statement_timeout = {timeout_ms}ms")
             if params:
                 cur.execute(query, params)
             else:

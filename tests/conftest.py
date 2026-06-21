@@ -58,7 +58,16 @@ def pytest_configure(config):
         def closeall(self):
             pass
 
-    psycopg2.pool.SimpleConnectionPool = MagicMock(return_value=MockConnectionPool())
+    # Keep original class but override __init__ to return our mock pool
+    original_pool = psycopg2.pool.SimpleConnectionPool
+    def mock_pool_init(self, *args, **kwargs):
+        # Don't call original - just become our mock pool
+        self._mock_pool = MockConnectionPool()
+
+    original_pool.__init__ = mock_pool_init
+    original_pool.getconn = lambda self: self._mock_pool.getconn()
+    original_pool.putconn = lambda self, conn, close=False: self._mock_pool.putconn(conn, close)
+    original_pool.closeall = lambda self: self._mock_pool.closeall()
 
     # Also mock get_db_connection as fallback
     patch("utils.db.connection.get_db_connection", return_value=_create_mock_connection()).start()

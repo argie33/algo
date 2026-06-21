@@ -110,3 +110,37 @@ See `steering/system.md` → **Credentials & Secrets** for procedures.
 - Only access fields if no error (validation guaranteed they exist)
 - Use direct access for critical fields: `data["field_name"]`
 - Use `.get()` only for truly optional fields
+
+## Data Loader Outage Handling - Standardized Circuit Breaker Pattern
+
+**Problem**: Loaders handle API outages inconsistently—some fail fast, some use stale cache silently, some degrade gracefully. Users can't distinguish between fresh data and 9-day-old VIX.
+
+**Solution**: Three-tier circuit breaker pattern per `steering/circuit_breaker_patterns.md`:
+
+1. **CRITICAL DATA** (VIX, portfolio value, prices): Fail-fast, no stale cache
+2. **REQUIRED DATA** (technical indicators, financials): Fail with context, retry later
+3. **OPTIONAL ENRICHMENTS** (put/call, yield curve): Graceful degradation, warn, continue with None
+
+**When Adding/Modifying Loaders**:
+1. Identify data criticality: Is it used for position sizing? (CRITICAL), computation? (REQUIRED), or enrichment? (OPTIONAL)
+2. Use `CircuitBreaker` from `utils.infrastructure.circuit_breaker` for consistent retry/recovery
+3. Use `FreshnessValidator` from `utils.validation.data_freshness` to prevent stale data usage
+4. Document criticality in loader docstring
+5. For OPTIONAL data: always check for None before using; for CRITICAL/REQUIRED: let exceptions propagate to orchestrator
+
+**Example**:
+```python
+from utils.infrastructure.circuit_breaker import CircuitBreaker, DataImportance
+
+self._vix_breaker = CircuitBreaker(
+    name="yfinance_vix",
+    importance=DataImportance.OPTIONAL  # Missing is OK, continue with None
+)
+
+vix = self._vix_breaker.execute(
+    fetch_func=lambda: self._fetch_vix_data(start, end),
+    fallback_value={}
+)
+```
+
+See `steering/circuit_breaker_patterns.md` for full implementation guide, migration timeline, and testing procedures.

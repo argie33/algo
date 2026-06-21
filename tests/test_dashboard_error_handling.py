@@ -50,7 +50,7 @@ def test_dashboard_handles_api_error_in_portfolio():
         layout = render_dashboard(broken_data, frame=0)
         assert layout is not None, "Dashboard should render even with broken portfolio data"
         # Check that error panel is displayed by looking at the layout structure
-        print("✓ Dashboard handled broken portfolio gracefully")
+        print("OK: Dashboard handled broken portfolio gracefully")
     except Exception as e:
         pytest.fail(f"Dashboard crashed on broken portfolio data: {e}")
 
@@ -68,7 +68,7 @@ def test_dashboard_handles_all_api_errors():
         try:
             layout = render_dashboard(broken_data, frame=0)
             assert layout is not None, f"Dashboard should render with error in {field}"
-            print(f"✓ Dashboard handled broken {field} gracefully")
+            print(f"OK Dashboard handled broken {field} gracefully")
         except Exception as e:
             pytest.fail(f"Dashboard crashed on broken {field} data: {e}")
 
@@ -86,4 +86,4 @@ def test_dashboard_shows_error_panel_when_data_broken():
     assert error_panel is not None, "Error panel should show when data has errors"
     error_str = str(error_panel)
     # Check that error panel contains reference to errors (content varies by implementation)
-    print(f"✓ Error panel generated for broken data")
+    print(f"OK Error panel generated for broken data")

@@ -813,86 +813,24 @@ def panel_status(
             rows.append(Text.from_markup("  ".join(phase_badges)))
 
     # Recent trade events (entry/exit/order) from audit_log
-    recent = safe_get_field(act, "recent_actions", []) if act_valid else []
-    trade_evts = [
-        a
-        for a in recent
-        if safe_get_field(a, "action_type")
-        in (
-            "entry_executed",
-            "exit_executed",
-            "entry_rejected",
-            "position_exited",
-            "order_placed",
-            "order_rejected",
-        )
-    ]
-    for a in trade_evts[:4]:
-        at = safe_get_field(a, "action_type", "")
-        det = safe_get_field(a, "details")
-        if isinstance(det, str):
-            try:
-                det = json.loads(det)
-            except (json.JSONDecodeError, ValueError) as e:
-                logger.warning(f"Failed to parse action details JSON: {e}")
-                det = None
-        elif not isinstance(det, dict) and det is not None:
-            det = None
-        sym = safe_get_field(det, "symbol", "") if det else ""
-        ic = G if ("executed" in at or at == "position_exited") else (Y if "placed" in at else R)
-        lbl = at.replace("_", " ").title()[:20]
-        rows.append(Text.from_markup(f"  [{ic}]{lbl}{(' ' + sym) if sym else ''}[/]"))
+    trade_rows = _format_recent_trade_events(act)
+    rows.extend(trade_rows)
 
     # Data health (stale tables only)
     if hlth_items:
         rows.append(Rule(style="dim"))
-        stale = [r for r in hlth_items if isinstance(r, dict) and safe_get_field(r, "st") != "ok"]
-        if not stale:
-            rows.append(Text.from_markup(f"[{G}]OK Data OK[/]  [dim]{len(hlth_items)} tables[/]"))
-            crit = [r for r in hlth_items if isinstance(r, dict) and safe_get_field(r, "role") == "CRIT"]
-            if crit:
-                crit_parts = "  ".join(f"[{G}]OK[/][dim]{safe_get_field(r, 'tbl', '')[:13]}[/]" for r in crit)
-                rows.append(Text.from_markup(f"  {crit_parts}"))
-        else:
-            for r in stale[:4]:
-                nm = str((safe_get_field(r, "tbl", "") or "--")[:13])
-                age_hours = safe_get_field(r, "age_hours")
-                age_days = safe_get_field(r, "age")
-                if age_hours is not None:
-                    age_s = f"{age_hours:.0f}h" if age_hours < 24 else f"{age_hours / 24:.1f}d"
-                elif age_days is not None:
-                    age_s = f"{float(age_days):.1f}d"
-                else:
-                    age_s = "?"
-                rc = safe_get_field(r, "role", "")
-                cc = "bold white" if rc == "CRIT" else "white"
-                lat = safe_get_field(r, "last_updated") or safe_get_field(r, "latest")
-                if hasattr(lat, "strftime"):
-                    lat_s = f" ({lat.strftime('%m/%d')})"
-                elif isinstance(lat, str) and len(lat) >= 10:
-                    lat_s = f" ({lat[5:10]})"
-                else:
-                    lat_s = f" ({str(lat)[:5]})" if lat else ""
-                rows.append(Text.from_markup(f"[{R}]X[/] [{cc}]{nm:<13}[/] [dim]{age_s} stale{lat_s}[/]"))
+        health_rows = _format_data_health_summary(hlth_items)
+        rows.extend(health_rows)
 
     # Notifications (up to 4)
     valid_notifs = safe_get_list(notifs)
     if valid_notifs:
         rows.append(Rule(style="dim"))
-        sev_colors = {"critical": R, "warning": Y, "info": CY, "debug": DIM}
-        short_names = {
-            "trading halted by circuit": "Halted: CB",
-            "circuit breaker": "CB fired",
-            "position entered": "Entered",
-            "position exited": "Exited",
-            "daily loss limit": "DailyLoss",
-            "max drawdown": "MaxDD hit",
-        }
         for n in valid_notifs[:4]:
-            sc = sev_colors.get(safe_get_field(n, "severity", "info"), DIM)
+            sc = SEV_COLORS.get(safe_get_field(n, "severity", "info"), DIM)
             raw_t = safe_get_field(n, "title", "") or ""
             tl = raw_t.lower()
-            title = next((v for k, v in short_names.items() if k in tl), raw_t[:24])
+            title = next((v for k, v in NOTIF_SHORT_NAMES.items() if k in tl), raw_t[:24])
             age = fmt_age(safe_get_field(n, "created_at"))
             unread = "-" if not safe_get_field(n, "seen", True) else " "
             rows.append(Text.from_markup(f"[{sc}]{unread}[/] [{sc}]{title}[/] [dim]{age}[/]"))
@@ -1258,21 +1196,12 @@ def panel_algo_health(
     valid_notifs = safe_get_list(notifs)
     if valid_notifs:
         rows.append(Rule(style="dim"))
-        sev_colors = {"critical": R, "warning": Y, "info": CY, "debug": DIM}
-        short_names = {
-            "trading halted by circuit": "Halted:CB",
-            "circuit breaker": "CB fired",
-            "position entered": "Entered",
-            "position exited": "Exited",
-            "daily loss limit": "DailyLoss",
-            "max drawdown": "MaxDD",
-        }
         notif_parts = []
         for n in valid_notifs[:5]:
-            sc = sev_colors.get(safe_get_field(n, "severity", "info"), DIM)
+            sc = SEV_COLORS.get(safe_get_field(n, "severity", "info"), DIM)
             raw_t = safe_get_field(n, "title", "") or ""
             title = next(
-                (v for k, v in short_names.items() if k in raw_t.lower()),
+                (v for k, v in NOTIF_SHORT_NAMES.items() if k in raw_t.lower()),
                 raw_t[:20],
             )
             age = fmt_age(safe_get_field(n, "created_at"))
@@ -1454,9 +1383,8 @@ def _build_results_panel(
     if valid_notifs:
         right_rows.append(Rule(style="dim"))
         right_rows.append(Text.from_markup("[dim]Notifications:[/]"))
-        sev_colors = {"critical": R, "warning": Y, "info": CY, "debug": DIM}
         for n in valid_notifs:
-            sc = sev_colors.get(safe_get_field(n, "severity", "info"), DIM)
+            sc = SEV_COLORS.get(safe_get_field(n, "severity", "info"), DIM)
             title = safe_get_field(n, "title", "") or ""
             age = fmt_age(safe_get_field(n, "created_at"))
             unread = "-" if not safe_get_field(n, "seen", True) else "."

@@ -1011,6 +1011,8 @@ class DailyReconciliation:
                         stop_loss_price,
                     ),
                 )
+
+                cur.execute("RELEASE SAVEPOINT import_sp")
                 imported += 1
             except (psycopg2.DatabaseError, psycopg2.OperationalError) as e:
                 logger.warning(f"  Failed to import {sym}: {e}")

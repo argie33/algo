@@ -18,7 +18,7 @@ Runs after swing_trader_scores is loaded (end of day pipeline).
 import logging
 import sys
 from datetime import date, datetime
-from typing import Any, List, Optional
+from typing import Any
 
 from loaders.runner import run_loader
 from utils.db.context import DatabaseContext
@@ -59,8 +59,13 @@ class GradeDistributionDailyLoader(OptimalLoader):
                 cur.execute("""
                     SELECT MAX(date) as latest_date FROM swing_trader_scores
                 """)
-                latest_row = cur.fetchone() or {}
-                latest_date = latest_row.get("latest_date")
+                latest_row = cur.fetchone()
+                if not latest_row:
+                    raise RuntimeError(
+                        "[GRADE_DISTRIBUTION] Failed to fetch max date from swing_trader_scores. "
+                        "Database query returned no rows."
+                    )
+                latest_date = latest_row[0]
 
                 if not latest_date:
                     logger.warning(
@@ -83,13 +88,18 @@ class GradeDistributionDailyLoader(OptimalLoader):
                     (latest_date,),
                 )
 
-                stats: dict[str, Any] = cur.fetchone() or {}
+                stats_row = cur.fetchone()
+                if not stats_row:
+                    raise RuntimeError(
+                        f"[GRADE_DISTRIBUTION] Failed to compute grade distribution for {latest_date}. "
+                        "Grade distribution query returned no rows."
+                    )
 
-                num_grade_a = stats.get("num_grade_a")
-                num_grade_b = stats.get("num_grade_b")
-                num_grade_c = stats.get("num_grade_c")
-                num_grade_d = stats.get("num_grade_d")
-                total_graded = stats.get("total_graded")
+                num_grade_a = stats_row[0]
+                num_grade_b = stats_row[1]
+                num_grade_c = stats_row[2]
+                num_grade_d = stats_row[3]
+                total_graded = stats_row[4]
 
                 result = {
                     "report_date": report_date,

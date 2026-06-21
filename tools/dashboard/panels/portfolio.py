@@ -78,15 +78,23 @@ def _calculate_adjusted_win_rate(perf, pos):
 
 
 def _build_portfolio_header(port_data: dict, cfg_data: dict | None) -> Text:
-    """Build portfolio header with value and age."""
+    """Build portfolio header with value and age.
+
+    Fails fast if critical portfolio value is missing (no placeholders).
+    """
     pv = safe_float(safe_get_field(port_data, "total_portfolio_value"), default=None)
+    if pv is None:
+        return Text.from_markup("[dim]Portfolio value unavailable (data fetch failed)[/]")
     snap = safe_get_field(port_data, "snapshot_date")
     snap_s = f"  [dim]{fmt_age(snap)}[/]" if snap is not None else ""
     return Text.from_markup(f"[bold white]{fmt_money(pv)}[/]{snap_s}")
 
 
 def _build_portfolio_metrics_grid(port_data: dict, cfg_data: dict) -> Table:
-    """Build 2-column grid for portfolio metrics."""
+    """Build 2-column grid for portfolio metrics.
+
+    Critical fields (cash, position_count) must be present from successful fetch.
+    """
     def cell(label, value_markup):
         return Text.from_markup(f"[dim]{label}[/] {value_markup}")
 
@@ -94,11 +102,20 @@ def _build_portfolio_metrics_grid(port_data: dict, cfg_data: dict) -> Table:
     tbl.add_column("left", ratio=1)
     tbl.add_column("right", ratio=1)
 
-    dr = safe_float(safe_get_field(port_data, "daily_return_pct"), default=None)
-    urp = safe_float(safe_get_field(port_data, "unrealized_pnl_pct"), default=None)
+    # Critical fields (must be present from successful fetch)
     cash = safe_float(safe_get_field(port_data, "total_cash"), default=None)
+    if cash is None:
+        tbl.add_row(cell("Cash:", "[dim]Data unavailable[/]"))
+        return tbl
     npos_val = safe_get_field(port_data, "position_count")
     npos = int(npos_val) if npos_val is not None else None
+    if npos is None:
+        tbl.add_row(cell("Cash:", f"[white]{fmt_money(cash)}[/]"), cell("Positions:", "[dim]Data unavailable[/]"))
+        return tbl
+
+    # Optional fields (safe to show as missing)
+    dr = safe_float(safe_get_field(port_data, "daily_return_pct"), default=None)
+    urp = safe_float(safe_get_field(port_data, "unrealized_pnl_pct"), default=None)
     cum = safe_get_field(port_data, "cumulative_return_pct")
     mxdd = safe_get_field(port_data, "max_drawdown_pct")
     lgpos = safe_get_field(port_data, "largest_position_pct")
@@ -113,7 +130,7 @@ def _build_portfolio_metrics_grid(port_data: dict, cfg_data: dict) -> Table:
         else:
             pos_val = f"[white]{npos}[/]"
     else:
-        pos_val = "[dim]--[/]"
+        pos_val = "[dim]unavailable[/]"
     tbl.add_row(
         cell("Cash:", f"[white]{fmt_money(cash)}[/]"),
         cell("Positions:", pos_val),

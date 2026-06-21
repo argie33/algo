@@ -4,7 +4,6 @@
 import logging
 import sys
 from datetime import date
-from typing import List, Optional
 
 from loaders.runner import run_loader
 from utils.external.yfinance import get_ticker
@@ -32,7 +31,12 @@ class CompanyProfileLoader(OptimalLoader):
                 "Cannot retrieve company profile without valid ticker."
             )
         try:
-            info = ticker.info or {}
+            info = ticker.info
+            if not info or not isinstance(info, dict):
+                raise RuntimeError(
+                    f"[COMPANY_PROFILE] {symbol}: ticker.info is {type(info).__name__} or empty. "
+                    "Cannot fetch company profile without valid info dict."
+                )
             market_cap = info.get("marketCap") or info.get("market_cap")
             return [
                 {

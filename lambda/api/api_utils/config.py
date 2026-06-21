@@ -1,4 +1,4 @@
-"""Configuration management for API health checks and data freshness.
+"""Configuration management for API health checks, data freshness, and versioning.
 
 All parameters are read from environment variables at Lambda cold start,
 with sensible defaults for development and production environments.
@@ -10,6 +10,13 @@ import threading
 
 
 logger = logging.getLogger(__name__)
+
+# API Versioning constants
+# Format: v<major>-YYYY-MM-DD (date of breaking changes)
+# When breaking changes are made to API response schemas, update version and notify dashboard
+# Dashboard validates version header to detect schema drift
+API_VERSION = "v2-2026-06-20"
+API_VERSION_HEADER = "X-API-Version"
 
 
 class HealthCheckConfig:
