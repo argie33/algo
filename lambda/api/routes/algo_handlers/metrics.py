@@ -76,9 +76,9 @@ def _get_algo_metrics(cur) -> dict:
 
         # Validate critical fields
         date = data.get("date")
-        total_actions = int(data.get("total_actions"))
-        entries = int(data.get("entries"))
-        exits = int(data.get("exits"))
+        total_actions = data.get("total_actions")
+        entries = data.get("entries")
+        exits = data.get("exits")
 
         if date is None:
             return error_response(503, "incomplete_data", "Algo metrics date missing")
@@ -86,6 +86,10 @@ def _get_algo_metrics(cur) -> dict:
             return error_response(
                 503, "incomplete_data", "Algo metrics incomplete (missing actions/entries/exits)"
             )
+
+        total_actions = int(total_actions)
+        entries = int(entries)
+        exits = int(exits)
 
         return success_response(
             {
