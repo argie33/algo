@@ -24,7 +24,6 @@ from typing import Any
 import psycopg2
 
 from utils.db import DatabaseContext
-from utils.safe_data_conversion import safe_float
 
 
 logger = logging.getLogger(__name__)
@@ -82,7 +81,7 @@ class ValueAtRisk:
                             "Cannot compute VaR with missing data. Check portfolio snapshot data."
                         )
                     try:
-                        val = Decimal(str(safe_float(row[1], default=0.0, context=f"portfolio_value row {i}")))
+                        val = Decimal(str(float(row[1])))
                         if val <= 0:
                             raise RuntimeError(
                                 f"Portfolio value invalid at row {i} (date {row[0]}): {val} "
@@ -104,7 +103,7 @@ class ValueAtRisk:
                 returns = []
                 for i, r in enumerate(returns_decimal):
                     try:
-                        ret = safe_float(float(r), default=0.0, context=f"daily_return[{i}]")
+                        ret = float(float(r))
                         returns.append(ret)
                     except (ValueError, TypeError) as e:
                         raise RuntimeError(
@@ -180,7 +179,7 @@ class ValueAtRisk:
                             "Cannot compute VaR with missing data. Check portfolio snapshot data."
                         )
                     try:
-                        val = Decimal(str(safe_float(row[1], default=0.0, context=f"portfolio_value row {i}")))
+                        val = Decimal(str(float(row[1])))
                         if val <= 0:
                             raise RuntimeError(
                                 f"Portfolio value invalid at row {i} (date {row[0]}): {val} "
@@ -202,7 +201,7 @@ class ValueAtRisk:
                 returns = []
                 for i, r in enumerate(returns_decimal):
                     try:
-                        ret = safe_float(float(r), default=0.0, context=f"daily_return[{i}]")
+                        ret = float(float(r))
                         returns.append(ret)
                     except (ValueError, TypeError) as e:
                         raise RuntimeError(
@@ -268,9 +267,9 @@ class ValueAtRisk:
                         "Portfolio must have at least 1 year of trading history."
                     )
 
-                values = [Decimal(str(safe_float(row[1], default=0.0, context=f"portfolio_value row {i}"))) for i, row in enumerate(rows)]
+                values = [Decimal(str(float(row[1]))) for i, row in enumerate(rows)]
                 returns_decimal = [(values[i] - values[i - 1]) / values[i - 1] for i in range(1, len(values))]
-                returns = np.array([safe_float(float(r), default=0.0, context=f"daily_return[{i}]") for i, r in enumerate(returns_decimal)])
+                returns = np.array([float(float(r)) for i, r in enumerate(returns_decimal)])
 
                 worst_var = 0.0
                 worst_start_idx = 0
@@ -328,7 +327,7 @@ class ValueAtRisk:
                         "Cannot compute beta exposure without portfolio snapshot. "
                         "Portfolio must have been reconciled at least once."
                     )
-                portfolio_value = Decimal(str(safe_float(portfolio_row[0], default=0.0, context="portfolio_value")))
+                portfolio_value = Decimal(str(float(portfolio_row[0])))
 
                 # Fetch SPY returns for the last 60 trading days (beta denominator)
                 cur.execute("""
@@ -339,7 +338,7 @@ class ValueAtRisk:
                 spy_rows = cur.fetchall()
                 spy_returns = []
                 if len(spy_rows) >= 2:
-                    spy_prices = list(reversed([Decimal(str(safe_float(r[1], default=0.0, context=f"SPY close {i}"))) for i, r in enumerate(spy_rows)]))
+                    spy_prices = list(reversed([Decimal(str(float(r[1]))) for i, r in enumerate(spy_rows)]))
                     spy_returns = [
                         (spy_prices[i] - spy_prices[i - 1]) / spy_prices[i - 1] for i in range(1, len(spy_prices))
                     ]
@@ -360,8 +359,8 @@ class ValueAtRisk:
                             f"[VAR] {symbol}: missing current_price/quantity, skipping from VAR calculation"
                         )
                         continue
-                    safe_price = safe_float(cur_price, default=0.0, context=f"{symbol} current_price")
-                    safe_qty = safe_float(qty, default=0.0, context=f"{symbol} quantity")
+                    safe_price = float(cur_price)
+                    safe_qty = float(qty)
                     if safe_price is None or safe_price <= 0 or safe_qty is None or safe_qty <= 0:
                         logger.warning(
                             f"[VAR] {symbol}: missing or invalid current_price/quantity, skipping from VAR calculation"
@@ -389,7 +388,7 @@ class ValueAtRisk:
                                     if r[0] is None:
                                         logger.warning(f"[VAR] {symbol}: None historical price for beta calc, skipping")
                                         break
-                                    price = safe_float(r[0], default=0.0, context=f"{symbol} close {i}")
+                                    price = float(r[0])
                                     if price <= 0:
                                         logger.warning(f"[VAR] {symbol}: invalid historical price for beta calc, skipping")
                                         break
@@ -420,17 +419,17 @@ class ValueAtRisk:
                     positions_list.append(
                         {
                             "symbol": symbol,
-                            "weight_pct": safe_float(float((position_weight * Decimal(100)).quantize(Decimal("0.01"), rounding=ROUND_HALF_UP)), default=0.0, context=f"{symbol} weight_pct"),
-                            "estimated_beta": safe_float(float(estimated_beta), default=1.0, context=f"{symbol} estimated_beta"),
-                            "contribution": safe_float(float(weighted_beta.quantize(Decimal("0.001"), rounding=ROUND_HALF_UP)), default=0.0, context=f"{symbol} contribution"),
+                            "weight_pct": float(float((position_weight * Decimal(100)).quantize(Decimal("0.01"), rounding=ROUND_HALF_UP))),
+                            "estimated_beta": float(float(estimated_beta)),
+                            "contribution": float(float(weighted_beta.quantize(Decimal("0.001"), rounding=ROUND_HALF_UP))),
                         }
                     )
 
                 return {
-                    "portfolio_beta": safe_float(float(total_beta_exposure.quantize(Decimal("0.01"), rounding=ROUND_HALF_UP)), default=1.0, context="portfolio_beta"),
-                    "interpretation": f"Portfolio is {safe_float(float(total_beta_exposure.quantize(Decimal('0.1'), rounding=ROUND_HALF_UP)), default=1.0, context='portfolio_beta_interp')}x market risk",
+                    "portfolio_beta": float(float(total_beta_exposure.quantize(Decimal("0.01"), rounding=ROUND_HALF_UP))),
+                    "interpretation": f"Portfolio is {float(float(total_beta_exposure.quantize(Decimal('0.1'), rounding=ROUND_HALF_UP)))}x market risk",
                     "positions": positions_list,
-                    "portfolio_value": safe_float(float(portfolio_value.quantize(Decimal("0.01"), rounding=ROUND_HALF_UP)), default=0.0, context="portfolio_value"),
+                    "portfolio_value": float(float(portfolio_value.quantize(Decimal("0.01"), rounding=ROUND_HALF_UP))),
                 }
 
         except (psycopg2.DatabaseError, psycopg2.OperationalError) as e:
@@ -498,15 +497,15 @@ class ValueAtRisk:
                 excluded_count = 0
                 for symbol, qty, cur_price, _entry_price, sector, industry in positions:
                     # CRITICAL: Do NOT use entry_price as fallback for current_price
-                    if cur_price is None or safe_float(cur_price, default=0.0, context="cur_price") <= 0:
+                    if cur_price is None or float(cur_price) <= 0:
                         excluded_count += 1
                         logger.warning(
                             f"[CONCENTRATION] {symbol}: excluded (current_price={cur_price}). "
                             f"Check positions table current_price column."
                         )
                         continue
-                    position_value = safe_float(qty, default=0.0, context="qty") * safe_float(cur_price, default=0.0, context="cur_price")
-                    portfolio_value_float = safe_float(float(portfolio_value), default=0.0, context="portfolio_value_concentration")
+                    position_value = float(qty) * float(cur_price)
+                    portfolio_value_float = float(float(portfolio_value))
                     position_pct = position_value / portfolio_value_float * 100 if portfolio_value_float > 0 else 0
 
                     top_holdings.append(
@@ -628,11 +627,11 @@ class ValueAtRisk:
 
             try:
                 with DatabaseContext("write") as cur:
-                    var_pct_val = safe_float(var_metrics["var_pct"], default=0.0, context="var_pct") if var_metrics else None
-                    cvar_pct_val = safe_float(cvar_metrics["cvar_pct"], default=0.0, context="cvar_pct") if cvar_metrics else None
-                    stressed_var_pct_val = safe_float(stressed_var["stressed_var_pct"], default=0.0, context="stressed_var_pct") if stressed_var else None
-                    portfolio_beta_val = safe_float(beta["portfolio_beta"], default=0.0, context="portfolio_beta") if beta else None
-                    top_5_conc_val = safe_float(concentration["top_5_concentration_pct"], default=0.0, context="top_5_concentration_pct") if concentration else None
+                    var_pct_val = float(var_metrics["var_pct"]) if var_metrics else None
+                    cvar_pct_val = float(cvar_metrics["cvar_pct"]) if cvar_metrics else None
+                    stressed_var_pct_val = float(stressed_var["stressed_var_pct"]) if stressed_var else None
+                    portfolio_beta_val = float(beta["portfolio_beta"]) if beta else None
+                    top_5_conc_val = float(concentration["top_5_concentration_pct"]) if concentration else None
 
                     cur.execute(
                         """
