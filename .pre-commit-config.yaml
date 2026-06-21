@@ -26,12 +26,12 @@ repos:
           - Flask
           - pydantic
 
-  # Comprehensive CI validation (syntax + imports)
+  # Comprehensive CI validation (syntax + imports across ALL modules)
   - repo: local
     hooks:
       - id: ci-validation
-        name: CI validation (imports + syntax)
-        entry: python scripts/ci_validation.py
+        name: CI validation (all modules - dashboard, lambda, algo, loaders, utils)
+        entry: python scripts/ci_validation_expanded.py
         language: system
         types: [python]
         exclude: ^(tests/|migrations/|\.github/)
