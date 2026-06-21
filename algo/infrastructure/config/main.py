@@ -131,163 +131,195 @@ class AlgoConfig:
             "0.75",
             "float",
             "Risk multiplier when VIX > caution threshold",
+            "Market Conditions",
         ),
         # Market Exposure Engine  -” Veto Thresholds (H12)
         "market_exposure_veto1_breadth_pct": (
             "30",
             "int",
             "Breadth threshold for veto 1: SPY < 30wk MA AND breadth < N%",
+            "Market Exposure",
         ),
         "market_exposure_veto1_cap_pct": (
             "25.0",
             "float",
             "Exposure cap % when veto 1 triggered (SPY < 30wk MA AND weak breadth)",
+            "Market Exposure",
         ),
         "market_exposure_veto2_vix_threshold": (
             "40.0",
             "float",
             "VIX threshold for veto 2: VIX > N and rising",
+            "Market Exposure",
         ),
         "market_exposure_veto2_cap_pct": (
             "30.0",
             "float",
             "Exposure cap % when veto 2 triggered (VIX > 40 rising)",
+            "Market Exposure",
         ),
         "market_exposure_veto3_distribution_days_threshold": (
             "6",
             "int",
             "Distribution days threshold for veto 3 (6+ days)",
+            "Market Exposure",
         ),
         "market_exposure_veto3_cap_pct": (
             "35.0",
             "float",
             "Exposure cap % when veto 3 triggered (6+ distribution days)",
+            "Market Exposure",
         ),
         "market_exposure_veto4_cap_pct": (
             "40.0",
             "float",
             "Exposure cap % when veto 4 triggered (no FTD while SPY below 30wk MA)",
+            "Market Exposure",
         ),
         "market_exposure_veto5_credit_spread_threshold": (
             "8.5",
             "float",
             "Credit spread threshold for veto 5 (systemic stress)",
+            "Market Exposure",
         ),
         "market_exposure_veto5_cap_pct": (
             "30.0",
             "float",
             "Exposure cap % when veto 5 triggered (HY spread > 8.5%)",
+            "Market Exposure",
         ),
         # Economic Regime Stress Scores (H12)
         "econ_stress_curve_inverted_severe": (
             "35.0",
             "float",
             "Stress score for severe yield curve inversion (<-0.5% for 8+ weeks)",
+            "Economic Stress",
         ),
         "econ_stress_curve_inverted_moderate": (
             "20.0",
             "float",
             "Stress score for moderate yield curve inversion (<0%)",
+            "Economic Stress",
         ),
         "econ_stress_curve_flat": (
             "8.0",
             "float",
             "Stress score for flat yield curve (<0.2%)",
+            "Economic Stress",
         ),
         "econ_stress_hy_spread_severe": (
             "35.0",
             "float",
             "Stress score for severe HY credit spread (>6.5%)",
+            "Economic Stress",
         ),
         "econ_stress_hy_spread_elevated": (
             "20.0",
             "float",
             "Stress score for elevated HY credit spread (>5.0%)",
+            "Economic Stress",
         ),
         "econ_stress_hy_widening": (
             "15.0",
             "float",
             "Stress score for HY spread widening (>1.5pp in 60d)",
+            "Economic Stress",
         ),
         "econ_stress_claims_severe": (
             "30.0",
             "float",
             "Stress score for severe jobless claims (>30% in 26w)",
+            "Economic Stress",
         ),
         "econ_stress_claims_elevated": (
             "15.0",
             "float",
             "Stress score for elevated jobless claims (>20% in 26w)",
+            "Economic Stress",
         ),
         "econ_stress_financial_severe": (
             "25.0",
             "float",
             "Stress score for severe financial stress (>1.5Ïƒ)",
+            "Economic Stress",
         ),
         "econ_stress_financial_elevated": (
             "12.0",
             "float",
             "Stress score for elevated financial stress (>0.8Ïƒ)",
+            "Economic Stress",
         ),
         "econ_stress_moderate_threshold": (
             "40",
             "int",
             "Stress level for moderate economic regime penalty (4 pts, no cap)",
+            "Economic Stress",
         ),
         "econ_stress_severe_threshold": (
             "60",
             "int",
             "Stress level for severe economic regime penalty (7 pts, cap at 40%)",
+            "Economic Stress",
         ),
         "econ_stress_severe_cap_pct": (
             "40.0",
             "float",
             "Exposure cap % at severe economic stress (stress >= 60)",
+            "Economic Stress",
         ),
         "put_call_bullish_threshold": (
             "0.8",
             "float",
             "Put/Call ratio bullish threshold (<= for bullish)",
+            "Market Conditions",
         ),
         "put_call_fearful_threshold": (
             "1.0",
             "float",
             "Put/Call ratio fearful threshold (>= for fearful)",
+            "Market Conditions",
         ),
         "upvol_good_threshold": (
             "60.0",
             "float",
             "Up volume % threshold for good market (>= for GREEN)",
+            "Market Conditions",
         ),
         "upvol_caution_threshold": (
             "50.0",
             "float",
             "Up volume % threshold for caution (>= for YELLOW)",
+            "Market Conditions",
         ),
         "breadth_good_threshold": (
             "50",
             "int",
             "NH-NL difference threshold for good breadth (>= for GREEN)",
+            "Market Conditions",
         ),
         "breadth_caution_threshold": (
             "0",
             "int",
             "NH-NL difference threshold for caution (>= for YELLOW)",
+            "Market Conditions",
         ),
         "yield_curve_good_threshold": (
             "0.5",
             "float",
             "Yield curve slope for bullish signal (>= for GREEN)",
+            "Market Conditions",
         ),
         "beta_warning_threshold": (
             "1.2",
             "float",
             "Portfolio beta threshold for caution (>= for WARNING)",
+            "Market Conditions",
         ),
         "beta_caution_threshold": (
             "0.8",
             "float",
             "Portfolio beta threshold for bullish (>= for YELLOW)",
+            "Market Conditions",
         ),
         # Entry Rules (Minervini)
         "require_sma50_above_sma200": ("true", "bool", "Price and MA alignment"),
@@ -417,6 +449,7 @@ class AlgoConfig:
             "-12.0",
             "float",
             "Sector drawdown % to halt trading",
+            "Drawdown Defense",
         ),
         # Position Monitoring & Re-entry
         "position_halt_flag_count": ("2", "int", "Flags to propose early exit"),
@@ -425,23 +458,27 @@ class AlgoConfig:
             "5",
             "int",
             "Days to wait before re-entering symbol",
+            "Position Monitoring",
         ),
         # Economic Calendar
         "halt_entries_before_major_release_minutes": (
             "60",
             "int",
             "Halt entries N minutes before major release",
+            "Economic & Earnings",
         ),
         # Earnings Blackout
         "earnings_blackout_days_before": (
             "7",
             "int",
             "Days before earnings to block entries",
+            "Economic & Earnings",
         ),
         "earnings_blackout_days_after": (
             "3",
             "int",
             "Days after earnings to block entries",
+            "Economic & Earnings",
         ),
         "min_price_history_days": (
             "200",
@@ -458,11 +495,13 @@ class AlgoConfig:
             "5",
             "int",
             "Block entries N days before earnings",
+            "Economic & Earnings",
         ),
         "max_extension_above_50ma_pct": (
             "15.0",
             "float",
             "Max extension above 50-DMA %",
+            "Advanced Filters",
         ),
         "strong_sector_top_n": ("5", "int", "Top N sectors count as strong"),
         "require_strong_sector": (
@@ -478,6 +517,7 @@ class AlgoConfig:
             "5000",
             "int",
             "Phase 1: Minimum symbol count for healthy coverage",
+            "Advanced Filters",
         ),
         # Swing Trader Score Weights (Minervini Research-Weighted Composite)
         "swing_weight_setup": ("25", "int", "Swing score: Setup quality weight %"),
@@ -494,113 +534,135 @@ class AlgoConfig:
             "5",
             "int",
             "Swing score: Multi-timeframe weight %",
+            "Swing Trader Scoring",
         ),
         "swing_min_trend_score": (
             "5",
             "int",
             "Swing score: Minimum Minervini trend score 0-8",
+            "Swing Trader Scoring",
         ),
         "swing_min_industry_rank": (
             "100",
             "int",
             "Swing score: Industry rank threshold (<=)",
+            "Swing Trader Scoring",
         ),
         "swing_days_to_earnings_block": (
             "5",
             "int",
             "Swing score: Block entries N days to earnings",
+            "Swing Trader Scoring",
         ),
         "swing_grade_threshold_aplus": (
             "85",
             "int",
             "Swing score: A+ grade threshold (score >= this value)",
+            "Swing Trader Scoring",
         ),
         "swing_grade_threshold_a": (
             "75",
             "int",
             "Swing score: A grade threshold (score >= this value)",
+            "Swing Trader Scoring",
         ),
         "swing_grade_threshold_b": (
             "65",
             "int",
             "Swing score: B grade threshold (score >= this value)",
+            "Swing Trader Scoring",
         ),
         "swing_grade_threshold_c": (
             "55",
             "int",
             "Swing score: C grade threshold (score >= this value)",
+            "Swing Trader Scoring",
         ),
         "swing_grade_threshold_d": (
             "45",
             "int",
             "Swing score: D grade threshold (score >= this value)",
+            "Swing Trader Scoring",
         ),
         "advanced_filters_grade_threshold_aplus": (
             "90",
             "int",
             "Advanced filters: A+ grade threshold (score >= this value)",
+            "Advanced Filters",
         ),
         "advanced_filters_grade_threshold_a": (
             "80",
             "int",
             "Advanced filters: A grade threshold (score >= this value)",
+            "Advanced Filters",
         ),
         "advanced_filters_grade_threshold_b": (
             "70",
             "int",
             "Advanced filters: B grade threshold (score >= this value)",
+            "Advanced Filters",
         ),
         "advanced_filters_grade_threshold_c": (
             "60",
             "int",
             "Advanced filters: C grade threshold (score >= this value)",
+            "Advanced Filters",
         ),
         "advanced_filters_grade_threshold_d": (
             "50",
             "int",
             "Advanced filters: D grade threshold (score >= this value)",
+            "Advanced Filters",
         ),
         # Risk Metrics Calculation (M3 - Risk Thresholds)
         "var_percentile": (
             "5",
             "int",
             "Percentile for VaR calculation (5 = 95% confidence, measures 5th percentile loss)",
+            "Risk Metrics",
         ),
         "cvar_percentile": (
             "5",
             "int",
             "Percentile for CVaR calculation (5 = worst 5% of days)",
+            "Risk Metrics",
         ),
         "stressed_var_percentile": (
             "10",
             "int",
             "Percentile for stressed VaR (10 = worst 10% of days)",
+            "Risk Metrics",
         ),
         "dashboard_grade_threshold_a": (
             "80",
             "int",
             "Dashboard signals: A grade threshold (score >= this value)",
+            "Risk Metrics",
         ),
         "dashboard_grade_threshold_b": (
             "60",
             "int",
             "Dashboard signals: B grade threshold (score >= this value)",
+            "Risk Metrics",
         ),
         "dashboard_grade_threshold_c": (
             "40",
             "int",
             "Dashboard signals: C grade threshold (score >= this value)",
+            "Risk Metrics",
         ),
         # Dashboard Configuration (E8, E9 - Operator-tunable thresholds)
         "dashboard_min_quality_threshold": (
             "40.0",
             "float",
             "Minimum signal quality score to display (0-100; E8)",
+            "Dashboard Configuration",
         ),
         "dashboard_metrics_max_age_minutes": (
             "120",
             "int",
             "Maximum age of metrics in minutes before warning (E9)",
+            "Dashboard Configuration",
         ),
         # Execution Mode
         "execution_mode": ("auto", "string", "paper|dry|review|auto"),
@@ -709,107 +771,17 @@ class AlgoConfig:
         ),
     }
 
-    # Configuration category mappings (pattern-based categorization)
-    # Maps key patterns (substrings) to their category for UI grouping
-    CONFIG_CATEGORY_PATTERNS = [
-        ("drawdown", "Drawdown Defense"),
-        ("halt", "Drawdown Defense"),
-        ("risk_reduction", "Drawdown Defense"),
-        ("circuit", "Circuit Breakers"),
-        ("max_daily_loss", "Circuit Breakers"),
-        ("max_consecutive", "Circuit Breakers"),
-        ("min_win_rate", "Circuit Breakers"),
-        ("max_total_risk", "Circuit Breakers"),
-        ("max_weekly", "Circuit Breakers"),
-        ("daily_profit_cap", "Circuit Breakers"),
-        ("sector_drawdown", "Circuit Breakers"),
-        ("swing", "Swing Trader Scoring"),
-        ("vix", "Market Conditions"),
-        ("put_call", "Market Conditions"),
-        ("upvol", "Market Conditions"),
-        ("breadth", "Market Conditions"),
-        ("yield_curve", "Market Conditions"),
-        ("beta", "Market Conditions"),
-        ("max_distribution", "Market Conditions"),
-        ("require_stage", "Market Conditions"),
-        ("min_completeness", "Filter Thresholds"),
-        ("min_stock_price", "Filter Thresholds"),
-        ("min_signal", "Filter Thresholds"),
-        ("min_volume", "Filter Thresholds"),
-        ("min_avg_daily", "Filter Thresholds"),
-        ("require_stock_stage", "Filter Thresholds"),
-        ("max_stop_distance", "Filter Thresholds"),
-        ("max_positions_per", "Filter Thresholds"),
-        ("min_swing_score", "Filter Thresholds"),
-        ("max_total_invested", "Filter Thresholds"),
-        ("advanced_filters_grade", "Filter Thresholds"),
-        ("require_sma50", "Entry Rules (Minervini)"),
-        ("min_percent_from", "Entry Rules (Minervini)"),
-        ("max_percent_from", "Entry Rules (Minervini)"),
-        ("min_trend_template", "Entry Rules (Minervini)"),
-        ("max_signal_age", "Entry Quality Gates"),
-        ("min_close_quality", "Entry Quality Gates"),
-        ("min_breakout_volume", "Entry Quality Gates"),
-        ("require_weekly_stage", "Entry Quality Gates"),
-        ("min_rs_line", "Entry Quality Gates"),
-        ("max_rs_pct", "Entry Quality Gates"),
-        ("rs_slope_gate", "Entry Quality Gates"),
-        ("volume_decay_gate", "Entry Quality Gates"),
-        ("require_target_pullback", "Exit Rules"),
-        ("t1_target", "Exit Rules"),
-        ("t2_target", "Exit Rules"),
-        ("t3_target", "Exit Rules"),
-        ("imported_position", "Exit Rules"),
-        ("min_hold", "Exit Rules"),
-        ("max_hold", "Exit Rules"),
-        ("exit_on", "Exit Rules"),
-        ("use_chandelier", "Exit Rules"),
-        ("switch_to_21ema", "Exit Rules"),
-        ("eight_week_rule", "Exit Rules"),
-        ("chandelier_atr", "Exit Rules"),
-        ("move_be", "Exit Rules"),
-        ("re_engage", "Re-engagement"),
-        ("position_halt_flag", "Position Monitoring"),
-        ("max_reentries", "Position Monitoring"),
-        ("min_days_before_reentry", "Position Monitoring"),
-        ("earnings", "Economic & Earnings"),
-        ("halt_entries_before", "Economic & Earnings"),
-        ("block_days_before", "Economic & Earnings"),
-        ("min_price_history", "Fundamental Filters"),
-        ("min_daily_volume", "Fundamental Filters"),
-        ("max_spread", "Fundamental Filters"),
-        ("min_market_cap", "Fundamental Filters"),
-        ("min_float", "Fundamental Filters"),
-        ("max_short_interest", "Fundamental Filters"),
-        ("max_extension", "Advanced Filters"),
-        ("strong_sector", "Advanced Filters"),
-        ("var_percentile", "Risk Metrics"),
-        ("cvar_percentile", "Risk Metrics"),
-        ("stressed_var", "Risk Metrics"),
-        ("dashboard_grade", "Risk Metrics"),
-        ("execution_mode", "Execution Mode"),
-        ("alpaca_paper", "Execution Mode"),
-        ("max_trades_per_day", "Execution Mode"),
-        ("default_portfolio", "Execution Mode"),
-        ("enable_", "Feature Flags"),
-        ("verbose_", "Feature Flags"),
-        ("api_request", "Network Configuration"),
-        ("db_connection", "Network Configuration"),
-        ("failsafe", "Failsafe Configuration"),
-        ("base_risk", "Risk Management"),
-        ("max_position_size", "Risk Management"),
-        ("max_concentration", "Risk Management"),
-    ]
-
     @classmethod
     def get_config_category(cls, key: str) -> str:
-        """Get category for a config key based on pattern matching.
+        """Get category for a config key from metadata in DEFAULTS dict.
 
-        Returns first matching category pattern, or 'Other' if no match.
+        Returns the category from the 4th element of the DEFAULTS tuple,
+        or 'Other' if key not found or category not set.
         """
-        for pattern, category in cls.CONFIG_CATEGORY_PATTERNS:
-            if pattern in key:
-                return category
+        if key in cls.DEFAULTS:
+            entry = cls.DEFAULTS[key]
+            if len(entry) >= 4:
+                return entry[3]
         return "Other"
 
     def __init__(self):
@@ -950,7 +922,9 @@ class AlgoConfig:
         warnings = []
 
         # Check that all DEFAULTS keys have corresponding VALIDATION_SCHEMA entries
-        for key, (_default_value, default_type, _) in self.DEFAULTS.items():
+        for key, default_entry in self.DEFAULTS.items():
+            # Handle both 3-tuple (value, type, desc) and 4-tuple (value, type, desc, category)
+            default_type = default_entry[1] if len(default_entry) >= 2 else str
             if key not in self.VALIDATION_SCHEMA:
                 errors.append(f"  {key}: in DEFAULTS but NOT in VALIDATION_SCHEMA (type: {default_type})")
             else:
@@ -985,7 +959,9 @@ class AlgoConfig:
 
     def _load_defaults(self):
         """Load default configuration."""
-        for key, (value, dtype, _desc) in self.DEFAULTS.items():
+        for key, default_entry in self.DEFAULTS.items():
+            # Handle both 3-tuple and 4-tuple formats
+            value, dtype = default_entry[0], default_entry[1]
             self._config[key] = self._parse_value(value, dtype)
             self._sources[key] = "default"
 
