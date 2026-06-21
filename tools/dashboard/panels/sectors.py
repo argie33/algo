@@ -113,6 +113,10 @@ def panel_sector_compact(srank, pos, port, sec_rot=None, irank=None):
         rows.append(sec_tbl)
 
     # Top sector rankings with 1-week and 4-week rank changes
+    # Fail-fast: return early if API error detected
+    if has_error(srank):
+        return rows
+
     srank_items = None
     if isinstance(srank, dict) and "items" in srank:
         srank_items = srank.get("items")
@@ -122,8 +126,7 @@ def panel_sector_compact(srank, pos, port, sec_rot=None, irank=None):
         srank_items = srank
     if srank_items is None:
         srank_items = []
-    srank_error = has_error(srank) if isinstance(srank, dict) else None
-    valid_srank = [r for r in srank_items if not srank_error][:6]
+    valid_srank = srank_items[:6]
     if valid_srank:
         if rows:
             rows.append(Rule(style="dim"))
@@ -147,6 +150,10 @@ def panel_sector_compact(srank, pos, port, sec_rot=None, irank=None):
         rows.append(srank_tbl)
 
     # Top industries (sub-sector groups)
+    # Fail-fast: return early if API error detected
+    if has_error(irank):
+        return rows
+
     irank_items = None
     if isinstance(irank, dict) and "items" in irank:
         irank_items = irank.get("items")
@@ -156,8 +163,7 @@ def panel_sector_compact(srank, pos, port, sec_rot=None, irank=None):
         irank_items = irank
     if irank_items is None:
         irank_items = []
-    irank_error = has_error(irank) if isinstance(irank, dict) else None
-    valid_irank = irank_items if irank_items and not irank_error else []
+    valid_irank = irank_items if irank_items else []
     if valid_irank:
         rows.append(Rule(style="dim"))
         rows.append(Text.from_markup("[dim]Top industries by momentum  ↑↓= vs 1wk:[/]"))
@@ -287,17 +293,18 @@ def panel_sectors_expanded(srank, pos, port, sec_rot=None, irank=None):
             rows.append(Rule(style="dim"))
 
     # All sector rankings — one per row, full names, 1wk and 4wk changes
-    srank_items_exp = None
-    if isinstance(srank, dict) and "items" in srank:
-        srank_items_exp = srank.get("items")
-        if not isinstance(srank_items_exp, list):
-            srank_items_exp = None
-    elif isinstance(srank, list):
-        srank_items_exp = srank
-    if srank_items_exp is None:
-        srank_items_exp = []
-    srank_error_exp = has_error(srank) if isinstance(srank, dict) else None
-    valid_srank = [r for r in srank_items_exp if not srank_error_exp]
+    # Fail-fast: skip section if API error detected
+    if not has_error(srank):
+        srank_items_exp = None
+        if isinstance(srank, dict) and "items" in srank:
+            srank_items_exp = srank.get("items")
+            if not isinstance(srank_items_exp, list):
+                srank_items_exp = None
+        elif isinstance(srank, list):
+            srank_items_exp = srank
+        if srank_items_exp is None:
+            srank_items_exp = []
+        valid_srank = srank_items_exp
     if valid_srank:
         rows.append(Text.from_markup("[dim]All sectors  (rank  mom  ↑↓1wk/4wk):[/]"))
         for r in valid_srank:
@@ -311,17 +318,19 @@ def panel_sectors_expanded(srank, pos, port, sec_rot=None, irank=None):
         rows.append(Rule(style="dim"))
 
     # All industries — full names, 1wk change
-    irank_items_exp = None
-    if isinstance(irank, dict) and "items" in irank:
-        irank_items_exp = irank.get("items")
-        if not isinstance(irank_items_exp, list):
-            irank_items_exp = None
-    elif isinstance(irank, list):
-        irank_items_exp = irank
-    if irank_items_exp is None:
-        irank_items_exp = []
-    irank_error_exp = has_error(irank) if isinstance(irank, dict) else None
-    valid_irank = irank_items_exp if irank_items_exp and not irank_error_exp else []
+    # Fail-fast: skip section if API error detected
+    valid_irank = []
+    if not has_error(irank):
+        irank_items_exp = None
+        if isinstance(irank, dict) and "items" in irank:
+            irank_items_exp = irank.get("items")
+            if not isinstance(irank_items_exp, list):
+                irank_items_exp = None
+        elif isinstance(irank, list):
+            irank_items_exp = irank
+        if irank_items_exp is None:
+            irank_items_exp = []
+        valid_irank = irank_items_exp if irank_items_exp else []
     if valid_irank:
         rows.append(Text.from_markup("[dim]All industries  (rank  mom  ↑↓1wk):[/]"))
         for r in valid_irank:

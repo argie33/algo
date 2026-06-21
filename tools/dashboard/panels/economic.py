@@ -35,13 +35,16 @@ from .data_extractors import extract_economic_indicators
 def _build_calendar_rows(econ_cal) -> list:
     """Extract and format economic calendar events."""
     rows = []
+    # Fail-fast: return early if API error detected
+    if has_error(econ_cal):
+        return rows
+
     econ_cal_items = (
         econ_cal.get("items", [])
         if isinstance(econ_cal, dict) and "items" in econ_cal
         else (econ_cal if isinstance(econ_cal, list) else [])
     )
-    econ_cal_error = has_error(econ_cal) if isinstance(econ_cal, dict) else None
-    valid_cal = econ_cal_items if econ_cal_items and not econ_cal_error else []
+    valid_cal = econ_cal_items if econ_cal_items else []
 
     if not valid_cal:
         return rows
