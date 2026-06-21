@@ -396,11 +396,9 @@ locals {
     "signal_quality_scores" = "load_signal_quality_scores.py"
     "buy_sell_daily"        = "load_buy_sell_daily.py"
 
-    # Technical indicators & metrics
-    "technical_data_daily"            = "load_technical_data_daily.py"
+    # Technical indicators & metrics (only vectorized versions - old files deleted)
     "technical_data_daily_vectorized" = "load_technical_data_daily_vectorized.py"
     "algo_metrics_daily"              = "load_algo_metrics_daily.py"
-    "swing_trader_scores"             = "load_swing_trader_scores.py"
     "swing_trader_scores_vectorized"  = "load_swing_trader_scores_vectorized.py"
 
     # Market health & economic data
@@ -724,12 +722,6 @@ locals {
     # FIXED 2026-06-21: Reduced timeout from 21600→1800s (6h→30m) to fail fast instead of masking failures
     "buy_sell_daily" = { cpu = 2048, memory = 4096, timeout = 1800, parallelism = 3 }
 
-    # Technical indicators — compute-heavy, 5000+ symbols
-    # Reduced from parallelism=8→4→2 to prevent database connection pool exhaustion
-    # Parallelism=2 with larger batch processing is faster than parallelism=4 with connection contention
-    # FIXED 2026-06-21: Reduced timeout from 36000→1800s (10h→30m) to fail fast instead of masking failures
-    "technical_data_daily" = { cpu = 4096, memory = 8192, timeout = 1800, parallelism = 2 }
-
     # Technical indicators (vectorized) — 4-6x faster via bulk query + vectorized pandas operations
     # FIXED Issue #???: Vectorized approach: 1 bulk query → vectorized pandas → single bulk insert
     # Full load (300-day lookback): 15-25 min vs old 60-90 min
@@ -748,10 +740,6 @@ locals {
 
     # Algo metrics — compute metrics on 5000+ symbols
     "algo_metrics_daily" = { cpu = 1024, memory = 2048, timeout = 10800, parallelism = 1 }
-
-    # Swing trader scores — compute-heavy scoring
-    # Reduced from parallelism=8→4→2 to prevent connection pool exhaustion during signal_quality_scores runs
-    "swing_trader_scores" = { cpu = 2048, memory = 4096, timeout = 3600, parallelism = 2 }
 
     # Swing trader scores (vectorized) — 2-3x faster via bulk query + vectorized pandas operations
     # FIXED Issue #???: Vectorized approach: 1 bulk query → vectorized pandas → single bulk insert
