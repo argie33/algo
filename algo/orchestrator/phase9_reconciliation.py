@@ -281,11 +281,12 @@ def run(
             logger.warning(f"Weight optimization skipped (scipy/numpy not available): {e}")
         except Exception as e:
             logger.error(f"Weight optimization failed unexpectedly: {e}", exc_info=True)
+        changes = opt_result.get("changes") if opt_result else []
         log_phase_result_fn(
             7,
             "weight_optimization",
-            "success" if opt_result.get("success") else "warn",
-            f"{len(opt_result.get('changes'))} weight changes",
+            "success" if opt_result and opt_result.get("success") else "warn",
+            f"{len(changes) if changes else 0} weight changes",
         )
 
         # Step 4: Generate institutional daily report
@@ -303,9 +304,9 @@ def run(
                 if not report or "portfolio" not in report:
                     raise ValueError("Daily report generated but missing portfolio data")
                 portfolio_data = report.get("portfolio")
-                if "current_value" not in portfolio_data or portfolio_data.get("current_value") is None:
+                if not portfolio_data or "current_value" not in portfolio_data or portfolio_data.get("current_value") is None:
                     raise ValueError("Portfolio data missing current_value")
-                if "daily_pnl_pct" not in portfolio_data or portfolio_data.get("daily_pnl_pct") is None:
+                if not portfolio_data or "daily_pnl_pct" not in portfolio_data or portfolio_data.get("daily_pnl_pct") is None:
                     raise ValueError("Portfolio data missing daily_pnl_pct")
 
                 # Log to algo_audit_log for historical tracking
@@ -327,11 +328,13 @@ def run(
                     logger.critical(f"[AUDIT_FAILURE] Could not log daily report to audit log: {e}")
                     raise
 
+                current_val = portfolio_data.get("current_value", "N/A") if portfolio_data else "N/A"
+                pnl_pct = portfolio_data.get("daily_pnl_pct", "N/A") if portfolio_data else "N/A"
                 log_phase_result_fn(
                     7,
                     "daily_report",
                     "success",
-                    f"Portfolio ${portfolio_data['current_value']:,.0f}, P&L {portfolio_data['daily_pnl_pct']:+.2f}%",
+                    f"Portfolio ${current_val if isinstance(current_val, str) else f'{current_val:,.0f}'}, P&L {pnl_pct if isinstance(pnl_pct, str) else f'{pnl_pct:+.2f}%'}",
                 )
             except ValueError as e:
                 logger.error(f"Daily report validation failed (generated but data incomplete): {e}")
@@ -371,17 +374,20 @@ def run(
             risk_report = risk.generate_daily_risk_report(run_date)
             if risk_report and risk_report.get("status") == "ok":
                 risk_status = "success"
+                var_metrics = risk_report.get("var_metrics") if risk_report else None
                 var_pct = (
-                    risk_report.get("var_metrics").get("var_pct", "N/A")
-                    if risk_report.get("var_metrics")
+                    var_metrics.get("var_pct", "N/A")
+                    if var_metrics
                     else "N/A"
                 )
+                concentration = risk_report.get("concentration") if risk_report else None
                 conc_pct = (
-                    risk_report.get("concentration").get("top_5_concentration_pct", "N/A")
-                    if risk_report.get("concentration")
+                    concentration.get("top_5_concentration_pct", "N/A")
+                    if concentration
                     else "N/A"
                 )
-                alerts_count = len(risk_report.get("alerts"))
+                alerts = risk_report.get("alerts") if risk_report else []
+                alerts_count = len(alerts) if alerts else 0
                 risk_summary = f"VaR {var_pct}%, Concentration {conc_pct}%" + (
                     f", {alerts_count} alerts" if alerts_count else ""
                 )

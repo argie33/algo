@@ -90,8 +90,8 @@ def _format_fetcher_error(fetcher_name: str, error: Exception) -> str:
     Returns error string like: "Fetcher run (/api/algo/last-run: Last algo run status) timed out"
     """
     meta = FETCHER_METADATA.get(fetcher_name)
-    endpoint = meta.get("endpoint", "unknown endpoint")
-    desc = meta.get("desc", "")
+    endpoint = meta.get("endpoint", "unknown endpoint") if meta else "unknown endpoint"
+    desc = meta.get("desc", "") if meta else ""
 
     error_type = type(error).__name__
     error_msg = str(error)
@@ -131,9 +131,14 @@ def _is_api_error(response: dict) -> bool:
 def _get_error_message(response: dict) -> str:
     """Extract error message from API response."""
     if "_error" in response:
-        return response["_error"]
+        error_val = response["_error"]
+        return str(error_val) if error_val is not None else "Unknown API error"
     # Extract from statusCode-based error response
-    return response.get("message", f"API error {response.get('statusCode', 'unknown')}")
+    msg = response.get("message")
+    status = response.get("statusCode")
+    if msg:
+        return str(msg)
+    return f"API error {status if status is not None else 'unknown'}"
 
 
 def fetch_run(c):
@@ -1849,8 +1854,8 @@ def load_all() -> dict:
                 if k_opt and not f.done():
                     k = k_opt
                     meta = FETCHER_METADATA.get(k)
-                    endpoint = meta.get("endpoint", "unknown endpoint")
-                    desc = meta.get("desc", "")
+                    endpoint = meta.get("endpoint", "unknown endpoint") if meta else "unknown endpoint"
+                    desc = meta.get("desc", "") if meta else ""
                     context = f"{endpoint}" + (f": {desc}" if desc else "")
                     timeout_msg = f"Fetcher {k} ({context}) timed out (exceeded {batch_timeout}s)"
                     logger.warning(timeout_msg)
@@ -1885,8 +1890,8 @@ def load_all() -> dict:
                 if k_opt and not f.done():
                     k = k_opt
                     meta = FETCHER_METADATA.get(k)
-                    endpoint = meta.get("endpoint", "unknown endpoint")
-                    desc = meta.get("desc", "")
+                    endpoint = meta.get("endpoint", "unknown endpoint") if meta else "unknown endpoint"
+                    desc = meta.get("desc", "") if meta else ""
                     context = f"{endpoint}" + (f": {desc}" if desc else "")
                     timeout_msg = f"Optional fetcher {k} ({context}) timed out (exceeded {max(60, optional_timeout)}s)"
                     out[k] = {"_error": timeout_msg}

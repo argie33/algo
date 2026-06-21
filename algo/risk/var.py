@@ -13,7 +13,7 @@ Metrics:
 Alerts:
 - Daily VaR > 2% of portfolio → WARNING
 - Concentration > 30% in top 5 holdings → WARNING
-- Beta exposure > 2.0 (2× market risk) → WARNING
+- Beta exposure > 2.0 (2x market risk) → WARNING
 """
 
 import logging
@@ -280,17 +280,23 @@ class ValueAtRisk:
 
                 spy_var = Decimal(0)
                 if spy_returns:
-                    spy_mean = sum(spy_returns) / len(spy_returns)
-                    spy_var = sum((r - spy_mean) ** 2 for r in spy_returns) / len(spy_returns)
+                    spy_mean_val = sum(spy_returns) / len(spy_returns)
+                    spy_mean = Decimal(str(spy_mean_val))
+                    spy_var = Decimal(str(sum((r - spy_mean) ** 2 for r in spy_returns) / len(spy_returns)))
 
                 total_beta_exposure = Decimal(0)
                 positions_list = []
 
                 for symbol, qty, cur_price, _entry_price in positions:
                     # CRITICAL: Do NOT use entry_price as fallback for current_price
-                    safe_price = safe_float(cur_price, default=None, context=f"{symbol} current_price")
-                    safe_qty = safe_float(qty, default=None, context=f"{symbol} quantity")
-                    if cur_price is None or safe_price is None or safe_price <= 0 or safe_qty is None or safe_qty <= 0:
+                    if cur_price is None or qty is None:
+                        logger.warning(
+                            f"[VAR] {symbol}: missing current_price/quantity, skipping from VAR calculation"
+                        )
+                        continue
+                    safe_price = safe_float(cur_price, default=0.0, context=f"{symbol} current_price")
+                    safe_qty = safe_float(qty, default=0.0, context=f"{symbol} quantity")
+                    if safe_price is None or safe_price <= 0 or safe_qty is None or safe_qty <= 0:
                         logger.warning(
                             f"[VAR] {symbol}: missing or invalid current_price/quantity, skipping from VAR calculation"
                         )
@@ -314,8 +320,11 @@ class ValueAtRisk:
                             if len(stock_rows) >= 2:
                                 stock_prices = []
                                 for i, r in enumerate(stock_rows):
-                                    price = safe_float(r[0], default=None, context=f"{symbol} close {i}")
-                                    if price is None or price <= 0:
+                                    if r[0] is None:
+                                        logger.warning(f"[VAR] {symbol}: None historical price for beta calc, skipping")
+                                        break
+                                    price = safe_float(r[0], default=0.0, context=f"{symbol} close {i}")
+                                    if price <= 0:
                                         logger.warning(f"[VAR] {symbol}: invalid historical price for beta calc, skipping")
                                         break
                                     stock_prices.append(Decimal(str(price)))
@@ -330,10 +339,10 @@ class ValueAtRisk:
                                 if n >= 20:
                                     s_rets = stock_returns[-n:]
                                     m_rets = spy_returns[-n:]
-                                    s_mean = sum(s_rets) / n
-                                    m_mean = sum(m_rets) / n
-                                    cov = sum((s_rets[i] - s_mean) * (m_rets[i] - m_mean) for i in range(n)) / n
-                                    var = sum((r - m_mean) ** 2 for r in m_rets) / n
+                                    s_mean = Decimal(str(sum(s_rets) / n))
+                                    m_mean = Decimal(str(sum(m_rets) / n))
+                                    cov = Decimal(str(sum((s_rets[i] - s_mean) * (m_rets[i] - m_mean) for i in range(n)) / n))
+                                    var = Decimal(str(sum((r - m_mean) ** 2 for r in m_rets) / n))
                                     if var > 0:
                                         estimated_beta = (cov / var).quantize(Decimal("0.01"), rounding=ROUND_HALF_UP)
                         except (ValueError, ZeroDivisionError, TypeError) as e:
@@ -353,7 +362,7 @@ class ValueAtRisk:
 
                 return {
                     "portfolio_beta": float(total_beta_exposure.quantize(Decimal("0.01"), rounding=ROUND_HALF_UP)),
-                    "interpretation": f"Portfolio is {float(total_beta_exposure.quantize(Decimal('0.1'), rounding=ROUND_HALF_UP))}× market risk",
+                    "interpretation": f"Portfolio is {float(total_beta_exposure.quantize(Decimal('0.1'), rounding=ROUND_HALF_UP))}x market risk",
                     "positions": positions_list,
                     "portfolio_value": float(portfolio_value.quantize(Decimal("0.01"), rounding=ROUND_HALF_UP)),
                 }
@@ -417,8 +426,8 @@ class ValueAtRisk:
                 portfolio_value = Decimal(str(portfolio_row[0]))
 
                 top_holdings = []
-                sector_exposure: dict[str, Decimal] = {}
-                industry_exposure: dict[str, Decimal] = {}
+                sector_exposure: dict[str, float] = {}
+                industry_exposure: dict[str, float] = {}
 
                 excluded_count = 0
                 for symbol, qty, cur_price, _entry_price, sector, industry in positions:
@@ -431,7 +440,7 @@ class ValueAtRisk:
                         )
                         continue
                     position_value = safe_float(qty, default=0.0, context="qty") * safe_float(cur_price, default=0.0, context="cur_price")
-                    position_pct = position_value / portfolio_value * 100 if portfolio_value > 0 else 0
+                    position_pct = position_value / float(portfolio_value) * 100 if portfolio_value > 0 else 0
 
                     top_holdings.append(
                         {
@@ -443,8 +452,8 @@ class ValueAtRisk:
 
                     sector = sector or "Unknown"
                     industry = industry or "Unknown"
-                    sector_exposure[sector] = sector_exposure.get(sector, 0) + position_pct
-                    industry_exposure[industry] = industry_exposure.get(industry, 0) + position_pct
+                    sector_exposure[sector] = (sector_exposure.get(sector, 0.0) or 0.0) + position_pct
+                    industry_exposure[industry] = (industry_exposure.get(industry, 0.0) or 0.0) + position_pct
 
                 top_5_pct = sum([h["pct_of_portfolio"] for h in top_holdings[:5]])
 
@@ -544,7 +553,7 @@ class ValueAtRisk:
 
             # Alert if beta > 2.0
             if beta and beta["portfolio_beta"] > 2.0:
-                msg = f"Beta Risk: Portfolio beta {beta['portfolio_beta']:.1f} (>2.0× market risk)"
+                msg = f"Beta Risk: Portfolio beta {beta['portfolio_beta']:.1f} (>2.0x market risk)"
                 alerts.append(msg)
                 logger.warning(msg)
 
