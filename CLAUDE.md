@@ -39,6 +39,61 @@ For system architecture and config, see `steering/system.md`.
 - Code must be importable (no NameError)
 - Before committing: `python -m mypy <file>.py --ignore-missing-imports`
 
+## Error Handling & Exception Hierarchy (Unified Standard)
+
+**Exception Base:** All exceptions inherit from `AlgoError` (see `algo/exceptions.py`)
+- Provides: category (TRANSIENT/PERMANENT/DATA_QUALITY), retry eligibility, recovery suggestions
+- API responses use `.to_dict()` for structured error info
+- Never silently default to None/0/{}—fail loudly with actionable errors
+
+**When to Use Each Exception:**
+- `DataLoadError`: Failed to fetch data from database, API, files. Set `retry_eligible=True` for network issues, `False` for schema issues
+- `ValidationError`: Field missing, type error, or business logic violation
+- `ConfigError`: Configuration key missing or invalid (never recoverable)
+- `CircuitBreakerError`: Too many failures—automatic retry will wait for recovery
+- `PortfolioError`: Portfolio/cash/position state inconsistency
+- `PositionError`: Position-specific trading error
+
+**Error Handling Patterns:**
+
+**Pattern 1: Fail-Fast (Critical Data)**
+```python
+# For critical data (prices, portfolio value, config)
+try:
+    value = fetch_data(...)  # Returns dict or raises DataLoadError
+except DataLoadError as e:
+    logger.error(f"Critical data unavailable: {e.message}")
+    raise  # Let orchestrator decide retry
+```
+
+**Pattern 2: Graceful Degradation (Optional Enrichments)**
+```python
+# For optional data (VIX, put/call, yield curve)
+try:
+    vix = fetch_vix_data(...)
+except DataLoadError as e:
+    logger.warning(f"VIX unavailable, continuing without: {e.message}")
+    vix = None  # Continue with None, signal handles it
+```
+
+**Pattern 3: Validation with Context**
+```python
+# Never use .get() defaults—validate explicitly
+if symbol is None or symbol == "":
+    raise ValidationError(
+        field="symbol",
+        value=symbol,
+        expected="non-empty string",
+        context={"source": "API response"}
+    )
+```
+
+**Error Responses in APIs:**
+- On validation/data error: Return `{"_error": "message", "_context": {...}}`
+- Never mix error dict with success fields (no `{"_error": "...", "field1": None, ...}`)
+- Client checks `has_error(data)` before accessing fields
+- Dashboard panels use error boundary: `if has_error(data): return error_panel()`
+
 ## Documentation Lifecycle
 
 **Steering docs** (`steering/system.md`): PERMANENT only.
