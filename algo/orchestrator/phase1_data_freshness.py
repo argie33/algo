@@ -382,12 +382,17 @@ def run(
             warn_stale = []  # auxiliary tables — stale = WARNING only
 
             # Tables checked by MAX(date) vs price_daily latest date
+            # Note: earnings_calendar uses earnings_date instead of date
+            date_column_overrides = {
+                "earnings_calendar": "earnings_date",
+            }
             date_checked_tables = critical_tables
 
             try:
                 union_parts = []
                 for table_name in date_checked_tables.keys():
-                    union_parts.append(f"SELECT '{table_name}' as tbl, MAX(date) as max_dt FROM {table_name}")
+                    date_col = date_column_overrides.get(table_name, "date")
+                    union_parts.append(f"SELECT '{table_name}' as tbl, MAX({date_col}) as max_dt FROM {table_name}")
 
                 union_query = " UNION ALL ".join(union_parts)
                 cur.execute(union_query)
