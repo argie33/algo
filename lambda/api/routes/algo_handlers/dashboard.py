@@ -329,6 +329,10 @@ def _get_algo_trades(
         "data_freshness": freshness,
     }
     sanitized = APIResponseValidator.sanitize_response(response_data)
+
+    # Validate trades response matches contract schema
+    ensure_valid_response("trades", sanitized)
+
     return json_response(200, sanitized)
 
 
@@ -764,15 +768,17 @@ def _get_circuit_breakers(cur) -> dict:
                 breaker["current"] = format_decimal_string(breaker["current"], precision=2, allow_none=True)
                 breaker["threshold"] = format_decimal_string(breaker["threshold"], precision=2, allow_none=False)
 
-        return json_response(
-            200,
-            {
-                "breakers": breakers,
-                "any_triggered": any_halted,
-                "triggered_count": triggered_count,
-                "data_freshness": freshness,
-            },
-        )
+        cb_response = {
+            "breakers": breakers,
+            "any_triggered": any_halted,
+            "triggered_count": triggered_count,
+            "data_freshness": freshness,
+        }
+
+        # Validate circuit breaker response matches contract schema
+        ensure_valid_response("cb", cb_response)
+
+        return json_response(200, cb_response)
     except (
         psycopg2.errors.UndefinedTable,
         psycopg2.errors.UndefinedColumn,
@@ -873,20 +879,22 @@ def _get_dashboard_signals(cur) -> dict:
             1 for s in buy_sigs
             if s.get("signal_quality_score") is not None and s.get("signal_quality_score") >= 70
         )
-        return json_response(
-            200,
-            {
-                "n": qualifying_buy_count,
-                "total": total_n,
-                "date": sig["d"] if sig else None,
-                "buy_sigs": buy_sigs[:15] if buy_sigs else [],
-                "near": near[:8] if near else [],
-                "top_a": top_a[:20] if top_a else [],
-                "grades": grades,
-                "trend": trend,
-                "data_freshness": freshness,
-            },
-        )
+        sig_response = {
+            "n": qualifying_buy_count,
+            "total": total_n,
+            "date": sig["d"] if sig else None,
+            "buy_sigs": buy_sigs[:15] if buy_sigs else [],
+            "near": near[:8] if near else [],
+            "top_a": top_a[:20] if top_a else [],
+            "grades": grades,
+            "trend": trend,
+            "data_freshness": freshness,
+        }
+
+        # Validate signals response matches contract schema
+        ensure_valid_response("sig", sig_response)
+
+        return json_response(200, sig_response)
     except (
         psycopg2.errors.UndefinedTable,
         psycopg2.errors.UndefinedColumn,
