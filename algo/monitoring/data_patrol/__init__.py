@@ -39,8 +39,8 @@ class DataPatrol:
     def __init__(self):
         self.results: list[CheckResult] = []
         self.run_id: str = ""
-        self.config: PatrolConfig = None
-        self.logger: PatrolLogger = None
+        self.config: PatrolConfig | None = None
+        self.logger: PatrolLogger | None = None
         self.check_timings: dict[str, float] = {}
 
     def run(self, quick: bool = False, validate_alpaca: bool = False) -> dict[str, Any]:

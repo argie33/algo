@@ -614,9 +614,12 @@ class TradeExecutor:
                 actual_risk_per_share = executed_price_dec - stop_price_dec_slip
                 if actual_risk_per_share > 0:
                     # Keep R-multiples as Decimal for consistent precision
-                    t1_r_config = self.config.get("t1_target_r_multiple", 1.5)
-                    t2_r_config = self.config.get("t2_target_r_multiple", 3.0)
-                    t3_r_config = self.config.get("t3_target_r_multiple", 4.0)
+                    t1_r_config = self.config.get("t1_target_r_multiple")
+                    t2_r_config = self.config.get("t2_target_r_multiple")
+                    t3_r_config = self.config.get("t3_target_r_multiple")
+                    if t1_r_config is None or t2_r_config is None or t3_r_config is None:
+                        logger.error(f"CRITICAL: Missing R-multiple config (t1={t1_r_config}, t2={t2_r_config}, t3={t3_r_config}). Cannot recalculate targets.")
+                        return result
                     t1_r_dec = Decimal(str(t1_r_config))
                     t2_r_dec = Decimal(str(t2_r_config))
                     t3_r_dec = Decimal(str(t3_r_config))
@@ -1214,34 +1217,14 @@ class TradeExecutor:
 
             risk_per_share = Decimal(str(entry_price)) - Decimal(str(stop_loss_price))
             r_multiple = (
-                float(
-                    float(
-                        ((Decimal(str(final_exit_price)) - Decimal(str(entry_price))) / risk_per_share).quantize(
-                            Decimal("0.01"), rounding=ROUND_HALF_UP
-                        )
-                    ),
-                    default=0.0,
-                    field_name="r_multiple"
-                )
+                float((Decimal(str(final_exit_price)) - Decimal(str(entry_price))) / risk_per_share)
                 if risk_per_share > 0
                 else 0.0
             )
             pnl_per_share = Decimal(str(final_exit_price)) - Decimal(str(entry_price))
-            pnl_dollars = float(
-                float((pnl_per_share * Decimal(str(shares_to_exit))).quantize(Decimal("0.01"), rounding=ROUND_HALF_UP)),
-                default=0.0,
-                field_name="pnl_dollars"
-            )
+            pnl_dollars = float(pnl_per_share * Decimal(str(shares_to_exit)))
             pnl_pct = (
-                float(
-                    float(
-                        (pnl_per_share / Decimal(str(entry_price)) * Decimal(100)).quantize(
-                            Decimal("0.01"), rounding=ROUND_HALF_UP
-                        )
-                    ),
-                    default=0.0,
-                    field_name="pnl_pct"
-                )
+                float(pnl_per_share / Decimal(str(entry_price)) * Decimal(100))
                 if entry_price > 0
                 else 0.0
             )

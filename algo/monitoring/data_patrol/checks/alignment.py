@@ -305,7 +305,11 @@ class AlignmentChecker(BaseCheck):
             counts_by_table = {}
             for row in cur.fetchall():
                 row_dict = dict(row)
-                counts_by_table[row_dict["tbl_name"]] = row_dict["cnt"] or 0
+                tbl_name = row_dict["tbl_name"]
+                cnt = row_dict["cnt"]
+                if tbl_name is None or cnt is None:
+                    raise ValueError(f"Invalid row data from union query: {row_dict}")
+                counts_by_table[tbl_name] = int(cnt) if cnt else 0
 
             for tbl, _where, min_ratio, sev in checks:
                 try:
