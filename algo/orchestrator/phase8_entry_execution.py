@@ -414,16 +414,20 @@ def run(
 
         creds = get_credential_manager().get_alpaca_credentials()
 
-        alpaca_key = creds.get("key")
+        # Validate required credentials are present
+        if "key" not in creds or creds["key"] is None:
+            raise ValueError("Alpaca API key is required but missing from credentials")
+        if "secret" not in creds or creds["secret"] is None:
+            raise ValueError("Alpaca API secret is required but missing from credentials")
 
-        alpaca_secret = creds.get("secret")
+        alpaca_key = creds["key"]
+        alpaca_secret = creds["secret"]
 
     except (RuntimeError, ValueError, KeyError) as e:
-        logger.warning(f"Could not fetch Alpaca credentials: {e}")
-
-        alpaca_key = None
-
-        alpaca_secret = None
+        error_msg = f"Cannot execute trades without Alpaca credentials: {e}"
+        logger.critical(error_msg)
+        log_phase_result_fn(8, "entry_execution", "error", error_msg)
+        return PhaseResult(8, "entry_execution", "halted", {"entered": 0}, True, error_msg)
 
     pretrade = PreTradeChecks(
         config=config,
