@@ -18,7 +18,7 @@ from routes.utils import (
     safe_page,
 )
 
-from utils.safe_data_conversion import safe_float
+from utils.safe_data_conversion import safe_float, safe_int
 from utils.validation import DatabaseResultValidator
 
 
@@ -232,10 +232,10 @@ def handle(
             bull_val = latest.get("bullish_count")
             bear_val = latest.get("bearish_count")
             neut_val = latest.get("neutral_count")
-            total = int(total_val) if total_val is not None else None
-            bull = int(bull_val) if bull_val is not None else None
-            bear = int(bear_val) if bear_val is not None else None
-            neut = int(neut_val) if neut_val is not None else None
+            total = safe_int(total_val, default=None, context="total")
+            bull = safe_int(bull_val, default=None, context="bull")
+            bear = safe_int(bear_val, default=None, context="bear")
+            neut = safe_int(neut_val, default=None, context="neut")
             bp = round(bull / total * 100, 1) if total > 0 else None
             bep = round(bear / total * 100, 1) if total > 0 else None
             np_ = round(neut / total * 100, 1) if total > 0 else None
@@ -275,7 +275,7 @@ def handle(
                 {
                     "date": str(dict(r)["date"]),
                     "target": (
-                        float(dict(r)["target_price"])
+                        safe_float(dict(r)["target_price"], default=None, context="target_price")
                         if dict(r).get("target_price")
                         else None
                     ),
@@ -335,10 +335,10 @@ def handle(
             bull_val = latest.get("bullish_count")
             bear_val = latest.get("bearish_count")
             neut_val = latest.get("neutral_count")
-            total = int(total_val) if total_val is not None else None
-            bull = int(bull_val) if bull_val is not None else None
-            bear = int(bear_val) if bear_val is not None else None
-            neut = int(neut_val) if neut_val is not None else None
+            total = safe_int(total_val, default=None, context="total")
+            bull = safe_int(bull_val, default=None, context="bull")
+            bear = safe_int(bear_val, default=None, context="bear")
+            neut = safe_int(neut_val, default=None, context="neut")
             bp = round(bull / total * 100, 1) if total and total > 0 else None
             bep = round(bear / total * 100, 1) if total and total > 0 else None
             np_ = round(neut / total * 100, 1) if total and total > 0 else None
@@ -378,7 +378,7 @@ def handle(
                 {
                     "date": str(dict(r)["date"]),
                     "target": (
-                        float(dict(r)["target_price"])
+                        safe_float(dict(r)["target_price"], default=None, context="target_price")
                         if dict(r).get("target_price")
                         else None
                     ),
