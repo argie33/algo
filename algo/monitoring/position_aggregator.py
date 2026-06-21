@@ -55,7 +55,7 @@ class PositionAggregator:
                 }
 
         # Count flags
-        severity = sum(
+        severity: float = sum(
             1 for f in flags.values() if f["status"] == "RED"
         )
         severity += 0.5 * sum(

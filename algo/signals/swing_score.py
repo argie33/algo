@@ -31,7 +31,7 @@ class SwingTraderScore:
         self.config = config
         from algo.signals import SignalComputer
 
-        self._signals = SignalComputer()
+        self._signals = SignalComputer(config)
         self.scorer = SwingComponentScorer(config, self._signals)
 
     def _with_cursor(self, operation: Any, mode: str = "read") -> Any:

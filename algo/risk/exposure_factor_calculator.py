@@ -23,7 +23,7 @@ class VolatilityFactor(ExposureFactorStrategy):
 
     def calculate(self, market_data: dict[str, Any]) -> float:
         """Calculate volatility exposure."""
-        vix = market_data.get("vix_level", 20.0)
+        vix = float(market_data.get("vix_level", 20.0))
         return min(1.0, vix / 30.0)  # Normalized to [0,1]
 
 
@@ -32,7 +32,7 @@ class BetaFactor(ExposureFactorStrategy):
 
     def calculate(self, market_data: dict[str, Any]) -> float:
         """Calculate beta exposure."""
-        correlation = market_data.get("correlation_to_market", 0.7)
+        correlation = float(market_data.get("correlation_to_market", 0.7))
         return correlation
 
 
@@ -41,7 +41,7 @@ class LiquidityFactor(ExposureFactorStrategy):
 
     def calculate(self, market_data: dict[str, Any]) -> float:
         """Calculate liquidity exposure."""
-        spread_basis_points = market_data.get("spread_bps", 5)
+        spread_basis_points = float(market_data.get("spread_bps", 5))
         return 1.0 / (1.0 + spread_basis_points / 100.0)  # Inverse function
 
 
@@ -50,7 +50,7 @@ class DrawdownFactor(ExposureFactorStrategy):
 
     def calculate(self, market_data: dict[str, Any]) -> float:
         """Calculate drawdown exposure."""
-        max_dd = market_data.get("max_drawdown_pct", 0)
+        max_dd = float(market_data.get("max_drawdown_pct", 0))
         return max(0.0, 1.0 - (abs(max_dd) / 100.0))  # Penalize drawdowns
 
 

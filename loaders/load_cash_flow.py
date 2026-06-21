@@ -15,7 +15,7 @@ import logging
 logger = logging.getLogger(__name__)
 import os
 from datetime import date
-from typing import Optional
+from typing import Optional, cast
 
 from loaders.runner import run_loader
 from utils.external.sec_edgar import SecEdgarClient
@@ -97,7 +97,7 @@ class CashFlowLoader(OptimalLoader):
         self.table_name: str = cfg["table_name"]  # type: ignore[assignment]
         self.primary_key: tuple[str, ...] = cfg["primary_key"]  # type: ignore[assignment]
         self._schema_cols: frozenset[str] = cfg["schema_cols"]  # type: ignore[assignment]
-        self._field_mapping: dict[str, str] | None = cfg.get("field_mapping")
+        self._field_mapping: dict[str, str] | None = cast(dict[str, str] | None, cfg.get("field_mapping"))
         super().__init__()
         self._sec_client = SecEdgarClient()
 

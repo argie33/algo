@@ -1227,7 +1227,7 @@ class ExitEngine:
 
         """
 
-        sc = SignalComputer()
+        sc = SignalComputer(self.config)
 
         td_state = sc.td_sequential(symbol, current_date)
 

@@ -16,7 +16,7 @@ Benefits:
 4. Easier to refactor loader internals without breaking handlers
 """
 
-from typing import Any
+from typing import Any, cast
 
 
 class SignalsDailyLoaderFacade:
@@ -97,4 +97,4 @@ class MarketHealthDailyLoaderFacade:
 
         handler = MarketHealthComputationHandler(self._loader)
         result: Any = handler.run(symbol=symbol, since=start)
-        return result
+        return cast(dict[str, Any], result)

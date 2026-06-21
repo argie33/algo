@@ -59,7 +59,7 @@ class PositionTracker:
         """Get remaining open shares."""
         if symbol in self.positions:
             pos = self.positions[symbol]
-            return pos["shares"] - pos["exit_shares"]
+            return int(pos["shares"]) - int(pos["exit_shares"])
         return 0
 
     def close_position(self, symbol: str) -> None:
