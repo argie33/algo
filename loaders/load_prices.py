@@ -1832,20 +1832,17 @@ class PriceLoader(OptimalLoader):
                 )
 
             try:
-                import os
-
-                import boto3
-
-                cache_date = datetime.now(EASTERN_TZ).date()
-                cache_key = f"data_loader_status-{cache_date.isoformat()}"
-                cache_table_name = os.getenv("CACHE_TABLE", "algo_phase1_cache")
-
-                dynamodb = boto3.resource("dynamodb")
-                cache_table = dynamodb.Table(cache_table_name)
-                cache_table.delete_item(Key={"cache_key": cache_key})
-                logger.debug(f"[CACHE INVALIDATION] Invalidated Phase 1 cache for {cache_key}")
-            except (psycopg2.DatabaseError, psycopg2.OperationalError) as cache_err:
-                logger.debug(f"[CACHE INVALIDATION] Could not invalidate cache: {cache_err}")
+                # CRITICAL FIX #5: Use proper fail-fast cache invalidation with three-tier approach
+                # (not just inline deletion with defensive silent failure)
+                _invalidate_phase1_cache()
+            except RuntimeError as cache_err:
+                # Cache invalidation failed after exhausting all retry strategies.
+                # This means Phase 1 might use stale data = data corruption risk.
+                # Must halt loader to maintain data integrity.
+                logger.critical(
+                    f"[CACHE INVALIDATION] CRITICAL FAILURE in _finalize_loader_metadata: {cache_err}"
+                )
+                raise
         except (psycopg2.DatabaseError, psycopg2.OperationalError) as e:
             logger.warning(f"Failed to update data_loader_status for {self.table_name}: {e}")
 
