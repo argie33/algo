@@ -208,7 +208,8 @@ module "lambda_layers" {
 
   project_name               = var.project_name
   environment                = var.environment
-  orchestrator_layer_enabled = true
+  orchestrator_layer_enabled = false  # Built by GitHub Actions in post-Terraform step
+  api_layer_enabled          = false  # Built by GitHub Actions in post-Terraform step
   common_tags                = local.common_tags
 }
 
@@ -307,6 +308,7 @@ module "services" {
   alert_smtp_from                        = var.alert_smtp_from
   task_execution_role_arn                = module.iam.ecs_task_execution_role_arn
   task_role_arn                          = module.iam.ecs_task_role_arn
+  api_lambda_layer_enabled               = false  # Built by GitHub Actions in post-Terraform step
   common_tags                            = local.common_tags
 }
 

@@ -220,12 +220,11 @@ class AdvancedFilters:
                 logger.warning(f"  {symbol}: {hard_fail}")
 
             components["avg_dollar_volume"] = avg_dollar_vol
-            min_liq = float(self.config.get("min_avg_daily_dollar_volume", 500_000))
-            if avg_dollar_vol is not None and avg_dollar_vol < min_liq:
-                hard_fail = hard_fail or f"Liquidity ${avg_dollar_vol / 1e6:.1f}M < ${min_liq / 1e6:.1f}M"
+            if avg_dollar_vol is not None and avg_dollar_vol < self.min_avg_daily_dollar_volume:
+                hard_fail = hard_fail or f"Liquidity ${avg_dollar_vol / 1e6:.1f}M < ${self.min_avg_daily_dollar_volume / 1e6:.1f}M"
 
-            # H5. Strong-sector requirement (off by default)
-            if self.config.get("require_strong_sector", False):
+            # H5. Strong-sector requirement
+            if self.require_strong_sector:
                 if sector and sector not in (self._strong_sectors or {}):
                     hard_fail = hard_fail or f'Sector "{sector}" not in top {len(self._strong_sectors or {})}'
 
