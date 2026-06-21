@@ -34,7 +34,18 @@ class MarketFactorCalculator:
         """
         if factor.get("error"):
             return 0.0, 0.0
-        score = factor.get("score", 0) or 0
+
+        score = factor.get("score")
+        if score is None:
+            logger.warning(f"Market factor score missing - this factor cannot be included in exposure calculation")
+            return 0.0, 0.0
+
+        try:
+            score = float(score)
+        except (ValueError, TypeError):
+            logger.error(f"Market factor score is not numeric: {score}")
+            return 0.0, 0.0
+
         return score * weight / 100.0, weight
 
     def _pct_above_ma(self, eval_date, ma_days: int, cur) -> dict[str, Any]:

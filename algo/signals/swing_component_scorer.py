@@ -146,11 +146,19 @@ class SwingComponentScorer:
                 "D": 0.5,
             }.get(base_quality, 0.5)
 
-            breakout_proximity = setup.get("breakout_proximity_pct", 0)
-            breakout_pts = max(0, 5 * (1 - breakout_proximity / 10))
+            breakout_proximity = setup.get("breakout_proximity_pct")
+            if breakout_proximity is None:
+                logger.warning(f"breakout_proximity_pct missing from setup data for {symbol}")
+                breakout_pts = 0
+            else:
+                breakout_pts = max(0, 5 * (1 - breakout_proximity / 10))
 
-            pivot_count = setup.get("pivot_count", 0)
-            pivot_pts = min(5, pivot_count * 1.5)
+            pivot_count = setup.get("pivot_count")
+            if pivot_count is None:
+                logger.warning(f"pivot_count missing from setup data for {symbol}")
+                pivot_pts = 0
+            else:
+                pivot_pts = min(5, pivot_count * 1.5)
 
             pts = (base_type_pts * quality_multiplier + breakout_pts + pivot_pts) * 0.5
             return min(pts, self.W_SETUP), {

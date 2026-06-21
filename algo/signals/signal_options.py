@@ -172,7 +172,20 @@ class SignalOptionsMixin:
 
             # Get base depth from technical analysis
             base_type = self.classify_base_type(symbol, eval_date)
-            base_depth = float(base_type.get("depth_pct", 0)) if base_type else 0
+            if base_type is None:
+                logger.warning(f"Base type unavailable for {symbol} - cannot evaluate implied move vs base depth")
+                return None
+
+            base_depth = base_type.get("depth_pct")
+            if base_depth is None:
+                logger.warning(f"Base depth missing from base_type for {symbol} - implied move signal incomplete")
+                return None
+
+            try:
+                base_depth = float(base_depth)
+            except (ValueError, TypeError) as e:
+                logger.error(f"Base depth conversion failed for {symbol}: {e}")
+                return None
 
             underpriced = implied_move < base_depth
             bonus_pts = 1.5 if underpriced else 0.0
@@ -216,10 +229,26 @@ class SignalOptionsMixin:
         pc_sig = self.put_call_ratio_signal(symbol, eval_date)
         im_sig = self.implied_move_signal(symbol, eval_date)
 
-        total_bonus = min(
-            3.0,
-            iv_sig.get("bonus_pts", 0) + pc_sig.get("bonus_pts", 0) + im_sig.get("bonus_pts", 0),
-        )
+        # Validate all signals have bonus_pts before aggregating
+        if iv_sig is None or "bonus_pts" not in iv_sig:
+            logger.warning(f"IV rank signal missing for {symbol}")
+            iv_bonus = 0
+        else:
+            iv_bonus = iv_sig.get("bonus_pts", 0)
+
+        if pc_sig is None or "bonus_pts" not in pc_sig:
+            logger.warning(f"Put/call signal missing for {symbol}")
+            pc_bonus = 0
+        else:
+            pc_bonus = pc_sig.get("bonus_pts", 0)
+
+        if im_sig is None or "bonus_pts" not in im_sig:
+            logger.warning(f"Implied move signal missing for {symbol}")
+            im_bonus = 0
+        else:
+            im_bonus = im_sig.get("bonus_pts", 0)
+
+        total_bonus = min(3.0, iv_bonus + pc_bonus + im_bonus)
 
         return {
             "iv_rank": iv_sig,

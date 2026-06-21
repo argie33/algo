@@ -107,8 +107,17 @@ class SignalTradePerformancePopulator:
                     component_scores = {}
                     for comp_name, comp_data in swing_comp.items():
                         if isinstance(comp_data, dict):
-                            pts = float(comp_data.get("pts", 0))
-                            max_pts = float(comp_data.get("max", 1))
+                            pts = comp_data.get("pts")
+                            max_pts = comp_data.get("max")
+                            if pts is None or max_pts is None:
+                                logger.warning(f"Component {comp_name} missing pts or max for trade_id {trade_id}")
+                                continue
+                            try:
+                                pts = float(pts)
+                                max_pts = float(max_pts)
+                            except (ValueError, TypeError) as e:
+                                logger.warning(f"Component {comp_name} type conversion failed for trade_id {trade_id}: {e}")
+                                continue
                             normalized_score = (pts / max_pts) if max_pts > 0 else 0
                             component_scores[comp_name] = normalized_score
 
