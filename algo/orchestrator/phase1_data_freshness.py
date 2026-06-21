@@ -215,15 +215,30 @@ def run(
                 )
 
     except (psycopg2.DatabaseError, psycopg2.OperationalError) as e:
-        # If patrol_log doesn't exist yet (first run) or query fails, continue with fallback checks
-        # This maintains fail-fast behavior if critical issues exist, but doesn't block if patrol hasn't run
+        # FAIL-FAST: If patrol_log doesn't exist yet (first run), continue with fallback checks.
+        # But any other database error is unrecoverable and must HALT.
         if "data_patrol_log" in str(e).lower() or "undefined table" in str(e).lower():
             logger.info(
                 "[PHASE 1] DataPatrol log table not yet available (first run?). "
                 "Continuing with traditional freshness checks."
             )
         else:
-            logger.warning(f"[PHASE 1] DataPatrol check failed: {str(e)[:100]}. Continuing with fallback checks.")
+            # Unexpected database error — FAIL-CLOSED instead of silently continuing
+            logger.critical(f"[PHASE 1] DataPatrol check failed (unexpected error): {str(e)[:100]}")
+            log_phase_result_fn(
+                1,
+                "data_patrol_check_error",
+                "halt",
+                f"DataPatrol check failed: {str(e)[:100]}",
+            )
+            return PhaseResult(
+                1,
+                "data_patrol_check_error",
+                "halted",
+                {},
+                True,
+                f"DataPatrol check failed unexpectedly: {str(e)[:100]}",
+            )
 
     try:
         with DatabaseContext("read") as cur:
