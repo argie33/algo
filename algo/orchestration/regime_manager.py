@@ -149,23 +149,45 @@ class RegimeManager:
         Return modified config dict with regime adjustments applied.
 
         Args:
-            base_config: Base config dict (from AlgoConfig)
+            base_config: Base config dict (from AlgoConfig, must already have critical values)
             as_of_date: Date for regime lookup
 
         Returns:
             Modified config dict with regime overrides
         """
+        # Fail-fast: base_config must have critical values (validated at init time)
+        if "max_hold_days" not in base_config or base_config["max_hold_days"] is None:
+            raise ValueError(
+                "CRITICAL: max_hold_days missing from base config. "
+                "Config must be validated before regime adaptation."
+            )
+        if "t1_target_r_multiple" not in base_config or base_config["t1_target_r_multiple"] is None:
+            raise ValueError(
+                "CRITICAL: t1_target_r_multiple missing from base config. "
+                "Config must be validated before regime adaptation."
+            )
+        if "t2_target_r_multiple" not in base_config or base_config["t2_target_r_multiple"] is None:
+            raise ValueError(
+                "CRITICAL: t2_target_r_multiple missing from base config. "
+                "Config must be validated before regime adaptation."
+            )
+        if "t3_target_r_multiple" not in base_config or base_config["t3_target_r_multiple"] is None:
+            raise ValueError(
+                "CRITICAL: t3_target_r_multiple missing from base config. "
+                "Config must be validated before regime adaptation."
+            )
+
         params = self.get_regime_params(as_of_date)
         config = base_config.copy()
 
-        # Apply multipliers and overrides
-        base_max_hold = int(config.get("max_hold_days", 20))
+        # Apply multipliers and overrides (using validated base values, no defaults)
+        base_max_hold = int(base_config["max_hold_days"])
         config["max_hold_days"] = int(base_max_hold * params["max_hold_days_mult"])
 
-        # Adjust target R-multiples
-        config["t1_target_r_multiple"] = float(config.get("t1_target_r_multiple", 1.5)) * params["target_1_mult"]
-        config["t2_target_r_multiple"] = float(config.get("t2_target_r_multiple", 3.0)) * params["target_2_mult"]
-        config["t3_target_r_multiple"] = float(config.get("t3_target_r_multiple", 4.0)) * params["target_3_mult"]
+        # Adjust target R-multiples (using validated base values, no defaults)
+        config["t1_target_r_multiple"] = float(base_config["t1_target_r_multiple"]) * params["target_1_mult"]
+        config["t2_target_r_multiple"] = float(base_config["t2_target_r_multiple"]) * params["target_2_mult"]
+        config["t3_target_r_multiple"] = float(base_config["t3_target_r_multiple"]) * params["target_3_mult"]
 
         # Override min swing score
         config["min_swing_score"] = params["min_swing_score"]
