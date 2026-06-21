@@ -57,8 +57,10 @@ def _calculate_pre_trade_impact(cur, body: dict) -> dict:
             ORDER BY snapshot_date DESC LIMIT 1
         """)
         port_row = cur.fetchone()
-        portfolio_value = safe_float(port_row["total_portfolio_value"]) if port_row else None
-        open_positions = safe_int(port_row["position_count"]) if port_row else 0
+        if port_row is None:
+            return error_response(503, "service_unavailable", "Portfolio snapshot unavailable")
+        portfolio_value = safe_float(port_row["total_portfolio_value"])
+        open_positions = safe_int(port_row["position_count"])
 
         if not portfolio_value or portfolio_value <= 0:
             return error_response(503, "service_unavailable", "Portfolio value unavailable")
@@ -96,7 +98,10 @@ def _calculate_pre_trade_impact(cur, body: dict) -> dict:
             """)
             for sr in cur.fetchall():
                 if sr["sector"]:
-                    sector_exposure[sr["sector"]] = safe_float(sr["sector_value"]) or 0.0
+                    sector_val = safe_float(sr["sector_value"])
+                    if sector_val is None:
+                        return error_response(503, "data_unavailable", "Sector exposure data incomplete")
+                    sector_exposure[sr["sector"]] = sector_val
         except (psycopg2.DatabaseError, psycopg2.OperationalError) as e:
 
             raise RuntimeError(f"Unexpected error: {e}") from e
@@ -106,7 +111,9 @@ def _calculate_pre_trade_impact(cur, body: dict) -> dict:
         projected_sector_pct = (projected_sector_dollars / portfolio_value * 100) if portfolio_value > 0 else 0
 
         max_positions = 15
-        available_slots = max(0, max_positions - (open_positions or 0))
+        if open_positions is None:
+            return error_response(503, "data_unavailable", "Position count unavailable")
+        available_slots = max(0, max_positions - open_positions)
         sector_warning = sector and projected_sector_pct > 30
 
         return json_response(200, {
@@ -256,21 +263,7 @@ def _get_rejection_funnel(cur) -> dict:
         if not row:
             error_msg = "No signal data available in swing_trader_scores (no records in last 14 days)"
             logger.error(error_msg)
-            return json_response(
-                503,
-                {
-                    "stage": "no_data",
-                    "total": 0,
-                    "t1": 0,
-                    "t2": 0,
-                    "t3": 0,
-                    "t4": 0,
-                    "t5": 0,
-                    "avg_score": None,
-                    "rejected": [],
-                    "_error": error_msg,
-                },
-            )
+            return error_response(503, "no_data", error_msg)
 
         row_data = safe_json_serialize(safe_dict_convert(row))
         # Fail-fast: required fields must be present
@@ -279,18 +272,11 @@ def _get_rejection_funnel(cur) -> dict:
         if missing:
             error_msg = f"Signal data incomplete: missing {missing}"
             logger.error(error_msg)
-            return json_response(
-                503,
-                {
-                    "stage": "incomplete_data",
-                    "total": 0,
-                    "_error": error_msg,
-                },
-            )
+            return error_response(503, "incomplete_data", error_msg)
 
-        initial_count = int(row_data.get("total_signals") or 0)
-        scored_count = int(row_data.get("scored") or 0)
-        high_quality_count = int(row_data.get("high_quality") or 0)
+        initial_count = int(row_data["total_signals"])
+        scored_count = int(row_data["scored"])
+        high_quality_count = int(row_data["high_quality"])
 
         # Build funnel stages with rejection reasons
         funnel = [
@@ -364,8 +350,10 @@ def _get_rejection_funnel(cur) -> dict:
             )
 
             for row in cur.fetchall():
-                reason_text = row["rejection_reason"] or ""
-                count = row["count"] or 0
+                reason_text = row["rejection_reason"]
+                count = row["count"]
+                if reason_text is None or count is None:
+                    continue
                 rejected_list.append(
                     {
                         "evaluation_reason": reason_text,
@@ -509,7 +497,7 @@ def _get_rejection_reason_description(reason: str) -> str:
 
 @db_route_handler("fetch swing scores")
 def _get_swing_scores(
-    cur, limit: int = 100, min_score: float = None, symbol: str = None
+    cur, limit: int = 100, min_score: float | None = None, symbol: str | None = None
 ) -> dict:
     """Get swing trade candidates with scoring."""
     try:

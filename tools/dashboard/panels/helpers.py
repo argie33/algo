@@ -38,7 +38,12 @@ def _get_safe_frame_index(frame_index: int) -> int:
 
 
 def mascot_pose(data: dict, frame: int) -> int:
-    """Get mascot pose index based on circuit breaker status and frame."""
+    """Get mascot pose index based on circuit breaker status and frame.
+
+    Validates data is dict before accessing fields.
+    """
+    if not isinstance(data, dict):
+        return _get_safe_frame_index(LOAD_SEQ[(frame // 2) % len(LOAD_SEQ)])
     cb = data.get("cb")
     if cb and isinstance(cb, dict) and cb.get("any") is True:
         seq = [4, 0, 1, 3, 4, 1, 0, 3, 4, 0, 1, 3, 4, 1, 0, 3, 4, 0, 1, 7]
@@ -61,9 +66,14 @@ def _score_cell(v):
 
 
 def _build_buy_sig_map(buy_sigs) -> dict:
-    """Map symbol -> signal-quality (swing) score from buy-signal records. Uses normalized symbols."""
+    """Map symbol -> signal-quality (swing) score from buy-signal records. Uses normalized symbols.
+
+    Validates buy_sigs is iterable before processing.
+    """
     out: dict = {}
-    for bs in buy_sigs or []:
+    if not isinstance(buy_sigs, (list, tuple)):
+        return out
+    for bs in buy_sigs:
         sym = bs.get("symbol")
         if sym:
             sym_norm = str(sym).upper().strip()
@@ -183,7 +193,12 @@ def _error_panel(data_name: str, data: Any, title: str, border="magenta") -> Pan
 
 
 def _rdelta(r, wk="rank_1w_ago", wk4=None):
-    """Rank delta formatter: shows rank change with ↑/↓ symbols and color coding."""
+    """Rank delta formatter: shows rank change with ↑/↓ symbols and color coding.
+
+    Validates r is dict before accessing fields.
+    """
+    if not isinstance(r, dict):
+        return "[dim]--[/]"
     cur = r.get("current_rank")
     if cur is None:
         return "[dim]--[/]"

@@ -40,8 +40,8 @@ def handle(
     path: str,
     method: str,
     params: dict,
-    body: dict = None,
-    jwt_claims: dict = None,
+    body: dict | None = None,
+    jwt_claims: dict | None = None,
 ) -> dict:
     """Handle /api/industries, /api/industries/{name}, /api/industries/{name}/trend."""
     try:
@@ -191,7 +191,7 @@ def _industry_list(cur, params):
     )
 
     industries = []
-    for idx, row in enumerate(industries_data):
+    for _idx, row in enumerate(industries_data):
         ind = safe_json_serialize(dict(row))
         composite = _sf(ind.get("composite_score"))
         perf_20d = _sf(ind.get("perf_20d"))
@@ -207,12 +207,16 @@ def _industry_list(cur, params):
             else "Downtrend" if perf_20d is not None and perf_20d < -2 else "Sideways"
         )
 
+        current_rank = ind.get("current_rank")
+        if current_rank is None:
+            return error_response(503, "data_incomplete", f"Industry {ind.get('industry')} missing current_rank")
+
         industries.append(
             {
                 "industry": ind.get("industry"),
                 "sector": ind.get("sector"),
-                "current_rank": int(ind.get("current_rank") or idx + 1 + offset),
-                "overall_rank": int(ind.get("current_rank") or idx + 1 + offset),
+                "current_rank": int(current_rank),
+                "overall_rank": int(current_rank),
                 "rank_1w_ago": (
                     int(ind.get("rank_1w_ago"))
                     if ind.get("rank_1w_ago") is not None

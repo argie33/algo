@@ -1,6 +1,3 @@
-import psycopg2
-
-
 #!/usr/bin/env python3
 
 """
@@ -14,6 +11,8 @@ import json
 import logging
 from datetime import date as _date
 from typing import Any
+
+import psycopg2
 
 
 try:

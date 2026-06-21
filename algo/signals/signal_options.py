@@ -11,7 +11,7 @@ import logging
 from datetime import date as _date
 from typing import Any
 
-import psycopg2
+from utils.safe_data_conversion import safe_float
 
 
 logger = logging.getLogger(__name__)
@@ -59,11 +59,7 @@ class SignalOptionsMixin:
                 "bonus_pts": bonus_pts,
             }
 
-        try:
-            return self._with_cursor(_fetch_iv) or {"iv_rank": None, "signal": "neutral", "bonus_pts": 0.0}  # type: ignore[attr-defined]
-        except (ValueError, ZeroDivisionError, TypeError) as e:
-            logger.debug(f"IV rank signal failed for {symbol}: {e}")
-            return {"iv_rank": None, "signal": "neutral", "bonus_pts": 0.0}
+        return self._with_cursor(_fetch_iv)  # type: ignore[attr-defined, no-any-return]
 
     def put_call_ratio_signal(self, symbol: str, eval_date: _date) -> dict[str, Any]:
         """
@@ -117,11 +113,7 @@ class SignalOptionsMixin:
                 "bonus_pts": bonus_pts,
             }
 
-        try:
-            return self._with_cursor(_fetch_pc_ratio) or {"put_call_ratio": None, "signal": "neutral", "bonus_pts": 0.0}  # type: ignore[attr-defined]
-        except (psycopg2.DatabaseError, psycopg2.OperationalError) as e:
-            logger.debug(f"P/C ratio signal failed for {symbol}: {e}")
-            return {"put_call_ratio": None, "signal": "neutral", "bonus_pts": 0.0}
+        return self._with_cursor(_fetch_pc_ratio)  # type: ignore[attr-defined, no-any-return]
 
     def implied_move_signal(
         self,
@@ -197,21 +189,7 @@ class SignalOptionsMixin:
                 "bonus_pts": bonus_pts,
             }
 
-        try:
-            return self._with_cursor(_fetch_implied_move) or {  # type: ignore[attr-defined]
-                "implied_move_pct": None,
-                "vs_base_depth_pct": None,
-                "underpriced": False,
-                "bonus_pts": 0.0,
-            }
-        except (ValueError, ZeroDivisionError, TypeError) as e:
-            logger.debug(f"Implied move signal failed for {symbol}: {e}")
-            return {
-                "implied_move_pct": None,
-                "vs_base_depth_pct": None,
-                "underpriced": False,
-                "bonus_pts": 0.0,
-            }
+        return self._with_cursor(_fetch_implied_move)  # type: ignore[attr-defined, no-any-return]
 
     def options_signal(self, symbol: str, eval_date: _date) -> dict[str, Any]:
         """

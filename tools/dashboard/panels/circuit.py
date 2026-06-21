@@ -2,6 +2,8 @@
 
 import logging
 
+from utils.safe_data_conversion import safe_float
+
 
 logger = logging.getLogger(__name__)
 
@@ -32,7 +34,6 @@ from ..utilities import (
     Y,
 )
 from ._helpers import _error_panel
-from utils.safe_data_conversion import safe_float
 
 
 @register_panel(
@@ -45,8 +46,22 @@ def panel_circuit(cb):
     err_panel = _error_panel("circuit breakers", cb, "CIRCUIT BREAKERS", border="blue")
     if err_panel:
         return err_panel
-    n_f = cb["n"]
-    any_f = cb["any"]
+    if not isinstance(cb, dict):
+        return Panel(
+            Text("Circuit breaker data is invalid", style="dim"),
+            title="[bold blue]CIRCUIT BREAKERS[/]",
+            border_style="red",
+            padding=(0, 1),
+        )
+    n_f = cb.get("n")
+    any_f = cb.get("any")
+    if n_f is None or any_f is None:
+        return Panel(
+            Text("Circuit breaker data missing critical fields", style="dim"),
+            title="[bold blue]CIRCUIT BREAKERS[/]",
+            border_style="red",
+            padding=(0, 1),
+        )
     hc = R if any_f else G
     hs = f"✗ {n_f} BREAKER{'S' if n_f != 1 else ''} FIRED" if any_f else "✓ ALL CLEAR"
     tbl = Table.grid(padding=(0, 1), expand=True)
@@ -60,7 +75,11 @@ def panel_circuit(cb):
         def fmt_b(br):
             if br is None:
                 return ""
-            fired = br["fired"]
+            if not isinstance(br, dict):
+                return ""
+            fired = br.get("fired")
+            if fired is None:
+                return ""
             thr = br.get("thr")
             cur = br.get("cur")
             lbl_s = str(br.get("lbl", "N/A"))[:20]

@@ -1,6 +1,7 @@
 """Signal analysis panel functions."""
 
 import logging
+
 from utils.safe_data_conversion import safe_float
 
 
@@ -90,9 +91,16 @@ def _shorten_type(t: str) -> str:
 
 
 def _build_signal_header(sig_data: dict, scores_data: dict | None) -> tuple[list, int, int]:
-    """Build signal header row (count, sparkline, grades, date)."""
-    rows = []
+    """Build signal header row (count, sparkline, grades, date).
+
+    Returns empty rows if input validation fails (missing required structure).
+    """
+    rows: list[Text] = []
+    if not isinstance(sig_data, dict) or has_error(sig_data):
+        return rows, 0, 0
     overview = extract_signal_overview(sig_data)
+    if has_error(overview):
+        return rows, 0, 0
 
     raw = safe_get_field(overview, "n") or 0
     total = safe_get_field(overview, "total") or 0
@@ -132,9 +140,16 @@ def _build_signal_header(sig_data: dict, scores_data: dict | None) -> tuple[list
 
 
 def _build_grade_radar(sig_data: dict) -> list:
-    """Build A-grade radar row or near-miss fallback."""
-    rows = []
+    """Build A-grade radar row or near-miss fallback.
+
+    Returns empty list if input validation fails (missing required structure).
+    """
+    rows: list[Text] = []
+    if not isinstance(sig_data, dict) or has_error(sig_data):
+        return rows
     overview = extract_signal_overview(sig_data)
+    if has_error(overview):
+        return rows
     top_a = safe_get_list(safe_get_field(overview, "top_a", []))
     near = safe_get_list(safe_get_field(overview, "near", []))
 
@@ -164,12 +179,19 @@ def _build_grade_radar(sig_data: dict) -> list:
 
 
 def _build_funnel_row(sig_eval_data: dict | None) -> list:
-    """Build funnel arrow chain row with avg score and top blockers."""
-    rows = []
+    """Build funnel arrow chain row with avg score and top blockers.
+
+    Returns empty list if input is missing or has errors.
+    """
+    rows: list[Text] = []
     if not sig_eval_data or has_error(sig_eval_data):
+        return rows
+    if not isinstance(sig_eval_data, dict):
         return rows
 
     funnel = extract_eval_funnel(sig_eval_data)
+    if has_error(funnel):
+        return rows
     ev_tot = safe_get_field(funnel, "total")
     ev_t1 = safe_get_field(funnel, "t1")
     ev_t2 = safe_get_field(funnel, "t2")
@@ -210,9 +232,16 @@ def _build_funnel_row(sig_eval_data: dict | None) -> list:
 
 
 def _build_buy_signals_table(scored_with_signals: list, buy_sig_details: dict) -> list:
-    """Build active buy signals table section."""
-    rows = []
+    """Build active buy signals table section.
+
+    Validates input is list and dict before accessing fields.
+    """
+    rows: list[Text | Table | Rule] = []
+    if not isinstance(scored_with_signals, list):
+        return rows
     if not scored_with_signals:
+        return rows
+    if not isinstance(buy_sig_details, dict):
         return rows
 
     rows.append(
@@ -284,8 +313,14 @@ def _build_buy_signals_table(scored_with_signals: list, buy_sig_details: dict) -
 
 
 def _build_scores_table(top_scores: list) -> list:
-    """Build stock quality scores table."""
-    rows = []
+    """Build stock quality scores table.
+
+    Validates input is list before accessing items.
+    """
+    rows: list[Text | Table] = []
+    if not isinstance(top_scores, list):
+        rows.append(Text.from_markup(f"[{Y}]Invalid score data structure — check Data Health[/]"))
+        return rows
     if not top_scores:
         rows.append(Text.from_markup(f"[{Y}]No score data — check Data Health[/]"))
         return rows
@@ -363,10 +398,18 @@ def panel_signals_compact(sig, sig_eval=None, scores=None):
         return _error_panel("scores", scores, "SIGNALS", border="magenta")
 
     overview = extract_signal_overview(sig)
-    top_scores = scores.get("top") if scores and not has_error(scores) else None
-    if top_scores is None:
+    if has_error(overview):
+        return _error_panel("signals", {"_error": "Signal overview extraction failed"}, "SIGNALS", border="magenta")
+
+    top_scores = None
+    if scores and isinstance(scores, dict) and not has_error(scores):
+        top_scores = scores.get("top")
+    if not isinstance(top_scores, list):
         top_scores = []
-    buy_sigs = overview.get("buy_sigs") if overview.get("buy_sigs") is not None else []
+
+    buy_sigs = overview.get("buy_sigs")
+    if not isinstance(buy_sigs, list):
+        buy_sigs = []
 
     rows, _, _ = _build_signal_header(sig, scores)
     rows.extend(_build_grade_radar(sig))
@@ -420,16 +463,24 @@ def panel_signals_expanded(sig, sig_eval=None, scores=None):
         return _error_panel("scores", scores, "SIGNALS", border="magenta")
 
     overview = extract_signal_overview(sig)
+    if has_error(overview):
+        return _error_panel("signals", {"_error": "Signal overview extraction failed"}, "SIGNALS", border="magenta")
+
     raw = overview.get("n")
     total = overview.get("total")
 
     if raw is None or total is None:
         return _error_panel("signals", {"_error": "Missing signal counts"}, "SIGNALS", border="magenta")
 
-    top_scores = scores.get("top") if scores and not has_error(scores) else None
-    if top_scores is None:
+    top_scores = None
+    if scores and isinstance(scores, dict) and not has_error(scores):
+        top_scores = scores.get("top")
+    if not isinstance(top_scores, list):
         top_scores = []
-    buy_sigs = overview.get("buy_sigs") if overview.get("buy_sigs") is not None else []
+
+    buy_sigs = overview.get("buy_sigs")
+    if not isinstance(buy_sigs, list):
+        buy_sigs = []
     ds = _format_signal_date(overview.get("date"))
 
     grades = overview.get("grades") if overview.get("grades") is not None else {}

@@ -34,7 +34,7 @@ logger = logging.getLogger(__name__)
 
 
 @db_route_handler("fetch algo positions")
-def _get_algo_positions(cur, user_id: str = None) -> dict:
+def _get_algo_positions(cur, user_id: str | None = None) -> dict:
     """Get current open positions with computed fields.
 
     Provides comprehensive position data with:
@@ -110,8 +110,8 @@ def _get_algo_positions(cur, user_id: str = None) -> dict:
             hi = max(t3 or t2 or t1 or entry, cur_price)
             span = max(0.0001, hi - lo)
 
-            def pos(price):
-                return ((price - lo) / span) * 100 if price is not None else None
+            def pos(price, _lo=lo, _span=span):
+                return ((price - _lo) / _span) * 100 if price is not None else None
 
             d["ladder_pct_stop"] = pos(stop)
             d["ladder_pct_entry"] = pos(entry)
@@ -278,7 +278,7 @@ def _get_algo_status(cur) -> dict:
 
 @db_route_handler("fetch algo trades")
 def _get_algo_trades(
-    cur, limit: int = 200, user_id: str = None, status: str = None
+    cur, limit: int = 200, user_id: str | None = None, status: str | None = None
 ) -> dict:
     """Get recent trades with all fields for frontend (scoped to user if user_id provided, filtered by status if provided)."""
     where_parts = []
@@ -796,7 +796,9 @@ def _get_dashboard_signals(cur) -> dict:
                 WHERE date=(SELECT MAX(date) FROM swing_trader_scores)"""
         )
         sig = cur.fetchone()
-        total_n = int(sig["n"] or 0) if sig else 0
+        if sig is None or sig.get("n") is None:
+            return error_response(503, "no_data", "No swing trader signals available")
+        total_n = int(sig["n"])
 
         # Top swing candidates with swing score and sector
         cur.execute("""

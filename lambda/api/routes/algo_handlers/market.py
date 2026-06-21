@@ -321,10 +321,11 @@ def _normalize_market_health(mh: dict) -> dict:
 
 def _normalize_exposure(exp: dict) -> dict:
     """Normalize exposure dict with safe defaults for all expected fields."""
+    halt_reasons = exp.get("halt_reasons")
     return {
         "exposure_pct": exp.get("exposure_pct"),
         "regime": exp.get("regime"),
-        "halt_reasons": exp.get("halt_reasons") or [],
+        "halt_reasons": halt_reasons if halt_reasons is not None else [],
         "distribution_days": exp.get("distribution_days"),
     }
 
