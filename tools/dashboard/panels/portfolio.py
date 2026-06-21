@@ -323,12 +323,12 @@ def _add_rolling_analytics(tbl: Table, perf_anl: dict | None, perf_data: dict | 
     def cell(label, value_markup):
         return Text.from_markup(f"[dim]{label}[/] {value_markup}")
 
-    sharpe252 = perf_anl.get("sharpe252")
-    sortino = perf_anl.get("sortino")
-    calmar = perf_anl.get("calmar")
-    wr50 = perf_anl.get("wr50")
-    avg_w_r = perf_anl.get("avg_w_r")
-    avg_l_r = perf_anl.get("avg_l_r")
+    sharpe252 = safe_get_field(perf_anl, "sharpe252")
+    sortino = safe_get_field(perf_anl, "sortino")
+    calmar = safe_get_field(perf_anl, "calmar")
+    wr50 = safe_get_field(perf_anl, "wr50")
+    avg_w_r = safe_get_field(perf_anl, "avg_w_r")
+    avg_l_r = safe_get_field(perf_anl, "avg_l_r")
 
     if sharpe252 is not None and sharpe252 != 0.0 and sortino is not None and sortino != 0.0:
         sc1 = G if sharpe252 >= 1.0 else (Y if sharpe252 >= 0 else R)
@@ -341,7 +341,7 @@ def _add_rolling_analytics(tbl: Table, perf_anl: dict | None, perf_data: dict | 
         sc1 = G if sharpe252 >= 1.0 else (Y if sharpe252 >= 0 else R)
         tbl.add_row((cell("Sharpe (1-Year):", f"[{sc1}]{sharpe252:.2f}[/]"), Text("")))
 
-    total_trades = perf_data.get("n") if perf_data else None
+    total_trades = safe_get_field(perf_data, "n") if perf_data else None
     calmar_cell = None
     wr50_cell = None
     if calmar is not None and calmar != 0.0:
@@ -380,12 +380,12 @@ def panel_performance_spark(perf, rec, perf_anl=None, pos=None):
 
     rows = [header, tbl]
 
-    equity_vals = perf.get("equity_vals")
+    equity_vals = safe_get_field(perf, "equity_vals")
     if equity_vals and len(equity_vals) >= 3:
         sp = sparkline(equity_vals, width=28)
         rows.append(Text.from_markup(f"[dim]Equity curve:[/] {sp}"))
 
-    recent_rets = perf.get("recent_rets")
+    recent_rets = safe_get_field(perf, "recent_rets")
     if recent_rets:
         parts = []
         for item in recent_rets[-5:]:
@@ -484,19 +484,19 @@ def panel_portfolio_perf_expanded(port, cfg, risk=None, perf=None, perf_anl=None
 
     if perf and not has_error(perf):
         rows.append(Text.from_markup("[dim bold]PERFORMANCE METRICS[/]"))
-        n = perf.get("n")
-        w = perf.get("w")
-        closed_losses = perf.get("l")
-        streak = perf.get("streak")
-        pnl_val = perf.get("pnl")
-        unrlzd_pnl = perf.get("unrealized_pnl")
-        open_cnt = perf.get("open_count")
-        pf = perf.get("profit_factor")
-        sharpe_v = perf.get("sharpe")
-        exp = perf.get("expectancy")
-        dd_v = perf.get("maxdd")
-        avg_win = perf.get("avg_win")
-        avg_loss = perf.get("avg_loss")
+        n = safe_get_field(perf, "n")
+        w = safe_get_field(perf, "w")
+        closed_losses = safe_get_field(perf, "l")
+        streak = safe_get_field(perf, "streak")
+        pnl_val = safe_get_field(perf, "pnl")
+        unrlzd_pnl = safe_get_field(perf, "unrealized_pnl")
+        open_cnt = safe_get_field(perf, "open_count")
+        pf = safe_get_field(perf, "profit_factor")
+        sharpe_v = safe_get_field(perf, "sharpe")
+        exp = safe_get_field(perf, "expectancy")
+        dd_v = safe_get_field(perf, "maxdd")
+        avg_win = safe_get_field(perf, "avg_win")
+        avg_loss = safe_get_field(perf, "avg_loss")
 
         wr_v, _adj_w, adj_l = _calculate_adjusted_win_rate(perf, pos)
         losing_open = (adj_l or 0) - (closed_losses or 0)
@@ -558,12 +558,12 @@ def panel_portfolio_perf_expanded(port, cfg, risk=None, perf=None, perf_anl=None
         )
         rows.append(perfblk)
 
-        equity_vals = perf.get("equity_vals")
+        equity_vals = safe_get_field(perf, "equity_vals")
         if equity_vals and len(equity_vals) >= 3:
             sp = sparkline(equity_vals, width=50)
             rows.append(Text.from_markup(f"[dim]Equity curve:[/] {sp}"))
 
-        recent_rets = perf.get("recent_rets")
+        recent_rets = safe_get_field(perf, "recent_rets")
         if recent_rets:
             from datetime import datetime
 
@@ -597,14 +597,14 @@ def panel_portfolio_perf_expanded(port, cfg, risk=None, perf=None, perf_anl=None
         anl.add_column("val")
         anl.add_column("label2", style="dim")
         anl.add_column("val2")
-        sharpe252 = perf_anl.get("sharpe252")
-        sortino = perf_anl.get("sortino")
-        calmar = perf_anl.get("calmar")
-        wr50 = perf_anl.get("wr50")
-        avg_w_r = perf_anl.get("avg_w_r")
-        avg_l_r = perf_anl.get("avg_l_r")
-        exp2 = perf_anl.get("expectancy")
-        maxdd2 = perf_anl.get("maxdd")
+        sharpe252 = safe_get_field(perf_anl, "sharpe252")
+        sortino = safe_get_field(perf_anl, "sortino")
+        calmar = safe_get_field(perf_anl, "calmar")
+        wr50 = safe_get_field(perf_anl, "wr50")
+        avg_w_r = safe_get_field(perf_anl, "avg_w_r")
+        avg_l_r = safe_get_field(perf_anl, "avg_l_r")
+        exp2 = safe_get_field(perf_anl, "expectancy")
+        maxdd2 = safe_get_field(perf_anl, "maxdd")
         anl.add_row(
             "Sharpe (252d):",
             Text(
@@ -693,9 +693,9 @@ def panel_portfolio_perf_expanded(port, cfg, risk=None, perf=None, perf_anl=None
             for p in pos_items:
                 if not isinstance(p, dict):
                     continue
-                sym = p.get("symbol", "--")
-                val = safe_float(p.get("position_value"), default=None)
-                pnl = safe_float(p.get("unrealized_pnl_pct"), default=None)
+                sym = safe_get_field(p, "symbol", "--")
+                val = safe_float(safe_get_field(p, "position_value"), default=None)
+                pnl = safe_float(safe_get_field(p, "unrealized_pnl_pct"), default=None)
                 pct = val / pv_total * 100 if (val and pv_total) else 0
                 conc_rows.append((pct, sym, val, pnl))
             conc_rows.sort(reverse=True)
