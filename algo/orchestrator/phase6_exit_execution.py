@@ -16,12 +16,10 @@ from utils.db.advisory_locks import (
     release_advisory_lock,
 )
 from utils.db.context import DatabaseContext
-from utils.safe_data_conversion import safe_float_strict
+
 from utils.trading.status import PositionStatus
 
-
 logger = logging.getLogger(__name__)
-
 
 def run(
     config: Any,
@@ -119,7 +117,7 @@ def run(
                                     f"[FORCE-EXIT] Current price unavailable for position {action['position_id']}. "
                                     "Cannot execute force exit without price."
                                 )
-                            cur_price = safe_float_strict(row_tmp[0], field_name="current_price")
+                            cur_price = float(row_tmp[0])
                             if cur_price <= 0:
                                 raise RuntimeError(
                                     f"[FORCE-EXIT] Invalid current price {cur_price} for position {action['position_id']}. "
@@ -154,7 +152,7 @@ def run(
                             row = cur.fetchone()
                             if row is None or row[0] is None:
                                 raise RuntimeError(f"No current price available for position {action['position_id']}")
-                            cur_price = safe_float_strict(row[0], field_name="current_price")
+                            cur_price = float(row[0])
                     except (RuntimeError, TypeError, ValueError) as e:
                         logger.critical(f"  CRITICAL: Cannot execute exit without current price for {action['position_id']}: {e}")
                         raise
