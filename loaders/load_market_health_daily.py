@@ -132,10 +132,17 @@ class MarketHealthDailyLoader(OptimalLoader):
         # Merge real breadth data (A/D ratio, new highs/lows) into health metrics
         breadth = self._fetch_breadth_data(start, end)
         for m in health_metrics:
-            b = breadth.get(m["date"], {})
-            m["advance_decline_ratio"] = b.get("advance_decline_ratio", 1.0)
-            m["new_highs_count"] = b.get("new_highs_count", 0)
-            m["new_lows_count"] = b.get("new_lows_count", 0)
+            b = breadth.get(m["date"])
+            if b is None:
+                # Breadth data is REQUIRED for market health - if missing, log warning but continue with explicit None
+                # This allows partial data to surface in error reporting instead of silently showing default 1.0
+                m["advance_decline_ratio"] = None
+                m["new_highs_count"] = None
+                m["new_lows_count"] = None
+            else:
+                m["advance_decline_ratio"] = b.get("advance_decline_ratio")
+                m["new_highs_count"] = b.get("new_highs_count")
+                m["new_lows_count"] = b.get("new_lows_count")
 
         # Merge VIX data (OPTIONAL enrichment - fail gracefully if unavailable)
         vix = self._vix_breaker.execute(

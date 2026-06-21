@@ -115,7 +115,13 @@ class FearGreedIndexLoader(OptimalLoader):
                                 f"(x={x_val}, _date={entry.get('_date')}, date={entry.get('date')})"
                             )
                             continue
-                        value = entry.get("y", entry.get("value", 0))
+                        value = entry.get("y", entry.get("value"))
+                        if value is None:
+                            logger.debug(
+                                f"Fear & Greed entry skipped — missing value field on {entry_date} "
+                                f"(y={entry.get('y')}, value={entry.get('value')})"
+                            )
+                            continue
                         label = entry.get("rating", entry.get("description", "Neutral"))
                         rows.append(
                             {
