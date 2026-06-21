@@ -79,7 +79,7 @@ def diagnose_fetchers():
         print("SUCCESSFUL FETCHERS (✓)")
         print("=" * 80)
         for key in sorted(success.keys()):
-            meta = FETCHER_METADATA.get(key, {})
+            meta = FETCHER_METADATA.get(key)
             endpoint = meta.get("endpoint", "?")
             desc = meta.get("desc", "")
             result = success[key]
@@ -95,7 +95,7 @@ def diagnose_fetchers():
         print("STALE DATA (⚠ - Data too old)")
         print("=" * 80)
         for key, error_msg in sorted(stale.items()):
-            meta = FETCHER_METADATA.get(key, {})
+            meta = FETCHER_METADATA.get(key)
             endpoint = meta.get("endpoint", "?")
             desc = meta.get("desc", "")
             print(f"\n  {key:12} {endpoint:40}")
@@ -110,7 +110,7 @@ def diagnose_fetchers():
         print("FAILED FETCHERS (✗ - Cannot retrieve data)")
         print("=" * 80)
         for key, error_msg in sorted(errors.items()):
-            meta = FETCHER_METADATA.get(key, {})
+            meta = FETCHER_METADATA.get(key)
             endpoint = meta.get("endpoint", "?")
             desc = meta.get("desc", "")
             print(f"\n  {key:12} {endpoint:40}")
@@ -125,7 +125,7 @@ def diagnose_fetchers():
         print("PARTIAL DATA (⚡ - Some fields missing)")
         print("=" * 80)
         for key, fields in sorted(missing_fields.items()):
-            meta = FETCHER_METADATA.get(key, {})
+            meta = FETCHER_METADATA.get(key)
             endpoint = meta.get("endpoint", "?")
             print(f"\n  {key:12} {endpoint:40}")
             print(f"  {' ' * 12} Missing fields: {', '.join(fields)}")
@@ -138,14 +138,14 @@ def diagnose_fetchers():
     if errors:
         print(f"\n1. FIX {len(errors)} BROKEN ENDPOINTS:")
         for key in sorted(errors.keys()):
-            meta = FETCHER_METADATA.get(key, {})
+            meta = FETCHER_METADATA.get(key)
             endpoint = meta.get("endpoint", "?")
             print(f"   - {key:12} {endpoint}")
     if stale:
         print(f"\n2. UPDATE {len(stale)} STALE DATA SOURCES:")
         print("   (Data loaders not running or data too old)")
         for key in sorted(stale.keys()):
-            meta = FETCHER_METADATA.get(key, {})
+            meta = FETCHER_METADATA.get(key)
             endpoint = meta.get("endpoint", "?")
             print(f"   - {key:12} {endpoint}")
     if missing_fields:
@@ -177,7 +177,7 @@ def diagnose_fetchers_verbose():
     print()
     for key in sorted(data.keys()):
         result = data[key]
-        meta = FETCHER_METADATA.get(key, {})
+        meta = FETCHER_METADATA.get(key)
         endpoint = meta.get("endpoint", "?")
 
         # Determine status

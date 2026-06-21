@@ -383,7 +383,7 @@ def parse_query_params(event: dict) -> dict:
         for param in event["rawQueryString"].split("&"):
             if "=" in param:
                 k, v = param.split("=", 1)
-                params[k] = params.get(k, []) + [v]
+                params[k] = params.get(k) + [v]
             else:
                 params[param] = [""]
     return params
@@ -439,7 +439,7 @@ def get_cors_headers(event: dict) -> dict[str, str]:
 
     Issue #10 FIX: Improved diagnostics when CORS fails.
     """
-    headers = event.get("headers", {})
+    headers = event.get("headers")
     origin = headers.get("origin", "") or headers.get("Origin", "")
     if not origin:
         origin = ""
@@ -529,7 +529,7 @@ def get_cache_headers(cache_type: str = "no-cache") -> dict[str, str]:
 
 def get_bearer_token(event: dict) -> str | None:
     """Extract Bearer token from Authorization header."""
-    headers = event.get("headers", {})
+    headers = event.get("headers")
     auth_header = headers.get("Authorization")
     if not auth_header:
         auth_header = headers.get("authorization", "")
@@ -783,12 +783,12 @@ def get_client_ip(event: dict) -> str:
     (e.g. x-origin-verify) and verify it here before trusting CF-Connecting-IP.
     """
     # API GW fills sourceIp from the TCP connection — not client-spoofable
-    source_ip = event.get("requestContext", {}).get("identity", {}).get("sourceIp", "")
+    source_ip = event.get("requestContext").get("identity").get("sourceIp", "")
     if source_ip:
         return source_ip
 
     # Fallback for local/test invocations without requestContext
-    headers = event.get("headers", {})
+    headers = event.get("headers")
     xff = headers.get("x-forwarded-for")
     if not xff:
         xff = headers.get("X-Forwarded-For", "")
@@ -812,9 +812,9 @@ def log_api_request(
         client_ip = get_client_ip(event)
         path = event.get("rawPath", event.get("path", "/"))
         method = (
-            event.get("requestContext", {}).get("http", {}).get("method", "UNKNOWN")
+            event.get("requestContext").get("http").get("method", "UNKNOWN")
         )
-        request_id = event.get("requestContext", {}).get("requestId", "unknown")
+        request_id = event.get("requestContext").get("requestId", "unknown")
 
         audit_log = {
             "event": "API_REQUEST",
@@ -994,8 +994,8 @@ def lambda_handler(event: dict[str, Any], context: Any) -> dict[str, Any]:
     # Extract path and method before ANY checks so health/CORS always work
     path = event.get("rawPath", event.get("path", "/"))
     method = (
-        event.get("requestContext", {})
-        .get("http", {})
+        event.get("requestContext")
+        .get("http")
         .get("method", event.get("httpMethod", "GET"))
     )
 

@@ -54,7 +54,7 @@ try:
 
     facts = client.get_company_facts(aapl_cik)
     if facts and "facts" in facts:
-        us_gaap = facts.get("facts", {}).get("us-gaap", {})
+        us_gaap = facts.get("facts").get("us-gaap")
         print(f"[OK] Got {len(us_gaap)} concepts from us-gaap")
 
         # Check for key concepts

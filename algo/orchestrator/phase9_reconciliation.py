@@ -285,7 +285,7 @@ def run(
             7,
             "weight_optimization",
             "success" if opt_result.get("success") else "warn",
-            f"{len(opt_result.get('changes', []))} weight changes",
+            f"{len(opt_result.get('changes'))} weight changes",
         )
 
         # Step 4: Generate institutional daily report
@@ -302,7 +302,7 @@ def run(
             try:
                 if not report or "portfolio" not in report:
                     raise ValueError("Daily report generated but missing portfolio data")
-                portfolio_data = report.get("portfolio", {})
+                portfolio_data = report.get("portfolio")
                 if "current_value" not in portfolio_data or portfolio_data.get("current_value") is None:
                     raise ValueError("Portfolio data missing current_value")
                 if "daily_pnl_pct" not in portfolio_data or portfolio_data.get("daily_pnl_pct") is None:
@@ -372,16 +372,16 @@ def run(
             if risk_report and risk_report.get("status") == "ok":
                 risk_status = "success"
                 var_pct = (
-                    risk_report.get("var_metrics", {}).get("var_pct", "N/A")
+                    risk_report.get("var_metrics").get("var_pct", "N/A")
                     if risk_report.get("var_metrics")
                     else "N/A"
                 )
                 conc_pct = (
-                    risk_report.get("concentration", {}).get("top_5_concentration_pct", "N/A")
+                    risk_report.get("concentration").get("top_5_concentration_pct", "N/A")
                     if risk_report.get("concentration")
                     else "N/A"
                 )
-                alerts_count = len(risk_report.get("alerts", []))
+                alerts_count = len(risk_report.get("alerts"))
                 risk_summary = f"VaR {var_pct}%, Concentration {conc_pct}%" + (
                     f", {alerts_count} alerts" if alerts_count else ""
                 )

@@ -121,7 +121,7 @@ class SignalAttributionEngine:
 
                         try:
                             swing_components = json.loads(swing_components_json) if swing_components_json else {}
-                            comp_data = swing_components.get(component, {})
+                            comp_data = swing_components.get(component)
                             comp_score = comp_data.get("pts", 0)
                             r_mult = safe_float(r_multiple, default=0.0, context="r_multiple") if r_multiple is not None else 0
 

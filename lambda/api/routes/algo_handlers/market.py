@@ -222,7 +222,7 @@ def _get_data_status(cur) -> dict:
             row_count = row.get("row_count")
 
             # Get freshness rule once per table (consolidate lookups)
-            rule = _fr.get(row["table_name"], {})
+            rule = _fr.get(row["table_name"])
             table_name = row["table_name"]
 
             # Extract max_age with consistent default of 1 day for unknown tables
@@ -726,7 +726,7 @@ def _get_markets(cur) -> dict:
                 f"market exposure computation may not have run or vix_regime computation failed. "
                 f"Check market_exposure_daily and load_market_exposure_daily logs."
             )
-        elif factors.get("vix_regime", {}).get("value") is None:
+        elif factors.get("vix_regime").get("value") is None:
             logger.warning(
                 f"[MARKETS API] VIX value is None in vix_regime for {current_date}: "
                 f"VIX fetch from ^VIX or market_health_daily returned no data. "

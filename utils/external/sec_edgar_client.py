@@ -205,7 +205,7 @@ class SecEdgarClient:
         cik = self.symbol_to_cik(symbol)
         data = self.get_concept(cik, taxonomy, concept)
 
-        units = data.get("units", {})
+        units = data.get("units")
         results: List[Dict[str, Any]] = []
         for unit, entries in units.items():
             for entry in entries:
@@ -234,7 +234,7 @@ class SecEdgarClient:
         cik = self.symbol_to_cik(symbol)
         data = self.get_concept(cik, taxonomy, concept)
 
-        units = data.get("units", {})
+        units = data.get("units")
         results: List[Dict[str, Any]] = []
         for unit, entries in units.items():
             for entry in entries:

@@ -45,8 +45,8 @@ def lambda_handler(event: dict[str, Any], context: Any) -> dict[str, Any]:
     """Handle Cognito custom message trigger."""
 
     trigger_source = event.get("triggerSource")
-    user_attributes = event.get("request", {}).get("userAttributes", {})
-    code_parameter = event.get("request", {}).get("codeParameter", "")
+    user_attributes = event.get("request").get("userAttributes")
+    code_parameter = event.get("request").get("codeParameter", "")
     email = user_attributes.get("email", "")
 
     logger.info(f"Cognito trigger: {trigger_source} for user {email}")

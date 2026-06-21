@@ -81,13 +81,13 @@ def panel_recent_trades(trades):
 
     trades_timestamp = None
     if isinstance(trades, dict):
-        trades_timestamp = trades.get("timestamp")
-        trades_list = trades.get("items", [])
+        trades_timestamp = safe_get_field(trades, "timestamp")
+        trades_list = safe_get_field(trades, "items")
     else:
         trades_list = trades if isinstance(trades, list) else []
 
     # Filter to closed trades only — open/pending are in the positions panel
-    closed_trades = [tr for tr in trades_list if isinstance(tr, dict) and (tr.get("status", "")).lower() == "closed"]
+    closed_trades = [tr for tr in trades_list if isinstance(tr, dict) and (safe_get_field(tr, "status", "")).lower() == "closed"]
 
     if not closed_trades:
         age_s = f"  [dim]{fmt_age(trades_timestamp)}[/]" if trades_timestamp is not None else ""
@@ -129,13 +129,13 @@ def panel_recent_trades(trades):
 
     for tr in closed_trades[:12]:
         # Extract trade fields once, then convert to typed values
-        sym = tr.get("symbol", "--")
-        pnl_d_raw = tr.get("profit_loss_dollars")
-        pnl_p_raw = tr.get("profit_loss_pct")
-        rmul_raw = tr.get("exit_r_multiple")
-        entry_raw = tr.get("entry_price")
-        exit_raw = tr.get("exit_price")
-        dur_raw = tr.get("trade_duration_days")
+        sym = safe_get_field(tr, "symbol", "--")
+        pnl_d_raw = safe_get_field(tr, "profit_loss_dollars")
+        pnl_p_raw = safe_get_field(tr, "profit_loss_pct")
+        rmul_raw = safe_get_field(tr, "exit_r_multiple")
+        entry_raw = safe_get_field(tr, "entry_price")
+        exit_raw = safe_get_field(tr, "exit_price")
+        dur_raw = safe_get_field(tr, "trade_duration_days")
 
         # Convert to typed values
         pnl_d = float(pnl_d_raw) if pnl_d_raw is not None else None
@@ -144,12 +144,12 @@ def panel_recent_trades(trades):
         entry_p = float(entry_raw) if entry_raw is not None else None
         exit_p = float(exit_raw) if exit_raw is not None else None
         dur = int(dur_raw) if dur_raw is not None else None
-        exit_date = tr.get("exit_date") or tr.get("trade_date")
+        exit_date = safe_get_field(tr, "exit_date") or safe_get_field(tr, "trade_date")
 
         has_pnl = pnl_p is not None
         pc = G if (pnl_d or pnl_p or 0) > 0 else R
         si = f"[{G}]▲[/]" if (pnl_p or 0) > 0 else f"[{R}]▼[/]"
-        grade = tr.get("swing_grade", "--")
+        grade = safe_get_field(tr, "swing_grade", "--")
         grade_c = (
             G
             if grade in ("A", "A+", "A-")
@@ -189,12 +189,12 @@ def panel_trades_expanded(trades):
 
     trades_timestamp = None
     if isinstance(trades, dict):
-        trades_timestamp = trades.get("timestamp")
-        trades_list = trades.get("items", [])
+        trades_timestamp = safe_get_field(trades, "timestamp")
+        trades_list = safe_get_field(trades, "items")
     else:
         trades_list = trades if isinstance(trades, list) else []
 
-    closed = [tr for tr in trades_list if isinstance(tr, dict) and (tr.get("status", "")).lower() == "closed"]
+    closed = [tr for tr in trades_list if isinstance(tr, dict) and (safe_get_field(tr, "status", "")).lower() == "closed"]
 
     rows = [
         Text.from_markup("[dim]press [/][bold cyan]t[/][dim] to return to dashboard[/]"),

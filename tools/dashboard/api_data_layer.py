@@ -218,7 +218,7 @@ def get_cached_response(endpoint: str, mark_stale: bool = False) -> dict | None:
         cached = _response_cache.get(endpoint)
         if not cached:
             return None
-    cached_data = cached.get("data", {})
+    cached_data = cached.get("data")
     timestamp = cached.get("timestamp")
     age_seconds = (datetime.now(ET) - timestamp).total_seconds()
 

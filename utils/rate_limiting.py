@@ -411,8 +411,8 @@ def _check_dynamodb_rate_limit(
 
         now = int(time())
         response = table.get_item(Key={"user_endpoint": key})
-        item = response.get("Item", {})
-        request_times = item.get("request_times", [])
+        item = response.get("Item")
+        request_times = item.get("request_times")
 
         recent_requests = [t for t in request_times if t > int(window_start)]
 

@@ -244,9 +244,9 @@ def _wrap_response(response):
             payload["items"] = response.get("items")
             if "pagination" in response:
                 payload["pagination"] = response["pagination"]
-            total = response.get("pagination", {}).get("total")
+            total = response.get("pagination").get("total")
             if total is None:
-                total = len(response.get("items", []))
+                total = len(response.get("items"))
             payload["total"] = total
 
         wrapped = {"statusCode": 200, "data": payload}

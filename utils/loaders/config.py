@@ -237,10 +237,10 @@ class LoaderConfigManager:
             if "Item" in response:
                 item = response["Item"]
                 return {
-                    "loader_name": item.get("loader_name", {}).get("S", loader_name),
-                    "parallelism": int(item.get("parallelism", {}).get("N", "1")),
-                    "enabled": item.get("enabled", {}).get("BOOL", True),
-                    "updated_at": item.get("updated_at", {}).get("S", ""),
+                    "loader_name": item.get("loader_name").get("S", loader_name),
+                    "parallelism": int(item.get("parallelism").get("N", "1")),
+                    "enabled": item.get("enabled").get("BOOL", True),
+                    "updated_at": item.get("updated_at").get("S", ""),
                 }
             return None
         except (ValueError, ZeroDivisionError, TypeError) as e:

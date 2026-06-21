@@ -51,7 +51,7 @@ def audit_lambdas(session):
                     Period=86400,  # Daily
                     Statistics=['Sum']
                 )
-                invocations = sum(dp['Sum'] for dp in metrics.get('Datapoints', []))
+                invocations = sum(dp['Sum'] for dp in metrics.get('Datapoints'))
             except Exception as e:
                 invocations = 'ERROR'
 
@@ -99,7 +99,7 @@ def audit_ecs(session):
     print("="*60)
 
     try:
-        clusters = client.list_clusters().get('clusterArns', [])
+        clusters = client.list_clusters().get('clusterArns')
         if not clusters:
             print("[OK] No ECS clusters found")
             return
@@ -109,7 +109,7 @@ def audit_ecs(session):
             print(f"\n[OK] Cluster: {cluster_name}")
 
             # Get services
-            services = client.list_services(cluster=cluster_arn).get('serviceArns', [])
+            services = client.list_services(cluster=cluster_arn).get('serviceArns')
             if services:
                 for service_arn in services:
                     service_name = service_arn.split('/')[-1]
@@ -125,7 +125,7 @@ def audit_ecs(session):
                 print("  No services in cluster")
 
             # Get tasks
-            tasks = client.list_tasks(cluster=cluster_arn).get('taskArns', [])
+            tasks = client.list_tasks(cluster=cluster_arn).get('taskArns')
             print(f"  Total tasks: {len(tasks)}")
     except Exception as e:
         print(f"[ERROR] {e}")
@@ -227,7 +227,7 @@ def audit_dynamodb(session):
 
             details = client.describe_table(TableName=table_name)['Table']
             status = details['TableStatus']
-            billing_mode = details.get('BillingModeSummary', {}).get('BillingMode', 'PROVISIONED')
+            billing_mode = details.get('BillingModeSummary').get('BillingMode', 'PROVISIONED')
             item_count = details.get('ItemCount', 0)
             size_bytes = details.get('TableSizeBytes', 0)
 

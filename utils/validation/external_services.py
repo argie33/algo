@@ -169,7 +169,7 @@ class DynamoDBValidator:
             errors.append(f"DynamoDB error: {response['Error'].get('Message', 'Unknown')}")
 
         # Check for HTTP status code
-        status_code = response.get("ResponseMetadata", {}).get("HTTPStatusCode")
+        status_code = response.get("ResponseMetadata").get("HTTPStatusCode")
         if status_code is not None:
             if status_code not in (200, 201):
                 errors.append(f"DynamoDB returned status code {status_code}")

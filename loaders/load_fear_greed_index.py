@@ -77,10 +77,10 @@ class FearGreedIndexLoader(OptimalLoader):
                 # CNN API two known formats:
                 # New: {"fear_and_greed": {...current dict...}, "fear_and_greed_historical": {"data": [{"x": ms_ts, "y": val, "rating": "..."}]}}
                 # Old: {"fear_and_greed": [{"x": ms_ts, "y": val, "rating": "..."}]}
-                raw = data.get("fear_and_greed", [])
+                raw = data.get("fear_and_greed")
                 if isinstance(raw, dict):
                     entries = list(
-                        data.get("fear_and_greed_historical", {}).get("data", [])
+                        data.get("fear_and_greed_historical").get("data")
                     )
                     score = raw.get("score") or raw.get("value")
                     if score is not None:

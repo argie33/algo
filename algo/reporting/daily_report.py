@@ -235,11 +235,11 @@ class DailyFinanceReport:
 
     def format_text(self, report: dict[str, Any]) -> str:
         """Format report as text for logs."""
-        regime = report.get("regime", {})
-        components = report.get("components", {})
-        portfolio = report.get("portfolio", {})
-        risk = report.get("risk", {})
-        strategy = report.get("strategy", {})
+        regime = report.get("regime")
+        components = report.get("components")
+        portfolio = report.get("portfolio")
+        risk = report.get("risk")
+        strategy = report.get("strategy")
 
         pv = portfolio.get("current_value")
         if pv is None:
@@ -310,7 +310,7 @@ class DailyFinanceReport:
             "sector_industry",
             "multi_timeframe",
         ]:
-            comp_data = components.get(comp, {})
+            comp_data = components.get(comp)
             status = comp_data.get("status", "?")
 
             if status == "no_data":
@@ -320,7 +320,7 @@ class DailyFinanceReport:
                 status_marker = "★" if status == "strong" else "◇" if status == "moderate" else " "
                 lines.append(f"  {comp:20s} r={ic:+.3f} {status_marker:2s} {status.upper():10s}")
 
-        signals = report.get("signals", {})
+        signals = report.get("signals")
         lines.extend(
             [
                 "",
@@ -337,7 +337,7 @@ class DailyFinanceReport:
         """Check metric thresholds and return warnings."""
         warnings = []
 
-        risk = report.get("risk", {})
+        risk = report.get("risk")
         var_95 = risk.get("var_95_pct")
         if var_95 is None:
             logger.warning(f"VaR 95% unavailable for {report['date']} - not yet computed by pipeline")
@@ -352,7 +352,7 @@ class DailyFinanceReport:
         elif sharpe_ytd < 0.5:
             warnings.append(f"⚠️  Sharpe < 0.5 ({sharpe_ytd:.2f}) - Strategy struggling")
 
-        portfolio = report.get("portfolio", {})
+        portfolio = report.get("portfolio")
         daily_pnl = portfolio.get("daily_pnl_pct")
         if daily_pnl is None:
             logger.critical(f"Daily P&L unavailable for {report['date']} - cannot assess halt threshold")

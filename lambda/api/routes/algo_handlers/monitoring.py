@@ -296,7 +296,7 @@ def _trigger_data_patrol() -> dict:
                 },
             )
         else:
-            logger.error(f"Failed to run patrol task: {response.get('failures', [])}")
+            logger.error(f"Failed to run patrol task: {response.get('failures')}")
             return error_response(
                 500, "internal_error", "Failed to trigger patrol task"
             )

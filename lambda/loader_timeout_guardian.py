@@ -140,7 +140,7 @@ def kill_loader_task(loader_name):
     try:
         # List tasks in algo cluster
         response = ecs.list_tasks(cluster="algo-dev", desiredStatus="RUNNING")
-        task_arns = response.get("taskArns", [])
+        task_arns = response.get("taskArns")
 
         # Try to match by task name/label - this is heuristic
         # In real deployment, tasks should have loader_name as label or environment variable
@@ -151,7 +151,7 @@ def kill_loader_task(loader_name):
 
                 # Check task definition or environment variables for loader_name
                 # This depends on how tasks are launched
-                container_env = task["containers"][0].get("environment", [])
+                container_env = task["containers"][0].get("environment")
                 for env_var in container_env:
                     if (
                         env_var.get("name") == "LOADER_NAME"

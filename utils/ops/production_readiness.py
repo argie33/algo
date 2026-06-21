@@ -38,7 +38,7 @@ class ProductionReadinessCheck:
             with DatabaseContext("read") as cur:
                 # Validate critical tables exist with correct column types
                 required_tables = {
-                    "price_daily": TABLE_SCHEMAS.get("price_daily", {}),
+                    "price_daily": TABLE_SCHEMAS.get("price_daily"),
                     "algo_positions": {},  # No strict schema definition yet
                     "signal_quality_scores": {},  # No strict schema definition yet
                 }

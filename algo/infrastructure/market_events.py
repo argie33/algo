@@ -109,7 +109,7 @@ class MarketEventHandler:
                     resp = requests.get(url, headers=headers, timeout=get_api_timeout())
                     if resp.status_code != 200:
                         raise RuntimeError(f"Quotes API error: status {resp.status_code}")
-                    return resp.json().get("quote", {}).get("ap")
+                    return resp.json().get("quote").get("ap")
                 except (requests.RequestException, json.JSONDecodeError, RuntimeError) as e:
                     raise RuntimeError(f"Operation failed: {e}") from e
 
@@ -119,7 +119,7 @@ class MarketEventHandler:
                     resp = requests.get(url, headers=headers, timeout=get_market_data_timeout())
                     if resp.status_code != 200:
                         raise RuntimeError(f"Bars API error: status {resp.status_code}")
-                    return resp.json().get("bar", {}).get("o")
+                    return resp.json().get("bar").get("o")
                 except (requests.RequestException, json.JSONDecodeError, RuntimeError) as e:
                     raise RuntimeError(f"Operation failed: {e}") from e
 

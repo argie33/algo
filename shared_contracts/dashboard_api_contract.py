@@ -708,7 +708,7 @@ class PanelRegistry:
                 f"Panel '{name}' missing required 'endpoint_deps' field. "
                 "All panels must explicitly declare their endpoint dependencies."
             )
-        return cast(List[str], panel.get("endpoint_deps", []))
+        return cast(List[str], panel.get("endpoint_deps"))
 
     @staticmethod
     def is_panel_optional(name: str) -> bool:
@@ -741,7 +741,7 @@ class PanelRegistry:
             return False, [name]
 
         missing = []
-        endpoint_deps = cast(List[str], panel.get("endpoint_deps", []))
+        endpoint_deps = cast(List[str], panel.get("endpoint_deps"))
         for endpoint_name in endpoint_deps:
             if not EndpointRegistry.validate_endpoint_exists(endpoint_name):
                 missing.append(endpoint_name)

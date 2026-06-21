@@ -97,7 +97,7 @@ class CashFlowLoader(OptimalLoader):
         self.table_name = cfg["table_name"]
         self.primary_key = cfg["primary_key"]
         self._schema_cols = cfg["schema_cols"]
-        self._field_mapping = cfg.get("field_mapping", {})
+        self._field_mapping = cfg.get("field_mapping")
         super().__init__()
         self._sec_client = SecEdgarClient()
 

@@ -385,7 +385,7 @@ def panel_performance_spark(perf, rec, perf_anl=None, pos=None):
         sp = sparkline(equity_vals, width=28)
         rows.append(Text.from_markup(f"[dim]Equity curve:[/] {sp}"))
 
-    recent_rets = perf.get("recent_rets", [])
+    recent_rets = perf.get("recent_rets")
     if recent_rets:
         parts = []
         for item in recent_rets[-5:]:

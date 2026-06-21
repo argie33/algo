@@ -298,7 +298,7 @@ class APIHandler(BaseHTTPRequestHandler):
             # Parse response
             status_code = response.get("statusCode", 200)
             response_body = response.get("body", "{}")
-            response_headers = response.get("headers", {})
+            response_headers = response.get("headers")
 
             # Encode response body
             if isinstance(response_body, str):

@@ -147,7 +147,7 @@ def extract_run_info(run: dict[str, Any]) -> dict[str, Any]:
     missing = [k for k in required if k not in run]
     if missing:
         raise KeyError(f"Run info missing critical fields: {missing}")
-    phase_results = run.get("phase_results", [])
+    phase_results = run.get("phase_results")
     if not isinstance(phase_results, list):
         phase_results = []
     return {

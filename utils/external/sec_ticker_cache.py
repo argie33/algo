@@ -54,7 +54,7 @@ class TickerCache:
             if self._ticker_cache_file.exists():
                 with open(self._ticker_cache_file, "r") as f:
                     data = json.load(f)
-                    self._ticker_cache = data.get("mapping", {})
+                    self._ticker_cache = data.get("mapping")
                     self._ticker_cache_time = data.get("timestamp", 0)
                     age = time.time() - self._ticker_cache_time
                     if age < self._cache_ttl:

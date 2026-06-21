@@ -232,7 +232,7 @@ def _handle_cognito(cur) -> dict[str, Any]:
                 health["cognito_verification_skipped"] = True
                 return success_response(health)
 
-            pool_response.get("UserPool", {})
+            pool_response.get("UserPool")
 
             # List app clients in this user pool
             apps_response = cognito.list_user_pool_clients(
@@ -247,7 +247,7 @@ def _handle_cognito(cur) -> dict[str, Any]:
                 health["cognito_verification_skipped"] = True
                 return success_response(health)
 
-            clients = apps_response.get("UserPoolClients", [])
+            clients = apps_response.get("UserPoolClients")
 
             # Validate clients is a list
             if not isinstance(clients, list):

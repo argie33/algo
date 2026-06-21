@@ -65,7 +65,7 @@ class ResponseValidator:
             )
 
         # Check strict fields (must not be None)
-        strict_fields = cast(List[str], endpoint.get("strict_fields", []))
+        strict_fields = cast(List[str], endpoint.get("strict_fields"))
         none_strict_fields = []
         for field in strict_fields:
             if field in response and response[field] is None:

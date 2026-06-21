@@ -88,7 +88,7 @@ def check_resources():
                 instance_type = instance['InstanceType']
 
                 # Check if it's a bastion (based on tags)
-                tags = {t['Key']: t['Value'] for t in instance.get('Tags', [])}
+                tags = {t['Key']: t['Value'] for t in instance.get('Tags')}
                 name = tags.get('Name', 'No Name')
 
                 print(f"  Instance: {instance_id} ({name})")

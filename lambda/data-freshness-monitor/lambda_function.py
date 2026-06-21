@@ -249,7 +249,7 @@ def lambda_handler(event, context):
     # Only set halt flag for HALT-table staleness (price_daily, market_health_daily,
     # market_exposure_daily). WARN tables are already logged in _check_critical_table_freshness
     # but must never trigger the halt flag — Phase 1 treats them as non-blocking warnings.
-    halt_stale = freshness.get("halt_stale", [])
+    halt_stale = freshness.get("halt_stale")
     if halt_stale:
         logger.critical(
             f"[FRESHNESS] HALT-table staleness detected: {halt_stale}"
@@ -258,15 +258,15 @@ def lambda_handler(event, context):
         _set_halt_flag_atomically(reason)
     elif freshness["status"] in ["degraded", "critical"]:
         logger.warning(
-            f"[FRESHNESS] Warn-only staleness (no halt): {freshness.get('stale_tables', [])}"
+            f"[FRESHNESS] Warn-only staleness (no halt): {freshness.get('stale_tables')}"
         )
 
     return {
         "statusCode": 200 if freshness["status"] == "ok" else 202,
         "body": json.dumps({
             "status": freshness["status"],
-            "stale_tables": freshness.get("stale_tables", []),
-            "age_details": freshness.get("age_details", {}),
+            "stale_tables": freshness.get("stale_tables"),
+            "age_details": freshness.get("age_details"),
             "timestamp": datetime.now(timezone.utc).isoformat(),
         }),
     }

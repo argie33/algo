@@ -71,7 +71,7 @@ def handle(
         return error_response(400, "missing_body", "Request body required")
 
     try:
-        logs = body.get("logs", [])
+        logs = body.get("logs")
         session_id = body.get("sessionId", "unknown")
         user_id = body.get("userId", "anonymous")
         environment = body.get("environment", "unknown")
@@ -110,7 +110,7 @@ def handle(
                 "errorType": log_entry.get("errorType"),
                 "url": log_entry.get("url"),
                 "userAgent": log_entry.get("userAgent"),
-                "context": log_entry.get("context", {}),
+                "context": log_entry.get("context"),
             }
 
             # CloudWatch expects unix timestamp in milliseconds

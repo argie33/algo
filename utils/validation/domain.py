@@ -99,7 +99,7 @@ class AlpacaOrderValidator(Validator):
 
         # Validate bracket order legs if present
         order_class = data.get("order_class", "simple")
-        legs = data.get("legs", [])
+        legs = data.get("legs")
         if order_class == "bracket":
             if not isinstance(legs, list):
                 all_errors.append(
@@ -366,7 +366,7 @@ class DatabaseSchemaValidator(Validator):
             )
 
         table_name = data.get("table_name", self.table_name)
-        columns = data.get("columns", {})
+        columns = data.get("columns")
         row_count = data.get("row_count", 0)
 
         # Check required columns exist

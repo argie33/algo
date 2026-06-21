@@ -89,7 +89,7 @@ def _format_fetcher_error(fetcher_name: str, error: Exception) -> str:
 
     Returns error string like: "Fetcher run (/api/algo/last-run: Last algo run status) timed out"
     """
-    meta = FETCHER_METADATA.get(fetcher_name, {})
+    meta = FETCHER_METADATA.get(fetcher_name)
     endpoint = meta.get("endpoint", "unknown endpoint")
     desc = meta.get("desc", "")
 
@@ -915,7 +915,7 @@ def fetch_health(c):
                 try:
                     from utils.validation.freshness_config import FRESHNESS_RULES as _FR
 
-                    r = _FR.get(name, {})
+                    r = _FR.get(name)
                     role = "CRIT" if r.get("critical") else ("IMP" if r.get("max_age_days", 999) <= 7 else "NORM")
                 except ImportError:
                     role = "CRIT" if name in set(critical_stale) else "NORM"
@@ -988,7 +988,7 @@ def fetch_exp_factors(c):
             "exposure_pct": safe_float(current.get("exposure_pct"), default=None),
             "raw_score": safe_float(current.get("raw_score"), default=None),
             "regime": current.get("regime"),
-            "factors": current.get("factors", {}),
+            "factors": current.get("factors"),
         }
     except Exception as e:
         error_msg = _format_fetcher_error("exp_factors", e)
@@ -1342,7 +1342,7 @@ def fetch_signal_eval(c):
             "t5": safe_int(result.get("t5")),
             "avg_score": safe_float(result.get("avg_score")),
             "date": result.get("signal_date"),
-            "rejected": result.get("rejected", []),
+            "rejected": result.get("rejected"),
         }
     except Exception as e:
         error_msg = _format_fetcher_error("sig_eval", e)
@@ -1800,7 +1800,7 @@ def load_all() -> dict:
             # Check if per-fetcher timeout has been exceeded
             elapsed = time.monotonic() - start_time
             if elapsed > timeout_sec:
-                meta = FETCHER_METADATA.get(name, {})
+                meta = FETCHER_METADATA.get(name)
                 endpoint = meta.get("endpoint", "unknown endpoint")
                 timeout_msg = f"Fetcher {name} ({endpoint}) exceeded per-fetcher timeout ({timeout_sec:.1f}s)"
                 logger.warning(timeout_msg)
@@ -1812,7 +1812,7 @@ def load_all() -> dict:
                 if attempt < max_retries:
                     base_backoff = (2**attempt) + random.random() * (2**attempt)
                     backoff = min(base_backoff, API_MAX_BACKOFF)
-                    meta = FETCHER_METADATA.get(name, {})
+                    meta = FETCHER_METADATA.get(name)
                     endpoint = meta.get("endpoint", "unknown endpoint")
                     logger.warning(
                         f"Fetcher {name} ({endpoint}) retry {attempt + 1}/{max_retries} (backoff {backoff:.1f}s): {type(e).__name__}"
@@ -1848,7 +1848,7 @@ def load_all() -> dict:
                 k_opt = futures.get(f)
                 if k_opt and not f.done():
                     k = k_opt
-                    meta = FETCHER_METADATA.get(k, {})
+                    meta = FETCHER_METADATA.get(k)
                     endpoint = meta.get("endpoint", "unknown endpoint")
                     desc = meta.get("desc", "")
                     context = f"{endpoint}" + (f": {desc}" if desc else "")
@@ -1884,7 +1884,7 @@ def load_all() -> dict:
                 k_opt = futures.get(f)
                 if k_opt and not f.done():
                     k = k_opt
-                    meta = FETCHER_METADATA.get(k, {})
+                    meta = FETCHER_METADATA.get(k)
                     endpoint = meta.get("endpoint", "unknown endpoint")
                     desc = meta.get("desc", "")
                     context = f"{endpoint}" + (f": {desc}" if desc else "")

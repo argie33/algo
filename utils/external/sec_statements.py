@@ -119,13 +119,13 @@ def _aggregate_concepts(
     all_facts = client.get_company_facts(cik)
 
     # Extract concepts from all_facts (us-gaap taxonomy)
-    us_gaap_facts = all_facts.get("facts", {}).get("us-gaap", {})
+    us_gaap_facts = all_facts.get("facts").get("us-gaap")
     rows: Dict[Any, Dict[str, Any]] = {}
     fp_filter = "FY" if period == "annual" else ("Q1", "Q2", "Q3", "Q4")
 
     for concept in concepts:
-        concept_data = us_gaap_facts.get(concept, {})
-        units = concept_data.get("units", {})
+        concept_data = us_gaap_facts.get(concept)
+        units = concept_data.get("units")
 
         for unit, entries in units.items():
             for entry in entries:

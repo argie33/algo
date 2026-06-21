@@ -48,7 +48,7 @@ class AlpacaResponseValidator:
         status = data.get("status")
         filled_avg_price = data.get("filled_avg_price")
         order_class = data.get("order_class", "simple")
-        legs = data.get("legs", [])
+        legs = data.get("legs")
 
         if not order_id:
             errors.append("Missing or empty order ID")

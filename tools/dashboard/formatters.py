@@ -223,7 +223,7 @@ def next_run_str() -> str:
 
         resp = api_call("/api/algo/schedule")
         if not has_error(resp) and "schedule" in resp:
-            schedule = resp.get("schedule", [])
+            schedule = resp.get("schedule")
             if schedule and isinstance(schedule, list):
                 result = _next_run_from_schedule(schedule)
                 _schedule_cache["result"] = result

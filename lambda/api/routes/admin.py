@@ -460,7 +460,7 @@ def _verify_user_email(body: dict | None = None) -> dict:
             return error_response(503, "cognito_error", f"Cognito error: {error_msg}")
 
         # Verify HTTP status indicates success
-        http_status = response.get("ResponseMetadata", {}).get("HTTPStatusCode")
+        http_status = response.get("ResponseMetadata").get("HTTPStatusCode")
         if http_status not in (200, 201):
             logger.error(
                 f"Cognito returned unexpected status code: {http_status}. "

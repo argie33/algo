@@ -767,7 +767,7 @@ class CircuitBreaker:
             notify(
                 severity="critical",
                 title="Trading Halted by Circuit Breaker",
-                message="; ".join(results.get("halt_reasons", [])),
+                message="; ".join(results.get("halt_reasons")),
                 details=results.get("checks"),
             )
         except (ValueError, ZeroDivisionError, TypeError) as e:

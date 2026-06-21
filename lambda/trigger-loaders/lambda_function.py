@@ -30,7 +30,7 @@ def lambda_handler(event, context):
     """
     try:
         # Parse input
-        loader_name = event.get("loader_name") or event.get("pathParameters", {}).get(
+        loader_name = event.get("loader_name") or event.get("pathParameters").get(
             "loader"
         )
         if not loader_name:
@@ -109,9 +109,9 @@ def lambda_handler(event, context):
 
         response = ecs.run_task(**run_task_params)
 
-        tasks = response.get("tasks", [])
+        tasks = response.get("tasks")
         if not tasks:
-            failures = response.get("failures", [])
+            failures = response.get("failures")
             return {
                 "statusCode": 500,
                 "body": json.dumps(

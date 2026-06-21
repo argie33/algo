@@ -24,8 +24,8 @@ try:
     if has_error(mkt_response):
         print(f"ERROR: {mkt_response.get('_error')}")
     else:
-        mkt_data = mkt_response.get("data", {})
-        market_health = mkt_data.get("market_health", {})
+        mkt_data = mkt_response.get("data")
+        market_health = mkt_data.get("market_health")
 
         print(f"market_health keys: {list(market_health.keys())}")
         print(f"vix_level value: {market_health.get('vix_level')}")
@@ -46,7 +46,7 @@ try:
     if has_error(risk_response):
         print(f"ERROR: {risk_response.get('_error')}")
     else:
-        risk_data = risk_response.get("data", {})
+        risk_data = risk_response.get("data")
         conc5 = risk_data.get("top_5_concentration")
 
         print(f"top_5_concentration value: {conc5}")
@@ -80,8 +80,8 @@ try:
     if has_error(pos_response):
         print(f"ERROR: {pos_response.get('_error')}")
     else:
-        pos_data = pos_response.get("data", {})
-        items = pos_data.get("items", [])
+        pos_data = pos_response.get("data")
+        items = pos_data.get("items")
 
         print(f"Total positions: {len(items)}")
 
@@ -113,7 +113,7 @@ try:
     if has_error(port_response):
         print(f"ERROR: {port_response.get('_error')}")
     else:
-        port_data = port_response.get("data", {})
+        port_data = port_response.get("data")
 
         print(f"total_portfolio_value: {port_data.get('total_portfolio_value')}")
         print(f"position_count: {port_data.get('position_count')}")

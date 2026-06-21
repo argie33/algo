@@ -391,17 +391,17 @@ def _fetch_terraform_credentials() -> tuple[str | None, str | None, str | None]:
         client_id = None
 
         if isinstance(outputs.get("api_url"), dict):
-            api_url = outputs.get("api_url", {}).get("value", "").strip()
+            api_url = outputs.get("api_url").get("value", "").strip()
         else:
             api_url = str(outputs.get("api_url", "")).strip()
 
         if isinstance(outputs.get("cognito_user_pool_id"), dict):
-            pool_id = outputs.get("cognito_user_pool_id", {}).get("value", "").strip()
+            pool_id = outputs.get("cognito_user_pool_id").get("value", "").strip()
         else:
             pool_id = str(outputs.get("cognito_user_pool_id", "")).strip()
 
         if isinstance(outputs.get("cognito_user_pool_client_id"), dict):
-            client_id = outputs.get("cognito_user_pool_client_id", {}).get("value", "").strip()
+            client_id = outputs.get("cognito_user_pool_client_id").get("value", "").strip()
         else:
             client_id = str(outputs.get("cognito_user_pool_client_id", "")).strip()
 

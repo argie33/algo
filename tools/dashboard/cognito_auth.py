@@ -56,7 +56,7 @@ class CognitoAuth:
                 AuthFlow="USER_PASSWORD_AUTH",
                 AuthParameters={"USERNAME": username, "PASSWORD": password},
             )
-            auth_result = response.get("AuthenticationResult", {})
+            auth_result = response.get("AuthenticationResult")
             self.access_token = auth_result.get("AccessToken")
             self.id_token = auth_result.get("IdToken")
             self.refresh_token = auth_result.get("RefreshToken")
@@ -64,7 +64,7 @@ class CognitoAuth:
             self.token_expires_at = self._parse_jwt_expiry(self.access_token) if self.access_token else None
             return bool(self.access_token)
         except ClientError as e:
-            error_code = e.response.get("Error", {}).get("Code")
+            error_code = e.response.get("Error").get("Code")
             if error_code == "NotAuthorizedException":
                 logger.error(f"Invalid credentials for user: {username}")
             elif error_code == "UserNotFoundException":
@@ -83,7 +83,7 @@ class CognitoAuth:
                 AuthFlow="REFRESH_TOKEN_AUTH",
                 AuthParameters={"REFRESH_TOKEN": self.refresh_token},
             )
-            auth_result = response.get("AuthenticationResult", {})
+            auth_result = response.get("AuthenticationResult")
             self.access_token = auth_result.get("AccessToken")
             self.id_token = auth_result.get("IdToken")
             self.token_expires_at = self._parse_jwt_expiry(self.access_token) if self.access_token else None
@@ -209,10 +209,10 @@ def _get_aws_cfn_output(key: str) -> str | None:
     try:
         cfn_client = boto3.client("cloudformation", region_name="us-east-1")
         stacks = cfn_client.list_stacks(StackStatusFilter=["CREATE_COMPLETE", "UPDATE_COMPLETE"])
-        for stack in stacks.get("StackSummaries", []):
+        for stack in stacks.get("StackSummaries"):
             if "algo" in stack["StackName"].lower():
                 response = cfn_client.describe_stacks(StackName=stack["StackName"])
-                outputs = response["Stacks"][0].get("Outputs", [])
+                outputs = response["Stacks"][0].get("Outputs")
                 for output in outputs:
                     if output["OutputKey"] == key:
                         return cast(str, output["OutputValue"])

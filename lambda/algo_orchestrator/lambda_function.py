@@ -320,7 +320,7 @@ def lambda_handler(event, context):
 
         # Apply event-level config overrides (for testing only — overrides AlgoConfig defaults)
         # E.g.: {"config_overrides": {"min_close_quality_pct": 0.0, "min_breakout_volume_ratio": 0.5}}
-        config_overrides = event.get("config_overrides", {})
+        config_overrides = event.get("config_overrides")
         if config_overrides and isinstance(config_overrides, dict):
             for k, v in config_overrides.items():
                 orchestrator.config.override(k, v)
@@ -345,7 +345,7 @@ def lambda_handler(event, context):
                             else "Orchestrator encountered errors"
                         ),
                         "run_id": run_id,
-                        "phases": result.get("phases", {}),
+                        "phases": result.get("phases"),
                         "skipped": skipped,
                         "reason": result.get("reason", ""),
                         "source": source,

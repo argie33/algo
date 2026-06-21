@@ -64,7 +64,7 @@ class DynamoDBHealthCheck:
             table = dynamodb.Table(self.table_name)
 
             response = table.get_item(Key={"key": "orchestrator_halt"})
-            item = response.get("Item", {})
+            item = response.get("Item")
 
             if "halt_flag" not in item:
                 raise KeyError(
@@ -116,7 +116,7 @@ class DynamoDBHealthCheck:
             table = dynamodb.Table(self.table_name)
 
             response = table.get_item(Key={"key": "phase1_degraded_mode"})
-            item = response.get("Item", {})
+            item = response.get("Item")
 
             degraded = item.get("degraded", False) is True
             reason = item.get("reason")
@@ -156,7 +156,7 @@ class DynamoDBHealthCheck:
             table = dynamodb.Table(self.table_name)
 
             response = table.get_item(Key={"key": "orchestrator-run-lock"})
-            item = response.get("Item", {})
+            item = response.get("Item")
 
             lock_active = "lock_owner" in item
             owner = item.get("lock_owner")

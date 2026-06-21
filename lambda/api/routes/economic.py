@@ -469,8 +469,8 @@ def _get_yield_curve_full(cur) -> dict:
 
         # TIPS breakeven inflation expectations
         breakevens_history = {
-            "T5YIE": history.get("T5YIE", []),
-            "T10YIE": history.get("T10YIE", []),
+            "T5YIE": history.get("T5YIE"),
+            "T10YIE": history.get("T10YIE"),
         }
         breakevens_latest = {
             k: v[-1].get("value") if v else None for k, v in breakevens_history.items()
@@ -478,8 +478,8 @@ def _get_yield_curve_full(cur) -> dict:
 
         # Financial stress indices
         stress_history = {
-            "STLFSI4": history.get("STLFSI4", []),
-            "ANFCI": history.get("ANFCI", []),
+            "STLFSI4": history.get("STLFSI4"),
+            "ANFCI": history.get("ANFCI"),
         }
         stress_latest = {
             k: v[-1].get("value") if v else None for k, v in stress_history.items()

@@ -178,7 +178,7 @@ class SignalsDailyLoader(OptimalLoader):
             try:
                 # Try cache first (populated in _prepare_batch_context)
                 symbol_watermarks = (
-                    self._batch_context.get("symbol_watermarks", {})
+                    self._batch_context.get("symbol_watermarks")
                     if self._batch_context
                     else {}
                 )

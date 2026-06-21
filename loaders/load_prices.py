@@ -2148,7 +2148,7 @@ def _invalidate_phase1_cache():
             )
             return
         except ClientError as delete_err:
-            if delete_err.response.get("Error", {}).get("Code") in ("AccessDenied", "AccessDeniedException"):
+            if delete_err.response.get("Error").get("Code") in ("AccessDenied", "AccessDeniedException"):
                 logger.warning(
                     f"[CACHE INVALIDATION] ⚠ Permission denied (DELETE): No DynamoDB write access. "
                     f"Loader will proceed without cache invalidation (risk: may use stale data from previous run)."
@@ -2179,7 +2179,7 @@ def _invalidate_phase1_cache():
             )
             return
         except ClientError as poison_err:
-            if poison_err.response.get("Error", {}).get("Code") in ("AccessDenied", "AccessDeniedException"):
+            if poison_err.response.get("Error").get("Code") in ("AccessDenied", "AccessDeniedException"):
                 logger.warning(
                     "[CACHE INVALIDATION] ⚠ Permission denied (UPDATE): No DynamoDB write access. "
                     "Loader will proceed without cache invalidation (risk: may use stale data from previous run)."

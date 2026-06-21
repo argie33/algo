@@ -40,7 +40,7 @@ def _build_calendar_rows(econ_cal) -> list:
         return rows
 
     econ_cal_items = (
-        econ_cal.get("items", [])
+        econ_cal.get("items")
         if isinstance(econ_cal, dict) and "items" in econ_cal
         else (econ_cal if isinstance(econ_cal, list) else [])
     )

@@ -41,13 +41,13 @@ class RejectionTracker:
         def _log_rejection(cur):
             rejected_at_tier = None
             for tier in [1, 2, 3, 4, 5]:
-                if not tier_results.get(tier, {}).get("pass", False):
+                if not tier_results.get(tier).get("pass", False):
                     rejected_at_tier = tier
                     break
 
             rejection_reason = ""
             if rejected_at_tier:
-                rejection_reason = tier_results.get(rejected_at_tier, {}).get(
+                rejection_reason = tier_results.get(rejected_at_tier).get(
                     "reason", "Unknown"
                 )
 
@@ -66,15 +66,15 @@ class RejectionTracker:
                     entry_price,
                     rejected_at_tier,
                     rejection_reason,
-                    tier_results.get(1, {}).get("pass", False),
-                    tier_results.get(2, {}).get("pass", False),
-                    tier_results.get(2, {}).get("reason", ""),
-                    tier_results.get(3, {}).get("pass", False),
-                    tier_results.get(3, {}).get("reason", ""),
-                    tier_results.get(4, {}).get("pass", False),
-                    tier_results.get(4, {}).get("reason", ""),
-                    tier_results.get(5, {}).get("pass", False),
-                    tier_results.get(5, {}).get("reason", ""),
+                    tier_results.get(1).get("pass", False),
+                    tier_results.get(2).get("pass", False),
+                    tier_results.get(2).get("reason", ""),
+                    tier_results.get(3).get("pass", False),
+                    tier_results.get(3).get("reason", ""),
+                    tier_results.get(4).get("pass", False),
+                    tier_results.get(4).get("reason", ""),
+                    tier_results.get(5).get("pass", False),
+                    tier_results.get(5).get("reason", ""),
                     advanced_results.get("reason", "") if advanced_results else None,
                 ),
             )

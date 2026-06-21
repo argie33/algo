@@ -225,5 +225,5 @@ class LoaderConflictDetector:
         intraday = self.check_intraday_pipeline_readiness()
         if not intraday.get("ready_for_afternoon_update"):
             logger.warning(
-                f"[INTRADAY-READINESS] Not ready: {intraday.get('recommendations', [])}"
+                f"[INTRADAY-READINESS] Not ready: {intraday.get('recommendations')}"
             )

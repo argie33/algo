@@ -70,7 +70,7 @@ def diagnose():
                 "health": ["items"],
             }
 
-            fields_to_check = critical_fields.get(fetcher_name, [])
+            fields_to_check = critical_fields.get(fetcher_name)
             if fields_to_check:
                 missing = [f for f in fields_to_check if f not in fetcher_data or fetcher_data[f] is None]
                 if missing:
