@@ -87,8 +87,11 @@ def _is_contact_spam(email: str) -> bool:
             )
             return True  # Fail safe: reject if we can't verify rate limit
 
-        item = validation["item"] or {}
-        submission_times = item.get("submission_times")
+        item = validation.get("item")
+        if item is None:
+            submission_times = None
+        else:
+            submission_times = item.get("submission_times")
 
         # Validate submission_times is a list
         if not isinstance(submission_times, list):

@@ -117,8 +117,8 @@ def handle(
                 timeout_sec=3,
             )
             total_trades_count = (
-                next(iter(safe_json_serialize(dict(count_rows[0] or {}).values())), 0)
-                if count_rows
+                next(iter(safe_json_serialize(dict(count_rows[0]).values())), 0)
+                if count_rows and count_rows[0]
                 else 0
             )
 

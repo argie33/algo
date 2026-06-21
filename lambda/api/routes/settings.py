@@ -71,6 +71,7 @@ def _get_settings(cur, jwt_claims: Dict) -> Dict:
         row = rows[0] if rows else None
         if row:
             try:
+                preferences = row.get("preferences") or {}
                 stored = {
                     "theme": row["theme"] or "dark",
                     "notifications": (
@@ -78,7 +79,7 @@ def _get_settings(cur, jwt_claims: Dict) -> Dict:
                         if row["notifications"] is not None
                         else True
                     ),
-                    **(row["preferences"] or {}),
+                    **preferences,
                 }
             except (TypeError, KeyError):
                 stored = {}

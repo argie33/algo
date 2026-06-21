@@ -76,9 +76,10 @@ def handle(
             )
             audits = cur.fetchall()
             cur.execute("SELECT COUNT(*) FROM algo_audit_log")
+            count_row = cur.fetchone()
             total = next(
-                iter(safe_json_serialize(dict(cur.fetchone() or {}).values())), 0
-            )
+                iter(safe_json_serialize(dict(count_row).values())), 0
+            ) if count_row else 0
             freshness = check_data_freshness(
                 cur, "algo_audit_log", "created_at", warning_days=1
             )
@@ -105,9 +106,10 @@ def handle(
                     SELECT COUNT(*) FROM algo_audit_log
                     WHERE action_type IN ('entry', 'exit', 'partial_exit')
                 """)
+            count_row = cur.fetchone()
             total = next(
-                iter(safe_json_serialize(dict(cur.fetchone() or {}).values())), 0
-            )
+                iter(safe_json_serialize(dict(count_row).values())), 0
+            ) if count_row else 0
             freshness = check_data_freshness(
                 cur, "algo_audit_log", "created_at", warning_days=1
             )
@@ -134,9 +136,10 @@ def handle(
                     SELECT COUNT(*) FROM algo_audit_log
                     WHERE action_type LIKE 'config%' OR action_type = 'settings_change'
                 """)
+            count_row = cur.fetchone()
             total = next(
-                iter(safe_json_serialize(dict(cur.fetchone() or {}).values())), 0
-            )
+                iter(safe_json_serialize(dict(count_row).values())), 0
+            ) if count_row else 0
             freshness = check_data_freshness(
                 cur, "algo_audit_log", "created_at", warning_days=1
             )
@@ -165,9 +168,10 @@ def handle(
                     SELECT COUNT(*) FROM algo_audit_log
                     WHERE action_type IN ('circuit_breaker_halt', 'circuit_breaker', 'safeguard', 'halt', 'exposure_policy')
                 """)
+            count_row = cur.fetchone()
             total = next(
-                iter(safe_json_serialize(dict(cur.fetchone() or {}).values())), 0
-            )
+                iter(safe_json_serialize(dict(count_row).values())), 0
+            ) if count_row else 0
             freshness = check_data_freshness(
                 cur, "algo_audit_log", "created_at", warning_days=1
             )

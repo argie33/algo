@@ -260,9 +260,10 @@ def _get_system_health(cur) -> dict:
         health_data["status"] = "degraded"
 
     cur.execute("SELECT date FROM price_daily ORDER BY date DESC LIMIT 1")
+    price_row = cur.fetchone()
     last_price_date = next(
-        iter(safe_json_serialize(dict(cur.fetchone() or {}).values())), 0
-    )
+        iter(safe_json_serialize(dict(price_row).values())), 0
+    ) if price_row else 0
     if last_price_date:
         today = datetime.now(timezone.utc).date()
         age_days = (today - last_price_date).days
@@ -333,9 +334,10 @@ def _get_database_stats(cur) -> dict:
 
     # Count active connections without exposing table structure
     cur.execute("SELECT count(*) FROM pg_stat_activity WHERE state != 'idle'")
+    conn_row = cur.fetchone()
     stats["active_connections"] = next(
-        iter(safe_json_serialize(dict(cur.fetchone() or {}).values())), 0
-    )
+        iter(safe_json_serialize(dict(conn_row).values())), 0
+    ) if conn_row else 0
 
     # Get high-level DB size without exposing individual table names
     cur.execute("""
@@ -374,9 +376,10 @@ def _get_data_quality(cur) -> dict:
         SELECT COUNT(*) FROM price_daily
         WHERE close IS NULL OR open IS NULL OR high IS NULL OR low IS NULL
     """)
+    null_row = cur.fetchone()
     null_prices = next(
-        iter(safe_json_serialize(dict(cur.fetchone() or {}).values())), 0
-    )
+        iter(safe_json_serialize(dict(null_row).values())), 0
+    ) if null_row else 0
     quality["checks"]["null_prices"] = {
         "count": null_prices,
         "status": "ok" if null_prices == 0 else "warning",
@@ -389,9 +392,10 @@ def _get_data_quality(cur) -> dict:
             GROUP BY symbol, date HAVING COUNT(*) > 1
         ) t
     """)
+    dup_row = cur.fetchone()
     duplicate_prices = next(
-        iter(safe_json_serialize(dict(cur.fetchone() or {}).values())), 0
-    )
+        iter(safe_json_serialize(dict(dup_row).values())), 0
+    ) if dup_row else 0
     quality["checks"]["duplicate_prices"] = {
         "count": duplicate_prices,
         "status": "ok" if duplicate_prices == 0 else "warning",
@@ -401,9 +405,10 @@ def _get_data_quality(cur) -> dict:
         SELECT COUNT(*) FROM price_daily
         WHERE high < low OR close > high OR close < low
     """)
+    invalid_row = cur.fetchone()
     invalid_prices = next(
-        iter(safe_json_serialize(dict(cur.fetchone() or {}).values())), 0
-    )
+        iter(safe_json_serialize(dict(invalid_row).values())), 0
+    ) if invalid_row else 0
     quality["checks"]["invalid_price_ranges"] = {
         "count": invalid_prices,
         "status": "ok" if invalid_prices == 0 else "error",
