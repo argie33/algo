@@ -89,11 +89,35 @@ class ExitEngine:
 
     def __init__(self, config: dict) -> None:
 
+        self._validate_config(config)
         self.config = config
 
         self.executor = TradeExecutor(config)
 
         self.verbose = True
+
+    def _validate_config(self, config: dict) -> None:
+        """Validate required configuration keys exist (fail-fast at init time).
+
+        Raises:
+            ValueError: If required config keys are missing
+        """
+        required_keys = [
+            "min_hold_days",
+            "max_hold_days",
+            "eight_week_rule_threshold_pct",
+            "eight_week_rule_window_days",
+            "exit_on_distribution_day",
+            "max_distribution_days",
+            "move_to_breakeven_r",
+            "trailing_stop_atr_multiplier",
+        ]
+        missing = [k for k in required_keys if k not in config]
+        if missing:
+            raise ValueError(
+                f"ExitEngine config missing required keys: {missing}. "
+                f"Cannot initialize exit engine without these values."
+            )
 
 
 

@@ -229,7 +229,7 @@ class ExposurePolicy:
                 "action": "skip",
                 "reason": "Missing target_hits configuration in algo_positions",
             }
-        target_hits = int(target_hits)
+        target_hits = safe_int(target_hits, default=0, context="target_hits")
 
         # CRITICAL: Do NOT use entry_price as fallback for cur_price. This distorts risk evaluation.
         # cur_price must be valid; if missing, skip this position.
