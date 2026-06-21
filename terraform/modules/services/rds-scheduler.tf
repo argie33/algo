@@ -95,11 +95,11 @@ data "archive_file" "rds_start_zip" {
   }
 }
 
-# EventBridge: Stop RDS at 11pm ET (3am UTC)
+# EventBridge: Stop RDS at 1am ET (6am UTC) — after 9pm ET loaders, before 3am ET loaders
 resource "aws_cloudwatch_event_rule" "rds_stop" {
   name                = "${var.project_name}-rds-stop-${var.environment}"
-  description         = "Stop RDS at 11pm ET (3am UTC) to save costs"
-  schedule_expression = "cron(0 3 * * ? *)"
+  description         = "Stop RDS at 1am ET (6am UTC) to save costs — after evening loaders"
+  schedule_expression = "cron(0 6 * * ? *)"
   tags                = var.common_tags
 }
 
