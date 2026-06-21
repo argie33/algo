@@ -299,7 +299,7 @@ def panel_sectors_expanded(srank, pos, port, sec_rot=None, irank=None):
     if not has_error(srank):
         srank_items_exp = None
         if isinstance(srank, dict) and "items" in srank:
-            srank_items_exp = srank.get("items")
+            srank_items_exp = safe_get_field(srank, "items")
             if not isinstance(srank_items_exp, list):
                 srank_items_exp = None
         elif isinstance(srank, list):
@@ -310,10 +310,10 @@ def panel_sectors_expanded(srank, pos, port, sec_rot=None, irank=None):
     if valid_srank:
         rows.append(Text.from_markup("[dim]All sectors  (rank  mom  ↑↓1wk/4wk):[/]"))
         for r in valid_srank:
-            nm = str(r.get("sector_name", ""))
-            mm = r.get("momentum_score")
+            nm = str(safe_get_field(r, "sector_name", ""))
+            mm = safe_get_field(r, "momentum_score")
             ms = f"[dim]  mom:{float(mm):.0f}[/]" if mm is not None else ""
-            rank_str = str(r.get("current_rank", ""))
+            rank_str = str(safe_get_field(r, "current_rank", ""))
             rows.append(
                 Text.from_markup(f"  [{G}]#{rank_str:<2}[/]  [white]{nm:<28}[/]{ms}  {_rdelta(r, wk4='rank_4w_ago')}")
             )
@@ -325,7 +325,7 @@ def panel_sectors_expanded(srank, pos, port, sec_rot=None, irank=None):
     if not has_error(irank):
         irank_items_exp = None
         if isinstance(irank, dict) and "items" in irank:
-            irank_items_exp = irank.get("items")
+            irank_items_exp = safe_get_field(irank, "items")
             if not isinstance(irank_items_exp, list):
                 irank_items_exp = None
         elif isinstance(irank, list):
@@ -336,10 +336,10 @@ def panel_sectors_expanded(srank, pos, port, sec_rot=None, irank=None):
     if valid_irank:
         rows.append(Text.from_markup("[dim]All industries  (rank  mom  ↑↓1wk):[/]"))
         for r in valid_irank:
-            nm = str(r.get("industry", ""))
-            mm = r.get("momentum_score")
+            nm = str(safe_get_field(r, "industry", ""))
+            mm = safe_get_field(r, "momentum_score")
             ms = f"[dim]  mom:{float(mm):.0f}[/]" if mm is not None else ""
-            rank_str = str(r.get("current_rank", ""))
+            rank_str = str(safe_get_field(r, "current_rank", ""))
             rows.append(Text.from_markup(f"  [{CY}]#{rank_str:<2}[/]  [white]{nm:<32}[/]{ms}  {_rdelta(r)}"))
 
     if not rows:
