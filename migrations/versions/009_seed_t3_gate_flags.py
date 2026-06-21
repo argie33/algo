@@ -8,7 +8,7 @@ without a code deploy. Default: both True (gates on, same behavior as before).
 ON CONFLICT DO NOTHING keeps any manually-set DB value.
 """
 
-from migrations.migration_helper import DatabaseContext
+from utils.db.context import DatabaseContext
 
 
 DESCRIPTION = (

@@ -8,7 +8,7 @@ Uses ON CONFLICT DO NOTHING so existing custom values are always preserved.
 Safe to re-run on an already-populated table.
 """
 
-from migrations.migration_helper import DatabaseContext
+from utils.db.context import DatabaseContext
 
 
 DESCRIPTION = (

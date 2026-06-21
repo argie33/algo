@@ -12,7 +12,7 @@ This migration corrects the sign to match the expected semantics where:
 This fix ensures the config validation warning is resolved.
 """
 
-from migrations.migration_helper import DatabaseContext
+from utils.db.context import DatabaseContext
 
 
 DESCRIPTION = "Fix halt_drawdown_pct sign error (should be negative)"

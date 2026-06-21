@@ -18,7 +18,7 @@ SOLUTION:
 - Positions become self-contained (no external joins for risk data)
 """
 
-from migrations.migration_helper import DatabaseContext
+from utils.db.context import DatabaseContext
 
 
 DESCRIPTION = "Add missing target and risk columns to algo_positions table"

@@ -7,7 +7,7 @@ happens in migration 015_replace_admin_placeholder_with_real_cognito_sub.py
 This migration verifies preconditions and documents the setup process.
 """
 
-from migrations.migration_helper import DatabaseContext
+from utils.db.context import DatabaseContext
 
 
 DESCRIPTION = "Finalize user isolation admin setup (verify preconditions)"

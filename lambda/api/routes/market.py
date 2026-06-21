@@ -63,7 +63,7 @@ def _handle_market_status(cur) -> dict:
 def _handle_breadth(cur) -> dict:
     """Handle /api/market/breadth endpoint."""
     # Compute A/D per day using a self-join on consecutive trading dates.
-    # Self-join is faster than LAG window over 35 days × 9000 symbols.
+    # Self-join is faster than LAG window over 35 days x 9000 symbols.
     # Uses retry logic with exponential backoff to handle transient timeouts
     # when DB is under heavy write load from loaders.
     breadth = []
@@ -114,9 +114,6 @@ def _handle_breadth(cur) -> dict:
     ) as e:
         logger.error(f"[MARKET_BREADTH] Database error: {type(e).__name__}: {e}")
         raise_db_error(e, "market breadth query")
-    except (psycopg2.DatabaseError, psycopg2.OperationalError) as e:
-        logger.error(f"[MARKET_BREADTH] Unexpected error: {type(e).__name__}: {e}")
-        raise_db_error(e, "market breadth query")
 
     if breadth:
         # Only fetch freshness if query succeeded
@@ -128,9 +125,6 @@ def _handle_breadth(cur) -> dict:
             psycopg2.OperationalError,
             psycopg2.DatabaseError,
         ) as e:
-            logger.warning(f"[BREADTH_FRESHNESS] Database error: {type(e).__name__}: {e}")
-            freshness = {}
-        except (psycopg2.DatabaseError, psycopg2.OperationalError) as e:
             logger.warning(f"[BREADTH_FRESHNESS] Error checking data freshness: {type(e).__name__}: {e}")
             freshness = {}
 
@@ -166,9 +160,6 @@ def _handle_technicals(cur) -> dict:
         psycopg2.DatabaseError,
     ) as e:
         logger.error(f"[MARKET_TECHNICALS] Database error: {type(e).__name__}: {e}")
-        raise_db_error(e, "market technicals query")
-    except (psycopg2.DatabaseError, psycopg2.OperationalError) as e:
-        logger.error(f"[MARKET_TECHNICALS] Unexpected error: {type(e).__name__}: {e}")
         raise_db_error(e, "market technicals query")
 
     base = safe_json_serialize(dict(rows[0])) if rows else {}
@@ -223,10 +214,6 @@ def _handle_technicals(cur) -> dict:
         logger.warning(f"[TECHNICALS_BREADTH] Database error: {type(e).__name__}")
         _rollback_savepoint(cur, "technicals_breadth")
         base["breadth"] = {}
-    except (psycopg2.DatabaseError, psycopg2.OperationalError) as e:
-        logger.warning(f"[TECHNICALS_BREADTH] Unexpected error: {type(e).__name__}")
-        _rollback_savepoint(cur, "technicals_breadth")
-        base["breadth"] = {}
 
     # Build 30-day A/D line history (formerly labeled mcclellan_oscillator)
     try:
@@ -252,9 +239,6 @@ def _handle_technicals(cur) -> dict:
         psycopg2.errors.QueryCanceled,
     ) as e:
         logger.warning(f"[MCCLELLAN] Database error: {type(e).__name__}")
-        base["mcclellan_oscillator"] = []
-    except (psycopg2.DatabaseError, psycopg2.OperationalError) as e:
-        logger.warning(f"[MCCLELLAN] Unexpected error: {type(e).__name__}")
         base["mcclellan_oscillator"] = []
 
     freshness = check_data_freshness(cur, "market_health_daily", "date", warning_days=1)
@@ -318,9 +302,6 @@ def _handle_top_movers(cur) -> dict:
         psycopg2.DatabaseError,
     ) as e:
         logger.warning(f"[TOP_MOVERS] Database error: {type(e).__name__}")
-        _rollback_savepoint(cur, "top_movers")
-    except (psycopg2.DatabaseError, psycopg2.OperationalError) as e:
-        logger.warning(f"[TOP_MOVERS] Unexpected error: {type(e).__name__}")
         _rollback_savepoint(cur, "top_movers")
 
     items = [safe_json_serialize(dict(m)) for m in movers] if movers else []

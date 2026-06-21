@@ -394,7 +394,6 @@ def lambda_handler(event, context):
     except psycopg2.OperationalError as e:
         logger.error(f"Database connection failed: {e}")
         return {"statusCode": 503, "body": json.dumps(f"DB connection failed: {e}")}
-
-    except (psycopg2.DatabaseError, psycopg2.OperationalError) as e:
+    except psycopg2.DatabaseError as e:
         logger.error(f"Init failed: {e}", exc_info=True)
         return {"statusCode": 500, "body": json.dumps(f"Init failed: {e}")}

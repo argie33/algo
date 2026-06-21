@@ -5,7 +5,6 @@ import logging
 from typing import Any
 
 from algo.risk.market_factor_strategy import MarketFactorStrategy
-from utils.db.context import DatabaseContext
 
 
 logger = logging.getLogger(__name__)

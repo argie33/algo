@@ -10,7 +10,7 @@ These controls prevent accidental permanent bypass of grade filtering
 and ensure override is time-bounded (resets at market close).
 """
 
-from migrations.migration_helper import DatabaseContext
+from utils.db.context import DatabaseContext
 
 
 DESCRIPTION = "Add grade override safety controls (explicit enable flag + duration limit)"

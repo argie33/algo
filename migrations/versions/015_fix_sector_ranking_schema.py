@@ -13,7 +13,7 @@ This migration:
 4. Drops the old date_recorded column
 """
 
-from migrations.migration_helper import DatabaseContext
+from utils.db.context import DatabaseContext
 
 
 DESCRIPTION = "Fix sector_ranking schema - rename date_recorded to date"

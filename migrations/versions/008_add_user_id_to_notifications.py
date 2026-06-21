@@ -10,7 +10,7 @@ Existing notifications are marked with user_id=NULL (system-wide, no owner).
 Going forward, all notifications will include the creating user's ID.
 """
 
-from migrations.migration_helper import DatabaseContext
+from utils.db.context import DatabaseContext
 
 
 DESCRIPTION = "Add user_id to algo_notifications table for row-level access control"

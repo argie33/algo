@@ -6,7 +6,7 @@ The contact form accepts an optional phone number but the column was missing
 from the initial schema, causing 500 errors on contact form submissions.
 """
 
-from migrations.migration_helper import DatabaseContext
+from utils.db.context import DatabaseContext
 
 
 DESCRIPTION = "Add phone column to contact_submissions table"

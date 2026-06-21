@@ -91,10 +91,6 @@ def handle(
                 logger.error(f"[DEEP_VALUE] Database error checking value_metrics: {type(e).__name__}: {e}")
                 code, error_type, message = handle_db_error(e, "deep-value check")
                 return error_response(code, error_type, message)
-            except (psycopg2.DatabaseError, psycopg2.OperationalError) as e:
-                logger.error(f"[DEEP_VALUE] Error checking financial data availability: {type(e).__name__}: {e}")
-                code, error_type, message = handle_db_error(e, "deep-value check")
-                return error_response(code, error_type, message)
             try:
                 deep_value_query = (
                     """

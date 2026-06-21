@@ -6,7 +6,7 @@ These columns enable user isolation and row-level access control, allowing the A
 to scope trade history and position data to authenticated users.
 """
 
-from migrations.migration_helper import DatabaseContext
+from utils.db.context import DatabaseContext
 
 
 DESCRIPTION = (

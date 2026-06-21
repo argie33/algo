@@ -16,7 +16,7 @@ Safe to run: the old table was non-functional (settings always returned 503),
 so there are no valid rows to preserve.
 """
 
-from migrations.migration_helper import DatabaseContext
+from utils.db.context import DatabaseContext
 
 
 DESCRIPTION = "Fix user_dashboard_settings: VARCHAR user_id, remove pgcrypto dependency"

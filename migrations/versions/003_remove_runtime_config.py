@@ -10,7 +10,7 @@ correct pattern. This migration removes the orphaned tables.
 Reversible: down() recreates both tables with original seed data.
 """
 
-from migrations.migration_helper import DatabaseContext
+from utils.db.context import DatabaseContext
 
 
 DESCRIPTION = "Remove unused algo_runtime_config and algo_runtime_config_audit tables"

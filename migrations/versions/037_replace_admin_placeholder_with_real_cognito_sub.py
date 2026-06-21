@@ -15,7 +15,7 @@ Tables affected:
 
 import os
 
-from migrations.migration_helper import DatabaseContext
+from utils.db.context import DatabaseContext
 
 
 DESCRIPTION = "Replace admin-user placeholder with real Cognito sub"

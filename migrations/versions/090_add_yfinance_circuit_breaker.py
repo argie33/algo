@@ -9,7 +9,7 @@ exponential backoff. All other tasks check this flag before making requests.
 Purpose: Prevents cascading IP bans by coordinating backoff across all tasks.
 """
 
-from migrations.migration_helper import DatabaseContext
+from utils.db.context import DatabaseContext
 
 
 DESCRIPTION = "Add yfinance_ip_ban table for coordinating rate limiting across ECS tasks"

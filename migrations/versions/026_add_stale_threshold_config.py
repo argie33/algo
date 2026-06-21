@@ -7,7 +7,7 @@ detection thresholds based on measured production loader execution times.
 Default: 30 minutes (conservative, prevents false positives).
 """
 
-from migrations.migration_helper import DatabaseContext
+from utils.db.context import DatabaseContext
 
 
 DESCRIPTION = "Add stale data detection threshold configuration"

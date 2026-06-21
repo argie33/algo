@@ -23,7 +23,7 @@ or proximity to earnings announcements. This creates:
 This migration restores safe defaults immediately.
 """
 
-from migrations.migration_helper import DatabaseContext
+from utils.db.context import DatabaseContext
 
 
 DESCRIPTION = "URGENT: Restore safety thresholds from zero to safe defaults"

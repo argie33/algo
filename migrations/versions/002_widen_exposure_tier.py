@@ -7,7 +7,7 @@ VARCHAR(20) limit set by the ADD COLUMN migration. This widens the column to
 VARCHAR(50) so all tier values fit without truncation errors.
 """
 
-from migrations.migration_helper import DatabaseContext
+from utils.db.context import DatabaseContext
 
 
 DESCRIPTION = "Widen market_exposure_daily.exposure_tier to VARCHAR(50)"

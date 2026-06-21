@@ -15,7 +15,7 @@ This migration adds configurable thresholds to algo_config:
 All code has been updated to load these values dynamically from the database.
 """
 
-from migrations.migration_helper import DatabaseContext
+from utils.db.context import DatabaseContext
 
 
 DESCRIPTION = "Add configurable grade thresholds to algo_config"

@@ -733,7 +733,7 @@ def _write_vix_family_prices(start: date, end: date) -> int:
                 continue
             except RuntimeError:
                 raise
-            except (ValueError, ZeroDivisionError, TypeError) as e:
+            except ZeroDivisionError as e:
                 logger.error(f"Failed to fetch {sym}: Unexpected error: {e}")
                 failed_symbols[sym] = f"Unexpected error: {str(e)[:50]}"
                 continue

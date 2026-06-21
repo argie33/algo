@@ -698,9 +698,9 @@ def validate_bearer_token(token: str | None) -> tuple:
     except jwt.InvalidTokenError as e:
         logger.warning(f"Invalid JWT token: {e}")
         return (False, None, f"Token invalid: {e!s}")
-    except json.JSONDecodeError as e:
-        return (False, None, f"Invalid token format: {e!s}")
     except (json.JSONDecodeError, ValueError) as e:
+        if isinstance(e, json.JSONDecodeError):
+            return (False, None, f"Invalid token format: {e!s}")
         logger.error(f"Token validation error: {e}", exc_info=True)
         return (False, None, "Token validation failed")
 

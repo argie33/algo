@@ -5,7 +5,7 @@ Creates a materialized view that pre-computes all risk metrics.
 Allows API layer to be a pure display layer (not calculation engine).
 """
 
-from migrations.migration_helper import DatabaseContext
+from utils.db.context import DatabaseContext
 
 
 DESCRIPTION = "Add positions with risk materialized view"

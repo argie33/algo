@@ -31,7 +31,7 @@ These thresholds prevent the system from trading any stock regardless of quality
 which is the core risk: weak signals + missing earnings data = blown stops.
 """
 
-from migrations.migration_helper import DatabaseContext
+from utils.db.context import DatabaseContext
 
 
 DESCRIPTION = "Enforce safety thresholds for entry quality gates and earnings blackout"

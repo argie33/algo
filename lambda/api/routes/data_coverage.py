@@ -267,8 +267,6 @@ def get_loader_health(cur) -> dict[str, Any]:
                     logger.warning(f"[LOADER_HEALTH] Table {table} not found - skipping")
                 except (psycopg2.OperationalError, psycopg2.DatabaseError) as e:
                     logger.warning(f"[LOADER_HEALTH] Database error checking {table}: {type(e).__name__}: {e}")
-                except (psycopg2.DatabaseError, psycopg2.OperationalError) as e:
-                    logger.warning(f"[LOADER_HEALTH] Unexpected error checking {table}: {type(e).__name__}: {e}")
         except (psycopg2.DatabaseError, psycopg2.OperationalError) as e:
             logger.warning(f"[LOADER_HEALTH] Failed to check table health: {e}")
 
@@ -295,8 +293,6 @@ def _safe_call(cur, fn) -> dict[str, Any]:
     try:
         cur.execute("SAVEPOINT coverage_check")
     except (psycopg2.OperationalError, psycopg2.DatabaseError) as e:
-        logger.debug(f"[SAVEPOINT_CREATE] Database error: {type(e).__name__}: {e}")
-    except (psycopg2.DatabaseError, psycopg2.OperationalError) as e:
         logger.debug(f"[SAVEPOINT_CREATE] Error creating savepoint: {type(e).__name__}: {e}")
 
     try:
@@ -305,12 +301,6 @@ def _safe_call(cur, fn) -> dict[str, Any]:
         try:
             cur.execute("RELEASE SAVEPOINT coverage_check")
         except (psycopg2.OperationalError, psycopg2.DatabaseError) as e:
-            logger.debug(f"[SAVEPOINT_RELEASE] Database error: {type(e).__name__}: {e}")
-            try:
-                cur.execute("ROLLBACK TO SAVEPOINT coverage_check")
-            except (psycopg2.DatabaseError, psycopg2.OperationalError) as sp_err:
-                logger.debug(f"[SAVEPOINT_ROLLBACK] Error rolling back: {type(sp_err).__name__}: {sp_err}")
-        except (psycopg2.DatabaseError, psycopg2.OperationalError) as e:
             logger.debug(f"[SAVEPOINT_RELEASE] Error releasing savepoint: {type(e).__name__}: {e}")
             try:
                 cur.execute("ROLLBACK TO SAVEPOINT coverage_check")
@@ -323,10 +313,8 @@ def _safe_call(cur, fn) -> dict[str, Any]:
             cur.execute("ROLLBACK TO SAVEPOINT coverage_check")
         except (psycopg2.OperationalError, psycopg2.DatabaseError) as rollback_err:
             logger.warning(
-                f"[SAVEPOINT_ROLLBACK] Database error rolling back: {type(rollback_err).__name__}: {rollback_err}"
+                f"[SAVEPOINT_ROLLBACK] Error rolling back: {type(rollback_err).__name__}: {rollback_err}"
             )
-        except (psycopg2.DatabaseError, psycopg2.OperationalError) as rollback_err:
-            logger.warning(f"[SAVEPOINT_ROLLBACK] Error rolling back: {type(rollback_err).__name__}: {rollback_err}")
         logger.warning(f"[COVERAGE_CHECK] Coverage check function failed: {type(e).__name__}: {e}")
         code, error_type, message = handle_db_error(e, "data coverage check")
         return error_response(code, error_type, message)

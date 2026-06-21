@@ -112,9 +112,6 @@ def store_idempotency_key(cur, idempotency_key: str, endpoint: str, response_dat
     ) as e:
         logger.debug(f"Idempotency key storage skipped (table missing or DB error): {type(e).__name__}")
         return False
-    except (psycopg2.DatabaseError, psycopg2.OperationalError) as e:
-        logger.error(f"Failed to store idempotency key: {type(e).__name__}: {e}")
-        return False
 
 
 def cleanup_expired_keys(cur, days_old: int = 7, batch_size: int = 1000, timeout_sec: int = 10) -> int:
@@ -145,9 +142,9 @@ def cleanup_expired_keys(cur, days_old: int = 7, batch_size: int = 1000, timeout
         if deleted_count > 0:
             logger.info(f"Cleaned up {deleted_count} expired idempotency keys")
         return deleted_count
-    except (psycopg2.errors.UndefinedTable, psycopg2.DatabaseError):
-        logger.warning("Cleanup skipped: idempotency key table does not exist")
-        return 0
-    except (psycopg2.DatabaseError, psycopg2.OperationalError) as e:
-        logger.error(f"Failed to clean up idempotency keys: {type(e).__name__}: {e}")
+    except (psycopg2.errors.UndefinedTable, psycopg2.DatabaseError, psycopg2.OperationalError) as e:
+        if isinstance(e, psycopg2.errors.UndefinedTable):
+            logger.warning("Cleanup skipped: idempotency key table does not exist")
+        else:
+            logger.error(f"Failed to clean up idempotency keys: {type(e).__name__}: {e}")
         return 0

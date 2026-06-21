@@ -9,7 +9,7 @@ rows). This migration populates all DEFAULTS as the initial DB state using
 ON CONFLICT DO NOTHING so it is safe to run on an already-populated table.
 """
 
-from migrations.migration_helper import DatabaseContext
+from utils.db.context import DatabaseContext
 
 
 DESCRIPTION = "Seed algo_config table with all default configuration values"

@@ -5,7 +5,7 @@ Creates a function to calculate all pre-trade constraint impacts.
 Eliminates multiple calculations in /pre-trade-impact endpoint.
 """
 
-from migrations.migration_helper import DatabaseContext
+from utils.db.context import DatabaseContext
 
 
 DESCRIPTION = "Add pre-trade impact calculation function"

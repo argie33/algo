@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """Add rejection_reason field to algo_trades to capture Alpaca API errors."""
 
-from migrations.migration_helper import DatabaseContext
+from utils.db.context import DatabaseContext
 
 
 DESCRIPTION = "Add rejection_reason column to algo_trades"

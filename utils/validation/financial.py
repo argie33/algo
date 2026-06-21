@@ -102,7 +102,7 @@ class FinancialDataValidator:
             msg = f"Quantity not numeric or overflow: {qty!r} {context} ({e})"
             logger.error(f"[FINANCIAL_VALIDATION] {msg}")
             return False, None, msg
-        except (ValueError, ZeroDivisionError, TypeError) as e:
+        except ZeroDivisionError as e:
             raise RuntimeError(f"Unexpected error in quantity validation: {e}. Cannot proceed.") from e
 
         if qty_int <= 0:

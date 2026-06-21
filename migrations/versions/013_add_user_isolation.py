@@ -8,7 +8,7 @@ Schema changes:
 - Add unique constraints on (cognito_sub, symbol, date) where applicable
 """
 
-from migrations.migration_helper import DatabaseContext
+from utils.db.context import DatabaseContext
 
 
 DESCRIPTION = "Add user isolation to portfolio snapshots and trade adds"

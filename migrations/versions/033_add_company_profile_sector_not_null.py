@@ -9,7 +9,7 @@ but allow NULL values, causing missing sectors in results. This migration:
 2. Adds NOT NULL constraint to company_profile.sector column
 """
 
-from migrations.migration_helper import DatabaseContext
+from utils.db.context import DatabaseContext
 
 
 DESCRIPTION = "Add NOT NULL constraint to company_profile.sector"
