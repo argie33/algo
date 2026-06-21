@@ -69,8 +69,6 @@ def _audit_log_admin_action(
         psycopg2.DatabaseError,
     ) as e:
         logger.warning(f"[AUDIT_LOG] Database error: {type(e).__name__}: {e}")
-    except (psycopg2.DatabaseError, psycopg2.OperationalError) as e:
-        logger.warning(f"[AUDIT_LOG] Unexpected error: {type(e).__name__}: {e}")
 
 
 def handle(
@@ -223,11 +221,6 @@ def _get_loader_status(cur) -> dict:
             f"[LOADER_STATUS] Freshness check failed: {type(e).__name__}: {e}"
         )
         freshness = None
-    except (psycopg2.DatabaseError, psycopg2.OperationalError) as e:
-        logger.warning(
-            f"[LOADER_STATUS] Unexpected error in freshness check: {type(e).__name__}: {e}"
-        )
-        freshness = None
     response = list_response(loaders, total=len(loaders), limit=None, offset=None)
     response["data"]["status"] = "ok"
     response["data"]["summary"] = {
@@ -299,7 +292,6 @@ def _get_system_health(cur) -> dict:
 
     table_counts = {}
     tables = ["stock_symbols", "price_daily", "algo_trades", "algo_positions"]
-    ",".join([psycopg2.sql.SQL("{}").format(psycopg2.sql.Identifier(t)).as_string(cur) for t in tables])
     try:
         cur.execute("""
             SELECT
