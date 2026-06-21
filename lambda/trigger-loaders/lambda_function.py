@@ -9,7 +9,7 @@ Invoked by: API /api/algo/trigger-loader endpoint or CloudWatch alarm
 import json
 import logging
 import os
-from datetime import datetime
+from datetime import datetime, timezone
 
 import boto3
 
@@ -131,7 +131,7 @@ def lambda_handler(event, context):
                 {
                     "message": f"Triggered {loader_name} loader",
                     "tasks": task_arns,
-                    "timestamp": datetime.utcnow().isoformat(),
+                    "timestamp": datetime.now(timezone.utc).isoformat(),
                 }
             ),
         }

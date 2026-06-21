@@ -818,7 +818,7 @@ def log_api_request(
 
         audit_log = {
             "event": "API_REQUEST",
-            "timestamp": datetime.utcnow().isoformat() + "Z",
+            "timestamp": datetime.now(timezone.utc).isoformat(),
             "request_id": request_id,
             "client_ip": client_ip,
             "method": method,

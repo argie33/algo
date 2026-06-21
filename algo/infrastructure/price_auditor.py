@@ -6,7 +6,7 @@ stale data detection.
 """
 
 import logging
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 from typing import Any
 
 
@@ -47,12 +47,12 @@ class PriceAuditor:
         """Check if price data is fresh enough for reconciliation.
 
         Args:
-            price_timestamp: Last update time of price data
+            price_timestamp: Last update time of price data (must be timezone-aware)
 
         Returns:
             True if fresh, False if stale
         """
         if price_timestamp is None:
             return False
-        age = datetime.utcnow() - price_timestamp
+        age = datetime.now(timezone.utc) - price_timestamp
         return age < self.STALE_THRESHOLD
