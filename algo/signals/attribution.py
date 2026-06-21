@@ -13,6 +13,7 @@ from typing import Any
 
 import psycopg2
 
+
 try:
     import numpy as np
 except ImportError:

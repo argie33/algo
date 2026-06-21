@@ -136,7 +136,11 @@ def run(
                         exit_fraction=1.0,
                         exit_stage="exposure_force_exit",
                     )
-                    if result.get("success"):
+                    if "success" not in result or result["success"] is None:
+                        raise RuntimeError(
+                            f"Force exit result missing 'success' field. Got keys: {list(result.keys())}"
+                        )
+                    if result["success"]:
                         exit_count += 1
                         logger.info(f"  EXPOSURE FORCE-EXIT: {result.get('message', action['symbol'])}")
                     else:
@@ -173,7 +177,11 @@ def run(
                             exit_stage="exposure_partial",
                             new_stop_price=action.get("new_stop"),
                         )
-                        if result.get("success"):
+                        if "success" not in result or result["success"] is None:
+                            raise RuntimeError(
+                                f"Partial exit result missing 'success' field. Got keys: {list(result.keys())}"
+                            )
+                        if result["success"]:
                             exit_count += 1
                             logger.info(f"  EXPOSURE PARTIAL: {result['message']}")
 
@@ -221,7 +229,11 @@ def run(
                         exit_fraction=1.0,
                         exit_stage="early_exit",
                     )
-                    if result.get("success"):
+                    if "success" not in result or result["success"] is None:
+                        raise RuntimeError(
+                            f"Early exit result missing 'success' field. Got keys: {list(result.keys())}"
+                        )
+                    if result["success"]:
                         exit_count += 1
                         if verbose:
                             logger.info(f"  EARLY EXIT: {result['message']}")

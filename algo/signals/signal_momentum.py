@@ -261,7 +261,7 @@ class SignalMomentumMixin:
             # Find max down-day volume in lookback window
             max_down_vol = 0
             for row in rows[1:]:  # Skip today initially
-                date, close, prev_close, vol, rn = row
+                _date, close, prev_close, vol, rn = row
                 if prev_close is not None and close < prev_close:
                     max_down_vol = max(max_down_vol, float(vol) if vol else 0)
 

@@ -307,7 +307,7 @@ class AlignmentChecker(BaseCheck):
                 row_dict = dict(row)
                 counts_by_table[row_dict["tbl_name"]] = row_dict["cnt"] or 0
 
-            for tbl, where, min_ratio, sev in checks:
+            for tbl, _where, min_ratio, sev in checks:
                 try:
                     count = counts_by_table.get(tbl, 0)
                     ratio = count / baseline

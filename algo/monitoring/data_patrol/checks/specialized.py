@@ -135,12 +135,12 @@ class SpecializedChecker(BaseCheck):
         ]
 
         try:
-            for tbl, col, max_days, sev in table_checks:
+            for tbl, col, _max_days, _sev in table_checks:
                 assert_safe_table(tbl)
                 assert_safe_table(col)
 
             union_parts = []
-            for tbl, col, max_days, sev in table_checks:
+            for tbl, col, _max_days, _sev in table_checks:
                 tbl_safe = assert_safe_table(tbl)
                 col_safe = assert_safe_table(col)
                 union_parts.append(
@@ -159,7 +159,7 @@ class SpecializedChecker(BaseCheck):
                     row_dict["unique_syms"],
                 )
 
-            for tbl, col, max_days, sev in table_checks:
+            for tbl, _col, max_days, sev in table_checks:
                 try:
                     if tbl in results_by_table:
                         latest, _total, unique_syms = results_by_table[tbl]
