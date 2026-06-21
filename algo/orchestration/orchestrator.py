@@ -315,8 +315,8 @@ class Orchestrator:
                                     )
                                 except (ValueError, ZeroDivisionError, TypeError) as alert_err:
                                     logger.warning(f"Could not send escalation alert: {alert_err}")
-                    except (ValueError, KeyError) as escalation_err:
-                        logger.warning(f"Could not check halt escalation: {escalation_err}")
+                        except (ValueError, KeyError) as escalation_err:
+                            logger.warning(f"Could not check halt escalation: {escalation_err}")
 
             table.put_item(
                 Item={
