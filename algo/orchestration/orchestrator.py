@@ -845,7 +845,7 @@ class Orchestrator:
                     "ttl": int(time.time()) + 3600,  # 1-hour TTL
                 }
             )
-        except (ValueError, ZeroDivisionError, TypeError) as e:
+        except Exception as e:
             logger.debug(f"Failed to write Phase 1 degraded_mode status to DynamoDB: {e}")
 
         # Halt flag lifecycle: always run regardless of informational write success above.
@@ -856,7 +856,7 @@ class Orchestrator:
                 self._set_halt_flag(f"Phase 1 degraded: {result.summary}")
             elif result.status == "ok":
                 self._clear_halt_flag(f"Phase 1 verified data is fresh at {datetime.now(timezone.utc).isoformat()}")
-        except (ValueError, ZeroDivisionError, TypeError) as e:
+        except Exception as e:
             logger.warning(f"Failed to manage halt flag after Phase 1: {e}")
 
         return not result.halted
