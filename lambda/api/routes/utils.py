@@ -4,7 +4,7 @@ import logging
 import time
 from datetime import date, datetime, timezone
 from functools import wraps
-from typing import Any
+from typing import Any, NoReturn, cast
 
 import psycopg2
 import psycopg2.errors
@@ -587,7 +587,7 @@ def check_data_freshness(
         raise
 
 
-def json_response(code, data, data_freshness=None):
+def json_response(code: int, data: dict[str, Any], data_freshness: dict[str, Any] | None = None) -> dict[str, Any]:
     """Standardized JSON response wrapper for single objects.
 
     Returns consistent format:
@@ -600,13 +600,13 @@ def json_response(code, data, data_freshness=None):
         response = success_response(data)
         if data_freshness:
             response["data_freshness"] = data_freshness
-        return response
+        return cast(dict[str, Any], response)
     else:
         # For error responses, sanitize to prevent None values in nested fields
         # BUT only auto-populate _error from message if message was not None originally
         has_non_none_message = "message" in data and data.get("message") is not None
         sanitized_data = APIResponseValidator.sanitize_response(data)
-        response = {"statusCode": code, **sanitized_data}
+        response: dict[str, Any] = {"statusCode": code, **sanitized_data}
         if "_error" not in response and has_non_none_message:
             response["_error"] = sanitized_data["message"]
         return response

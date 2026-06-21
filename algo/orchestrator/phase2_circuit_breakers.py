@@ -6,6 +6,7 @@ from collections.abc import Callable
 from datetime import date as _date
 from typing import Any
 
+from algo.orchestrator.phase_error_handling import ErrorCategory, PhaseError, log_phase_error
 from algo.orchestrator.phase_result import PhaseResult
 from algo.reporting import AlertManager, MetricsPublisher
 
@@ -89,8 +90,14 @@ def run(
                 )
                 return PhaseResult(2, "market_circuit_breaker", "halted", {}, True, halt_reason)
         except (OSError, RuntimeError, ValueError) as e:
-            logger.warning(f"Market circuit breaker check failed: {e}")
-            log_phase_result_fn(2, "market_circuit_breaker", "warn", f"check failed: {e}")
+            error = PhaseError(
+                category=ErrorCategory.DEPENDENCY_FAILED,
+                message="Market circuit breaker check failed",
+                root_cause=str(e)[:150],
+                recoverable=True,
+                log_level="warning",
+            )
+            log_phase_error(2, error, log_phase_result_fn)
 
         if result["halted"]:
             halt_reasons = result.get("halt_reasons", ["unknown"])
@@ -114,8 +121,15 @@ def run(
         return PhaseResult(2, "circuit_breakers", "ok", {}, False, None)
 
     except Exception as e:
+        error = PhaseError(
+            category=ErrorCategory.DEPENDENCY_FAILED,
+            message="Circuit breaker check failed unexpectedly",
+            root_cause=str(e)[:200],
+            recoverable=False,
+            log_level="critical",
+        )
+        log_phase_error(2, error, log_phase_result_fn)
         traceback.print_exc()
-        log_phase_result_fn(2, "circuit_breakers", "error", str(e))
         # Fail-closed: if the circuit breaker check itself crashes we cannot
         # determine whether trading is safe, so halt rather than proceed.
         return PhaseResult(2, "circuit_breakers", "halted", {}, True, str(e))

@@ -16,6 +16,7 @@ from routes.utils import (
     safe_json_serialize,
 )
 
+from shared_contracts.response_validator import ResponseValidator
 from utils.validation import DatabaseResultValidator
 
 
@@ -27,8 +28,8 @@ def handle(
     path: str,
     method: str,
     params: dict,
-    body: dict = None,
-    jwt_claims: dict = None,
+    body: dict | None = None,
+    jwt_claims: dict | None = None,
 ) -> dict:
     """Handle /api/economic and /api/economic/* endpoints."""
     try:

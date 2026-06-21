@@ -8,6 +8,7 @@ from typing import Any
 
 import psycopg2
 
+from algo.orchestrator.phase_error_handling import ErrorCategory, PhaseError, log_phase_error
 from algo.orchestrator.phase_result import PhaseResult
 from algo.reporting import AlertManager
 
@@ -97,6 +98,13 @@ def run(
         return PhaseResult("3a", "reconciliation", "ok", result, False, None)
 
     except (psycopg2.DatabaseError, psycopg2.OperationalError) as e:
+        error = PhaseError(
+            category=ErrorCategory.DATABASE_ERROR,
+            message="Position reconciliation database error",
+            root_cause=str(e)[:200],
+            recoverable=True,
+            log_level="error",
+        )
+        log_phase_error("3a", error, log_phase_result_fn)
         traceback.print_exc()
-        log_phase_result_fn("3a", "reconciliation", "error", str(e))
         return PhaseResult("3a", "reconciliation", "ok", {}, False, str(e))
