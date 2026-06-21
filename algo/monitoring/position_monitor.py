@@ -24,6 +24,7 @@ import logging
 from datetime import date as _date
 from datetime import datetime, timedelta, timezone
 from decimal import ROUND_HALF_UP, Decimal
+from typing import Any
 
 import psycopg2
 import requests

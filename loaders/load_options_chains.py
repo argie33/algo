@@ -78,7 +78,7 @@ class OptionsLoader:
                         iv_inserted += iv_cnt
                         symbols_processed += 1
                     except Exception as e:
-                        logger.debug(f"Failed to load options for {symbol}: {e}")
+                        logger.warning(f"Failed to load options for {symbol}: {e}")
                         continue
 
             time.sleep(0.5)  # Rate limit yfinance
@@ -116,16 +116,16 @@ class OptionsLoader:
                         cur, symbol, calls_df, puts_df, eval_date
                     )
             except Exception as e:
-                logger.debug(f"Failed to get chain for {symbol}: {e}")
+                logger.warning(f"Failed to get chain for {symbol}: {e}")
 
             # Load IV history from multiple expirations
             try:
                 iv_inserted = self._insert_iv_history(cur, symbol, options_list, eval_date)
             except Exception as e:
-                logger.debug(f"Failed to load IV for {symbol}: {e}")
+                logger.warning(f"Failed to load IV for {symbol}: {e}")
 
         except Exception as e:
-            logger.debug(f"Error processing {symbol}: {e}")
+            logger.warning(f"Error processing {symbol}: {e}")
 
         return chains_inserted, iv_inserted
 
@@ -150,7 +150,7 @@ class OptionsLoader:
                     )
                     inserted += 1
             except Exception as e:
-                logger.debug(f"Failed to insert call for {symbol}: {e}")
+                logger.warning(f"Failed to insert call for {symbol}: {e}")
 
         # Process puts
         for _, row in puts_df.iterrows():
@@ -167,7 +167,7 @@ class OptionsLoader:
                     )
                     inserted += 1
             except Exception as e:
-                logger.debug(f"Failed to insert put for {symbol}: {e}")
+                logger.warning(f"Failed to insert put for {symbol}: {e}")
 
         return inserted
 
@@ -186,7 +186,7 @@ class OptionsLoader:
                         if iv_col is not None:
                             iv_values.extend(iv_col.dropna().tolist())
                 except Exception as e:
-                    logger.debug(f"Failed to fetch IV for {symbol} expiration {exp_str}: {e}")
+                    logger.warning(f"Failed to fetch IV for {symbol} expiration {exp_str}: {e}")
 
             if not iv_values:
                 return 0
@@ -205,7 +205,7 @@ class OptionsLoader:
                     """,
                     (symbol, eval_date, float(current_iv), float(iv_52w_high), float(iv_52w_low)),
                 )
-            except Exception:
+            except psycopg2.IntegrityError:
                 # Row already exists, update it
                 cur.execute(
                     """
@@ -219,7 +219,7 @@ class OptionsLoader:
             return 1
 
         except Exception as e:
-            logger.debug(f"IV history failed for {symbol}: {e}")
+            logger.warning(f"IV history failed for {symbol}: {e}")
             return 0
 
 

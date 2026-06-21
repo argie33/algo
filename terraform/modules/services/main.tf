@@ -21,7 +21,9 @@ locals {
 # Published by GitHub Actions deploy workflow
 
 # FIXED Issue #11: API Layer (always uses latest compatible)
+# Optional: only load if layer exists (may be empty during initial Terraform apply)
 data "aws_lambda_layer_version" "api_deps" {
+  count              = var.api_lambda_layer_enabled ? 1 : 0
   layer_name         = var.api_lambda_layer_name
   compatible_runtime = "python3.12"
 }
@@ -40,7 +42,7 @@ resource "aws_lambda_layer_version" "shared_deps" {
 
 # Reference layer ARNs (use layer resources if created, else data sources)
 locals {
-  api_layer_arn         = data.aws_lambda_layer_version.api_deps.arn
+  api_layer_arn         = try(data.aws_lambda_layer_version.api_deps[0].arn, "")
   shared_deps_layer_arn = try(aws_lambda_layer_version.shared_deps[0].arn, "")
 }
 

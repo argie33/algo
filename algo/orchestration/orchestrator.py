@@ -1446,7 +1446,7 @@ class Orchestrator:
                 else:
                     logger.warning("Phase 7 result missing from phase_results")
 
-        except Exception as e:
+        except (ValueError, ZeroDivisionError, TypeError, KeyError, AttributeError) as e:
             # Never let metrics publishing interrupt trading results
             logger.error(f"CloudWatch metric publish failed: {e}")
 

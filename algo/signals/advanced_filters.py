@@ -43,6 +43,31 @@ class AdvancedFilters:
         self._sector_full_ranking = None
         self._signals = None  # SignalComputer, lazy-init
 
+        # Validate critical signal filter config at init time (fail-fast)
+        critical_config_keys = [
+            "strong_sector_top_n",
+            "block_days_before_earnings",
+            "max_extension_above_50ma_pct",
+            "min_avg_daily_dollar_volume",
+            "require_strong_sector",
+        ]
+        for key in critical_config_keys:
+            if key not in config or config[key] is None:
+                raise ValueError(
+                    f"CRITICAL: {key} config missing or None. "
+                    f"Required for signal filtering. "
+                    f"Defaults: strong_sector_top_n=5, block_days_before_earnings=5, "
+                    f"max_extension_above_50ma_pct=15.0, min_avg_daily_dollar_volume=500_000, "
+                    f"require_strong_sector=False"
+                )
+
+        # Store validated config values as instance variables (fail-fast guaranteed them to exist)
+        self.strong_sector_top_n = int(config["strong_sector_top_n"])
+        self.block_days_before_earnings = int(config["block_days_before_earnings"])
+        self.max_extension_above_50ma_pct = float(config["max_extension_above_50ma_pct"])
+        self.min_avg_daily_dollar_volume = float(config["min_avg_daily_dollar_volume"])
+        self.require_strong_sector = bool(config["require_strong_sector"])
+
     def _load_config_val(self, key: str, default: Any) -> Any:
         """Load a config value from AlgoConfig, with fallback to default.
 
@@ -77,9 +102,8 @@ class AdvancedFilters:
                 (eval_date,),
             )
             sectors = cur.fetchall()
-            top_n = int(self.config.get("strong_sector_top_n", 5))
             self._sector_full_ranking = {row[0]: int(row[1]) for row in sectors}
-            self._strong_sectors = {row[0]: float(row[2]) for row in sectors[:top_n] if row[2] is not None}
+            self._strong_sectors = {row[0]: float(row[2]) for row in sectors[:self.strong_sector_top_n] if row[2] is not None}
 
             if not self._strong_sectors:
                 raise ValueError(
@@ -162,9 +186,8 @@ class AdvancedFilters:
                 logger.warning(f"  {symbol}: {hard_fail}")
 
             components["days_to_earnings"] = days_to_earnings
-            block_window = int(self.config.get("block_days_before_earnings", 5))
-            if days_to_earnings is not None and 0 <= days_to_earnings <= block_window:
-                hard_fail = hard_fail or f"Earnings in ~{days_to_earnings}d (block window {block_window}d)"
+            if days_to_earnings is not None and 0 <= days_to_earnings <= self.block_days_before_earnings:
+                hard_fail = hard_fail or f"Earnings in ~{days_to_earnings}d (block window {self.block_days_before_earnings}d)"
 
             # H2. Over-extended (CRITICAL: must not skip on exception)
             ext_pct = None
@@ -177,9 +200,8 @@ class AdvancedFilters:
                 logger.warning(f"  {symbol}: {hard_fail}")
 
             components["extension_pct"] = ext_pct
-            max_extension = float(self.config.get("max_extension_above_50ma_pct", 15.0))
-            if ext_pct is not None and ext_pct > max_extension:
-                hard_fail = hard_fail or f"{ext_pct:.1f}% above 50-DMA (max {max_extension:.0f})"
+            if ext_pct is not None and ext_pct > self.max_extension_above_50ma_pct:
+                hard_fail = hard_fail or f"{ext_pct:.1f}% above 50-DMA (max {self.max_extension_above_50ma_pct:.0f})"
 
             # H4. Liquidity (institutional must — CRITICAL: must not skip on exception)
             avg_dollar_vol = None

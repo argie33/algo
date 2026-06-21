@@ -5,7 +5,7 @@ output "shared_deps_layer_arn" {
 
 output "api_layer_arn" {
   description = "ARN of the API Lambda layer"
-  value       = data.aws_lambda_layer_version.api_deps.arn
+  value       = try(data.aws_lambda_layer_version.api_deps[0].arn, "")
 }
 
 output "orchestrator_layer_arn" {

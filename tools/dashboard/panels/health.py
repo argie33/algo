@@ -1304,7 +1304,7 @@ def _build_results_panel(
                 if isinstance(pdata, str):
                     try:
                         pdata = json.loads(pdata)
-                    except Exception:
+                    except (json.JSONDecodeError, ValueError):
                         pdata = None
                 elif not isinstance(pdata, dict):
                     pdata = None

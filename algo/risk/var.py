@@ -32,7 +32,7 @@ logger = logging.getLogger(__name__)
 class ValueAtRisk:
     """Portfolio risk metrics and concentration analysis."""
 
-    def __init__(self, config):
+    def __init__(self, config: Any) -> None:
         self.config = config
 
     def historical_var(self, confidence: float = 0.95, lookback_days: int = 252) -> dict[str, Any]:

@@ -1,19 +1,6 @@
 #!/usr/bin/env python3
 from __future__ import annotations
 
-
-"""
-Trade Executor - Execute trades via Alpaca and track positions
-
-Features:
-- Idempotent entry (no duplicate trades for same symbol on same day)
-- Atomic DB transactions for entry/exit
-- Partial exits with weighted-cost-basis P&L (T1 = 50%, T2 = 25%, T3 = 25%)
-- R-multiple computed against actual stop loss (not a placeholder)
-- Trailing stop adjustments after profit-taking levels
-- Paper, dry, review, and auto execution modes
-"""
-
 import json
 import logging
 import os
@@ -53,6 +40,17 @@ from utils.db.advisory_locks import (
 from utils.trading import PositionStatus
 from utils.validation import AlpacaResponseValidator
 
+"""
+Trade Executor - Execute trades via Alpaca and track positions
+
+Features:
+- Idempotent entry (no duplicate trades for same symbol on same day)
+- Atomic DB transactions for entry/exit
+- Partial exits with weighted-cost-basis P&L (T1 = 50%, T2 = 25%, T3 = 25%)
+- R-multiple computed against actual stop loss (not a placeholder)
+- Trailing stop adjustments after profit-taking levels
+- Paper, dry, review, and auto execution modes
+"""
 
 logger = logging.getLogger(__name__)
 validator = AlpacaResponseValidator()

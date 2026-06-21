@@ -1,12 +1,35 @@
 #!/usr/bin/env python3
 from __future__ import annotations
 
+import logging
+from datetime import datetime, timezone
+from decimal import ROUND_DOWN, ROUND_HALF_UP, Decimal
+from typing import TYPE_CHECKING, Any, cast
+
+import psycopg2
+import requests
+
+from algo.infrastructure import get_alpaca_timeout
+from algo.infrastructure.market_calendar import MarketCalendar
+from algo.signals import SignalComputer
+from algo.trading import TradeExecutor
+from algo.trading.exceptions import DatabaseError, ExchangeAPIError
+from config.api_endpoints import get_alpaca_data_url
+from config.credential_manager import get_alpaca_credentials
+from utils.db import DatabaseContext
+from utils.trading import PositionStatus, TradeStatus
+
+if TYPE_CHECKING:
+    from algo.infrastructure.config import AlgoConfig
+
+try:
+    from trade_performance_auditor import TradePerformanceAuditor
+
+except ImportError:
+    TradePerformanceAuditor = None
 
 """
-
 Exit Engine - Monitor positions and execute exits (HARDENED)
-
-
 
 Exit hierarchy (checked in order):
 
@@ -32,49 +55,12 @@ Exit hierarchy (checked in order):
 
 11. DISTRIBUTION  - market distribution day count exceeds limit (config-gated)
 
-
-
 State tracked on algo_positions:
 
   - target_levels_hit (0/1/2/3): which T-levels have already triggered
 
   - current_stop_price: trailed stop after T1/T2 hits
-
 """
-
-
-import logging
-from datetime import datetime, timezone
-from decimal import ROUND_DOWN, ROUND_HALF_UP, Decimal
-from typing import TYPE_CHECKING
-
-import psycopg2
-import requests
-
-from algo.trading.exceptions import DatabaseError, ExchangeAPIError
-from utils.db import DatabaseContext
-
-
-if TYPE_CHECKING:
-    from algo.infrastructure.config import AlgoConfig
-
-
-try:
-    from trade_performance_auditor import TradePerformanceAuditor
-
-except ImportError:
-    TradePerformanceAuditor = None
-
-from typing import Any, cast
-
-from algo.infrastructure import get_alpaca_timeout
-from algo.infrastructure.market_calendar import MarketCalendar
-from algo.signals import SignalComputer
-from algo.trading import TradeExecutor
-from config.api_endpoints import get_alpaca_data_url
-from config.credential_manager import get_alpaca_credentials
-from utils.trading import PositionStatus, TradeStatus
-
 
 logger = logging.getLogger(__name__)
 

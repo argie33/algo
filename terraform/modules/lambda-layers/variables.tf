@@ -19,3 +19,9 @@ variable "orchestrator_layer_enabled" {
   type        = bool
   default     = true
 }
+
+variable "api_layer_enabled" {
+  description = "Whether API Lambda layer exists (built by GitHub Actions)"
+  type        = bool
+  default     = false
+}

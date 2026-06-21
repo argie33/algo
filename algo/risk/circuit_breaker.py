@@ -1,3 +1,23 @@
+from __future__ import annotations
+
+import json
+import logging
+import math
+from datetime import date as _date
+from datetime import datetime, timedelta
+from typing import TYPE_CHECKING, Any
+
+import psycopg2
+
+from utils.db import DatabaseContext
+from utils.trading import PositionStatus, TradeStatus
+
+if TYPE_CHECKING:
+    from algo.infrastructure.config import AlgoConfig
+
+
+logger = logging.getLogger(__name__)
+
 """
 Circuit Breakers - Kill-switch risk halts (institutional safety layer)
 
@@ -20,26 +40,6 @@ When a circuit breaker fires:
   - returned to caller for display / notification
   - persists state until cleared (e.g., recovery threshold met)
 """
-
-from __future__ import annotations
-
-import json
-import logging
-import math
-from datetime import date as _date
-from datetime import datetime, timedelta
-from typing import TYPE_CHECKING, Any
-
-import psycopg2
-
-from utils.db import DatabaseContext
-from utils.trading import PositionStatus, TradeStatus
-
-if TYPE_CHECKING:
-    from algo.infrastructure.config import AlgoConfig
-
-
-logger = logging.getLogger(__name__)
 
 # Human-readable labels for circuit breaker checks
 CHECK_LABELS = {
@@ -143,11 +143,8 @@ class CircuitBreaker:
                     self._log_halt(results, cur)
 
                 return results
-            except Exception as e:
-                logger.error(f"CRITICAL ERROR in circuit breaker check: {e}")
-                import traceback
-
-                traceback.print_exc()
+            except (psycopg2.DatabaseError, psycopg2.OperationalError) as e:
+                logger.error(f"CRITICAL ERROR in circuit breaker check: {e}", exc_info=True)
                 # B12: Fail-closed — if circuit breaker logic itself fails, halt trading
                 # Do NOT allow trading when we can't verify safety checks
                 try:
@@ -158,8 +155,8 @@ class CircuitBreaker:
                         title="CIRCUIT BREAKER CHECK FAILED",
                         message=f"Circuit breaker logic crashed: {e}. Trading halted until resolved.",
                     )
-                except Exception as notify_err:
-                    logger.error(f"Unhandled exception: {notify_err}")
+                except (ValueError, TypeError) as notify_err:
+                    logger.error(f"Failed to send notification: {notify_err}")
 
                 return {
                     "halted": True,

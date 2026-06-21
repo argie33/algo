@@ -451,7 +451,7 @@ def _get_algo_portfolio(cur) -> dict:
     except (ValueError, ZeroDivisionError, TypeError) as e:
         logger.error(f"CRITICAL: Portfolio data format error: {type(e).__name__}: {e}")
         return error_response(500, "data_format_error", f"Portfolio data format invalid: {type(e).__name__}")
-    except Exception as e:
+    except (AttributeError, KeyError) as e:
         logger.error(f"CRITICAL: Portfolio fetch unexpected error: {type(e).__name__}: {e}", exc_info=True)
         return error_response(503, "service_error", f"Portfolio service error: {type(e).__name__}")
 
@@ -618,7 +618,7 @@ def _get_performance_analytics(cur) -> dict:
             raise RuntimeError(f"Unexpected error: {e}") from e
         logger.error("Performance analytics table missing or schema changed")
         return error_response(503, "table_missing", "Performance analytics table not found")
-    except (psycopg2.OperationalError, psycopg2.DatabaseError, Exception) as e:
+    except (psycopg2.OperationalError, psycopg2.DatabaseError, ValueError, KeyError) as e:
         try:
             cur.execute("ROLLBACK TO SAVEPOINT perf_analytics")
         except (psycopg2.DatabaseError, psycopg2.OperationalError) as save_err:
@@ -751,12 +751,11 @@ def _get_risk_metrics(cur) -> dict:
             raise RuntimeError(f"Unexpected error: {e}") from e
         logger.error("Risk metrics table missing or schema changed")
         return error_response(503, "table_missing", "Risk metrics table not found")
-    except (psycopg2.OperationalError, psycopg2.DatabaseError, Exception) as e:
+    except (psycopg2.OperationalError, psycopg2.DatabaseError, ValueError, KeyError) as e:
         try:
             cur.execute("ROLLBACK TO SAVEPOINT risk_metrics")
-        except (psycopg2.DatabaseError, psycopg2.OperationalError) as e:
-
-            raise RuntimeError(f"Unexpected error: {e}") from e
+        except (psycopg2.DatabaseError, psycopg2.OperationalError) as save_err:
+            raise RuntimeError(f"Unexpected error: {save_err}") from save_err
         code, error_type, message = handle_db_error(e, "fetch risk metrics")
         return error_response(code, error_type, message)
 

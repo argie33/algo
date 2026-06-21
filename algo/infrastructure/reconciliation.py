@@ -118,7 +118,7 @@ class DailyReconciliation:
                         title="Reconciliation Halted",
                         message="Alpaca unavailable. Reconciliation requires live account data - cannot use stale DB cache.",
                     )
-                except Exception as e:
+                except (ValueError, ZeroDivisionError, TypeError) as e:
                     logger.warning(f"Failed to send notification: {e}")
                 raise ValueError(
                     "Alpaca account data required for reconciliation - cannot proceed with DB-only fallback"
@@ -140,7 +140,7 @@ class DailyReconciliation:
                             title="Reconciliation Halted",
                             message="Alpaca portfolio_value missing - reconciliation requires live portfolio value for drawdown limits. Cannot use stale DB cache.",
                         )
-                    except Exception as e:
+                    except (ValueError, ZeroDivisionError, TypeError) as e:
                         logger.warning(f"Failed to send notification: {e}")
                     raise ValueError("Alpaca portfolio_value required for reconciliation - cannot proceed")
 
@@ -152,7 +152,7 @@ class DailyReconciliation:
                             title="Reconciliation Halted",
                             message="Alpaca cash missing - reconciliation requires live cash value for position sizing. Cannot use stale DB cache.",
                         )
-                    except Exception as e:
+                    except (ValueError, ZeroDivisionError, TypeError) as e:
                         logger.warning(f"Failed to send notification: {e}")
                     raise ValueError("Alpaca cash required for reconciliation - cannot proceed")
 

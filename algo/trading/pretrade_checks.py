@@ -1,6 +1,18 @@
 #!/usr/bin/env python3
 from __future__ import annotations
 
+import logging
+from datetime import date as _date
+from decimal import ROUND_HALF_UP, Decimal
+from typing import TYPE_CHECKING, Any
+
+import psycopg2
+
+from algo.risk import EarningsBlackout
+from utils.db import DatabaseContext
+
+if TYPE_CHECKING:
+    from algo.infrastructure.config import AlgoConfig
 
 """
 Pre-Trade Checks - Hard stops before order execution.
@@ -14,20 +26,6 @@ Validates:
 - Order size limits
 - Sector/industry concentration limits (Issue #2 fix)
 """
-
-import logging
-from datetime import date as _date
-from decimal import ROUND_HALF_UP, Decimal
-from typing import TYPE_CHECKING, Any
-
-import psycopg2
-
-from algo.risk import EarningsBlackout
-from utils.db import DatabaseContext
-
-
-if TYPE_CHECKING:
-    from algo.infrastructure.config import AlgoConfig
 
 logger = logging.getLogger(__name__)
 

@@ -45,7 +45,9 @@ resource "aws_lambda_layer_version" "shared_deps" {
 }
 
 # API Layer (published by GitHub Actions, reference via data source)
+# Optional: only load if api_layer_enabled=true (set after layer is built)
 data "aws_lambda_layer_version" "api_deps" {
+  count              = var.api_layer_enabled ? 1 : 0
   layer_name         = local.api.name
   compatible_runtime = "python3.12"
 }

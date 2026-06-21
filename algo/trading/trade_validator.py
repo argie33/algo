@@ -1,12 +1,6 @@
 #!/usr/bin/env python3
 from __future__ import annotations
 
-
-"""Trade validation logic extracted from monolithic Executor.
-
-Validates trade preconditions and risk parameters before execution.
-"""
-
 import hashlib
 import logging
 from datetime import date as _date
@@ -16,9 +10,13 @@ from typing import TYPE_CHECKING, Any
 
 from utils.trading import PositionStatus, TradeStatus
 
-
 if TYPE_CHECKING:
     from algo.infrastructure.config import AlgoConfig
+
+"""Trade validation logic extracted from monolithic Executor.
+
+Validates trade preconditions and risk parameters before execution.
+"""
 
 logger = logging.getLogger(__name__)
 
