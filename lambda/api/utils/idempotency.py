@@ -73,9 +73,6 @@ def check_idempotency_key(cur, idempotency_key: str, endpoint: str, timeout_sec:
     ):
         logger.debug("Idempotency key table does not exist or database error — proceeding without cache")
         return None
-    except (psycopg2.DatabaseError, psycopg2.OperationalError) as e:
-        logger.error(f"Unexpected error checking idempotency key: {type(e).__name__}: {e}")
-        return None
 
 
 def store_idempotency_key(cur, idempotency_key: str, endpoint: str, response_data: dict, timeout_sec: int = 5) -> bool:
