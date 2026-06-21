@@ -971,7 +971,7 @@ class PositionMonitor:
                 SET current_price = %s,
                     position_value = %s * %s,
                     unrealized_pnl = (%s - avg_entry_price) * %s,
-                    unrealized_pnl_pct = ((%s - avg_entry_price) / avg_entry_price) * 100,
+                    unrealized_pnl_pct = CASE WHEN avg_entry_price > 0 THEN ((%s - avg_entry_price) / avg_entry_price) * 100 ELSE 0 END,
                     days_since_entry = %s,
                     updated_at = CURRENT_TIMESTAMP
                 WHERE position_id = %s

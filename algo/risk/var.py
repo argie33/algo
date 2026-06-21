@@ -522,8 +522,8 @@ class ValueAtRisk:
                             f"Check positions table current_price column."
                         )
                         continue
-                    position_value = float(qty) * float(cur_price)
-                    portfolio_value_float = float(float(portfolio_value))
+                    position_value = float(Decimal(str(qty)) * Decimal(str(cur_price)))
+                    portfolio_value_float = float(portfolio_value)
                     position_pct = position_value / portfolio_value_float * 100 if portfolio_value_float > 0 else 0
 
                     top_holdings.append(

@@ -305,7 +305,7 @@ class DailyReconciliation:
                     (largest_position_dec / total_equity_dec * Decimal(100)) if total_equity_dec > 0 else Decimal(0)
                 )
 
-                avg_position_size_dec = (total_position_value / len(positions)) if positions else Decimal(0)
+                avg_position_size_dec = (total_position_value / len(positions)) if (positions and total_position_value > 0) else Decimal(0)
 
                 cur.execute("""
                     SELECT total_portfolio_value FROM algo_portfolio_snapshots
@@ -358,7 +358,12 @@ class DailyReconciliation:
                 # Get cumulative return (normalize to actual initial capital from Alpaca account history)
                 try:
                     initial_capital = self._fetch_initial_capital(cur)
-                    cumulative_return_pct = (cumulative_pnl / initial_capital * 100) if initial_capital > 0 else 0.0
+                    if initial_capital <= 0:
+                        raise ValueError(
+                            f"CRITICAL: Invalid initial_capital={initial_capital} - cannot calculate cumulative return. "
+                            "Check Alpaca account initialization and capital history."
+                        )
+                    cumulative_return_pct = (cumulative_pnl / initial_capital * 100)
                     logger.info(
                         f"   Cumulative Return: {cumulative_return_pct:+.2f}% (on initial capital ${initial_capital:,.2f})"
                     )
