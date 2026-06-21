@@ -1196,7 +1196,7 @@ class TradeExecutor:
             current_qty_dec = Decimal(str(current_qty))
             shares_exited_dec = Decimal(str(shares_to_exit))
             new_qty_dec = current_qty_dec - shares_exited_dec
-            new_qty = float(new_qty_dec)
+            new_qty = safe_float(float(new_qty_dec), default=0.0, field_name="new_qty")
 
             # TRANSACTION GUARD 4: Update position with safety checks
             effective_stop = new_stop_price if new_stop_price is not None else stop_loss_price
