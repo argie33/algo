@@ -54,15 +54,15 @@ def get_db_credentials():
             response = secretsmanager.get_secret_value(SecretId=secret_id)
             creds = json.loads(response["SecretString"])
             if not creds.get("host"):
-                raise ValueError("Database credential missing: host")
+                raise ValueError("Database credential missing: host") from None
             if not creds.get("dbname"):
-                raise ValueError("Database credential missing: dbname")
+                raise ValueError("Database credential missing: dbname") from None
             if not creds.get("username"):
-                raise ValueError("Database credential missing: username")
+                raise ValueError("Database credential missing: username") from None
             if not creds.get("password"):
-                raise ValueError("Database credential missing: password")
+                raise ValueError("Database credential missing: password") from None
             if not creds.get("port"):
-                raise ValueError("Database credential missing: port (required, no default)")
+                raise ValueError("Database credential missing: port (required, no default)") from None
             return {
                 "host": creds.get("host"),
                 "port": int(creds.get("port")),

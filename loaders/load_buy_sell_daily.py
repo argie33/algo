@@ -141,7 +141,7 @@ class SignalsDailyLoader(OptimalLoader):
         except (psycopg2.DatabaseError, psycopg2.OperationalError) as e:
             raise RuntimeError(
                 f"[BATCH_CONTEXT] Failed to prepare batch context for buy_sell_daily: {e}. "
-                "Cannot proceed without shared batch data (end_date, price/tech coverage, symbol watermarks)."
+                "Cannot proceed without shared batch data (end_date, price/tech coverage, symbol watermarks) from None."
             )
 
     def fetch_incremental(self, symbol: str, since: date | None):
@@ -207,7 +207,7 @@ class SignalsDailyLoader(OptimalLoader):
                 raise RuntimeError(
                     f"[BUY_SELL_DAILY] Failed to read watermark for {symbol}: {e}. "
                     "Cannot determine incremental load point for buy/sell signal computation."
-                )
+                ) from None
 
         if since is None:
             start = end - timedelta(days=30)
@@ -300,7 +300,7 @@ class SignalsDailyLoader(OptimalLoader):
             raise RuntimeError(
                 f"[BUY_SELL_DAILY] Failed to validate data for {symbol}: {e}. "
                 "Cannot generate signals without validation."
-            )
+            ) from None
 
         # Fetch required data for signal generation
         rows = self._fetch_signal_data(symbol, start, end)
@@ -357,7 +357,7 @@ class SignalsDailyLoader(OptimalLoader):
             raise RuntimeError(f"Operation failed: {e}") from e
         return None
 
-    def _log_rejection_if_available(self, symbol: str, signal_date: date, reason: str):
+    def _log_rejection_if_available(self, symbol: str, signal_date: date, reason: str) from None:
         """Log signal rejection to signal_rejection_log for observability (non-fatal)."""
         try:
             with DatabaseContext("write") as cur:
@@ -428,7 +428,7 @@ class SignalsDailyLoader(OptimalLoader):
             raise RuntimeError(
                 f"[BUY_SELL] Failed to fetch signal data for {symbol}: {e}. "
                 "Cannot generate signals without complete technical data."
-            )
+            ) from None
 
     def _generate_signals(self, symbol: str, rows: list[dict]) -> list[dict]:
         """Generate buy/sell signals matching Pine Script pivot-breakout logic.
@@ -774,10 +774,10 @@ def main():
                 logger.warning("No symbols found in stock_symbols table - exiting")
                 return 1
     except Exception as e:
-        raise RuntimeError(f"Failed to fetch active symbols: {e}. Cannot proceed without symbol list.")
+        raise RuntimeError(f"Failed to fetch active symbols: {e}. Cannot proceed without symbol list.") from None
 
     logger.info(
-        f"Starting buy_sell_daily loader with {len(symbols)} symbols, parallelism={args.parallelism}"
+        f"Starting buy_sell_daily loader with {len(symbols) from None} symbols, parallelism={args.parallelism}"
     )
 
     # VALIDATION: buy_sell_daily is critical path; parallelism should be 3 per steering doc line 44-48
@@ -873,7 +873,7 @@ def main():
         raise RuntimeError(
             f"[DEPENDENCY] Failed to validate technical_data_daily dependency: {dep_err}. "
             "Buy/sell signals require technical data availability."
-        )
+        ) from None
 
     loader = SignalsDailyLoader()
     try:
@@ -916,15 +916,15 @@ def main():
                 f"Marked buy_sell_daily loader as FAILED to prevent silent data corruption. "
                 f"Signal quality would be degraded with NULL technical fields. "
                 f"Details: {e!s}"
-            )
+            ) from None
 
         return 0
     except (psycopg2.DatabaseError, psycopg2.OperationalError) as e:
-        raise RuntimeError(f"Daily signals load failed: {e}")
+        raise RuntimeError(f"Daily signals load failed: {e}") from None
 
 if __name__ == "__main__":
     try:
-        sys.exit(main())
+        sys.exit(main()) from None
     except RuntimeError as e:
         logger.error(str(e))
         sys.exit(1)

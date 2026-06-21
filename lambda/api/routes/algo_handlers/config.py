@@ -2,6 +2,7 @@
 
 import logging
 from datetime import datetime, timezone
+from typing import Dict
 
 # Ensure imports work - setup_imports is imported by parent module (lambda_function or api_router)
 from routes.utils import (

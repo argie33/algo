@@ -153,7 +153,7 @@ class PreTradeChecks:
                 if not cur.fetchone():
                     return (False, f"Symbol {symbol} not found in universe")
         except (psycopg2.DatabaseError, psycopg2.OperationalError) as e:
-            raise ValueError(f"Symbol validation unavailable for {symbol}: {e}")
+            raise ValueError(f"Symbol validation unavailable for {symbol}: {e}") from None
 
         try:
             with DatabaseContext("read") as cur:

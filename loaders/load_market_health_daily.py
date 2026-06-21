@@ -103,7 +103,7 @@ class MarketHealthDailyLoader(OptimalLoader):
                 raise RuntimeError(
                     f"[MARKET_HEALTH] Failed to read watermark from market_health_daily: {e}. "
                     "Cannot determine incremental load point."
-                )
+                ) from None
 
         if since is None:
             start = end - timedelta(days=5 * 365)
@@ -289,7 +289,7 @@ class MarketHealthDailyLoader(OptimalLoader):
             return result
         except (ValueError, ZeroDivisionError, TypeError) as e:
             raise RuntimeError(
-                f"[VIX] Failed to fetch VIX data: {type(e).__name__}: {e}. "
+                f"[VIX] Failed to fetch VIX data: {type(e) from None.__name__}: {e}. "
                 "VIX data is authoritative for market health computation."
             )
 
@@ -323,7 +323,7 @@ class MarketHealthDailyLoader(OptimalLoader):
                 raise RuntimeError(
                     f"[PUT_CALL] Failed to fetch option expirations from yfinance: {e}. "
                     "Cannot compute put/call ratio for market health."
-                )
+                ) from None
 
             if not expirations:
                 raise RuntimeError(
@@ -366,7 +366,7 @@ class MarketHealthDailyLoader(OptimalLoader):
             raise RuntimeError(
                 f"[PUT_CALL] Failed to compute put/call ratio: {e}. "
                 "This metric is authoritative for market health."
-            )
+            ) from None
 
     def _fetch_yield_curve_data(self, start: date, end: date) -> dict:
         """Read 10Y-2Y yield spread from economic_metrics_daily. Returns {date_str: slope}."""
@@ -387,7 +387,7 @@ class MarketHealthDailyLoader(OptimalLoader):
             raise RuntimeError(
                 f"[YIELD_CURVE] Failed to fetch yield curve data from economic_metrics_daily: {e}. "
                 "Cannot compute market health without yield curve slope data."
-            )
+            ) from None
 
     def _fetch_breadth_data(self, start: date, end: date) -> dict:
         """Compute advance/decline ratio and new 52-week highs/lows from full stock universe."""
@@ -426,7 +426,7 @@ class MarketHealthDailyLoader(OptimalLoader):
                         raise RuntimeError(
                             f"[BREADTH] Failed to fetch cached breadth data: {e}. "
                             "Cannot verify previously computed market breadth metrics."
-                        )
+                        ) from None
 
                 # Now compute breadth data only for recent dates (more efficient).
                 # 90s timeout: this query joins 365-day price history for 5000+ symbols.
@@ -487,7 +487,7 @@ class MarketHealthDailyLoader(OptimalLoader):
             raise RuntimeError(
                 f"[BREADTH] Failed to compute breadth data: {e}. "
                 "Advance/decline ratio and new highs/lows are authoritative for market health."
-            )
+            ) from None
 
     def _fetch_price_daily(self, symbol: str, start: date, end: date) -> list[dict]:
         try:
@@ -512,7 +512,7 @@ class MarketHealthDailyLoader(OptimalLoader):
             raise RuntimeError(
                 f"[PRICE_DATA] Failed to fetch price data for {symbol}: {e}. "
                 "Cannot compute market health without SPY price data."
-            )
+            ) from None
 
     def _compute_market_health(self, rows: list[dict]) -> list[dict]:
         if not rows:
@@ -715,7 +715,7 @@ def _write_vix_family_prices(start: date, end: date) -> int:
                             raise RuntimeError(
                                 f"[PRICE_EXTRACTION] Failed to parse {col} value '{val}' as float for {sym} on {d}: {e}. "
                                 "Data integrity issue in yfinance response."
-                            )
+                            ) from None
 
                     close = _v("Close")
                     if close is None:
@@ -792,7 +792,7 @@ def _write_vix_family_prices(start: date, end: date) -> int:
         raise RuntimeError(
             f"[VIX_PRICES] Failed to write VIX family prices to database: {e}. "
             "Market health daily depends on VIX/index price data availability."
-        )
+        ) from None
 
 
 def main():
@@ -825,12 +825,12 @@ def main():
     except (psycopg2.DatabaseError, psycopg2.OperationalError) as e:
         logger.error(f"Market health daily load failed: {e}")
         tracker.failed(error_message=str(e))
-        raise RuntimeError(f"Market health daily loader failed: {e}")
+        raise RuntimeError(f"Market health daily loader failed: {e}") from None
 
 
 if __name__ == "__main__":
     try:
-        main()
+        main() from None
     except RuntimeError as e:
         logger.error(str(e))
         sys.exit(1)

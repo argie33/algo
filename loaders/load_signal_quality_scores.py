@@ -106,7 +106,7 @@ class SignalQualityScoresLoader(OptimalLoader):
             raise RuntimeError(
                 f"[BATCH_CONTEXT] Failed to prepare batch context for signal_quality_scores: {e}. "
                 "Cannot proceed without end_date and signal availability verification."
-            )
+            ) from None
 
     def fetch_incremental(self, symbol: str, since: date | None):
         """Compute signal quality scores from buy/sell signals and technical confirmation."""
@@ -283,7 +283,7 @@ class SignalQualityScoresLoader(OptimalLoader):
             raise RuntimeError(
                 f"[SIGNALS] Failed to fetch buy/sell signals for {symbol}: {e}. "
                 "Signal quality assessment requires valid signal data."
-            )
+            ) from None
 
     def _fetch_technical_data(self, symbol: str, start: date, end: date) -> list[dict]:
         from utils.db.context import DatabaseContext
@@ -308,7 +308,7 @@ class SignalQualityScoresLoader(OptimalLoader):
             raise RuntimeError(
                 f"[TECHNICAL] Failed to fetch technical data for {symbol}: {e}. "
                 "Signal quality requires technical analysis data."
-            )
+            ) from None
 
     def _fetch_trend_data(self, symbol: str, start: date, end: date) -> list[dict]:
         from utils.db.context import DatabaseContext
@@ -333,7 +333,7 @@ class SignalQualityScoresLoader(OptimalLoader):
             raise RuntimeError(
                 f"[TREND] Failed to fetch trend data for {symbol}: {e}. "
                 "Signal quality assessment requires trend analysis."
-            )
+            ) from None
 
     def _fetch_vcp_patterns(self, symbol: str, start: date, end: date) -> list[dict]:
         from utils.db.context import DatabaseContext
@@ -385,7 +385,7 @@ class SignalQualityScoresLoader(OptimalLoader):
             raise RuntimeError(
                 f"[VCP] Failed to fetch VCP patterns for {symbol}: {e}. "
                 "VCP pattern recognition is authoritative for trend confirmation."
-            )
+            ) from None
 
     def _fetch_positioning_data(self, symbol: str) -> dict | None:
         from utils.db.context import DatabaseContext
@@ -661,7 +661,7 @@ class SignalQualityScoresLoader(OptimalLoader):
             raise RuntimeError(
                 f"[QUALITY] Failed to compute signal quality scores for {symbol}: {e}. "
                 "Quality assessment is authoritative for signal reliability."
-            )
+            ) from None
 
 
 def main():
@@ -714,10 +714,10 @@ def main():
 
         return 0
     except Exception as e:
-        raise RuntimeError(f"Signal quality scores load failed: {e}")
+        raise RuntimeError(f"Signal quality scores load failed: {e}") from None
 
 
-def _sync_scores_to_buy_sell():
+def _sync_scores_to_buy_sell() from None:
     """Sync composite_sqs from signal_quality_scores to buy_sell_daily.signal_quality_score."""
     from utils.db.context import DatabaseContext
 
@@ -740,7 +740,7 @@ def _sync_scores_to_buy_sell():
         raise RuntimeError(
             f"[SYNC_FAILURE] Signal quality score sync failed: {e}. "
             "This may cause buy_sell_daily to lack quality scores for newly-computed signals."
-        )
+        ) from None
 
 
 def _log_signal_metrics():

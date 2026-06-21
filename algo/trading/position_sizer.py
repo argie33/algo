@@ -532,7 +532,7 @@ class PositionSizer:
                 if max_positions <= 0:
                     raise ValueError(f"max_positions must be > 0, got {max_positions}")
             except (ValueError, TypeError) as e:
-                raise ValueError(f"CRITICAL: max_positions config has invalid value '{max_positions_val}': {e}")
+                raise ValueError(f"CRITICAL: max_positions config has invalid value '{max_positions_val}': {e}") from None
             if active_positions >= max_positions:
                 return {
                     "shares": 0,
@@ -628,7 +628,7 @@ class PositionSizer:
                 if max_position_pct <= 0 or max_position_pct > Decimal(1):
                     raise ValueError(f"max_position_size_pct must be between 0 and 100, got {max_pos_pct_val}")
             except (ValueError, TypeError, decimal.InvalidOperation) as e:
-                raise ValueError(f"CRITICAL: max_position_size_pct config has invalid value '{max_pos_pct_val}': {e}")
+                raise ValueError(f"CRITICAL: max_position_size_pct config has invalid value '{max_pos_pct_val}': {e}") from None
             max_position_value = portfolio_value * max_position_pct
 
             if position_value > max_position_value:

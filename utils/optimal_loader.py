@@ -186,7 +186,7 @@ class OptimalLoader(ABC):
                         "Check database connectivity."
                     )
                     logger.critical(error_msg)
-                    raise RuntimeError(error_msg)
+                    raise RuntimeError(error_msg) from None
 
         self._heartbeat_thread = threading.Thread(target=heartbeat_worker, daemon=True)
         self._heartbeat_thread.start()
@@ -962,7 +962,7 @@ class OptimalLoader(ABC):
                 f"[UPSTREAM] Could not check upstream completeness: {e}. "
                 "Cannot proceed without verifying upstream is complete."
             )
-            raise RuntimeError(f"Upstream completeness check failed: {e}")
+            raise RuntimeError(f"Upstream completeness check failed: {e}") from None
 
     def _log_execution_history(self, status: str, error_message: str | None = None):
         """Log loader execution to database for auditing.
@@ -1110,7 +1110,7 @@ class OptimalLoader(ABC):
                     "Check database connectivity and query performance."
                 )
                 logger.critical(error_msg)
-                raise RuntimeError(error_msg)
+                raise RuntimeError(error_msg) from None
 
             if not self._check_upstream_completeness(len(symbols)):
                 # Upstream incomplete — abort this load to prevent silent data loss

@@ -29,6 +29,8 @@ import psycopg2
 from utils.db.context import DatabaseContext
 from utils.infrastructure.timezone import EASTERN_TZ
 from utils.loaders.helpers import get_active_symbols
+
+
 logger = logging.getLogger(__name__)
 
 class VectorizedSwingScoresLoader:
@@ -141,7 +143,7 @@ class VectorizedSwingScoresLoader:
                     "SELECT symbol, date, composite_sqs FROM signal_quality_scores"
                     " WHERE symbol IN (" + ph + ")"
                     " AND date >= %s AND date <= %s ORDER BY symbol, date DESC",
-                    symbols + [start_date, end_date],
+                    [*symbols, start_date, end_date],
                 )
                 return pd.DataFrame(
                     cur.fetchall(), columns=["symbol", "date", "composite_sqs"]
@@ -161,7 +163,7 @@ class VectorizedSwingScoresLoader:
                     "SELECT symbol, date, rsi, atr_14, volume_ma_50 FROM technical_data_daily"
                     " WHERE symbol IN (" + ph + ")"
                     " AND date >= %s AND date <= %s ORDER BY symbol, date DESC",
-                    symbols + [start_date, end_date],
+                    [*symbols, start_date, end_date],
                 )
                 return pd.DataFrame(
                     cur.fetchall(),
@@ -183,7 +185,7 @@ class VectorizedSwingScoresLoader:
                     " FROM trend_template_data"
                     " WHERE symbol IN (" + ph + ")"
                     " AND date >= %s AND date <= %s ORDER BY symbol, date DESC",
-                    symbols + [start_date, end_date],
+                    [*symbols, start_date, end_date],
                 )
                 return pd.DataFrame(
                     cur.fetchall(),

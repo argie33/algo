@@ -195,7 +195,7 @@ class ManualTradeRequest(BaseModel):
 
                 datetime.strptime(v, "%Y-%m-%d")
             except ValueError:
-                raise ValueError("Execution date must be in YYYY-MM-DD format")
+                raise ValueError("Execution date must be in YYYY-MM-DD format") from None
         return v
 
     @field_validator("stop_loss_price")

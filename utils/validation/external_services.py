@@ -252,7 +252,7 @@ class DatabaseResultValidator:
             return float(value)
         except (ValueError, TypeError) as e:
             if strict:
-                raise ValueError(f"Cannot convert {key}={value} to float: {e}")
+                raise ValueError(f"Cannot convert {key}={value} to float: {e}") from None
             logger.warning(f"Failed to convert {key}={row.get(key)} to float, using default")
             return default
 
@@ -273,7 +273,7 @@ class DatabaseResultValidator:
             return int(value)
         except (ValueError, TypeError) as e:
             if strict:
-                raise ValueError(f"Cannot convert {key}={value} to int: {e}")
+                raise ValueError(f"Cannot convert {key}={value} to int: {e}") from None
             logger.warning(f"Failed to convert {key}={row.get(key)} to int, using default")
             return default
 
@@ -294,7 +294,7 @@ class DatabaseResultValidator:
             return str(value)
         except (ValueError, TypeError) as e:
             if strict:
-                raise ValueError(f"Cannot convert {key}={value} to str: {e}")
+                raise ValueError(f"Cannot convert {key}={value} to str: {e}") from None
             logger.warning(f"Failed to convert {key}={row.get(key)} to str, using default")
             return default
 

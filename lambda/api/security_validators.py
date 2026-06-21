@@ -79,7 +79,7 @@ def validate_percentage(
     try:
         pct = float(value)
     except (ValueError, TypeError):
-        raise ValidationError(f"Invalid percentage value: {value}")
+        raise ValidationError(f"Invalid percentage value: {value}") from None
 
     if pct < min_pct or pct > max_pct:
         raise ValidationError(
@@ -109,7 +109,7 @@ def validate_price(
     try:
         price_decimal = Decimal(str(price))
     except (InvalidOperation, ValueError):
-        raise ValidationError(f"Invalid price format: {price}")
+        raise ValidationError(f"Invalid price format: {price}") from None
 
     if price_decimal <= 0:
         raise ValidationError(f"Price must be positive: {price}")
@@ -143,7 +143,7 @@ def validate_quantity(
     try:
         quantity = int(qty)
     except (ValueError, TypeError):
-        raise ValidationError(f"Invalid quantity: {qty}")
+        raise ValidationError(f"Invalid quantity: {qty}") from None
 
     if quantity < min_qty:
         raise ValidationError(f"Quantity too low: {quantity} < {min_qty}")
@@ -170,7 +170,7 @@ def validate_risk_multiple(r_multiple: Union[int, float, str]) -> float:
     try:
         r = float(r_multiple)
     except (ValueError, TypeError):
-        raise ValidationError(f"Invalid R-multiple: {r_multiple}")
+        raise ValidationError(f"Invalid R-multiple: {r_multiple}") from None
 
     if r <= 0:
         raise ValidationError(f"R-multiple must be positive: {r}")
@@ -230,7 +230,7 @@ def validate_integer_range(
     try:
         int_val = int(value)
     except (ValueError, TypeError):
-        raise ValidationError(f"Invalid integer for {name}: {value}")
+        raise ValidationError(f"Invalid integer for {name}: {value}") from None
 
     if min_val is not None and int_val < min_val:
         raise ValidationError(f"{name} too low: {int_val} < {min_val}")
@@ -265,7 +265,7 @@ def validate_float_range(
     try:
         float_val = float(value)
     except (ValueError, TypeError):
-        raise ValidationError(f"Invalid float for {name}: {value}")
+        raise ValidationError(f"Invalid float for {name}: {value}") from None
 
     if min_val is not None and float_val < min_val:
         raise ValidationError(f"{name} too low: {float_val} < {min_val}")
