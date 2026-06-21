@@ -22,9 +22,9 @@ from routes.utils import (
     safe_json_serialize,
 )
 
-from utils.validation import (
-    format_decimal_string,
-)
+from utils.validation import format_decimal_string
+
+from shared_contracts.response_validator import ResponseValidator
 
 from .signals import _TIER_CONFIG
 
@@ -286,6 +286,13 @@ def _get_data_status(cur) -> dict:
         response["data"]["critical_stale"] = critical_stale
         response["data"]["expected_date"] = str(expected_date)
         response["data"]["as_of"] = datetime.now(timezone.utc).isoformat()
+
+        # Validate health response against contract schema
+        is_valid, error_msg = ResponseValidator.validate_endpoint_response("health", response["data"])
+        if not is_valid:
+            logger.error(f"Health response validation failed: {error_msg}")
+            return error_response(500, "response_validation_error", error_msg)
+
         return response
     except (
         psycopg2.errors.UndefinedTable,

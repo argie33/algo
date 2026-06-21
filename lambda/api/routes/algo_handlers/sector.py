@@ -20,9 +20,9 @@ from routes.utils import (
     success_response,
 )
 
-from utils.validation import (
-    format_decimal_string,
-)
+from utils.validation import format_decimal_string
+
+from shared_contracts.response_validator import ResponseValidator
 
 
 logger = logging.getLogger(__name__)
@@ -466,7 +466,15 @@ def _get_sector_rotation(cur, days: int = 180) -> dict:
         (cutoff_date,),
     )
     rotation = cur.fetchall()
-    return list_response([safe_json_serialize(safe_dict_convert(r)) for r in rotation])
+    response = list_response([safe_json_serialize(safe_dict_convert(r)) for r in rotation])
+
+    # Validate sector rotation response against contract schema
+    is_valid, error_msg = ResponseValidator.validate_endpoint_response("sec_rot", response["data"])
+    if not is_valid:
+        logger.error(f"Sector rotation response validation failed: {error_msg}")
+        return error_response(500, "response_validation_error", error_msg)
+
+    return response
 
 
 

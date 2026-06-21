@@ -28,6 +28,8 @@ from algo.trading.exceptions import (
     TradingError,
 )
 from algo.trading.executor_entry_handler import EntryHandler
+from algo.trading.executor_exit_handler import ExitHandler
+from algo.trading.order_manager import OrderManager
 from config.api_endpoints import get_alpaca_base_url
 from config.credential_manager import get_alpaca_credentials
 from utils.db import DatabaseContext, OptimisticLockRetry
@@ -147,6 +149,9 @@ class TradeExecutor:
 
         # Initialize entry handler for focused entry execution logic
         self.entry_handler = EntryHandler(self)
+
+        # Initialize exit handler for focused exit execution logic
+        self.exit_handler = ExitHandler(self)
 
         # Get execution mode from config (supports both dict and AlgoConfig objects)
         if "execution_mode" not in config or not config["execution_mode"]:
@@ -362,17 +367,58 @@ class TradeExecutor:
         logger.info(f"[ENTRY] {symbol}: Using Alpaca endpoint: {self.alpaca_base_url}")
         self._order_send_time = time.time()
 
-        # TODO: Implement actual Alpaca API call for order submission
-        # This is a placeholder - the method to submit orders to Alpaca needs to be implemented
-        logger.error(f"[ENTRY] {symbol}: Alpaca order submission not implemented")
-        return (
-            False,
-            trade_id,
-            "",
-            "Alpaca order submission not yet implemented",
-            None,
-            None,
-        )
+        try:
+            # Use OrderManager to submit bracket order
+            order_manager = OrderManager(self.alpaca_key, self.alpaca_secret, self.alpaca_base_url)
+            order_result = order_manager.send_bracket_order(
+                symbol=symbol,
+                shares=float(shares),
+                entry_price=float(entry_price),
+                stop_loss_price=float(stop_loss_price),
+                take_profit_price=float(target_1_price) if target_1_price else None,
+            )
+
+            if not order_result.get("success"):
+                error_msg = order_result.get("message", "Order submission failed (unknown reason)")
+                logger.error(f"[ENTRY] {symbol}: Order rejected - {error_msg}")
+                return (
+                    False,
+                    trade_id,
+                    "",
+                    error_msg,
+                    None,
+                    order_result.get("rejection_reason"),
+                )
+
+            # Extract order details
+            alpaca_order_id = order_result.get("order_id", "")
+            order_status = order_result.get("status", "pending")
+            executed_price = order_result.get("executed_price", entry_price)
+
+            logger.info(
+                f"[ENTRY] {symbol}: Order {alpaca_order_id} submitted successfully - "
+                f"status={order_status}, executed_price=${executed_price}"
+            )
+
+            return (
+                True,
+                alpaca_order_id,
+                order_status,
+                "",
+                Decimal(str(executed_price)) if executed_price else entry_price,
+                None,
+            )
+
+        except Exception as e:
+            logger.exception(f"[ENTRY] {symbol}: Exception during order submission: {e}")
+            return (
+                False,
+                trade_id,
+                "",
+                f"Order submission error: {str(e)[:100]}",
+                None,
+                None,
+            )
 
     def _validate_entry_conditions(
         self, cur: Any, symbol: str, signal_date: Any, entry_price: Decimal, stop_loss_price: Decimal
@@ -736,6 +782,8 @@ class TradeExecutor:
     ) -> dict[str, Any]:
         """Exit all or part of a position with guaranteed transaction atomicity.
 
+        Delegates to ExitHandler for focused, testable exit execution logic.
+
         Args:
             trade_id: trade to exit
             exit_price: execution price for the exit (must be > 0; None when exit_fraction=0)
@@ -746,400 +794,16 @@ class TradeExecutor:
             cur: Optional existing cursor (for transactional batching). If None, opens own context.
 
         Returns: { success, trade_id, shares_exited, profit_loss_dollars, profit_loss_pct, message }
-
-        TRANSACTION SAFETY GUARANTEES:
-        - All updates (algo_trades, algo_positions, audit log) are atomic: all succeed or all rollback
-        - Trade rows are locked (FOR UPDATE) to prevent concurrent modifications
-        - Position rows are locked (FOR UPDATE OF p) to prevent concurrent modifications
-        - After each critical update, rowcount is verified (must equal 1) to detect lost updates
-        - After position update, position state is re-fetched and validated for consistency
-        - If any update fails, the entire transaction is rolled back, preventing orphaned state
-        - Audit log failure causes transaction rollback (data integrity > temporary logging gap)
-
-        If cur is provided (from exit_engine.py), all operations join the parent transaction.
-        If cur is None, each operation opens its own transaction (backward compatibility).
         """
-        if exit_fraction == 0:
-            if new_stop_price is None:
-                return {
-                    "success": False,
-                    "message": "stop-raise-only (fraction=0) requires new_stop_price",
-                }
-
-            def _raise_stop(cursor):
-                cursor.execute(
-                    """UPDATE algo_positions p
-                       SET current_stop_price = %s
-                       FROM algo_trades t
-                       WHERE t.trade_id = ANY(p.trade_ids_arr)
-                         AND t.trade_id = %s
-                         AND p.status = %s
-                         AND %s > COALESCE(p.current_stop_price, 0)""",
-                    (
-                        new_stop_price,
-                        trade_id,
-                        PositionStatus.OPEN.value,
-                        new_stop_price,
-                    ),
-                )
-                updated = cursor.rowcount > 0
-                return {
-                    "success": True,
-                    "message": (
-                        f"Stop raised to ${new_stop_price:.2f}"
-                        if updated
-                        else f"Stop already at or above ${new_stop_price:.2f} (no-op)"
-                    ),
-                }
-
-            try:
-                if cur is not None:
-                    return _raise_stop(cur)  # type: ignore[no-any-return]
-                else:
-                    return self._with_cursor(_raise_stop)  # type: ignore[no-any-return]
-            except DatabaseError as e:
-                logger.error(f"Database error raising stop: {e}")
-                return {"success": False, "message": f"Database error: {e}"}
-            except Exception as e:
-                logger.error(f"Unexpected error raising stop: {type(e).__name__}: {e}")
-                return {"success": False, "message": f"Stop raise failed: {e}"}
-
-        if not (0 < exit_fraction <= 1.0):
-            return {
-                "success": False,
-                "message": f"Invalid exit_fraction {exit_fraction}",
-            }
-
-        if not exit_price or exit_price <= 0:
-            return {
-                "success": False,
-                "message": f"Invalid exit price: {exit_price} (must be > 0)",
-            }
-
-        def _execute_exit(cur):
-            # TRANSACTION GUARD 1: Verify trade is not already closed (idempotency)
-            cur.execute(
-                """SELECT status FROM algo_trades WHERE trade_id = %s FOR UPDATE""",
-                (trade_id,),
-            )
-            trade_status_row = cur.fetchone()
-            if trade_status_row and trade_status_row[0] == "closed":
-                return {
-                    "success": False,
-                    "message": f"Trade {trade_id} is already closed (idempotency guard)",
-                    "duplicate": True,
-                }
-
-            # TRANSACTION GUARD 2: Fetch all trade and position data with row locks
-            # FOR UPDATE prevents concurrent modifications mid-transaction
-            cur.execute(
-                """SELECT t.symbol, t.entry_price, t.entry_quantity, t.stop_loss_price,
-                       t.alpaca_order_id,
-                       p.position_id, p.quantity, p.target_levels_hit, p.status
-                FROM algo_trades t
-                LEFT JOIN algo_positions p ON t.trade_id = ANY(p.trade_ids_arr)
-                WHERE t.trade_id = %s FOR UPDATE OF t, p""",
-                (trade_id,),
-            )
-            row = cur.fetchone()
-            if row is None:
-                return {"success": False, "message": f"Trade {trade_id} not found"}
-            (
-                symbol,
-                entry_price,
-                entry_qty,
-                stop_loss_price,
-                alpaca_order_id,
-                position_id,
-                current_qty,
-                target_hits,
-                position_status,
-            ) = row
-
-            entry_price = float(entry_price)
-            entry_qty = int(entry_qty)
-            stop_loss_price = float(stop_loss_price)
-            current_qty = int(current_qty) if current_qty else 0
-            target_hits = int(target_hits) if target_hits else 0
-
-            if position_status == "closed":
-                return {
-                    "success": False,
-                    "message": "Position already closed (idempotency guard)",
-                    "duplicate": True,
-                }
-
-            if current_qty <= 0 and not position_id:
-                return {"success": False, "message": f"No open position for {trade_id}"}
-
-            current_qty_dec = Decimal(str(current_qty))
-            exit_frac_dec = Decimal(str(exit_fraction))
-            shares_to_exit_dec = (current_qty_dec * exit_frac_dec).quantize(Decimal("0.01"), rounding=ROUND_HALF_UP)
-            shares_to_exit_dec = max(Decimal("0.01"), shares_to_exit_dec)
-            shares_to_exit_dec = min(shares_to_exit_dec, current_qty_dec)
-            shares_to_exit = float(float(shares_to_exit_dec))
-            full_exit = shares_to_exit >= current_qty
-
-            if full_exit and alpaca_order_id:
-                cancel_result = self._cancel_bracket_orders(alpaca_order_id)
-                if not cancel_result.get("success"):
-                    logger.warning(
-                        f"Failed to cancel bracket for {trade_id}: {cancel_result.get('message', 'Unknown error')}"
-                    )
-
-            execution_mode = self.execution_mode
-            actual_fill_price = None
-            exit_order_result = {"success": False, "message": "No order sent"}
-            is_estimated_price = True
-
-            if execution_mode == "auto":
-                exit_order_result = self._send_alpaca_exit(symbol, shares_to_exit)
-                if exit_order_result.get("success"):
-                    actual_fill_price = (
-                        exit_order_result["filled_price"] if "filled_price" in exit_order_result else None
-                    )
-                    is_estimated_price = False
-                else:
-                    try:
-                        notify(
-                            "critical",
-                            title=f"EXIT ORDER FAILED: {symbol}",
-                            message=f"Trade {trade_id}: Failed to exit {shares_to_exit}sh. {exit_order_result['message'] if 'message' in exit_order_result else 'Unknown error'}",
-                        )
-                    except NotificationError as e:
-                        logger.warning(f"Failed to send exit failure alert (non-blocking): {e}")
-                    return {
-                        "success": False,
-                        "message": f"Exit order failed: {exit_order_result.get('message', 'Unknown error')}",
-                    }
-
-            final_exit_price = actual_fill_price if actual_fill_price else exit_price
-
-            if final_exit_price <= 0:
-                logger.warning(f"Invalid exit price {final_exit_price} for {symbol}")
-                return {
-                    "success": False,
-                    "message": f"Invalid exit price for {trade_id}",
-                }
-            if entry_price <= 0:
-                logger.warning(f"Invalid entry price {entry_price} for {symbol}")
-                return {
-                    "success": False,
-                    "message": f"Invalid entry price for {trade_id}",
-                }
-
-            risk_per_share = Decimal(str(entry_price)) - Decimal(str(stop_loss_price))
-            r_multiple = (
-                float((Decimal(str(final_exit_price)) - Decimal(str(entry_price))) / risk_per_share)
-                if risk_per_share > 0
-                else 0.0
-            )
-            pnl_per_share = Decimal(str(final_exit_price)) - Decimal(str(entry_price))
-            pnl_dollars = float((pnl_per_share * Decimal(str(shares_to_exit))).quantize(Decimal("0.01"), ROUND_HALF_UP))
-            pnl_pct = (
-                float(
-                    (pnl_per_share / Decimal(str(entry_price)) * Decimal(100)).quantize(Decimal("0.01"), ROUND_HALF_UP)
-                )
-                if entry_price > 0
-                else 0.0
-            )
-
-            # Validate P&L calculations for NaN and invalid types
-            if not isinstance(pnl_dollars, (int, float)):
-                raise ValueError(f"P&L dollars calculation produced invalid type: {type(pnl_dollars)}")
-            if isinstance(pnl_dollars, float) and pnl_dollars != pnl_dollars:  # NaN check
-                raise ValueError(
-                    f"P&L dollars calculation produced NaN; check price={final_exit_price} "
-                    f"and quantity={shares_to_exit} for zero or invalid values"
-                )
-
-            if not isinstance(pnl_pct, (int, float)):
-                raise ValueError(f"P&L percent calculation produced invalid type: {type(pnl_pct)}")
-            if isinstance(pnl_pct, float) and pnl_pct != pnl_pct:  # NaN check
-                raise ValueError(
-                    f"P&L percent calculation produced NaN; check entry_price={entry_price} "
-                    f"for zero value"
-                )
-
-            # TRANSACTION GUARD 3: Update algo_trades and verify success (atomic with position update)
-            if full_exit:
-                # If this is an estimated price, store it in estimated_exit_price for Phase 7 reconciliation
-                estimated_price = exit_price if is_estimated_price else None
-                cur.execute(
-                    """UPDATE algo_trades
-                    SET exit_date = CURRENT_DATE,
-                        exit_time = CURRENT_TIMESTAMP,
-                        exit_price = %s,
-                        exit_reason = %s,
-                        exit_r_multiple = %s,
-                        profit_loss_dollars = %s,
-                        profit_loss_pct = %s,
-                        estimated_exit_price = %s,
-                        status = 'closed'
-                    WHERE trade_id = %s""",
-                    (
-                        final_exit_price,
-                        exit_reason,
-                        r_multiple,
-                        pnl_dollars,
-                        pnl_pct,
-                        estimated_price,
-                        trade_id,
-                    ),
-                )
-                # Verify update succeeded (must affect exactly 1 row for transaction safety)
-                if cur.rowcount != 1:
-                    raise DatabaseError(f"Trade update failed: expected 1 row updated, got {cur.rowcount}")
-            else:
-                cur.execute(
-                    """UPDATE algo_trades
-                    SET partial_exits_log = COALESCE(partial_exits_log, '') ||
-                            CASE WHEN partial_exits_log IS NULL OR partial_exits_log = '' THEN '' ELSE '; ' END ||
-                            %s,
-                        partial_exit_count = partial_exit_count + 1,
-                        last_partial_exit_date = CURRENT_DATE,
-                        status = 'open'
-                    WHERE trade_id = %s""",
-                    (
-                        f"{shares_to_exit}sh @ ${final_exit_price:.2f} ({exit_reason}, {r_multiple:.2f}R)",
-                        trade_id,
-                    ),
-                )
-                # Verify update succeeded
-                if cur.rowcount != 1:
-                    raise DatabaseError(f"Partial exit log update failed: expected 1 row updated, got {cur.rowcount}")
-
-            current_qty_dec = Decimal(str(current_qty))
-            shares_exited_dec = Decimal(str(shares_to_exit))
-            new_qty_dec = current_qty_dec - shares_exited_dec
-            new_qty = float(float(new_qty_dec))
-
-            # TRANSACTION GUARD 4: Update position with safety checks
-            effective_stop = new_stop_price if new_stop_price is not None else stop_loss_price
-            update_success, update_error = self._update_position_with_retry(
-                cur=cur,
-                position_id=position_id,
-                new_qty=new_qty,
-                new_stop_price=effective_stop,
-                full_exit=full_exit or new_qty <= 0,
-                exit_stage=exit_stage,
-            )
-
-            if not update_success:
-                # Position update failed - transaction will be rolled back by caller
-                # This prevents orphaned state where trade is marked closed but position is still open
-                raise DatabaseError(update_error or "Position update failed during exit")
-
-            # TRANSACTION GUARD 5: Verify position state consistency after update
-            # Re-fetch position to confirm updates were applied correctly
-            cur.execute(
-                """SELECT quantity, status FROM algo_positions WHERE position_id = %s""",
-                (position_id,),
-            )
-            verify_row = cur.fetchone()
-            if verify_row:
-                final_qty = verify_row[0]
-                final_status = verify_row[1]
-                # Consistency check: if we did full exit, position must be closed
-                if full_exit and final_status != "closed":
-                    raise DatabaseError(
-                        f"Position consistency error: full exit executed but position status is '{final_status}' (expected 'closed')"
-                    )
-                # Consistency check: if partial exit, position must still be open with reduced qty
-                if not full_exit and (final_status != "open" or final_qty != new_qty):
-                    raise DatabaseError(
-                        f"Position consistency error: partial exit expected {new_qty} shares and 'open' status, "
-                        f"got {final_qty} shares and '{final_status}'"
-                    )
-
-            # TRANSACTION GUARD 6: Audit log is part of atomic transaction
-            # Failure here causes entire transaction to roll back, preventing orphaned state
-            try:
-                cur.execute(
-                    """INSERT INTO algo_audit_log (action_type, symbol, action_date,
-                                                details, actor, status, created_at)
-                    VALUES (%s, %s, CURRENT_TIMESTAMP, %s, %s, %s, CURRENT_TIMESTAMP)""",
-                    (
-                        f"exit_{exit_stage or 'manual'}",
-                        symbol,
-                        json.dumps(
-                            {
-                                "trade_id": trade_id,
-                                "shares_exited": shares_to_exit,
-                                "exit_price": float(final_exit_price),
-                                "r_multiple": float(r_multiple),
-                                "pnl_dollars": float(pnl_dollars),
-                                "pnl_pct": float(pnl_pct),
-                                "reason": exit_reason,
-                                "full_exit": full_exit,
-                            }
-                        ),
-                        "algo_executor",
-                        "success",
-                    ),
-                )
-                # Verify audit log insert succeeded (must affect exactly 1 row)
-                if cur.rowcount != 1:
-                    raise DatabaseError(f"Audit log insert failed: expected 1 row, got {cur.rowcount}")
-            except Exception as audit_e:
-                logger.critical(
-                    f"[AUDIT_FAILURE] Could not audit log trade exit {trade_id}: {type(audit_e).__name__}: {audit_e}"
-                )
-                # Raise error to trigger transaction rollback - audit log failures prevent data integrity
-                raise AuditLogError(f"Failed to log trade exit: {audit_e}") from audit_e
-
-            try:
-                notif_service = TradeNotificationService()
-                notif_service._send_notification(
-                    subject=f"EXIT: {symbol}",
-                    message=f"{shares_to_exit:.2f}sh @ ${final_exit_price:.2f} ({pnl_pct:+.2f}%, {r_multiple:+.2f}R) - {exit_reason}",
-                    kind="trade_exit",
-                    severity="info" if pnl_dollars > 0 else "warning",
-                    symbol=symbol,
-                    details={
-                        "exit_price": final_exit_price,
-                        "shares": shares_to_exit,
-                        "pnl": f"{pnl_dollars:+.2f}",
-                        "pnl_pct": pnl_pct,
-                        "r_multiple": r_multiple,
-                        "reason": exit_reason,
-                        "trade_id": trade_id,
-                    },
-                )
-            except NotificationError as notif_e:
-                logger.warning(f"Failed to send exit notification (non-blocking): {notif_e}")
-
-            return {
-                "success": True,
-                "trade_id": trade_id,
-                "shares_exited": shares_to_exit,
-                "profit_loss_dollars": pnl_dollars,
-                "profit_loss_pct": pnl_pct,
-                "r_multiple": r_multiple,
-                "full_exit": full_exit,
-                "message": (
-                    f"Exited {shares_to_exit}sh of {symbol} @ ${final_exit_price:.2f} "
-                    f"({pnl_pct:+.2f}%, {r_multiple:+.2f}R)"
-                ),
-            }
-
-        try:
-            if cur is not None:
-                return _execute_exit(cur)  # type: ignore[no-any-return]
-            else:
-                return self._with_cursor(_execute_exit, acquire_locks=True)  # type: ignore[no-any-return]
-        except AuditLogError as e:
-            logger.critical(f"Audit log failure during exit (data integrity risk): {e}")
-            return {"success": False, "message": f"Audit log failure: {e}"}
-        except DatabaseError as e:
-            logger.error(f"Database error during trade exit: {e}")
-            return {"success": False, "message": f"Database error: {e}"}
-        except TradingError as e:
-            logger.error(f"Trading error during exit: {type(e).__name__}: {e}")
-            return {"success": False, "message": str(e)}
-        except Exception as e:
-            logger.exception(f"Unexpected error during trade exit: {type(e).__name__}: {e}")
-            return {"success": False, "message": f"Unexpected error: {type(e).__name__}"}
+        return self.exit_handler.execute_exit(
+            trade_id=trade_id,
+            exit_price=exit_price,
+            exit_reason=exit_reason,
+            exit_fraction=exit_fraction,
+            exit_stage=exit_stage,
+            new_stop_price=new_stop_price,
+            cur=cur,
+        )
 
     def validate_position_against_alpaca(self, symbol: str) -> dict[str, Any]:
         """Validate that local DB position matches Alpaca position for a symbol.

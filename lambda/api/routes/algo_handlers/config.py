@@ -2,18 +2,18 @@
 
 import logging
 from datetime import datetime, timezone
-from typing import Dict
 
 # Ensure imports work - setup_imports is imported by parent module (lambda_function or api_router)
 from routes.utils import (
     db_route_handler,
-    ensure_valid_response,
     error_response,
     json_response,
     list_response,
     safe_dict_convert,
     safe_json_serialize,
 )
+
+from shared_contracts.response_validator import ResponseValidator
 
 
 logger = logging.getLogger(__name__)
@@ -153,7 +153,7 @@ def _categorize_config_key(key: str) -> str:
 
 
 @db_route_handler("fetch algo config")
-def _get_algo_config(cur) -> Dict:
+def _get_algo_config(cur) -> dict:
     """Return all algo configuration rows with defaults and categorization for TIER 3 visibility."""
     from algo.infrastructure import AlgoConfig
 
@@ -183,7 +183,15 @@ def _get_algo_config(cur) -> Dict:
         config_dict["category"] = _categorize_config_key(key)
         config_items.append(config_dict)
 
-    return list_response(config_items)
+    response = list_response(config_items)
+
+    # Validate config response against contract schema
+    is_valid, error_msg = ResponseValidator.validate_endpoint_response("cfg", response["data"])
+    if not is_valid:
+        logger.error(f"Config response validation failed: {error_msg}")
+        return error_response(500, "response_validation_error", error_msg)
+
+    return response
 
 
 

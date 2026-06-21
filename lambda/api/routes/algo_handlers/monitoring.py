@@ -23,6 +23,8 @@ from routes.utils import (
     safe_limit,
 )
 
+from shared_contracts.response_validator import ResponseValidator
+
 
 logger = logging.getLogger(__name__)
 
@@ -183,9 +185,17 @@ def _get_notifications(cur, params: dict = None, jwt_claims: dict = None) -> dic
 
         cur.execute(query, tuple(where_params))
         notifs = cur.fetchall()
-        return list_response(
+        response = list_response(
             [safe_json_serialize(safe_dict_convert(n)) for n in notifs]
         )
+
+        # Validate notifications response against contract schema
+        is_valid, error_msg = ResponseValidator.validate_endpoint_response("notifs", response["data"])
+        if not is_valid:
+            logger.error(f"Notifications response validation failed: {error_msg}")
+            return error_response(500, "response_validation_error", error_msg)
+
+        return response
     except (
         psycopg2.errors.UndefinedTable,
         psycopg2.errors.UndefinedColumn,
