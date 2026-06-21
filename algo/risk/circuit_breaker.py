@@ -329,6 +329,8 @@ class CircuitBreaker:
             else:
                 break
         threshold = safe_int(self.config.get("max_consecutive_losses", 3), default=3, context="max_consecutive_losses")
+        threshold = threshold if threshold is not None else 3
+        streak = streak if streak is not None else 0
         return {
             "halted": streak >= threshold,
             "reason": (f"{streak} consecutive losses >= {threshold}" if streak >= threshold else f"{streak} losses"),
@@ -371,10 +373,13 @@ class CircuitBreaker:
         if row is None or row[3] is None or safe_int(row[3], default=0, context="trade_count") < 10:
             return {"halted": False, "reason": "Insufficient closed trades (< 10)"}
 
-        wins = safe_int(row[0], default=0, context="win_count") if row[0] is not None else 0
-        losses = safe_int(row[1], default=0, context="loss_count") if row[1] is not None else 0
+        wins_val = safe_int(row[0], default=0, context="win_count")
+        wins = wins_val if wins_val is not None else 0
+        losses_val = safe_int(row[1], default=0, context="loss_count")
+        losses = losses_val if losses_val is not None else 0
         safe_int(row[2], default=0, context="breakeven_count") if row[2] is not None else 0
-        total = safe_int(row[3], default=0, context="total_count")
+        total_val = safe_int(row[3], default=0, context="total_count")
+        total = total_val if total_val is not None else 0
 
         # Win rate based on wins vs (wins + losses), excluding break-even trades
         # This avoids dilution where many break-even trades inflate the denominator
@@ -692,7 +697,8 @@ class CircuitBreaker:
         Sector concentration is a soft limit; the circuit breaker warns but does not block.
         """
         try:
-            max_sector_positions = safe_int(self.config.get("max_positions_per_sector", 5), default=5, context="max_positions_per_sector")
+            max_sector_val = safe_int(self.config.get("max_positions_per_sector", 5), default=5, context="max_positions_per_sector")
+            max_sector_positions = max_sector_val if max_sector_val is not None else 5
 
             cur.execute("""
                 SELECT ap.symbol, COALESCE(cp.sector, 'Unknown') AS sector

@@ -112,7 +112,8 @@ class AlpacaOrderValidator(Validator):
             else:
                 cleaned["legs"] = legs  # type: ignore[assignment]
         else:
-            cleaned["legs"] = legs
+            if legs is not None:
+                cleaned["legs"] = legs
 
         cleaned["order_class"] = order_class
         if data.get("cancel_reason"):
@@ -369,27 +370,30 @@ class DatabaseSchemaValidator(Validator):
         columns = data.get("columns")
         row_count = data.get("row_count", 0)
 
-        # Check required columns exist
-        missing_cols = [
-            col for col in self.required_columns.keys() if col not in columns
-        ]
-        if missing_cols:
-            all_errors.append(f"{context}: {table_name} missing columns {missing_cols}")
+        if not columns:
+            all_errors.append(f"{context}: {table_name} missing columns info")
+        else:
+            # Check required columns exist
+            missing_cols = [
+                col for col in self.required_columns.keys() if col not in columns
+            ]
+            if missing_cols:
+                all_errors.append(f"{context}: {table_name} missing columns {missing_cols}")
 
-        # Check column types match
-        type_mismatches = []
-        for col_name, expected_type in self.required_columns.items():
-            if col_name in columns:
-                actual_type = columns[col_name].lower()
-                if not self._type_family_matches(actual_type, expected_type):
-                    type_mismatches.append(
-                        f"{col_name} is {actual_type} (expected {expected_type})"
-                    )
+            # Check column types match
+            type_mismatches = []
+            for col_name, expected_type in self.required_columns.items():
+                if col_name in columns:
+                    actual_type = columns[col_name].lower()
+                    if not self._type_family_matches(actual_type, expected_type):
+                        type_mismatches.append(
+                            f"{col_name} is {actual_type} (expected {expected_type})"
+                        )
 
-        if type_mismatches:
-            all_errors.append(
-                f"{context}: {table_name} type mismatches: {'; '.join(type_mismatches)}"
-            )
+            if type_mismatches:
+                all_errors.append(
+                    f"{context}: {table_name} type mismatches: {'; '.join(type_mismatches)}"
+                )
 
         # Check data presence
         if self.severity in ("critical", "important"):

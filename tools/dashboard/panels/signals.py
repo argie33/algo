@@ -106,12 +106,12 @@ def _build_signal_header(sig_data: dict, scores_data: dict | None) -> tuple[list
     total = safe_get_field(overview, "total") or 0
     ds = _format_signal_date(safe_get_field(overview, "date"))
 
-    grades_field = safe_get_field(overview, "grades", {})
+    grades_field = safe_get_field(overview, "grades", {}) if overview else {}
     grades = safe_get_dict(grades_field) if grades_field else {}
-    ga = int(safe_get_field(grades, "a")) if safe_get_field(grades, "a") is not None else None
-    gb = int(safe_get_field(grades, "b")) if safe_get_field(grades, "b") is not None else None
-    gc = int(safe_get_field(grades, "c")) if safe_get_field(grades, "c") is not None else None
-    gd = int(safe_get_field(grades, "d")) if safe_get_field(grades, "d") is not None else None
+    ga = int(safe_get_field(grades, "a")) if grades and safe_get_field(grades, "a") is not None else None
+    gb = int(safe_get_field(grades, "b")) if grades and safe_get_field(grades, "b") is not None else None
+    gc = int(safe_get_field(grades, "c")) if grades and safe_get_field(grades, "c") is not None else None
+    gd = int(safe_get_field(grades, "d")) if grades and safe_get_field(grades, "d") is not None else None
 
     buy_c = G if raw >= 5 else (Y if raw >= 1 else (DIM if total == 0 else R))
 
@@ -165,9 +165,9 @@ def _build_grade_radar(sig_data: dict) -> list:
                 parts.append(f"[{sc_c}]{safe_get_field(s, 'symbol', '')}[/][dim]{sc:.0f}[/]")
             else:
                 parts.append(f"[dim]{safe_get_field(s, 'symbol', '')}[/][dim]--[/]")
-        grades_field = safe_get_field(overview, "grades", {})
+        grades_field = safe_get_field(overview, "grades", {}) if overview else {}
         grades_dict = safe_get_dict(grades_field) if grades_field else {}
-        ga = safe_get_field(grades_dict, "a")
+        ga = safe_get_field(grades_dict, "a") if grades_dict else None
         extra = f"  [dim]+{ga - min(ga, 8)} more[/]" if ga is not None and ga > 8 else ""
         rows.append(Text.from_markup("[dim]A radar:[/]  " + "  ".join(parts) + extra))
     elif near:

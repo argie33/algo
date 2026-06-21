@@ -496,7 +496,7 @@ def _format_data_health_summary(hlth_items: list) -> list[Text]:
 def _format_loader_status(loader: list) -> list[Text]:
     """Format data loader status section."""
     rows: list[Text] = []
-    valid_loader = safe_get_list(loader)
+    valid_loader = safe_get_list(loader) or []
     problem_loader = [r for r in valid_loader if (safe_get_field(r, "status", "")) in LOADER_STATUS_ERROR]
     running_loader = [r for r in valid_loader if (safe_get_field(r, "status", "")) == LOADER_STATUS_LOADING]
     ok_count = len(valid_loader) - len(problem_loader) - len(running_loader)
@@ -1265,7 +1265,7 @@ def _build_results_panel(
 
     phase_badges_e: list = []
     if run_valid and safe_get_field(run, "_source") == "exec_log":
-        for p in safe_get_list(safe_get_field(run, "phase_results", [])):
+        for p in safe_get_list(safe_get_field(run, "phase_results", [])) or []:
             raw = (safe_get_field(p, "name") or safe_get_field(p, "phase", "")).lower()
             parts_p = raw.split("_")
             base = "_".join(parts_p[:2]) if len(parts_p) >= 2 else raw
@@ -1278,7 +1278,7 @@ def _build_results_panel(
 
     signals_gen = entries_exec = exits_exec = 0
     if run_valid and safe_get_field(run, "_source") == "exec_log":
-        for p in safe_get_list(safe_get_field(run, "phase_results", [])):
+        for p in safe_get_list(safe_get_field(run, "phase_results", [])) or []:
             pdata = safe_get_field(p, "data")
             if isinstance(pdata, str):
                 try:

@@ -13,7 +13,7 @@ from typing import Any
 
 import psycopg2
 
-from utils.safe_data_conversion import safe_float, safe_int, safe_bool
+from utils.safe_data_conversion import safe_float, safe_int
 
 
 logger = logging.getLogger(__name__)
@@ -37,7 +37,7 @@ class MarketFactorCalculator:
 
         score = factor.get("score")
         if score is None:
-            logger.warning(f"Market factor score missing - this factor cannot be included in exposure calculation")
+            logger.warning("Market factor score missing - this factor cannot be included in exposure calculation")
             return 0.0, 0.0
 
         try:
@@ -269,8 +269,10 @@ class MarketFactorCalculator:
             )
             row = cur.fetchone()
             if row and row[0] and row[1]:
-                nh = safe_int(row[0], default=0, context="new_highs_count")
-                nl = safe_int(row[1], default=0, context="new_lows_count")
+                nh_val = safe_int(row[0], default=0, context="new_highs_count")
+                nl_val = safe_int(row[1], default=0, context="new_lows_count")
+                nh = nh_val if nh_val is not None else 0
+                nl = nl_val if nl_val is not None else 0
                 total = nh + nl
                 if total > 0:
                     nh_pct = nh * 100 / total
