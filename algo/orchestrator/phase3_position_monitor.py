@@ -6,6 +6,7 @@ from collections.abc import Callable
 from datetime import date as _date
 from typing import Any
 
+from algo.orchestrator.phase_error_handling import ErrorCategory, PhaseError, log_phase_error
 from algo.orchestrator.phase_result import PhaseResult
 from algo.reporting import AlertManager
 
@@ -69,8 +70,14 @@ def run(
                     f"{len(halts_found)} symbols halted: {', '.join(halts_found)}",
                 )
         except (OSError, RuntimeError, ValueError) as e:
-            logger.warning(f"Halt check failed for position: {e}")
-            log_phase_result_fn(3, "halt_check_error", "warn", f"Halt check failed: {str(e)[:100]}")
+            error = PhaseError(
+                category=ErrorCategory.DEPENDENCY_FAILED,
+                message="Halt check failed for open positions",
+                root_cause=str(e)[:150],
+                recoverable=True,
+                log_level="warning",
+            )
+            log_phase_error(3, error, log_phase_result_fn)
 
         stale_result = monitor.check_stale_orders(run_date)
         if stale_result and stale_result.get("status") == "STALE_ORDERS_FOUND":
@@ -120,6 +127,13 @@ def run(
         )
 
     except Exception as e:
+        error = PhaseError(
+            category=ErrorCategory.DEPENDENCY_FAILED,
+            message="Position monitor failed unexpectedly",
+            root_cause=str(e)[:200],
+            recoverable=False,
+            log_level="critical",
+        )
+        log_phase_error(3, error, log_phase_result_fn)
         traceback.print_exc()
-        log_phase_result_fn(3, "position_monitor", "error", str(e))
         return PhaseResult(3, "position_monitor", "degraded", {"recommendations": []}, False, str(e))
