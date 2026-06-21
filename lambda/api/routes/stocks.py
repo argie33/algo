@@ -2,7 +2,6 @@
 
 import logging
 import re
-from typing import Dict
 
 import psycopg2
 import psycopg2.errors
@@ -27,10 +26,10 @@ def handle(
     cur,
     path: str,
     method: str,
-    params: Dict,
-    body: Dict | None = None,
-    jwt_claims: Dict | None = None,
-) -> Dict[Any, Any]:
+    params: dict,
+    body: dict | None = None,
+    jwt_claims: dict | None = None,
+) -> dict[Any, Any]:
     try:
         parts = path.split("/")
         known_non_symbol_paths = (
@@ -348,7 +347,10 @@ def handle(
             WHERE """ + where_sql,
             query_params,
         )
-        total = safe_json_serialize(dict(cur.fetchone())).get("count", 0)
+        count_row = cur.fetchone()
+        if count_row is None or len(count_row) == 0:
+            raise ValueError("COUNT(*) query returned no result")
+        total = count_row[0]
 
         return json_response(
             200,
