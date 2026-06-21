@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-
+from __future__ import annotations
 
 
 """
@@ -47,12 +47,17 @@ State tracked on algo_positions:
 import logging
 from datetime import datetime, timezone
 from decimal import ROUND_DOWN, ROUND_HALF_UP, Decimal
+from typing import TYPE_CHECKING
 
 import psycopg2
 import requests
 
 from algo.trading.exceptions import DatabaseError, ExchangeAPIError
 from utils.db import DatabaseContext
+
+
+if TYPE_CHECKING:
+    from algo.infrastructure.config import AlgoConfig
 
 
 try:
@@ -86,7 +91,7 @@ class ExitEngine:
 
 
 
-    def __init__(self, config: dict) -> None:
+    def __init__(self, config: AlgoConfig | dict[str, Any]) -> None:
 
         self._validate_config(config)
         self.config = config
@@ -95,7 +100,7 @@ class ExitEngine:
 
         self.verbose = True
 
-    def _validate_config(self, config: dict) -> None:
+    def _validate_config(self, config: AlgoConfig | dict[str, Any]) -> None:
         """Validate required configuration keys exist (fail-fast at init time).
 
         Raises:

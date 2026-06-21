@@ -384,7 +384,7 @@ class ValueAtRisk:
                             stock_rows = cur.fetchall()
                             if len(stock_rows) >= 2:
                                 stock_prices = []
-                                for i, r in enumerate(stock_rows):
+                                for _i, r in enumerate(stock_rows):
                                     if r[0] is None:
                                         logger.warning(f"[VAR] {symbol}: None historical price for beta calc, skipping")
                                         break

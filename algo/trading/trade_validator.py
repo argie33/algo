@@ -1,4 +1,7 @@
 #!/usr/bin/env python3
+from __future__ import annotations
+
+
 """Trade validation logic extracted from monolithic Executor.
 
 Validates trade preconditions and risk parameters before execution.
@@ -9,10 +12,13 @@ import logging
 from datetime import date as _date
 from datetime import datetime, timezone
 from decimal import ROUND_HALF_UP, Decimal
-from typing import Any
+from typing import TYPE_CHECKING, Any
 
 from utils.trading import PositionStatus, TradeStatus
 
+
+if TYPE_CHECKING:
+    from algo.infrastructure.config import AlgoConfig
 
 logger = logging.getLogger(__name__)
 
@@ -28,7 +34,7 @@ class TradeValidator:
     - Detect duplicate positions and re-entry violations
     """
 
-    def __init__(self, config: dict[str, Any], pretrade_checks: Any = None):
+    def __init__(self, config: AlgoConfig | dict[str, Any], pretrade_checks: Any = None):
         """Initialize validator with configuration and pre-trade checks engine.
 
         Args:

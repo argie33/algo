@@ -1,4 +1,7 @@
 #!/usr/bin/env python3
+from __future__ import annotations
+
+
 """
 Trade Executor - Execute trades via Alpaca and track positions
 
@@ -24,6 +27,7 @@ import psycopg2
 import requests
 
 from algo.infrastructure import get_api_timeout
+from algo.infrastructure.config import AlgoConfig
 from algo.reporting import TradeNotificationService, notify
 from algo.trading.exceptions import (
     AuditLogError,
@@ -77,7 +81,7 @@ def _redact_for_logs(message: str) -> str:
 class TradeExecutor:
     """Execute trades via Alpaca and track in database."""
 
-    def __init__(self, config: dict[str, Any]) -> None:
+    def __init__(self, config: AlgoConfig | dict[str, Any]) -> None:
         self.config = config
         alpaca_creds = get_alpaca_credentials()
         self.alpaca_key = alpaca_creds["key"]

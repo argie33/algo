@@ -21,17 +21,22 @@ When a circuit breaker fires:
   - persists state until cleared (e.g., recovery threshold met)
 """
 
+from __future__ import annotations
+
 import json
 import logging
 import math
 from datetime import date as _date
 from datetime import datetime, timedelta
-from typing import Any
+from typing import TYPE_CHECKING, Any
 
 import psycopg2
 
 from utils.db import DatabaseContext
 from utils.trading import PositionStatus, TradeStatus
+
+if TYPE_CHECKING:
+    from algo.infrastructure.config import AlgoConfig
 
 
 logger = logging.getLogger(__name__)
@@ -76,7 +81,7 @@ def _float(value, default=None, context=""):
 class CircuitBreaker:
     """Pre-trade kill-switch checks."""
 
-    def __init__(self, config: dict[str, Any]) -> None:
+    def __init__(self, config: AlgoConfig | dict[str, Any]) -> None:
         self.config = config
 
     def check_all(self, current_date: Any = None) -> dict[str, Any]:

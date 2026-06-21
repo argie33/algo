@@ -1,4 +1,7 @@
 #!/usr/bin/env python3
+from __future__ import annotations
+
+
 """
 Pre-Trade Checks - Hard stops before order execution.
 
@@ -15,13 +18,16 @@ Validates:
 import logging
 from datetime import date as _date
 from decimal import ROUND_HALF_UP, Decimal
-from typing import Any
+from typing import TYPE_CHECKING, Any
 
 import psycopg2
 
 from algo.risk import EarningsBlackout
 from utils.db import DatabaseContext
 
+
+if TYPE_CHECKING:
+    from algo.infrastructure.config import AlgoConfig
 
 logger = logging.getLogger(__name__)
 
@@ -31,7 +37,7 @@ class PreTradeChecks:
 
     def __init__(
         self,
-        config: dict[str, Any],
+        config: AlgoConfig | dict[str, Any],
         alpaca_base_url: str | None = None,
         alpaca_key: str | None = None,
         alpaca_secret: str | None = None,

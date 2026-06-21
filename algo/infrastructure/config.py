@@ -634,7 +634,7 @@ class AlgoConfig:
         "failsafe_grace_period_minutes": (
             "240",
             "int",
-            "Grace period before triggering second failsafe (min). Morning window 2-9:30AM=450min; expected load ~285min; allows 2:00+240m=6:00 expiry, second loader 6:00+285mâ‰ˆ11:30am (acceptable). Must be <390 (450-60 Phase 2-7 buffer). Too long: no retry time. Too short: false positives if load is slow.",
+            "Grace period before triggering second failsafe (min). Morning window 2-9:30AM=450min; expected load ~285min; allows 2:00+240m=6:00 expiry, second loader 6:00+285m~11:30am (acceptable). Must be <390 (450-60 Phase 2-7 buffer). Too long: no retry time. Too short: false positives if load is slow.",
         ),
         # Loader Rate Limiting Configuration
         "loader_rate_limit_circuit_break_threshold_morning": (
@@ -940,9 +940,21 @@ class AlgoConfig:
     def _validate_r_multiple_ordering(self):
         """Verify t1 < t2 < t3 R-multiple targets (called after full config load)."""
         try:
-            t1 = float(self._config.get("t1_target_r_multiple", 1.5))
-            t2 = float(self._config.get("t2_target_r_multiple", 3.0))
-            t3 = float(self._config.get("t3_target_r_multiple", 4.0))
+            # Fail-fast: R-multiples are critical and must be explicitly configured
+            t1_val = self._config.get("t1_target_r_multiple")
+            t2_val = self._config.get("t2_target_r_multiple")
+            t3_val = self._config.get("t3_target_r_multiple")
+
+            if t1_val is None or t2_val is None or t3_val is None:
+                raise ValueError(
+                    f"CRITICAL: R-multiple config missing. Required: t1_target_r_multiple, t2_target_r_multiple, t3_target_r_multiple. "
+                    f"Found: t1={t1_val}, t2={t2_val}, t3={t3_val}. "
+                    f"Cannot apply silent defaults (1.5, 3.0, 4.0) — must be explicitly configured."
+                )
+
+            t1 = float(t1_val)
+            t2 = float(t2_val)
+            t3 = float(t3_val)
             if not (t1 < t2 < t3):
                 raise ValueError(
                     f"R-multiple ordering broken: t1={t1} t2={t2} t3={t3}. Required: t1 < t2 < t3 for position sizing."
@@ -1277,6 +1289,17 @@ class AlgoConfig:
                     pass  # Type validation already caught this above
 
         return value
+
+    def __getitem__(self, key: str) -> Any:
+        """Enable dict-like access: config[key]."""
+        value = self._config.get(key)
+        if value is None:
+            raise KeyError(f"Configuration key {key!r} not found")
+        return value
+
+    def __contains__(self, key: str) -> bool:
+        """Enable membership testing: key in config."""
+        return key in self._config
 
     def _check_type(self, value: Any, expected_type: str) -> bool:
         """Check if value has the expected type without coercion."""

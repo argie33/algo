@@ -775,7 +775,7 @@ class AdvancedFilters:
             next_q_date = _date(year + 1, 1, 15)  # Q4
 
         # If next quarter estimate is in past, advance to following quarter
-        signal_d = signal_date if isinstance(signal_date, _date) else signal_date
+        signal_d = signal_date
         while next_q_date <= signal_d:
             if next_q_date.month == 1:
                 next_q_date = _date(next_q_date.year, 4, 15)

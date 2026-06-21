@@ -47,8 +47,9 @@ from .data_extractors import (
     extract_config_params,
     extract_health_items,
     extract_risk_metrics,
+    safe_extract,
     safe_get_dict,
-        safe_get_list,
+    safe_get_list,
 )
 
 
@@ -943,9 +944,16 @@ def panel_algo_health(
     age_s = f"  [dim]{fmt_age(run_at)}[/]" if run_at else ""
 
     if run_valid:
-        success = run.get("success")
-        halted = run.get("halted")
-        errored = run.get("errored")
+        # Validate critical fields exist upfront (fail-fast pattern)
+        try:
+            run_fields = safe_extract(run, "success", "halted", "errored", "run_id", "halt_reason", "summary", "phase_results")
+            success = run_fields["success"]
+            halted = run_fields["halted"]
+            errored = run_fields["errored"]
+        except KeyError as e:
+            logger.warning(f"Run data missing critical field: {e}")
+            return _error_panel("run", {"_error": f"Run data incomplete: {e}"}, "HEALTH")
+
         if success and not halted:
             sts = f"[bold {G}]OK COMPLETED[/]"
         elif halted:
@@ -954,11 +962,11 @@ def panel_algo_health(
             sts = f"[bold {R}]X ERROR[/]"
         else:
             sts = "[dim]UNKNOWN[/]"
-        rid = (run.get("run_id", ""))[:28]
+        rid = (run_fields["run_id"] or "")[:28]
         rows.append(Text.from_markup(f"{sts}{age_s}  [dim]{rid}[/]"))
-        halt_r = run.get("halt_reason", "")
-        summary = run.get("summary", "")
-        phase_results = run.get("phase_results")
+        halt_r = run_fields["halt_reason"] or ""
+        summary = run_fields["summary"] or ""
+        phase_results = run_fields["phase_results"]
         if halted or halt_r:
             for label, detail in _best_halt_reason(halt_r, phase_results):
                 prefix = f"{label}: " if label else ""

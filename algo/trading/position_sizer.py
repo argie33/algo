@@ -196,7 +196,7 @@ class PositionSizer:
                 raise RuntimeError(f"Portfolio value retrieval failed after {max_retries} attempts: {e}") from e
             except RuntimeError:
                 raise
-            except (requests.RequestException, requests.Timeout) as e:
+            except requests.RequestException as e:
                 raise RuntimeError(f"Alpaca API error: {type(e).__name__}: {e}") from e
         # Should never reach here (all paths raise or return above)
         raise RuntimeError("CRITICAL: Alpaca portfolio value retrieval exhausted all retries without a result.")
@@ -483,7 +483,7 @@ class PositionSizer:
                 "status": "error",
                 "reason": str(e),
             }
-        except (ValueError, ZeroDivisionError, TypeError) as e:
+        except (ZeroDivisionError, TypeError) as e:
             logger.exception(f"Unexpected error in position sizing: {type(e).__name__}: {e}")
             return {
                 "shares": 0,
@@ -681,7 +681,7 @@ class PositionSizer:
                 "status": "error",
                 "reason": str(e),
             }
-        except (ValueError, ZeroDivisionError, TypeError) as e:
+        except (ZeroDivisionError, TypeError) as e:
             logger.exception(f"Unexpected error during position calculation: {type(e).__name__}: {e}")
             return {
                 "shares": 0,

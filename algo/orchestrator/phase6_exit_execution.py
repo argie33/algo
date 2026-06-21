@@ -291,5 +291,5 @@ def run(
 
     except (psycopg2.DatabaseError, psycopg2.OperationalError) as e:
         traceback.print_exc()
-        log_phase_result_fn(4, "exit_execution", "error", str(e))
-        return PhaseResult(4, "exit_execution", "halted", {}, True, str(e))
+        log_phase_result_fn(6, "exit_execution", "error", str(e))
+        return PhaseResult(6, "exit_execution", "halted", {}, True, str(e))

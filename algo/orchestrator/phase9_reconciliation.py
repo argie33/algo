@@ -30,7 +30,7 @@ def run(
     log_phase_result_fn: Callable,
     dry_run: bool = False,
 ) -> PhaseResult:
-    """Execute Phase 7: Reconciliation & Snapshot.
+    """Execute Phase 9: Reconciliation & Snapshot.
 
     Args:
         config: Configuration object
@@ -81,7 +81,7 @@ def run(
             )
         else:
             summary = result.get("error", "unknown")
-        log_phase_result_fn(7, "reconciliation", status, summary)
+        log_phase_result_fn(9, "reconciliation", status, summary)
 
         # CRITICAL: Validate that local P&L matches Alpaca P&L
         pnl_validation_status = "warn"
@@ -122,7 +122,7 @@ def run(
             logger.error(f"[PHASE 7] P&L validation failed: {e}")
             pnl_validation_summary = f"error: {str(e)[:60]}"
         finally:
-            log_phase_result_fn(7, "pnl_validation", pnl_validation_status, pnl_validation_summary)
+            log_phase_result_fn(9, "pnl_validation", pnl_validation_status, pnl_validation_summary)
 
         # CRITICAL: Audit for stale estimated exit prices (reconciliation issues)
         try:
@@ -130,7 +130,7 @@ def run(
                 stale_audit = recon.audit_stale_estimated_prices(audit_cur)
                 if stale_audit["status"] != "OK":
                     logger.warning(f"[PHASE 7 AUDIT] Stale estimated prices detected: {stale_audit['message']}")
-                    log_phase_result_fn(7, "exit_reconciliation_audit", "warn", stale_audit["message"])
+                    log_phase_result_fn(9, "exit_reconciliation_audit", "warn", stale_audit["message"])
                 else:
                     logger.info("[PHASE 7 AUDIT] All exit prices reconciled properly")
         except (psycopg2.DatabaseError, psycopg2.OperationalError) as e:
@@ -297,7 +297,7 @@ def run(
             logger.info(f"\n{report_text}")
         except Exception as e:
             logger.error(f"Daily report generation failed (could not generate): {e}", exc_info=True)
-            log_phase_result_fn(7, "daily_report", "warn", f"generation error: {str(e)[:60]}")
+            log_phase_result_fn(9, "daily_report", "warn", f"generation error: {str(e)[:60]}")
         else:
             # Validate critical report data before use
             try:
@@ -338,7 +338,7 @@ def run(
                 )
             except ValueError as e:
                 logger.error(f"Daily report validation failed (generated but data incomplete): {e}")
-                log_phase_result_fn(7, "daily_report", "warn", f"validation error: {str(e)[:60]}")
+                log_phase_result_fn(9, "daily_report", "warn", f"validation error: {str(e)[:60]}")
 
         # Step 5: Compute and log live performance metrics
         perf_status = "warn"
@@ -362,7 +362,7 @@ def run(
         except (psycopg2.DatabaseError, psycopg2.OperationalError) as e:
             perf_summary = f"error: {str(e)[:60]}"
         finally:
-            log_phase_result_fn(7, "performance", perf_status, perf_summary)
+            log_phase_result_fn(9, "performance", perf_status, perf_summary)
 
         # Compute and log risk metrics
         risk_status = "warn"
@@ -398,7 +398,7 @@ def run(
         except Exception as e:
             risk_summary = f"error: {str(e)[:60]}"
         finally:
-            log_phase_result_fn(7, "risk_metrics", risk_status, risk_summary)
+            log_phase_result_fn(9, "risk_metrics", risk_status, risk_summary)
 
         # Step 6: Update algo_metrics_daily with actual trade results from this run
         metrics_status = "warn"
@@ -459,7 +459,7 @@ def run(
             logger.warning(f"Failed to update algo_metrics_daily: {e}")
             metrics_summary = f"error: {str(e)[:60]}"
         finally:
-            log_phase_result_fn(7, "metrics_update", metrics_status, metrics_summary)
+            log_phase_result_fn(9, "metrics_update", metrics_status, metrics_summary)
 
         # Refresh materialized view so positions dashboard reflects current state.
         # This runs after reconciliation updates algo_positions from Alpaca.
@@ -467,10 +467,10 @@ def run(
             with DatabaseContext("write") as cur:
                 cur.execute("REFRESH MATERIALIZED VIEW algo_positions_with_risk")
             logger.info("[PHASE 7] Refreshed algo_positions_with_risk materialized view")
-            log_phase_result_fn(7, "positions_view_refresh", "success", "algo_positions_with_risk refreshed")
+            log_phase_result_fn(9, "positions_view_refresh", "success", "algo_positions_with_risk refreshed")
         except (psycopg2.DatabaseError, psycopg2.OperationalError) as e:
             logger.warning(f"[PHASE 7] Could not refresh algo_positions_with_risk: {e}")
-            log_phase_result_fn(7, "positions_view_refresh", "warn", f"refresh failed: {str(e)[:60]}")
+            log_phase_result_fn(9, "positions_view_refresh", "warn", f"refresh failed: {str(e)[:60]}")
 
         data = {
             "portfolio_value": result.get("portfolio_value") if reconciliation_succeeded else 0,
@@ -481,9 +481,9 @@ def run(
 
         # Return status reflecting whether the core reconciliation succeeded
         phase_status = "ok" if reconciliation_succeeded else "error"
-        return PhaseResult(7, "reconciliation", phase_status, data, False, None)
+        return PhaseResult(9, "reconciliation", phase_status, data, False, None)
 
     except (psycopg2.DatabaseError, psycopg2.OperationalError) as e:
         traceback.print_exc()
-        log_phase_result_fn(7, "reconciliation", "error", str(e))
-        return PhaseResult(7, "reconciliation", "error", {}, False, str(e))
+        log_phase_result_fn(9, "reconciliation", "error", str(e))
+        return PhaseResult(9, "reconciliation", "error", {}, False, str(e))

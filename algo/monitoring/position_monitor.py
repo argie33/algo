@@ -43,15 +43,15 @@ class PositionValidationError(Exception):
 class PositionMonitor:
     """Daily position health checker and stop adjuster."""
 
-    def _with_cursor(self, operation, mode="read"):
+    def _with_cursor(self, operation: Any, mode: str = "read") -> Any:
         """Execute operation with cursor via DatabaseContext."""
         with DatabaseContext(mode) as cur:
             return operation(cur)
 
-    def __init__(self, config):
+    def __init__(self, config: Any) -> None:
         self.config = config
 
-    def check_stale_orders(self, current_date=None):
+    def check_stale_orders(self, current_date: Any | None = None) -> dict[str, Any]:
         """Check for orders stuck in pending state >1 hour. Auto-cancel if >2 hours.
 
         Stuck orders = likely API issue or rejection. Orders >2 hours old are auto-cancelled
@@ -214,7 +214,7 @@ class PositionMonitor:
                     }
                 return {"status": "OK", "count": 0}
 
-    def check_sector_concentration(self, current_date=None):
+    def check_sector_concentration(self, current_date: Any | None = None) -> dict[str, Any]:
         """Check if portfolio is overly concentrated in one sector.
 
         Alert if >3 positions in same sector (concentration risk).
@@ -243,7 +243,7 @@ class PositionMonitor:
             except (psycopg2.DatabaseError, psycopg2.OperationalError) as e:
                 return {"status": "ERROR", "error": str(e)}
 
-    def review_positions(self, current_date=None):
+    def review_positions(self, current_date: Any | None = None) -> dict[str, Any]:
         """Review every open position. Returns list of recommendations."""
         if not current_date:
             current_date = _date.today()
@@ -368,7 +368,7 @@ class PositionMonitor:
 
             return recs
 
-    def _evaluate_position(self, row, current_date, cur):
+    def _evaluate_position(self, row: Any, current_date: Any, cur: Any) -> dict[str, Any]:
         (
             trade_id,
             symbol,
@@ -553,7 +553,7 @@ class PositionMonitor:
 
     # ---------- Helpers ----------
 
-    def _cancel_on_alpaca(self, trade_id):
+    def _cancel_on_alpaca(self, trade_id: str) -> dict[str, Any]:
         """Cancel a stale pending order on Alpaca API only (idempotent)."""
         try:
             creds = get_alpaca_credentials()
@@ -661,7 +661,7 @@ class PositionMonitor:
         except (psycopg2.DatabaseError, psycopg2.OperationalError) as db_e:
             raise RuntimeError(f"Failed to cancel and update {trade_id}: {db_e}") from db_e
 
-    def _fetch_current_market(self, symbol, current_date, cur):
+    def _fetch_current_market(self, symbol: str, current_date: Any, cur: Any) -> tuple[float | None, float | None, float | None]:
         """Fetch current price and technical indicators for a symbol.
 
         Raises:

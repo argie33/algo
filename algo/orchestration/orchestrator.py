@@ -194,7 +194,7 @@ class Orchestrator:
                             )
                             return True
 
-                    except Exception as parse_err:
+                    except (ValueError, KeyError) as parse_err:
                         logger.warning(f"[HALT_FLAG] Could not parse triggered_at: {parse_err}")
 
                 reason = response["Item"].get("reason", "Unknown")
@@ -297,9 +297,9 @@ class Orchestrator:
                                             "latest_reason": reason[:100],
                                         },
                                     )
-                                except Exception as alert_err:
+                                except (ValueError, ZeroDivisionError, TypeError) as alert_err:
                                     logger.warning(f"Could not send escalation alert: {alert_err}")
-                    except Exception as escalation_err:
+                    except (ValueError, KeyError) as escalation_err:
                         logger.warning(f"Could not check halt escalation: {escalation_err}")
 
             table.put_item(
@@ -317,7 +317,7 @@ class Orchestrator:
             else:
                 logger.critical(f"[HALT_FLAG_SET] {reason or 'Phase 1 degraded: halt flag activated'}")
             return True
-        except Exception as e:
+        except (psycopg2.DatabaseError, psycopg2.OperationalError, ValueError) as e:
             raise RuntimeError(f"Operation failed: {e}") from e
 
     def _clear_halt_flag(self, reason: str = "") -> bool:
@@ -350,7 +350,7 @@ class Orchestrator:
             )
             logger.info(f"[HALT_FLAG_CLEARED] {reason or 'Phase 1 verified: data is fresh, resuming normal trading'}")
             return True
-        except Exception as e:
+        except (psycopg2.DatabaseError, psycopg2.OperationalError, ValueError) as e:
             raise RuntimeError(f"Operation failed: {e}") from e
 
     def _check_connection_pool_health(self) -> None:
@@ -368,7 +368,7 @@ class Orchestrator:
             if status["stuck_connections_count"] > 0:
                 logger.warning(f"[RDS_POOL] Found {status['stuck_connections_count']} stuck connections")
                 check_stuck_connections()
-        except Exception as e:
+        except (KeyError, ValueError, AttributeError) as e:
             logger.debug(f"Could not check connection pool health: {e}")
 
     def _health_check_diagnostics(self) -> None:
@@ -511,7 +511,7 @@ class Orchestrator:
                     time.sleep(retry_delay_sec)
                     retry_delay_sec *= 1.5
 
-            except Exception as e:
+            except (ValueError, KeyError, AttributeError, psycopg2.DatabaseError, psycopg2.OperationalError) as e:
                 logger.error(f"[TASK_TERMINATION] Attempt {attempt}: Failed to verify task status: {e}")
                 if attempt < max_retries:
                     time.sleep(retry_delay_sec)
@@ -663,7 +663,7 @@ class Orchestrator:
                             task=task_arn,
                             reason="Loader hung beyond timeout before next orchestrator run",
                         )
-                    except Exception as stop_err:
+                    except (ValueError, KeyError, AttributeError) as stop_err:
                         logger.error(f"[TASK_TERMINATION] stop_task() call failed: {stop_err}")
                         failed_terminations.append((loader_name, task_arn, str(stop_err)))
                         continue
@@ -699,10 +699,10 @@ class Orchestrator:
                             ]
                         },
                     )
-                except Exception as alert_err:
+                except (ValueError, ZeroDivisionError, TypeError) as alert_err:
                     logger.error(f"[TASK_TERMINATION] Could not send escalation alert: {alert_err}")
 
-        except Exception as e:
+        except (ValueError, KeyError, AttributeError, psycopg2.DatabaseError, psycopg2.OperationalError) as e:
             logger.warning(f"[OOM_PREVENTION] Could not check/kill long-running loaders: {e}")
             # Don't halt trading for this check - it's advisory
 
@@ -845,7 +845,7 @@ class Orchestrator:
                     "ttl": int(time.time()) + 3600,  # 1-hour TTL
                 }
             )
-        except Exception as e:
+        except (psycopg2.DatabaseError, psycopg2.OperationalError, ValueError) as e:
             logger.debug(f"Failed to write Phase 1 degraded_mode status to DynamoDB: {e}")
 
         # Halt flag lifecycle: always run regardless of informational write success above.
@@ -856,7 +856,7 @@ class Orchestrator:
                 self._set_halt_flag(f"Phase 1 degraded: {result.summary}")
             elif result.status == "ok":
                 self._clear_halt_flag(f"Phase 1 verified data is fresh at {datetime.now(timezone.utc).isoformat()}")
-        except Exception as e:
+        except (ValueError, KeyError, AttributeError) as e:
             logger.warning(f"Failed to manage halt flag after Phase 1: {e}")
 
         return not result.halted
@@ -977,7 +977,7 @@ class Orchestrator:
         # Validate constraints schema
         try:
             validate_phase_5_constraints(exposure_constraints)
-        except Exception as e:
+        except (ValueError, KeyError, TypeError) as e:
             raise ValueError(f"[PHASE 7 CRITICAL] Exposure constraints invalid: {e}") from e
 
         result = run_phase7(
@@ -1359,7 +1359,7 @@ class Orchestrator:
                         )
                     else:  # After 10 AM = EOD pipeline
                         metrics.add_metric("eod_pipeline_seconds", total_elapsed, unit="Seconds")
-            except Exception as e:
+            except (ValueError, ZeroDivisionError, TypeError) as e:
                 logger.debug(f"Could not emit pipeline timing metrics: {e}")
 
             return cast(dict[str, Any], self._final_report())
@@ -1409,7 +1409,7 @@ class Orchestrator:
                 halt_reason = None
 
             self.execution_tracker.save_execution_log(overall_status, halt_reason)
-        except Exception as e:
+        except (ValueError, ZeroDivisionError, TypeError) as e:
             logger.warning(f"[EXECUTION_LOG] Failed to save execution log: {e}")
 
         # Publish CloudWatch metrics (non-blocking — never let metrics interrupt trading)

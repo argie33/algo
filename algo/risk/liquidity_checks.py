@@ -6,9 +6,11 @@ Ensures entry can be executed with adequate liquidity and reasonable spreads.
 
 import logging
 from datetime import timedelta
+from typing import Any
 
 import psycopg2
 
+from algo.infrastructure.config import AlgoConfig
 from utils.db import DatabaseContext
 
 
@@ -18,7 +20,7 @@ logger = logging.getLogger(__name__)
 class LiquidityChecks:
     """Verify sufficient liquidity and spreads for trade execution."""
 
-    def __init__(self, config: dict):
+    def __init__(self, config: AlgoConfig | dict[str, Any]):
         self.config = config
         min_adv_shares_val = config.get("min_adv_shares")
         min_adv_dollars_val = config.get("min_adv_dollars")
