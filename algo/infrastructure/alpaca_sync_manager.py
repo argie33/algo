@@ -33,6 +33,7 @@ class AlpacaSyncManager:
         Returns account details: equity, cash, portfolio_value, etc.
         """
         import requests
+        from typing import cast
 
         try:
             url = f"{self._alpaca_base_url}/v2/account"
@@ -42,7 +43,7 @@ class AlpacaSyncManager:
             }
             response = requests.get(url, headers=headers, timeout=10)
             response.raise_for_status()
-            return response.json()
+            return cast(dict[str, Any], response.json())
         except (requests.RequestException, ValueError) as e:
             logger.error(f"Failed to fetch Alpaca account: {e}")
             return {}

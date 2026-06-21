@@ -18,6 +18,7 @@ Metrics computed:
 import json
 import logging
 from datetime import date, datetime, timezone
+from decimal import ROUND_HALF_UP, Decimal
 from pathlib import Path
 from typing import Any
 
@@ -27,6 +28,13 @@ from utils.safe_data_conversion import safe_float
 
 
 logger = logging.getLogger(__name__)
+
+
+def _dec_round(val, places):
+    if val is None or val == 0:
+        return 0.0
+    d = Decimal(str(val))
+    return float(d.quantize(Decimal(10) ** -places, rounding=ROUND_HALF_UP))
 
 
 class LivePerformance:
@@ -62,7 +70,7 @@ class LivePerformance:
             if len(rows) < 30:
                 return None
 
-            values = [safe_float(row[1], context=f"portfolio_value from row {i}") for i, row in enumerate(rows)]
+            values = [safe_float(row[1], default=0.0, context=f"portfolio_value from row {i}") for i, row in enumerate(rows)]
             daily_returns = [(values[i] - values[i - 1]) / values[i - 1] if values[i - 1] > 0 else 0.0 for i in range(1, len(values))]
 
             return MetricsCalculator.calculate_sharpe_ratio(daily_returns)
@@ -136,13 +144,13 @@ class LivePerformance:
             win_rate_pct = (win_count / total * 100) if total > 0 else 0
 
             return {
-                "win_rate_pct": round(win_rate_pct, 2),
+                "win_rate_pct": _dec_round(win_rate_pct, 2),
                 "win_count": int(win_count),
                 "loss_count": int(loss_count),
-                "avg_win_pct": round(avg_win_pct, 3),
-                "avg_loss_pct": round(avg_loss_pct, 3),
-                "avg_win_r": round(avg_win_r, 3),
-                "avg_loss_r": round(avg_loss_r, 3),
+                "avg_win_pct": _dec_round(avg_win_pct, 3),
+                "avg_loss_pct": _dec_round(avg_loss_pct, 3),
+                "avg_win_r": _dec_round(avg_win_r, 3),
+                "avg_loss_r": _dec_round(avg_loss_r, 3),
             }
         except (ValueError, ZeroDivisionError, TypeError) as e:
             raise RuntimeError(f"Operation failed: {e}") from e
@@ -167,7 +175,7 @@ class LivePerformance:
             avg_loss_r = wr["avg_loss_r"]
 
             expectancy = (win_rate * avg_win_r) - (loss_rate * avg_loss_r)
-            return round(expectancy, 4)
+            return _dec_round(expectancy, 4)
         except (ValueError, ZeroDivisionError, TypeError) as e:
             raise RuntimeError(f"Operation failed: {e}") from e
 
@@ -215,7 +223,7 @@ class LivePerformance:
             if len(rows) < 30:
                 return None
 
-            values = [safe_float(r[0], context=f"portfolio_value from row {i}") for i, r in enumerate(rows)]
+            values = [safe_float(r[0], default=0.0, context=f"portfolio_value from row {i}") for i, r in enumerate(rows)]
             daily_returns = [(values[i] - values[i - 1]) / values[i - 1] if values[i - 1] > 0 else 0.0 for i in range(1, len(values))]
 
             return MetricsCalculator.calculate_sortino_ratio(daily_returns)

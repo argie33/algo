@@ -246,6 +246,15 @@ class SectorRotationDetector:
                 )
                 details_json = json.dumps({"error": "JSON serialization failed", "timestamp": str(eval_date)})
 
+            # Validate required fields before persisting
+            if "defensive_lead_score" not in result:
+                raise ValueError(f"Sector rotation result missing required 'defensive_lead_score' field for {eval_date}")
+
+            try:
+                defensive_score = float(result["defensive_lead_score"])
+            except (ValueError, TypeError) as e:
+                raise ValueError(f"defensive_lead_score invalid for {eval_date}: {result['defensive_lead_score']}") from e
+
             with DatabaseContext("write") as cur:
                 cur.execute(
                     """INSERT INTO sector_rotation_signal
@@ -260,7 +269,7 @@ class SectorRotationDetector:
                         eval_date,
                         "market_rotation",
                         result["signal"],
-                        round(result.get("defensive_lead_score", 0) / 100.0, 4),
+                        round(defensive_score / 100.0, 4),
                         1,
                         details_json,
                     ),

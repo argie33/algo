@@ -469,10 +469,10 @@ class MarketExposure:
 
             result = {
                 "eval_date": str(eval_date),
-                "raw_score": round(score, 1),
-                "available_factors_max": round(avail_max, 1),
-                "capped_score": round(final, 1),
-                "exposure_pct": round(final, 1),
+                "raw_score": _precise_round(score, 1),
+                "available_factors_max": _precise_round(avail_max, 1),
+                "capped_score": _precise_round(final, 1),
+                "exposure_pct": _precise_round(final, 1),
                 "regime": regime,
                 "halt_reasons": halt_reasons,
                 "distribution_days": sp_count,
