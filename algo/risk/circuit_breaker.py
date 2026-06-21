@@ -82,6 +82,22 @@ def _float(value, default=None, context=""):
 class CircuitBreaker:
     """Pre-trade kill-switch checks."""
 
+    _check_registry = [
+        "daily_loss",
+        "drawdown",
+        "drawdown_re_engagement",
+        "consecutive_losses",
+        "total_risk",
+        "vix_spike",
+        "market_stage",
+        "weekly_loss",
+        "sector_concentration",
+        "intraday_market_health",
+        "win_rate_floor",
+        "daily_profit_cap",
+        "data_freshness",
+    ]
+
     def __init__(self, config: AlgoConfig | dict[str, Any]) -> None:
         self.config = config
 
@@ -98,22 +114,9 @@ class CircuitBreaker:
                     "checks": {},
                 }
 
-                for name, fn in [
-                    ("daily_loss", self._check_daily_loss),
-                    ("drawdown", self._check_drawdown),
-                    ("drawdown_re_engagement", self._check_drawdown_re_engagement),
-                    ("consecutive_losses", self._check_consecutive_losses),
-                    ("total_risk", self._check_total_risk),
-                    ("vix_spike", self._check_vix_spike),
-                    ("market_stage", self._check_market_stage),
-                    ("weekly_loss", self._check_weekly_loss),
-                    ("sector_concentration", self._check_sector_concentration),
-                    ("intraday_market_health", self._check_intraday_market_health),
-                    ("win_rate_floor", self._check_win_rate_floor),
-                    ("daily_profit_cap", self._check_daily_profit_cap),
-                    ("data_freshness", self._check_data_freshness),
-                ]:
+                for check_name in self._check_registry:
                     try:
+                        fn = getattr(self, f"_check_{check_name}")
                         state = fn(current_date, cur)
                     except (psycopg2.DatabaseError, psycopg2.OperationalError) as e:
                         import traceback
@@ -122,19 +125,19 @@ class CircuitBreaker:
                         error_type = type(e).__name__
 
                         # Log full traceback for debugging
-                        logger.error(f"Circuit breaker {name} raised {error_type}: {e}")
+                        logger.error(f"Circuit breaker {check_name} raised {error_type}: {e}")
                         logger.error(f"Full traceback:\n{tb}")
 
                         # All check failures result in fail-closed halt.
                         # If a safety check cannot be verified, trading must halt.
                         # Do NOT skip checks with "transient" claims — that masks data loss.
-                        logger.critical(f"Circuit breaker {name} FAILED - HALTING TRADING: {error_type}: {e}")
+                        logger.critical(f"Circuit breaker {check_name} FAILED - HALTING TRADING: {error_type}: {e}")
                         state = {
                             "halted": True,
                             "reason": f"check error ({error_type}: {e})",
                         }
-                    state["label"] = CHECK_LABELS.get(name, name)
-                    results["checks"][name] = state
+                    state["label"] = CHECK_LABELS.get(check_name, check_name)
+                    results["checks"][check_name] = state
                     if state.get("halted"):
                         results["halted"] = True
                         results["halt_reasons"].append(f"{state['label']}: {state['reason']}")
