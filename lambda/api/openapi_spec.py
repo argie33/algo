@@ -70,8 +70,8 @@ def generate_openapi_spec():
     return spec
 
 
-def _get_paths():
-    """Generate API paths for all endpoints."""
+def _build_path_health() -> dict:
+    """Build health check endpoints."""
     return {
         "/api/health": {
             "get": {
@@ -128,6 +128,12 @@ def _get_paths():
                 },
             }
         },
+    }
+
+
+def _build_path_stocks() -> dict:
+    """Build stock data endpoints."""
+    return {
         "/api/stocks/{symbol}": {
             "get": {
                 "tags": ["Stocks"],
@@ -181,6 +187,12 @@ def _get_paths():
                 },
             }
         },
+    }
+
+
+def _build_path_signals() -> dict:
+    """Build signal endpoints."""
+    return {
         "/api/signals": {
             "get": {
                 "tags": ["Signals"],
@@ -242,6 +254,12 @@ def _get_paths():
                 "responses": {"200": {"description": "ETF signals"}},
             }
         },
+    }
+
+
+def _build_path_financials() -> dict:
+    """Build financial statement endpoints."""
+    return {
         "/api/financials/{symbol}/key-metrics": {
             "get": {
                 "tags": ["Financials"],
@@ -348,6 +366,12 @@ def _get_paths():
                 "responses": {"200": {"description": "Cash flow statement data"}},
             }
         },
+    }
+
+
+def _build_path_sectors_industries() -> dict:
+    """Build sector and industry endpoints."""
+    return {
         "/api/sectors": {
             "get": {
                 "tags": ["Sectors & Industries"],
@@ -364,6 +388,12 @@ def _get_paths():
                 "responses": {"200": {"description": "List of industries"}},
             }
         },
+    }
+
+
+def _build_path_prices() -> dict:
+    """Build price data endpoints."""
+    return {
         "/api/prices/{symbol}": {
             "get": {
                 "tags": ["Prices"],
@@ -386,6 +416,12 @@ def _get_paths():
                 "responses": {"200": {"description": "Historical price data"}},
             }
         },
+    }
+
+
+def _build_path_market() -> dict:
+    """Build market data endpoints."""
+    return {
         "/api/market": {
             "get": {
                 "tags": ["Market"],
@@ -394,6 +430,12 @@ def _get_paths():
                 "responses": {"200": {"description": "Market overview"}},
             }
         },
+    }
+
+
+def _build_path_earnings() -> dict:
+    """Build earnings endpoints."""
+    return {
         "/api/earnings": {
             "get": {
                 "tags": ["Earnings"],
@@ -402,6 +444,12 @@ def _get_paths():
                 "responses": {"200": {"description": "Earnings data"}},
             }
         },
+    }
+
+
+def _build_path_economic() -> dict:
+    """Build economic data endpoints."""
+    return {
         "/api/economic": {
             "get": {
                 "tags": ["Economic"],
@@ -410,6 +458,12 @@ def _get_paths():
                 "responses": {"200": {"description": "Economic indicators"}},
             }
         },
+    }
+
+
+def _build_path_scores() -> dict:
+    """Build stock scoring endpoints."""
+    return {
         "/api/scores": {
             "get": {
                 "tags": ["Scores & Rankings"],
@@ -426,6 +480,12 @@ def _get_paths():
                 "responses": {"200": {"description": "Stock scores"}},
             }
         },
+    }
+
+
+def _build_path_trades() -> dict:
+    """Build trade endpoints."""
+    return {
         "/api/trades": {
             "get": {
                 "tags": ["Trades"],
@@ -493,6 +553,12 @@ def _get_paths():
                 },
             }
         },
+    }
+
+
+def _build_path_algo() -> dict:
+    """Build algo trading endpoints."""
+    return {
         "/api/algo/preview": {
             "post": {
                 "tags": ["Algo", "Trading"],
@@ -536,6 +602,12 @@ def _get_paths():
                 },
             }
         },
+    }
+
+
+def _build_path_admin() -> dict:
+    """Build admin endpoints."""
+    return {
         "/api/admin/verify-user-email": {
             "post": {
                 "tags": ["Admin"],
@@ -571,6 +643,12 @@ def _get_paths():
                 },
             }
         },
+    }
+
+
+def _build_path_contact() -> dict:
+    """Build contact form endpoints."""
+    return {
         "/api/contact": {
             "post": {
                 "tags": ["Contact"],
@@ -626,6 +704,12 @@ def _get_paths():
                 },
             }
         },
+    }
+
+
+def _build_path_settings() -> dict:
+    """Build settings endpoints."""
+    return {
         "/api/settings": {
             "get": {
                 "tags": ["Settings"],
@@ -655,6 +739,12 @@ def _get_paths():
                 "responses": {"200": {"description": "Settings updated"}},
             },
         },
+    }
+
+
+def _build_path_data_coverage() -> dict:
+    """Build data coverage endpoints."""
+    return {
         "/api/data-coverage": {
             "get": {
                 "tags": ["Data Coverage"],
@@ -663,6 +753,12 @@ def _get_paths():
                 "responses": {"200": {"description": "Data coverage status"}},
             }
         },
+    }
+
+
+def _build_path_api_docs() -> dict:
+    """Build API documentation endpoints."""
+    return {
         "/api/openapi.json": {
             "get": {
                 "tags": ["API Documentation"],
@@ -706,6 +802,29 @@ def _get_paths():
             }
         },
     }
+
+
+def _get_paths():
+    """Generate API paths for all endpoints by dispatching to builder functions."""
+    paths = {}
+    paths.update(_build_path_health())
+    paths.update(_build_path_stocks())
+    paths.update(_build_path_signals())
+    paths.update(_build_path_financials())
+    paths.update(_build_path_sectors_industries())
+    paths.update(_build_path_prices())
+    paths.update(_build_path_market())
+    paths.update(_build_path_earnings())
+    paths.update(_build_path_economic())
+    paths.update(_build_path_scores())
+    paths.update(_build_path_trades())
+    paths.update(_build_path_algo())
+    paths.update(_build_path_admin())
+    paths.update(_build_path_contact())
+    paths.update(_build_path_settings())
+    paths.update(_build_path_data_coverage())
+    paths.update(_build_path_api_docs())
+    return paths
 
 
 def _get_schemas():
