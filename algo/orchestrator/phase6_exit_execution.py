@@ -93,6 +93,12 @@ def run(
         # 4a-prime. Apply exposure-policy actions FIRST (highest priority)
         for action in exposure_actions:
             try:
+                if "symbol" not in action or "action" not in action or "reason" not in action:
+                    raise RuntimeError(
+                        "[PHASE 6] Exposure action missing required fields (symbol, action, reason). "
+                        "Cannot execute without all three identifiers. "
+                        "Verify exposure_policy phase produced valid action data."
+                    )
                 if dry_run:
                     if verbose:
                         logger.info(f"  [DRY-RUN] {action['symbol']}: {action['action'].upper()} ({action['reason']})")
@@ -174,11 +180,18 @@ def run(
                         logger.error(f"  Tighten failed for {action['symbol']}: {e}")
             except (RuntimeError, ValueError, TypeError, AttributeError) as e:
                 errors += 1
-                logger.error(f"  Error on exposure action {action.get('symbol')}: {e}")
+                symbol = action.get("symbol", "UNKNOWN")
+                logger.error(f"  Error on exposure action {symbol}: {e}")
 
         # 4a. Apply position monitor recommendations (early exits + stop raises)
         for rec in position_recs:
             try:
+                if "symbol" not in rec or "action" not in rec:
+                    raise RuntimeError(
+                        "[PHASE 6] Position recommendation missing required fields (symbol, action). "
+                        "Cannot execute without both identifiers. "
+                        "Verify position_monitor phase produced valid recommendation data."
+                    )
                 if dry_run:
                     if verbose:
                         logger.info(f"  [DRY-RUN] {rec['symbol']}: {rec['action']} ({rec['action_reason']})")
@@ -224,7 +237,8 @@ def run(
                         logger.error(f"  Stop-raise failed for {rec['symbol']}: {e}")
             except (RuntimeError, ValueError, TypeError, AttributeError) as e:
                 errors += 1
-                logger.error(f"  Error on {rec.get('symbol')}: {e}")
+                symbol = rec.get("symbol", "UNKNOWN")
+                logger.error(f"  Error on {symbol}: {e}")
 
         # 4b. Exit engine — tiered targets, stops, time, Minervini break
         if not dry_run:

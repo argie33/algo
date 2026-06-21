@@ -82,7 +82,13 @@ def _validate_signal_completeness(candidates: list[dict], source: str) -> tuple[
     incomplete_signals = []
 
     for sig in candidates:
-        symbol = sig.get("symbol", "UNKNOWN")
+        if "symbol" not in sig or not sig["symbol"]:
+            raise ValueError(
+                "[PHASE 5] Signal missing symbol. "
+                "Cannot generate trading signal without stock symbol. "
+                "Verify upstream phases produced valid signal data."
+            )
+        symbol = sig["symbol"]
         missing_fields = []
         for field_name, _field_type in _REQUIRED_SIGNAL_FIELDS.items():
             val = sig.get(field_name)
@@ -356,15 +362,7 @@ def _get_candidates_from_buysell(
             f"SQL filters: trend & close_quality applied at query level)"
         )
 
-        complete_candidates, incomplete_count = _validate_signal_completeness(candidates, "buy_sell_daily path")
-
-        if incomplete_count > 0:
-            logger.warning(
-                f"[PHASE 5 DATA LOSS ALERT] {incomplete_count} incomplete signals FILTERED OUT from {len(candidates)} candidates. "
-                f"Complete signals delivered to Phase 6: {len(complete_candidates)}. "
-                f"Data loss: {incomplete_count / max(1, len(candidates)) * 100:.0f}% of input signals discarded."
-            )
-
+        complete_candidates, _ = _validate_signal_completeness(candidates, "buy_sell_daily path")
         return complete_candidates
     except (ValueError, ZeroDivisionError, TypeError) as e:
         raise RuntimeError(
@@ -569,15 +567,6 @@ def run(
             f"[PHASE 5] Upstream data quality drift detected: {upstream_drift['swing_scores_missing']} symbols "
             f"missing swing_trader_scores. This may suppress valid candidates."
         )
-
-    # Validate all signals have composite_score before sorting
-    missing_score = [s.get("symbol") for s in quality_filtered if "composite_score" not in s or s.get("composite_score") is None]
-    if missing_score:
-        logger.warning(f"Signals missing composite_score (will be excluded): {missing_score}")
-        quality_filtered = [s for s in quality_filtered if s.get("composite_score") is not None]
-        if not quality_filtered:
-            logger.warning("[PHASE 7] No signals have valid composite_score - aborting signal generation")
-            return Phase7Result(status="degraded", data={"qualified_trades": [], "reason": "No valid signal scores"})
 
     # Sort by composite_score descending
     quality_filtered.sort(key=lambda s: float(s["composite_score"]), reverse=True)

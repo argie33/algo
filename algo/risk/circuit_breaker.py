@@ -1,6 +1,3 @@
-import psycopg2
-
-
 #!/usr/bin/env python3
 
 """
@@ -33,7 +30,10 @@ from datetime import date as _date
 from datetime import datetime, timedelta
 from typing import Any
 
+import psycopg2
+
 from utils.db import DatabaseContext
+from utils.safe_data_conversion import safe_float
 from utils.trading import PositionStatus, TradeStatus
 
 
@@ -214,9 +214,10 @@ class CircuitBreaker:
         if row is None or row[0] is None or row[1] is None:
             return {"halted": False, "reason": "No halt history"}
 
-        peak = safe_float(row[0], default=0.0, context="row[0]")
-        cur_val = safe_float(row[1], default=0.0, context="row[1]")
-        if peak <= 0 or cur_val <= 0:
+        peak = safe_float(row[0], default=None, context="row[0]")
+        cur_val = safe_float(row[1], default=None, context="row[1]")
+        if peak is None or cur_val is None or peak <= 0 or cur_val <= 0:
+            logger.warning("Portfolio values missing/invalid for re-engagement check")
             return {"halted": False, "reason": "Invalid values"}
 
         dd = (peak - cur_val) / peak * 100.0

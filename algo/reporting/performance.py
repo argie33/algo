@@ -69,7 +69,12 @@ class LivePerformance:
             if len(rows) < 30:
                 return None
 
-            values = [safe_float(row[1], default=0.0, context=f"portfolio_value from row {i}") for i, row in enumerate(rows)]
+            values = []
+            for i, row in enumerate(rows):
+                val = safe_float(row[1], default=None, context=f"portfolio_value from row {i}")
+                if val is None:
+                    raise ValueError(f"Portfolio snapshot {i} has missing/invalid value")
+                values.append(val)
             daily_returns = [(values[i] - values[i - 1]) / values[i - 1] if values[i - 1] > 0 else 0.0 for i in range(1, len(values))]
 
             return MetricsCalculator.calculate_sharpe_ratio(daily_returns)
@@ -135,10 +140,21 @@ class LivePerformance:
             ) = row
             win_count = win_count
             loss_count = loss_count
-            avg_win_r = safe_float(avg_win_r, default=0.0, context="avg_win_r")
-            avg_loss_r = abs(safe_float(avg_loss_r, default=0.0, context="avg_loss_r"))
-            avg_win_pct = safe_float(avg_win_pct, default=0.0, context="avg_win_pct")
-            avg_loss_pct = safe_float(avg_loss_pct, default=0.0, context="avg_loss_pct")
+            avg_win_r = safe_float(avg_win_r, default=None, context="avg_win_r")
+            avg_loss_r_val = safe_float(avg_loss_r, default=None, context="avg_loss_r")
+            avg_win_pct = safe_float(avg_win_pct, default=None, context="avg_win_pct")
+            avg_loss_pct = safe_float(avg_loss_pct, default=None, context="avg_loss_pct")
+
+            if avg_win_r is None:
+                avg_win_r = 0.0
+            if avg_loss_r_val is None:
+                avg_loss_r = 0.0
+            else:
+                avg_loss_r = abs(avg_loss_r_val)
+            if avg_win_pct is None:
+                avg_win_pct = 0.0
+            if avg_loss_pct is None:
+                avg_loss_pct = 0.0
 
             win_rate_pct = (win_count / total * 100) if total > 0 else 0
 
@@ -196,7 +212,12 @@ class LivePerformance:
             if len(rows) < 2:
                 return None
 
-            values = [safe_float(row[1], context=f"portfolio_value from row {i}") for i, row in enumerate(rows)]
+            values = []
+            for i, row in enumerate(rows):
+                val = safe_float(row[1], default=None, context=f"portfolio_value from row {i}")
+                if val is None:
+                    raise ValueError(f"Portfolio snapshot {i} has missing/invalid value for max_drawdown calculation")
+                values.append(val)
             return MetricsCalculator.calculate_max_drawdown(values)
         except (psycopg2.DatabaseError, psycopg2.OperationalError) as e:
             raise RuntimeError(f"Operation failed: {e}") from e
@@ -249,7 +270,7 @@ class LivePerformance:
             if len(rows) < 30:
                 return None
 
-            values = [safe_float(r[0], context=f"portfolio_value from row {i}") for i, r in enumerate(rows)]
+            values = [safe_float(r[0], default=0.0, context=f"portfolio_value from row {i}") for i, r in enumerate(rows)]
             return MetricsCalculator.calculate_calmar_ratio(values)
         except (psycopg2.DatabaseError, psycopg2.OperationalError) as e:
             raise RuntimeError(f"Operation failed: {e}") from e

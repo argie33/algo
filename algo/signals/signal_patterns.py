@@ -122,10 +122,7 @@ class SignalPatternsMixin:
             }
 
         try:
-            return self._with_cursor(_fetch_and_analyze) or {
-                "in_base": False,
-                "reason": "Database error",
-            }
+            return self._with_cursor(_fetch_and_analyze)  # type: ignore[no-any-return]
         except (ValueError, TypeError, IndexError) as e:
             logger.debug(f"Base detection error for {symbol}: {e}")
             return {"in_base": False, "reason": f"Calculation error: {str(e)[:50]}"}
@@ -194,7 +191,7 @@ class SignalPatternsMixin:
                 "tight_pattern": tight_pattern,
             }
 
-        return self._with_cursor(_analyze_vcp) or {"is_vcp": False, "contractions": 0}
+        return self._with_cursor(_analyze_vcp)  # type: ignore[no-any-return]
 
     def classify_base_type(self, symbol: str, eval_date) -> dict[str, Any]:
         """
@@ -336,11 +333,7 @@ class SignalPatternsMixin:
                 **characteristics,
             }
 
-        return self._with_cursor(_classify_with_cursor) or {
-            "type": "no_base",
-            "quality": "D",
-            "characteristics": base_info,
-        }
+        return self._with_cursor(_classify_with_cursor)  # type: ignore[no-any-return]
 
     def base_type_stop(self, symbol: str, eval_date, entry_price: float, atr: float | None = None) -> dict[str, Any]:
         """Compute optimal stop loss based on the SPECIFIC base type detected.
@@ -505,14 +498,7 @@ class SignalPatternsMixin:
                 "risk_pct": round((entry_price - candidate) / entry_price * 100, 2),
             }
 
-        return self._with_cursor(_compute_stop) or {
-            "stop_price": entry_price * 0.93,
-            "method": "sanity_fallback_7pct",
-            "reasoning": "Database error",
-            "base_type": base_type,
-            "risk_per_share": round(entry_price * 0.07, 2),
-            "risk_pct": 7.0,
-        }
+        return self._with_cursor(_compute_stop)  # type: ignore[no-any-return]
 
     def three_weeks_tight(self, symbol: str, eval_date) -> dict[str, Any]:
         """

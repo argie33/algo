@@ -49,9 +49,15 @@ def run(
                 open_positions = []
             halts_found = []
             for pos in open_positions:
-                halt_check = meh.check_single_stock_halt(pos.get("symbol") or pos.get("name", ""))
+                if "symbol" not in pos and "name" not in pos:
+                    raise RuntimeError(
+                        "[PHASE 3] Position missing both symbol and name. "
+                        "At least one identifier is required. "
+                        "Verify PositionMonitor.get_open_positions() returns valid position data."
+                    )
+                symbol = pos.get("symbol") or pos.get("name")
+                halt_check = meh.check_single_stock_halt(symbol)
                 if halt_check and halt_check.get("halted"):
-                    symbol = pos.get("symbol") or pos.get("name", "")
                     halts_found.append(symbol)
                     if verbose:
                         logger.warning(f"  [WARN] {symbol} halted — pending orders cancelled")

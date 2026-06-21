@@ -48,9 +48,18 @@ class SignalMomentumMixin:
 
             # Reverse to chronological order
             rows = list(reversed(rows))
-            closes = [safe_float(r[3], default=0.0, context="r[3]") for r in rows]
-            highs = [safe_float(r[1], default=0.0, context="r[1]") for r in rows]
-            lows = [safe_float(r[2], default=0.0, context="r[2]") for r in rows]
+            closes = []
+            highs = []
+            lows = []
+            for r in rows:
+                c = safe_float(r[3], default=None, context="close")
+                h = safe_float(r[1], default=None, context="high")
+                l = safe_float(r[2], default=None, context="low")
+                if c is None or h is None or l is None:
+                    raise ValueError(f"Price data missing for {symbol}: close={c}, high={h}, low={l}")
+                closes.append(c)
+                highs.append(h)
+                lows.append(l)
             dates = [r[0] for r in rows]
 
             # Walk forward, tracking sell-setup and buy-setup independently
@@ -152,12 +161,7 @@ class SignalMomentumMixin:
                 "combo_13_complete": combo_13_complete,
             }
 
-        return self._with_cursor(_fetch_data) or {
-            "setup_count": 0,
-            "setup_type": None,
-            "completed_9": False,
-            "perfected": False,
-        }
+        return self._with_cursor(_fetch_data)  # type: ignore[no-any-return]
 
     def power_trend(self, symbol: str, eval_date) -> dict[str, Any]:
         """
@@ -179,7 +183,7 @@ class SignalMomentumMixin:
                 "return_21d": round(ret_21 * 100, 2) if ret_21 is not None else None,
             }
 
-        return self._with_cursor(_compute) or {"power_trend": False, "return_21d": None}
+        return self._with_cursor(_compute)  # type: ignore[no-any-return]
 
     def pivot_breakout(self, symbol: str, eval_date) -> dict[str, Any]:
         """
@@ -220,7 +224,7 @@ class SignalMomentumMixin:
             }
 
         try:
-            return self._with_cursor(_check_pivot) or {"breakout": False}
+            return self._with_cursor(_check_pivot)  # type: ignore[no-any-return]
         except (ValueError, ZeroDivisionError, TypeError) as e:
             logger.debug(f"Pivot breakout check failed: {e}")
             return {"breakout": False}
@@ -303,7 +307,7 @@ class SignalMomentumMixin:
 
             return {"pocket_pivot": False}
 
-        return self._with_cursor(_check_pocket) or {"pocket_pivot": False}
+        return self._with_cursor(_check_pocket)  # type: ignore[no-any-return]
 
     def distribution_days(self, symbol: str, eval_date, lookback: int = 25) -> int:
         """

@@ -110,13 +110,13 @@ class SignalTradePerformancePopulator:
                             pts = comp_data.get("pts")
                             max_pts = comp_data.get("max")
                             if pts is None or max_pts is None:
-                                logger.warning(f"Component {comp_name} missing pts or max for trade_id {trade_id}")
+                                logger.warning(f"Component {comp_name} missing pts or max for trade_id {trade_id_int}")
                                 continue
                             try:
                                 pts = float(pts)
                                 max_pts = float(max_pts)
                             except (ValueError, TypeError) as e:
-                                logger.warning(f"Component {comp_name} type conversion failed for trade_id {trade_id}: {e}")
+                                logger.warning(f"Component {comp_name} type conversion failed for trade_id {trade_id_int}: {e}")
                                 continue
                             normalized_score = (pts / max_pts) if max_pts > 0 else 0
                             component_scores[comp_name] = normalized_score
