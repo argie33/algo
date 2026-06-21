@@ -33,6 +33,7 @@ class MarketHealthDailyLoader(OptimalLoader):
     REQUIRED DATA: Market breadth (A/D ratio, new highs/lows)
     OPTIONAL ENRICHMENTS: VIX, put/call ratio, yield curve (missing is OK, computation continues)
     """
+
     table_name = "market_health_daily"
     primary_key = ("date",)
     watermark_field = "date"
@@ -58,6 +59,30 @@ class MarketHealthDailyLoader(OptimalLoader):
             failure_threshold=3,
             recovery_timeout_sec=300,
             importance=DataImportance.OPTIONAL,
+        )
+
+    def fetch_vix_with_breaker(self, start: date, end: date) -> dict:
+        """Fetch VIX data with circuit breaker protection (OPTIONAL enrichment)."""
+        return self._vix_breaker.execute(
+            fetch_func=lambda: self._fetch_vix_data(start, end),
+            importance=DataImportance.OPTIONAL,
+            fallback_value={},
+        )
+
+    def fetch_put_call_with_breaker(self, eval_date: date) -> float | None:
+        """Fetch put/call ratio with circuit breaker protection (OPTIONAL enrichment)."""
+        return self._put_call_breaker.execute(
+            fetch_func=lambda: self._fetch_put_call_ratio(eval_date),
+            importance=DataImportance.OPTIONAL,
+            fallback_value=None,
+        )
+
+    def fetch_yield_curve_with_breaker(self, start: date, end: date) -> dict:
+        """Fetch yield curve data with circuit breaker protection (OPTIONAL enrichment)."""
+        return self._yield_curve_breaker.execute(
+            fetch_func=lambda: self._fetch_yield_curve_data(start, end),
+            importance=DataImportance.OPTIONAL,
+            fallback_value={},
         )
 
     def fetch_incremental(self, symbol: str = "SPY", since: date | None = None):
@@ -94,11 +119,7 @@ class MarketHealthDailyLoader(OptimalLoader):
                             )
                             since = None
                         else:
-                            since = (
-                                row[0]
-                                if isinstance(row[0], date)
-                                else date.fromisoformat(str(row[0]))
-                            )
+                            since = row[0] if isinstance(row[0], date) else date.fromisoformat(str(row[0]))
             except (psycopg2.DatabaseError, psycopg2.OperationalError) as e:
                 raise RuntimeError(
                     f"[MARKET_HEALTH] Failed to read watermark from market_health_daily: {e}. "
@@ -243,11 +264,7 @@ class MarketHealthDailyLoader(OptimalLoader):
             low_values = []
 
             for idx, row in df.iterrows():
-                date_str = (
-                    idx.strftime("%Y-%m-%d")
-                    if hasattr(idx, "strftime")
-                    else str(idx)[:10]
-                )
+                date_str = idx.strftime("%Y-%m-%d") if hasattr(idx, "strftime") else str(idx)[:10]
                 close_val = row.get("Close") if hasattr(row, "get") else row["Close"]
                 is_nan = isinstance(close_val, float) and close_val != close_val
 
@@ -282,15 +299,14 @@ class MarketHealthDailyLoader(OptimalLoader):
                         "This may indicate a data feed issue. Check yfinance directly."
                     )
                 else:
-                    logger.info(
-                        f"[VIX] Fetched {len(result)} values, {low_value_count} were < 5.0 (low volatility)"
-                    )
+                    logger.info(f"[VIX] Fetched {len(result)} values, {low_value_count} were < 5.0 (low volatility)")
 
             return result
         except (ValueError, ZeroDivisionError, TypeError) as e:
             raise RuntimeError(
                 f"[VIX] Failed to fetch VIX data: {type(e).__name__}: {e}. "
-                "VIX data is authoritative for market health computation.") from None
+                "VIX data is authoritative for market health computation."
+            ) from None
 
     def _fetch_put_call_ratio(self, eval_date: date) -> float | None:
         """Compute put/call ratio from SPY options chain volume via yfinance.
@@ -310,8 +326,7 @@ class MarketHealthDailyLoader(OptimalLoader):
             ticker = YFinanceWrapper.get_ticker("SPY")
             if not ticker:
                 raise RuntimeError(
-                    "Put/call: could not get SPY ticker from yfinance. "
-                    "Cannot compute put/call ratio for market health."
+                    "Put/call: could not get SPY ticker from yfinance. Cannot compute put/call ratio for market health."
                 )
 
             # ticker.options makes an outbound request - run through the rate limiter
@@ -363,8 +378,7 @@ class MarketHealthDailyLoader(OptimalLoader):
             raise
         except (ValueError, ZeroDivisionError, TypeError) as e:
             raise RuntimeError(
-                f"[PUT_CALL] Failed to compute put/call ratio: {e}. "
-                "This metric is authoritative for market health."
+                f"[PUT_CALL] Failed to compute put/call ratio: {e}. This metric is authoritative for market health."
             ) from None
 
     def _fetch_yield_curve_data(self, start: date, end: date) -> dict:
@@ -474,9 +488,7 @@ class MarketHealthDailyLoader(OptimalLoader):
                     if r[4] is None or r[5] is None:
                         raise ValueError(f"New highs/lows data missing for {r[0]}")
                     result[r[0].isoformat()] = {
-                        "advance_decline_ratio": (
-                            float(r[3]) if r[3] is not None else 1.0
-                        ),
+                        "advance_decline_ratio": (float(r[3]) if r[3] is not None else 1.0),
                         "new_highs_count": int(r[4]),
                         "new_lows_count": int(r[5]),
                     }
@@ -518,9 +530,7 @@ class MarketHealthDailyLoader(OptimalLoader):
             return []
         # Warn if we have fewer than 20 rows but still process them (can happen at startup)
         if len(rows) < 20:
-            logger.warning(
-                f"Computing market health with only {len(rows)} rows (< 20 recommended)"
-            )
+            logger.warning(f"Computing market health with only {len(rows)} rows (< 20 recommended)")
 
         df = pd.DataFrame(rows)
         df["date"] = pd.to_datetime(df["date"])
@@ -533,18 +543,15 @@ class MarketHealthDailyLoader(OptimalLoader):
         df["prev_close"] = df["close"].shift(1)
         df["prev_volume"] = df["volume"].shift(1)
         # Distribution day: close down >= 0.2% AND volume > previous day (IBD canonical definition)
-        df["distribution_day"] = (
-            (df["close"] < df["prev_close"] * 0.998)
-            & (df["volume"] > df["prev_volume"])
-        ).astype(int)
+        df["distribution_day"] = ((df["close"] < df["prev_close"] * 0.998) & (df["volume"] > df["prev_volume"])).astype(
+            int
+        )
 
         # Calculate moving averages using shared function
         mas = compute_moving_averages(df["close"])
         df["sma_50"] = mas["sma_50"]
         df["sma_200"] = mas["sma_200"]
-        df["breadth_10d"] = (
-            df["up_day"].rolling(10).mean() * 100
-        )  # % up days in last 10
+        df["breadth_10d"] = df["up_day"].rolling(10).mean() * 100  # % up days in last 10
 
         results = []
         for idx, row in df.iterrows():
@@ -554,9 +561,7 @@ class MarketHealthDailyLoader(OptimalLoader):
 
             # Determine market trend and stage
             market_trend = "neutral"
-            market_stage = (
-                2  # Default to Stage 2 (uptrend); overridden below when MAs available
-            )
+            market_stage = 2  # Default to Stage 2 (uptrend); overridden below when MAs available
 
             if sma_200 and sma_50:
                 if close > sma_50 > sma_200:
@@ -584,16 +589,8 @@ class MarketHealthDailyLoader(OptimalLoader):
 
             # Count distribution days (4w = 25 trading days, 20d = 20 trading days per IBD)
             # idx-24:idx+1 = 25 rows (today + 24 prior sessions)
-            dist_days_25d = (
-                int(df["distribution_day"].iloc[max(0, idx - 24) : idx + 1].sum())
-                if idx >= 0
-                else 0
-            )
-            dist_days_20d = (
-                int(df["distribution_day"].iloc[max(0, idx - 19) : idx + 1].sum())
-                if idx >= 0
-                else 0
-            )
+            dist_days_25d = int(df["distribution_day"].iloc[max(0, idx - 24) : idx + 1].sum()) if idx >= 0 else 0
+            dist_days_20d = int(df["distribution_day"].iloc[max(0, idx - 19) : idx + 1].sum()) if idx >= 0 else 0
 
             spy_change_pct = None
             if idx > 0:
@@ -609,20 +606,12 @@ class MarketHealthDailyLoader(OptimalLoader):
                     "distribution_days_4w": dist_days_25d,
                     "distribution_days_20d": dist_days_20d,
                     "up_volume_percent": (
-                        float(
-                            df["up_day"].iloc[max(0, idx - 10) : idx + 1].mean() * 100
-                        )
-                        if idx >= 0
-                        else 50
+                        float(df["up_day"].iloc[max(0, idx - 10) : idx + 1].mean() * 100) if idx >= 0 else 50
                     ),
                     "advance_decline_ratio": None,  # filled from _fetch_breadth_data
                     "new_highs_count": None,  # filled from _fetch_breadth_data
                     "new_lows_count": None,  # filled from _fetch_breadth_data
-                    "breadth_momentum_10d": (
-                        float(row["breadth_10d"])
-                        if pd.notna(row["breadth_10d"])
-                        else 50
-                    ),
+                    "breadth_momentum_10d": (float(row["breadth_10d"]) if pd.notna(row["breadth_10d"]) else 50),
                     "spy_change_pct": spy_change_pct,
                     "vix_level": None,  # populated in fetch_incremental from _fetch_vix_data
                     "put_call_ratio": None,
@@ -664,9 +653,7 @@ def _write_vix_family_prices(start: date, end: date) -> int:
 
     today = datetime.now(EASTERN_TZ).date()
     if not MarketCalendar.is_trading_day(today):
-        logger.info(
-            f"Market closed today ({today}) - skipping VIX/index yfinance fetch"
-        )
+        logger.info(f"Market closed today ({today}) - skipping VIX/index yfinance fetch")
         return 0
     try:
         from utils.external.yfinance import YFinanceWrapper
@@ -681,20 +668,14 @@ def _write_vix_family_prices(start: date, end: date) -> int:
                     failed_symbols[sym] = "Ticker unavailable"
                     continue
 
-                df = ticker.history(
-                    start=start, end=end, interval="1d", auto_adjust=True
-                )
+                df = ticker.history(start=start, end=end, interval="1d", auto_adjust=True)
                 if df is None or df.empty:
                     logger.warning(f"No data for {sym}")
                     failed_symbols[sym] = "Empty data"
                     continue
 
                 for idx, row in df.iterrows():
-                    d = (
-                        idx.date()
-                        if hasattr(idx, "date")
-                        else date.fromisoformat(str(idx)[:10])
-                    )
+                    d = idx.date() if hasattr(idx, "date") else date.fromisoformat(str(idx)[:10])
 
                     def _v(col):
                         val = row.get(col) if hasattr(row, "get") else row[col]
@@ -742,9 +723,7 @@ def _write_vix_family_prices(start: date, end: date) -> int:
                             volume_val,
                         )
                     )
-                logger.info(
-                    f"Fetched {len([r for r in records if r[0] == sym])} rows for {sym}"
-                )
+                logger.info(f"Fetched {len([r for r in records if r[0] == sym])} rows for {sym}")
             except (AttributeError, KeyError, ValueError, TypeError) as e:
                 logger.error(f"Failed to fetch {sym}: Data format error: {e}")
                 failed_symbols[sym] = f"Data format error: {str(e)[:50]}"

@@ -104,13 +104,7 @@ class MarketHealthComputationHandler:
 
     def _phase_enrich_vix(self, metrics: list[dict], start: date, end: date) -> None:
         """Merge VIX data (OPTIONAL)."""
-        from utils.infrastructure.circuit_breaker import DataImportance
-
-        vix = self.loader._vix_breaker.execute(
-            fetch_func=lambda: self.loader._fetch_vix_data(start, end),
-            importance=DataImportance.OPTIONAL,
-            fallback_value={},
-        )
+        vix = self.loader.fetch_vix_with_breaker(start, end)
         matched = 0
         for m in metrics:
             m["vix_level"] = vix.get(m["date"])
@@ -121,13 +115,7 @@ class MarketHealthComputationHandler:
 
     def _phase_enrich_put_call(self, metrics: list[dict], end: date) -> None:
         """Merge put/call ratio (OPTIONAL)."""
-        from utils.infrastructure.circuit_breaker import DataImportance
-
-        pc = self.loader._put_call_breaker.execute(
-            fetch_func=lambda: self.loader._fetch_put_call_ratio(end),
-            importance=DataImportance.OPTIONAL,
-            fallback_value=None,
-        )
+        pc = self.loader.fetch_put_call_with_breaker(end)
         end_str = end.isoformat()
         for m in metrics:
             m["put_call_ratio"] = pc if m["date"] == end_str else None
@@ -136,13 +124,7 @@ class MarketHealthComputationHandler:
 
     def _phase_enrich_yield_curve(self, metrics: list[dict], start: date, end: date) -> None:
         """Merge yield curve slope (OPTIONAL)."""
-        from utils.infrastructure.circuit_breaker import DataImportance
-
-        yc = self.loader._yield_curve_breaker.execute(
-            fetch_func=lambda: self.loader._fetch_yield_curve_data(start, end),
-            importance=DataImportance.OPTIONAL,
-            fallback_value={},
-        )
+        yc = self.loader.fetch_yield_curve_with_breaker(start, end)
         matched = 0
         for m in metrics:
             m["yield_curve_slope"] = yc.get(m["date"])
