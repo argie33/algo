@@ -918,121 +918,6 @@ class Orchestrator:
         self._exposure_actions = actions if actions is not None else []
         return True
 
-    def phase_6_exit_execution(self) -> bool:
-        """Thin delegation to phase6_exit_execution module."""
-        self.log_phase_start(6, "EXIT EXECUTION")
-        # No halt flag check: exits must always run to reduce risk even when entries are halted.
-        from algo.orchestrator.phase6_exit_execution import run as run_phase6
-
-        # Phase 6 depends on Phase 3 and 5 producing position_recs and exposure_actions
-        if not hasattr(self, "_position_recs"):
-            raise RuntimeError(
-                "[PHASE 6 CRITICAL] _position_recs not set by Phase 3. Phase 3 must run and succeed before Phase 6."
-            )
-        if not hasattr(self, "_exposure_actions"):
-            raise RuntimeError(
-                "[PHASE 6 CRITICAL] _exposure_actions not set by Phase 5. Phase 5 must run and succeed before Phase 6."
-            )
-
-        result = run_phase6(
-            self.config,
-            self.run_date,
-            self.dry_run,
-            self.alerts,
-            self.verbose,
-            self.log_phase_result,
-            self._position_recs,
-            self._exposure_actions,
-            self._check_halt_flag,
-        )
-        self._phase6_result = result
-        return not result.halted
-
-    def phase_7_signal_generation(self) -> bool:
-        """Thin delegation to phase7_signal_generation module.
-
-        ISSUE #4 FIX: Explicit dependency validation.
-        Phase 7 depends on Phase 5 producing valid exposure_constraints.
-        If constraints are missing or invalid, fail loudly instead of silently degrading.
-
-        New version: Compute signals on-the-fly from price data.
-        No dependency on technical_data_daily.
-        """
-        self.log_phase_start(7, "SIGNAL GENERATION & RANKING")
-        from algo.orchestrator.phase7_signal_generation import run as run_phase7
-        from algo.orchestrator.phase_data_contract import validate_phase_5_constraints
-
-        # CRITICAL VALIDATION: Phase 5 must have produced valid exposure constraints
-        if not hasattr(self, "_exposure_constraints"):
-            raise RuntimeError(
-                "[PHASE 7 CRITICAL] Exposure constraints not set by Phase 5. Phase 5 must run and succeed before Phase 7."
-            )
-
-        exposure_constraints = self._exposure_constraints
-        if exposure_constraints is None:
-            raise ValueError(
-                "[PHASE 7 CRITICAL] Exposure constraints are None. Phase 5 must produce valid constraints."
-            )
-
-        # Validate constraints schema
-        try:
-            validate_phase_5_constraints(exposure_constraints)
-        except (ValueError, KeyError, TypeError) as e:
-            raise ValueError(f"[PHASE 7 CRITICAL] Exposure constraints invalid: {e}") from e
-
-        result = run_phase7(
-            self.run_date,
-            self.dry_run,
-            self.verbose,
-            self.log_phase_result,
-            exposure_constraints,
-            self._check_halt_flag,
-            phase1_degraded=False,
-            config=self.config,
-        )
-        self._phase7_result = result
-        trades = result.data.get("qualified_trades")
-        self._qualified_trades = trades if trades is not None else []
-        self.phase_results.setdefault(7, {})["signals_evaluated"] = len(self._qualified_trades)
-        return not result.halted
-
-    def phase_8_entry_execution(self) -> bool:
-        """Thin delegation to phase8_entry_execution module.
-
-        New version: Compute ATR + SMA_50 on-demand, execute immediately.
-        """
-        self.log_phase_start(8, "ENTRY EXECUTION")
-        from algo.orchestrator.phase8_entry_execution import run as run_phase8
-
-        # Phase 8 depends on Phase 7 and 5 producing qualified_trades and exposure_constraints
-        if not hasattr(self, "_qualified_trades"):
-            raise RuntimeError(
-                "[PHASE 8 CRITICAL] _qualified_trades not set by Phase 7. Phase 7 must run and succeed before Phase 8."
-            )
-        if not hasattr(self, "_exposure_constraints"):
-            raise RuntimeError(
-                "[PHASE 8 CRITICAL] _exposure_constraints not set by Phase 5. Phase 5 must run and succeed before Phase 8."
-            )
-
-        result = run_phase8(
-            self.config,
-            self.run_date,
-            self.dry_run,
-            self.verbose,
-            self.log_phase_result,
-            self._qualified_trades,
-            self._exposure_constraints,
-            self._check_halt_flag,
-        )
-        self._phase8_result = result
-        if "entered" not in result.data:
-            raise RuntimeError(
-                f"Phase 8 (entry execution) returned incomplete result: missing 'entered' field. "
-                f"Got keys: {list(result.data.keys())}"
-            )
-        self.phase_results.setdefault(8, {})["trades_executed"] = result.data["entered"]
-        return not result.halted
-
     def phase_9_reconcile(self) -> bool:
         """Thin delegation to phase9_reconciliation module."""
         self.log_phase_start(9, "RECONCILIATION & SNAPSHOT")
@@ -1208,26 +1093,60 @@ class Orchestrator:
             raise RuntimeError("[PHASE 5] phase_5_exposure_policy() did not set _phase5_result")
         return self._phase5_result
 
-    def _executor_phase_6(self, **kwargs):
-        """Executor wrapper for Phase 6: Exit Execution."""
-        self.phase_6_exit_execution()
-        if not hasattr(self, "_phase6_result"):
-            raise RuntimeError("[PHASE 6] phase_6_exit_execution() did not set _phase6_result")
-        return self._phase6_result
+    def _executor_phase_6(self, executor=None, **kwargs):
+        """Executor wrapper for Phase 6: Exit Execution.
 
-    def _executor_phase_7(self, **kwargs):
-        """Executor wrapper for Phase 7: Signal Generation."""
-        self.phase_7_signal_generation()
-        if not hasattr(self, "_phase7_result"):
-            raise RuntimeError("[PHASE 7] phase_7_signal_generation() did not set _phase7_result")
-        return self._phase7_result
+        PHASE DEPENDENCY FIX: Now passes executor so phase can fetch validated data
+        from Phase 3 and 5 instead of relying on instance attributes.
+        """
+        from algo.orchestrator.phase6_exit_execution import run as run_phase6
 
-    def _executor_phase_8(self, **kwargs):
-        """Executor wrapper for Phase 8: Entry Execution."""
-        self.phase_8_entry_execution()
-        if not hasattr(self, "_phase8_result"):
-            raise RuntimeError("[PHASE 8] phase_8_entry_execution() did not set _phase8_result")
-        return self._phase8_result
+        result = run_phase6(
+            self.config,
+            self.run_date,
+            self.dry_run,
+            self.alerts,
+            self.verbose,
+            self.log_phase_result,
+            executor=executor,
+        )
+        return result
+
+    def _executor_phase_7(self, executor=None, **kwargs):
+        """Executor wrapper for Phase 7: Signal Generation.
+
+        PHASE DEPENDENCY FIX: Now passes executor so phase can fetch validated data
+        from Phase 5 instead of relying on instance attributes.
+        """
+        from algo.orchestrator.phase7_signal_generation import run as run_phase7
+
+        result = run_phase7(
+            self.run_date,
+            self.dry_run,
+            self.verbose,
+            self.log_phase_result,
+            config=self.config,
+            executor=executor,
+        )
+        return result
+
+    def _executor_phase_8(self, executor=None, **kwargs):
+        """Executor wrapper for Phase 8: Entry Execution.
+
+        PHASE DEPENDENCY FIX: Now passes executor so phase can fetch validated data
+        from Phase 7 and 5 instead of relying on instance attributes.
+        """
+        from algo.orchestrator.phase8_entry_execution import run as run_phase8
+
+        result = run_phase8(
+            self.config,
+            self.run_date,
+            self.dry_run,
+            self.verbose,
+            self.log_phase_result,
+            executor=executor,
+        )
+        return result
 
     def _executor_phase_9(self, **kwargs):
         """Executor wrapper for Phase 9: Final Reconciliation."""
