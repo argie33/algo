@@ -248,7 +248,7 @@ jobs:
 
   lint-and-type:
     runs-on: ubuntu-latest
-    timeout-minutes: 5
+    timeout-minutes: 8
     steps:
       - uses: actions/checkout@692973e3d937129bcbf40652eb9f2f61becf3332  # v4.1.7
       - uses: actions/setup-python@a26af69be951a213d495a4c3e4e4022e16d87065  # v5
@@ -269,8 +269,43 @@ jobs:
         run: ruff check algo/ tests/ tools/
       - name: MyPy type check
         run: |
+          echo "Type checking algo/ and tools/..."
           mypy algo/ --ignore-missing-imports --show-error-codes
           mypy tools/ --ignore-missing-imports --show-error-codes
+          echo "OK: Type checks passed"
+      - name: Validate Python imports across critical modules
+        run: |
+          echo "Validating imports in critical modules..."
+          python -c "
+import sys
+sys.path.insert(0, '.')
+errors = []
+
+# Try importing key modules that are frequently used
+test_modules = [
+    'config.credential_manager',
+    'config.thresholds',
+    'utils.optimal_loader',
+    'utils.data.source_router',
+    'algo.algo_orchestrator',
+]
+
+for module in test_modules:
+    try:
+        __import__(module)
+        print(f'OK: {module}')
+    except Exception as e:
+        errors.append(f'{module}: {str(e)[:100]}')
+        print(f'FAIL: {module}')
+
+if errors:
+    print(f'\nImport validation failed:')
+    for err in errors:
+        print(f'  {err}')
+    sys.exit(1)
+else:
+    print('\nOK: All critical modules can be imported')
+"
       - name: Validate API response validation coverage
         run: |
           echo "Checking that dashboard endpoints have response validation..."
