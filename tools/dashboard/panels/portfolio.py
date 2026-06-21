@@ -162,7 +162,7 @@ def _build_portfolio_metrics_grid(port_data: dict, cfg_data: dict) -> Table:
 
 def _build_risk_rows(risk_data: dict) -> list:
     """Build risk metrics rows for display."""
-    rows = []
+    rows: list[Text] = []
     var95_check = safe_get_field(risk_data, "var95") if risk_data else None
     if not risk_data or var95_check is None or float(var95_check) <= 0:
         return rows

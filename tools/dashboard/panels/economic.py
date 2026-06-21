@@ -34,7 +34,7 @@ from .data_extractors import extract_economic_indicators, safe_get_field
 
 def _build_calendar_rows(econ_cal) -> list:
     """Extract and format economic calendar events."""
-    rows = []
+    rows: list[Text | Rule] = []
     # Fail-fast: return early if API error detected
     if has_error(econ_cal):
         return rows
