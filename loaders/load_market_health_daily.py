@@ -289,9 +289,8 @@ class MarketHealthDailyLoader(OptimalLoader):
             return result
         except (ValueError, ZeroDivisionError, TypeError) as e:
             raise RuntimeError(
-                f"[VIX] Failed to fetch VIX data: {type(e) from None.__name__}: {e}. "
-                "VIX data is authoritative for market health computation."
-            )
+                f"[VIX] Failed to fetch VIX data: {type(e).__name__}: {e}. "
+                "VIX data is authoritative for market health computation.") from None
 
     def _fetch_put_call_ratio(self, eval_date: date) -> float | None:
         """Compute put/call ratio from SPY options chain volume via yfinance.
@@ -830,7 +829,7 @@ def main():
 
 if __name__ == "__main__":
     try:
-        main() from None
+        main()
     except RuntimeError as e:
         logger.error(str(e))
         sys.exit(1)

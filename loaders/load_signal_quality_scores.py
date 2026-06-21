@@ -717,7 +717,7 @@ def main():
         raise RuntimeError(f"Signal quality scores load failed: {e}") from None
 
 
-def _sync_scores_to_buy_sell() from None:
+def _sync_scores_to_buy_sell():
     """Sync composite_sqs from signal_quality_scores to buy_sell_daily.signal_quality_score."""
     from utils.db.context import DatabaseContext
 
