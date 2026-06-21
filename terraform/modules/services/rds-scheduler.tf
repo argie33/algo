@@ -5,6 +5,19 @@
 # Automatically starts RDS before market open (7am ET)
 # Saves ~$10-15/month by running DB only during trading hours
 
+data "aws_iam_policy_document" "lambda_assume" {
+  statement {
+    effect = "Allow"
+
+    principals {
+      type        = "Service"
+      identifiers = ["lambda.amazonaws.com"]
+    }
+
+    actions = ["sts:AssumeRole"]
+  }
+}
+
 resource "aws_iam_role" "rds_scheduler" {
   name               = "${var.project_name}-rds-scheduler-${var.environment}"
   assume_role_policy = data.aws_iam_policy_document.lambda_assume.json
