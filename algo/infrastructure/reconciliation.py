@@ -5,7 +5,6 @@ import logging
 import statistics
 from datetime import date as _date_type
 from datetime import datetime, timedelta, timezone
-from decimal import Decimal
 from typing import Any, cast
 
 import psycopg2
@@ -13,6 +12,7 @@ import requests
 
 from algo.infrastructure.alpaca_sync_manager import AlpacaSyncManager
 from algo.infrastructure.audit_logger import TradeAuditLogger
+from algo.infrastructure.position_analyzer import PositionAnalyzer
 from algo.infrastructure.price_auditor import PriceAuditor
 from algo.infrastructure.reconciliation_analytics import ReconciliationAnalytics
 from algo.reporting import notify
@@ -243,60 +243,17 @@ class DailyReconciliation:
                 """)
 
                 positions = cur.fetchall()
-                logger.info(f"\n2. Database Positions: {len(positions)} open")
 
-                total_position_value = 0.0
-                unrealized_pnl = 0.0
-                positions_with_prices = 0
-                # Track unrealized PnL breakdown: winning, losing, breakeven positions
-                unrealized_pnl_winning_count = 0
-                unrealized_pnl_losing_count = 0
-                unrealized_pnl_breakeven_count = 0
+                # Analyze positions using PositionAnalyzer service
+                analysis = PositionAnalyzer.analyze_positions(positions)
+                PositionAnalyzer.log_position_analysis(analysis, logger)
 
-                for symbol, qty, entry, current, pos_value in positions:
-                    # Validate critical fields before processing - fail fast on missing data
-                    if entry is None:
-                        raise ValueError(
-                            f"[RECONCILIATION CRITICAL] {symbol}: ENTRY PRICE MISSING - cannot compute P&L for open position"
-                        )
-                    if current is None:
-                        entry_dec = Decimal(str(entry))
-                        qty_dec = Decimal(str(qty)) if qty is not None else Decimal(0)
-                        raise ValueError(
-                            f"[RECONCILIATION CRITICAL] {symbol}: {qty_dec:.0f} @ ${entry_dec:.2f} -> CURRENT PRICE MISSING - cannot compute P&L for open position"
-                        )
-
-                    if qty is None or pos_value is None:
-                        raise ValueError(
-                            f"[RECONCILIATION CRITICAL] {symbol}: QUANTITY OR VALUE MISSING - cannot compute P&L for open position"
-                        )
-
-                    # Keep all calculations in Decimal for precision; convert only for storage
-                    from decimal import Decimal
-
-                    entry_dec = Decimal(str(entry))
-                    current_dec = Decimal(str(current))
-                    qty_dec = Decimal(str(qty))
-                    pos_value_dec = Decimal(str(pos_value))
-                    pnl_dec = (current_dec - entry_dec) * qty_dec
-                    pnl_pct_dec = (
-                        ((current_dec - entry_dec) / entry_dec * Decimal(100)) if entry_dec > 0 else Decimal(0)
-                    )
-                    total_position_value += pos_value_dec
-                    unrealized_pnl += pnl_dec
-                    positions_with_prices += 1
-
-                    # Track winning/losing/breakeven status for unrealized P&L breakdown
-                    if pnl_dec > 0:
-                        unrealized_pnl_winning_count += 1
-                    elif pnl_dec < 0:
-                        unrealized_pnl_losing_count += 1
-                    else:
-                        unrealized_pnl_breakeven_count += 1
-
-                    logger.info(
-                        f"   {symbol}: {float(qty_dec):.0f} @ ${float(entry_dec):.2f} -> ${float(current_dec):.2f} | {float(pnl_dec):+,.2f} ({float(pnl_pct_dec):+.2f}%)"
-                    )
+                total_position_value = analysis["total_position_value"]
+                unrealized_pnl = analysis["unrealized_pnl"]
+                positions_with_prices = analysis["positions_with_prices"]
+                unrealized_pnl_winning_count = analysis["winning_count"]
+                unrealized_pnl_losing_count = analysis["losing_count"]
+                unrealized_pnl_breakeven_count = analysis["breakeven_count"]
 
                 # 3. Calculate metrics
                 # Values already validated at initial Alpaca fetch; keep as Decimal for precision

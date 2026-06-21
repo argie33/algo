@@ -569,8 +569,15 @@ def run(
                 portfolio_value=portfolio_value,
             )
 
-            if sizing.get("status") != "ok":
-                logger.info(f"[PHASE 8] {symbol}: sizer blocked — {sizing.get('reason', 'unknown')}")
+            if "status" not in sizing or sizing["status"] is None:
+                raise RuntimeError(
+                    f"Position sizer returned invalid result for {symbol}: missing 'status' field. "
+                    f"Response: {sizing}"
+                )
+
+            if sizing["status"] != "ok":
+                reason = sizing.get("reason", "unknown")
+                logger.info(f"[PHASE 8] {symbol}: sizer blocked — {reason}")
             elif "shares" not in sizing:
                 logger.error(
                     f"[PHASE 8] {symbol}: CRITICAL - sizer did not return shares field. "
@@ -629,11 +636,23 @@ def run(
                         rs_percentile=signal.get("rs_percentile"),
                     )
 
-                    if result.get("success"):
+                    if "success" not in result or result["success"] is None:
+                        raise RuntimeError(
+                            f"Trade executor returned invalid result for {symbol}: missing 'success' field. "
+                            f"Response: {result}"
+                        )
+
+                    if result["success"]:
+                        if "trade_id" not in result:
+                            raise RuntimeError(
+                                f"Trade succeeded for {symbol} but missing 'trade_id' field. "
+                                f"Response: {result}"
+                            )
+
                         executed_count += 1
 
                         logger.info(
-                            f"[PHASE 8] {symbol}: ENTERED trade_id={result.get('trade_id')} alpaca_order_id={result.get('alpaca_order_id')} status={result.get('status')}"
+                            f"[PHASE 8] {symbol}: ENTERED trade_id={result['trade_id']} alpaca_order_id={result.get('alpaca_order_id')} status={result.get('status')}"
                         )
 
                         if max_entries and executed_count >= max_entries:
@@ -642,8 +661,10 @@ def run(
                             break
 
                     else:
+                        message = result.get("message", "unknown error")
+                        status = result.get("status", "unknown")
                         logger.error(
-                            f"[PHASE 8] {symbol}: FAILED to execute trade: {result.get('message')} (status={result.get('status')})"
+                            f"[PHASE 8] {symbol}: FAILED to execute trade: {message} (status={status})"
                         )
 
                         failed_count += 1

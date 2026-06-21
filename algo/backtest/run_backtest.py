@@ -197,12 +197,20 @@ def run_backtest(
         position_symbols = list(positions.keys())
         current_prices = _get_prices_batch(position_symbols, sim_date) if position_symbols else {}
 
+        # Validate all position prices are available (fail-fast if data missing)
+        for symbol in position_symbols:
+            if symbol not in current_prices:
+                raise RuntimeError(
+                    f"[BACKTEST] FATAL: Missing price for position {symbol} on {sim_date}. "
+                    f"Cannot calculate P&L without current prices. Check price_daily table."
+                )
+
         # Check exits first (SELL signals, profit target, stop loss, max hold)
         sell_signals = _get_daily_sell_signals(sim_date)
 
         for symbol in list(positions.keys()):
             pos = positions[symbol]
-            current_price = current_prices.get(symbol, pos["entry_price"])
+            current_price = current_prices[symbol]
             hold_days = (sim_date - pos["entry_date"]).days
             pnl_pct = (current_price - pos["entry_price"]) / pos["entry_price"] * 100
 
@@ -245,9 +253,9 @@ def run_backtest(
                 logger.debug(f"[BACKTEST] EXIT {symbol}: {exit_reason} P&L={pnl_pct_final:+.1f}% ({hold_days}d)")
                 del positions[symbol]
 
-        # Record equity curve snapshot
+        # Record equity curve snapshot (all position prices already validated above)
         invested_value = sum(
-            current_prices.get(sym, pos["entry_price"]) * pos["shares"] for sym, pos in positions.items()
+            current_prices[sym] * pos["shares"] for sym, pos in positions.items()
         )
         total_value = capital + invested_value
         equity_curve.append({"date": sim_date.isoformat(), "value": round(total_value, 2)})
@@ -293,8 +301,15 @@ def run_backtest(
     if positions:
         final_date = trading_dates[-1]
         final_prices = _get_prices_batch(list(positions.keys()), final_date)
+        # Validate all position prices are available for final close (fail-fast if data missing)
+        for symbol in positions.keys():
+            if symbol not in final_prices:
+                raise RuntimeError(
+                    f"[BACKTEST] FATAL: Missing final price for position {symbol} on {final_date}. "
+                    f"Cannot close out positions without current prices. Check price_daily table."
+                )
         for symbol, pos in positions.items():
-            exit_price = final_prices.get(symbol, pos["entry_price"])
+            exit_price = final_prices[symbol]
             pnl_dollars = (exit_price - pos["entry_price"]) * pos["shares"]
             pnl_pct_final = (exit_price - pos["entry_price"]) / pos["entry_price"] * 100
             hold_days = (final_date - pos["entry_date"]).days
@@ -469,7 +484,14 @@ def save_results(results: dict) -> int | None:
             with DatabaseContext("write") as cur:
                 for trade in trades:
                     entry_price = trade["entry_price"]
-                    exit_price = trade.get("exit_price") or entry_price
+                    exit_price_raw = trade.get("exit_price")
+                    if exit_price_raw is None:
+                        raise RuntimeError(
+                            f"Trade missing exit_price (symbol={trade.get('symbol')}, "
+                            f"entry_date={trade.get('entry_date')}). "
+                            "Backtest trades must always have explicit exit prices."
+                        )
+                    exit_price = exit_price_raw
                     qty = trade["entry_quantity"]
                     pnl = trade.get("profit_loss_dollars", 0)
                     pnl_pct = trade.get("profit_loss_pct", 0)
