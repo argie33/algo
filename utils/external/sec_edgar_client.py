@@ -17,7 +17,6 @@ import requests
 from utils.external import sec_statements
 from utils.external.sec_ticker_cache import TickerCache
 
-
 logger = logging.getLogger(__name__)
 
 EDGAR_BASE = os.getenv("EDGAR_BASE_URL", "https://data.sec.gov")
@@ -28,7 +27,6 @@ DEFAULT_USER_AGENT = os.getenv(
     "SEC_USER_AGENT",
     "algo-trading argeropolos@gmail.com",
 )
-
 
 class RateLimiter:
     """SEC requires <10 req/sec. We target 8/sec for safety margin."""
@@ -44,7 +42,6 @@ class RateLimiter:
             if elapsed < self.min_interval:
                 time.sleep(self.min_interval - elapsed)
             self._last_request = time.monotonic()
-
 
 class SecEdgarClient:
     """Client for SEC EDGAR XBRL APIs.
@@ -207,6 +204,8 @@ class SecEdgarClient:
 
         units = data.get("units")
         results: List[Dict[str, Any]] = []
+        if units is None:
+            return results
         for unit, entries in units.items():
             for entry in entries:
                 if entry.get("fp") != "FY":
@@ -236,6 +235,8 @@ class SecEdgarClient:
 
         units = data.get("units")
         results: List[Dict[str, Any]] = []
+        if units is None:
+            return results
         for unit, entries in units.items():
             for entry in entries:
                 if entry.get("fp") not in ("Q1", "Q2", "Q3", "Q4"):
