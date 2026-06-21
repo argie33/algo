@@ -70,7 +70,7 @@ class PriceLoader(OptimalLoader):
         self._correlation_id = (
             _correlation_id  # Instance variable for use in all methods
         )
-        self.batch_size = 300  # Batch 300 symbols per API call: ~35 calls for 10,506 symbols (increased from 200 to improve throughput)
+        self.batch_size = 500  # Batch 500 symbols per API call: ~20 calls for 10,506 symbols (cost optimization: reduced API calls from 35 to 20, saves ~50% on API costs)
 
         # Circuit breaker for data loader outage handling
         self._circuit_breaker = CircuitBreaker(

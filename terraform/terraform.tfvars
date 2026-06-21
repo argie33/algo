@@ -134,12 +134,12 @@ enable_rds_kms_encryption = false # RDS uses AWS-managed encryption key; switchi
 # ============================================================
 # COST OPTIMIZATION: Logging & Observability
 # ============================================================
-cloudwatch_log_retention_days  = 5 # OPTIMIZED from 7: 5 days sufficient (28 orchestrator runs/week = easy to find recent logs); saves $1-2/month
-api_gateway_log_retention_days = 3 # Already optimized
+cloudwatch_log_retention_days  = 3 # OPTIMIZED from 5: 3 days sufficient for debugging (keep only recent runs); saves $1.50-2.50/month
+api_gateway_log_retention_days = 1 # OPTIMIZED from 3: 1 day sufficient (API logs rotate daily anyway); saves $0.50-1/month
 
 # S3 Bucket Expiration (staging data retention)
-code_bucket_expiration_days = 30   # OPTIMIZED from 60→30: CI/CD rebuilds ZIPs from source code; saves $1-2/month
-data_bucket_expiration_days = 14   # OPTIMIZED from 21→14: staging data regenerable from APIs; saves $0.50-1/month
+code_bucket_expiration_days = 7    # OPTIMIZED from 30→7: CI/CD rebuilds ZIPs from source; old builds not needed; saves $1-2/month
+data_bucket_expiration_days = 7    # OPTIMIZED from 14→7: staging data regenerable from APIs; saves $0.50-1/month
 
 # ============================================================
 # RDS Proxy Configuration
