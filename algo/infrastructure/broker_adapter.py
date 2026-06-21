@@ -49,3 +49,10 @@ class BrokerAdapter(Protocol):
             - orphan_symbols: list[str] (optional), symbols flagged as orphans
         """
         ...
+
+    def fetch_portfolio_history(self) -> list[float]:
+        """Fetch historical portfolio equity values from broker.
+
+        Returns list of equity values (oldest first), or empty list if unavailable.
+        """
+        ...

@@ -27,7 +27,7 @@ PORTFOLIO_SNAPSHOT_LOCK_ID = 2147483647
 class DailyReconciliation:
     """Daily reconciliation and portfolio snapshot creation.
 
-    Uses focused managers for Alpaca sync, analytics, and price auditing.
+    Uses broker adapter for position sync, analytics, and price auditing.
     """
 
     def __init__(self, config):
@@ -101,7 +101,7 @@ class DailyReconciliation:
             logger.info(f"DAILY RECONCILIATION - {reconcile_date}")
             logger.info(f"{'=' * 70}\n")
 
-            # 1. Fetch Alpaca account (required - no fallback to stale DB data)
+            # 1. Fetch broker account (required - no fallback to stale DB data)
             account_data = self._fetch_account()
             if not account_data:
                 logger.critical("Broker account fetch failed - reconciliation cannot proceed without live account data")

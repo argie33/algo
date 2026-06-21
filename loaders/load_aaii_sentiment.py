@@ -8,7 +8,7 @@ import sys
 import zipfile
 from datetime import date
 from io import BytesIO
-from typing import List, Optional
+from typing import Optional
 
 import pandas as pd
 import requests

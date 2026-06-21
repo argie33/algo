@@ -4,7 +4,7 @@
 import logging
 import sys
 from datetime import date
-from typing import List, Optional
+from typing import Optional
 
 from loaders.runner import run_loader
 from utils.db.context import DatabaseContext

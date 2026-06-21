@@ -83,21 +83,21 @@ def run(
             summary = result.get("error", "unknown")
         log_phase_result_fn(9, "reconciliation", status, summary)
 
-        # CRITICAL: Validate that local P&L matches Alpaca P&L
+        # CRITICAL: Validate that local P&L matches Broker P&L
         pnl_validation_status = "warn"
         pnl_validation_summary = "N/A"
         try:
-            alpaca_data = recon._fetch_alpaca_account()
-            if alpaca_data and reconciliation_succeeded:
-                alpaca_equity = alpaca_data.get("equity")
-                if alpaca_equity is None:
-                    alpaca_equity = alpaca_data.get("portfolio_value")
-                    if alpaca_equity is None:
+            account_data = recon._fetch_account()
+            if account_data and reconciliation_succeeded:
+                broker_equity = account_data.get("equity")
+                if broker_equity is None:
+                    broker_equity = account_data.get("portfolio_value")
+                    if broker_equity is None:
                         logger.error(
-                            "[PHASE 7 P&L VALIDATION] Alpaca data missing both 'equity' and "
-                            "'portfolio_value'. Available keys: " + str(list(alpaca_data.keys()))
+                            "[PHASE 7 P&L VALIDATION] Broker data missing both 'equity' and "
+                            "'portfolio_value'. Available keys: " + str(list(account_data.keys()))
                         )
-                        raise ValueError("Alpaca data missing equity and portfolio_value — cannot validate P&L")
+                        raise ValueError("Broker data missing equity and portfolio_value — cannot validate P&L")
 
                 if "portfolio_value" not in result:
                     raise ValueError(
@@ -106,7 +106,7 @@ def run(
                     )
                 local_equity = result["portfolio_value"]
 
-                pnl_check = recon.validate_pnl(alpaca_equity, local_equity)
+                pnl_check = recon.validate_pnl(broker_equity, local_equity)
                 pnl_validation_status = pnl_check["status"]
                 pnl_validation_summary = pnl_check["message"]
 
@@ -117,7 +117,7 @@ def run(
                 else:  # critical
                     logger.critical(f"[PHASE 7 P&L VALIDATION] {pnl_check['message']}")
             else:
-                pnl_validation_summary = "Skipped (reconciliation failed or no Alpaca data)"
+                pnl_validation_summary = "Skipped (reconciliation failed or no Broker data)"
         except Exception as e:
             logger.error(f"[PHASE 7] P&L validation failed: {e}")
             pnl_validation_summary = f"error: {str(e)[:60]}"
@@ -468,7 +468,7 @@ def run(
             log_phase_result_fn(9, "metrics_update", metrics_status, metrics_summary)
 
         # Refresh materialized view so positions dashboard reflects current state.
-        # This runs after reconciliation updates algo_positions from Alpaca.
+        # This runs after reconciliation updates algo_positions from Broker.
         try:
             with DatabaseContext("write") as cur:
                 cur.execute("REFRESH MATERIALIZED VIEW algo_positions_with_risk")
