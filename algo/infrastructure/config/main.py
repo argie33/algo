@@ -764,6 +764,23 @@ class AlgoConfig:
             self._circuit_breaker_config = CircuitBreakerConfig(self)
         return self._circuit_breaker_config
 
+    @property
+    def data_patrol(self):
+        """Get DataPatrolConfig specialist (lazy-loaded on first access).
+
+        Returns:
+            DataPatrolConfig instance (cached after first access)
+
+        Usage:
+            config = get_config()
+            staleness = config.data_patrol.get_staleness_windows()
+        """
+        if not hasattr(self, "_data_patrol_config"):
+            from .data_patrol_config import DataPatrolConfig
+
+            self._data_patrol_config = DataPatrolConfig(self)
+        return self._data_patrol_config
+
     def _validate_schema_consistency(self):
         """Verify that VALIDATION_SCHEMA and DEFAULTS are in sync.
 
@@ -1489,8 +1506,8 @@ class AlgoConfig:
         """Reload configuration from database with full validation.
 
         Ensures hot-reloaded values pass the same critical safety checks as startup.
-        Invalidates cached specialist configs (RiskConfig, CircuitBreakerConfig) so they
-        re-read updated values on next access.
+        Invalidates cached specialist configs (RiskConfig, CircuitBreakerConfig, DataPatrolConfig)
+        so they re-read updated values on next access.
         """
         self._config.clear()
         self._sources.clear()
@@ -1499,6 +1516,8 @@ class AlgoConfig:
             delattr(self, "_risk_config")
         if hasattr(self, "_circuit_breaker_config"):
             delattr(self, "_circuit_breaker_config")
+        if hasattr(self, "_data_patrol_config"):
+            delattr(self, "_data_patrol_config")
         self._load_defaults()
         self._load_from_database()
         self._validate_critical_thresholds()
@@ -1506,105 +1525,64 @@ class AlgoConfig:
         self._audit_config_sources()
         logger.info("[AlgoConfig] Reload completed with validation")
 
-    def get_staleness_windows(self) -> dict:
-        """Get data patrol staleness thresholds (days) for all data types."""
-        return {
-            "price_daily": self.get("patrol_staleness_price_daily", 7),
-            "technical_data_daily": self.get("patrol_staleness_technical_daily", 7),
-            "buy_sell_daily": self.get("patrol_staleness_buy_sell_daily", 7),
-            "trend_data": self.get("patrol_staleness_trend_data", 7),
-            "signal_quality_scores": self.get("patrol_staleness_signal_quality_scores", 7),
-            "market_health": self.get("patrol_staleness_market_health", 7),
-            "sector_ranking": self.get("patrol_staleness_sector_ranking", 7),
-            "industry_ranking": self.get("patrol_staleness_industry_ranking", 7),
-            "insider_transactions": self.get("patrol_staleness_insider_transactions", 30),
-            "analyst_upgrades": self.get("patrol_staleness_analyst_upgrades", 30),
-            "stock_scores": self.get("patrol_staleness_stock_scores", 7),
-            "aaii_sentiment": self.get("patrol_staleness_aaii_sentiment", 7),
-            "growth_metrics": self.get("patrol_staleness_growth_metrics", 30),
-            "earnings_history": self.get("patrol_staleness_earnings_history", 120),
-        }
+    def get_staleness_windows(self) -> dict[str, int]:
+        """Deprecated: Use config.data_patrol.get_staleness_windows() instead.
 
-    def get_coverage_thresholds(self) -> dict:
-        """Get data patrol coverage ratio thresholds."""
-        return {
-            "error_pct": self.get("patrol_coverage_error_threshold_pct", 95),
-            "warn_pct": self.get("patrol_coverage_warning_threshold_pct", 90),
-        }
+        Get data patrol staleness thresholds (days) for all data types.
+        """
+        logger.warning(
+            "get_staleness_windows() is deprecated. Use config.data_patrol.get_staleness_windows() instead."
+        )
+        return cast(dict[str, int], self.data_patrol.get_staleness_windows())
 
-    def get_price_sanity_config(self) -> dict:
-        """Get data patrol OHLC/price sanity thresholds."""
-        return {
-            "max_daily_move_pct": self.get("patrol_max_daily_move_pct", 0.5),
-            "max_daily_move_count": self.get("patrol_max_daily_move_count", 10),
-        }
+    def get_coverage_thresholds(self) -> dict[str, int]:
+        """Deprecated: Use config.data_patrol.get_coverage_thresholds() instead."""
+        logger.warning(
+            "get_coverage_thresholds() is deprecated. Use config.data_patrol.get_coverage_thresholds() instead."
+        )
+        return cast(dict[str, int], self.data_patrol.get_coverage_thresholds())
 
-    def get_volume_config(self) -> dict:
-        """Get data patrol volume sanity thresholds."""
-        return {
-            "low_threshold": self.get("patrol_low_volume_threshold", 1000),
-            "high_threshold": self.get("patrol_high_volume_threshold", 100000000),
-            "new_low_alert": self.get("patrol_new_low_volume_alert", 5),
-        }
+    def get_price_sanity_config(self) -> dict[str, Any]:
+        """Deprecated: Use config.data_patrol.get_price_sanity_config() instead."""
+        logger.warning(
+            "get_price_sanity_config() is deprecated. Use config.data_patrol.get_price_sanity_config() instead."
+        )
+        return cast(dict[str, Any], self.data_patrol.get_price_sanity_config())
 
-    def get_quality_config(self) -> dict:
-        """Get data patrol quality thresholds."""
-        return {
-            "max_null_pct": self.get("patrol_max_null_pct_threshold", 5),
-            "zero_symbols_error": self.get("patrol_new_zero_symbols_error", 10),
-            "zero_symbols_warn": self.get("patrol_new_zero_symbols_warn", 5),
-            "identical_ohlc_threshold": self.get("patrol_identical_ohlc_threshold", 50),
-        }
+    def get_volume_config(self) -> dict[str, Any]:
+        """Deprecated: Use config.data_patrol.get_volume_config() instead."""
+        logger.warning(
+            "get_volume_config() is deprecated. Use config.data_patrol.get_volume_config() instead."
+        )
+        return cast(dict[str, Any], self.data_patrol.get_volume_config())
 
-    def get_cross_validation_config(self) -> dict:
-        """Get data patrol cross-validation thresholds."""
-        return {
-            "price_mismatch_pct": self.get("patrol_price_xval_mismatch_pct", 2),
-            "top_n_symbols": self.get("patrol_xval_top_n_symbols", 50),
-        }
+    def get_quality_config(self) -> dict[str, Any]:
+        """Deprecated: Use config.data_patrol.get_quality_config() instead."""
+        logger.warning(
+            "get_quality_config() is deprecated. Use config.data_patrol.get_quality_config() instead."
+        )
+        return cast(dict[str, Any], self.data_patrol.get_quality_config())
 
-    def get_corporate_actions_config(self) -> dict:
-        """Get data patrol corporate actions detection config."""
-        return {
-            "lookback_days": self.get("patrol_corporate_action_lookback_days", 90),
-            "drop_ratio": self.get("patrol_corporate_action_drop_ratio", -0.30),
-        }
+    def get_cross_validation_config(self) -> dict[str, Any]:
+        """Deprecated: Use config.data_patrol.get_cross_validation_config() instead."""
+        logger.warning(
+            "get_cross_validation_config() is deprecated. Use config.data_patrol.get_cross_validation_config() instead."
+        )
+        return cast(dict[str, Any], self.data_patrol.get_cross_validation_config())
 
-    def get_loader_contracts(self) -> dict:
-        """Get data patrol loader contracts with expected output thresholds."""
-        severity_warn, severity_error = "warn", "error"
-        return {
-            "price_daily": {
-                "condition": "date >= CURRENT_DATE - INTERVAL '14 days'",
-                "min_rows": self.get("patrol_price_daily_14d_min", 40000),
-                "severity": severity_error,
-                "description": "Daily price data should be ~5000 symbols x 14 days",
-            },
-            "technical_data_daily": {
-                "condition": "date >= CURRENT_DATE - INTERVAL '14 days'",
-                "min_rows": self.get("patrol_technical_daily_14d_min", 40000),
-                "severity": severity_error,
-                "description": "Technical indicators should match price coverage",
-            },
-            "buy_sell_daily": {
-                "condition": "date >= CURRENT_DATE - INTERVAL '14 days'",
-                "min_rows": self.get("patrol_buy_sell_daily_14d_min", 800),
-                "severity": severity_error,
-                "description": "Pine signals should produce 50+ per day minimum",
-            },
-            "trend_template_data": {
-                "condition": "date >= CURRENT_DATE - INTERVAL '14 days'",
-                "min_rows": self.get("patrol_trend_14d_min", 16000),
-                "severity": severity_error,
-                "description": "Trend template covers 4900+ symbols x 14 days",
-            },
-            "signal_quality_scores": {
-                "condition": "date >= CURRENT_DATE - INTERVAL '14 days'",
-                "min_rows": self.get("patrol_sqs_14d_min", 16000),
-                "severity": severity_warn,
-                "description": "SQS should match trend coverage",
-            },
-        }
+    def get_corporate_actions_config(self) -> dict[str, Any]:
+        """Deprecated: Use config.data_patrol.get_corporate_actions_config() instead."""
+        logger.warning(
+            "get_corporate_actions_config() is deprecated. Use config.data_patrol.get_corporate_actions_config() instead."
+        )
+        return cast(dict[str, Any], self.data_patrol.get_corporate_actions_config())
+
+    def get_loader_contracts(self) -> dict[str, dict[str, Any]]:
+        """Deprecated: Use config.data_patrol.get_loader_contracts() instead."""
+        logger.warning(
+            "get_loader_contracts() is deprecated. Use config.data_patrol.get_loader_contracts() instead."
+        )
+        return cast(dict[str, dict[str, Any]], self.data_patrol.get_loader_contracts())
 
     def __repr__(self):
         return f"<AlgoConfig {len(self._config)} keys>"

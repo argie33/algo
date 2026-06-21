@@ -12,6 +12,8 @@ This design:
 - Centralizes all signal query logic in one place
 """
 
+from typing import cast
+
 from algo.signals.signal_computer import SignalComputer
 
 
@@ -37,7 +39,7 @@ class SignalAPI:
         Returns:
             True if stock matches base detection criteria, False otherwise
         """
-        return self._computer.base_detection(symbol, eval_date)
+        return cast(bool, self._computer.base_detection(symbol, eval_date))
 
     def detect_vcp(self, symbol: str, eval_date) -> bool:
         """Detect if stock is in VCP (Volatility Contraction Pattern).
@@ -49,7 +51,7 @@ class SignalAPI:
         Returns:
             True if stock matches VCP detection criteria, False otherwise
         """
-        return self._computer.vcp_detection(symbol, eval_date)
+        return cast(bool, self._computer.vcp_detection(symbol, eval_date))
 
     def detect_pivot(self, symbol: str, eval_date) -> bool:
         """Detect if stock has pivot breakout.
@@ -61,7 +63,7 @@ class SignalAPI:
         Returns:
             True if stock matches pivot breakout criteria, False otherwise
         """
-        return self._computer.pivot_breakout(symbol, eval_date)
+        return cast(bool, self._computer.pivot_breakout(symbol, eval_date))
 
     def detect_power_trend(self, symbol: str, eval_date) -> bool:
         """Detect if stock is in power trend.
@@ -73,7 +75,7 @@ class SignalAPI:
         Returns:
             True if stock matches power trend criteria, False otherwise
         """
-        return self._computer.power_trend(symbol, eval_date)
+        return cast(bool, self._computer.power_trend(symbol, eval_date))
 
     def rank_rs_percentile(self, cur, symbol: str, eval_date, lookback: int = 60) -> float:
         """Compute Mansfield-style RS percentile ranking.
@@ -96,7 +98,7 @@ class SignalAPI:
         Raises:
             ValueError: If symbol has insufficient price history
         """
-        return self._computer._rs_percentile_vs_spy(cur, symbol, eval_date, lookback)
+        return cast(float, self._computer._rs_percentile_vs_spy(cur, symbol, eval_date, lookback))
 
     def compute_period_return(self, cur, symbol: str, end_date, lookback_days: int) -> float:
         """Compute simple period return.
@@ -113,7 +115,7 @@ class SignalAPI:
         Raises:
             ValueError: If price data is missing or invalid
         """
-        return self._computer._period_return(cur, symbol, end_date, lookback_days)
+        return cast(float, self._computer._period_return(cur, symbol, end_date, lookback_days))
 
     def clear_cache(self):
         """Clear all internal signal caches.

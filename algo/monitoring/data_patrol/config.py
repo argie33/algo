@@ -37,35 +37,35 @@ class PatrolConfig:
 
     def get_staleness_windows(self) -> dict[str, Any]:
         """Get all staleness thresholds in days."""
-        return self._config.get_staleness_windows()
+        return cast(dict[str, Any], self._config.get_staleness_windows())
 
     def get_coverage_thresholds(self) -> dict[str, Any]:
         """Get coverage ratio thresholds."""
-        return self._config.get_coverage_thresholds()
+        return cast(dict[str, Any], self._config.get_coverage_thresholds())
 
     def get_price_sanity_config(self) -> dict[str, Any]:
         """Get OHLC/price sanity thresholds."""
-        return self._config.get_price_sanity_config()
+        return cast(dict[str, Any], self._config.get_price_sanity_config())
 
     def get_volume_config(self) -> dict[str, Any]:
         """Get volume sanity thresholds."""
-        return self._config.get_volume_config()
+        return cast(dict[str, Any], self._config.get_volume_config())
 
     def get_quality_config(self) -> dict[str, Any]:
         """Get data quality thresholds."""
-        return self._config.get_quality_config()
+        return cast(dict[str, Any], self._config.get_quality_config())
 
     def get_cross_validation_config(self) -> dict[str, Any]:
         """Get cross-validation thresholds."""
-        return self._config.get_cross_validation_config()
+        return cast(dict[str, Any], self._config.get_cross_validation_config())
 
     def get_corporate_actions_config(self) -> dict[str, Any]:
         """Get corporate actions detection config."""
-        return self._config.get_corporate_actions_config()
+        return cast(dict[str, Any], self._config.get_corporate_actions_config())
 
     def get_loader_contracts(self) -> dict[str, dict[str, Any]]:
         """Get loader contracts with expected output thresholds."""
-        return self._config.get_loader_contracts()
+        return cast(dict[str, dict[str, Any]], self._config.get_loader_contracts())
 
     def as_dict(self) -> dict[str, Any]:
         """Return patrol config as a dict (for logging)."""
