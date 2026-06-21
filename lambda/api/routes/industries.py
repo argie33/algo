@@ -17,6 +17,7 @@ from routes.utils import (
     safe_limit,
     safe_page,
 )
+from utils.safe_data_conversion import safe_float, safe_int
 
 from utils.safe_data_conversion import safe_float
 
@@ -29,7 +30,7 @@ def _sf(v):
     if v is None:
         return None
     try:
-        return float(v)
+        return safe_float(v)
     except (TypeError, ValueError) as e:
         logger.debug(f"Failed to convert industry value to float: {v!r} - {e}")
         return None
@@ -187,7 +188,7 @@ def _industry_list(cur, params):
         timeout_sec=10,
     )
     total = (
-        int(count_rows[0].get("cnt", 0) if count_rows else {}) if count_rows else 0
+        safe_int(count_rows[0].get("cnt", 0) if count_rows else {}) if count_rows else 0
     )
 
     industries = []
@@ -215,25 +216,25 @@ def _industry_list(cur, params):
             {
                 "industry": ind.get("industry"),
                 "sector": ind.get("sector"),
-                "current_rank": int(current_rank),
-                "overall_rank": int(current_rank),
+                "current_rank": safe_int(current_rank),
+                "overall_rank": safe_int(current_rank),
                 "rank_1w_ago": (
-                    int(ind.get("rank_1w_ago"))
+                    safe_int(ind.get("rank_1w_ago"))
                     if ind.get("rank_1w_ago") is not None
                     else None
                 ),
                 "rank_4w_ago": (
-                    int(ind.get("rank_4w_ago"))
+                    safe_int(ind.get("rank_4w_ago"))
                     if ind.get("rank_4w_ago") is not None
                     else None
                 ),
                 "rank_12w_ago": (
-                    int(ind.get("rank_12w_ago"))
+                    safe_int(ind.get("rank_12w_ago"))
                     if ind.get("rank_12w_ago") is not None
                     else None
                 ),
                 "stock_count": (
-                    int(ind.get("stock_count"))
+                    safe_int(ind.get("stock_count"))
                     if ind.get("stock_count") is not None
                     else None
                 ),
@@ -302,7 +303,7 @@ def _industry_detail(cur, industry_name):
         {
             "industry_name": r.get("industry_name"),
             "stock_count": (
-                int(r.get("stock_count")) if r.get("stock_count") is not None else None
+                safe_int(r.get("stock_count")) if r.get("stock_count") is not None else None
             ),
             "composite_score": _sf(r.get("composite_score")),
             "momentum_score": _sf(r.get("momentum_score")),
@@ -351,12 +352,12 @@ def _industry_trend(cur, industry_name, params):
     trend_data = [
         {
             "date": str(r["date"]),
-            "avgPrice": safe_float(r["avg_price"], default=0.0, context="avg_price") if r["avg_price"] is not None else None,
+            "avgPrice": safe_safe_float(r["avg_price"], default=0.0, context="avg_price") if r["avg_price"] is not None else None,
             "stockCount": (
-                int(r["stock_count"]) if r["stock_count"] is not None else None
+                safe_int(r["stock_count"]) if r["stock_count"] is not None else None
             ),
             "dailyStrengthScore": (
-                safe_float(r["daily_strength_score"], default=0.0, context="daily_strength_score")
+                safe_safe_float(r["daily_strength_score"], default=0.0, context="daily_strength_score")
                 if r["daily_strength_score"] is not None
                 else None
             ),

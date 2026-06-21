@@ -17,7 +17,7 @@ from routes.utils import (
 )
 
 from utils.validation import DatabaseResultValidator
-from utils.safe_data_conversion import safe_float
+from utils.safe_data_conversion import safe_float, safe_int
 
 
 logger = logging.getLogger(__name__)
@@ -234,7 +234,7 @@ def _get_leading_indicators(cur) -> dict:
                 logger.warning("Row missing series_id in economic latest data")
                 continue
             # Safely convert value to float
-            value = DatabaseResultValidator.safe_get_float(
+            value = DatabaseResultValidator.safe_get_safe_float(
                 row, "value", default=None, strict=False
             )
             date = row.get("date")
@@ -263,7 +263,7 @@ def _get_leading_indicators(cur) -> dict:
             history_by_series[sid].append(
                 {
                     "date": str(row["date"]),
-                    "value": float(row["value"]) if row["value"] else None,
+                    "value": safe_float(row["value"]) if row["value"] else None,
                 }
             )
 
@@ -286,23 +286,23 @@ def _get_leading_indicators(cur) -> dict:
                 cur_h = history[-1] if history else None
                 yr_ago = history[-13] if len(history) >= 13 else history[0]
                 if cur_h and yr_ago and yr_ago.get("value") and cur_h.get("value"):
-                    prior = float(yr_ago["value"])
+                    prior = safe_float(yr_ago["value"])
                     if prior != 0:
                         display_value = round(
-                            (float(cur_h["value"]) - prior) / abs(prior) * 100, 2
+                            (safe_float(cur_h["value"]) - prior) / abs(prior) * 100, 2
                         )
                 # Replace history values with rolling YoY % change too
                 yoy_history = []
                 for idx in range(12, len(history)):
                     cur_v = history[idx].get("value")
                     yr_v = history[idx - 12].get("value")
-                    if cur_v is not None and yr_v and safe_float(yr_v, default=0.0, context="yr_v") != 0:
+                    if cur_v is not None and yr_v and safe_safe_float(yr_v, default=0.0, context="yr_v") != 0:
                         yoy_history.append(
                             {
                                 "date": history[idx]["date"],
                                 "value": round(
-                                    (safe_float(cur_v, default=0.0, context="cur_v") - safe_float(yr_v, default=0.0, context="yr_v"))
-                                    / abs(safe_float(yr_v, default=0.0, context="yr_v"))
+                                    (safe_safe_float(cur_v, default=0.0, context="cur_v") - safe_safe_float(yr_v, default=0.0, context="yr_v"))
+                                    / abs(safe_safe_float(yr_v, default=0.0, context="yr_v"))
                                     * 100,
                                     2,
                                 ),
@@ -337,10 +337,10 @@ def _get_leading_indicators(cur) -> dict:
                 cur_v = history[-1].get("value")
                 prev_v = history[-2].get("value")
                 if cur_v is not None and prev_v is not None:
-                    change = round(safe_float(cur_v, default=0.0, context="cur_v") - safe_float(prev_v, default=0.0, context="prev_v"), 2)
+                    change = round(safe_safe_float(cur_v, default=0.0, context="cur_v") - safe_safe_float(prev_v, default=0.0, context="prev_v"), 2)
 
             display_str = (
-                str(round(safe_float(display_value, default=0.0, context="display_value"), 2))
+                str(round(safe_safe_float(display_value, default=0.0, context="display_value"), 2))
                 if display_value is not None
                 else None
             )
@@ -409,7 +409,7 @@ def _get_yield_curve_full(cur) -> dict:
 
         for row in latest_rows:
             sid = row["series_id"]
-            val = float(row["value"]) if row["value"] else None
+            val = safe_float(row["value"]) if row["value"] else None
 
             # Build current yield curve
             if sid == "DGS3MO":
@@ -447,7 +447,7 @@ def _get_yield_curve_full(cur) -> dict:
             history_by_series[sid].append(
                 {
                     "date": str(row["date"]),
-                    "value": float(row["value"]) if row["value"] else None,
+                    "value": safe_float(row["value"]) if row["value"] else None,
                 }
             )
 
