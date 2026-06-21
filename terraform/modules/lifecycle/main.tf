@@ -54,17 +54,10 @@ locals {
   ]
 }
 
-resource "aws_cloudwatch_log_group" "existing_with_retention" {
-  for_each = toset(local.log_groups_with_retention)
-
-  name              = each.value
-  retention_in_days = 7
-  skip_destroy      = true
-
-  lifecycle {
-    ignore_changes = [name, tags]
-  }
-}
+# Skip log group creation - they already exist in AWS from ECS/Lambda services
+# Creating them causes ResourceAlreadyExistsException errors
+# Retention is managed by ECS tasks, not Terraform
+# If retention update needed, use: aws logs put-retention-policy --log-group-name <name> --retention-in-days 7
 
 # ============================================================
 # Task Definition Version Cleanup
