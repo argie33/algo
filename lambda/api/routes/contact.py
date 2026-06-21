@@ -184,7 +184,9 @@ def handle(
 
         if path == "/api/contact":
             if method == "POST":
-                return _submit_contact(cur, body or {})
+                if not body:
+                    return error_response(400, "bad_request", "Request body is required")
+                return _submit_contact(cur, body)
             return error_response(405, "method_not_allowed", "POST required")
 
         return error_response(404, "not_found", f"No contact handler for {path}")

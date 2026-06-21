@@ -1,4 +1,4 @@
-﻿"""Portfolio exposure and risk factor panel functions."""
+"""Portfolio exposure and risk factor panel functions."""
 
 import logging
 

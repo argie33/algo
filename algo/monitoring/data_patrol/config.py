@@ -6,6 +6,8 @@ from typing import Any, cast
 
 import psycopg2
 
+from utils.safe_data_conversion import safe_float
+
 
 logger = logging.getLogger(__name__)
 

@@ -1,4 +1,4 @@
-﻿"""Recent trades and expanded trades panel functions."""
+"""Recent trades and expanded trades panel functions."""
 
 import logging
 from typing import Any

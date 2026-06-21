@@ -1,4 +1,4 @@
-﻿#!/usr/bin/env python3
+#!/usr/bin/env python3
 """Monitor algo orchestrator execution - query RDS and Alpaca for results."""
 
 import json

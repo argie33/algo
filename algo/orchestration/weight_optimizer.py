@@ -96,8 +96,19 @@ class WeightOptimizer:
             attribution = SignalAttributionEngine()
             ic_values = attribution.compute_ic(report_date, lookback_trades)
 
-            # Extract and normalize ICs
-            sample_size = ic_values.get(self.COMPONENTS[0], {}).get("sample_size", 0)
+            # Validate IC data structure
+            if not ic_values:
+                raise ValueError("No IC values computed for weight optimization")
+
+            # Extract and validate sample size from first component
+            first_comp_data = ic_values.get(self.COMPONENTS[0])
+            if not first_comp_data or "sample_size" not in first_comp_data:
+                raise ValueError(
+                    f"IC data missing sample_size for {self.COMPONENTS[0]} component. "
+                    "Cannot validate data sufficiency for weight optimization."
+                )
+
+            sample_size = first_comp_data["sample_size"]
             if sample_size < self.MIN_TRADES:
                 raise ValueError(
                     f"Insufficient trades ({sample_size} < {self.MIN_TRADES}) for weight optimization. "
@@ -106,7 +117,13 @@ class WeightOptimizer:
 
             ic_list: list[float] = []
             for comp in self.COMPONENTS:
-                ic = ic_values.get(comp, {}).get("ic_value", 0)
+                comp_data = ic_values.get(comp)
+                if not comp_data or "ic_value" not in comp_data:
+                    raise ValueError(
+                        f"Missing IC data for {comp} component. "
+                        "Cannot optimize weights without complete IC attribution data."
+                    )
+                ic = comp_data["ic_value"]
                 ic_list.append(safe_float(ic, default=0.0, context="ic"))
 
             ic_array = np.array(ic_list)

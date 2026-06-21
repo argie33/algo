@@ -1,4 +1,4 @@
-﻿import psycopg2
+import psycopg2
 
 
 #!/usr/bin/env python3
@@ -132,7 +132,7 @@ class AlgoConfig:
             "float",
             "Risk multiplier when VIX > caution threshold",
         ),
-        # Market Exposure Engine â€” Veto Thresholds (H12)
+        # Market Exposure Engine  -” Veto Thresholds (H12)
         "market_exposure_veto1_breadth_pct": (
             "30",
             "int",
@@ -446,7 +446,7 @@ class AlgoConfig:
         "min_price_history_days": (
             "200",
             "int",
-            "Min trading days of price history (IPO age gate â€” Minervini avoids stocks <1yr post-IPO)",
+            "Min trading days of price history (IPO age gate  -” Minervini avoids stocks <1yr post-IPO)",
         ),
         "min_daily_volume_shares": ("500000", "int", "Minimum daily volume shares"),
         "max_spread_pct": ("0.5", "float", "Maximum bid-ask spread %"),
@@ -624,7 +624,7 @@ class AlgoConfig:
         "db_connection_timeout_seconds": (
             "15",
             "int",
-            "Database connection timeout (seconds) â€” RDS Proxy adds latency",
+            "Database connection timeout (seconds)  -” RDS Proxy adds latency",
         ),
         # Failsafe Configuration
         "failsafe_ecs_timeout_sec": (
@@ -754,7 +754,7 @@ class AlgoConfig:
                                     f"Admin must fix database value: {e}"
                                 )
                             else:
-                                logger.warning(f"Warning: Invalid config {key}={value}: {e} â€” using default")
+                                logger.warning(f"Warning: Invalid config {key}={value}: {e}  -” using default")
                                 self._sources[key] = "default_fallback"
 
                 if invalid_critical_values:
@@ -828,7 +828,7 @@ class AlgoConfig:
         """
         # Use validation schema if available; otherwise fall back to basic checks
         if key not in self.VALIDATION_SCHEMA:
-            logger.warning(f"[CONFIG VALIDATE] Key {key!r} not in validation schema â€” using basic checks")
+            logger.warning(f"[CONFIG VALIDATE] Key {key!r} not in validation schema  -” using basic checks")
             return True
 
         schema_type, min_val, max_val, is_critical, fail_closed = self.VALIDATION_SCHEMA[key]
@@ -1160,7 +1160,7 @@ class AlgoConfig:
                 # Return fail-closed value for critical thresholds
                 if is_critical and fail_closed_value is not None:
                     logger.warning(
-                        f"[CONFIG TYPE ERROR] {key!r} is critical â€” returning fail-closed value {fail_closed_value!r}"
+                        f"[CONFIG TYPE ERROR] {key!r} is critical  -” returning fail-closed value {fail_closed_value!r}"
                     )
                     return fail_closed_value
                 else:
@@ -1202,7 +1202,7 @@ class AlgoConfig:
         Used for command-line args and event-level test overrides that should not persist.
         """
         if key not in self.DEFAULTS:
-            logger.warning(f"[CONFIG OVERRIDE] Unknown key {key!r} â€” ignored")
+            logger.warning(f"[CONFIG OVERRIDE] Unknown key {key!r}  -” ignored")
             return
         _, dtype, _ = self.DEFAULTS[key]
         try:
@@ -1211,7 +1211,7 @@ class AlgoConfig:
             self._sources[key] = "override"
             logger.info(f"[CONFIG OVERRIDE] {key} = {value} ({dtype})")
         except ValueError as e:
-            logger.error(f"[CONFIG OVERRIDE] Invalid value for {key}: {e} â€” ignored")
+            logger.error(f"[CONFIG OVERRIDE] Invalid value for {key}: {e}  -” ignored")
 
     def set(self, key, value, value_type, description="", changed_by="system"):
         """Set configuration value in database, memory, and audit log.
@@ -1360,7 +1360,7 @@ def get_config():
 
 
 def reset_config() -> None:
-    """Reset singleton â€” call at Lambda invocation start so config is fresh each run.
+    """Reset singleton  -” call at Lambda invocation start so config is fresh each run.
 
     This ensures warm Lambda invocations reload config from the DB, picking up
     any changes made between invocations (e.g., lowering a risk threshold).
@@ -1369,7 +1369,7 @@ def reset_config() -> None:
     global _instance
     with _instance_lock:
         _instance = None
-    logger.info("[AlgoConfig] Singleton reset â€” will reload from DB on next get_config() call")
+    logger.info("[AlgoConfig] Singleton reset  -” will reload from DB on next get_config() call")
 
 
 def get_api_timeout() -> int:

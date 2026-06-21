@@ -1,4 +1,4 @@
-﻿#!/usr/bin/env python3
+#!/usr/bin/env python3
 
 
 
@@ -1108,14 +1108,28 @@ class ExitEngine:
 
                 data = response.json()
 
-                quotes = data.get("quotes", {})
+                # Validate API response structure
+                if "quotes" not in data or not isinstance(data["quotes"], dict):
+                    raise RuntimeError(
+                        f"Alpaca quote API returned 200 but missing 'quotes' key or invalid type. "
+                        f"Response: {data}"
+                    )
 
-                quote = quotes.get(symbol, {})
+                quotes = data["quotes"]
 
+                if symbol not in quotes:
+                    raise RuntimeError(
+                        f"Alpaca quote API returned 200 but no data for {symbol}. "
+                        f"Available symbols: {list(quotes.keys())}"
+                    )
 
+                quote = quotes[symbol]
+                if not isinstance(quote, dict):
+                    raise RuntimeError(
+                        f"Alpaca quote API returned invalid data type for {symbol}: {type(quote)}"
+                    )
 
                 # Calculate midpoint from bid/ask
-
                 bid = quote.get("bp")
 
                 ask = quote.get("ap")
@@ -1133,8 +1147,6 @@ class ExitEngine:
                 if last_price is not None:
 
                     return float(last_price)
-
-
 
                 # Status 200 but no valid price data: check if market is open
 

@@ -1,4 +1,4 @@
-﻿"""Market regime, internals, breadth, sentiment panel functions."""
+"""Market regime, internals, breadth, sentiment panel functions."""
 
 import logging
 

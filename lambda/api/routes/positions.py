@@ -40,7 +40,9 @@ def handle(  # type: ignore
         if path == "/api/position/update" and method in ("POST", "PUT"):
             if not _check_admin_access(jwt_claims):
                 raise_api_error(403, "forbidden", "Admin access required")
-            return _update_position(cur, body or {})
+            if not body:
+                raise_api_error(400, "bad_request", "Request body is required")
+            return _update_position(cur, body)
 
         raise_api_error(404, "not_found", f"No position handler for {path}")
     except Exception as e:

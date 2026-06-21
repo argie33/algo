@@ -1,4 +1,4 @@
-﻿"""Health and orchestration panel functions."""
+"""Health and orchestration panel functions."""
 
 import json
 import logging

@@ -1407,22 +1407,31 @@ class Orchestrator:
                 m.put_orchestrator_result(result["success"], self.phase_results)
 
                 # Signal count from phase 5 summary
-                phase5 = self.phase_results.get(5, {})
-                signals = phase5.get("signals_evaluated", 0)
-                if isinstance(signals, int):
-                    m.put_signal_count(signals)
+                if 5 in self.phase_results:
+                    phase5 = self.phase_results[5]
+                    signals = phase5.get("signals_evaluated")
+                    if isinstance(signals, int):
+                        m.put_signal_count(signals)
+                else:
+                    logger.warning("Phase 5 result missing from phase_results")
 
                 # Trade count from phase 6 summary
-                phase6 = self.phase_results.get(6, {})
-                trades = phase6.get("trades_executed", 0)
-                if isinstance(trades, int):
-                    m.put_trade_count(trades)
+                if 6 in self.phase_results:
+                    phase6 = self.phase_results[6]
+                    trades = phase6.get("trades_executed")
+                    if isinstance(trades, int):
+                        m.put_trade_count(trades)
+                else:
+                    logger.warning("Phase 6 result missing from phase_results")
 
                 # Open position count from phase 7
-                phase7 = self.phase_results.get(7, {})
-                positions = phase7.get("open_positions", 0)
-                if isinstance(positions, int):
-                    m.put_open_positions(positions)
+                if 7 in self.phase_results:
+                    phase7 = self.phase_results[7]
+                    positions = phase7.get("open_positions")
+                    if isinstance(positions, int):
+                        m.put_open_positions(positions)
+                else:
+                    logger.warning("Phase 7 result missing from phase_results")
 
         except Exception as e:
             # Never let metrics publishing interrupt trading results

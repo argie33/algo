@@ -1229,8 +1229,14 @@ class MarketExposure:
 
     def _persist(self, eval_date, result):
         try:
+            # Validate required fields
+            required_fields = ["regime", "halt_reasons", "factors", "exposure_pct"]
+            missing = [f for f in required_fields if f not in result]
+            if missing:
+                raise ValueError(f"Missing required fields in market exposure result: {missing}")
+
             # Determine tier from regime
-            regime = result.get("regime", "caution")
+            regime = result["regime"]
             if regime == "confirmed_uptrend":
                 tier = "tier_1_strong_uptrend"
             elif regime == "uptrend_under_pressure":
@@ -1241,7 +1247,7 @@ class MarketExposure:
                 tier = "tier_4_correction"
 
             # Can enter if no halt reasons
-            is_entry_allowed = len(result.get("halt_reasons", [])) == 0
+            is_entry_allowed = len(result["halt_reasons"]) == 0
 
             # Map exposure score to long/short allocations
             exposure_pct = result["exposure_pct"]
@@ -1252,8 +1258,8 @@ class MarketExposure:
                 long_exp = 0
                 short_exp = abs(exposure_pct)
 
-            factors_json = json.dumps(result.get("factors", {}))
-            halt_reasons_json = json.dumps(result.get("halt_reasons", []))
+            factors_json = json.dumps(result["factors"])
+            halt_reasons_json = json.dumps(result["halt_reasons"])
             with DatabaseContext("write") as cur:
                 cur.execute(
                     """

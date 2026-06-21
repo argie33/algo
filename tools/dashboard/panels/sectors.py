@@ -1,4 +1,4 @@
-﻿"""Sector analysis panel functions."""
+"""Sector analysis panel functions."""
 
 import logging
 

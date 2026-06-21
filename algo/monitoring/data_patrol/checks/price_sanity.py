@@ -5,6 +5,8 @@ import logging
 
 import psycopg2
 
+from utils.safe_data_conversion import safe_float
+
 from ..base import BaseCheck, CheckResult
 from ..config import ERROR, INFO, WARN
 

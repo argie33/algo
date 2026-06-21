@@ -1,10 +1,10 @@
-﻿#!/usr/bin/env python3
+#!/usr/bin/env python3
 """
 Position Monitor - Institutional-grade daily position health checks
 
 Runs each trading day on every open position. For each one:
   1. Refresh current price + position value + unrealized P&L
-  2. Recompute trailing stop using ATR / swing low / 50-DMA â€” STOPS ONLY GO UP
+  2. Recompute trailing stop using ATR / swing low / 50-DMA  -” STOPS ONLY GO UP
   3. Score position health across factors:
         a. Relative strength vs SPY (degrading = warning)
         b. Sector strength (turned weak = warning)
@@ -15,7 +15,7 @@ Runs each trading day on every open position. For each one:
   4. Aggregate health flags. >= halt_flag_count -> propose early exit.
   5. Persist updated state on algo_positions and write audit entries.
 
-The monitor PROPOSES adjustments â€” actual stop-raising executes via
+The monitor PROPOSES adjustments  -” actual stop-raising executes via
 TradeExecutor.exit_trade(new_stop_price=...) in the orchestrator.
 """
 
@@ -93,7 +93,7 @@ class PositionMonitor:
 
             if stale_orders:
                 # Filter out halted symbols (halts are normal, not actionable)
-                # Fail fast if halt check fails â€” don't skip filtering silently
+                # Fail fast if halt check fails  -” don't skip filtering silently
                 try:
                     from algo.infrastructure import MarketEventHandler
 
@@ -137,7 +137,7 @@ class PositionMonitor:
 
                         # Auto-cancel if > 2 hours (or configured threshold)
                         if age_minutes >= auto_cancel_threshold:
-                            # Fail fast on Alpaca cancellation â€” don't mark DB as cancelled if API call fails
+                            # Fail fast on Alpaca cancellation  -” don't mark DB as cancelled if API call fails
                             try:
                                 self._cancel_on_alpaca(trade_id)
                             except (ValueError, ZeroDivisionError, TypeError) as api_e:
@@ -260,7 +260,7 @@ class PositionMonitor:
                 eq_row = cur.fetchone()
                 if eq_row is None or eq_row[0] is None:
                     raise PositionValidationError(
-                        "Portfolio equity unavailable â€” cannot compute margin utilization. Snapshots missing or stale."
+                        "Portfolio equity unavailable  -” cannot compute margin utilization. Snapshots missing or stale."
                     )
 
                 total_equity = safe_float(eq_row[0], context="portfolio_equity")
@@ -284,7 +284,7 @@ class PositionMonitor:
                 margin_util_pct = pos_value / total_equity * 100
                 if margin_util_pct > 90:
                     logger.critical(
-                        f"[MARGIN HALT] Position value {margin_util_pct:.1f}% of equity â€” liquidation risk imminent"
+                        f"[MARGIN HALT] Position value {margin_util_pct:.1f}% of equity  -” liquidation risk imminent"
                     )
                     raise PositionValidationError(
                         f"Margin utilization critical: {margin_util_pct:.1f}% of equity (>90%). Cannot proceed with position monitoring."
@@ -316,7 +316,7 @@ class PositionMonitor:
             positions = cur.fetchall()
 
             logger.info(f"\n{'=' * 70}")
-            logger.info(f"POSITION MONITOR â€” {current_date}")
+            logger.info(f"POSITION MONITOR  -” {current_date}")
             logger.info(f"{'=' * 70}")
             logger.info(f"Reviewing {len(positions)} open position(s)\n")
 
@@ -354,7 +354,7 @@ class PositionMonitor:
                     cur.execute(f"ROLLBACK TO {sp_name}")
                     continue
 
-            # If ALL positions failed validation, monitoring is incomplete â€” raise to signal caller
+            # If ALL positions failed validation, monitoring is incomplete  -” raise to signal caller
             if validation_errors and len(recs) == len(validation_errors):
                 all_failures = "\n".join([f"  {sym}: {msg}" for sym, msg in validation_errors])
                 raise PositionValidationError(
@@ -391,15 +391,15 @@ class PositionMonitor:
         init_stop = float(init_stop)
 
         if entry_price <= 0:
-            msg = f"Invalid entry price {entry_price} for {symbol} â€” cannot monitor"
+            msg = f"Invalid entry price {entry_price} for {symbol}  -” cannot monitor"
             logger.error(f"ERROR: {msg}")
             raise PositionValidationError(msg)
         if init_stop <= 0:
-            msg = f"Invalid stop {init_stop} for {symbol} â€” cannot monitor"
+            msg = f"Invalid stop {init_stop} for {symbol}  -” cannot monitor"
             logger.error(f"ERROR: {msg}")
             raise PositionValidationError(msg)
         if init_stop >= entry_price:
-            msg = f"Stop {init_stop} >= entry {entry_price} for {symbol} â€” invalid trade"
+            msg = f"Stop {init_stop} >= entry {entry_price} for {symbol}  -” invalid trade"
             logger.error(f"ERROR: {msg}")
             raise PositionValidationError(msg)
         active_stop = float(current_stop) if current_stop else init_stop
@@ -483,7 +483,7 @@ class PositionMonitor:
             days_to_earn = self._days_to_earnings(symbol, current_date, cur)
         except (ValueError, RuntimeError) as e:
             raise ValueError(
-                f"Cannot evaluate earnings proximity for {symbol} on {current_date}: {e} â€” explicit halt"
+                f"Cannot evaluate earnings proximity for {symbol} on {current_date}: {e}  -” explicit halt"
             ) from e
 
         if 0 <= days_to_earn <= 3:
@@ -525,7 +525,7 @@ class PositionMonitor:
         # Special case: earnings within 1-2 days = always exit
         if 0 <= days_to_earn <= 2:
             action = "EARLY_EXIT"
-            action_reason = f"Earnings in {days_to_earn} day(s) â€” flatten before report"
+            action_reason = f"Earnings in {days_to_earn} day(s)  -” flatten before report"
             urgent_exit = True
 
         return {
@@ -666,7 +666,7 @@ class PositionMonitor:
         """Fetch current price and technical indicators for a symbol.
 
         Raises:
-            ValueError: If price data is missing â€” price_daily is required,
+            ValueError: If price data is missing  -” price_daily is required,
                        technical_data_daily may be None (handled by caller)
         """
         cur.execute(
@@ -681,11 +681,11 @@ class PositionMonitor:
         )
         row = cur.fetchone()
         if row is None:
-            raise ValueError(f"Price data missing for {symbol} on {current_date} or earlier â€” no price_daily entry")
+            raise ValueError(f"Price data missing for {symbol} on {current_date} or earlier  -” no price_daily entry")
 
         close_price = safe_float(row[0], default=0.0, context="row[0]") if row[0] is not None else None
         if close_price is None:
-            raise ValueError(f"Invalid price for {symbol} on {current_date} â€” close price is NULL")
+            raise ValueError(f"Invalid price for {symbol} on {current_date}  -” close price is NULL")
 
         return (
             close_price,
@@ -755,7 +755,7 @@ class PositionMonitor:
 
         if stock is None or spy is None:
             logger.warning(
-                f"RS data missing for {symbol}: stock={stock}, spy={spy} â€” treating as unknown, not weakening"
+                f"RS data missing for {symbol}: stock={stock}, spy={spy}  -” treating as unknown, not weakening"
             )
             return "unknown"
         excess = stock - spy
@@ -790,10 +790,10 @@ class PositionMonitor:
         )
         srow = cur.fetchone()
         if not srow:
-            logger.debug(f"Sector data not found for {symbol} â€” assuming neutral")
+            logger.debug(f"Sector data not found for {symbol}  -” assuming neutral")
             return "neutral"
         if not srow[0]:
-            logger.debug(f"NULL sector for {symbol} â€” assuming neutral")
+            logger.debug(f"NULL sector for {symbol}  -” assuming neutral")
             return "neutral"
         sector = srow[0]
 
@@ -808,7 +808,7 @@ class PositionMonitor:
         )
         cur_row = cur.fetchone()
         if not cur_row:
-            logger.warning(f"Missing sector ranking data for {sector} â€” cannot assess health")
+            logger.warning(f"Missing sector ranking data for {sector}  -” cannot assess health")
             return "unknown"
         cur_rank = int(cur_row[0]) if cur_row[0] else 99
 
@@ -892,7 +892,7 @@ class PositionMonitor:
             days = (est - current_date).days
             if days < 0 or days > 200:
                 raise ValueError(
-                    f"Earnings estimate out of range for {symbol}: {days} days â€” estimated date {est} is invalid"
+                    f"Earnings estimate out of range for {symbol}: {days} days  -” estimated date {est} is invalid"
                 )
             return days
         except ValueError:
@@ -913,7 +913,7 @@ class PositionMonitor:
         row = cur.fetchone()
         if not row or row[0] is None:
             raise ValueError(
-                f"Market distribution days not available for {current_date} â€” market_health_daily table missing or empty"
+                f"Market distribution days not available for {current_date}  -” market_health_daily table missing or empty"
             )
         return int(row[0])
 
@@ -940,7 +940,7 @@ class PositionMonitor:
         row = cur.fetchone()
         if not row or row[0] is None or row[1] is None:
             raise ValueError(
-                f"Period return data missing for {symbol} on {end_date} ({lookback_days}d lookback) â€” insufficient price history"
+                f"Period return data missing for {symbol} on {end_date} ({lookback_days}d lookback)  -” insufficient price history"
             )
         recent, oldest = safe_float(row[0], default=0.0, context="row[0]"), safe_float(row[1], default=0.0, context="row[1]")
         if oldest <= 0:
@@ -1084,7 +1084,7 @@ class PositionMonitor:
                     alpaca_qty = int(alpaca_pos.get("qty", 0))
 
                     if alpaca_qty == 0:
-                        # Position closed at Alpaca but open in DB â€” likely filled by stop
+                        # Position closed at Alpaca but open in DB  -” likely filled by stop
                         cur.execute(
                             """
                             UPDATE algo_positions SET status = 'closed'

@@ -599,7 +599,10 @@ def _get_markets(cur) -> dict:
                 factors = {}
 
         tier_key = str(row.get("regime") or "").lower()
-        tier_conf = _TIER_CONFIG.get(tier_key, {})
+        tier_conf = _TIER_CONFIG.get(tier_key)
+        if tier_conf is None:
+            logger.warning(f"Missing tier configuration for regime: {tier_key}")
+            tier_conf = {}
         active_tier = {"name": tier_key, **tier_conf}
         active_tier["halt"] = bool(halt_reasons) or tier_conf.get("halt", False)
 

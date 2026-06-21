@@ -1,6 +1,3 @@
-import psycopg2
-
-
 #!/usr/bin/env python3
 """
 Market Factor Calculator - Compute individual market factors
@@ -13,6 +10,10 @@ Responsibilities:
 
 import logging
 from typing import Any
+
+import psycopg2
+
+from utils.safe_data_conversion import safe_float
 
 
 logger = logging.getLogger(__name__)
@@ -33,7 +34,7 @@ class MarketFactorCalculator:
         """
         if factor.get("error"):
             return 0.0, 0.0
-        score = factor.get("score", 0)
+        score = factor.get("score", 0) or 0
         return score * weight / 100.0, weight
 
     def _pct_above_ma(self, eval_date, ma_days: int, cur) -> dict[str, Any]:
@@ -54,7 +55,7 @@ class MarketFactorCalculator:
             )
             row = cur.fetchone()
             if row and row[0] is not None:
-                pct = safe_float(row[0], default=0.0, context="row[0]")
+                pct = safe_float(row[0], default=0.0, context="row[0]") or 0.0
                 # Linear: 20% → 0, 50% → 50, 80% → 100
                 score = (pct - 20) / 0.6 if pct >= 20 else 0
                 score = min(100, max(0, score))
@@ -142,8 +143,8 @@ class MarketFactorCalculator:
             )
             row = cur.fetchone()
             if row and row[0] and row[1]:
-                spy = safe_float(row[0], default=0.0, context="row[0]")
-                sma = safe_float(row[1], default=0.0, context="row[1]")
+                spy = safe_float(row[0], default=0.0, context="row[0]") or 0.0
+                sma = safe_float(row[1], default=0.0, context="row[1]") or 0.0
                 score = 100.0 if spy > sma else 0.0
                 return {"above_30wma": spy > sma, "score": score}
             return {"error": "No trend data"}
@@ -170,8 +171,10 @@ class MarketFactorCalculator:
             )
             row = cur.fetchone()
             if row and row[0] and row[1]:
-                current = safe_float(row[0], default=0.0, context="row[0]")
-                year_ago = safe_float(row[1], default=0.0, context="row[1]")
+                current = safe_float(row[0], default=0.0, context="row[0]") or 0.0
+                year_ago = safe_float(row[1], default=0.0, context="row[1]") or 0.0
+                if year_ago == 0:
+                    return {"error": "Year-ago price is zero"}
                 ret = (current - year_ago) / year_ago
                 score = min(100, max(0, ret * 200))
                 return {"return_12m": round(ret * 100, 1), "score": score}
@@ -216,7 +219,7 @@ class MarketFactorCalculator:
             )
             row = cur.fetchone()
             if row and row[0]:
-                vix = safe_float(row[0], default=0.0, context="row[0]")
+                vix = safe_float(row[0], default=0.0, context="row[0]") or 0.0
                 # Simplified: no term structure data
                 score, detail = self._vix_score(vix, vix > 20)
                 return {"vix": round(vix, 1), "score": score, **detail}

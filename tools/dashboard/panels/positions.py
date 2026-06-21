@@ -1,4 +1,4 @@
-﻿"""Position panel functions."""
+"""Position panel functions."""
 
 import logging
 

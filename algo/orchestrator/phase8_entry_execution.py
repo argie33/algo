@@ -500,11 +500,11 @@ def run(
                     f"Verify technical_data_daily loader completed successfully."
                 )
 
-            entry_price = safe_float(close, default=0.0, context="close")  # type: ignore[arg-type]
+            entry_price = safe_float(close, default=0.0, context="close")
 
-            atr = safe_float(atr, default=0.0, context="atr")  # type: ignore[arg-type]
+            atr = safe_float(atr, default=0.0, context="atr")
 
-            sma_50 = safe_float(sma_50, default=0.0, context="sma_50")  # type: ignore[arg-type]
+            sma_50 = safe_float(sma_50, default=0.0, context="sma_50")
 
             # Stop loss: min() picks the LOWER (wider) stop, giving the trade more room.
 
