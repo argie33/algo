@@ -121,7 +121,7 @@ make ci-local
 
 ## Common CI Failures & How to Fix
 
-### ❌ "Secret scan FAILED — credentials detected"
+### [FAIL] Secret scan - credentials detected
 
 **Cause:** Hardcoded API key, AWS key, or other credential committed
 
@@ -135,7 +135,7 @@ make ci-local
 
 **Prevention:** Pre-commit hooks catch this automatically. Install with `make install-hooks`.
 
-### ❌ "Linting and type checks FAILED"
+### [FAIL] Linting and type checks failed
 
 **Cause:** Code doesn't match formatting/linting rules
 
@@ -148,7 +148,7 @@ make type-check   # See type errors (manual fix needed)
 
 Then commit the changes.
 
-### ❌ "Tests FAILED"
+### [FAIL] Tests failed
 
 **Cause:** Test assertion failed or test crashed
 
@@ -166,7 +166,7 @@ pytest -k test_name    # Run specific test
 - Use `pytest --pdb` to drop into debugger on failure
 - Check database state for integration tests
 
-### ❌ "Terraform validation FAILED"
+### [FAIL] Terraform validation failed
 
 **Cause:** Terraform syntax error or validation issue
 
@@ -183,7 +183,7 @@ terraform plan             # Dry-run (requires AWS credentials)
 - Missing required variables
 - Undefined resource references
 
-### ❌ "Coverage analysis FAILED"
+### [FAIL] Coverage analysis failed
 
 **Cause:** Code coverage dropped below minimum threshold (75%)
 
@@ -196,7 +196,7 @@ make coverage              # Generate HTML report
 
 **Note:** New code should maintain or improve coverage. Don't lower thresholds.
 
-### ❌ "Dependency scan FAILED"
+### [FAIL] Dependency scan failed
 
 **Cause:** Known CVE in a dependency
 
@@ -206,7 +206,7 @@ make coverage              # Generate HTML report
 3. Update `requirements.txt`
 4. Test thoroughly before committing
 
-### ❌ "Container scan FAILED"
+### [FAIL] Container scan failed
 
 **Cause:** Dockerfile based on image with known vulnerabilities
 
@@ -251,11 +251,11 @@ make coverage              # Generate HTML report
 ## Branch Protection Rules
 
 The `main` branch requires:
-- ✅ `ci-fast-gates` workflow passes (all gates)
-- ✅ CodeQL analysis passes
-- ✅ At least 1 approval (if PR)
-- ✅ No direct pushes to main (PR only)
-- ✅ Dismissal of stale reviews on new commits
+- [DONE] `ci-fast-gates` workflow passes (all gates)
+- [DONE] CodeQL analysis passes
+- [DONE] At least 1 approval (if PR)
+- [DONE] No direct pushes to main (PR only)
+- [DONE] Dismissal of stale reviews on new commits
 
 **Enforce:** GitHub Settings → Branches → Branch protection rules → `main`
 
@@ -267,7 +267,7 @@ The `main` branch requires:
 git commit --no-verify
 ```
 
-⚠️ **Use only for emergency fixes.** Bypassed checks may still fail in GitHub CI.
+[NOTE] Use only for emergency fixes. Bypassed checks may still fail in GitHub CI.
 
 ### Skip Specific Pre-commit Hooks
 
@@ -283,7 +283,7 @@ Available hook IDs: `ruff`, `ruff-format`, `mypy`, `bandit`, `trufflehog`
 git commit -m "fix: urgent patch [skip ci]"
 ```
 
-⚠️ **Use only for documentation-only changes.** Skipping CI can hide real issues.
+[NOTE] Use only for documentation-only changes. Skipping CI can hide real issues.
 
 ## Debugging CI Failures
 

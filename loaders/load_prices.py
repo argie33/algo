@@ -1697,6 +1697,37 @@ class PriceLoader(OptimalLoader):
             self.tracker.end_run(success=success)
             logger.info(f"[Phase 1] Ended provenance tracking: run_id={self.run_id}")
 
+    def _validate_and_check_preconditions(self) -> None:
+        """Validate preflight conditions: schema and market close availability."""
+        self._validate_schema_preflight()
+        if self.interval == "1d":
+            self._validate_market_close_for_1d()
+
+    def _validate_market_close_for_1d(self) -> None:
+        """Ensure market close data is available for daily price loads."""
+        from algo.infrastructure import MarketCalendar
+
+        today = datetime.now(EASTERN_TZ).date()
+        if not MarketCalendar.is_trading_day(today):
+            logger.info("[MARKET_CLOSE] Today is not a trading day, skipping check")
+            return
+
+        try:
+            market_close_available = (
+                self._check_market_close_data_available(max_wait_sec=10)
+            )
+            if not market_close_available:
+                raise RuntimeError(
+                    "[MARKET_CLOSE] Market close data NOT available. "
+                    "Cannot load prices without verifying data is current."
+                )
+            logger.debug("[MARKET_CLOSE] ✓ Market close data available")
+        except Exception as e:
+            raise RuntimeError(
+                f"[MARKET_CLOSE] Could not verify market close data: {e}. "
+                "Cannot load prices without this verification."
+            )
+
     def run(  # type: ignore
         self, symbols: list, parallelism: int = 1, backfill_days: int | None = None
     ) -> dict:
@@ -1740,58 +1771,8 @@ class PriceLoader(OptimalLoader):
             )
             return {"symbols_loaded": 0, "symbols_failed": 0, "rows_inserted": 0}
 
-        # Market close detection: For 1d interval near 4 PM ET, ensure yfinance has close data
-        # ISSUE #23 FIX: Use SHORT non-blocking check (10s timeout) instead of 1800s blocking check
-        # The full 30-min market close check is moved to async background checks during batch loading.
-        # This prevents the loader from hanging for minutes before batch processing even starts.
-        # Start with False: only set True after explicit verification.
-        market_close_available = False
-
-        if self.interval == "1d":
-            try:
-                from algo.infrastructure import MarketCalendar
-
-                today = datetime.now(EASTERN_TZ).date()
-                # Only check if today is a trading day
-                if not MarketCalendar.is_trading_day(today):
-                    logger.info(
-                        "[MARKET_CLOSE] Today is not a trading day, skipping market close check"
-                    )
-                    market_close_available = True
-                else:
-                    # Market close data must be available for daily prices to be current.
-                    # Failing to verify this allows stale data to flow downstream.
-                    try:
-                        market_close_available = (
-                            self._check_market_close_data_available(max_wait_sec=10)
-                        )
-                        if not market_close_available:
-                            error_msg = (
-                                "[MARKET_CLOSE] Quick check indicates market close data is NOT available. "
-                                "Cannot load prices without verifying data is current. "
-                                "Check yfinance/data source availability."
-                            )
-                            logger.critical(error_msg)
-                            raise RuntimeError(error_msg)
-                        logger.debug(
-                            "[MARKET_CLOSE] ✓ Quick check passed: Market close data available"
-                        )
-                    except Exception as quick_check_err:
-                        error_msg = (
-                            f"[MARKET_CLOSE] Could not verify market close data availability: {quick_check_err}. "
-                            "Cannot load prices without this verification. Aborting."
-                        )
-                        logger.critical(error_msg)
-                        raise RuntimeError(error_msg)
-            except Exception as e:
-                error_msg = (
-                    f"[MARKET_CLOSE] Could not perform market close check: {e}. "
-                    "Cannot load prices without verifying data is current. Aborting."
-                )
-                logger.critical(error_msg)
-                raise RuntimeError(error_msg)
-        else:
-            market_close_available = True
+        # Validate preconditions: schema integrity and market close data
+        self._validate_and_check_preconditions()
 
         # Timeout guardrails: ECS task timeout is 25200s (7h), Step Functions is 27000s (7.5h)
         # At N% of timeout, if < 10% complete, trigger emergency mode (multiplier from config)
