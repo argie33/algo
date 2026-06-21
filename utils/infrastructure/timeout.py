@@ -22,17 +22,17 @@ from contextlib import contextmanager
 logger = logging.getLogger(__name__)
 
 
-class TimeoutError(Exception):
+class ExecutionTimeoutError(Exception):
     """Raised when execution exceeds timeout limit."""
 
 
 def _timeout_handler_unix(signum, frame):
     """Signal handler for Unix-based timeout (SIGALRM)."""
-    raise TimeoutError("Execution timeout: exceeded maximum allowed time")
+    raise ExecutionTimeoutError("Execution timeout: exceeded maximum allowed time")
 
 
 @contextmanager
-def ExecutionTimeout(max_seconds: int = 5400, label: str = "loader"):
+def execution_timeout(max_seconds: int = 5400, label: str = "loader"):
     """
     Context manager that enforces a hard execution timeout.
 
@@ -44,7 +44,7 @@ def ExecutionTimeout(max_seconds: int = 5400, label: str = "loader"):
         label: Human-readable label for logging (e.g., "stock_prices_daily")
 
     Raises:
-        TimeoutError: If execution exceeds max_seconds
+        ExecutionTimeoutError: If execution exceeds max_seconds
 
     Usage:
         try:
@@ -95,11 +95,32 @@ def ExecutionTimeout(max_seconds: int = 5400, label: str = "loader"):
                 if timeout_thread and timeout_thread.is_alive():
                     timeout_thread.cancel()
 
-    except TimeoutError:
+    except ExecutionTimeoutError:
         logger.error(
             f"[TIMEOUT] {label} exceeded timeout limit: {max_seconds}s. "
             "This indicates either slow API responses or resource contention. "
-            "Raising TimeoutError to halt loader gracefully."
+            "Raising ExecutionTimeoutError to halt loader gracefully."
         )
         # Attempt to log failure before exit
         raise
+
+
+class ExecutionTimeout:
+    """Context manager class for execution timeouts.
+
+    Wraps execution_timeout for convenient use with `with` statements.
+    Usage: with ExecutionTimeout(max_seconds=5400, label="loader"):
+    """
+
+    def __init__(self, max_seconds: int = 5400, label: str = "loader"):
+        self.max_seconds = max_seconds
+        self.label = label
+        self._context = None
+
+    def __enter__(self):
+        self._context = execution_timeout(self.max_seconds, self.label)
+        return self._context.__enter__()
+
+    def __exit__(self, exc_type, exc_val, exc_tb):
+        if self._context:
+            return self._context.__exit__(exc_type, exc_val, exc_tb)
