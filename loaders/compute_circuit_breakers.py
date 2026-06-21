@@ -72,6 +72,27 @@ def compute_circuit_breaker_metrics(cur, today: date | None = None):
         metrics["any_triggered"] = _check_any_triggered(metrics)
         metrics["triggered_count"] = _count_triggered(metrics)
 
+        # Validate all required metrics are present and not None before DB insert
+        required_keys = [
+            "portfolio_drawdown_pct",
+            "daily_loss_pct",
+            "weekly_loss_pct",
+            "consecutive_losses",
+            "open_risk_pct",
+            "vix_level",
+            "market_stage",
+            "spy_prior_day_change_pct",
+            "win_rate_last_30_pct",
+            "triggered_count",
+            "any_triggered",
+        ]
+        missing_or_none = [k for k in required_keys if k not in metrics or metrics[k] is None]
+        if missing_or_none:
+            raise ValueError(
+                f"Circuit breaker metrics incomplete before DB insert: {missing_or_none}. "
+                f"This prevents silent data corruption (NULL insertion). Metrics available: {list(metrics.keys())}"
+            )
+
         # Insert or update circuit_breaker_status
         _insert_circuit_breaker_status(cur, today, metrics)
 
@@ -483,17 +504,17 @@ def _insert_circuit_breaker_status(cur, today: date, metrics: dict):
         """,
             (
                 today,
-                metrics.get("portfolio_drawdown_pct"),
-                metrics.get("daily_loss_pct"),
-                metrics.get("weekly_loss_pct"),
-                metrics.get("consecutive_losses"),
-                metrics.get("open_risk_pct"),
-                metrics.get("vix_level"),
-                metrics.get("market_stage"),
-                metrics.get("spy_prior_day_change_pct"),
-                metrics.get("win_rate_last_30_pct"),
-                metrics.get("triggered_count"),
-                metrics.get("any_triggered"),
+                metrics["portfolio_drawdown_pct"],
+                metrics["daily_loss_pct"],
+                metrics["weekly_loss_pct"],
+                metrics["consecutive_losses"],
+                metrics["open_risk_pct"],
+                metrics["vix_level"],
+                metrics["market_stage"],
+                metrics["spy_prior_day_change_pct"],
+                metrics["win_rate_last_30_pct"],
+                metrics["triggered_count"],
+                metrics["any_triggered"],
             ),
         )
     except (psycopg2.DatabaseError, psycopg2.OperationalError) as e:
