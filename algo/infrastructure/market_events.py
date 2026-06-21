@@ -63,8 +63,7 @@ class MarketEventHandler:
             except (json.JSONDecodeError, ValueError) as e:
                 logger.error(f"CRITICAL: Invalid JSON response from {url}: {e}")
                 raise RuntimeError(
-                    f"Cannot parse market event status from {url}. "
-                    f"Invalid JSON: {e}. Check data provider and retry."
+                    f"Cannot parse market event status from {url}. Invalid JSON: {e}. Check data provider and retry."
                 ) from e
             status = data.get("status", "").upper()
             tradable = data.get("tradable", False)
@@ -414,4 +413,3 @@ class MarketEventHandler:
             result["alerts"].append(f"CIRCUIT BREAKER LEVEL {cb['level']}: {cb['description']}")
 
         return result
-

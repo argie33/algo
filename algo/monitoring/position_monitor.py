@@ -435,10 +435,18 @@ class PositionMonitor:
         entry_price_dec = Decimal(str(entry_price))
         quantity_dec = Decimal(str(quantity))
 
-        unrealized_pnl = float(float((price_diff * quantity_dec).quantize(Decimal("0.01"), ROUND_HALF_UP)), default=0.0, context="unrealized_pnl")
+        unrealized_pnl = float(
+            float((price_diff * quantity_dec).quantize(Decimal("0.01"), ROUND_HALF_UP)),
+            default=0.0,
+            context="unrealized_pnl",
+        )
         if entry_price_dec <= 0:
             raise PositionValidationError(f"Invalid entry price for {symbol}: {entry_price_dec} <= 0")
-        unrealized_pct = float(float((price_diff / entry_price_dec * 100).quantize(Decimal("0.01"), ROUND_HALF_UP)), default=0.0, context="unrealized_pct")
+        unrealized_pct = float(
+            float((price_diff / entry_price_dec * 100).quantize(Decimal("0.01"), ROUND_HALF_UP)),
+            default=0.0,
+            context="unrealized_pct",
+        )
 
         # 2. Recompute trailing stop (only ratchet UP, never down)
         proposed_stop = self._compute_trailing_stop(
@@ -662,7 +670,9 @@ class PositionMonitor:
         except (psycopg2.DatabaseError, psycopg2.OperationalError) as db_e:
             raise RuntimeError(f"Failed to cancel and update {trade_id}: {db_e}") from db_e
 
-    def _fetch_current_market(self, symbol: str, current_date: Any, cur: Any) -> tuple[float | None, float | None, float | None]:
+    def _fetch_current_market(
+        self, symbol: str, current_date: Any, cur: Any
+    ) -> tuple[float | None, float | None, float | None]:
         """Fetch current price and technical indicators for a symbol.
 
         Raises:
@@ -959,7 +969,9 @@ class PositionMonitor:
             current_price = float(rec["current_price"])
             quantity = float(rec["quantity"])
             if current_price is None or quantity is None:
-                raise ValueError(f"Cannot persist review for position {rec['position_id']}: current_price or quantity missing")
+                raise ValueError(
+                    f"Cannot persist review for position {rec['position_id']}: current_price or quantity missing"
+                )
             cur.execute(
                 """
                 UPDATE algo_positions
@@ -1209,4 +1221,3 @@ if __name__ == "__main__":
 
     monitor = PositionMonitor(get_config())
     monitor.review_positions()
-

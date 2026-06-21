@@ -239,7 +239,9 @@ def panel_sectors_expanded(srank, pos, port, sec_rot=None, irank=None):
             )
             rows.append(Rule(style="dim"))
         else:
-            logger.warning(f"Sector rotation missing required fields: def_score={def_s_raw}, cyc_score={cyc_s_raw}, strength={strength_raw}")
+            logger.warning(
+                f"Sector rotation missing required fields: def_score={def_s_raw}, cyc_score={cyc_s_raw}, strength={strength_raw}"
+            )
 
     # Full portfolio by sector
     # Issue 3.1 FIX: Use unified normalization function

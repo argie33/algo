@@ -391,7 +391,9 @@ class OrderManager:
                         return {"success": False, "message": "Alpaca response missing order id"}
                     filled_price_raw = data.get("filled_avg_price")
                     if not filled_price_raw:
-                        logger.error(f"[SEND_EXIT] {symbol}: Alpaca response missing filled_avg_price for order {order_id}")
+                        logger.error(
+                            f"[SEND_EXIT] {symbol}: Alpaca response missing filled_avg_price for order {order_id}"
+                        )
                         return {"success": False, "message": "Alpaca response missing filled_avg_price"}
                     try:
                         filled_price = float(filled_price_raw)

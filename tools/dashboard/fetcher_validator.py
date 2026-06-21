@@ -71,7 +71,9 @@ class FetcherValidator:
         return True, None
 
     @staticmethod
-    def validate_numeric(value: Any, field_name: str, min_val: float | None = None, max_val: float | None = None) -> tuple[bool, str | None]:
+    def validate_numeric(
+        value: Any, field_name: str, min_val: float | None = None, max_val: float | None = None
+    ) -> tuple[bool, str | None]:
         """Validate numeric field is in acceptable range.
 
         Returns:

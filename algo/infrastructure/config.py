@@ -1032,15 +1032,27 @@ class AlgoConfig:
         try:
             # Validate all required config keys exist upfront
             required_keys = [
-                "max_positions", "max_position_size_pct", "max_total_invested_pct",
-                "vix_caution_threshold", "vix_max_threshold", "vix_alert_threshold",
-                "halt_drawdown_pct", "risk_reduction_at_minus_5", "risk_reduction_at_minus_10",
-                "risk_reduction_at_minus_15", "risk_reduction_at_minus_20",
-                "earnings_blackout_days_before", "earnings_blackout_days_after",
-                "max_stop_distance_pct", "base_risk_pct",
-                "max_daily_loss_pct", "max_weekly_loss_pct",
-                "min_completeness_score", "min_signal_quality_score",
-                "min_swing_score", "min_stock_price"
+                "max_positions",
+                "max_position_size_pct",
+                "max_total_invested_pct",
+                "vix_caution_threshold",
+                "vix_max_threshold",
+                "vix_alert_threshold",
+                "halt_drawdown_pct",
+                "risk_reduction_at_minus_5",
+                "risk_reduction_at_minus_10",
+                "risk_reduction_at_minus_15",
+                "risk_reduction_at_minus_20",
+                "earnings_blackout_days_before",
+                "earnings_blackout_days_after",
+                "max_stop_distance_pct",
+                "base_risk_pct",
+                "max_daily_loss_pct",
+                "max_weekly_loss_pct",
+                "min_completeness_score",
+                "min_signal_quality_score",
+                "min_swing_score",
+                "min_stock_price",
             ]
             missing = [k for k in required_keys if k not in self._config or self._config[k] is None]
             if missing:
@@ -1549,4 +1561,3 @@ if __name__ == "__main__":
     for key, val in sorted(config.to_dict().items()):
         logger.info(f"  {key:.<40} {val}")
     logger.info("=" * 60)
-

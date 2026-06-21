@@ -85,7 +85,9 @@ def panel_recent_trades(trades):
         trades_list = trades if isinstance(trades, list) else []
 
     # Filter to closed trades only — open/pending are in the positions panel
-    closed_trades = [tr for tr in trades_list if isinstance(tr, dict) and (safe_get_field(tr, "status", "")).lower() == "closed"]
+    closed_trades = [
+        tr for tr in trades_list if isinstance(tr, dict) and (safe_get_field(tr, "status", "")).lower() == "closed"
+    ]
 
     if not closed_trades:
         age_s = f"  [dim]{fmt_age(trades_timestamp)}[/]" if trades_timestamp is not None else ""
@@ -192,7 +194,9 @@ def panel_trades_expanded(trades):
     else:
         trades_list = trades if isinstance(trades, list) else []
 
-    closed = [tr for tr in trades_list if isinstance(tr, dict) and (safe_get_field(tr, "status", "")).lower() == "closed"]
+    closed = [
+        tr for tr in trades_list if isinstance(tr, dict) and (safe_get_field(tr, "status", "")).lower() == "closed"
+    ]
 
     rows = [
         Text.from_markup("[dim]press [/][bold cyan]t[/][dim] to return to dashboard[/]"),
@@ -211,21 +215,12 @@ def panel_trades_expanded(trades):
     # Summary stats (from displayed trades; see Performance panel for all-time stats)
     total = len(closed)
     # Count wins: only trades with profit_loss_pct data
-    wins = sum(
-        1 for t in closed
-        if (pnl := safe_get_field(t, "profit_loss_pct")) is not None and float(pnl) > 0
-    )
+    wins = sum(1 for t in closed if (pnl := safe_get_field(t, "profit_loss_pct")) is not None and float(pnl) > 0)
     losses = total - wins
     wr = wins / total * 100 if total else 0
     # Sum P&L only from trades with profit_loss_dollars data
-    total_pnl = sum(
-        float(pnl_d) for t in closed
-        if (pnl_d := safe_get_field(t, "profit_loss_dollars")) is not None
-    )
-    avg_r_list = [
-        float(r) for t in closed
-        if (r := safe_get_field(t, "exit_r_multiple")) is not None
-    ]
+    total_pnl = sum(float(pnl_d) for t in closed if (pnl_d := safe_get_field(t, "profit_loss_dollars")) is not None)
+    avg_r_list = [float(r) for t in closed if (r := safe_get_field(t, "exit_r_multiple")) is not None]
     avg_r = sum(avg_r_list) / len(avg_r_list) if avg_r_list else None
     wc = G if wr >= 45 else (Y if wr >= 40 else R)
     pnl_c = G if total_pnl >= 0 else R

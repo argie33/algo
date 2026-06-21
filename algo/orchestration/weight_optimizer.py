@@ -5,6 +5,7 @@ Dynamic Weight Optimizer — Adapts swing score component weights based on reali
 Reads Information Coefficient, optimizes weights (constrained), blends smoothly to avoid whip-saw,
 persists to algo_config (live reloading via SwingTraderScore._load_config_weights).
 """
+
 from __future__ import (
     annotations,
 )  # Defer annotation evaluation so np.ndarray doesn't fail when np=None

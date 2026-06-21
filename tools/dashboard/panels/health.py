@@ -272,9 +272,7 @@ def panel_orch(run, cfg, risk=None):
             beta_c = R if beta_val >= 1.2 else (Y if beta_val >= 0.8 else G)
             var_c = _var_color(var95_val)
             svar_s = (
-                f"\n[dim]Stressed VaR:[/][{R}]{float(svar_val):.2f}%[/]"
-                if svar_val and float(svar_val) > 0
-                else ""
+                f"\n[dim]Stressed VaR:[/][{R}]{float(svar_val):.2f}%[/]" if svar_val and float(svar_val) > 0 else ""
             )
             var_line = (
                 f"\n[dim]VaR 95%:[/][{var_c}]{var95_val:.2f}%[/]"
@@ -946,7 +944,9 @@ def panel_algo_health(
     if run_valid:
         # Validate critical fields exist upfront (fail-fast pattern)
         try:
-            run_fields = safe_extract(run, "success", "halted", "errored", "run_id", "halt_reason", "summary", "phase_results")
+            run_fields = safe_extract(
+                run, "success", "halted", "errored", "run_id", "halt_reason", "summary", "phase_results"
+            )
             success = run_fields["success"]
             halted = run_fields["halted"]
             errored = run_fields["errored"]
@@ -1238,9 +1238,7 @@ def panel_algo_health(
     )
 
 
-def _build_results_panel(
-    run, act, algo_metrics, exec_hist, risk, notifs, audit
-) -> Panel:
+def _build_results_panel(run, act, algo_metrics, exec_hist, risk, notifs, audit) -> Panel:
     """Build RIGHT panel: run results, history, risk, notifications, audit.
 
     Args:
@@ -1319,7 +1317,9 @@ def _build_results_panel(
                     if xe:
                         exits_exec = max(exits_exec, int(xe))
 
-    valid_metrics_e = algo_metrics if (algo_metrics and not (isinstance(algo_metrics, dict) and has_error(algo_metrics))) else []
+    valid_metrics_e = (
+        algo_metrics if (algo_metrics and not (isinstance(algo_metrics, dict) and has_error(algo_metrics))) else []
+    )
     today_m_e = valid_metrics_e[0] if valid_metrics_e else {}
     if not entries_exec:
         en = today_m_e.get("entries")
@@ -1387,8 +1387,16 @@ def _build_results_panel(
         conc5_val_e = risk_dict_b.get("conc5")
         cvar95_val_e = risk_dict_b.get("cvar95")
         svar_val_e = risk_dict_b.get("svar")
-        beta_c = R if beta_val_e is not None and beta_val_e >= 1.2 else (Y if beta_val_e is not None and beta_val_e >= 0.8 else G)
-        conc_c = R if conc5_val_e is not None and conc5_val_e >= 35 else (Y if conc5_val_e is not None and conc5_val_e >= 25 else "white")
+        beta_c = (
+            R
+            if beta_val_e is not None and beta_val_e >= 1.2
+            else (Y if beta_val_e is not None and beta_val_e >= 0.8 else G)
+        )
+        conc_c = (
+            R
+            if conc5_val_e is not None and conc5_val_e >= 35
+            else (Y if conc5_val_e is not None and conc5_val_e >= 25 else "white")
+        )
         var_c = R if var95_val_e >= 4 else (Y if var95_val_e >= 2 else "white")
         risk_parts_e = [
             f"[dim]VaR95:[/][{var_c}]{var95_val_e:.2f}%[/]",
@@ -1474,5 +1482,3 @@ __all__ = [
     "panel_orch",
     "panel_status",
 ]
-
-

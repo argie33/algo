@@ -109,7 +109,7 @@ def run(
             "[PHASE 1] CRITICAL: Incomplete critical loaders even after failsafe retry. "
             "Cannot proceed with data processing."
         )
-        still_failing = failsafe_result.get('still_failing')
+        still_failing = failsafe_result.get("still_failing")
         if still_failing is None:
             still_failing = []
         log_phase_result_fn(
@@ -118,7 +118,7 @@ def run(
             "halt",
             f"Still incomplete after retry: {still_failing}",
         )
-        still_failing_first = still_failing[0] if still_failing else 'unknown'
+        still_failing_first = still_failing[0] if still_failing else "unknown"
         return PhaseResult(
             1,
             "incomplete_loaders_after_retry",
@@ -129,10 +129,10 @@ def run(
         )
 
     if failsafe_result.get("incomplete_loaders"):
-        recovered = failsafe_result.get('recovered')
+        recovered = failsafe_result.get("recovered")
         if recovered is None:
             recovered = []
-        still_failing = failsafe_result.get('still_failing')
+        still_failing = failsafe_result.get("still_failing")
         if still_failing is None:
             still_failing = []
         logger.info(

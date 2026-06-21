@@ -19,6 +19,7 @@ from config.credential_manager import get_alpaca_credentials
 from utils.db import DatabaseContext
 from utils.trading import PositionStatus, TradeStatus
 
+
 if TYPE_CHECKING:
     from algo.infrastructure.config import AlgoConfig
 

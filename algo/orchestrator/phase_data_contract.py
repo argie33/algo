@@ -15,7 +15,6 @@ from algo.exceptions import DataContractError, MissingPhaseDataError
 logger = logging.getLogger(__name__)
 
 
-
 # Phase 1 produces this schema
 class Phase1Contract(TypedDict, total=False):
     """Data contract: what Phase 1 (Data Freshness) produces."""
@@ -154,7 +153,9 @@ class PhaseDataSchema:
 
 # Define what each phase produces
 PHASE_CONTRACTS = {
-    1: PhaseDataSchema(1, "DATA FRESHNESS CHECK", required_keys=["status"], optional_keys=["summary", "tables_checked"]),
+    1: PhaseDataSchema(
+        1, "DATA FRESHNESS CHECK", required_keys=["status"], optional_keys=["summary", "tables_checked"]
+    ),
     2: PhaseDataSchema(2, "CIRCUIT BREAKERS", required_keys=["status"], optional_keys=["checks", "breaker_triggered"]),
     3: PhaseDataSchema(3, "POSITION MONITOR", required_keys=["recommendations"]),
     4: PhaseDataSchema(4, "RECONCILIATION", required_keys=["success"], optional_keys=["positions", "reason"]),
@@ -234,8 +235,7 @@ def validate_dependency_executed(phase_num: int | str, dep_num: int | str, resul
 
     if result is None:
         raise MissingPhaseDataError(
-            f"Phase {phase_num} depends on Phase {dep_num} but Phase {dep_num} never executed. "
-            f"Dependency chain broken."
+            f"Phase {phase_num} depends on Phase {dep_num} but Phase {dep_num} never executed. Dependency chain broken."
         )
 
     if not isinstance(result, PhaseResult):

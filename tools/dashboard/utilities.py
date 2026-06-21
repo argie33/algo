@@ -126,7 +126,9 @@ def normalize_positions_data(data):
             return data, None, True
         if "items" not in data:
             # Dict without items or error — log and fail
-            logger.error(f"[DATA_FORMAT] Positions dict malformed: missing 'items' and no '_error'. Keys: {list(data.keys())}")
+            logger.error(
+                f"[DATA_FORMAT] Positions dict malformed: missing 'items' and no '_error'. Keys: {list(data.keys())}"
+            )
             raise ValueError(
                 "Positions data is dict but missing 'items' array. "
                 "Check API response schema — may indicate upstream data corruption."
@@ -235,8 +237,7 @@ def extract_items_and_error(data):
         # Dict without items or error — log and fail
         logger.error(f"[DATA_FORMAT] Data dict malformed: missing 'items' and no '_error'. Keys: {list(data.keys())}")
         raise ValueError(
-            "Data is dict but missing 'items' array. "
-            "Check API response schema — may indicate upstream data corruption."
+            "Data is dict but missing 'items' array. Check API response schema — may indicate upstream data corruption."
         )
     elif isinstance(data, list):
         return data, None

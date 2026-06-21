@@ -95,9 +95,7 @@ def error_summary_panel(data_dict: dict[str, Any]) -> Panel | None:
     content = "\n".join(content_parts)
 
     border_color = R if failed_errors else Y
-    title = (
-        f"[bold {border_color}]{'⚠ ' if stale_data else '✗ '}Data Issues ({len(failed_errors) + len(stale_data)})[/]  [dim][d] expand[/]"
-    )
+    title = f"[bold {border_color}]{'⚠ ' if stale_data else '✗ '}Data Issues ({len(failed_errors) + len(stale_data)})[/]  [dim][d] expand[/]"
 
     return Panel(
         Text.from_markup(content),
@@ -136,9 +134,7 @@ def error_summary_panel_expanded(data_dict: dict[str, Any]) -> Panel | None:
     content = "\n\n".join(content_parts)
 
     border_color = R if failed_errors else Y
-    title = (
-        f"[bold {border_color}]{'⚠ ' if stale_data else '✗ '}Data Issues ({len(failed_errors) + len(stale_data)})[/]  [dim][d] collapse[/]"
-    )
+    title = f"[bold {border_color}]{'⚠ ' if stale_data else '✗ '}Data Issues ({len(failed_errors) + len(stale_data)})[/]  [dim][d] collapse[/]"
 
     return Panel(
         Text.from_markup(content),

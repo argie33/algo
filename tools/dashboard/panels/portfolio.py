@@ -1,4 +1,4 @@
-﻿"""Portfolio performance and analysis panel functions."""
+"""Portfolio performance and analysis panel functions."""
 
 import logging
 
@@ -600,9 +600,7 @@ def panel_portfolio_perf_expanded(port, cfg, risk=None, perf=None, perf_anl=None
         if pos_items:
             rows.append(Rule(style="dim"))
             rows.append(Text.from_markup("[dim bold]POSITION CONCENTRATION[/]"))
-            pv_total = (
-                float(port["total_portfolio_value"]) if port and not port.get("_error") else 0
-            )
+            pv_total = float(port["total_portfolio_value"]) if port and not port.get("_error") else 0
             conc_rows = []
             for p in pos_items:
                 if not isinstance(p, dict):

@@ -121,6 +121,7 @@ def diagnose_data_issues():
     except Exception as e:
         print(f"\n[FATAL] Diagnostic failed: {type(e).__name__}: {e}")
         import traceback
+
         traceback.print_exc()
         return False
 

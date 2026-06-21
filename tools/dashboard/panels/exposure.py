@@ -375,4 +375,3 @@ __all__ = [
     "panel_exposure_compact",
     "panel_exposure_expanded",
 ]
-

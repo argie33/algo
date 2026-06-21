@@ -188,9 +188,7 @@ def fetch_run(c):
 
         # errored: use API field if present, otherwise derive from phase data
         api_errored = inner.get("errored")
-        derived_errored = bool(errored_phases) or (
-            not inner["success"] and not inner["halted"] and bool(phases)
-        )
+        derived_errored = bool(errored_phases) or (not inner["success"] and not inner["halted"] and bool(phases))
         return {
             "run_id": inner.get("run_id"),
             "run_at": run_at,
@@ -345,7 +343,9 @@ def fetch_market(c):
             spy = float(spy_raw)
 
             if vix <= 0:
-                error_msg = f"Critical market data invalid: VIX = {vix} (must be > 0). Data quality issue in yfinance pipeline."
+                error_msg = (
+                    f"Critical market data invalid: VIX = {vix} (must be > 0). Data quality issue in yfinance pipeline."
+                )
                 logger.error(error_msg)
                 record_data_quality_issue("market", "critical_field", "invalid_vix", f"vix={vix}")
                 return FetcherValidator.build_error_response(error_msg)
@@ -904,7 +904,7 @@ def fetch_health(c):
         if not isinstance(critical_stale, list):
             critical_stale = None
         sources = []
-        for s in (raw_sources or []):
+        for s in raw_sources or []:
             name = s.get("name", "")
             # API now returns role (CRIT/IMP/NORM); fall back to freshness_config if absent
             role = s.get("role")
@@ -1039,12 +1039,28 @@ def fetch_economic_pulse(c):
         t2 = safe_float(curve.get("2Y"), default=None, field_name="curve.2Y") if isinstance(curve, dict) else None
         t3m = safe_float(curve.get("3M"), default=None, field_name="curve.3M") if isinstance(curve, dict) else None
         t6m = safe_float(curve.get("6M"), default=None, field_name="curve.6M") if isinstance(curve, dict) else None
-        yc_10_2 = safe_float(spreads.get("T10Y2Y"), default=None, field_name="spreads.T10Y2Y") if isinstance(spreads, dict) else None
-        yc_10_3m = safe_float(spreads.get("T10Y3M"), default=None, field_name="spreads.T10Y3M") if isinstance(spreads, dict) else None
-        hy = safe_float(credit_latest.get("BAMLH0A0HYM2"), default=None, field_name="credit.BAMLH0A0HYM2") if isinstance(credit_latest, dict) else None
+        yc_10_2 = (
+            safe_float(spreads.get("T10Y2Y"), default=None, field_name="spreads.T10Y2Y")
+            if isinstance(spreads, dict)
+            else None
+        )
+        yc_10_3m = (
+            safe_float(spreads.get("T10Y3M"), default=None, field_name="spreads.T10Y3M")
+            if isinstance(spreads, dict)
+            else None
+        )
+        hy = (
+            safe_float(credit_latest.get("BAMLH0A0HYM2"), default=None, field_name="credit.BAMLH0A0HYM2")
+            if isinstance(credit_latest, dict)
+            else None
+        )
         ig = None
         if isinstance(credit_latest, dict):
-            ig = safe_float(credit_latest.get("BAMLH0A0IG") or credit_latest.get("BAMLC0A0CM"), default=None, field_name="credit.BAMLH0A0IG")
+            ig = safe_float(
+                credit_latest.get("BAMLH0A0IG") or credit_latest.get("BAMLC0A0CM"),
+                default=None,
+                field_name="credit.BAMLH0A0IG",
+            )
 
         # Extract indicators data
         d2 = ind_data
@@ -1056,7 +1072,9 @@ def fetch_economic_pulse(c):
         by_series = {}
         if indicators:
             by_series = {
-                i["series_id"]: safe_float(i.get("rawValue"), default=None, field_name=f"indicator.{i.get('series_id')}.rawValue")
+                i["series_id"]: safe_float(
+                    i.get("rawValue"), default=None, field_name=f"indicator.{i.get('series_id')}.rawValue"
+                )
                 for i in indicators
                 if isinstance(i, dict) and i.get("series_id")
             }
@@ -1093,6 +1111,7 @@ def fetch_economic_pulse(c):
         }
     except Exception as e:
         from tools.dashboard.fetcher_validator import FetcherValidator
+
         error_msg = _format_fetcher_error("eco", e)
         logger.error(error_msg)
         record_data_quality_issue("eco", "exception", type(e).__name__, str(e))
@@ -1393,8 +1412,12 @@ def fetch_sector_rotation(c):
             "signal": row.get("signal", ""),
             "strength": safe_float(row.get("spread"), default=None, field_name="sec_rot.spread"),
             "weeks": row.get("weeks_persistent", 1),
-            "def_score": safe_float(row.get("defensive_lead_score"), default=None, field_name="sec_rot.defensive_lead_score"),
-            "cyc_score": safe_float(row.get("cyclical_weak_score"), default=None, field_name="sec_rot.cyclical_weak_score"),
+            "def_score": safe_float(
+                row.get("defensive_lead_score"), default=None, field_name="sec_rot.defensive_lead_score"
+            ),
+            "cyc_score": safe_float(
+                row.get("cyclical_weak_score"), default=None, field_name="sec_rot.cyclical_weak_score"
+            ),
         }
     except Exception as e:
         error_msg = _format_fetcher_error("sec_rot", e)

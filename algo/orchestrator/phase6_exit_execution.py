@@ -22,6 +22,7 @@ from utils.trading.status import PositionStatus
 
 logger = logging.getLogger(__name__)
 
+
 def run(
     config: Any,
     run_date: _date,
@@ -159,7 +160,9 @@ def run(
                                 raise RuntimeError(f"No current price available for position {action['position_id']}")
                             cur_price = float(row[0])
                     except (RuntimeError, TypeError, ValueError) as e:
-                        logger.critical(f"  CRITICAL: Cannot execute exit without current price for {action['position_id']}: {e}")
+                        logger.critical(
+                            f"  CRITICAL: Cannot execute exit without current price for {action['position_id']}: {e}"
+                        )
                         raise
                     if cur_price is not None and cur_price > 0:
                         if "exit_fraction" not in action:
@@ -167,7 +170,7 @@ def run(
                                 field="exit_fraction",
                                 value=None,
                                 expected="float between 0.0 and 1.0",
-                                context={"position_id": action.get("position_id"), "action_type": "exposure_partial"}
+                                context={"position_id": action.get("position_id"), "action_type": "exposure_partial"},
                             )
                         result = executor.exit_trade(
                             trade_id=action["trade_id"],
@@ -196,7 +199,9 @@ def run(
                                 )
                                 stop_raises += 1
                                 if verbose:
-                                    logger.info(f"  EXPOSURE TIGHTEN {action['symbol']}: stop -> ${action['new_stop']:.2f}")
+                                    logger.info(
+                                        f"  EXPOSURE TIGHTEN {action['symbol']}: stop -> ${action['new_stop']:.2f}"
+                                    )
                             finally:
                                 release_advisory_lock(cur, ALGO_POSITIONS_LOCK_ID, "algo_positions")
                     except (RuntimeError, ValueError, TypeError) as e:

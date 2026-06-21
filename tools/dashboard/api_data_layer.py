@@ -196,21 +196,15 @@ def get_cached_response(endpoint: str, mark_stale: bool = False) -> dict | None:
             return None
     # Validate cache structure (fail-fast if corrupted)
     if "data" not in cached:
-        raise RuntimeError(
-            f"API cache corrupted for {endpoint}: missing 'data' key. "
-            f"Got keys: {list(cached.keys())}"
-        )
+        raise RuntimeError(f"API cache corrupted for {endpoint}: missing 'data' key. Got keys: {list(cached.keys())}")
     if "timestamp" not in cached:
         raise RuntimeError(
-            f"API cache corrupted for {endpoint}: missing 'timestamp' key. "
-            f"Got keys: {list(cached.keys())}"
+            f"API cache corrupted for {endpoint}: missing 'timestamp' key. Got keys: {list(cached.keys())}"
         )
     cached_data = cached["data"]
     timestamp = cached["timestamp"]
     if not isinstance(cached_data, dict):
-        raise ValueError(
-            f"API cache corrupted for {endpoint}: 'data' is not a dict, got {type(cached_data).__name__}"
-        )
+        raise ValueError(f"API cache corrupted for {endpoint}: 'data' is not a dict, got {type(cached_data).__name__}")
     age_seconds = (datetime.now(timezone.utc) - timestamp).total_seconds()
 
     if age_seconds > 1800:

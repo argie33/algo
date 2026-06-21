@@ -11,6 +11,7 @@ import psycopg2
 from algo.risk import EarningsBlackout
 from utils.db import DatabaseContext
 
+
 if TYPE_CHECKING:
     from algo.infrastructure.config import AlgoConfig
 

@@ -174,11 +174,14 @@ class RenderRecovery:
         For transient errors, reloading data may help recover from API issues.
         """
         with self._lock:
-            return cast(bool, (
-                self.state.error_category == ErrorCategory.TRANSIENT
-                and self.state.retry_count > 0
-                and self.state.should_retry()
-            ))
+            return cast(
+                bool,
+                (
+                    self.state.error_category == ErrorCategory.TRANSIENT
+                    and self.state.retry_count > 0
+                    and self.state.should_retry()
+                ),
+            )
 
     def get_recovery_status(self) -> str:
         """Get recovery status message (thread-safe).

@@ -47,7 +47,7 @@ def up():
                         print(
                             f"  âœ“ {table_name}: {count} rows with 'admin-user' placeholder found"
                         )
-            except Exception:
+            except (psycopg2.ProgrammingError, psycopg2.DatabaseError):
                 # Table may not exist yet, that's OK
                 pass
 

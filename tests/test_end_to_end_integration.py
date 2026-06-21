@@ -189,7 +189,9 @@ class EndToEndIntegrationTest:
                 checks["timeout_dynamic"] = "timeout" in source.lower() and ("180" in source or "600" in source)
             except Exception as e:
                 logger.warning(f"  Could not read load_prices.py: {e}")
-                checks = dict.fromkeys(["circuit_breaker_code", "batch_threshold_check", "error_threshold_check", "timeout_dynamic"], False)
+                checks = dict.fromkeys(
+                    ["circuit_breaker_code", "batch_threshold_check", "error_threshold_check", "timeout_dynamic"], False
+                )
 
             for check, passed in checks.items():
                 status = "[OK]" if passed else "[SKIP]"

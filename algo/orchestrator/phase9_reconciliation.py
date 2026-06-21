@@ -197,7 +197,13 @@ def run(
                                 """,
                                     (exit_price, pnl, symbol),
                                 )
-                                exits_recorded += 1
+                                if write_cursor.rowcount == 0:
+                                    logger.warning(
+                                        f"Position update returned 0 rows for {symbol}. "
+                                        f"Position may already be closed or missing."
+                                    )
+                                else:
+                                    exits_recorded += 1
                                 logger.info(
                                     f"Recorded exit: {symbol} {quantity}sh @ ${exit_price:.2f} on {run_date} "
                                     f"(P&L: ${pnl:.2f} / {pnl_pct:.1f}%)"
@@ -304,9 +310,17 @@ def run(
                 if not report or "portfolio" not in report:
                     raise ValueError("Daily report generated but missing portfolio data")
                 portfolio_data = report.get("portfolio")
-                if not portfolio_data or "current_value" not in portfolio_data or portfolio_data.get("current_value") is None:
+                if (
+                    not portfolio_data
+                    or "current_value" not in portfolio_data
+                    or portfolio_data.get("current_value") is None
+                ):
                     raise ValueError("Portfolio data missing current_value")
-                if not portfolio_data or "daily_pnl_pct" not in portfolio_data or portfolio_data.get("daily_pnl_pct") is None:
+                if (
+                    not portfolio_data
+                    or "daily_pnl_pct" not in portfolio_data
+                    or portfolio_data.get("daily_pnl_pct") is None
+                ):
                     raise ValueError("Portfolio data missing daily_pnl_pct")
 
                 # Log to algo_audit_log for historical tracking
@@ -375,17 +389,9 @@ def run(
             if risk_report and risk_report.get("status") == "ok":
                 risk_status = "success"
                 var_metrics = risk_report.get("var_metrics") if risk_report else None
-                var_pct = (
-                    var_metrics.get("var_pct", "N/A")
-                    if var_metrics
-                    else "N/A"
-                )
+                var_pct = var_metrics.get("var_pct", "N/A") if var_metrics else "N/A"
                 concentration = risk_report.get("concentration") if risk_report else None
-                conc_pct = (
-                    concentration.get("top_5_concentration_pct", "N/A")
-                    if concentration
-                    else "N/A"
-                )
+                conc_pct = concentration.get("top_5_concentration_pct", "N/A") if concentration else "N/A"
                 alerts = risk_report.get("alerts") if risk_report else []
                 alerts_count = len(alerts) if alerts else 0
                 risk_summary = f"VaR {var_pct}%, Concentration {conc_pct}%" + (

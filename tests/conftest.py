@@ -51,15 +51,19 @@ def pytest_configure(config):
 
     class MockConnectionPool:
         """Mock pool that returns mock connections."""
+
         def getconn(self):
             return _create_mock_connection()
+
         def putconn(self, conn, close=False):
             pass
+
         def closeall(self):
             pass
 
     # Keep original class but override __init__ to return our mock pool
     original_pool = psycopg2.pool.SimpleConnectionPool
+
     def mock_pool_init(self, *args, **kwargs):
         # Don't call original - just become our mock pool
         self._mock_pool = MockConnectionPool()
@@ -94,12 +98,14 @@ def pytest_configure(config):
         return "https://paper-api.alpaca.markets"
 
     import config.credential_manager as cm
+
     cm.get_db_credentials = mock_db_creds
     cm.get_alpaca_credentials = mock_alpaca_creds
     cm.get_alpaca_base_url = mock_alpaca_url
 
     # Mock boto3
     import boto3
+
     original_client = boto3.client
 
     def mock_client(service_name, **kwargs):

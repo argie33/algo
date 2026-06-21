@@ -34,6 +34,7 @@ class TestPositionSizer:
     def position_sizer(self, config):
         """Create position sizer instance."""
         from algo.trading.position_sizer import PositionSizer
+
         return PositionSizer(config)
 
     def test_init_valid_config(self, position_sizer, config):
@@ -43,12 +44,14 @@ class TestPositionSizer:
     def test_init_rejects_none_config(self):
         """Ensure position sizer rejects None config."""
         from algo.trading.position_sizer import PositionSizer
+
         with pytest.raises(ValueError, match="config cannot be None"):
             PositionSizer(None)
 
     def test_init_rejects_non_dict_config(self):
         """Ensure position sizer rejects non-dict config."""
         from algo.trading.position_sizer import PositionSizer
+
         with pytest.raises(TypeError, match="must be a dict"):
             PositionSizer([1, 2, 3])
 
@@ -97,6 +100,7 @@ class TestPositionSizer:
     def test_get_portfolio_value_none_config(self, mock_db):
         """Verify portfolio value calculation with valid data."""
         from algo.trading.position_sizer import PositionSizer
+
         sizer = PositionSizer({"base_risk_pct": 0.75})
 
         # Mock alpaca equity fetch
@@ -126,6 +130,7 @@ class TestValueAtRisk:
     def var_calculator(self, config):
         """Create ValueAtRisk instance."""
         from algo.risk.var import ValueAtRisk
+
         return ValueAtRisk(config)
 
     def test_init_valid_config(self, var_calculator, config):
@@ -159,7 +164,9 @@ class TestValueAtRisk:
         """Verify VaR interpretation message format."""
         var_dollars = 5000.0
         var_pct = 5.0
-        interpretation = f"95% confident portfolio won't lose more than ${var_dollars:.2f} (or {var_pct:.2f}%) in one day"
+        interpretation = (
+            f"95% confident portfolio won't lose more than ${var_dollars:.2f} (or {var_pct:.2f}%) in one day"
+        )
         assert "$5000.00" in interpretation
         assert "5.00%" in interpretation
         assert "95% confident" in interpretation
@@ -170,9 +177,7 @@ class TestValueAtRisk:
         if len(returns) < 5:
             with pytest.raises(RuntimeError, match="Insufficient"):
                 if len(returns) < 5:
-                    raise RuntimeError(
-                        f"Insufficient historical data for VaR (only {len(returns)} snapshots, need 5+)"
-                    )
+                    raise RuntimeError(f"Insufficient historical data for VaR (only {len(returns)} snapshots, need 5+)")
 
     def test_var_dollars_calculation(self):
         """Verify VaR dollars calculation."""
@@ -203,6 +208,7 @@ class TestPerformanceMetrics:
     def performance_calc(self, config):
         """Create LivePerformance instance."""
         from algo.reporting.performance import LivePerformance
+
         return LivePerformance(config)
 
     def test_init_valid_config(self, performance_calc, config):
@@ -318,6 +324,7 @@ class TestFinancialMathEdgeCases:
     def test_rounding_consistency(self):
         """Verify consistent rounding in financial calculations."""
         from decimal import ROUND_HALF_UP
+
         value = Decimal("1000.125")
         rounded = value.quantize(Decimal("0.01"), rounding=ROUND_HALF_UP)
         assert rounded == Decimal("1000.13")

@@ -35,14 +35,14 @@ PORTFOLIO_SNAPSHOT_LOCK_ID = 2147483647
 class PositionSizer:
     """Calculate position sizes based on risk parameters."""
 
-    def __init__(self, config):
+    def __init__(self, config: Any) -> None:
         if config is None:
             raise ValueError("PositionSizer config cannot be None")
         if not isinstance(config, dict):
             raise TypeError(f"PositionSizer config must be a dict, got {type(config).__name__}")
         self.config = config
 
-    def _with_cursor(self, operation):
+    def _with_cursor(self, operation: Any) -> Any:
         """Execute an operation with a cursor via DatabaseContext."""
         with DatabaseContext("read") as cur:
             return operation(cur)
@@ -690,4 +690,3 @@ class PositionSizer:
                 "status": "error",
                 "reason": f"Unexpected error: {type(e).__name__}",
             }
-

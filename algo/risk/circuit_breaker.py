@@ -12,6 +12,7 @@ import psycopg2
 from utils.db import DatabaseContext
 from utils.trading import PositionStatus, TradeStatus
 
+
 if TYPE_CHECKING:
     from algo.infrastructure.config import AlgoConfig
 

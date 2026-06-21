@@ -43,6 +43,7 @@ def fmt_money(v):
     if v is None:
         return "--"
     from decimal import ROUND_HALF_UP, Decimal
+
     if isinstance(v, Decimal):
         is_neg = v < 0
         av = abs(v)
@@ -69,6 +70,7 @@ def fmt_money_short(v):
     if v is None:
         return "--"
     from decimal import ROUND_HALF_UP, Decimal
+
     if isinstance(v, Decimal):
         is_neg = v < 0
         av = abs(v)
@@ -124,7 +126,7 @@ def is_open() -> bool:
         from algo.infrastructure import MarketCalendar
 
         return cast(bool, MarketCalendar.is_market_open())
-    except Exception:
+    except (ImportError, AttributeError):
         n = datetime.now(ET)
         if n.weekday() >= 5:
             return False

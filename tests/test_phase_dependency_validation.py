@@ -23,6 +23,7 @@ def test_phase_5_constraints_validation():
 
 def test_phase7_dependency_validation():
     """Phase 7 must detect when Phase 5 fails to provide exposure constraints."""
+
     class MockOrch:
         pass
 

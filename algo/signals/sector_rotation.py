@@ -246,12 +246,16 @@ class SectorRotationDetector:
 
             # Validate required fields before persisting
             if "defensive_lead_score" not in result:
-                raise ValueError(f"Sector rotation result missing required 'defensive_lead_score' field for {eval_date}")
+                raise ValueError(
+                    f"Sector rotation result missing required 'defensive_lead_score' field for {eval_date}"
+                )
 
             try:
                 defensive_score = float(result["defensive_lead_score"])
             except (ValueError, TypeError) as e:
-                raise ValueError(f"defensive_lead_score invalid for {eval_date}: {result['defensive_lead_score']}") from e
+                raise ValueError(
+                    f"defensive_lead_score invalid for {eval_date}: {result['defensive_lead_score']}"
+                ) from e
 
             with DatabaseContext("write") as cur:
                 cur.execute(

@@ -577,8 +577,7 @@ def run(
                     f"Response: {sizing}. Check position_sizer module."
                 )
                 raise RuntimeError(
-                    f"Position sizer failed to provide shares for {symbol}. "
-                    f"Cannot proceed with zero-share position."
+                    f"Position sizer failed to provide shares for {symbol}. Cannot proceed with zero-share position."
                 )
             elif sizing["shares"] < 1:
                 logger.info(f"[PHASE 8] {symbol}: sizer blocked — insufficient shares ({sizing['shares']})")

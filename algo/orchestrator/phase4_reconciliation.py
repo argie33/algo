@@ -65,9 +65,7 @@ def run(
 
         # Validate result structure upfront
         if "success" not in result or result["success"] is None:
-            raise RuntimeError(
-                f"Reconciliation result missing 'success' field. Got keys: {list(result.keys())}"
-            )
+            raise RuntimeError(f"Reconciliation result missing 'success' field. Got keys: {list(result.keys())}")
 
         if result["success"]:
             log_phase_result_fn(

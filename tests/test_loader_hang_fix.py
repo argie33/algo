@@ -48,9 +48,7 @@ def test_batch_timeout_reduction():
     print("  Morning pipeline:")
     print(f"    Old max wait at batch=1: {old_morning}s (10 min)")
     print(f"    New max wait at batch=1: {new_morning}s (5 min)")
-    print(
-        f"    [OK] Reduction: {old_morning - new_morning}s ({(old_morning - new_morning) / old_morning * 100:.0f}%)"
-    )
+    print(f"    [OK] Reduction: {old_morning - new_morning}s ({(old_morning - new_morning) / old_morning * 100:.0f}%)")
     print("  [PASS]")
     print()
 

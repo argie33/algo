@@ -40,6 +40,7 @@ from utils.db.advisory_locks import (
 from utils.trading import PositionStatus
 from utils.validation import AlpacaResponseValidator
 
+
 """
 Trade Executor - Execute trades via Alpaca and track positions
 

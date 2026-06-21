@@ -58,6 +58,7 @@ def _format_signal_date(date_val):
     if date_val and isinstance(date_val, str) and len(date_val) >= 10:
         try:
             from datetime import date as _date
+
             return _date.fromisoformat(str(date_val)[:10]).strftime("%b %d")
         except (ValueError, TypeError):
             return str(date_val)[:10]
@@ -117,7 +118,9 @@ def _build_signal_header(sig_data: dict, scores_data: dict | None) -> tuple[list
     trend_field = safe_get_field(overview, "trend", [])
     trend = safe_get_list(trend_field) if trend_field else []
     if trend and len(trend) >= 2:
-        counts = [int(safe_get_field(t, "buy_n")) if safe_get_field(t, "buy_n") is not None else 0 for t in reversed(trend)]
+        counts = [
+            int(safe_get_field(t, "buy_n")) if safe_get_field(t, "buy_n") is not None else 0 for t in reversed(trend)
+        ]
         max_b = max(counts) if counts else 1
         spark = "".join(SPARKLINE_CHARS[min(7, int(v / max(max_b, 1) * 7.9))] for v in counts)
         spark_s = f"  [{CY}]{spark}[/]"
@@ -132,10 +135,12 @@ def _build_signal_header(sig_data: dict, scores_data: dict | None) -> tuple[list
     gc_s = f"{gc}" if gc is not None else "--"
     gd_s = f"{gd}" if gd is not None else "--"
 
-    rows.append(Text.from_markup(
-        f"[{buy_c}][bold]{raw} BUY[/][/]{spark_s}  [dim]from {total} screened  {ds}[/]"
-        f"  [{G}]A:{ga_s}[/] [{CY}]B:{gb_s}[/] [{Y}]C:{gc_s}[/] [{R}]D:{gd_s}[/]{near_hint}"
-    ))
+    rows.append(
+        Text.from_markup(
+            f"[{buy_c}][bold]{raw} BUY[/][/]{spark_s}  [dim]from {total} screened  {ds}[/]"
+            f"  [{G}]A:{ga_s}[/] [{CY}]B:{gb_s}[/] [{Y}]C:{gc_s}[/] [{R}]D:{gd_s}[/]{near_hint}"
+        )
+    )
 
     return rows, raw, total
 
@@ -173,7 +178,7 @@ def _build_grade_radar(sig_data: dict) -> list:
         for a in near[:8]:
             sc = float(safe_get_field(a, "score")) if safe_get_field(a, "score") is not None else None
             sc_s = f"{sc:.0f}" if sc is not None else "--"
-            sym = safe_get_field(a, 'symbol', '')
+            sym = safe_get_field(a, "symbol", "")
             parts.append(f"[{CY}]{sym}[/][dim]{sc_s}[/]")
         rows.append(Text.from_markup("[dim]Near threshold:[/]  " + "  ".join(parts)))
 
@@ -213,7 +218,9 @@ def _build_funnel_row(sig_eval_data: dict | None) -> list:
                 reason_abbr = _shorten_reason(safe_get_field(rj, "evaluation_reason", ""))
                 description = safe_get_field(rj, "description", "")
                 if description:
-                    block_parts.append(f"[dim]{reason_abbr}:{safe_get_field(rj, 'n', 0)}[/] [bright_black]({description})[/]")
+                    block_parts.append(
+                        f"[dim]{reason_abbr}:{safe_get_field(rj, 'n', 0)}[/] [bright_black]({description})[/]"
+                    )
                 else:
                     block_parts.append(f"[dim]{reason_abbr}:{safe_get_field(rj, 'n', 0)}[/]")
             blocks_s = "  [dim]blocked:[/]  " + "  ".join(block_parts)
@@ -327,7 +334,9 @@ def _build_scores_table(top_scores: list) -> list:
         rows.append(Text.from_markup(f"[{Y}]No score data — check Data Health[/]"))
         return rows
 
-    rows.append(Text.from_markup(f"[{Y}][bold]TOP STOCK SCORES[/][/] [dim](additional candidates without active signals)[/]"))
+    rows.append(
+        Text.from_markup(f"[{Y}][bold]TOP STOCK SCORES[/][/] [dim](additional candidates without active signals)[/]")
+    )
     t = Table(
         box=box.SIMPLE_HEAD,
         show_header=True,
@@ -426,7 +435,9 @@ def panel_signals_compact(sig, sig_eval=None, scores=None):
             sym_norm = str(sym).upper().strip()
             buy_sig_details[sym_norm] = bs
 
-    scored_with_signals = [s for s in top_scores if str(safe_get_field(s, "symbol", "")).upper().strip() in buy_sig_details][:10]
+    scored_with_signals = [
+        s for s in top_scores if str(safe_get_field(s, "symbol", "")).upper().strip() in buy_sig_details
+    ][:10]
 
     rows.extend(_build_buy_signals_table(scored_with_signals, buy_sig_details))
 
@@ -443,11 +454,15 @@ def panel_signals_compact(sig, sig_eval=None, scores=None):
             score_val = safe_get_field(a, "score")
             sc = float(score_val) if score_val is not None else None
             sc_s = f"{sc:.0f}" if sc is not None else "--"
-            sym = safe_get_field(a, 'symbol', '')
+            sym = safe_get_field(a, "symbol", "")
             parts.append(f"[{CY}]{sym}[/][dim]{sc_s}[/]")
         rows.append(Text.from_markup("[dim]Near BUY (55-69):[/]  " + "  ".join(parts)))
 
-    age_s = f"  [dim]{fmt_age(safe_get_field(overview, 'timestamp'))}[/]" if safe_get_field(overview, "timestamp") is not None else ""
+    age_s = (
+        f"  [dim]{fmt_age(safe_get_field(overview, 'timestamp'))}[/]"
+        if safe_get_field(overview, "timestamp") is not None
+        else ""
+    )
     title = "[bold magenta]TOP SCORES & SIGNALS[/]"
     return Panel(
         Group(*rows),

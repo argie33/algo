@@ -10,6 +10,7 @@ from typing import TYPE_CHECKING, Any
 
 from utils.trading import PositionStatus, TradeStatus
 
+
 if TYPE_CHECKING:
     from algo.infrastructure.config import AlgoConfig
 
@@ -126,11 +127,19 @@ class TradeValidator:
         stop_price_dec = Decimal(str(stop_loss_price))
         risk_per_share_decimal = entry_price - stop_price_dec
         if risk_per_share_decimal <= 0:
-            return False, f"Invalid stop: ${stop_loss_price:.2f} >= entry ${entry_price:.2f} (stop must be below entry)", {}
+            return (
+                False,
+                f"Invalid stop: ${stop_loss_price:.2f} >= entry ${entry_price:.2f} (stop must be below entry)",
+                {},
+            )
 
         # Enforce minimum risk (1% below entry)
         if stop_price_dec >= entry_price * Decimal("0.99"):
-            return False, f"Stop too tight: ${stop_loss_price:.2f} within 1% of entry ${entry_price:.2f} (meaningful R required)", {}
+            return (
+                False,
+                f"Stop too tight: ${stop_loss_price:.2f} within 1% of entry ${entry_price:.2f} (meaningful R required)",
+                {},
+            )
 
         # Auto-calculate missing targets or validate provided ones (using validated instance variables)
         result_dict = {}
@@ -171,9 +180,17 @@ class TradeValidator:
 
         # Validate target hierarchy
         if target_1_price >= target_2_price:
-            return False, f"Invalid target hierarchy: target_1 ${target_1_price:.2f} >= target_2 ${target_2_price:.2f}", {}
+            return (
+                False,
+                f"Invalid target hierarchy: target_1 ${target_1_price:.2f} >= target_2 ${target_2_price:.2f}",
+                {},
+            )
         if target_2_price >= target_3_price:
-            return False, f"Invalid target hierarchy: target_2 ${target_2_price:.2f} >= target_3 ${target_3_price:.2f}", {}
+            return (
+                False,
+                f"Invalid target hierarchy: target_2 ${target_2_price:.2f} >= target_3 ${target_3_price:.2f}",
+                {},
+            )
 
         return True, None, result_dict
 
@@ -253,7 +270,11 @@ class TradeValidator:
             trade_id = result[0]
             signal_fingerprint = f"{symbol}|{entry_price:.2f}|{stop_loss_price:.2f}|{signal_date}"
             logger.warning(f"DUPLICATE SIGNAL: {signal_fingerprint} (prior trade: {trade_id})")
-            return True, f"Trade already exists for {symbol} on {signal_date} (fingerprint: {signal_fingerprint})", trade_id
+            return (
+                True,
+                f"Trade already exists for {symbol} on {signal_date} (fingerprint: {signal_fingerprint})",
+                trade_id,
+            )
         return False, None, None
 
     def check_pending_trades(self, cur, symbol: str) -> tuple[bool, str | None, int]:
@@ -273,7 +294,11 @@ class TradeValidator:
         result = cur.fetchone()
         pending_count = result[0] if result else 0
         if pending_count > 0:
-            return True, f"{symbol}: {pending_count} pending/open trade(s) exist. Close before re-entering.", pending_count
+            return (
+                True,
+                f"{symbol}: {pending_count} pending/open trade(s) exist. Close before re-entering.",
+                pending_count,
+            )
         return False, None, 0
 
     def check_reentry_rules(self, cur, symbol: str) -> tuple[bool, str | None, int]:
@@ -303,14 +328,22 @@ class TradeValidator:
             if exit_reason and ("STOP" in (exit_reason or "").upper() or "TIME" in (exit_reason or "").upper()):
                 prior_reentry_count = int(prior_reentry)
                 if prior_reentry_count >= self.max_reentries_per_name:
-                    return False, f"{symbol}: {prior_reentry_count} prior re-entries within 30 days >= {self.max_reentries_per_name} max", 0
+                    return (
+                        False,
+                        f"{symbol}: {prior_reentry_count} prior re-entries within 30 days >= {self.max_reentries_per_name} max",
+                        0,
+                    )
 
                 # Enforce minimum days between stop-out and re-entry (using validated instance variable)
                 if exit_date:
                     exit_d = exit_date if isinstance(exit_date, _date) else exit_date.date()
                     days_since_exit = (datetime.now(timezone.utc).date() - exit_d).days
                     if days_since_exit < self.min_days_before_reentry_same_symbol:
-                        return False, f"{symbol}: only {days_since_exit}d since stop-out; require {self.min_days_before_reentry_same_symbol}d before re-entry (reset period)", 0
+                        return (
+                            False,
+                            f"{symbol}: only {days_since_exit}d since stop-out; require {self.min_days_before_reentry_same_symbol}d before re-entry (reset period)",
+                            0,
+                        )
                 reentry_count = prior_reentry_count + 1
 
         return True, None, reentry_count

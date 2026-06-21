@@ -32,7 +32,6 @@ try:
             if not market_health:
                 print("ERROR: No market_health in data")
             else:
-
                 print(f"market_health keys: {list(market_health.keys())}")
                 print(f"vix_level value: {market_health.get('vix_level')}")
                 print(f"vix_level type: {type(market_health.get('vix_level'))}")
@@ -103,7 +102,9 @@ try:
                 print("\nFirst position example:")
                 print(f"  symbol: {first.get('symbol')}")
                 print(f"  quantity: {first.get('quantity')}")
-                print(f"  current_price: {first.get('current_price')} (type: {type(first.get('current_price')).__name__})")
+                print(
+                    f"  current_price: {first.get('current_price')} (type: {type(first.get('current_price')).__name__})"
+                )
                 print(f"  position_value: {first.get('position_value')}")
 
                 # Count how many have NULL current_price

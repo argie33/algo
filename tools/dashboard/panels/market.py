@@ -38,7 +38,7 @@ from ..utilities import (
 )
 from ._helpers import _error_panel
 from .data_extractors import (
-        safe_get_list,
+    safe_get_list,
 )
 
 
@@ -65,7 +65,9 @@ def panel_market_full(mkt, sentiment=None):
     # Critical fields validation (should never be None after successful fetch)
     if vix is None or spy_raw is None:
         return Panel(
-            Text.from_markup("[dim]Market data validation failed - critical fields missing (VIX or SPY).[/]\nCheck data loading status."),
+            Text.from_markup(
+                "[dim]Market data validation failed - critical fields missing (VIX or SPY).[/]\nCheck data loading status."
+            ),
             title="[bold blue]MARKET (CRITICAL DATA MISSING)[/]",
             border_style="red",
             padding=(0, 1),
@@ -96,7 +98,11 @@ def panel_market_full(mkt, sentiment=None):
     uvc = G if upvol is not None and upvol >= 60 else (Y if upvol is not None and upvol >= 50 else R)
     pcr_c = DIM if pcr is None else (G if pcr <= 0.8 else (Y if pcr <= 1.0 else R))
     nhnl = (nh - nl) if (nh is not None and nl is not None) else None
-    nhnl_c = (G if nhnl is not None and nhnl >= 50 else (Y if nhnl is not None and nhnl >= 0 else R)) if nhnl is not None else DIM
+    nhnl_c = (
+        (G if nhnl is not None and nhnl >= 50 else (Y if nhnl is not None and nhnl >= 0 else R))
+        if nhnl is not None
+        else DIM
+    )
 
     spy_s = f"SPY:[white]${float(spy_raw):.2f}[/]"
     if spy_chg is not None:
@@ -406,4 +412,3 @@ __all__ = [
     "panel_market_expanded",
     "panel_market_full",
 ]
-

@@ -476,7 +476,9 @@ class SignalPatternsMixin:
                         method = "htf_consolidation_low"
                         reasoning = f"HTF: 5% below consolidation low ${cons_low:.2f}"
                     else:
-                        logger.warning(f"HTF data invalid types for {symbol}: pivot_high={type(pivot_high).__name__}, consolidation_pct={type(consolidation_pct).__name__}")
+                        logger.warning(
+                            f"HTF data invalid types for {symbol}: pivot_high={type(pivot_high).__name__}, consolidation_pct={type(consolidation_pct).__name__}"
+                        )
 
             if candidate < floor_stop:
                 candidate = floor_stop

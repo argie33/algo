@@ -103,7 +103,9 @@ class AdvancedFilters:
             )
             sectors = cur.fetchall()
             self._sector_full_ranking = {row[0]: int(row[1]) for row in sectors}
-            self._strong_sectors = {row[0]: float(row[2]) for row in sectors[:self.strong_sector_top_n] if row[2] is not None}
+            self._strong_sectors = {
+                row[0]: float(row[2]) for row in sectors[: self.strong_sector_top_n] if row[2] is not None
+            }
 
             if not self._strong_sectors:
                 raise ValueError(
@@ -152,7 +154,9 @@ class AdvancedFilters:
 
     # ---------- Per-candidate evaluation ----------
 
-    def evaluate_candidate(self, symbol: str, signal_date: Any, entry_price: float, sector: str | None, industry: str | None) -> dict[str, Any]:
+    def evaluate_candidate(
+        self, symbol: str, signal_date: Any, entry_price: float, sector: str | None, industry: str | None
+    ) -> dict[str, Any]:
         """Run all advanced filters for one candidate.
 
         Returns dict with:
@@ -187,7 +191,9 @@ class AdvancedFilters:
 
             components["days_to_earnings"] = days_to_earnings
             if days_to_earnings is not None and 0 <= days_to_earnings <= self.block_days_before_earnings:
-                hard_fail = hard_fail or f"Earnings in ~{days_to_earnings}d (block window {self.block_days_before_earnings}d)"
+                hard_fail = (
+                    hard_fail or f"Earnings in ~{days_to_earnings}d (block window {self.block_days_before_earnings}d)"
+                )
 
             # H2. Over-extended (CRITICAL: must not skip on exception)
             ext_pct = None

@@ -400,7 +400,9 @@ class SwingTraderScore:
             try:
                 score_value = float(result["swing_score"])
             except (ValueError, TypeError) as e:
-                raise ValueError(f"Swing score for {symbol} cannot be converted to float: {result['swing_score']}") from e
+                raise ValueError(
+                    f"Swing score for {symbol} cannot be converted to float: {result['swing_score']}"
+                ) from e
 
             if "pass" not in result or not isinstance(result["pass"], bool):
                 raise ValueError(f"Swing score result missing or invalid 'pass' field for {symbol}")

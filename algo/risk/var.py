@@ -96,8 +96,12 @@ class ValueAtRisk:
 
                 returns_decimal = [(values[i] - values[i - 1]) / values[i - 1] for i in range(1, len(values))]
                 if not returns_decimal:
-                    logger.critical("Historical VaR calculation failed: no valid returns computed from portfolio snapshots")
-                    raise RuntimeError("Cannot compute VaR: no valid portfolio return data available. Verify portfolio snapshots have valid values.")
+                    logger.critical(
+                        "Historical VaR calculation failed: no valid returns computed from portfolio snapshots"
+                    )
+                    raise RuntimeError(
+                        "Cannot compute VaR: no valid portfolio return data available. Verify portfolio snapshots have valid values."
+                    )
 
                 # CRITICAL: Returns must be valid — no defaults to 0.0
                 returns = []
@@ -107,8 +111,7 @@ class ValueAtRisk:
                         returns.append(ret)
                     except (ValueError, TypeError) as e:
                         raise RuntimeError(
-                            f"Return computation failed at index {i}: {e}. "
-                            "Portfolio snapshot data may be corrupted."
+                            f"Return computation failed at index {i}: {e}. Portfolio snapshot data may be corrupted."
                         )
 
                 if not returns:
@@ -194,8 +197,12 @@ class ValueAtRisk:
 
                 returns_decimal = [(values[i] - values[i - 1]) / values[i - 1] for i in range(1, len(values))]
                 if not returns_decimal:
-                    logger.critical("Historical VaR calculation failed: no valid returns computed from portfolio snapshots")
-                    raise RuntimeError("Cannot compute VaR: no valid portfolio return data available. Verify portfolio snapshots have valid values.")
+                    logger.critical(
+                        "Historical VaR calculation failed: no valid returns computed from portfolio snapshots"
+                    )
+                    raise RuntimeError(
+                        "Cannot compute VaR: no valid portfolio return data available. Verify portfolio snapshots have valid values."
+                    )
 
                 # CRITICAL: Returns must be valid — no defaults to 0.0
                 returns = []
@@ -205,8 +212,7 @@ class ValueAtRisk:
                         returns.append(ret)
                     except (ValueError, TypeError) as e:
                         raise RuntimeError(
-                            f"Return computation failed at index {i}: {e}. "
-                            "Portfolio snapshot data may be corrupted."
+                            f"Return computation failed at index {i}: {e}. Portfolio snapshot data may be corrupted."
                         )
 
                 if not returns:
@@ -287,7 +293,9 @@ class ValueAtRisk:
 
                 return {
                     "confidence_level": confidence,
-                    "stressed_var_dollars": float(stressed_var_dollars.quantize(Decimal("0.01"), rounding=ROUND_HALF_UP)),
+                    "stressed_var_dollars": float(
+                        stressed_var_dollars.quantize(Decimal("0.01"), rounding=ROUND_HALF_UP)
+                    ),
                     "stressed_var_pct": float(stressed_var_pct.quantize(Decimal("0.001"), rounding=ROUND_HALF_UP)),
                     "worst_window_period": f"{rows[worst_start_idx][0]} to {rows[worst_start_idx + 252][0]}",
                     "interpretation": f"Potential loss using worst historical 12-month period: {stressed_var_pct:.2f}%",
@@ -355,9 +363,7 @@ class ValueAtRisk:
                 for symbol, qty, cur_price, _entry_price in positions:
                     # CRITICAL: Do NOT use entry_price as fallback for current_price
                     if cur_price is None or qty is None:
-                        logger.warning(
-                            f"[VAR] {symbol}: missing current_price/quantity, skipping from VAR calculation"
-                        )
+                        logger.warning(f"[VAR] {symbol}: missing current_price/quantity, skipping from VAR calculation")
                         continue
                     safe_price = float(cur_price)
                     safe_qty = float(qty)
@@ -390,7 +396,9 @@ class ValueAtRisk:
                                         break
                                     price = float(r[0])
                                     if price <= 0:
-                                        logger.warning(f"[VAR] {symbol}: invalid historical price for beta calc, skipping")
+                                        logger.warning(
+                                            f"[VAR] {symbol}: invalid historical price for beta calc, skipping"
+                                        )
                                         break
                                     stock_prices.append(Decimal(str(price)))
                                 stock_prices = list(reversed(stock_prices))
@@ -406,7 +414,9 @@ class ValueAtRisk:
                                     m_rets = spy_returns[-n:]
                                     s_mean = Decimal(str(sum(s_rets) / n))
                                     m_mean = Decimal(str(sum(m_rets) / n))
-                                    cov = Decimal(str(sum((s_rets[i] - s_mean) * (m_rets[i] - m_mean) for i in range(n)) / n))
+                                    cov = Decimal(
+                                        str(sum((s_rets[i] - s_mean) * (m_rets[i] - m_mean) for i in range(n)) / n)
+                                    )
                                     var = Decimal(str(sum((r - m_mean) ** 2 for r in m_rets) / n))
                                     if var > 0:
                                         estimated_beta = (cov / var).quantize(Decimal("0.01"), rounding=ROUND_HALF_UP)
@@ -419,14 +429,22 @@ class ValueAtRisk:
                     positions_list.append(
                         {
                             "symbol": symbol,
-                            "weight_pct": float(float((position_weight * Decimal(100)).quantize(Decimal("0.01"), rounding=ROUND_HALF_UP))),
+                            "weight_pct": float(
+                                float(
+                                    (position_weight * Decimal(100)).quantize(Decimal("0.01"), rounding=ROUND_HALF_UP)
+                                )
+                            ),
                             "estimated_beta": float(float(estimated_beta)),
-                            "contribution": float(float(weighted_beta.quantize(Decimal("0.001"), rounding=ROUND_HALF_UP))),
+                            "contribution": float(
+                                float(weighted_beta.quantize(Decimal("0.001"), rounding=ROUND_HALF_UP))
+                            ),
                         }
                     )
 
                 return {
-                    "portfolio_beta": float(float(total_beta_exposure.quantize(Decimal("0.01"), rounding=ROUND_HALF_UP))),
+                    "portfolio_beta": float(
+                        float(total_beta_exposure.quantize(Decimal("0.01"), rounding=ROUND_HALF_UP))
+                    ),
                     "interpretation": f"Portfolio is {float(float(total_beta_exposure.quantize(Decimal('0.1'), rounding=ROUND_HALF_UP)))}x market risk",
                     "positions": positions_list,
                     "portfolio_value": float(float(portfolio_value.quantize(Decimal("0.01"), rounding=ROUND_HALF_UP))),

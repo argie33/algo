@@ -364,10 +364,7 @@ class TradeAuditLogger:
         """Log position reconciliation corrections for audit trail."""
         try:
             audit_msg = (
-                f"Position {action}: {symbol} | "
-                f"Before: {quantity_before} | "
-                f"After: {quantity_after} | "
-                f"Reason: {reason}"
+                f"Position {action}: {symbol} | Before: {quantity_before} | After: {quantity_after} | Reason: {reason}"
             )
             logger.info(f"[AUDIT] {audit_msg}")
 

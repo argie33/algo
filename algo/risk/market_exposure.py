@@ -248,11 +248,13 @@ class MarketExposure:
                 "max": self.W_BREADTH_50,
             }
             score += b50_pts
-            b50_val = b50.get('value')
+            b50_val = b50.get("value")
             if b50_val is not None:
                 logger.debug(f"  Breadth 50-DMA: {b50_val:.1f}%, {b50_pts:.1f} pts")
             else:
-                logger.warning(f"  Breadth 50-DMA: data unavailable (score_factor={b50.get('score_factor')}), {b50_pts:.1f} pts")
+                logger.warning(
+                    f"  Breadth 50-DMA: data unavailable (score_factor={b50.get('score_factor')}), {b50_pts:.1f} pts"
+                )
 
             # --- 4. Breadth: % stocks above 200-DMA ---
             b200 = self.calculator._pct_above_ma(eval_date, ma_days=200, cur=cur)
@@ -264,11 +266,13 @@ class MarketExposure:
                 "max": self.W_BREADTH_200,
             }
             score += b200_pts
-            b200_val = b200.get('value')
+            b200_val = b200.get("value")
             if b200_val is not None:
                 logger.debug(f"  Breadth 200-DMA: {b200_val:.1f}%, {b200_pts:.1f} pts")
             else:
-                logger.warning(f"  Breadth 200-DMA: data unavailable (score_factor={b200.get('score_factor')}), {b200_pts:.1f} pts")
+                logger.warning(
+                    f"  Breadth 200-DMA: data unavailable (score_factor={b200.get('score_factor')}), {b200_pts:.1f} pts"
+                )
 
             # --- 5. Selling pressure (heavy-volume down days) ---
             sp = self.calculator.selling_pressure(eval_date, cur)
@@ -380,7 +384,9 @@ class MarketExposure:
                 if rotation:
                     if "reduce_exposure_pts" not in rotation:
                         logger.error(f"Sector rotation missing 'reduce_exposure_pts' field: {rotation.keys()}")
-                        raise ValueError("Sector rotation detector returned incomplete data: missing reduce_exposure_pts")
+                        raise ValueError(
+                            "Sector rotation detector returned incomplete data: missing reduce_exposure_pts"
+                        )
                     rot_penalty = rotation["reduce_exposure_pts"]
                     if rot_penalty > 0:
                         score = max(0.0, score - rot_penalty)

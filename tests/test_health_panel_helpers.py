@@ -164,7 +164,12 @@ class TestFormatNotificationsSummary:
 
     def test_single_critical_notification(self):
         notifs = [
-            {"severity": "critical", "title": "Trading halted by circuit breaker", "created_at": datetime.now(), "seen": True}
+            {
+                "severity": "critical",
+                "title": "Trading halted by circuit breaker",
+                "created_at": datetime.now(),
+                "seen": True,
+            }
         ]
         result = _format_notifications_summary(notifs)
         assert len(result) > 0
@@ -174,16 +179,12 @@ class TestFormatNotificationsSummary:
 
     def test_notification_age_formatting(self):
         now = datetime.now()
-        notifs = [
-            {"severity": "warning", "title": "Position exited", "created_at": now, "seen": False}
-        ]
+        notifs = [{"severity": "warning", "title": "Position exited", "created_at": now, "seen": False}]
         result = _format_notifications_summary(notifs)
         assert len(result) > 0
 
     def test_unread_indicator_shown(self):
-        notifs = [
-            {"severity": "info", "title": "New signal", "created_at": datetime.now(), "seen": False}
-        ]
+        notifs = [{"severity": "info", "title": "New signal", "created_at": datetime.now(), "seen": False}]
         result = _format_notifications_summary(notifs)
         assert len(result) > 0
         # Unread should show as "-" or indicator

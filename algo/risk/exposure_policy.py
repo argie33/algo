@@ -160,7 +160,9 @@ class ExposurePolicy:
         """
         active = self.get_active_tier(eval_date)
         if not active:
-            raise RuntimeError(f"No active exposure policy tier for {eval_date} — cannot generate position recommendations")
+            raise RuntimeError(
+                f"No active exposure policy tier for {eval_date} — cannot generate position recommendations"
+            )
 
         tier = active["tier"]
         if eval_date is None:
@@ -255,8 +257,7 @@ class ExposurePolicy:
                     "position_id": position_id,
                     "action": "partial_exit",
                     "reason": (
-                        f"Tier '{tier['name']}' force partial: R={r_mult:.2f} >= "
-                        f"{force_partial_threshold}R threshold"
+                        f"Tier '{tier['name']}' force partial: R={r_mult:.2f} >= {force_partial_threshold}R threshold"
                     ),
                     "exit_fraction": 0.50,
                     "new_stop": max(active_stop, entry_price),  # raise to BE at minimum
@@ -277,9 +278,7 @@ class ExposurePolicy:
                     "symbol": symbol,
                     "position_id": position_id,
                     "action": "tighten_stop",
-                    "reason": (
-                        f"Tier '{tier['name']}' tighten: R={r_mult:.2f} >= {tighten_threshold}R, raise stop"
-                    ),
+                    "reason": (f"Tier '{tier['name']}' tighten: R={r_mult:.2f} >= {tighten_threshold}R, raise stop"),
                     "exit_fraction": 0.0,
                     "new_stop": round(tightened, 2),
                     "r_multiple": r_mult,

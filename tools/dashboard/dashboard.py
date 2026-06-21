@@ -52,7 +52,7 @@ except ImportError:
                     return ch if ch else ""
                 finally:
                     termios.tcsetattr(fd, termios.TCSADRAIN, old_settings)  # type: ignore[attr-defined]
-            except Exception:
+            except (OSError, AttributeError, ValueError):
                 return ""
         return ""
 
@@ -620,10 +620,14 @@ def render_dashboard(
     outer["top"]["mascot"].update(mascot_panel)
 
     # FIX: Wrap all panels with error checks
-    cb_panel = panel_circuit(cb) if not has_error(cb) else Panel("[red]Circuit breakers unavailable[/]", border_style="red")
-    health_panel = panel_algo_health(
-        run, act, hlth, notifs, algo_metrics, audit, exec_hist, risk=risk
-    ) if not (has_error(run) or has_error(hlth)) else Panel("[red]Health data unavailable[/]", border_style="red")
+    cb_panel = (
+        panel_circuit(cb) if not has_error(cb) else Panel("[red]Circuit breakers unavailable[/]", border_style="red")
+    )
+    health_panel = (
+        panel_algo_health(run, act, hlth, notifs, algo_metrics, audit, exec_hist, risk=risk)
+        if not (has_error(run) or has_error(hlth))
+        else Panel("[red]Health data unavailable[/]", border_style="red")
+    )
 
     outer["r1"].split_row(
         Layout(cb_panel, ratio=3, name="cb"),
@@ -631,9 +635,21 @@ def render_dashboard(
     )
 
     # FIX: Portfolio/Performance row with error checks
-    port_panel = panel_portfolio(port, cfg, risk=risk, perf=perf) if not (has_error(port) or has_error(cfg)) else Panel("[red]Portfolio unavailable[/]", border_style="red")
-    perf_panel = panel_performance_spark(perf, rec, perf_anl, pos=pos) if not (has_error(perf) or has_error(rec)) else Panel("[red]Performance unavailable[/]", border_style="red")
-    eco_panel = panel_economic_pulse(eco, econ_cal) if not has_error(eco) else Panel("[red]Economic data unavailable[/]", border_style="red")
+    port_panel = (
+        panel_portfolio(port, cfg, risk=risk, perf=perf)
+        if not (has_error(port) or has_error(cfg))
+        else Panel("[red]Portfolio unavailable[/]", border_style="red")
+    )
+    perf_panel = (
+        panel_performance_spark(perf, rec, perf_anl, pos=pos)
+        if not (has_error(perf) or has_error(rec))
+        else Panel("[red]Performance unavailable[/]", border_style="red")
+    )
+    eco_panel = (
+        panel_economic_pulse(eco, econ_cal)
+        if not has_error(eco)
+        else Panel("[red]Economic data unavailable[/]", border_style="red")
+    )
 
     outer["r2"].split_row(
         Layout(port_panel, name="portfolio"),
@@ -642,8 +658,16 @@ def render_dashboard(
     )
 
     # FIX: Signals/Sectors row with error checks
-    sig_panel = panel_signals_compact(sig, sig_eval, scores=scores) if not (has_error(sig) or has_error(scores)) else Panel("[red]Signals unavailable[/]", border_style="red")
-    sector_panel = panel_sector_compact(srank, pos, port, sec_rot, irank) if not (has_error(pos) or has_error(port)) else Panel("[red]Sectors unavailable[/]", border_style="red")
+    sig_panel = (
+        panel_signals_compact(sig, sig_eval, scores=scores)
+        if not (has_error(sig) or has_error(scores))
+        else Panel("[red]Signals unavailable[/]", border_style="red")
+    )
+    sector_panel = (
+        panel_sector_compact(srank, pos, port, sec_rot, irank)
+        if not (has_error(pos) or has_error(port))
+        else Panel("[red]Sectors unavailable[/]", border_style="red")
+    )
 
     outer["r3"].split_row(
         Layout(sig_panel, ratio=3, name="signals"),
@@ -651,8 +675,16 @@ def render_dashboard(
     )
 
     # FIX: Positions/Trades row with error checks
-    pos_panel = panel_positions(pos, compact, trades=rec) if not (has_error(pos) or has_error(rec)) else Panel("[red]Positions unavailable[/]", border_style="red")
-    trades_panel = panel_recent_trades(rec) if not has_error(rec) else Panel("[red]Recent trades unavailable[/]", border_style="red")
+    pos_panel = (
+        panel_positions(pos, compact, trades=rec)
+        if not (has_error(pos) or has_error(rec))
+        else Panel("[red]Positions unavailable[/]", border_style="red")
+    )
+    trades_panel = (
+        panel_recent_trades(rec)
+        if not has_error(rec)
+        else Panel("[red]Recent trades unavailable[/]", border_style="red")
+    )
 
     outer["pos"].split_row(
         Layout(pos_panel, ratio=5, name="positions"),
@@ -717,7 +749,14 @@ def render_dashboard(
         return _expanded_layout(
             *_exp_top,
             panel_algo_health_expanded(
-                run, act, hlth, notifs, algo_metrics, audit, exec_hist, risk=risk,
+                run,
+                act,
+                hlth,
+                notifs,
+                algo_metrics,
+                audit,
+                exec_hist,
+                risk=risk,
             ),
         )
 
