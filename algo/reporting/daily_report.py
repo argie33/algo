@@ -234,68 +234,53 @@ class DailyFinanceReport:
 
     def format_text(self, report: dict[str, Any]) -> str:
         """Format report as text for logs."""
-        regime = report.get("regime")
-        components = report.get("components")
-        portfolio = report.get("portfolio")
-        risk = report.get("risk")
-        strategy = report.get("strategy")
+        if not report:
+            raise ValueError("Report cannot be None")
 
-        pv = portfolio.get("current_value") if portfolio else None
-        if pv is None:
-            pv = 0
-        dpnl = portfolio.get("daily_pnl_pct") if portfolio else None
-        if dpnl is None:
-            logger.warning(f"Daily P&L missing for {report['date']} - using N/A instead of fake 0")
-            dpnl_str = "N/A"
-        else:
-            dpnl_str = f"{dpnl:+.2f}%"
+        regime = report["regime"]
+        if not regime:
+            raise ValueError("Report missing required field: regime")
+        components = report["components"]
+        if not components:
+            raise ValueError("Report missing required field: components")
+        portfolio = report["portfolio"]
+        if not portfolio:
+            raise ValueError("Report missing required field: portfolio")
+        risk = report["risk"]
+        if not risk:
+            raise ValueError("Report missing required field: risk")
+        strategy = report["strategy"]
+        if not strategy:
+            raise ValueError("Report missing required field: strategy")
 
-        ytd = portfolio.get("ytd_pnl_pct") if portfolio else None
-        if ytd is None:
-            logger.warning(f"YTD P&L missing for {report['date']} - using N/A instead of fake 0")
-            ytd_str = "N/A"
-        else:
-            ytd_str = f"{ytd:+.2f}%"
+        pv = portfolio["current_value"]
+        dpnl = portfolio["daily_pnl_pct"]
+        ytd = portfolio["ytd_pnl_pct"]
 
-        var95 = risk.get("var_95_pct") if risk else None
-        if var95 is None:
-            logger.warning(f"VaR 95% missing for {report['date']} - using N/A instead of fake 0")
-            var95_str = "N/A"
-        else:
-            var95_str = f"{var95:.1f}%"
+        var95 = risk["var_95_pct"]
+        beta = risk.get("beta")
+        sharpe = risk["sharpe_ytd"]
 
-        beta = risk.get("beta") if risk else None
-        if beta is None:
-            logger.warning(f"Beta missing for {report['date']} - using N/A instead of fake 0")
-            beta_str = "N/A"
-        else:
-            beta_str = f"{beta:.2f}"
+        exp_r = strategy.get("expectancy_r")
+        win_rate = strategy["win_rate_pct"]
+        profit_factor = strategy["profit_factor"]
 
-        sharpe = risk.get("sharpe_ytd") if risk else None
-        if sharpe is None:
-            logger.warning(f"Sharpe YTD missing for {report['date']} - using N/A instead of fake 0")
-            sharpe_str = "N/A"
-        else:
-            sharpe_str = f"{sharpe:.1f}"
-
-        exp_r = strategy.get("expectancy_r") if strategy else None
-        if exp_r is None:
-            logger.warning(f"Expectancy missing for {report['date']} - using N/A instead of fake 0")
-            exp_r_str = "N/A"
-        else:
-            exp_r_str = f"{exp_r:+.2f}R"
+        dpnl_str = f"{dpnl:+.2f}%" if dpnl is not None else "N/A"
+        ytd_str = f"{ytd:+.2f}%" if ytd is not None else "N/A"
+        var95_str = f"{var95:.1f}%" if var95 is not None else "N/A"
+        beta_str = f"{beta:.2f}" if beta is not None else "N/A"
+        sharpe_str = f"{sharpe:.1f}" if sharpe is not None else "N/A"
+        exp_r_str = f"{exp_r:+.2f}R" if exp_r is not None else "N/A"
 
         lines = [
             f"{'=' * 70}",
-            f"DAILY FINANCE REPORT - {report['date']} | Regime: {(regime.get('current', 'unknown') if regime else 'unknown')}",
+            f"DAILY FINANCE REPORT - {report['date']} | Regime: {regime['current']}",
             f"{'=' * 70}",
             f"Portfolio: ${pv:,.0f} | Daily P&L: {dpnl_str} | YTD: {ytd_str}",
             f"Risk: VaR {var95_str} | Beta {beta_str} | Sharpe {sharpe_str}",
             "",
             "Strategy (last 50 trades):",
-            f"  Win rate: {(strategy.get('win_rate_pct', 0) if strategy else 0):.0f}% | "
-            f"Profit factor: {(strategy.get('profit_factor', 0) if strategy else 0):.1f}x | "
-            f"Expectancy: {exp_r_str}",
+            f"  Win rate: {win_rate:.0f}% | Profit factor: {profit_factor:.1f}x | Expectancy: {exp_r_str}",
             "",
             "Component IC (alpha contribution):",
         ]
@@ -309,23 +294,27 @@ class DailyFinanceReport:
             "sector_industry",
             "multi_timeframe",
         ]:
-            comp_data = components.get(comp) if components else None
-            status = comp_data.get("status", "?") if comp_data else "?"
+            if comp not in components:
+                lines.append(f"  {comp:20s} r=N/A        MISSING")
+                continue
+
+            comp_data = components[comp]
+            status = comp_data["status"]
 
             if status == "no_data":
                 lines.append(f"  {comp:20s} r=N/A        {status.upper():10s}")
             else:
-                ic = comp_data.get("ic", 0) if comp_data else 0
+                ic = comp_data["ic"]
                 status_marker = "★" if status == "strong" else "◇" if status == "moderate" else " "
                 lines.append(f"  {comp:20s} r={ic:+.3f} {status_marker:2s} {status.upper():10s}")
 
-        signals = report.get("signals")
+        signals = report["signals"]
         lines.extend(
             [
                 "",
-                f"Today: {(signals.get('candidates_today', 0) if signals else 0)} BUY signals → "
-                f"{(signals.get('passed_tiers', 0) if signals else 0)} tier-passed → "
-                f"{(signals.get('entries_today', 0) if signals else 0)} entries",
+                f"Today: {signals['candidates_today']} BUY signals → "
+                f"{signals['passed_tiers']} tier-passed → "
+                f"{signals['entries_today']} entries",
                 f"{'=' * 70}",
             ]
         )
