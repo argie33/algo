@@ -5,10 +5,8 @@ import json
 import logging
 import os
 import time
-import uuid
 from dataclasses import dataclass
-from datetime import datetime, timezone
-from decimal import ROUND_HALF_UP, Decimal
+from decimal import Decimal
 from typing import Any
 
 import psycopg2
@@ -540,7 +538,7 @@ class TradeExecutor:
         swing_components: dict | None = None,
         advanced_components: dict | None = None,
     ) -> dict[str, Any]:
-        """Execute a new entry trade.
+        """Execute a new entry trade by delegating to EntryHandler.
 
         Returns: {
             'success': bool,
@@ -551,455 +549,34 @@ class TradeExecutor:
             'duplicate': bool (only when blocked by idempotency)
         }
         """
-        entry_price = Decimal(str(entry_price))
-        shares = Decimal(str(shares))
-        stop_loss_price = Decimal(str(stop_loss_price))
-        if target_1_price is not None:
-            target_1_price = Decimal(str(target_1_price))
-        if target_2_price is not None:
-            target_2_price = Decimal(str(target_2_price))
-        if target_3_price is not None:
-            target_3_price = Decimal(str(target_3_price))
-
-        # Default dates if not provided
-        if not signal_date:
-            signal_date = datetime.now(timezone.utc).date()
-        if not entry_date:
-            entry_date = datetime.now(timezone.utc).date()
-
-        portfolio_value = self._get_portfolio_value()
-
-        # symbol must be non-None since validator requires it
-        if not symbol:
-            return {
-                "success": False,
-                "trade_id": "",
-                "status": "invalid",
-                "message": "symbol is required",
-            }
-
-        # Validate all entry preconditions using TradeValidator
-        valid, error_msg, validation_result = self.validator.validate_entry_preconditions(
-            symbol=symbol,
-            entry_price=entry_price,
-            stop_loss_price=stop_loss_price,
-            shares=shares,
-            portfolio_value=portfolio_value,
-            signal_date=signal_date,
-            entry_date=entry_date,
-            target_1_price=target_1_price,
-            target_2_price=target_2_price,
-            target_3_price=target_3_price,
-        )
-        if not valid:
-            return {
-                "success": False,
-                "trade_id": "",
-                "status": "invalid",
-                "message": error_msg,
-            }
-
-        # Apply auto-calculated targets if generated
-        if "target_1_price" in validation_result:
-            target_1_price = validation_result["target_1_price"]
-        if "target_2_price" in validation_result:
-            target_2_price = validation_result["target_2_price"]
-        if "target_3_price" in validation_result:
-            target_3_price = validation_result["target_3_price"]
-
-        # Check for duplicate position
-        def _check_dup_pos(cur):
-            is_dup, msg = self.validator.check_duplicate_position(cur, symbol)
-            if is_dup:
-                return {"error": msg}
-            return None
-
         try:
-            dup_result = self._with_cursor(_check_dup_pos)
-            if dup_result and "error" in dup_result:
-                return {
-                    "success": False,
-                    "trade_id": "",
-                    "status": "duplicate_position",
-                    "message": dup_result["error"],
-                    "duplicate": True,
-                }
-        except DatabaseError as e:
-            logger.error(f"Failed to check for duplicate position (database error): {e}")
-            raise DuplicatePositionError(
-                f"Cannot verify duplicate position status: {e!s}. Order halted for safety."
-            ) from e
-
-        import hashlib
-
-        key_source = f"{symbol}|{signal_date}|{entry_price}|{stop_loss_price}"
-        idempotency_key = hashlib.sha256(key_source.encode()).hexdigest()
-
-        def _execute_entry(cur):
-            # B10: Entire entry sequence is wrapped in a single transaction.
-            # If any step fails, the transaction rolls back and no partial state is left.
-
-            # THREAD SAFETY: Advisory locks are acquired by _with_cursor(acquire_locks=True).
-            # This prevents concurrent writes from Phase 6 (exits), Phase 7 (reconciliation),
-            # or other Phase 8 entries to algo_trades and algo_positions.
-
-            # nonlocal: allow conditional slippage recalculation to update these without
-            # causing UnboundLocalError for earlier uses (Python treats any assignment in a
-            # closure as local for the entire function scope).
-            nonlocal target_1_price, target_2_price, target_3_price
-
-            prior_trade_id = None
-            reentry_count = 0
-
-            # Consolidated validation of all entry conditions
-            is_valid, error_msg, error_details = self._validate_entry_conditions(
-                cur, symbol, signal_date, entry_price, stop_loss_price
+            return self.entry_handler.execute_entry(
+                symbol=symbol,
+                entry_price=entry_price,
+                shares=shares,
+                stop_loss_price=stop_loss_price,
+                target_1_price=target_1_price,
+                target_2_price=target_2_price,
+                target_3_price=target_3_price,
+                signal_date=signal_date,
+                entry_date=entry_date,
+                sqs=sqs,
+                trend_score=trend_score,
+                swing_score=swing_score,
+                swing_grade=swing_grade,
+                base_type=base_type,
+                base_quality=base_quality,
+                stage_phase=stage_phase,
+                sector=sector,
+                industry=industry,
+                rs_percentile=rs_percentile,
+                market_exposure_at_entry=market_exposure_at_entry,
+                exposure_tier_at_entry=exposure_tier_at_entry,
+                stop_method=stop_method,
+                stop_reasoning=stop_reasoning,
+                swing_components=swing_components,
+                advanced_components=advanced_components,
             )
-            if not is_valid:
-                result = {
-                    "success": False,
-                    "trade_id": error_details["trade_id"] if error_details else "",
-                    "message": error_msg,
-                }
-                if error_details:
-                    result.update({k: v for k, v in error_details.items() if k != "trade_id"})
-                return result
-
-            execution_mode = self.execution_mode
-            trade_id = f"TRD-{uuid.uuid4().hex[:10].upper()}"
-
-            order_ok, alpaca_order_id, order_status, order_error, executed_price, rejection_reason = (
-                self._submit_and_validate_order(
-                    symbol,
-                    trade_id,
-                    shares,
-                    entry_price,
-                    stop_loss_price,
-                    target_1_price,
-                    execution_mode,
-                )
-            )
-
-            if not order_ok:
-                return {
-                    "success": False,
-                    "trade_id": trade_id,
-                    "status": "failed",
-                    "message": order_error,
-                }
-
-            # For auto mode, verify bracket legs and check for rejection
-            if execution_mode == "auto":
-                # Verify bracket legs - FAIL-CLOSED if missing stop leg
-                order_result = self._last_order_result if hasattr(self, "_last_order_result") else None
-                if order_result is None:
-                    return {
-                        "success": False,
-                        "trade_id": trade_id,
-                        "status": "failed",
-                        "message": "Order result missing - bracket validation failed",
-                    }
-                legs = order_result.get("legs", [])
-                if order_result.get("order_class") == "bracket" and len(legs) < 2:
-                    try:
-                        self._cancel_bracket_orders(alpaca_order_id)
-                    except (OrderExecutionError, DatabaseError, requests.RequestException, requests.Timeout) as e:
-                        logger.warning(f"Failed to cancel bracket order {alpaca_order_id} ({type(e).__name__}): {e}")
-                    return {
-                        "success": False,
-                        "trade_id": trade_id,
-                        "status": "failed",
-                        "message": f"Bracket order {alpaca_order_id} missing stop loss leg ({len(legs)} legs) - order cancelled",
-                    }
-
-                # Check for order rejection/cancellation
-                if order_status in ("rejected", "cancelled", "expired"):
-                    try:
-                        notify(
-                            "critical",
-                            title=f"Order {order_status.upper()}: {symbol}",
-                            message=f"Trade {trade_id}: {shares}sh @ ${entry_price:.2f} (stop ${stop_loss_price:.2f}) - {order_status}",
-                        )
-                    except NotificationError as alert_e:
-                        logger.warning(f"Failed to send rejection alert (non-blocking): {alert_e}")
-                    return {
-                        "success": False,
-                        "trade_id": trade_id,
-                        "status": order_status,
-                        "message": f"Alpaca {order_status} order: {symbol}",
-                    }
-
-                if order_status not in ("filled", "partially_filled"):
-                    # For pending orders, still create the trade record but mark as pending
-                    pass  # Continue to create trade record below
-
-            # If fill price differs from signal price (slippage), recalculate targets based on actual fill
-            if executed_price and executed_price != entry_price:
-                executed_price_dec = Decimal(str(executed_price))
-                entry_price_dec_slip = Decimal(str(entry_price))
-                slippage_pct = float(
-                    ((executed_price_dec - entry_price_dec_slip) / entry_price_dec_slip * Decimal(100)).quantize(
-                        Decimal("0.01"), rounding=ROUND_HALF_UP
-                    )
-                )
-                logger.info(
-                    _redact_for_logs(
-                        f"Slippage detected: {slippage_pct:+.2f}% (signal ${entry_price:.2f} '' fill ${executed_price:.2f})"
-                    )
-                )
-                # Recalculate targets from actual fill price, keeping all math in Decimal
-                stop_price_dec_slip = Decimal(str(stop_loss_price))
-                actual_risk_per_share = executed_price_dec - stop_price_dec_slip
-                if actual_risk_per_share > 0:
-                    # Use validated R-multiples from __init__ (fail-fast guaranteed them to exist)
-                    t1_r_dec = Decimal(str(self.t1_target_r_multiple))
-                    t2_r_dec = Decimal(str(self.t2_target_r_multiple))
-                    t3_r_dec = Decimal(str(self.t3_target_r_multiple))
-                    # Recalculate all targets in Decimal, keep as Decimal until storage
-                    target_1_price = executed_price_dec + (actual_risk_per_share * t1_r_dec)
-                    target_1_price = target_1_price.quantize(Decimal("0.01"), rounding=ROUND_HALF_UP)
-                    target_2_price = executed_price_dec + (actual_risk_per_share * t2_r_dec)
-                    target_2_price = target_2_price.quantize(Decimal("0.01"), rounding=ROUND_HALF_UP)
-                    target_3_price = executed_price_dec + (actual_risk_per_share * t3_r_dec)
-                    target_3_price = target_3_price.quantize(Decimal("0.01"), rounding=ROUND_HALF_UP)
-
-            # Compute initial position size pct using live or snapshot portfolio value
-            _pv_for_pct = self._get_portfolio_value()
-            if _pv_for_pct is None:
-                logger.warning("Portfolio value unavailable for position size pct calculation")
-                position_size_pct = None
-            else:
-                # For pending orders, executed_price is None; use entry_price as estimate for pct calculation only
-                price_for_pct = executed_price if executed_price else entry_price
-                position_size_pct = (
-                    (Decimal(shares) * Decimal(str(price_for_pct)) / Decimal(str(_pv_for_pct)) * Decimal(100)).quantize(
-                        Decimal("0.01"), rounding=ROUND_HALF_UP
-                    )
-                    if _pv_for_pct > 0
-                    else Decimal(0)
-                )
-
-            # Build comprehensive entry reason
-            entry_reason_parts = ["Algo signal - all tiers passed"]
-            if swing_grade:
-                entry_reason_parts.append(f"swing_grade={swing_grade}")
-            if base_type:
-                entry_reason_parts.append(f"base={base_type}")
-            if stage_phase:
-                entry_reason_parts.append(f"phase={stage_phase}")
-            if exposure_tier_at_entry:
-                entry_reason_parts.append(f"exposure={exposure_tier_at_entry}")
-            entry_reason = " | ".join(entry_reason_parts)
-
-            # Insert with FULL reasoning and idempotency key
-            cur.execute(
-                """
-                INSERT INTO algo_trades (
-                    trade_id, idempotency_key, symbol, signal_date, trade_date,
-                    entry_time, entry_price, entry_quantity, entry_reason,
-                    stop_loss_price, stop_loss_method,
-                    target_1_price, target_1_r_multiple,
-                    target_2_price, target_2_r_multiple,
-                    target_3_price, target_3_r_multiple,
-                    status, execution_mode, alpaca_order_id,
-                    position_size_pct, signal_quality_score, trend_template_score,
-                    swing_score, swing_grade,
-                    base_type, base_quality, stage_phase, entry_stage,
-                    sector, industry, rs_percentile,
-                    market_exposure_at_entry, exposure_tier_at_entry,
-                    stop_method, stop_reasoning,
-                    swing_components, advanced_components, bracket_order,
-                    reentry_count, prior_trade_id, rejection_reason,
-                    created_at
-                ) VALUES (
-                    %s, %s, %s, %s, %s, CURRENT_TIMESTAMP, %s, %s, %s,
-                    %s, %s,
-                    %s, %s, %s, %s, %s, %s,
-                    %s, %s, %s, %s, %s, %s,
-                    %s, %s,
-                    %s, %s, %s, %s,
-                    %s, %s, %s,
-                    %s, %s,
-                    %s, %s,
-                    %s, %s, %s,
-                    %s, %s, %s,
-                    CURRENT_TIMESTAMP
-                )
-                """,
-                (
-                    trade_id,
-                    idempotency_key,
-                    symbol,
-                    signal_date,
-                    entry_date,
-                    executed_price,
-                    shares,
-                    entry_reason,
-                    stop_loss_price,
-                    stop_method or "minervini_break_or_swing_low",
-                    target_1_price,
-                    self.t1_target_r_multiple,
-                    target_2_price,
-                    self.t2_target_r_multiple,
-                    target_3_price,
-                    self.t3_target_r_multiple,
-                    order_status,
-                    execution_mode,
-                    alpaca_order_id,
-                    position_size_pct,
-                    float(sqs) if sqs is not None else None,
-                    float(trend_score) if trend_score is not None else None,
-                    swing_score,
-                    swing_grade,
-                    base_type,
-                    base_quality,
-                    STAGE_PHASE_MAPPING[stage_phase] if stage_phase and stage_phase in STAGE_PHASE_MAPPING else None,
-                    stage_phase,
-                    sector,
-                    industry,
-                    rs_percentile,
-                    market_exposure_at_entry,
-                    exposure_tier_at_entry,
-                    stop_method,
-                    stop_reasoning,
-                    json.dumps(swing_components) if swing_components else None,
-                    json.dumps(advanced_components) if advanced_components else None,
-                    execution_mode == "auto",  # bracket_order = True only in auto mode
-                    reentry_count,
-                    prior_trade_id,
-                    rejection_reason,
-                ),
-            )
-
-            if order_status == "filled" or (order_status == "partially_filled" and execution_mode == "auto"):
-                # In auto mode, re-query order status to catch race where it was cancelled
-                if execution_mode == "auto" and alpaca_order_id:
-                    verified_status = self._verify_order_status(alpaca_order_id)
-                    if verified_status not in ("filled", "partially_filled"):
-                        return {
-                            "success": False,
-                            "trade_id": trade_id,
-                            "status": verified_status or "unknown",
-                            "message": f"Order status changed from {order_status} to {verified_status} - position not created",
-                        }
-                    order_status = verified_status
-
-                position_id = f"POS-{trade_id}"
-                # For partial fills, get actual filled quantity from Alpaca
-                actual_shares = shares
-                if order_status == "partially_filled" and alpaca_order_id:
-                    filled_qty = self._get_order_filled_quantity(alpaca_order_id)
-                    if filled_qty and filled_qty > 0:
-                        actual_shares = filled_qty
-                        logger.info(
-                            _redact_for_logs(f"Partial fill detected: {actual_shares} of {shares} shares filled")
-                        )
-
-                # B3: Defensive check for position value (ensure Decimal precision)
-                position_value = Decimal(str(actual_shares)) * Decimal(str(executed_price))
-                if position_value <= 0:
-                    return {
-                        "success": False,
-                        "trade_id": trade_id,
-                        "status": "invalid",
-                        "message": f"Invalid position value: {actual_shares} shares @ ${executed_price:.2f} = ${position_value:.2f}",
-                    }
-                cur.execute(
-                    """
-                    INSERT INTO algo_positions (
-                        position_id, symbol, quantity, avg_entry_price,
-                        current_price, position_value, status,
-                        trade_ids_arr, current_stop_price, stop_loss_price, target_levels_hit,
-                        created_at
-                    ) VALUES (
-                        %s, %s, %s, %s, %s, %s, 'open',
-                        %s, %s, %s, 0, CURRENT_TIMESTAMP
-                    )
-                    """,
-                    (
-                        position_id,
-                        symbol,
-                        actual_shares,
-                        executed_price,
-                        executed_price,
-                        position_value,
-                        [trade_id],
-                        stop_loss_price,
-                        stop_loss_price,
-                    ),
-                )
-
-            # Phase 3.2: Record execution quality (TCA) for fills in AUTO mode only
-            # (MANUAL mode fills don't have order send time recorded; latency is undefined)
-            if execution_mode == "auto" and (order_status == "filled" or order_status == "partially_filled"):
-                try:
-                    if not hasattr(self, "_order_send_time"):
-                        raise RuntimeError(
-                            f"[TCA CRITICAL] {symbol}: _order_send_time not set in AUTO mode. "
-                            "Cannot record TCA without accurate send timestamp."
-                        )
-                    execution_latency_ms = int((time.time() - self._order_send_time) * 1000)
-                    if execution_latency_ms < 0:
-                        raise ValueError(
-                            f"[TCA CRITICAL] {symbol}: negative latency {execution_latency_ms}ms. "
-                            "Clock skew or time tracking error."
-                        )
-                    tca_result = self.tca.record_fill(
-                        trade_id=trade_id,
-                        symbol=symbol,
-                        signal_price=entry_price,
-                        fill_price=executed_price,
-                        shares_requested=shares,
-                        shares_filled=actual_shares,
-                        side="BUY",
-                        execution_latency_ms=execution_latency_ms,
-                    )
-                    # Alert if slippage excessive (non-blocking)
-                    if "alert" in tca_result:
-                        try:
-                            alert_data = tca_result["alert"]
-                            notify(
-                                alert_data["severity"].lower(),
-                                title=f"TCA Alert: {alert_data['severity']}",
-                                message=alert_data["message"],
-                            )
-                        except NotificationError as alert_e:
-                            logger.warning(f"Failed to send TCA alert (non-blocking): {alert_e}")
-                except DatabaseError as tca_e:
-                    logger.warning(f"TCA recording failed (database error): {tca_e} (non-blocking)")
-
-            # Send trade entry notification (non-blocking)
-            try:
-                notif_service = TradeNotificationService()
-                notif_service._send_notification(
-                    subject=f"ENTRY: {symbol}",
-                    message=f"{shares:.2f} sh {symbol} @ ${(executed_price or entry_price):.2f} (stop ${stop_loss_price:.2f})",
-                    kind="trade_entry",
-                    severity="info",
-                    symbol=symbol,
-                    details={
-                        "entry_price": executed_price,
-                        "shares": float(shares),
-                        "stop_loss": stop_loss_price,
-                        "target_1": target_1_price,
-                        "swing_score": swing_score,
-                        "base_type": base_type,
-                        "trade_id": trade_id,
-                    },
-                )
-            except NotificationError as notif_e:
-                logger.warning(f"Failed to send entry notification (non-blocking): {notif_e}")
-
-            return {
-                "success": True,
-                "trade_id": trade_id,
-                "alpaca_order_id": alpaca_order_id,
-                "status": order_status,
-                "message": f"{shares} sh {symbol} @ ${(executed_price or entry_price):.2f} (stop ${stop_loss_price:.2f})",
-            }
-
-        try:
-            return self._with_cursor(_execute_entry, acquire_locks=True)  # type: ignore[no-any-return]
         except DuplicatePositionError as e:
             logger.error(f"Trade blocked (duplicate/idempotency): {e}")
             return {
