@@ -216,7 +216,7 @@ class ExitHandler:
             alpaca_order_id,
             position_id,
             current_qty,
-            target_hits,
+            _target_hits,
             position_status,
         ) = row
 
