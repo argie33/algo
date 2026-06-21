@@ -770,7 +770,7 @@ class AlgoConfig:
         except ValueError as e:
             logger.error(f"Config validation error: {e}")
             raise
-        except (psycopg2.DatabaseError, psycopg2.OperationalError) as e:
+        except (psycopg2.DatabaseError, psycopg2.OperationalError, ConnectionError, Exception) as e:
             logger.error(f"CRITICAL: Failed to load config from database: {e}")
             raise RuntimeError(
                 f"Config initialization failed: cannot load safety thresholds from database. "
@@ -1323,12 +1323,18 @@ class AlgoConfig:
             raise RuntimeError(f"Operation failed: {e}") from e
 
     def reload(self):
-        """Reload configuration from database."""
+        """Reload configuration from database with full validation.
+
+        Ensures hot-reloaded values pass the same critical safety checks as startup.
+        """
         self._config.clear()
         self._sources.clear()
         self._load_defaults()
         self._load_from_database()
+        self._validate_critical_thresholds()
+        self._validate_config_interdependencies()
         self._audit_config_sources()
+        logger.info("[AlgoConfig] Reload completed with validation")
 
     def __repr__(self):
         return f"<AlgoConfig {len(self._config)} keys>"
