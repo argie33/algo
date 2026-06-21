@@ -379,12 +379,12 @@ class TechnicalDataDailyLoader(OptimalLoader):
 
         df["date"] = df["date"].dt.date.astype(str)
 
-        def float(v):
+        def to_float_or_none(v):
             return float(v) if pd.notna(v) else None
 
         for col in columns[2:]:
             if col not in ("price_data_age_days",):
-                df[col] = df[col].apply(safe_float)
+                df[col] = df[col].apply(to_float_or_none)
 
         records = df[columns].to_dict("records")
 

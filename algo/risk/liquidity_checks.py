@@ -10,7 +10,6 @@ from datetime import timedelta
 import psycopg2
 
 from utils.db import DatabaseContext
-from utils.safe_data_conversion import safe_float, safe_int
 
 
 logger = logging.getLogger(__name__)

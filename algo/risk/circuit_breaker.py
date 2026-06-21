@@ -1,8 +1,3 @@
-import psycopg2
-
-
-#!/usr/bin/env python3
-
 """
 Circuit Breakers - Kill-switch risk halts (institutional safety layer)
 
@@ -33,6 +28,8 @@ from datetime import date as _date
 from datetime import datetime, timedelta
 from typing import Any
 
+import psycopg2
+
 from utils.db import DatabaseContext
 from utils.trading import PositionStatus, TradeStatus
 
@@ -57,7 +54,7 @@ CHECK_LABELS = {
 }
 
 
-def _float(value):
+def _float(value, default=None, context=""):
     """Convert to float safely, rejecting NaN/Infinity.
 
     Uses None as default to distinguish between "missing" and "zero".
@@ -177,12 +174,12 @@ class CircuitBreaker:
         # Bootstrap path: if table is empty (first ever run), allow through
         if row is None or row[0] is None or row[1] is None:
             return {"halted": False, "reason": "First run — no portfolio history yet"}
-        peak = _safe_float(row[0], None, context="drawdown peak")
-        cur_val = _safe_float(row[1], None, context="drawdown current")
+        peak = _float(row[0], None, context="drawdown peak")
+        cur_val = _float(row[1], None, context="drawdown current")
         if peak is None or cur_val is None or peak <= 0 or cur_val <= 0:
             return {"halted": True, "reason": "Invalid portfolio values — fail-closed"}
         dd = ((peak - cur_val) / peak * 100.0) if peak > 0 else 0.0
-        threshold = _safe_float(
+        threshold = _float(
             self.config.get("halt_drawdown_pct", 20.0),
             20.0,
             context="halt_drawdown_pct",
@@ -282,10 +279,10 @@ class CircuitBreaker:
         row = cur.fetchone()
         if row is None or row[0] is None:
             return {"halted": False, "reason": "No today snapshot yet"}
-        daily = _safe_float(row[0], None, context="daily_loss")
+        daily = _float(row[0], None, context="daily_loss")
         if daily is None:
             return {"halted": True, "reason": "Daily return data invalid — fail-closed"}
-        threshold = -_safe_float(
+        threshold = -_float(
             self.config.get("max_daily_loss_pct", 2.0),
             2.0,
             context="max_daily_loss_pct",
@@ -316,7 +313,7 @@ class CircuitBreaker:
         # Count consecutive losses from most recent
         streak = 0
         for r in rows:
-            pnl = _safe_float(r[0], None, context="trade_pnl")
+            pnl = _float(r[0], None, context="trade_pnl")
             if pnl is None:
                 logger.warning(f"Trade {r} has invalid P&L — stopping consecutive loss count")
                 break
@@ -399,7 +396,7 @@ class CircuitBreaker:
             (PositionStatus.OPEN.value,),
         )
         result = cur.fetchone()
-        total_open_risk = _safe_float(result[0], None, context="total_open_risk") if result else None
+        total_open_risk = _float(result[0], None, context="total_open_risk") if result else None
         if total_open_risk is None:
             logger.critical("Cannot calculate total open risk — risk calculation failed")
             return {"halted": True, "reason": "Risk calculation failed — fail-closed"}
@@ -411,7 +408,7 @@ class CircuitBreaker:
             logger.info("[TOTAL_RISK_CHECK] Skipping (no portfolio snapshot yet; expected on first run)")
             return {"halted": False, "reason": "No portfolio snapshot (first run?)"}
 
-        portfolio = _safe_float(row[0], None, context="portfolio_value")
+        portfolio = _float(row[0], None, context="portfolio_value")
         # CRITICAL: Portfolio value missing/invalid → risk calculation impossible.
         # Fail-closed: cannot assess total risk without portfolio value.
         if portfolio is None or portfolio <= 0:
@@ -425,7 +422,7 @@ class CircuitBreaker:
             }
 
         risk_pct = total_open_risk / portfolio * 100.0
-        threshold = _safe_float(
+        threshold = _float(
             self.config.get("max_total_risk_pct", 4.0),
             4.0,
             context="max_total_risk_pct",
@@ -447,7 +444,7 @@ class CircuitBreaker:
             (current_date,),
         )
         row = cur.fetchone()
-        vix = _safe_float(row[0], None, context="vix_level") if row is not None and row[0] is not None else None
+        vix = _float(row[0], None, context="vix_level") if row is not None and row[0] is not None else None
 
         # CRITICAL: VIX data unavailable — cannot safely assess volatility risk.
         # Fail-closed: cannot use fallback estimates. Even computed estimates from SPY
@@ -459,10 +456,10 @@ class CircuitBreaker:
                 "halted": True,
                 "reason": "VIX data unavailable — cannot assess volatility risk. Trading halted.",
                 "value": None,
-                "threshold": _safe_float(self.config.get("vix_max_threshold", 35.0), 35.0),
+                "threshold": _float(self.config.get("vix_max_threshold", 35.0), 35.0),
             }
 
-        threshold = _safe_float(
+        threshold = _float(
             self.config.get("vix_max_threshold", 35.0),
             35.0,
             context="vix_max_threshold",

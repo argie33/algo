@@ -24,7 +24,6 @@ from routes.utils import (
 from utils.validation import (
     APIResponseValidator,
     format_decimal_string,
-    safe_int,
 )
 
 
@@ -419,13 +418,13 @@ def _get_algo_portfolio(cur) -> dict:
             "unrealized_pnl": {
                 "total_dollars": format_decimal_string(data.get("unrealized_pnl_total"), precision=2, allow_none=True),
                 "total_pct": format_decimal_string(data.get("unrealized_pnl_pct"), precision=2, allow_none=True),
-                "winning_positions": safe_int(
+                "winning_positions": int(
                     data.get("unrealized_pnl_winning_count")
                 ),
-                "losing_positions": safe_int(
+                "losing_positions": int(
                     data.get("unrealized_pnl_losing_count")
                 ),
-                "breakeven_positions": safe_int(
+                "breakeven_positions": int(
                     data.get("unrealized_pnl_breakeven_count")
                 ),
                 "source": data.get("unrealized_pnl_source", "open_positions_only"),

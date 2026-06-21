@@ -24,7 +24,6 @@ from routes.utils import (
 from utils.validation import (
     APIResponseValidator,
     format_decimal_string,
-    safe_int,
 )
 
 
