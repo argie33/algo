@@ -29,11 +29,7 @@ import psycopg2
 from utils.db.context import DatabaseContext
 from utils.infrastructure.timezone import EASTERN_TZ
 from utils.loaders.helpers import get_active_symbols
-from utils.safe_data_conversion import safe_float
-
-
 logger = logging.getLogger(__name__)
-
 
 class VectorizedSwingScoresLoader:
     """Institutional-grade loader: fetch all data once, compute all at once."""
@@ -234,7 +230,10 @@ class VectorizedSwingScoresLoader:
 
                 # Apply hard gate: minimum trend score
                 # (consistent with SwingTraderScore.compute)
-                minervini = trend.get("minervini_trend_score", 0)
+                if "minervini_trend_score" not in trend:
+                    logger.warning(f"{symbol}: trend data missing 'minervini_trend_score' field")
+                    continue
+                minervini = trend.get("minervini_trend_score")
                 minervini = float(minervini) if pd.notna(minervini) else 0.0
 
                 # Skip stocks with insufficient trend strength (gate: minervini >= 5)
@@ -250,7 +249,10 @@ class VectorizedSwingScoresLoader:
 
                 # Apply hard gate: Weinstein stage must be 2
                 # (uptrend phase)
-                weinstein = trend.get("weinstein_stage", 0)
+                if "weinstein_stage" not in trend:
+                    logger.warning(f"{symbol}: trend data missing 'weinstein_stage' field")
+                    continue
+                weinstein = trend.get("weinstein_stage")
                 weinstein = int(weinstein) if pd.notna(weinstein) else 0
                 if weinstein != 2:
                     logger.debug(
@@ -345,17 +347,28 @@ class VectorizedSwingScoresLoader:
                 inserted = 0
 
                 for _, row in df.iterrows():
-                    grade = row.get("grade", "C")
+                    # Validate required score fields exist
+                    required_score_fields = ["grade", "setup_score", "trend_score", "momentum_score",
+                                           "volume_score", "fundamentals_score", "sector_score",
+                                           "multi_tf_score", "total_score"]
+                    missing_fields = [f for f in required_score_fields if f not in row or pd.isna(row.get(f))]
+                    if missing_fields:
+                        logger.warning(
+                            f"{row.get('symbol', '?')}: Score data missing fields {missing_fields}; skipping row"
+                        )
+                        continue
+
+                    grade = row["grade"]
                     # Include grade in components so API can read it via components->>'grade'
                     components = {
                         "grade": grade,
-                        "setup": safe_float(row.get("setup_score", 50), default=50, context="setup_score"),
-                        "trend": safe_float(row.get("trend_score", 50), default=50, context="trend_score"),
-                        "momentum": safe_float(row.get("momentum_score", 50), default=50, context="momentum_score"),
-                        "volume": safe_float(row.get("volume_score", 50), default=50, context="volume_score"),
-                        "fundamentals": safe_float(row.get("fundamentals_score", 50), default=50, context="fundamentals_score"),
-                        "sector": safe_float(row.get("sector_score", 50), default=50, context="sector_score"),
-                        "multi_t": safe_float(row.get("multi_tf_score", 50), default=50, context="multi_tf_score"),
+                        "setup": float(row["setup_score"], default=50, context="setup_score"),
+                        "trend": float(row["trend_score"], default=50, context="trend_score"),
+                        "momentum": float(row["momentum_score"], default=50, context="momentum_score"),
+                        "volume": float(row["volume_score"], default=50, context="volume_score"),
+                        "fundamentals": float(row["fundamentals_score"], default=50, context="fundamentals_score"),
+                        "sector": float(row["sector_score"], default=50, context="sector_score"),
+                        "multi_t": float(row["multi_tf_score"], default=50, context="multi_tf_score"),
                     }
 
                     cur.execute(
@@ -368,7 +381,7 @@ class VectorizedSwingScoresLoader:
                         (
                             row["symbol"],
                             row["date"],
-                            safe_float(row.get("total_score", 50), default=50, context="total_score"),
+                            float(row["total_score"], default=50, context="total_score"),
                             json.dumps(components),
                         ),
                     )
@@ -379,7 +392,6 @@ class VectorizedSwingScoresLoader:
         except (psycopg2.DatabaseError, psycopg2.OperationalError) as e:
             logger.error(f"Bulk insert failed: {e}")
             return 0
-
 
 def _update_swing_loader_status(status: str, error_message: str | None = None):
     """Update data_loader_status for Phase 1 monitoring."""
@@ -412,7 +424,6 @@ def _update_swing_loader_status(status: str, error_message: str | None = None):
                 (status, error_message, "swing_trader_scores"),
             )
 
-
 def _swing_heartbeat_worker(stop_event):
     """Periodically update last_updated to signal loader is alive."""
     while not stop_event.is_set():
@@ -429,7 +440,6 @@ def _swing_heartbeat_worker(stop_event):
                 )
         except (psycopg2.DatabaseError, psycopg2.OperationalError) as e:
             logger.debug(f"Swing scores heartbeat failed: {e}")
-
 
 def main():
     parser = argparse.ArgumentParser(
@@ -530,7 +540,6 @@ def main():
             logger.error("Heartbeat thread still running after 15s timeout — may be hung in database operation")
             # Non-daemon threads will block process exit until they finish
             # This log entry flags the issue for monitoring/alerts
-
 
 if __name__ == "__main__":
     logging.basicConfig(

@@ -38,14 +38,12 @@ from utils.loaders.helpers import get_active_symbols
 from utils.optimal_loader import OptimalLoader
 from utils.validation.data_freshness import FreshnessValidator, StaleDataError
 
-
 logger = logging.getLogger(__name__)
 
 # Correlation ID for tracing - Phase 1 passes PHASE1_CORRELATION_ID via environment
 # Initialize correlation_context with the environment-provided ID or auto-generate
 _correlation_id = os.getenv("PHASE1_CORRELATION_ID") or f"AUTO-{str(uuid.uuid4())[:8]}"
 set_correlation_id(_correlation_id)
-
 
 class PriceLoader(OptimalLoader):
     """
@@ -2189,7 +2187,6 @@ class PriceLoader(OptimalLoader):
             self._stats["rows_inserted"] += inserted  # type: ignore
             self._stats["symbols_processed"] += 1  # type: ignore
 
-
 def _invalidate_phase1_cache():
     """Invalidate Phase 1 cache to force fresh status check on next run.
 
@@ -2285,7 +2282,6 @@ def _invalidate_phase1_cache():
         "Halting loader to prevent silent stale-data corruption."
     )
 
-
 def log_loader_execution(
     loader_name,
     table_name,
@@ -2332,7 +2328,6 @@ def log_loader_execution(
             f"[LOADER_EXECUTION_LOG] Failed to log execution to data_loader_runs: {e}"
         )
         raise
-
 
 def main():
     """Read config from environment variables (set by ECS task definition)."""
@@ -2592,13 +2587,16 @@ def main():
                         logger.info(
                             f"[MAIN] Completed {asset_class}/{interval}: {stats}"
                         )
-                        total_stats["symbols_loaded"] += stats.get(
-                            "symbols_processed", 0
-                        )
-                        total_stats["symbols_failed"] += stats.get("symbols_failed", 0)
-                        total_stats["rows_inserted"] += stats.get("rows_inserted", 0)
+                        # Validate stats dict has required keys
+                        for required_key in ["symbols_processed", "symbols_failed", "rows_inserted"]:
+                            if required_key not in stats:
+                                raise RuntimeError(f"Stats dict missing required key '{required_key}': {stats}")
 
-                        fail_rate = stats.get("symbols_failed", 0) / max(
+                        total_stats["symbols_loaded"] += stats["symbols_processed"]
+                        total_stats["symbols_failed"] += stats["symbols_failed"]
+                        total_stats["rows_inserted"] += stats["rows_inserted"]
+
+                        fail_rate = stats["symbols_failed"] / max(
                             len(run_symbols), 1
                         )
                         if fail_rate > 0.10:
@@ -2662,11 +2660,13 @@ def main():
                 f"[MAIN] Cache invalidation failed on final failure: {cache_err}"
             )
         try:
+            if "rows_inserted" not in total_stats:
+                raise RuntimeError("total_stats missing 'rows_inserted' key")
             log_loader_execution(
                 "loadpricedaily",
                 "price_daily",
                 "failed",
-                records_loaded=total_stats.get("rows_inserted", 0),
+                records_loaded=total_stats["rows_inserted"],
                 error_msg=f"{fail_count} interval(s) failed",
                 duration_seconds=duration_seconds,
             )
@@ -2677,11 +2677,13 @@ def main():
             )
 
     try:
+        if "rows_inserted" not in total_stats:
+            raise RuntimeError("total_stats missing 'rows_inserted' key")
         log_loader_execution(
             "loadpricedaily",
             "price_daily",
             "completed",
-            records_loaded=total_stats.get("rows_inserted", 0),
+            records_loaded=total_stats["rows_inserted"],
             duration_seconds=duration_seconds,
         )
     except Exception as log_err:
@@ -2695,7 +2697,6 @@ def main():
         except Exception as close_err:
             logger.debug(f"Could not close lock connection: {close_err}")
     return 0
-
 
 if __name__ == "__main__":
     try:

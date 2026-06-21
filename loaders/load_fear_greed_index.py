@@ -14,9 +14,7 @@ from utils.infrastructure.timeout import ExecutionTimeout
 from utils.infrastructure.url_validator import validate_url
 from utils.optimal_loader import OptimalLoader
 
-
 logger = logging.getLogger(__name__)
-
 
 class FearGreedIndexLoader(OptimalLoader):
     """Load CNN Fear & Greed Index sentiment data."""
@@ -190,8 +188,6 @@ class FearGreedIndexLoader(OptimalLoader):
             "Failed to fetch Fear & Greed index after 3 attempts (CNN 418 block). "
             "CNN API is blocking requests (rate limit or access restriction)."
         )
-
-
 
 if __name__ == "__main__":
     sys.exit(run_loader(FearGreedIndexLoader, global_mode=True))

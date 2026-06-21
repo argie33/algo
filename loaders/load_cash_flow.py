@@ -1,7 +1,6 @@
 #!/usr/bin/env python3
 import sys
 
-
 """
 Cash Flow Loader -â€ annual and quarterly from SEC EDGAR.
 
@@ -10,7 +9,6 @@ or --period CLI flag for manual runs.
 """
 
 import logging
-
 
 logger = logging.getLogger(__name__)
 import os
@@ -21,7 +19,6 @@ from loaders.runner import run_loader
 from utils.external.sec_edgar import SecEdgarClient
 from utils.loaders.config import get_parallelism
 from utils.optimal_loader import OptimalLoader
-
 
 _PERIOD_CONFIG = {
     "annual": {
@@ -79,13 +76,11 @@ _PERIOD_CONFIG = {
     },
 }
 
-
 def _resolve_period(cli_arg: str | None) -> str:
     if cli_arg:
         return cli_arg
     period_env = os.getenv("LOADER_PERIOD", "annual")
     return period_env
-
 
 class CashFlowLoader(OptimalLoader):
     watermark_field = "fiscal_year"
@@ -204,8 +199,6 @@ class CashFlowLoader(OptimalLoader):
             return False
 
         return True
-
-
 
 if __name__ == "__main__":
     sys.exit(run_loader(CashFlowLoader))

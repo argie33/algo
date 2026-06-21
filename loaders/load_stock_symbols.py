@@ -19,7 +19,6 @@ from utils.infrastructure.timeout import ExecutionTimeout
 from utils.infrastructure.url_validator import validate_url
 from utils.optimal_loader import OptimalLoader
 
-
 logger = logging.getLogger(__name__)
 
 NASDAQ_URL = os.getenv(
@@ -51,10 +50,8 @@ EXCLUSION_PATTERNS = [
     r"\binverse\b",
 ]
 
-
 def should_exclude(name: str) -> bool:
     return any(re.search(p, name, flags=re.IGNORECASE) for p in EXCLUSION_PATTERNS)
-
 
 class StockSymbolsLoader(OptimalLoader):
     """Load stock symbols from NASDAQ and NYSE."""
@@ -182,8 +179,6 @@ class StockSymbolsLoader(OptimalLoader):
             logger.info(f"Refreshed etf_symbols table with {len(etf_rows)} ETF symbols")
         except (psycopg2.DatabaseError, psycopg2.OperationalError) as e:
             logger.warning(f"Failed to refresh etf_symbols: {e}")
-
-
 
 if __name__ == "__main__":
     sys.exit(run_loader(StockSymbolsLoader, global_mode=True))

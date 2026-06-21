@@ -13,14 +13,12 @@ Run:
 import logging
 import sys
 
-
 logger = logging.getLogger(__name__)
 from datetime import date
 from typing import Optional
 
 from loaders.runner import run_loader
 from utils.optimal_loader import OptimalLoader
-
 
 class AnalystRatingsLoader(OptimalLoader):
     table_name = "analyst_upgrade_downgrade"
@@ -76,8 +74,6 @@ class AnalystRatingsLoader(OptimalLoader):
 
     def _validate_row(self, row: dict) -> bool:
         return super()._validate_row(row)
-
-
 
 if __name__ == "__main__":
     sys.exit(run_loader(AnalystRatingsLoader))

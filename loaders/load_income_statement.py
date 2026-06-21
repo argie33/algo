@@ -1,7 +1,6 @@
 #!/usr/bin/env python3
 import sys
 
-
 """
 Income Statement Loader -â€ annual and quarterly from SEC EDGAR.
 
@@ -13,7 +12,6 @@ import logging
 
 import psycopg2
 
-
 logger = logging.getLogger(__name__)
 import os
 from datetime import date
@@ -23,7 +21,6 @@ from loaders.runner import run_loader
 from utils.external.sec_edgar import SecEdgarClient
 from utils.loaders.config import get_parallelism
 from utils.optimal_loader import OptimalLoader
-
 
 _PERIOD_CONFIG = {
     "annual": {
@@ -93,13 +90,11 @@ _PERIOD_CONFIG = {
     },
 }
 
-
 def _resolve_period(cli_arg: str | None) -> str:
     """Resolve period from CLI arg or LOADER_PERIOD env var (not LOADER_TYPE)."""
     if cli_arg:
         return cli_arg
     return os.getenv("LOADER_PERIOD", "annual")
-
 
 class IncomeStatementLoader(OptimalLoader):
     watermark_field = "fiscal_year"
@@ -230,8 +225,6 @@ class IncomeStatementLoader(OptimalLoader):
             return False
 
         return True
-
-
 
 if __name__ == "__main__":
     sys.exit(run_loader(IncomeStatementLoader))

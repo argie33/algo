@@ -26,11 +26,9 @@ from utils.infrastructure.timezone import EASTERN_TZ
 from utils.loaders.config import get_default_parallelism
 from utils.loaders.helpers import get_active_symbols
 from utils.optimal_loader import OptimalLoader
-from utils.safe_data_conversion import safe_float
 
 
 logger = logging.getLogger(__name__)
-
 
 class SignalsDailyLoader(OptimalLoader):
     """Daily signals loader that generates buy/sell signals from technical indicators."""
@@ -397,21 +395,21 @@ class SignalsDailyLoader(OptimalLoader):
                     rows.append(
                         {
                             "date": r[0].isoformat() if r[0] else None,
-                            "rsi": safe_float(r[1], default=0.0) if r[1] is not None else None,
-                            "macd": safe_float(r[2], default=0.0) if r[2] is not None else None,
-                            "macd_signal": safe_float(r[3], default=0.0) if r[3] is not None else None,
-                            "sma_50": safe_float(r[4], default=0.0) if r[4] is not None else None,
-                            "sma_200": safe_float(r[5], default=0.0) if r[5] is not None else None,
-                            "ema_12": safe_float(r[6], default=0.0) if r[6] is not None else None,
-                            "ema_21": safe_float(r[7], default=0.0) if r[7] is not None else None,
-                            "atr": safe_float(r[8], default=0.0) if r[8] is not None else None,
-                            "adx": safe_float(r[9], default=0.0) if r[9] is not None else None,
-                            "mansfield_rs": safe_float(r[10], default=0.0) if r[10] is not None else None,
-                            "close": safe_float(r[11], default=0.0) if r[11] is not None else None,
+                            "rsi": float(r[1]) if r[1] is not None else None,
+                            "macd": float(r[2]) if r[2] is not None else None,
+                            "macd_signal": float(r[3]) if r[3] is not None else None,
+                            "sma_50": float(r[4]) if r[4] is not None else None,
+                            "sma_200": float(r[5]) if r[5] is not None else None,
+                            "ema_12": float(r[6]) if r[6] is not None else None,
+                            "ema_21": float(r[7]) if r[7] is not None else None,
+                            "atr": float(r[8]) if r[8] is not None else None,
+                            "adx": float(r[9]) if r[9] is not None else None,
+                            "mansfield_rs": float(r[10]) if r[10] is not None else None,
+                            "close": float(r[11]) if r[11] is not None else None,
                             "volume": int(r[12]) if r[12] is not None else None,
-                            "open": safe_float(r[13], default=0.0) if r[13] is not None else None,
-                            "high": safe_float(r[14], default=0.0) if r[14] is not None else None,
-                            "low": safe_float(r[15], default=0.0) if r[15] is not None else None,
+                            "open": float(r[13]) if r[13] is not None else None,
+                            "high": float(r[14]) if r[14] is not None else None,
+                            "low": float(r[15]) if r[15] is not None else None,
                         }
                     )
                 if dropped_rows > 0:
@@ -651,7 +649,7 @@ class SignalsDailyLoader(OptimalLoader):
                         "timeframe": "1d",
                         "signal": signal_type,
                         "signal_type": signal_type,
-                        "strength": safe_float(strength, default=0.0),
+                        "strength": float(strength),
                         "reason": reason,
                         "entry_quality_score": None,
                         "signal_quality_score": None,
@@ -659,25 +657,25 @@ class SignalsDailyLoader(OptimalLoader):
                         "volume_surge_capped": volume_surge_capped,
                         "risk_reward_ratio": rr,
                         "risk_pct": risk_pct,
-                        "rsi": safe_float(rsi, default=0.0) if rsi is not None else None,
-                        "sma_50": safe_float(sma_50, default=0.0) if sma_50 is not None else None,
-                        "sma_200": safe_float(sma_200, default=0.0) if sma_200 is not None else None,
-                        "ema_21": safe_float(ema_21, default=0.0) if ema_21 is not None else None,
-                        "atr": safe_float(atr, default=0.0) if atr is not None else None,
-                        "adx": safe_float(adx, default=0.0) if adx is not None else None,
+                        "rsi": float(rsi) if rsi is not None else None,
+                        "sma_50": float(sma_50) if sma_50 is not None else None,
+                        "sma_200": float(sma_200) if sma_200 is not None else None,
+                        "ema_21": float(ema_21) if ema_21 is not None else None,
+                        "atr": float(atr) if atr is not None else None,
+                        "adx": float(adx) if adx is not None else None,
                         "mansfield_rs": (
-                            safe_float(mansfield_rs, default=0.0) if mansfield_rs is not None else None
+                            float(mansfield_rs) if mansfield_rs is not None else None
                         ),
-                        "macd": safe_float(macd, default=0.0) if macd is not None else None,
+                        "macd": float(macd) if macd is not None else None,
                         "macd_signal": (
-                            safe_float(macd_signal, default=0.0) if macd_signal is not None else None
+                            float(macd_signal) if macd_signal is not None else None
                         ),
                         "stage_number": None,
                         "market_stage": market_stage,
                         "open": row.get("open"),
-                        "high": safe_float(high, default=0.0) if high is not None else None,
-                        "low": safe_float(low, default=0.0) if low is not None else None,
-                        "close": safe_float(close, default=0.0) if close is not None else None,
+                        "high": float(high) if high is not None else None,
+                        "low": float(low) if low is not None else None,
+                        "close": float(close) if close is not None else None,
                         "volume": volume,
                         "avg_volume_50d": avg_vol_50d,
                         "buylevel": buylevel,
@@ -748,7 +746,6 @@ class SignalsDailyLoader(OptimalLoader):
                     f"{row.get('symbol')} [{row.get('date')}]: Metrics capped at {self.decimal84_max}: {capped_cols}"
                 )
         return rows
-
 
 def main():
     parser = argparse.ArgumentParser(description="Load daily trading signals")
@@ -917,7 +914,6 @@ def main():
         return 0
     except (psycopg2.DatabaseError, psycopg2.OperationalError) as e:
         raise RuntimeError(f"Daily signals load failed: {e}")
-
 
 if __name__ == "__main__":
     try:

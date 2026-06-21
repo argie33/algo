@@ -42,7 +42,6 @@ from utils.infrastructure import EASTERN_TZ
 import json
 import requests
 
-
 logger = logging.getLogger(__name__)
 
 # Global/shared rate limiters to prevent multiple DataSourceRouter instances from exceeding API limits
@@ -52,7 +51,6 @@ logger = logging.getLogger(__name__)
 # and account for yf.download() making multiple internal requests per visible API call.
 _GLOBAL_YFINANCE_LIMITER = None
 _GLOBAL_LIMITER_LOCK = threading.Lock()
-
 
 def get_global_yfinance_limiter():
     """Get or create the global yfinance rate limiter (shared across all loaders).
@@ -69,7 +67,6 @@ def get_global_yfinance_limiter():
                 # we need to stay under global yfinance rate limits
                 _GLOBAL_YFINANCE_LIMITER = RateLimiter(calls_per_minute=30)
     return _GLOBAL_YFINANCE_LIMITER
-
 
 def _call_with_timeout(fn: Callable, timeout_sec: float = 30, retries: int = 3) -> Any:
     """Call a function with timeout protection and automatic retry on timeout."""
@@ -88,7 +85,6 @@ def _call_with_timeout(fn: Callable, timeout_sec: float = 30, retries: int = 3) 
     raise TimeoutError(
         f"Function call exceeded {timeout_sec}s timeout after {retries} retries"
     )
-
 
 @dataclass
 class SourceHealth:
@@ -126,7 +122,6 @@ class SourceHealth:
                     self.success_rate * 100,
                     error,
                 )
-
 
 class DataSourceRouter:
     """Routes data fetches across providers with fallback + health tracking."""
