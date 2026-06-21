@@ -976,6 +976,7 @@ class OptimalLoader(ABC):
         """
         # Distributed lock using DynamoDB (FIXED Issue #31: advisory locks don't work with RDS Proxy pooling)
         # DynamoDB locks are atomic, auto-expiring, and work across network boundaries.
+        # CRITICAL: Lock acquisition MUST succeed — proceeding without lock risks data corruption
         lock_manager = None
         try:
             from utils.db.dynamo_lock import DynamoDBLockManager
@@ -993,12 +994,18 @@ class OptimalLoader(ABC):
                 )
                 return self._stats
         except Exception as _lock_err:
-            logger.warning(
-                "[%s] DynamoDB lock check failed (%s) — proceeding without lock (not recommended)",
+            # Lock acquisition failure is CRITICAL — cannot proceed without lock
+            logger.critical(
+                "[%s] CRITICAL: DynamoDB lock acquisition failed (%s) — aborting load to prevent data corruption",
                 self.table_name,
                 _lock_err,
             )
-            lock_manager = None
+            from algo.exceptions import LockAcquisitionError
+            raise LockAcquisitionError(
+                lock_key=self.table_name,
+                reason=f"DynamoDB lock acquisition failed: {_lock_err}",
+                context={"table_name": self.table_name},
+            )
 
         # Initialize SLA monitoring early (before try block so it's always accessible)
         sla_monitor = None
@@ -1008,7 +1015,8 @@ class OptimalLoader(ABC):
             sla_monitor = SLAMonitor(self.table_name)
             sla_monitor.start()
         except Exception as e:
-            logger.debug(f"[{self.table_name}] SLA monitoring unavailable: {e}")
+            # SLA monitor detects hung loaders — its absence is a loss of observability
+            logger.warning(f"[{self.table_name}] SLA monitoring initialization failed (critical observability loss): {e}")
 
         try:
             # OPTIMIZATION: Acquire pooled connection for entire loader lifecycle
@@ -1358,12 +1366,18 @@ class OptimalLoader(ABC):
                 )
                 return 0
         except (psycopg2.DatabaseError, psycopg2.OperationalError) as _lock_err:
-            logger.warning(
-                "[%s] DynamoDB lock check failed (%s) — proceeding without lock (not recommended)",
+            # Lock acquisition failure is CRITICAL — cannot proceed without lock
+            logger.critical(
+                "[%s] CRITICAL: DynamoDB lock acquisition failed (%s) — aborting global load to prevent data corruption",
                 self.table_name,
                 _lock_err,
             )
-            lock_manager = None
+            from algo.exceptions import LockAcquisitionError
+            raise LockAcquisitionError(
+                lock_key=self.table_name,
+                reason=f"DynamoDB lock acquisition failed: {_lock_err}",
+                context={"table_name": self.table_name},
+            )
 
         try:
             # OPTIMIZATION: Acquire pooled connection for entire loader lifecycle

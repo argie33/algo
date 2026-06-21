@@ -10,8 +10,9 @@ from typing import Any
 import psycopg2
 import requests
 
-from algo.infrastructure.alpaca_sync_manager import AlpacaSyncManager
+from algo.infrastructure.alpaca_broker_adapter import AlpacaBrokerAdapter
 from algo.infrastructure.audit_logger import TradeAuditLogger
+from algo.infrastructure.broker_adapter import BrokerAdapter
 from algo.infrastructure.position_analyzer import PositionAnalyzer
 from algo.reporting import notify
 from utils.db import DatabaseContext
@@ -33,9 +34,9 @@ class DailyReconciliation:
         self.config = config
         self.trading_client = None  # Kept for backward compat
 
-        # Initialize focused managers instead of handling concerns directly
+        # Initialize broker adapter (abstracted from Alpaca-specific implementation)
         try:
-            self.alpaca_sync = AlpacaSyncManager(config)
+            self.broker: BrokerAdapter = AlpacaBrokerAdapter(config)
             self.audit_logger = TradeAuditLogger()
             self.trading_client = True  # Signals credentials are available
         except (KeyError, ValueError, AttributeError) as e:
@@ -532,14 +533,14 @@ class DailyReconciliation:
         when placing market exit orders before market open. This reconciles those
         estimated prices with actual Alpaca fill prices after market opens.
         """
-        if not self.alpaca_sync.alpaca_key or not self.alpaca_sync.alpaca_secret:
+        if not self.broker.alpaca_key or not self.broker.alpaca_secret:
             return {"updated": 0, "message": "No Alpaca credentials"}
         try:
             import requests
 
             since = (datetime.now(timezone.utc) - timedelta(days=2)).strftime("%Y-%m-%dT%H:%M:%SZ")
             resp = requests.get(
-                f"{self.alpaca_sync.alpaca_base_url}/v2/orders",
+                f"{self.broker.alpaca_base_url}/v2/orders",
                 params={
                     "status": "closed",
                     "side": "sell",
@@ -548,8 +549,8 @@ class DailyReconciliation:
                     "limit": 500,
                 },
                 headers={
-                    "APCA-API-KEY-ID": self.alpaca_sync.alpaca_key,
-                    "APCA-API-SECRET-KEY": self.alpaca_sync.alpaca_secret,
+                    "APCA-API-KEY-ID": self.broker.alpaca_key,
+                    "APCA-API-SECRET-KEY": self.broker.alpaca_secret,
                 },
                 timeout=self.config.get("api_request_timeout_seconds", 5),
             )
@@ -701,8 +702,8 @@ class DailyReconciliation:
         return {"stale_count": 0, "stale_symbols": [], "details": {}}
 
     def sync_alpaca_positions(self, cur):
-        """Sync Alpaca positions via AlpacaSyncManager."""
-        return self.alpaca_sync.sync_alpaca_positions(cur)
+        """Sync broker positions via BrokerAdapter."""
+        return self.broker.sync_positions(cur)
 
     def _process_failed_imports(self, cur, alpaca_positions):
         """Retry failed imports and alert on multiple failures."""
@@ -932,17 +933,17 @@ class DailyReconciliation:
 
         Returns: dict with reconciliation status and any detected drift
         """
-        if not self.alpaca_sync.alpaca_key or not self.alpaca_sync.alpaca_secret:
+        if not self.broker.alpaca_key or not self.broker.alpaca_secret:
             return {"checked": 0, "message": "No Alpaca credentials"}
 
         try:
             import requests
 
             resp = requests.get(
-                f"{self.alpaca_sync.alpaca_base_url}/v2/orders?status=filled&status=partially_filled",
+                f"{self.broker.alpaca_base_url}/v2/orders?status=filled&status=partially_filled",
                 headers={
-                    "APCA-API-KEY-ID": self.alpaca_sync.alpaca_key,
-                    "APCA-API-SECRET-KEY": self.alpaca_sync.alpaca_secret,
+                    "APCA-API-KEY-ID": self.broker.alpaca_key,
+                    "APCA-API-SECRET-KEY": self.broker.alpaca_secret,
                 },
                 timeout=self.config.get("api_request_timeout_seconds", 5),
             )
@@ -1109,39 +1110,8 @@ class DailyReconciliation:
             return {"pending_count": 0, "message": f"Error: {e}"}
 
     def _fetch_alpaca_account(self):
-        """Fetch account data from Alpaca via direct HTTP REST call."""
-        if not self.alpaca_sync.alpaca_key or not self.alpaca_sync.alpaca_secret:
-            raise RuntimeError(
-                "CRITICAL: Alpaca API credentials not available. "
-                "Cannot reconcile account without valid credentials. "
-                "Reconciliation requires live Alpaca connection."
-            )
-        try:
-            import requests
-
-            resp = requests.get(
-                f"{self.alpaca_sync.alpaca_base_url}/v2/account",
-                headers={
-                    "APCA-API-KEY-ID": self.alpaca_sync.alpaca_key,
-                    "APCA-API-SECRET-KEY": self.alpaca_sync.alpaca_secret,
-                },
-                timeout=self.config.get("api_request_timeout_seconds", 5),
-            )
-            if resp.status_code == 200:
-                data = resp.json()
-                cash_val = data.get("cash")
-                equity_val = data.get("equity")
-                portfolio_value_val = data.get("portfolio_value") or data.get("equity")
-                buying_power_val = data.get("buying_power")
-                return {
-                    "cash": float(cash_val) if cash_val is not None else None,
-                    "equity": float(equity_val) if equity_val is not None else None,
-                    "portfolio_value": (float(portfolio_value_val) if portfolio_value_val is not None else None),
-                    "buying_power": (float(buying_power_val) if buying_power_val is not None else None),
-                }
-            raise ValueError(f"Alpaca /v2/account returned HTTP {resp.status_code}: {resp.text[:100]}")
-        except (requests.RequestException, requests.Timeout, ValueError, KeyError, AttributeError) as e:
-            raise ValueError(f"Could not fetch Alpaca account: {e}") from e
+        """Fetch account data from broker via BrokerAdapter."""
+        return self.broker.fetch_account()
 
     def _fetch_initial_capital(self, cur):
         """Get the actual initial capital from Alpaca account history.
@@ -1150,7 +1120,7 @@ class DailyReconciliation:
         Falls back to the oldest algo_portfolio_snapshots entry if Alpaca history unavailable.
         Raises ValueError if initial capital cannot be determined.
         """
-        if not self.alpaca_sync.alpaca_key or not self.alpaca_sync.alpaca_secret:
+        if not self.broker.alpaca_key or not self.broker.alpaca_secret:
             logger.warning("No Alpaca credentials; checking database for initial capital")
             try:
                 cur.execute("""
@@ -1171,11 +1141,11 @@ class DailyReconciliation:
             import requests
 
             resp = requests.get(
-                f"{self.alpaca_sync.alpaca_base_url}/v2/account/portfolio/history",
+                f"{self.broker.alpaca_base_url}/v2/account/portfolio/history",
                 params={"period": "all"},
                 headers={
-                    "APCA-API-KEY-ID": self.alpaca_sync.alpaca_key,
-                    "APCA-API-SECRET-KEY": self.alpaca_sync.alpaca_secret,
+                    "APCA-API-KEY-ID": self.broker.alpaca_key,
+                    "APCA-API-SECRET-KEY": self.broker.alpaca_secret,
                 },
                 timeout=self.config.get("api_request_timeout_seconds", 5),
             )

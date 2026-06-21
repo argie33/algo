@@ -12,13 +12,11 @@ import requests
 
 from algo.infrastructure import get_api_timeout
 from algo.infrastructure.config import AlgoConfig
-from algo.reporting import TradeNotificationService, notify
 from algo.trading.exceptions import (
     DatabaseError,
     DataUnavailableError,
     DuplicatePositionError,
     ExchangeAPIError,
-    NotificationError,
     OrderExecutionError,
     OrderRejectedError,
     PortfolioValueError,
@@ -27,18 +25,13 @@ from algo.trading.exceptions import (
 )
 from algo.trading.executor_entry_handler import EntryHandler
 from algo.trading.executor_exit_handler import ExitHandler
+from algo.trading.notification_dispatcher import NotificationDispatcher
 from algo.trading.order_manager import OrderManager
+from algo.trading.position_tracker import PositionTracker
 from algo.trading.trade_context import TradeContext
 from config.api_endpoints import get_alpaca_base_url
 from config.credential_manager import get_alpaca_credentials
-from utils.db import DatabaseContext, OptimisticLockRetry
-from utils.db.advisory_locks import (
-    ALGO_POSITIONS_LOCK_ID,
-    ALGO_TRADES_LOCK_ID,
-    acquire_advisory_lock,
-    release_advisory_lock,
-)
-from utils.trading import PositionStatus
+from utils.db import DatabaseContext
 from utils.validation import AlpacaResponseValidator
 
 
@@ -113,6 +106,12 @@ class TradeExecutor:
         from algo.trading.trade_validator import TradeValidator
 
         self.validator = TradeValidator(config, self.pretrade)
+
+        # Initialize position tracker specialist for all position DB operations
+        self.position_tracker = PositionTracker(self.alpaca_key, self.alpaca_secret, self.alpaca_base_url)
+
+        # Initialize notification dispatcher for trade notifications and TCA recording
+        self.notification_dispatcher = NotificationDispatcher(config, self.tca)
 
         # Initialize entry handler for focused entry execution logic
         self.entry_handler = EntryHandler(self)

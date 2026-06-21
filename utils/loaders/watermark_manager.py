@@ -48,7 +48,10 @@ class WatermarkManager:
         """Get the 'since' date for incremental load."""
         watermark = self.read_watermark(cur)
         if watermark:
-            return watermark - timedelta(days=100)
+            # Ensure watermark is a datetime before arithmetic
+            if isinstance(watermark, datetime):
+                return watermark - timedelta(days=100)
+            return datetime.now() - timedelta(days=backfill_days)
         return datetime.now() - timedelta(days=backfill_days)
 
     def get_current_watermark(self) -> Any | None:

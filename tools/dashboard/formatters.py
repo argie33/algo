@@ -1,11 +1,17 @@
 """Formatting and utility functions for dashboard display."""
 
 import time
-from datetime import date as _date
 from datetime import datetime, timedelta
 from typing import Any, cast
 
 from .error_boundary import has_error
+from .formatter_strategies import (
+    DataAgeFormatter,
+    GradeFormatter,
+    MoneyFormatter,
+    SignFormatter,
+    TierFormatter,
+)
 from .utilities import (
     CY,
     DIM,
@@ -21,103 +27,27 @@ from .utilities import (
 _schedule_cache: dict[str, Any] = {"result": None, "timestamp": 0}
 _SCHEDULE_CACHE_TTL = 300
 
+_age_formatter = DataAgeFormatter()
+_money_formatter = MoneyFormatter(short=False)
+_money_short_formatter = MoneyFormatter(short=True)
+_grade_formatter = GradeFormatter()
+_tier_formatter = TierFormatter()
+_sign_formatter = SignFormatter()
+
 
 def fmt_age(ts):
-    if ts is None:
-        return "--"
-    if isinstance(ts, str):
-        ts = datetime.fromisoformat(ts)
-    if isinstance(ts, _date) and not isinstance(ts, datetime):
-        ts = datetime(ts.year, ts.month, ts.day, tzinfo=ET)
-    if ts.tzinfo is None:
-        ts = ts.replace(tzinfo=ET)
-    m = int((datetime.now(ET) - ts).total_seconds() / 60)
-    if m < 60:
-        return f"{m}m ago"
-    if m < 1440:
-        return f"{m // 60}h{m % 60:02d}m ago"
-    return f"{m // 1440}d ago"
+    """Format timestamp as age string."""
+    return _age_formatter.format(ts)
 
 
 def fmt_money(v):
-    if v is None:
-        return "--"
-    from decimal import ROUND_HALF_UP, Decimal
-
-    if isinstance(v, Decimal):
-        is_neg = v < 0
-        av = abs(v)
-        if av >= 1e6:
-            result = (av / Decimal("1e6")).quantize(Decimal("0.01"), rounding=ROUND_HALF_UP)
-            return f"{'-' if is_neg else ''}${result}M"
-        if av >= 1e3:
-            result = av.quantize(Decimal("1"), rounding=ROUND_HALF_UP)
-            return f"{'-' if is_neg else ''}${result:,}"
-        result = av.quantize(Decimal("0.01"), rounding=ROUND_HALF_UP)
-        return f"{'-' if is_neg else ''}${result}"
-    v = float(v)
-    s = "-" if v < 0 else ""
-    av = abs(v)
-    if av >= 1e6:
-        return f"{s}${av / 1e6:.2f}M"
-    if av >= 1e3:
-        return f"{s}${av:,.0f}"
-    return f"{s}${av:.2f}"
+    """Format value as currency: $1.23, $12.34K, $1.23M."""
+    return _money_formatter.format(v)
 
 
 def fmt_money_short(v):
     """Compact dollar format: $45K, $1.2M, $850 - for narrow table columns."""
-    if v is None:
-        return "--"
-    from decimal import ROUND_HALF_UP, Decimal
-
-    if isinstance(v, Decimal):
-        is_neg = v < 0
-        av = abs(v)
-        if av >= 1e6:
-            result = (av / Decimal("1e6")).quantize(Decimal("0.1"), rounding=ROUND_HALF_UP)
-            return f"{'-' if is_neg else ''}${result}M"
-        if av >= 1e3:
-            result = (av / Decimal("1e3")).quantize(Decimal("0"), rounding=ROUND_HALF_UP)
-            return f"{'-' if is_neg else ''}${result}K"
-        result = av.quantize(Decimal("0"), rounding=ROUND_HALF_UP)
-        return f"{'-' if is_neg else ''}${result}"
-    v = float(v)
-    s = "-" if v < 0 else ""
-    av = abs(v)
-    if av >= 1e6:
-        return f"{s}${av / 1e6:.1f}M"
-    if av >= 1e3:
-        return f"{s}${av / 1e3:.0f}K"
-    return f"{s}${av:.0f}"
-
-
-def grade(s):
-    s = float(s)
-    if s >= 90:
-        return "A+"
-    if s >= 80:
-        return "A"
-    if s >= 70:
-        return "B"
-    if s >= 60:
-        return "C"
-    return "D"
-
-
-def tier_from_pct(p) -> str:
-    if p is None:
-        return "unknown"
-    p = float(p)
-    if p >= 80:
-        return "confirmed_uptrend"
-    if p >= 60:
-        return "healthy_uptrend"
-    if p >= 40:
-        return "pressure"
-    if p >= 20:
-        return "caution"
-    return "correction"
+    return _money_short_formatter.format(v)
 
 
 def is_open() -> bool:
@@ -352,7 +282,7 @@ def hbar(cur, thr, w=6):
 
 def exp_bar(pct, w=12):
     f = int(min(float(pct or 0), 100) / 100 * w)
-    tc = TIER_COLOR.get(tier_from_pct(pct), "dim")
+    tc = TIER_COLOR.get(_tier_formatter.format(pct), "dim")
     return f"[{tc}]{'█' * f}[/][dim]{'░' * (w - f)}[/]"
 
 
@@ -364,7 +294,8 @@ def mini_bar(pts, max_pts, w=5):
 
 
 def sign(v) -> str:
-    return "+" if float(v) >= 0 else ""
+    """Return '+' for non-negative values, empty string for negative."""
+    return _sign_formatter.format(v)
 
 
 def sparkline(values: list, width: int = 24) -> str:

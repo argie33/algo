@@ -17,12 +17,12 @@ UPDATE PROTOCOL:
 4. Test contract validation with contract_validator.py
 """
 
-from dataclasses import dataclass
 from typing import Any, cast
 
+from pydantic import BaseModel, Field, field_validator
 
-@dataclass
-class ResponseSchema:
+
+class ResponseSchema(BaseModel):
     """Schema for API response validation."""
 
     required_fields: list[str]
@@ -30,6 +30,27 @@ class ResponseSchema:
     field_types: dict[str, Any]
     nested_schema: dict[str, Any] | None = None
     description: str = ""
+
+
+class EndpointDefinition(BaseModel):
+    """Definition for a single API endpoint."""
+
+    path: str
+    method: str = Field(pattern="^(GET|POST|PUT|DELETE)$")
+    description: str
+    response_schema: ResponseSchema
+    freshness_max_age_seconds: int | None = None
+    strict_fields: list[str] = Field(default_factory=list)
+    critical: bool = False
+    params: dict[str, Any] | None = None
+
+
+class PanelDefinition(BaseModel):
+    """Definition for a dashboard panel."""
+
+    endpoint_deps: list[str]
+    optional: bool
+    description: str
 
 
 # ============================================================================

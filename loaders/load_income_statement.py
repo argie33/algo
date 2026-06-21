@@ -17,9 +17,7 @@ import psycopg2
 logger = logging.getLogger(__name__)
 import os
 from datetime import date
-from typing import Optional
-
-from typing import cast
+from typing import Optional, cast
 
 from loaders.runner import run_loader
 from utils.external.sec_edgar import SecEdgarClient

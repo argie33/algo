@@ -148,9 +148,14 @@ class DataSourceRouter:
         sources: list[tuple],  # [(name, callable), ...]
         request_desc: str,
     ) -> Any | None:
-        """Try sources in order, skipping paused ones, recording outcomes."""
+        """Try sources in order, skipping paused ones, recording outcomes.
+
+        Raises DataSourceError if all sources fail (not if symbol has no data).
+        """
         last_exc = None
+        sources_attempted = []
         for i, (name, fn) in enumerate(sources):
+            sources_attempted.append(name)
             health = self._get_health(name)
             if health.is_paused:
                 logger.debug(f"Skipping paused source '{name}' for {request_desc}")
@@ -180,8 +185,16 @@ class DataSourceRouter:
                 else:
                     logger.debug(f"Source '{name}' failed for {request_desc}: {e}")
                 continue
+        # All sources failed — raise exception instead of returning None
         if last_exc:
-            logger.warning("All sources failed for %s. Last error: %s", request_desc, last_exc)
+            logger.error("All sources failed for %s. Last error: %s", request_desc, last_exc)
+            from algo.exceptions import DataSourceError
+            raise DataSourceError(
+                request_desc=request_desc,
+                sources_attempted=sources_attempted,
+                last_error=last_exc,
+            )
+        # No sources attempted (all paused) — this shouldn't happen but return None for safety
         return None
 
     # ============== OHLCV ==============

@@ -2,6 +2,7 @@
 """Data Quality Scorer - Consolidate quality metrics calculations."""
 
 import logging
+from collections.abc import Callable
 from typing import Any
 
 
@@ -58,7 +59,7 @@ class DataQualityScorer:
         return 1.0 - (duplicates / len(rows))
 
     @staticmethod
-    def score_validity(rows: list[dict[str, Any]], validators: dict[str, callable]) -> float:
+    def score_validity(rows: list[dict[str, Any]], validators: dict[str, Callable]) -> float:
         """Score data validity based on custom validators (0-1)."""
         if not rows or not validators:
             return 1.0
@@ -80,7 +81,7 @@ class DataQualityScorer:
 
     @classmethod
     def score_overall(cls, rows: list[dict[str, Any]], required_fields: set[str],
-                      key_fields: list[str], validators: dict[str, callable] | None = None) -> dict[str, float]:
+                      key_fields: list[str], validators: dict[str, Callable] | None = None) -> dict[str, float]:
         """Calculate overall data quality score."""
         if validators is None:
             validators = {}

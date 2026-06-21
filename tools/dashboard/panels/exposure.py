@@ -23,16 +23,17 @@ from rich.rule import Rule
 from rich.table import Table
 from rich.text import Text
 
-from ..formatters import (
-    mini_bar,
-    tier_from_pct,
-)
+from ..formatter_strategies import TierFormatter
+from ..formatters import mini_bar
 from ..utilities import (
     TIER_COLOR,
     G,
     R,
     Y,
 )
+
+
+_tier_formatter = TierFormatter()
 from ._helpers import _error_panel
 
 
@@ -53,7 +54,7 @@ def panel_exposure_compact(exp_f):
     epct = exp_f.get("exposure_pct")
     regime = exp_f.get("regime", "")
     factors = exp_f["factors"]
-    tier = tier_from_pct(epct)
+    tier = _tier_formatter.format(epct)
     tc = TIER_COLOR.get(tier, "dim")
 
     def factor_detail(key):
@@ -201,7 +202,7 @@ def panel_exposure_expanded(exp_f):
     epct = exp_f.get("exposure_pct")
     regime = exp_f.get("regime", "")
     factors = exp_f["factors"]
-    tier = tier_from_pct(epct)
+    tier = _tier_formatter.format(epct)
     tc = TIER_COLOR.get(tier, "dim")
 
     # Header summary

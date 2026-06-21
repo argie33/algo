@@ -245,3 +245,65 @@ class MissingPhaseDataError(DataContractError):
     ):
         """Init missing phase data error."""
         super().__init__(message, context)
+
+
+class DataSourceError(AlgoError):
+    """All data sources failed for a request."""
+
+    def __init__(
+        self,
+        request_desc: str,
+        sources_attempted: list[str],
+        last_error: Exception | None = None,
+        context: dict | None = None,
+    ):
+        """Init data source error.
+
+        Args:
+            request_desc: Description of what was being requested
+            sources_attempted: List of sources that were tried
+            last_error: Last exception encountered
+            context: Additional context
+        """
+        ctx = {
+            "request": request_desc,
+            "sources_attempted": sources_attempted,
+            "last_error": str(last_error) if last_error else None,
+            **(context or {}),
+        }
+        super().__init__(
+            message=f"All data sources failed for {request_desc} (tried: {', '.join(sources_attempted)})",
+            error_category=ErrorCategory.TRANSIENT,
+            retry_eligible=True,
+            recovery_suggestion="Verify data sources are available and network connectivity is working",
+            context=ctx,
+        )
+
+
+class LockAcquisitionError(AlgoError):
+    """Failed to acquire distributed lock for critical operation."""
+
+    def __init__(
+        self,
+        lock_key: str,
+        reason: str,
+        context: dict | None = None,
+    ):
+        """Init lock acquisition error.
+
+        Args:
+            lock_key: Key that couldn't be locked
+            reason: Why the lock couldn't be acquired
+            context: Additional context
+        """
+        ctx = {"lock_key": lock_key, "reason": reason, **(context or {})}
+        super().__init__(
+            message=f"Failed to acquire lock for {lock_key}: {reason}",
+            error_category=ErrorCategory.TRANSIENT,
+            retry_eligible=True,
+            recovery_suggestion=(
+                "Verify distributed lock service (DynamoDB) is available; "
+                "retry when another instance releases the lock"
+            ),
+            context=ctx,
+        )
