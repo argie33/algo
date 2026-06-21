@@ -410,8 +410,22 @@ class SwingTraderScore:
     def _persist(self, symbol: str, eval_date, result: dict[str, Any]) -> None:
         """Persist computed swing score to swing_trader_scores table."""
         try:
-            comp = result.get("components", {})
+            # Validate required fields before persisting
+            if "components" not in result or not isinstance(result["components"], dict):
+                raise ValueError(f"Swing score result missing or invalid 'components' field for {symbol}")
 
+            if "swing_score" not in result:
+                raise ValueError(f"Swing score result missing required 'swing_score' field for {symbol}")
+
+            try:
+                score_value = float(result["swing_score"])
+            except (ValueError, TypeError) as e:
+                raise ValueError(f"Swing score for {symbol} cannot be converted to float: {result['swing_score']}") from e
+
+            if "pass" not in result or not isinstance(result["pass"], bool):
+                raise ValueError(f"Swing score result missing or invalid 'pass' field for {symbol}")
+
+            comp = result["components"]
             default_components = {
                 "setup_quality": {"pts": 0.0, "max": self.W_SETUP},
                 "trend_quality": {"pts": 0.0, "max": self.W_TREND},
@@ -429,7 +443,7 @@ class SwingTraderScore:
             components_json = {
                 **default_components,
                 "grade": result.get("grade", "F"),
-                "pass": result.get("pass", False),
+                "pass": result["pass"],
                 "reason": result.get("reason"),
             }
 
@@ -446,7 +460,7 @@ class SwingTraderScore:
                     (
                         symbol,
                         eval_date,
-                        float(result.get("swing_score", 0)),
+                        score_value,
                         json.dumps(components_json),
                     ),
                 )
