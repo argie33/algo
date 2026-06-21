@@ -1062,9 +1062,10 @@ def main():
         logger.info("Dashboard credentials loaded from Secrets Manager")
         data_source = "AWS"
 
-        # Cognito authentication - dynamic with fallback
-        auth = get_cognito_auth_instance(require_auth=True)
-        if auth is None:
+        # Cognito authentication - fail-fast on auth errors
+        try:
+            auth = get_cognito_auth_instance(require_auth=True)
+        except RuntimeError as e:
             try:
                 CONSOLE.print("[bold red]ERROR:[/] Authentication required but Cognito credentials not found")
                 CONSOLE.print("")
@@ -1077,16 +1078,12 @@ def main():
                 CONSOLE.print("[cyan]   scripts/setup-local-dev.ps1[/]")
                 CONSOLE.print("")
                 CONSOLE.print("[yellow]3. Or save credentials to ~/.algo/cognito_credentials.json[/]")
-            except Exception as e:
+            except Exception as print_err:
                 logger.error(
-                    f"[AUTH] Authentication required but failed - no credentials available. "
-                    f"Set COGNITO_USERNAME + COGNITO_PASSWORD or run in interactive mode. "
-                    f"(Failed to display full message: {type(e).__name__})"
+                    f"[AUTH] Authentication required but failed: {e}. "
+                    f"(Failed to display full message: {type(print_err).__name__})"
                 )
-            logger.error(
-                "[AUTH] Authentication required but failed - no credentials available. "
-                "Set COGNITO_USERNAME + COGNITO_PASSWORD or run in interactive mode."
-            )
+            logger.error(f"[AUTH] Authentication required but failed: {e}")
             sys.exit(1)
 
         if auth.is_authenticated():

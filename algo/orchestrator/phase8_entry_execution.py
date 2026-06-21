@@ -261,6 +261,27 @@ def run(
 
         return PhaseResult(6, "entry_execution", "halted", {"entered": 0}, True, "Halt flag active")
 
+    # CRITICAL: Validate exposure constraints (fail-fast)
+    if not exposure_constraints:
+        msg = (
+            "[PHASE 6 CRITICAL] Exposure constraints not provided. "
+            "Phase 5 (Exposure Policy) must produce exposure_constraints before Phase 6 executes."
+        )
+        logger.critical(msg)
+        log_phase_result_fn(6, "entry_execution", "halt", msg)
+        return PhaseResult(6, "entry_execution", "halted", {"entered": 0}, True, msg)
+
+    required_constraint_keys = ["halt_new_entries", "max_new_positions_today", "max_concentration_pct"]
+    missing_keys = [k for k in required_constraint_keys if k not in exposure_constraints]
+    if missing_keys:
+        msg = (
+            f"[PHASE 6 CRITICAL] Exposure constraints missing required keys: {missing_keys}. "
+            f"Phase 5 output must include: {required_constraint_keys}"
+        )
+        logger.critical(msg)
+        log_phase_result_fn(6, "entry_execution", "halt", msg)
+        return PhaseResult(6, "entry_execution", "halted", {"entered": 0}, True, msg)
+
     # CRITICAL: Verify data freshness before executing trades
 
     # Trades should only execute on current market data (same day or previous trading day)
@@ -331,8 +352,8 @@ def run(
         return PhaseResult(6, "entry_execution", "halted", {"entered": 0}, True, msg)
 
     # Check for halt flag set by exposure policy
-
-    if exposure_constraints.get("halt_new_entries"):
+    # exposure_constraints validated above - always exists and has required keys
+    if exposure_constraints["halt_new_entries"]:
         reason = exposure_constraints.get("halt_reason", "Exposure policy halted new entries")
 
         logger.warning(f"[PHASE 6] {reason}")
@@ -341,7 +362,7 @@ def run(
 
         return PhaseResult(6, "entry_execution", "halted", {"entered": 0}, True, reason)
 
-    max_entries = exposure_constraints.get("max_new_positions_today") if exposure_constraints else None
+    max_entries = exposure_constraints["max_new_positions_today"]
 
     logger.info(
         f"[PHASE 6] Processing {len(qualified_trades)} qualified signals"
@@ -353,8 +374,8 @@ def run(
     # Wire tier's max_concentration_pct into sizer so correction/caution limits are respected.
 
     # Each ExposurePolicy tier defines its own concentration ceiling (20%/16%/12%/10%).
-
-    tier_max_conc = exposure_constraints.get("max_concentration_pct") if exposure_constraints else None
+    # exposure_constraints validated above - always exists
+    tier_max_conc = exposure_constraints["max_concentration_pct"]
 
     # Convert AlgoConfig to dict using to_dict() method, or use empty dict if config is None
 
