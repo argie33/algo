@@ -2,8 +2,15 @@
 """
 Options Chains Loader — Fetch daily options data from yfinance.
 
+Data Criticality: OPTIONAL (enrichment for put/call signals, not critical for position sizing)
+Failure Mode: Fails gracefully with context, degrades to None if unavailable
+Freshness Requirement: Maximum 24 hours staleness
+
 Loads put/call volumes and IV for options signals (bonus alpha scoring).
 Populates: options_chains (daily volumes for put/call ratio), iv_history (current IV + range).
+
+Uses canonical circuit breaker (utils.infrastructure.circuit_breaker:CircuitBreaker)
+with DataImportance.OPTIONAL and freshness validation.
 
 Use: python3 loaders/load_options_chains.py [--symbols AAPL,MSFT]
 """
@@ -19,19 +26,28 @@ from zoneinfo import ZoneInfo
 import yfinance as yf
 
 from utils.db.context import DatabaseContext
+from utils.infrastructure.circuit_breaker import CircuitBreaker, DataImportance
 from utils.infrastructure.timezone import EASTERN_TZ
 from utils.loaders.helpers import get_active_symbols
 from utils.safe_data_conversion import safe_float
+from utils.validation.data_freshness import FreshnessValidator, StaleDataError
 
 
 logger = logging.getLogger(__name__)
 
 
 class OptionsLoader:
-    """Fetch daily options data from yfinance."""
+    """Fetch daily options data from yfinance with circuit breaker protection."""
 
     def __init__(self):
         self.batch_size = 50
+        self._circuit_breaker = CircuitBreaker(
+            name="yfinance_options",
+            importance=DataImportance.OPTIONAL
+        )
+        self._freshness_validator = FreshnessValidator(max_age_hours={
+            "options_data": 24.0,
+        })
 
     def run(self, symbols: list | None = None, eval_date: date | None = None) -> dict:
         """Load options data for all symbols."""

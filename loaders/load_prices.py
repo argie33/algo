@@ -30,11 +30,13 @@ from utils.data.tick_validator import validate_price_tick
 from utils.data.watermark import WatermarkManager
 from utils.db.context import DatabaseContext
 from utils.db.sql_safety import assert_safe_table
+from utils.infrastructure.circuit_breaker import CircuitBreaker, DataImportance
 from utils.infrastructure.correlation import set_correlation_id
 from utils.infrastructure.timezone import EASTERN_TZ
 from utils.loaders.config import get_parallelism
 from utils.loaders.helpers import get_active_symbols
 from utils.optimal_loader import OptimalLoader
+from utils.validation.data_freshness import FreshnessValidator, StaleDataError
 
 
 logger = logging.getLogger(__name__)
@@ -46,7 +48,16 @@ set_correlation_id(_correlation_id)
 
 
 class PriceLoader(OptimalLoader):
-    """Multi-timeframe price loader. Replaces 4 separate loaders."""
+    """
+    Multi-timeframe price loader. Replaces 4 separate loaders.
+
+    Data Criticality: CRITICAL (used for position sizing, P&L calculations)
+    Failure Mode: Fails fast on unavailable/stale data, does not degrade to stale prices
+    Freshness Requirement: Maximum 1 day staleness for daily prices
+
+    Uses canonical circuit breaker (utils.infrastructure.circuit_breaker:CircuitBreaker)
+    with DataImportance.CRITICAL and freshness validation to prevent silent stale data.
+    """
 
     def __init__(
         self, interval: str = "1d", asset_class: str = "stock", *args, **kwargs
@@ -61,6 +72,17 @@ class PriceLoader(OptimalLoader):
             _correlation_id  # Instance variable for use in all methods
         )
         self.batch_size = 300  # Batch 300 symbols per API call: ~35 calls for 10,506 symbols (increased from 200 to improve throughput)
+
+        # Circuit breaker for data loader outage handling
+        self._circuit_breaker = CircuitBreaker(
+            name="yfinance_prices",
+            importance=DataImportance.CRITICAL
+        )
+
+        # Freshness validator: stock prices must be <= 1 day old
+        self._freshness_validator = FreshnessValidator(max_age_hours={
+            "price_data": 24.0,  # 1 day for daily price data
+        })
 
         # Map interval + asset_class to table name
         if asset_class == "etf":
@@ -1076,8 +1098,16 @@ class PriceLoader(OptimalLoader):
 
             # Measure latency for this request
             request_start = time.time()
-            result = self.router.fetch_ohlcv_batch(
-                symbols, start, end, interval=self.interval
+
+            # Use circuit breaker to fetch data with fail-fast behavior
+            def fetch_batch():
+                return self.router.fetch_ohlcv_batch(
+                    symbols, start, end, interval=self.interval
+                )
+
+            result = self._circuit_breaker.execute(
+                fetch_func=fetch_batch,
+                importance=DataImportance.CRITICAL
             )
             request_latency = time.time() - request_start
 
@@ -1085,6 +1115,38 @@ class PriceLoader(OptimalLoader):
             self._record_request_latency(request_latency)
 
             if result:
+                # Validate freshness: prices must not be older than 1 day
+                # Extract the latest price date from results to check freshness
+                if isinstance(result, dict):
+                    latest_price_date: datetime | None = None
+                    for rows in result.values():
+                        if rows:
+                            for row in rows:
+                                row_date_str = row.get("date")
+                                if row_date_str:
+                                    try:
+                                        row_date = datetime.fromisoformat(row_date_str)
+                                        if latest_price_date is None or row_date > latest_price_date:
+                                            latest_price_date = row_date
+                                    except (ValueError, TypeError):
+                                        pass
+
+                    # Check freshness if we have dates
+                    if latest_price_date is not None:
+                        try:
+                            self._freshness_validator.check(
+                                "price_data",
+                                latest_price_date,
+                                allow_missing=False
+                            )
+                        except StaleDataError as e:
+                            logger.critical(
+                                f"[FRESHNESS_VALIDATION] {e}. "
+                                "Stock prices are too stale for position sizing. Cannot proceed."
+                            )
+                            self._circuit_breaker.record_failure()
+                            raise RuntimeError(f"Price data freshness validation failed: {e}") from e
+
                 # Success: reset rate limit error tracking and improve request pace
                 if self._rate_limit_errors > 0:
                     # CREATIVE FIX #6: Detect recovery - API is responding again
@@ -1109,6 +1171,19 @@ class PriceLoader(OptimalLoader):
                 return result
         except Exception as e:
             error_str = str(e).lower()
+
+            # Check for circuit breaker open (critical data unavailable)
+            is_circuit_open = "circuit" in error_str.lower() and ("open" in error_str.lower() or "unavailable" in error_str.lower())
+            if is_circuit_open:
+                logger.critical(
+                    f"[CIRCUIT_BREAKER] yfinance_prices circuit open: {e}. "
+                    "Cannot fetch price data when API is down. Failing fast."
+                )
+                raise RuntimeError(
+                    f"[CIRCUIT_BREAKER] Price data circuit open: {e}. "
+                    "Cannot proceed without price data. Waiting for API recovery."
+                ) from e
+
             is_rate_limit = (
                 "rate" in error_str or "429" in error_str or "too many" in error_str
             )

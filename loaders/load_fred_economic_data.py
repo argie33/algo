@@ -1,23 +1,32 @@
 #!/usr/bin/env python3
-"""FRED Economic Data Loader — Market-wide macroeconomic indicators."""
+"""FRED Economic Data Loader — Market-wide macroeconomic indicators.
+
+Data Criticality: REQUIRED (used for market analysis, not critical for position sizing)
+Failure Mode: Fails with context if data unavailable/stale, retries with circuit breaker
+Freshness Requirement: Maximum 48 hours staleness (FRED updates weekly)
+
+Uses canonical circuit breaker (utils.infrastructure.circuit_breaker:CircuitBreaker)
+with DataImportance.REQUIRED and freshness validation to prevent silent stale data.
+"""
 
 import json
 import logging
 import socket
 import sys
 import time
-from datetime import date, timedelta
-from typing import List, Optional
+from datetime import date, datetime, timedelta
 
 import requests
 
 from config.api_endpoints import get_fred_url
 from loaders.runner import run_loader
+from utils.infrastructure.circuit_breaker import CircuitBreaker, DataImportance
 from utils.infrastructure.timeout import ExecutionTimeout
 from utils.infrastructure.url_validator import validate_url
 from utils.loaders.helpers import get_api_key
 from utils.optimal_loader import OptimalLoader
 from utils.safe_data_conversion import safe_float
+from utils.validation.data_freshness import FreshnessValidator, StaleDataError
 
 
 logger = logging.getLogger(__name__)
@@ -98,14 +107,38 @@ def get_fred_api_key() -> str:
 
 
 class FredEconomicDataLoader(OptimalLoader):
-    """Load FRED economic time-series data (market-wide)."""
+    """Load FRED economic time-series data (market-wide).
+
+    Data Criticality: REQUIRED (market analysis, not critical for position sizing)
+    Failure Mode: Fails with context if data unavailable/stale, retries with circuit breaker
+    Freshness Requirement: Maximum 48 hours staleness (FRED updates weekly)
+
+    Uses canonical circuit breaker (utils.infrastructure.circuit_breaker:CircuitBreaker)
+    with DataImportance.REQUIRED and freshness validation to prevent silent stale data.
+    """
 
     table_name = "economic_data"
     primary_key = ("series_id", "date")
     watermark_field = "date"
 
+    def __init__(self, *args, **kwargs):
+        """Initialize FRED loader with circuit breaker and freshness validation."""
+        super().__init__(*args, **kwargs)
+
+        # Circuit breaker for FRED API outage handling
+        self._circuit_breaker = CircuitBreaker(
+            name="fred_api",
+            importance=DataImportance.REQUIRED
+        )
+
+        # Freshness validator: FRED economic data must be <= 48 hours old
+        # FRED updates weekly, so 48-hour requirement allows latest data plus 1 day buffer
+        self._freshness_validator = FreshnessValidator(max_age_hours={
+            "economic_data": 48.0,  # 48 hours for FRED weekly updates
+        })
+
     def fetch_global(self, since: date | None) -> list[dict] | None:
-        """Fetch FRED economic data for all configured series with proper timeouts."""
+        """Fetch FRED economic data for all configured series with circuit breaker and freshness validation."""
         api_key = get_fred_api_key()
         if not api_key:
             logger.error("FRED_API_KEY not found")
@@ -148,21 +181,34 @@ class FredEconomicDataLoader(OptimalLoader):
 
             for attempt in range(max_retries):
                 try:
-                    params = {
-                        "series_id": series_id,
-                        "api_key": api_key,
-                        "file_type": "json",
-                        "observation_start": start_date,
-                        "observation_end": end_date,
-                        "sort_order": "asc",
-                    }
-                    fred_url = f"{get_fred_url()}/series/observations"
-                    # Use connect_timeout + read_timeout tuple for more granular control
-                    # connect_timeout: 10s to establish connection
-                    # read_timeout: 20s to receive response (can be slow with large datasets)
-                    resp = requests.get(fred_url, params=params, timeout=(10, 20))
-                    resp.raise_for_status()
-                    resp_data = resp.json()
+                    def fetch_series(
+                        sid: str = series_id,
+                        sd: str = start_date,
+                        ed: str = end_date,
+                    ) -> dict:
+                        """Inner function to wrap API call for circuit breaker."""
+                        params = {
+                            "series_id": sid,
+                            "api_key": api_key,
+                            "file_type": "json",
+                            "observation_start": sd,
+                            "observation_end": ed,
+                            "sort_order": "asc",
+                        }
+                        fred_url = f"{get_fred_url()}/series/observations"
+                        # Use connect_timeout + read_timeout tuple for more granular control
+                        # connect_timeout: 10s to establish connection
+                        # read_timeout: 20s to receive response (can be slow with large datasets)
+                        resp = requests.get(fred_url, params=params, timeout=(10, 20))
+                        resp.raise_for_status()
+                        return resp.json()
+
+                    # Execute API call through circuit breaker
+                    resp_data = self._circuit_breaker.execute(
+                        fetch_func=fetch_series,
+                        importance=DataImportance.REQUIRED
+                    )
+
                     if not isinstance(resp_data, dict):
                         raise RuntimeError(
                             f"FRED API response for {series_id} is not a dict: {type(resp_data).__name__}. "
@@ -180,6 +226,8 @@ class FredEconomicDataLoader(OptimalLoader):
                             "This indicates an API schema change. Check FRED API documentation."
                         )
 
+                    # Extract latest observation date for freshness validation
+                    latest_obs_date = None
                     for obs in observations:
                         val_str = obs.get("value")
                         if val_str is None or val_str == ".":
@@ -195,6 +243,9 @@ class FredEconomicDataLoader(OptimalLoader):
                                     "value": safe_float(val_str, default=0.0),
                                 }
                             )
+                            # Track latest observation date
+                            if latest_obs_date is None or obs["date"] > latest_obs_date:
+                                latest_obs_date = obs["date"]
                         except KeyError as e:
                             raise RuntimeError(
                                 f"[FRED] Missing required field in observation for {series_id}: {e}. "
@@ -205,6 +256,30 @@ class FredEconomicDataLoader(OptimalLoader):
                                 f"[FRED] Failed to parse value for {series_id} [{obs.get('date')}]: {e}. "
                                 "Value string: '{val_str}'. Cannot parse economic data."
                             )
+
+                    # Validate freshness after successful fetch
+                    if latest_obs_date:
+                        try:
+                            latest_dt: datetime | None = None
+                            try:
+                                latest_dt = datetime.fromisoformat(latest_obs_date)
+                            except (ValueError, TypeError):
+                                logger.warning(f"Could not parse latest observation date {latest_obs_date}")
+                                latest_dt = None
+
+                            if latest_dt is not None:
+                                self._freshness_validator.check(
+                                    "economic_data",
+                                    latest_dt,
+                                    allow_missing=False
+                                )
+                        except StaleDataError as e:
+                            logger.warning(
+                                f"[FRESHNESS_VALIDATION] {e}. "
+                                "FRED economic data is stale but continuing with degraded market analysis capability."
+                            )
+                            # Record circuit breaker failure for stale data (REQUIRED data)
+                            self._circuit_breaker.record_failure()
 
                     logger.info(
                         f"  {series_id}: SUCCESS ({len([r for r in all_rows if r['series_id'] == series_id])} rows)"
@@ -223,6 +298,7 @@ class FredEconomicDataLoader(OptimalLoader):
                         logger.error(
                             f"  {series_id}: FAILED after {max_retries} retries with timeout errors"
                         )
+                        self._circuit_breaker.record_failure()
                         failed_series.append(series_id)
                 except requests.exceptions.ConnectionError:
                     # Connection error - retry with backoff
@@ -236,6 +312,7 @@ class FredEconomicDataLoader(OptimalLoader):
                         logger.error(
                             f"  {series_id}: FAILED after {max_retries} retries with connection errors"
                         )
+                        self._circuit_breaker.record_failure()
                         failed_series.append(series_id)
                 except requests.exceptions.HTTPError as e:
                     if e.response.status_code == 429:  # Rate limit
@@ -249,19 +326,29 @@ class FredEconomicDataLoader(OptimalLoader):
                             logger.error(
                                 f"  {series_id}: FAILED after {max_retries} retries with 429 errors"
                             )
+                            self._circuit_breaker.record_failure()
                             failed_series.append(series_id)
                     else:
                         logger.error(
                             f"  {series_id}: HTTP {e.response.status_code} — {e}"
                         )
+                        self._circuit_breaker.record_failure()
                         failed_series.append(series_id)
                         break  # Don't retry on non-rate-limit errors
                 except (ValueError, TypeError, KeyError) as e:
-                    raise RuntimeError(
+                    logger.error(
                         f"[FRED] Data format error for {series_id}: {e}. "
                         "FRED API response format may have changed or data is corrupted."
-                    ) from e
+                    )
+                    self._circuit_breaker.record_failure()
+                    failed_series.append(series_id)
+                    break
                 except (requests.RequestException, requests.Timeout, json.JSONDecodeError) as e:
+                    logger.error(
+                        f"[FRED] Unexpected error fetching {series_id}: {e}. "
+                        "Cannot proceed reliably — stopping FRED data fetch."
+                    )
+                    self._circuit_breaker.record_failure()
                     raise RuntimeError(
                         f"[FRED] Unexpected error fetching {series_id}: {e}. "
                         "Cannot proceed reliably — stopping FRED data fetch."
