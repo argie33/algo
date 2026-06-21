@@ -181,13 +181,12 @@ class FredEconomicDataLoader(OptimalLoader):
                         )
 
                     for obs in observations:
-                        val_str = obs.get("value", ".")
-                        if val_str == ".":
-                            logger.debug(
-                                f"{series_id} [{obs.get('date')}]: Observation skipped — missing value "
-                                "(value='.')"
+                        val_str = obs.get("value")
+                        if val_str is None or val_str == ".":
+                            raise ValueError(
+                                f"FRED data missing for {series_id} on {obs.get('date')} — "
+                                "economic data cannot have gaps. Check FRED data availability."
                             )
-                            continue
                         try:
                             all_rows.append(
                                 {

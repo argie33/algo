@@ -1134,7 +1134,7 @@ class PositionMonitor:
                                     (
                                         "CORPORATE_ACTION_SPLIT_NO_STOP",
                                         datetime.now(timezone.utc),
-                                        f"Stock split detected: {symbol} {db_qty} â†’ {alpaca_qty} shares (ratio {split_ratio:.2f}). Original stop price missing in DB. Quantity updated but STOP NOT ADJUSTED. Manual review required.",
+                                        f"Stock split detected: {symbol} {db_qty} -> {alpaca_qty} shares (ratio {split_ratio:.2f}). Original stop price missing in DB. Quantity updated but STOP NOT ADJUSTED. Manual review required.",
                                         "CRITICAL",
                                     ),
                                 )
@@ -1161,7 +1161,7 @@ class PositionMonitor:
                                 (
                                     "CORPORATE_ACTION_SPLIT",
                                     datetime.now(timezone.utc),
-                                    f"Stock split detected: {symbol} {db_qty} â†’ {alpaca_qty} shares (ratio {split_ratio:.2f}). Stop adjusted from ${db_stop:.2f} to ${new_stop:.2f}",
+                                    f"Stock split detected: {symbol} {db_qty} -> {alpaca_qty} shares (ratio {split_ratio:.2f}). Stop adjusted from ${db_stop:.2f} to ${new_stop:.2f}",
                                     "WARN",
                                 ),
                             )

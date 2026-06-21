@@ -67,12 +67,22 @@ class RLadderDistributionDailyLoader(OptimalLoader):
                 }
 
                 for row in rows:
-                    position_value = safe_float(row[1], default=0.0) if row[1] else 0
-                    pnl_pct = safe_float(row[2], default=0.0) if row[2] else 0
-                    days_held = safe_float(row[3], default=0.0) if row[3] else 0
-                    entry_price = safe_float(row[4], default=0.0) if row[4] else 0
-                    stop_price = safe_float(row[5], default=0.0) if row[5] is not None else None
-                    target_price = safe_float(row[6], default=0.0) if row[6] is not None else None
+                    if any(v is None for v in row[1:5]):
+                        raise ValueError(f"Position data incomplete for row: {row}")
+                    position_value = safe_float(row[1], default=None)
+                    if position_value is None:
+                        raise ValueError(f"Position value not numeric: {row[1]}")
+                    pnl_pct = safe_float(row[2], default=None)
+                    if pnl_pct is None:
+                        raise ValueError(f"PNL not numeric: {row[2]}")
+                    days_held = safe_float(row[3], default=None)
+                    if days_held is None:
+                        raise ValueError(f"Days held not numeric: {row[3]}")
+                    entry_price = safe_float(row[4], default=None)
+                    if entry_price is None:
+                        raise ValueError(f"Entry price not numeric: {row[4]}")
+                    stop_price = safe_float(row[5], default=None) if row[5] is not None else None
+                    target_price = safe_float(row[6], default=None) if row[6] is not None else None
 
                     # Calculate R-multiple for this position
                     r_multiple = self._calculate_r_multiple(

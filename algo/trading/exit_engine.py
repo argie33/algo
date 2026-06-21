@@ -1357,13 +1357,15 @@ class ExitEngine:
 
         pullback_pct = (
 
-            float(
+            safe_float(
 
                 ((recent_high - cur_close) / recent_high * Decimal(100)).quantize(
 
                     Decimal("0.01"), rounding=ROUND_HALF_UP
 
-                )
+                ),
+                default=0.0,
+                context='pullback_pct'
 
             )
 
@@ -1511,13 +1513,15 @@ class ExitEngine:
 
             raise ValueError(f"Invalid entry price for {symbol}: {entry_price}")
 
-        gain_pct = float(
+        gain_pct = safe_float(
 
             ((max_close_in_window - Decimal(str(entry_price))) / Decimal(str(entry_price)) * Decimal(100)).quantize(
 
                 Decimal("0.01"), rounding=ROUND_HALF_UP
 
-            )
+            ),
+            default=0.0,
+            context='gain_pct_8wk'
 
         )
 
@@ -1729,7 +1733,7 @@ class ExitEngine:
 
         # Break of EMA(21) on rising volume (institutional selling)
 
-        ema_21_float = float(ema_21) if ema_21 else None
+        ema_21_float = safe_float(ema_21, default=None, context='ema_21') if ema_21 else None
 
         if ema_21_float and cur_price < ema_21_float and avg_vol_50 > 0 and vol > avg_vol_50 * 1.15:
 
@@ -1773,9 +1777,9 @@ class ExitEngine:
 
             raise ValueError(f"Volume data unavailable for {symbol} on {current_date}")
 
-        today_vol = float(row[0])
+        today_vol = safe_float(row[0], default=0.0, context='today_volume')
 
-        avg_vol = float(row[1])
+        avg_vol = safe_float(row[1], default=0.0, context='avg_volume')
 
         return today_vol >= avg_vol * volume_multiplier
 
@@ -1827,7 +1831,7 @@ class ExitEngine:
 
             raise ValueError(f"Invalid price data for {symbol}: prior close = {prior}")
 
-        return float(((current - prior) / prior * Decimal(100)).quantize(Decimal("0.01"), rounding=ROUND_HALF_UP))
+        return safe_float(((current - prior) / prior * Decimal(100)).quantize(Decimal("0.01"), rounding=ROUND_HALF_UP), default=0.0, context='gain_last_n_days')
 
 
 

@@ -71,10 +71,19 @@ class SectorAllocationDailyLoader(OptimalLoader):
                 # Build results
                 results = []
                 for row in rows:
-                    sector_name = row[0] or "Unknown"
-                    symbol_count = int(row[1]) if row[1] else 0
-                    sector_value = safe_float(row[2], default=0.0) if row[2] else 0
-                    avg_pnl = safe_float(row[3], default=0.0) if row[3] else 0
+                    if row[0] is None:
+                        sector_name = "Unknown"
+                    else:
+                        sector_name = row[0]
+                    if row[1] is None or row[2] is None or row[3] is None:
+                        raise ValueError(f"Sector allocation data incomplete for {sector_name}")
+                    symbol_count = int(row[1])
+                    sector_value = safe_float(row[2], default=None)
+                    if sector_value is None:
+                        raise ValueError(f"Sector value not numeric for {sector_name}")
+                    avg_pnl = safe_float(row[3], default=None)
+                    if avg_pnl is None:
+                        raise ValueError(f"PNL not numeric for {sector_name}")
 
                     pct_portfolio = 0.0
                     if total_portfolio_value > 0:

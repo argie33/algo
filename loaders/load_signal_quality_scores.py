@@ -185,9 +185,11 @@ class SignalQualityScoresLoader(OptimalLoader):
         # Instead: require at least 300 buy/sell signals exist for end date.
 
         # ROOT CAUSE #4 FIX: Use cached signal count from batch context instead of per-symbol query.
-        actual_symbols = (
-            self._batch_context.get("bs_signal_count", 0) if self._batch_context else 0
-        )
+        if not self._batch_context:
+            raise ValueError("Batch context not available for signal count")
+        actual_symbols = self._batch_context.get("bs_signal_count")
+        if actual_symbols is None:
+            raise ValueError("Signal count not available in batch context")
 
         # INVESTIGATION: Signal counts dropped 10x on 2026-06-04 (from 1000+ to 134).
         # Root cause: Changes to buy_sell_daily pivot detection logic (commit 5a4c190a4).

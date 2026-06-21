@@ -194,10 +194,16 @@ def enrich_technical_data(
                     logger.warning(error_msg)
 
             # Check if enrichment coverage meets minimum threshold (fail-close)
-            checked: int = stats.get("checked", 0) or 0
+            checked: int = stats.get("checked", 0)
+            if checked is None or checked == 0:
+                raise ValueError("No records checked for technical enrichment")
             if checked > 0:
-                updated: int = stats.get("updated", 0) or 0
-                nulls: int = stats.get("nulls_remaining", 0) or 0
+                updated: int = stats.get("updated", 0)
+                if updated is None:
+                    updated = 0
+                nulls: int = stats.get("nulls_remaining", 0)
+                if nulls is None:
+                    nulls = 0
                 success_rate = updated / checked
                 logger.info(
                     f"Enrichment complete: {updated}/{checked} records updated "

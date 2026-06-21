@@ -105,8 +105,8 @@ def run(
                     continue
 
                 if action["action"] == "force_exit":
-                    # Fetch current price for accurate P&L
-                    cur_price = 0.0
+                    # CRITICAL: Current price is mandatory for force exits
+                    # Cannot execute exit without price — would corrupt P&L reporting
                     try:
                         with DatabaseContext("read") as cur_tmp:
                             cur_tmp.execute(
@@ -114,12 +114,20 @@ def run(
                                 (action["position_id"],),
                             )
                             row_tmp = cur_tmp.fetchone()
-                            cur_price = float(row_tmp[0]) if row_tmp and row_tmp[0] else 0
+                            if row_tmp is None or row_tmp[0] is None:
+                                raise RuntimeError(
+                                    f"[FORCE-EXIT] Current price unavailable for position {action['position_id']}. "
+                                    "Cannot execute force exit without price."
+                                )
+                            cur_price = safe_float_strict(row_tmp[0], field_name="current_price")
+                            if cur_price <= 0:
+                                raise RuntimeError(
+                                    f"[FORCE-EXIT] Invalid current price {cur_price} for position {action['position_id']}. "
+                                    "Cannot execute exit with non-positive price."
+                                )
                     except (RuntimeError, TypeError, ValueError) as e:
-                        logger.warning(f"  Warning: Could not fetch price for force_exit: {e}")
-
-                    if cur_price <= 0:
-                        logger.error("  ERROR: force_exit cannot proceed — no valid current price")
+                        logger.critical(f"  CRITICAL: force_exit cannot proceed: {e}")
+                        errors += 1
                         continue
 
                     result = executor.exit_trade(

@@ -65,7 +65,6 @@ from psycopg2 import sql as pgsql
 
 from algo.risk.market_factor_calculator import MarketFactorCalculator
 from utils.db import DatabaseContext
-from utils.safe_data_conversion import safe_bool, safe_float, safe_int
 
 
 logger = logging.getLogger(__name__)
@@ -207,7 +206,7 @@ class MarketExposure:
         logger.info(f"Computing market exposure for {eval_date} (12 sequential queries)")
         with DatabaseContext("read") as cur:
             # Per-query timeout: 45s. Breadth queries use pre-computed sma_50/sma_200 from
-            # technical_data_daily (fast indexed lookup). 45s × 12 = 540s max, fits in Lambda
+            # technical_data_daily (fast indexed lookup). 45s x 12 = 540s max, fits in Lambda
             # 600s budget. Raised from 30s because some queries exceed 30s on t4g.micro even
             # without concurrent loaders (slow disk I/O on the small instance).
             cur.execute("SET statement_timeout = 45000")
@@ -250,7 +249,10 @@ class MarketExposure:
             }
             score += b50_pts
             b50_val = b50.get('value')
-            logger.debug(f"  Breadth 50-DMA: {b50_val:.1f}% if isinstance(b50_val, (int, float)) else 'N/A', {b50_pts:.1f} pts")
+            if b50_val is not None:
+                logger.debug(f"  Breadth 50-DMA: {b50_val:.1f}%, {b50_pts:.1f} pts")
+            else:
+                logger.warning(f"  Breadth 50-DMA: data unavailable (score_factor={b50.get('score_factor')}), {b50_pts:.1f} pts")
 
             # --- 4. Breadth: % stocks above 200-DMA ---
             b200 = self.calculator._pct_above_ma(eval_date, ma_days=200, cur=cur)
@@ -263,7 +265,10 @@ class MarketExposure:
             }
             score += b200_pts
             b200_val = b200.get('value')
-            logger.debug(f"  Breadth 200-DMA: {b200_val:.1f}% if isinstance(b200_val, (int, float)) else 'N/A', {b200_pts:.1f} pts")
+            if b200_val is not None:
+                logger.debug(f"  Breadth 200-DMA: {b200_val:.1f}%, {b200_pts:.1f} pts")
+            else:
+                logger.warning(f"  Breadth 200-DMA: data unavailable (score_factor={b200.get('score_factor')}), {b200_pts:.1f} pts")
 
             # --- 5. Selling pressure (heavy-volume down days) ---
             sp = self.calculator.selling_pressure(eval_date, cur)
@@ -410,9 +415,14 @@ class MarketExposure:
             cap = eco_cap  # Start with eco-overlay cap (may already restrict)
 
             # Veto 1: SPY < rising 30wk MA AND breadth weak
-            if t30.get("price_below_ma") and b50.get("value", 100) < 30:
+            # CRITICAL: Don't apply veto if breadth data is missing (score_factor=None)
+            # Use breadth data only if explicitly available; default=100 would hide missing data
+            b50_value = b50.get("value")
+            if t30.get("price_below_ma") and b50_value is not None and b50_value < 30:
                 halt_reasons.append("SPY < 30wk MA AND <30% above 50-DMA")
                 cap = min(cap, 25.0)
+            elif t30.get("price_below_ma") and b50_value is None:
+                logger.warning("Veto 1 skipped: breadth data unavailable, cannot assess SPY + breadth confirmation")
             # Veto 2: VIX > 40 rising (only if VIX data available)
             vix_value = vix.get("value")
             if vix_value is not None and vix_value > 40 and vix.get("rising"):
@@ -617,7 +627,7 @@ class MarketExposure:
 
         Reads pre-computed sma_150 from technical_data_daily (indexed lookup, <1s)
         instead of computing AVG() OVER a window across all SPY rows in price_daily
-        (7000+ rows × window function = slow under load on t4g.micro).
+        (7000+ rows x window function = slow under load on t4g.micro).
         """
         cur.execute(
             """
@@ -670,7 +680,7 @@ class MarketExposure:
 
         Reads pre-computed price_above_sma50 / price_above_sma200 boolean flags
         from trend_template_data (single-table indexed scan, <1s) instead of
-        joining technical_data_daily × price_daily (DISTINCT ON across 35k rows
+        joining technical_data_daily x price_daily (DISTINCT ON across 35k rows
         each, too slow on t4g.micro).
         """
         bool_col = "price_above_sma50" if ma_days == 50 else "price_above_sma200"
@@ -886,7 +896,7 @@ class MarketExposure:
 
         Uses pre-computed advance_decline_ratio from market_health_daily and
         SPY close from price_daily (fast, <1s indexed lookups) instead of
-        computing LAG() window functions across 5000 stocks × 35 days (~175,000 rows).
+        computing LAG() window functions across 5000 stocks x 35 days (~175,000 rows).
         """
         cur.execute(
             """
@@ -947,10 +957,31 @@ class MarketExposure:
         first_net = nets[0]
         last_net = nets[-1]
         ad_change = last_net - first_net
-        first_spy_val = rows[0].get("spy_close")
-        first_spy = float(first_spy_val) if first_spy_val is not None else 0.0
-        last_spy_val = rows[-1].get("spy_close")
-        last_spy = float(last_spy_val) if last_spy_val is not None else 0.0
+        if "spy_close" not in rows[0]:
+            raise RuntimeError(
+                f"Market breadth data missing required 'spy_close' field in first row: {rows[0]}. "
+                "Cannot compute advance/decline strength without SPY price."
+            )
+        first_spy_val = rows[0]["spy_close"]
+        if first_spy_val is None:
+            raise RuntimeError(
+                f"Market breadth data contains None for 'spy_close' in first row: {rows[0]}. "
+                "SPY price is required for advance/decline strength computation."
+            )
+        first_spy = float(first_spy_val)
+
+        if "spy_close" not in rows[-1]:
+            raise RuntimeError(
+                f"Market breadth data missing required 'spy_close' field in last row: {rows[-1]}. "
+                "Cannot compute advance/decline strength without SPY price."
+            )
+        last_spy_val = rows[-1]["spy_close"]
+        if last_spy_val is None:
+            raise RuntimeError(
+                f"Market breadth data contains None for 'spy_close' in last row: {rows[-1]}. "
+                "SPY price is required for advance/decline strength computation."
+            )
+        last_spy = float(last_spy_val)
         spy_change_pct = (last_spy - first_spy) / first_spy * 100.0 if first_spy > 0 else 0
         # Confirmation: both same direction. Divergence: opposite.
         if (ad_change > 0 and spy_change_pct > 0) or (ad_change < 0 and spy_change_pct < 0):

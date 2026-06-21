@@ -82,7 +82,7 @@ class ValueAtRisk:
                             "Cannot compute VaR with missing data. Check portfolio snapshot data."
                         )
                     try:
-                        val = Decimal(str(safe_float(row[1], context=f"portfolio_value row {i}")))
+                        val = Decimal(str(safe_float(row[1], default=0.0, context=f"portfolio_value row {i}")))
                         if val <= 0:
                             raise RuntimeError(
                                 f"Portfolio value invalid at row {i} (date {row[0]}): {val} "
@@ -104,7 +104,7 @@ class ValueAtRisk:
                 returns = []
                 for i, r in enumerate(returns_decimal):
                     try:
-                        ret = safe_float(float(r), context=f"daily_return[{i}]")
+                        ret = safe_float(float(r), default=0.0, context=f"daily_return[{i}]")
                         returns.append(ret)
                     except (ValueError, TypeError) as e:
                         raise RuntimeError(
@@ -180,7 +180,7 @@ class ValueAtRisk:
                             "Cannot compute VaR with missing data. Check portfolio snapshot data."
                         )
                     try:
-                        val = Decimal(str(safe_float(row[1], context=f"portfolio_value row {i}")))
+                        val = Decimal(str(safe_float(row[1], default=0.0, context=f"portfolio_value row {i}")))
                         if val <= 0:
                             raise RuntimeError(
                                 f"Portfolio value invalid at row {i} (date {row[0]}): {val} "
@@ -202,7 +202,7 @@ class ValueAtRisk:
                 returns = []
                 for i, r in enumerate(returns_decimal):
                     try:
-                        ret = safe_float(float(r), context=f"daily_return[{i}]")
+                        ret = safe_float(float(r), default=0.0, context=f"daily_return[{i}]")
                         returns.append(ret)
                     except (ValueError, TypeError) as e:
                         raise RuntimeError(

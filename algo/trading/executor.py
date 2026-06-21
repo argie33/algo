@@ -435,15 +435,28 @@ class TradeExecutor:
                         "status": "failed",
                         "message": order_result.get("message", "Order failed"),
                     }
-                alpaca_order_id = order_result.get("order_id")
+                if "order_id" not in order_result:
+                    raise RuntimeError(
+                        f"Alpaca order submission response missing required field 'order_id'. "
+                        f"Response: {order_result}. Cannot proceed without order ID."
+                    )
+                alpaca_order_id = order_result["order_id"]
                 if not alpaca_order_id:
-                    return {
-                        "success": False,
-                        "trade_id": trade_id,
-                        "status": "failed",
-                        "message": "Alpaca response missing order_id",
-                    }
-                order_status = order_result.get("status", "pending")
+                    raise RuntimeError(
+                        f"Alpaca order submission response returned empty order_id. "
+                        f"Response: {order_result}. Cannot proceed with empty order ID."
+                    )
+                if "status" not in order_result:
+                    raise RuntimeError(
+                        f"Alpaca order submission response missing required field 'status'. "
+                        f"Response: {order_result}. Cannot proceed without order status."
+                    )
+                order_status = order_result["status"]
+                if not order_status:
+                    raise RuntimeError(
+                        f"Alpaca order submission response returned empty status. "
+                        f"Response: {order_result}. Cannot proceed with empty order status."
+                    )
                 # Capture rejection reason if order was rejected
                 rejection_reason = None
                 if order_status == "rejected":

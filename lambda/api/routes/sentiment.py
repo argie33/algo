@@ -467,12 +467,29 @@ def _get_vix_data(cur) -> dict:
         latest = safe_json_serialize(dict(rows[0])) if rows else None
         history = [safe_json_serialize(dict(r)) for r in rows]
 
-        if latest and latest.get("vix_level", 0) > 25:
-            signal = "fear"
-        elif latest and latest.get("vix_level", 0) > 15:
-            signal = "neutral"
+        if latest:
+            if "vix_level" not in latest:
+                logger.warning(
+                    f"Market sentiment calculation: vix_level missing from latest data {latest}. "
+                    "Cannot compute market sentiment without VIX level (required for fear/greed calculation)."
+                )
+                signal = None
+            elif latest["vix_level"] is None:
+                logger.warning(
+                    "Market sentiment calculation: vix_level is None. "
+                    "Cannot compute market sentiment without VIX level (required for fear/greed calculation)."
+                )
+                signal = None
+            else:
+                vix = latest["vix_level"]
+                if vix > 25:
+                    signal = "fear"
+                elif vix > 15:
+                    signal = "neutral"
+                else:
+                    signal = "greed"
         else:
-            signal = "greed"
+            signal = None
 
         return json_response(
             200, {"latest": latest, "history": history, "signal": signal}

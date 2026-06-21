@@ -348,9 +348,9 @@ class PriceLoader(OptimalLoader):
         """
         self._batch_success_count = success_count
         self._batch_total_count = total_count
-        self._batch_failure_ratio = (
-            1.0 - (success_count / total_count) if total_count > 0 else 0.0
-        )
+        if total_count == 0:
+            raise ValueError("No symbols to fetch — batch size calculation error")
+        self._batch_failure_ratio = 1.0 - (success_count / total_count)
 
         if success_count < total_count:
             logger.info(

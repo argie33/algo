@@ -473,12 +473,14 @@ class MarketHealthDailyLoader(OptimalLoader):
                 )
 
                 for r in cur.fetchall():
+                    if r[4] is None or r[5] is None:
+                        raise ValueError(f"New highs/lows data missing for {r[0]}")
                     result[r[0].isoformat()] = {
                         "advance_decline_ratio": (
-                            safe_float(r[3], default=0.0) if r[3] is not None else 1.0
+                            safe_float(r[3], default=None) if r[3] is not None else 1.0
                         ),
-                        "new_highs_count": int(r[4]) if r[4] is not None else 0,
-                        "new_lows_count": int(r[5]) if r[5] is not None else 0,
+                        "new_highs_count": int(r[4]),
+                        "new_lows_count": int(r[5]),
                     }
 
                 return result
