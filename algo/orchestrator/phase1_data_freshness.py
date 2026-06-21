@@ -109,25 +109,35 @@ def run(
             "[PHASE 1] CRITICAL: Incomplete critical loaders even after failsafe retry. "
             "Cannot proceed with data processing."
         )
+        still_failing = failsafe_result.get('still_failing')
+        if still_failing is None:
+            still_failing = []
         log_phase_result_fn(
             1,
             "incomplete_loaders_after_retry",
             "halt",
-            f"Still incomplete after retry: {failsafe_result.get('still_failing', [])}",
+            f"Still incomplete after retry: {still_failing}",
         )
+        still_failing_first = still_failing[0] if still_failing else 'unknown'
         return PhaseResult(
             1,
             "incomplete_loaders_after_retry",
             "halted",
             failsafe_result,
             True,
-            f"Critical loaders incomplete after retry: {failsafe_result.get('still_failing', [])[0] if failsafe_result.get('still_failing') else 'unknown'}",
+            f"Critical loaders incomplete after retry: {still_failing_first}",
         )
 
     if failsafe_result.get("incomplete_loaders"):
+        recovered = failsafe_result.get('recovered')
+        if recovered is None:
+            recovered = []
+        still_failing = failsafe_result.get('still_failing')
+        if still_failing is None:
+            still_failing = []
         logger.info(
-            f"[PHASE 1] Failsafe retry check: {len(failsafe_result.get('recovered', []))} recovered, "
-            f"{len(failsafe_result.get('still_failing', []))} still failing (auxiliary)"
+            f"[PHASE 1] Failsafe retry check: {len(recovered)} recovered, "
+            f"{len(still_failing)} still failing (auxiliary)"
         )
 
     # ISSUE #6 FIX: Check DataPatrol results before proceeding with freshness validation

@@ -10,7 +10,6 @@ from zoneinfo import ZoneInfo
 
 ET = ZoneInfo("America/New_York")
 
-from .api_data_layer import API_MAX_BACKOFF, api_call
 from utils.safe_data_conversion import (
     StrictValidationError,
     safe_bool,
@@ -20,6 +19,8 @@ from utils.safe_data_conversion import (
     safe_int_strict,
     safe_json_parse,
 )
+
+from .api_data_layer import API_MAX_BACKOFF, api_call
 from .panels.data_extractors import safe_get_dict, safe_get_field, safe_get_list
 from .utilities import (
     CY,
@@ -1623,7 +1624,7 @@ def fetch_circuit(c):
         for r in bs:
             label = r.get("label") or r.get("breaker_name")
             if not label:
-                error_msg = f"Circuit breaker entry missing both 'label' and 'breaker_name' fields"
+                error_msg = "Circuit breaker entry missing both 'label' and 'breaker_name' fields"
                 logger.error(error_msg)
                 record_data_quality_issue("cb", "validation", "breaker_missing_label")
                 return FetcherValidator.build_error_response(error_msg)

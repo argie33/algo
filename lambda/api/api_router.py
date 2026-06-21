@@ -196,7 +196,9 @@ def _wrap_response(response):
         return response
 
     # Errors are returned as-is (already include errorType and _error)
-    if response.get("errorType") or response.get("statusCode", 200) >= 400:
+    if response.get("errorType"):
+        return response
+    if response.get("statusCode", 200) >= 400:
         return response
 
     # Fix double-nested data issue: if data contains only a 'data' field (or data + extra fields), unwrap it
@@ -242,9 +244,10 @@ def _wrap_response(response):
             payload["items"] = response.get("items")
             if "pagination" in response:
                 payload["pagination"] = response["pagination"]
-            payload["total"] = response.get("pagination", {}).get("total") or len(
-                response.get("items", [])
-            )
+            total = response.get("pagination", {}).get("total")
+            if total is None:
+                total = len(response.get("items", []))
+            payload["total"] = total
 
         wrapped = {"statusCode": 200, "data": payload}
         # Preserve data_freshness if it exists

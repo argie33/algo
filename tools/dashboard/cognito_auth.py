@@ -101,26 +101,34 @@ class CognitoAuth:
         return now > (self.token_expires_at - buffer)
 
     def get_authorization_header(self) -> dict[str, str]:
-        """Get Authorization header, refreshing if needed. Validates token format before returning."""
+        """Get Authorization header, refreshing if needed. Validates token format before returning.
+
+        Raises: RuntimeError if authentication was previously established but is now lost.
+        Returns: Empty dict only if never authenticated (no token ever obtained).
+        """
         if not self.access_token:
             return {}
 
         if self.is_token_expired():
             if not self.refresh_token:
-                logger.warning("Token expired and no refresh token available - authentication lost")
+                msg = "Token expired and no refresh token available - authentication lost (must re-authenticate)"
+                logger.error(msg)
                 self._auth_lost_time = time.time()
-                return {}
+                raise RuntimeError(msg)
             if not self.refresh_access_token():
-                logger.error("Token refresh failed - user must re-authenticate")
+                msg = "Token refresh failed - authentication lost (must re-authenticate)"
+                logger.error(msg)
                 self._auth_lost_time = time.time()
-                return {}
+                raise RuntimeError(msg)
 
-        # Validate token format (must be a valid JWT with 3 parts separated by dots)
         if self.access_token and not self._is_valid_jwt(self.access_token):
-            logger.error("Authorization header validation failed: token is not a valid JWT")
-            return {}
+            msg = "Authorization header validation failed: token is not a valid JWT - authentication compromised"
+            logger.error(msg)
+            raise RuntimeError(msg)
 
-        return {"Authorization": f"Bearer {self.access_token}"} if self.access_token else {}
+        if not self.access_token:
+            return {}
+        return {"Authorization": f"Bearer {self.access_token}"}
 
     def _is_valid_jwt(self, token: str) -> bool:
         """Check if token is a valid JWT with required claims (exp, sub) and proper structure."""

@@ -435,14 +435,14 @@ def _validate_panel_dependencies(data: dict) -> dict[str, bool]:
     Uses panel registry to check if each panel has its required endpoints.
     Returns dict of {panel_name: can_render}.
 
-    Returns empty dict if registry was skipped or failed to initialize (see startup logs for details).
+    Raises RuntimeError if registry was skipped or failed to initialize (see startup logs for details).
     """
     if not PANEL_REGISTRY:
         if _REGISTRY_FAILED:
-            logger.warning("Panel registry failed to initialize - check startup logs for details")
+            raise RuntimeError("Panel registry failed to initialize - check startup logs for details")
         elif not _REGISTRY_SKIPPED:
-            logger.warning("Panel registry unavailable - check startup logs for initialization error")
-        return {}
+            raise RuntimeError("Panel registry unavailable - check startup logs for initialization error")
+        raise RuntimeError("Panel registry not initialized")
 
     panel_status = {}
     for panel_name in PANEL_REGISTRY.get_panel_names():

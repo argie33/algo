@@ -7,16 +7,17 @@ Provides diagnostic functions to view previous orchestrator runs and identify pa
 
 import json
 import logging
-from typing import Any, Dict, List, Optional
+from typing import Any
+
+import psycopg2
 
 from utils.db import DatabaseContext
-import psycopg2
 
 
 logger = logging.getLogger(__name__)
 
 
-def get_recent_runs(days: int = 7, limit: Optional[int] = None) -> List[Dict[str, Any]]:
+def get_recent_runs(days: int = 7, limit: int | None = None) -> list[dict[str, Any]]:
     """Get recent orchestrator runs.
 
     Args:
@@ -61,7 +62,7 @@ def get_recent_runs(days: int = 7, limit: Optional[int] = None) -> List[Dict[str
         return []
 
 
-def get_run_details(run_id: str) -> Optional[Dict[str, Any]]:
+def get_run_details(run_id: str) -> dict[str, Any] | None:
     """Get full details of a specific run, including phase-by-phase results.
 
     Args:
@@ -108,7 +109,7 @@ def get_run_details(run_id: str) -> Optional[Dict[str, Any]]:
             raise RuntimeError(f"Operation failed: {e}") from e
 
 
-def get_failed_runs(days: int = 30) -> List[Dict[str, Any]]:
+def get_failed_runs(days: int = 30) -> list[dict[str, Any]]:
     """Get all failed/halted runs in the past N days.
 
     Args:
@@ -146,7 +147,7 @@ def get_failed_runs(days: int = 30) -> List[Dict[str, Any]]:
         return []
 
 
-def get_halt_patterns(days: int = 30) -> List[Dict[str, Any]]:
+def get_halt_patterns(days: int = 30) -> list[dict[str, Any]]:
     """Analyze halt patterns — which phases halt most often and why.
 
     Args:
@@ -195,7 +196,7 @@ def get_halt_patterns(days: int = 30) -> List[Dict[str, Any]]:
         return []
 
 
-def get_success_rate(days: int = 7) -> Dict[str, Any]:
+def get_success_rate(days: int = 7) -> dict[str, Any]:
     """Get success/fail statistics for the past N days.
 
     Args:
@@ -219,7 +220,7 @@ def get_success_rate(days: int = 7) -> Dict[str, Any]:
             )
             rows = cur.fetchall()
 
-            stats = {status: count for status, count in rows}
+            stats = dict(rows)
             total = sum(stats.values())
 
             return {
@@ -244,10 +245,10 @@ def get_success_rate(days: int = 7) -> Dict[str, Any]:
             }
     except (psycopg2.DatabaseError, psycopg2.OperationalError) as e:
         logger.error(f"Error computing success rate: {e}")
-        return {}
+        raise
 
 
-def print_recent_runs(days: int = 7, limit: Optional[int] = 10) -> None:
+def print_recent_runs(days: int = 7, limit: int | None = 10) -> None:
     """Log recent orchestrator runs."""
     runs = get_recent_runs(days, limit)
     if not runs:
@@ -302,7 +303,7 @@ def print_halt_patterns(days: int = 30) -> None:
         logger.info(
             f"Phase {pattern['phase']:>2s}: halted {pattern['total_halts']} times"
         )
-        for reason, count in pattern["common_reasons"].items():
+        for reason, _count in pattern["common_reasons"].items():
             logger.info(f"  • {reason[:60]}")
         logger.info("")
 

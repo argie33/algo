@@ -24,6 +24,7 @@ from rich.table import Table
 from rich.text import Text
 
 from utils.safe_data_conversion import safe_float
+
 from ..formatters import (
     mini_bar,
     tier_from_pct,

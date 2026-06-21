@@ -19,8 +19,8 @@ from typing import Any, cast
 import requests
 
 from algo.infrastructure import get_api_timeout
-from utils.validation import AlpacaResponseValidator
 from utils.safe_data_conversion import safe_float
+from utils.validation import AlpacaResponseValidator
 
 
 logger = logging.getLogger(__name__)
@@ -42,7 +42,7 @@ class OrderManager:
         entry_price: float,
         stop_loss_price: float | None = None,
         take_profit_price: float | None = None,
-    ) -> dict[str, Any] | None:
+    ) -> dict[str, Any]:
         """Send a BRACKET order to Alpaca — entry + stop loss + take profit.
 
         This is the institutional best practice: even if our system goes down,
@@ -53,6 +53,7 @@ class OrderManager:
           - Take profit limit order (executes if price hits target)
 
         Falls back to simple limit order if bracket can't be sent (no stop).
+        Never returns None — always returns dict with success/error fields.
         """
         if not self.alpaca_key or not self.alpaca_secret:
             logger.error(f"[SEND_ORDER] {symbol}: Alpaca credentials not configured")
@@ -327,10 +328,11 @@ class OrderManager:
                     )
         return None
 
-    def send_market_exit(self, symbol: str, shares: float, execution_mode: str) -> dict[str, Any] | None:
+    def send_market_exit(self, symbol: str, shares: float, execution_mode: str) -> dict[str, Any]:
         """Send a market sell order to Alpaca.
 
         Returns { success, order_id, filled_price }.
+        Never returns None — always returns dict with success/error fields.
         """
         if execution_mode in ("paper", "dry", "review"):
             logger.info(f"[SEND_EXIT] {symbol}: Paper mode exit - {shares}sh")

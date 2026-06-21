@@ -78,12 +78,6 @@ module = [
 ]
 ignore_errors = true
 
-[[tool.mypy.overrides]]
-module = [
-    "tools.dashboard.data_validation",
-]
-ignore_errors = true
-
 [tool.ruff]
 line-length = 120
 target-version = "py310"

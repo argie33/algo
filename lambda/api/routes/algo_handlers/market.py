@@ -12,6 +12,7 @@ import psycopg2.sql
 # Ensure imports work - setup_imports is imported by parent module (lambda_function or api_router)
 from routes.utils import (
     db_route_handler,
+    ensure_valid_response,
     error_response,
     handle_db_error,
     json_response,
@@ -733,7 +734,7 @@ def _get_markets(cur) -> dict:
             )
 
         response = list_response(sectors, total=len(sectors), limit=None, offset=None)
-        response["data"]["current"] = {
+        response_data = {
             "exposure_pct": (
                 float(row["exposure_pct"])
                 if row.get("exposure_pct") is not None
@@ -755,9 +756,14 @@ def _get_markets(cur) -> dict:
                 else str(current_date)
             ),
         }
+        response["data"]["current"] = response_data
         response["data"]["active_tier"] = active_tier
         response["data"]["history"] = history
         response["data"]["market_health"] = market_health
+
+        # Validate market response against contract schema
+        ensure_valid_response("mkt", response["data"])
+
         return response
     except (
         psycopg2.errors.UndefinedTable,

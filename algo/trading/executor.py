@@ -454,10 +454,14 @@ class TradeExecutor:
                 # Use entry_price as the initial DB value; reconciliation updates it to
                 # the actual fill price when the order executes. Slippage is computed at
                 # reconciliation time, not here, so this doesn't corrupt fill data.
-                executed_price = order_result.get("executed_price") or entry_price
+                executed_price = order_result.get("executed_price")
+                if executed_price is None:
+                    executed_price = entry_price
 
                 # Verify bracket legs were created successfully - FAIL-CLOSED if missing stop leg
-                legs = order_result.get("legs", [])
+                legs = order_result.get("legs")
+                if legs is None:
+                    legs = []
                 if order_result.get("order_class") == "bracket" and len(legs) < 2:
                     # Bracket order MUST have stop loss leg - cancel and reject if missing
                     try:

@@ -10,7 +10,7 @@ from typing import Any
 
 from config.api_endpoints import get_alpaca_base_url
 from config.credential_manager import get_credential_manager
-from utils.db import DatabaseContext
+
 
 logger = logging.getLogger(__name__)
 
@@ -32,8 +32,9 @@ class AlpacaSyncManager:
 
         Returns account details: equity, cash, portfolio_value, etc.
         """
-        import requests
         from typing import cast
+
+        import requests
 
         try:
             url = f"{self._alpaca_base_url}/v2/account"

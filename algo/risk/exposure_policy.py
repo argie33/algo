@@ -114,8 +114,14 @@ class ExposurePolicy:
     def __init__(self):
         pass
 
-    def get_active_tier(self, eval_date=None):
-        """Look up the most recent exposure score and return its policy tier."""
+    def get_active_tier(self, eval_date=None) -> dict:
+        """Look up the most recent exposure score and return its policy tier.
+
+        Returns: dict with tier, exposure_pct, regime, halt_reasons
+
+        Raises:
+            RuntimeError: If no market exposure data available (fail-fast, no silent None)
+        """
         if eval_date is None:
             eval_date = _date.today()
 
@@ -128,7 +134,11 @@ class ExposurePolicy:
                 )
                 row = cur.fetchone()
                 if row is None:
-                    return None
+                    raise RuntimeError(
+                        f"No market exposure data available for {eval_date}. "
+                        "Market regime and exposure policy cannot proceed without market_exposure_daily data. "
+                        "Verify market_exposure_daily loader has run successfully."
+                    )
                 exposure = safe_float(row[1], default=0.0, context="row[1]")
                 tier = tier_for_exposure(exposure)
                 return {
@@ -150,9 +160,6 @@ class ExposurePolicy:
         Actions are recommendations — orchestrator decides whether to execute.
         """
         active = self.get_active_tier(eval_date)
-        if not active:
-            return []
-
         tier = active["tier"]
         if eval_date is None:
             eval_date = _date.today()
@@ -175,13 +182,13 @@ class ExposurePolicy:
                 actions = []
                 for row in positions:
                     action = self._evaluate_position(row, tier)
-                    if action and action["action"] != "hold":
+                    if action and action["action"] not in ("hold", "skip"):
                         actions.append(action)
                 return actions
         except (psycopg2.DatabaseError, psycopg2.OperationalError) as e:
             raise RuntimeError(f"Position review failed: {e}") from e
 
-    def _evaluate_position(self, row, tier):
+    def _evaluate_position(self, row, tier) -> dict | None:
         (
             trade_id,
             symbol,
@@ -203,13 +210,25 @@ class ExposurePolicy:
         init_stop = safe_float(init_stop, default=None, context="init_stop")
         if entry_price is None or init_stop is None:
             logger.warning(f"SKIP {symbol}: entry_price or init_stop missing/invalid. Cannot evaluate exposure policy.")
-            return None
+            return {
+                "symbol": symbol,
+                "position_id": row[8] if len(row) > 8 else None,
+                "trade_id": row[0] if len(row) > 0 else None,
+                "action": "skip",
+                "reason": f"Missing critical price data (entry={entry_price}, stop={init_stop})",
+            }
         active_stop = safe_float(cur_stop, default=init_stop, context="cur_stop") if cur_stop else init_stop
 
         # CRITICAL: target_hits configuration must be present. Do not mask missing config with fallback to 0.
         if target_hits is None:
             logger.warning(f"SKIP {symbol}: target_hits configuration missing (NULL). Cannot evaluate exposure policy.")
-            return None
+            return {
+                "symbol": symbol,
+                "position_id": position_id,
+                "trade_id": trade_id,
+                "action": "skip",
+                "reason": "Missing target_hits configuration in algo_positions",
+            }
         target_hits = int(target_hits)
 
         # CRITICAL: Do NOT use entry_price as fallback for cur_price. This distorts risk evaluation.
@@ -217,7 +236,13 @@ class ExposurePolicy:
         cur_price_float = safe_float(cur_price, default=None, context="cur_price")
         if cur_price_float is None or cur_price_float <= 0:
             logger.warning(f"SKIP {symbol}: No valid current price in algo_positions. Cannot evaluate exposure policy.")
-            return None
+            return {
+                "symbol": symbol,
+                "position_id": position_id,
+                "trade_id": trade_id,
+                "action": "skip",
+                "reason": f"No valid current price ({cur_price})",
+            }
 
         cur_price = cur_price_float
 

@@ -13,6 +13,7 @@ from botocore.exceptions import ClientError
 # Ensure imports work - setup_imports is imported by parent module (lambda_function or api_router)
 from routes.utils import (
     db_route_handler,
+    ensure_valid_response,
     error_response,
     handle_db_error,
     json_response,
@@ -112,16 +113,18 @@ def _get_last_run(cur) -> dict:
     errored = any(p.get("status") == "error" for p in phases)
     success = len(phases) > 0 and not errored and not halted
 
-    return json_response(
-        200,
-        {
-            "run_id": run_id,
-            "run_at": run_at.isoformat() if run_at else None,
-            "success": success,
-            "halted": halted,
-            "phases": phases,
-        },
-    )
+    response_data = {
+        "run_id": run_id,
+        "run_at": run_at.isoformat() if run_at else None,
+        "success": success,
+        "halted": halted,
+        "phases": phases,
+    }
+
+    # Validate response matches contract schema
+    ensure_valid_response("run", response_data)
+
+    return json_response(200, response_data)
 
 
 

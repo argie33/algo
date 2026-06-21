@@ -36,7 +36,7 @@ class ValueAtRisk:
     def __init__(self, config):
         self.config = config
 
-    def historical_var(self, confidence: float = 0.95, lookback_days: int = 252) -> dict[str, Any] | None:
+    def historical_var(self, confidence: float = 0.95, lookback_days: int = 252) -> dict[str, Any]:
         """Compute historical simulation VaR.
 
         Args:
@@ -72,8 +72,12 @@ class ValueAtRisk:
                 if len(rows) < 30:
                     logger.warning(f"Risk metrics using limited historical data: {len(rows)} snapshots (recommend 30+)")
 
-                values = [safe_float(row[1], default=0.0, context=f"portfolio_value row {i}") for i, row in enumerate(rows)]
-                returns = [(values[i] - values[i - 1]) / values[i - 1] for i in range(1, len(values))]
+                values = [Decimal(str(safe_float(row[1], default=0.0, context=f"portfolio_value row {i}"))) for i, row in enumerate(rows)]
+                returns_decimal = [(values[i] - values[i - 1]) / values[i - 1] for i in range(1, len(values))]
+                if not returns_decimal:
+                    logger.critical("Historical VaR calculation failed: no valid returns computed from portfolio snapshots")
+                    raise RuntimeError("Cannot compute VaR: no valid portfolio return data available. Verify portfolio snapshots have valid values.")
+                returns = [float(r) for r in returns_decimal]
 
                 if not returns:
                     logger.critical(
@@ -101,7 +105,7 @@ class ValueAtRisk:
         except (ValueError, ZeroDivisionError, TypeError) as e:
             raise RuntimeError(f"Operation failed: {e}") from e
 
-    def cvar(self, confidence: float = 0.95, lookback_days: int = 252) -> dict[str, Any] | None:
+    def cvar(self, confidence: float = 0.95, lookback_days: int = 252) -> dict[str, Any]:
         """Compute Conditional VaR (Expected Shortfall) — mean loss beyond VaR.
 
         Args:
@@ -133,8 +137,12 @@ class ValueAtRisk:
                 if len(rows) < 30:
                     logger.warning(f"Risk metrics using limited historical data: {len(rows)} snapshots (recommend 30+)")
 
-                values = [safe_float(row[1], default=0.0, context=f"portfolio_value row {i}") for i, row in enumerate(rows)]
-                returns = [(values[i] - values[i - 1]) / values[i - 1] for i in range(1, len(values))]
+                values = [Decimal(str(safe_float(row[1], default=0.0, context=f"portfolio_value row {i}"))) for i, row in enumerate(rows)]
+                returns_decimal = [(values[i] - values[i - 1]) / values[i - 1] for i in range(1, len(values))]
+                if not returns_decimal:
+                    logger.critical("Historical VaR calculation failed: no valid returns computed from portfolio snapshots")
+                    raise RuntimeError("Cannot compute VaR: no valid portfolio return data available. Verify portfolio snapshots have valid values.")
+                returns = [float(r) for r in returns_decimal]
 
                 if not returns:
                     logger.critical("CVaR calculation failed: no valid returns computed from portfolio snapshots")
@@ -162,7 +170,7 @@ class ValueAtRisk:
         except (ValueError, ZeroDivisionError, TypeError) as e:
             raise RuntimeError(f"Operation failed: {e}") from e
 
-    def stressed_var(self, confidence: float = 0.99) -> dict[str, Any] | None:
+    def stressed_var(self, confidence: float = 0.99) -> dict[str, Any]:
         """Compute stressed VaR using worst 12-month rolling window.
 
         Conservative measure for stress periods.
@@ -193,7 +201,7 @@ class ValueAtRisk:
                         "Portfolio must have at least 1 year of trading history."
                     )
 
-                values = [safe_float(row[1], default=0.0, context=f"portfolio_value row {i}") for i, row in enumerate(rows)]
+                values = [Decimal(str(safe_float(row[1], default=0.0, context=f"portfolio_value row {i}"))) for i, row in enumerate(rows)]
                 returns = np.array([(values[i] - values[i - 1]) / values[i - 1] for i in range(1, len(values))])
 
                 worst_var = 0
@@ -221,7 +229,7 @@ class ValueAtRisk:
         except (ValueError, ZeroDivisionError, TypeError) as e:
             raise RuntimeError(f"Operation failed: {e}") from e
 
-    def beta_exposure(self) -> dict[str, Any] | None:
+    def beta_exposure(self) -> dict[str, Any]:
         """Compute portfolio beta exposure vs. S&P 500.
 
         Returns:
@@ -351,7 +359,7 @@ class ValueAtRisk:
         except (psycopg2.DatabaseError, psycopg2.OperationalError) as e:
             raise RuntimeError(f"Operation failed: {e}") from e
 
-    def concentration_report(self) -> dict[str, Any] | None:
+    def concentration_report(self) -> dict[str, Any]:
         """Generate concentration report: top holdings, sectors, industries.
 
         Returns:
@@ -404,7 +412,7 @@ class ValueAtRisk:
                         "Cannot compute concentration without portfolio snapshot. "
                         "Portfolio must have been reconciled at least once."
                     )
-                portfolio_value = float(portfolio_row[0])
+                portfolio_value = safe_float(portfolio_row[0], default=0.0, context="concentration_portfolio_value")
 
                 top_holdings = []
                 sector_exposure: dict[str, float] = {}

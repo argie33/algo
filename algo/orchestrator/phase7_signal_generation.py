@@ -371,53 +371,34 @@ def _get_candidates_from_buysell(
         ) from e
 
 
-def run(
-    run_date: _date,
-    dry_run: bool,
-    verbose: bool,
-    log_phase_result_fn: Callable,
-    exposure_constraints: dict | None = None,
-    check_halt_flag: Callable | None = None,
-    phase1_degraded: bool = False,
-    config=None,
-) -> PhaseResult:
+def _check_critical_dependencies(run_date: _date, log_phase_result_fn: Callable) -> tuple[bool, str | None]:
+    """Check all critical dependencies for Phase 7 BEFORE attempting signal generation.
 
-    if config is None:
-        raise ValueError(
-            "phase5_signal_generation.run() requires explicit config parameter (dependency injection). "
-            "Get config at orchestrator level and pass it explicitly."
-        )
+    ISSUE #8 FIX: Explicit dependency guard rails before phase execution.
+    Fails early if ANY critical dependency is missing, preventing silent degradation.
 
-    phase_start = time.time()
-    logger.info("[PHASE 5] Starting signal generation")
-
-    min_close_quality = ThresholdConfig.min_close_quality_pct() / 100.0
-    min_composite_score = (
-        config.get("phase5_min_composite_score", _MIN_COMPOSITE_SCORE) if config else _MIN_COMPOSITE_SCORE
-    )
-
-    # CRITICAL: Validate upstream dependencies before signal generation
-    # These checks prevent cascading failures when upstream data is incomplete
+    Returns: (is_ok: bool, error_message: str | None)
+    """
     try:
         with DatabaseContext("read") as cur:
             cur.execute("SET LOCAL statement_timeout = '10000ms'")
 
-            # Validate stock_scores table exists and has data
+            # CRITICAL #1: stock_scores must exist and have data
             cur.execute("SELECT COUNT(*) FROM stock_scores")
             stock_scores_row = cur.fetchone()
             stock_scores_count = stock_scores_row[0] if stock_scores_row else 0
             if stock_scores_count == 0:
                 msg = (
-                    "[PHASE 5 CRITICAL] stock_scores table is empty. "
+                    "[PHASE 7 CRITICAL] stock_scores table is empty. "
                     "Cannot generate signals without stock quality rankings. "
                     "Verify stock_scores loader completed successfully. "
                     "Check data_loader_status for stock_scores and related loaders."
                 )
                 logger.critical(msg)
-                log_phase_result_fn(5, "signal_generation", "halt", msg)
-                return PhaseResult(5, "signal_generation", "halted", {"qualified_trades": []}, True, msg)
+                log_phase_result_fn(7, "signal_generation", "halt", msg)
+                return False, msg
 
-            # Validate market_exposure_daily has fresh data with valid exposure_pct
+            # CRITICAL #2: market_exposure_daily must have valid data for today
             cur.execute(
                 """
                 SELECT COUNT(*), COUNT(CASE WHEN exposure_pct IS NOT NULL THEN 1 END)
@@ -432,37 +413,94 @@ def run(
 
             if exposure_count == 0:
                 msg = (
-                    f"[PHASE 5 CRITICAL] market_exposure_daily has no data for {run_date}. "
+                    f"[PHASE 7 CRITICAL] market_exposure_daily has no data for {run_date}. "
                     "Cannot determine market regime for position sizing. "
                     "Check that market exposure pipeline completed."
                 )
                 logger.critical(msg)
-                log_phase_result_fn(5, "signal_generation", "halt", msg)
-                return PhaseResult(5, "signal_generation", "halted", {"qualified_trades": []}, True, msg)
+                log_phase_result_fn(7, "signal_generation", "halt", msg)
+                return False, msg
 
             if exposure_valid == 0:
                 msg = (
-                    f"[PHASE 5 CRITICAL] market_exposure_daily for {run_date} has NULL exposure_pct. "
+                    f"[PHASE 7 CRITICAL] market_exposure_daily for {run_date} has NULL exposure_pct. "
                     "Cannot size positions without valid market exposure data. "
                     "Check exposure computation pipeline."
                 )
                 logger.critical(msg)
-                log_phase_result_fn(5, "signal_generation", "halt", msg)
-                return PhaseResult(5, "signal_generation", "halted", {"qualified_trades": []}, True, msg)
+                log_phase_result_fn(7, "signal_generation", "halt", msg)
+                return False, msg
+
+            # CRITICAL #3: buy_sell_daily must be available (primary signal source)
+            # Guard rail: If buy_sell_daily has NO data within lookback window, fail immediately
+            lookback_date = run_date - timedelta(days=_BUYSELL_LOOKBACK_DAYS)
+            cur.execute(
+                """
+                SELECT COUNT(*) FROM buy_sell_daily
+                WHERE signal_type = 'BUY' AND date >= %s AND date <= %s
+                """,
+                (lookback_date, run_date),
+            )
+            buysell_row = cur.fetchone()
+            buysell_count = buysell_row[0] if buysell_row else 0
+            if buysell_count == 0:
+                msg = (
+                    f"[PHASE 7 CRITICAL] buy_sell_daily has NO BUY signals within {_BUYSELL_LOOKBACK_DAYS} days. "
+                    "Phase 7 has NO FALLBACK — buy_sell_daily is required for breakout confirmation. "
+                    "Check that EOD pipeline (4:05 PM ET) has completed and buy_sell_daily loader ran successfully."
+                )
+                logger.critical(msg)
+                log_phase_result_fn(7, "signal_generation", "halt", msg)
+                return False, msg
+
     except (psycopg2.DatabaseError, psycopg2.OperationalError) as e:
-        msg = f"[PHASE 5 CRITICAL] Could not validate upstream dependencies: {e}"
+        msg = f"[PHASE 7 CRITICAL] Could not validate critical dependencies: {e}"
         logger.critical(msg, exc_info=True)
-        log_phase_result_fn(5, "signal_generation", "halt", msg)
-        return PhaseResult(5, "signal_generation", "halted", {"qualified_trades": []}, True, msg)
+        log_phase_result_fn(7, "signal_generation", "halt", msg)
+        return False, msg
+
+    return True, None
+
+
+def run(
+    run_date: _date,
+    dry_run: bool,
+    verbose: bool,
+    log_phase_result_fn: Callable,
+    exposure_constraints: dict | None = None,
+    check_halt_flag: Callable | None = None,
+    phase1_degraded: bool = False,
+    config=None,
+) -> PhaseResult:
+
+    if config is None:
+        raise ValueError(
+            "phase7_signal_generation.run() requires explicit config parameter (dependency injection). "
+            "Get config at orchestrator level and pass it explicitly."
+        )
+
+    phase_start = time.time()
+    logger.info("[PHASE 7] Starting signal generation")
+
+    min_close_quality = ThresholdConfig.min_close_quality_pct() / 100.0
+    min_composite_score = (
+        config.get("phase7_min_composite_score", _MIN_COMPOSITE_SCORE) if config else _MIN_COMPOSITE_SCORE
+    )
+
+    # ISSUE #8 FIX: Guard rails — check critical dependencies BEFORE signal generation
+    # Fails fast if ANY dependency is unavailable, preventing silent degradation
+    ok, dep_error = _check_critical_dependencies(run_date, log_phase_result_fn)
+    if not ok:
+        return PhaseResult(7, "signal_generation", "halted", {"qualified_trades": []}, True, dep_error)
 
     # Halt flag check before generating signals
     if check_halt_flag and check_halt_flag():
         logger.critical(
-            "[PHASE 5] Halt flag set by Phase 1 — data quality degradation detected. Halting signal generation."
+            "[PHASE 7] Halt flag set by Phase 1 — data quality degradation detected. Halting signal generation."
         )
-        log_phase_result_fn(5, "signal_generation", "halt", "Halt flag set: data quality degradation")
+        log_phase_result_fn(7, "signal_generation", "halt", "Halt flag set: data quality degradation")
         return PhaseResult(
-            5,
+            7,
             "signal_generation",
             "halted",
             {"qualified_trades": []},
@@ -473,32 +511,32 @@ def run(
     # Market regime gate
     regime = _check_market_regime(run_date)
     logger.info(
-        f"[PHASE 5] Market regime: {regime['regime']} "
+        f"[PHASE 7] Market regime: {regime['regime']} "
         f"exposure={regime['exposure_pct']:.0f}% "
         f"entry_allowed={regime['is_entry_allowed']}"
     )
     if not regime["is_entry_allowed"]:
         reasons = "; ".join(regime["halt_reasons"]) if regime["halt_reasons"] else "no halt reasons logged"
-        logger.warning(f"[PHASE 5] Entries halted by market regime: {reasons}")
-        log_phase_result_fn(5, "signal_generation", "halt", f"Market regime halted entries: {reasons[:100]}")
-        return PhaseResult(5, "signal_generation", "halted", {"qualified_trades": []}, True, reasons[:100])
+        logger.warning(f"[PHASE 7] Entries halted by market regime: {reasons}")
+        log_phase_result_fn(7, "signal_generation", "halt", f"Market regime halted entries: {reasons[:100]}")
+        return PhaseResult(7, "signal_generation", "halted", {"qualified_trades": []}, True, reasons[:100])
 
     # ISSUE #7 FIX: Exposure policy gate — fail-closed if constraints not provided
     if exposure_constraints is None:
         msg = (
-            "[PHASE 5 CRITICAL] Exposure constraints not provided by Phase 3b. "
+            "[PHASE 7 CRITICAL] Exposure constraints not provided by Phase 5. "
             "Cannot proceed with signal generation without knowing market exposure limits. "
-            "Check that Phase 3b (Exposure Policy) completed successfully."
+            "Check that Phase 5 (Exposure Policy) completed successfully."
         )
         logger.critical(msg)
-        log_phase_result_fn(5, "signal_generation", "halt", msg)
-        return PhaseResult(5, "signal_generation", "halted", {"qualified_trades": []}, True, msg)
+        log_phase_result_fn(7, "signal_generation", "halt", msg)
+        return PhaseResult(7, "signal_generation", "halted", {"qualified_trades": []}, True, msg)
 
     if exposure_constraints and exposure_constraints.get("halt_new_entries"):
         reason = exposure_constraints.get("halt_reason", "Exposure policy halted new entries")
-        logger.warning(f"[PHASE 5] {reason}")
-        log_phase_result_fn(5, "signal_generation", "halt", reason)
-        return PhaseResult(5, "signal_generation", "halted", {"qualified_trades": []}, True, reason)
+        logger.warning(f"[PHASE 7] {reason}")
+        log_phase_result_fn(7, "signal_generation", "halt", reason)
+        return PhaseResult(7, "signal_generation", "halted", {"qualified_trades": []}, True, reason)
 
     # Primary: buy_sell_daily pivot-breakout BUY signals filtered by stock_scores ranking.
     # buy_sell_daily is REQUIRED (loaded by EOD pipeline at 4:05 PM ET before orchestrator runs).
@@ -523,8 +561,8 @@ def run(
             recoverable=False,
             log_level="critical",
         )
-        log_phase_error(5, error, log_phase_result_fn)
-        return PhaseResult(5, "signal_generation", "halted", {"qualified_trades": []}, True, error.message)
+        log_phase_error(7, error, log_phase_result_fn)
+        return PhaseResult(7, "signal_generation", "halted", {"qualified_trades": []}, True, error.message)
     except RuntimeError as e:
         # DB or data loading error
         from algo.orchestrator.phase_error_handling import (
@@ -540,18 +578,18 @@ def run(
             recoverable=False,
             log_level="critical",
         )
-        log_phase_error(5, error, log_phase_result_fn)
-        return PhaseResult(5, "signal_generation", "halted", {"qualified_trades": []}, True, error.message)
+        log_phase_error(7, error, log_phase_result_fn)
+        return PhaseResult(7, "signal_generation", "halted", {"qualified_trades": []}, True, error.message)
 
     if not raw_candidates:
         msg = (
-            f"[PHASE 5 CRITICAL] No buy_sell_daily BUY signals found within last {_BUYSELL_LOOKBACK_DAYS} "
-            "calendar days. Phase 5 requires buy_sell_daily breakout signals as primary gate. "
+            f"[PHASE 7 CRITICAL] No buy_sell_daily BUY signals found within last {_BUYSELL_LOOKBACK_DAYS} "
+            "calendar days. Phase 7 requires buy_sell_daily breakout signals as primary gate. "
             "Check that EOD pipeline (4:05 PM ET) has completed and buy_sell_daily loader ran successfully."
         )
         logger.critical(msg)
-        log_phase_result_fn(5, "signal_generation", "halt", msg)
-        return PhaseResult(5, "signal_generation", "halted", {"qualified_trades": []}, True, msg)
+        log_phase_result_fn(7, "signal_generation", "halt", msg)
+        return PhaseResult(7, "signal_generation", "halted", {"qualified_trades": []}, True, msg)
 
     signal_source = "buysell_breakout"
 
@@ -564,7 +602,7 @@ def run(
     upstream_drift = _detect_upstream_data_quality_drift(run_date, signal_source)
     if upstream_drift.get("has_drift"):
         logger.warning(
-            f"[PHASE 5] Upstream data quality drift detected: {upstream_drift['swing_scores_missing']} symbols "
+            f"[PHASE 7] Upstream data quality drift detected: {upstream_drift['swing_scores_missing']} symbols "
             f"missing swing_trader_scores. This may suppress valid candidates."
         )
 

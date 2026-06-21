@@ -12,6 +12,7 @@ import psycopg2.sql
 # Ensure imports work - setup_imports is imported by parent module (lambda_function or api_router)
 from routes.utils import (
     db_route_handler,
+    ensure_valid_response,
     error_response,
     handle_db_error,
     json_response,
@@ -363,6 +364,10 @@ def _get_algo_performance(cur) -> dict:
             },
         }
         sanitized = APIResponseValidator.sanitize_response(response_data)
+
+        # Validate performance response matches contract schema
+        ensure_valid_response("perf", sanitized)
+
         return json_response(200, sanitized)
     except (
         psycopg2.errors.UndefinedTable,
@@ -433,7 +438,12 @@ def _get_algo_portfolio(cur) -> dict:
             "largest_position_pct": format_decimal_string(data.get("largest_position_pct"), precision=2, allow_none=True),
             "last_run": data.get("snapshot_date"),
         }
-        return success_response(_ensure_portfolio_fields(response_data))
+        validated_data = _ensure_portfolio_fields(response_data)
+
+        # Validate portfolio response matches contract schema
+        ensure_valid_response("port", validated_data)
+
+        return success_response(validated_data)
     except (psycopg2.DatabaseError, psycopg2.OperationalError) as e:
         logger.error(f"CRITICAL: Portfolio fetch database error: {type(e).__name__}: {e}")
         return error_response(503, "data_unavailable", f"Portfolio data unavailable: {type(e).__name__}")

@@ -46,8 +46,14 @@ def safe_extract(data: dict[str, Any], *keys: str, defaults: dict[str, Any] | No
     return result
 
 
-def safe_get_dict(data: Any) -> dict[str, Any]:
-    """Get dict from data if not error. Fail-fast: raise if data is error or invalid."""
+def safe_get_dict(data: Any) -> dict[str, Any] | None:
+    """Get dict from data if not error. Returns None if data is None (optional field).
+
+    Fail-fast: Raises if data is error dict or is invalid type (not None or dict).
+    Use for optional dict fields. For critical dicts that must exist, check for None explicitly.
+    """
+    if data is None:
+        return None
     if not isinstance(data, dict):
         raise TypeError(f"Expected dict but got {type(data).__name__}")
     if has_error(data):
@@ -55,19 +61,25 @@ def safe_get_dict(data: Any) -> dict[str, Any]:
     return data
 
 
-def safe_get_list(data: Any) -> list:
-    """Get list from data if not error. Fail-fast: raise if data is error or invalid."""
+def safe_get_list(data: Any) -> list | None:
+    """Get list from data if not error. Returns None if data is None (optional field).
+
+    Fail-fast: Raises if data is error dict or is invalid type (not None, list, or dict with error).
+    Use for optional list fields. For critical lists that must exist, check for None explicitly.
+    """
+    if data is None:
+        return None
     if isinstance(data, list):
         return data
-    if not isinstance(data, dict):
-        raise TypeError(f"Expected dict or list but got {type(data).__name__}")
-    if has_error(data):
-        raise ValueError(f"Data contains error: {data.get('_error', 'unknown error')}")
-    if "items" in data and isinstance(data["items"], list):
-        return data["items"]
-    if "data" in data and isinstance(data["data"], list):
-        return data["data"]
-    raise ValueError("No list found in data dict (expected 'items' or 'data' key)")
+    if isinstance(data, dict):
+        if has_error(data):
+            raise ValueError(f"Data contains error: {data.get('_error', 'unknown error')}")
+        if "items" in data and isinstance(data["items"], list):
+            return data["items"]
+        if "data" in data and isinstance(data["data"], list):
+            return data["data"]
+        return None
+    raise TypeError(f"Expected dict or list but got {type(data).__name__}")
 
 
 def safe_get_field(data: dict[str, Any], field: str, default: Any = None) -> Any:
@@ -151,14 +163,14 @@ def extract_run_info(run: dict[str, Any]) -> dict[str, Any]:
     }
 
 
-def extract_health_items(hlth: dict[str, Any] | list) -> tuple[list, bool]:
+def extract_health_items(hlth: dict[str, Any] | list) -> tuple[list, bool | None]:
     """Extract health items and ready_to_trade status (error already checked).
 
     Args:
         hlth: Health response dict or list of items
 
     Returns:
-        (items_list, ready_to_trade_bool) tuple
+        (items_list, ready_to_trade_bool_or_none) tuple
     """
     items = []
     ready_to_trade = None

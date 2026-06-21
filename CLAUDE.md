@@ -164,6 +164,8 @@ Three circuit breaker implementations exist in the codebase. **Use the canonical
 
 ## Response Validator Architecture
 
+**See `steering/api_validation_strategy.md` for comprehensive validation strategy, migration timeline, and implementation patterns.**
+
 **Two validators serve different purposes — do not conflate:**
 
 1. **Dashboard Validator** (`tools/dashboard/response_validators.py`) — CANONICAL for dashboard

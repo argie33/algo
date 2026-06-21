@@ -424,7 +424,7 @@ def panel_signals_compact(sig, sig_eval=None, scores=None):
             sym_norm = str(sym).upper().strip()
             buy_sig_details[sym_norm] = bs
 
-    scored_with_signals = [s for s in top_scores if str(s.get("symbol", "")).upper().strip() in buy_sig_details][:10]
+    scored_with_signals = [s for s in top_scores if str(safe_get_field(s, "symbol", "")).upper().strip() in buy_sig_details][:10]
 
     rows.extend(_build_buy_signals_table(scored_with_signals, buy_sig_details))
 

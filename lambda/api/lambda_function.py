@@ -438,9 +438,10 @@ def get_cors_headers(event: dict) -> dict[str, str]:
 
     Issue #10 FIX: Improved diagnostics when CORS fails.
     """
-    origin = event.get("headers", {}).get("origin", "") or event.get("headers", {}).get(
-        "Origin", ""
-    )
+    headers = event.get("headers", {})
+    origin = headers.get("origin", "") or headers.get("Origin", "")
+    if not origin:
+        origin = ""
 
     allowed_origins = _build_allowed_origins()
 
@@ -528,7 +529,9 @@ def get_cache_headers(cache_type: str = "no-cache") -> dict[str, str]:
 def get_bearer_token(event: dict) -> str | None:
     """Extract Bearer token from Authorization header."""
     headers = event.get("headers", {})
-    auth_header = headers.get("Authorization") or headers.get("authorization") or ""
+    auth_header = headers.get("Authorization")
+    if not auth_header:
+        auth_header = headers.get("authorization", "")
 
     if not auth_header.startswith("Bearer "):
         return None
@@ -674,7 +677,9 @@ def validate_bearer_token(token: str | None) -> tuple:
             return (False, None, f"Token missing required claims: {', '.join(missing_claims)}")
 
         # Manually verify client identity from either claim
-        actual_client = payload.get("client_id") or payload.get("aud", "")
+        actual_client = payload.get("client_id")
+        if not actual_client:
+            actual_client = payload.get("aud", "")
         if isinstance(actual_client, list):
             actual_client = actual_client[0] if actual_client else ""
         if actual_client != cognito_client_id:
@@ -783,7 +788,9 @@ def get_client_ip(event: dict) -> str:
 
     # Fallback for local/test invocations without requestContext
     headers = event.get("headers", {})
-    xff = headers.get("x-forwarded-for") or headers.get("X-Forwarded-For", "")
+    xff = headers.get("x-forwarded-for")
+    if not xff:
+        xff = headers.get("X-Forwarded-For", "")
     if xff:
         return xff.split(",")[0].strip()
 

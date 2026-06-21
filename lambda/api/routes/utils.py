@@ -192,7 +192,7 @@ def safe_float(float_str, min_val=None, max_val=None):
     if float_str is None or float_str == "":
         raise_api_error(400, "BadRequest", "parameter is required")
     try:
-        value = safe_float(float_str, default=0.0)
+        value = float(float_str)
         if min_val is not None and value < min_val:
             raise_api_error(400, "BadRequest", f"value must be at least {min_val}")
         if max_val is not None and value > max_val:
@@ -629,6 +629,36 @@ def validate_dashboard_response(endpoint_name: str, response_data: dict[str, Any
             f"[SCHEMA_VALIDATION] Could not validate endpoint '{endpoint_name}': {type(e).__name__}: {e}"
         )
     return response_data
+
+
+def ensure_valid_response(endpoint_name: str, response_data: dict[str, Any]) -> bool:
+    """Validate API response against dashboard contract schema.
+
+    Returns True if response is valid, False otherwise. Logs validation errors.
+    Use this to validate responses before returning them to the dashboard.
+
+    Args:
+        endpoint_name: Name of endpoint from DASHBOARD_ENDPOINTS (e.g., 'run', 'port', 'mkt')
+        response_data: Response dict to validate (the 'data' field for JSON responses)
+
+    Returns:
+        True if valid, False if validation fails
+    """
+    try:
+        from shared_contracts.response_validator import ResponseValidator
+        is_valid, error_msg = ResponseValidator.validate_endpoint_response(
+            endpoint_name, response_data
+        )
+        if not is_valid:
+            logger.warning(
+                f"[RESPONSE_VALIDATION] Endpoint '{endpoint_name}' validation failed: {error_msg}"
+            )
+        return is_valid
+    except (ImportError, AttributeError, KeyError, TypeError) as e:
+        logger.warning(
+            f"[RESPONSE_VALIDATION] Could not validate endpoint '{endpoint_name}': {type(e).__name__}: {e}"
+        )
+        return False
 
 
 def safe_dict_convert(row):

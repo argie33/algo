@@ -45,27 +45,15 @@ State tracked on algo_positions:
 
 
 import logging
-
 from datetime import datetime, timezone
-
 from decimal import ROUND_DOWN, ROUND_HALF_UP, Decimal
 
-
-
 import psycopg2
-
 import requests
 
-
-
 from algo.trading.exceptions import DatabaseError, ExchangeAPIError
-
 from utils.db import DatabaseContext
-
 from utils.safe_data_conversion import safe_float
-
-
-
 
 
 try:
@@ -78,24 +66,13 @@ except ImportError:
 
 from typing import Any, cast
 
-
-
 from algo.infrastructure import get_alpaca_timeout
-
 from algo.infrastructure.market_calendar import MarketCalendar
-
 from algo.signals import SignalComputer
-
 from algo.trading import TradeExecutor
-
 from config.api_endpoints import get_alpaca_data_url
-
 from config.credential_manager import get_alpaca_credentials
-
 from utils.trading import PositionStatus, TradeStatus
-
-
-
 
 
 logger = logging.getLogger(__name__)
@@ -544,16 +521,15 @@ class ExitEngine:
 
         t3_hit_time=None,
 
-    ) -> dict[str, Any] | None:
+    ) -> dict[str, Any]:
 
-        """Decide what (if any) exit to take. Returns dict or None.
+        """Decide what exit to take (or hold decision).
 
-
+        Always returns dict with "stage" and "reason" — never None.
+        Possible stages: "stop", "hold", "time", "target", "trail", etc.
 
         Target hit times prevent duplicate exits when price bounces around target levels.
-
         If a target was hit today, we skip the exit even if price is still above the level.
-
         """
 
         # ISSUE #5 FIX: Enforce minimum holding period (no same-day exits)
@@ -570,7 +546,11 @@ class ExitEngine:
 
         if days_held < min_hold_days:
 
-            return None  # Not ready to exit yet
+            return {
+                "stage": "hold",
+                "fraction": 0.0,
+                "reason": f"Minimum holding period not met: {days_held} days held < {min_hold_days} required",
+            }
 
 
 
@@ -1042,9 +1022,12 @@ class ExitEngine:
 
                 }
 
-
-
-        return None
+        # No exit conditions met - hold the position
+        return {
+            "stage": "hold",
+            "fraction": 0.0,
+            "reason": "No exit conditions met",
+        }
 
 
 

@@ -290,8 +290,12 @@ def api_call(endpoint: str, params: dict | None = None, method: str = "GET") -> 
     with _cognito_auth_lock:
         cognito_auth = _cognito_auth
     if cognito_auth:
-        auth_headers = cognito_auth.get_authorization_header()
-        headers.update(auth_headers)
+        try:
+            auth_headers = cognito_auth.get_authorization_header()
+            headers.update(auth_headers)
+        except RuntimeError as e:
+            logger.error(f"Authentication lost: {e}")
+            return {"_error": str(e)}
 
     for attempt in range(API_MAX_RETRIES + 1):
         try:
