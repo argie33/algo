@@ -92,7 +92,7 @@ class ValueAtRisk:
                         raise RuntimeError(
                             f"Portfolio value conversion failed at row {i} (date {row[0]}): {e}. "
                             "Check snapshot data integrity."
-                        )
+                        ) from e
 
                 returns_decimal = [(values[i] - values[i - 1]) / values[i - 1] for i in range(1, len(values))]
                 if not returns_decimal:
@@ -112,7 +112,7 @@ class ValueAtRisk:
                     except (ValueError, TypeError) as e:
                         raise RuntimeError(
                             f"Return computation failed at index {i}: {e}. Portfolio snapshot data may be corrupted."
-                        )
+                        ) from e
 
                 if not returns:
                     logger.critical(
@@ -193,7 +193,7 @@ class ValueAtRisk:
                         raise RuntimeError(
                             f"Portfolio value conversion failed at row {i} (date {row[0]}): {e}. "
                             "Check snapshot data integrity."
-                        )
+                        ) from e
 
                 returns_decimal = [(values[i] - values[i - 1]) / values[i - 1] for i in range(1, len(values))]
                 if not returns_decimal:
@@ -213,7 +213,7 @@ class ValueAtRisk:
                     except (ValueError, TypeError) as e:
                         raise RuntimeError(
                             f"Return computation failed at index {i}: {e}. Portfolio snapshot data may be corrupted."
-                        )
+                        ) from e
 
                 if not returns:
                     logger.critical("CVaR calculation failed: no valid returns computed from portfolio snapshots")

@@ -31,7 +31,7 @@ def validate_environment():
         assert_credentials(on_failure="raise")
     except (psycopg2.DatabaseError, psycopg2.OperationalError) as e:
         logger.error(f"Credential validation failed: {e}")
-        raise RuntimeError(f"Critical credential error: {e}")
+        raise RuntimeError(f"Critical credential error: {e}") from e
 
 
 # DEFERRED: Validate environment only when actually connecting to RDS/AWS,
@@ -912,8 +912,8 @@ class AlgoConfig:
         if schema_type in ("int", "float"):
             try:
                 f_val = float(value)
-            except (ValueError, TypeError):
-                raise ValueError(f"{key}: Cannot parse {value!r} as numeric")
+            except (ValueError, TypeError) as e:
+                raise ValueError(f"{key}: Cannot parse {value!r} as numeric") from e
 
             # Critical safety gates: for critical params, check near-zero FIRST (highest priority)
             if is_critical and abs(f_val) < 0.001:
