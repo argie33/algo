@@ -19,7 +19,6 @@ from routes.utils import (
 )
 
 
-
 logger = logging.getLogger(__name__)
 
 
@@ -186,7 +185,7 @@ def _industry_list(cur, params):
         timeout_sec=10,
     )
     total = (
-        safe_int(count_rows[0].get("cnt", 0) if count_rows else {}) if count_rows else 0
+        int(count_rows[0].get("cnt", 0) if count_rows else 0) if count_rows else 0
     )
 
     industries = []
@@ -350,12 +349,12 @@ def _industry_trend(cur, industry_name, params):
     trend_data = [
         {
             "date": str(r["date"]),
-            "avgPrice": safe_float(r["avg_price"]) if r["avg_price"] is not None else None,
+            "avgPrice": float(r["avg_price"]) if r["avg_price"] is not None else None,
             "stockCount": (
                 int(r["stock_count"]) if r["stock_count"] is not None else None
             ),
             "dailyStrengthScore": (
-                safe_float(r["daily_strength_score"])
+                float(r["daily_strength_score"])
                 if r["daily_strength_score"] is not None
                 else None
             ),
