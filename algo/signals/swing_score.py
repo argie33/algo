@@ -345,7 +345,12 @@ class SwingTraderScore:
         try:
             days_to_earn = self._days_to_earnings(symbol, eval_date)
         except ValueError as e:
-            logger.debug(f"Earnings date unavailable for {symbol}: {e} — allowing trade")
+            logger.critical(f"Earnings date unavailable for {symbol}: {e} — CRITICAL gate failure")
+            return {
+                "pass": False,
+                "reason": f"Earnings proximity check failed: {str(e)[:60]} (cannot proceed without earnings data)",
+                "swing_score": 0.0,
+            }
 
         earnings_block = self._load_config_val("swing_days_to_earnings_block", 5)
         if days_to_earn is not None and 0 <= days_to_earn <= earnings_block:
