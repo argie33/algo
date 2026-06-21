@@ -17,8 +17,6 @@ from algo.orchestration.database_health_monitor import DatabaseHealthMonitor
 from algo.orchestration.halt_flag_manager import HaltFlagManager
 from algo.orchestration.phase_event_hub import (
     PhaseCompletedEvent,
-    PhaseErrorEvent,
-    PhaseStartedEvent,
     PhaseStatus,
     get_event_hub,
 )
@@ -31,6 +29,12 @@ from monitoring.metrics_context import (
 )
 from utils.db import DatabaseContext
 from utils.infrastructure import EASTERN_TZ
+from utils.infrastructure.market_timing import (
+    MARKET_OPEN_HOUR,
+    MARKET_OPEN_MINUTE,
+    ORCHESTRATOR_KILL_BUFFER_MINUTES,
+    ORCHESTRATOR_RUN_TIMES_TUPLE,
+)
 from utils.logging import get_tracker
 
 

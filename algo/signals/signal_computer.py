@@ -15,3 +15,7 @@ class SignalComputer(
     SignalOptionsMixin,
 ):
     """All technical signals via mixin composition."""
+
+    def generate(self, symbol: str, data: dict) -> dict | None:
+        """Generate combined signal (placeholder for mixin composition)."""
+        return None

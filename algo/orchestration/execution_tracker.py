@@ -25,7 +25,6 @@ class ExecutionTracker:
     def log_phase_start(self, phase_num: int | str, name: str) -> None:
         """Log phase start. Publishes phase_started event."""
         logger.info(f"[PHASE {phase_num}] {name} starting...")
-        self.execution_tracker.start_phase(phase_num, name)
 
         # Publish event for subscribers (dashboard, monitoring, etc)
         try:
@@ -42,7 +41,7 @@ class ExecutionTracker:
             logger.info(f"[PHASE {phase_num}] {name} completed successfully")
         elif status == "FAILED":
             logger.error(f"[PHASE {phase_num}] {name} FAILED: {summary}")
-        self.execution_tracker.record_phase_result(phase_num, status, summary)
+        self.execution_tracker.log_phase_result(phase_num, name, status, summary)
 
         # Publish event for subscribers (dashboard, monitoring, etc)
         try:
