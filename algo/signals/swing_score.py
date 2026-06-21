@@ -43,14 +43,16 @@ class SwingTraderScore:
             raise RuntimeError(f"Operation failed: {e}") from e
 
     def _load_config_val(self, key: str, default: Any) -> Any:
-        """Load a config value, with fallback to default."""
+        """Load a config value, failing fast on database errors.
+
+        Returns default only if config key is not found.
+        Raises on any database/connection errors—those indicate system failure.
+        """
         try:
             val = self.config.get(key)
             return val if val is not None else default
-        except (RuntimeError, OSError) as e:
+        except (RuntimeError, OSError, psycopg2.DatabaseError, psycopg2.OperationalError) as e:
             raise RuntimeError(f"CRITICAL: Database/connection error loading config[{key}]: {e}") from e
-        except (psycopg2.DatabaseError, psycopg2.OperationalError):
-            return default
 
     def compute(
         self,

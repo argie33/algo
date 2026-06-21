@@ -35,21 +35,26 @@ class SwingComponentScorer:
         self._signals = signals_computer
 
     def _load_config_weights(self, cur) -> dict[str, int]:
-        """Load swing score component weights from config table if available."""
-        weights = {}
+        """Load swing score component weights from config table.
+
+        Raises on database errors—configuration must be loaded fresh.
+        Returns empty dict if no custom weights are configured.
+        """
         try:
             cur.execute("SELECT key, value FROM algo_config WHERE key LIKE 'swing_weight_%'")
-            weights = {k: int(v) for k, v in cur.fetchall()}
+            return {k: int(v) for k, v in cur.fetchall()}
         except (psycopg2.DatabaseError, psycopg2.OperationalError) as e:
-            logger.debug(f"Could not load swing weights from config: {e} — using defaults")
-        return weights
+            raise RuntimeError(f"Failed to load swing weights from config: {e}") from e
 
     def _load_config_val(self, key: str, default, cur=None):
         """Load a single config value from database or return default.
 
+        Raises on database errors—configuration must be loaded fresh.
+        Returns default only if the config key is not found in the database.
+
         Args:
             key: Config key to load
-            default: Default value if key not found or error occurs
+            default: Default value if key not found (but not on database errors)
             cur: Optional database cursor. If provided, uses existing transaction.
                  If None, opens new transaction (nested transaction risk if called within existing context).
         """
@@ -63,9 +68,9 @@ class SwingComponentScorer:
                 row = cur.fetchone()
                 if row:
                     return type(default)(row[0])
+                return default
             except (psycopg2.DatabaseError, psycopg2.OperationalError) as e:
-                logger.debug(f"Could not load config key {key}: {e}")
-            return default
+                raise RuntimeError(f"Failed to load config key {key}: {e}") from e
 
         # Fallback: open new transaction (only for standalone calls)
         try:
@@ -77,9 +82,9 @@ class SwingComponentScorer:
                 row = new_cur.fetchone()
                 if row:
                     return type(default)(row[0])
+                return default
         except (psycopg2.DatabaseError, psycopg2.OperationalError) as e:
-            logger.debug(f"Could not load config key {key}: {e}")
-        return default
+            raise RuntimeError(f"Failed to load config key {key}: {e}") from e
 
     def compute_setup_component(self, symbol: str, eval_date) -> tuple[float, dict[str, Any]]:
         """Compute setup quality component (25 pts max)."""

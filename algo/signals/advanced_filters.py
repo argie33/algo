@@ -6,6 +6,7 @@ from typing import Any
 
 import psycopg2
 
+from algo.signals.filter_registry import FilterRegistry
 from algo.signals.signal_api import SignalAPI
 from utils.db import DatabaseContext
 from utils.signals import GradeClassifier
@@ -15,25 +16,11 @@ logger = logging.getLogger(__name__)
 
 
 class AdvancedFilters:
-    """Quality boosters that turn 'qualifying' signals into 'best' signals."""
+    """Quality boosters that turn 'qualifying' signals into 'best' signals.
 
-    # ---- Score weights (sum = 100) ----
-    W_MOMENTUM_RS = 15  # Mansfield RS vs SPY
-    W_MOMENTUM_SECTOR = 10
-    W_MOMENTUM_INDUSTRY = 5
-    W_MOMENTUM_VOLUME = 5
-    W_MOMENTUM_PRICE_TREND = 5
-
-    W_QUALITY_IBD = 15
-    W_QUALITY_FIN = 8
-    W_QUALITY_EARNINGS = 7
-
-    W_CATALYST_GROWTH = 7
-    W_CATALYST_ANALYST = 5
-    W_CATALYST_INSIDER = 3
-
-    W_RISK_EXTENSION = 13
-    W_RISK_EARNINGS_PROX = 2
+    All filter weights and thresholds are centralized in FilterRegistry.
+    This class focuses on the evaluation logic, not parameter definitions.
+    """
 
     def __init__(self, config):
         self.config = config
@@ -67,6 +54,14 @@ class AdvancedFilters:
         self.max_extension_above_50ma_pct = float(config["max_extension_above_50ma_pct"])
         self.min_avg_daily_dollar_volume = float(config["min_avg_daily_dollar_volume"])
         self.require_strong_sector = bool(config["require_strong_sector"])
+
+        # Cache subscore caps from registry
+        self._subscore_caps = {
+            "momentum": FilterRegistry.get_subscore_cap("momentum"),
+            "quality": FilterRegistry.get_subscore_cap("quality"),
+            "catalyst": FilterRegistry.get_subscore_cap("catalyst"),
+            "risk": FilterRegistry.get_subscore_cap("risk"),
+        }
 
     def _load_config_val(self, key: str, default: Any) -> Any:
         """Load a config value from AlgoConfig, with fallback to default.
@@ -169,12 +164,6 @@ class AdvancedFilters:
         with DatabaseContext("read") as cur:
             components = {}
             subscores = {"momentum": 0.0, "quality": 0.0, "catalyst": 0.0, "risk": 0.0}
-            max_subscores = {
-                "momentum": 40.0,
-                "quality": 30.0,
-                "catalyst": 15.0,
-                "risk": 15.0,
-            }
             hard_fail = None
 
             # ===== HARD-FAIL gates (independent) =====
@@ -328,7 +317,7 @@ class AdvancedFilters:
                 "reason": hard_fail or "all advanced gates passed",
                 "composite_score": round(composite_score, 1),
                 "subscores": {k: round(v, 1) for k, v in subscores.items()},
-                "subscore_max": max_subscores,
+                "subscore_max": self._subscore_caps,
                 "components": components,
             }
 
@@ -346,7 +335,7 @@ class AdvancedFilters:
         rs_percentile = self._signal_api.rank_rs_percentile(cur, symbol, signal_date, lookback=60)
         # ValueError (missing data) and other errors propagate to caller
 
-        pts = (rs_percentile / 100.0) * self.W_MOMENTUM_RS
+        pts = (rs_percentile / 100.0) * FilterRegistry.get_weight("momentum_rs")
         return pts, round(rs_percentile, 1)
 
     def _sector_momentum_score(self, sector):
@@ -356,14 +345,14 @@ class AdvancedFilters:
             raise ValueError("Sector name is missing or empty")
         rank = self._sector_full_ranking.get(sector, 99) if self._sector_full_ranking else 99
         # Top sector = 10pts, rank 5 = 5pts, rank 11 = 0pts
-        return max(0.0, self.W_MOMENTUM_SECTOR * (1.0 - (rank - 1) / 10.0))
+        return max(0.0, FilterRegistry.get_weight("momentum_sector") * (1.0 - (rank - 1) / 10.0))
 
     def _industry_momentum_score(self, industry):
         if self._strong_industries is None:
             raise ValueError("Industry ranking data not loaded — call load_market_context() first")
         if not industry:
             raise ValueError("Industry name is missing or empty")
-        return self.W_MOMENTUM_INDUSTRY if industry in self._strong_industries else 0.0
+        return FilterRegistry.get_weight("momentum_industry") if industry in self._strong_industries else 0.0
 
     def _volume_confirmation_score(self, symbol, signal_date, cur):
         cur.execute(
@@ -387,10 +376,13 @@ class AdvancedFilters:
         if avg <= 0:
             raise ValueError(f"Invalid volume average (≤0) for {symbol} on {signal_date} — data corruption")
         ratio = vol / avg
-        # 1.5x = full points
+        momentum_vol_weight = FilterRegistry.get_weight("momentum_volume")
+        vol_breakeven = FilterRegistry.get_threshold("volume_ratio_breakeven")
+        vol_full_points = FilterRegistry.get_threshold("volume_ratio_full_points")
+        vol_range = vol_full_points - vol_breakeven
         pts = max(
             0.0,
-            min(self.W_MOMENTUM_VOLUME, (ratio - 0.8) * self.W_MOMENTUM_VOLUME / 0.7),
+            min(momentum_vol_weight, (ratio - vol_breakeven) * momentum_vol_weight / vol_range),
         )
         return pts, round(ratio, 2)
 
@@ -426,7 +418,7 @@ class AdvancedFilters:
             # Weekly data missing or unavailable — continue without bonus
             logger.debug(f"Weekly alignment data unavailable for {symbol}: {e} (continuing without bonus)")
 
-        return min(score, self.W_MOMENTUM_PRICE_TREND)
+        return min(score, FilterRegistry.get_weight("momentum_price_trend"))
 
     def _setup_quality_score(self, symbol, signal_date):
         """Bonus pts for entering on a real base breakout / VCP (canonical swing setup).
@@ -524,8 +516,11 @@ class AdvancedFilters:
             logger.error(error_msg)
             raise ValueError(error_msg)
         composite = float(row[0])
-        # 40 = 0pts, 90+ = full pts
-        pts = max(0.0, min(self.W_QUALITY_IBD, (composite - 40.0) * self.W_QUALITY_IBD / 50.0))
+        # ibd_composite_min = 0pts, ibd_composite_max = full pts
+        quality_ibd_weight = FilterRegistry.get_weight("quality_ibd")
+        ibd_min = FilterRegistry.get_threshold("ibd_composite_min")
+        ibd_max = FilterRegistry.get_threshold("ibd_composite_max")
+        pts = max(0.0, min(quality_ibd_weight, (composite - ibd_min) * quality_ibd_weight / (ibd_max - ibd_min)))
 
         # Assign letter grade using configurable thresholds from algo_config
         grade = GradeClassifier.classify_ibd_composite(composite)
@@ -553,9 +548,12 @@ class AdvancedFilters:
             error_msg = f"Financial quality metrics missing for {symbol}"
             logger.error(error_msg)
             raise ValueError(error_msg)
-        q = float(row[0]) if row[0] is not None else 50.0
-        # Linear scale: 50 = 0 pts (neutral quality), 100 = W_QUALITY_FIN pts (maximum)
-        pts = max(0.0, min(self.W_QUALITY_FIN, (q - 50.0) * self.W_QUALITY_FIN / 50.0))
+        fin_neutral = FilterRegistry.get_threshold("financial_quality_neutral")
+        fin_max = FilterRegistry.get_threshold("financial_quality_max")
+        q = float(row[0]) if row[0] is not None else fin_neutral
+        # Linear scale: fin_neutral = 0 pts, fin_max = quality_financial pts
+        quality_fin_weight = FilterRegistry.get_weight("quality_financial")
+        pts = max(0.0, min(quality_fin_weight, (q - fin_neutral) * quality_fin_weight / (fin_max - fin_neutral)))
         return pts, round(q, 1)
 
     def _earnings_quality_score(self, symbol, cur):
@@ -578,7 +576,7 @@ class AdvancedFilters:
             logger.error(error_msg)
             raise ValueError(error_msg)
         score = float(row[0])
-        pts = (score / 100.0) * self.W_QUALITY_EARNINGS
+        pts = (score / 100.0) * FilterRegistry.get_weight("quality_earnings")
         return pts, round(score, 1)
 
     # ============= CATALYST =============
@@ -605,10 +603,14 @@ class AdvancedFilters:
         eps_3y = float(row[1]) if row[1] is not None else 0.0
         mom = float(row[2]) if row[2] is not None else 0.0
         rev_yoy = float(row[3]) if row[3] is not None else 0.0
-        # 3 pts each for EPS 3y >20%, rev 3y >15%, positive momentum (within W_CATALYST_GROWTH=7)
-        eps_p = max(0.0, min(2.5, eps_3y / 20.0 * 2.5)) if eps_3y > 0 else 0.0
-        rev_p = max(0.0, min(2.5, rev_3y / 15.0 * 2.5)) if rev_3y > 0 else 0.0
-        mom_p = 2.0 if mom > 0 else 0.0
+        # Allocate catalyst_growth weight across 3 metrics (EPS, revenue, momentum)
+        catalyst_growth_weight = FilterRegistry.get_weight("catalyst_growth")
+        pts_per_metric = catalyst_growth_weight / 3.0
+        eps_threshold = FilterRegistry.get_threshold("eps_3y_cagr_threshold")
+        rev_threshold = FilterRegistry.get_threshold("revenue_3y_cagr_threshold")
+        eps_p = max(0.0, min(pts_per_metric, eps_3y / eps_threshold * pts_per_metric)) if eps_3y > 0 else 0.0
+        rev_p = max(0.0, min(pts_per_metric, rev_3y / rev_threshold * pts_per_metric)) if rev_3y > 0 else 0.0
+        mom_p = pts_per_metric if mom > 0 else 0.0
         return eps_p + rev_p + mom_p, {
             "eps_3y_cagr": round(eps_3y, 1),
             "rev_3y_cagr": round(rev_3y, 1),
@@ -639,8 +641,11 @@ class AdvancedFilters:
         ups = int(row[0]) if row[0] is not None else 0
         downs = int(row[1]) if row[1] is not None else 0
         net = ups - downs
-        # +5 net = full; -3 net = 0
-        pts = max(0.0, min(self.W_CATALYST_ANALYST, (net + 3) * self.W_CATALYST_ANALYST / 8.0))
+        # net score scaled from analyst_net_positive_threshold to analyst_net_full_score
+        catalyst_analyst_weight = FilterRegistry.get_weight("catalyst_analyst")
+        thresh_min = FilterRegistry.get_threshold("analyst_net_positive_threshold")
+        thresh_max = FilterRegistry.get_threshold("analyst_net_full_score")
+        pts = max(0.0, min(catalyst_analyst_weight, (net - thresh_min) * catalyst_analyst_weight / (thresh_max - thresh_min)))
         return pts, net
 
     def _insider_score(self, symbol, signal_date, cur):
@@ -669,7 +674,9 @@ class AdvancedFilters:
         net = buys - sells
         if net <= 0:
             return 0.0, net
-        pts = min(self.W_CATALYST_INSIDER, net / 500_000.0 * self.W_CATALYST_INSIDER)
+        catalyst_insider_weight = FilterRegistry.get_weight("catalyst_insider")
+        insider_threshold = FilterRegistry.get_threshold("insider_buy_sell_threshold")
+        pts = min(catalyst_insider_weight, net / insider_threshold * catalyst_insider_weight)
         return pts, net
 
     # ============= RISK =============
@@ -696,14 +703,19 @@ class AdvancedFilters:
                 "Extension percentage required for risk scoring. "
                 "SMA_50 data unavailable. Cannot assess entry extension risk."
             )
+        risk_ext_weight = FilterRegistry.get_weight("risk_extension")
+        sweet_spot = FilterRegistry.get_threshold("extension_risk_sweet_spot_pct")
+        moderate = FilterRegistry.get_threshold("extension_risk_moderate_pct")
+        high = FilterRegistry.get_threshold("extension_risk_high_pct")
+
         if ext_pct < 0:
-            return self.W_RISK_EXTENSION * 0.6  # below 50 = OK but not ideal
-        if ext_pct <= 5:
-            return self.W_RISK_EXTENSION  # sweet spot
-        if ext_pct <= 10:
-            return self.W_RISK_EXTENSION * (1.0 - (ext_pct - 5) / 5.0 * 0.5)
-        if ext_pct <= 15:
-            return self.W_RISK_EXTENSION * 0.25
+            return risk_ext_weight * 0.6  # below 50 = OK but not ideal
+        if ext_pct <= sweet_spot:
+            return risk_ext_weight  # sweet spot
+        if ext_pct <= moderate:
+            return risk_ext_weight * (1.0 - (ext_pct - sweet_spot) / (moderate - sweet_spot) * 0.5)
+        if ext_pct <= high:
+            return risk_ext_weight * 0.25
         return 0.0
 
     def _earnings_proximity_score(self, days_to_earnings, block_window):
@@ -712,11 +724,13 @@ class AdvancedFilters:
                 "Days to earnings required for risk scoring. "
                 "Earnings calendar data unavailable. Cannot assess earnings-proximity risk."
             )
+        risk_earnings_prox_weight = FilterRegistry.get_weight("risk_earnings_proximity")
+        safe_days = FilterRegistry.get_threshold("earnings_proximity_safe_days")
         if days_to_earnings <= block_window:
             return 0.0
-        if days_to_earnings >= 30:
-            return self.W_RISK_EARNINGS_PROX
-        return self.W_RISK_EARNINGS_PROX * (days_to_earnings - block_window) / (30 - block_window)
+        if days_to_earnings >= safe_days:
+            return risk_earnings_prox_weight
+        return risk_earnings_prox_weight * (days_to_earnings - block_window) / (safe_days - block_window)
 
     def _avg_dollar_volume(self, symbol, signal_date, cur):
         """Calculate average daily dollar volume (close * volume) over 50 days.
