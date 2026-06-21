@@ -312,7 +312,7 @@ class TestFinancialMathEdgeCases:
         position_pct = Decimal("6.3")
         max_pos = portfolio_value * position_pct / Decimal("100")
         # Ensure no precision loss (decimal arithmetic)
-        expected = Decimal("7777.97674")
+        expected = Decimal("7777.77714")
         assert abs(max_pos - expected) < Decimal("0.01")
 
     def test_rounding_consistency(self):
