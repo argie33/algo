@@ -12,11 +12,13 @@ import requests
 
 from algo.infrastructure import get_api_timeout
 from algo.infrastructure.config import AlgoConfig
+from algo.reporting import TradeNotificationService, notify
 from algo.trading.exceptions import (
     DatabaseError,
     DataUnavailableError,
     DuplicatePositionError,
     ExchangeAPIError,
+    NotificationError,
     OrderExecutionError,
     OrderRejectedError,
     PortfolioValueError,
@@ -32,6 +34,14 @@ from algo.trading.trade_context import TradeContext
 from config.api_endpoints import get_alpaca_base_url
 from config.credential_manager import get_alpaca_credentials
 from utils.db import DatabaseContext
+from utils.db.advisory_locks import (
+    ALGO_POSITIONS_LOCK_ID,
+    ALGO_TRADES_LOCK_ID,
+    acquire_advisory_lock,
+    release_advisory_lock,
+)
+from utils.db.retry import OptimisticLockRetry
+from utils.trading.status import PositionStatus
 from utils.validation import AlpacaResponseValidator
 
 
@@ -270,9 +280,13 @@ class TradeExecutor:
 
         try:
             notif_service = TradeNotificationService()
+            entry_price_disp = executed_price or entry_price
             notif_service._send_notification(
                 subject=f"ENTRY: {symbol}",
-                message=f"{actual_shares:.2f} sh {symbol} @ ${(executed_price or entry_price):.2f} (stop ${stop_loss_price:.2f})",
+                message=(
+                    f"{actual_shares:.2f} sh {symbol} @ ${entry_price_disp:.2f} "
+                    f"(stop ${stop_loss_price:.2f})"
+                ),
                 kind="trade_entry",
                 severity="info",
                 symbol=symbol,
@@ -943,8 +957,11 @@ class TradeExecutor:
                         "trade",
                         symbol,
                         "system:position_validation",
-                        f"Partial fill detected and corrected: requested {db_qty} shares, Alpaca filled {alpaca_qty} shares. "
-                        f"DB entry_quantity updated from {db_qty} to {alpaca_qty} to match authoritative Alpaca position.",
+                        (
+                            f"Partial fill detected and corrected: "
+                            f"requested {db_qty} shares, Alpaca filled {alpaca_qty} shares. "
+                            f"DB entry_quantity updated to match authoritative Alpaca position."
+                        ),
                     ),
                 )
                 return True
@@ -958,7 +975,10 @@ class TradeExecutor:
                 notify(
                     severity="warning",
                     title="Position Quantity Corrected",
-                    message=f"{symbol}: Corrected quantity {db_qty} '' {alpaca_qty} to match Alpaca after partial fill.",
+                    message=(
+                        f"{symbol}: Corrected quantity {db_qty} → {alpaca_qty} "
+                        "to match Alpaca after partial fill."
+                    ),
                     symbol=symbol,
                     details={
                         "symbol": symbol,

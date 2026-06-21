@@ -12,6 +12,21 @@ from typing import Any, Protocol, runtime_checkable
 class BrokerAdapter(Protocol):
     """Protocol defining the interface all broker adapters must implement."""
 
+    @property
+    def alpaca_key(self) -> str | None:
+        """Alpaca API key (None if not available)."""
+        ...
+
+    @property
+    def alpaca_secret(self) -> str | None:
+        """Alpaca API secret (None if not available)."""
+        ...
+
+    @property
+    def alpaca_base_url(self) -> str | None:
+        """Alpaca API base URL (None if not available)."""
+        ...
+
     def fetch_account(self) -> dict[str, Any]:
         """Fetch current account data from broker.
 
