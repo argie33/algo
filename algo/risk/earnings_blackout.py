@@ -19,14 +19,6 @@ from utils.db import DatabaseContext
 
 logger = logging.getLogger(__name__)
 
-try:
-    from algo.reporting import AlertManager
-except ImportError:
-
-    class AlertManager:  # type: ignore
-        def critical(self, *args, **kwargs):
-            pass
-
 
 class EarningsBlackout:
     """Enforce earnings date blackout windows."""

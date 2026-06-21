@@ -6,7 +6,7 @@ Handles phased execution: date determination, price fetch, metrics computation, 
 
 import logging
 from datetime import date, datetime, timedelta
-from typing import Any
+from typing import Any, cast
 
 import psycopg2
 
@@ -78,7 +78,7 @@ class MarketHealthComputationHandler:
         rows = self.loader._fetch_price_daily(symbol, start, end)
         if not rows:
             raise RuntimeError(f"[MARKET_HEALTH] No SPY price data for {start} to {end}")
-        return rows
+        return cast(list[dict], rows)
 
     def _phase_compute_metrics(self, rows: list[dict]) -> list[dict]:
         """Compute market health metrics from prices."""
@@ -88,7 +88,7 @@ class MarketHealthComputationHandler:
         logger.info(
             f"Computed {len(metrics)} metrics from {len(rows)} rows: {metrics[0]['date']} to {metrics[-1]['date']}"
         )
-        return metrics
+        return cast(list[dict], metrics)
 
     def _phase_enrich_breadth(self, metrics: list[dict], start: date, end: date) -> None:
         """Merge breadth data (A/D ratio, new highs/lows)."""

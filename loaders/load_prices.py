@@ -1035,7 +1035,7 @@ class PriceLoader(OptimalLoader):
         max_attempts: int,
         elapsed_sec: float,
         error: Exception,
-    ) -> dict:
+    ) -> dict | None:
         """Retry rate limit errors with pacing or batch reduction."""
         import random
         import time
@@ -1104,9 +1104,9 @@ class PriceLoader(OptimalLoader):
             wait_time = base_wait * jitter
             logger.debug(f"[RATE_LIMIT] Waiting {wait_time:.1f}s before paced retry...")
             time.sleep(wait_time)
-            return self._fetch_with_fallback(
+            return cast(dict | None, self._fetch_with_fallback(
                 symbols, start, end, batch_size, attempt + 1, max_attempts, elapsed_sec
-            )
+            ))
 
         new_batch_size = max(1, batch_size // 2)
         error_duration = (
@@ -1159,7 +1159,7 @@ class PriceLoader(OptimalLoader):
         max_attempts: int,
         elapsed_sec: float,
         error: Exception,
-    ) -> dict:
+    ) -> dict | None:
         """Retry transient errors with exponential backoff."""
         import random
         import time
@@ -1194,7 +1194,7 @@ class PriceLoader(OptimalLoader):
             "(Note: batch size not reduced for timeouts – if API fundamentally slow, increasing wait time not batch reduction)"
         )
         time.sleep(wait_time)
-        return self._fetch_with_fallback(
+        return cast(dict | None, self._fetch_with_fallback(
             symbols,
             start,
             end,
@@ -1202,7 +1202,7 @@ class PriceLoader(OptimalLoader):
             attempt + 1,
             max_attempts,
             elapsed_sec=elapsed_sec + wait_time,
-        )
+        ))
 
     def _fetch_with_fallback(
         self,
