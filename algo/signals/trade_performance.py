@@ -16,7 +16,6 @@ from datetime import timedelta
 from typing import Any
 
 from utils.db import DatabaseContext
-from utils.safe_data_conversion import safe_float
 
 
 try:
@@ -123,7 +122,7 @@ class SignalTradePerformancePopulator:
 
                             # Track for IC calculation
                             if comp_name in component_returns and exit_r_multiple is not None:
-                                component_returns[comp_name].append((normalized_score, safe_float(exit_r_multiple, default=0.0, context="exit_r_multiple")))
+                                component_returns[comp_name].append((normalized_score, float(exit_r_multiple)))
 
                     # Insert into signal_trade_performance (only columns that exist in schema)
                     try:
@@ -151,11 +150,11 @@ class SignalTradePerformancePopulator:
                                 symbol,
                                 signal_date,
                                 exit_date,
-                                safe_float(entry_price, default=0.0, context="entry_price") if entry_price else 0,
-                                safe_float(exit_price, default=0.0, context="exit_price") if exit_price else 0,
-                                safe_float(pnl_dollars, default=0.0, context="pnl_dollars") if pnl_dollars else 0,
+                                float(entry_price) if entry_price else 0,
+                                float(exit_price) if exit_price else 0,
+                                float(pnl_dollars) if pnl_dollars else 0,
                                 (
-                                    (safe_float(pnl_dollars, default=0.0, context="pnl_dollars") / float(entry_price * entry_qty))
+                                    (float(pnl_dollars) / float(entry_price * entry_qty))
                                     if (
                                         pnl_dollars is not None
                                         and entry_price
@@ -165,9 +164,9 @@ class SignalTradePerformancePopulator:
                                     else 0
                                 ),
                                 int(holding_days) if holding_days else 0,
-                                safe_float(swing_score, default=0.0, context="swing_score") if swing_score else 0,
-                                safe_float(trend_score, default=0.0, context="trend_score") if trend_score else 0,
-                                safe_float(exit_r_multiple, default=0.0, context="exit_r_multiple") if exit_r_multiple else 0,
+                                float(swing_score) if swing_score else 0,
+                                float(trend_score) if trend_score else 0,
+                                float(exit_r_multiple) if exit_r_multiple else 0,
                                 (bool(exit_r_multiple and exit_r_multiple > 0) if exit_r_multiple else False),
                             ),
                         )
@@ -185,8 +184,8 @@ class SignalTradePerformancePopulator:
                     try:
                         ic, pvalue = pearsonr(scores, returns)
                         ic_values[comp_name] = {
-                            "ic": round(safe_float(ic, default=0.0, context="ic"), 4),
-                            "pvalue": round(safe_float(pvalue, default=0.0, context="pvalue"), 4),
+                            "ic": round(float(ic), 4),
+                            "pvalue": round(float(pvalue), 4),
                             "sample_size": len(data_points),
                         }
                     except (ValueError, ZeroDivisionError, TypeError) as e:
@@ -257,7 +256,7 @@ class SignalTradePerformancePopulator:
                 return [
                     {
                         "date": str(row[0]),
-                        "ic": round(safe_float(row[1], default=0.0, context="row[1]"), 4) if row[1] else 0,
+                        "ic": round(float(row[1]), 4) if row[1] else 0,
                         "sample_size": int(row[2]),
                     }
                     for row in rows

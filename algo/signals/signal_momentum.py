@@ -8,7 +8,6 @@ from typing import Any
 import psycopg2
 
 from utils.db.context import DatabaseContext
-from utils.safe_data_conversion import safe_float
 
 
 logger = logging.getLogger(__name__)
@@ -52,9 +51,9 @@ class SignalMomentumMixin:
             highs = []
             lows = []
             for r in rows:
-                c = safe_float(r[3], default=None, context="close")
-                h = safe_float(r[1], default=None, context="high")
-                l = safe_float(r[2], default=None, context="low")
+                c = float(r[3])
+                h = float(r[1])
+                l = float(r[2])
                 if c is None or h is None or l is None:
                     raise ValueError(f"Price data missing for {symbol}: close={c}, high={h}, low={l}")
                 closes.append(c)
@@ -209,10 +208,10 @@ class SignalMomentumMixin:
             row = cur.fetchone()
             if not row or row[1] is None:
                 return {"breakout": False}
-            close = safe_float(row[0], default=0.0, context="row[0]")
-            pivot = safe_float(row[1], default=0.0, context="row[1]")
-            volume = safe_float(row[2], default=0.0, context="row[2]") if row[2] else 0
-            avg_vol = safe_float(row[3], default=0.0, context="row[3]") if row[3] else 0
+            close = float(row[0])
+            pivot = float(row[1])
+            volume = float(row[2]) if row[2] else 0
+            avg_vol = float(row[3]) if row[3] else 0
             breakout = close > pivot * 1.005
             on_volume = avg_vol > 0 and volume > avg_vol
             return {
@@ -264,13 +263,13 @@ class SignalMomentumMixin:
             for row in rows[1:]:  # Skip today initially
                 date, close, prev_close, vol, rn = row
                 if prev_close is not None and close < prev_close:
-                    max_down_vol = max(max_down_vol, safe_float(vol, default=0.0, context="vol") if vol else 0)
+                    max_down_vol = max(max_down_vol, float(vol) if vol else 0)
 
             if rows:
                 _today_date, today_close, today_prev, today_vol, _today_rn = rows[0]
-                today_vol = safe_float(today_vol, default=0.0, context="today_vol") if today_vol else 0
-                today_prev = safe_float(today_prev, default=0.0, context="today_prev") if today_prev is not None else None
-                today_close = safe_float(today_close, default=0.0, context="today_close") if today_close else 0
+                today_vol = float(today_vol) if today_vol else 0
+                today_prev = float(today_prev) if today_prev is not None else None
+                today_close = float(today_close) if today_close else 0
 
                 is_up_day = today_prev is not None and today_close > today_prev
                 fires = is_up_day and today_vol >= max_down_vol and max_down_vol > 0
@@ -288,9 +287,9 @@ class SignalMomentumMixin:
             up_day_dates = []
             for row in rows[1:3]:  # Skip today, check yesterday and day-2
                 _date, close, prev_close, vol, rn = row
-                vol = safe_float(vol, default=0.0, context="vol") if vol else 0
-                prev_close = safe_float(prev_close, default=0.0, context="prev_close") if prev_close is not None else None
-                close = safe_float(close, default=0.0, context="close") if close else 0
+                vol = float(vol) if vol else 0
+                prev_close = float(prev_close) if prev_close is not None else None
+                close = float(close) if close else 0
                 if prev_close is not None and close > prev_close and vol >= max_down_vol and max_down_vol > 0:
                     days_since = rn - 1  # rn=1 is most recent
                     up_day_dates.append((days_since, vol))

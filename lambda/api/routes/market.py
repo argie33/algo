@@ -18,7 +18,6 @@ from routes.utils import (
     safe_json_serialize,
 )
 
-from utils.safe_data_conversion import safe_float
 
 
 logger = logging.getLogger(__name__)
@@ -461,12 +460,12 @@ def handle(
                         {
                             "date": str(r["date"]),
                             "change_pct": (
-                                safe_float(r["change_pct"], default=0.0, context="change_pct")
+                                float(r["change_pct"])
                                 if r["change_pct"] is not None
                                 else None
                             ),
                             "volume_ratio": (
-                                safe_float(r["volume_ratio"], default=0.0, context="volume_ratio")
+                                float(r["volume_ratio"])
                                 if r["volume_ratio"] is not None
                                 else None
                             ),
@@ -582,7 +581,7 @@ def handle(
                                     best_month.get("month_name") if best_month else None
                                 ),
                                 "avg_return_pct": (
-                                    safe_float(best_month.get("avg_return"), default=0.0, context="avg_return")
+                                    float(best_month.get("avg_return"), default=0.0, context="avg_return")
                                     if best_month
                                     and best_month.get("avg_return") is not None
                                     else None
@@ -590,8 +589,8 @@ def handle(
                                 "win_rate_pct": (
                                     round(
                                         (
-                                            safe_float(best_month.get("winning_years"), default=0.0, context="winning_years")
-                                            / safe_float(best_month.get("years_counted"), default=0.0, context="years_counted")
+                                            float(best_month.get("winning_years"), default=0.0, context="winning_years")
+                                            / float(best_month.get("years_counted"), default=0.0, context="years_counted")
                                             * 100
                                         ),
                                         1,
@@ -613,7 +612,7 @@ def handle(
                                     else None
                                 ),
                                 "avg_return_pct": (
-                                    safe_float(worst_month.get("avg_return"), default=0.0, context="avg_return")
+                                    float(worst_month.get("avg_return"), default=0.0, context="avg_return")
                                     if worst_month
                                     and worst_month.get("avg_return") is not None
                                     else None
@@ -621,8 +620,8 @@ def handle(
                                 "win_rate_pct": (
                                     round(
                                         (
-                                            safe_float(worst_month.get("winning_years"), default=0.0, context="winning_years")
-                                            / safe_float(worst_month.get("years_counted"), default=0.0, context="years_counted")
+                                            float(worst_month.get("winning_years"), default=0.0, context="winning_years")
+                                            / float(worst_month.get("years_counted"), default=0.0, context="years_counted")
                                             * 100
                                         ),
                                         1,
@@ -640,13 +639,13 @@ def handle(
                             {
                                 "name": best_dow.get("day") if best_dow else None,
                                 "avg_return_pct": (
-                                    safe_float(best_dow.get("avg_return"), default=0.0, context="avg_return")
+                                    float(best_dow.get("avg_return"), default=0.0, context="avg_return")
                                     if best_dow
                                     and best_dow.get("avg_return") is not None
                                     else None
                                 ),
                                 "win_rate_pct": (
-                                    safe_float(best_dow.get("win_rate"), default=0.0, context="win_rate")
+                                    float(best_dow.get("win_rate"), default=0.0, context="win_rate")
                                     if best_dow and best_dow.get("win_rate") is not None
                                     else None
                                 ),
@@ -658,13 +657,13 @@ def handle(
                             {
                                 "name": worst_dow.get("day") if worst_dow else None,
                                 "avg_return_pct": (
-                                    safe_float(worst_dow.get("avg_return"), default=0.0, context="avg_return")
+                                    float(worst_dow.get("avg_return"), default=0.0, context="avg_return")
                                     if worst_dow
                                     and worst_dow.get("avg_return") is not None
                                     else None
                                 ),
                                 "win_rate_pct": (
-                                    safe_float(worst_dow.get("win_rate"), default=0.0, context="win_rate")
+                                    float(worst_dow.get("win_rate"), default=0.0, context="win_rate")
                                     if worst_dow
                                     and worst_dow.get("win_rate") is not None
                                     else None
@@ -728,7 +727,7 @@ def handle(
                     "trend": aaii_trend,
                     "data": aaii_rows,
                     "bullish_pct": (
-                        safe_float(aaii_current.get("bullish"), context="aaii_bullish")
+                        float(aaii_current.get("bullish"), context="aaii_bullish")
                         if aaii_current and aaii_current.get("bullish") is not None
                         else None
                     ),
@@ -769,7 +768,7 @@ def handle(
 
                 sentiment_data["naaim"] = {
                     "current": (
-                        safe_float(naaim_current.get("naaim_number_mean"), context="naaim_number_mean")
+                        float(naaim_current.get("naaim_number_mean"), context="naaim_number_mean")
                         if naaim_current
                         and naaim_current.get("naaim_number_mean") is not None
                         else None
@@ -777,12 +776,12 @@ def handle(
                     "history": naaim_rows,
                     "trend": naaim_trend,
                     "bullish_pct": (
-                        safe_float(naaim_current.get("bullish"), context="naaim_bullish")
+                        float(naaim_current.get("bullish"), context="naaim_bullish")
                         if naaim_current and naaim_current.get("bullish") is not None
                         else None
                     ),
                     "bearish_pct": (
-                        safe_float(naaim_current.get("bearish"), context="naaim_bearish")
+                        float(naaim_current.get("bearish"), context="naaim_bearish")
                         if naaim_current and naaim_current.get("bearish") is not None
                         else None
                     ),

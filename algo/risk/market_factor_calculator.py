@@ -13,7 +13,6 @@ from typing import Any
 
 import psycopg2
 
-from utils.safe_data_conversion import safe_float, safe_int
 
 
 logger = logging.getLogger(__name__)
@@ -41,7 +40,7 @@ class MarketFactorCalculator:
             return 0.0, 0.0
 
         try:
-            score = safe_float(score, default=0.0, context="factor_score")
+            score = float(score)
         except (ValueError, TypeError):
             logger.error(f"Market factor score is not numeric: {score}")
             return 0.0, 0.0
@@ -66,7 +65,7 @@ class MarketFactorCalculator:
             )
             row = cur.fetchone()
             if row and row[0] is not None:
-                pct = safe_float(row[0], default=None, context="row[0]")
+                pct = float(row[0])
                 if pct is None:
                     raise ValueError(f"Breadth percentage is not numeric: {row[0]}")
                 # Linear: 20% → 0, 50% → 50, 80% → 100
@@ -156,8 +155,8 @@ class MarketFactorCalculator:
             )
             row = cur.fetchone()
             if row and row[0] is not None and row[1] is not None:
-                spy = safe_float(row[0], default=None, context="row[0]")
-                sma = safe_float(row[1], default=None, context="row[1]")
+                spy = float(row[0])
+                sma = float(row[1])
                 if spy is None or sma is None:
                     raise ValueError(f"SPY trend data not numeric: close={row[0]}, sma={row[1]}")
                 score = 100.0 if spy > sma else 0.0
@@ -186,8 +185,8 @@ class MarketFactorCalculator:
             )
             row = cur.fetchone()
             if row and row[0] is not None and row[1] is not None:
-                current = safe_float(row[0], default=None, context="row[0]")
-                year_ago = safe_float(row[1], default=None, context="row[1]")
+                current = float(row[0])
+                year_ago = float(row[1])
                 if current is None or year_ago is None:
                     raise ValueError(f"SPY momentum data not numeric: current={row[0]}, year_ago={row[1]}")
                 if year_ago <= 0:
@@ -236,7 +235,7 @@ class MarketFactorCalculator:
             )
             row = cur.fetchone()
             if row and row[0] is not None:
-                vix = safe_float(row[0], default=None, context="row[0]")
+                vix = float(row[0])
                 if vix is None:
                     raise ValueError(f"VIX value not numeric: {row[0]}")
                 # Simplified: no term structure data
@@ -256,7 +255,7 @@ class MarketFactorCalculator:
             )
             row = cur.fetchone()
             if row and row[0]:
-                pcr = safe_float(row[0], default=0.0, context="row[0]")
+                pcr = float(row[0])
                 # Contrarian: PCR > 1.0 = fear = bullish (100 pts), < 0.7 = greed = bearish (0 pts)
                 score = max(0, min(100, (pcr - 0.7) * 100))
                 return {"put_call_ratio": round(pcr, 2), "score": score}
@@ -277,8 +276,8 @@ class MarketFactorCalculator:
             )
             row = cur.fetchone()
             if row and row[0] and row[1]:
-                nh_val = safe_int(row[0], default=0, context="new_highs_count")
-                nl_val = safe_int(row[1], default=0, context="new_lows_count")
+                nh_val = int(row[0])
+                nl_val = int(row[1])
                 nh = nh_val if nh_val is not None else 0
                 nl = nl_val if nl_val is not None else 0
                 total = nh + nl
@@ -323,7 +322,7 @@ class MarketFactorCalculator:
             )
             row = cur.fetchone()
             if row and row[0]:
-                oas = safe_float(row[0], default=0.0, context="row[0]")
+                oas = float(row[0])
                 # Higher OAS = higher stress = lower score. 300bps = 100, 500bps = 0
                 score = max(0, min(100, 100 - (oas - 300) / 2))
                 return {"hy_oas": round(oas, 0), "score": score}
@@ -341,8 +340,8 @@ class MarketFactorCalculator:
             )
             row = cur.fetchone()
             if row and row[0] and row[1]:
-                bull = safe_float(row[0], default=0.0, context="row[0]")
-                bear = safe_float(row[1], default=0.0, context="row[1]")
+                bull = float(row[0])
+                bear = float(row[1])
                 spread = bull - bear
                 # Contrarian: spread > 15 or < -15 = extreme = 100, neutral = 0
                 score = min(100, max(0, (abs(spread) - 15) * 5))
@@ -366,7 +365,7 @@ class MarketFactorCalculator:
             )
             row = cur.fetchone()
             if row and row[0]:
-                exp = safe_float(row[0], default=0.0, context="row[0]")
+                exp = float(row[0])
                 # NAAIM 0-100 scale: > 80 = greed = lower score, < 30 = fear = higher score
                 score = min(100, max(0, 100 - exp / 2))
                 return {"exposure": round(exp, 1), "score": score}

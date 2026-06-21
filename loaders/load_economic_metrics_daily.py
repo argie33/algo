@@ -20,7 +20,6 @@ from loaders.runner import run_loader
 from utils.db.context import DatabaseContext
 from utils.infrastructure.timezone import EASTERN_TZ
 from utils.optimal_loader import OptimalLoader
-from utils.safe_data_conversion import safe_float
 
 
 logger = logging.getLogger(__name__)
@@ -65,7 +64,7 @@ class EconomicMetricsDailyLoader(OptimalLoader):
                         cpi_cur = None
                     else:
                         cpi_val = cpi_cur_row.get("value")
-                        cpi_cur = safe_float(cpi_val, default=0.0) if cpi_val is not None else None
+                        cpi_cur = float(cpi_val) if cpi_val is not None else None
 
                     if cpi_cur is not None:
                         # Get CPI from 1 year ago
@@ -81,7 +80,7 @@ class EconomicMetricsDailyLoader(OptimalLoader):
                             cpi_prev = None
                         else:
                             cpi_prev_val = cpi_yoy_row.get("value")
-                            cpi_prev = safe_float(cpi_prev_val, default=0.0) if cpi_prev_val is not None else None
+                            cpi_prev = float(cpi_prev_val) if cpi_prev_val is not None else None
 
                         if cpi_prev is not None and cpi_prev > 0:
                             cpi_yoy = round((cpi_cur - cpi_prev) / cpi_prev * 100, 2)
@@ -151,13 +150,13 @@ class EconomicMetricsDailyLoader(OptimalLoader):
                     for row in ycs_rows:
                         if row.get("series_id") == "DGS10":
                             dgs10 = (
-                                safe_float(row.get("value"), default=0.0)
+                                float(row.get("value"), default=0.0)
                                 if row.get("value") is not None
                                 else None
                             )
                         elif row.get("series_id") == "DGS2":
                             dgs2 = (
-                                safe_float(row.get("value"), default=0.0)
+                                float(row.get("value"), default=0.0)
                                 if row.get("value") is not None
                                 else None
                             )

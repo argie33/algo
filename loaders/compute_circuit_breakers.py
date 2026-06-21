@@ -25,7 +25,6 @@ import psycopg2.extras
 # Add parent directory to path for imports
 from utils.db.context import DatabaseContext
 from utils.infrastructure.timezone import EASTERN_TZ
-from utils.validation import safe_float, safe_int
 
 
 logger = logging.getLogger(__name__)
@@ -100,8 +99,8 @@ def _compute_drawdown(cur) -> float:
     row = cur.fetchone()
     if not row or row[0] is None or row[1] is None:
         raise ValueError("Portfolio snapshot data unavailable for drawdown calculation")
-    peak = float(safe_float(row[0]))
-    current = float(safe_float(row[1]))
+    peak = float(float(row[0]))
+    current = float(float(row[1]))
     if peak <= 0:
         raise ValueError(f"Invalid peak portfolio value: {peak}")
     dd = (peak - current) / peak * 100
@@ -120,7 +119,7 @@ def _compute_daily_loss(cur, today: date) -> float:
     row = cur.fetchone()
     if not row or row[0] is None:
         raise ValueError(f"Portfolio snapshot unavailable for {today}")
-    daily = float(safe_float(row[0]))
+    daily = float(float(row[0]))
     loss = abs(min(0, daily))
     return round(loss, 2)
 
@@ -138,7 +137,7 @@ def _compute_consecutive_losses(cur) -> int:
         raise ValueError("No closed trades available for consecutive loss calculation")
     streak = 0
     for row in rows:
-        pnl = float(safe_float(row[0]))
+        pnl = float(float(row[0]))
         if pnl < 0:
             streak += 1
         else:
@@ -156,7 +155,7 @@ def _compute_vix_level(cur) -> float | None:
     row = cur.fetchone()
     if not row or row[0] is None:
         raise ValueError("VIX level not available in market_health_daily - circuit breaker CB4 metric cannot be computed")
-    vix = float(safe_float(row[0]))
+    vix = float(float(row[0]))
     return round(vix, 1)
 
 
@@ -182,8 +181,8 @@ def _compute_weekly_loss(cur, today: date) -> float:
     if not week_start or not week_end or week_start[0] is None or week_end[0] is None:
         raise ValueError("Insufficient portfolio snapshot data for 7-day loss calculation")
 
-    sv = float(safe_float(week_start[0]))
-    ev = float(safe_float(week_end[0]))
+    sv = float(float(week_start[0]))
+    ev = float(float(week_end[0]))
     if sv <= 0:
         raise ValueError(f"Invalid portfolio value for 7-day calculation: {sv}")
 
@@ -203,7 +202,7 @@ def _compute_market_stage(cur) -> int | None:
     if not row or row[0] is None:
         logger.warning("Market stage not available in market_health_daily — circuit breaker CB6 will fail-closed")
         return None
-    stage = int(safe_int(row[0]))
+    stage = int(int(row[0]))
     return stage
 
 
@@ -218,7 +217,7 @@ def _compute_open_risk(cur) -> float:
     risk_row = cur.fetchone()
     if not risk_row:
         raise ValueError("Cannot calculate open risk: positions/trades query failed")
-    total_risk = float(safe_float(risk_row[0]))
+    total_risk = float(float(risk_row[0]))
 
     cur.execute("""
         SELECT total_portfolio_value FROM algo_portfolio_snapshots
@@ -227,7 +226,7 @@ def _compute_open_risk(cur) -> float:
     port_row = cur.fetchone()
     if not port_row or port_row[0] is None:
         raise ValueError("Portfolio value unavailable for risk calculation")
-    port_val = float(safe_float(port_row[0]))
+    port_val = float(float(port_row[0]))
 
     if port_val <= 0:
         raise ValueError(f"Invalid portfolio value for risk calculation: {port_val}")
@@ -251,8 +250,8 @@ def _compute_spy_change(cur, today: date) -> float:
     if len(prices) < 2:
         raise ValueError(f"Insufficient SPY price data for {today}: got {len(prices)} prices, need 2")
 
-    latest = float(safe_float(prices[0][0]))
-    prior = float(safe_float(prices[1][0]))
+    latest = float(float(prices[0][0]))
+    prior = float(float(prices[1][0]))
 
     if latest <= 0 or prior <= 0:
         raise ValueError(f"Invalid SPY prices for {today}: latest={latest}, prior={prior}")
@@ -277,8 +276,8 @@ def _compute_win_rate(cur) -> float:
     if not row:
         raise ValueError("Win rate query failed")
 
-    wins = int(safe_int(row[0]))
-    losses = int(safe_int(row[1]))
+    wins = int(int(row[0]))
+    losses = int(int(row[1]))
     decisive = wins + losses
 
     if decisive == 0:

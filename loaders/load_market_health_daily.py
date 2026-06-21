@@ -21,7 +21,6 @@ from utils.db.context import DatabaseContext
 from utils.infrastructure.circuit_breaker import CircuitBreaker, DataImportance
 from utils.infrastructure.timezone import EASTERN_TZ
 from utils.optimal_loader import OptimalLoader
-from utils.safe_data_conversion import safe_float
 
 
 logger = logging.getLogger(__name__)
@@ -255,7 +254,7 @@ class MarketHealthDailyLoader(OptimalLoader):
                 if close_val is None or is_nan:
                     continue
 
-                close_float = safe_float(close_val, default=0.0)
+                close_float = float(close_val)
                 # VIX must be > 0 (can never be 0 in real market data)
                 # If yfinance returns 0, it's a data quality issue - skip it
                 if close_float <= 0:
@@ -380,7 +379,7 @@ class MarketHealthDailyLoader(OptimalLoader):
                     (start, end),
                 )
                 rows = cur.fetchall()
-            result = {str(row[0]): safe_float(row[1], default=0.0) for row in rows}
+            result = {str(row[0]): float(row[1]) for row in rows}
             if result:
                 logger.info(f"Fetched yield curve data: {len(result)} days")
             return result
@@ -419,7 +418,7 @@ class MarketHealthDailyLoader(OptimalLoader):
 
                         for r in cur.fetchall():
                             result[r[0].isoformat()] = {
-                                "advance_decline_ratio": safe_float(r[1], default=0.0),
+                                "advance_decline_ratio": float(r[1]),
                                 "new_highs_count": int(r[2]),
                                 "new_lows_count": int(r[3]),
                             }
@@ -477,7 +476,7 @@ class MarketHealthDailyLoader(OptimalLoader):
                         raise ValueError(f"New highs/lows data missing for {r[0]}")
                     result[r[0].isoformat()] = {
                         "advance_decline_ratio": (
-                            safe_float(r[3], default=None) if r[3] is not None else 1.0
+                            float(r[3]) if r[3] is not None else 1.0
                         ),
                         "new_highs_count": int(r[4]),
                         "new_lows_count": int(r[5]),
@@ -501,10 +500,10 @@ class MarketHealthDailyLoader(OptimalLoader):
                 return [
                     {
                         "date": r[0].isoformat() if r[0] else None,
-                        "open": safe_float(r[1], default=0.0) if r[1] is not None else None,
-                        "high": safe_float(r[2], default=0.0) if r[2] is not None else None,
-                        "low": safe_float(r[3], default=0.0) if r[3] is not None else None,
-                        "close": safe_float(r[4], default=0.0) if r[4] is not None else None,
+                        "open": float(r[1]) if r[1] is not None else None,
+                        "high": float(r[2]) if r[2] is not None else None,
+                        "low": float(r[3]) if r[3] is not None else None,
+                        "close": float(r[4]) if r[4] is not None else None,
                         "volume": int(r[5]) if r[5] is not None else None,
                     }
                     for r in cur.fetchall()
@@ -550,9 +549,9 @@ class MarketHealthDailyLoader(OptimalLoader):
 
         results = []
         for idx, row in df.iterrows():
-            close = safe_float(row["close"], default=0.0) if pd.notna(row["close"]) else 0
-            sma_200 = safe_float(row["sma_200"], default=0.0) if pd.notna(row["sma_200"]) else None
-            sma_50 = safe_float(row["sma_50"], default=0.0) if pd.notna(row["sma_50"]) else None
+            close = float(row["close"]) if pd.notna(row["close"]) else 0
+            sma_200 = float(row["sma_200"]) if pd.notna(row["sma_200"]) else None
+            sma_50 = float(row["sma_50"]) if pd.notna(row["sma_50"]) else None
 
             # Determine market trend and stage
             market_trend = "neutral"
@@ -621,7 +620,7 @@ class MarketHealthDailyLoader(OptimalLoader):
                     "new_highs_count": None,  # filled from _fetch_breadth_data
                     "new_lows_count": None,  # filled from _fetch_breadth_data
                     "breadth_momentum_10d": (
-                        safe_float(row["breadth_10d"], default=0.0)
+                        float(row["breadth_10d"])
                         if pd.notna(row["breadth_10d"])
                         else 50
                     ),
@@ -708,7 +707,7 @@ def _write_vix_family_prices(start: date, end: date) -> int:
                             except (IndexError, AttributeError):
                                 val = None
                         try:
-                            f = safe_float(val, default=0.0)
+                            f = float(val)
                             if f != f:  # NaN check
                                 return None
                             return round(f, 4)

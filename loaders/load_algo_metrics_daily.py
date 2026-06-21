@@ -10,7 +10,6 @@ from loaders.runner import run_loader
 from utils.db.context import DatabaseContext
 from utils.infrastructure.timezone import EASTERN_TZ
 from utils.optimal_loader import OptimalLoader
-from utils.safe_data_conversion import safe_float
 
 
 logger = logging.getLogger(__name__)
@@ -61,7 +60,7 @@ class AlgoMetricsDailyLoader(OptimalLoader):
                         "total_actions": row[1],
                         "entries": row[2],
                         "exits": row[3],
-                        "avg_signal_score": safe_float(row[4], default=0.0, context="row[4]") if row[4] else None,
+                        "avg_signal_score": float(row[4]) if row[4] else None,
                     }
                 ]
 

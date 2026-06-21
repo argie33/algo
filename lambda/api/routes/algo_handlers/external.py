@@ -20,7 +20,6 @@ from routes.utils import (
 )
 
 from utils.validation import (
-    safe_float,
 )
 
 
@@ -105,7 +104,7 @@ def _get_sentiment(cur) -> dict:
     return success_response(
         {
             "date": data.get("date"),
-            "fear_greed_index": safe_float(fear_greed),
+            "fear_greed_index": float(fear_greed),
             "label": label,
             "data_freshness": freshness,
         }

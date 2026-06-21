@@ -55,7 +55,7 @@ class EarningsHistoryLoader(OptimalLoader):
                     eps_actual = row.get("Reported EPS")
                     surprise_pct = row.get("Surprise(%)")
 
-                    def _safe_float(v):
+                    def _float(v):
                         try:
                             import math
 
@@ -79,9 +79,9 @@ class EarningsHistoryLoader(OptimalLoader):
                             "symbol": symbol,
                             "quarter": quarter_str,
                             "earnings_date": ed,
-                            "eps_estimate": _safe_float(eps_est),
-                            "eps_actual": _safe_float(eps_actual),
-                            "surprise_percent": _safe_float(surprise_pct),
+                            "eps_estimate": _float(eps_est),
+                            "eps_actual": _float(eps_actual),
+                            "surprise_percent": _float(surprise_pct),
                         }
                     )
                 except (ValueError, ZeroDivisionError, TypeError) as e:

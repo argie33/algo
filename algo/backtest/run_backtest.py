@@ -88,23 +88,23 @@ def _get_daily_buy_signals(signal_date: date, min_composite: float) -> list[dict
 
         signals = []
         for r in rows:
-            close = safe_float(r[1]) if r[1] is not None else None
+            close = float(r[1]) if r[1] is not None else None
             if not close:
                 continue
             signals.append(
                 {
                     "symbol": r[0],
                     "entry_price": close,
-                    "high": safe_float(r[2]) if r[2] is not None else None,
-                    "low": safe_float(r[3]) if r[3] is not None else None,
-                    "sma_50": safe_float(r[4]) if r[4] is not None else None,
-                    "signal_strength": safe_float(r[5]) if r[5] is not None else 0.5,
-                    "buylevel": safe_float(r[6]) if r[6] is not None else None,
-                    "stoplevel": safe_float(r[7]) if r[7] is not None else None,
-                    "signal_quality_score": safe_float(r[8]) if r[8] is not None else 0.0,
-                    "entry_quality_score": safe_float(r[9]) if r[9] is not None else None,
-                    "composite_score": safe_float(r[10]) if r[10] is not None else None,
-                    "rs_percentile": safe_float(r[11]) if r[11] is not None else None,
+                    "high": float(r[2]) if r[2] is not None else None,
+                    "low": float(r[3]) if r[3] is not None else None,
+                    "sma_50": float(r[4]) if r[4] is not None else None,
+                    "signal_strength": float(r[5]) if r[5] is not None else 0.5,
+                    "buylevel": float(r[6]) if r[6] is not None else None,
+                    "stoplevel": float(r[7]) if r[7] is not None else None,
+                    "signal_quality_score": float(r[8]) if r[8] is not None else 0.0,
+                    "entry_quality_score": float(r[9]) if r[9] is not None else None,
+                    "composite_score": float(r[10]) if r[10] is not None else None,
+                    "rs_percentile": float(r[11]) if r[11] is not None else None,
                 }
             )
 
@@ -135,7 +135,7 @@ def _get_price_on_date(symbol: str, target_date: date) -> float | None:
                 (symbol, target_date),
             )
             row = cur.fetchone()
-            return safe_float(row[0]) if row and row[0] is not None else None
+            return float(row[0]) if row and row[0] is not None else None
     except (ValueError, ZeroDivisionError, TypeError) as e:
         raise RuntimeError(f"Operation failed: {e}") from e
 
@@ -155,7 +155,7 @@ def _get_prices_batch(symbols: list[str], target_date: date) -> dict[str, float]
                 """,
                 (symbols, target_date),
             )
-            return {r[0]: safe_float(r[1]) for r in cur.fetchall() if r[1] is not None}
+            return {r[0]: float(r[1]) for r in cur.fetchall() if r[1] is not None}
     except (psycopg2.DatabaseError, psycopg2.OperationalError) as e:
         raise RuntimeError(f"[BACKTEST] FATAL: Cannot fetch prices for symbols: {e}") from e
 

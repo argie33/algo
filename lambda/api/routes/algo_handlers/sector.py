@@ -22,7 +22,6 @@ from routes.utils import (
 
 from utils.validation import (
     format_decimal_string,
-    safe_float,
     safe_int,
 )
 
@@ -192,22 +191,22 @@ def _get_algo_evaluate(cur) -> dict:
                     "exceptional_sqs_80": sig_dict["candidates_exceptional"],
                     "score_range": {
                         "min": (
-                            safe_float(sig_dict.get("min_score"), default=0.0, context="min_score")
+                            float(sig_dict.get("min_score"), default=0.0, context="min_score")
                             if sig_dict.get("min_score") is not None
                             else None
                         ),
                         "median": (
-                            safe_float(sig_dict.get("median_score"), default=0.0, context="median_score")
+                            float(sig_dict.get("median_score"), default=0.0, context="median_score")
                             if sig_dict.get("median_score") is not None
                             else None
                         ),
                         "average": (
-                            safe_float(sig_dict.get("avg_score"), default=0.0, context="avg_score")
+                            float(sig_dict.get("avg_score"), default=0.0, context="avg_score")
                             if sig_dict.get("avg_score") is not None
                             else None
                         ),
                         "max": (
-                            safe_float(sig_dict.get("top_score"), default=0.0, context="top_score")
+                            float(sig_dict.get("top_score"), default=0.0, context="top_score")
                             if sig_dict.get("top_score") is not None
                             else None
                         ),
@@ -225,9 +224,9 @@ def _get_algo_evaluate(cur) -> dict:
                     "unrealized_pnl": {
                         "total_dollars": format_decimal_string(unrealized_pnl_total, precision=2, allow_none=True),
                         "total_pct": format_decimal_string(unrealized_pnl_pct, precision=2, allow_none=True),
-                        "winning_positions": safe_int(winning_count),
-                        "losing_positions": safe_int(losing_count),
-                        "breakeven_positions": safe_int(breakeven_count),
+                        "winning_positions": int(winning_count),
+                        "losing_positions": int(losing_count),
+                        "breakeven_positions": int(breakeven_count),
                         "source": "open_positions_only",
                         "note": "Includes only open positions (no closed trades, no dividends)",
                     },

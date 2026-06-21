@@ -9,7 +9,6 @@ import psycopg2
 
 from algo.signals.swing_component_scorer import SwingComponentScorer
 from utils.db import DatabaseContext
-from utils.safe_data_conversion import safe_float
 
 
 logger = logging.getLogger(__name__)
@@ -295,7 +294,7 @@ class SwingTraderScore:
             )
             row = cur.fetchone()
             if row and row[0] is not None:
-                pct_from_high = safe_float(row[0], default=0.0, context="row[0]")
+                pct_from_high = float(row[0])
                 # pct_from_high is (close - high52w) / high52w * 100, always ≤ 0.
                 # -30 means 30% below the 52w high. Reject if too far below the high.
                 if pct_from_high < -max_extension_pct:

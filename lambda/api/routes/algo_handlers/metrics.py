@@ -77,9 +77,9 @@ def _get_algo_metrics(cur) -> dict:
 
         # Validate critical fields
         date = data.get("date")
-        total_actions = safe_int(data.get("total_actions"))
-        entries = safe_int(data.get("entries"))
-        exits = safe_int(data.get("exits"))
+        total_actions = int(data.get("total_actions"))
+        entries = int(data.get("entries"))
+        exits = int(data.get("exits"))
 
         if date is None:
             return error_response(503, "incomplete_data", "Algo metrics date missing")
@@ -94,7 +94,7 @@ def _get_algo_metrics(cur) -> dict:
                 "total_actions": total_actions,
                 "entries": entries,
                 "exits": exits,
-                "avg_signal_score": safe_float_strict(data.get("avg_signal_score")),
+                "avg_signal_score": float(data.get("avg_signal_score")),
             }
         )
     except (
@@ -235,13 +235,13 @@ def _get_algo_performance(cur) -> dict:
                 """)
             pos_row = cur.fetchone()
             if pos_row:
-                open_losses_count = safe_int(pos_row["open_losses"])
+                open_losses_count = int(pos_row["open_losses"])
                 if open_losses_count is None:
                     open_losses_count = 0
-                total_open_losses_dollars = safe_float(pos_row["total_losses"])
+                total_open_losses_dollars = float(pos_row["total_losses"])
                 if total_open_losses_dollars is None:
                     total_open_losses_dollars = 0.0
-                wr = safe_float(metrics.get("win_rate_pct"))
+                wr = float(metrics.get("win_rate_pct"))
                 if open_losses_count > 0 and wr is not None:
                     win_count = winning if winning is not None else 0
                     lose_count = losing if losing is not None else 0
@@ -256,9 +256,9 @@ def _get_algo_performance(cur) -> dict:
         # Compute expectancy_r from win_rate and average R multiples
         expectancy_r = None
         try:
-            wr = safe_float(metrics.get("win_rate_pct"))
-            avg_wr = safe_float(trade_stats.get("avg_win_r"))
-            avg_lr = safe_float(trade_stats.get("avg_loss_r"))
+            wr = float(metrics.get("win_rate_pct"))
+            avg_wr = float(trade_stats.get("avg_win_r"))
+            avg_lr = float(trade_stats.get("avg_loss_r"))
             if wr is not None and avg_wr is not None and avg_lr is not None:
                 wr_frac = wr / 100
                 expectancy_r = round(wr_frac * avg_wr + (1 - wr_frac) * avg_lr, 3)
@@ -414,7 +414,7 @@ def _get_algo_portfolio(cur) -> dict:
         response_data = {
             "total_portfolio_value": pv,
             "total_cash": format_decimal_string(data.get("total_cash"), precision=2, allow_none=True),
-            "position_count": safe_int(data.get("position_count")),
+            "position_count": int(data.get("position_count")),
             "daily_return_pct": format_decimal_string(data.get("daily_return_pct"), precision=2, allow_none=True),
             "unrealized_pnl": {
                 "total_dollars": format_decimal_string(data.get("unrealized_pnl_total"), precision=2, allow_none=True),
@@ -598,14 +598,14 @@ def _get_performance_analytics(cur) -> dict:
         data = safe_dict_convert(row)
         return success_response(
             {
-                "rolling_sharpe_252d": safe_float_strict(data.get("rolling_sharpe_252d"), allow_none=True),
-                "rolling_sortino_252d": safe_float_strict(data.get("rolling_sortino_252d"), allow_none=True),
-                "calmar_ratio": safe_float_strict(data.get("calmar_ratio"), allow_none=True),
-                "win_rate_50t": safe_float_strict(data.get("win_rate_50t"), allow_none=True),
-                "avg_win_r_50t": safe_float_strict(data.get("avg_win_r_50t"), allow_none=True),
-                "avg_loss_r_50t": safe_float_strict(data.get("avg_loss_r_50t"), allow_none=True),
-                "expectancy": safe_float_strict(data.get("expectancy"), allow_none=True),
-                "max_drawdown_pct": safe_float_strict(data.get("max_drawdown_pct"), allow_none=True),
+                "rolling_sharpe_252d": float(data.get("rolling_sharpe_252d")) if data.get("rolling_sharpe_252d") is not None else None,
+                "rolling_sortino_252d": float(data.get("rolling_sortino_252d")) if data.get("rolling_sortino_252d") is not None else None,
+                "calmar_ratio": float(data.get("calmar_ratio")) if data.get("calmar_ratio") is not None else None,
+                "win_rate_50t": float(data.get("win_rate_50t")) if data.get("win_rate_50t") is not None else None,
+                "avg_win_r_50t": float(data.get("avg_win_r_50t")) if data.get("avg_win_r_50t") is not None else None,
+                "avg_loss_r_50t": float(data.get("avg_loss_r_50t")) if data.get("avg_loss_r_50t") is not None else None,
+                "expectancy": float(data.get("expectancy")) if data.get("expectancy") is not None else None,
+                "max_drawdown_pct": float(data.get("max_drawdown_pct")) if data.get("max_drawdown_pct") is not None else None,
             }
         )
     except (psycopg2.errors.UndefinedTable, psycopg2.errors.UndefinedColumn):
@@ -643,13 +643,13 @@ def _get_performance_metrics_endpoint(cur) -> dict:
         200,
         {
             "win_rate": (
-                safe_float_strict(row["win_rate_pct"]) / 100 if row["win_rate_pct"] else None
+                float(row["win_rate_pct"]) / 100 if row["win_rate_pct"] else None
             ),
-            "profit_factor": safe_float_strict(row["profit_factor"]),
-            "expectancy": safe_float_strict(row["avg_trade_pct"]),
-            "sharpe_ratio": safe_float_strict(row["sharpe_ratio"]),
+            "profit_factor": float(row["profit_factor"]),
+            "expectancy": float(row["avg_trade_pct"]),
+            "sharpe_ratio": float(row["sharpe_ratio"]),
             "max_drawdown": (
-                safe_float_strict(row["max_drawdown_pct"]) / 100
+                float(row["max_drawdown_pct"]) / 100
                 if row["max_drawdown_pct"]
                 else None
             ),
@@ -680,7 +680,7 @@ def _get_portfolio_summary(cur) -> dict:
     total_value = float(row["total_portfolio_value"])
     cash = float(row["total_cash"])
     invested = float(row["total_equity"])
-    positions = safe_int(row["position_count"])
+    positions = int(row["position_count"])
     daily_return_pct = float(row["daily_return_pct"])
 
     daily_change_dollars = (
@@ -786,7 +786,7 @@ def _get_stage_distribution(cur) -> dict:
     if not rows:
         return list_response([], total=0, limit=None, offset=None)
 
-    distribution = [{"phase": r["phase"], "count": safe_int(r["count"])} for r in rows]
+    distribution = [{"phase": r["phase"], "count": int(r["count"])} for r in rows]
 
     return list_response(distribution, total=len(distribution), limit=None, offset=None)
 

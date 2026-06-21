@@ -20,7 +20,6 @@ import yfinance
 from loaders.runner import run_loader
 from utils.db.context import DatabaseContext
 from utils.optimal_loader import OptimalLoader
-from utils.safe_data_conversion import safe_float
 
 
 logger = logging.getLogger(__name__)
@@ -121,7 +120,7 @@ class IncomeStatementYFinanceBackfillLoader(OptimalLoader):
                 eps_val = None
                 if eps_row is not None:
                     try:
-                        eps_val = safe_float(eps_row[idx], default=0.0) if eps_row[idx] else None
+                        eps_val = float(eps_row[idx]) if eps_row[idx] else None
                     except (KeyError, TypeError, ValueError) as e:
                         logger.debug(f"{symbol} FY {fiscal_year}: Failed to extract EPS: {e}")
 
@@ -130,7 +129,7 @@ class IncomeStatementYFinanceBackfillLoader(OptimalLoader):
                     {
                         "symbol": symbol,
                         "fiscal_year": fiscal_year,
-                        "revenue": safe_float(revenue_val, default=0.0),
+                        "revenue": float(revenue_val),
                         "earnings_per_share": eps_val,
                     }
                 )

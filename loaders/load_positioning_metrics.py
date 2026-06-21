@@ -13,7 +13,6 @@ Requires: active symbols list.
 import sys
 
 from loaders.loader_helper import setup_imports
-from utils.safe_data_conversion import safe_float
 
 
 setup_imports()
@@ -78,33 +77,33 @@ class PositioningMetricsLoader(OptimalLoader):
                 "heldPercentInstitutions" in info
                 and info["heldPercentInstitutions"] is not None
             ):
-                institutional_ownership = safe_float(info["heldPercentInstitutions"], default=0.0, context="heldPercentInstitutions") * 100
+                institutional_ownership = float(info["heldPercentInstitutions"]) * 100
             elif (
                 "institutional_ownership" in info
                 and info["institutional_ownership"] is not None
             ):
-                institutional_ownership = safe_float(info["institutional_ownership"], default=0.0, context="institutional_ownership")
+                institutional_ownership = float(info["institutional_ownership"])
 
             if (
                 "heldPercentInsiders" in info
                 and info["heldPercentInsiders"] is not None
             ):
-                insider_ownership = safe_float(info["heldPercentInsiders"], default=0.0, context="heldPercentInsiders") * 100
+                insider_ownership = float(info["heldPercentInsiders"]) * 100
             elif "insider_ownership" in info and info["insider_ownership"] is not None:
-                insider_ownership = safe_float(info["insider_ownership"], default=0.0, context="insider_ownership")
+                insider_ownership = float(info["insider_ownership"])
 
             if (
                 "shortPercentOfFloat" in info
                 and info["shortPercentOfFloat"] is not None
             ):
-                short_interest_percent = safe_float(info["shortPercentOfFloat"], default=0.0, context="shortPercentOfFloat") * 100
+                short_interest_percent = float(info["shortPercentOfFloat"]) * 100
             elif (
                 "short_percent_of_float" in info
                 and info["short_percent_of_float"] is not None
             ):
-                short_interest_percent = safe_float(info["short_percent_of_float"], default=0.0, context="short_percent_of_float")
+                short_interest_percent = float(info["short_percent_of_float"])
             elif "shortRatio" in info and info["shortRatio"] is not None:
-                short_interest_percent = safe_float(info["shortRatio"], default=0.0, context="shortRatio")
+                short_interest_percent = float(info["shortRatio"])
 
             if "sharesShort" in info and info["sharesShort"] is not None:
                 short_interest_trend = "stable"

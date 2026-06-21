@@ -39,7 +39,7 @@ PRIORITY_FILES = [
 def add_import_if_needed(content: str) -> str:
     """Add safe_float import from utils.safe_data_conversion if not present."""
     # Check if already imported
-    if "from utils.safe_data_conversion import safe_float" in content:
+from utils.safe_data_conversion import safe_float" in content:
         return content
     if "from utils.safe_data_conversion import" in content and "safe_float" in content:
         return content
@@ -54,7 +54,7 @@ def add_import_if_needed(content: str) -> str:
 
     if import_idx >= 0:
         # Insert after found import
-        lines.insert(import_idx + 1, "from utils.safe_data_conversion import safe_float")
+from utils.safe_data_conversion import safe_float")
         return "\n".join(lines)
 
     # Fallback: insert after last import
@@ -63,7 +63,7 @@ def add_import_if_needed(content: str) -> str:
             import_idx = i
 
     if import_idx >= 0:
-        lines.insert(import_idx + 1, "from utils.safe_data_conversion import safe_float")
+from utils.safe_data_conversion import safe_float")
         return "\n".join(lines)
 
     return content
@@ -83,7 +83,7 @@ def fix_float_calls(content: str, filename: str) -> tuple[str, int]:
         nonlocal count
         count += 1
         inner = match.group(1)
-        return f'safe_float({inner}, default=0.0, context="{inner}")'
+        return f'float({inner})'
 
     # Replace patterns like: float(variable_name)
     content = re.sub(
@@ -93,12 +93,12 @@ def fix_float_calls(content: str, filename: str) -> tuple[str, int]:
     )
 
     # Pattern 2: Conditional None checks
-    # float(x) if x is not None else None -> safe_float(x, default=None)
+    # float(x) if x is not None else None -> float(x)
     def replace_conditional_none(match):
         nonlocal count
         count += 1
         inner = match.group(1)
-        return f'safe_float({inner}, default=None, context="{inner}")'
+        return f'float({inner})'
 
     content = re.sub(
         r'float\(([^)]+)\)\s+if\s+\1\s+is\s+not\s+None\s+else\s+None',
@@ -112,7 +112,7 @@ def fix_float_calls(content: str, filename: str) -> tuple[str, int]:
         nonlocal count
         count += 1
         inner = match.group(1)
-        return f'safe_float({inner}, default=None, context="value")'
+        return f'float({inner})'
 
     content = re.sub(
         r'float\(([a-zA-Z_][a-zA-Z0-9_]*\[[^\]]+\])\)\s+if\s+\1\s+is\s+not\s+None\s+else\s+None',

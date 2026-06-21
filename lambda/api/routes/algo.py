@@ -20,7 +20,7 @@ from utils.rate_limiting import (
     check_admin_rate_limit,
     check_public_rate_limit,
 )
-from utils.validation import CognitoValidator, safe_float_strict
+from utils.validation import CognitoValidator
 
 from .algo_handlers.config import (
     _get_algo_config,
@@ -327,13 +327,12 @@ def _dispatch(
         limit_str = params.get("limit", [None])[0] if params and params.get("limit") else None
         limit = safe_limit(limit_str or "100", max_val=10000)
         min_score_str = params.get("min_score", [None])[0] if params else None
-        min_score = (
-            safe_float_strict(min_score_str, context="query param min_score")
-            if min_score_str
-            else None
-        )
-        if min_score_str and min_score is None:
-            raise_api_error(400, "bad_request", "min_score must be numeric")
+        min_score = None
+        if min_score_str:
+            try:
+                min_score = float(min_score_str)
+            except (ValueError, TypeError):
+                raise_api_error(400, "bad_request", "min_score must be numeric")
         symbol_filter = params.get("symbol", [None])[0] if params else None
         if symbol_filter:
             if not re.match(r"^[A-Z0-9\-\^]{1,10}$", symbol_filter.upper()):

@@ -5,8 +5,6 @@ from config.api_endpoints import (
 )
 
 from .conversion import (
-    safe_float,
-    safe_float_strict,
     safe_int,
     safe_int_strict,
     safe_json_loads,

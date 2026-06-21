@@ -122,7 +122,7 @@ def safe_float_strict(value: Any, context: str = "", field_name: str | None = No
     Raises:
         StrictValidationError: If conversion fails or value is None/NaN/Infinity
     """
-    result = safe_float(value, default=None, context=context, strict=True, field_name=field_name)
+    result = float(value)
     if result is None:
         raise StrictValidationError(f"safe_float_strict returned None for {field_name or context}")
     return result

@@ -28,7 +28,6 @@ except ImportError:
 
 from algo.signals.attribution import SignalAttributionEngine
 from utils.db import DatabaseContext
-from utils.safe_data_conversion import safe_float
 
 
 logger = logging.getLogger(__name__)
@@ -124,7 +123,7 @@ class WeightOptimizer:
                         "Cannot optimize weights without complete IC attribution data."
                     )
                 ic = comp_data["ic_value"]
-                ic_list.append(safe_float(ic, default=0.0, context="ic"))
+                ic_list.append(float(ic))
 
             ic_array = np.array(ic_list)
 

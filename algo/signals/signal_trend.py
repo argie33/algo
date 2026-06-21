@@ -11,7 +11,6 @@ computation if trend_template_data is stale.
 import logging
 from typing import Any
 
-from utils.safe_data_conversion import safe_float
 
 
 logger = logging.getLogger(__name__)
@@ -21,10 +20,10 @@ class SignalTrendMixin:
     """Trend signal methods reading from pre-computed data and real-time calculations."""
 
     @staticmethod
-    def _is_valid_safe_float(v, default=0.0, context="v") -> bool:
+    def _is_valid_float(v) -> bool:
         """Check if a value can be safely converted to float."""
         try:
-            safe_float(v, default=0.0, context="v")
+            float(v)
             return True
         except (TypeError, ValueError):
             return False
@@ -51,9 +50,9 @@ class SignalTrendMixin:
 
         closes_raw = [row[1] for row in rows]
         try:
-            close = np.array([safe_float(v, default=0.0, context="v") for v in closes_raw], dtype=np.float64)
+            close = np.array([float(v) for v in closes_raw], dtype=np.float64)
         except (TypeError, ValueError) as e:
-            invalid_indices = [i for i, v in enumerate(closes_raw) if not self._is_valid_safe_float(v, default=0.0, context="v")]
+            invalid_indices = [i for i, v in enumerate(closes_raw) if not self._is_valid_float(v)]
             raise ValueError(
                 f"Invalid price data for {symbol}: {len(invalid_indices)} "
                 f"non-numeric values at indices {invalid_indices[:5]}{'...' if len(invalid_indices) > 5 else ''}. "
@@ -124,8 +123,8 @@ class SignalTrendMixin:
             "score": score,
             "pass": score >= 5,
             "criteria": {
-                "percent_from_52w_high": (safe_float(pct_from_high, default=0.0, context="pct_from_high") if pct_from_high is not None else None),
-                "percent_from_52w_low": (safe_float(pct_from_low, default=0.0, context="pct_from_low") if pct_from_low is not None else None),
+                "percent_from_52w_high": (float(pct_from_high) if pct_from_high is not None else None),
+                "percent_from_52w_low": (float(pct_from_low) if pct_from_low is not None else None),
                 "weinstein_stage": weinstein_stage,
                 "trend_direction": ("uptrend" if score >= 6 else ("downtrend" if score <= 2 else "sideways")),
             },
@@ -148,8 +147,8 @@ class SignalTrendMixin:
                     "score": score,
                     "pass": score >= 5,
                     "criteria": {
-                        "percent_from_52w_high": safe_float(row[1], default=0.0, context="row[1]") if row[1] else None,
-                        "percent_from_52w_low": safe_float(row[2], default=0.0, context="row[2]") if row[2] else None,
+                        "percent_from_52w_high": float(row[1]) if row[1] else None,
+                        "percent_from_52w_low": float(row[2]) if row[2] else None,
                         "weinstein_stage": int(row[3]) if row[3] else None,
                         "trend_direction": str(row[4]) if row[4] else None,
                     },

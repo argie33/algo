@@ -11,7 +11,6 @@ import psycopg2
 from loaders.runner import run_loader
 from utils.db.context import DatabaseContext
 from utils.optimal_loader import OptimalLoader
-from utils.safe_data_conversion import safe_float
 
 
 logger = logging.getLogger(__name__)
@@ -110,7 +109,7 @@ class SectorRankingLoader(OptimalLoader):
                             "date": latest_date,
                             "current_rank": current_rank,
                             "momentum_score": (
-                                safe_float(r["momentum_score"], default=0.0)
+                                float(r["momentum_score"])
                                 if r["momentum_score"] is not None
                                 else 0.0
                             ),

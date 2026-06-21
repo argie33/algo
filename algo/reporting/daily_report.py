@@ -7,7 +7,6 @@ from typing import Any
 import psycopg2
 
 from utils.db import DatabaseContext
-from utils.safe_data_conversion import safe_float
 
 
 logger = logging.getLogger(__name__)
@@ -86,7 +85,7 @@ class DailyFinanceReport:
                 (report_date,),
             )
             ytd_row = cur.fetchone()
-            ytd_start = safe_float(ytd_row[0], default=0.0) if ytd_row is not None and ytd_row[0] is not None else current_value
+            ytd_start = float(ytd_row[0]) if ytd_row is not None and ytd_row[0] is not None else current_value
             ytd_pnl_pct = ((current_value - ytd_start) / ytd_start * 100) if ytd_start > 0 else 0
 
             return {
@@ -114,10 +113,10 @@ class DailyFinanceReport:
                 raise RuntimeError(f"No performance metrics available for {report_date}")
 
             return {
-                "sharpe_ytd": round(safe_float(row[0], default=0.0), 4) if row[0] else None,
-                "sortino": round(safe_float(row[1], default=0.0), 4) if row[1] else None,
-                "max_drawdown_pct": round(safe_float(row[2], default=0.0), 2) if row[2] else None,
-                "calmar": round(safe_float(row[3], default=0.0), 4) if row[3] else None,
+                "sharpe_ytd": round(float(row[0]), 4) if row[0] else None,
+                "sortino": round(float(row[1]), 4) if row[1] else None,
+                "max_drawdown_pct": round(float(row[2]), 2) if row[2] else None,
+                "calmar": round(float(row[3]), 4) if row[3] else None,
             }
         except (psycopg2.DatabaseError, psycopg2.OperationalError) as e:
             raise RuntimeError(f"Database error fetching risk metrics for {report_date}: {e}") from e
@@ -138,10 +137,10 @@ class DailyFinanceReport:
                 raise RuntimeError(f"No strategy performance data available for {report_date}")
 
             return {
-                "win_rate_pct": round(safe_float(row[0], default=0.0), 2) if row[0] else None,
-                "profit_factor": round(safe_float(row[1], default=0.0), 2) if row[1] else None,
-                "avg_trade_pct": round(safe_float(row[2], default=0.0), 2) if row[2] else None,
-                "best_trade_pct": round(safe_float(row[3], default=0.0), 2) if row[3] else None,
+                "win_rate_pct": round(float(row[0]), 2) if row[0] else None,
+                "profit_factor": round(float(row[1]), 2) if row[1] else None,
+                "avg_trade_pct": round(float(row[2]), 2) if row[2] else None,
+                "best_trade_pct": round(float(row[3]), 2) if row[3] else None,
             }
         except (psycopg2.DatabaseError, psycopg2.OperationalError) as e:
             raise RuntimeError(f"Database error fetching strategy metrics for {report_date}: {e}") from e
@@ -166,9 +165,9 @@ class DailyFinanceReport:
             for comp, ic, pval in rows:
                 if ic is not None and pval is not None:
                     components[comp] = {
-                        "ic": round(safe_float(ic, default=0.0), 3),
-                        "pvalue": round(safe_float(pval, default=0.0), 3),
-                        "status": self._ic_interpretation(safe_float(ic, default=0.0)),
+                        "ic": round(float(ic), 3),
+                        "pvalue": round(float(pval), 3),
+                        "status": self._ic_interpretation(float(ic)),
                     }
                 else:
                     components[comp] = {"status": "no_data"}

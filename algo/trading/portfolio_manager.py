@@ -12,7 +12,6 @@ import logging
 import requests
 
 from algo.infrastructure import get_api_timeout
-from utils.safe_data_conversion import safe_float
 
 
 logger = logging.getLogger(__name__)
@@ -49,12 +48,12 @@ class PortfolioManager:
                     raise RuntimeError(f"[PORTFOLIO] Critical: Invalid JSON response from Alpaca API: {e}") from e
 
                 if "portfolio_value" in data and data["portfolio_value"] is not None:
-                    pv_float = safe_float(data["portfolio_value"], context="Alpaca portfolio_value field")
+                    pv_float = float(data["portfolio_value"])
                     logger.info(f"[PORTFOLIO] Live Alpaca equity: ${pv_float:.2f} (url={self.alpaca_base_url})")
                     return pv_float
 
                 if "equity" in data and data["equity"] is not None:
-                    pv_float = safe_float(data["equity"], context="Alpaca equity field")
+                    pv_float = float(data["equity"])
                     logger.info(
                         f"[PORTFOLIO] Live Alpaca equity (from equity field): ${pv_float:.2f} (url={self.alpaca_base_url})"
                     )

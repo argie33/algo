@@ -35,8 +35,6 @@ from .framework import (
     log_data_issue,
     safe_bool,
     # Functional API - numeric
-    safe_float,
-    safe_float_strict,
     safe_int,
     safe_int_strict,
     safe_json_loads,

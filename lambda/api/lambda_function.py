@@ -357,7 +357,7 @@ def validate_query_param_type(value: str, expected_type: str) -> tuple:
             return False, None
     elif expected_type == "float":
         try:
-            return True, safe_float(value, default=0.0, context="value")
+            return True, float(value)
         except ValueError:
             return False, None
     elif expected_type == "bool":
@@ -1253,9 +1253,9 @@ def lambda_handler(event: dict[str, Any], context: Any) -> dict[str, Any]:
             if isinstance(obj, (datetime.date, datetime.datetime)):
                 return obj.isoformat()
             if isinstance(obj, Decimal):
-                return safe_float(obj, default=0.0, context="obj")
+                return float(obj)
             if hasattr(obj, "__float__"):
-                return safe_float(obj, default=0.0, context="obj")
+                return float(obj)
             return str(obj)
 
         if isinstance(response, dict):

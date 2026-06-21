@@ -31,7 +31,6 @@ import requests
 from config.api_endpoints import get_alpaca_base_url
 from config.credential_manager import get_alpaca_credentials, get_credential_manager
 from utils.db import DatabaseContext
-from utils.safe_data_conversion import safe_float
 
 
 logger = logging.getLogger(__name__)
@@ -263,7 +262,7 @@ class PositionMonitor:
                         "Portfolio equity unavailable  -” cannot compute margin utilization. Snapshots missing or stale."
                     )
 
-                total_equity = safe_float(eq_row[0], context="portfolio_equity")
+                total_equity = float(eq_row[0])
                 if total_equity <= 0:
                     raise PositionValidationError(
                         f"Invalid portfolio equity: {total_equity} <= 0. Cannot monitor positions with zero or negative equity."
@@ -275,7 +274,7 @@ class PositionMonitor:
                     SELECT SUM(position_value) FROM algo_positions WHERE status = 'open'
                 """)
                 pos_val_row = cur.fetchone()
-                pos_value = safe_float(pos_val_row[0], default=0.0, context="total_position_value") if pos_val_row is not None and pos_val_row[0] is not None else 0
+                pos_value = float(pos_val_row[0]) if pos_val_row is not None and pos_val_row[0] is not None else 0
                 if pos_value < 0:
                     raise PositionValidationError(
                         f"Invalid position value: {pos_value} < 0. Database corruption detected."
@@ -387,8 +386,8 @@ class PositionMonitor:
             _db_current_price,
         ) = row
 
-        entry_price = safe_float(entry_price, default=0.0, context="entry_price")
-        init_stop = safe_float(init_stop, default=0.0, context="init_stop")
+        entry_price = float(entry_price)
+        init_stop = float(init_stop)
 
         if entry_price <= 0:
             msg = f"Invalid entry price {entry_price} for {symbol}  -” cannot monitor"
@@ -402,7 +401,7 @@ class PositionMonitor:
             msg = f"Stop {init_stop} >= entry {entry_price} for {symbol}  -” invalid trade"
             logger.error(f"ERROR: {msg}")
             raise PositionValidationError(msg)
-        active_stop = safe_float(current_stop, default=init_stop, context="current_stop") if current_stop else init_stop
+        active_stop = float(current_stop) if current_stop else init_stop
         target_hits = int(target_hits or 0)
         days_held = (current_date - trade_date).days
         try:
@@ -435,10 +434,10 @@ class PositionMonitor:
         entry_price_dec = Decimal(str(entry_price))
         quantity_dec = Decimal(str(quantity))
 
-        unrealized_pnl = safe_float(float((price_diff * quantity_dec).quantize(Decimal("0.01"), ROUND_HALF_UP)), default=0.0, context="unrealized_pnl")
+        unrealized_pnl = float(float((price_diff * quantity_dec).quantize(Decimal("0.01"), ROUND_HALF_UP)), default=0.0, context="unrealized_pnl")
         if entry_price_dec <= 0:
             raise PositionValidationError(f"Invalid entry price for {symbol}: {entry_price_dec} <= 0")
-        unrealized_pct = safe_float(float((price_diff / entry_price_dec * 100).quantize(Decimal("0.01"), ROUND_HALF_UP)), default=0.0, context="unrealized_pct")
+        unrealized_pct = float(float((price_diff / entry_price_dec * 100).quantize(Decimal("0.01"), ROUND_HALF_UP)), default=0.0, context="unrealized_pct")
 
         # 2. Recompute trailing stop (only ratchet UP, never down)
         proposed_stop = self._compute_trailing_stop(
@@ -683,15 +682,15 @@ class PositionMonitor:
         if row is None:
             raise ValueError(f"Price data missing for {symbol} on {current_date} or earlier  -” no price_daily entry")
 
-        close_price = safe_float(row[0], default=0.0, context="row[0]") if row[0] is not None else None
+        close_price = float(row[0]) if row[0] is not None else None
         if close_price is None:
             raise ValueError(f"Invalid price for {symbol} on {current_date}  -” close price is NULL")
 
         return (
             close_price,
-            safe_float(row[1], default=0.0, context="row[1]") if row[1] is not None else None,
-            safe_float(row[2], default=0.0, context="row[2]") if row[2] is not None else None,
-            safe_float(row[3], default=0.0, context="row[3]") if row[3] is not None else None,
+            float(row[1]) if row[1] is not None else None,
+            float(row[2]) if row[2] is not None else None,
+            float(row[3]) if row[3] is not None else None,
         )
 
     def _compute_trailing_stop(self, entry_price, active_stop, cur_price, atr, sma_50, target_hits):
@@ -852,7 +851,7 @@ class PositionMonitor:
                 f"No price data available for {symbol} from {trade_date} to {current_date}. Cannot calculate peak unrealized gain."
             )
 
-        max_close = safe_float(row[0], default=0.0, context="row[0]")
+        max_close = float(row[0])
         if max_close <= 0:
             raise PositionValidationError(f"Invalid price data for {symbol}: max close {max_close} <= 0")
         return ((max_close - entry_price) / entry_price) * 100.0
@@ -942,7 +941,7 @@ class PositionMonitor:
             raise ValueError(
                 f"Period return data missing for {symbol} on {end_date} ({lookback_days}d lookback)  -” insufficient price history"
             )
-        recent, oldest = safe_float(row[0], default=0.0, context="row[0]"), safe_float(row[1], default=0.0, context="row[1]")
+        recent, oldest = float(row[0]), float(row[1])
         if oldest <= 0:
             raise ValueError(f"Invalid historical price for {symbol}: oldest close {oldest} <= 0")
         return (recent - oldest) / oldest
@@ -956,8 +955,8 @@ class PositionMonitor:
         sp_name = f"sp_persist_review_{rec['position_id']}"
         cur.execute(f"SAVEPOINT {sp_name}")
         try:
-            current_price = safe_float(rec["current_price"], default=None, context="current_price")
-            quantity = safe_float(rec["quantity"], default=None, context="quantity")
+            current_price = float(rec["current_price"])
+            quantity = float(rec["quantity"])
             if current_price is None or quantity is None:
                 raise ValueError(f"Cannot persist review for position {rec['position_id']}: current_price or quantity missing")
             cur.execute(
@@ -1002,7 +1001,7 @@ class PositionMonitor:
                             "action": rec["action"],
                             "action_reason": rec["action_reason"],
                             "days_to_earnings": rec["days_to_earnings"],
-                            "proposed_stop": safe_float(rec["proposed_stop"], default=0.0, context="proposed_stop"),
+                            "proposed_stop": float(rec["proposed_stop"]),
                         }
                     ),
                     rec["action"],

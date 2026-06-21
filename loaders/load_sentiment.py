@@ -12,7 +12,6 @@ from datetime import date
 from loaders.runner import run_loader
 from utils.db.context import DatabaseContext
 from utils.optimal_loader import OptimalLoader
-from utils.safe_data_conversion import safe_float
 
 
 logger = logging.getLogger(__name__)
@@ -39,7 +38,7 @@ class SentimentLoader(OptimalLoader):
             """)
             row = cur.fetchone()
             if row and row[0] is not None:
-                scores.append(safe_float(row[0], default=0.0))
+                scores.append(float(row[0]))
 
             # AAII sentiment: bullish% as 0-100 score
             cur.execute("""
@@ -50,7 +49,7 @@ class SentimentLoader(OptimalLoader):
             """)
             row = cur.fetchone()
             if row and row[0] is not None:
-                scores.append(safe_float(row[0], default=0.0))
+                scores.append(float(row[0]))
 
             # NAAIM exposure index: 0-200 scale → normalize to 0-100
             cur.execute("""
@@ -61,7 +60,7 @@ class SentimentLoader(OptimalLoader):
             """)
             row = cur.fetchone()
             if row and row[0] is not None:
-                scores.append(min(safe_float(row[0], default=0.0) / 2.0, 100.0))
+                scores.append(min(float(row[0]) / 2.0, 100.0))
 
             if not scores:
                 logger.info("No sentiment source data available")

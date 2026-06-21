@@ -24,8 +24,6 @@ from routes.utils import (
 
 from utils.validation import (
     format_decimal_string,
-    safe_float,
-    safe_float_strict,
     safe_int,
     safe_int_strict,
 )
@@ -381,17 +379,16 @@ def _get_market(cur) -> dict:
             """)
             spy_row = cur.fetchone()
             if spy_row:
-                spy_close = safe_float(spy_row["close"]) if spy_row["close"] else None
+                spy_close = float(spy_row["close"]) if spy_row["close"] else None
         except (psycopg2.DatabaseError, psycopg2.OperationalError) as e:
             logger.warning(f"[MARKET] SPY price unavailable: {e}")
 
         data = {
-            "exposure_pct": safe_float_strict(exposure["exposure_pct"]),
+            "exposure_pct": float(exposure["exposure_pct"]),
             "regime": exposure["regime"],
             "halt_reasons": exposure["halt_reasons"],
-            "vix_level": safe_float_strict(
-                market_health["vix_level"], context="market_health.vix_level"
-            ),
+            "vix_level": float(
+                market_health["vix_level"]),
             "market_stage": safe_int_strict(
                 market_health["market_stage"], context="market_health.market_stage"
             ),
@@ -400,18 +397,12 @@ def _get_market(cur) -> dict:
                 exposure["distribution_days"], context="exposure.distribution_days"
             ),
             "spy_close": spy_close,
-            "spy_change_pct": safe_float_strict(
-                market_health["spy_change_pct"],
-                context="market_health.spy_change_pct",
-            ),
-            "up_volume_percent": safe_float_strict(
-                market_health["up_volume_percent"],
-                context="market_health.up_volume_percent",
-            ),
-            "advance_decline_ratio": safe_float_strict(
-                market_health["advance_decline_ratio"],
-                context="market_health.advance_decline_ratio",
-            ),
+            "spy_change_pct": float(
+                market_health["spy_change_pct"]),
+            "up_volume_percent": float(
+                market_health["up_volume_percent"]),
+            "advance_decline_ratio": float(
+                market_health["advance_decline_ratio"]),
             "new_highs_count": safe_int_strict(
                 market_health["new_highs_count"],
                 context="market_health.new_highs_count",
@@ -420,18 +411,12 @@ def _get_market(cur) -> dict:
                 market_health["new_lows_count"],
                 context="market_health.new_lows_count",
             ),
-            "put_call_ratio": safe_float_strict(
-                market_health["put_call_ratio"],
-                context="market_health.put_call_ratio",
-            ),
-            "breadth_momentum_10d": safe_float_strict(
-                market_health["breadth_momentum_10d"],
-                context="market_health.breadth_momentum_10d",
-            ),
-            "yield_curve_slope": safe_float_strict(
-                market_health["yield_curve_slope"],
-                context="market_health.yield_curve_slope",
-            ),
+            "put_call_ratio": float(
+                market_health["put_call_ratio"]),
+            "breadth_momentum_10d": float(
+                market_health["breadth_momentum_10d"]),
+            "yield_curve_slope": float(
+                market_health["yield_curve_slope"]),
             "fed_rate_environment": market_health["fed_rate_environment"],
         }
 
@@ -538,7 +523,7 @@ def _get_market_sentiment(cur) -> dict:
             503, "incomplete_data", "Market sentiment data incomplete"
         )
 
-    sentiment_score = safe_float_strict(row["sentiment_score"])
+    sentiment_score = float(row["sentiment_score"])
     bullish = None  # Not available in market_sentiment view
     bearish = None  # Not available in market_sentiment view
     neutral = None  # Not available in market_sentiment view
@@ -686,7 +671,7 @@ def _get_markets(cur) -> dict:
                 vix_val = market_health.get("vix_level")
                 if vix_val is not None:
                     try:
-                        vix_float = safe_float(vix_val, default=0.0, context="vix_val")
+                        vix_float = float(vix_val)
                         if vix_float <= 0:
                             logger.warning(
                                 f"[MARKETS API] Invalid VIX value {vix_float} in market_health_daily - "
@@ -712,7 +697,7 @@ def _get_markets(cur) -> dict:
             spy_row = cur.fetchone()
             if not spy_row or spy_row["close"] is None:
                 return error_response(503, "data_unavailable", "SPY price data not available")
-            spy_close = safe_float(spy_row["close"])
+            spy_close = float(spy_row["close"])
         except (psycopg2.DatabaseError, psycopg2.OperationalError) as spy_e:
             logger.error(f"CRITICAL: Failed to fetch SPY price: {spy_e}")
             return error_response(503, "data_unavailable", f"SPY price unavailable: {type(spy_e).__name__}")
@@ -795,15 +780,15 @@ def _get_trend_criteria(cur) -> dict:
         WHERE date = (SELECT MAX(date) FROM trend_template_data)
     """)
     row = cur.fetchone()
-    if not row or safe_int(row["total_symbols"]) == 0:
+    if not row or int(row["total_symbols"]) == 0:
         return error_response(503, "no_data", "Trend template data not yet available")
 
-    total_symbols = safe_int(row["total_symbols"])
+    total_symbols = int(row["total_symbols"])
     criteria = [
-        {"name": "Price Above 50-Day MA", "passing": safe_int(row["above_sma50"]), "total": total_symbols},
-        {"name": "50-Day Above 200-Day MA", "passing": safe_int(row["sma50_above_sma200"]), "total": total_symbols},
-        {"name": "Price Above 200-Day MA", "passing": safe_int(row["above_sma200"]), "total": total_symbols},
-        {"name": "Stage 2 Uptrend (Weinstein)", "passing": safe_int(row["stage2"]), "total": total_symbols},
+        {"name": "Price Above 50-Day MA", "passing": int(row["above_sma50"]), "total": total_symbols},
+        {"name": "50-Day Above 200-Day MA", "passing": int(row["sma50_above_sma200"]), "total": total_symbols},
+        {"name": "Price Above 200-Day MA", "passing": int(row["above_sma200"]), "total": total_symbols},
+        {"name": "Stage 2 Uptrend (Weinstein)", "passing": int(row["stage2"]), "total": total_symbols},
     ]
 
     return list_response(criteria, total=total_symbols, limit=None, offset=None)

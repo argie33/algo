@@ -14,7 +14,6 @@ import logging
 import psycopg2
 
 from utils.db.context import DatabaseContext
-from utils.safe_data_conversion import safe_float
 from utils.db.query_cache import CacheStrategy, QueryCache
 
 
@@ -118,7 +117,7 @@ class SignalBase:
                 (eval_date, eval_date, lookback, eval_date, eval_date, lookback),
             )
             rows = cur.fetchall()
-            return {r[0]: safe_float(r[1], default=0.0, context="r[1]") for r in rows if r[1] is not None}
+            return {r[0]: float(r[1]) for r in rows if r[1] is not None}
 
         percentile_dict = self._rs_percentile_cache.get_or_compute(
             cache_key,
@@ -131,7 +130,7 @@ class SignalBase:
             raise ValueError(
                 f"RS percentile not available for {symbol} on {eval_date} ({lookback}d lookback) — insufficient price history"
             )
-        return safe_float(result, default=0.0, context="result")
+        return float(result)
 
     def _period_return(self, cur, symbol, end_date, lookback_days):
         """Compute simple return over a lookback period.
@@ -158,8 +157,8 @@ class SignalBase:
             raise ValueError(
                 f"Period return data missing for {symbol} on {end_date} ({lookback_days}d lookback) — insufficient price history"
             )
-        recent = safe_float(row[0], default=0.0, context="row[0]")
-        oldest = safe_float(row[1], default=0.0, context="row[1]")
+        recent = float(row[0])
+        oldest = float(row[1])
         if oldest <= 0:
             raise ValueError(f"Invalid historical price for {symbol}: oldest close {oldest} <= 0")
         return (recent - oldest) / oldest

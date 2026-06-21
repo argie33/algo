@@ -21,7 +21,6 @@ from typing import Any
 import numpy as np
 
 from utils.db import DatabaseContext
-from utils.safe_data_conversion import safe_float
 
 
 logger = logging.getLogger(__name__)
@@ -91,11 +90,11 @@ class VectorizedSignalGenerator:
                     data_by_symbol[symbol].append(
                         {
                             "date": row[1],
-                            "close": safe_float(row[2], default=0.0, context="row[2]") if row[2] else None,
-                            "high": safe_float(row[3], default=0.0, context="row[3]") if row[3] else None,
-                            "low": safe_float(row[4], default=0.0, context="row[4]") if row[4] else None,
+                            "close": float(row[2]) if row[2] else None,
+                            "high": float(row[3]) if row[3] else None,
+                            "low": float(row[4]) if row[4] else None,
                             "volume": int(row[5]) if row[5] else None,
-                            "open": safe_float(row[6], default=0.0, context="row[6]") if row[6] else None,
+                            "open": float(row[6]) if row[6] else None,
                         }
                     )
 

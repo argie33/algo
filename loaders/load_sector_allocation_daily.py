@@ -17,7 +17,6 @@ from utils.optimal_loader import OptimalLoader
 logger = logging.getLogger(__name__)
 
 from loaders.loader_helper import setup_imports
-from utils.safe_data_conversion import safe_float
 
 
 setup_imports()
@@ -63,7 +62,7 @@ class SectorAllocationDailyLoader(OptimalLoader):
                 """)
                 total_value_row = cur.fetchone()
                 total_portfolio_value = (
-                    safe_float(total_value_row[0], default=0.0)
+                    float(total_value_row[0])
                     if total_value_row and total_value_row[0]
                     else 0
                 )
@@ -78,10 +77,10 @@ class SectorAllocationDailyLoader(OptimalLoader):
                     if row[1] is None or row[2] is None or row[3] is None:
                         raise ValueError(f"Sector allocation data incomplete for {sector_name}")
                     symbol_count = int(row[1])
-                    sector_value = safe_float(row[2], default=None)
+                    sector_value = float(row[2])
                     if sector_value is None:
                         raise ValueError(f"Sector value not numeric for {sector_name}")
-                    avg_pnl = safe_float(row[3], default=None)
+                    avg_pnl = float(row[3])
                     if avg_pnl is None:
                         raise ValueError(f"PNL not numeric for {sector_name}")
 

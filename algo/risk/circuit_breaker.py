@@ -57,7 +57,7 @@ CHECK_LABELS = {
 }
 
 
-def _safe_float(value, default=None, context=""):
+def _float(value):
     """Convert to float safely, rejecting NaN/Infinity.
 
     Uses None as default to distinguish between "missing" and "zero".

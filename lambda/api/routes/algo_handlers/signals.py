@@ -23,7 +23,6 @@ from routes.utils import (
 
 from utils.validation import (
     format_decimal_string,
-    safe_float,
     safe_int,
 )
 
@@ -59,8 +58,8 @@ def _calculate_pre_trade_impact(cur, body: dict) -> dict:
         port_row = cur.fetchone()
         if port_row is None:
             return error_response(503, "service_unavailable", "Portfolio snapshot unavailable")
-        portfolio_value = safe_float(port_row["total_portfolio_value"])
-        open_positions = safe_int(port_row["position_count"])
+        portfolio_value = float(port_row["total_portfolio_value"])
+        open_positions = int(port_row["position_count"])
 
         if not portfolio_value or portfolio_value <= 0:
             return error_response(503, "service_unavailable", "Portfolio value unavailable")
@@ -98,7 +97,7 @@ def _calculate_pre_trade_impact(cur, body: dict) -> dict:
             """)
             for sr in cur.fetchall():
                 if sr["sector"]:
-                    sector_val = safe_float(sr["sector_value"])
+                    sector_val = float(sr["sector_value"])
                     if sector_val is None:
                         return error_response(503, "data_unavailable", "Sector exposure data incomplete")
                     sector_exposure[sr["sector"]] = sector_val
@@ -174,7 +173,7 @@ def _calculate_trade_preview(cur, body: dict) -> dict:
         """)
         portfolio_row = cur.fetchone()
         portfolio_value = (
-            safe_float(portfolio_row["total_portfolio_value"])
+            float(portfolio_row["total_portfolio_value"])
             if portfolio_row
             else None
         )

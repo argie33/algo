@@ -46,7 +46,6 @@ from utils.db.advisory_locks import (
     acquire_advisory_lock,
     release_advisory_lock,
 )
-from utils.safe_data_conversion import safe_float
 from utils.trading import PositionStatus
 from utils.validation import AlpacaResponseValidator
 
@@ -761,7 +760,7 @@ class TradeExecutor:
                     symbol=symbol,
                     details={
                         "entry_price": executed_price,
-                        "shares": safe_float(shares, default=0.0, field_name="shares"),
+                        "shares": float(shares),
                         "stop_loss": stop_loss_price,
                         "target_1": target_1_price,
                         "swing_score": swing_score,
@@ -875,7 +874,7 @@ class TradeExecutor:
                 raise ValueError(f"Position {position_id} not found")
 
             current_qty = result[0]
-            current_stop = safe_float(result[1], default=0.0, field_name="current_stop_from_db")
+            current_stop = float(result[1])
 
             effective_stop = new_stop_price
             if new_stop_price and current_stop >= new_stop_price:
@@ -1061,9 +1060,9 @@ class TradeExecutor:
                 position_status,
             ) = row
 
-            entry_price = safe_float(entry_price, default=None, strict=True, field_name="entry_price")
+            entry_price = float(entry_price)
             entry_qty = int(entry_qty)
-            stop_loss_price = safe_float(stop_loss_price, default=None, strict=True, field_name="stop_loss_price")
+            stop_loss_price = float(stop_loss_price)
             current_qty = int(current_qty) if current_qty else 0
             target_hits = int(target_hits) if target_hits else 0
 
@@ -1082,7 +1081,7 @@ class TradeExecutor:
             shares_to_exit_dec = (current_qty_dec * exit_frac_dec).quantize(Decimal("0.01"), rounding=ROUND_HALF_UP)
             shares_to_exit_dec = max(Decimal("0.01"), shares_to_exit_dec)
             shares_to_exit_dec = min(shares_to_exit_dec, current_qty_dec)
-            shares_to_exit = safe_float(float(shares_to_exit_dec), default=0.01, field_name="shares_to_exit")
+            shares_to_exit = float(float(shares_to_exit_dec))
             full_exit = shares_to_exit >= current_qty
 
             if full_exit and alpaca_order_id:
@@ -1131,7 +1130,7 @@ class TradeExecutor:
 
             risk_per_share = Decimal(str(entry_price)) - Decimal(str(stop_loss_price))
             r_multiple = (
-                safe_float(
+                float(
                     float(
                         ((Decimal(str(final_exit_price)) - Decimal(str(entry_price))) / risk_per_share).quantize(
                             Decimal("0.01"), rounding=ROUND_HALF_UP
@@ -1144,13 +1143,13 @@ class TradeExecutor:
                 else 0.0
             )
             pnl_per_share = Decimal(str(final_exit_price)) - Decimal(str(entry_price))
-            pnl_dollars = safe_float(
+            pnl_dollars = float(
                 float((pnl_per_share * Decimal(str(shares_to_exit))).quantize(Decimal("0.01"), rounding=ROUND_HALF_UP)),
                 default=0.0,
                 field_name="pnl_dollars"
             )
             pnl_pct = (
-                safe_float(
+                float(
                     float(
                         (pnl_per_share / Decimal(str(entry_price)) * Decimal(100)).quantize(
                             Decimal("0.01"), rounding=ROUND_HALF_UP
@@ -1219,7 +1218,7 @@ class TradeExecutor:
             current_qty_dec = Decimal(str(current_qty))
             shares_exited_dec = Decimal(str(shares_to_exit))
             new_qty_dec = current_qty_dec - shares_exited_dec
-            new_qty = safe_float(float(new_qty_dec), default=0.0, field_name="new_qty")
+            new_qty = float(float(new_qty_dec))
 
             # TRANSACTION GUARD 4: Update position with safety checks
             effective_stop = new_stop_price if new_stop_price is not None else stop_loss_price
@@ -1401,7 +1400,7 @@ class TradeExecutor:
                     "corrected": False,
                     "message": f"Alpaca /v2/positions/{symbol} missing 'qty' field (API schema violation)",
                 }
-            alpaca_qty = int(safe_float(qty_raw, default=0, context="qty"))
+            alpaca_qty = int(float(qty_raw))
 
             if alpaca_qty <= 0:
                 return {

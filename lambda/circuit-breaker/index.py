@@ -26,7 +26,6 @@ from pathlib import Path
 import boto3
 import psycopg2
 
-from utils.safe_data_conversion import safe_float
 
 
 logger = logging.getLogger()
@@ -108,9 +107,9 @@ def get_portfolio_pnl(max_attempts: int = 3):
             """)
             row = cur.fetchone()
             total_equity = (
-                safe_float(row[0], default=0.0, context="row[0]") if row is not None and row[0] is not None else 0
+                float(row[0]) if row is not None and row[0] is not None else 0
             )
-            current_pnl = safe_float(row[1], default=0.0, context="row[1]") if row and row[1] else 0
+            current_pnl = float(row[1]) if row and row[1] else 0
 
             # Get session opening P&L snapshot (captured at market open).
             cur.execute("""

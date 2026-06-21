@@ -14,7 +14,6 @@ from datetime import date, timedelta
 import psycopg2
 
 from utils.db import DatabaseContext
-from utils.safe_data_conversion import safe_float
 
 
 logger = logging.getLogger(__name__)
@@ -191,7 +190,7 @@ class TrendlineSupport:
         support_level = float(trendline["support_level"])
 
         # Entry should be near (1-5% above) the support line
-        entry_price_float = safe_float(entry_price, default=None, context="entry_price")
+        entry_price_float = float(entry_price)
         if entry_price_float is None:
             raise ValueError(f"Cannot evaluate trendline: entry_price missing/invalid")
         distance_pct = ((entry_price_float - support_level) / support_level) * 100

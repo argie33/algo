@@ -18,7 +18,6 @@ from routes.utils import (
     safe_page,
 )
 
-from utils.safe_data_conversion import safe_float, safe_int
 from utils.validation import DatabaseResultValidator
 
 
@@ -50,7 +49,7 @@ def handle(
             )
             row = fg_rows[0] if fg_rows else None
             fg_value = (
-                safe_float(row["fear_greed_value"], default=0.0)
+                float(row["fear_greed_value"])
                 if row and row["fear_greed_value"]
                 else None
             )
@@ -131,12 +130,12 @@ def handle(
                         else None
                     ),
                     "put_call_ratio": (
-                        safe_float(row["put_call_ratio"], default=0.0)
+                        float(row["put_call_ratio"])
                         if row and row["put_call_ratio"]
                         else None
                     ),
                     "vix_level": (
-                        safe_float(row["vix_level"], default=0.0) if row and row["vix_level"] else None
+                        float(row["vix_level"]) if row and row["vix_level"] else None
                     ),
                     "date": str(row["date"]) if row else None,
                     "data_freshness": freshness,
@@ -232,10 +231,10 @@ def handle(
             bull_val = latest.get("bullish_count")
             bear_val = latest.get("bearish_count")
             neut_val = latest.get("neutral_count")
-            total = safe_int(total_val, default=None, context="total")
-            bull = safe_int(bull_val, default=None, context="bull")
-            bear = safe_int(bear_val, default=None, context="bear")
-            neut = safe_int(neut_val, default=None, context="neut")
+            total = int(total_val)
+            bull = int(bull_val)
+            bear = int(bear_val)
+            neut = int(neut_val)
             bp = round(bull / total * 100, 1) if total > 0 else None
             bep = round(bear / total * 100, 1) if total > 0 else None
             np_ = round(neut / total * 100, 1) if total > 0 else None
@@ -248,12 +247,12 @@ def handle(
                 "bearishPercent": bep,
                 "neutralPercent": np_,
                 "avgPriceTarget": (
-                    safe_float(latest["target_price"], default=0.0)
+                    float(latest["target_price"])
                     if latest.get("target_price")
                     else None
                 ),
                 "priceTargetVsCurrent": (
-                    safe_float(latest["upside_downside_percent"], default=0.0)
+                    float(latest["upside_downside_percent"])
                     if latest.get("upside_downside_percent")
                     else None
                 ),
@@ -275,7 +274,7 @@ def handle(
                 {
                     "date": str(dict(r)["date"]),
                     "target": (
-                        safe_float(dict(r)["target_price"], default=None, context="target_price")
+                        float(dict(r)["target_price"], default=None, context="target_price")
                         if dict(r).get("target_price")
                         else None
                     ),
@@ -335,10 +334,10 @@ def handle(
             bull_val = latest.get("bullish_count")
             bear_val = latest.get("bearish_count")
             neut_val = latest.get("neutral_count")
-            total = safe_int(total_val, default=None, context="total")
-            bull = safe_int(bull_val, default=None, context="bull")
-            bear = safe_int(bear_val, default=None, context="bear")
-            neut = safe_int(neut_val, default=None, context="neut")
+            total = int(total_val)
+            bull = int(bull_val)
+            bear = int(bear_val)
+            neut = int(neut_val)
             bp = round(bull / total * 100, 1) if total and total > 0 else None
             bep = round(bear / total * 100, 1) if total and total > 0 else None
             np_ = round(neut / total * 100, 1) if total and total > 0 else None
@@ -351,12 +350,12 @@ def handle(
                 "bearishPercent": bep,
                 "neutralPercent": np_,
                 "avgPriceTarget": (
-                    safe_float(latest["target_price"], default=0.0)
+                    float(latest["target_price"])
                     if latest.get("target_price")
                     else None
                 ),
                 "priceTargetVsCurrent": (
-                    safe_float(latest["upside_downside_percent"], default=0.0)
+                    float(latest["upside_downside_percent"])
                     if latest.get("upside_downside_percent")
                     else None
                 ),
@@ -378,7 +377,7 @@ def handle(
                 {
                     "date": str(dict(r)["date"]),
                     "target": (
-                        safe_float(dict(r)["target_price"], default=None, context="target_price")
+                        float(dict(r)["target_price"], default=None, context="target_price")
                         if dict(r).get("target_price")
                         else None
                     ),
@@ -415,19 +414,19 @@ def handle(
                     {
                         "fear_greed": (
                             {
-                                "value": safe_float(row["fear_greed_value"], default=0.0),
+                                "value": float(row["fear_greed_value"]),
                                 "label": row["fear_greed_label"],
                             }
                             if row["fear_greed_value"]
                             else None
                         ),
                         "put_call_ratio": (
-                            safe_float(row["put_call_ratio"], default=0.0)
+                            float(row["put_call_ratio"])
                             if row["put_call_ratio"]
                             else None
                         ),
                         "vix_level": (
-                            safe_float(row["vix_level"], default=0.0) if row["vix_level"] else None
+                            float(row["vix_level"]) if row["vix_level"] else None
                         ),
                         "date": str(row["date"]),
                     },

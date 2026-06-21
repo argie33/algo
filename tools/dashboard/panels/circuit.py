@@ -2,7 +2,6 @@
 
 import logging
 
-from utils.safe_data_conversion import safe_float
 
 
 logger = logging.getLogger(__name__)
@@ -84,11 +83,11 @@ def panel_circuit(cb):
             cur = br.get("cur")
             lbl_s = str(br.get("lbl", "N/A"))[:20]
             if thr is None or cur is None:
-                thr_s = "--" if thr is None else f"{safe_float(thr, default=0.0):.0f}"
+                thr_s = "--" if thr is None else f"{float(thr):.0f}"
                 cur_s = "--" if cur is None else str(cur)
                 return f"[{R if fired else 'dim'}]{lbl_s}:[/]{cur_s}{br.get('u', '')!s}[dim]/{thr_s}{br.get('u', '')!s}[/]"
-            thr_f = safe_float(thr, default=0.0) if thr is not None else 1.0
-            cur_f = safe_float(cur, default=0.0) if cur is not None else 0.0
+            thr_f = float(thr) if thr is not None else 1.0
+            cur_f = float(cur) if cur is not None else 0.0
             if thr_f > 0:
                 util = cur_f / thr_f
             elif thr_f < 0 and cur_f < 0:
@@ -172,8 +171,8 @@ def panel_circuit_expanded(cb):
                 util_bar = Text("-- / --", style="dim")
                 status = Text("UNKNOWN", style="dim")
             else:
-                thr_f = safe_float(thr, default=0.0) if thr is not None else 1.0
-                cur_f = safe_float(cur, default=0.0) if cur is not None else 0.0
+                thr_f = float(thr) if thr is not None else 1.0
+                cur_f = float(cur) if cur is not None else 0.0
                 if thr_f > 0:
                     util = cur_f / thr_f
                 elif thr_f < 0 and cur_f < 0:
@@ -203,7 +202,7 @@ def panel_circuit_expanded(cb):
                     if fired
                     else (
                         "white"
-                        if (cur is not None and thr is not None and safe_float(cur, default=0.0) / safe_float(thr, default=0.0) >= 0.75)
+                        if (cur is not None and thr is not None and float(cur) / float(thr) >= 0.75)
                         else "dim"
                     ),
                 ),

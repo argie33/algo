@@ -15,7 +15,6 @@ from utils.optimal_loader import OptimalLoader
 logger = logging.getLogger(__name__)
 
 from loaders.loader_helper import setup_imports
-from utils.safe_data_conversion import safe_float
 
 
 setup_imports()
@@ -69,20 +68,20 @@ class RLadderDistributionDailyLoader(OptimalLoader):
                 for row in rows:
                     if any(v is None for v in row[1:5]):
                         raise ValueError(f"Position data incomplete for row: {row}")
-                    position_value = safe_float(row[1], default=None)
+                    position_value = float(row[1])
                     if position_value is None:
                         raise ValueError(f"Position value not numeric: {row[1]}")
-                    pnl_pct = safe_float(row[2], default=None)
+                    pnl_pct = float(row[2])
                     if pnl_pct is None:
                         raise ValueError(f"PNL not numeric: {row[2]}")
-                    days_held = safe_float(row[3], default=None)
+                    days_held = float(row[3])
                     if days_held is None:
                         raise ValueError(f"Days held not numeric: {row[3]}")
-                    entry_price = safe_float(row[4], default=None)
+                    entry_price = float(row[4])
                     if entry_price is None:
                         raise ValueError(f"Entry price not numeric: {row[4]}")
-                    stop_price = safe_float(row[5], default=None) if row[5] is not None else None
-                    target_price = safe_float(row[6], default=None) if row[6] is not None else None
+                    stop_price = float(row[5]) if row[5] is not None else None
+                    target_price = float(row[6]) if row[6] is not None else None
 
                     # Calculate R-multiple for this position
                     r_multiple = self._calculate_r_multiple(

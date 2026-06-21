@@ -2,7 +2,7 @@
 """
 Systematic fix for unsafe float() conversions across the codebase.
 
-Replaces unsafe float(x) calls with safe_float(x, default=0.0, context="...")
+Replaces unsafe float(x) calls with float(x)
 ensuring financial precision and fail-fast behavior on NaN/Infinity.
 
 Usage:
@@ -24,8 +24,8 @@ def find_unsafe_floats(content: str) -> list[tuple[int, str]]:
         if line.strip().startswith('#') or '"""' in line or "'''" in line:
             continue
 
-        # Skip if already using safe_float
-        if 'safe_float(' in line:
+        # Skip if already using
+        if 'float(' in line:
             continue
 
         # Find float() calls - but be careful about float as part of other names
@@ -37,7 +37,7 @@ def find_unsafe_floats(content: str) -> list[tuple[int, str]]:
 
 def has_safe_float_import(content: str) -> bool:
     """Check if file imports safe_float."""
-    return 'from utils.safe_data_conversion import safe_float' in content or \
+from utils.safe_data_conversion import safe_float' in content or \
            'from utils.validation.framework import safe_float' in content
 
 
@@ -57,7 +57,7 @@ def add_safe_float_import(content: str) -> str:
         return content
 
     # Insert import after last import
-    lines.insert(last_import_idx + 1, 'from utils.safe_data_conversion import safe_float')
+from utils.safe_data_conversion import safe_float')
     return '\n'.join(lines)
 
 

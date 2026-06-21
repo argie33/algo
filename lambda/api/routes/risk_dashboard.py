@@ -25,7 +25,6 @@ from routes.utils import (
     safe_limit,
 )
 
-from utils.safe_data_conversion import safe_float
 from utils.validation import CognitoValidator
 
 
@@ -111,7 +110,7 @@ def _get_comprehensive_risk_dashboard(cur) -> dict:
             )
             row = rows[0] if rows else None
             if row:
-                vix = safe_float(row["vix_level"], default=0.0) if row["vix_level"] else None
+                vix = float(row["vix_level"]) if row["vix_level"] else None
                 if vix is None or vix <= 25:
                     risk_reduction = 1.0
                 elif vix < 35:
@@ -148,16 +147,16 @@ def _get_comprehensive_risk_dashboard(cur) -> dict:
                 result["position_sizing_stats"] = {  # type: ignore[assignment]
                     "trades_30d": row["total_trades"],
                     "avg_cascade_multiplier": (
-                        safe_float(row["avg_cascade"], default=0.0) if row["avg_cascade"] else None
+                        float(row["avg_cascade"]) if row["avg_cascade"] else None
                     ),
                     "min_cascade_multiplier": (
-                        safe_float(row["min_cascade"], default=0.0) if row["min_cascade"] else None
+                        float(row["min_cascade"]) if row["min_cascade"] else None
                     ),
                     "max_cascade_multiplier": (
-                        safe_float(row["max_cascade"], default=0.0) if row["max_cascade"] else None
+                        float(row["max_cascade"]) if row["max_cascade"] else None
                     ),
                     "avg_position_size_pct": (
-                        safe_float(row["avg_position_size_pct"], default=0.0)
+                        float(row["avg_position_size_pct"])
                         if row["avg_position_size_pct"]
                         else None
                     ),
@@ -221,8 +220,8 @@ def _fetch_drawdown_info(cur) -> dict[str, Any]:
     if not row or not row["peak"] or not row["current"]:
         return {"current_drawdown_pct": 0, "status": "no_history"}
 
-    peak = safe_float(row["peak"], default=0.0)
-    current = safe_float(row["current"], default=0.0)
+    peak = float(row["peak"])
+    current = float(row["current"])
     drawdown_pct = ((peak - current) / peak) * 100 if peak > 0 else 0
 
     return {
@@ -260,7 +259,7 @@ def _fetch_exposure_tier_info(cur) -> dict[str, Any]:
         )
         row = rows[0] if rows else None
         if row:
-            exposure_pct = safe_float(row["exposure_pct"], default=0.0) if row["exposure_pct"] else 100
+            exposure_pct = float(row["exposure_pct"]) if row["exposure_pct"] else 100
             tier = row["regime"] or "NORMAL"
             rationale = row["halt_reasons"] or "No data"
             return {
@@ -337,22 +336,22 @@ def _get_position_sizing_audit(cur, days: int) -> dict:
                         row["signal_date"].isoformat() if row["signal_date"] else None
                     ),
                     "entry_price": (
-                        safe_float(row["entry_price"], default=None) if row["entry_price"] else None
+                        float(row["entry_price"]) if row["entry_price"] else None
                     ),
                     "stop_loss_price": (
-                        safe_float(row["stop_loss_price"], default=None)
+                        float(row["stop_loss_price"])
                         if row["stop_loss_price"]
                         else None
                     ),
                     "base_shares": row["base_shares"],
                     "final_shares": row["final_shares"],
                     "position_size_pct": (
-                        safe_float(row["position_size_pct"], default=0.0)
+                        float(row["position_size_pct"])
                         if row["position_size_pct"]
                         else 0
                     ),
                     "cascade_multiplier": (
-                        safe_float(row["cascade_multiplier"], default=0.0)
+                        float(row["cascade_multiplier"])
                         if row["cascade_multiplier"]
                         else 1.0
                     ),
@@ -400,15 +399,15 @@ def _get_stop_loss_audit(cur, days: int) -> dict:
                         row["signal_date"].isoformat() if row["signal_date"] else None
                     ),
                     "entry_price": (
-                        safe_float(row["entry_price"], default=None) if row["entry_price"] else None
+                        float(row["entry_price"]) if row["entry_price"] else None
                     ),
                     "stop_loss_price": (
-                        safe_float(row["stop_loss_price"], default=None)
+                        float(row["stop_loss_price"])
                         if row["stop_loss_price"]
                         else None
                     ),
                     "distance_pct": (
-                        safe_float(row["distance_pct"], default=0.0) if row["distance_pct"] else 0
+                        float(row["distance_pct"]) if row["distance_pct"] else 0
                     ),
                     "stop_method": row["stop_method"],
                     "stop_reasoning": row["stop_reasoning"],
@@ -458,10 +457,10 @@ def _get_exit_rules_distribution(cur, days: int) -> dict:
                     "exit_rule": row["exit_rule"],
                     "count": count,
                     "avg_pnl_pct": (
-                        safe_float(row["avg_pnl_pct"], default=0.0) if row["avg_pnl_pct"] else None
+                        float(row["avg_pnl_pct"]) if row["avg_pnl_pct"] else None
                     ),
                     "avg_r_multiple": (
-                        safe_float(row["avg_r_multiple"], default=0.0) if row["avg_r_multiple"] else None
+                        float(row["avg_r_multiple"]) if row["avg_r_multiple"] else None
                     ),
                     "winning_count": winning,
                     "losing_count": losing,

@@ -24,8 +24,6 @@ from routes.utils import (
 from utils.validation import (
     APIResponseValidator,
     format_decimal_string,
-    safe_float,
-    safe_float_strict,
     safe_int,
 )
 
@@ -93,18 +91,18 @@ def _get_algo_positions(cur, user_id: str | None = None) -> dict:
         d = safe_json_serialize(safe_dict_convert(p))
 
         # Validate required data before adding to items (Issue #1 fix)
-        pos_val = safe_float(d.get("position_value"))
+        pos_val = float(d.get("position_value"))
         if pos_val is None:
             invalid_positions.append(d.get("symbol", "unknown"))
             continue
 
         # Compute ladder_pct_* fields for visualization (Issue #2)
-        entry = safe_float(d.get("avg_entry_price"))
-        cur_price = safe_float(d.get("current_price"))
-        stop = safe_float(d.get("stop_loss_price"))
-        t1 = safe_float(d.get("target_1_price"))
-        t2 = safe_float(d.get("target_2_price"))
-        t3 = safe_float(d.get("target_3_price"))
+        entry = float(d.get("avg_entry_price"))
+        cur_price = float(d.get("current_price"))
+        stop = float(d.get("stop_loss_price"))
+        t1 = float(d.get("target_1_price"))
+        t2 = float(d.get("target_2_price"))
+        t3 = float(d.get("target_3_price"))
 
         if entry and cur_price and stop:
             lo = min(stop, entry, cur_price)
@@ -129,9 +127,9 @@ def _get_algo_positions(cur, user_id: str | None = None) -> dict:
             d["ladder_pct_t3"] = None
 
         # Compute stage_label for stage distribution (Issue #8)
-        stage = safe_int(d.get("weinstein_stage"))
+        stage = int(d.get("weinstein_stage"))
         trend_score_raw = d.get("minervini_trend_score")
-        trend_score = safe_float_strict(trend_score_raw) if trend_score_raw is not None else None
+        trend_score = float(trend_score_raw) if trend_score_raw is not None else None
         if stage == 2:
             if trend_score and trend_score < 4:
                 d["stage_label"] = "Early Stage-2"
@@ -234,16 +232,16 @@ def _get_algo_status(cur) -> dict:
             """)
         snap = cur.fetchone()
         if snap:
-            pv = safe_float(snap["total_portfolio_value"])
-            unrealized_pnl = safe_float(snap["unrealized_pnl_total"])
+            pv = float(snap["total_portfolio_value"])
+            unrealized_pnl = float(snap["unrealized_pnl_total"])
             unrealized_pnl_pct = None
             if pv and pv > 0 and unrealized_pnl is not None:
                 unrealized_pnl_pct = unrealized_pnl / pv * 100
             portfolio = {
                 "total_portfolio_value": format_decimal_string(pv, precision=2, allow_none=True),
-                "total_cash": format_decimal_string(safe_float(snap["total_cash"]) or 0, precision=2),
-                "position_count": safe_int(snap["position_count"]),
-                "daily_return_pct": format_decimal_string(safe_float(snap["daily_return_pct"]), precision=2, allow_none=True),
+                "total_cash": format_decimal_string(float(snap["total_cash"]) or 0, precision=2),
+                "position_count": int(snap["position_count"]),
+                "daily_return_pct": format_decimal_string(float(snap["daily_return_pct"]), precision=2, allow_none=True),
                 "unrealized_pnl_pct": format_decimal_string(
                     unrealized_pnl_pct,
                     precision=2,
@@ -433,13 +431,13 @@ def _get_circuit_breakers(cur) -> dict:
                 )
 
             cbm_data = {
-                "drawdown": safe_float(cbm_row["portfolio_drawdown_pct"]),
-                "daily_loss": safe_float(cbm_row["daily_loss_pct"]),
-                "weekly_loss": safe_float(cbm_row["weekly_loss_pct"]),
-                "total_risk": safe_float(cbm_row["open_risk_pct"]),
-                "consecutive_losses": safe_int(cbm_row["consecutive_losses"]),
-                "vix_level": safe_float(cbm_row["vix_level"]),  # VIX is optional
-                "market_stage": safe_int(cbm_row["market_stage"]),
+                "drawdown": float(cbm_row["portfolio_drawdown_pct"]),
+                "daily_loss": float(cbm_row["daily_loss_pct"]),
+                "weekly_loss": float(cbm_row["weekly_loss_pct"]),
+                "total_risk": float(cbm_row["open_risk_pct"]),
+                "consecutive_losses": int(cbm_row["consecutive_losses"]),
+                "vix_level": float(cbm_row["vix_level"]),  # VIX is optional
+                "market_stage": int(cbm_row["market_stage"]),
             }
         except (
             psycopg2.errors.UndefinedTable,
@@ -671,8 +669,8 @@ def _get_circuit_breakers(cur) -> dict:
             )
             prices = cur.fetchall()
             if len(prices) >= 2:
-                latest = safe_float(prices[0][0])
-                prior = safe_float(prices[1][0])
+                latest = float(prices[0][0])
+                prior = float(prices[1][0])
                 if latest > 0 and prior > 0:
                     market_change = (latest - prior) / prior * 100
                     threshold_mc = -2.0
@@ -722,8 +720,8 @@ def _get_circuit_breakers(cur) -> dict:
                 """)
             wr_result = cur.fetchone()
             if wr_result:
-                wins = safe_int(wr_result["wins"])
-                losses = safe_int(wr_result["losses"])
+                wins = int(wr_result["wins"])
+                losses = int(wr_result["losses"])
                 decisive = wins + losses
                 win_rate = (wins / decisive * 100) if decisive > 0 else 0
                 threshold_wr = 40.0

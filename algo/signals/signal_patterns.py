@@ -6,7 +6,6 @@ import logging
 from typing import Any
 
 from utils.db.context import DatabaseContext
-from utils.safe_data_conversion import safe_float
 
 
 logger = logging.getLogger(__name__)
@@ -73,10 +72,10 @@ class SignalPatternsMixin:
             if len(rows) < self.BASE_MIN_HISTORY:
                 return {"in_base": False, "reason": "Insufficient history"}
 
-            highs = [safe_float(r[1], default=0.0, context="r[1]") for r in rows]
-            lows = [safe_float(r[2], default=0.0, context="r[2]") for r in rows]
-            closes = [safe_float(r[3], default=0.0, context="r[3]") for r in rows]
-            volumes = [safe_float(r[4], default=0.0, context="r[4]") for r in rows]
+            highs = [float(r[1]) for r in rows]
+            lows = [float(r[2]) for r in rows]
+            closes = [float(r[3]) for r in rows]
+            volumes = [float(r[4]) for r in rows]
 
             peak_val = max(highs)
             peak_idx = min(i for i, h in enumerate(highs) if h == peak_val)
@@ -160,8 +159,8 @@ class SignalPatternsMixin:
                 return {"is_vcp": False, "reason": "Insufficient bars"}
 
             rows = list(reversed(rows))
-            highs = [safe_float(r[1], default=0.0, context="r[1]") for r in rows]
-            lows = [safe_float(r[2], default=0.0, context="r[2]") for r in rows]
+            highs = [float(r[1]) for r in rows]
+            lows = [float(r[2]) for r in rows]
 
             peaks = []
             for i in range(5, len(highs) - 5):
@@ -218,9 +217,9 @@ class SignalPatternsMixin:
             if len(rows) < 20:
                 return {"type": "no_base", "quality": "D"}
 
-            highs = [safe_float(r[1], default=0.0, context="r[1]") for r in rows]
-            lows = [safe_float(r[2], default=0.0, context="r[2]") for r in rows]
-            closes = [safe_float(r[3], default=0.0, context="r[3]") for r in rows]
+            highs = [float(r[1]) for r in rows]
+            lows = [float(r[2]) for r in rows]
+            closes = [float(r[3]) for r in rows]
 
             depth = base_info["base_depth_pct"]
             duration = base_info["weeks_in_base"]
@@ -365,7 +364,7 @@ class SignalPatternsMixin:
                     (symbol, eval_date),
                 )
                 r = cur.fetchone()
-                atr = safe_float(r[0], default=0.0, context="r[0]") if r and r[0] else entry_price * 0.02
+                atr = float(r[0]) if r and r[0] else entry_price * 0.02
 
             max_stop_pct = 0.08
             floor_stop = entry_price * (1.0 - max_stop_pct)
@@ -382,7 +381,7 @@ class SignalPatternsMixin:
                 )
                 r = cur.fetchone()
                 if r and r[0]:
-                    handle_low = safe_float(r[0], default=0.0, context="r[0]")
+                    handle_low = float(r[0])
                     candidate = handle_low * 0.99
                     method = "handle_low"
                     reasoning = f"Cup-handle: 1% below handle low ${handle_low:.2f}"
@@ -395,7 +394,7 @@ class SignalPatternsMixin:
                 )
                 r = cur.fetchone()
                 if r and r[0]:
-                    base_low = safe_float(r[0], default=0.0, context="r[0]")
+                    base_low = float(r[0])
                     candidate = base_low * 0.995
                     method = "flat_base_low"
                     reasoning = f"Flat base: 0.5% below base low ${base_low:.2f}"
@@ -408,7 +407,7 @@ class SignalPatternsMixin:
                 )
                 r = cur.fetchone()
                 if r and r[0]:
-                    vcp_low = safe_float(r[0], default=0.0, context="r[0]")
+                    vcp_low = float(r[0])
                     candidate = vcp_low * 0.99
                     method = "vcp_last_contraction"
                     reasoning = f"VCP: 1% below last contraction low ${vcp_low:.2f}"
@@ -421,7 +420,7 @@ class SignalPatternsMixin:
                 )
                 r = cur.fetchone()
                 if r and r[0]:
-                    second_low = safe_float(r[0], default=0.0, context="r[0]")
+                    second_low = float(r[0])
                     candidate = second_low - (0.5 * atr)
                     method = "double_bottom_low_minus_half_atr"
                     reasoning = f"Double-bottom: 2nd low ${second_low:.2f} - 0.5x ATR (${atr:.2f})"
@@ -434,7 +433,7 @@ class SignalPatternsMixin:
                 )
                 r = cur.fetchone()
                 if r and r[0]:
-                    last_hl = safe_float(r[0], default=0.0, context="r[0]")
+                    last_hl = float(r[0])
                     candidate = last_hl * 0.985
                     method = "ascending_base_last_higher_low"
                     reasoning = f"Ascending base: 1.5% below last higher low ${last_hl:.2f}"
@@ -447,7 +446,7 @@ class SignalPatternsMixin:
                 )
                 r = cur.fetchone()
                 if r and r[0]:
-                    saucer_low = safe_float(r[0], default=0.0, context="r[0]")
+                    saucer_low = float(r[0])
                     candidate = saucer_low * 0.99
                     method = "saucer_base_low"
                     reasoning = f"Saucer: 1% below saucer low ${saucer_low:.2f}"
@@ -462,7 +461,7 @@ class SignalPatternsMixin:
                 )
                 row = cur.fetchone()
                 if row and row[0] is not None:
-                    three_wk_low = safe_float(row[0], default=0.0, context="row[0]")
+                    three_wk_low = float(row[0])
                     candidate = three_wk_low * 0.985
                     method = "3wt_low"
                     reasoning = f"3-Weeks-Tight: 1.5% below 3wk low ${three_wk_low:.2f}"
@@ -535,9 +534,9 @@ class SignalPatternsMixin:
                 return {"is_3wt": False, "reason": "insufficient weekly history"}
 
             last3 = rows[:3]
-            closes = [safe_float(r[3], default=0.0, context="r[3]") for r in last3]
-            highs = [safe_float(r[1], default=0.0, context="r[1]") for r in last3]
-            lows = [safe_float(r[2], default=0.0, context="r[2]") for r in last3]
+            closes = [float(r[3]) for r in last3]
+            highs = [float(r[1]) for r in last3]
+            lows = [float(r[2]) for r in last3]
 
             cmax = max(closes)
             cmin = min(closes)
@@ -562,7 +561,7 @@ class SignalPatternsMixin:
                 (symbol, eval_date),
             )
             r = cur.fetchone()
-            cur_close = safe_float(r[0], default=0.0, context="r[0]") if r else 0
+            cur_close = float(r[0]) if r else 0
             breakout_imminent = is_3wt and cur_close >= pivot_high * 0.98
 
             return {
@@ -614,9 +613,9 @@ class SignalPatternsMixin:
                 return {"is_ht": False, "reason": "insufficient weekly history"}
 
             rows = list(reversed(rows))
-            highs = [safe_float(r[1], default=0.0, context="r[1]") for r in rows]
-            lows = [safe_float(r[2], default=0.0, context="r[2]") for r in rows]
-            closes = [safe_float(r[3], default=0.0, context="r[3]") for r in rows]
+            highs = [float(r[1]) for r in rows]
+            lows = [float(r[2]) for r in rows]
+            closes = [float(r[3]) for r in rows]
 
             best_htf = None
             for cons_weeks in (1, 2, 3):

@@ -16,8 +16,6 @@ from typing import Optional
 from utils.validation import (
     EASTERN_TZ,
     safe_bool,
-    safe_float,
-    safe_float_strict,
     safe_int,
     safe_int_strict,
     safe_json_loads,

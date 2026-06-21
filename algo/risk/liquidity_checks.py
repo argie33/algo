@@ -80,7 +80,7 @@ class LiquidityChecks:
                 if not row or row[0] is None:
                     return False, "No volume data available"
 
-                avg_vol = safe_float(row[0], default=0.0, context="row[0]")
+                avg_vol = float(row[0])
                 if avg_vol < self.min_adv_shares:
                     return (
                         False,
@@ -124,7 +124,7 @@ class LiquidityChecks:
                 if not row or row[0] is None:
                     return False, "No price data available"
 
-                avg_dollar_vol = safe_float(row[0], default=0.0, context="row[0]")
+                avg_dollar_vol = float(row[0])
                 if avg_dollar_vol < self.min_adv_dollars:
                     return (
                         False,

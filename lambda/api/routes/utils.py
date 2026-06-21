@@ -710,7 +710,7 @@ def safe_json_serialize(obj):
     elif isinstance(obj, list):
         return [safe_json_serialize(item) for item in obj]
     elif isinstance(obj, Decimal):
-        return safe_float(obj, default=0.0)
+        return float(obj)
     elif isinstance(obj, datetime):
         return obj.isoformat()
     elif isinstance(obj, date):

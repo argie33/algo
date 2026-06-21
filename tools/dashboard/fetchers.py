@@ -13,8 +13,6 @@ ET = ZoneInfo("America/New_York")
 from utils.safe_data_conversion import (
     StrictValidationError,
     safe_bool,
-    safe_float,
-    safe_float_strict,
     safe_int,
     safe_int_strict,
     safe_json_parse,
@@ -274,12 +272,12 @@ def fetch_algo_config(c):
         return {
             "enabled": enabled,
             "mode": cfg["execution_mode"],
-            "max_pos_pct": safe_float(cfg["max_position_size_pct"]),
-            "max_pos_n": safe_int(cfg["max_positions"]),
-            "max_sec_n": safe_int(cfg["max_positions_per_sector"]),
-            "min_score": safe_float(cfg["min_swing_score"]),
-            "base_risk": safe_float(cfg["base_risk_pct"]),
-            "t1_r": safe_float(cfg["t1_target_r_multiple"]),
+            "max_pos_pct": float(cfg["max_position_size_pct"]),
+            "max_pos_n": int(cfg["max_positions"]),
+            "max_sec_n": int(cfg["max_positions_per_sector"]),
+            "min_score": float(cfg["min_swing_score"]),
+            "base_risk": float(cfg["base_risk_pct"]),
+            "t1_r": float(cfg["t1_target_r_multiple"]),
         }
     except Exception as e:
         error_msg = _format_fetcher_error("cfg", e)
@@ -365,22 +363,22 @@ def fetch_market(c):
             return FetcherValidator.build_error_response(error_msg)
 
         return {
-            "pct": safe_float(current.get("exposure_pct"), default=None),
+            "pct": float(current.get("exposure_pct"), default=None),
             "tier": tier,
             "halts": safe_json_parse(current.get("halt_reasons"), default=[], field_name="halt_reasons"),
             "vix": vix,
             "stage": market_health.get("market_stage"),
             "trend": market_health.get("market_trend"),
-            "dist": safe_int(current.get("distribution_days"), default=None),
+            "dist": int(current.get("distribution_days"), default=None),
             "spy": spy,
-            "spy_chg": safe_float(market_health.get("spy_change_pct"), default=None),
-            "upvol": safe_float(market_health.get("up_volume_percent"), default=None),
-            "adr": safe_float(market_health.get("advance_decline_ratio"), default=None),
-            "nh": safe_int(market_health.get("new_highs_count"), default=None),
-            "nl": safe_int(market_health.get("new_lows_count"), default=None),
-            "pcr": safe_float(market_health.get("put_call_ratio"), default=None),
-            "bmom": safe_float(market_health.get("breadth_momentum_10d"), default=None),
-            "ycs": safe_float(market_health.get("yield_curve_slope"), default=None),
+            "spy_chg": float(market_health.get("spy_change_pct"), default=None),
+            "upvol": float(market_health.get("up_volume_percent"), default=None),
+            "adr": float(market_health.get("advance_decline_ratio"), default=None),
+            "nh": int(market_health.get("new_highs_count"), default=None),
+            "nl": int(market_health.get("new_lows_count"), default=None),
+            "pcr": float(market_health.get("put_call_ratio"), default=None),
+            "bmom": float(market_health.get("breadth_momentum_10d"), default=None),
+            "ycs": float(market_health.get("yield_curve_slope"), default=None),
             "fed": market_health.get("fed_rate_environment"),
         }
     except Exception as e:
@@ -563,8 +561,8 @@ def fetch_perf(c):
             "avg_win": safe_float(safe_get_field(perf, "avg_win_pct"), default=None),
             "avg_loss": safe_float(safe_get_field(perf, "avg_loss_pct"), default=None),
             "profit_factor": safe_float(safe_get_field(perf, "profit_factor"), default=None),
-            "expectancy": safe_float(perf.get("expectancy_r"), default=None),
-            "avg_r": safe_float(perf.get("expectancy_r"), default=None),
+            "expectancy": float(perf.get("expectancy_r"), default=None),
+            "avg_r": float(perf.get("expectancy_r"), default=None),
             "equity_vals": equity_vals,
             "recent_rets": recent_rets,
         }
@@ -990,8 +988,8 @@ def fetch_exp_factors(c):
 
         current = inner.get("current")
         return {
-            "exposure_pct": safe_float(current.get("exposure_pct"), default=None),
-            "raw_score": safe_float(current.get("raw_score"), default=None),
+            "exposure_pct": float(current.get("exposure_pct"), default=None),
+            "raw_score": float(current.get("raw_score"), default=None),
             "regime": current.get("regime"),
             "factors": current.get("factors"),
         }
@@ -1043,16 +1041,16 @@ def fetch_economic_pulse(c):
         if isinstance(credit, dict):
             credit_latest = credit.get("currentSpreads")
 
-        t10 = safe_float(curve.get("10Y"), default=None) if isinstance(curve, dict) else None
-        t2 = safe_float(curve.get("2Y"), default=None) if isinstance(curve, dict) else None
-        t3m = safe_float(curve.get("3M"), default=None) if isinstance(curve, dict) else None
-        t6m = safe_float(curve.get("6M"), default=None) if isinstance(curve, dict) else None
-        yc_10_2 = safe_float(spreads.get("T10Y2Y"), default=None) if isinstance(spreads, dict) else None
-        yc_10_3m = safe_float(spreads.get("T10Y3M"), default=None) if isinstance(spreads, dict) else None
-        hy = safe_float(credit_latest.get("BAMLH0A0HYM2"), default=None) if isinstance(credit_latest, dict) else None
+        t10 = float(curve.get("10Y"), default=None) if isinstance(curve, dict) else None
+        t2 = float(curve.get("2Y"), default=None) if isinstance(curve, dict) else None
+        t3m = float(curve.get("3M"), default=None) if isinstance(curve, dict) else None
+        t6m = float(curve.get("6M"), default=None) if isinstance(curve, dict) else None
+        yc_10_2 = float(spreads.get("T10Y2Y"), default=None) if isinstance(spreads, dict) else None
+        yc_10_3m = float(spreads.get("T10Y3M"), default=None) if isinstance(spreads, dict) else None
+        hy = float(credit_latest.get("BAMLH0A0HYM2"), default=None) if isinstance(credit_latest, dict) else None
         ig = None
         if isinstance(credit_latest, dict):
-            ig = safe_float(credit_latest.get("BAMLH0A0IG") or credit_latest.get("BAMLC0A0CM"), default=None)
+            ig = float(credit_latest.get("BAMLH0A0IG") or credit_latest.get("BAMLC0A0CM"), default=None)
 
         # Extract indicators data
         d2 = ind_data
@@ -1064,7 +1062,7 @@ def fetch_economic_pulse(c):
         by_series = {}
         if indicators:
             by_series = {
-                i["series_id"]: safe_float(i.get("rawValue"), default=None)
+                i["series_id"]: float(i.get("rawValue"), default=None)
                 for i in indicators
                 if isinstance(i, dict) and i.get("series_id")
             }
@@ -1203,7 +1201,7 @@ def fetch_sentiment(c):
             record_data_quality_issue("sentiment", "validation", "missing_fields")
             return FetcherValidator.build_error_response(error_msg)
 
-        fg = safe_float(d.get("fear_greed_index"))
+        fg = float(d.get("fear_greed_index"))
         label = d.get("label")
         c_fg = R if fg <= 25 else (Y if fg <= 45 else (G if fg >= 75 else CY))
         return {
@@ -1280,11 +1278,11 @@ def fetch_risk_metrics(c):
         d = data
         return {
             "date": d.get("report_date"),
-            "var95": safe_float(d.get("var_pct_95")),
-            "cvar95": safe_float(d.get("cvar_pct_95")),
-            "svar": safe_float(d.get("stressed_var_pct")),
-            "beta": safe_float(d.get("portfolio_beta")),
-            "conc5": safe_float(d.get("top_5_concentration")),
+            "var95": float(d.get("var_pct_95")),
+            "cvar95": float(d.get("cvar_pct_95")),
+            "svar": float(d.get("stressed_var_pct")),
+            "beta": float(d.get("portfolio_beta")),
+            "conc5": float(d.get("top_5_concentration")),
         }
     except Exception as e:
         error_msg = _format_fetcher_error("risk", e)
@@ -1308,14 +1306,14 @@ def fetch_perf_analytics(c):
 
         d = data
         return {
-            "sharpe252": safe_float(d.get("rolling_sharpe_252d")),
-            "sortino": safe_float(d.get("rolling_sortino_252d")),
-            "calmar": safe_float(d.get("calmar_ratio")),
-            "wr50": safe_float(d.get("win_rate_50t")),
-            "avg_w_r": safe_float(d.get("avg_win_r_50t")),
-            "avg_l_r": safe_float(d.get("avg_loss_r_50t")),
-            "expectancy": safe_float(d.get("expectancy")),
-            "maxdd": safe_float(d.get("max_drawdown_pct")),
+            "sharpe252": float(d.get("rolling_sharpe_252d")),
+            "sortino": float(d.get("rolling_sortino_252d")),
+            "calmar": float(d.get("calmar_ratio")),
+            "wr50": float(d.get("win_rate_50t")),
+            "avg_w_r": float(d.get("avg_win_r_50t")),
+            "avg_l_r": float(d.get("avg_loss_r_50t")),
+            "expectancy": float(d.get("expectancy")),
+            "maxdd": float(d.get("max_drawdown_pct")),
         }
     except Exception as e:
         error_msg = _format_fetcher_error("perf_anl", e)
@@ -1339,13 +1337,13 @@ def fetch_signal_eval(c):
 
         result = data
         return {
-            "total": safe_int(result.get("total")),
-            "t1": safe_int(result.get("t1")),
-            "t2": safe_int(result.get("t2")),
-            "t3": safe_int(result.get("t3")),
-            "t4": safe_int(result.get("t4")),
-            "t5": safe_int(result.get("t5")),
-            "avg_score": safe_float(result.get("avg_score")),
+            "total": int(result.get("total")),
+            "t1": int(result.get("t1")),
+            "t2": int(result.get("t2")),
+            "t3": int(result.get("t3")),
+            "t4": int(result.get("t4")),
+            "t5": int(result.get("t5")),
+            "avg_score": float(result.get("avg_score")),
             "date": result.get("signal_date"),
             "rejected": result.get("rejected"),
         }
@@ -1399,10 +1397,10 @@ def fetch_sector_rotation(c):
         return {
             "date": row.get("date"),
             "signal": row.get("signal", ""),
-            "strength": safe_float(row.get("spread"), default=None),
+            "strength": float(row.get("spread"), default=None),
             "weeks": row.get("weeks_persistent", 1),
-            "def_score": safe_float(row.get("defensive_lead_score"), default=0),
-            "cyc_score": safe_float(row.get("cyclical_weak_score"), default=0),
+            "def_score": float(row.get("defensive_lead_score"), default=0),
+            "cyc_score": float(row.get("cyclical_weak_score"), default=0),
         }
     except Exception as e:
         error_msg = _format_fetcher_error("sec_rot", e)
@@ -1637,8 +1635,8 @@ def fetch_circuit(c):
             formatted_bs.append(
                 {
                     "lbl": label,
-                    "cur": safe_float(r.get("current_value") or r.get("current")),
-                    "thr": safe_float(r.get("threshold_value") or r.get("threshold")),
+                    "cur": float(r.get("current_value") or r.get("current")),
+                    "thr": float(r.get("threshold_value") or r.get("threshold")),
                     "u": r.get("unit", ""),
                     "fired": safe_bool(r.get("is_active") or r.get("triggered")),
                 }

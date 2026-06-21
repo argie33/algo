@@ -19,7 +19,6 @@ from typing import Any, cast
 import requests
 
 from algo.infrastructure import get_api_timeout
-from utils.safe_data_conversion import safe_float
 from utils.validation import AlpacaResponseValidator
 
 
@@ -395,7 +394,7 @@ class OrderManager:
                         logger.error(f"[SEND_EXIT] {symbol}: Alpaca response missing filled_avg_price for order {order_id}")
                         return {"success": False, "message": "Alpaca response missing filled_avg_price"}
                     try:
-                        filled_price = safe_float(filled_price_raw, default=0.0, context="filled_price_raw")
+                        filled_price = float(filled_price_raw)
                     except (ValueError, TypeError) as e:
                         logger.error(f"[SEND_EXIT] {symbol}: filled_avg_price not numeric: {e}")
                         return {"success": False, "message": f"filled_avg_price not numeric: {e}"}

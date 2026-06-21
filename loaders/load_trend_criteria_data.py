@@ -20,7 +20,6 @@ from loaders.technical_indicators import compute_moving_averages
 from utils.db.context import DatabaseContext
 from utils.infrastructure.timezone import EASTERN_TZ
 from utils.optimal_loader import OptimalLoader
-from utils.safe_data_conversion import safe_float
 
 
 logger = logging.getLogger(__name__)
@@ -244,12 +243,12 @@ class TrendCriteriaLoader(OptimalLoader):
                         else None
                     ),
                     "sma_50_slope": (
-                        round(safe_float(row["sma_50_slope"], default=0.0, context="sma_50_slope"), 4)
+                        round(float(row["sma_50_slope"]), 4)
                         if pd.notna(row.get("sma_50_slope", float("nan")))
                         else None
                     ),
                     "sma_200_slope": (
-                        round(safe_float(row["sma_200_slope"], default=0.0, context="sma_200_slope"), 4)
+                        round(float(row["sma_200_slope"]), 4)
                         if pd.notna(row.get("sma_200_slope", float("nan")))
                         else None
                     ),

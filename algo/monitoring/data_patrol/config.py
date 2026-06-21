@@ -6,7 +6,6 @@ from typing import Any, cast
 
 import psycopg2
 
-from utils.safe_data_conversion import safe_float
 
 
 logger = logging.getLogger(__name__)
@@ -36,7 +35,7 @@ class PatrolConfig:
                 # Try to parse as number
                 try:
                     if "." in str(value):
-                        self._config_cache[key] = safe_float(value, default=0.0, context="value")
+                        self._config_cache[key] = float(value)
                     else:
                         self._config_cache[key] = int(value)
                 except (ValueError, TypeError):

@@ -28,7 +28,6 @@ import psycopg2.extras
 # Add parent directory to path for imports
 from utils.db.context import DatabaseContext
 from utils.metrics_calculator import MetricsCalculator
-from utils.validation import safe_float
 
 
 logger = logging.getLogger(__name__)
@@ -73,10 +72,10 @@ def compute_performance_metrics(cur, metric_date: date | None = None) -> dict[st
             return None
 
         # Extract metrics from trades
-        pnl_dollars = [safe_float(t["profit_loss_dollars"]) for t in trades]
-        pnl_pcts = [safe_float(t["profit_loss_pct"]) for t in trades]
-        [safe_float(t["exit_r_multiple"]) for t in trades if t["exit_r_multiple"] is not None]
-        holding_days_list = [safe_float(t["holding_days"]) for t in trades if t["holding_days"]]
+        pnl_dollars = [float(t["profit_loss_dollars"]) for t in trades]
+        pnl_pcts = [float(t["profit_loss_pct"]) for t in trades]
+        [float(t["exit_r_multiple"]) for t in trades if t["exit_r_multiple"] is not None]
+        holding_days_list = [float(t["holding_days"]) for t in trades if t["holding_days"]]
 
         # Basic counts
         total_trades: int = len(pnl_dollars)
@@ -179,7 +178,7 @@ def _compute_advanced_metrics(cur, metric_date: date):
                 "need at least 2 to compute daily returns"
             )
 
-        vals = [safe_float(s["total_portfolio_value"]) for s in snapshots]
+        vals = [float(s["total_portfolio_value"]) for s in snapshots]
         dates = [s["snapshot_date"] for s in snapshots]
 
         # Calculate daily returns

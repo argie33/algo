@@ -23,7 +23,6 @@ import psycopg2
 
 from utils.db import DatabaseContext
 from utils.metrics_calculator import MetricsCalculator
-from utils.safe_data_conversion import safe_float
 
 
 logger = logging.getLogger(__name__)
@@ -71,7 +70,7 @@ class LivePerformance:
 
             values = []
             for i, row in enumerate(rows):
-                val = safe_float(row[1], default=None, context=f"portfolio_value from row {i}")
+                val = float(row[1])
                 if val is None:
                     raise ValueError(f"Portfolio snapshot {i} has missing/invalid value")
                 values.append(val)
@@ -140,10 +139,10 @@ class LivePerformance:
             ) = row
             win_count = win_count
             loss_count = loss_count
-            avg_win_r = safe_float(avg_win_r, default=None, context="avg_win_r")
-            avg_loss_r_val = safe_float(avg_loss_r, default=None, context="avg_loss_r")
-            avg_win_pct = safe_float(avg_win_pct, default=None, context="avg_win_pct")
-            avg_loss_pct = safe_float(avg_loss_pct, default=None, context="avg_loss_pct")
+            avg_win_r = float(avg_win_r)
+            avg_loss_r_val = float(avg_loss_r)
+            avg_win_pct = float(avg_win_pct)
+            avg_loss_pct = float(avg_loss_pct)
 
             if avg_win_r is None:
                 avg_win_r = 0.0
@@ -214,7 +213,7 @@ class LivePerformance:
 
             values = []
             for i, row in enumerate(rows):
-                val = safe_float(row[1], default=None, context=f"portfolio_value from row {i}")
+                val = float(row[1])
                 if val is None:
                     raise ValueError(f"Portfolio snapshot {i} has missing/invalid value for max_drawdown calculation")
                 values.append(val)
@@ -243,7 +242,7 @@ class LivePerformance:
             if len(rows) < 30:
                 return None
 
-            values = [safe_float(r[0], default=0.0, context=f"portfolio_value from row {i}") for i, r in enumerate(rows)]
+            values = [float(r[0]) for i, r in enumerate(rows)]
             daily_returns = [(values[i] - values[i - 1]) / values[i - 1] if values[i - 1] > 0 else 0.0 for i in range(1, len(values))]
 
             return MetricsCalculator.calculate_sortino_ratio(daily_returns)
@@ -270,7 +269,7 @@ class LivePerformance:
             if len(rows) < 30:
                 return None
 
-            values = [safe_float(r[0], default=0.0, context=f"portfolio_value from row {i}") for i, r in enumerate(rows)]
+            values = [float(r[0]) for i, r in enumerate(rows)]
             return MetricsCalculator.calculate_calmar_ratio(values)
         except (psycopg2.DatabaseError, psycopg2.OperationalError) as e:
             raise RuntimeError(f"Operation failed: {e}") from e
@@ -384,14 +383,14 @@ class LivePerformance:
 
             # Upsert into database (insert or replace if already exists for this date)
             try:
-                sharpe_val = safe_float(sharpe, default=None, context="sharpe_ratio") if sharpe is not None else None
-                safe_float(sortino, default=None, context="sortino_ratio") if sortino is not None else None
-                safe_float(calmar, default=None, context="calmar_ratio") if calmar is not None else None
-                win_rate_val = safe_float(wr["win_rate_pct"], default=None, context="win_rate") if wr else None
-                avg_win_r_val = safe_float(wr["avg_win_r"], default=None, context="avg_win_r") if wr else None
-                avg_loss_r_val = safe_float(wr["avg_loss_r"], default=None, context="avg_loss_r") if wr else None
-                expectancy_val = safe_float(expectancy, default=None, context="expectancy") if expectancy is not None else None
-                max_dd_val = safe_float(max_dd, default=None, context="max_drawdown") if max_dd is not None else None
+                sharpe_val = float(sharpe) if sharpe is not None else None
+                float(sortino) if sortino is not None else None
+                float(calmar) if calmar is not None else None
+                win_rate_val = float(wr["win_rate_pct"]) if wr else None
+                avg_win_r_val = float(wr["avg_win_r"]) if wr else None
+                avg_loss_r_val = float(wr["avg_loss_r"]) if wr else None
+                expectancy_val = float(expectancy) if expectancy is not None else None
+                max_dd_val = float(max_dd) if max_dd is not None else None
 
                 with DatabaseContext("write") as cur:
                     cur.execute(
