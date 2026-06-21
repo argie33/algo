@@ -105,7 +105,8 @@ resource "aws_scheduler_schedule" "algo_orchestrator_afternoon" {
   description                  = "Afternoon algo orchestrator run: 1:00 PM ET (mid-day rebalance, same signals as morning)"
   schedule_expression          = "cron(0 13 ? * MON-FRI *)" # 1:00 PM ET (America/New_York auto-handles EST/EDT)
   schedule_expression_timezone = "America/New_York"
-  state                        = "ENABLED"
+  # OPTIMIZED 2026-06-21: Disable intraday runs in dev (not needed, saves compute)
+  state                        = "DISABLED"
 
   flexible_time_window {
     mode = "OFF"
@@ -142,7 +143,8 @@ resource "aws_scheduler_schedule" "algo_orchestrator_preclose" {
   description                  = "Pre-close algo orchestrator run: 3:00 PM ET (final trades before market close at 4 PM ET)"
   schedule_expression          = "cron(0 15 ? * MON-FRI *)" # 3:00 PM ET (America/New_York auto-handles EST/EDT)
   schedule_expression_timezone = "America/New_York"
-  state                        = "ENABLED"
+  # OPTIMIZED 2026-06-21: Disable pre-close runs in dev (not needed, saves compute)
+  state                        = "DISABLED"
 
   flexible_time_window {
     mode = "OFF"

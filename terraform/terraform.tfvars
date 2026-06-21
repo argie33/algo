@@ -39,7 +39,7 @@ enable_afternoon_orchestrator = true                        # 1:00 PM ET mid-day
 enable_preclose_orchestrator  = true                        # FINAL: 3:00 PM ET last trades before close
 cognito_enabled               = true                        # REQUIRED: Protects /api/algo, /api/signals, /api/scores, /api/audit, /api/trades, /api/admin, /api/settings endpoints.
 cognito_test_user_email       = "argeropolos@gmail.com"     # Primary/Admin user — created by Terraform, added to 'admin' group by deployment
-cognito_custom_email_enabled  = true                        # Cognito custom message Lambda for professional emails via SES
+cognito_custom_email_enabled  = false                       # OPTIMIZED: Disabled in dev (Lambda not needed for dev testing). Cost: saves $0.50/month
 cognito_sender_email          = "argeropolos@gmail.com"     # SES sender email for password reset codes (must be verified in SES)
 
 # AWS Config - disabled due to S3 bucket state corruption
@@ -61,7 +61,7 @@ data_patrol_timeout_ms              = 30000
 alpaca_paper_trading                = true # Paper trading — live keys not yet configured in algo/alpaca secret
 api_lambda_timeout                  = 25   # Validation requires max 25s (API Gateway enforces 29s hard limit, but terraform validation stricter). VPC cold start risk: 15-40s, so retry on client side.
 api_lambda_reserved_concurrency     = 50   # MarketsHealth fires 26 concurrent calls on load (4 indices + 11 sector tiles + 4 VIX + 5 main + 2 extras). 50 gives headroom for 2 simultaneous users.
-api_lambda_provisioned_concurrency  = 1    # Keep 1 instance warm to avoid 15-40s VPC cold start 502 errors. Cost: ~$12/month
+api_lambda_provisioned_concurrency  = 0    # OPTIMIZED: Disabled in dev (accept cold starts). Saves $12/month. Cost in prod: ~$12/month
 algo_lambda_timeout                 = 600
 algo_lambda_ephemeral_storage       = 512  # OPTIMIZED: reduced from 2048 (orchestrator doesn't write large temp files); saves $2-5/month
 algo_lambda_provisioned_concurrency = 0 # Orchestrator runs on schedule, cold start is acceptable
@@ -78,8 +78,8 @@ rds_backup_retention_period = 1
 alpaca_api_base_url = "https://paper-api.alpaca.markets" # Paper API — matches paper keys in algo/alpaca secret
 
 # Execution Monitor - queries RDS for signals and Alpaca for trades
-enable_execution_monitor          = true # Deploy execution monitor Lambda
-enable_execution_monitor_schedule = true # Run every 2 hours during trading hours
+enable_execution_monitor          = false # OPTIMIZED: Disabled in dev (paper trading only, low value); cost: $13/month
+enable_execution_monitor_schedule = false # Run every 2 hours during trading hours
 
 # Developer IAM credential rotation - update to trigger key recreation
 developer_key_rotation_date = "2026-05-29"

@@ -15,7 +15,8 @@ Provides logical grouping methods for convenience.
 """
 
 import logging
-from typing import TYPE_CHECKING, Any, Dict, cast
+from typing import TYPE_CHECKING, Any, cast
+
 
 if TYPE_CHECKING:
     from algo.infrastructure.config import AlgoConfig
@@ -81,7 +82,7 @@ class RiskConfig:
         """Get base risk % per trade."""
         return cast(float, self.get("base_risk_pct", 0.75))
 
-    def get_position_sizing_config(self) -> Dict[str, Any]:
+    def get_position_sizing_config(self) -> dict[str, Any]:
         """Get all position sizing thresholds (for risk team).
 
         Returns:
@@ -99,7 +100,7 @@ class RiskConfig:
             "max_concentration_pct": self.get("max_concentration_pct"),
         }
 
-    def get_drawdown_defense_config(self) -> Dict[str, Any]:
+    def get_drawdown_defense_config(self) -> dict[str, Any]:
         """Get all drawdown defense thresholds and recovery rules.
 
         Returns:
@@ -125,7 +126,7 @@ class RiskConfig:
             "require_ftd_to_re_engage": self.get("require_ftd_to_re_engage"),
         }
 
-    def get_position_monitoring_config(self) -> Dict[str, Any]:
+    def get_position_monitoring_config(self) -> dict[str, Any]:
         """Get position monitoring & re-entry rules.
 
         Returns:
@@ -143,7 +144,7 @@ class RiskConfig:
             ),
         }
 
-    def get_risk_metrics_config(self) -> Dict[str, Any]:
+    def get_risk_metrics_config(self) -> dict[str, Any]:
         """Get risk metrics thresholds (VaR, CVaR, etc.).
 
         Returns:

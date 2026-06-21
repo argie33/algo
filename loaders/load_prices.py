@@ -106,12 +106,6 @@ class PriceLoader(OptimalLoader):
         self.watermark_mgr = None
         self.run_id = None
 
-        # ISSUE #FULLFIX: Per-symbol retry tracking (prevents cascade failures)
-        self._failed_symbols: dict[str, int] = {}  # {symbol: failure_count}
-        self._failed_symbols_lock = threading.Lock()
-        self._max_per_symbol_failures = 5
-        self._symbols_failed_final: set[str] = set()
-
         # ISSUE #3 FIX: Improved token bucket with per-thread fairness and anti-starvation
         # Rate limit: 160 API calls per minute (safe margin below yfinance's 200/min)
         # Initial burst: 300 tokens (enough for 2 parallel batches of 150 symbols each)
@@ -444,28 +438,6 @@ class PriceLoader(OptimalLoader):
                 f"Failure ratio: {self._batch_failure_ratio:.2f}. "
                 f"Next batch size recommendation: {self._get_adaptive_batch_size()}"
             )
-
-    def _track_symbol_failure(self, symbol: str) -> bool:
-        """Track symbol failure and return True if we should retry."""
-        with self._failed_symbols_lock:
-            failures = self._failed_symbols.get(symbol, 0)
-            if failures < self._max_per_symbol_failures:
-                self._failed_symbols[symbol] = failures + 1
-                return True
-            else:
-                self._symbols_failed_final.add(symbol)
-                return False
-
-    def _get_retry_symbols(self, original_symbols: list) -> list:
-        """Get symbols that failed but still have retry budget."""
-        with self._failed_symbols_lock:
-            retry_symbols = [
-                s
-                for s in self._failed_symbols.keys()
-                if self._failed_symbols[s] < self._max_per_symbol_failures
-                and s in original_symbols
-            ]
-        return retry_symbols
 
     def _check_market_close_data_available(self, max_wait_sec: int | None = None) -> bool:
         """Check if SPY close data is available (market close data freshness check).

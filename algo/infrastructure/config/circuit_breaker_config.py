@@ -19,7 +19,8 @@ Provides logical grouping methods for convenience.
 """
 
 import logging
-from typing import TYPE_CHECKING, Any, Dict, cast
+from typing import TYPE_CHECKING, Any, cast
+
 
 if TYPE_CHECKING:
     from algo.infrastructure.config import AlgoConfig
@@ -81,7 +82,7 @@ class CircuitBreakerConfig:
         """
         return cast(bool, self.parent.set(key, value, value_type, description, changed_by))
 
-    def get_loss_limits_config(self) -> Dict[str, Any]:
+    def get_loss_limits_config(self) -> dict[str, Any]:
         """Get daily/weekly loss limit thresholds.
 
         Returns:
@@ -97,7 +98,7 @@ class CircuitBreakerConfig:
             "daily_profit_cap_pct": self.get("daily_profit_cap_pct"),
         }
 
-    def get_trade_quality_limits_config(self) -> Dict[str, Any]:
+    def get_trade_quality_limits_config(self) -> dict[str, Any]:
         """Get consecutive loss & win rate floor limits.
 
         Returns:
@@ -111,7 +112,7 @@ class CircuitBreakerConfig:
             "min_win_rate_pct": self.get("min_win_rate_pct"),
         }
 
-    def get_risk_limits_config(self) -> Dict[str, Any]:
+    def get_risk_limits_config(self) -> dict[str, Any]:
         """Get total open risk & sector concentration limits.
 
         Returns:
@@ -125,7 +126,7 @@ class CircuitBreakerConfig:
             "sector_drawdown_halt_pct": self.get("sector_drawdown_halt_pct"),
         }
 
-    def get_data_freshness_config(self) -> Dict[str, Any]:
+    def get_data_freshness_config(self) -> dict[str, Any]:
         """Get data staleness threshold.
 
         Returns:
@@ -137,7 +138,7 @@ class CircuitBreakerConfig:
             "max_data_staleness_days": self.get("max_data_staleness_days"),
         }
 
-    def get_failsafe_config(self) -> Dict[str, Any]:
+    def get_failsafe_config(self) -> dict[str, Any]:
         """Get failsafe ECS & grace period configuration.
 
         Returns:

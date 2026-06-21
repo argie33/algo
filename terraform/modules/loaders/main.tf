@@ -638,7 +638,16 @@ resource "aws_cloudwatch_event_rule" "scheduled_loader" {
   name                = "${var.project_name}-${each.key}-schedule"
   description         = each.value.description
   schedule_expression = each.value.schedule
-  state               = "ENABLED"
+  # OPTIMIZED 2026-06-21: Disable non-critical loaders in dev to save $20-25/month
+  # Keep only: stock_prices_daily, stock_scores, growth/quality/value_metrics, economic_metrics_daily
+  state = contains([
+    "stock_prices_daily",
+    "stock_scores",
+    "growth_metrics",
+    "quality_metrics",
+    "value_metrics",
+    "economic_metrics_daily",
+  ], each.key) ? "ENABLED" : "DISABLED"
 
   tags = var.common_tags
 }
@@ -655,33 +664,37 @@ locals {
     # Root cause: parallelism=6 created 6 concurrent threads fighting for yfinance API tokens
     # With shared NAT gateway IP across loaders, high parallelism triggered IP-level rate limiting
     # New strategy (parallelism=1): serial execution, predictable timing, no cascade failures
-    # Execution time: 5000 symbols / 30 batch_size * 2s interval = ~334s (5.5 min) still well within 7200s timeout
+    # Execution time: 5000 symbols / 30 batch_size * 2s interval = ~334s (5.5 min) still well within timeout
+    # FIXED 2026-06-21: Reduced timeout from 7200→1800s (2h→30m) to fail fast instead of masking failures
     # This eliminates 429 errors completely while keeping execution < 10 min
-    "stock_prices_daily" = { cpu = 1024, memory = 2048, timeout = 7200, parallelism = 1 }
+    "stock_prices_daily" = { cpu = 1024, memory = 2048, timeout = 1800, parallelism = 1 }
 
     # Financial statements — reduce parallelism to 1 to prevent SEC EDGAR rate-limit cascade
-    "financials_annual_income"      = { cpu = 512, memory = 1024, timeout = 3600, parallelism = 1 }
-    "financials_annual_balance"     = { cpu = 512, memory = 1024, timeout = 3600, parallelism = 1 }
-    "financials_annual_cashflow"    = { cpu = 512, memory = 1024, timeout = 3600, parallelism = 1 }
-    "financials_quarterly_income"   = { cpu = 512, memory = 1024, timeout = 3600, parallelism = 1 }
-    "financials_quarterly_balance"  = { cpu = 512, memory = 1024, timeout = 3600, parallelism = 1 }
-    "financials_quarterly_cashflow" = { cpu = 512, memory = 1024, timeout = 3600, parallelism = 1 }
-    "financials_ttm_income"         = { cpu = 512, memory = 1024, timeout = 3600, parallelism = 1 }
-    "financials_ttm_cashflow"       = { cpu = 512, memory = 1024, timeout = 3600, parallelism = 1 }
+    # FIXED 2026-06-21: Reduced timeout from 3600→1200s (1h→20m) to fail fast instead of masking failures
+    "financials_annual_income"      = { cpu = 512, memory = 1024, timeout = 1200, parallelism = 1 }
+    "financials_annual_balance"     = { cpu = 512, memory = 1024, timeout = 1200, parallelism = 1 }
+    "financials_annual_cashflow"    = { cpu = 512, memory = 1024, timeout = 1200, parallelism = 1 }
+    "financials_quarterly_income"   = { cpu = 512, memory = 1024, timeout = 1200, parallelism = 1 }
+    "financials_quarterly_balance"  = { cpu = 512, memory = 1024, timeout = 1200, parallelism = 1 }
+    "financials_quarterly_cashflow" = { cpu = 512, memory = 1024, timeout = 1200, parallelism = 1 }
+    "financials_ttm_income"         = { cpu = 512, memory = 1024, timeout = 1200, parallelism = 1 }
+    "financials_ttm_cashflow"       = { cpu = 512, memory = 1024, timeout = 1200, parallelism = 1 }
 
     # Computed metrics — CPU bound, process 5000+ symbols, reduced parallelism to avoid DB connection pool exhaustion
     # Previous: parallelism=8, but when multiple loaders run concurrently (9 loaders × 8 parallelism = 72 connections) exhausted RDS Proxy
     # New: parallelism=2-3 reduces peak connections to 27-54 range while maintaining parallelism benefits
-    "growth_metrics"      = { cpu = 2048, memory = 4096, timeout = 7200, parallelism = 2 }
-    "quality_metrics"     = { cpu = 2048, memory = 4096, timeout = 3600, parallelism = 2 }
-    "value_metrics"       = { cpu = 2048, memory = 4096, timeout = 21600, parallelism = 2 }
+    # FIXED 2026-06-21: Reduced timeouts from 7200→1800s (2h→30m) and 21600→1800s (6h→30m) to fail fast instead of masking failures
+    "growth_metrics"      = { cpu = 2048, memory = 4096, timeout = 1800, parallelism = 2 }
+    "quality_metrics"     = { cpu = 2048, memory = 4096, timeout = 1800, parallelism = 2 }
+    "value_metrics"       = { cpu = 2048, memory = 4096, timeout = 1800, parallelism = 2 }
     "positioning_metrics" = { cpu = 512, memory = 1024, timeout = 1200, parallelism = 2 }
-    "stability_metrics"   = { cpu = 1024, memory = 2048, timeout = 7200, parallelism = 2 }
+    "stability_metrics"   = { cpu = 1024, memory = 2048, timeout = 1800, parallelism = 2 }
     "stock_scores"        = { cpu = 2048, memory = 4096, timeout = 3600, parallelism = 3 }
 
     # Earnings data — reduce parallelism to 1 to prevent SEC EDGAR rate-limit cascade
-    "earnings_history"  = { cpu = 512, memory = 1024, timeout = 3600, parallelism = 1 }
-    "earnings_calendar" = { cpu = 512, memory = 1024, timeout = 3600, parallelism = 1 }
+    # FIXED 2026-06-21: Reduced timeout from 3600→1200s (1h→20m) to fail fast instead of masking failures
+    "earnings_history"  = { cpu = 512, memory = 1024, timeout = 1200, parallelism = 1 }
+    "earnings_calendar" = { cpu = 512, memory = 1024, timeout = 1200, parallelism = 1 }
 
     # Company & analyst data — I/O bound, yfinance API calls, 5000+ symbols
     # Reduced from parallelism=8 to parallelism=2 to avoid database connection pool exhaustion
@@ -703,16 +716,19 @@ locals {
     # Signal processing — compute signal themes
     "signal_themes" = { cpu = 512, memory = 1024, timeout = 1800, parallelism = 4 }
     # signal_quality_scores: reduced from parallelism=4 to 2 to prevent statement timeouts during concurrent loader runs
-    "signal_quality_scores" = { cpu = 1024, memory = 2048, timeout = 5400, parallelism = 2 }
+    # FIXED 2026-06-21: Reduced timeout from 5400→1800s (1.5h→30m) to fail fast instead of masking failures
+    "signal_quality_scores" = { cpu = 1024, memory = 2048, timeout = 1800, parallelism = 2 }
 
     # BUY/SELL signals — compute trade signals for all 5000+ symbols
     # Reduced from parallelism=4 to 3 to allow headroom for concurrent analytics loaders
-    "buy_sell_daily" = { cpu = 2048, memory = 4096, timeout = 21600, parallelism = 3 }
+    # FIXED 2026-06-21: Reduced timeout from 21600→1800s (6h→30m) to fail fast instead of masking failures
+    "buy_sell_daily" = { cpu = 2048, memory = 4096, timeout = 1800, parallelism = 3 }
 
     # Technical indicators — compute-heavy, 5000+ symbols
     # Reduced from parallelism=8→4→2 to prevent database connection pool exhaustion
     # Parallelism=2 with larger batch processing is faster than parallelism=4 with connection contention
-    "technical_data_daily" = { cpu = 4096, memory = 8192, timeout = 36000, parallelism = 2 }
+    # FIXED 2026-06-21: Reduced timeout from 36000→1800s (10h→30m) to fail fast instead of masking failures
+    "technical_data_daily" = { cpu = 4096, memory = 8192, timeout = 1800, parallelism = 2 }
 
     # Technical indicators (vectorized) — 4-6x faster via bulk query + vectorized pandas operations
     # FIXED Issue #???: Vectorized approach: 1 bulk query → vectorized pandas → single bulk insert
