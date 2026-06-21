@@ -9,6 +9,7 @@ import logging
 import os
 import threading
 from typing import Any
+
 import psycopg2
 
 

@@ -36,7 +36,7 @@ from typing import Any
 import psycopg2
 
 from utils.db import DatabaseContext
-from utils.safe_data_conversion import safe_float, safe_int, safe_bool
+from utils.safe_data_conversion import safe_bool, safe_float, safe_int
 from utils.trading import PositionStatus, TradeStatus
 
 

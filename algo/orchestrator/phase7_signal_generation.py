@@ -84,7 +84,7 @@ def _validate_signal_completeness(candidates: list[dict], source: str) -> tuple[
     for sig in candidates:
         if "symbol" not in sig or not sig["symbol"]:
             raise ValueError(
-                "[PHASE 5] Signal missing symbol. "
+                "[PHASE 7] Signal missing symbol. "
                 "Cannot generate trading signal without stock symbol. "
                 "Verify upstream phases produced valid signal data."
             )
@@ -98,7 +98,7 @@ def _validate_signal_completeness(candidates: list[dict], source: str) -> tuple[
         if missing_fields:
             incomplete_signals.append({"symbol": symbol, "missing": missing_fields})
             logger.warning(
-                f"[PHASE 5] {symbol}: incomplete signal data (missing: {', '.join(missing_fields)}). Source={source}"
+                f"[PHASE 7] {symbol}: incomplete signal data (missing: {', '.join(missing_fields)}). Source={source}"
             )
         else:
             complete_signals.append(sig)
@@ -188,7 +188,7 @@ def _detect_upstream_data_quality_drift(run_date: _date, signal_source: str) -> 
                 drift["swing_scores_missing"] = int(row[0])
                 drift["has_drift"] = True
                 logger.warning(
-                    f"[PHASE 5] DATA QUALITY ALERT: {row[0]} symbols missing swing_trader_scores "
+                    f"[PHASE 7] DATA QUALITY ALERT: {row[0]} symbols missing swing_trader_scores "
                     f"(source={signal_source}, date={run_date}). Check swing_trader_scores loader."
                 )
     except (psycopg2.DatabaseError, psycopg2.OperationalError) as e:
@@ -204,7 +204,7 @@ def _detect_upstream_data_quality_drift(run_date: _date, signal_source: str) -> 
         from algo.orchestrator.phase_error_handling import log_phase_error
 
         log_phase_error(5, error)
-        raise RuntimeError(f"[PHASE 5] Cannot proceed without data quality verification: {e!s}") from e
+        raise RuntimeError(f"[PHASE 7] Cannot proceed without data quality verification: {e!s}") from e
 
     return drift
 
@@ -215,10 +215,10 @@ def _check_liquidity_parallel(candidate: dict, run_date: _date) -> tuple[dict, b
         liquidity = LiquidityChecks(config={})
         liq_ok, liq_reason = liquidity.run_all(candidate["symbol"], 0, run_date)
         if not liq_ok:
-            logger.debug(f"[PHASE 5] {candidate['symbol']}: liquidity — {liq_reason}")
+            logger.debug(f"[PHASE 7] {candidate['symbol']}: liquidity — {liq_reason}")
         return candidate, liq_ok
     except (ValueError, ZeroDivisionError, TypeError) as e:
-        logger.warning(f"[PHASE 5] {candidate['symbol']}: liquidity check error ({type(e).__name__}): {e!s}")
+        logger.warning(f"[PHASE 7] {candidate['symbol']}: liquidity check error ({type(e).__name__}): {e!s}")
         return candidate, False
 
 
@@ -357,7 +357,7 @@ def _get_candidates_from_buysell(
 
         swing_score_positive = sum(1 for c in candidates if c["swing_score"] > 0)
         logger.info(
-            f"[PHASE 5] {len(candidates)} candidates from buy_sell_daily + stock_scores + swing_trader_scores "
+            f"[PHASE 7] {len(candidates)} candidates from buy_sell_daily + stock_scores + swing_trader_scores "
             f"(swing_scores: {swing_score_positive}, lookback: {lookback_date} to {run_date}, "
             f"SQL filters: trend & close_quality applied at query level)"
         )
@@ -366,7 +366,7 @@ def _get_candidates_from_buysell(
         return complete_candidates
     except (ValueError, ZeroDivisionError, TypeError) as e:
         raise RuntimeError(
-            f"[PHASE 5] Failed to fetch buy_sell_daily candidates: {e}. "
+            f"[PHASE 7] Failed to fetch buy_sell_daily candidates: {e}. "
             "Cannot proceed with signal generation without candidate data."
         ) from e
 
@@ -624,7 +624,7 @@ def run(
                     liq_passed.append(candidate)
 
     logger.info(
-        f"[PHASE 5] Liquidity check: {liq_checked} checked, {len(liq_passed)} passed. "
+        f"[PHASE 7] Liquidity check: {liq_checked} checked, {len(liq_passed)} passed. "
         f"{len(quality_filtered) - liq_checked} unchecked candidates dropped."
     )
 
@@ -632,7 +632,7 @@ def run(
     if liq_passed:
         liq_passed.sort(key=lambda s: float(s["composite_score"]), reverse=True)
 
-    logger.info(f"[PHASE 5] Top 10 qualified signals (source={signal_source}):")
+    logger.info(f"[PHASE 7] Top 10 qualified signals (source={signal_source}):")
     for i, sig in enumerate(liq_passed[:10]):
 
         def _fmt(v, spec=":.1f"):

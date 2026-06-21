@@ -1,7 +1,6 @@
 """Shared route utilities."""
 
 import logging
-import re
 import time
 from datetime import date, datetime, timezone
 from functools import wraps

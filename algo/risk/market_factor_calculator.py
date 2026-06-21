@@ -13,7 +13,7 @@ from typing import Any
 
 import psycopg2
 
-from utils.safe_data_conversion import safe_float
+from utils.safe_data_conversion import safe_float, safe_int, safe_bool
 
 
 logger = logging.getLogger(__name__)

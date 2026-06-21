@@ -91,13 +91,13 @@ class ValueAtRisk:
                 var_percentile = np.percentile(returns, (1 - confidence) * 100)
                 current_value = values[-1]
 
-                var_dollars = current_value * abs(var_percentile)
-                var_pct = abs(var_percentile) * 100
+                var_dollars = current_value * Decimal(str(abs(var_percentile)))
+                var_pct = Decimal(str(abs(var_percentile))) * Decimal(100)
 
                 return {
                     "confidence_level": confidence,
-                    "var_dollars": float(round(var_dollars, 2)),
-                    "var_pct": float(round(var_pct, 3)),
+                    "var_dollars": float(var_dollars.quantize(Decimal("0.01"), rounding=ROUND_HALF_UP)),
+                    "var_pct": float(var_pct.quantize(Decimal("0.001"), rounding=ROUND_HALF_UP)),
                     "interpretation": f"95% confident portfolio won't lose more than ${var_dollars:.2f} (or {var_pct:.2f}%) in one day",
                     "data_points": len(returns),
                 }
@@ -155,14 +155,15 @@ class ValueAtRisk:
                     logger.critical("CVaR calculation failed: no tail loss events in historical data")
                     raise RuntimeError("Cannot compute CVaR: no tail loss events found in historical returns")
 
-                cvar_pct = abs(np.mean(tail_losses)) * 100
+                tail_loss_mean = Decimal(str(abs(np.mean(tail_losses))))
+                cvar_pct = tail_loss_mean * Decimal(100)
                 current_value = values[-1]
-                cvar_dollars = current_value * abs(np.mean(tail_losses))
+                cvar_dollars = current_value * tail_loss_mean
 
                 return {
                     "confidence_level": confidence,
-                    "cvar_dollars": float(round(cvar_dollars, 2)),
-                    "cvar_pct": float(round(cvar_pct, 3)),
+                    "cvar_dollars": float(cvar_dollars.quantize(Decimal("0.01"), rounding=ROUND_HALF_UP)),
+                    "cvar_pct": float(cvar_pct.quantize(Decimal("0.001"), rounding=ROUND_HALF_UP)),
                     "interpretation": f"Average loss on worst-case days (worse than VaR): {cvar_pct:.2f}%",
                     "tail_event_count": len(tail_losses),
                 }
