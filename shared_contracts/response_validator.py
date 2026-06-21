@@ -13,7 +13,7 @@ Separation of concerns:
 """
 
 import logging
-from typing import Any, Dict, List, Optional, Tuple, cast
+from typing import Any, cast
 
 from .dashboard_api_contract import DASHBOARD_ENDPOINTS, ResponseSchema
 
@@ -30,8 +30,8 @@ class ResponseValidator:
 
     @staticmethod
     def validate_endpoint_response(
-        endpoint_name: str, response: Dict[str, Any]
-    ) -> Tuple[bool, Optional[str]]:
+        endpoint_name: str, response: dict[str, Any]
+    ) -> tuple[bool, str | None]:
         """Validate that a response matches its endpoint's schema.
 
         Args:
@@ -65,7 +65,7 @@ class ResponseValidator:
             )
 
         # Check strict fields (must not be None)
-        strict_fields = cast(List[str], endpoint.get("strict_fields"))
+        strict_fields = cast(list[str], endpoint.get("strict_fields"))
         none_strict_fields = []
         for field in strict_fields:
             if field in response and response[field] is None:
@@ -104,8 +104,8 @@ class ResponseValidator:
 
     @staticmethod
     def validate_batch_responses(
-        responses: Dict[str, Dict[str, Any]],
-    ) -> Dict[str, Tuple[bool, Optional[str]]]:
+        responses: dict[str, dict[str, Any]],
+    ) -> dict[str, tuple[bool, str | None]]:
         """Validate multiple endpoint responses.
 
         Args:
@@ -124,7 +124,7 @@ class ResponseValidator:
 
     @staticmethod
     def report_validation_errors(
-        validation_results: Dict[str, Tuple[bool, Optional[str]]],
+        validation_results: dict[str, tuple[bool, str | None]],
     ) -> str:
         """Generate a formatted error report from validation results.
 
@@ -148,8 +148,8 @@ class ResponseValidator:
 
     @staticmethod
     def sanitize_response(
-        response: Dict[str, Any], remove_none: bool = True
-    ) -> Dict[str, Any]:
+        response: dict[str, Any], remove_none: bool = True
+    ) -> dict[str, Any]:
         """Remove None values and empty structures from response (API Issue #14 FIX).
 
         Args:
@@ -188,8 +188,8 @@ class ResponseValidator:
 
     @staticmethod
     def validate_and_sanitize(
-        endpoint_name: str, response: Dict[str, Any], strict: bool = True
-    ) -> Tuple[bool, Optional[str], Dict[str, Any]]:
+        endpoint_name: str, response: dict[str, Any], strict: bool = True
+    ) -> tuple[bool, str | None, dict[str, Any]]:
         """Validate response and return sanitized version.
 
         Args:

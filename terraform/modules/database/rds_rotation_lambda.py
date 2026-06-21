@@ -15,7 +15,7 @@ import json
 import logging
 import secrets
 import string
-from typing import Any, Dict, cast
+from typing import Any, cast
 
 import boto3
 import psycopg2
@@ -27,19 +27,19 @@ logger.setLevel(logging.INFO)
 secrets_client = boto3.client("secretsmanager")
 
 
-def get_secret_dict(secret_id: str, stage: str = "AWSCURRENT") -> Dict[str, Any]:
+def get_secret_dict(secret_id: str, stage: str = "AWSCURRENT") -> dict[str, Any]:
     """Fetch secret from Secrets Manager."""
     try:
         response = secrets_client.get_secret_value(
             SecretId=secret_id, VersionStage=stage
         )
-        return cast(Dict[str, Any], json.loads(response["SecretString"]))
+        return cast(dict[str, Any], json.loads(response["SecretString"]))
     except Exception as e:
         logger.error(f"Failed to get secret {secret_id}: {e}")
         raise
 
 
-def set_secret_version(secret_id: str, secret_value: Dict[str, Any]) -> str:
+def set_secret_version(secret_id: str, secret_value: dict[str, Any]) -> str:
     """Create new secret version in Secrets Manager."""
     try:
         response = secrets_client.put_secret_value(

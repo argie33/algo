@@ -2,7 +2,6 @@
 
 import json
 import logging
-from typing import Dict
 
 import psycopg2
 import psycopg2.errors
@@ -32,10 +31,10 @@ def handle(
     cur,
     path: str,
     method: str,
-    params: Dict,
-    body: Dict = None,
-    jwt_claims: Dict = None,
-) -> Dict:
+    params: dict,
+    body: dict | None = None,
+    jwt_claims: dict | None = None,
+) -> dict:
     """Handle /api/settings endpoints."""
     if jwt_claims is None:
         return error_response(401, "unauthorized", "Authentication required")
@@ -52,7 +51,7 @@ def handle(
     return error_response(405, "method_not_allowed", f"{method} not supported")
 
 
-def _get_settings(cur, jwt_claims: Dict) -> Dict:
+def _get_settings(cur, jwt_claims: dict) -> dict:
     """Return user settings, falling back to defaults."""
     user_id = jwt_claims.get("sub")
     if not user_id:
@@ -74,11 +73,7 @@ def _get_settings(cur, jwt_claims: Dict) -> Dict:
                 preferences = row.get("preferences") or {}
                 stored = {
                     "theme": row["theme"] or "dark",
-                    "notifications": (
-                        row["notifications"]
-                        if row["notifications"] is not None
-                        else True
-                    ),
+                    "notifications": (row["notifications"] if row["notifications"] is not None else True),
                     **preferences,
                 }
             except (TypeError, KeyError):
@@ -92,7 +87,7 @@ def _get_settings(cur, jwt_claims: Dict) -> Dict:
         return error_response(code, error_type, message)
 
 
-def _save_settings(cur, body: Dict, jwt_claims: Dict) -> Dict:
+def _save_settings(cur, body: dict, jwt_claims: dict) -> dict:
     """Persist user settings (theme, notifications, other preferences)."""
     user_id = jwt_claims.get("sub")
     if not user_id:
@@ -101,24 +96,16 @@ def _save_settings(cur, body: Dict, jwt_claims: Dict) -> Dict:
     try:
         theme = body.get("theme", "dark")
         notifications_raw = body.get("notifications", True)
-        other_prefs = {
-            k: v
-            for k, v in body.items()
-            if k not in ("user_id", "theme", "notifications")
-        }
+        other_prefs = {k: v for k, v in body.items() if k not in ("user_id", "theme", "notifications")}
 
         # Validate arbitrary preference keys - limit to 50 keys to prevent storage abuse
         if len(other_prefs) > 50:
-            return error_response(
-                400, "bad_request", "Too many preference fields (max 50)"
-            )
+            return error_response(400, "bad_request", "Too many preference fields (max 50)")
 
         # Validate preference JSON size - limit to 10KB
         prefs_json = json.dumps(other_prefs)
         if len(prefs_json.encode("utf-8")) > 10240:  # 10KB
-            return error_response(
-                400, "bad_request", "Preferences too large (max 10KB)"
-            )
+            return error_response(400, "bad_request", "Preferences too large (max 10KB)")
 
         # notifications column is BOOLEAN; if frontend sends a dict (per-type toggles),
         # store it in preferences JSONB so it survives the round-trip intact.

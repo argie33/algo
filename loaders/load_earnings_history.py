@@ -92,10 +92,7 @@ class EarningsHistoryLoader(OptimalLoader):
                 seen: dict[tuple[str, str], dict] = {}
                 for row in rows:
                     key = (row["symbol"], row["quarter"])
-                    if (
-                        key not in seen
-                        or row["earnings_date"] > seen[key]["earnings_date"]
-                    ):
+                    if key not in seen or row["earnings_date"] > seen[key]["earnings_date"]:
                         seen[key] = row
                 rows = list(seen.values())
 
@@ -112,7 +109,6 @@ class EarningsHistoryLoader(OptimalLoader):
         if not super()._validate_row(row):
             return False
         return bool(row.get("quarter")) and bool(row.get("earnings_date"))
-
 
 
 if __name__ == "__main__":

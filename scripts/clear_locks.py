@@ -1,5 +1,6 @@
 #!/usr/bin/env python3
 """Clear orchestrator and loader locks."""
+
 import psycopg2.errors
 
 from utils.db.context import DatabaseContext
@@ -8,7 +9,7 @@ from utils.db.sql_safety import assert_safe_table
 
 def main() -> None:
     """Clear all distributed locks from database."""
-    with DatabaseContext('write') as cur:
+    with DatabaseContext("write") as cur:
         # Check for distributed locks (various lock mechanisms)
         try:
             cur.execute("SELECT * FROM orchestrator_locks")

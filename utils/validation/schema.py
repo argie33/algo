@@ -11,7 +11,6 @@ CRITICAL ISSUE #5 FIX: Validates column types, not just existence.
 """
 
 import logging
-from typing import Dict, List, Optional, Tuple
 
 import psycopg2.sql
 
@@ -22,9 +21,9 @@ logger = logging.getLogger(__name__)
 def validate_table_schema(
     cur,
     table_name: str,
-    required_columns: Optional[Dict[str, str]] = None,
+    required_columns: dict[str, str] | None = None,
     check_row_count: bool = True,
-) -> Tuple[bool, List[str]]:
+) -> tuple[bool, list[str]]:
     """Validate that a table exists and has correct column structure with proper data types.
 
     CRITICAL: This is a PRE-FLIGHT validation that catches schema mismatches BEFORE attempting
@@ -98,11 +97,7 @@ def validate_table_schema(
             from utils.db import assert_safe_table
 
             table_safe = assert_safe_table(table_name)
-            cur.execute(
-                psycopg2.sql.SQL("SELECT COUNT(*) FROM {} LIMIT 1").format(
-                    psycopg2.sql.Identifier(table_safe)
-                )
-            )
+            cur.execute(psycopg2.sql.SQL("SELECT COUNT(*) FROM {} LIMIT 1").format(psycopg2.sql.Identifier(table_safe)))
             row_count = cur.fetchone()[0]
             if row_count == 0:
                 errors.append(f"Table '{table_name}' is empty (0 rows)")
@@ -170,7 +165,7 @@ def _types_compatible(actual: str, expected: str) -> bool:
     return actual_type == expected_type
 
 
-def validate_row_data_types(row: Dict, table_name: str = "") -> List[str]:
+def validate_row_data_types(row: dict, table_name: str = "") -> list[str]:
     """Validate that row data can be converted to expected types.
 
     Args:

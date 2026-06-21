@@ -17,8 +17,8 @@ from routes.utils import (
     safe_limit,
     safe_page,
 )
-from shared_contracts.response_validator import ResponseValidator
 
+from shared_contracts.response_validator import ResponseValidator
 from utils.validation import DatabaseResultValidator
 
 
@@ -30,8 +30,8 @@ def handle(
     path: str,
     method: str,
     params: dict,
-    body: dict = None,
-    jwt_claims: dict = None,
+    body: dict | None = None,
+    jwt_claims: dict | None = None,
 ) -> dict:
     """Handle /api/sentiment/* endpoints."""
     try:
@@ -49,11 +49,7 @@ def handle(
                 timeout_sec=3,
             )
             row = fg_rows[0] if fg_rows else None
-            fg_value = (
-                float(row["fear_greed_value"])
-                if row and row["fear_greed_value"]
-                else None
-            )
+            fg_value = float(row["fear_greed_value"]) if row and row["fear_greed_value"] else None
             fg_label = row["fear_greed_label"] if row else None
 
             aaii_row = None
@@ -70,9 +66,7 @@ def handle(
                 )
                 aaii_row = aaii_rows[0] if aaii_rows else None
             except (ValueError, ZeroDivisionError, TypeError) as e:
-                logger.error(
-                    f"Failed to fetch AAII sentiment data: {type(e).__name__}: {e}"
-                )
+                logger.error(f"Failed to fetch AAII sentiment data: {type(e).__name__}: {e}")
 
             naaim_row = None
             try:
@@ -88,9 +82,7 @@ def handle(
                 )
                 naaim_row = naaim_rows[0] if naaim_rows else None
             except (ValueError, ZeroDivisionError, TypeError) as e:
-                logger.error(
-                    f"Failed to fetch NAAIM sentiment data: {type(e).__name__}: {e}"
-                )
+                logger.error(f"Failed to fetch NAAIM sentiment data: {type(e).__name__}: {e}")
 
             analyst_row = None
             try:
@@ -108,34 +100,18 @@ def handle(
                 )
                 analyst_row = analyst_rows[0] if analyst_rows else None
             except (ValueError, ZeroDivisionError, TypeError) as e:
-                logger.error(
-                    f"Failed to fetch analyst sentiment data: {type(e).__name__}: {e}"
-                )
+                logger.error(f"Failed to fetch analyst sentiment data: {type(e).__name__}: {e}")
 
             freshness = check_data_freshness(cur, "fear_greed_index", "date", warning_days=1)
             sentiment_result = {
-                "fear_greed": (
-                    {"value": fg_value, "label": fg_label}
-                    if fg_value is not None
-                    else None
-                ),
+                "fear_greed": ({"value": fg_value, "label": fg_label} if fg_value is not None else None),
                 "aaii": safe_json_serialize(dict(aaii_row)) if aaii_row else None,
-                "naaim": (
-                    safe_json_serialize(dict(naaim_row)) if naaim_row else None
-                ),
+                "naaim": (safe_json_serialize(dict(naaim_row)) if naaim_row else None),
                 "analyst": (
-                    safe_json_serialize(dict(analyst_row))
-                    if analyst_row and analyst_row.get("analyst_count")
-                    else None
+                    safe_json_serialize(dict(analyst_row)) if analyst_row and analyst_row.get("analyst_count") else None
                 ),
-                "put_call_ratio": (
-                    float(row["put_call_ratio"])
-                    if row and row["put_call_ratio"]
-                    else None
-                ),
-                "vix_level": (
-                    float(row["vix_level"]) if row and row["vix_level"] else None
-                ),
+                "put_call_ratio": (float(row["put_call_ratio"]) if row and row["put_call_ratio"] else None),
+                "vix_level": (float(row["vix_level"]) if row and row["vix_level"] else None),
                 "date": str(row["date"]) if row else None,
                 "data_freshness": freshness,
             }
@@ -162,9 +138,7 @@ def handle(
                 (limit, offset),
                 timeout_sec=5,
             )
-            freshness = check_data_freshness(
-                cur, "analyst_sentiment_analysis", "date", warning_days=7
-            )
+            freshness = check_data_freshness(cur, "analyst_sentiment_analysis", "date", warning_days=7)
             sentiment_data_result = list_response(
                 [safe_json_serialize(dict(s)) for s in sentiment] if sentiment else [],
                 data_freshness=freshness,
@@ -205,11 +179,7 @@ def handle(
         elif path.startswith("/api/sentiment/analyst/insights/"):
             symbol = path.split("/api/sentiment/analyst/insights/")[-1].upper()
             # Validate symbol format: max 5 chars, alphanumeric + dash only
-            if (
-                not symbol
-                or len(symbol) > 5
-                or not all(c.isalnum() or c == "-" for c in symbol)
-            ):
+            if not symbol or len(symbol) > 5 or not all(c.isalnum() or c == "-" for c in symbol):
                 return error_response(400, "bad_request", "Invalid symbol format")
             rows = execute_with_timeout(
                 cur,
@@ -224,9 +194,7 @@ def handle(
                 (symbol,),
                 timeout_sec=3,
             )
-            latest = DatabaseResultValidator.safe_get_first_row(
-                rows, "analyst sentiment metrics"
-            )
+            latest = DatabaseResultValidator.safe_get_first_row(rows, "analyst sentiment metrics")
             if not latest:
                 return json_response(
                     200,
@@ -259,25 +227,15 @@ def handle(
                 "bullishPercent": bp,
                 "bearishPercent": bep,
                 "neutralPercent": np_,
-                "avgPriceTarget": (
-                    float(latest["target_price"])
-                    if latest.get("target_price")
-                    else None
-                ),
+                "avgPriceTarget": (float(latest["target_price"]) if latest.get("target_price") else None),
                 "priceTargetVsCurrent": (
-                    float(latest["upside_downside_percent"])
-                    if latest.get("upside_downside_percent")
-                    else None
+                    float(latest["upside_downside_percent"]) if latest.get("upside_downside_percent") else None
                 ),
                 "consensus": (
                     (
                         "Strong Buy"
                         if bp and bp > 70
-                        else (
-                            "Buy"
-                            if bp and bp > 55
-                            else "Sell" if bep and bep > 55 else "Hold"
-                        )
+                        else ("Buy" if bp and bp > 55 else "Sell" if bep and bep > 55 else "Hold")
                     )
                     if total > 0
                     else None
@@ -311,11 +269,7 @@ def handle(
             return json_response(200, analyst_result)
         elif path.startswith("/api/sentiment/social/insights/"):
             symbol = path.split("/api/sentiment/social/insights/")[-1].upper()
-            if (
-                not symbol
-                or len(symbol) > 5
-                or not all(c.isalnum() or c == "-" for c in symbol)
-            ):
+            if not symbol or len(symbol) > 5 or not all(c.isalnum() or c == "-" for c in symbol):
                 return error_response(400, "bad_request", "Invalid symbol format")
             cur.execute("SET LOCAL statement_timeout = '3000ms'")
             cur.execute(
@@ -330,9 +284,7 @@ def handle(
                 (symbol,),
             )
             rows = cur.fetchall()
-            latest = DatabaseResultValidator.safe_get_first_row(
-                rows, "analyst sentiment trends"
-            )
+            latest = DatabaseResultValidator.safe_get_first_row(rows, "analyst sentiment trends")
             if not latest:
                 return json_response(
                     200,
@@ -364,25 +316,15 @@ def handle(
                 "bullishPercent": bp,
                 "bearishPercent": bep,
                 "neutralPercent": np_,
-                "avgPriceTarget": (
-                    float(latest["target_price"])
-                    if latest.get("target_price")
-                    else None
-                ),
+                "avgPriceTarget": (float(latest["target_price"]) if latest.get("target_price") else None),
                 "priceTargetVsCurrent": (
-                    float(latest["upside_downside_percent"])
-                    if latest.get("upside_downside_percent")
-                    else None
+                    float(latest["upside_downside_percent"]) if latest.get("upside_downside_percent") else None
                 ),
                 "sentiment": (
                     (
                         "Very Bullish"
                         if bp and bp > 70
-                        else (
-                            "Bullish"
-                            if bp and bp > 55
-                            else "Bearish" if bep and bep > 55 else "Neutral"
-                        )
+                        else ("Bullish" if bp and bp > 55 else "Bearish" if bep and bep > 55 else "Neutral")
                     )
                     if total and total > 0
                     else None
@@ -435,14 +377,8 @@ def handle(
                         if row["fear_greed_value"]
                         else None
                     ),
-                    "put_call_ratio": (
-                        float(row["put_call_ratio"])
-                        if row["put_call_ratio"]
-                        else None
-                    ),
-                    "vix_level": (
-                        float(row["vix_level"]) if row["vix_level"] else None
-                    ),
+                    "put_call_ratio": (float(row["put_call_ratio"]) if row["put_call_ratio"] else None),
+                    "vix_level": (float(row["vix_level"]) if row["vix_level"] else None),
                     "date": str(row["date"]),
                 }
                 is_valid, error_msg = ResponseValidator.validate_endpoint_response("sentiment", default_result)

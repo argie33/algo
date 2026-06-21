@@ -106,25 +106,11 @@ class EconomicMetricsDailyLoader(OptimalLoader):
                         spy_rows = []
 
                     if len(spy_rows) >= 2:
-                        cur_price = (
-                            float(spy_rows[0].get("close"))
-                            if spy_rows[0].get("close") is not None
-                            else None
-                        )
-                        prev_price = (
-                            float(spy_rows[1].get("close"))
-                            if spy_rows[1].get("close") is not None
-                            else None
-                        )
+                        cur_price = float(spy_rows[0].get("close")) if spy_rows[0].get("close") is not None else None
+                        prev_price = float(spy_rows[1].get("close")) if spy_rows[1].get("close") is not None else None
 
-                        if (
-                            cur_price is not None
-                            and prev_price is not None
-                            and prev_price > 0
-                        ):
-                            spy_price_change = round(
-                                (cur_price - prev_price) / prev_price * 100, 2
-                            )
+                        if cur_price is not None and prev_price is not None and prev_price > 0:
+                            spy_price_change = round((cur_price - prev_price) / prev_price * 100, 2)
                         elif prev_price == 0:
                             spy_error = "prev_price_zero"
                     else:
@@ -180,18 +166,14 @@ class EconomicMetricsDailyLoader(OptimalLoader):
                     "updated_at": datetime.now(ET),
                 }
 
-                logger.info(
-                    f"Economic metrics: CPI_YoY={cpi_yoy}% SPY_chg={spy_price_change}% YCS={ycs_10y2y}"
-                )
+                logger.info(f"Economic metrics: CPI_YoY={cpi_yoy}% SPY_chg={spy_price_change}% YCS={ycs_10y2y}")
 
                 return [result]
 
         except (psycopg2.DatabaseError, psycopg2.OperationalError) as e:
             raise RuntimeError(
-                f"[ECONOMIC_METRICS] Failed to compute daily metrics: {e}. "
-                "Cannot proceed without macro indicators."
+                f"[ECONOMIC_METRICS] Failed to compute daily metrics: {e}. Cannot proceed without macro indicators."
             )
-
 
 
 if __name__ == "__main__":

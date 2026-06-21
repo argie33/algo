@@ -23,9 +23,7 @@ import psycopg2
 
 
 # Configure logging
-logging.basicConfig(
-    level=logging.INFO, format="%(asctime)s - %(name)s - %(levelname)s - %(message)s"
-)
+logging.basicConfig(level=logging.INFO, format="%(asctime)s - %(name)s - %(levelname)s - %(message)s")
 logger = logging.getLogger(__name__)
 
 
@@ -53,17 +51,13 @@ def main():
         # Determine the latest trading date from price_daily
         latest_date = None
         with DatabaseContext("read") as cur:
-            cur.execute(
-                "SELECT date FROM price_daily WHERE symbol='SPY' ORDER BY date DESC LIMIT 1"
-            )
+            cur.execute("SELECT date FROM price_daily WHERE symbol='SPY' ORDER BY date DESC LIMIT 1")
             result = cur.fetchone()
             if result:
                 latest_date = result[0]
 
         if not latest_date:
-            logger.error(
-                "No price data available for SPY — cannot compute market exposure"
-            )
+            logger.error("No price data available for SPY — cannot compute market exposure")
             with DatabaseContext("write") as cur:
                 cur.execute(
                     "UPDATE data_loader_status SET status = %s, last_updated = NOW(), error_message = %s WHERE table_name = %s",
@@ -82,7 +76,7 @@ def main():
             with DatabaseContext("write") as cur:
                 cur.execute(
                     "UPDATE data_loader_status SET status = %s, last_updated = NOW(), error_message = %s WHERE table_name = %s",
-                    ("FAILED", result.get('error'), table_name),
+                    ("FAILED", result.get("error"), table_name),
                 )
             return 1
 

@@ -68,18 +68,12 @@ def check_loader_health() -> tuple[str, list[dict]]:
 
                 row = cur.fetchone()
                 if not row:
-                    issues.append(
-                        {"loader": loader, "problem": "Never run", "status": "CRITICAL"}
-                    )
+                    issues.append({"loader": loader, "problem": "Never run", "status": "CRITICAL"})
                     continue
 
                 status, last_run = row
                 if last_run:
-                    last_run = (
-                        last_run.replace(tzinfo=timezone.utc)
-                        if last_run.tzinfo is None
-                        else last_run
-                    )
+                    last_run = last_run.replace(tzinfo=timezone.utc) if last_run.tzinfo is None else last_run
                     age_hours = (now - last_run).total_seconds() / 3600
 
                     # Check if stale (>26 hours for daily loaders)
@@ -119,9 +113,7 @@ def check_loader_health() -> tuple[str, list[dict]]:
 
     except Exception as e:
         logger.error(f"Loader health check failed: {e}")
-        return "unhealthy", [
-            {"problem": f"Health check error: {str(e)[:50]}", "status": "ERROR"}
-        ]
+        return "unhealthy", [{"problem": f"Health check error: {str(e)[:50]}", "status": "ERROR"}]
 
 
 def check_data_freshness() -> tuple[str, list[dict]]:
@@ -193,9 +185,7 @@ def check_data_freshness() -> tuple[str, list[dict]]:
         return "unhealthy", [{"problem": f"Freshness check error: {str(e)[:50]}"}]
 
 
-def send_metric(
-    metric_name: str, value: float, unit: str = "None", dimensions: dict | None = None
-):
+def send_metric(metric_name: str, value: float, unit: str = "None", dimensions: dict | None = None):
     """Send custom CloudWatch metric."""
     try:
         cloudwatch.put_metric_data(
@@ -206,9 +196,7 @@ def send_metric(
                     "Value": value,
                     "Unit": unit,
                     "Timestamp": datetime.now(timezone.utc),
-                    "Dimensions": [
-                        {"Name": k, "Value": v} for k, v in (dimensions or {}).items()
-                    ],
+                    "Dimensions": [{"Name": k, "Value": v} for k, v in (dimensions or {}).items()],
                 }
             ],
         )

@@ -30,9 +30,7 @@ def _rollback_savepoint(cur, name: str) -> None:
         cur.execute(f"ROLLBACK TO SAVEPOINT {name}")
         cur.execute(f"RELEASE SAVEPOINT {name}")
     except (psycopg2.OperationalError, psycopg2.DatabaseError) as sp_err:
-        logger.debug(
-            f"[SAVEPOINT_ROLLBACK] Error rolling back {name}: {type(sp_err).__name__}"
-        )
+        logger.debug(f"[SAVEPOINT_ROLLBACK] Error rolling back {name}: {type(sp_err).__name__}")
 
 
 def _handle_market_status(cur) -> dict:
@@ -52,9 +50,7 @@ def _handle_market_status(cur) -> dict:
     result = safe_json_serialize(dict(row))
 
     # Add freshness check
-    freshness = check_data_freshness(
-        cur, "market_health_daily", "date", warning_days=1
-    )
+    freshness = check_data_freshness(cur, "market_health_daily", "date", warning_days=1)
 
     is_valid, error_msg = ResponseValidator.validate_endpoint_response("market/status", result)
     if not is_valid:
@@ -106,9 +102,7 @@ def _handle_breadth(cur) -> dict:
 
     # 20s timeout — Lambda is 25s, APIGW is 29s; single attempt avoids double-hit.
     try:
-        breadth = execute_with_timeout(
-            cur, breadth_query, timeout_sec=20, max_attempts=1
-        )
+        breadth = execute_with_timeout(cur, breadth_query, timeout_sec=20, max_attempts=1)
     except psycopg2.errors.QueryCanceled as e:
         logger.error(f"[MARKET_BREADTH] Query timeout: {type(e).__name__}: {e}")
         raise_api_error(504, "timeout", "Market breadth data query exceeded timeout")
@@ -118,36 +112,26 @@ def _handle_breadth(cur) -> dict:
         psycopg2.OperationalError,
         psycopg2.DatabaseError,
     ) as e:
-        logger.error(
-            f"[MARKET_BREADTH] Database error: {type(e).__name__}: {e}"
-        )
+        logger.error(f"[MARKET_BREADTH] Database error: {type(e).__name__}: {e}")
         raise_db_error(e, "market breadth query")
     except (psycopg2.DatabaseError, psycopg2.OperationalError) as e:
-        logger.error(
-            f"[MARKET_BREADTH] Unexpected error: {type(e).__name__}: {e}"
-        )
+        logger.error(f"[MARKET_BREADTH] Unexpected error: {type(e).__name__}: {e}")
         raise_db_error(e, "market breadth query")
 
     if breadth:
         # Only fetch freshness if query succeeded
         try:
-            freshness = check_data_freshness(
-                cur, "price_daily", "date", warning_days=1
-            )
+            freshness = check_data_freshness(cur, "price_daily", "date", warning_days=1)
         except (
             psycopg2.errors.UndefinedTable,
             psycopg2.errors.UndefinedColumn,
             psycopg2.OperationalError,
             psycopg2.DatabaseError,
         ) as e:
-            logger.warning(
-                f"[BREADTH_FRESHNESS] Database error: {type(e).__name__}: {e}"
-            )
+            logger.warning(f"[BREADTH_FRESHNESS] Database error: {type(e).__name__}: {e}")
             freshness = {}
         except (psycopg2.DatabaseError, psycopg2.OperationalError) as e:
-            logger.warning(
-                f"[BREADTH_FRESHNESS] Error checking data freshness: {type(e).__name__}: {e}"
-            )
+            logger.warning(f"[BREADTH_FRESHNESS] Error checking data freshness: {type(e).__name__}: {e}")
             freshness = {}
 
     return list_response(
@@ -173,9 +157,7 @@ def _handle_technicals(cur) -> dict:
             timeout_sec=3,
         )
     except psycopg2.errors.QueryCanceled as e:
-        logger.error(
-            f"[MARKET_TECHNICALS] Query timeout: {type(e).__name__}: {e}"
-        )
+        logger.error(f"[MARKET_TECHNICALS] Query timeout: {type(e).__name__}: {e}")
         raise_api_error(504, "timeout", "Market technicals data query exceeded timeout")
     except (
         psycopg2.errors.UndefinedTable,
@@ -183,14 +165,10 @@ def _handle_technicals(cur) -> dict:
         psycopg2.OperationalError,
         psycopg2.DatabaseError,
     ) as e:
-        logger.error(
-            f"[MARKET_TECHNICALS] Database error: {type(e).__name__}: {e}"
-        )
+        logger.error(f"[MARKET_TECHNICALS] Database error: {type(e).__name__}: {e}")
         raise_db_error(e, "market technicals query")
     except (psycopg2.DatabaseError, psycopg2.OperationalError) as e:
-        logger.error(
-            f"[MARKET_TECHNICALS] Unexpected error: {type(e).__name__}: {e}"
-        )
+        logger.error(f"[MARKET_TECHNICALS] Unexpected error: {type(e).__name__}: {e}")
         raise_db_error(e, "market technicals query")
 
     base = safe_json_serialize(dict(rows[0])) if rows else {}
@@ -233,9 +211,7 @@ def _handle_technicals(cur) -> dict:
         cur.execute("RELEASE SAVEPOINT technicals_breadth")
         base["breadth"] = dict(breadth_rows[0]) if breadth_rows else {}
     except psycopg2.errors.QueryCanceled as e:
-        logger.warning(
-            f"[TECHNICALS_BREADTH] Query timeout — skipping: {type(e).__name__}"
-        )
+        logger.warning(f"[TECHNICALS_BREADTH] Query timeout — skipping: {type(e).__name__}")
         _rollback_savepoint(cur, "technicals_breadth")
         base["breadth"] = {}
     except (
@@ -244,15 +220,11 @@ def _handle_technicals(cur) -> dict:
         psycopg2.OperationalError,
         psycopg2.DatabaseError,
     ) as e:
-        logger.warning(
-            f"[TECHNICALS_BREADTH] Database error: {type(e).__name__}"
-        )
+        logger.warning(f"[TECHNICALS_BREADTH] Database error: {type(e).__name__}")
         _rollback_savepoint(cur, "technicals_breadth")
         base["breadth"] = {}
     except (psycopg2.DatabaseError, psycopg2.OperationalError) as e:
-        logger.warning(
-            f"[TECHNICALS_BREADTH] Unexpected error: {type(e).__name__}"
-        )
+        logger.warning(f"[TECHNICALS_BREADTH] Unexpected error: {type(e).__name__}")
         _rollback_savepoint(cur, "technicals_breadth")
         base["breadth"] = {}
 
@@ -271,9 +243,7 @@ def _handle_technicals(cur) -> dict:
             LIMIT 30
         """)
         adrows = cur.fetchall()
-        base["mcclellan_oscillator"] = [
-            safe_json_serialize(dict(r)) for r in adrows
-        ]
+        base["mcclellan_oscillator"] = [safe_json_serialize(dict(r)) for r in adrows]
     except (
         psycopg2.errors.UndefinedTable,
         psycopg2.errors.UndefinedColumn,
@@ -287,9 +257,7 @@ def _handle_technicals(cur) -> dict:
         logger.warning(f"[MCCLELLAN] Unexpected error: {type(e).__name__}")
         base["mcclellan_oscillator"] = []
 
-    freshness = check_data_freshness(
-        cur, "market_health_daily", "date", warning_days=1
-    )
+    freshness = check_data_freshness(cur, "market_health_daily", "date", warning_days=1)
     return json_response(200, base, data_freshness=freshness)
 
 
@@ -365,9 +333,7 @@ def _handle_top_movers(cur) -> dict:
         [m for m in valid_items if m.get("pct_change") < 0],
         key=lambda x: x["pct_change"],
     )[:10]
-    return json_response(
-        200, {"gainers": gainers or [], "losers": losers or [], "items": items}
-    )
+    return json_response(200, {"gainers": gainers or [], "losers": losers or [], "items": items})
 
 
 def _handle_distribution_days(cur) -> dict:
@@ -381,9 +347,7 @@ def _handle_distribution_days(cur) -> dict:
     }
     try:
         cur.execute("SAVEPOINT dist_days")
-        cur.execute(
-            "SET LOCAL statement_timeout = '15s'"
-        )  # Complex window function query
+        cur.execute("SET LOCAL statement_timeout = '15s'")  # Complex window function query
         cur.execute("""
             WITH recent_sessions AS (
                 SELECT symbol, date, close, volume,
@@ -416,31 +380,15 @@ def _handle_distribution_days(cur) -> dict:
             by_sym[sym].append(
                 {
                     "date": str(r["date"]),
-                    "change_pct": (
-                        float(r["change_pct"])
-                        if r["change_pct"] is not None
-                        else None
-                    ),
-                    "volume_ratio": (
-                        float(r["volume_ratio"])
-                        if r["volume_ratio"] is not None
-                        else None
-                    ),
+                    "change_pct": (float(r["change_pct"]) if r["change_pct"] is not None else None),
+                    "volume_ratio": (float(r["volume_ratio"]) if r["volume_ratio"] is not None else None),
                     "days_ago": r["days_ago"],
                 }
             )
         result = {}
         for sym, days in by_sym.items():
             count = len(days)
-            signal = (
-                "DANGER"
-                if count >= 5
-                else (
-                    "CAUTION"
-                    if count >= 3
-                    else "WATCH" if count >= 1 else "NORMAL"
-                )
-            )
+            signal = "DANGER" if count >= 5 else ("CAUTION" if count >= 3 else "WATCH" if count >= 1 else "NORMAL")
             result[sym] = {
                 "name": dist_index_names.get(sym, sym),
                 "count": count,
@@ -484,7 +432,9 @@ def _handle_seasonality(cur) -> dict:
             if avg_ret is not None:
                 if not best_month or (best_month.get("avg_return") is None or avg_ret > best_month.get("avg_return")):
                     best_month = r_dict
-                if not worst_month or (worst_month.get("avg_return") is None or avg_ret < worst_month.get("avg_return")):
+                if not worst_month or (
+                    worst_month.get("avg_return") is None or avg_ret < worst_month.get("avg_return")
+                ):
                     worst_month = r_dict
     except psycopg2.errors.QueryCanceled as e:
         logger.error(f"[SEASONALITY] Monthly query timeout: {type(e).__name__}")
@@ -527,22 +477,15 @@ def _handle_seasonality(cur) -> dict:
             "summary": {
                 "best_month": (
                     {
-                        "name": (
-                            best_month.get("month_name") if best_month else None
-                        ),
+                        "name": (best_month.get("month_name") if best_month else None),
                         "avg_return_pct": (
                             float(best_month.get("avg_return"))
-                            if best_month
-                            and best_month.get("avg_return") is not None
+                            if best_month and best_month.get("avg_return") is not None
                             else None
                         ),
                         "win_rate_pct": (
                             round(
-                                (
-                                    float(best_month.get("winning_years"))
-                                    / float(best_month.get("years_counted"))
-                                    * 100
-                                ),
+                                (float(best_month.get("winning_years")) / float(best_month.get("years_counted")) * 100),
                                 1,
                             )
                             if best_month
@@ -556,15 +499,10 @@ def _handle_seasonality(cur) -> dict:
                 ),
                 "worst_month": (
                     {
-                        "name": (
-                            worst_month.get("month_name")
-                            if worst_month
-                            else None
-                        ),
+                        "name": (worst_month.get("month_name") if worst_month else None),
                         "avg_return_pct": (
                             float(worst_month.get("avg_return"))
-                            if worst_month
-                            and worst_month.get("avg_return") is not None
+                            if worst_month and worst_month.get("avg_return") is not None
                             else None
                         ),
                         "win_rate_pct": (
@@ -590,8 +528,7 @@ def _handle_seasonality(cur) -> dict:
                         "name": best_dow.get("day") if best_dow else None,
                         "avg_return_pct": (
                             float(best_dow.get("avg_return"))
-                            if best_dow
-                            and best_dow.get("avg_return") is not None
+                            if best_dow and best_dow.get("avg_return") is not None
                             else None
                         ),
                         "win_rate_pct": (
@@ -608,14 +545,12 @@ def _handle_seasonality(cur) -> dict:
                         "name": worst_dow.get("day") if worst_dow else None,
                         "avg_return_pct": (
                             float(worst_dow.get("avg_return"))
-                            if worst_dow
-                            and worst_dow.get("avg_return") is not None
+                            if worst_dow and worst_dow.get("avg_return") is not None
                             else None
                         ),
                         "win_rate_pct": (
                             float(worst_dow.get("win_rate"))
-                            if worst_dow
-                            and worst_dow.get("win_rate") is not None
+                            if worst_dow and worst_dow.get("win_rate") is not None
                             else None
                         ),
                     }
@@ -625,9 +560,7 @@ def _handle_seasonality(cur) -> dict:
             },
             "insights": {
                 "sell_in_may_effect": "May returns" if monthly_data else None,
-                "monday_effect": (
-                    "Historically, Mondays trend lower" if dow_data else None
-                ),
+                "monday_effect": ("Historically, Mondays trend lower" if dow_data else None),
             },
         },
     )
@@ -637,9 +570,7 @@ def _handle_sentiment(cur, params: dict) -> dict:
     """Handle /api/market/sentiment endpoint."""
     range_days = _parse_range_param(params) if params else 30
     sentiment_data = {}
-    cutoff_date = (
-        datetime.now(timezone.utc) - timedelta(days=range_days)
-    ).date()
+    cutoff_date = (datetime.now(timezone.utc) - timedelta(days=range_days)).date()
 
     # OPTIMIZATION: Set timeout to prevent slow queries from blocking
     cur.execute("SET LOCAL statement_timeout = '4000ms'")
@@ -722,8 +653,7 @@ def _handle_sentiment(cur, params: dict) -> dict:
         sentiment_data["naaim"] = {
             "current": (
                 float(naaim_current.get("naaim_number_mean"), context="naaim_number_mean")
-                if naaim_current
-                and naaim_current.get("naaim_number_mean") is not None
+                if naaim_current and naaim_current.get("naaim_number_mean") is not None
                 else None
             ),
             "history": naaim_rows,
@@ -775,11 +705,7 @@ def _handle_sentiment(cur, params: dict) -> dict:
 
         sentiment_data["fearGreed"] = {
             "current": {
-                "value": (
-                    float(fg_current["value"])
-                    if fg_current and fg_current.get("value") is not None
-                    else None
-                ),
+                "value": (float(fg_current["value"]) if fg_current and fg_current.get("value") is not None else None),
                 "label": fg_current.get("label") if fg_current else None,
             },
             "history": fg_rows,
@@ -790,9 +716,7 @@ def _handle_sentiment(cur, params: dict) -> dict:
         logger.error(f"[SENTIMENT_FG] Error: {type(e).__name__}")
         raise_db_error(e, "fear/greed sentiment query")
 
-    freshness = check_data_freshness(
-        cur, "aaii_sentiment", "date", warning_days=1
-    )
+    freshness = check_data_freshness(cur, "aaii_sentiment", "date", warning_days=1)
     return json_response(200, sentiment_data, data_freshness=freshness)
 
 
@@ -830,15 +754,9 @@ def _handle_naaim(cur) -> dict:
             history.append(
                 {
                     "date": str(r_dict.get("date") or ""),
-                    "value": (
-                        float(naaim_val) if naaim_val is not None else None
-                    ),
-                    "bullish_pct": (
-                        float(bullish_val) if bullish_val is not None else None
-                    ),
-                    "bearish_pct": (
-                        float(bearish_val) if bearish_val is not None else None
-                    ),
+                    "value": (float(naaim_val) if naaim_val is not None else None),
+                    "bullish_pct": (float(bullish_val) if bullish_val is not None else None),
+                    "bearish_pct": (float(bearish_val) if bearish_val is not None else None),
                 }
             )
 
@@ -847,31 +765,15 @@ def _handle_naaim(cur) -> dict:
             values = [h["value"] for h in history]
 
             # Compute moving averages
-            ma_10 = (
-                sum(values[-10:]) / min(10, len(values))
-                if len(values) >= 10
-                else None
-            )
-            ma_20 = (
-                sum(values[-20:]) / min(20, len(values))
-                if len(values) >= 20
-                else None
-            )
-            ma_50 = (
-                sum(values[-50:]) / min(50, len(values))
-                if len(values) >= 50
-                else None
-            )
+            ma_10 = sum(values[-10:]) / min(10, len(values)) if len(values) >= 10 else None
+            ma_20 = sum(values[-20:]) / min(20, len(values)) if len(values) >= 20 else None
+            ma_50 = sum(values[-50:]) / min(50, len(values)) if len(values) >= 50 else None
 
             # Identify extremes (>80 = extreme bullish, <20 = extreme bearish)
             curr_val = current["value"]
             signals = {
-                "extreme_bullish": (
-                    curr_val > 80 if curr_val is not None else None
-                ),
-                "extreme_bearish": (
-                    curr_val < 20 if curr_val is not None else None
-                ),
+                "extreme_bullish": (curr_val > 80 if curr_val is not None else None),
+                "extreme_bearish": (curr_val < 20 if curr_val is not None else None),
                 "overbought": curr_val > 70 if curr_val is not None else None,
                 "oversold": curr_val < 30 if curr_val is not None else None,
                 "above_50": curr_val > 50 if curr_val is not None else None,
@@ -893,73 +795,18 @@ def _handle_naaim(cur) -> dict:
                     "signals": signals,
                     "interpretation": {
                         "meaning": "Manager equity allocation %; 0=all cash, 100=fully invested",
-                        "current_stance": (
-                            "bullish" if curr_val > 50 else "bearish"
-                        ),
+                        "current_stance": ("bullish" if curr_val > 50 else "bearish"),
                         "extremity": (
-                            "extreme_bullish"
-                            if curr_val > 80
-                            else (
-                                "extreme_bearish" if curr_val < 20 else "normal"
-                            )
+                            "extreme_bullish" if curr_val > 80 else ("extreme_bearish" if curr_val < 20 else "normal")
                         ),
                     },
                 },
             )
         else:
-            return json_response(
-                200, {"current": None, "history": [], "signals": {}}
-            )
+            return json_response(200, {"current": None, "history": [], "signals": {}})
     except (ValueError, ZeroDivisionError, TypeError) as e:
         logger.error(f"[NAAIM] Error: {type(e).__name__}")
         raise_db_error(e, "NAAIM query")
-
-
-def handle(
-    cur,
-    path: str,
-    method: str,
-    params: dict,
-    body: dict = None,
-    jwt_claims: dict = None,
-) -> dict:
-    """Handle /api/market/* endpoints."""
-    try:
-        if path in ["/api/market", "/api/market/status"] or path.startswith(
-            "/api/market?"
-        ):
-            return _handle_market_status(cur)
-        elif path == "/api/market/indices":
-            return _get_markets(cur)
-        elif path == "/api/market/breadth":
-            return _handle_breadth(cur)
-        elif path == "/api/market/technicals":
-            return _handle_technicals(cur)
-        elif path == "/api/market/top-movers":
-            return _handle_top_movers(cur)
-        elif path == "/api/market/distribution-days":
-            return _handle_distribution_days(cur)
-        elif path == "/api/market/seasonality":
-            return _handle_seasonality(cur)
-        elif path == "/api/market/sentiment":
-            return _handle_sentiment(cur, params)
-        elif path == "/api/market/fear-greed":
-            range_days = _parse_range_param(params) if params else 30
-            return _get_fear_greed_history(cur, range_days)
-        elif path == "/api/market/naaim":
-            return _handle_naaim(cur)
-        elif path == "/api/market/latest":
-            return _get_market_latest(cur)
-        elif path == "/api/market/cap-distribution":
-            return _get_cap_distribution(cur)
-        elif path == "/api/market/correlation":
-            return _get_correlation_matrix(cur)
-        elif path == "/api/market/sectors":
-            return _get_sector_overview(cur)
-        raise_api_error(404, "not_found", f"No market handler for {path}")
-    except (ValueError, ZeroDivisionError, TypeError) as e:
-        logger.error(f"[MARKET] Unhandled error: {type(e).__name__}: {e}")
-        raise_db_error(e, "handle market")
 
 
 @db_route_handler("get fear greed history")
@@ -1022,9 +869,7 @@ def _get_fear_greed_history(cur, days: int = 30) -> dict:
                 "history": [
                     {
                         "date": str(h["date"]) if h.get("date") else None,
-                        "value": (
-                            float(h["value"]) if h.get("value") is not None else None
-                        ),
+                        "value": (float(h["value"]) if h.get("value") is not None else None),
                         "label": h.get("label"),
                     }
                     for h in history
@@ -1040,11 +885,7 @@ def _get_fear_greed_history(cur, days: int = 30) -> dict:
                 "interpretation": {
                     "meaning": "Market sentiment gauge; 0=Fear, 50=Neutral, 100=Greed",
                     "current_stance": "fear" if curr_val < 50 else "greed",
-                    "extremity": (
-                        "extreme_fear"
-                        if curr_val < 25
-                        else "extreme_greed" if curr_val > 75 else "normal"
-                    ),
+                    "extremity": ("extreme_fear" if curr_val < 25 else "extreme_greed" if curr_val > 75 else "normal"),
                 },
             },
         )
@@ -1155,9 +996,7 @@ def _get_correlation_matrix(cur) -> dict:
         sym = row["symbol"]
         if sym not in prices_by_symbol:
             prices_by_symbol[sym] = []
-        prices_by_symbol[sym].append(
-            (row["date"], float(row["close"]) if row["close"] else 0)
-        )
+        prices_by_symbol[sym].append((row["date"], float(row["close"]) if row["close"] else 0))
 
     for sym in prices_by_symbol:
         prices_by_symbol[sym] = [(d, p) for d, p in sorted(prices_by_symbol[sym])]
@@ -1175,9 +1014,7 @@ def _get_correlation_matrix(cur) -> dict:
                 returns.append(ret)
         returns_by_symbol[sym] = returns
 
-    valid_symbols = [
-        s for s in symbols if s in returns_by_symbol and len(returns_by_symbol[s]) >= 10
-    ]
+    valid_symbols = [s for s in symbols if s in returns_by_symbol and len(returns_by_symbol[s]) >= 10]
     if len(valid_symbols) < 2:
         return json_response(
             200,
@@ -1210,7 +1047,7 @@ def _get_correlation_matrix(cur) -> dict:
         y = y_ret[-min_len:]
         mx = sum(x) / len(x)
         my = sum(y) / len(y)
-        num = sum((xi - mx) * (yi - my) for xi, yi in zip(x, y))
+        num = sum((xi - mx) * (yi - my) for xi, yi in zip(x, y, strict=False))
         dx = sum((xi - mx) ** 2 for xi in x)
         dy = sum((yi - my) ** 2 for yi in y)
         denom = (dx * dy) ** 0.5
@@ -1227,9 +1064,7 @@ def _get_correlation_matrix(cur) -> dict:
             if sym1 == sym2:
                 corr_val = 1.0
             else:
-                corr_val = pearson_corr(
-                    returns_by_symbol[sym1], returns_by_symbol[sym2]
-                )
+                corr_val = pearson_corr(returns_by_symbol[sym1], returns_by_symbol[sym2])
             row_corrs.append(corr_val)
             if sym1 != sym2 and corr_val is not None:
                 all_corrs.append(corr_val)
@@ -1265,11 +1100,7 @@ def _get_correlation_matrix(cur) -> dict:
     else:
         market_regime = "low_correlation"
 
-    diversification_score = (
-        round(max(0, 1.0 - (avg_corr_val)) * 100, 1)
-        if avg_corr_val is not None
-        else None
-    )
+    diversification_score = round(max(0, 1.0 - (avg_corr_val)) * 100, 1) if avg_corr_val is not None else None
 
     if avg_corr_val and avg_corr_val > 0.6:
         concentration_risk = "high"
@@ -1376,9 +1207,7 @@ def _get_cap_distribution(cur) -> dict:
 
     for sector in by_sector:
         if total_cap > 0:
-            by_sector[sector]["pct_of_market"] = round(
-                by_sector[sector]["total_cap"] / total_cap * 100, 2
-            )
+            by_sector[sector]["pct_of_market"] = round(by_sector[sector]["total_cap"] / total_cap * 100, 2)
 
     category_dist = {}
     for cat in by_category:
@@ -1396,9 +1225,7 @@ def _get_cap_distribution(cur) -> dict:
             }
 
     sector_dist = {}
-    for sector in sorted(
-        by_sector.keys(), key=lambda s: by_sector[s]["total_cap"], reverse=True
-    ):
+    for sector in sorted(by_sector.keys(), key=lambda s: by_sector[s]["total_cap"], reverse=True):
         sector_dist[sector] = {
             "count": by_sector[sector]["count"],
             "total_cap": by_sector[sector]["total_cap"],
@@ -1418,14 +1245,8 @@ def _get_cap_distribution(cur) -> dict:
                 k: {
                     "count": v["count"],
                     "total_cap": v["total_cap"],
-                    "pct_of_market": (
-                        round(v["total_cap"] / total_cap * 100, 2)
-                        if total_cap > 0
-                        else 0
-                    ),
-                    "avg_cap": (
-                        round(v["total_cap"] / v["count"], 0) if v["count"] > 0 else 0
-                    ),
+                    "pct_of_market": (round(v["total_cap"] / total_cap * 100, 2) if total_cap > 0 else 0),
+                    "avg_cap": (round(v["total_cap"] / v["count"], 0) if v["count"] > 0 else 0),
                 }
                 for k, v in by_category.items()
             },
@@ -1434,9 +1255,7 @@ def _get_cap_distribution(cur) -> dict:
                 "total_stocks": len(stocks),
                 "total_market_cap": total_cap,
                 "largest_cap": max((s["market_cap"] for s in stocks), default=0),
-                "smallest_cap": min(
-                    (s["market_cap"] for s in stocks if s["market_cap"] > 0), default=0
-                ),
+                "smallest_cap": min((s["market_cap"] for s in stocks if s["market_cap"] > 0), default=0),
                 "category_distribution": category_dist,
             },
         },
@@ -1584,10 +1403,68 @@ def _get_sector_overview(cur) -> dict:
             LIMIT 100
         """)
         rows = cur.fetchall()
-        return list_response(
-            [
-                {"sector_name": r["sector"], "stock_count": r["stock_count"]}
-                for r in rows
-            ]
-        )
+        return list_response([{"sector_name": r["sector"], "stock_count": r["stock_count"]} for r in rows])
     return list_response([safe_json_serialize(dict(r)) for r in rows])
+
+
+class _MarketHandlerRegistry:
+    """Registry mapping market endpoint paths to handler functions."""
+
+    def __init__(self):
+        self._handlers = {
+            "/api/market/status": _handle_market_status,
+            "/api/market/indices": _get_markets,
+            "/api/market/breadth": _handle_breadth,
+            "/api/market/technicals": _handle_technicals,
+            "/api/market/top-movers": _handle_top_movers,
+            "/api/market/distribution-days": _handle_distribution_days,
+            "/api/market/seasonality": _handle_seasonality,
+            "/api/market/sentiment": self._wrap_sentiment,
+            "/api/market/fear-greed": self._wrap_fear_greed,
+            "/api/market/naaim": _handle_naaim,
+            "/api/market/latest": _get_market_latest,
+            "/api/market/cap-distribution": _get_cap_distribution,
+            "/api/market/correlation": _get_correlation_matrix,
+            "/api/market/sectors": _get_sector_overview,
+        }
+
+    def _wrap_sentiment(self, cur, params=None):
+        return _handle_sentiment(cur, params)
+
+    def _wrap_fear_greed(self, cur, params=None):
+        range_days = _parse_range_param(params) if params else 30
+        return _get_fear_greed_history(cur, range_days)
+
+    def get_handler(self, path: str):
+        """Get handler for path, handling aliases like /api/market → /api/market/status."""
+        if path in ["/api/market", "/api/market/status"] or path.startswith("/api/market?"):
+            return self._handlers["/api/market/status"]
+        return self._handlers.get(path)
+
+
+_MARKET_REGISTRY = _MarketHandlerRegistry()
+
+
+def handle(
+    cur,
+    path: str,
+    method: str,
+    params: dict,
+    body: dict | None = None,
+    jwt_claims: dict | None = None,
+) -> dict:
+    """Handle /api/market/* endpoints."""
+    try:
+        handler = _MARKET_REGISTRY.get_handler(path)
+        if handler is None:
+            raise_api_error(404, "not_found", f"No market handler for {path}")
+
+        if path == "/api/market/sentiment":
+            return handler(cur, params)
+        elif path == "/api/market/fear-greed":
+            return handler(cur, params)
+        else:
+            return handler(cur)
+    except (ValueError, ZeroDivisionError, TypeError) as e:
+        logger.error(f"[MARKET] Unhandled error: {type(e).__name__}: {e}")
+        raise_db_error(e, "handle market")

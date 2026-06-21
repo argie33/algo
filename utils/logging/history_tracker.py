@@ -16,10 +16,10 @@ Usage:
 
 import logging
 from datetime import datetime
-from typing import Optional
+
+import psycopg2
 
 from utils.db import DatabaseContext
-import psycopg2
 
 
 logger = logging.getLogger(__name__)
@@ -30,8 +30,8 @@ class LoaderHistoryTracker:
 
     def __init__(self, loader_name: str):
         self.loader_name = loader_name
-        self.start_time: Optional[datetime] = None
-        self.end_time: Optional[datetime] = None
+        self.start_time: datetime | None = None
+        self.end_time: datetime | None = None
 
     def start(self):
         """Mark execution start."""
@@ -40,9 +40,7 @@ class LoaderHistoryTracker:
     def complete(self, symbols_processed: int = 0, errors: int = 0):
         """Log successful completion."""
         self.end_time = datetime.utcnow()
-        self._log(
-            status="success", symbols_processed=symbols_processed, error_count=errors
-        )
+        self._log(status="success", symbols_processed=symbols_processed, error_count=errors)
 
     def failed(self, error_message: str | None = None):
         """Log failed execution."""

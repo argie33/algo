@@ -160,7 +160,7 @@ try:
     with open(log_file, "a") as f:
         f.write("[DEV_SERVER_INIT] Script started\n")
         f.flush()
-except (IOError, OSError):
+except OSError:
     pass
 
 
@@ -175,7 +175,7 @@ class APIHandler(BaseHTTPRequestHandler):
             with open(log_file, "a") as f:
                 f.write(f"{msg}\n")
                 f.flush()
-        except (IOError, OSError):
+        except OSError:
             pass
         self._handle_request("GET")
 
@@ -212,16 +212,11 @@ class APIHandler(BaseHTTPRequestHandler):
         """Set CORS headers - accept any localhost origin in dev."""
         origin = self.headers.get("Origin", "")
         # In development, accept any localhost origin (5173, 5176, 5177, etc.)
-        if origin and (
-            origin.startswith("http://localhost:")
-            or origin.startswith("http://127.0.0.1:")
-        ):
+        if origin and (origin.startswith(("http://localhost:", "http://127.0.0.1:"))):
             self.send_header("Access-Control-Allow-Origin", origin)
         elif not origin:
             self.send_header("Access-Control-Allow-Origin", "http://localhost:5173")
-        self.send_header(
-            "Access-Control-Allow-Methods", "GET, POST, PUT, DELETE, PATCH, OPTIONS"
-        )
+        self.send_header("Access-Control-Allow-Methods", "GET, POST, PUT, DELETE, PATCH, OPTIONS")
         self.send_header(
             "Access-Control-Allow-Headers",
             "Content-Type, Authorization, X-Requested-With",
@@ -259,11 +254,7 @@ class APIHandler(BaseHTTPRequestHandler):
                 "httpMethod": method,
                 "rawPath": path,
                 "path": path,
-                "queryStringParameters": (
-                    {k: v[0] if v else "" for k, v in params.items()}
-                    if params
-                    else None
-                ),
+                "queryStringParameters": ({k: v[0] if v else "" for k, v in params.items()} if params else None),
                 "rawQueryString": query_string,
                 "headers": dict(self.headers),
                 "body": json.dumps(body) if body else None,
@@ -273,11 +264,7 @@ class APIHandler(BaseHTTPRequestHandler):
                         "path": path,
                     },
                     "identity": {
-                        "sourceIp": (
-                            self.client_address[0]
-                            if self.client_address
-                            else "127.0.0.1"
-                        ),
+                        "sourceIp": (self.client_address[0] if self.client_address else "127.0.0.1"),
                     },
                 },
             }
@@ -330,15 +317,13 @@ class APIHandler(BaseHTTPRequestHandler):
             self.end_headers()
             self.wfile.write(response_body_bytes)
 
-        except (FileNotFoundError, IOError, OSError) as e:
+        except (FileNotFoundError, OSError) as e:
             logger.error(f"Error handling {method} {path}: {e}", exc_info=True)
             self.send_response(500)
             self.send_header("Content-Type", "application/json")
             self._set_cors_headers()
             self.end_headers()
-            error_response = json.dumps(
-                {"statusCode": 500, "message": "Internal server error"}
-            )
+            error_response = json.dumps({"statusCode": 500, "message": "Internal server error"})
             self.wfile.write(error_response.encode("utf-8"))
 
     def log_message(self, format, *args):

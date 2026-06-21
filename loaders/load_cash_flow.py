@@ -79,11 +79,13 @@ _PERIOD_CONFIG = {
     },
 }
 
+
 def _resolve_period(cli_arg: str | None) -> str:
     if cli_arg:
         return cli_arg
     period_env = os.getenv("LOADER_PERIOD", "annual")
     return period_env
+
 
 class CashFlowLoader(OptimalLoader):
     watermark_field = "fiscal_year"
@@ -92,10 +94,10 @@ class CashFlowLoader(OptimalLoader):
         assert period in ("annual", "quarterly")
         cfg = _PERIOD_CONFIG[period]
         self.period = period
-        self.table_name = cfg["table_name"]
-        self.primary_key = cfg["primary_key"]
-        self._schema_cols = cfg["schema_cols"]
-        self._field_mapping = cfg.get("field_mapping")
+        self.table_name: str = cfg["table_name"]  # type: ignore[assignment]
+        self.primary_key: tuple[str, ...] = cfg["primary_key"]  # type: ignore[assignment]
+        self._schema_cols: frozenset[str] = cfg["schema_cols"]  # type: ignore[assignment]
+        self._field_mapping: dict[str, str] | None = cfg.get("field_mapping")
         super().__init__()
         self._sec_client = SecEdgarClient()
 
@@ -132,8 +134,7 @@ class CashFlowLoader(OptimalLoader):
             return filtered
         except (ValueError, ZeroDivisionError, TypeError) as e:
             raise RuntimeError(
-                f"[CASH_FLOW] Failed to fetch cash flow for {symbol}: {e}. "
-                "Cannot proceed without fundamental data."
+                f"[CASH_FLOW] Failed to fetch cash flow for {symbol}: {e}. Cannot proceed without fundamental data."
             )
 
     def transform(self, rows):
@@ -202,6 +203,7 @@ class CashFlowLoader(OptimalLoader):
             return False
 
         return True
+
 
 if __name__ == "__main__":
     sys.exit(run_loader(CashFlowLoader))

@@ -125,16 +125,15 @@ class FredEconomicDataLoader(OptimalLoader):
         super().__init__(*args, **kwargs)
 
         # Circuit breaker for FRED API outage handling
-        self._circuit_breaker = CircuitBreaker(
-            name="fred_api",
-            importance=DataImportance.REQUIRED
-        )
+        self._circuit_breaker = CircuitBreaker(name="fred_api", importance=DataImportance.REQUIRED)
 
         # Freshness validator: FRED economic data must be <= 48 hours old
         # FRED updates weekly, so 48-hour requirement allows latest data plus 1 day buffer
-        self._freshness_validator = FreshnessValidator(max_age_hours={
-            "economic_data": 48.0,  # 48 hours for FRED weekly updates
-        })
+        self._freshness_validator = FreshnessValidator(
+            max_age_hours={
+                "economic_data": 48.0,  # 48 hours for FRED weekly updates
+            }
+        )
 
     def fetch_global(self, since: date | None) -> list[dict] | None:
         """Fetch FRED economic data for all configured series with circuit breaker and freshness validation."""
@@ -167,19 +166,16 @@ class FredEconomicDataLoader(OptimalLoader):
             if i > 0:
                 time.sleep(5.0)
 
-            logger.info(
-                f"Fetching {series_id} from FRED ({start_date} to {end_date})..."
-            )
+            logger.info(f"Fetching {series_id} from FRED ({start_date} to {end_date})...")
 
             # Extreme exponential backoff for rate limiting: up to 5 retries with very long waits
             # FRED blocks key for minutes after hitting rate limit - need long resets
             max_retries = 5
-            base_delay = (
-                10.0  # Start with 10s, double on each retry (10s, 20s, 40s, 80s, 160s)
-            )
+            base_delay = 10.0  # Start with 10s, double on each retry (10s, 20s, 40s, 80s, 160s)
 
             for attempt in range(max_retries):
                 try:
+
                     def fetch_series(
                         sid: str = series_id,
                         sd: str = start_date,
@@ -200,12 +196,12 @@ class FredEconomicDataLoader(OptimalLoader):
                         # read_timeout: 20s to receive response (can be slow with large datasets)
                         resp = requests.get(fred_url, params=params, timeout=(10, 20))
                         resp.raise_for_status()
-                        return resp.json()
+                        data = resp.json()
+                        return data if isinstance(data, dict) else {}
 
                     # Execute API call through circuit breaker
                     resp_data = self._circuit_breaker.execute(
-                        fetch_func=fetch_series,
-                        importance=DataImportance.REQUIRED
+                        fetch_func=fetch_series, importance=DataImportance.REQUIRED
                     )
 
                     if not isinstance(resp_data, dict):
@@ -267,11 +263,7 @@ class FredEconomicDataLoader(OptimalLoader):
                                 latest_dt = None
 
                             if latest_dt is not None:
-                                self._freshness_validator.check(
-                                    "economic_data",
-                                    latest_dt,
-                                    allow_missing=False
-                                )
+                                self._freshness_validator.check("economic_data", latest_dt, allow_missing=False)
                         except StaleDataError as e:
                             logger.warning(
                                 f"[FRESHNESS_VALIDATION] {e}. "
@@ -294,9 +286,7 @@ class FredEconomicDataLoader(OptimalLoader):
                         )
                         time.sleep(delay)
                     else:
-                        logger.error(
-                            f"  {series_id}: FAILED after {max_retries} retries with timeout errors"
-                        )
+                        logger.error(f"  {series_id}: FAILED after {max_retries} retries with timeout errors")
                         self._circuit_breaker.record_failure()
                         failed_series.append(series_id)
                 except requests.exceptions.ConnectionError:
@@ -308,9 +298,7 @@ class FredEconomicDataLoader(OptimalLoader):
                         )
                         time.sleep(delay)
                     else:
-                        logger.error(
-                            f"  {series_id}: FAILED after {max_retries} retries with connection errors"
-                        )
+                        logger.error(f"  {series_id}: FAILED after {max_retries} retries with connection errors")
                         self._circuit_breaker.record_failure()
                         failed_series.append(series_id)
                 except requests.exceptions.HTTPError as e:
@@ -322,15 +310,11 @@ class FredEconomicDataLoader(OptimalLoader):
                             )
                             time.sleep(delay)
                         else:
-                            logger.error(
-                                f"  {series_id}: FAILED after {max_retries} retries with 429 errors"
-                            )
+                            logger.error(f"  {series_id}: FAILED after {max_retries} retries with 429 errors")
                             self._circuit_breaker.record_failure()
                             failed_series.append(series_id)
                     else:
-                        logger.error(
-                            f"  {series_id}: HTTP {e.response.status_code} — {e}"
-                        )
+                        logger.error(f"  {series_id}: HTTP {e.response.status_code} — {e}")
                         self._circuit_breaker.record_failure()
                         failed_series.append(series_id)
                         break  # Don't retry on non-rate-limit errors
@@ -354,9 +338,7 @@ class FredEconomicDataLoader(OptimalLoader):
                     ) from e
 
         if failed_series:
-            logger.warning(
-                f"Failed to fetch {len(failed_series)} series: {', '.join(failed_series)}"
-            )
+            logger.warning(f"Failed to fetch {len(failed_series)} series: {', '.join(failed_series)}")
 
         if not all_rows:
             raise RuntimeError(
@@ -364,7 +346,6 @@ class FredEconomicDataLoader(OptimalLoader):
                 "Check FRED API status and credentials."
             )
         return all_rows
-
 
 
 if __name__ == "__main__":

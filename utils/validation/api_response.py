@@ -36,9 +36,7 @@ class APIResponseValidator:
             sanitized_dict: dict[str, Any] = {}
             for key, value in data.items():
                 new_path = f"{path}.{key}"
-                sanitized_dict[key] = APIResponseValidator.sanitize_response(
-                    value, new_path
-                )
+                sanitized_dict[key] = APIResponseValidator.sanitize_response(value, new_path)
             return sanitized_dict
 
         elif isinstance(data, list):
@@ -47,9 +45,7 @@ class APIResponseValidator:
                 new_path = f"{path}[{i}]"
                 if item is None:
                     continue  # Filter out None items from arrays
-                sanitized_list.append(
-                    APIResponseValidator.sanitize_response(item, new_path)
-                )
+                sanitized_list.append(APIResponseValidator.sanitize_response(item, new_path))
             return sanitized_list
 
         else:
@@ -97,9 +93,7 @@ class APIResponseValidator:
         """
         nulls = APIResponseValidator.validate_no_nulls(data)
         if nulls:
-            logger.warning(
-                f"[NULL_VALUES_DETECTED] {operation}: Found {len(nulls)} None values at: {', '.join(nulls)}"
-            )
+            logger.warning(f"[NULL_VALUES_DETECTED] {operation}: Found {len(nulls)} None values at: {', '.join(nulls)}")
 
     @staticmethod
     def validate_critical_response(data: Any, operation: str = "API response") -> None:

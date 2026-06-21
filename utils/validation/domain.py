@@ -18,7 +18,7 @@ VALIDATORS:
 
 import logging
 from datetime import date
-from typing import Any, Dict
+from typing import Any
 
 from .framework import (
     PhaseValidator,
@@ -41,9 +41,7 @@ class AlpacaOrderValidator(Validator):
 
     def validate(self, data: Any, context: str = "") -> ValidationResult:
         if not isinstance(data, dict):
-            errors = [
-                f"{context}: order response expected dict, got {type(data).__name__}"
-            ]
+            errors = [f"{context}: order response expected dict, got {type(data).__name__}"]
             return ValidationResult(is_valid=False, errors=errors, context=context)
 
         all_errors = []
@@ -54,9 +52,7 @@ class AlpacaOrderValidator(Validator):
         if not order_id:
             all_errors.append(f"{context}: missing or empty order ID")
         elif not isinstance(order_id, str):
-            all_errors.append(
-                f"{context}: order ID must be string, got {type(order_id).__name__}"
-            )
+            all_errors.append(f"{context}: order ID must be string, got {type(order_id).__name__}")
         else:
             cleaned["id"] = order_id
 
@@ -75,9 +71,7 @@ class AlpacaOrderValidator(Validator):
         if not status:
             all_errors.append(f"{context}: missing status")
         elif status not in valid_statuses:
-            all_errors.append(
-                f"{context}: invalid status {status!r} (valid: {valid_statuses})"
-            )
+            all_errors.append(f"{context}: invalid status {status!r} (valid: {valid_statuses})")
         else:
             cleaned["status"] = status
 
@@ -87,28 +81,20 @@ class AlpacaOrderValidator(Validator):
             try:
                 price_float = float(filled_avg_price)
                 if price_float < 0:
-                    all_errors.append(
-                        f"{context}: filled_avg_price must be non-negative, got {price_float}"
-                    )
+                    all_errors.append(f"{context}: filled_avg_price must be non-negative, got {price_float}")
                 else:
                     cleaned["filled_avg_price"] = price_float  # type: ignore[assignment]
             except (ValueError, TypeError):
-                all_errors.append(
-                    f"{context}: filled_avg_price not numeric: {filled_avg_price!r}"
-                )
+                all_errors.append(f"{context}: filled_avg_price not numeric: {filled_avg_price!r}")
 
         # Validate bracket order legs if present
         order_class = data.get("order_class", "simple")
         legs = data.get("legs")
         if order_class == "bracket":
             if not isinstance(legs, list):
-                all_errors.append(
-                    f"{context}: legs must be list, got {type(legs).__name__}"
-                )
+                all_errors.append(f"{context}: legs must be list, got {type(legs).__name__}")
             elif len(legs) < 2:
-                all_errors.append(
-                    f"{context}: bracket order requires 2+ legs, got {len(legs)}"
-                )
+                all_errors.append(f"{context}: bracket order requires 2+ legs, got {len(legs)}")
             else:
                 cleaned["legs"] = legs  # type: ignore[assignment]
         else:
@@ -140,9 +126,7 @@ class AlpacaOrderStatusValidator(Validator):
 
     def validate(self, data: Any, context: str = "") -> ValidationResult:
         if not isinstance(data, dict):
-            errors = [
-                f"{context}: order status response expected dict, got {type(data).__name__}"
-            ]
+            errors = [f"{context}: order status response expected dict, got {type(data).__name__}"]
             return ValidationResult(is_valid=False, errors=errors, context=context)
 
         all_errors = []
@@ -161,9 +145,7 @@ class AlpacaOrderStatusValidator(Validator):
             try:
                 val = int(filled_qty)
                 if val < 0:
-                    all_errors.append(
-                        f"{context}: filled_qty must be non-negative, got {val}"
-                    )
+                    all_errors.append(f"{context}: filled_qty must be non-negative, got {val}")
                 else:
                     cleaned["filled_qty"] = val  # type: ignore
             except (ValueError, TypeError):
@@ -175,15 +157,11 @@ class AlpacaOrderStatusValidator(Validator):
             try:
                 val = float(filled_avg_price)  # type: ignore
                 if val < 0:
-                    all_errors.append(
-                        f"{context}: filled_avg_price must be non-negative, got {val}"
-                    )
+                    all_errors.append(f"{context}: filled_avg_price must be non-negative, got {val}")
                 else:
                     cleaned["filled_avg_price"] = val  # type: ignore
             except (ValueError, TypeError):
-                all_errors.append(
-                    f"{context}: filled_avg_price not numeric: {filled_avg_price!r}"
-                )
+                all_errors.append(f"{context}: filled_avg_price not numeric: {filled_avg_price!r}")
 
         # Validate qty
         qty = data.get("qty")
@@ -214,9 +192,7 @@ class AlpacaAccountValidator(Validator):
 
     def validate(self, data: Any, context: str = "") -> ValidationResult:
         if not isinstance(data, dict):
-            errors = [
-                f"{context}: account response expected dict, got {type(data).__name__}"
-            ]
+            errors = [f"{context}: account response expected dict, got {type(data).__name__}"]
             return ValidationResult(is_valid=False, errors=errors, context=context)
 
         all_errors = []
@@ -235,9 +211,7 @@ class AlpacaAccountValidator(Validator):
             try:
                 cleaned["portfolio_value"] = float(portfolio_value)  # type: ignore
             except (ValueError, TypeError):
-                all_errors.append(
-                    f"{context}: portfolio_value not numeric: {portfolio_value!r}"
-                )
+                all_errors.append(f"{context}: portfolio_value not numeric: {portfolio_value!r}")
 
         # Validate cash
         cash = data.get("cash")
@@ -269,9 +243,7 @@ class AlpacaPositionValidator(Validator):
 
     def validate(self, data: Any, context: str = "") -> ValidationResult:
         if not isinstance(data, dict):
-            errors = [
-                f"{context}: position response expected dict, got {type(data).__name__}"
-            ]
+            errors = [f"{context}: position response expected dict, got {type(data).__name__}"]
             return ValidationResult(is_valid=False, errors=errors, context=context)
 
         all_errors = []
@@ -298,9 +270,7 @@ class AlpacaPositionValidator(Validator):
             try:
                 val = float(current_price)
                 if val < 0:
-                    all_errors.append(
-                        f"{context}: price must be non-negative, got {val}"
-                    )
+                    all_errors.append(f"{context}: price must be non-negative, got {val}")
                 else:
                     cleaned["current_price"] = val  # type: ignore
             except (ValueError, TypeError):
@@ -327,7 +297,7 @@ class DatabaseSchemaValidator(Validator):
     def __init__(
         self,
         table_name: str,
-        required_columns: Dict[str, str],
+        required_columns: dict[str, str],
         severity: str = "critical",
     ):
         """Initialize with table name and required columns.
@@ -359,9 +329,7 @@ class DatabaseSchemaValidator(Validator):
         if not isinstance(data, dict):
             return ValidationResult(
                 is_valid=False,
-                errors=[
-                    "DatabaseSchemaValidator expects dict schema info, got cursor (deferred validation)"
-                ],
+                errors=["DatabaseSchemaValidator expects dict schema info, got cursor (deferred validation)"],
                 context=context,
                 validator_name=self.name,
             )
@@ -374,9 +342,7 @@ class DatabaseSchemaValidator(Validator):
             all_errors.append(f"{context}: {table_name} missing columns info")
         else:
             # Check required columns exist
-            missing_cols = [
-                col for col in self.required_columns.keys() if col not in columns
-            ]
+            missing_cols = [col for col in self.required_columns.keys() if col not in columns]
             if missing_cols:
                 all_errors.append(f"{context}: {table_name} missing columns {missing_cols}")
 
@@ -386,14 +352,10 @@ class DatabaseSchemaValidator(Validator):
                 if col_name in columns:
                     actual_type = columns[col_name].lower()
                     if not self._type_family_matches(actual_type, expected_type):
-                        type_mismatches.append(
-                            f"{col_name} is {actual_type} (expected {expected_type})"
-                        )
+                        type_mismatches.append(f"{col_name} is {actual_type} (expected {expected_type})")
 
             if type_mismatches:
-                all_errors.append(
-                    f"{context}: {table_name} type mismatches: {'; '.join(type_mismatches)}"
-                )
+                all_errors.append(f"{context}: {table_name} type mismatches: {'; '.join(type_mismatches)}")
 
         # Check data presence
         if self.severity in ("critical", "important"):
@@ -444,7 +406,7 @@ class TableDataValidator(Validator):
     Used to validate data from database rows or CSV before processing.
     """
 
-    def __init__(self, schema: Dict[str, str]):
+    def __init__(self, schema: dict[str, str]):
         """Initialize with column type schema.
 
         Args:
@@ -477,9 +439,7 @@ class TableDataValidator(Validator):
                     try:
                         cleaned[col_name] = float(value)
                     except (ValueError, TypeError):
-                        all_errors.append(
-                            f"{context}.{col_name}: cannot convert {value!r} to float"
-                        )
+                        all_errors.append(f"{context}.{col_name}: cannot convert {value!r} to float")
             elif col_type in ("int", "integer"):
                 if value is None:
                     cleaned[col_name] = None
@@ -487,9 +447,7 @@ class TableDataValidator(Validator):
                     try:
                         cleaned[col_name] = int(value)
                     except (ValueError, TypeError):
-                        all_errors.append(
-                            f"{context}.{col_name}: cannot convert {value!r} to int"
-                        )
+                        all_errors.append(f"{context}.{col_name}: cannot convert {value!r} to int")
             elif col_type in ("date", "temporal"):
                 if value is None:
                     cleaned[col_name] = None
@@ -498,13 +456,9 @@ class TableDataValidator(Validator):
                         if isinstance(value, (date, str)):
                             cleaned[col_name] = value
                         else:
-                            all_errors.append(
-                                f"{context}.{col_name}: invalid date type {type(value).__name__}"
-                            )
+                            all_errors.append(f"{context}.{col_name}: invalid date type {type(value).__name__}")
                     except (ValueError, ZeroDivisionError, TypeError) as e:
-                        all_errors.append(
-                            f"{context}.{col_name}: date conversion failed: {e}"
-                        )
+                        all_errors.append(f"{context}.{col_name}: date conversion failed: {e}")
             elif col_type in ("text", "string", "varchar"):
                 cleaned[col_name] = str(value) if value is not None else None
             else:
@@ -548,9 +502,7 @@ class PhaseResultsValidator(Validator):
 
         # Log summary
         if len(cleaned) < len(data):
-            logger.warning(
-                f"PhaseResultsValidator: {len(cleaned)} valid, {len(data) - len(cleaned)} invalid phases"
-            )
+            logger.warning(f"PhaseResultsValidator: {len(cleaned)} valid, {len(data) - len(cleaned)} invalid phases")
 
         return ValidationResult(
             is_valid=len(all_errors) == 0,

@@ -8,10 +8,11 @@ Monitors:
 """
 
 import logging
-from typing import Any, Dict
+from typing import Any
+
+import psycopg2
 
 from utils.db import DatabaseContext
-import psycopg2
 
 
 logger = logging.getLogger(__name__)
@@ -23,7 +24,7 @@ class LoaderConflictDetector:
     def __init__(self):
         self.table_name = "data_loader_status"
 
-    def check_concurrent_loaders(self) -> Dict[str, Any]:
+    def check_concurrent_loaders(self) -> dict[str, Any]:
         """Check for concurrent loader runs that might conflict.
 
         Returns:
@@ -75,9 +76,7 @@ class LoaderConflictDetector:
                         "table_name": table_name,
                         "status": status,
                         "duration_sec": round(duration_sec, 1),
-                        "execution_started": (
-                            execution_started.isoformat() if execution_started else None
-                        ),
+                        "execution_started": (execution_started.isoformat() if execution_started else None),
                     }
 
                     running_loaders.append(loader_info)
@@ -93,7 +92,7 @@ class LoaderConflictDetector:
                         )
 
                 # Check 2: Detect concurrent runs of SAME table (shouldn't happen)
-                table_counts: Dict[str, int] = {}
+                table_counts: dict[str, int] = {}
                 for loader in running_loaders:
                     name = loader["table_name"]
                     table_counts[name] = table_counts.get(name, 0) + 1
@@ -128,7 +127,7 @@ class LoaderConflictDetector:
                 "error": str(e),
             }
 
-    def check_intraday_pipeline_readiness(self) -> Dict[str, Any]:
+    def check_intraday_pipeline_readiness(self) -> dict[str, Any]:
         """Check if intraday pipelines can safely run without conflicts.
 
         Specifically validates the afternoon (12:50 PM) and pre-close (2:50 PM) windows.
@@ -169,9 +168,7 @@ class LoaderConflictDetector:
                     )
 
                 if morning_status == "FAILED":
-                    recommendations.append(
-                        "Morning pipeline failed - afternoon update may use stale scores"
-                    )
+                    recommendations.append("Morning pipeline failed - afternoon update may use stale scores")
 
                 # Check for any RUNNING loaders that would block intraday updates
                 cur.execute("""
@@ -191,9 +188,7 @@ class LoaderConflictDetector:
                     "ready_for_afternoon_update": morning_done and other_running == 0,
                     "ready_for_preclose_update": morning_done and other_running == 0,
                     "morning_pipeline_done": morning_done,
-                    "morning_completion_time": (
-                        morning_time.isoformat() if morning_time else None
-                    ),
+                    "morning_completion_time": (morning_time.isoformat() if morning_time else None),
                     "last_morning_status": morning_status,
                     "other_loaders_running": other_running,
                     "recommendations": recommendations,
@@ -218,12 +213,8 @@ class LoaderConflictDetector:
                 f"{len(conflicts['duplicate_loader_runs'])} duplicates: {conflicts['duplicate_loader_runs']}"
             )
         else:
-            logger.debug(
-                f"[LOADER-STATUS] {len(conflicts['concurrent_loaders'])} loaders running (OK)"
-            )
+            logger.debug(f"[LOADER-STATUS] {len(conflicts['concurrent_loaders'])} loaders running (OK)")
 
         intraday = self.check_intraday_pipeline_readiness()
         if not intraday.get("ready_for_afternoon_update"):
-            logger.warning(
-                f"[INTRADAY-READINESS] Not ready: {intraday.get('recommendations')}"
-            )
+            logger.warning(f"[INTRADAY-READINESS] Not ready: {intraday.get('recommendations')}")

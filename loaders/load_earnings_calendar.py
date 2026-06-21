@@ -35,9 +35,7 @@ class EarningsCalendarLoader(OptimalLoader):
                 return True
             return False
 
-    def fetch_incremental(
-        self, symbol: str, since: date | None
-    ) -> list[dict] | None:
+    def fetch_incremental(self, symbol: str, since: date | None) -> list[dict] | None:
         """Fetch earnings dates from yfinance for a symbol with retry logic.
 
         Keeps historical earnings (past 60 days) to properly gate blackout windows.
@@ -54,14 +52,12 @@ class EarningsCalendarLoader(OptimalLoader):
             try:
                 ticker = get_ticker(symbol)
                 if not ticker:
-                    logger.warning(
-                        f"[{symbol}] Failed to create ticker object (attempt {attempt + 1}/{max_retries})"
-                    )
+                    logger.warning(f"[{symbol}] Failed to create ticker object (attempt {attempt + 1}/{max_retries})")
                     if not self._track_symbol_failure(symbol):
                         logger.error(f"[{symbol}] Exceeded max retries for ticker creation")
                         return None
                     if attempt < max_retries - 1:
-                        delay = base_delay * (2 ** attempt)
+                        delay = base_delay * (2**attempt)
                         time.sleep(delay)
                     continue
 
@@ -82,15 +78,11 @@ class EarningsCalendarLoader(OptimalLoader):
                                     ),
                                     "announce_time": None,
                                     "eps_estimate": (
-                                        float(eps_est)
-                                        if (eps_est := cal.get("Earnings Average")) is not None
-                                        else None
+                                        float(eps_est) if (eps_est := cal.get("Earnings Average")) is not None else None
                                     ),
                                     "actual_eps": None,
                                     "revenue_estimate": (
-                                        int(rev_est)
-                                        if (rev_est := cal.get("Revenue Average")) is not None
-                                        else None
+                                        int(rev_est) if (rev_est := cal.get("Revenue Average")) is not None else None
                                     ),
                                     "actual_revenue": None,
                                     "fiscal_period": None,
@@ -110,34 +102,30 @@ class EarningsCalendarLoader(OptimalLoader):
                         logger.error(f"[{symbol}] Exceeded max retries for calendar parsing")
                         return None
                     if attempt < max_retries - 1:
-                        delay = base_delay * (2 ** attempt)
+                        delay = base_delay * (2**attempt)
                         time.sleep(delay)
 
             except (ConnectionError, TimeoutError) as e:
                 is_timeout = isinstance(e, TimeoutError)
                 error_type = "timeout" if is_timeout else "connection"
-                logger.warning(
-                    f"[{symbol}] {error_type.upper()} error (attempt {attempt + 1}/{max_retries}): {e}"
-                )
+                logger.warning(f"[{symbol}] {error_type.upper()} error (attempt {attempt + 1}/{max_retries}): {e}")
                 if not self._track_symbol_failure(symbol):
                     logger.error(f"[{symbol}] Exceeded max retries for {error_type} errors")
                     return None
                 if attempt < max_retries - 1:
-                    delay = base_delay * (2 ** attempt)
+                    delay = base_delay * (2**attempt)
                     time.sleep(delay)
 
             except (ValueError, ZeroDivisionError, TypeError) as e:
                 error_msg = str(e).lower()
                 is_rate_limit = "429" in error_msg or "rate" in error_msg or "too many" in error_msg
                 if is_rate_limit:
-                    logger.warning(
-                        f"[{symbol}] Rate limit error (attempt {attempt + 1}/{max_retries}): {e}"
-                    )
+                    logger.warning(f"[{symbol}] Rate limit error (attempt {attempt + 1}/{max_retries}): {e}")
                     if not self._track_symbol_failure(symbol):
                         logger.error(f"[{symbol}] Exceeded max retries for rate limit errors")
                         return None
                     if attempt < max_retries - 1:
-                        delay = base_delay * (2 ** attempt)
+                        delay = base_delay * (2**attempt)
                         time.sleep(delay)
                 else:
                     logger.error(f"[{symbol}] Unexpected error fetching earnings: {e}")
@@ -145,7 +133,6 @@ class EarningsCalendarLoader(OptimalLoader):
 
         logger.error(f"[{symbol}] Failed to fetch earnings after {max_retries} retries")
         return None
-
 
 
 if __name__ == "__main__":

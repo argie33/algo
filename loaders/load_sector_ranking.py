@@ -32,7 +32,9 @@ class SectorRankingLoader(OptimalLoader):
                 latest_date = row["date"] if row else None
 
                 if not latest_date:
-                    raise ValueError("No price data found in price_daily table. Required for sector ranking computation.")
+                    raise ValueError(
+                        "No price data found in price_daily table. Required for sector ranking computation."
+                    )
 
                 # Rank sectors by average composite score; pull historical ranks for comparison
                 cur.execute("""
@@ -90,40 +92,24 @@ class SectorRankingLoader(OptimalLoader):
 
                 rows = cur.fetchall()
                 if not rows:
-                    logger.warning(
-                        "No sector ranking data computed — check company_profile and stock_scores tables"
-                    )
+                    logger.warning("No sector ranking data computed — check company_profile and stock_scores tables")
                     return None
 
                 valid_rows = []
                 for r in rows:
                     current_rank = r["current_rank"]
                     if current_rank is None:
-                        logger.warning(
-                            f"Sector ranking for {r['sector_name']}: missing current_rank - skipping"
-                        )
+                        logger.warning(f"Sector ranking for {r['sector_name']}: missing current_rank - skipping")
                         continue
                     valid_rows.append(
                         {
                             "sector_name": r["sector_name"],
                             "date": latest_date,
                             "current_rank": current_rank,
-                            "momentum_score": (
-                                float(r["momentum_score"])
-                                if r["momentum_score"] is not None
-                                else 0.0
-                            ),
-                            "rank_1w_ago": (
-                                r["rank_1w_ago"] if r["rank_1w_ago"] is not None else -1
-                            ),
-                            "rank_4w_ago": (
-                                r["rank_4w_ago"] if r["rank_4w_ago"] is not None else -1
-                            ),
-                            "rank_12w_ago": (
-                                r["rank_12w_ago"]
-                                if r["rank_12w_ago"] is not None
-                                else -1
-                            ),
+                            "momentum_score": (float(r["momentum_score"]) if r["momentum_score"] is not None else 0.0),
+                            "rank_1w_ago": (r["rank_1w_ago"] if r["rank_1w_ago"] is not None else -1),
+                            "rank_4w_ago": (r["rank_4w_ago"] if r["rank_4w_ago"] is not None else -1),
+                            "rank_12w_ago": (r["rank_12w_ago"] if r["rank_12w_ago"] is not None else -1),
                         }
                     )
 
@@ -135,7 +121,6 @@ class SectorRankingLoader(OptimalLoader):
 
         except (psycopg2.DatabaseError, psycopg2.OperationalError) as e:
             raise RuntimeError(f"Operation failed: {e}") from e
-
 
 
 if __name__ == "__main__":

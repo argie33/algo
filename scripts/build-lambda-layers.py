@@ -19,7 +19,10 @@ logging.basicConfig(level=logging.INFO, format="%(levelname)s: %(message)s")
 class LambdaLayerBuilder:
     LAYERS: ClassVar[dict] = {
         "shared_deps": {"requirements": "terraform/lambda-layer-requirements.txt", "source_dirs": []},
-        "orchestrator": {"requirements": "lambda/algo_orchestrator/requirements.txt", "source_dirs": ["config", "algo", "utils", "monitoring"]},
+        "orchestrator": {
+            "requirements": "lambda/algo_orchestrator/requirements.txt",
+            "source_dirs": ["config", "algo", "utils", "monitoring"],
+        },
         "api": {"requirements": "lambda/api/requirements.txt", "source_dirs": []},
     }
 
@@ -40,9 +43,24 @@ class LambdaLayerBuilder:
         try:
             if has_requirements:
                 logger.info(f"Installing dependencies from {requirements_path}...")
-                cmd = [sys.executable, "-m", "pip", "install", "--platform", "manylinux2014_x86_64", "--implementation", "cp",
-                    f"--python-version={self.runtime.replace('python', '')}", "--only-binary=:all:", "--upgrade", "--no-cache-dir",
-                    "--target", str(python_dir), "-r", requirements_path]
+                cmd = [
+                    sys.executable,
+                    "-m",
+                    "pip",
+                    "install",
+                    "--platform",
+                    "manylinux2014_x86_64",
+                    "--implementation",
+                    "cp",
+                    f"--python-version={self.runtime.replace('python', '')}",
+                    "--only-binary=:all:",
+                    "--upgrade",
+                    "--no-cache-dir",
+                    "--target",
+                    str(python_dir),
+                    "-r",
+                    requirements_path,
+                ]
                 result = subprocess.run(cmd, capture_output=True, text=True)
                 if result.returncode != 0:
                     raise RuntimeError(f"pip failed: {result.stderr}")
@@ -64,6 +82,7 @@ class LambdaLayerBuilder:
         finally:
             if build_dir.exists():
                 shutil.rmtree(build_dir)
+
 
 def main():
     parser = argparse.ArgumentParser(description="Build Lambda layers")
@@ -88,6 +107,7 @@ def main():
             logger.error(f"FAILED {layer_name}: {e}")
             return 1
     return 0
+
 
 if __name__ == "__main__":
     sys.exit(main())

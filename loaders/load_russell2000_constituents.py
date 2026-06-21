@@ -68,9 +68,7 @@ class Russell2000ConstituentsLoader(OptimalLoader):
                         if "Symbol" in df.columns or "Ticker" in df.columns:
                             col = "Symbol" if "Symbol" in df.columns else "Ticker"
                             symbols = df[col].str.strip().tolist()
-                            logger.info(
-                                f"Fetched {len(symbols)} Russell 2000 constituents"
-                            )
+                            logger.info(f"Fetched {len(symbols)} Russell 2000 constituents")
                             return [
                                 {
                                     "symbol": sym,
@@ -87,7 +85,6 @@ class Russell2000ConstituentsLoader(OptimalLoader):
 
         except (requests.RequestException, requests.Timeout, json.JSONDecodeError) as e:
             raise RuntimeError(f"Operation failed: {e}") from e
-
 
 
 if __name__ == "__main__":

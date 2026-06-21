@@ -119,6 +119,7 @@ def handle(
         # Re-raise APIException so api_router can format it properly
         try:
             from exceptions import APIException
+
             if isinstance(e, APIException):
                 raise
         except ImportError:
@@ -155,12 +156,8 @@ def _dispatch(
     # Notification mark-as-read
     if method == "PATCH" and path.endswith("/read") and "/notifications/" in path:
         notif_id = path.split("/notifications/")[-1].replace("/read", "")
-        if not _check_admin_access(
-            jwt_claims
-        ):
-            logger.warning(
-                f"Unauthorized notification mark-read attempt by {user_id}"
-            )
+        if not _check_admin_access(jwt_claims):
+            logger.warning(f"Unauthorized notification mark-read attempt by {user_id}")
             raise_api_error(403, "forbidden", "Admin access required")
         try:
             try:
@@ -168,9 +165,7 @@ def _dispatch(
             except ValueError:
                 raise_api_error(400, "bad_request", "ID must be numeric")
 
-            cur.execute(
-                "SELECT id FROM algo_notifications WHERE id=%s LIMIT 1", (notif_id_int,)
-            )
+            cur.execute("SELECT id FROM algo_notifications WHERE id=%s LIMIT 1", (notif_id_int,))
             if not cur.fetchone():
                 raise_api_error(404, "not_found", "Notification not found")
 
@@ -192,12 +187,8 @@ def _dispatch(
     # Notification delete
     if method == "DELETE" and "/notifications/" in path:
         notif_id = path.split("/notifications/")[-1]
-        if not _check_admin_access(
-            jwt_claims
-        ):
-            logger.warning(
-                f"Unauthorized notification delete attempt by {user_id}"
-            )
+        if not _check_admin_access(jwt_claims):
+            logger.warning(f"Unauthorized notification delete attempt by {user_id}")
             raise_api_error(403, "forbidden", "Admin access required")
         try:
             try:
@@ -205,9 +196,7 @@ def _dispatch(
             except ValueError:
                 raise_api_error(400, "bad_request", "ID must be numeric")
 
-            cur.execute(
-                "SELECT id FROM algo_notifications WHERE id=%s LIMIT 1", (notif_id_int,)
-            )
+            cur.execute("SELECT id FROM algo_notifications WHERE id=%s LIMIT 1", (notif_id_int,))
             if not cur.fetchone():
                 raise_api_error(404, "not_found", "Notification not found")
 
@@ -225,12 +214,8 @@ def _dispatch(
 
     # Data patrol trigger
     if method == "POST" and path == "/api/algo/patrol":
-        if not _check_admin_access(
-            jwt_claims
-        ):
-            logger.warning(
-                f"Unauthorized algo patrol access attempt by {user_id}"
-            )
+        if not _check_admin_access(jwt_claims):
+            logger.warning(f"Unauthorized algo patrol access attempt by {user_id}")
             raise_api_error(403, "forbidden", "Admin access required")
 
         if path in ADMIN_RATE_LIMITS:
@@ -275,7 +260,9 @@ def _dispatch(
         limit = safe_limit(limit_str or "100", max_val=10000)
         status_filter = (params.get("status")[0] if params.get("status") else None) if params else None
         if status_filter and status_filter not in ("open", "closed", "halted", "cancelled"):
-            raise_api_error(400, "bad_request", f"Invalid status '{status_filter}'. Must be one of: open, closed, halted, cancelled")
+            raise_api_error(
+                400, "bad_request", f"Invalid status '{status_filter}'. Must be one of: open, closed, halted, cancelled"
+            )
         is_admin = _check_admin_access(jwt_claims)
         effective_user_id = None if is_admin else user_id
         return _get_algo_trades(cur, limit, user_id=effective_user_id, status=status_filter)
@@ -294,21 +281,13 @@ def _dispatch(
     elif path == "/api/algo/data-status":
         return _get_data_status(cur)
     elif path == "/api/algo/notifications":
-        if not _check_admin_access(
-            jwt_claims
-        ):
-            logger.warning(
-                f"Unauthorized notifications access attempt by {user_id}"
-            )
+        if not _check_admin_access(jwt_claims):
+            logger.warning(f"Unauthorized notifications access attempt by {user_id}")
             raise_api_error(403, "forbidden", "Admin access required")
         return _get_notifications(cur, params, jwt_claims)
     elif path == "/api/algo/patrol-log":
-        if not _check_admin_access(
-            jwt_claims
-        ):
-            logger.warning(
-                f"Unauthorized algo patrol-log access attempt by {user_id}"
-            )
+        if not _check_admin_access(jwt_claims):
+            logger.warning(f"Unauthorized algo patrol-log access attempt by {user_id}")
             raise_api_error(403, "forbidden", "Admin access required")
         limit_str = params.get("limit", [None])[0] if params and params.get("limit") else None
         limit = safe_limit(limit_str or "100", max_val=10000)
@@ -371,12 +350,8 @@ def _dispatch(
     elif path == "/api/algo/config":
         return _get_algo_config(cur)
     elif path.startswith("/api/algo/config/"):
-        if not _check_admin_access(
-            jwt_claims
-        ):
-            logger.warning(
-                f"Unauthorized algo config access attempt by {user_id}"
-            )
+        if not _check_admin_access(jwt_claims):
+            logger.warning(f"Unauthorized algo config access attempt by {user_id}")
             raise_api_error(403, "forbidden", "Admin access required")
         key = path[len("/api/algo/config/") :]
         if method == "GET":
@@ -396,12 +371,8 @@ def _dispatch(
     elif path == "/api/algo/last-run":
         return _get_last_run(cur)
     elif path == "/api/algo/audit-log":
-        if not _check_admin_access(
-            jwt_claims
-        ):
-            logger.warning(
-                f"Unauthorized algo audit-log access attempt by {user_id}"
-            )
+        if not _check_admin_access(jwt_claims):
+            logger.warning(f"Unauthorized algo audit-log access attempt by {user_id}")
             raise_api_error(403, "forbidden", "Admin access required")
         limit_str = params.get("limit", [None])[0] if params and params.get("limit") else None
         limit = safe_limit(limit_str or "100", max_val=10000)
@@ -411,30 +382,52 @@ def _dispatch(
         if action_type:
             action_type = action_type.lower()
             valid_action_types = {
-                "entry", "exit", "alert", "halt", "reconciliation", "error", "stop", "skip", "pass",
-                "phase_0_halt_flag_detected", "phase_0_oom_prevention", "phase_0_table_validation",
-                "phase_1_data_freshness", "phase_1_data_patrol", "phase_1_pipeline_health",
-                "phase_1_signal_quality_scores", "phase_2_circuit_breakers", "phase_2_market_circuit_breaker",
-                "phase_3_position_monitor", "phase_3_single_stock_halts", "phase_3_halt_check_error",
-                "phase_4_reconciliation", "phase_5_exposure_policy", "phase_6_exit_execution",
-                "phase_7_signal_generation", "phase_8_entry_execution", "phase_9_reconciliation",
-                "phase_9_daily_report", "phase_9_ic_computation", "phase_9_performance",
-                "phase_9_risk_metrics", "phase_9_signal_attribution", "phase_9_weight_optimization",
-                "halt_flag_detected", "position_review", "position_monitor", "pipeline_health",
-                "single_stock_halts", "halt_check_error",
+                "entry",
+                "exit",
+                "alert",
+                "halt",
+                "reconciliation",
+                "error",
+                "stop",
+                "skip",
+                "pass",
+                "phase_0_halt_flag_detected",
+                "phase_0_oom_prevention",
+                "phase_0_table_validation",
+                "phase_1_data_freshness",
+                "phase_1_data_patrol",
+                "phase_1_pipeline_health",
+                "phase_1_signal_quality_scores",
+                "phase_2_circuit_breakers",
+                "phase_2_market_circuit_breaker",
+                "phase_3_position_monitor",
+                "phase_3_single_stock_halts",
+                "phase_3_halt_check_error",
+                "phase_4_reconciliation",
+                "phase_5_exposure_policy",
+                "phase_6_exit_execution",
+                "phase_7_signal_generation",
+                "phase_8_entry_execution",
+                "phase_9_reconciliation",
+                "phase_9_daily_report",
+                "phase_9_ic_computation",
+                "phase_9_performance",
+                "phase_9_risk_metrics",
+                "phase_9_signal_attribution",
+                "phase_9_weight_optimization",
+                "halt_flag_detected",
+                "position_review",
+                "position_monitor",
+                "pipeline_health",
+                "single_stock_halts",
+                "halt_check_error",
             }
             if action_type not in valid_action_types:
-                raise_api_error(
-                    400, "bad_request", f"Invalid action_type: {action_type}"
-                )
+                raise_api_error(400, "bad_request", f"Invalid action_type: {action_type}")
         return _get_algo_audit_log(cur, limit, offset, action_type)
     elif path == "/api/algo/execution/recent":
-        if not _check_admin_access(
-            jwt_claims
-        ):
-            logger.warning(
-                f"Unauthorized execution history access attempt by {user_id}"
-            )
+        if not _check_admin_access(jwt_claims):
+            logger.warning(f"Unauthorized execution history access attempt by {user_id}")
             raise_api_error(403, "forbidden", "Admin access required")
         days_str = params.get("days", [None])[0] if params else None
         days = safe_days(days_str or "7", max_val=90)
@@ -442,44 +435,28 @@ def _dispatch(
         limit = safe_limit(limit_str or "50", max_val=1000)
         return _get_orchestrator_execution_recent(cur, days, limit)
     elif path == "/api/algo/execution/failed":
-        if not _check_admin_access(
-            jwt_claims
-        ):
-            logger.warning(
-                f"Unauthorized execution history access attempt by {user_id}"
-            )
+        if not _check_admin_access(jwt_claims):
+            logger.warning(f"Unauthorized execution history access attempt by {user_id}")
             raise_api_error(403, "forbidden", "Admin access required")
         days_str = params.get("days", [None])[0] if params else None
         days = safe_days(days_str or "30", max_val=90)
         return _get_orchestrator_execution_failed(cur, days)
     elif path.startswith("/api/algo/execution/details/"):
-        if not _check_admin_access(
-            jwt_claims
-        ):
-            logger.warning(
-                f"Unauthorized execution history access attempt by {user_id}"
-            )
+        if not _check_admin_access(jwt_claims):
+            logger.warning(f"Unauthorized execution history access attempt by {user_id}")
             raise_api_error(403, "forbidden", "Admin access required")
         run_id = path.split("/api/algo/execution/details/")[-1]
         return _get_orchestrator_execution_details(cur, run_id)
     elif path == "/api/algo/execution/patterns":
-        if not _check_admin_access(
-            jwt_claims
-        ):
-            logger.warning(
-                f"Unauthorized execution history access attempt by {user_id}"
-            )
+        if not _check_admin_access(jwt_claims):
+            logger.warning(f"Unauthorized execution history access attempt by {user_id}")
             raise_api_error(403, "forbidden", "Admin access required")
         days_str = params.get("days", [None])[0] if params else None
         days = safe_days(days_str or "30", max_val=90)
         return _get_orchestrator_execution_patterns(cur, days)
     elif path == "/api/algo/execution/stats":
-        if not _check_admin_access(
-            jwt_claims
-        ):
-            logger.warning(
-                f"Unauthorized execution history access attempt by {user_id}"
-            )
+        if not _check_admin_access(jwt_claims):
+            logger.warning(f"Unauthorized execution history access attempt by {user_id}")
             raise_api_error(403, "forbidden", "Admin access required")
         days_str = params.get("days", [None])[0] if params else None
         days = safe_days(days_str or "7", max_val=90)
@@ -488,7 +465,8 @@ def _dispatch(
         if path in ADMIN_RATE_LIMITS:
             limits = ADMIN_RATE_LIMITS[path]
             is_allowed, error_msg = check_admin_rate_limit(
-                user_id, path,
+                user_id,
+                path,
                 max_requests=limits["max_requests"],
                 window_seconds=limits["window"],
             )
@@ -499,7 +477,8 @@ def _dispatch(
         if path in ADMIN_RATE_LIMITS:
             limits = ADMIN_RATE_LIMITS[path]
             is_allowed, error_msg = check_admin_rate_limit(
-                user_id, path,
+                user_id,
+                path,
                 max_requests=limits["max_requests"],
                 window_seconds=limits["window"],
             )
@@ -510,7 +489,8 @@ def _dispatch(
         if path in ADMIN_RATE_LIMITS:
             limits = ADMIN_RATE_LIMITS[path]
             is_allowed, error_msg = check_admin_rate_limit(
-                user_id, path,
+                user_id,
+                path,
                 max_requests=limits["max_requests"],
                 window_seconds=limits["window"],
             )
@@ -521,7 +501,8 @@ def _dispatch(
         if path in ADMIN_RATE_LIMITS:
             limits = ADMIN_RATE_LIMITS[path]
             is_allowed, error_msg = check_admin_rate_limit(
-                user_id, path,
+                user_id,
+                path,
                 max_requests=limits["max_requests"],
                 window_seconds=limits["window"],
             )
@@ -532,7 +513,8 @@ def _dispatch(
         if path in ADMIN_RATE_LIMITS:
             limits = ADMIN_RATE_LIMITS[path]
             is_allowed, error_msg = check_admin_rate_limit(
-                user_id, path,
+                user_id,
+                path,
                 max_requests=limits["max_requests"],
                 window_seconds=limits["window"],
             )
@@ -543,7 +525,8 @@ def _dispatch(
         if path in ADMIN_RATE_LIMITS:
             limits = ADMIN_RATE_LIMITS[path]
             is_allowed, error_msg = check_admin_rate_limit(
-                user_id, path,
+                user_id,
+                path,
                 max_requests=limits["max_requests"],
                 window_seconds=limits["window"],
             )
@@ -554,7 +537,8 @@ def _dispatch(
         if path in ADMIN_RATE_LIMITS:
             limits = ADMIN_RATE_LIMITS[path]
             is_allowed, error_msg = check_admin_rate_limit(
-                user_id, path,
+                user_id,
+                path,
                 max_requests=limits["max_requests"],
                 window_seconds=limits["window"],
             )
@@ -565,7 +549,8 @@ def _dispatch(
         if path in ADMIN_RATE_LIMITS:
             limits = ADMIN_RATE_LIMITS[path]
             is_allowed, error_msg = check_admin_rate_limit(
-                user_id, path,
+                user_id,
+                path,
                 max_requests=limits["max_requests"],
                 window_seconds=limits["window"],
             )

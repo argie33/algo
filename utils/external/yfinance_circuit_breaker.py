@@ -19,8 +19,9 @@ import time
 from datetime import datetime, timedelta, timezone
 from typing import Any
 
-from utils.db.context import DatabaseContext
 import psycopg2
+
+from utils.db.context import DatabaseContext
 
 
 logger = logging.getLogger(__name__)
@@ -108,8 +109,7 @@ class YFinanceIPCircuitBreaker:
             failure_count = (state.get("failure_count", 0) or 0) + 1
             # Exponential backoff: initial 10s, then 20s, 40s, 80s, 160s, 300s, 300s, ...
             backoff = min(
-                self.INITIAL_BACKOFF_SECS * (self.BACKOFF_MULTIPLIER ** (failure_count - 1)),
-                self.MAX_BACKOFF_SECS
+                self.INITIAL_BACKOFF_SECS * (self.BACKOFF_MULTIPLIER ** (failure_count - 1)), self.MAX_BACKOFF_SECS
             )
 
         ban_until = datetime.now(timezone.utc) + timedelta(seconds=backoff)
@@ -119,7 +119,7 @@ class YFinanceIPCircuitBreaker:
             failure_count=failure_count,
             ban_until=ban_until,
             last_error_time=datetime.now(timezone.utc),
-            reason="Rate limit detected (429/401)"
+            reason="Rate limit detected (429/401)",
         )
 
         logger.warning(
@@ -146,7 +146,7 @@ class YFinanceIPCircuitBreaker:
             failure_count=0,
             ban_until=None,
             last_success_time=datetime.now(timezone.utc),
-            reason="Successful request"
+            reason="Successful request",
         )
 
     def _get_ban_state(self) -> dict[str, Any] | None:
@@ -160,7 +160,7 @@ class YFinanceIPCircuitBreaker:
                 cur.execute(
                     "SELECT is_banned, failure_count, ban_until, last_error_time, last_success_time, reason "
                     "FROM yfinance_ip_ban WHERE state_key = %s",
-                    (self.STATE_KEY,)
+                    (self.STATE_KEY,),
                 )
                 row = cur.fetchone()
                 if row is None:
@@ -185,7 +185,7 @@ class YFinanceIPCircuitBreaker:
         ban_until: datetime | None = None,
         last_error_time: datetime | None = None,
         last_success_time: datetime | None = None,
-        reason: str = ""
+        reason: str = "",
     ):
         """Set ban state in PostgreSQL."""
         try:
@@ -204,7 +204,7 @@ class YFinanceIPCircuitBreaker:
                         reason = EXCLUDED.reason,
                         updated_at = CURRENT_TIMESTAMP
                     """,
-                    (self.STATE_KEY, is_banned, failure_count, ban_until, last_error_time, last_success_time, reason)
+                    (self.STATE_KEY, is_banned, failure_count, ban_until, last_error_time, last_success_time, reason),
                 )
 
             # Invalidate local cache
@@ -220,7 +220,7 @@ class YFinanceIPCircuitBreaker:
                 cur.execute(
                     "UPDATE yfinance_ip_ban SET is_banned = FALSE, failure_count = 0, ban_until = NULL, "
                     "reason = 'Ban expired', updated_at = CURRENT_TIMESTAMP WHERE state_key = %s",
-                    (self.STATE_KEY,)
+                    (self.STATE_KEY,),
                 )
             self._cached_state = None
             logger.info("[YFINANCE-CIRCUIT-BREAKER] Ban state cleared (cooldown expired)")
@@ -239,7 +239,7 @@ class YFinanceIPCircuitBreaker:
                 "ban_until": None,
                 "last_error_time": None,
                 "last_success_time": None,
-                "reason": "No ban state"
+                "reason": "No ban state",
             }
 
         ban_until = state.get("ban_until")

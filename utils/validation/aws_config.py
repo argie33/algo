@@ -18,6 +18,7 @@ import logging
 import os
 from datetime import date, datetime
 from typing import Any
+
 import psycopg2
 
 
@@ -46,9 +47,7 @@ class AWSProductionConfigValidator:
             return False
 
         if not user_pool_id:
-            self.checks_critical.append(
-                "COGNITO_USER_POOL_ID not set - cannot validate JWT tokens"
-            )
+            self.checks_critical.append("COGNITO_USER_POOL_ID not set - cannot validate JWT tokens")
             return False
 
         # Format check: Cognito user pool IDs follow pattern: region_randomstring
@@ -57,38 +56,24 @@ class AWSProductionConfigValidator:
                 f"COGNITO_USER_POOL_ID format unusual: {user_pool_id} (expected format: region_xxx)"
             )
 
-        self.checks_passed.append(
-            f"Cognito configured: {region}/{user_pool_id[:20]}..."
-        )
+        self.checks_passed.append(f"Cognito configured: {region}/{user_pool_id[:20]}...")
         return True
 
     def validate_alpaca_config(self) -> bool:
         """Validate Alpaca credentials configured."""
-        api_key = (
-            os.getenv("APCA_API_KEY_ID", "").strip()
-            or os.getenv("ALPACA_API_KEY", "").strip()
-        )
-        api_secret = (
-            os.getenv("APCA_API_SECRET_KEY", "").strip()
-            or os.getenv("ALPACA_API_SECRET", "").strip()
-        )
+        api_key = os.getenv("APCA_API_KEY_ID", "").strip() or os.getenv("ALPACA_API_KEY", "").strip()
+        api_secret = os.getenv("APCA_API_SECRET_KEY", "").strip() or os.getenv("ALPACA_API_SECRET", "").strip()
         paper_trading = os.getenv("ALPACA_PAPER_TRADING", "true").lower() == "true"
 
         if not api_key or not api_secret:
             if paper_trading:
-                self.checks_warnings.append(
-                    "Alpaca credentials not set - paper trading mode will fail silently"
-                )
+                self.checks_warnings.append("Alpaca credentials not set - paper trading mode will fail silently")
             else:
-                self.checks_critical.append(
-                    "Alpaca credentials missing in LIVE TRADING MODE - trades will fail"
-                )
+                self.checks_critical.append("Alpaca credentials missing in LIVE TRADING MODE - trades will fail")
             return False
 
         mode = "PAPER" if paper_trading else "LIVE"
-        self.checks_passed.append(
-            f"Alpaca configured: {mode} mode, credentials present"
-        )
+        self.checks_passed.append(f"Alpaca configured: {mode} mode, credentials present")
         return True
 
     def validate_circuit_breaker_thresholds(self) -> bool:
@@ -112,17 +97,13 @@ class AWSProductionConfigValidator:
             for key, (min_val, max_val, default) in thresholds.items():
                 actual = config.get(key, default)
                 if actual < min_val or actual > max_val:
-                    issues.append(
-                        f"{key}={actual} outside safe range [{min_val}, {max_val}]"
-                    )
+                    issues.append(f"{key}={actual} outside safe range [{min_val}, {max_val}]")
 
             if issues:
                 self.checks_warnings.extend(issues)
                 return False
 
-            self.checks_passed.append(
-                "Circuit breaker thresholds configured and in safe ranges"
-            )
+            self.checks_passed.append("Circuit breaker thresholds configured and in safe ranges")
             return True
 
         except Exception as e:
@@ -150,8 +131,7 @@ class AWSProductionConfigValidator:
 
         except Exception as e:
             raise RuntimeError(
-                f"Data patrol configuration issue: {e}. "
-                "Cannot proceed without data patrol configured."
+                f"Data patrol configuration issue: {e}. Cannot proceed without data patrol configured."
             ) from e
 
     def validate_market_calendar(self) -> bool:
@@ -170,9 +150,7 @@ class AWSProductionConfigValidator:
             return True
 
         except Exception as e:
-            raise RuntimeError(
-                f"Market calendar issue: {e}. Cannot proceed without valid market calendar."
-            ) from e
+            raise RuntimeError(f"Market calendar issue: {e}. Cannot proceed without valid market calendar.") from e
 
     def validate_loader_status_tracking(self) -> bool:
         """Validate loader status table is being used."""
@@ -192,9 +170,7 @@ class AWSProductionConfigValidator:
                         "Loader status table exists but has no recent entries - tracking may be disabled"
                     )
                 else:
-                    self.checks_passed.append(
-                        f"Loader status tracking active: {recent_count} loaders tracked"
-                    )
+                    self.checks_passed.append(f"Loader status tracking active: {recent_count} loaders tracked")
 
             return True
 
@@ -219,8 +195,7 @@ class AWSProductionConfigValidator:
 
         except (psycopg2.DatabaseError, psycopg2.OperationalError) as e:
             raise RuntimeError(
-                f"CloudWatch configuration check failed: {e}. "
-                "Cannot validate CloudWatch readiness."
+                f"CloudWatch configuration check failed: {e}. Cannot validate CloudWatch readiness."
             ) from e
 
     def validate_dynamodb_setup(self) -> bool:
@@ -240,9 +215,7 @@ class AWSProductionConfigValidator:
             return True
 
         except Exception as e:
-            raise RuntimeError(
-                f"DynamoDB setup validation failed: {e}. Cannot verify DynamoDB configured."
-            ) from e
+            raise RuntimeError(f"DynamoDB setup validation failed: {e}. Cannot verify DynamoDB configured.") from e
 
     def validate_error_fallback_monitoring(self) -> bool:
         """Validate error fallback monitoring is enabled."""
@@ -250,9 +223,7 @@ class AWSProductionConfigValidator:
             # Import routes safely without using 'lambda' keyword
             from pathlib import Path
 
-            routes_path = (
-                Path(__file__).parent.parent / "lambda" / "api" / "routes" / "utils.py"
-            )
+            routes_path = Path(__file__).parent.parent / "lambda" / "api" / "routes" / "utils.py"
             if routes_path.exists():
                 self.checks_passed.append("Error fallback monitoring configured")
                 return True
@@ -260,10 +231,9 @@ class AWSProductionConfigValidator:
                 self.checks_warnings.append("Error fallback utilities not found")
                 return False
 
-        except (FileNotFoundError, IOError, OSError) as e:
+        except (FileNotFoundError, OSError) as e:
             raise RuntimeError(
-                f"Error fallback monitoring validation failed: {e}. "
-                "Cannot verify error fallback utilities."
+                f"Error fallback monitoring validation failed: {e}. Cannot verify error fallback utilities."
             ) from e
 
     def run_all_validations(self) -> dict[str, Any]:
@@ -289,7 +259,7 @@ class AWSProductionConfigValidator:
             try:
                 result = validator_fn()
                 logger.info(f"  {'[OK]' if result else '[WARNING]'}")
-            except (FileNotFoundError, IOError, OSError) as e:
+            except (FileNotFoundError, OSError) as e:
                 logger.error(f"  [ERROR] {str(e)[:80]}")
 
         # Summary

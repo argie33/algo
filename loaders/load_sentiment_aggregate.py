@@ -78,6 +78,5 @@ class SentimentAggregateLoader(OptimalLoader):
             raise RuntimeError(f"Operation failed: {e}") from e
 
 
-
 if __name__ == "__main__":
     sys.exit(run_loader(SentimentAggregateLoader, global_mode=True))

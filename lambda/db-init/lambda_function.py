@@ -32,9 +32,7 @@ def get_credentials():
 
         return get_db_credentials()
     except ImportError:
-        logger.warning(
-            "Could not import credential_manager, falling back to manual boto3 fetch"
-        )
+        logger.warning("Could not import credential_manager, falling back to manual boto3 fetch")
         # Fallback if config module not available
         import boto3
 
@@ -52,8 +50,7 @@ def get_credentials():
                 return {
                     "host": host,
                     "port": int(secret.get("port", DEFAULT_DB_PORT)),
-                    "database": os.environ.get("DB_NAME")
-                    or secret.get("dbname", "stocks"),
+                    "database": os.environ.get("DB_NAME") or secret.get("dbname", "stocks"),
                     "user": secret.get("username"),
                     "password": secret.get("password"),
                 }
@@ -190,9 +187,7 @@ def lambda_handler(event, context):
             terminated = row[0]
             cur.close()
             conn.close()
-            logger.info(
-                f"Terminated {terminated} idle connections (advisory lock cleanup)"
-            )
+            logger.info(f"Terminated {terminated} idle connections (advisory lock cleanup)")
             return {
                 "statusCode": 200,
                 "body": json.dumps(f"Terminated {terminated} idle connections"),
@@ -228,9 +223,7 @@ def lambda_handler(event, context):
             _cur.close()
             _conn.close()
             if terminated:
-                logger.info(
-                    f"Step 0: Released {terminated} stale idle connections (advisory lock cleanup)"
-                )
+                logger.info(f"Step 0: Released {terminated} stale idle connections (advisory lock cleanup)")
             else:
                 logger.info("Step 0: No stale connections found (advisory locks clean)")
         except (psycopg2.DatabaseError, psycopg2.OperationalError) as _e:
@@ -244,9 +237,7 @@ def lambda_handler(event, context):
 
         if master_user and master_password:
             try:
-                logger.info(
-                    f"Connecting as master user ({master_user}) to create/update stocks user..."
-                )
+                logger.info(f"Connecting as master user ({master_user}) to create/update stocks user...")
                 master_conn = psycopg2.connect(
                     host=creds["host"],
                     port=creds["port"],
@@ -279,27 +270,25 @@ def lambda_handler(event, context):
                         logger.info(f"Created new {creds['user']} user")
                         # Grant permissions
                         master_cursor.execute(
-                            psycopg2.sql.SQL(
-                                "GRANT CONNECT ON DATABASE {} TO {}"
-                            ).format(
+                            psycopg2.sql.SQL("GRANT CONNECT ON DATABASE {} TO {}").format(
                                 psycopg2.sql.Identifier(creds["database"]),
                                 psycopg2.sql.Identifier(creds["user"]),
                             )
                         )
                         master_cursor.execute(
-                            psycopg2.sql.SQL(
-                                "GRANT USAGE ON SCHEMA public TO {}"
-                            ).format(psycopg2.sql.Identifier(creds["user"]))
+                            psycopg2.sql.SQL("GRANT USAGE ON SCHEMA public TO {}").format(
+                                psycopg2.sql.Identifier(creds["user"])
+                            )
                         )
                         master_cursor.execute(
-                            psycopg2.sql.SQL(
-                                "GRANT ALL PRIVILEGES ON ALL TABLES IN SCHEMA public TO {}"
-                            ).format(psycopg2.sql.Identifier(creds["user"]))
+                            psycopg2.sql.SQL("GRANT ALL PRIVILEGES ON ALL TABLES IN SCHEMA public TO {}").format(
+                                psycopg2.sql.Identifier(creds["user"])
+                            )
                         )
                         master_cursor.execute(
-                            psycopg2.sql.SQL(
-                                "GRANT ALL PRIVILEGES ON ALL SEQUENCES IN SCHEMA public TO {}"
-                            ).format(psycopg2.sql.Identifier(creds["user"]))
+                            psycopg2.sql.SQL("GRANT ALL PRIVILEGES ON ALL SEQUENCES IN SCHEMA public TO {}").format(
+                                psycopg2.sql.Identifier(creds["user"])
+                            )
                         )
                         logger.info(f"Granted permissions to {creds['user']}")
                     except (psycopg2.DatabaseError, psycopg2.OperationalError) as e2:
@@ -309,9 +298,7 @@ def lambda_handler(event, context):
                 master_conn.close()
                 logger.info("✅ Stocks user setup complete")
             except (psycopg2.DatabaseError, psycopg2.OperationalError) as e:
-                logger.warning(
-                    f"Could not connect as master user to create stocks user: {e}"
-                )
+                logger.warning(f"Could not connect as master user to create stocks user: {e}")
         else:
             logger.info("Master user credentials not provided, skipping user creation")
 
@@ -332,14 +319,14 @@ def lambda_handler(event, context):
         for table in ["buy_sell_daily", "buy_sell_weekly", "buy_sell_monthly"]:
             try:
                 cursor.execute(
-                    psycopg2.sql.SQL(
-                        "ALTER TABLE {} ADD COLUMN IF NOT EXISTS macd DECIMAL(10, 2)"
-                    ).format(psycopg2.sql.Identifier(table))
+                    psycopg2.sql.SQL("ALTER TABLE {} ADD COLUMN IF NOT EXISTS macd DECIMAL(10, 2)").format(
+                        psycopg2.sql.Identifier(table)
+                    )
                 )
                 cursor.execute(
-                    psycopg2.sql.SQL(
-                        "ALTER TABLE {} ADD COLUMN IF NOT EXISTS macd_signal DECIMAL(10, 2)"
-                    ).format(psycopg2.sql.Identifier(table))
+                    psycopg2.sql.SQL("ALTER TABLE {} ADD COLUMN IF NOT EXISTS macd_signal DECIMAL(10, 2)").format(
+                        psycopg2.sql.Identifier(table)
+                    )
                 )
                 logger.info(f"Added MACD columns to {table}")
             except (psycopg2.DatabaseError, psycopg2.OperationalError) as e:
@@ -347,15 +334,9 @@ def lambda_handler(event, context):
 
         # Add historical rank columns to industry_ranking (idempotent)
         try:
-            cursor.execute(
-                "ALTER TABLE industry_ranking ADD COLUMN IF NOT EXISTS rank_1w_ago INTEGER"
-            )
-            cursor.execute(
-                "ALTER TABLE industry_ranking ADD COLUMN IF NOT EXISTS rank_4w_ago INTEGER"
-            )
-            cursor.execute(
-                "ALTER TABLE industry_ranking ADD COLUMN IF NOT EXISTS rank_12w_ago INTEGER"
-            )
+            cursor.execute("ALTER TABLE industry_ranking ADD COLUMN IF NOT EXISTS rank_1w_ago INTEGER")
+            cursor.execute("ALTER TABLE industry_ranking ADD COLUMN IF NOT EXISTS rank_4w_ago INTEGER")
+            cursor.execute("ALTER TABLE industry_ranking ADD COLUMN IF NOT EXISTS rank_12w_ago INTEGER")
             logger.info("Added historical rank columns to industry_ranking")
         except (psycopg2.DatabaseError, psycopg2.OperationalError) as e:
             logger.info(f"industry_ranking history columns may already exist: {e}")
@@ -364,16 +345,14 @@ def lambda_handler(event, context):
         try:
             # SECURITY FIX S-07: Use absolute path to prevent path traversal
             schema_path = os.path.join(os.path.dirname(__file__), "schema.sql")
-            with open(schema_path, "r") as f:
+            with open(schema_path) as f:
                 sql_script = f.read()
             logger.info(f"Using schema from {schema_path}")
         except FileNotFoundError:
             logger.warning("schema.sql not found")
 
         if not sql_script.strip():
-            cursor.execute(
-                "SELECT COUNT(*) FROM information_schema.tables WHERE table_schema = 'public'"
-            )
+            cursor.execute("SELECT COUNT(*) FROM information_schema.tables WHERE table_schema = 'public'")
             row = cursor.fetchone()
             if row is None or row[0] is None:
                 raise RuntimeError("Table count query failed")
@@ -382,9 +361,7 @@ def lambda_handler(event, context):
             conn.close()
             return {
                 "statusCode": 200,
-                "body": json.dumps(
-                    f"DB connected, {table_count} tables exist (MACD columns added)"
-                ),
+                "body": json.dumps(f"DB connected, {table_count} tables exist (MACD columns added)"),
             }
 
         statements = split_sql_statements(sql_script)
@@ -402,22 +379,16 @@ def lambda_handler(event, context):
                 if "already exists" in err or "does not exist" in err:
                     skip_count += 1
                 else:
-                    logger.warning(
-                        f"Statement failed: {statement[:100]}... -> {err[:120]}"
-                    )
+                    logger.warning(f"Statement failed: {statement[:100]}... -> {err[:120]}")
                     skip_count += 1
 
         cursor.close()
         conn.close()
 
-        logger.info(
-            f"Schema init done: {ok_count} ok, {skip_count} skipped/errored of {len(statements)} total"
-        )
+        logger.info(f"Schema init done: {ok_count} ok, {skip_count} skipped/errored of {len(statements)} total")
         return {
             "statusCode": 200,
-            "body": json.dumps(
-                f"Database schema initialized ({ok_count}/{len(statements)} statements)"
-            ),
+            "body": json.dumps(f"Database schema initialized ({ok_count}/{len(statements)} statements)"),
         }
 
     except psycopg2.OperationalError as e:

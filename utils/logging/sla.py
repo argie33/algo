@@ -10,7 +10,7 @@ Monitors critical SLA windows:
 
 import logging
 from datetime import datetime
-from typing import Any, Dict, Optional
+from typing import Any
 from zoneinfo import ZoneInfo
 
 
@@ -31,7 +31,7 @@ class SLAMonitor:
     ]
 
     @classmethod
-    def get_current_sla_window(cls) -> Optional[Dict[str, Any]]:
+    def get_current_sla_window(cls) -> dict[str, Any] | None:
         """Get current SLA window if in one, None otherwise.
 
         Returns:
@@ -57,9 +57,7 @@ class SLAMonitor:
             end_time_minutes = end_h * 60 + end_m
 
             if start_time_minutes <= current_time < end_time_minutes:
-                start_dt = now.replace(
-                    hour=start_h, minute=start_m, second=0, microsecond=0
-                )
+                start_dt = now.replace(hour=start_h, minute=start_m, second=0, microsecond=0)
                 end_dt = now.replace(hour=end_h, minute=end_m, second=0, microsecond=0)
 
                 # Handle overnight windows (EOD ends at 5:30 PM same day is fine)
@@ -71,7 +69,7 @@ class SLAMonitor:
 
                 elapsed_sec = (now - start_dt).total_seconds()
                 elapsed_min = elapsed_sec / 60
-                budget_sec = budget * 60
+                budget * 60
                 remaining_min = budget - elapsed_min
                 percent = (elapsed_min / budget) * 100
 
@@ -89,7 +87,7 @@ class SLAMonitor:
         return None
 
     @classmethod
-    def log_sla_status(cls, operation_name: str, elapsed_sec: Optional[float] = None) -> Optional[Dict[str, Any]]:
+    def log_sla_status(cls, operation_name: str, elapsed_sec: float | None = None) -> dict[str, Any] | None:
         """Log current SLA status. Returns SLA info or None if not in window.
 
         Args:
@@ -105,11 +103,7 @@ class SLAMonitor:
             logger.debug(f"[{operation_name}] Not in any SLA window")
             return None
 
-        status = (
-            "🔴 CRITICAL"
-            if sla["is_critical"]
-            else "🟡 WARNING" if sla["remaining_minutes"] < 10 else "🟢 OK"
-        )
+        status = "🔴 CRITICAL" if sla["is_critical"] else "🟡 WARNING" if sla["remaining_minutes"] < 10 else "🟢 OK"
 
         elapsed_str = f", operation {elapsed_sec:.1f}s" if elapsed_sec else ""
 
@@ -131,7 +125,7 @@ class SLAMonitor:
         Returns:
             True if deadline passed, False otherwise
         """
-        for start_h, start_m, end_h, end_m, name, budget in cls.SLA_WINDOWS:
+        for start_h, _start_m, end_h, end_m, name, _budget in cls.SLA_WINDOWS:
             if name == pipeline_name:
                 now = datetime.now(cls.EASTERN_TZ)
                 end_dt = now.replace(hour=end_h, minute=end_m, second=0, microsecond=0)

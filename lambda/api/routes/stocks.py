@@ -17,6 +17,7 @@ from routes.utils import (
     safe_limit,
     safe_offset,
 )
+
 from shared_contracts.response_validator import ResponseValidator
 
 
@@ -40,11 +41,7 @@ def handle(
             "list",
             "watchlist",
         )
-        symbol = (
-            parts[3]
-            if len(parts) > 3 and parts[3] not in known_non_symbol_paths
-            else None
-        )
+        symbol = parts[3] if len(parts) > 3 and parts[3] not in known_non_symbol_paths else None
 
         if symbol and path == f"/api/stocks/{symbol}":
             # Validate symbol format before using in query
@@ -88,24 +85,19 @@ def handle(
                 if not results:
                     return list_response([])
             except (psycopg2.errors.UndefinedTable, psycopg2.errors.UndefinedColumn):
-                logger.debug(
-                    "[DEEP_VALUE] value_metrics table not found - financial data not loaded yet"
-                )
+                logger.debug("[DEEP_VALUE] value_metrics table not found - financial data not loaded yet")
                 return list_response([])
             except (psycopg2.OperationalError, psycopg2.DatabaseError) as e:
-                logger.error(
-                    f"[DEEP_VALUE] Database error checking value_metrics: {type(e).__name__}: {e}"
-                )
+                logger.error(f"[DEEP_VALUE] Database error checking value_metrics: {type(e).__name__}: {e}")
                 code, error_type, message = handle_db_error(e, "deep-value check")
                 return error_response(code, error_type, message)
             except (psycopg2.DatabaseError, psycopg2.OperationalError) as e:
-                logger.error(
-                    f"[DEEP_VALUE] Error checking financial data availability: {type(e).__name__}: {e}"
-                )
+                logger.error(f"[DEEP_VALUE] Error checking financial data availability: {type(e).__name__}: {e}")
                 code, error_type, message = handle_db_error(e, "deep-value check")
                 return error_response(code, error_type, message)
             try:
-                deep_value_query = """
+                deep_value_query = (
+                    """
                 WITH value_stocks AS (
                     SELECT DISTINCT symbol FROM value_metrics WHERE pe_ratio IS NOT NULL
                 ),
@@ -251,18 +243,16 @@ def handle(
                 CROSS JOIN market_median mm
                 ORDER BY generational_score DESC NULLS LAST
                 LIMIT %s
-                """ % limit
+                """
+                    % limit
+                )
 
                 # Execute with single attempt at 23s — complex multi-CTE query needs headroom.
                 # Lambda timeout is 25s; provisioned concurrency keeps instance warm so no cold-start risk.
                 # Migration 060 adds a covering index (symbol, date) INCLUDE (high, low) to speed 52w stats.
-                rows = execute_with_timeout(
-                    cur, deep_value_query, timeout_sec=23, max_attempts=1
-                )
+                rows = execute_with_timeout(cur, deep_value_query, timeout_sec=23, max_attempts=1)
                 if rows:
-                    freshness = check_data_freshness(
-                        cur, "price_daily", "date", warning_days=1
-                    )
+                    freshness = check_data_freshness(cur, "price_daily", "date", warning_days=1)
                     deep_value_result = list_response(
                         [safe_json_serialize(dict(r)) for r in rows],
                         data_freshness=freshness,
@@ -296,9 +286,7 @@ def handle(
                     f"Deep-value query failed - database error: {type(e).__name__}: {e}",
                     extra={"operation": "deep-value"},
                 )
-                return error_response(
-                    503, "connection_error", "Database connection failed - please retry"
-                )
+                return error_response(503, "connection_error", "Database connection failed - please retry")
             except (psycopg2.DatabaseError, psycopg2.OperationalError) as e:
                 logger.error(
                     f"Deep-value query failed: {type(e).__name__}: {str(e)[:200]}",
@@ -332,7 +320,7 @@ def handle(
             query_params.append(sector)
 
         where_sql = " AND ".join(where_clauses)
-        query_params_with_limit = query_params + [limit, offset]
+        query_params_with_limit = [*query_params, limit, offset]
 
         # Set timeout for main listing query to prevent hangs
         cur.execute("SET LOCAL statement_timeout = '8000ms'")
@@ -360,7 +348,8 @@ def handle(
             """
             SELECT COUNT(*) FROM stock_symbols ss
             LEFT JOIN company_profile cp ON ss.symbol = cp.ticker
-            WHERE """ + where_sql,
+            WHERE """
+            + where_sql,
             query_params,
         )
         count_row = cur.fetchone()

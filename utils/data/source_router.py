@@ -54,6 +54,7 @@ logger = logging.getLogger(__name__)
 _GLOBAL_YFINANCE_LIMITER = None
 _GLOBAL_LIMITER_LOCK = threading.Lock()
 
+
 def get_global_yfinance_limiter():
     """Get or create the global yfinance rate limiter (shared across all loaders).
 
@@ -70,6 +71,7 @@ def get_global_yfinance_limiter():
                 _GLOBAL_YFINANCE_LIMITER = RateLimiter(calls_per_minute=30)
     return _GLOBAL_YFINANCE_LIMITER
 
+
 def _call_with_timeout(fn: Callable, timeout_sec: float = 30, retries: int = 3) -> Any:
     """Call a function with timeout protection and automatic retry on timeout."""
     for attempt in range(retries):
@@ -79,14 +81,11 @@ def _call_with_timeout(fn: Callable, timeout_sec: float = 30, retries: int = 3) 
                 return future.result(timeout=timeout_sec)
         except FuturesTimeoutError:
             if attempt < retries - 1:
-                logger.warning(
-                    f"Timeout (attempt {attempt + 1}/{retries}), retrying..."
-                )
+                logger.warning(f"Timeout (attempt {attempt + 1}/{retries}), retrying...")
                 time.sleep(2**attempt)  # Exponential backoff: 1s, 2s, 4s
             continue
-    raise TimeoutError(
-        f"Function call exceeded {timeout_sec}s timeout after {retries} retries"
-    )
+    raise TimeoutError(f"Function call exceeded {timeout_sec}s timeout after {retries} retries")
+
 
 @dataclass
 class SourceHealth:
@@ -124,6 +123,7 @@ class SourceHealth:
                     self.success_rate * 100,
                     error,
                 )
+
 
 class DataSourceRouter:
     """Routes data fetches across providers with fallback + health tracking."""
@@ -181,9 +181,7 @@ class DataSourceRouter:
                     logger.debug(f"Source '{name}' failed for {request_desc}: {e}")
                 continue
         if last_exc:
-            logger.warning(
-                "All sources failed for %s. Last error: %s", request_desc, last_exc
-            )
+            logger.warning("All sources failed for %s. Last error: %s", request_desc, last_exc)
         return None
 
     # ============== OHLCV ==============
@@ -211,9 +209,7 @@ class DataSourceRouter:
         sources = [
             (
                 "yfinance",
-                lambda: self._fetch_yfinance_ohlcv(
-                    symbol, start, end, interval=interval
-                ),
+                lambda: self._fetch_yfinance_ohlcv(symbol, start, end, interval=interval),
             ),
         ]
         return self._try_chain(sources, f"OHLCV[{symbol} {start}..{end} {interval}]")
@@ -229,26 +225,18 @@ class DataSourceRouter:
         sources = [
             (
                 "yfinance",
-                lambda: self._fetch_yfinance_ohlcv_batch(
-                    symbols, start, end, interval=interval
-                ),
+                lambda: self._fetch_yfinance_ohlcv_batch(symbols, start, end, interval=interval),
             ),
         ]
-        results = self._try_chain(
-            sources, f"OHLCV_BATCH[{len(symbols)} symbols {start}..{end} {interval}]"
-        )
+        results = self._try_chain(sources, f"OHLCV_BATCH[{len(symbols)} symbols {start}..{end} {interval}]")
         return cast(dict[str, list[dict] | None], results if results else dict.fromkeys(symbols))
 
     @retry(max_attempts=2, base_delay=2.0, exceptions=(Exception,))
-    def _fetch_yfinance_ohlcv(
-        self, symbol: str, start: date, end: date, interval: str = "1d"
-    ):
+    def _fetch_yfinance_ohlcv(self, symbol: str, start: date, end: date, interval: str = "1d"):
         if yf is None:
             logger.error("[yfinance] yfinance not installed")
             return None
-        logger.debug(
-            f"[yfinance] Fetching {symbol} from {start} to {end} interval={interval}"
-        )
+        logger.debug(f"[yfinance] Fetching {symbol} from {start} to {end} interval={interval}")
         yf_symbol = symbol.replace(".", "-") if "." in symbol else symbol
         try:
 
@@ -264,9 +252,7 @@ class DataSourceRouter:
                     progress=False,
                 )
 
-            logger.debug(
-                f"[yfinance] Calling yf.download for {yf_symbol} with 120s timeout (AWS VPC)"
-            )
+            logger.debug(f"[yfinance] Calling yf.download for {yf_symbol} with 120s timeout (AWS VPC)")
             hist = _call_with_timeout(do_download, timeout_sec=120, retries=3)
 
             if hist is None or hist.empty:
@@ -286,11 +272,7 @@ class DataSourceRouter:
                     rows.append(
                         {
                             "symbol": symbol,
-                            "date": (
-                                idx.date().isoformat()
-                                if hasattr(idx, "date")
-                                else str(idx)[:10]
-                            ),
+                            "date": (idx.date().isoformat() if hasattr(idx, "date") else str(idx)[:10]),
                             "open": float(row["Open"]),
                             "high": float(row["High"]),
                             "low": float(row["Low"]),
@@ -323,17 +305,13 @@ class DataSourceRouter:
                     "parse",
                 ]
             ):
-                logger.warning(
-                    f"yfinance rate limited or parse error for {symbol}: {e}"
-                )
+                logger.warning(f"yfinance rate limited or parse error for {symbol}: {e}")
                 raise Exception(f"yfinance rate limited: {e}")
             logger.error(f"yfinance error for {symbol}: {e}")
             raise
 
     @retry(max_attempts=2, base_delay=2.0, exceptions=(Exception,))
-    def _fetch_yfinance_ohlcv_batch(
-        self, symbols: list[str], start: date, end: date, interval: str = "1d"
-    ):
+    def _fetch_yfinance_ohlcv_batch(self, symbols: list[str], start: date, end: date, interval: str = "1d"):
         """Batch fetch multiple symbols in one API call. Returns dict[symbol] -> rows."""
         if yf is None:
             logger.error("[yfinance] yfinance not installed")
@@ -342,9 +320,7 @@ class DataSourceRouter:
         if not symbols:
             raise ValueError("symbols list cannot be empty")
 
-        logger.debug(
-            f"[yfinance] Batch fetching {len(symbols)} symbols from {start} to {end} interval={interval}"
-        )
+        logger.debug(f"[yfinance] Batch fetching {len(symbols)} symbols from {start} to {end} interval={interval}")
 
         # Convert symbols to yfinance format
         yf_symbols = [sym.replace(".", "-") if "." in sym else sym for sym in symbols]
@@ -368,9 +344,7 @@ class DataSourceRouter:
             )
             try:
                 hist = _call_with_timeout(do_download, timeout_sec=180, retries=3)
-                logger.info(
-                    "[yfinance] Batch download completed successfully in timeout"
-                )
+                logger.info("[yfinance] Batch download completed successfully in timeout")
             except TimeoutError as timeout_e:
                 logger.critical(f"[yfinance] BATCH TIMEOUT EXCEEDED: {timeout_e}")
                 raise
@@ -382,14 +356,10 @@ class DataSourceRouter:
                 raise
 
             if hist is None or hist.empty:
-                logger.debug(
-                    f"[yfinance] No data returned for batch of {len(symbols)} symbols"
-                )
+                logger.debug(f"[yfinance] No data returned for batch of {len(symbols)} symbols")
                 return dict.fromkeys(symbols)
 
-            logger.debug(
-                f"[yfinance] Batch got {len(hist)} rows total for {len(symbols)} symbols"
-            )
+            logger.debug(f"[yfinance] Batch got {len(hist)} rows total for {len(symbols)} symbols")
 
             # Parse the batch result into per-symbol rows
             results: dict[str, list[dict[str, Any]]] = {sym: [] for sym in symbols}
@@ -422,11 +392,7 @@ class DataSourceRouter:
                         results[symbol].append(
                             {
                                 "symbol": symbol,
-                                "date": (
-                                    idx.date().isoformat()
-                                    if hasattr(idx, "date")
-                                    else str(idx)[:10]
-                                ),
+                                "date": (idx.date().isoformat() if hasattr(idx, "date") else str(idx)[:10]),
                                 "open": float(open_val),
                                 "high": float(high_val),
                                 "low": float(low_val),
@@ -435,9 +401,7 @@ class DataSourceRouter:
                             }
                         )
                     except (KeyError, TypeError, ValueError) as e:
-                        logger.debug(
-                            f"[yfinance] Skipped invalid row for {symbol} at {idx}: {e}"
-                        )
+                        logger.debug(f"[yfinance] Skipped invalid row for {symbol} at {idx}: {e}")
                         continue
 
             # Filter out symbols with no valid rows and return only those with data
@@ -513,11 +477,7 @@ class DataSourceRouter:
                 ticker = get_ticker(symbol)
                 if not ticker:
                     return None
-                return (
-                    ticker.balance_sheet
-                    if period == "annual"
-                    else ticker.quarterly_balance_sheet
-                )
+                return ticker.balance_sheet if period == "annual" else ticker.quarterly_balance_sheet
 
             df = _call_with_timeout(fetch, timeout_sec=30)
             if df is None or df.empty:
@@ -535,11 +495,7 @@ class DataSourceRouter:
                 ticker = get_ticker(symbol)
                 if not ticker:
                     return None
-                return (
-                    ticker.income_stmt
-                    if period == "annual"
-                    else ticker.quarterly_income_stmt
-                )
+                return ticker.income_stmt if period == "annual" else ticker.quarterly_income_stmt
 
             df = _call_with_timeout(fetch, timeout_sec=30)
             if df is None or df.empty:
@@ -557,9 +513,7 @@ class DataSourceRouter:
                 ticker = get_ticker(symbol)
                 if not ticker:
                     return None
-                return (
-                    ticker.cashflow if period == "annual" else ticker.quarterly_cashflow
-                )
+                return ticker.cashflow if period == "annual" else ticker.quarterly_cashflow
 
             df = _call_with_timeout(fetch, timeout_sec=30)
             if df is None or df.empty:
@@ -615,9 +569,7 @@ class DataSourceRouter:
             raise TimeoutError(f"yfinance earnings_dates timeout for {symbol}") from e
 
     def _sec_eps(self, symbol: str):
-        return self._sec_client().get_quarterly_concept(
-            symbol, "EarningsPerShareDiluted"
-        )
+        return self._sec_client().get_quarterly_concept(symbol, "EarningsPerShareDiluted")
 
     def fetch_eps_revisions(self, symbol: str):
         """Fetch estimate revisions (up/down counts). yfinance only (no fallback)."""
@@ -671,9 +623,7 @@ class DataSourceRouter:
 
     # ============== MARKET CLOSE DATA CHECK ==============
 
-    def check_market_close_data_available_fast(
-        self, symbol: str = "SPY", timeout_sec: int = 15
-    ) -> bool:
+    def check_market_close_data_available_fast(self, symbol: str = "SPY", timeout_sec: int = 15) -> bool:
         """Quick check if market close data is available from yfinance (short timeout).
 
         Used by EOD pipeline to verify yfinance has ingested today's close data.
@@ -724,15 +674,15 @@ class DataSourceRouter:
                 logger.info(f"[yfinance-fast-check] ✓ {symbol} close data available")
                 return True
 
-            logger.debug(
-                f"[yfinance-fast-check] Data for {symbol} missing close column"
-            )
+            logger.debug(f"[yfinance-fast-check] Data for {symbol} missing close column")
             return False
 
         except TimeoutError as e:
             raise TimeoutError(f"Market close data check timeout after {timeout_sec}s for {symbol}") from e
         except Exception as e:
-            raise RuntimeError(f"Error checking market close data for {symbol}: {type(e).__name__}: {str(e)[:100]}") from e
+            raise RuntimeError(
+                f"Error checking market close data for {symbol}: {type(e).__name__}: {str(e)[:100]}"
+            ) from e
 
     # ============== HEALTH REPORT ==============
 

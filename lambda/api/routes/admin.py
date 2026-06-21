@@ -48,9 +48,7 @@ def _check_admin_access(jwt_claims: dict) -> bool:
     return CognitoValidator.validate_admin_access(jwt_claims)
 
 
-def _audit_log_admin_action(
-    cur, user_id: str, endpoint: str, status: str = "success", details: str = ""
-) -> None:
+def _audit_log_admin_action(cur, user_id: str, endpoint: str, status: str = "success", details: str = "") -> None:
     """Log all admin actions for accountability."""
     try:
         import json as _json
@@ -94,12 +92,8 @@ def handle(
         user_id = jwt_claims["sub"]
 
         # Require admin role for all admin endpoints (bypass in dev mode)
-        if not _check_admin_access(
-            jwt_claims
-        ):
-            _audit_log_admin_action(
-                cur, user_id, path, "denied", "insufficient permissions"
-            )
+        if not _check_admin_access(jwt_claims):
+            _audit_log_admin_action(cur, user_id, path, "denied", "insufficient permissions")
             return error_response(403, "forbidden", "Admin access required")
 
         # SECURITY FIX S-09: Rate limit admin endpoints to prevent abuse
@@ -112,9 +106,7 @@ def handle(
                 window_seconds=limits["window"],
             )
             if not is_allowed:
-                _audit_log_admin_action(
-                    cur, user_id, path, "denied", f"rate_limited: {error_msg}"
-                )
+                _audit_log_admin_action(cur, user_id, path, "denied", f"rate_limited: {error_msg}")
                 return error_response(429, "too_many_requests", error_msg)
 
         if path == "/api/admin/loader-status":
@@ -202,9 +194,7 @@ def _get_loader_status(cur) -> dict:
                 "table": row["table_name"],
                 "last_run": last_updated.isoformat() if last_updated else None,
                 "row_count": row["row_count"],
-                "latest_date": (
-                    row["latest_date"].isoformat() if row["latest_date"] else None
-                ),
+                "latest_date": (row["latest_date"].isoformat() if row["latest_date"] else None),
                 "status": status,
                 "age_hours": round(age_hours, 1),
                 "health": health,
@@ -213,18 +203,14 @@ def _get_loader_status(cur) -> dict:
         )
 
     try:
-        freshness = check_data_freshness(
-            cur, "data_loader_status", "last_updated", warning_days=1
-        )
+        freshness = check_data_freshness(cur, "data_loader_status", "last_updated", warning_days=1)
     except (
         psycopg2.errors.UndefinedTable,
         psycopg2.errors.UndefinedColumn,
         psycopg2.OperationalError,
         psycopg2.DatabaseError,
     ) as e:
-        logger.warning(
-            f"[LOADER_STATUS] Freshness check failed: {type(e).__name__}: {e}"
-        )
+        logger.warning(f"[LOADER_STATUS] Freshness check failed: {type(e).__name__}: {e}")
         freshness = None
     response = list_response(loaders, total=len(loaders), limit=None, offset=None)
     response["data"]["status"] = "ok"
@@ -259,9 +245,7 @@ def _get_system_health(cur) -> dict:
 
     cur.execute("SELECT date FROM price_daily ORDER BY date DESC LIMIT 1")
     price_row = cur.fetchone()
-    last_price_date = next(
-        iter(safe_json_serialize(dict(price_row).values())), 0
-    ) if price_row else 0
+    last_price_date = next(iter(safe_json_serialize(dict(price_row).values())), 0) if price_row else 0
     if last_price_date:
         today = datetime.now(timezone.utc).date()
         age_days = (today - last_price_date).days
@@ -278,14 +262,10 @@ def _get_system_health(cur) -> dict:
                 expected -= timedelta(days=1)
             is_fresh = last_price_date >= expected
         except ImportError as e:
-            logger.warning(
-                f"[MARKET_CALENDAR] Import failed: {e} - falling back to age-based check"
-            )
+            logger.warning(f"[MARKET_CALENDAR] Import failed: {e} - falling back to age-based check")
             is_fresh = age_days <= 3
         except (psycopg2.DatabaseError, psycopg2.OperationalError) as e:
-            logger.warning(
-                f"[MARKET_CALENDAR] Error computing expected trading day: {type(e).__name__}: {e}"
-            )
+            logger.warning(f"[MARKET_CALENDAR] Error computing expected trading day: {type(e).__name__}: {e}")
             is_fresh = age_days <= 3
         health_data["components"]["data_freshness"] = "ok" if is_fresh else "stale"
         health_data["last_data_update"] = last_price_date.isoformat()
@@ -332,9 +312,7 @@ def _get_database_stats(cur) -> dict:
     # Count active connections without exposing table structure
     cur.execute("SELECT count(*) FROM pg_stat_activity WHERE state != 'idle'")
     conn_row = cur.fetchone()
-    stats["active_connections"] = next(
-        iter(safe_json_serialize(dict(conn_row).values())), 0
-    ) if conn_row else 0
+    stats["active_connections"] = next(iter(safe_json_serialize(dict(conn_row).values())), 0) if conn_row else 0
 
     # Get high-level DB size without exposing individual table names
     cur.execute("""
@@ -342,9 +320,7 @@ def _get_database_stats(cur) -> dict:
     """)
     size_row = cur.fetchone()
     stats["total_database_size"] = (
-        safe_json_serialize(dict(size_row)).get("total_size", "unknown")
-        if size_row
-        else "unknown"
+        safe_json_serialize(dict(size_row)).get("total_size", "unknown") if size_row else "unknown"
     )
 
     # Check if any tables exist without revealing names
@@ -353,11 +329,7 @@ def _get_database_stats(cur) -> dict:
         WHERE table_schema NOT IN ('pg_catalog', 'information_schema')
     """)
     table_count_row = cur.fetchone()
-    stats["table_count"] = (
-        safe_json_serialize(dict(table_count_row)).get("table_count", 0)
-        if table_count_row
-        else 0
-    )
+    stats["table_count"] = safe_json_serialize(dict(table_count_row)).get("table_count", 0) if table_count_row else 0
 
     stats["timestamp"] = datetime.now(timezone.utc).isoformat()
     return json_response(200, stats)
@@ -374,9 +346,7 @@ def _get_data_quality(cur) -> dict:
         WHERE close IS NULL OR open IS NULL OR high IS NULL OR low IS NULL
     """)
     null_row = cur.fetchone()
-    null_prices = next(
-        iter(safe_json_serialize(dict(null_row).values())), 0
-    ) if null_row else 0
+    null_prices = next(iter(safe_json_serialize(dict(null_row).values())), 0) if null_row else 0
     quality["checks"]["null_prices"] = {
         "count": null_prices,
         "status": "ok" if null_prices == 0 else "warning",
@@ -390,9 +360,7 @@ def _get_data_quality(cur) -> dict:
         ) t
     """)
     dup_row = cur.fetchone()
-    duplicate_prices = next(
-        iter(safe_json_serialize(dict(dup_row).values())), 0
-    ) if dup_row else 0
+    duplicate_prices = next(iter(safe_json_serialize(dict(dup_row).values())), 0) if dup_row else 0
     quality["checks"]["duplicate_prices"] = {
         "count": duplicate_prices,
         "status": "ok" if duplicate_prices == 0 else "warning",
@@ -403,9 +371,7 @@ def _get_data_quality(cur) -> dict:
         WHERE high < low OR close > high OR close < low
     """)
     invalid_row = cur.fetchone()
-    invalid_prices = next(
-        iter(safe_json_serialize(dict(invalid_row).values())), 0
-    ) if invalid_row else 0
+    invalid_prices = next(iter(safe_json_serialize(dict(invalid_row).values())), 0) if invalid_row else 0
     quality["checks"]["invalid_price_ranges"] = {
         "count": invalid_prices,
         "status": "ok" if invalid_prices == 0 else "error",
@@ -451,13 +417,8 @@ def _verify_user_email(body: dict | None = None) -> dict:
 
         # Validate Cognito response
         if not isinstance(response, dict):
-            logger.error(
-                f"Invalid Cognito response type: {type(response).__name__}. "
-                f"Expected dict."
-            )
-            return error_response(
-                503, "cognito_error", "Invalid response from Cognito service"
-            )
+            logger.error(f"Invalid Cognito response type: {type(response).__name__}. Expected dict.")
+            return error_response(503, "cognito_error", "Invalid response from Cognito service")
 
         # Check for error in response
         if response.get("Error"):
@@ -468,10 +429,7 @@ def _verify_user_email(body: dict | None = None) -> dict:
         # Verify HTTP status indicates success
         http_status = response.get("ResponseMetadata").get("HTTPStatusCode")
         if http_status not in (200, 201):
-            logger.error(
-                f"Cognito returned unexpected status code: {http_status}. "
-                f"Expected 200 or 201."
-            )
+            logger.error(f"Cognito returned unexpected status code: {http_status}. Expected 200 or 201.")
             return error_response(
                 503,
                 "cognito_error",
@@ -490,8 +448,6 @@ def _verify_user_email(body: dict | None = None) -> dict:
     except Exception as e:
         error_str = str(e)
         if "UserNotFoundException" in error_str:
-            return error_response(
-                404, "not_found", f'User not found: {body.get("username")}'
-            )
+            return error_response(404, "not_found", f"User not found: {body.get('username')}")
         logger.error(f"Failed to verify email: {e}")
         return error_response(503, "service_unavailable", "Failed to verify email with Cognito service")

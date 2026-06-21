@@ -23,6 +23,7 @@ from datetime import date, datetime
 from typing import Optional
 from zoneinfo import ZoneInfo
 
+import psycopg2
 import yfinance as yf
 
 from utils.db.context import DatabaseContext
@@ -40,13 +41,12 @@ class OptionsLoader:
 
     def __init__(self):
         self.batch_size = 50
-        self._circuit_breaker = CircuitBreaker(
-            name="yfinance_options",
-            importance=DataImportance.OPTIONAL
+        self._circuit_breaker = CircuitBreaker(name="yfinance_options", importance=DataImportance.OPTIONAL)
+        self._freshness_validator = FreshnessValidator(
+            max_age_hours={
+                "options_data": 24.0,
+            }
         )
-        self._freshness_validator = FreshnessValidator(max_age_hours={
-            "options_data": 24.0,
-        })
 
     def run(self, symbols: list | None = None, eval_date: date | None = None) -> dict:
         """Load options data for all symbols."""
@@ -112,9 +112,7 @@ class OptionsLoader:
                 puts_df = chain.puts
 
                 if not calls_df.empty or not puts_df.empty:
-                    chains_inserted = self._insert_options_chains(
-                        cur, symbol, calls_df, puts_df, eval_date
-                    )
+                    chains_inserted = self._insert_options_chains(cur, symbol, calls_df, puts_df, eval_date)
             except Exception as e:
                 logger.warning(f"Failed to get chain for {symbol}: {e}")
 
@@ -129,9 +127,7 @@ class OptionsLoader:
 
         return chains_inserted, iv_inserted
 
-    def _insert_options_chains(
-        self, cur, symbol: str, calls_df, puts_df, eval_date: date
-    ) -> int:
+    def _insert_options_chains(self, cur, symbol: str, calls_df, puts_df, eval_date: date) -> int:
         """Insert options chain data (put/call volumes)."""
         inserted = 0
 

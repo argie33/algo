@@ -186,9 +186,7 @@ def _industry_list(cur, params):
     """,
         timeout_sec=10,
     )
-    total = (
-        int(count_rows[0].get("cnt", 0) if count_rows else 0) if count_rows else 0
-    )
+    total = int(count_rows[0].get("cnt", 0) if count_rows else 0) if count_rows else 0
 
     industries = []
     for _idx, row in enumerate(industries_data):
@@ -199,12 +197,16 @@ def _industry_list(cur, params):
         momentum_label = (
             "Strong"
             if composite is not None and composite >= 60
-            else "Moderate" if composite is not None and composite >= 45 else "Weak"
+            else "Moderate"
+            if composite is not None and composite >= 45
+            else "Weak"
         )
         trend_label = (
             "Uptrend"
             if perf_20d is not None and perf_20d > 2
-            else "Downtrend" if perf_20d is not None and perf_20d < -2 else "Sideways"
+            else "Downtrend"
+            if perf_20d is not None and perf_20d < -2
+            else "Sideways"
         )
 
         current_rank = ind.get("current_rank")
@@ -217,26 +219,10 @@ def _industry_list(cur, params):
                 "sector": ind.get("sector"),
                 "current_rank": int(current_rank),
                 "overall_rank": int(current_rank),
-                "rank_1w_ago": (
-                    int(ind.get("rank_1w_ago"))
-                    if ind.get("rank_1w_ago") is not None
-                    else None
-                ),
-                "rank_4w_ago": (
-                    int(ind.get("rank_4w_ago"))
-                    if ind.get("rank_4w_ago") is not None
-                    else None
-                ),
-                "rank_12w_ago": (
-                    int(ind.get("rank_12w_ago"))
-                    if ind.get("rank_12w_ago") is not None
-                    else None
-                ),
-                "stock_count": (
-                    int(ind.get("stock_count"))
-                    if ind.get("stock_count") is not None
-                    else None
-                ),
+                "rank_1w_ago": (int(ind.get("rank_1w_ago")) if ind.get("rank_1w_ago") is not None else None),
+                "rank_4w_ago": (int(ind.get("rank_4w_ago")) if ind.get("rank_4w_ago") is not None else None),
+                "rank_12w_ago": (int(ind.get("rank_12w_ago")) if ind.get("rank_12w_ago") is not None else None),
+                "stock_count": (int(ind.get("stock_count")) if ind.get("stock_count") is not None else None),
                 "composite_score": composite,
                 "momentum_score": _sf(ind.get("momentum_score")),
                 "value_score": _sf(ind.get("value_score")),
@@ -256,9 +242,7 @@ def _industry_list(cur, params):
             }
         )
 
-    freshness = check_data_freshness(
-        cur, "industry_ranking", "date_recorded", warning_days=1
-    )
+    freshness = check_data_freshness(cur, "industry_ranking", "date_recorded", warning_days=1)
     result = {
         "items": industries,
         "total": total,
@@ -303,9 +287,7 @@ def _industry_detail(cur, industry_name):
     freshness = check_data_freshness(cur, "stock_scores", "date", warning_days=1)
     result = {
         "industry_name": r.get("industry_name"),
-        "stock_count": (
-            int(r.get("stock_count")) if r.get("stock_count") is not None else None
-        ),
+        "stock_count": (int(r.get("stock_count")) if r.get("stock_count") is not None else None),
         "composite_score": _sf(r.get("composite_score")),
         "momentum_score": _sf(r.get("momentum_score")),
         "value_score": _sf(r.get("value_score")),
@@ -360,14 +342,8 @@ def _industry_trend(cur, industry_name, params):
         {
             "date": str(r["date"]),
             "avgPrice": float(r["avg_price"]) if r["avg_price"] is not None else None,
-            "stockCount": (
-                int(r["stock_count"]) if r["stock_count"] is not None else None
-            ),
-            "dailyStrengthScore": (
-                float(r["daily_strength_score"])
-                if r["daily_strength_score"] is not None
-                else None
-            ),
+            "stockCount": (int(r["stock_count"]) if r["stock_count"] is not None else None),
+            "dailyStrengthScore": (float(r["daily_strength_score"]) if r["daily_strength_score"] is not None else None),
         }
         for r in rows
     ]

@@ -29,6 +29,7 @@ logger = logging.getLogger(__name__)
 
 class StaleDataError(Exception):
     """Raised when data exceeds freshness threshold."""
+
     def __init__(
         self,
         data_name: str,
@@ -43,10 +44,7 @@ class StaleDataError(Exception):
 
         hours = age.total_seconds() / 3600
         max_hours = max_age.total_seconds() / 3600
-        message = (
-            f"Data '{data_name}' is too stale: {hours:.1f} hours old "
-            f"(max allowed: {max_hours:.1f} hours)"
-        )
+        message = f"Data '{data_name}' is too stale: {hours:.1f} hours old (max allowed: {max_hours:.1f} hours)"
         if last_update:
             message += f". Last update: {last_update.isoformat()}"
 
@@ -72,11 +70,9 @@ class FreshnessValidator:
         "vix": 1.0,  # 1 hour (markets update intraday)
         "spy_close": 1.0,  # 1 hour (last trading day's close)
         "portfolio_value": 24.0,  # 1 day (portfolio snapshots)
-
         # Signal-critical data (generation): < 1 hour old
         "technical_indicators": 1.0,
         "market_breadth": 1.0,
-
         # Enrichment data (optional): < 2 hours old
         "put_call_ratio": 2.0,
         "yield_curve": 2.0,
@@ -123,10 +119,7 @@ class FreshnessValidator:
             raise ValueError(f"Data '{data_name}' is missing (last_update=None)")
 
         if data_name not in self.max_age_hours:
-            raise ValueError(
-                f"Unknown data type '{data_name}'. "
-                f"Known types: {list(self.max_age_hours.keys())}"
-            )
+            raise ValueError(f"Unknown data type '{data_name}'. Known types: {list(self.max_age_hours.keys())}")
 
         # Ensure datetime objects are timezone-aware
         if last_update.tzinfo is None:
@@ -179,10 +172,7 @@ class FreshnessValidator:
             )
 
         age_hours = age.total_seconds() / 3600
-        logger.debug(
-            f"[FRESHNESS_OK] {data_name}: {age_hours:.2f}h old "
-            f"(threshold: {self.max_age_hours[data_name]}h)"
-        )
+        logger.debug(f"[FRESHNESS_OK] {data_name}: {age_hours:.2f}h old (threshold: {self.max_age_hours[data_name]}h)")
         return True
 
     def check_all(
@@ -230,16 +220,20 @@ class FreshnessValidator:
     @classmethod
     def for_critical_market_data(cls) -> "FreshnessValidator":
         """Create validator for critical position-sizing data."""
-        return cls(max_age_hours={
-            "vix": 1.0,
-            "spy_close": 1.0,
-            "portfolio_value": 24.0,
-        })
+        return cls(
+            max_age_hours={
+                "vix": 1.0,
+                "spy_close": 1.0,
+                "portfolio_value": 24.0,
+            }
+        )
 
     @classmethod
     def for_signal_generation(cls) -> "FreshnessValidator":
         """Create validator for signal generation data."""
-        return cls(max_age_hours={
-            "technical_indicators": 1.0,
-            "market_breadth": 1.0,
-        })
+        return cls(
+            max_age_hours={
+                "technical_indicators": 1.0,
+                "market_breadth": 1.0,
+            }
+        )

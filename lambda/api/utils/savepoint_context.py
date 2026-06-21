@@ -9,7 +9,6 @@ import psycopg2
 logger = logging.getLogger(__name__)
 
 
-
 @contextmanager
 def savepoint_context(cur, savepoint_name: str, fallback_value=None, log_errors=True):
     """Context manager for SAVEPOINT blocks with automatic rollback on error.

@@ -18,7 +18,7 @@ Usage:
 
 import logging
 from datetime import date, datetime, timezone
-from typing import Any, Dict, List, Optional, Tuple, cast
+from typing import Any, cast
 
 
 logger = logging.getLogger(__name__)
@@ -152,7 +152,7 @@ FRESHNESS_RULES = {
 }
 
 
-def get_freshness_rule(table_name: str) -> Optional[Dict[str, Any]]:
+def get_freshness_rule(table_name: str) -> dict[str, Any] | None:
     """Get freshness rule for a table.
 
     Args:
@@ -166,9 +166,9 @@ def get_freshness_rule(table_name: str) -> Optional[Dict[str, Any]]:
 
 def is_table_fresh(
     table_name: str,
-    latest_date: Optional[Any],
-    current_date: Optional[date] = None,
-) -> Tuple[bool, Optional[float], str]:
+    latest_date: Any | None,
+    current_date: date | None = None,
+) -> tuple[bool, float | None, str]:
     """Check if a table's latest data is fresh (within threshold).
 
     Args:
@@ -236,9 +236,9 @@ def is_table_fresh(
 
 
 def check_multiple_tables(
-    tables_and_dates: Dict[str, Optional[Any]],
-    current_date: Optional[date] = None,
-) -> Tuple[bool, List[str], List[str]]:
+    tables_and_dates: dict[str, Any | None],
+    current_date: date | None = None,
+) -> tuple[bool, list[str], list[str]]:
     """Check freshness of multiple tables at once.
 
     Args:
@@ -264,7 +264,7 @@ def check_multiple_tables(
     return all_fresh, stale_tables, messages
 
 
-def get_max_age_minutes(table_name: str) -> Optional[int]:
+def get_max_age_minutes(table_name: str) -> int | None:
     """Get max age in minutes for a table (convenience function).
 
     Args:
@@ -297,7 +297,7 @@ def is_critical_table(table_name: str) -> bool:
 # ============================================================================
 
 
-def minutes_since(timestamp: Optional[Any]) -> float:
+def minutes_since(timestamp: Any | None) -> float:
     """Calculate minutes elapsed since a timestamp.
 
     Args:

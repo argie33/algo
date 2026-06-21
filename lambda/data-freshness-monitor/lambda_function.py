@@ -75,16 +75,16 @@ def _get_db_connection():
 # and must NOT be here; setting the halt flag for them would block all trading whenever
 # these auxiliary tables are more than a few days old (e.g. after a 3-day weekend).
 _HALT_TABLES = {
-    "price_daily":           ("prices",         2),
-    "market_health_daily":   ("market health",  2),
+    "price_daily": ("prices", 2),
+    "market_health_daily": ("market health", 2),
     "market_exposure_daily": ("market exposure", 2),
 }
 
 # Warn-only tables — logged for visibility but never trigger a halt flag.
 _WARN_TABLES = {
-    "swing_trader_scores": ("swing scores",   5),
+    "swing_trader_scores": ("swing scores", 5),
     "trend_template_data": ("trend template", 5),
-    "sector_ranking":      ("sector data",    5),
+    "sector_ranking": ("sector data", 5),
 }
 
 _CRITICAL_TABLES = {**_HALT_TABLES, **_WARN_TABLES}
@@ -119,9 +119,7 @@ def _check_critical_table_freshness() -> dict:
                 age_days = (now_date - max_date).days
                 if age_days > max_age_days:
                     msg = f"{description} ({age_days}d old)"
-                    logger.warning(
-                        f"[FRESHNESS] {description}: {age_days}d old (max {max_age_days}d)"
-                    )
+                    logger.warning(f"[FRESHNESS] {description}: {age_days}d old (max {max_age_days}d)")
                     age_details[table_name] = {"status": "stale", "age_days": age_days}
                     if is_halt_table:
                         halt_stale.append(msg)
@@ -151,9 +149,19 @@ def _check_critical_table_freshness() -> dict:
         # logged above but never trigger a halt flag — Phase 1 treats them as warnings.
         all_stale = halt_stale + warn_stale
         if len(halt_stale) > 2:
-            return {"status": "critical", "stale_tables": all_stale, "halt_stale": halt_stale, "age_details": age_details}
+            return {
+                "status": "critical",
+                "stale_tables": all_stale,
+                "halt_stale": halt_stale,
+                "age_details": age_details,
+            }
         if halt_stale:
-            return {"status": "degraded", "stale_tables": all_stale, "halt_stale": halt_stale, "age_details": age_details}
+            return {
+                "status": "degraded",
+                "stale_tables": all_stale,
+                "halt_stale": halt_stale,
+                "age_details": age_details,
+            }
         return {"status": "ok", "stale_tables": all_stale, "halt_stale": [], "age_details": age_details}
 
     except Exception as e:
@@ -176,9 +184,7 @@ def _set_halt_flag_atomically(reason: str) -> bool:
     # Write to DynamoDB (cache) as best-effort if RDS succeeded
     if rds_success:
         ddb_success = _set_halt_flag_dynamodb(reason, now_utc)
-        logger.critical(
-            f"[FRESHNESS] Halt flag set: RDS=True, DynamoDB={ddb_success}, reason={reason}"
-        )
+        logger.critical(f"[FRESHNESS] Halt flag set: RDS=True, DynamoDB={ddb_success}, reason={reason}")
         return True
 
     logger.error(f"[FRESHNESS] Failed to set halt flag in RDS (source of truth): {reason}")
@@ -190,7 +196,8 @@ def _set_halt_flag_rds(reason: str, now_utc: datetime) -> bool:
     try:
         conn = _get_db_connection()
         cur = conn.cursor()
-        cur.execute("""
+        cur.execute(
+            """
             INSERT INTO algo_runtime_state (
                 state_key, state_value, halt_flag, halt_triggered_at,
                 halt_reason, halt_count, updated_by, expires_at
@@ -202,16 +209,18 @@ def _set_halt_flag_rds(reason: str, now_utc: datetime) -> bool:
                 halt_count = EXCLUDED.halt_count,
                 last_updated_at = CURRENT_TIMESTAMP,
                 expires_at = EXCLUDED.expires_at
-        """, (
-            "orchestrator_halt",
-            json.dumps({"halt_flag": True, "triggered_at": now_utc.isoformat(), "reason": reason}),
-            True,
-            now_utc.isoformat(),
-            reason,
-            1,
-            "data_freshness_monitor",
-            (now_utc.timestamp() + 86400),  # 24 hours from now
-        ))
+        """,
+            (
+                "orchestrator_halt",
+                json.dumps({"halt_flag": True, "triggered_at": now_utc.isoformat(), "reason": reason}),
+                True,
+                now_utc.isoformat(),
+                reason,
+                1,
+                "data_freshness_monitor",
+                (now_utc.timestamp() + 86400),  # 24 hours from now
+            ),
+        )
         conn.commit()
         cur.close()
         conn.close()
@@ -228,13 +237,15 @@ def _set_halt_flag_dynamodb(reason: str, now_utc: datetime) -> bool:
     try:
         ddb = boto3.resource("dynamodb", region_name=os.environ.get("AWS_REGION", "us-east-1"))
         table = ddb.Table(table_name)
-        table.put_item(Item={
-            "key": "orchestrator_halt",
-            "halt_flag": True,
-            "halt_reason": reason,
-            "halt_triggered_at": now_utc.isoformat(),
-            "source": "data_freshness_monitor",
-        })
+        table.put_item(
+            Item={
+                "key": "orchestrator_halt",
+                "halt_flag": True,
+                "halt_reason": reason,
+                "halt_triggered_at": now_utc.isoformat(),
+                "source": "data_freshness_monitor",
+            }
+        )
         logger.debug(f"[FRESHNESS] Set halt flag in DynamoDB: {reason}")
         return True
     except Exception as e:
@@ -251,22 +262,20 @@ def lambda_handler(event, context):
     # but must never trigger the halt flag — Phase 1 treats them as non-blocking warnings.
     halt_stale = freshness.get("halt_stale")
     if halt_stale:
-        logger.critical(
-            f"[FRESHNESS] HALT-table staleness detected: {halt_stale}"
-        )
+        logger.critical(f"[FRESHNESS] HALT-table staleness detected: {halt_stale}")
         reason = f"Critical pipeline data stale: {'; '.join(halt_stale[:3])}"
         _set_halt_flag_atomically(reason)
     elif freshness["status"] in ["degraded", "critical"]:
-        logger.warning(
-            f"[FRESHNESS] Warn-only staleness (no halt): {freshness.get('stale_tables')}"
-        )
+        logger.warning(f"[FRESHNESS] Warn-only staleness (no halt): {freshness.get('stale_tables')}")
 
     return {
         "statusCode": 200 if freshness["status"] == "ok" else 202,
-        "body": json.dumps({
-            "status": freshness["status"],
-            "stale_tables": freshness.get("stale_tables"),
-            "age_details": freshness.get("age_details"),
-            "timestamp": datetime.now(timezone.utc).isoformat(),
-        }),
+        "body": json.dumps(
+            {
+                "status": freshness["status"],
+                "stale_tables": freshness.get("stale_tables"),
+                "age_details": freshness.get("age_details"),
+                "timestamp": datetime.now(timezone.utc).isoformat(),
+            }
+        ),
     }

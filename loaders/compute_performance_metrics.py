@@ -66,9 +66,7 @@ def compute_performance_metrics(cur, metric_date: date | None = None) -> dict[st
         if not trades:
             # No trades, use defaults
             _insert_default_metrics(cur, metric_date)
-            logger.info(
-                f"No trades (closed or open with current price) for {metric_date}, inserted defaults"
-            )
+            logger.info(f"No trades (closed or open with current price) for {metric_date}, inserted defaults")
             return None
 
         # Extract metrics from trades
@@ -125,9 +123,7 @@ def compute_performance_metrics(cur, metric_date: date | None = None) -> dict[st
             metrics["avg_loss_pct"] = 0.0
 
         metrics["avg_holding_days"] = (
-            round(sum(holding_days_list) / len(holding_days_list), 1)
-            if holding_days_list
-            else 0.0
+            round(sum(holding_days_list) / len(holding_days_list), 1) if holding_days_list else 0.0
         )
 
         # Streak metrics
@@ -136,9 +132,7 @@ def compute_performance_metrics(cur, metric_date: date | None = None) -> dict[st
         metrics["worst_loss_streak"] = worst_loss_streak
 
         # Advanced metrics from portfolio snapshots
-        sharpe, sortino, max_dd, cagr, calmar = _compute_advanced_metrics(
-            cur, metric_date
-        )
+        sharpe, sortino, max_dd, cagr, calmar = _compute_advanced_metrics(cur, metric_date)
         metrics["sharpe_ratio"] = round(sharpe, 4)
         metrics["sortino_ratio"] = round(sortino, 4)
         metrics["max_drawdown_pct"] = round(max_dd * 100, 2)  # Convert to percentage
@@ -151,7 +145,7 @@ def compute_performance_metrics(cur, metric_date: date | None = None) -> dict[st
         logger.info(
             f"Performance metrics computed for {metric_date}: "
             f"{total_trades} trades, {winning} wins, {losing} losses, "
-            f'sharpe={metrics["sharpe_ratio"]}, max_dd={metrics["max_drawdown_pct"]}%'
+            f"sharpe={metrics['sharpe_ratio']}, max_dd={metrics['max_drawdown_pct']}%"
         )
 
         return metrics
@@ -242,8 +236,7 @@ def _compute_advanced_metrics(cur, metric_date: date):
 
     except Exception as e:
         raise RuntimeError(
-            f"[PERFORMANCE_METRICS] Failed to compute metrics: {e}. "
-            "Cannot report zeros—requires authoritative data."
+            f"[PERFORMANCE_METRICS] Failed to compute metrics: {e}. Cannot report zeros—requires authoritative data."
         )
 
 
@@ -360,9 +353,7 @@ def _insert_performance_metrics(cur, metric_date: date, metrics: dict):
 def main():
     """Main entry point for the loader."""
     try:
-        with DatabaseContext(
-            "write", cursor_factory=psycopg2.extras.RealDictCursor
-        ) as cur:
+        with DatabaseContext("write", cursor_factory=psycopg2.extras.RealDictCursor) as cur:
             compute_performance_metrics(cur)
             logger.info("Performance metrics loader completed successfully")
     except (psycopg2.DatabaseError, psycopg2.OperationalError) as e:

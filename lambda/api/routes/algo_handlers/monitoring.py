@@ -29,11 +29,8 @@ from shared_contracts.response_validator import ResponseValidator
 logger = logging.getLogger(__name__)
 
 
-
 @db_route_handler("get algo audit log")
-def _get_algo_audit_log(
-    cur, limit: int = 100, offset: int = 0, action_type: str = None
-) -> dict:
+def _get_algo_audit_log(cur, limit: int = 100, offset: int = 0, action_type: str | None = None) -> dict:
     """Return algo audit log entries with pagination."""
     if action_type:
         cur.execute(
@@ -78,6 +75,7 @@ def _get_algo_audit_log(
 
 # FIXED Issue #6: Orchestrator execution history endpoints
 
+
 @db_route_handler("get last run")
 def _get_last_run(cur) -> dict:
     """Get the most recent orchestrator run with per-phase status."""
@@ -91,9 +89,7 @@ def _get_last_run(cur) -> dict:
     """)
     latest = cur.fetchone()
     if not latest or not latest["run_id"]:
-        return json_response(
-            200, {"run_id": None, "run_at": None, "halted": False, "phases": []}
-        )
+        return json_response(200, {"run_id": None, "run_at": None, "halted": False, "phases": []})
 
     run_id = latest["run_id"]
     run_at = latest["run_at"]
@@ -129,9 +125,8 @@ def _get_last_run(cur) -> dict:
     return json_response(200, response_data)
 
 
-
 @db_route_handler("fetch notifications")
-def _get_notifications(cur, params: dict = None, jwt_claims: dict = None) -> dict:
+def _get_notifications(cur, params: dict | None = None, jwt_claims: dict | None = None) -> dict:
     """Get recent notifications. System broadcasts visible to all authenticated users."""
     try:
         params = params or {}
@@ -185,9 +180,7 @@ def _get_notifications(cur, params: dict = None, jwt_claims: dict = None) -> dic
 
         cur.execute(query, tuple(where_params))
         notifs = cur.fetchall()
-        response = list_response(
-            [safe_json_serialize(safe_dict_convert(n)) for n in notifs]
-        )
+        response = list_response([safe_json_serialize(safe_dict_convert(n)) for n in notifs])
 
         # Validate notifications response against contract schema
         is_valid, error_msg = ResponseValidator.validate_endpoint_response("notifs", response["data"])
@@ -207,7 +200,6 @@ def _get_notifications(cur, params: dict = None, jwt_claims: dict = None) -> dic
         return error_response(code, error_type, message)
 
 
-
 @db_route_handler("get patrol log")
 def _get_patrol_log(cur, limit: int = 50, offset: int = 0) -> dict:
     """Get data patrol findings with pagination."""
@@ -225,10 +217,7 @@ def _get_patrol_log(cur, limit: int = 50, offset: int = 0) -> dict:
         (limit, offset),
     )
     findings = cur.fetchall()
-    return list_response(
-        [safe_json_serialize(safe_dict_convert(f)) for f in findings], total=total
-    )
-
+    return list_response([safe_json_serialize(safe_dict_convert(f)) for f in findings], total=total)
 
 
 @db_route_handler("trigger data patrol")
@@ -239,18 +228,12 @@ def _trigger_data_patrol() -> dict:
 
         cluster_arn = os.getenv("ECS_CLUSTER_ARN", "")
         task_def_arn = os.getenv("PATROL_TASK_DEFINITION_ARN", "")
-        subnet_ids = (
-            os.getenv("PATROL_SUBNET_IDS", "").split(",")
-            if os.getenv("PATROL_SUBNET_IDS")
-            else []
-        )
+        subnet_ids = os.getenv("PATROL_SUBNET_IDS", "").split(",") if os.getenv("PATROL_SUBNET_IDS") else []
         sg_id = os.getenv("PATROL_SECURITY_GROUP_ID", "")
 
         # FIXED Issue #19: Validate patrol task definition before attempting to run
         if not cluster_arn or not task_def_arn:
-            logger.error(
-                "Patrol task not configured (missing ECS_CLUSTER_ARN or PATROL_TASK_DEFINITION_ARN)"
-            )
+            logger.error("Patrol task not configured (missing ECS_CLUSTER_ARN or PATROL_TASK_DEFINITION_ARN)")
             return error_response(
                 400,
                 "bad_request",
@@ -260,9 +243,7 @@ def _trigger_data_patrol() -> dict:
         # Validate task definition ARN format
         if not task_def_arn.startswith("arn:aws:ecs:"):
             logger.error(f"Invalid patrol task definition ARN format: {task_def_arn}")
-            return error_response(
-                400, "bad_request", "Invalid patrol task definition configuration"
-            )
+            return error_response(400, "bad_request", "Invalid patrol task definition configuration")
 
         # Attempt to validate task definition exists (early fail if misconfigured)
         try:
@@ -271,9 +252,7 @@ def _trigger_data_patrol() -> dict:
         except ClientError as desc_err:
             if desc_err.response["Error"]["Code"] == "ClientException":
                 logger.error(f"Patrol task definition not found: {task_def_arn}")
-                return error_response(
-                    400, "bad_request", "Patrol task definition not found"
-                )
+                return error_response(400, "bad_request", "Patrol task definition not found")
             raise  # Re-raise other errors to be caught by outer exception handler
 
         response = ecs.run_task(
@@ -307,26 +286,18 @@ def _trigger_data_patrol() -> dict:
             )
         else:
             logger.error(f"Failed to run patrol task: {response.get('failures')}")
-            return error_response(
-                500, "internal_error", "Failed to trigger patrol task"
-            )
+            return error_response(500, "internal_error", "Failed to trigger patrol task")
     except ClientError as e:
         error_code = e.response["Error"]["Code"]
         if error_code == "ClusterNotFoundException":
             logger.error(f"ECS cluster not found: {error_code}")
-            return error_response(
-                503, "service_unavailable", "Patrol service not configured"
-            )
+            return error_response(503, "service_unavailable", "Patrol service not configured")
         elif error_code == "InvalidParameterException":
             logger.error(f"Invalid ECS parameters: {error_code}")
-            return error_response(
-                503, "service_unavailable", "Patrol service configuration invalid"
-            )
+            return error_response(503, "service_unavailable", "Patrol service configuration invalid")
         else:
             logger.error(f"AWS error triggering patrol: {error_code}", exc_info=True)
-            return error_response(
-                503, "service_unavailable", "Unable to trigger patrol service"
-            )
+            return error_response(503, "service_unavailable", "Unable to trigger patrol service")
     except (
         psycopg2.errors.UndefinedTable,
         psycopg2.errors.UndefinedColumn,
@@ -336,6 +307,3 @@ def _trigger_data_patrol() -> dict:
     ) as e:
         code, error_type, message = handle_db_error(e, "trigger data patrol")
         return error_response(code, error_type, message)
-
-
-

@@ -30,7 +30,6 @@ from utils.validation import (
 logger = logging.getLogger(__name__)
 
 
-
 def _ensure_portfolio_fields(data: dict) -> dict:
     """Validate portfolio response has all required fields. Fail-fast if missing.
 
@@ -83,9 +82,7 @@ def _get_algo_metrics(cur) -> dict:
         if date is None:
             return error_response(503, "incomplete_data", "Algo metrics date missing")
         if total_actions is None or entries is None or exits is None:
-            return error_response(
-                503, "incomplete_data", "Algo metrics incomplete (missing actions/entries/exits)"
-            )
+            return error_response(503, "incomplete_data", "Algo metrics incomplete (missing actions/entries/exits)")
 
         total_actions = int(total_actions)
         entries = int(entries)
@@ -120,7 +117,6 @@ def _get_algo_metrics(cur) -> dict:
     ) as e:
         code, error_type, message = handle_db_error(e, "fetch algo metrics")
         return error_response(code, error_type, message)
-
 
 
 @db_route_handler("calculate performance")
@@ -161,7 +157,6 @@ def _get_algo_performance(cur) -> dict:
         )
 
     try:
-
         metrics = safe_dict_convert(row)
         total_trades_raw = metrics.get("total_trades")
         winning_raw = metrics.get("winning_trades")
@@ -261,9 +256,7 @@ def _get_algo_performance(cur) -> dict:
                     lose_count = losing if losing is not None else 0
                     break_count = breakeven if breakeven is not None else 0
                     total_adj = win_count + lose_count + open_losses_count + break_count
-                    win_rate_pct_adjusted = round(
-                        (win_count / total_adj * 100) if total_adj > 0 else wr, 1
-                    )
+                    win_rate_pct_adjusted = round((win_count / total_adj * 100) if total_adj > 0 else wr, 1)
         except (ValueError, ZeroDivisionError, TypeError) as pe:
             logger.warning(f"Could not compute open losses: {pe}")
 
@@ -277,7 +270,6 @@ def _get_algo_performance(cur) -> dict:
                 wr_frac = wr / 100
                 expectancy_r = round(wr_frac * avg_wr + (1 - wr_frac) * avg_lr, 3)
         except (ValueError, ZeroDivisionError, TypeError) as e:
-
             raise RuntimeError(f"Unexpected error: {e}") from e
 
         # Equity curve values from portfolio snapshots for sparkline and recent returns strip (CRITICAL for performance panel)
@@ -297,9 +289,7 @@ def _get_algo_performance(cur) -> dict:
             snap_rows = cur.fetchall()
             if snap_rows:
                 equity_vals = [
-                    float(r["total_portfolio_value"])
-                    for r in snap_rows
-                    if r.get("total_portfolio_value") is not None
+                    float(r["total_portfolio_value"]) for r in snap_rows if r.get("total_portfolio_value") is not None
                 ]
                 # Last 10 in chronological order; panel takes [-5:] for the 5 most recent
                 recent_rets = [
@@ -307,15 +297,15 @@ def _get_algo_performance(cur) -> dict:
                         r["snapshot_date"].isoformat()
                         if hasattr(r["snapshot_date"], "isoformat")
                         else str(r["snapshot_date"]),
-                        float(r["daily_return_pct"])
-                        if r.get("daily_return_pct") is not None
-                        else 0.0,
+                        float(r["daily_return_pct"]) if r.get("daily_return_pct") is not None else 0.0,
                     ]
                     for r in snap_rows[-10:]
                 ]
         except (psycopg2.DatabaseError, psycopg2.OperationalError) as eq_err:
             logger.error(f"CRITICAL: Could not fetch equity sparkline data for performance: {eq_err}")
-            return error_response(503, "data_unavailable", f"Portfolio snapshot data unavailable: {type(eq_err).__name__}")
+            return error_response(
+                503, "data_unavailable", f"Portfolio snapshot data unavailable: {type(eq_err).__name__}"
+            )
         except (ValueError, ZeroDivisionError, TypeError) as eq_err:
             logger.error(f"CRITICAL: Equity data format error: {eq_err}")
             return error_response(500, "data_format_error", f"Portfolio data format invalid: {type(eq_err).__name__}")
@@ -329,11 +319,7 @@ def _get_algo_performance(cur) -> dict:
             "win_rate": fds(metrics.get("win_rate_pct"), 2, True),
             "win_rate_pct": fds(metrics.get("win_rate_pct"), 2, True),
             "win_rate_pct_adjusted": fds(win_rate_pct_adjusted, 1, True),
-            "win_rate_confidence": (
-                "high"
-                if win_loss_total >= 30
-                else ("medium" if win_loss_total >= 10 else "low")
-            ),
+            "win_rate_confidence": ("high" if win_loss_total >= 30 else ("medium" if win_loss_total >= 10 else "low")),
             "profit_factor": fds(metrics.get("profit_factor"), 2, True),
             "total_pnl_dollars": fds(metrics.get("total_pnl_dollars"), 2, True),
             "total_pnl_pct": fds(metrics.get("total_pnl_pct"), 2, True),
@@ -360,8 +346,12 @@ def _get_algo_performance(cur) -> dict:
             "avg_hold_days": fds(metrics.get("avg_holding_days"), 1, True),
             "avg_holding_days": fds(metrics.get("avg_holding_days"), 1, True),
             "portfolio_snapshots": len(equity_vals),
-            "best_win_streak": int(metrics.get("best_win_streak")) if metrics.get("best_win_streak") is not None else None,
-            "worst_loss_streak": int(metrics.get("worst_loss_streak")) if metrics.get("worst_loss_streak") is not None else None,
+            "best_win_streak": int(metrics.get("best_win_streak"))
+            if metrics.get("best_win_streak") is not None
+            else None,
+            "worst_loss_streak": int(metrics.get("worst_loss_streak"))
+            if metrics.get("worst_loss_streak") is not None
+            else None,
             "current_streak": current_streak,
             "equity_vals": equity_vals,
             "recent_rets": recent_rets,
@@ -390,7 +380,6 @@ def _get_algo_performance(cur) -> dict:
     ) as e:
         code, error_type, message = handle_db_error(e, "fetch performance metrics")
         return error_response(code, error_type, message)
-
 
 
 @db_route_handler("get algo portfolio")
@@ -433,21 +422,19 @@ def _get_algo_portfolio(cur) -> dict:
             "unrealized_pnl": {
                 "total_dollars": format_decimal_string(data.get("unrealized_pnl_total"), precision=2, allow_none=True),
                 "total_pct": format_decimal_string(data.get("unrealized_pnl_pct"), precision=2, allow_none=True),
-                "winning_positions": int(
-                    data.get("unrealized_pnl_winning_count")
-                ),
-                "losing_positions": int(
-                    data.get("unrealized_pnl_losing_count")
-                ),
-                "breakeven_positions": int(
-                    data.get("unrealized_pnl_breakeven_count")
-                ),
+                "winning_positions": int(data.get("unrealized_pnl_winning_count")),
+                "losing_positions": int(data.get("unrealized_pnl_losing_count")),
+                "breakeven_positions": int(data.get("unrealized_pnl_breakeven_count")),
                 "source": data.get("unrealized_pnl_source", "open_positions_only"),
                 "note": "Includes only open positions (no closed trades, no dividends)",
             },
-            "cumulative_return_pct": format_decimal_string(data.get("cumulative_return_pct"), precision=2, allow_none=True),
+            "cumulative_return_pct": format_decimal_string(
+                data.get("cumulative_return_pct"), precision=2, allow_none=True
+            ),
             "max_drawdown_pct": format_decimal_string(data.get("max_drawdown_pct"), precision=2, allow_none=True),
-            "largest_position_pct": format_decimal_string(data.get("largest_position_pct"), precision=2, allow_none=True),
+            "largest_position_pct": format_decimal_string(
+                data.get("largest_position_pct"), precision=2, allow_none=True
+            ),
             "last_run": data.get("snapshot_date"),
         }
         validated_data = _ensure_portfolio_fields(response_data)
@@ -467,7 +454,6 @@ def _get_algo_portfolio(cur) -> dict:
         return error_response(503, "service_error", f"Portfolio service error: {type(e).__name__}")
 
 
-
 @db_route_handler("get daily return histogram")
 def _get_daily_return_histogram(cur) -> dict:
     """Return histogram of daily portfolio returns with stats."""
@@ -479,11 +465,7 @@ def _get_daily_return_histogram(cur) -> dict:
         LIMIT 250
     """)
     rows = cur.fetchall()
-    returns = [
-        float(r["daily_return_pct"])
-        for r in rows
-        if r.get("daily_return_pct") is not None
-    ]
+    returns = [float(r["daily_return_pct"]) for r in rows if r.get("daily_return_pct") is not None]
 
     if not returns:
         response = list_response([], total=0, limit=None, offset=None)
@@ -508,8 +490,7 @@ def _get_daily_return_histogram(cur) -> dict:
             buckets_dict[bucket_mid] += 1
 
     buckets = [
-        {"mid": format_decimal_string(mid, precision=2), "count": count}
-        for mid, count in sorted(buckets_dict.items())
+        {"mid": format_decimal_string(mid, precision=2), "count": count} for mid, count in sorted(buckets_dict.items())
     ]
 
     mean_ret = sum(returns) / len(returns)
@@ -526,7 +507,6 @@ def _get_daily_return_histogram(cur) -> dict:
     return response
 
 
-
 @db_route_handler("get holding period distribution")
 def _get_holding_period_distribution(cur) -> dict:
     """Return distribution of position holding periods in days."""
@@ -541,11 +521,7 @@ def _get_holding_period_distribution(cur) -> dict:
         LIMIT 500
     """)
     rows = cur.fetchall()
-    durations = [
-        int(r["trade_duration_days"])
-        for r in rows
-        if r.get("trade_duration_days") is not None
-    ]
+    durations = [int(r["trade_duration_days"]) for r in rows if r.get("trade_duration_days") is not None]
 
     if not durations:
         return list_response([], total=0, limit=None, offset=None)
@@ -583,7 +559,6 @@ def _get_holding_period_distribution(cur) -> dict:
     return list_response(filtered_buckets, total=len(filtered_buckets), limit=None, offset=None)
 
 
-
 @db_route_handler("get performance analytics")
 def _get_performance_analytics(cur) -> dict:
     """Get performance analytics data. Fail-fast if unavailable."""
@@ -612,14 +587,20 @@ def _get_performance_analytics(cur) -> dict:
         data = safe_dict_convert(row)
         return success_response(
             {
-                "rolling_sharpe_252d": float(data.get("rolling_sharpe_252d")) if data.get("rolling_sharpe_252d") is not None else None,
-                "rolling_sortino_252d": float(data.get("rolling_sortino_252d")) if data.get("rolling_sortino_252d") is not None else None,
+                "rolling_sharpe_252d": float(data.get("rolling_sharpe_252d"))
+                if data.get("rolling_sharpe_252d") is not None
+                else None,
+                "rolling_sortino_252d": float(data.get("rolling_sortino_252d"))
+                if data.get("rolling_sortino_252d") is not None
+                else None,
                 "calmar_ratio": float(data.get("calmar_ratio")) if data.get("calmar_ratio") is not None else None,
                 "win_rate_50t": float(data.get("win_rate_50t")) if data.get("win_rate_50t") is not None else None,
                 "avg_win_r_50t": float(data.get("avg_win_r_50t")) if data.get("avg_win_r_50t") is not None else None,
                 "avg_loss_r_50t": float(data.get("avg_loss_r_50t")) if data.get("avg_loss_r_50t") is not None else None,
                 "expectancy": float(data.get("expectancy")) if data.get("expectancy") is not None else None,
-                "max_drawdown_pct": float(data.get("max_drawdown_pct")) if data.get("max_drawdown_pct") is not None else None,
+                "max_drawdown_pct": float(data.get("max_drawdown_pct"))
+                if data.get("max_drawdown_pct") is not None
+                else None,
             }
         )
     except (psycopg2.errors.UndefinedTable, psycopg2.errors.UndefinedColumn):
@@ -636,7 +617,6 @@ def _get_performance_analytics(cur) -> dict:
             raise RuntimeError(f"Savepoint rollback failed: {save_err}") from save_err
         code, error_type, message = handle_db_error(e, "fetch performance analytics")
         return error_response(code, error_type, message)
-
 
 
 @db_route_handler("get performance metrics endpoint")
@@ -656,20 +636,13 @@ def _get_performance_metrics_endpoint(cur) -> dict:
     return json_response(
         200,
         {
-            "win_rate": (
-                float(row["win_rate_pct"]) / 100 if row["win_rate_pct"] else None
-            ),
+            "win_rate": (float(row["win_rate_pct"]) / 100 if row["win_rate_pct"] else None),
             "profit_factor": float(row["profit_factor"]),
             "expectancy": float(row["avg_trade_pct"]),
             "sharpe_ratio": float(row["sharpe_ratio"]),
-            "max_drawdown": (
-                float(row["max_drawdown_pct"]) / 100
-                if row["max_drawdown_pct"]
-                else None
-            ),
+            "max_drawdown": (float(row["max_drawdown_pct"]) / 100 if row["max_drawdown_pct"] else None),
         },
     )
-
 
 
 @db_route_handler("get portfolio summary")
@@ -689,9 +662,7 @@ def _get_portfolio_summary(cur) -> dict:
     # Validate critical fields (fail-fast: check for None, not falsiness - 0.0 is valid)
     total_value_raw = row.get("total_portfolio_value")
     if total_value_raw is None:
-        return error_response(
-            503, "incomplete_data", "Portfolio snapshot missing total_portfolio_value"
-        )
+        return error_response(503, "incomplete_data", "Portfolio snapshot missing total_portfolio_value")
 
     try:
         total_value = float(total_value_raw)
@@ -703,11 +674,7 @@ def _get_portfolio_summary(cur) -> dict:
         logger.error(f"Cannot convert portfolio fields to numeric types: {e}")
         return error_response(503, "incomplete_data", "Portfolio snapshot has invalid numeric fields")
 
-    daily_change_dollars = (
-        (daily_return_pct / 100 * total_value)
-        if total_value and daily_return_pct
-        else None
-    )
+    daily_change_dollars = (daily_return_pct / 100 * total_value) if total_value and daily_return_pct else None
 
     return json_response(
         200,
@@ -716,14 +683,11 @@ def _get_portfolio_summary(cur) -> dict:
             "cash": round(cash, 2) if cash else None,
             "invested": round(invested, 2) if invested else None,
             "positions": positions or 0,
-            "daily_change": (
-                round(daily_change_dollars, 2) if daily_change_dollars else None
-            ),
-            "daily_change_percent": (
-                round(daily_return_pct, 2) if daily_return_pct else None
-            ),
+            "daily_change": (round(daily_change_dollars, 2) if daily_change_dollars else None),
+            "daily_change_percent": (round(daily_return_pct, 2) if daily_return_pct else None),
         },
     )
+
 
 @db_route_handler("get risk metrics")
 def _get_risk_metrics(cur) -> dict:
@@ -756,9 +720,13 @@ def _get_risk_metrics(cur) -> dict:
                 "report_date": data.get("report_date"),
                 "var_pct_95": float(data.get("var_pct_95")) if data.get("var_pct_95") is not None else None,
                 "cvar_pct_95": float(data.get("cvar_pct_95")) if data.get("cvar_pct_95") is not None else None,
-                "stressed_var_pct": float(data.get("stressed_var_pct")) if data.get("stressed_var_pct") is not None else None,
+                "stressed_var_pct": float(data.get("stressed_var_pct"))
+                if data.get("stressed_var_pct") is not None
+                else None,
                 "portfolio_beta": float(data.get("portfolio_beta")) if data.get("portfolio_beta") is not None else None,
-                "top_5_concentration": float(data.get("top_5_concentration")) if data.get("top_5_concentration") is not None else None,
+                "top_5_concentration": float(data.get("top_5_concentration"))
+                if data.get("top_5_concentration") is not None
+                else None,
             }
         )
     except (psycopg2.errors.UndefinedTable, psycopg2.errors.UndefinedColumn):
@@ -775,7 +743,6 @@ def _get_risk_metrics(cur) -> dict:
             raise RuntimeError(f"Unexpected error: {save_err}") from save_err
         code, error_type, message = handle_db_error(e, "fetch risk metrics")
         return error_response(code, error_type, message)
-
 
 
 @db_route_handler("get stage distribution")
@@ -810,7 +777,6 @@ def _get_stage_distribution(cur) -> dict:
     return list_response(distribution, total=len(distribution), limit=None, offset=None)
 
 
-
 @db_route_handler("get trade distribution")
 def _get_trade_distribution(cur) -> dict:
     """Return distribution of trade outcomes by R-multiple."""
@@ -822,11 +788,7 @@ def _get_trade_distribution(cur) -> dict:
         LIMIT 500
     """)
     rows = cur.fetchall()
-    r_multiples = [
-        float(r["exit_r_multiple"])
-        for r in rows
-        if r.get("exit_r_multiple") is not None
-    ]
+    r_multiples = [float(r["exit_r_multiple"]) for r in rows if r.get("exit_r_multiple") is not None]
 
     if not r_multiples:
         return list_response([], total=0, limit=None, offset=None)
@@ -859,6 +821,3 @@ def _get_trade_distribution(cur) -> dict:
 
     filtered_buckets = [b for b in buckets if b["count"] > 0]
     return list_response(filtered_buckets, total=len(filtered_buckets), limit=None, offset=None)
-
-
-

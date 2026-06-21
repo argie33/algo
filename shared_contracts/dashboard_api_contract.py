@@ -18,17 +18,17 @@ UPDATE PROTOCOL:
 """
 
 from dataclasses import dataclass
-from typing import Any, Dict, List, Optional, cast
+from typing import Any, cast
 
 
 @dataclass
 class ResponseSchema:
     """Schema for API response validation."""
 
-    required_fields: List[str]
-    optional_fields: List[str]
-    field_types: Dict[str, Any]
-    nested_schema: Optional[Dict[str, Any]] = None
+    required_fields: list[str]
+    optional_fields: list[str]
+    field_types: dict[str, Any]
+    nested_schema: dict[str, Any] | None = None
     description: str = ""
 
 
@@ -706,23 +706,23 @@ class EndpointRegistry:
     """Registry for querying endpoint definitions dynamically."""
 
     @staticmethod
-    def get_endpoint(name: str) -> Optional[Dict[str, Any]]:
+    def get_endpoint(name: str) -> dict[str, Any] | None:
         """Get endpoint definition by name."""
         return DASHBOARD_ENDPOINTS.get(name)
 
     @staticmethod
-    def get_all_endpoints() -> Dict[str, Dict[str, Any]]:
+    def get_all_endpoints() -> dict[str, dict[str, Any]]:
         """Get all endpoint definitions."""
         return DASHBOARD_ENDPOINTS.copy()
 
     @staticmethod
-    def get_endpoint_path(name: str) -> Optional[str]:
+    def get_endpoint_path(name: str) -> str | None:
         """Get endpoint path by name."""
         endpoint = DASHBOARD_ENDPOINTS.get(name)
-        return cast(Optional[str], endpoint.get("path") if endpoint else None)
+        return cast(str | None, endpoint.get("path") if endpoint else None)
 
     @staticmethod
-    def get_critical_endpoints() -> Dict[str, Dict[str, Any]]:
+    def get_critical_endpoints() -> dict[str, dict[str, Any]]:
         """Get only critical endpoints (dashboard won't render without these).
 
         FAIL-CLOSED: Raises exception if any endpoint is missing 'critical' field.
@@ -745,27 +745,27 @@ class EndpointRegistry:
         return name in DASHBOARD_ENDPOINTS
 
     @staticmethod
-    def get_endpoint_freshness(name: str) -> Optional[int]:
+    def get_endpoint_freshness(name: str) -> int | None:
         """Get data freshness threshold in seconds for endpoint."""
         endpoint = DASHBOARD_ENDPOINTS.get(name)
-        return cast(Optional[int], endpoint.get("freshness_max_age_seconds") if endpoint else None)
+        return cast(int | None, endpoint.get("freshness_max_age_seconds") if endpoint else None)
 
 
 class PanelRegistry:
     """Registry for querying panel definitions."""
 
     @staticmethod
-    def get_panel(name: str) -> Optional[Dict[str, Any]]:
+    def get_panel(name: str) -> dict[str, Any] | None:
         """Get panel definition by name."""
         return DASHBOARD_PANELS.get(name)
 
     @staticmethod
-    def get_all_panels() -> Dict[str, Dict[str, Any]]:
+    def get_all_panels() -> dict[str, dict[str, Any]]:
         """Get all panel definitions."""
         return DASHBOARD_PANELS.copy()
 
     @staticmethod
-    def get_panel_dependencies(name: str) -> List[str]:
+    def get_panel_dependencies(name: str) -> list[str]:
         """Get list of endpoints required by a panel.
 
         FAIL-CLOSED: Raises exception if panel doesn't exist or lacks endpoint_deps field.
@@ -781,7 +781,7 @@ class PanelRegistry:
                 f"Panel '{name}' missing required 'endpoint_deps' field. "
                 "All panels must explicitly declare their endpoint dependencies."
             )
-        return cast(List[str], panel.get("endpoint_deps"))
+        return cast(list[str], panel.get("endpoint_deps"))
 
     @staticmethod
     def is_panel_optional(name: str) -> bool:
@@ -804,7 +804,7 @@ class PanelRegistry:
         return cast(bool, panel.get("optional"))
 
     @staticmethod
-    def validate_panel_dependencies(name: str) -> tuple[bool, List[str]]:
+    def validate_panel_dependencies(name: str) -> tuple[bool, list[str]]:
         """Check if all endpoints for a panel are defined.
 
         Returns (is_valid, missing_endpoints)
@@ -814,7 +814,7 @@ class PanelRegistry:
             return False, [name]
 
         missing = []
-        endpoint_deps = cast(List[str], panel.get("endpoint_deps"))
+        endpoint_deps = cast(list[str], panel.get("endpoint_deps"))
         for endpoint_name in endpoint_deps:
             if not EndpointRegistry.validate_endpoint_exists(endpoint_name):
                 missing.append(endpoint_name)

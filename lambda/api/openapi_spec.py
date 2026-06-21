@@ -82,11 +82,7 @@ def _build_path_health() -> dict:
                 "responses": {
                     "200": {
                         "description": "API is healthy",
-                        "content": {
-                            "application/json": {
-                                "schema": {"$re": "#/components/schemas/HealthResponse"}
-                            }
-                        },
+                        "content": {"application/json": {"schema": {"$re": "#/components/schemas/HealthResponse"}}},
                     },
                     "503": {"$re": "#/components/responses/ServiceUnavailable"},
                 },
@@ -155,11 +151,7 @@ def _build_path_stocks() -> dict:
                     "200": {
                         "description": "Stock profile",
                         "content": {
-                            "application/json": {
-                                "schema": {
-                                    "$re": "#/components/schemas/StockProfileResponse"
-                                }
-                            }
+                            "application/json": {"schema": {"$re": "#/components/schemas/StockProfileResponse"}}
                         },
                     },
                     "400": {"$re": "#/components/responses/BadRequest"},
@@ -225,13 +217,7 @@ def _build_path_signals() -> dict:
                 "responses": {
                     "200": {
                         "description": "Trading signals",
-                        "content": {
-                            "application/json": {
-                                "schema": {
-                                    "$re": "#/components/schemas/SignalsResponse"
-                                }
-                            }
-                        },
+                        "content": {"application/json": {"schema": {"$re": "#/components/schemas/SignalsResponse"}}},
                     },
                     "400": {"$re": "#/components/responses/BadRequest"},
                     "503": {"$re": "#/components/responses/ServiceUnavailable"},
@@ -276,13 +262,7 @@ def _build_path_financials() -> dict:
                 "responses": {
                     "200": {
                         "description": "Key metrics",
-                        "content": {
-                            "application/json": {
-                                "schema": {
-                                    "$re": "#/components/schemas/KeyMetricsResponse"
-                                }
-                            }
-                        },
+                        "content": {"application/json": {"schema": {"$re": "#/components/schemas/KeyMetricsResponse"}}},
                     },
                     "503": {"$re": "#/components/responses/ServiceUnavailable"},
                 },

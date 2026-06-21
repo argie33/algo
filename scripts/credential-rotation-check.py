@@ -16,9 +16,7 @@ class CredentialRotationChecker:
     def get_credential_status(self) -> dict | None:
         """Retrieve credential status from Secrets Manager."""
         try:
-            response = self.secretsmanager.get_secret_value(
-                SecretId="algo/developer-credentials"
-            )
+            response = self.secretsmanager.get_secret_value(SecretId="algo/developer-credentials")
             secret_string = response["SecretString"]
             return json.loads(secret_string) if isinstance(secret_string, str) else None
         except json.JSONDecodeError as e:

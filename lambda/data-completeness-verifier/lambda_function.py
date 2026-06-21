@@ -19,8 +19,6 @@ logger = logging.getLogger()
 logger.setLevel(logging.INFO)
 
 
-
-
 def lambda_handler(event, context):
     """Main Lambda handler for data completeness verification."""
     try:
@@ -35,7 +33,7 @@ def lambda_handler(event, context):
             user=os.environ.get("DB_USER"),
             password=os.environ.get("DB_PASSWORD"),
             database=os.environ.get("DB_NAME"),
-            connect_timeout=10
+            connect_timeout=10,
         )
 
         cursor = conn.cursor()
@@ -50,7 +48,7 @@ def lambda_handler(event, context):
                 "statusCode": 200,
                 "result": "FAILED",
                 "reason": "price_daily table is empty",
-                "phase1_halted": True
+                "phase1_halted": True,
             }
 
         # Get expected trading day
@@ -67,27 +65,20 @@ def lambda_handler(event, context):
                 "statusCode": 200,
                 "result": "FAILED",
                 "reason": f"Price data stale: {max_date} vs {last_trading_day}",
-                "phase1_halted": True
+                "phase1_halted": True,
             }
 
         # Check coverage
-        cursor.execute(
-            "SELECT COUNT(DISTINCT symbol) FROM price_daily WHERE date = %s",
-            (max_date,)
-        )
+        cursor.execute("SELECT COUNT(DISTINCT symbol) FROM price_daily WHERE date = %s", (max_date,))
         row = cursor.fetchone()
         if row is None or row[0] is None:
-            return {
-                "statusCode": 500,
-                "result": "ERROR",
-                "reason": "Symbol count query failed"
-            }
+            return {"statusCode": 500, "result": "ERROR", "reason": "Symbol count query failed"}
         symbols_today = row[0]
 
         cursor.execute(
             "SELECT COUNT(DISTINCT symbol) FROM price_daily WHERE date = "
             "(SELECT MAX(date) FROM price_daily WHERE date < %s)",
-            (max_date,)
+            (max_date,),
         )
         row = cursor.fetchone()
         symbols_prior = row[0] if row and row[0] is not None else symbols_today
@@ -102,27 +93,16 @@ def lambda_handler(event, context):
 
         # Publish CloudWatch metric
         import boto3
+
         cloudwatch = boto3.client("cloudwatch")
 
         cloudwatch.put_metric_data(
             Namespace="AlgoTrading",
             MetricData=[
-                {
-                    "MetricName": "PriceCoverage_Symbols",
-                    "Value": symbols_today,
-                    "Unit": "Count"
-                },
-                {
-                    "MetricName": "PriceCoverage_Percent",
-                    "Value": coverage_pct,
-                    "Unit": "Percent"
-                },
-                {
-                    "MetricName": "Phase1_Pass",
-                    "Value": 1.0 if passes else 0.0,
-                    "Unit": "Count"
-                }
-            ]
+                {"MetricName": "PriceCoverage_Symbols", "Value": symbols_today, "Unit": "Count"},
+                {"MetricName": "PriceCoverage_Percent", "Value": coverage_pct, "Unit": "Percent"},
+                {"MetricName": "Phase1_Pass", "Value": 1.0 if passes else 0.0, "Unit": "Count"},
+            ],
         )
 
         cursor.close()
@@ -136,7 +116,7 @@ def lambda_handler(event, context):
                 "phase1_passes": True,
                 "symbols": symbols_today,
                 "coverage_percent": round(coverage_pct, 1),
-                "max_date": str(max_date)
+                "max_date": str(max_date),
             }
         else:
             logger.error(f"Phase 1 FAILED: {symbols_today} symbols, {coverage_pct:.1f}% coverage")
@@ -153,16 +133,12 @@ def lambda_handler(event, context):
                 "reason": ", ".join(reason),
                 "symbols": symbols_today,
                 "coverage_percent": round(coverage_pct, 1),
-                "max_date": str(max_date)
+                "max_date": str(max_date),
             }
 
     except Exception as e:
         logger.error(f"Verification error: {e}", exc_info=True)
-        return {
-            "statusCode": 500,
-            "result": "ERROR",
-            "error": str(e)
-        }
+        return {"statusCode": 500, "result": "ERROR", "error": str(e)}
 
 
 if __name__ == "__main__":

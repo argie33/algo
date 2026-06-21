@@ -8,7 +8,6 @@ All dynamic SQL patterns are validated against whitelists before execution.
 """
 
 import re
-from typing import Optional, Tuple
 
 
 # Known safe tables (whitelist for dynamic table names)
@@ -189,7 +188,6 @@ SAFE_COLUMNS = {
     "target_levels_hit",
     # Application/audit
     "application_name",
-    "correlation_id",
     "execution_started",
     "execution_completed",
     "last_updated",
@@ -199,14 +197,11 @@ SAFE_COLUMNS = {
     "checkpoint",
     # Generic
     "id",
-    "value",
     "result",
 }
 
 
-def validate_identifier(
-    identifier: str, whitelist: set, identifier_type: str = "table"
-) -> str:
+def validate_identifier(identifier: str, whitelist: set, identifier_type: str = "table") -> str:
     """
     Validate a dynamic identifier (table or column name) against whitelist.
 
@@ -225,10 +220,7 @@ def validate_identifier(
         raise ValueError(f"Empty {identifier_type} name")
 
     # Reject obvious SQL injection attempts
-    if any(
-        char in identifier
-        for char in [";", "--", "/*", "*/", "DROP", "DELETE", "INSERT"]
-    ):
+    if any(char in identifier for char in [";", "--", "/*", "*/", "DROP", "DELETE", "INSERT"]):
         raise ValueError(f"Suspicious characters in {identifier_type}: {identifier}")
 
     # Must be alphanumeric + underscore
@@ -269,13 +261,9 @@ def safe_execute(cur, query_template: str, **kwargs) -> None:
                 safe_kwargs[key] = validate_identifier(value, SAFE_TABLES, "table")
             except ValueError:
                 try:
-                    safe_kwargs[key] = validate_identifier(
-                        value, SAFE_COLUMNS, "column"
-                    )
+                    safe_kwargs[key] = validate_identifier(value, SAFE_COLUMNS, "column")
                 except ValueError:
-                    raise ValueError(
-                        f"Invalid identifier '{value}' for parameter '{key}'"
-                    )
+                    raise ValueError(f"Invalid identifier '{value}' for parameter '{key}'")
         else:
             safe_kwargs[key] = value
 
@@ -286,9 +274,9 @@ def safe_execute(cur, query_template: str, **kwargs) -> None:
 def safe_select_count(
     cur,
     table: str,
-    date_column: Optional[str] = None,
-    where_clause: Optional[str] = None,
-) -> Tuple[int, Optional[str]]:
+    date_column: str | None = None,
+    where_clause: str | None = None,
+) -> tuple[int, str | None]:
     """
     Count rows in table and get max date if date_column specified.
 
@@ -333,9 +321,7 @@ def safe_select_count(
         ]
         for kw in word_keywords:
             if re.search(r"\b" + kw + r"\b", where_upper):
-                raise ValueError(
-                    f"SQL keyword detected in where_clause (M-05): {where_clause}"
-                )
+                raise ValueError(f"SQL keyword detected in where_clause (M-05): {where_clause}")
         # Pattern-based checks (prefixes, multi-word, special syntax)
         dangerous_patterns = [
             ";",
@@ -353,21 +339,15 @@ def safe_select_count(
             "CREATE ",  # trailing space distinguishes from column prefixes
         ]
         if any(p in where_upper for p in dangerous_patterns):
-            raise ValueError(
-                f"SQL pattern detected in where_clause (M-05): {where_clause}"
-            )
+            raise ValueError(f"SQL pattern detected in where_clause (M-05): {where_clause}")
         # SQL comment markers
         if "--" in where_clause:
-            raise ValueError(
-                f"SQL comment detected in where_clause (M-05): {where_clause}"
-            )
+            raise ValueError(f"SQL comment detected in where_clause (M-05): {where_clause}")
 
         # Character allowlist: comparison operators, INTERVAL literals (single quotes),
         # IN lists (parentheses, commas), date arithmetic (hyphens), standard identifiers
         if not re.match(r"^[a-zA-Z0-9_\s=<>!'(),.\-\+\%]+$", where_clause):
-            raise ValueError(
-                f"where_clause contains disallowed characters (M-05): {where_clause}"
-            )
+            raise ValueError(f"where_clause contains disallowed characters (M-05): {where_clause}")
 
         where_sql = f" WHERE {where_clause}"
     else:
@@ -375,9 +355,7 @@ def safe_select_count(
 
     if date_column:
         col_safe = assert_safe_column(date_column)
-        cur.execute(
-            f"SELECT COUNT(*), MAX({col_safe})::TEXT FROM {table_safe}{where_sql}"
-        )
+        cur.execute(f"SELECT COUNT(*), MAX({col_safe})::TEXT FROM {table_safe}{where_sql}")
         count, max_date = cur.fetchone()
         return int(count or 0), max_date
     else:

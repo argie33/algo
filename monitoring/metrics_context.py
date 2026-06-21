@@ -36,9 +36,7 @@ def _emit_cloudwatch_metric(operation_name: str, duration_seconds: float) -> Non
     try:
         import boto3
 
-        cw = boto3.client(
-            "cloudwatch", region_name=os.getenv("AWS_REGION", "us-east-1")
-        )
+        cw = boto3.client("cloudwatch", region_name=os.getenv("AWS_REGION", "us-east-1"))
         cw.put_metric_data(
             Namespace="AlgoTrading/Operations",
             MetricData=[
@@ -57,7 +55,9 @@ def _emit_cloudwatch_metric(operation_name: str, duration_seconds: float) -> Non
     except Exception as e:
         error_msg = str(e).lower()
         # Only swallow credential-related errors (expected in local dev)
-        if any(phrase in error_msg for phrase in ["nocredentialswarning", "unable to locate credentials", "not authorized"]):
+        if any(
+            phrase in error_msg for phrase in ["nocredentialswarning", "unable to locate credentials", "not authorized"]
+        ):
             logger.warning("[METRICS] AWS credentials unavailable; CloudWatch metrics skipped")
         else:
             # Fail fast on network/permission errors — observability loss is critical
@@ -80,9 +80,7 @@ class TimeBlock:
         "default": 2.0,  # 2s generic threshold
     }
 
-    def __init__(
-        self, operation_name: str, log_level: str = "info", raise_on_slow: bool = False
-    ):
+    def __init__(self, operation_name: str, log_level: str = "info", raise_on_slow: bool = False):
         """
         Initialize timing context.
 
@@ -109,12 +107,7 @@ class TimeBlock:
         duration_seconds = self.duration_ms / 1000.0
 
         # Determine if operation was slow
-        threshold_ms = (
-            self.SLOW_THRESHOLDS.get(
-                self.operation_name, self.SLOW_THRESHOLDS["default"]
-            )
-            * 1000
-        )
+        threshold_ms = self.SLOW_THRESHOLDS.get(self.operation_name, self.SLOW_THRESHOLDS["default"]) * 1000
         is_slow = self.duration_ms > threshold_ms
 
         # Log result

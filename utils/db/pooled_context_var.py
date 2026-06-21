@@ -8,19 +8,18 @@ Works with OptimalLoader and PooledConnectionManager to reduce connection churn.
 """
 
 import contextvars
-from typing import Optional
 
 import psycopg2
 
 
 # Context variable holding the current thread's pooled connection
 # Set by OptimalLoader at startup, used by DatabaseContext operations
-_pooled_connection: contextvars.ContextVar[Optional[psycopg2.extensions.connection]] = (
-    contextvars.ContextVar("pooled_connection", default=None)
+_pooled_connection: contextvars.ContextVar[psycopg2.extensions.connection | None] = contextvars.ContextVar(
+    "pooled_connection", default=None
 )
 
 
-def set_pooled_connection(conn: Optional[psycopg2.extensions.connection]) -> None:
+def set_pooled_connection(conn: psycopg2.extensions.connection | None) -> None:
     """Set the current thread's pooled connection.
 
     Called by OptimalLoader.run() at startup.
@@ -32,7 +31,7 @@ def set_pooled_connection(conn: Optional[psycopg2.extensions.connection]) -> Non
     _pooled_connection.set(conn)
 
 
-def get_pooled_connection() -> Optional[psycopg2.extensions.connection]:
+def get_pooled_connection() -> psycopg2.extensions.connection | None:
     """Get the current thread's pooled connection (if set).
 
     Used by DatabaseContext to check for a reusable connection before

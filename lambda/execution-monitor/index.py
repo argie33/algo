@@ -28,7 +28,7 @@ def get_rds_credentials():
 
         return get_db_credentials()
     except (psycopg2.DatabaseError, psycopg2.OperationalError) as e:
-            raise RuntimeError(f"Operation failed: {e}") from e
+        raise RuntimeError(f"Operation failed: {e}") from e
 
 
 def query_rds_signals(credentials):
@@ -172,4 +172,3 @@ def lambda_handler(event, context):
 
 if __name__ == "__main__":
     lambda_handler({}, {})
-

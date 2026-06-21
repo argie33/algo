@@ -12,16 +12,15 @@ import logging
 from datetime import date, timedelta
 from typing import Any, Dict, Optional, Tuple
 
-from utils.db import DatabaseContext
 import psycopg2
+
+from utils.db import DatabaseContext
 
 
 logger = logging.getLogger(__name__)
 
 
-def record_loader_run(
-    loader_name: str, run_date: date, success: bool, error_message: Optional[str] = None
-) -> None:
+def record_loader_run(loader_name: str, run_date: date, success: bool, error_message: str | None = None) -> None:
     """Record a loader run result (success or failure).
 
     Args:
@@ -85,7 +84,7 @@ def record_loader_run(
         logger.warning(f"[FAILURE_TRACKING] Could not record loader run: {e}")
 
 
-def calculate_failure_trends(loader_name: str) -> Optional[Dict]:
+def calculate_failure_trends(loader_name: str) -> dict | None:
     """Calculate rolling failure rates for a loader (7-day and 30-day).
 
     Args:
@@ -154,10 +153,10 @@ def calculate_failure_trends(loader_name: str) -> Optional[Dict]:
             }
 
     except (psycopg2.DatabaseError, psycopg2.OperationalError) as e:
-            raise RuntimeError(f"Operation failed: {e}") from e
+        raise RuntimeError(f"Operation failed: {e}") from e
 
 
-def check_chronic_failures(threshold_pct: float = 50.0) -> Tuple[list[dict[str, Any]], dict[str, Any]]:
+def check_chronic_failures(threshold_pct: float = 50.0) -> tuple[list[dict[str, Any]], dict[str, Any]]:
     """Check all loaders for chronic failures (failure_rate_7day > threshold).
 
     Args:
@@ -227,7 +226,5 @@ def get_failure_alert_summary() -> str:
             f"({item['failing_days']}/{item['total_runs']} runs failed)"
         )
 
-    summary_lines.append(
-        f"\nTotal: {len(chronic)} loader(s) above 50% failure threshold"
-    )
+    summary_lines.append(f"\nTotal: {len(chronic)} loader(s) above 50% failure threshold")
     return "\n".join(summary_lines)

@@ -106,9 +106,7 @@ def _get_vix(cur) -> dict:
             """,
             timeout_sec=3,
         )
-        freshness = check_data_freshness(
-            cur, "market_health_daily", "date", warning_days=1
-        )
+        freshness = check_data_freshness(cur, "market_health_daily", "date", warning_days=1)
         return list_response(
             [safe_json_serialize(dict(r)) for r in rows] if rows else [],
             data_freshness=freshness,
@@ -161,9 +159,7 @@ def _get_calendar(cur, params: dict) -> dict:
         """
         cur.execute(query, tuple(query_params))
         events = cur.fetchall()
-        freshness = check_data_freshness(
-            cur, "economic_calendar", "event_date", warning_days=7
-        )
+        freshness = check_data_freshness(cur, "economic_calendar", "event_date", warning_days=7)
         return list_response(
             [safe_json_serialize(dict(e)) for e in events] if events else [],
             data_freshness=freshness,
@@ -257,9 +253,7 @@ def _get_leading_indicators(cur) -> dict:
         latest_data = cur.fetchall()
 
         # Validate latest data
-        if not DatabaseResultValidator.validate_rows_not_empty(
-            latest_data, "economic latest indicators query"
-        ):
+        if not DatabaseResultValidator.validate_rows_not_empty(latest_data, "economic latest indicators query"):
             latest_data = []
 
         latest_rows = {}
@@ -272,9 +266,7 @@ def _get_leading_indicators(cur) -> dict:
                 logger.warning("Row missing series_id in economic latest data")
                 continue
             # Safely convert value to float
-            value = DatabaseResultValidator.safe_get_float(
-                row, "value", default=None, strict=False
-            )
+            value = DatabaseResultValidator.safe_get_float(row, "value", default=None, strict=False)
             date = row.get("date")
             latest_rows[series_id] = (value, date)
 
@@ -287,9 +279,7 @@ def _get_leading_indicators(cur) -> dict:
         all_history = cur.fetchall()
 
         # Validate all history data
-        if not DatabaseResultValidator.validate_rows_not_empty(
-            all_history, "economic history query"
-        ):
+        if not DatabaseResultValidator.validate_rows_not_empty(all_history, "economic history query"):
             all_history = []
 
         # Group by series_id
@@ -326,9 +316,7 @@ def _get_leading_indicators(cur) -> dict:
                 if cur_h and yr_ago and yr_ago.get("value") and cur_h.get("value"):
                     prior = float(yr_ago["value"])
                     if prior != 0:
-                        display_value = round(
-                            (float(cur_h["value"]) - prior) / abs(prior) * 100, 2
-                        )
+                        display_value = round((float(cur_h["value"]) - prior) / abs(prior) * 100, 2)
                 # Replace history values with rolling YoY % change too
                 yoy_history = []
                 for idx in range(12, len(history)):
@@ -339,9 +327,7 @@ def _get_leading_indicators(cur) -> dict:
                             {
                                 "date": history[idx]["date"],
                                 "value": round(
-                                    (float(cur_v) - float(yr_v))
-                                    / abs(float(yr_v))
-                                    * 100,
+                                    (float(cur_v) - float(yr_v)) / abs(float(yr_v)) * 100,
                                     2,
                                 ),
                             }
@@ -351,12 +337,12 @@ def _get_leading_indicators(cur) -> dict:
 
             # Calculate trend (up/down/flat) on the (possibly transformed) history
             if len(history) >= 2:
-                recent_avg = sum(
-                    [h["value"] for h in history[-3:] if h["value"] is not None] or [0]
-                ) / max(1, len([h for h in history[-3:] if h["value"] is not None]))
-                older_avg = sum(
-                    [h["value"] for h in history[:3] if h["value"] is not None] or [0]
-                ) / max(1, len([h for h in history[:3] if h["value"] is not None]))
+                recent_avg = sum([h["value"] for h in history[-3:] if h["value"] is not None] or [0]) / max(
+                    1, len([h for h in history[-3:] if h["value"] is not None])
+                )
+                older_avg = sum([h["value"] for h in history[:3] if h["value"] is not None] or [0]) / max(
+                    1, len([h for h in history[:3] if h["value"] is not None])
+                )
                 if older_avg and recent_avg:
                     if recent_avg > older_avg * 1.01:
                         trend = "up"
@@ -377,11 +363,7 @@ def _get_leading_indicators(cur) -> dict:
                 if cur_v is not None and prev_v is not None:
                     change = round(float(cur_v) - float(prev_v), 2)
 
-            display_str = (
-                str(round(float(display_value), 2))
-                if display_value is not None
-                else None
-            )
+            display_str = str(round(float(display_value), 2)) if display_value is not None else None
 
             indicators.append(
                 {
@@ -508,27 +490,21 @@ def _get_yield_curve_full(cur) -> dict:
             "BAMLH0A0IG": bamlc if bamlc is not None else [],  # BAMLC0A0CM is IG corporate OAS
             "VIXCLS": vixcls if vixcls is not None else [],
         }
-        credit_latest = {
-            k: v[-1].get("value") if v else None for k, v in credit_history.items()
-        }
+        credit_latest = {k: v[-1].get("value") if v else None for k, v in credit_history.items()}
 
         # TIPS breakeven inflation expectations
         breakevens_history = {
             "T5YIE": history.get("T5YIE"),
             "T10YIE": history.get("T10YIE"),
         }
-        breakevens_latest = {
-            k: v[-1].get("value") if v else None for k, v in breakevens_history.items()
-        }
+        breakevens_latest = {k: v[-1].get("value") if v else None for k, v in breakevens_history.items()}
 
         # Financial stress indices
         stress_history = {
             "STLFSI4": history.get("STLFSI4"),
             "ANFCI": history.get("ANFCI"),
         }
-        stress_latest = {
-            k: v[-1].get("value") if v else None for k, v in stress_history.items()
-        }
+        stress_latest = {k: v[-1].get("value") if v else None for k, v in stress_history.items()}
 
         result = {
             "currentCurve": current_curve,

@@ -35,7 +35,9 @@ class IndustryRankingLoader(OptimalLoader):
                 latest_date = row["date"] if row else None
 
                 if not latest_date:
-                    raise ValueError("No price data found in price_daily table. Required for industry ranking computation.")
+                    raise ValueError(
+                        "No price data found in price_daily table. Required for industry ranking computation."
+                    )
 
                 # Rank industries by average composite score; pull historical ranks for comparison
                 cur.execute("""
@@ -93,9 +95,7 @@ class IndustryRankingLoader(OptimalLoader):
 
                 rows = cur.fetchall()
                 if not rows:
-                    logger.warning(
-                        "No industry ranking data computed — check company_profile and stock_scores tables"
-                    )
+                    logger.warning("No industry ranking data computed — check company_profile and stock_scores tables")
                     return None
 
                 return [
@@ -103,11 +103,7 @@ class IndustryRankingLoader(OptimalLoader):
                         "industry": r["industry"],
                         "date_recorded": latest_date,
                         "current_rank": r["current_rank"],
-                        "momentum_score": (
-                            float(r["momentum_score"])
-                            if r["momentum_score"] is not None
-                            else None
-                        ),
+                        "momentum_score": (float(r["momentum_score"]) if r["momentum_score"] is not None else None),
                         "rank_1w_ago": r["rank_1w_ago"],
                         "rank_4w_ago": r["rank_4w_ago"],
                         "rank_12w_ago": r["rank_12w_ago"],
@@ -117,7 +113,6 @@ class IndustryRankingLoader(OptimalLoader):
 
         except (ValueError, ZeroDivisionError, TypeError) as e:
             raise RuntimeError(f"Operation failed: {e}") from e
-
 
 
 if __name__ == "__main__":

@@ -12,7 +12,7 @@ import json
 import logging
 import os
 from datetime import datetime, timezone
-from typing import Any, Dict
+from typing import Any
 
 import boto3
 
@@ -23,15 +23,13 @@ logger.setLevel(os.environ.get("LOG_LEVEL", "INFO").upper())
 dynamodb = boto3.resource("dynamodb")
 
 
-def lambda_handler(event: Dict[str, Any], context: Any) -> Dict[str, Any]:
+def lambda_handler(event: dict[str, Any], context: Any) -> dict[str, Any]:
     try:
         loader_name = event.get("loader_name", "unknown")
         status = event.get("status", "UNKNOWN").upper()
         error_type = event.get("error")
         message = event.get("message", "")
-        execution_date = event.get(
-            "execution_date", datetime.now(timezone.utc).date().isoformat()
-        )
+        execution_date = event.get("execution_date", datetime.now(timezone.utc).date().isoformat())
 
         logger.info(f"[LOADER-RESULT] {loader_name}: {status} - {message}")
 
@@ -42,7 +40,7 @@ def lambda_handler(event: Dict[str, Any], context: Any) -> Dict[str, Any]:
             table = dynamodb.Table(table_name)
 
             # Log result with 1-hour TTL
-            expires_at = int((datetime.now(timezone.utc).timestamp())) + 3600
+            expires_at = int(datetime.now(timezone.utc).timestamp()) + 3600
 
             table.put_item(
                 Item={
@@ -60,16 +58,12 @@ def lambda_handler(event: Dict[str, Any], context: Any) -> Dict[str, Any]:
             logger.info(f"[LOADER-RESULT] Logged {loader_name} result to DynamoDB")
 
         except (ValueError, ZeroDivisionError, TypeError) as db_error:
-            logger.error(
-                f"[LOADER-RESULT] Failed to write loader result to DynamoDB: {db_error}"
-            )
+            logger.error(f"[LOADER-RESULT] Failed to write loader result to DynamoDB: {db_error}")
             raise
 
         return {
             "statusCode": 200,
-            "body": json.dumps(
-                {"loader": loader_name, "status": status, "logged": True}
-            ),
+            "body": json.dumps({"loader": loader_name, "status": status, "logged": True}),
         }
 
     except (json.JSONDecodeError, ValueError) as e:

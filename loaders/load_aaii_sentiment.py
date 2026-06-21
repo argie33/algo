@@ -56,20 +56,14 @@ class AAIISentimentLoader(OptimalLoader):
         for attempt in range(1, 6):  # 5 retries
             try:
                 logger.info(f"Download attempt {attempt}/5")
-                response = requests.get(
-                    aaii_url, headers=headers, allow_redirects=True, timeout=60
-                )
+                response = requests.get(aaii_url, headers=headers, allow_redirects=True, timeout=60)
                 response.raise_for_status()
 
                 # SECURITY FIX S-05: Validate redirect target to prevent SSRF via redirects
                 if response.url != aaii_url:
-                    is_valid, error_msg = validate_redirect_url(
-                        aaii_url, response.url, allowed_domains=["aaii.com"]
-                    )
+                    is_valid, error_msg = validate_redirect_url(aaii_url, response.url, allowed_domains=["aaii.com"])
                     if not is_valid:
-                        logger.error(
-                            f"SSRF prevention: Redirect to invalid URL: {error_msg}"
-                        )
+                        logger.error(f"SSRF prevention: Redirect to invalid URL: {error_msg}")
                         raise ValueError(f"Redirect to invalid URL: {error_msg}")
 
                 content_type = response.headers.get("Content-Type", "")
@@ -79,9 +73,7 @@ class AAIISentimentLoader(OptimalLoader):
 
                 if len(response.content) < 1000:
                     logger.error(f"Response too small ({len(response.content)} bytes)")
-                    raise ValueError(
-                        f"Response too small ({len(response.content)} bytes)"
-                    )
+                    raise ValueError(f"Response too small ({len(response.content)} bytes)")
 
                 # SECURITY FIX S-04: Validate Excel file structure before parsing
                 # Reject files that look malformed or could trigger XXE/billion laughs
@@ -95,25 +87,15 @@ class AAIISentimentLoader(OptimalLoader):
                         with zipfile.ZipFile(BytesIO(file_content), "r") as zf:
                             # Check for suspicious XML files (XXE indicators)
                             names = zf.namelist()
-                            if (
-                                len(names) > 10000
-                            ):  # Reject if too many entries (billion laughs)
-                                raise ValueError(
-                                    "Excel file has suspicious structure (too many entries)"
-                                )
+                            if len(names) > 10000:  # Reject if too many entries (billion laughs)
+                                raise ValueError("Excel file has suspicious structure (too many entries)")
                             # Verify standard XLSX structure
                             expected_dirs = {"_rels/", "xl/", "docProps/"}
-                            actual_dirs = {
-                                n.split("/")[0] + "/" for n in names if "/" in n
-                            }
+                            actual_dirs = {n.split("/")[0] + "/" for n in names if "/" in n}
                             if not expected_dirs.issubset(actual_dirs):
-                                logger.warning(
-                                    f"XLSX structure unusual but continuing: {actual_dirs}"
-                                )
+                                logger.warning(f"XLSX structure unusual but continuing: {actual_dirs}")
                     except zipfile.BadZipFile:
-                        logger.warning(
-                            "File looks like XLSX but ZIP parsing failed, attempting as XLS"
-                        )
+                        logger.warning("File looks like XLSX but ZIP parsing failed, attempting as XLS")
 
                 excel_data = BytesIO(response.content)
                 # Auto-detect format: XLSX files start with PK (ZIP signature); use openpyxl
@@ -130,12 +112,7 @@ class AAIISentimentLoader(OptimalLoader):
                 df = df[required_cols]
 
                 for col in ["Bullish", "Neutral", "Bearish"]:
-                    df[col] = (
-                        df[col]
-                        .astype(str)
-                        .str.replace("%", "", regex=False)
-                        .str.strip()
-                    )
+                    df[col] = df[col].astype(str).str.replace("%", "", regex=False).str.strip()
                     df[col] = pd.to_numeric(df[col], errors="coerce")
 
                 df["Date"] = pd.to_datetime(df["Date"], errors="coerce")
@@ -160,21 +137,9 @@ class AAIISentimentLoader(OptimalLoader):
                     rows.append(
                         {
                             "date": row["Date"],
-                            "bullish": (
-                                None
-                                if pd.isna(row["Bullish"])
-                                else float(row["Bullish"])
-                            ),
-                            "neutral": (
-                                None
-                                if pd.isna(row["Neutral"])
-                                else float(row["Neutral"])
-                            ),
-                            "bearish": (
-                                None
-                                if pd.isna(row["Bearish"])
-                                else float(row["Bearish"])
-                            ),
+                            "bullish": (None if pd.isna(row["Bullish"]) else float(row["Bullish"])),
+                            "neutral": (None if pd.isna(row["Neutral"]) else float(row["Neutral"])),
+                            "bearish": (None if pd.isna(row["Bearish"]) else float(row["Bearish"])),
                         }
                     )
 
@@ -189,46 +154,41 @@ class AAIISentimentLoader(OptimalLoader):
                 logger.warning(f"Download attempt {attempt} network error: {e}")
                 if attempt < 5:
                     import time
+
                     wait_time = 3 * (2 ** (attempt - 1))
                     logger.info(f"Retrying in {wait_time}s...")
                     time.sleep(wait_time)
                 else:
-                    raise RuntimeError(
-                        f"[AAII] Failed after 5 attempts: Cannot reach AAII server. {e}"
-                    ) from e
+                    raise RuntimeError(f"[AAII] Failed after 5 attempts: Cannot reach AAII server. {e}") from e
             except (ValueError, OSError, zipfile.BadZipFile) as e:
                 logger.warning(f"Download attempt {attempt} data format error: {e}")
                 if attempt < 5:
                     import time
+
                     wait_time = 3 * (2 ** (attempt - 1))
                     logger.info(f"Retrying in {wait_time}s...")
                     time.sleep(wait_time)
                 else:
-                    raise RuntimeError(
-                        f"[AAII] Failed after 5 attempts: Invalid Excel data format. {e}"
-                    ) from e
+                    raise RuntimeError(f"[AAII] Failed after 5 attempts: Invalid Excel data format. {e}") from e
             except (KeyError, AttributeError, TypeError) as e:
                 raise RuntimeError(
-                    f"[AAII] Data format error parsing Excel: {e}. "
-                    "AAII file structure may have changed."
+                    f"[AAII] Data format error parsing Excel: {e}. AAII file structure may have changed."
                 ) from e
             except (requests.RequestException, requests.Timeout, json.JSONDecodeError) as e:
                 logger.error(f"Download attempt {attempt} unexpected error: {e}")
                 if attempt < 5:
                     import time
+
                     wait_time = 3 * (2 ** (attempt - 1))
                     logger.info(f"Retrying in {wait_time}s...")
                     time.sleep(wait_time)
                 else:
-                    raise RuntimeError(
-                        f"[AAII] Unexpected error after 5 attempts: {e}"
-                    ) from e
+                    raise RuntimeError(f"[AAII] Unexpected error after 5 attempts: {e}") from e
 
         raise RuntimeError(
             "[AAII_SENTIMENT] Failed to fetch AAII sentiment data after exhausting all retries. "
             "Cannot proceed without market-wide investor sentiment."
         )
-
 
 
 if __name__ == "__main__":

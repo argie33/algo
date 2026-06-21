@@ -38,17 +38,13 @@ def subtract(a: float | str | int | Decimal, b: float | str | int | Decimal) -> 
     return quantize_price(result)
 
 
-def multiply(
-    a: float | str | int | Decimal, b: float | str | int | Decimal
-) -> float:
+def multiply(a: float | str | int | Decimal, b: float | str | int | Decimal) -> float:
     """Multiply two numbers with precise decimal arithmetic."""
     result = to_decimal(a) * to_decimal(b)
     return quantize_price(result)
 
 
-def divide(
-    a: float | str | int | Decimal, b: float | str | int | Decimal
-) -> float:
+def divide(a: float | str | int | Decimal, b: float | str | int | Decimal) -> float:
     """Divide a by b with precise decimal arithmetic. Returns 0 if b is 0."""
     divisor = to_decimal(b)
     if divisor == 0:
@@ -57,16 +53,12 @@ def divide(
     return quantize_price(result)
 
 
-def percentage(
-    value: float | str | int | Decimal, percentage_val: float | str | int | Decimal
-) -> float:
+def percentage(value: float | str | int | Decimal, percentage_val: float | str | int | Decimal) -> float:
     """Calculate percentage_val% of value."""
     return multiply(value, divide(percentage_val, 100))
 
 
-def percentage_change(
-    old: float | str | int | Decimal, new: float | str | int | Decimal
-) -> float:
+def percentage_change(old: float | str | int | Decimal, new: float | str | int | Decimal) -> float:
     """Calculate percentage change from old to new. Returns 0 if old is 0."""
     old_d = to_decimal(old)
     if old_d == 0:
@@ -91,9 +83,7 @@ def r_multiple(
     return quantize_price(result)
 
 
-def position_value(
-    shares: float | str | int | Decimal, price: float | str | int | Decimal
-) -> float:
+def position_value(shares: float | str | int | Decimal, price: float | str | int | Decimal) -> float:
     """Calculate position value: shares * price."""
     return multiply(shares, price)
 

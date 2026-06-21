@@ -2,7 +2,7 @@
 
 import os
 import uuid
-from typing import Any, Dict, Optional
+from typing import Any
 
 
 class BaseAPIException(Exception):
@@ -22,21 +22,19 @@ class BaseAPIException(Exception):
     def __init__(
         self,
         message: str,
-        status_code: Optional[int] = None,
-        error_type: Optional[str] = None,
-        context: Optional[Dict[str, Any]] = None,
-        correlation_id: Optional[str] = None,
+        status_code: int | None = None,
+        error_type: str | None = None,
+        context: dict[str, Any] | None = None,
+        correlation_id: str | None = None,
     ):
         self.message = message
         self.status_code = status_code or self.status_code
         self.error_type = error_type or self.error_type
         self.context = context or {}
-        self.correlation_id = correlation_id or os.getenv(
-            "CORRELATION_ID", str(uuid.uuid4())[:8]
-        )
+        self.correlation_id = correlation_id or os.getenv("CORRELATION_ID", str(uuid.uuid4())[:8])
         super().__init__(self.message)
 
-    def to_response(self) -> Dict[str, Any]:
+    def to_response(self) -> dict[str, Any]:
         """Convert to standardized API error response."""
         return {
             "statusCode": self.status_code,
@@ -46,7 +44,7 @@ class BaseAPIException(Exception):
             "context": self.context,
         }
 
-    def to_log_dict(self) -> Dict[str, Any]:
+    def to_log_dict(self) -> dict[str, Any]:
         """Convert to log-safe dict (includes sensitive context)."""
         return {
             "statusCode": self.status_code,

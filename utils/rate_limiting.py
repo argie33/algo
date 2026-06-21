@@ -14,7 +14,8 @@ to prevent DoS attacks and protect expensive operations.
 import logging
 import os
 from time import time
-from typing import Dict, Optional, Tuple, cast
+from typing import cast
+
 import requests
 
 
@@ -46,8 +47,8 @@ TRIGGER_OPERATION_WINDOW = 300  # 5 minutes for patrol endpoint
 # For distributed rate limiting across Lambda fleet, set use_dynamodb=True
 # =====================================================================
 
-_admin_rate_limits: Dict[str, list] = {}  # {user_endpoint: [timestamps, ...]}
-_public_rate_limits: Dict[str, list] = {}  # {endpoint: [timestamps, ...]}
+_admin_rate_limits: dict[str, list] = {}  # {user_endpoint: [timestamps, ...]}
+_public_rate_limits: dict[str, list] = {}  # {endpoint: [timestamps, ...]}
 
 
 def _get_admin_rate_limit_key(user_id: str, endpoint: str) -> str:
@@ -109,7 +110,7 @@ def check_public_rate_limit(
     endpoint: str,
     max_requests: int | None = None,
     window_seconds: int | None = None,
-) -> Tuple[bool, Optional[str]]:
+) -> tuple[bool, str | None]:
     """
     Check if a public endpoint has exceeded its global rate limit.
 
@@ -134,7 +135,7 @@ def check_public_rate_limit(
         else:
             window_seconds = DEFAULT_TIME_WINDOW
 
-    global _public_rate_limits  # noqa: F824
+    global _public_rate_limits
 
     now = time()
     window_start = now - window_seconds
@@ -311,7 +312,7 @@ def check_admin_rate_limit(
     max_requests: int | None = None,
     window_seconds: int | None = None,
     use_dynamodb: bool = False,
-) -> Tuple[bool, Optional[str]]:
+) -> tuple[bool, str | None]:
     """
     Check if user has exceeded admin endpoint rate limit.
 
@@ -343,13 +344,9 @@ def check_admin_rate_limit(
     window_start = now - window_seconds
 
     if use_dynamodb:
-        return _check_dynamodb_rate_limit(
-            user_id, endpoint, max_requests, window_seconds, window_start
-        )
+        return _check_dynamodb_rate_limit(user_id, endpoint, max_requests, window_seconds, window_start)
     else:
-        return _check_memory_rate_limit(
-            user_id, endpoint, max_requests, window_seconds, window_start, now
-        )
+        return _check_memory_rate_limit(user_id, endpoint, max_requests, window_seconds, window_start, now)
 
 
 def _check_memory_rate_limit(
@@ -359,8 +356,8 @@ def _check_memory_rate_limit(
     window_seconds: int,
     window_start: float,
     now: float,
-) -> Tuple[bool, Optional[str]]:
-    global _admin_rate_limits  # noqa: F824
+) -> tuple[bool, str | None]:
+    global _admin_rate_limits
 
     key = _get_admin_rate_limit_key(user_id, endpoint)
 
@@ -372,8 +369,7 @@ def _check_memory_rate_limit(
 
     if len(recent_requests) >= max_requests:
         logger.warning(
-            f"Admin rate limit exceeded for user {user_id} on {endpoint}: "
-            f"{len(recent_requests)} requests in window"
+            f"Admin rate limit exceeded for user {user_id} on {endpoint}: {len(recent_requests)} requests in window"
         )
         return (
             False,
@@ -390,7 +386,7 @@ def _check_dynamodb_rate_limit(
     max_requests: int,
     window_seconds: int,
     window_start: float,
-) -> Tuple[bool, Optional[str]]:
+) -> tuple[bool, str | None]:
     try:
         import boto3
 
@@ -398,13 +394,9 @@ def _check_dynamodb_rate_limit(
         table_name = os.getenv("ADMIN_RATE_LIMIT_TABLE")
 
         if not table_name:
-            logger.warning(
-                "ADMIN_RATE_LIMIT_TABLE not configured, falling back to in-memory"
-            )
+            logger.warning("ADMIN_RATE_LIMIT_TABLE not configured, falling back to in-memory")
             now = time()
-            return _check_memory_rate_limit(
-                user_id, endpoint, max_requests, window_seconds, window_start, now
-            )
+            return _check_memory_rate_limit(user_id, endpoint, max_requests, window_seconds, window_start, now)
 
         dynamodb = boto3.resource("dynamodb")
         table = dynamodb.Table(table_name)
@@ -438,10 +430,6 @@ def _check_dynamodb_rate_limit(
         return True, None
 
     except (requests.RequestException, requests.Timeout) as e:
-        logger.error(
-            f"DynamoDB rate limit check failed: {e}, falling back to in-memory"
-        )
+        logger.error(f"DynamoDB rate limit check failed: {e}, falling back to in-memory")
         now = time()
-        return _check_memory_rate_limit(
-            user_id, endpoint, max_requests, window_seconds, window_start, now
-        )
+        return _check_memory_rate_limit(user_id, endpoint, max_requests, window_seconds, window_start, now)

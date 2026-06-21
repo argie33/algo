@@ -2,12 +2,14 @@
 
 import logging
 from datetime import date
-from typing import Dict, Optional
 
-from utils.db import DatabaseContext
 import psycopg2
 
+from utils.db import DatabaseContext
+
+
 logger = logging.getLogger(__name__)
+
 
 class RejectionTracker:
     """Track signal rejections through filter pipeline for explainability."""
@@ -19,8 +21,7 @@ class RejectionTracker:
                 return operation(cur)
         except (psycopg2.DatabaseError, psycopg2.OperationalError) as e:
             raise RuntimeError(
-                f"Database operation failed: {e}. "
-                "Cannot proceed without rejection tracking database."
+                f"Database operation failed: {e}. Cannot proceed without rejection tracking database."
             ) from e
 
     def __init__(self):
@@ -31,8 +32,8 @@ class RejectionTracker:
         eval_date: date,
         symbol: str,
         entry_price: float,
-        tier_results: Dict,
-        advanced_results: Optional[Dict] = None,
+        tier_results: dict,
+        advanced_results: dict | None = None,
     ):
         """Log signal rejection with reason at each tier."""
 
@@ -45,9 +46,7 @@ class RejectionTracker:
 
             rejection_reason = ""
             if rejected_at_tier:
-                rejection_reason = tier_results.get(rejected_at_tier).get(
-                    "reason", "Unknown"
-                )
+                rejection_reason = tier_results.get(rejected_at_tier).get("reason", "Unknown")
 
             cur.execute(
                 """
@@ -184,8 +183,7 @@ class RejectionTracker:
         except (psycopg2.DatabaseError, psycopg2.OperationalError) as e:
             logger.error(f"Failed to get rejection funnel: {e}")
             raise RuntimeError(
-                f"Failed to get rejection funnel: {e}. "
-                "Cannot proceed without rejection funnel data."
+                f"Failed to get rejection funnel: {e}. Cannot proceed without rejection funnel data."
             ) from e
 
     def get_rejection_reasons(self, eval_date: date, tier: int, limit: int = 20):
@@ -225,8 +223,7 @@ class RejectionTracker:
             return self._with_cursor(_get_reasons) or []
         except (psycopg2.DatabaseError, psycopg2.OperationalError) as e:
             raise RuntimeError(
-                f"Failed to get rejection reasons for tier {tier}: {e}. "
-                "Cannot proceed without rejection analysis."
+                f"Failed to get rejection reasons for tier {tier}: {e}. Cannot proceed without rejection analysis."
             ) from e
 
     def get_signals_by_rejection_status(self, eval_date: date):
@@ -265,6 +262,5 @@ class RejectionTracker:
             return self._with_cursor(_get_status) or {}
         except (psycopg2.DatabaseError, psycopg2.OperationalError) as e:
             raise RuntimeError(
-                f"Failed to get rejection summary: {e}. "
-                "Cannot proceed without rejection status tracking."
+                f"Failed to get rejection summary: {e}. Cannot proceed without rejection status tracking."
             ) from e

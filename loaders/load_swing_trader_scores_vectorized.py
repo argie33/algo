@@ -33,6 +33,7 @@ from utils.loaders.helpers import get_active_symbols
 
 logger = logging.getLogger(__name__)
 
+
 class VectorizedSwingScoresLoader:
     """Institutional-grade loader: fetch all data once, compute all at once."""
 
@@ -59,20 +60,14 @@ class VectorizedSwingScoresLoader:
         # For intraday: only today; for full: last 30 days for context
         if incremental_only:
             start_date = end_date
-            logger.info(
-                f"[INTRADAY MODE] Computing swing scores for {len(symbols)} symbols, today only"
-            )
+            logger.info(f"[INTRADAY MODE] Computing swing scores for {len(symbols)} symbols, today only")
         else:
             start_date = end_date - timedelta(days=30)
-            logger.info(
-                f"[FULL MODE] Computing swing scores for {len(symbols)} symbols, last 30 days"
-            )
+            logger.info(f"[FULL MODE] Computing swing scores for {len(symbols)} symbols, last 30 days")
 
         try:
             # STEP 1: Fetch signal quality scores (critical — cannot compute without)
-            signal_scores = self._fetch_signal_quality_scores(
-                symbols, start_date, end_date
-            )
+            signal_scores = self._fetch_signal_quality_scores(symbols, start_date, end_date)
             if signal_scores.empty:
                 raise RuntimeError(
                     "[SIGNAL QUALITY] No signal quality scores found. "
@@ -99,9 +94,7 @@ class VectorizedSwingScoresLoader:
                 )
 
             # STEP 4: Compute scores for ALL symbols vectorized
-            scores_df = self._compute_all_scores_vectorized(
-                symbols, signal_scores, technical_data, trend_data
-            )
+            scores_df = self._compute_all_scores_vectorized(symbols, signal_scores, technical_data, trend_data)
 
             if scores_df.empty:
                 raise RuntimeError(
@@ -113,9 +106,7 @@ class VectorizedSwingScoresLoader:
             inserted = self._bulk_insert(scores_df)
 
             duration = time.time() - start_time
-            logger.info(
-                f"VectorizedSwingScoresLoader completed: {inserted} rows in {duration:.1f}s"
-            )
+            logger.info(f"VectorizedSwingScoresLoader completed: {inserted} rows in {duration:.1f}s")
 
             return {
                 "symbols_processed": len(symbols),
@@ -132,9 +123,7 @@ class VectorizedSwingScoresLoader:
                 "error": str(e),
             }
 
-    def _fetch_signal_quality_scores(
-        self, symbols: list, start_date: date, end_date: date
-    ) -> pd.DataFrame:
+    def _fetch_signal_quality_scores(self, symbols: list, start_date: date, end_date: date) -> pd.DataFrame:
         """Fetch signal quality scores for all symbols at once."""
         try:
             with DatabaseContext("read") as cur:
@@ -145,16 +134,12 @@ class VectorizedSwingScoresLoader:
                     " AND date >= %s AND date <= %s ORDER BY symbol, date DESC",
                     [*symbols, start_date, end_date],
                 )
-                return pd.DataFrame(
-                    cur.fetchall(), columns=["symbol", "date", "composite_sqs"]
-                )
+                return pd.DataFrame(cur.fetchall(), columns=["symbol", "date", "composite_sqs"])
         except (psycopg2.DatabaseError, psycopg2.OperationalError) as e:
             logger.error(f"Failed to fetch signal scores: {e}")
             return pd.DataFrame()
 
-    def _fetch_technical_data(
-        self, symbols: list, start_date: date, end_date: date
-    ) -> pd.DataFrame:
+    def _fetch_technical_data(self, symbols: list, start_date: date, end_date: date) -> pd.DataFrame:
         """Fetch technical indicators for all symbols at once."""
         try:
             with DatabaseContext("read") as cur:
@@ -173,9 +158,7 @@ class VectorizedSwingScoresLoader:
             logger.error(f"Failed to fetch technical data: {e}")
             return pd.DataFrame()
 
-    def _fetch_trend_template_data(
-        self, symbols: list, start_date: date, end_date: date
-    ) -> pd.DataFrame:
+    def _fetch_trend_template_data(self, symbols: list, start_date: date, end_date: date) -> pd.DataFrame:
         """Fetch trend template scores for all symbols at once."""
         try:
             with DatabaseContext("read") as cur:
@@ -212,6 +195,7 @@ class VectorizedSwingScoresLoader:
         """Compute swing scores for ALL symbols at once (vectorized)."""
         if end_date is None:
             from datetime import date as _date
+
             end_date = _date.today()
 
         results = []
@@ -240,9 +224,7 @@ class VectorizedSwingScoresLoader:
 
                 # Skip stocks with insufficient trend strength (gate: minervini >= 5)
                 if minervini < 5:
-                    logger.debug(
-                        f"{symbol}: minervini={minervini} < 5, skipping (trend too weak)"
-                    )
+                    logger.debug(f"{symbol}: minervini={minervini} < 5, skipping (trend too weak)")
                     continue
 
                 # Compute component scores; use defaults when upstream tables are empty
@@ -257,9 +239,7 @@ class VectorizedSwingScoresLoader:
                 weinstein = trend.get("weinstein_stage")
                 weinstein = int(weinstein) if pd.notna(weinstein) else 0
                 if weinstein != 2:
-                    logger.debug(
-                        f"{symbol}: stage={weinstein} != 2, skipping (not uptrend)"
-                    )
+                    logger.debug(f"{symbol}: stage={weinstein} != 2, skipping (not uptrend)")
                     continue
 
                 trend_score = float(weinstein) * 25.0
@@ -350,9 +330,17 @@ class VectorizedSwingScoresLoader:
 
                 for _, row in df.iterrows():
                     # Validate required score fields exist
-                    required_score_fields = ["grade", "setup_score", "trend_score", "momentum_score",
-                                           "volume_score", "fundamentals_score", "sector_score",
-                                           "multi_tf_score", "total_score"]
+                    required_score_fields = [
+                        "grade",
+                        "setup_score",
+                        "trend_score",
+                        "momentum_score",
+                        "volume_score",
+                        "fundamentals_score",
+                        "sector_score",
+                        "multi_tf_score",
+                        "total_score",
+                    ]
                     missing_fields = [f for f in required_score_fields if f not in row or pd.isna(row.get(f))]
                     if missing_fields:
                         logger.warning(
@@ -395,6 +383,7 @@ class VectorizedSwingScoresLoader:
             logger.error(f"Bulk insert failed: {e}")
             return 0
 
+
 def _update_swing_loader_status(status: str, error_message: str | None = None):
     """Update data_loader_status for Phase 1 monitoring."""
     with DatabaseContext("write") as cur:
@@ -426,6 +415,7 @@ def _update_swing_loader_status(status: str, error_message: str | None = None):
                 (status, error_message, "swing_trader_scores"),
             )
 
+
 def _swing_heartbeat_worker(stop_event):
     """Periodically update last_updated to signal loader is alive."""
     while not stop_event.is_set():
@@ -443,18 +433,15 @@ def _swing_heartbeat_worker(stop_event):
         except (psycopg2.DatabaseError, psycopg2.OperationalError) as e:
             logger.debug(f"Swing scores heartbeat failed: {e}")
 
+
 def main():
-    parser = argparse.ArgumentParser(
-        description="Vectorized Swing Trader Scores Loader"
-    )
+    parser = argparse.ArgumentParser(description="Vectorized Swing Trader Scores Loader")
     parser.add_argument(
         "--today",
         action="store_true",
         help="Intraday mode: only compute today's scores (fast)",
     )
-    parser.add_argument(
-        "--limit", type=int, default=None, help="Limit to N symbols (for testing)"
-    )
+    parser.add_argument("--limit", type=int, default=None, help="Limit to N symbols (for testing)")
     args = parser.parse_args()
 
     # Support INTRADAY_MODE environment variable (set by EventBridge/Step Functions)
@@ -468,9 +455,7 @@ def main():
 
     # Start heartbeat thread for hung task detection
     stop_heartbeat = threading.Event()
-    heartbeat_thread = threading.Thread(
-        target=_swing_heartbeat_worker, args=(stop_heartbeat,), daemon=False
-    )
+    heartbeat_thread = threading.Thread(target=_swing_heartbeat_worker, args=(stop_heartbeat,), daemon=False)
     heartbeat_thread.start()
 
     try:
@@ -551,6 +536,7 @@ def main():
             logger.error("Heartbeat thread still running after 15s timeout — may be hung in database operation")
             # Non-daemon threads will block process exit until they finish
             # This log entry flags the issue for monitoring/alerts
+
 
 if __name__ == "__main__":
     logging.basicConfig(

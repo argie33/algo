@@ -16,13 +16,13 @@ import logging
 import time
 from contextlib import contextmanager
 from datetime import datetime, timezone
-from typing import Any, Dict
+from typing import Any
 
 
 logger = logging.getLogger(__name__)
 
 # Global metrics buffer (persisted per session or sent to CloudWatch)
-_metrics_buffer: Dict[str, list] = {}
+_metrics_buffer: dict[str, list] = {}
 
 
 class TimeBlock:
@@ -37,9 +37,7 @@ class TimeBlock:
         "default": 2.0,  # 2s generic threshold
     }
 
-    def __init__(
-        self, operation_name: str, log_level: str = "info", raise_on_slow: bool = False
-    ):
+    def __init__(self, operation_name: str, log_level: str = "info", raise_on_slow: bool = False):
         """
         Initialize timing context.
 
@@ -65,12 +63,7 @@ class TimeBlock:
         self.duration_ms = (self.end_time - self.start_time) * 1000
 
         # Determine if operation was slow
-        threshold_ms = (
-            self.SLOW_THRESHOLDS.get(
-                self.operation_name, self.SLOW_THRESHOLDS["default"]
-            )
-            * 1000
-        )
+        threshold_ms = self.SLOW_THRESHOLDS.get(self.operation_name, self.SLOW_THRESHOLDS["default"]) * 1000
         is_slow = self.duration_ms > threshold_ms
 
         # Log result
@@ -114,7 +107,7 @@ def time_operation(operation_name: str, log_level: str = "info"):
         yield timer
 
 
-def get_metrics_summary() -> Dict[str, Dict[str, Any]]:
+def get_metrics_summary() -> dict[str, dict[str, Any]]:
     """
     Get summary statistics of all recorded operations.
 

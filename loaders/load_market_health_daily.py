@@ -63,27 +63,30 @@ class MarketHealthDailyLoader(OptimalLoader):
 
     def fetch_vix_with_breaker(self, start: date, end: date) -> dict:
         """Fetch VIX data with circuit breaker protection (OPTIONAL enrichment)."""
-        return self._vix_breaker.execute(
+        result = self._vix_breaker.execute(
             fetch_func=lambda: self._fetch_vix_data(start, end),
             importance=DataImportance.OPTIONAL,
             fallback_value={},
         )
+        return result if isinstance(result, dict) else {}
 
     def fetch_put_call_with_breaker(self, eval_date: date) -> float | None:
         """Fetch put/call ratio with circuit breaker protection (OPTIONAL enrichment)."""
-        return self._put_call_breaker.execute(
+        result = self._put_call_breaker.execute(
             fetch_func=lambda: self._fetch_put_call_ratio(eval_date),
             importance=DataImportance.OPTIONAL,
             fallback_value=None,
         )
+        return result if isinstance(result, (float, type(None))) else None
 
     def fetch_yield_curve_with_breaker(self, start: date, end: date) -> dict:
         """Fetch yield curve data with circuit breaker protection (OPTIONAL enrichment)."""
-        return self._yield_curve_breaker.execute(
+        result = self._yield_curve_breaker.execute(
             fetch_func=lambda: self._fetch_yield_curve_data(start, end),
             importance=DataImportance.OPTIONAL,
             fallback_value={},
         )
+        return result if isinstance(result, dict) else {}
 
     def fetch_incremental(self, symbol: str = "SPY", since: date | None = None):
         """Fetch SPY price data and compute market health metrics."""

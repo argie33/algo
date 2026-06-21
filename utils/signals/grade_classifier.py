@@ -11,7 +11,6 @@ Thresholds are configurable via algo_config table.
 """
 
 import logging
-from typing import Optional
 
 
 logger = logging.getLogger(__name__)
@@ -45,7 +44,7 @@ class GradeClassifier:
     def classify(
         score: float,
         config_prefix: str = "grade",
-        thresholds: Optional[dict] = None,
+        thresholds: dict | None = None,
     ) -> str:
         """
         Classify a numeric score into a letter grade.

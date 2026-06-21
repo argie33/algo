@@ -82,6 +82,5 @@ class SignalThemesLoader(OptimalLoader):
             raise RuntimeError(f"Operation failed: {e}") from e
 
 
-
 if __name__ == "__main__":
     sys.exit(run_loader(SignalThemesLoader, global_mode=True))

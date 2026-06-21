@@ -10,7 +10,6 @@ See utils/validation/__init__.py for the single source of truth.
 """
 
 import logging
-from typing import Optional
 
 # Re-export unified validation system for backward compatibility
 from utils.validation import (
@@ -27,23 +26,23 @@ from utils.validation import (
 logger = logging.getLogger(__name__)
 
 __all__ = [
-    "safe_int",
-    "safe_parse_date",
-    "safe_parse_datetime_et",
-    "safe_json_loads",
-    "safe_str",
-    "safe_bool",
     "EASTERN_TZ",
     "log_data_fetch",
     "log_loader_completion",
+    "safe_bool",
+    "safe_int",
+    "safe_json_loads",
+    "safe_parse_date",
+    "safe_parse_datetime_et",
+    "safe_str",
 ]
 
 
 def log_data_fetch(
     source: str,
     count: int,
-    error: Optional[str] = None,
-    fetch_time_ms: Optional[float] = None,
+    error: str | None = None,
+    fetch_time_ms: float | None = None,
 ) -> None:
     """Log data fetch results with consistent format."""
     time_str = f" ({fetch_time_ms:.0f}ms)" if fetch_time_ms else ""
@@ -78,11 +77,7 @@ def log_loader_completion(
         )
     elif rows_inserted == 0:
         logger.warning(
-            f"[{table_name}] No new rows inserted "
-            f"({rows_skipped} skipped, {rows_failed} failed){duration_str}"
+            f"[{table_name}] No new rows inserted ({rows_skipped} skipped, {rows_failed} failed){duration_str}"
         )
     else:
-        logger.info(
-            f"[{table_name}] Loaded {rows_inserted}/{total} rows "
-            f"({rows_skipped} skipped){duration_str}"
-        )
+        logger.info(f"[{table_name}] Loaded {rows_inserted}/{total} rows ({rows_skipped} skipped){duration_str}")

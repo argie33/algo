@@ -49,7 +49,7 @@ PATTERNS:
 """
 
 import logging
-from typing import Any, Dict
+from typing import Any
 
 from utils.validation import (
     ValidatorRegistry,
@@ -104,7 +104,7 @@ def get_validators() -> ValidatorRegistry:
     return get_global_registry()
 
 
-def validate_phase_results(phase_results: Any) -> Dict[str, Any]:
+def validate_phase_results(phase_results: Any) -> dict[str, Any]:
     """Validate orchestrator phase results using the framework.
 
     This is the recommended way to validate phase results instead of calling
@@ -121,9 +121,7 @@ def validate_phase_results(phase_results: Any) -> Dict[str, Any]:
         }
     """
     validators = get_validators()
-    result = validators.validate(
-        "phase_results", phase_results, context="phase_results"
-    )
+    result = validators.validate("phase_results", phase_results, context="phase_results")
 
     return {
         "valid": result.is_valid,
@@ -132,7 +130,7 @@ def validate_phase_results(phase_results: Any) -> Dict[str, Any]:
     }
 
 
-def validate_alpaca_order(order_data: Any) -> Dict[str, Any]:
+def validate_alpaca_order(order_data: Any) -> dict[str, Any]:
     """Validate Alpaca order response using the framework.
 
     Args:
@@ -155,7 +153,7 @@ def validate_alpaca_order(order_data: Any) -> Dict[str, Any]:
     }
 
 
-def validate_alpaca_order_status(order_data: Any) -> Dict[str, Any]:
+def validate_alpaca_order_status(order_data: Any) -> dict[str, Any]:
     """Validate Alpaca order status response using the framework.
 
     Args:
@@ -169,9 +167,7 @@ def validate_alpaca_order_status(order_data: Any) -> Dict[str, Any]:
         }
     """
     validators = get_validators()
-    result = validators.validate(
-        "alpaca_order_status", order_data, context="alpaca_order_status"
-    )
+    result = validators.validate("alpaca_order_status", order_data, context="alpaca_order_status")
 
     return {
         "valid": result.is_valid,
@@ -180,7 +176,7 @@ def validate_alpaca_order_status(order_data: Any) -> Dict[str, Any]:
     }
 
 
-def validate_alpaca_account(account_data: Any) -> Dict[str, Any]:
+def validate_alpaca_account(account_data: Any) -> dict[str, Any]:
     """Validate Alpaca account response using the framework.
 
     Args:
@@ -194,9 +190,7 @@ def validate_alpaca_account(account_data: Any) -> Dict[str, Any]:
         }
     """
     validators = get_validators()
-    result = validators.validate(
-        "alpaca_account", account_data, context="alpaca_account"
-    )
+    result = validators.validate("alpaca_account", account_data, context="alpaca_account")
 
     return {
         "valid": result.is_valid,
@@ -205,7 +199,7 @@ def validate_alpaca_account(account_data: Any) -> Dict[str, Any]:
     }
 
 
-def validate_alpaca_position(position_data: Any) -> Dict[str, Any]:
+def validate_alpaca_position(position_data: Any) -> dict[str, Any]:
     """Validate Alpaca position response using the framework.
 
     Args:
@@ -219,9 +213,7 @@ def validate_alpaca_position(position_data: Any) -> Dict[str, Any]:
         }
     """
     validators = get_validators()
-    result = validators.validate(
-        "alpaca_position", position_data, context="alpaca_position"
-    )
+    result = validators.validate("alpaca_position", position_data, context="alpaca_position")
 
     return {
         "valid": result.is_valid,

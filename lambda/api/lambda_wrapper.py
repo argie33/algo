@@ -45,9 +45,7 @@ class LambdaAPIClient:
                 raise RuntimeError(f"Operation failed: {e}") from e
         return self.client
 
-    def invoke(
-        self, path: str, method: str = "GET", query_params: dict | None = None
-    ) -> dict[str, Any]:
+    def invoke(self, path: str, method: str = "GET", query_params: dict | None = None) -> dict[str, Any]:
         """
         Invoke the Lambda function directly.
 
@@ -71,9 +69,7 @@ class LambdaAPIClient:
             }
 
             if query_params:
-                event["rawQueryString"] = "&".join(
-                    f"{k}={v}" for k, v in query_params.items()
-                )
+                event["rawQueryString"] = "&".join(f"{k}={v}" for k, v in query_params.items())
 
             logger.debug(f"[Lambda] Invoking {self.function_name} with path={path}")
 
@@ -134,8 +130,6 @@ def get_lambda_client() -> LambdaAPIClient:
     return _client
 
 
-def invoke_api(
-    path: str, method: str = "GET", query_params: dict | None = None
-) -> dict[str, Any]:
+def invoke_api(path: str, method: str = "GET", query_params: dict | None = None) -> dict[str, Any]:
     """Invoke the Lambda API directly (convenience function)."""
     return get_lambda_client().invoke(path, method, query_params)

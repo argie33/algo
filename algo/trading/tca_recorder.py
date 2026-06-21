@@ -27,7 +27,7 @@ class TCARecorder:
     ) -> None:
         """Record entry execution TCA metrics."""
         try:
-            slippage_pct = float((slippage / reference_price * 100)) if reference_price else 0
+            slippage_pct = float(slippage / reference_price * 100) if reference_price else 0
             record = {
                 "event": "entry",
                 "symbol": symbol,
@@ -53,7 +53,7 @@ class TCARecorder:
     ) -> None:
         """Record exit execution TCA metrics."""
         try:
-            slippage_pct = float((slippage / reference_price * 100)) if reference_price else 0
+            slippage_pct = float(slippage / reference_price * 100) if reference_price else 0
             record = {
                 "event": "exit",
                 "symbol": symbol,

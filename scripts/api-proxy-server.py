@@ -66,7 +66,6 @@ class _MockContext:
 
 
 class _APIHandler(BaseHTTPRequestHandler):
-
     def _cors_headers(self):
         origin = self.headers.get("Origin", "")
         if origin.startswith("http://localhost"):
@@ -90,11 +89,7 @@ class _APIHandler(BaseHTTPRequestHandler):
     def _build_event(self, method, body=None):
         parsed = urlparse(self.path)
         qs = parsed.query
-        params = (
-            {k: v[0] for k, v in parse_qs(qs, keep_blank_values=True).items()}
-            if qs
-            else None
-        )
+        params = {k: v[0] for k, v in parse_qs(qs, keep_blank_values=True).items()} if qs else None
         headers = {k.lower(): v for k, v in self.headers.items()}
         event = {
             "version": "2.0",
@@ -120,9 +115,7 @@ class _APIHandler(BaseHTTPRequestHandler):
 
     def _invoke(self, method, body=None):
         if not _handler:
-            self._write(
-                503, '{"error":"Lambda handler not loaded — check startup logs"}'
-            )
+            self._write(503, '{"error":"Lambda handler not loaded — check startup logs"}')
             return
         event = self._build_event(method, body)
         try:
@@ -136,9 +129,7 @@ class _APIHandler(BaseHTTPRequestHandler):
         if isinstance(body_out, (dict, list)):
             body_out = json.dumps(body_out)
         lambda_headers = {
-            k: v
-            for k, v in (result.get("headers") or {}).items()
-            if not k.lower().startswith("access-control")
+            k: v for k, v in (result.get("headers") or {}).items() if not k.lower().startswith("access-control")
         }
         self._write(status, body_out, lambda_headers)
 
@@ -184,9 +175,7 @@ if __name__ == "__main__":
     port = int(os.environ.get("LOCAL_API_PORT", "3001"))
     httpd = HTTPServer(("127.0.0.1", port), _APIHandler)
     logger.info(f"Local API server on http://localhost:{port}")
-    logger.info(
-        "Requests routed through lambda_function.lambda_handler → local PostgreSQL"
-    )
+    logger.info("Requests routed through lambda_function.lambda_handler → local PostgreSQL")
     try:
         httpd.serve_forever()
     except KeyboardInterrupt:

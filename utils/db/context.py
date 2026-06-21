@@ -131,11 +131,7 @@ class _CorrelationIdCursor:
             return self.cursor.execute(query, args)
 
         # For string queries or parameterless SQL objects, append comment
-        query_str = (
-            query.as_string(self.cursor)
-            if hasattr(query, "as_string")
-            else str(query or "")
-        )
+        query_str = query.as_string(self.cursor) if hasattr(query, "as_string") else str(query or "")
         if query_str and not query_str.strip().startswith("--"):
             query_str = f"{query_str} /* correlation_id: {self.correlation_id} */"
 
@@ -145,11 +141,7 @@ class _CorrelationIdCursor:
 
     def executemany(self, query: str, args):
         """Execute many with correlation_id comment appended."""
-        query_str = (
-            query.as_string(self.cursor)
-            if hasattr(query, "as_string")
-            else str(query or "")
-        )
+        query_str = query.as_string(self.cursor) if hasattr(query, "as_string") else str(query or "")
         if query_str and not query_str.strip().startswith("--"):
             query_str = f"{query_str} /* correlation_id: {self.correlation_id} */"
         return self.cursor.executemany(query_str, args)
@@ -280,9 +272,7 @@ class DatabaseContext:
             if pooled_conn is not None:
                 self.conn = pooled_conn
                 self._externally_managed = True
-                logger.debug(
-                    "[DB_CONTEXT] Reusing pooled connection from OptimalLoader"
-                )
+                logger.debug("[DB_CONTEXT] Reusing pooled connection from OptimalLoader")
             else:
                 # Normal flow: acquire new connection from pool
                 self.conn = get_db_connection(timeout=self.timeout)
@@ -298,7 +288,6 @@ class DatabaseContext:
                         (f"algo_loader[{self.correlation_id}]",),
                     )
                 except (psycopg2.DatabaseError, psycopg2.OperationalError) as e:
-
                     msg = f"Unexpected error: {e}"
                     raise RuntimeError(msg) from e
 
@@ -361,13 +350,9 @@ class DatabaseContext:
                             self.conn.commit()
                         else:
                             self.conn.rollback()
-                        logger.debug(
-                            "[DB_CONTEXT] Not closing externally-managed connection"
-                        )
+                        logger.debug("[DB_CONTEXT] Not closing externally-managed connection")
             except Exception as e:
-                logger.warning(
-                    f"[DB_CLEANUP_WARNING] Error in database context cleanup: {e}"
-                )
+                logger.warning(f"[DB_CLEANUP_WARNING] Error in database context cleanup: {e}")
             finally:
                 self.cur = None
                 if not self._externally_managed:

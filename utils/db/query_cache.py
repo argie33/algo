@@ -46,9 +46,10 @@ All cache operations should track hit rates. Low hit rates indicate:
 
 import logging
 import time
+from collections.abc import Callable
 from dataclasses import dataclass
 from enum import Enum
-from typing import Any, Callable, Dict, Generic, Optional, Tuple, TypeVar
+from typing import Any, Generic, TypeVar
 
 
 logger = logging.getLogger(__name__)
@@ -127,8 +128,8 @@ class QueryCache(Generic[T]):
         self.max_entries = max_entries
         self.strategy = strategy
 
-        self._cache: Dict[Any, Tuple[T, float]] = {}  # key -> (value, timestamp)
-        self._access_order: Dict[Any, float] = {}  # key -> last_access_time (for LRU)
+        self._cache: dict[Any, tuple[T, float]] = {}  # key -> (value, timestamp)
+        self._access_order: dict[Any, float] = {}  # key -> last_access_time (for LRU)
         self._stats = CacheStats()
 
     def get_or_compute(
@@ -160,9 +161,7 @@ class QueryCache(Generic[T]):
                 # Cache hit
                 self._stats.hits += 1
                 elapsed_ms = (time.time() - t0) * 1000
-                self._stats.avg_hit_time_ms = (
-                    self._stats.avg_hit_time_ms * 0.9 + elapsed_ms * 0.1
-                )
+                self._stats.avg_hit_time_ms = self._stats.avg_hit_time_ms * 0.9 + elapsed_ms * 0.1
                 logger.debug(f"[{self.cache_name}] HIT: {key} {context}")
                 self._access_order[key] = time.time()  # Update LRU
                 return value
@@ -188,25 +187,17 @@ class QueryCache(Generic[T]):
             elapsed_ms = (time.time() - t1) * 1000
 
             self._stats.misses += 1
-            self._stats.avg_miss_time_ms = (
-                self._stats.avg_miss_time_ms * 0.9 + elapsed_ms * 0.1
-            )
+            self._stats.avg_miss_time_ms = self._stats.avg_miss_time_ms * 0.9 + elapsed_ms * 0.1
 
             # Store in cache
             self._cache[key] = (value, time.time())
             self._access_order[key] = time.time()
 
             # Evict old entries if over capacity
-            if (
-                len(self._cache) > self.max_entries
-                and self.strategy == CacheStrategy.LRU
-            ):
+            if len(self._cache) > self.max_entries and self.strategy == CacheStrategy.LRU:
                 self._evict_lru()
 
-            logger.debug(
-                f"[{self.cache_name}] MISS+COMPUTE: {key} "
-                f"compute_time={elapsed_ms:.0f}ms {context}"
-            )
+            logger.debug(f"[{self.cache_name}] MISS+COMPUTE: {key} compute_time={elapsed_ms:.0f}ms {context}")
             return value
 
         except Exception as e:
@@ -218,7 +209,7 @@ class QueryCache(Generic[T]):
                 return self._cache[key][0]
             raise
 
-    def invalidate(self, key: Optional[Any] = None) -> None:
+    def invalidate(self, key: Any | None = None) -> None:
         """Invalidate cache entry or entire cache.
 
         Args:
@@ -274,7 +265,7 @@ class QueryCache(Generic[T]):
 
 
 # Global cache instances - one per expensive query type
-_GLOBAL_CACHES: Dict[str, QueryCache] = {}
+_GLOBAL_CACHES: dict[str, QueryCache] = {}
 
 
 def get_or_create_cache(

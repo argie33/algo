@@ -58,13 +58,9 @@ class HealthCheckConfig:
         # HEALTHY: data <= X days old
         # STALE: X < data <= Y days old
         # CRITICAL: data > Y days old
-        self.pipeline_healthy_days = self._read_int_env(
-            "PIPELINE_HEALTHY_DAYS", default=2, min_val=1, max_val=30
-        )
+        self.pipeline_healthy_days = self._read_int_env("PIPELINE_HEALTHY_DAYS", default=2, min_val=1, max_val=30)
 
-        self.pipeline_critical_days = self._read_int_env(
-            "PIPELINE_CRITICAL_DAYS", default=7, min_val=1, max_val=30
-        )
+        self.pipeline_critical_days = self._read_int_env("PIPELINE_CRITICAL_DAYS", default=7, min_val=1, max_val=30)
 
         # Log configuration at startup (useful for debugging threshold issues)
         logger.info(
@@ -73,9 +69,7 @@ class HealthCheckConfig:
             f"pipeline_healthy={self.pipeline_healthy_days}d, pipeline_critical={self.pipeline_critical_days}d"
         )
 
-    def _read_int_env(
-        self, key: str, default: int, min_val: int = None, max_val: int = None
-    ) -> int:
+    def _read_int_env(self, key: str, default: int, min_val: int | None = None, max_val: int | None = None) -> int:
         """Read integer from environment variable with bounds checking.
 
         Args:
@@ -96,21 +90,15 @@ class HealthCheckConfig:
 
             # Clamp to bounds
             if min_val is not None and value < min_val:
-                logger.warning(
-                    f"{key}={value} is below minimum {min_val}, using {min_val}"
-                )
+                logger.warning(f"{key}={value} is below minimum {min_val}, using {min_val}")
                 return min_val
             if max_val is not None and value > max_val:
-                logger.warning(
-                    f"{key}={value} exceeds maximum {max_val}, using {max_val}"
-                )
+                logger.warning(f"{key}={value} exceeds maximum {max_val}, using {max_val}")
                 return max_val
 
             return value
         except ValueError:
-            logger.warning(
-                f"{key}={value_str} is not a valid integer, using default {default}"
-            )
+            logger.warning(f"{key}={value_str} is not a valid integer, using default {default}")
             return default
 
 

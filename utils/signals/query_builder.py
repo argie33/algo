@@ -8,64 +8,64 @@ SUPPLEMENTARY: signal_quality_scores, company_profile — enrichment
 CONTEXT: algo_performance_daily, algo_portfolio_snapshots — strategy performance
 """
 
-from typing import Any, List, Optional
+from typing import Any
 
 
 class SignalQueryBuilder:
     """Build consistent signal queries with documented source hierarchy."""
 
     SOURCES = {
-        'buy_sell_daily': {
-            'type': 'primary',
-            'table': 'buy_sell_daily',
-            'description': 'Stock trading signals (buy/sell events)',
+        "buy_sell_daily": {
+            "type": "primary",
+            "table": "buy_sell_daily",
+            "description": "Stock trading signals (buy/sell events)",
         },
-        'buy_sell_daily_etf': {
-            'type': 'primary',
-            'table': 'buy_sell_daily_etf',
-            'description': 'ETF trading signals (buy/sell events)',
+        "buy_sell_daily_etf": {
+            "type": "primary",
+            "table": "buy_sell_daily_etf",
+            "description": "ETF trading signals (buy/sell events)",
         },
-        'signal_quality_scores': {
-            'type': 'supplementary',
-            'table': 'signal_quality_scores',
-            'description': 'Signal quality confidence scores',
+        "signal_quality_scores": {
+            "type": "supplementary",
+            "table": "signal_quality_scores",
+            "description": "Signal quality confidence scores",
         },
-        'company_profile': {
-            'type': 'supplementary',
-            'table': 'company_profile',
-            'description': 'Company metadata (sector, industry)',
+        "company_profile": {
+            "type": "supplementary",
+            "table": "company_profile",
+            "description": "Company metadata (sector, industry)",
         },
-        'algo_performance_daily': {
-            'type': 'context',
-            'table': 'algo_performance_daily',
-            'description': 'Portfolio performance metrics (Sharpe, win rate)',
+        "algo_performance_daily": {
+            "type": "context",
+            "table": "algo_performance_daily",
+            "description": "Portfolio performance metrics (Sharpe, win rate)",
         },
-        'algo_portfolio_snapshots': {
-            'type': 'context',
-            'table': 'algo_portfolio_snapshots',
-            'description': 'Portfolio equity curve and current state',
+        "algo_portfolio_snapshots": {
+            "type": "context",
+            "table": "algo_portfolio_snapshots",
+            "description": "Portfolio equity curve and current state",
         },
     }
 
-    def __init__(self, source: str = 'stocks', alias: str = 'bsd'):
+    def __init__(self, source: str = "stocks", alias: str = "bsd"):
         """Initialize with primary source: 'stocks' or 'etf'."""
-        self.primary_source = 'buy_sell_daily' if source == 'stocks' else 'buy_sell_daily_etf'
+        self.primary_source = "buy_sell_daily" if source == "stocks" else "buy_sell_daily_etf"
         self.alias = alias
-        self.supplementary_sources: List[str] = []
-        self.context_sources: List[str] = []
-        self.filters: List[tuple] = []
+        self.supplementary_sources: list[str] = []
+        self.context_sources: list[str] = []
+        self.filters: list[tuple] = []
 
-    def add_supplementary(self, sources: List[str]) -> 'SignalQueryBuilder':
+    def add_supplementary(self, sources: list[str]) -> "SignalQueryBuilder":
         """Add supplementary data sources."""
         self.supplementary_sources.extend(sources)
         return self
 
-    def add_context(self, sources: List[str]) -> 'SignalQueryBuilder':
+    def add_context(self, sources: list[str]) -> "SignalQueryBuilder":
         """Add context sources."""
         self.context_sources.extend(sources)
         return self
 
-    def add_filter(self, clause: str, params: Optional[List[Any]] = None) -> 'SignalQueryBuilder':
+    def add_filter(self, clause: str, params: list[Any] | None = None) -> "SignalQueryBuilder":
         """Add WHERE clause filter."""
         self.filters.append((clause, params or []))
         return self

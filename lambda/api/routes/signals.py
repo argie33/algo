@@ -2,7 +2,6 @@
 
 import logging
 import re
-from typing import Dict, Optional
 
 import psycopg2
 import psycopg2.errors
@@ -17,6 +16,7 @@ from routes.utils import (
     safe_json_serialize,
     safe_limit,
 )
+
 from shared_contracts.response_validator import ResponseValidator
 
 
@@ -27,18 +27,16 @@ def handle(
     cur,
     path: str,
     method: str,
-    params: Dict,
-    body: Dict | None = None,
-    jwt_claims: Dict | None = None,
-) -> "Dict":
+    params: dict,
+    body: dict | None = None,
+    jwt_claims: dict | None = None,
+) -> "dict":
     """Handle /api/signals/* endpoints."""
     try:
         if not params:
             params = {}
         if (
-            path in ["/api/signals", "/api/signals/stocks"]
-            or path.startswith("/api/signals?")
-            or path.startswith("/api/signals/stocks?")
+            path in ["/api/signals", "/api/signals/stocks"] or path.startswith(("/api/signals?", "/api/signals/stocks?"))
         ):
             limit_list = params.get("limit")
             if limit_list is None:
@@ -75,9 +73,7 @@ def handle(
 
 
 @db_route_handler("fetch stock signals")
-def _get_signals_stocks(
-    cur, limit: int = 500, timeframe: str = "daily", symbol_filter: Optional[str] = None
-) -> Dict:
+def _get_signals_stocks(cur, limit: int = 500, timeframe: str = "daily", symbol_filter: str | None = None) -> dict:
     """Get stock trading signals from buy_sell_daily (primary signal source).
 
     EOD pipeline runs: prices → metrics → swing_trader_scores → buy_sell_daily.
@@ -172,9 +168,7 @@ def _get_signals_stocks(
         )
         signals = cur.fetchall()
         freshness = check_data_freshness(cur, "buy_sell_daily", "date", warning_days=1)
-        signals_result = list_response(
-            [safe_json_serialize(dict(s)) for s in signals], data_freshness=freshness
-        )
+        signals_result = list_response([safe_json_serialize(dict(s)) for s in signals], data_freshness=freshness)
         is_valid, error_msg = ResponseValidator.validate_endpoint_response("sig", signals_result)
         if not is_valid:
             logger.error(f"Endpoint response validation failed: {error_msg}")
@@ -192,7 +186,7 @@ def _get_signals_stocks(
 
 
 @db_route_handler("fetch ETF signals")
-def _get_signals_etf(cur, limit: int = 500) -> Dict:
+def _get_signals_etf(cur, limit: int = 500) -> dict:
     """Get ETF market-regime signals from price_daily + trend_template_data.
 
     buy_sell_daily_etf and technical_data_daily were removed from the pipeline.
@@ -201,7 +195,7 @@ def _get_signals_etf(cur, limit: int = 500) -> Dict:
     """
     try:
         cur.execute("SET LOCAL statement_timeout = '15000ms'")
-        etf_symbols = ['SPY', 'QQQ', 'IWM', 'DIA', 'EEM', 'EFA']
+        etf_symbols = ["SPY", "QQQ", "IWM", "DIA", "EEM", "EFA"]
         cur.execute(
             """
             SELECT

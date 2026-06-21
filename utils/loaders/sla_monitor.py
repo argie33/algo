@@ -148,19 +148,15 @@ class SLAMonitor:
         recommendation = ""
         if is_critical:
             recommendation = (
-                f"CRITICAL: Loader exceeded {critical/60:.0f} min SLA. "
+                f"CRITICAL: Loader exceeded {critical / 60:.0f} min SLA. "
                 f"Check for hung tasks, rate limiting, or database issues."
             )
         elif is_breaching:
             recommendation = (
-                f"WARNING: Loader approaching {warning/60:.0f} min limit. "
-                f"May not meet SLA if no improvement."
+                f"WARNING: Loader approaching {warning / 60:.0f} min limit. May not meet SLA if no improvement."
             )
         elif margin_pct < 50:
-            recommendation = (
-                f"CAUTION: {margin_pct:.0f}% of warning threshold remaining. "
-                f"Monitor for slowdown."
-            )
+            recommendation = f"CAUTION: {margin_pct:.0f}% of warning threshold remaining. Monitor for slowdown."
 
         return SLAStatus(
             loader_name=self.loader_name,
@@ -185,9 +181,9 @@ class SLAMonitor:
 
         msg = (
             f"{status.status_emoji} [{status.status_text}] {self.loader_name}: "
-            f"{status.elapsed_seconds/60:.1f} min elapsed "
-            f"({status.expected_seconds/60:.0f} expected, "
-            f"warn at {status.warning_threshold_seconds/60:.0f} min)"
+            f"{status.elapsed_seconds / 60:.1f} min elapsed "
+            f"({status.expected_seconds / 60:.0f} expected, "
+            f"warn at {status.warning_threshold_seconds / 60:.0f} min)"
         )
 
         if status.recommendation:
@@ -241,14 +237,12 @@ class PipelineSLAMonitor:
         """
         self.pipeline_name = pipeline_name
         self.start_time: float | None = None
-        self.sla_config = PIPELINE_SLA_TARGETS.get(
-            pipeline_name, (60 * 60, 180 * 60, 300 * 60)
-        )
+        self.sla_config = PIPELINE_SLA_TARGETS.get(pipeline_name, (60 * 60, 180 * 60, 300 * 60))
 
     def start(self) -> None:
         """Mark the start of pipeline execution."""
         self.start_time = time.time()
-        logger.info(f"[PIPELINE] {self.pipeline_name} started, SLA budget: {self.sla_config[2]/60:.0f} min")
+        logger.info(f"[PIPELINE] {self.pipeline_name} started, SLA budget: {self.sla_config[2] / 60:.0f} min")
 
     def get_status(self) -> SLAStatus:
         """Get current SLA status of the pipeline."""
@@ -293,13 +287,13 @@ class PipelineSLAMonitor:
         if status.is_critical:
             logger.error(
                 f"[PIPELINE] 🔴 {self.pipeline_name} CRITICAL: "
-                f"{status.elapsed_seconds/60:.0f} min elapsed (max {status.critical_threshold_seconds/60:.0f} min)"
+                f"{status.elapsed_seconds / 60:.0f} min elapsed (max {status.critical_threshold_seconds / 60:.0f} min)"
             )
             return False
         elif status.is_breaching:
             logger.warning(
                 f"[PIPELINE] 🟡 {self.pipeline_name} WARNING: "
-                f"{status.elapsed_seconds/60:.0f} min elapsed (warn at {status.warning_threshold_seconds/60:.0f} min)"
+                f"{status.elapsed_seconds / 60:.0f} min elapsed (warn at {status.warning_threshold_seconds / 60:.0f} min)"
             )
             return False
 

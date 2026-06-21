@@ -134,6 +134,5 @@ class AnalystSentimentLoader(OptimalLoader):
         return super()._validate_row(row)
 
 
-
 if __name__ == "__main__":
     sys.exit(run_loader(AnalystSentimentLoader))

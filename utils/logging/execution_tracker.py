@@ -11,10 +11,11 @@ Logs orchestrator runs to orchestrator_execution_log table so you can:
 import json
 import logging
 from datetime import datetime, timezone
-from typing import Any, Dict, Optional, Union
+from typing import Any
+
+import psycopg2
 
 from utils.db import DatabaseContext
-import psycopg2
 
 
 logger = logging.getLogger(__name__)
@@ -24,10 +25,10 @@ class OrchestratorExecutionTracker:
     """Logs orchestrator execution history for debugging and diagnostics."""
 
     def __init__(self) -> None:
-        self.run_id: Optional[str] = None
-        self.run_date: Optional[Any] = None
-        self.started_at: Optional[datetime] = None
-        self.phase_results: Dict[Union[int, str], Dict[str, Any]] = {}
+        self.run_id: str | None = None
+        self.run_date: Any | None = None
+        self.started_at: datetime | None = None
+        self.phase_results: dict[int | str, dict[str, Any]] = {}
 
     def set_run_context(self, run_id: str, run_date: Any) -> None:
         """Set the run context (called at orchestrator startup)."""
@@ -60,9 +61,7 @@ class OrchestratorExecutionTracker:
                 ON orchestrator_execution_log(run_date DESC)
             """)
 
-    def log_phase_result(
-        self, phase_num: Union[int, str], name: str, status: str, summary: str
-    ) -> None:
+    def log_phase_result(self, phase_num: int | str, name: str, status: str, summary: str) -> None:
         """Record a phase result. Called by orchestrator.log_phase_result()."""
         self.phase_results[phase_num] = {
             "phase": str(phase_num),
@@ -71,9 +70,7 @@ class OrchestratorExecutionTracker:
             "summary": summary,
         }
 
-    def save_execution_log(
-        self, overall_status: str, halt_reason: Optional[str] = None
-    ) -> bool:
+    def save_execution_log(self, overall_status: str, halt_reason: str | None = None) -> bool:
         """Save the complete execution log to database.
 
         Args:
@@ -90,23 +87,16 @@ class OrchestratorExecutionTracker:
             self._ensure_table_exists()
         except (psycopg2.DatabaseError, psycopg2.OperationalError) as e:
             raise RuntimeError(
-                f"Failed to ensure execution tracking table exists: {e}. "
-                "Cannot proceed with execution logging."
+                f"Failed to ensure execution tracking table exists: {e}. Cannot proceed with execution logging."
             ) from e
 
         try:
             completed_at = datetime.now(timezone.utc)
 
             # Count phase outcomes
-            phases_completed = sum(
-                1 for r in self.phase_results.values() if r["status"] == "success"
-            )
-            phases_halted = sum(
-                1 for r in self.phase_results.values() if r["status"] == "halt"
-            )
-            phases_errored = sum(
-                1 for r in self.phase_results.values() if r["status"] == "error"
-            )
+            phases_completed = sum(1 for r in self.phase_results.values() if r["status"] == "success")
+            phases_halted = sum(1 for r in self.phase_results.values() if r["status"] == "halt")
+            phases_errored = sum(1 for r in self.phase_results.values() if r["status"] == "error")
 
             # Build human-readable summary
             if overall_status == "skipped":
@@ -120,10 +110,7 @@ class OrchestratorExecutionTracker:
 
             # Prepare phase results array (sorted by phase number)
             # Keys may be int (1, 2, 3) or str ('3a', '3b') — sort as strings to handle mixed types
-            phase_results_array = [
-                self.phase_results[n]
-                for n in sorted(self.phase_results.keys(), key=str)
-            ]
+            phase_results_array = [self.phase_results[n] for n in sorted(self.phase_results.keys(), key=str)]
 
             with DatabaseContext("write") as cur:
                 cur.execute(
@@ -154,7 +141,7 @@ class OrchestratorExecutionTracker:
 
 
 # Global instance (accessible from orchestrator)
-_tracker: Optional[OrchestratorExecutionTracker] = None
+_tracker: OrchestratorExecutionTracker | None = None
 
 
 def get_tracker() -> OrchestratorExecutionTracker:

@@ -27,9 +27,7 @@ import psycopg2.errors
 logger = logging.getLogger(__name__)
 
 
-def check_idempotency_key(
-    cur, idempotency_key: str, endpoint: str, timeout_sec: int = 5
-) -> dict | None:
+def check_idempotency_key(cur, idempotency_key: str, endpoint: str, timeout_sec: int = 5) -> dict | None:
     """Check if request was already processed using idempotency key.
 
     Args:
@@ -56,9 +54,7 @@ def check_idempotency_key(
         )
         row = cur.fetchone()
         if row:
-            logger.info(
-                f"Idempotency key cache hit: {endpoint} (key={idempotency_key[:16]}...)"
-            )
+            logger.info(f"Idempotency key cache hit: {endpoint} (key={idempotency_key[:16]}...)")
             try:
                 response = json.loads(row["response_data"])
                 if isinstance(response, dict):
@@ -67,9 +63,7 @@ def check_idempotency_key(
                     logger.error(f"Cached response is not a dict: {type(response)}")
                     return None
             except (json.JSONDecodeError, TypeError) as e:
-                logger.error(
-                    f"Failed to deserialize cached response: {e}. Treating as cache miss."
-                )
+                logger.error(f"Failed to deserialize cached response: {e}. Treating as cache miss.")
                 return None
         return None
     except (
@@ -77,18 +71,14 @@ def check_idempotency_key(
         psycopg2.OperationalError,
         psycopg2.DatabaseError,
     ):
-        logger.debug(
-            "Idempotency key table does not exist or database error — proceeding without cache"
-        )
+        logger.debug("Idempotency key table does not exist or database error — proceeding without cache")
         return None
     except (psycopg2.DatabaseError, psycopg2.OperationalError) as e:
         logger.error(f"Unexpected error checking idempotency key: {type(e).__name__}: {e}")
         return None
 
 
-def store_idempotency_key(
-    cur, idempotency_key: str, endpoint: str, response_data: dict, timeout_sec: int = 5
-) -> bool:
+def store_idempotency_key(cur, idempotency_key: str, endpoint: str, response_data: dict, timeout_sec: int = 5) -> bool:
     """Store idempotency key with response for future replays.
 
     Args:
@@ -116,27 +106,21 @@ def store_idempotency_key(
             """,
             (idempotency_key, endpoint, response_json, response_json),
         )
-        logger.info(
-            f"Stored idempotency key: {endpoint} (key={idempotency_key[:16]}...)"
-        )
+        logger.info(f"Stored idempotency key: {endpoint} (key={idempotency_key[:16]}...)")
         return True
     except (
         psycopg2.errors.UndefinedTable,
         psycopg2.OperationalError,
         psycopg2.DatabaseError,
     ) as e:
-        logger.debug(
-            f"Idempotency key storage skipped (table missing or DB error): {type(e).__name__}"
-        )
+        logger.debug(f"Idempotency key storage skipped (table missing or DB error): {type(e).__name__}")
         return False
     except (psycopg2.DatabaseError, psycopg2.OperationalError) as e:
         logger.error(f"Failed to store idempotency key: {type(e).__name__}: {e}")
         return False
 
 
-def cleanup_expired_keys(
-    cur, days_old: int = 7, batch_size: int = 1000, timeout_sec: int = 10
-) -> int:
+def cleanup_expired_keys(cur, days_old: int = 7, batch_size: int = 1000, timeout_sec: int = 10) -> int:
     """Clean up expired idempotency keys older than specified days.
 
     Typically called by background job to prevent unbounded table growth.

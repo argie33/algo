@@ -83,4 +83,4 @@ class PositionStatus(Enum):
 
 
 # Export for convenience
-__all__ = ["TradeStatus", "PositionStatus"]
+__all__ = ["PositionStatus", "TradeStatus"]

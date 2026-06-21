@@ -20,9 +20,7 @@ from routes.utils import (
 )
 
 
-
 logger = logging.getLogger(__name__)
-
 
 
 @db_route_handler("get economic calendar")
@@ -33,9 +31,7 @@ def _get_economic_calendar(cur) -> dict:
     so clients can detect when calendar data is stale or missing.
     """
     try:
-        freshness = check_data_freshness(
-            cur, "economic_calendar", "event_date", warning_days=7
-        )
+        freshness = check_data_freshness(cur, "economic_calendar", "event_date", warning_days=7)
 
         cur.execute("""
             SELECT event_date, event_name, country, importance,
@@ -66,7 +62,6 @@ def _get_economic_calendar(cur) -> dict:
         return error_response(code, error_type, message)
 
 
-
 @db_route_handler("get sentiment")
 def _get_sentiment(cur) -> dict:
     """Get market sentiment data.
@@ -94,9 +89,7 @@ def _get_sentiment(cur) -> dict:
     label = data.get("label")
 
     if fear_greed is None or label is None:
-        logger.warning(
-            f"Sentiment data incomplete: fear_greed={fear_greed}, label={label}"
-        )
+        logger.warning(f"Sentiment data incomplete: fear_greed={fear_greed}, label={label}")
         return error_response(503, "service_unavailable", "Sentiment data incomplete")
 
     return success_response(
@@ -107,6 +100,3 @@ def _get_sentiment(cur) -> dict:
             "data_freshness": freshness,
         }
     )
-
-
-

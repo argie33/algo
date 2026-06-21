@@ -8,10 +8,10 @@ Maintains position state and trade history for analysis and compliance.
 import logging
 from datetime import date
 from decimal import Decimal
-from typing import Optional
+
+import psycopg2
 
 from utils.db import DatabaseContext
-import psycopg2
 
 
 logger = logging.getLogger(__name__)
@@ -28,7 +28,7 @@ class TradeRecorder:
         quantity: int,
         signal_type: str,
         reason: str = "",
-        portfolio_allocation: Optional[float] = None,
+        portfolio_allocation: float | None = None,
     ) -> bool:
         """Record a buy/entry trade.
 
@@ -63,11 +63,7 @@ class TradeRecorder:
                         quantity,
                         signal_type,
                         reason,
-                        (
-                            Decimal(str(portfolio_allocation))
-                            if portfolio_allocation
-                            else None
-                        ),
+                        (Decimal(str(portfolio_allocation)) if portfolio_allocation else None),
                         Decimal(str(entry_price)),
                         quantity,
                     ),
@@ -100,15 +96,12 @@ class TradeRecorder:
                     ),
                 )
 
-                logger.info(
-                    f"Recorded entry: {symbol} {quantity}sh @ ${entry_price} on {entry_date}"
-                )
+                logger.info(f"Recorded entry: {symbol} {quantity}sh @ ${entry_price} on {entry_date}")
                 return True
 
         except (ValueError, ZeroDivisionError, TypeError) as e:
             raise RuntimeError(
-                f"Failed to record entry for {symbol}: {e}. "
-                "Cannot proceed without recording trade entry."
+                f"Failed to record entry for {symbol}: {e}. Cannot proceed without recording trade entry."
             ) from e
 
     def record_exit(
@@ -116,7 +109,7 @@ class TradeRecorder:
         symbol: str,
         exit_date: date,
         exit_price: float,
-        quantity: Optional[int] = None,
+        quantity: int | None = None,
         reason: str = "",
     ) -> bool:
         """Record a sell/exit trade.
@@ -143,9 +136,7 @@ class TradeRecorder:
                     if pos:
                         quantity = pos[0]
                     else:
-                        logger.warning(
-                            f"No open position for {symbol}, cannot record exit"
-                        )
+                        logger.warning(f"No open position for {symbol}, cannot record exit")
                         return False
 
                 # Get entry price for P&L calculation
@@ -159,27 +150,19 @@ class TradeRecorder:
                 )
                 entry_row = cursor.fetchone()
                 if not entry_row or entry_row[0] is None:
-                    logger.error(
-                        f"Cannot record exit for {symbol}: no open entry found in database"
-                    )
+                    logger.error(f"Cannot record exit for {symbol}: no open entry found in database")
                     return False
 
                 entry_price = float(entry_row[0])
 
                 # Validate entry price
                 if entry_price <= 0:
-                    logger.error(
-                        f"Cannot record exit for {symbol}: invalid entry price {entry_price}"
-                    )
+                    logger.error(f"Cannot record exit for {symbol}: invalid entry price {entry_price}")
                     return False
 
                 # Calculate P&L
                 pnl = (exit_price - entry_price) * quantity
-                pnl_pct = (
-                    ((exit_price - entry_price) / entry_price * 100)
-                    if entry_price > 0
-                    else 0
-                )
+                pnl_pct = ((exit_price - entry_price) / entry_price * 100) if entry_price > 0 else 0
 
                 # Update trade record (most recent entry for this symbol)
                 cursor.execute(
@@ -222,8 +205,7 @@ class TradeRecorder:
 
         except (ValueError, ZeroDivisionError, TypeError) as e:
             raise RuntimeError(
-                f"Failed to record exit for {symbol}: {e}. "
-                "Cannot proceed without recording trade exit."
+                f"Failed to record exit for {symbol}: {e}. Cannot proceed without recording trade exit."
             ) from e
 
     def update_position_price(self, symbol: str, current_price: float) -> bool:
@@ -251,8 +233,7 @@ class TradeRecorder:
 
         except (psycopg2.DatabaseError, psycopg2.OperationalError) as e:
             raise RuntimeError(
-                f"Failed to update price for {symbol}: {e}. "
-                "Cannot proceed without updating position price."
+                f"Failed to update price for {symbol}: {e}. Cannot proceed without updating position price."
             ) from e
 
     def get_open_positions(self) -> list:
@@ -286,6 +267,5 @@ class TradeRecorder:
 
         except (ValueError, ZeroDivisionError, TypeError) as e:
             raise RuntimeError(
-                f"Failed to get open positions: {e}. "
-                "Cannot proceed without accurate position tracking."
+                f"Failed to get open positions: {e}. Cannot proceed without accurate position tracking."
             ) from e

@@ -73,34 +73,19 @@ class PositioningMetricsLoader(OptimalLoader):
             short_interest_percent = None
             short_interest_trend = None
 
-            if (
-                "heldPercentInstitutions" in info
-                and info["heldPercentInstitutions"] is not None
-            ):
+            if "heldPercentInstitutions" in info and info["heldPercentInstitutions"] is not None:
                 institutional_ownership = float(info["heldPercentInstitutions"]) * 100
-            elif (
-                "institutional_ownership" in info
-                and info["institutional_ownership"] is not None
-            ):
+            elif "institutional_ownership" in info and info["institutional_ownership"] is not None:
                 institutional_ownership = float(info["institutional_ownership"])
 
-            if (
-                "heldPercentInsiders" in info
-                and info["heldPercentInsiders"] is not None
-            ):
+            if "heldPercentInsiders" in info and info["heldPercentInsiders"] is not None:
                 insider_ownership = float(info["heldPercentInsiders"]) * 100
             elif "insider_ownership" in info and info["insider_ownership"] is not None:
                 insider_ownership = float(info["insider_ownership"])
 
-            if (
-                "shortPercentOfFloat" in info
-                and info["shortPercentOfFloat"] is not None
-            ):
+            if "shortPercentOfFloat" in info and info["shortPercentOfFloat"] is not None:
                 short_interest_percent = float(info["shortPercentOfFloat"]) * 100
-            elif (
-                "short_percent_of_float" in info
-                and info["short_percent_of_float"] is not None
-            ):
+            elif "short_percent_of_float" in info and info["short_percent_of_float"] is not None:
                 short_interest_percent = float(info["short_percent_of_float"])
             elif "shortRatio" in info and info["shortRatio"] is not None:
                 short_interest_percent = float(info["shortRatio"])
@@ -111,19 +96,9 @@ class PositioningMetricsLoader(OptimalLoader):
             if institutional_ownership or insider_ownership or short_interest_percent:
                 return {
                     "symbol": symbol,
-                    "institutional_ownership": (
-                        round(institutional_ownership, 2)
-                        if institutional_ownership
-                        else None
-                    ),
-                    "insider_ownership": (
-                        round(insider_ownership, 2) if insider_ownership else None
-                    ),
-                    "short_interest_percent": (
-                        round(short_interest_percent, 2)
-                        if short_interest_percent
-                        else None
-                    ),
+                    "institutional_ownership": (round(institutional_ownership, 2) if institutional_ownership else None),
+                    "insider_ownership": (round(insider_ownership, 2) if insider_ownership else None),
+                    "short_interest_percent": (round(short_interest_percent, 2) if short_interest_percent else None),
                     "short_interest_trend": short_interest_trend,
                     "updated_at": datetime.now(timezone.utc).isoformat(),
                 }
@@ -142,7 +117,6 @@ class PositioningMetricsLoader(OptimalLoader):
         if not super()._validate_row(row):
             return False
         return row.get("symbol") is not None
-
 
 
 if __name__ == "__main__":

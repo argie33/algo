@@ -42,9 +42,7 @@ def sanitize_for_csv(value) -> str:
     dangerous_prefixes = ("=", "+", "-", "@", "\t", "\r", "\n")
 
     if any(str_val.startswith(prefix) for prefix in dangerous_prefixes):
-        logger.warning(
-            f"Sanitizing CSV value that started with dangerous character: {str_val[:20]}"
-        )
+        logger.warning(f"Sanitizing CSV value that started with dangerous character: {str_val[:20]}")
         return "'" + str_val
 
     return str_val

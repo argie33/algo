@@ -7,7 +7,7 @@ Validates that:
 """
 
 import logging
-from typing import Any, Dict
+from typing import Any
 
 
 logger = logging.getLogger(__name__)
@@ -48,9 +48,7 @@ class RateLimitValidator:
             "single_endpoint": True,
         }
 
-    def estimate_yfinance_calls_needed(
-        self, symbol_count: int = DEFAULT_SYMBOL_COUNT
-    ) -> Dict[str, Any]:
+    def estimate_yfinance_calls_needed(self, symbol_count: int = DEFAULT_SYMBOL_COUNT) -> dict[str, Any]:
         """Estimate how many yfinance API calls needed for full dataset.
 
         For 5000 symbols:
@@ -81,10 +79,7 @@ class RateLimitValidator:
         issues = []
 
         if batches_needed > rpm_limit:
-            issues.append(
-                f"Cannot complete in 1 minute: need {batches_needed} requests, "
-                f"limit is {rpm_limit} req/min"
-            )
+            issues.append(f"Cannot complete in 1 minute: need {batches_needed} requests, limit is {rpm_limit} req/min")
 
         if estimated_sec > MAX_VALIDATION_DURATION_SECONDS:
             issues.append(
@@ -103,7 +98,7 @@ class RateLimitValidator:
             "issues": issues,
         }
 
-    def check_api_health(self) -> Dict[str, Any]:
+    def check_api_health(self) -> dict[str, Any]:
         """Quick health check for critical APIs.
 
         Returns:
@@ -115,7 +110,7 @@ class RateLimitValidator:
             }
         """
         issues: list[str] = []
-        health: Dict[str, Any] = {
+        health: dict[str, Any] = {
             "yfinance_available": False,
             "fred_available": False,
         }
@@ -154,7 +149,7 @@ class RateLimitValidator:
 
         return health
 
-    def validate_rate_limit_handling(self) -> Dict[str, Any]:
+    def validate_rate_limit_handling(self) -> dict[str, Any]:
         """Validate that loaders handle rate limiting gracefully.
 
         Returns:
@@ -177,9 +172,7 @@ class RateLimitValidator:
                 issues.append("Rate limiter not initialized")
 
             # Check 2: Circuit breaker threshold appropriate
-            threshold = getattr(
-                loader, "_rate_limit_circuit_break_threshold", CIRCUIT_BREAK_THRESHOLD_SECONDS
-            )
+            threshold = getattr(loader, "_rate_limit_circuit_break_threshold", CIRCUIT_BREAK_THRESHOLD_SECONDS)
             if threshold < CIRCUIT_BREAK_THRESHOLD_SECONDS:
                 recommendations.append(
                     f"Rate limit circuit break threshold {threshold}s may be too aggressive - "
@@ -190,9 +183,7 @@ class RateLimitValidator:
             if not hasattr(loader, "_request_latency_samples"):
                 issues.append("No adaptive latency tracking found")
             else:
-                recommendations.append(
-                    "Adaptive latency tracking enabled - good for detecting rate limits"
-                )
+                recommendations.append("Adaptive latency tracking enabled - good for detecting rate limits")
 
             # Check 4: Batch sizing logic
             if hasattr(loader, "_batch_size_performance"):

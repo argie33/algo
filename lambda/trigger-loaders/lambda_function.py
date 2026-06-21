@@ -30,9 +30,7 @@ def lambda_handler(event, context):
     """
     try:
         # Parse input
-        loader_name = event.get("loader_name") or event.get("pathParameters").get(
-            "loader"
-        )
+        loader_name = event.get("loader_name") or event.get("pathParameters").get("loader")
         if not loader_name:
             return {
                 "statusCode": 400,
@@ -80,9 +78,7 @@ def lambda_handler(event, context):
 
         # Run ECS task
         task_def = f"{project_name}-{loader_name}-loader"
-        logger.info(
-            f"Triggering loader: {loader_name} (task_def={task_def}, count={task_count})"
-        )
+        logger.info(f"Triggering loader: {loader_name} (task_def={task_def}, count={task_count})")
 
         # Build run_task params carefully - only include launchType if FARGATE, don't pass None
         run_task_params = {

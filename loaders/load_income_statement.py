@@ -19,6 +19,8 @@ import os
 from datetime import date
 from typing import Optional
 
+from typing import cast
+
 from loaders.runner import run_loader
 from utils.external.sec_edgar import SecEdgarClient
 from utils.loaders.config import get_parallelism
@@ -93,11 +95,13 @@ _PERIOD_CONFIG = {
     },
 }
 
+
 def _resolve_period(cli_arg: str | None) -> str:
     """Resolve period from CLI arg or LOADER_PERIOD env var (not LOADER_TYPE)."""
     if cli_arg:
         return cli_arg
     return os.getenv("LOADER_PERIOD", "annual")
+
 
 class IncomeStatementLoader(OptimalLoader):
     watermark_field = "fiscal_year"
@@ -106,11 +110,11 @@ class IncomeStatementLoader(OptimalLoader):
         assert period in ("annual", "quarterly")
         cfg = _PERIOD_CONFIG[period]
         self.period = period
-        self.table_name = cfg["table_name"]
-        self.primary_key = cfg["primary_key"]
-        self._edgar_period = cfg["edgar_period"]
-        self._schema_cols = cfg["schema_cols"]
-        self._field_mapping = cfg.get("field_mapping")
+        self.table_name = cast(str, cfg["table_name"])
+        self.primary_key = cast(tuple[str, ...], cfg["primary_key"])
+        self._edgar_period = cast(str, cfg["edgar_period"])
+        self._schema_cols = cast(frozenset[str], cfg["schema_cols"])
+        self._field_mapping = cast(dict[str, str] | None, cfg.get("field_mapping"))
         super().__init__()
         self._sec_client = SecEdgarClient()
 
@@ -118,6 +122,7 @@ class IncomeStatementLoader(OptimalLoader):
         """Return fiscal years in the DB where revenue is NULL (need backfill)."""
         try:
             from utils.db.context import DatabaseContext
+
             with DatabaseContext("read") as cur:
                 cur.execute(
                     f"SELECT fiscal_year FROM {self.table_name} WHERE symbol = %s AND revenue IS NULL",
@@ -140,9 +145,7 @@ class IncomeStatementLoader(OptimalLoader):
                 )
             logger.debug("Symbol %s resolved to CIK %s", symbol, cik)
 
-            rows = self._sec_client.get_income_statement(
-                symbol, period=self._edgar_period
-            )
+            rows = self._sec_client.get_income_statement(symbol, period=self._edgar_period)
             if not rows:
                 raise RuntimeError(
                     f"[INCOME_STATEMENT] No {self._edgar_period} income statement data for {symbol} "
@@ -154,9 +157,7 @@ class IncomeStatementLoader(OptimalLoader):
             # Also include years already in DB where revenue is NULL (backfill ASC 606 gaps)
             null_revenue_years = self._get_null_revenue_years(symbol)
             filtered = [
-                r for r in rows
-                if r.get("fiscal_year", 0) > since_year
-                or r.get("fiscal_year") in null_revenue_years
+                r for r in rows if r.get("fiscal_year", 0) > since_year or r.get("fiscal_year") in null_revenue_years
             ]
             if len(filtered) < len(rows):
                 logger.debug(
@@ -228,6 +229,7 @@ class IncomeStatementLoader(OptimalLoader):
             return False
 
         return True
+
 
 if __name__ == "__main__":
     sys.exit(run_loader(IncomeStatementLoader))

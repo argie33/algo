@@ -21,6 +21,7 @@ logger = logging.getLogger(__name__)
 class StrictValidationError(Exception):
     """Raised when data conversion fails in strict mode (required for finance paths)."""
 
+
 # Eastern timezone for market hours
 EASTERN_TZ = timezone.utc
 
@@ -30,15 +31,21 @@ EASTERN_TZ = timezone.utc
 
 
 @overload
-def safe_float(value: Any, default: float, *, context: str = "", strict: bool = False, field_name: str | None = None) -> float: ...
+def safe_float(
+    value: Any, default: float, *, context: str = "", strict: bool = False, field_name: str | None = None
+) -> float: ...
 
 
 @overload
-def safe_float(value: Any, default: None, *, context: str = "", strict: bool = False, field_name: str | None = None) -> float | None: ...
+def safe_float(
+    value: Any, default: None, *, context: str = "", strict: bool = False, field_name: str | None = None
+) -> float | None: ...
 
 
 @overload
-def safe_float(value: Any, *, context: str = "", strict: bool = False, field_name: str | None = None) -> float | None: ...
+def safe_float(
+    value: Any, *, context: str = "", strict: bool = False, field_name: str | None = None
+) -> float | None: ...
 
 
 def safe_float(
@@ -84,9 +91,13 @@ def safe_float(
         f = float(value)
     except (ValueError, TypeError) as e:
         if strict:
-            raise StrictValidationError(f"Cannot convert {field_name or 'value'}={value!r} to float {error_ctx}: {e}") from e
+            raise StrictValidationError(
+                f"Cannot convert {field_name or 'value'}={value!r} to float {error_ctx}: {e}"
+            ) from e
         if default == 0.0:
-            logger.warning(f"Failed to convert {value!r} to float {error_ctx} (returning 0.0—use strict=True for finance): {e}")
+            logger.warning(
+                f"Failed to convert {value!r} to float {error_ctx} (returning 0.0—use strict=True for finance): {e}"
+            )
         else:
             logger.warning(f"Failed to convert {value!r} to float {error_ctx}: {e}")
         return default
@@ -104,8 +115,6 @@ def safe_float(
         raise ValueError(msg)
 
     return f
-
-
 
 
 # ──────────────────────────────────────────────────────────────────────────────
@@ -154,14 +163,16 @@ def safe_int(
         return int(value)
     except (ValueError, TypeError) as e:
         if strict:
-            raise StrictValidationError(f"Cannot convert {field_name or 'value'}={value!r} to int {error_ctx}: {e}") from e
+            raise StrictValidationError(
+                f"Cannot convert {field_name or 'value'}={value!r} to int {error_ctx}: {e}"
+            ) from e
         if default == 0:
-            logger.warning(f"Failed to convert {value!r} to int {error_ctx} (returning 0—use strict=True for finance): {e}")
+            logger.warning(
+                f"Failed to convert {value!r} to int {error_ctx} (returning 0—use strict=True for finance): {e}"
+            )
         else:
             logger.warning(f"Failed to convert {value!r} to int {error_ctx}: {e}")
         return default
-
-
 
 
 # ──────────────────────────────────────────────────────────────────────────────
@@ -204,13 +215,17 @@ def safe_json_parse(
             return json.loads(value)
         except json.JSONDecodeError as e:
             if strict:
-                raise StrictValidationError(f"Cannot parse JSON {field_name or context}: {e}. Value: {value[:100]}") from e
+                raise StrictValidationError(
+                    f"Cannot parse JSON {field_name or context}: {e}. Value: {value[:100]}"
+                ) from e
             logger.warning(f"Failed to parse JSON {field_name or context}: {e}. Value: {value[:100]}")
             return default if default is not None else {}
 
     # For unexpected types
     if strict:
-        raise StrictValidationError(f"Expected string or dict {field_name or context}, got {type(value).__name__}: {value!r}")
+        raise StrictValidationError(
+            f"Expected string or dict {field_name or context}, got {type(value).__name__}: {value!r}"
+        )
     logger.warning(f"Expected string or dict {field_name or context}, got {type(value).__name__}: {value!r}")
     return default if default is not None else {}
 
@@ -448,11 +463,7 @@ def log_loader_completion(
         )
     elif rows_inserted == 0:
         logger.warning(
-            f"[{table_name}] No new rows inserted "
-            f"({rows_skipped} skipped, {rows_failed} failed){duration_str}"
+            f"[{table_name}] No new rows inserted ({rows_skipped} skipped, {rows_failed} failed){duration_str}"
         )
     else:
-        logger.info(
-            f"[{table_name}] Loaded {rows_inserted}/{total} rows "
-            f"({rows_skipped} skipped){duration_str}"
-        )
+        logger.info(f"[{table_name}] Loaded {rows_inserted}/{total} rows ({rows_skipped} skipped){duration_str}")

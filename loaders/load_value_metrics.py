@@ -29,9 +29,7 @@ class ValueMetricsLoader(OptimalLoader):
     primary_key = ("symbol",)
     watermark_field = "updated_at"
 
-    def fetch_incremental(
-        self, symbol: str, since: date | None
-    ) -> list[dict] | None:
+    def fetch_incremental(self, symbol: str, since: date | None) -> list[dict] | None:
         """Fetch value metrics from yfinance for a symbol.
 
         Skips symbols with market cap < $50M (illiquid/penny stocks won't have reliable metrics).
@@ -88,12 +86,8 @@ class ValueMetricsLoader(OptimalLoader):
                         "peg_ratio": _cap(peg) if peg and peg > 0 else None,
                         "dividend_yield": float(div) if div else None,
                         "fcf_yield": fcf_yield,
-                        "held_percent_insiders": (
-                            float(held_insiders) if held_insiders else None
-                        ),
-                        "held_percent_institutions": (
-                            float(held_institutions) if held_institutions else None
-                        ),
+                        "held_percent_insiders": (float(held_insiders) if held_insiders else None),
+                        "held_percent_institutions": (float(held_institutions) if held_institutions else None),
                         "updated_at": datetime.now(timezone.utc).isoformat(),
                     }
                 ]
@@ -132,7 +126,6 @@ def _apply_schema_migrations():
                 cur.execute(sql)
     except (psycopg2.DatabaseError, psycopg2.OperationalError) as e:
         logger.warning(f"Schema migration failed (non-fatal): {e}")
-
 
 
 if __name__ == "__main__":

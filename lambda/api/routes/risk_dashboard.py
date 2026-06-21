@@ -146,19 +146,11 @@ def _get_comprehensive_risk_dashboard(cur) -> dict:
             if row:
                 result["position_sizing_stats"] = {  # type: ignore[assignment]
                     "trades_30d": row["total_trades"],
-                    "avg_cascade_multiplier": (
-                        float(row["avg_cascade"]) if row["avg_cascade"] else None
-                    ),
-                    "min_cascade_multiplier": (
-                        float(row["min_cascade"]) if row["min_cascade"] else None
-                    ),
-                    "max_cascade_multiplier": (
-                        float(row["max_cascade"]) if row["max_cascade"] else None
-                    ),
+                    "avg_cascade_multiplier": (float(row["avg_cascade"]) if row["avg_cascade"] else None),
+                    "min_cascade_multiplier": (float(row["min_cascade"]) if row["min_cascade"] else None),
+                    "max_cascade_multiplier": (float(row["max_cascade"]) if row["max_cascade"] else None),
                     "avg_position_size_pct": (
-                        float(row["avg_position_size_pct"])
-                        if row["avg_position_size_pct"]
-                        else None
+                        float(row["avg_position_size_pct"]) if row["avg_position_size_pct"] else None
                     ),
                 }
         except (ValueError, ZeroDivisionError, TypeError) as e:
@@ -185,17 +177,13 @@ def _get_comprehensive_risk_dashboard(cur) -> dict:
         except (ValueError, ZeroDivisionError, TypeError) as e:
             logger.warning(f"Exit rules fetch failed: {e}")
 
-        freshness = check_data_freshness(
-            cur, "algo_portfolio_snapshots", "snapshot_date", warning_days=1
-        )
+        freshness = check_data_freshness(cur, "algo_portfolio_snapshots", "snapshot_date", warning_days=1)
         response = json_response(200, result)
         if freshness:
             response["data_freshness"] = freshness
         return response
     except (ValueError, ZeroDivisionError, TypeError) as e:
-        code, error_type, message = handle_db_error(
-            e, "fetch comprehensive risk dashboard"
-        )
+        code, error_type, message = handle_db_error(e, "fetch comprehensive risk dashboard")
         return error_response(code, error_type, message)
 
 
@@ -332,33 +320,15 @@ def _get_position_sizing_audit(cur, days: int) -> dict:
             items.append(
                 {
                     "symbol": row["symbol"],
-                    "signal_date": (
-                        row["signal_date"].isoformat() if row["signal_date"] else None
-                    ),
-                    "entry_price": (
-                        float(row["entry_price"]) if row["entry_price"] else None
-                    ),
-                    "stop_loss_price": (
-                        float(row["stop_loss_price"])
-                        if row["stop_loss_price"]
-                        else None
-                    ),
+                    "signal_date": (row["signal_date"].isoformat() if row["signal_date"] else None),
+                    "entry_price": (float(row["entry_price"]) if row["entry_price"] else None),
+                    "stop_loss_price": (float(row["stop_loss_price"]) if row["stop_loss_price"] else None),
                     "base_shares": row["base_shares"],
                     "final_shares": row["final_shares"],
-                    "position_size_pct": (
-                        float(row["position_size_pct"])
-                        if row["position_size_pct"]
-                        else 0
-                    ),
-                    "cascade_multiplier": (
-                        float(row["cascade_multiplier"])
-                        if row["cascade_multiplier"]
-                        else 1.0
-                    ),
+                    "position_size_pct": (float(row["position_size_pct"]) if row["position_size_pct"] else 0),
+                    "cascade_multiplier": (float(row["cascade_multiplier"]) if row["cascade_multiplier"] else 1.0),
                     "reasons": reasons,
-                    "created_at": (
-                        row["created_at"].isoformat() if row["created_at"] else None
-                    ),
+                    "created_at": (row["created_at"].isoformat() if row["created_at"] else None),
                 }
             )
 
@@ -386,35 +356,21 @@ def _get_stop_loss_audit(cur, days: int) -> dict:
         items = []
         for row in cur.fetchall():
             try:
-                candidates = (
-                    json.loads(row["candidates_json"]) if row["candidates_json"] else {}
-                )
+                candidates = json.loads(row["candidates_json"]) if row["candidates_json"] else {}
             except (json.JSONDecodeError, TypeError):
                 candidates = {}
 
             items.append(
                 {
                     "symbol": row["symbol"],
-                    "signal_date": (
-                        row["signal_date"].isoformat() if row["signal_date"] else None
-                    ),
-                    "entry_price": (
-                        float(row["entry_price"]) if row["entry_price"] else None
-                    ),
-                    "stop_loss_price": (
-                        float(row["stop_loss_price"])
-                        if row["stop_loss_price"]
-                        else None
-                    ),
-                    "distance_pct": (
-                        float(row["distance_pct"]) if row["distance_pct"] else 0
-                    ),
+                    "signal_date": (row["signal_date"].isoformat() if row["signal_date"] else None),
+                    "entry_price": (float(row["entry_price"]) if row["entry_price"] else None),
+                    "stop_loss_price": (float(row["stop_loss_price"]) if row["stop_loss_price"] else None),
+                    "distance_pct": (float(row["distance_pct"]) if row["distance_pct"] else 0),
                     "stop_method": row["stop_method"],
                     "stop_reasoning": row["stop_reasoning"],
                     "candidates": candidates,
-                    "created_at": (
-                        row["created_at"].isoformat() if row["created_at"] else None
-                    ),
+                    "created_at": (row["created_at"].isoformat() if row["created_at"] else None),
                 }
             )
 
@@ -447,21 +403,13 @@ def _get_exit_rules_distribution(cur, days: int) -> dict:
             count = row["count"]
             winning = row["winning_count"]
             losing = row["losing_count"]
-            win_rate = (
-                (winning / count * 100)
-                if (count is not None and winning is not None and count > 0)
-                else None
-            )
+            win_rate = (winning / count * 100) if (count is not None and winning is not None and count > 0) else None
             items.append(
                 {
                     "exit_rule": row["exit_rule"],
                     "count": count,
-                    "avg_pnl_pct": (
-                        float(row["avg_pnl_pct"]) if row["avg_pnl_pct"] else None
-                    ),
-                    "avg_r_multiple": (
-                        float(row["avg_r_multiple"]) if row["avg_r_multiple"] else None
-                    ),
+                    "avg_pnl_pct": (float(row["avg_pnl_pct"]) if row["avg_pnl_pct"] else None),
+                    "avg_r_multiple": (float(row["avg_r_multiple"]) if row["avg_r_multiple"] else None),
                     "winning_count": winning,
                     "losing_count": losing,
                     "win_rate_pct": win_rate,

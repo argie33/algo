@@ -22,6 +22,7 @@ logger = logging.getLogger(__name__)
 # Check if psycopg2 is available
 try:
     import psycopg2.extensions
+
     HAS_PSYCOPG2 = True
 except ImportError:
     HAS_PSYCOPG2 = False
@@ -68,7 +69,7 @@ def log_sanitizer(operation: str = "operation"):
             level: str = "error",
         ):
             """Internal method to log with full sanitization."""
-            status_code, error_type, message = classify_exception(exc)
+            _status_code, error_type, message = classify_exception(exc)
 
             # Sanitize exception message
             exc_str = sanitize_error_message(str(exc)[:500])

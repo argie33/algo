@@ -20,9 +20,7 @@ logger = logging.getLogger(__name__)
 class DynamoDBLockManager:
     """Distributed lock manager using DynamoDB conditional writes."""
 
-    def __init__(
-        self, table_name: str | None = None, lock_duration_seconds: int = 600
-    ):
+    def __init__(self, table_name: str | None = None, lock_duration_seconds: int = 600):
         """Initialize lock manager.
 
         Args:
@@ -46,14 +44,10 @@ class DynamoDBLockManager:
             self.dynamodb = boto3.resource("dynamodb")
             self.table = self.dynamodb.Table(self.table_name)
         except Exception as e:
-            logger.error(
-                f"DynamoDB lock manager initialization failed: {e}"
-            )
+            logger.error(f"DynamoDB lock manager initialization failed: {e}")
             raise
 
-    def acquire(
-        self, lock_key: str = "orchestrator-run-lock", timeout_seconds: int = 5
-    ) -> bool:
+    def acquire(self, lock_key: str = "orchestrator-run-lock", timeout_seconds: int = 5) -> bool:
         """Acquire distributed lock using DynamoDB conditional write.
 
         Uses optimistic locking: if lock doesn't exist or is expired, we write our lock.
@@ -69,9 +63,7 @@ class DynamoDBLockManager:
         while time.time() - start_time < timeout_seconds:
             try:
                 now = datetime.utcnow().isoformat()
-                expiry = (
-                    datetime.utcnow() + timedelta(seconds=self.lock_duration_seconds)
-                ).isoformat()
+                expiry = (datetime.utcnow() + timedelta(seconds=self.lock_duration_seconds)).isoformat()
 
                 # Conditional write: only succeed if item doesn't exist OR is expired
                 self.table.update_item(
@@ -98,26 +90,18 @@ class DynamoDBLockManager:
 
             except self.dynamodb.meta.client.exceptions.ConditionalCheckFailedException:
                 # Someone else holds a valid lock
-                logger.warning(
-                    f"[LOCK] Another instance holds {lock_key} — retrying..."
-                )
+                logger.warning(f"[LOCK] Another instance holds {lock_key} — retrying...")
                 time.sleep(0.1)
 
             except Exception as e:
                 # Check if this is a permission error (AccessDeniedException) vs. a lock contention issue
-                if "AccessDeniedException" in str(type(e)) or "not authorized" in str(
-                    e
-                ):
-                    logger.warning(
-                        f"[LOCK] DynamoDB permission denied: {e} — marking as unavailable"
-                    )
+                if "AccessDeniedException" in str(type(e)) or "not authorized" in str(e):
+                    logger.warning(f"[LOCK] DynamoDB permission denied: {e} — marking as unavailable")
                     self.is_available = False
                     return False
                 else:
                     # Re-raise non-permission errors so optimal_loader can handle them
-                    logger.debug(
-                        f"[LOCK] Error acquiring lock: {e} — re-raising for caller to handle"
-                    )
+                    logger.debug(f"[LOCK] Error acquiring lock: {e} — re-raising for caller to handle")
                     raise
 
         logger.error(f"[LOCK] Failed to acquire {lock_key} after {timeout_seconds}s")
@@ -149,9 +133,7 @@ class DynamoDBLockManager:
 
         except self.dynamodb.meta.client.exceptions.ConditionalCheckFailedException:
             # Someone else acquired the lock (shouldn't happen)
-            logger.warning(
-                f"[LOCK] Lock {lock_key} already released or acquired by another instance"
-            )
+            logger.warning(f"[LOCK] Lock {lock_key} already released or acquired by another instance")
             return False
 
         except Exception as e:

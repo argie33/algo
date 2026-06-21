@@ -21,7 +21,7 @@ This is a READ-ONLY diagnostic tool. It reports issues but doesn't auto-fix.
 
 import logging
 from datetime import datetime, timezone
-from typing import Any, Dict
+from typing import Any
 
 from utils.db import DatabaseContext
 
@@ -32,12 +32,12 @@ logger = logging.getLogger(__name__)
 class PositionSyncChecker:
     """Check data consistency between algo_trades and algo_positions."""
 
-    def check_consistency(self) -> Dict[str, Any]:
+    def check_consistency(self) -> dict[str, Any]:
         """Run full consistency check. Returns report dict."""
         with DatabaseContext("read") as cur:
             return self._do_check(cur)
 
-    def _do_check(self, cur) -> Dict[str, Any]:
+    def _do_check(self, cur) -> dict[str, Any]:
         """Perform consistency checks against database."""
         issues: list[dict[str, Any]] = []
 
@@ -55,10 +55,7 @@ class PositionSyncChecker:
                     "type": "INVALID_ENTRY_DATA",
                     "severity": "HIGH",
                     "count": len(invalid_entry),
-                    "details": [
-                        f"{tid}: {sym} missing entry fields"
-                        for tid, sym, st in invalid_entry[:3]
-                    ],
+                    "details": [f"{tid}: {sym} missing entry fields" for tid, sym, st in invalid_entry[:3]],
                 }
             )
 
@@ -76,10 +73,7 @@ class PositionSyncChecker:
                     "type": "NEGATIVE_PRICES",
                     "severity": "HIGH",
                     "count": len(negative_prices),
-                    "details": [
-                        f"{tid}: {sym} entry={ep} stop={sp}"
-                        for tid, sym, ep, sp in negative_prices[:3]
-                    ],
+                    "details": [f"{tid}: {sym} entry={ep} stop={sp}" for tid, sym, ep, sp in negative_prices[:3]],
                 }
             )
 
@@ -98,9 +92,7 @@ class PositionSyncChecker:
                     "type": "DUPLICATE_OPEN_POSITIONS",
                     "severity": "MEDIUM",
                     "count": len(duplicates),
-                    "details": [
-                        f"{sym}: {cnt} open trades" for sym, cnt in duplicates[:3]
-                    ],
+                    "details": [f"{sym}: {cnt} open trades" for sym, cnt in duplicates[:3]],
                 }
             )
 
@@ -118,10 +110,7 @@ class PositionSyncChecker:
                     "type": "INCOMPLETE_CLOSED_TRADES",
                     "severity": "MEDIUM",
                     "count": len(missing_exit),
-                    "details": [
-                        f"{tid}: {sym} missing exit data"
-                        for tid, sym in missing_exit[:3]
-                    ],
+                    "details": [f"{tid}: {sym} missing exit data" for tid, sym in missing_exit[:3]],
                 }
             )
 
@@ -134,9 +123,7 @@ class PositionSyncChecker:
             FROM algo_trades
         """)
         trade_counts = cur.fetchone()
-        trades_open, trades_closed, trades_cancelled = (
-            trade_counts if trade_counts else (0, 0, 0)
-        )
+        trades_open, trades_closed, trades_cancelled = trade_counts if trade_counts else (0, 0, 0)
 
         # Build report
         is_consistent = len(issues) == 0
@@ -148,7 +135,7 @@ ARCHITECTURE: algo_trades is single source of truth
 - API and dashboard derive positions on-the-fly from algo_trades
 - algo_positions table is no longer used for position lookups
 
-STATUS: {'OK - CONSISTENT' if is_consistent else 'ISSUES FOUND'}
+STATUS: {"OK - CONSISTENT" if is_consistent else "ISSUES FOUND"}
 
 TRADES TABLE (Single Source of Truth):
   - Open/Active: {trades_open}

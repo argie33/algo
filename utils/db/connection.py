@@ -18,9 +18,7 @@ import psycopg2.pool
 # Add project root to path for imports to work in both local dev and Lambda
 # In Lambda: /var/task is already in path, credential_manager is in /var/task/config/
 # In local dev: need to add the project root so config.credential_manager can be found
-project_root = str(
-    Path(__file__).resolve().parent.parent.parent.parent
-)  # algo/lambda/api/utils -> algo/
+project_root = str(Path(__file__).resolve().parent.parent.parent.parent)  # algo/lambda/api/utils -> algo/
 if project_root not in sys.path:
     sys.path.insert(0, project_root)
 
@@ -76,15 +74,11 @@ def _get_connection_pool():
                         db_config.get("password"),
                     ]
                 ):
-                    raise psycopg2.OperationalError(
-                        "Missing required database configuration"
-                    )
+                    raise psycopg2.OperationalError("Missing required database configuration")
 
                 port = db_config.get("port")
                 if port is None:
-                    raise psycopg2.OperationalError(
-                        "DB_PORT environment variable is required"
-                    )
+                    raise psycopg2.OperationalError("DB_PORT environment variable is required")
                 try:
                     port = int(port)
                 except (ValueError, TypeError) as e:
@@ -106,17 +100,15 @@ def _get_connection_pool():
                         # connections on warm Lambda containers (causes "SSL connection has been
                         # closed unexpectedly" 503s on the next request after a long idle period).
                         keepalives=1,
-                        keepalives_idle=60,    # start probing after 60s idle
-                        keepalives_interval=10, # probe every 10s
-                        keepalives_count=5,     # 5 failed probes → declare dead
+                        keepalives_idle=60,  # start probing after 60s idle
+                        keepalives_interval=10,  # probe every 10s
+                        keepalives_count=5,  # 5 failed probes → declare dead
                         # Note: Do NOT pass options= parameter to RDS Proxy
                         # RDS Proxy doesn't support command-line options like -c statement_timeout
                         # Statement timeout is configured at the RDS parameter group level instead
                     )
 
-                    _connection_pool = IdleConnectionPool(
-                        base_pool, max_idle_sec=300, cleanup_interval_sec=60
-                    )
+                    _connection_pool = IdleConnectionPool(base_pool, max_idle_sec=300, cleanup_interval_sec=60)
                     logger.info(
                         "[DB_POOL] Connection pool initialized (minconn=2, maxconn=10) "
                         "with idle connection cleanup (max_idle=300s, check every 60s)"
@@ -158,9 +150,7 @@ class TrackedConnection:
             try:
                 self._pool.putconn(self._conn)
             except Exception as e:
-                logger.warning(
-                    f"[DB_POOL] Failed to return connection to pool: {e}, closing instead"
-                )
+                logger.warning(f"[DB_POOL] Failed to return connection to pool: {e}, closing instead")
                 try:
                     self._conn.close()
                 except Exception as close_err:
@@ -204,9 +194,7 @@ def get_db_connection(max_retries: int = 3, timeout: int = 10, debug: bool = Fal
             conn = pool.getconn()
 
             if debug:
-                logger.debug(
-                    f"[DB_CONNECT] Got connection from pool on attempt {attempt}"
-                )
+                logger.debug(f"[DB_CONNECT] Got connection from pool on attempt {attempt}")
 
             # Validate the connection is still alive before returning it. psycopg2's
             # SimpleConnectionPool returns connections without health-checking them,
@@ -235,9 +223,7 @@ def get_db_connection(max_retries: int = 3, timeout: int = 10, debug: bool = Fal
                 time.sleep(wait_time)
             else:
                 if debug:
-                    logger.error(
-                        f"[DB_CONNECT] Pool exhausted after {max_retries} attempts: {e}"
-                    )
+                    logger.error(f"[DB_CONNECT] Pool exhausted after {max_retries} attempts: {e}")
 
         except psycopg2.OperationalError as e:
             last_error = e
@@ -252,12 +238,6 @@ def get_db_connection(max_retries: int = 3, timeout: int = 10, debug: bool = Fal
                 time.sleep(wait_time)
             else:
                 if debug:
-                    logger.error(
-                        f"[DB_CONNECT] Connection failed after {max_retries} attempts: {e}"
-                    )
+                    logger.error(f"[DB_CONNECT] Connection failed after {max_retries} attempts: {e}")
 
-    raise (
-        last_error
-        if last_error
-        else psycopg2.OperationalError("Failed to get pooled connection")
-    )
+    raise (last_error if last_error else psycopg2.OperationalError("Failed to get pooled connection"))

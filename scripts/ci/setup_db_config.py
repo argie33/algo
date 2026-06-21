@@ -15,11 +15,11 @@ try:
     secret = json.loads(secret_str)
     lines = [
         "import os",
-        f"os.environ['DB_HOST'] = {repr(secret.get('host', 'localhost'))}",
-        f"os.environ['DB_PORT'] = {repr(str(secret.get('port', 5432)))}",
-        f"os.environ['DB_USER'] = {repr(secret.get('username', 'postgres'))}",
-        f"os.environ['DB_PASSWORD'] = {repr(secret.get('password', ''))}",
-        f"os.environ['DB_NAME'] = {repr(secret.get('dbname', 'algo'))}",
+        f"os.environ['DB_HOST'] = {secret.get('host', 'localhost')!r}",
+        f"os.environ['DB_PORT'] = {str(secret.get('port', 5432))!r}",
+        f"os.environ['DB_USER'] = {secret.get('username', 'postgres')!r}",
+        f"os.environ['DB_PASSWORD'] = {secret.get('password', '')!r}",
+        f"os.environ['DB_NAME'] = {secret.get('dbname', 'algo')!r}",
         "os.environ['DB_SSL'] = 'require'",
     ]
     with open("/tmp/db_config.py", "w") as f:

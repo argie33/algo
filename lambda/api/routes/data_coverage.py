@@ -73,9 +73,7 @@ def get_price_coverage(cur) -> dict[str, Any]:
             {
                 "total_symbols": total_symbols,
                 "sp500_target": sp500_total,
-                "coverage_pct": (
-                    round(total_symbols / sp500_total * 100, 1) if sp500_total else 0
-                ),
+                "coverage_pct": (round(total_symbols / sp500_total * 100, 1) if sp500_total else 0),
                 "latest_date": str(latest_date),
                 "days_stale": days_stale,
                 "status": "fresh" if days_stale <= 1 else "stale",
@@ -117,13 +115,9 @@ def get_technical_coverage(cur) -> dict[str, Any]:
         if not row:
             return error_response(503, "no_data", "Technical data not yet available")
 
-        symbols, latest_date, total_rows, rsi_cov, ema_cov, atr_cov, incomplete = row
+        symbols, latest_date, _total_rows, rsi_cov, ema_cov, atr_cov, incomplete = row
 
-        min_coverage = (
-            min(rsi_cov, ema_cov, atr_cov)
-            if None not in (rsi_cov, ema_cov, atr_cov)
-            else 0
-        )
+        min_coverage = min(rsi_cov, ema_cov, atr_cov) if None not in (rsi_cov, ema_cov, atr_cov) else 0
 
         return success_response(
             {
@@ -222,9 +216,7 @@ def get_loader_health(cur) -> dict[str, Any]:
 
         # If patrol data is recent, use it
         if rows:
-            stale_loaders = [
-                row[0] for row in rows if row[1] in ("stale", "error") or row[1] is None
-            ]
+            stale_loaders = [row[0] for row in rows if row[1] in ("stale", "error") or row[1] is None]
             return success_response(
                 {
                     "total_tracked": len(rows),
@@ -252,7 +244,9 @@ def get_loader_health(cur) -> dict[str, Any]:
             union_parts = []
             for table in tables_to_check:
                 table_safe = assert_safe_table(table)
-                union_parts.append(f"SELECT '{table}' as tbl_name, MAX(date) as last_update, COUNT(*) as row_count FROM {table_safe}")
+                union_parts.append(
+                    f"SELECT '{table}' as tbl_name, MAX(date) as last_update, COUNT(*) as row_count FROM {table_safe}"
+                )
 
             union_query = " UNION ALL ".join(union_parts)
             cur.execute(union_query)
@@ -266,21 +260,15 @@ def get_loader_health(cur) -> dict[str, Any]:
                 try:
                     if table in health_by_table:
                         last_update, count = health_by_table[table]
-                        days_old = (
-                            (datetime.now(timezone.utc) - last_update).days if last_update else 999
-                        )
+                        days_old = (datetime.now(timezone.utc) - last_update).days if last_update else 999
                         status = "stale" if days_old > 7 else "fresh"
                         table_health.append((table, status, last_update, count))
                 except (psycopg2.errors.UndefinedTable, psycopg2.errors.UndefinedColumn):
                     logger.warning(f"[LOADER_HEALTH] Table {table} not found - skipping")
                 except (psycopg2.OperationalError, psycopg2.DatabaseError) as e:
-                    logger.warning(
-                        f"[LOADER_HEALTH] Database error checking {table}: {type(e).__name__}: {e}"
-                    )
+                    logger.warning(f"[LOADER_HEALTH] Database error checking {table}: {type(e).__name__}: {e}")
                 except (psycopg2.DatabaseError, psycopg2.OperationalError) as e:
-                    logger.warning(
-                        f"[LOADER_HEALTH] Unexpected error checking {table}: {type(e).__name__}: {e}"
-                    )
+                    logger.warning(f"[LOADER_HEALTH] Unexpected error checking {table}: {type(e).__name__}: {e}")
         except (psycopg2.DatabaseError, psycopg2.OperationalError) as e:
             logger.warning(f"[LOADER_HEALTH] Failed to check table health: {e}")
 
@@ -309,9 +297,7 @@ def _safe_call(cur, fn) -> dict[str, Any]:
     except (psycopg2.OperationalError, psycopg2.DatabaseError) as e:
         logger.debug(f"[SAVEPOINT_CREATE] Database error: {type(e).__name__}: {e}")
     except (psycopg2.DatabaseError, psycopg2.OperationalError) as e:
-        logger.debug(
-            f"[SAVEPOINT_CREATE] Error creating savepoint: {type(e).__name__}: {e}"
-        )
+        logger.debug(f"[SAVEPOINT_CREATE] Error creating savepoint: {type(e).__name__}: {e}")
 
     try:
         result = fn(cur)
@@ -323,19 +309,13 @@ def _safe_call(cur, fn) -> dict[str, Any]:
             try:
                 cur.execute("ROLLBACK TO SAVEPOINT coverage_check")
             except (psycopg2.DatabaseError, psycopg2.OperationalError) as sp_err:
-                logger.debug(
-                    f"[SAVEPOINT_ROLLBACK] Error rolling back: {type(sp_err).__name__}: {sp_err}"
-                )
+                logger.debug(f"[SAVEPOINT_ROLLBACK] Error rolling back: {type(sp_err).__name__}: {sp_err}")
         except (psycopg2.DatabaseError, psycopg2.OperationalError) as e:
-            logger.debug(
-                f"[SAVEPOINT_RELEASE] Error releasing savepoint: {type(e).__name__}: {e}"
-            )
+            logger.debug(f"[SAVEPOINT_RELEASE] Error releasing savepoint: {type(e).__name__}: {e}")
             try:
                 cur.execute("ROLLBACK TO SAVEPOINT coverage_check")
             except (psycopg2.DatabaseError, psycopg2.OperationalError) as sp_err:
-                logger.debug(
-                    f"[SAVEPOINT_ROLLBACK] Error rolling back: {type(sp_err).__name__}: {sp_err}"
-                )
+                logger.debug(f"[SAVEPOINT_ROLLBACK] Error rolling back: {type(sp_err).__name__}: {sp_err}")
         return result
     except (psycopg2.DatabaseError, psycopg2.OperationalError) as e:
         # fn failed - rollback the savepoint and return error dict
@@ -346,12 +326,8 @@ def _safe_call(cur, fn) -> dict[str, Any]:
                 f"[SAVEPOINT_ROLLBACK] Database error rolling back: {type(rollback_err).__name__}: {rollback_err}"
             )
         except (psycopg2.DatabaseError, psycopg2.OperationalError) as rollback_err:
-            logger.warning(
-                f"[SAVEPOINT_ROLLBACK] Error rolling back: {type(rollback_err).__name__}: {rollback_err}"
-            )
-        logger.warning(
-            f"[COVERAGE_CHECK] Coverage check function failed: {type(e).__name__}: {e}"
-        )
+            logger.warning(f"[SAVEPOINT_ROLLBACK] Error rolling back: {type(rollback_err).__name__}: {rollback_err}")
+        logger.warning(f"[COVERAGE_CHECK] Coverage check function failed: {type(e).__name__}: {e}")
         code, error_type, message = handle_db_error(e, "data coverage check")
         return error_response(code, error_type, message)
 
@@ -374,10 +350,7 @@ def get_overall_coverage_summary(cur) -> dict[str, Any]:
         if isinstance(section_data, dict):
             # error_response() returns {'statusCode': ..., 'errorType': ..., 'message': ...}
             # Detect these and treat as critical so they don't silently pass the rollup.
-            if (
-                "statusCode" in section_data
-                and section_data.get("statusCode", 200) >= 400
-            ):
+            if "statusCode" in section_data and section_data.get("statusCode", 200) >= 400:
                 statuses.append("critical")
                 continue
             status = section_data.get("status")
@@ -403,14 +376,12 @@ def handle(
     path: str,
     method: str,
     params: dict,
-    body: dict = None,
-    jwt_claims: dict = None,
+    body: dict | None = None,
+    jwt_claims: dict | None = None,
 ) -> dict:
     """Handle GET /api/data-coverage request."""
     if method != "GET":
-        return error_response(
-            405, "method_not_allowed", "Method not allowed. Only GET is supported."
-        )
+        return error_response(405, "method_not_allowed", "Method not allowed. Only GET is supported.")
 
     try:
         summary = get_overall_coverage_summary(cur)

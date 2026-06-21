@@ -17,7 +17,7 @@ All metrics are defined with:
 
 import logging
 import statistics
-from typing import Any, Dict, List, Optional, cast
+from typing import Any, cast
 
 
 logger = logging.getLogger(__name__)
@@ -28,10 +28,10 @@ class MetricsCalculator:
 
     @staticmethod
     def calculate_win_rate(
-        total_trades: Optional[int],
-        wins: Optional[int],
-        losses: Optional[int],
-    ) -> Optional[float]:
+        total_trades: int | None,
+        wins: int | None,
+        losses: int | None,
+    ) -> float | None:
         """Calculate win rate percentage from trade counts.
 
         Formula: (wins / total_trades) * 100
@@ -63,9 +63,9 @@ class MetricsCalculator:
 
     @staticmethod
     def calculate_sharpe_ratio(
-        returns: Optional[List[float]],
+        returns: list[float] | None,
         min_observations: int = 5,
-    ) -> Optional[float]:
+    ) -> float | None:
         """Calculate 252-day annualized Sharpe ratio from daily returns.
 
         Formula: (mean_return / std_return) * sqrt(252)
@@ -104,9 +104,9 @@ class MetricsCalculator:
 
     @staticmethod
     def calculate_sortino_ratio(
-        returns: Optional[List[float]],
+        returns: list[float] | None,
         min_observations: int = 5,
-    ) -> Optional[float]:
+    ) -> float | None:
         """Calculate 252-day annualized Sortino ratio from daily returns.
 
         Formula: (mean_return / downside_std) * sqrt(252)
@@ -137,9 +137,7 @@ class MetricsCalculator:
             downside_rets = [r for r in returns if r < 0]
             if not downside_rets:
                 raise ValueError("No downside returns: cannot calculate Sortino ratio")
-            downside_std = (
-                statistics.stdev(downside_rets) if len(downside_rets) > 1 else 0
-            )
+            downside_std = statistics.stdev(downside_rets) if len(downside_rets) > 1 else 0
             if downside_std <= 0:
                 raise ValueError("Zero downside volatility: cannot calculate Sortino ratio")
             sortino = (mean_ret / downside_std) * (252**0.5)
@@ -149,8 +147,8 @@ class MetricsCalculator:
 
     @staticmethod
     def calculate_max_drawdown(
-        portfolio_values: Optional[List[float]],
-    ) -> Optional[float]:
+        portfolio_values: list[float] | None,
+    ) -> float | None:
         """Calculate maximum drawdown from a series of portfolio values.
 
         Formula: max((peak - value) / peak) * 100 for each peak
@@ -189,10 +187,10 @@ class MetricsCalculator:
 
     @staticmethod
     def calculate_calmar_ratio(
-        portfolio_values: Optional[List[float]],
-        returns: Optional[List[float]] = None,
+        portfolio_values: list[float] | None,
+        returns: list[float] | None = None,
         min_observations: int = 2,
-    ) -> Optional[float]:
+    ) -> float | None:
         """Calculate Calmar ratio (return / max drawdown).
 
         Formula: total_compounded_return / max_drawdown_pct
@@ -242,9 +240,9 @@ class MetricsCalculator:
 
     @staticmethod
     def calculate_profit_factor(
-        total_wins_dollars: Optional[float],
-        total_losses_dollars: Optional[float],
-    ) -> Optional[float]:
+        total_wins_dollars: float | None,
+        total_losses_dollars: float | None,
+    ) -> float | None:
         """Calculate profit factor (total wins / total losses in dollars).
 
         Formula: sum(positive P&L) / sum(abs(negative P&L))
@@ -282,10 +280,10 @@ class MetricsCalculator:
 
     @staticmethod
     def calculate_expectancy(
-        win_rate_pct: Optional[float],
-        avg_win_r_multiple: Optional[float],
-        avg_loss_r_multiple: Optional[float],
-    ) -> Optional[float]:
+        win_rate_pct: float | None,
+        avg_win_r_multiple: float | None,
+        avg_loss_r_multiple: float | None,
+    ) -> float | None:
         """Calculate expectancy (expected profit per trade in R-multiples).
 
         Formula: E[profit] = (win_rate × avg_win_R) - (1 - win_rate) × abs(avg_loss_R)
@@ -306,11 +304,7 @@ class MetricsCalculator:
             - If any input is None, returns None
             - If avg_loss_r_multiple is positive (shouldn't happen), takes absolute value
         """
-        if (
-            win_rate_pct is None
-            or avg_win_r_multiple is None
-            or avg_loss_r_multiple is None
-        ):
+        if win_rate_pct is None or avg_win_r_multiple is None or avg_loss_r_multiple is None:
             raise ValueError(
                 "Cannot calculate expectancy: win_rate_pct, avg_win_r_multiple, "
                 "and avg_loss_r_multiple must all be provided"
@@ -327,8 +321,8 @@ class MetricsCalculator:
 
     @staticmethod
     def calculate_avg_r_multiple(
-        r_multiples: Optional[List[float]],
-    ) -> Optional[float]:
+        r_multiples: list[float] | None,
+    ) -> float | None:
         """Calculate average R-multiple across trades.
 
         Formula: mean(exit_r_multiple) for all trades with R-multiple defined
@@ -363,7 +357,7 @@ class MetricsValidator:
     """Validates metric values for consistency and data quality."""
 
     @staticmethod
-    def validate_metrics(metrics: Dict[str, Any]) -> Dict[str, Any]:
+    def validate_metrics(metrics: dict[str, Any]) -> dict[str, Any]:
         """Validate a metrics dict and flag issues.
 
         Returns metrics with additional fields:
@@ -371,8 +365,8 @@ class MetricsValidator:
         - _warnings: List of warnings about unusual values
         - _confidence: High/Medium/Low based on data quality
         """
-        issues: List[str] = []
-        warnings: List[str] = []
+        issues: list[str] = []
+        warnings: list[str] = []
         confidence = "high"
 
         # Win rate should be 0-100
@@ -381,9 +375,7 @@ class MetricsValidator:
             if wr < 0 or wr > 100:
                 issues.append(f"win_rate_all {wr} is outside 0-100 range")
             if wr < 20:
-                warnings.append(
-                    f"win_rate_all {wr}% is very low (expected 30-60% for profitable system)"
-                )
+                warnings.append(f"win_rate_all {wr}% is very low (expected 30-60% for profitable system)")
 
         # Profit factor should be > 1 for profitability
         if "profit_factor" in metrics and metrics["profit_factor"] is not None:
@@ -393,31 +385,21 @@ class MetricsValidator:
             if pf == float("inf"):
                 warnings.append("profit_factor is infinite (only wins, no losses)")
             if 0 < pf < 1:
-                warnings.append(
-                    f"profit_factor {pf} < 1 (losing more than winning on average)"
-                )
+                warnings.append(f"profit_factor {pf} < 1 (losing more than winning on average)")
 
         # Expectancy should usually be positive
         if "expectancy" in metrics and metrics["expectancy"] is not None:
             exp = metrics["expectancy"]
             if exp < 0:
-                warnings.append(
-                    f"expectancy {exp}R is negative (losing trades expected)"
-                )
+                warnings.append(f"expectancy {exp}R is negative (losing trades expected)")
 
         # Trade counts consistency
-        if (
-            "total_trades" in metrics
-            and "num_wins" in metrics
-            and "num_losses" in metrics
-        ):
+        if "total_trades" in metrics and "num_wins" in metrics and "num_losses" in metrics:
             total = metrics.get("total_trades")
             wins = metrics.get("num_wins", 0)
             losses = metrics.get("num_losses", 0)
             if total is not None and (wins + losses) > total:
-                issues.append(
-                    f"wins + losses ({wins + losses}) exceeds total_trades ({total})"
-                )
+                issues.append(f"wins + losses ({wins + losses}) exceeds total_trades ({total})")
 
         if issues:
             confidence = "low"
@@ -432,41 +414,41 @@ class MetricsValidator:
 
 
 # Convenience functions for direct use
-def calculate_win_rate(*args, **kwargs) -> Optional[float]:
+def calculate_win_rate(*args, **kwargs) -> float | None:
     """See MetricsCalculator.calculate_win_rate"""
     return MetricsCalculator.calculate_win_rate(*args, **kwargs)
 
 
-def calculate_sharpe_ratio(*args, **kwargs) -> Optional[float]:
+def calculate_sharpe_ratio(*args, **kwargs) -> float | None:
     """See MetricsCalculator.calculate_sharpe_ratio"""
     return MetricsCalculator.calculate_sharpe_ratio(*args, **kwargs)
 
 
-def calculate_sortino_ratio(*args, **kwargs) -> Optional[float]:
+def calculate_sortino_ratio(*args, **kwargs) -> float | None:
     """See MetricsCalculator.calculate_sortino_ratio"""
     return MetricsCalculator.calculate_sortino_ratio(*args, **kwargs)
 
 
-def calculate_max_drawdown(*args, **kwargs) -> Optional[float]:
+def calculate_max_drawdown(*args, **kwargs) -> float | None:
     """See MetricsCalculator.calculate_max_drawdown"""
     return MetricsCalculator.calculate_max_drawdown(*args, **kwargs)
 
 
-def calculate_calmar_ratio(*args, **kwargs) -> Optional[float]:
+def calculate_calmar_ratio(*args, **kwargs) -> float | None:
     """See MetricsCalculator.calculate_calmar_ratio"""
     return MetricsCalculator.calculate_calmar_ratio(*args, **kwargs)
 
 
-def calculate_profit_factor(*args, **kwargs) -> Optional[float]:
+def calculate_profit_factor(*args, **kwargs) -> float | None:
     """See MetricsCalculator.calculate_profit_factor"""
     return MetricsCalculator.calculate_profit_factor(*args, **kwargs)
 
 
-def calculate_expectancy(*args, **kwargs) -> Optional[float]:
+def calculate_expectancy(*args, **kwargs) -> float | None:
     """See MetricsCalculator.calculate_expectancy"""
     return MetricsCalculator.calculate_expectancy(*args, **kwargs)
 
 
-def calculate_avg_r_multiple(*args, **kwargs) -> Optional[float]:
+def calculate_avg_r_multiple(*args, **kwargs) -> float | None:
     """See MetricsCalculator.calculate_avg_r_multiple"""
     return MetricsCalculator.calculate_avg_r_multiple(*args, **kwargs)

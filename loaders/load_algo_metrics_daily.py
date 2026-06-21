@@ -66,10 +66,8 @@ class AlgoMetricsDailyLoader(OptimalLoader):
 
         except (ValueError, ZeroDivisionError, TypeError) as e:
             raise RuntimeError(
-                f"[ALGO_METRICS] Failed to compute daily metrics: {e}. "
-                "Cannot proceed without performance tracking."
+                f"[ALGO_METRICS] Failed to compute daily metrics: {e}. Cannot proceed without performance tracking."
             )
-
 
 
 if __name__ == "__main__":

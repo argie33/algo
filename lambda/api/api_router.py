@@ -16,14 +16,10 @@ logger = logging.getLogger(__name__)
 try:
     from routes import health
 except ImportError as e:
-    raise RuntimeError(
-        f"CRITICAL: Failed to import routes.health (required for API to function): {e}"
-    ) from e
+    raise RuntimeError(f"CRITICAL: Failed to import routes.health (required for API to function): {e}") from e
 
 # Import routes gracefully - if a single module fails, others still work
-_ROUTE_IMPORT_ERRORS = (
-    {}
-)  # Track which routes failed to import: {module_name: error_msg}
+_ROUTE_IMPORT_ERRORS = {}  # Track which routes failed to import: {module_name: error_msg}
 _AVAILABLE_ROUTES = {}  # Track which routes loaded successfully
 _CRITICAL_ROUTES = {"health"}
 
@@ -105,9 +101,7 @@ if "health" in _AVAILABLE_ROUTES:
     PUBLIC_HANDLERS["/api/health"] = _AVAILABLE_ROUTES["health"]
     PUBLIC_HANDLERS["/health"] = _AVAILABLE_ROUTES["health"]
 else:
-    logger.error(
-        "CRITICAL: health route module failed to import - health endpoints will not work"
-    )
+    logger.error("CRITICAL: health route module failed to import - health endpoints will not work")
 
 # API documentation endpoints (public, no auth required)
 if "openapi_spec" in _AVAILABLE_ROUTES:
@@ -115,9 +109,7 @@ if "openapi_spec" in _AVAILABLE_ROUTES:
     PUBLIC_HANDLERS["/api/swagger"] = _AVAILABLE_ROUTES["openapi_spec"]
     PUBLIC_HANDLERS["/api/redoc"] = _AVAILABLE_ROUTES["openapi_spec"]
 else:
-    logger.error(
-        "WARNING: openapi_spec route module failed to import - API documentation unavailable"
-    )
+    logger.error("WARNING: openapi_spec route module failed to import - API documentation unavailable")
 
 # Frontend error logging endpoint (public, may be called before auth)
 if "logs" in _AVAILABLE_ROUTES:
@@ -207,9 +199,7 @@ def _wrap_response(response):
         # Check if data field is a dict with only 'data' and optional metadata keys
         if isinstance(data_field, dict) and "data" in data_field:
             # Check if 'data' is the only meaningful field (allow for pagination, total, etc.)
-            meaningful_keys = [
-                k for k in data_field.keys() if k not in ("data", "pagination", "total")
-            ]
+            meaningful_keys = [k for k in data_field.keys() if k not in ("data", "pagination", "total")]
             if len(meaningful_keys) == 0:
                 # Double-nested: unwrap it
                 response = dict(response)  # Make a copy
@@ -284,6 +274,7 @@ def _add_cors_headers(response):
     if not allowed_origins_str:
         # Fallback: fetch CloudFront domain from Secrets Manager
         from lambda_function import fetch_cloudfront_domain_from_secrets
+
         cf_domain, _ = fetch_cloudfront_domain_from_secrets()
         allowed_origins = [cf_domain] if cf_domain else []
     else:
@@ -291,9 +282,7 @@ def _add_cors_headers(response):
 
     # Get request origin from event (passed via Lambda context if available)
     # For now, set generic headers. In production, check Origin header.
-    response["headers"][
-        "Access-Control-Allow-Methods"
-    ] = "GET, POST, PUT, DELETE, OPTIONS"
+    response["headers"]["Access-Control-Allow-Methods"] = "GET, POST, PUT, DELETE, OPTIONS"
     response["headers"]["Access-Control-Allow-Headers"] = "Content-Type, Authorization"
     response["headers"]["Vary"] = "Origin"
 
@@ -320,9 +309,7 @@ def route_request(cur, path, method, params, body=None, jwt_claims=None):
     for prefix, handler in PUBLIC_HANDLERS.items():
         if matches_route(path, prefix):
             try:
-                response = handler.handle(
-                    cur, path, method, params, body, jwt_claims=jwt_claims
-                )
+                response = handler.handle(cur, path, method, params, body, jwt_claims=jwt_claims)
                 return _add_cors_headers(_wrap_response(response))
             except Exception as e:
                 return _add_cors_headers(_wrap_response(_format_handler_error(e)))
@@ -331,9 +318,7 @@ def route_request(cur, path, method, params, body=None, jwt_claims=None):
     for prefix, handler in HANDLERS.items():
         if matches_route(path, prefix):
             try:
-                response = handler.handle(
-                    cur, path, method, params, body, jwt_claims=jwt_claims
-                )
+                response = handler.handle(cur, path, method, params, body, jwt_claims=jwt_claims)
                 return _add_cors_headers(_wrap_response(response))
             except Exception as e:
                 return _add_cors_headers(_wrap_response(_format_handler_error(e)))
@@ -347,9 +332,7 @@ def route_request(cur, path, method, params, body=None, jwt_claims=None):
         if module_name in _ROUTE_IMPORT_ERRORS and matches_route(path, route_path):
             error = _ROUTE_IMPORT_ERRORS[module_name]
             import_status = get_import_status()
-            logger.error(
-                f"Route {path} requested but handler module {module_name} failed to import: {error}"
-            )
+            logger.error(f"Route {path} requested but handler module {module_name} failed to import: {error}")
             # Include diagnostic information for dashboard/clients
             msg = f"Route handler unavailable: {module_name} module failed to load"
             response = {
@@ -372,9 +355,7 @@ def route_request(cur, path, method, params, body=None, jwt_claims=None):
     logger.warning(f"No handler found for path: {path}")
     msg = "Endpoint not found"
     return _add_cors_headers(
-        _wrap_response(
-            {"statusCode": 404, "errorType": "not_found", "message": msg, "_error": msg}
-        )
+        _wrap_response({"statusCode": 404, "errorType": "not_found", "message": msg, "_error": msg})
     )
 
 
@@ -448,9 +429,7 @@ def _publish_import_metrics():
                 f"Published CloudWatch metrics: APIRouteImportErrors={status['failed_routes']}, APICriticalRouteFailures={len(status['critical_failures'])}"
             )
     except Exception as e:
-        logger.warning(
-            f"Failed to publish CloudWatch metrics: {type(e).__name__}: {str(e)[:100]}"
-        )
+        logger.warning(f"Failed to publish CloudWatch metrics: {type(e).__name__}: {str(e)[:100]}")
 
 
 # Publish metrics at startup
@@ -475,14 +454,19 @@ def _format_handler_error(e):
     api_exception_failed = False
     try:
         from exceptions import APIException
+
         if isinstance(e, APIException):
             # Sanitize message to remove credentials/sensitive info
             try:
                 from utils.error_handlers import sanitize_error_message
+
                 msg = sanitize_error_message(e.message)
             except (ImportError, AttributeError) as sanitize_err:
-                logger.warning(f"[ERROR_HANDLER] Failed to sanitize error message: {sanitize_err} — using fallback sanitization")
+                logger.warning(
+                    f"[ERROR_HANDLER] Failed to sanitize error message: {sanitize_err} — using fallback sanitization"
+                )
                 import re
+
                 msg = re.sub(r"password=\S+|api.?key=\S+", "***", e.message)
             return {
                 "statusCode": e.status_code,
@@ -494,7 +478,10 @@ def _format_handler_error(e):
         logger.warning(f"[ERROR_HANDLER] APIException not available ({import_err}) — using generic error mapping")
         api_exception_failed = True
     except Exception as handler_err:
-        logger.error(f"[ERROR_HANDLER] Unexpected error in exception handler ({type(handler_err).__name__}: {handler_err}) — using generic error mapping", exc_info=True)
+        logger.error(
+            f"[ERROR_HANDLER] Unexpected error in exception handler ({type(handler_err).__name__}: {handler_err}) — using generic error mapping",
+            exc_info=True,
+        )
         api_exception_failed = True
 
     if api_exception_failed:
@@ -512,11 +499,7 @@ def _format_handler_error(e):
         }
 
     # Connection errors: RDS/proxy unavailable or network issues
-    elif (
-        "OperationalError" in error_type
-        or "Connection" in error_type
-        or "failed to connect" in error_msg.lower()
-    ):
+    elif "OperationalError" in error_type or "Connection" in error_type or "failed to connect" in error_msg.lower():
         msg = "RDS/database connection failed"
         return {
             "statusCode": 503,
@@ -526,11 +509,7 @@ def _format_handler_error(e):
         }
 
     # Query execution errors: SQL syntax or constraint violations
-    elif (
-        "ProgrammingError" in error_type
-        or "IntegrityError" in error_type
-        or "statement error" in error_msg.lower()
-    ):
+    elif "ProgrammingError" in error_type or "IntegrityError" in error_type or "statement error" in error_msg.lower():
         msg = "Database query execution failed"
         return {
             "statusCode": 503,
@@ -541,10 +520,7 @@ def _format_handler_error(e):
 
     # Auth errors: JWT validation, token expiry, Cognito failures
     elif (
-        "Unauthorized" in error_type
-        or "Forbidden" in error_type
-        or "JWT" in error_type
-        or "token" in error_msg.lower()
+        "Unauthorized" in error_type or "Forbidden" in error_type or "JWT" in error_type or "token" in error_msg.lower()
     ):
         msg = "JWT validation or Cognito authorization failed"
         return {
@@ -569,11 +545,7 @@ def _format_handler_error(e):
         }
 
     # Data access errors: code bugs (AttributeError, KeyError, etc.) accessing response fields
-    elif (
-        "AttributeError" in error_type
-        or "KeyError" in error_type
-        or "IndexError" in error_type
-    ):
+    elif "AttributeError" in error_type or "KeyError" in error_type or "IndexError" in error_type:
         msg = "Code bug accessing data fields"
         return {
             "statusCode": 500,
@@ -583,11 +555,7 @@ def _format_handler_error(e):
         }
 
     # No data errors: required data table is empty or missing
-    elif (
-        "no.*data" in error_msg.lower()
-        or "empty" in error_msg.lower()
-        or "not.*found" in error_msg.lower()
-    ):
+    elif "no.*data" in error_msg.lower() or "empty" in error_msg.lower() or "not.*found" in error_msg.lower():
         msg = "Required data table is empty or missing"
         return {
             "statusCode": 500,

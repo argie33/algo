@@ -86,9 +86,7 @@ class CredentialManager:
                 # connect_timeout=10: Allow 10s for TCP handshake through NAT/endpoint
                 # read_timeout=15: Allow 15s for full response (includes API processing)
                 # max_attempts=2: 1 retry for transient failures (still under 30s total)
-                _cfg = botocore.config.Config(
-                    connect_timeout=10, read_timeout=15, retries={"max_attempts": 2}
-                )
+                _cfg = botocore.config.Config(connect_timeout=10, read_timeout=15, retries={"max_attempts": 2})
                 aws_region = os.getenv("AWS_REGION")
                 if not aws_region:
                     raise ValueError(
@@ -130,9 +128,7 @@ class CredentialManager:
         """Alias for get_password (get_secret is more generic)."""
         return self.get_password(secret_name, default)
 
-    def _get_secret(
-        self, secret_name: str, default: str | None = None, is_password: bool = False
-    ) -> str:
+    def _get_secret(self, secret_name: str, default: str | None = None, is_password: bool = False) -> str:
         """
         Internal secret retrieval with caching and TTL-based expiration.
 
@@ -206,9 +202,7 @@ class CredentialManager:
             elif secret_binary:
                 return secret_binary
             else:
-                raise ValueError(
-                    f"Secret '{secret_name}' exists but contains neither SecretString nor SecretBinary"
-                )
+                raise ValueError(f"Secret '{secret_name}' exists but contains neither SecretString nor SecretBinary")
 
         except Exception as e:
             raise RuntimeError(_sanitize_error(e)) from e
@@ -254,9 +248,7 @@ class CredentialManager:
                 response = client.get_secret_value(SecretId=secret_arn)
                 secret_string = response.get("SecretString")
                 if not secret_string:
-                    raise ValueError(
-                        f"DB_SECRET_ARN '{secret_arn}' exists but contains no SecretString"
-                    )
+                    raise ValueError(f"DB_SECRET_ARN '{secret_arn}' exists but contains no SecretString")
                 creds = _json.loads(secret_string)
 
                 # Extract host (prefer DB_HOST env var override for proxy endpoints)
@@ -264,9 +256,7 @@ class CredentialManager:
                 if not db_host:
                     db_host = creds.get("host")
                 if not db_host:
-                    raise ValueError(
-                        "Database host not found in secret or DB_HOST/DB_ENDPOINT environment variables"
-                    )
+                    raise ValueError("Database host not found in secret or DB_HOST/DB_ENDPOINT environment variables")
 
                 # Extract port (no fallback, must be in secret)
                 port_str = creds.get("port")
@@ -275,9 +265,7 @@ class CredentialManager:
                 try:
                     port = int(port_str)
                 except (ValueError, TypeError) as e:
-                    raise ValueError(
-                        f"Database port in secret is not a valid integer: {port_str}"
-                    ) from e
+                    raise ValueError(f"Database port in secret is not a valid integer: {port_str}") from e
 
                 # Extract username (no default)
                 username = creds.get("username")
@@ -312,15 +300,11 @@ class CredentialManager:
         # Local dev mode: all credentials must be explicitly set
         db_host = os.getenv("DB_HOST") or os.getenv("DB_ENDPOINT")
         if not db_host:
-            raise ValueError(
-                "DB_HOST not set in environment. Set DB_HOST before using credential manager."
-            )
+            raise ValueError("DB_HOST not set in environment. Set DB_HOST before using credential manager.")
 
         db_port_str = os.getenv("DB_PORT")
         if not db_port_str:
-            raise ValueError(
-                "DB_PORT not set in environment. Set DB_PORT before using credential manager."
-            )
+            raise ValueError("DB_PORT not set in environment. Set DB_PORT before using credential manager.")
         try:
             db_port = int(db_port_str)
         except ValueError as e:
@@ -328,9 +312,7 @@ class CredentialManager:
 
         db_user = os.getenv("DB_USER")
         if not db_user:
-            raise ValueError(
-                "DB_USER not set in environment. Set DB_USER before using credential manager."
-            )
+            raise ValueError("DB_USER not set in environment. Set DB_USER before using credential manager.")
 
         password = self.get_password("db/password")
         if not password:
@@ -338,9 +320,7 @@ class CredentialManager:
 
         db_name = os.getenv("DB_NAME")
         if not db_name:
-            raise ValueError(
-                "DB_NAME not set in environment. Set DB_NAME before using credential manager."
-            )
+            raise ValueError("DB_NAME not set in environment. Set DB_NAME before using credential manager.")
 
         result = {
             "host": db_host,
@@ -391,18 +371,12 @@ class CredentialManager:
                         response = client.get_secret_value(SecretId=user_secret_id)
                         secret_string = response.get("SecretString")
                         if not secret_string:
-                            raise ValueError(
-                                f"User secret '{user_secret_id}' exists but contains no SecretString"
-                            )
+                            raise ValueError(f"User secret '{user_secret_id}' exists but contains no SecretString")
                         creds = _json.loads(secret_string)
                         key = creds.get("api_key") or creds.get("APCA_API_KEY_ID")
-                        secret = creds.get("api_secret") or creds.get(
-                            "APCA_API_SECRET_KEY"
-                        )
+                        secret = creds.get("api_secret") or creds.get("APCA_API_SECRET_KEY")
                         if key and secret:
-                            logger.info(
-                                f"[CREDENTIALS] User-scoped Alpaca credentials loaded for {user_id}"
-                            )
+                            logger.info(f"[CREDENTIALS] User-scoped Alpaca credentials loaded for {user_id}")
                             return {"key": key, "secret": secret}
                         else:
                             # User-specific secret exists but is invalid — FAIL HARD
@@ -433,9 +407,7 @@ class CredentialManager:
         # workflow as ALPACA_API_KEY_ID). For live trading, skip this source and fall through to
         # algo/alpaca which is updated by update-credentials.yml -f trading_mode=live.
         algo_secrets_arn = os.getenv("ALGO_SECRETS_ARN")
-        is_paper_mode = (
-            os.getenv("ALPACA_PAPER_TRADING", "true").strip().lower() != "false"
-        )
+        is_paper_mode = os.getenv("ALPACA_PAPER_TRADING", "true").strip().lower() != "false"
         if algo_secrets_arn and self._is_aws and is_paper_mode:
             try:
                 client = self._get_secrets_client()
@@ -443,57 +415,43 @@ class CredentialManager:
                     response = client.get_secret_value(SecretId=algo_secrets_arn)
                     secret_string = response.get("SecretString")
                     if not secret_string:
-                        raise ValueError(
-                            f"ALGO_SECRETS_ARN '{algo_secrets_arn}' exists but contains no SecretString"
-                        )
+                        raise ValueError(f"ALGO_SECRETS_ARN '{algo_secrets_arn}' exists but contains no SecretString")
                     creds = _json.loads(secret_string)
                     key = creds.get("APCA_API_KEY_ID")
                     secret = creds.get("APCA_API_SECRET_KEY")
                     if key and secret:
-                        logger.info(
-                            "[CREDENTIALS] Alpaca credentials loaded from ALGO_SECRETS_ARN (paper mode)"
-                        )
+                        logger.info("[CREDENTIALS] Alpaca credentials loaded from ALGO_SECRETS_ARN (paper mode)")
                         return {"key": key, "secret": secret}
                     else:
                         raise ValueError(
                             f"ALGO_SECRETS_ARN '{algo_secrets_arn}' exists but missing APCA_API_KEY_ID or APCA_API_SECRET_KEY"
                         )
             except ValueError as e:
-                logger.warning(
-                    f"[CREDENTIALS] ALGO_SECRETS_ARN validation failed: {e}"
-                )
+                logger.warning(f"[CREDENTIALS] ALGO_SECRETS_ARN validation failed: {e}")
             except Exception as e:
                 logger.error(
                     f"[CREDENTIALS] Could not fetch Alpaca credentials from configured secret: {_sanitize_error(e)}"
                 )
         elif algo_secrets_arn and self._is_aws and not is_paper_mode:
-            logger.info(
-                "[CREDENTIALS] Live mode: skipping ALGO_SECRETS_ARN (contains paper keys), using algo/alpaca"
-            )
+            logger.info("[CREDENTIALS] Live mode: skipping ALGO_SECRETS_ARN (contains paper keys), using algo/alpaca")
 
         # Step 3: Try 'algo/alpaca' JSON blob (legacy secrets module format)
         if self._is_aws:
             try:
                 client = self._get_secrets_client()
                 if client:
-                    alpaca_secret_id = os.getenv(
-                        "ALPACA_LEGACY_SECRET_ID", "algo/alpaca"
-                    )
+                    alpaca_secret_id = os.getenv("ALPACA_LEGACY_SECRET_ID", "algo/alpaca")
                     response = client.get_secret_value(SecretId=alpaca_secret_id)
                     secret_string = response.get("SecretString")
                     if not secret_string:
-                        raise ValueError(
-                            f"Alpaca secret '{alpaca_secret_id}' exists but contains no SecretString"
-                        )
+                        raise ValueError(f"Alpaca secret '{alpaca_secret_id}' exists but contains no SecretString")
                     creds = _json.loads(secret_string)
                     key = creds.get("api_key")
                     secret = creds.get("api_secret")
                     if key and secret:
                         return {"key": key, "secret": secret}
                     else:
-                        raise ValueError(
-                            f"Alpaca secret '{alpaca_secret_id}' exists but missing api_key or api_secret"
-                        )
+                        raise ValueError(f"Alpaca secret '{alpaca_secret_id}' exists but missing api_key or api_secret")
             except ValueError as e:
                 logger.warning(f"Alpaca secret validation failed: {e}")
             except Exception as e:
@@ -517,12 +475,8 @@ class CredentialManager:
         #
         # Instead, fail hard and let Lambda retry on the next invocation. This enforces that every
         # trade execution uses credentials fetched within the last 5 minutes (CREDENTIAL_CACHE_TTL_SECONDS).
-        logger.error(
-            "[CREDENTIALS] Alpaca credentials NOT FOUND - trades cannot be executed!"
-        )
-        logger.error(
-            "[CREDENTIALS_H3_FIX] Stale credential fallback REMOVED (was security risk after rotation)"
-        )
+        logger.error("[CREDENTIALS] Alpaca credentials NOT FOUND - trades cannot be executed!")
+        logger.error("[CREDENTIALS_H3_FIX] Stale credential fallback REMOVED (was security risk after rotation)")
         raise ValueError(
             "Alpaca API credentials not found. Verify credentials are configured in AWS Secrets Manager and accessible. "
             "If Secrets Manager is unreachable, check CloudWatch alarm [ALPACA_CREDS_FETCH_FAILED]. "
@@ -554,15 +508,13 @@ class CredentialManager:
         smtp_host = os.getenv("ALERT_SMTP_HOST")
         if not smtp_host:
             raise ValueError(
-                "SMTP is partially configured but ALERT_SMTP_HOST is not set. "
-                "Either configure all SMTP fields or none."
+                "SMTP is partially configured but ALERT_SMTP_HOST is not set. Either configure all SMTP fields or none."
             )
 
         smtp_user = os.getenv("ALERT_SMTP_USER")
         if not smtp_user:
             raise ValueError(
-                "SMTP is partially configured but ALERT_SMTP_USER is not set. "
-                "Either configure all SMTP fields or none."
+                "SMTP is partially configured but ALERT_SMTP_USER is not set. Either configure all SMTP fields or none."
             )
 
         smtp_password = os.getenv("ALERT_SMTP_PASSWORD")
@@ -575,16 +527,13 @@ class CredentialManager:
         smtp_port_str = os.getenv("ALERT_SMTP_PORT")
         if not smtp_port_str:
             raise ValueError(
-                "SMTP is partially configured but ALERT_SMTP_PORT is not set. "
-                "Either configure all SMTP fields or none."
+                "SMTP is partially configured but ALERT_SMTP_PORT is not set. Either configure all SMTP fields or none."
             )
 
         try:
             smtp_port = int(smtp_port_str)
         except ValueError as e:
-            raise ValueError(
-                f"ALERT_SMTP_PORT must be a valid integer, got: {smtp_port_str}"
-            ) from e
+            raise ValueError(f"ALERT_SMTP_PORT must be a valid integer, got: {smtp_port_str}") from e
 
         return {
             "username": smtp_user,
@@ -601,9 +550,7 @@ class CredentialManager:
         """Remove expired credentials from cache without clearing everything."""
         now = time.time()
         expired_keys = [
-            key
-            for key, (_, timestamp) in self._cache.items()
-            if now - timestamp >= CREDENTIAL_CACHE_TTL_SECONDS
+            key for key, (_, timestamp) in self._cache.items() if now - timestamp >= CREDENTIAL_CACHE_TTL_SECONDS
         ]
         for key in expired_keys:
             del self._cache[key]
@@ -628,9 +575,7 @@ class CredentialManager:
             try:
                 import boto3
 
-                cloudwatch = boto3.client(
-                    "cloudwatch", region_name=os.getenv("AWS_REGION", "us-east-1")
-                )
+                cloudwatch = boto3.client("cloudwatch", region_name=os.getenv("AWS_REGION", "us-east-1"))
                 cloudwatch.put_metric_data(
                     Namespace="AlgoTradingPlatform",
                     MetricData=[
@@ -641,17 +586,11 @@ class CredentialManager:
                         }
                     ],
                 )
-                logger.info(
-                    "[CREDENTIALS_INVALID] CloudWatch metric emitted: AlpacaCredentialsInvalidated"
-                )
+                logger.info("[CREDENTIALS_INVALID] CloudWatch metric emitted: AlpacaCredentialsInvalidated")
             except Exception as e:
-                logger.warning(
-                    f"[CREDENTIALS_INVALID] Could not emit CloudWatch metric: {_sanitize_error(e)}"
-                )
+                logger.warning(f"[CREDENTIALS_INVALID] Could not emit CloudWatch metric: {_sanitize_error(e)}")
         else:
-            logger.info(
-                "[CREDENTIALS_INVALID] Alpaca credentials not in cache (already cleared or never cached)"
-            )
+            logger.info("[CREDENTIALS_INVALID] Alpaca credentials not in cache (already cleared or never cached)")
 
 
 # Singleton instance (thread-safe)

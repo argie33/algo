@@ -47,9 +47,7 @@ def compute_moving_averages(closes: pd.Series) -> dict[str, pd.Series]:
     }
 
 
-def compute_atr(
-    high: pd.Series, low: pd.Series, close: pd.Series, period: int = 14
-) -> pd.Series:
+def compute_atr(high: pd.Series, low: pd.Series, close: pd.Series, period: int = 14) -> pd.Series:
     """Compute Average True Range using Wilder's exponential smoothing (alpha=1/period).
 
     Uses the same Wilder's EMA as RSI and ADX — NOT a simple rolling mean.
@@ -63,9 +61,7 @@ def compute_atr(
     return atr
 
 
-def compute_bollinger_bands(
-    closes: pd.Series, period: int = 20, std_dev: float = 2.0
-) -> dict[str, pd.Series]:
+def compute_bollinger_bands(closes: pd.Series, period: int = 20, std_dev: float = 2.0) -> dict[str, pd.Series]:
     """Compute Bollinger Bands."""
     sma = closes.rolling(period).mean()
     std = closes.rolling(period).std()

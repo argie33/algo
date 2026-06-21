@@ -11,16 +11,13 @@ Provides safe wrappers for common validation patterns:
 import logging
 import re
 from decimal import Decimal, InvalidOperation
-from typing import Optional, Union
 
 
 logger = logging.getLogger(__name__)
 
 # Validation patterns
 SYMBOL_PATTERN = re.compile(r"^[A-Z0-9\.\-]{1,12}$")  # Stock symbols: AAPL, BRK.B
-NASDAQ_PATTERN = re.compile(
-    r"^[A-Z]{1,5}$|^[A-Z\d]{3}\.[A-Z]$"
-)  # More strict NASDAQ format
+NASDAQ_PATTERN = re.compile(r"^[A-Z]{1,5}$|^[A-Z\d]{3}\.[A-Z]$")  # More strict NASDAQ format
 
 
 class ValidationError(ValueError):
@@ -59,9 +56,7 @@ def validate_symbol(symbol: str, strict: bool = False) -> str:
     return symbol
 
 
-def validate_percentage(
-    value: Union[int, float, str], min_pct: float = 0, max_pct: float = 100
-) -> float:
+def validate_percentage(value: int | float | str, min_pct: float = 0, max_pct: float = 100) -> float:
     """
     Validate percentage value is within bounds.
 
@@ -82,16 +77,12 @@ def validate_percentage(
         raise ValidationError(f"Invalid percentage value: {value}") from None
 
     if pct < min_pct or pct > max_pct:
-        raise ValidationError(
-            f"Percentage out of range: {pct} not in [{min_pct}, {max_pct}]"
-        )
+        raise ValidationError(f"Percentage out of range: {pct} not in [{min_pct}, {max_pct}]")
 
     return pct
 
 
-def validate_price(
-    price: Union[int, float, str], min_price: float = 0.01, max_price: float = 1_000_000
-) -> Decimal:
+def validate_price(price: int | float | str, min_price: float = 0.01, max_price: float = 1_000_000) -> Decimal:
     """
     Validate stock price.
 
@@ -123,9 +114,7 @@ def validate_price(
     return price_decimal
 
 
-def validate_quantity(
-    qty: Union[int, str], min_qty: int = 1, max_qty: int = 1_000_000
-) -> int:
+def validate_quantity(qty: int | str, min_qty: int = 1, max_qty: int = 1_000_000) -> int:
     """
     Validate trade quantity.
 
@@ -154,7 +143,7 @@ def validate_quantity(
     return quantity
 
 
-def validate_risk_multiple(r_multiple: Union[int, float, str]) -> float:
+def validate_risk_multiple(r_multiple: int | float | str) -> float:
     """
     Validate R-multiple (risk/reward ratio).
 
@@ -201,13 +190,11 @@ def validate_date_string(date_str: str, format_str: str = "%Y-%m-%d") -> str:
         datetime.strptime(date_str, format_str)
         return date_str
     except ValueError:
-        raise ValidationError(
-            f"Invalid date format: {date_str} (expected {format_str})"
-        )
+        raise ValidationError(f"Invalid date format: {date_str} (expected {format_str})")
 
 
 def validate_integer_range(
-    value: Union[int, str],
+    value: int | str,
     min_val: int | None = None,
     max_val: int | None = None,
     name: str = "value",
@@ -242,7 +229,7 @@ def validate_integer_range(
 
 
 def validate_float_range(
-    value: Union[int, float, str],
+    value: int | float | str,
     min_val: float | None = None,
     max_val: float | None = None,
     name: str = "value",
@@ -318,9 +305,7 @@ def validate_order_type(order_type: str) -> str:
     order_type = order_type.lower().strip()
 
     if order_type not in VALID_TYPES:
-        raise ValidationError(
-            f"Invalid order type: {order_type}. Must be one of: {VALID_TYPES}"
-        )
+        raise ValidationError(f"Invalid order type: {order_type}. Must be one of: {VALID_TYPES}")
 
     return order_type
 
@@ -341,8 +326,6 @@ def validate_position_side(side: str) -> str:
     side = side.lower().strip()
 
     if side not in {"long", "short"}:
-        raise ValidationError(
-            f"Invalid position side: {side}. Must be 'long' or 'short'"
-        )
+        raise ValidationError(f"Invalid position side: {side}. Must be 'long' or 'short'")
 
     return side

@@ -645,7 +645,9 @@ class AdvancedFilters:
         catalyst_analyst_weight = FilterRegistry.get_weight("catalyst_analyst")
         thresh_min = FilterRegistry.get_threshold("analyst_net_positive_threshold")
         thresh_max = FilterRegistry.get_threshold("analyst_net_full_score")
-        pts = max(0.0, min(catalyst_analyst_weight, (net - thresh_min) * catalyst_analyst_weight / (thresh_max - thresh_min)))
+        pts = max(
+            0.0, min(catalyst_analyst_weight, (net - thresh_min) * catalyst_analyst_weight / (thresh_max - thresh_min))
+        )
         return pts, net
 
     def _insider_score(self, symbol, signal_date, cur):

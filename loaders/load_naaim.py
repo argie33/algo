@@ -40,9 +40,7 @@ class NAAIMExposureLoader(OptimalLoader):
                 logger.error(f"SSRF prevention: Invalid NAAIM URL: {error_msg}")
                 return None
 
-            headers = {
-                "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36"
-            }
+            headers = {"User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36"}
 
             response = requests.get(url, headers=headers, timeout=30)
             response.raise_for_status()
@@ -75,9 +73,7 @@ class NAAIMExposureLoader(OptimalLoader):
                 ]
             else:
                 # Try to find columns by position heuristic (date first, mean second)
-                logger.warning(
-                    f"NAAIM table has {len(df.columns)} columns (expected 8): {df.columns.tolist()}"
-                )
+                logger.warning(f"NAAIM table has {len(df.columns)} columns (expected 8): {df.columns.tolist()}")
                 col_names = [
                     "Date",
                     "NAAIM Mean",
@@ -107,17 +103,9 @@ class NAAIMExposureLoader(OptimalLoader):
                 rows.append(
                     {
                         "date": row["Date"],
-                        "naaim_number_mean": (
-                            float(row["NAAIM Mean"])
-                            if pd.notna(row["NAAIM Mean"])
-                            else None
-                        ),
-                        "bullish_alloc": (
-                            float(row["Bullish"]) if pd.notna(row["Bullish"]) else None
-                        ),
-                        "bearish_alloc": (
-                            float(row["Bearish"]) if pd.notna(row["Bearish"]) else None
-                        ),
+                        "naaim_number_mean": (float(row["NAAIM Mean"]) if pd.notna(row["NAAIM Mean"]) else None),
+                        "bullish_alloc": (float(row["Bullish"]) if pd.notna(row["Bullish"]) else None),
+                        "bearish_alloc": (float(row["Bearish"]) if pd.notna(row["Bearish"]) else None),
                     }
                 )
 
@@ -125,7 +113,6 @@ class NAAIMExposureLoader(OptimalLoader):
 
         except (ValueError, ZeroDivisionError, TypeError) as e:
             raise RuntimeError(f"Operation failed: {e}") from e
-
 
 
 if __name__ == "__main__":

@@ -18,8 +18,9 @@ Usage:
 import logging
 from dataclasses import dataclass
 
-from utils.db.context import DatabaseContext
 import psycopg2
+
+from utils.db.context import DatabaseContext
 
 
 logger = logging.getLogger(__name__)
@@ -79,11 +80,7 @@ class LoaderCompletenessValidator:
         Returns:
             CompletenessResult with completion % and failure reason if incomplete
         """
-        completion_pct = (
-            (actual_symbols_loaded / self.symbol_count * 100)
-            if self.symbol_count > 0
-            else 100.0
-        )
+        completion_pct = (actual_symbols_loaded / self.symbol_count * 100) if self.symbol_count > 0 else 100.0
 
         is_complete = completion_pct >= self.min_completion_pct
 
@@ -101,8 +98,7 @@ class LoaderCompletenessValidator:
             # Suggest remediation based on missing count
             if symbols_missing <= 50:
                 recommendations.append(
-                    "Small gap (<1%): Check for transient API errors or network timeouts. "
-                    "May succeed on retry."
+                    "Small gap (<1%): Check for transient API errors or network timeouts. May succeed on retry."
                 )
             elif symbols_missing <= 250:  # < 5%
                 recommendations.append(
@@ -118,7 +114,7 @@ class LoaderCompletenessValidator:
             # Add SLA context if duration provided
             if execution_duration_sec:
                 recommendations.append(
-                    f"Execution took {execution_duration_sec/60:.1f} min. "
+                    f"Execution took {execution_duration_sec / 60:.1f} min. "
                     "Approaching timeout may indicate performance degradation."
                 )
 
@@ -138,18 +134,13 @@ class LoaderCompletenessValidator:
                 f"{actual_symbols_loaded}/{self.symbol_count} symbols ({completion_pct:.1f}%)"
             )
         else:
-            logger.error(
-                f"[{self.table_name}] ✗ Data completeness validation FAILED: "
-                f"{failure_reason}"
-            )
+            logger.error(f"[{self.table_name}] ✗ Data completeness validation FAILED: {failure_reason}")
             for rec in recommendations:
                 logger.warning(f"  → {rec}")
 
         return result
 
-    def validate_upstream_completeness(
-        self, upstream_table: str
-    ) -> CompletenessResult:
+    def validate_upstream_completeness(self, upstream_table: str) -> CompletenessResult:
         """Validate that upstream loader has sufficient data.
 
         Used by downstream loaders to check if they can proceed.
@@ -212,16 +203,12 @@ class LoaderCompletenessValidator:
                     symbols_loaded=symbols_loaded or 0,
                     symbols_expected=symbol_count or 0,
                     failure_reason=(
-                        f"Upstream {upstream_table} only {completion_pct:.1f}% complete "
-                        if not is_complete
-                        else None
+                        f"Upstream {upstream_table} only {completion_pct:.1f}% complete " if not is_complete else None
                     ),
                 )
 
         except (psycopg2.DatabaseError, psycopg2.OperationalError) as e:
-            logger.error(
-                f"[{self.table_name}→{upstream_table}] Failed to check upstream completeness: {e}"
-            )
+            logger.error(f"[{self.table_name}→{upstream_table}] Failed to check upstream completeness: {e}")
             return CompletenessResult(
                 is_complete=False,
                 completion_pct=0,

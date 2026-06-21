@@ -73,9 +73,7 @@ def lambda_handler(event, context):
             logger.error(f"Invalid event type: {type(event)}. Expected dict.")
             return {
                 "statusCode": 400,
-                "body": json.dumps(
-                    {"status": "error", "message": "Event must be a JSON object"}
-                ),
+                "body": json.dumps({"status": "error", "message": "Event must be a JSON object"}),
             }
 
         # Seed mode: insert price rows directly into price_daily so today's intraday
@@ -163,17 +161,9 @@ def lambda_handler(event, context):
                 }
 
         # FIXED Issue #12: Parse execution_mode from event (EventBridge Scheduler passes it)
-        execution_mode = (
-            event.get(
-                "execution_mode", os.getenv("ORCHESTRATOR_EXECUTION_MODE", "auto")
-            )
-            .strip()
-            .lower()
-        )
+        execution_mode = event.get("execution_mode", os.getenv("ORCHESTRATOR_EXECUTION_MODE", "auto")).strip().lower()
         if execution_mode not in ("auto", "paper", "live"):
-            logger.warning(
-                f"Invalid execution_mode: {execution_mode}. Defaulting to 'auto'."
-            )
+            logger.warning(f"Invalid execution_mode: {execution_mode}. Defaulting to 'auto'.")
             execution_mode = "auto"
 
         # F-02: Check Secrets Manager for intraday circuit breaker halt flag.
@@ -202,17 +192,15 @@ def lambda_handler(event, context):
         )
         # Startup diagnostic: surface critical config state in every CloudWatch log
         logger.info(
-            f"[CONFIG] ORCHESTRATOR_DRY_RUN={os.getenv('ORCHESTRATOR_DRY_RUN','<unset>')} "
-            f"ORCHESTRATOR_EXECUTION_MODE={os.getenv('ORCHESTRATOR_EXECUTION_MODE','<unset>')} "
-            f"ALPACA_PAPER_TRADING={os.getenv('ALPACA_PAPER_TRADING','<unset>')} "
-            f"APCA_API_BASE_URL={os.getenv('APCA_API_BASE_URL','<unset>')} "
+            f"[CONFIG] ORCHESTRATOR_DRY_RUN={os.getenv('ORCHESTRATOR_DRY_RUN', '<unset>')} "
+            f"ORCHESTRATOR_EXECUTION_MODE={os.getenv('ORCHESTRATOR_EXECUTION_MODE', '<unset>')} "
+            f"ALPACA_PAPER_TRADING={os.getenv('ALPACA_PAPER_TRADING', '<unset>')} "
+            f"APCA_API_BASE_URL={os.getenv('APCA_API_BASE_URL', '<unset>')} "
             f"ALGO_LIVE_TRADING={'SET' if os.getenv('ALGO_LIVE_TRADING') else 'NOT SET'}"
         )
 
         # FIXED Issue #18: Default Lambda timeout to 600s instead of 240s (close to Lambda max)
-        lambda_timeout = (
-            context.get_remaining_time_in_millis() // 1000 if context else 600
-        )
+        lambda_timeout = context.get_remaining_time_in_millis() // 1000 if context else 600
 
         # FIXED Issue #7: Parse per-phase timeout from event payload (seconds)
         # Defaults to 300s per phase (5 min), which allows 7 phases to complete in ~35min before Lambda timeout
@@ -240,9 +228,7 @@ def lambda_handler(event, context):
         # (orchestrator.__init__ will pick it up from ORCHESTRATOR_EXECUTION_MODE)
         if execution_mode != "auto":
             os.environ["ORCHESTRATOR_EXECUTION_MODE"] = execution_mode
-            logger.info(
-                f"ORCHESTRATOR_EXECUTION_MODE set to {execution_mode} from event"
-            )
+            logger.info(f"ORCHESTRATOR_EXECUTION_MODE set to {execution_mode} from event")
 
         # Ensure sector_ranking schema is correct (has 'date' column, not 'date_recorded')
         # This is a failsafe for when migrations don't run properly
@@ -263,9 +249,7 @@ def lambda_handler(event, context):
                 has_date = row[0]
 
                 if not has_date:
-                    logger.warning(
-                        "[SCHEMA FIX] Adding 'date' column to sector_ranking..."
-                    )
+                    logger.warning("[SCHEMA FIX] Adding 'date' column to sector_ranking...")
                     # Check if date_recorded exists to migrate from
                     cur.execute("""
                         SELECT EXISTS (
@@ -283,29 +267,19 @@ def lambda_handler(event, context):
 
                     # Migrate data if needed
                     if has_date_recorded:
-                        cur.execute(
-                            "UPDATE sector_ranking SET date = date_recorded WHERE date IS NULL"
-                        )
-                        cur.execute(
-                            "ALTER TABLE sector_ranking DROP COLUMN date_recorded"
-                        )
+                        cur.execute("UPDATE sector_ranking SET date = date_recorded WHERE date IS NULL")
+                        cur.execute("ALTER TABLE sector_ranking DROP COLUMN date_recorded")
                         logger.info("[SCHEMA FIX] Migrated date_recorded -> date")
 
                     # Add constraint and indexes
-                    cur.execute(
-                        "ALTER TABLE sector_ranking ALTER COLUMN date SET NOT NULL"
-                    )
+                    cur.execute("ALTER TABLE sector_ranking ALTER COLUMN date SET NOT NULL")
                     cur.execute(
                         "CREATE UNIQUE INDEX IF NOT EXISTS idx_sector_ranking_unique ON sector_ranking(sector_name, date)"
                     )
-                    cur.execute(
-                        "CREATE INDEX IF NOT EXISTS idx_sector_ranking_date ON sector_ranking(date DESC)"
-                    )
+                    cur.execute("CREATE INDEX IF NOT EXISTS idx_sector_ranking_date ON sector_ranking(date DESC)")
                     logger.info("[SCHEMA FIX] sector_ranking schema fixed successfully")
         except (psycopg2.DatabaseError, psycopg2.OperationalError) as e:
-            logger.warning(
-                f"[SCHEMA FIX] Could not verify/fix sector_ranking schema: {e}. Continuing anyway..."
-            )
+            logger.warning(f"[SCHEMA FIX] Could not verify/fix sector_ranking schema: {e}. Continuing anyway...")
         # Create orchestrator instance with explicit config dependency injection
         from algo.infrastructure import get_config
 
@@ -340,9 +314,7 @@ def lambda_handler(event, context):
                     {
                         "status": "success" if success else "error",
                         "message": (
-                            "Orchestrator completed successfully"
-                            if success
-                            else "Orchestrator encountered errors"
+                            "Orchestrator completed successfully" if success else "Orchestrator encountered errors"
                         ),
                         "run_id": run_id,
                         "phases": result.get("phases"),

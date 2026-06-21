@@ -2,10 +2,11 @@
 
 import logging
 from datetime import date as _date
-from typing import Any, Dict, Optional
+from typing import Any
+
+import psycopg2
 
 from utils.db import DatabaseContext
-import psycopg2
 
 
 logger = logging.getLogger(__name__)
@@ -27,9 +28,9 @@ class WatermarkManager:
 
     def get_current_watermark(
         self,
-        symbol: Optional[str] = None,
-        granularity_key: Optional[str] = None,
-    ) -> Optional[_date]:
+        symbol: str | None = None,
+        granularity_key: str | None = None,
+    ) -> _date | None:
         """
         Get the current watermark (last successfully loaded data point).
 
@@ -82,8 +83,8 @@ class WatermarkManager:
     def advance_watermark(
         self,
         new_watermark: _date,
-        symbol: Optional[str] = None,
-        granularity_key: Optional[str] = None,
+        symbol: str | None = None,
+        granularity_key: str | None = None,
         rows_loaded: int = 0,
         in_transaction: bool = False,  # Deprecated: ignored, DatabaseContext handles it
     ) -> bool:
@@ -191,8 +192,8 @@ class WatermarkManager:
 
     def record_error(
         self,
-        symbol: Optional[str] = None,
-        granularity_key: Optional[str] = None,
+        symbol: str | None = None,
+        granularity_key: str | None = None,
         error_message: str = "",
     ):
         """Record an error for this watermark entry."""
@@ -257,10 +258,9 @@ class WatermarkManager:
         except (psycopg2.DatabaseError, psycopg2.OperationalError) as e:
             raise RuntimeError(f"Failed to record error for watermark: {e}") from e
 
-    def get_status(self) -> Dict[str, Any]:
+    def get_status(self) -> dict[str, Any]:
         """Get status of all watermarks for this loader."""
         try:
-
             with DatabaseContext("read") as cur:
                 cur.execute(
                     "SELECT symbol, granularity, watermark, error_count, last_error FROM loader_watermarks WHERE loader = %s",

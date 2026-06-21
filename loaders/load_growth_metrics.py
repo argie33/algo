@@ -80,9 +80,7 @@ class GrowthMetricsLoader(OptimalLoader):
                         # Convert to float to support Decimal types from database
                         latest_rev_f = float(latest_rev)
                         prev_rev_f = float(prev_rev)
-                        rev_growth = (
-                            ((latest_rev_f / prev_rev_f) ** (1.0 / lookback)) - 1
-                        ) * 100
+                        rev_growth = (((latest_rev_f / prev_rev_f) ** (1.0 / lookback)) - 1) * 100
                         metrics[f"revenue_growth_{lookback}y"] = float(round(rev_growth, 2))
                     else:
                         metrics[f"revenue_growth_{lookback}y"] = None
@@ -99,9 +97,7 @@ class GrowthMetricsLoader(OptimalLoader):
                         # Convert to float to support Decimal types from database
                         latest_eps_f = float(latest_eps)
                         prev_eps_f = float(prev_eps)
-                        eps_growth = (
-                            ((latest_eps_f / prev_eps_f) ** (1.0 / lookback)) - 1
-                        ) * 100
+                        eps_growth = (((latest_eps_f / prev_eps_f) ** (1.0 / lookback)) - 1) * 100
                         metrics[f"eps_growth_{lookback}y"] = float(round(eps_growth, 2))
                     else:
                         metrics[f"eps_growth_{lookback}y"] = None
@@ -115,7 +111,6 @@ class GrowthMetricsLoader(OptimalLoader):
     def transform(self, rows):
         """No transformation needed; metrics already computed."""
         return rows
-
 
 
 if __name__ == "__main__":

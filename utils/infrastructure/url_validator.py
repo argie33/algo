@@ -11,8 +11,8 @@ SECURITY: Always pin expected domains and protocols. Reject redirects to unexpec
 
 import ipaddress
 import logging
-from typing import List, Optional
 from urllib.parse import urlparse
+
 import requests
 
 
@@ -24,18 +24,12 @@ def is_private_ip(ip_str: str) -> bool:
     try:
         ip = ipaddress.ip_address(ip_str)
         # Check for private, loopback, reserved ranges
-        return (
-            ip.is_private
-            or ip.is_loopback
-            or ip.is_reserved
-            or ip.is_link_local
-            or ip.is_multicast
-        )
+        return ip.is_private or ip.is_loopback or ip.is_reserved or ip.is_link_local or ip.is_multicast
     except ValueError:
         return False
 
 
-def validate_url(url: str, allowed_domains: Optional[List[str]] = None) -> tuple:
+def validate_url(url: str, allowed_domains: list[str] | None = None) -> tuple:
     """
     Validate URL for SSRF safety.
 
@@ -54,7 +48,7 @@ def validate_url(url: str, allowed_domains: Optional[List[str]] = None) -> tuple
         return False, "URL is too long"
 
     # Must be HTTPS in production (or HTTP for localhost only)
-    if not (url.startswith("https://") or url.startswith("http://")):
+    if not (url.startswith(("https://", "http://"))):
         return False, "URL must use HTTP or HTTPS protocol"
 
     try:
@@ -96,9 +90,7 @@ def validate_url(url: str, allowed_domains: Optional[List[str]] = None) -> tuple
     return True, None
 
 
-def validate_redirect_url(
-    original_url: str, redirect_url: str, allowed_domains: Optional[List[str]] = None
-) -> tuple:
+def validate_redirect_url(original_url: str, redirect_url: str, allowed_domains: list[str] | None = None) -> tuple:
     """
     Validate a redirect target to prevent SSRF via redirects.
 

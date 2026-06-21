@@ -24,7 +24,6 @@ USAGE:
 
 import logging
 from datetime import date as _date
-from typing import Dict, List, Optional, Tuple
 
 
 logger = logging.getLogger(__name__)
@@ -36,7 +35,7 @@ class TickValidator:
     def __init__(
         self,
         symbol: str,
-        prior_close: Optional[float] = None,
+        prior_close: float | None = None,
         is_etf: bool = False,
         security_type: str = "equity",  # 'equity', 'et', 'index'
     ):
@@ -51,17 +50,17 @@ class TickValidator:
         self.prior_close = prior_close
         self.is_etf = is_etf
         self.security_type = security_type
-        self.errors: List[str] = []
+        self.errors: list[str] = []
 
     def validate(
         self,
-        open_price: Optional[float],
-        high: Optional[float],
-        low: Optional[float],
-        close: Optional[float],
-        volume: Optional[int],
-        data_date: Optional[_date] = None,
-    ) -> List[str]:
+        open_price: float | None,
+        high: float | None,
+        low: float | None,
+        close: float | None,
+        volume: int | None,
+        data_date: _date | None = None,
+    ) -> list[str]:
         """
         Validate a single tick. Returns list of errors (empty = valid).
 
@@ -85,11 +84,7 @@ class TickValidator:
 
         # Type guards: after null check, values are guaranteed non-None
         assert (
-            open_price is not None
-            and high is not None
-            and low is not None
-            and close is not None
-            and volume is not None
+            open_price is not None and high is not None and low is not None and close is not None and volume is not None
         )
 
         # 2. OHLC LOGIC - High >= all, Low <= all
@@ -117,11 +112,11 @@ class TickValidator:
 
     def _check_nulls(
         self,
-        open_price: Optional[float],
-        high: Optional[float],
-        low: Optional[float],
-        close: Optional[float],
-        volume: Optional[int],
+        open_price: float | None,
+        high: float | None,
+        low: float | None,
+        close: float | None,
+        volume: int | None,
     ):
         """Check for required fields."""
         if open_price is None:
@@ -155,13 +150,9 @@ class TickValidator:
         if high < low:
             self.errors.append(f"high < low: {high} < {low}")
         if high < max(open_price, close):
-            self.errors.append(
-                f"high < max(open, close): {high} < max({open_price}, {close})"
-            )
+            self.errors.append(f"high < max(open, close): {high} < max({open_price}, {close})")
         if low > min(open_price, close):
-            self.errors.append(
-                f"low > min(open, close): {low} > min({open_price}, {close})"
-            )
+            self.errors.append(f"low > min(open, close): {low} > min({open_price}, {close})")
 
     def _check_price_bounds(
         self,
@@ -209,9 +200,7 @@ class TickValidator:
 
         gap_pct = abs(close - self.prior_close) / self.prior_close * 100
         if gap_pct > 30:
-            self.errors.append(
-                f"price gap > 30%: {self.prior_close} → {close} ({gap_pct:.1f}%)"
-            )
+            self.errors.append(f"price gap > 30%: {self.prior_close} → {close} ({gap_pct:.1f}%)")
 
 
 class TickValidationBatch:
@@ -220,8 +209,8 @@ class TickValidationBatch:
     def __init__(self, symbol: str, is_etf: bool = False):
         self.symbol = symbol
         self.is_etf = is_etf
-        self.ticks: List[Dict] = []
-        self.prior_close: Optional[float] = None
+        self.ticks: list[dict] = []
+        self.prior_close: float | None = None
 
     def add_tick(
         self,
@@ -231,7 +220,7 @@ class TickValidationBatch:
         low: float,
         close: float,
         volume: int,
-    ) -> Tuple[bool, List[str]]:
+    ) -> tuple[bool, list[str]]:
         """
         Validate and add a tick to the batch.
 
@@ -260,7 +249,7 @@ class TickValidationBatch:
 
         return (len(errors) == 0, errors)
 
-    def get_valid_ticks(self) -> List[Dict]:
+    def get_valid_ticks(self) -> list[dict]:
         """Return all validated ticks in chronological order."""
         return sorted(self.ticks, key=lambda x: x["date"])
 
@@ -272,9 +261,9 @@ def validate_price_tick(
     low: float,
     close: float,
     volume: int,
-    prior_close: Optional[float] = None,
+    prior_close: float | None = None,
     is_etf: bool = False,
-) -> Tuple[bool, List[str]]:
+) -> tuple[bool, list[str]]:
     """
     Convenience function to validate a single tick.
 
@@ -292,13 +281,13 @@ def validate_price_tick(
 
 def validate_score_tick(
     symbol: str,
-    composite_score: Optional[float],
-    momentum_score: Optional[float] = None,
-    value_score: Optional[float] = None,
-    quality_score: Optional[float] = None,
-    growth_score: Optional[float] = None,
-    score_date: Optional[str] = None,
-) -> Tuple[bool, List[str]]:
+    composite_score: float | None,
+    momentum_score: float | None = None,
+    value_score: float | None = None,
+    quality_score: float | None = None,
+    growth_score: float | None = None,
+    score_date: str | None = None,
+) -> tuple[bool, list[str]]:
     """
     Validate a score tick before insertion.
 

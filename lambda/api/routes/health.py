@@ -36,7 +36,7 @@ def handle(
     params: dict[str, Any],
     body: dict[str, Any] | None = None,
     jwt_claims: dict[str, Any] | None = None,
-    idempotency_key: str = None,
+    idempotency_key: str | None = None,
 ) -> dict[str, Any]:
     """Handle health check endpoints.
 
@@ -126,6 +126,7 @@ def _handle_basic(cur) -> dict[str, Any]:
                     health["freshness"] = {"status": "UNKNOWN"}
         except Exception as e:
             from utils.error_handlers import sanitize_error_message
+
             sanitized = sanitize_error_message(str(e)[:60])
             logger.debug(f"Signal freshness check unavailable: {sanitized}")
             health["freshness"] = {"status": "UNKNOWN"}
@@ -147,12 +148,11 @@ def _handle_basic(cur) -> dict[str, Any]:
                 latest_load = loader_check[0]["latest_load"]
                 if latest_load:
                     health["last_load_time"] = (
-                        latest_load.isoformat()
-                        if hasattr(latest_load, "isoformat")
-                        else str(latest_load)
+                        latest_load.isoformat() if hasattr(latest_load, "isoformat") else str(latest_load)
                     )
         except Exception as e:
             from utils.error_handlers import sanitize_error_message
+
             sanitized = sanitize_error_message(str(e)[:60])
             logger.debug(f"Loader check unavailable: {sanitized}")
 
@@ -205,19 +205,13 @@ def _handle_cognito(cur) -> dict[str, Any]:
             health["status"] = "misconfigured"
             health["error"] = "COGNITO_CLIENT_ID not configured"
             logger.error("CRITICAL: COGNITO_CLIENT_ID environment variable is missing")
-            return error_response(
-                503, "misconfigured", "Cognito client ID not configured"
-            )
+            return error_response(503, "misconfigured", "Cognito client ID not configured")
 
         if not cognito_user_pool_id:
             health["status"] = "misconfigured"
             health["error"] = "COGNITO_USER_POOL_ID not configured"
-            logger.error(
-                "CRITICAL: COGNITO_USER_POOL_ID environment variable is missing"
-            )
-            return error_response(
-                503, "misconfigured", "Cognito user pool ID not configured"
-            )
+            logger.error("CRITICAL: COGNITO_USER_POOL_ID environment variable is missing")
+            return error_response(503, "misconfigured", "Cognito user pool ID not configured")
 
         health["configured_client_id"] = configured_client_id
         health["cognito_user_pool_id"] = cognito_user_pool_id
@@ -232,24 +226,18 @@ def _handle_cognito(cur) -> dict[str, Any]:
 
             # Validate pool response is a dict
             if not isinstance(pool_response, dict):
-                logger.warning(
-                    f"Invalid Cognito pool response type: {type(pool_response).__name__}"
-                )
+                logger.warning(f"Invalid Cognito pool response type: {type(pool_response).__name__}")
                 health["cognito_verification_skipped"] = True
                 return success_response(health)
 
             pool_response.get("UserPool")
 
             # List app clients in this user pool
-            apps_response = cognito.list_user_pool_clients(
-                UserPoolId=cognito_user_pool_id, MaxResults=10
-            )
+            apps_response = cognito.list_user_pool_clients(UserPoolId=cognito_user_pool_id, MaxResults=10)
 
             # Validate apps response is a dict
             if not isinstance(apps_response, dict):
-                logger.warning(
-                    f"Invalid Cognito apps response type: {type(apps_response).__name__}"
-                )
+                logger.warning(f"Invalid Cognito apps response type: {type(apps_response).__name__}")
                 health["cognito_verification_skipped"] = True
                 return success_response(health)
 
@@ -257,9 +245,7 @@ def _handle_cognito(cur) -> dict[str, Any]:
 
             # Validate clients is a list
             if not isinstance(clients, list):
-                logger.warning(
-                    f"Invalid UserPoolClients type: {type(clients).__name__}. Expected list."
-                )
+                logger.warning(f"Invalid UserPoolClients type: {type(clients).__name__}. Expected list.")
                 health["cognito_verification_skipped"] = True
                 return success_response(health)
 
@@ -268,9 +254,7 @@ def _handle_cognito(cur) -> dict[str, Any]:
             for client in clients:
                 # Validate each client is a dict before accessing
                 if not isinstance(client, dict):
-                    logger.warning(
-                        f"Invalid client type in list: {type(client).__name__}. Skipping."
-                    )
+                    logger.warning(f"Invalid client type in list: {type(client).__name__}. Skipping.")
                     continue
                 if client.get("ClientId") == configured_client_id:
                     matching_client = client
@@ -278,9 +262,7 @@ def _handle_cognito(cur) -> dict[str, Any]:
 
             if matching_client:
                 health["cognito_client_found"] = True
-                health["cognito_client_name"] = matching_client.get(
-                    "ClientName", "unknown"
-                )
+                health["cognito_client_name"] = matching_client.get("ClientName", "unknown")
                 health["validation_result"] = "PASS"
                 return success_response(health)
             else:
@@ -299,10 +281,9 @@ def _handle_cognito(cur) -> dict[str, Any]:
 
         except Exception as cognito_err:
             from utils.error_handlers import sanitize_error_message
+
             sanitized = sanitize_error_message(str(cognito_err)[:100])
-            logger.warning(
-                f"Could not verify Cognito client ID with API (will proceed with config): {sanitized}"
-            )
+            logger.warning(f"Could not verify Cognito client ID with API (will proceed with config): {sanitized}")
             # If we can't reach Cognito API, still report what we have configured (pre-deploy may not have IAM)
             health["cognito_verification_skipped"] = True
             health["cognito_error"] = sanitize_error_message(str(cognito_err)[:80])
@@ -310,6 +291,7 @@ def _handle_cognito(cur) -> dict[str, Any]:
 
     except Exception as e:
         from utils.error_handlers import sanitize_error_message
+
         sanitized = sanitize_error_message(str(e)[:100])
         logger.error(f"Cognito health check error: {sanitized}")
         return error_response(503, "health_check_error", sanitized)
@@ -342,9 +324,7 @@ def _handle_detailed(cur, jwt_claims: dict[str, Any] | None) -> dict[str, Any]:
         for t in health_tables:
             table_counts.setdefault(t, 0)
 
-        return success_response(
-            {"status": "healthy", "dbStatus": "connected", "tables": table_counts}
-        )
+        return success_response({"status": "healthy", "dbStatus": "connected", "tables": table_counts})
     except Exception as e:
         code, error_type, message = handle_db_error(e, "detailed health check")
         return error_response(code, error_type, message)
@@ -404,11 +384,7 @@ def _handle_pipeline(cur, jwt_claims: dict[str, Any] | None) -> dict[str, Any]:
         for row in rows:
             age = float(row.get("age_days")) if row.get("age_days") is not None else 999
             row_count = row.get("row_count")
-            if (
-                age <= config.pipeline_healthy_days
-                and row_count is not None
-                and row_count > 0
-            ):
+            if age <= config.pipeline_healthy_days and row_count is not None and row_count > 0:
                 status = "HEALTHY"
             elif age <= config.pipeline_critical_days:
                 status = "STALE"
@@ -426,9 +402,7 @@ def _handle_pipeline(cur, jwt_claims: dict[str, Any] | None) -> dict[str, Any]:
         healthy = sum(1 for t in tables if t["status"] == "HEALTHY")
         return success_response(
             {
-                "status": (
-                    "HEALTHY" if healthy == len(tables) and tables else "DEGRADED"
-                ),
+                "status": ("HEALTHY" if healthy == len(tables) and tables else "DEGRADED"),
                 "healthy_count": healthy,
                 "total_count": len(tables),
                 "tables": tables,

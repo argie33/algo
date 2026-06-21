@@ -10,7 +10,7 @@ import logging
 import random
 import time
 from pathlib import Path
-from typing import Dict, Optional, cast
+from typing import cast
 
 import requests
 
@@ -28,8 +28,8 @@ class TickerCache:
         self,
         cache_ttl: int = 86400,
         timeout: float = DEFAULT_TIMEOUT,
-        rate_limiter: Optional[object] = None,
-        session: Optional[requests.Session] = None,
+        rate_limiter: object | None = None,
+        session: requests.Session | None = None,
     ):
         """Initialize ticker cache.
 
@@ -39,7 +39,7 @@ class TickerCache:
             rate_limiter: Optional rate limiter to use for API calls
             session: Optional requests.Session to reuse
         """
-        self._ticker_cache: Optional[Dict[str, str]] = None
+        self._ticker_cache: dict[str, str] | None = None
         self._ticker_cache_time = 0.0
         self._cache_ttl = cache_ttl
         self._timeout = timeout
@@ -52,7 +52,7 @@ class TickerCache:
         """Try to load ticker cache from persistent file (survives across processes)."""
         try:
             if self._ticker_cache_file.exists():
-                with open(self._ticker_cache_file, "r") as f:
+                with open(self._ticker_cache_file) as f:
                     data = json.load(f)
                     self._ticker_cache = data.get("mapping")
                     self._ticker_cache_time = data.get("timestamp", 0)
@@ -79,13 +79,11 @@ class TickerCache:
                     },
                     f,
                 )
-            logger.debug(
-                f"Saved ticker cache to file ({len(self._ticker_cache or {})} symbols)"
-            )
+            logger.debug(f"Saved ticker cache to file ({len(self._ticker_cache or {})} symbols)")
         except (json.JSONDecodeError, ValueError) as e:
             logger.debug(f"Could not save ticker cache file: {e}")
 
-    def _refresh_ticker_cache(self) -> Dict[str, str]:
+    def _refresh_ticker_cache(self) -> dict[str, str]:
         """Download SEC's ticker->CIK mapping (one file, all listed companies)."""
         max_retries = 8
         for attempt in range(max_retries):
@@ -96,14 +94,10 @@ class TickerCache:
             except (requests.ConnectionError, requests.Timeout) as e:
                 if attempt < max_retries - 1:
                     wait_time = 4 * (2**attempt) + random.uniform(0, 2)
-                    logger.warning(
-                        f"SEC ticker endpoint network error: {e}. Retry in {wait_time:.1f}s"
-                    )
+                    logger.warning(f"SEC ticker endpoint network error: {e}. Retry in {wait_time:.1f}s")
                     time.sleep(wait_time)
                     continue
-                raise RuntimeError(
-                    f"SEC ticker cache unavailable after {max_retries} retries: {e}"
-                ) from e
+                raise RuntimeError(f"SEC ticker cache unavailable after {max_retries} retries: {e}") from e
 
             try:
                 if resp.status_code in (429, 403):
@@ -111,11 +105,7 @@ class TickerCache:
                         base_wait = 4 * (2**attempt)
                         jitter = random.uniform(0, base_wait * 0.3)
                         wait_time = base_wait + jitter
-                        status_name = (
-                            "rate limited (429)"
-                            if resp.status_code == 429
-                            else "forbidden (403)"
-                        )
+                        status_name = "rate limited (429)" if resp.status_code == 429 else "forbidden (403)"
                         logger.warning(
                             f"SEC ticker endpoint {status_name}. Retry in {wait_time:.1f}s (attempt {attempt + 1}/{max_retries})"
                         )
@@ -128,10 +118,7 @@ class TickerCache:
 
                 resp.raise_for_status()
                 data = resp.json()
-                mapping = {
-                    entry["ticker"].upper(): str(entry["cik_str"]).zfill(10)
-                    for entry in data.values()
-                }
+                mapping = {entry["ticker"].upper(): str(entry["cik_str"]).zfill(10) for entry in data.values()}
                 self._ticker_cache = mapping
                 self._ticker_cache_time = time.time()
                 self._save_ticker_cache_to_file()
@@ -148,10 +135,7 @@ class TickerCache:
 
         Refreshes cache if expired. Raises RuntimeError if symbol not found.
         """
-        if (
-            self._ticker_cache is None
-            or time.time() - self._ticker_cache_time > self._cache_ttl
-        ):
+        if self._ticker_cache is None or time.time() - self._ticker_cache_time > self._cache_ttl:
             self._refresh_ticker_cache()
 
         cik = (self._ticker_cache or {}).get(symbol.upper())

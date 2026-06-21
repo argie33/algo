@@ -48,9 +48,7 @@ class OptimalLoader(ABC):
     table_name: str = ""
     primary_key: Sequence[str] = ()
     watermark_field: str = "date"
-    chunk_size: int = (
-        10_000  # Increased from 5_000 for faster bulk inserts (fewer round trips to DB)
-    )
+    chunk_size: int = 10_000  # Increased from 5_000 for faster bulk inserts (fewer round trips to DB)
     max_age_for_full_refresh: timedelta = timedelta(days=365)
 
     def __init__(self, backfill_days: int | None = None):
@@ -58,9 +56,7 @@ class OptimalLoader(ABC):
         self._watermark = None
         self._router = None
         self._backfill_days = backfill_days or int(os.getenv("BACKFILL_DAYS", "0"))
-        self._schema_cols_cache: set[str] | None = (
-            None  # cached column list for _bulk_insert
-        )
+        self._schema_cols_cache: set[str] | None = None  # cached column list for _bulk_insert
         self._constraint_checked = False  # track if we've verified/fixed constraint
         self._stats_lock = threading.Lock()
         self._shutdown_requested = False
@@ -79,13 +75,13 @@ class OptimalLoader(ABC):
         self._heartbeat_thread: threading.Thread | None = None
         self._heartbeat_running = False
         self._heartbeat_lock = threading.Lock()
-        self._heartbeat_interval = (
-            60  # ISSUE #12 FIX: 1-minute interval for responsive hung detection
-        )
+        self._heartbeat_interval = 60  # ISSUE #12 FIX: 1-minute interval for responsive hung detection
         self._execution_start_time: float | None = (
             None  # Track execution start time as Unix timestamp for execution history logging
         )
-        self._batch_context: dict[str, Any] | None = None  # ROOT CAUSE #4 FIX: Cache shared data for entire run (avoid N+1 queries)
+        self._batch_context: dict[str, Any] | None = (
+            None  # ROOT CAUSE #4 FIX: Cache shared data for entire run (avoid N+1 queries)
+        )
         self._configure_chunk_size()
         self._setup_signal_handlers()
         self._validate_runtime_config()
@@ -116,9 +112,7 @@ class OptimalLoader(ABC):
                     logger.info(f"[CONFIG] LOADER_CHUNK_SIZE={configured_size} (explicit override)")
                     return
             except ValueError:
-                logger.warning(
-                    f"[CONFIG] LOADER_CHUNK_SIZE='{env_chunk_size}' is not a valid integer"
-                )
+                logger.warning(f"[CONFIG] LOADER_CHUNK_SIZE='{env_chunk_size}' is not a valid integer")
 
         memory_limit_mb = int(os.getenv("ECS_TASK_MEMORY_LIMIT", "512"))
         safe_memory_mb = memory_limit_mb * 0.40
@@ -139,18 +133,14 @@ class OptimalLoader(ABC):
         import threading
 
         if threading.current_thread() is not threading.main_thread():
-            logger.debug(
-                f"[{self.table_name}] Skipping signal handlers (not in main thread)"
-            )
+            logger.debug(f"[{self.table_name}] Skipping signal handlers (not in main thread)")
             return
 
         def handle_shutdown(signum, frame):
             with self._shutdown_lock:
                 if not self._shutdown_requested:
                     self._shutdown_requested = True
-                    logger.warning(
-                        f"[{self.table_name}] SIGTERM received - graceful shutdown requested"
-                    )
+                    logger.warning(f"[{self.table_name}] SIGTERM received - graceful shutdown requested")
 
         signal.signal(signal.SIGTERM, handle_shutdown)
 
@@ -211,6 +201,7 @@ class OptimalLoader(ABC):
                 get_pooled_connection,
                 set_pooled_connection,
             )
+
             saved_conn = get_pooled_connection()
             set_pooled_connection(None)
             try:
@@ -228,9 +219,7 @@ class OptimalLoader(ABC):
                                 "VALUES (%s, %s, NOW(), NOW())",
                                 (self.table_name, status),
                             )
-                        logger.debug(
-                            f"[{self.table_name}] Status updated to RUNNING, execution_started recorded"
-                        )
+                        logger.debug(f"[{self.table_name}] Status updated to RUNNING, execution_started recorded")
                     elif status == "COMPLETED":
                         cur.execute(
                             "UPDATE data_loader_status SET status = %s, last_updated = NOW(), execution_completed = NOW() "
@@ -275,9 +264,7 @@ class OptimalLoader(ABC):
                         )
                     logger.info(f"[CONFIG] LOADER_PARALLELISM={parallelism_value}")
                 except ValueError:
-                    logger.warning(
-                        f"[CONFIG] LOADER_PARALLELISM='{loader_parallelism}' is not a valid integer"
-                    )
+                    logger.warning(f"[CONFIG] LOADER_PARALLELISM='{loader_parallelism}' is not a valid integer")
             else:
                 logger.warning(
                     "[CONFIG] LOADER_PARALLELISM not set in environment. "
@@ -388,13 +375,9 @@ class OptimalLoader(ABC):
 
     # ---- Subclass interface ----
 
-    def fetch_incremental(
-        self, symbol: str, since: date | None
-    ) -> list[dict] | None:
+    def fetch_incremental(self, symbol: str, since: date | None) -> list[dict] | None:
         """Return rows newer than `since` for the given symbol. Override for per-symbol loaders."""
-        raise NotImplementedError(
-            "Implement fetch_incremental (per-symbol) or fetch_global (market-wide)"
-        )
+        raise NotImplementedError("Implement fetch_incremental (per-symbol) or fetch_global (market-wide)")
 
     def fetch_global(self, since: date | None) -> list[dict] | None:
         """Return new rows for market-wide data (no symbol dimension). Override for global loaders."""
@@ -408,9 +391,7 @@ class OptimalLoader(ABC):
         """Derive new watermark from inserted rows. Default = max(watermark_field)."""
         if not rows:
             return None
-        values = [
-            r.get(self.watermark_field) for r in rows if r.get(self.watermark_field)
-        ]
+        values = [r.get(self.watermark_field) for r in rows if r.get(self.watermark_field)]
         return max(values) if values else None  # type: ignore[type-var]
 
     # ---- Lazy infrastructure ----
@@ -518,9 +499,7 @@ class OptimalLoader(ABC):
 
                 constraint_cols = [r[0] for r in cur.fetchall()]
                 if set(constraint_cols) == set(self.primary_key):
-                    logger.debug(
-                        f"UNIQUE constraint {constraint} already exists on {self.table_name}({pk_cols})"
-                    )
+                    logger.debug(f"UNIQUE constraint {constraint} already exists on {self.table_name}({pk_cols})")
                     return
 
             # Also check unique indexes created via CREATE UNIQUE INDEX — these don't appear
@@ -534,29 +513,19 @@ class OptimalLoader(ABC):
             )
             for idx_name, idx_def in cur.fetchall():
                 idx_cols_str = idx_def.split("(", 1)[-1].rstrip(")")
-                idx_cols = set(
-                    c.strip().strip('"').lower() for c in idx_cols_str.split(",")
-                )
-                pk_col_set = set(c.lower() for c in self.primary_key)
+                idx_cols = {c.strip().strip('"').lower() for c in idx_cols_str.split(",")}
+                pk_col_set = {c.lower() for c in self.primary_key}
                 if idx_cols == pk_col_set:
-                    logger.debug(
-                        f"Unique index {idx_name} already covers {self.table_name}({pk_cols})"
-                    )
+                    logger.debug(f"Unique index {idx_name} already covers {self.table_name}({pk_cols})")
                     return
 
             # No matching constraint or unique index found - create one
             constraint_name = f"{self.table_name}_{'_'.join(self.primary_key)}_unique"
             try:
-                logger.info(
-                    f"Creating UNIQUE constraint {constraint_name} on {self.table_name}({pk_cols})"
-                )
-                col_identifiers = psycopg2.sql.SQL(",").join(
-                    [psycopg2.sql.Identifier(col) for col in self.primary_key]
-                )
+                logger.info(f"Creating UNIQUE constraint {constraint_name} on {self.table_name}({pk_cols})")
+                col_identifiers = psycopg2.sql.SQL(",").join([psycopg2.sql.Identifier(col) for col in self.primary_key])
                 cur.execute(
-                    psycopg2.sql.SQL(
-                        "ALTER TABLE {} ADD CONSTRAINT {} UNIQUE ({})"
-                    ).format(
+                    psycopg2.sql.SQL("ALTER TABLE {} ADD CONSTRAINT {} UNIQUE ({})").format(
                         psycopg2.sql.Identifier(self.table_name),
                         psycopg2.sql.Identifier(constraint_name),
                         col_identifiers,
@@ -639,9 +608,7 @@ class OptimalLoader(ABC):
 
             try:
                 cur.execute(
-                    psycopg2.sql.SQL(
-                        "CREATE UNLOGGED TABLE {} (LIKE {} INCLUDING DEFAULTS)"
-                    ).format(
+                    psycopg2.sql.SQL("CREATE UNLOGGED TABLE {} (LIKE {} INCLUDING DEFAULTS)").format(
                         psycopg2.sql.Identifier(staging),
                         psycopg2.sql.Identifier(self.table_name),
                     )
@@ -650,20 +617,14 @@ class OptimalLoader(ABC):
                 if "duplicate" in str(e).lower() or "already exists" in str(e).lower():
                     try:
                         cur.execute(
-                            psycopg2.sql.SQL("DROP TABLE IF EXISTS {} CASCADE").format(
-                                psycopg2.sql.Identifier(staging)
-                            )
+                            psycopg2.sql.SQL("DROP TABLE IF EXISTS {} CASCADE").format(psycopg2.sql.Identifier(staging))
                         )
                     except psycopg2.Error as drop_err:
-                        logger.warning(
-                            f"Failed to drop staging table {staging}: {drop_err}"
-                        )
+                        logger.warning(f"Failed to drop staging table {staging}: {drop_err}")
                     unique_id = str(uuid.uuid4()).replace("-", "")[:12]
                     staging = f"_stage_{self.table_name}_{unique_id}"
                     cur.execute(
-                        psycopg2.sql.SQL(
-                            "CREATE UNLOGGED TABLE {} (LIKE {} INCLUDING DEFAULTS)"
-                        ).format(
+                        psycopg2.sql.SQL("CREATE UNLOGGED TABLE {} (LIKE {} INCLUDING DEFAULTS)").format(
                             psycopg2.sql.Identifier(staging),
                             psycopg2.sql.Identifier(self.table_name),
                         )
@@ -687,9 +648,7 @@ class OptimalLoader(ABC):
             # Use PostgreSQL's DEFAULT NULL handling: empty fields in CSV = NULL
             # This avoids the issue where explicit NULL '' causes empty → 0 conversion
             cur.copy_expert(
-                psycopg2.sql.SQL(
-                    "COPY {} ({}) FROM STDIN WITH (FORMAT CSV, FORCE_NULL ({}))"
-                ).format(
+                psycopg2.sql.SQL("COPY {} ({}) FROM STDIN WITH (FORMAT CSV, FORCE_NULL ({}))").format(
                     psycopg2.sql.Identifier(staging),
                     psycopg2.sql.SQL(",").join(col_ids),
                     psycopg2.sql.SQL(",").join(col_ids),  # FORCE_NULL all columns to interpret empty as NULL
@@ -698,17 +657,13 @@ class OptimalLoader(ABC):
             )
 
             update_parts = [
-                psycopg2.sql.SQL("{} = EXCLUDED.{}").format(
-                    psycopg2.sql.Identifier(c), psycopg2.sql.Identifier(c)
-                )
+                psycopg2.sql.SQL("{} = EXCLUDED.{}").format(psycopg2.sql.Identifier(c), psycopg2.sql.Identifier(c))
                 for c in columns
                 if c not in self.primary_key
             ]
             if update_parts:
                 pk_ids = [psycopg2.sql.Identifier(pk) for pk in self.primary_key]
-                on_conflict = psycopg2.sql.SQL(
-                    "ON CONFLICT ({}) DO UPDATE SET {}"
-                ).format(
+                on_conflict = psycopg2.sql.SQL("ON CONFLICT ({}) DO UPDATE SET {}").format(
                     psycopg2.sql.SQL(",").join(pk_ids),
                     psycopg2.sql.SQL(",").join(update_parts),
                 )
@@ -726,11 +681,7 @@ class OptimalLoader(ABC):
             )
             inserted = cast(int, cur.rowcount)
 
-            cur.execute(
-                psycopg2.sql.SQL("DROP TABLE {}").format(
-                    psycopg2.sql.Identifier(staging)
-                )
-            )
+            cur.execute(psycopg2.sql.SQL("DROP TABLE {}").format(psycopg2.sql.Identifier(staging)))
 
             if symbol and new_watermark:
                 if watermark_mgr:
@@ -757,9 +708,7 @@ class OptimalLoader(ABC):
 
         # If backfill window is set, use that instead of watermark
         if self._backfill_days > 0:
-            previous_date = datetime.now(timezone.utc).date() - timedelta(
-                days=self._backfill_days
-            )
+            previous_date = datetime.now(timezone.utc).date() - timedelta(days=self._backfill_days)
         else:
             previous = wm_store.get(symbol) if wm_store else None
             previous_date = self._parse_watermark_date(previous)  # type: ignore[assignment]
@@ -767,9 +716,7 @@ class OptimalLoader(ABC):
         try:
             rows = self.fetch_incremental(symbol, previous_date)
         except (psycopg2.DatabaseError, psycopg2.OperationalError) as e:
-            raise RuntimeError(
-                f"[{self.table_name}] {symbol}: Failed to fetch data: {e}"
-            ) from e
+            raise RuntimeError(f"[{self.table_name}] {symbol}: Failed to fetch data: {e}") from e
 
         if not rows:
             logger.warning(f"[{self.table_name}] {symbol}: No rows fetched, skipping")
@@ -797,9 +744,7 @@ class OptimalLoader(ABC):
         rows = validated_rows
         dropped_count = before_quality - len(rows)
         if dropped_count > 0:
-            logger.warning(
-                f"Quality check: Dropped {dropped_count} row(s) due to validation failure"
-            )
+            logger.warning(f"Quality check: Dropped {dropped_count} row(s) due to validation failure")
         self._stats["rows_quality_dropped"] += dropped_count  # type: ignore
 
         # Bloom dedup (cheap pre-filter)
@@ -817,14 +762,12 @@ class OptimalLoader(ABC):
 
         # Bulk insert in chunks, passing watermark for atomic persistence
         inserted = 0
-        for i, chunk_start in enumerate(range(0, len(rows), self.chunk_size)):
+        for _i, chunk_start in enumerate(range(0, len(rows), self.chunk_size)):
             chunk = rows[chunk_start : chunk_start + self.chunk_size]
             # Pass watermark only on last chunk to avoid overwriting with partial watermark
             is_final_chunk = chunk_start + self.chunk_size >= len(rows)
             chunk_wm = new_wm if is_final_chunk else None
-            inserted += self._bulk_insert(
-                chunk, symbol=symbol if is_final_chunk else None, new_watermark=chunk_wm
-            )
+            inserted += self._bulk_insert(chunk, symbol=symbol if is_final_chunk else None, new_watermark=chunk_wm)
 
         if dedup and self.primary_key:
             for row in rows:
@@ -836,7 +779,7 @@ class OptimalLoader(ABC):
 
     def _dedup_filter(self, dedup, rows: list[dict]) -> list[dict]:
         keys = [":".join(str(r.get(c, "")) for c in self.primary_key) for r in rows]
-        return [r for r, k in zip(rows, keys) if not dedup.exists(k)]
+        return [r for r, k in zip(rows, keys, strict=False) if not dedup.exists(k)]
 
     def _validate_row(self, row: dict) -> bool:
         """Default validation: primary key columns must be non-null."""
@@ -934,6 +877,7 @@ class OptimalLoader(ABC):
                             get_pooled_connection,
                             set_pooled_connection,
                         )
+
                         _saved = get_pooled_connection()
                         set_pooled_connection(None)
                         try:
@@ -974,21 +918,18 @@ class OptimalLoader(ABC):
             error_message: Error message if status is 'failed', else None
         """
         if not self._execution_start_time:
-            logger.warning(
-                f"[{self.table_name}] No execution start time recorded, skipping history log"
-            )
+            logger.warning(f"[{self.table_name}] No execution start time recorded, skipping history log")
             return
 
         execution_end = datetime.now(timezone.utc)
-        execution_start = datetime.fromtimestamp(
-            self._execution_start_time, tz=timezone.utc
-        )
+        execution_start = datetime.fromtimestamp(self._execution_start_time, tz=timezone.utc)
 
         try:
             from utils.db.pooled_context_var import (
                 get_pooled_connection,
                 set_pooled_connection,
             )
+
             _saved_hist = get_pooled_connection()
             set_pooled_connection(None)
             try:
@@ -1041,11 +982,9 @@ class OptimalLoader(ABC):
 
             lock_table = os.getenv(
                 "LOADER_LOCKS_TABLE",
-                f'{os.getenv("PROJECT_NAME", "algo")}-loader-locks-{os.getenv("ENVIRONMENT", "dev")}',
+                f"{os.getenv('PROJECT_NAME', 'algo')}-loader-locks-{os.getenv('ENVIRONMENT', 'dev')}",
             )
-            lock_manager = DynamoDBLockManager(
-                table_name=lock_table, lock_duration_seconds=1800
-            )
+            lock_manager = DynamoDBLockManager(table_name=lock_table, lock_duration_seconds=1800)
             acquired = lock_manager.acquire(lock_key=self.table_name, timeout_seconds=5)
             if not acquired:
                 logger.warning(
@@ -1065,6 +1004,7 @@ class OptimalLoader(ABC):
         sla_monitor = None
         try:
             from utils.loaders.sla_monitor import SLAMonitor
+
             sla_monitor = SLAMonitor(self.table_name)
             sla_monitor.start()
         except Exception as e:
@@ -1079,9 +1019,7 @@ class OptimalLoader(ABC):
             conn_manager = PooledConnectionManager(self.table_name)
             pooled_conn = conn_manager.acquire()
             set_pooled_connection(pooled_conn)
-            logger.info(
-                f"[{self.table_name}] Acquired pooled connection for entire loader lifecycle"
-            )
+            logger.info(f"[{self.table_name}] Acquired pooled connection for entire loader lifecycle")
 
             if backfill_days is not None:
                 self._backfill_days = backfill_days
@@ -1114,24 +1052,16 @@ class OptimalLoader(ABC):
 
             if not self._check_upstream_completeness(len(symbols)):
                 # Upstream incomplete — abort this load to prevent silent data loss
-                logger.error(
-                    f"[{self.table_name}] Aborting due to incomplete upstream data"
-                )
+                logger.error(f"[{self.table_name}] Aborting due to incomplete upstream data")
                 self._update_loader_status("FAILED")
                 self._stop_heartbeat()
                 # Log this as a failed execution attempt
                 try:
-                    self._log_execution_history(
-                        status="failed", error_message="Upstream data incomplete"
-                    )
+                    self._log_execution_history(status="failed", error_message="Upstream data incomplete")
                 except Exception as e:
-                    logger.error(
-                        f"[{self.table_name}] Failed to log execution history: {e}"
-                    )
+                    logger.error(f"[{self.table_name}] Failed to log execution history: {e}")
                 return self._stats
-            mode = (
-                f" (backfill {self._backfill_days}d)" if self._backfill_days > 0 else ""
-            )
+            mode = f" (backfill {self._backfill_days}d)" if self._backfill_days > 0 else ""
 
             # Check RDS connection pool health and adjust parallelism if needed
             original_parallelism = parallelism
@@ -1142,11 +1072,7 @@ class OptimalLoader(ABC):
                 self.table_name,
                 len(symbols),
                 parallelism,
-                (
-                    " (reduced from " + str(original_parallelism) + ")"
-                    if was_adjusted
-                    else ""
-                ),
+                (" (reduced from " + str(original_parallelism) + ")" if was_adjusted else ""),
                 mode,
             )
 
@@ -1163,7 +1089,7 @@ class OptimalLoader(ABC):
                 elapsed = time.time() - start
                 if elapsed > sla_timeout_seconds:
                     logger.critical(
-                        f"[{self.table_name}] TIMEOUT: Exceeded SLA timeout of {sla_timeout_seconds/3600:.1f}h (ran {elapsed/3600:.1f}h). "
+                        f"[{self.table_name}] TIMEOUT: Exceeded SLA timeout of {sla_timeout_seconds / 3600:.1f}h (ran {elapsed / 3600:.1f}h). "
                         f"Marking as FAILED to unblock orchestrator. Retry on next run."
                     )
                     # Mark as failed so Phase 1 failsafe can retry
@@ -1248,6 +1174,7 @@ class OptimalLoader(ABC):
                     get_pooled_connection,
                     set_pooled_connection,
                 )
+
                 _saved_conn = get_pooled_connection()
                 set_pooled_connection(None)
                 try:
@@ -1258,9 +1185,7 @@ class OptimalLoader(ABC):
                             (self.table_name,),
                         )
                         existing = cur.fetchone()
-                        execution_started = (
-                            existing[0] if existing and existing[0] else "NOW()"
-                        )
+                        execution_started = existing[0] if existing and existing[0] else "NOW()"
 
                         cur.execute(
                             "DELETE FROM data_loader_status WHERE table_name = %s",
@@ -1303,18 +1228,14 @@ class OptimalLoader(ABC):
                 finally:
                     set_pooled_connection(_saved_conn)
             except (psycopg2.DatabaseError, psycopg2.OperationalError) as e:
-                logger.warning(
-                    f"Failed to update data_loader_status for {self.table_name}: {e}"
-                )
+                logger.warning(f"Failed to update data_loader_status for {self.table_name}: {e}")
 
             # ISSUE #7 FIX: Invalidate data_loader_status cache when loader completes
             # Prevents Phase 1 from using stale cache that shows old completion status
             try:
                 import boto3
 
-                dynamodb = boto3.resource(
-                    "dynamodb", region_name=os.getenv("AWS_REGION", "us-east-1")
-                )
+                dynamodb = boto3.resource("dynamodb", region_name=os.getenv("AWS_REGION", "us-east-1"))
                 cache_table_name = os.getenv("CACHE_TABLE", "algo_phase1_cache")
                 cache_table = dynamodb.Table(cache_table_name)
 
@@ -1323,23 +1244,17 @@ class OptimalLoader(ABC):
                 cache_key = f"data_loader_status-{run_date}"
                 try:
                     cache_table.delete_item(Key={"cache_key": cache_key})
-                    logger.debug(
-                        f"[CACHE] Invalidated {cache_key} on {self.table_name} completion"
-                    )
+                    logger.debug(f"[CACHE] Invalidated {cache_key} on {self.table_name} completion")
                 except (psycopg2.DatabaseError, psycopg2.OperationalError) as cache_err:
                     logger.debug(f"[CACHE] Could not invalidate cache: {cache_err}")
             except (psycopg2.DatabaseError, psycopg2.OperationalError) as cache_setup_err:
-                logger.debug(
-                    f"[CACHE] Cache invalidation unavailable: {cache_setup_err}"
-                )
+                logger.debug(f"[CACHE] Cache invalidation unavailable: {cache_setup_err}")
 
             # Log execution to loader_execution_history table
             try:
                 self._log_execution_history(status="success", error_message=None)
             except Exception as e:
-                logger.error(
-                    f"[{self.table_name}] Failed to log execution history: {e}"
-                )
+                logger.error(f"[{self.table_name}] Failed to log execution history: {e}")
 
             # Stop heartbeat thread before returning
             self._stop_heartbeat()
@@ -1350,9 +1265,7 @@ class OptimalLoader(ABC):
             try:
                 self._log_execution_history(status="failed", error_message=str(e)[:500])
             except Exception as history_err:
-                logger.error(
-                    f"[{self.table_name}] Failed to log failed execution: {history_err}"
-                )
+                logger.error(f"[{self.table_name}] Failed to log failed execution: {history_err}")
             raise
         finally:
             # CRITICAL FIX: Ensure final status ALWAYS updates, even on exception
@@ -1391,9 +1304,7 @@ class OptimalLoader(ABC):
                 finally:
                     set_pooled_connection(_saved_conn)
             except (psycopg2.DatabaseError, psycopg2.OperationalError) as status_err:
-                logger.error(
-                    f"[{self.table_name}] Critical: Could not update final status on exception: {status_err}"
-                )
+                logger.error(f"[{self.table_name}] Critical: Could not update final status on exception: {status_err}")
 
             # Ensure heartbeat stops even on error
             self._stop_heartbeat()
@@ -1404,13 +1315,9 @@ class OptimalLoader(ABC):
 
                 set_pooled_connection(None)  # Clear context
                 conn_manager.release()
-                logger.info(
-                    f"[{self.table_name}] Released pooled connection after loader completion"
-                )
+                logger.info(f"[{self.table_name}] Released pooled connection after loader completion")
             except (psycopg2.DatabaseError, psycopg2.OperationalError) as e:
-                logger.warning(
-                    f"[{self.table_name}] Error releasing pooled connection: {e}"
-                )
+                logger.warning(f"[{self.table_name}] Error releasing pooled connection: {e}")
 
             if lock_manager:
                 try:
@@ -1440,11 +1347,9 @@ class OptimalLoader(ABC):
 
             lock_table = os.getenv(
                 "LOADER_LOCKS_TABLE",
-                f'{os.getenv("PROJECT_NAME", "algo")}-loader-locks-{os.getenv("ENVIRONMENT", "dev")}',
+                f"{os.getenv('PROJECT_NAME', 'algo')}-loader-locks-{os.getenv('ENVIRONMENT', 'dev')}",
             )
-            lock_manager = DynamoDBLockManager(
-                table_name=lock_table, lock_duration_seconds=1800
-            )
+            lock_manager = DynamoDBLockManager(table_name=lock_table, lock_duration_seconds=1800)
             acquired = lock_manager.acquire(lock_key=self.table_name, timeout_seconds=5)
             if not acquired:
                 logger.warning(
@@ -1468,9 +1373,7 @@ class OptimalLoader(ABC):
             conn_manager = PooledConnectionManager(self.table_name)
             pooled_conn = conn_manager.acquire()
             set_pooled_connection(pooled_conn)
-            logger.info(
-                f"[{self.table_name}] Acquired pooled connection for global load"
-            )
+            logger.info(f"[{self.table_name}] Acquired pooled connection for global load")
 
             # Mark loader as RUNNING so Phase 1 knows it's in progress
             self._update_loader_status("RUNNING")
@@ -1488,18 +1391,12 @@ class OptimalLoader(ABC):
                     )
                 )
                 row = cur.fetchone()
-                since = (
-                    self._parse_watermark_date(row[0])
-                    if row is not None and row[0] is not None
-                    else None
-                )
+                since = self._parse_watermark_date(row[0]) if row is not None and row[0] is not None else None
 
             try:
                 rows = self.fetch_global(since)
             except (psycopg2.DatabaseError, psycopg2.OperationalError) as e:
-                raise RuntimeError(
-                    f"[{self.table_name}] fetch_global failed: {e}"
-                ) from e
+                raise RuntimeError(f"[{self.table_name}] fetch_global failed: {e}") from e
 
             if not rows:
                 logger.info(f"[{self.table_name}] fetch_global returned no rows")
@@ -1523,6 +1420,7 @@ class OptimalLoader(ABC):
                     get_pooled_connection,
                     set_pooled_connection,
                 )
+
                 _saved_conn_global = get_pooled_connection()
                 set_pooled_connection(None)
                 try:
@@ -1545,9 +1443,7 @@ class OptimalLoader(ABC):
                             (self.table_name,),
                         )
                         existing = cur.fetchone()
-                        execution_started = (
-                            existing[0] if existing and existing[0] else "NOW()"
-                        )
+                        execution_started = existing[0] if existing and existing[0] else "NOW()"
 
                         cur.execute(
                             "DELETE FROM data_loader_status WHERE table_name = %s",
@@ -1577,18 +1473,14 @@ class OptimalLoader(ABC):
                 finally:
                     set_pooled_connection(_saved_conn_global)
             except (psycopg2.DatabaseError, psycopg2.OperationalError) as e:
-                logger.warning(
-                    f"Failed to update data_loader_status for {self.table_name}: {e}"
-                )
+                logger.warning(f"Failed to update data_loader_status for {self.table_name}: {e}")
 
             # Log execution to loader_execution_history table
             try:
                 self._stats["rows_inserted"] = inserted
                 self._log_execution_history(status="success", error_message=None)
             except (psycopg2.DatabaseError, psycopg2.OperationalError) as e:
-                logger.error(
-                    f"[{self.table_name}] Failed to log execution history: {e}"
-                )
+                logger.error(f"[{self.table_name}] Failed to log execution history: {e}")
 
             return inserted
         except (psycopg2.DatabaseError, psycopg2.OperationalError) as e:
@@ -1596,9 +1488,7 @@ class OptimalLoader(ABC):
             try:
                 self._log_execution_history(status="failed", error_message=str(e)[:500])
             except (psycopg2.DatabaseError, psycopg2.OperationalError) as history_err:
-                logger.error(
-                    f"[{self.table_name}] Failed to log failed execution: {history_err}"
-                )
+                logger.error(f"[{self.table_name}] Failed to log failed execution: {history_err}")
             raise
         finally:
             # OPTIMIZATION: Release pooled connection
@@ -1607,13 +1497,9 @@ class OptimalLoader(ABC):
 
                 set_pooled_connection(None)  # Clear context
                 conn_manager.release()
-                logger.info(
-                    f"[{self.table_name}] Released pooled connection after global load completion"
-                )
+                logger.info(f"[{self.table_name}] Released pooled connection after global load completion")
             except (psycopg2.DatabaseError, psycopg2.OperationalError) as e:
-                logger.warning(
-                    f"[{self.table_name}] Error releasing pooled connection: {e}"
-                )
+                logger.warning(f"[{self.table_name}] Error releasing pooled connection: {e}")
 
             if lock_manager:
                 try:
@@ -1624,9 +1510,7 @@ class OptimalLoader(ABC):
     def _run_serial(self, symbols: list[str]) -> None:
         for i, symbol in enumerate(symbols, 1):
             if self._check_shutdown_requested():
-                logger.warning(
-                    f"[{self.table_name}] Graceful shutdown - stopping after {i-1} symbols"
-                )
+                logger.warning(f"[{self.table_name}] Graceful shutdown - stopping after {i - 1} symbols")
                 break
 
             # Keep connection alive by testing it periodically
@@ -1661,7 +1545,7 @@ class OptimalLoader(ABC):
                 for fut in as_completed(futures, timeout=global_timeout_sec):  # Global timeout prevents indefinite wait
                     if self._check_shutdown_requested():
                         logger.warning(
-                            f"[{self.table_name}] Graceful shutdown - cancelling remaining {len(futures)-done} tasks"
+                            f"[{self.table_name}] Graceful shutdown - cancelling remaining {len(futures) - done} tasks"
                         )
                         for f in futures:
                             f.cancel()
@@ -1687,9 +1571,7 @@ class OptimalLoader(ABC):
                             with DatabaseContext("read") as cur:
                                 cur.execute("SELECT 1")
                         except (psycopg2.DatabaseError, psycopg2.OperationalError) as e:
-                            logger.debug(
-                                f"Connection health check failed: {e}. Reconnecting."
-                            )
+                            logger.debug(f"Connection health check failed: {e}. Reconnecting.")
                         last_health_check = now
 
                     if done % 100 == 0:
@@ -1726,9 +1608,7 @@ class OptimalLoader(ABC):
 
             elapsed = time.time() - start
             if elapsed > timeout_sec * 0.8:  # Log if close to timeout for monitoring
-                logger.warning(
-                    f"[{self.table_name}] {symbol} took {elapsed:.1f}s (approaching timeout)"
-                )
+                logger.warning(f"[{self.table_name}] {symbol} took {elapsed:.1f}s (approaching timeout)")
 
             self._stats["symbols_processed"] += 1  # type: ignore
         except (psycopg2.DatabaseError, psycopg2.OperationalError) as e:

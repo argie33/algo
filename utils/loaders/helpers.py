@@ -9,16 +9,16 @@ import logging
 import os
 import threading
 import time
-from typing import List
+
+import psycopg2
 
 from utils.db import DatabaseContext
-import psycopg2
 
 
 logger = logging.getLogger(__name__)
 
 
-def get_api_key(secret_name: str, env_var: str, default: str = None) -> str:
+def get_api_key(secret_name: str, env_var: str, default: str | None = None) -> str:
     """Fetch API key from AWS Secrets Manager with fallback to environment variable.
 
     Supports seamless Secrets Manager migration: tries Secrets Manager first,
@@ -47,9 +47,7 @@ def get_api_key(secret_name: str, env_var: str, default: str = None) -> str:
                     logger.debug(f"Fetched {secret_name} from Secrets Manager")
                     return key
             except (psycopg2.DatabaseError, psycopg2.OperationalError) as sm_err:
-                logger.debug(
-                    f"Secrets Manager fetch failed for {secret_name}: {sm_err}, falling back to env var"
-                )
+                logger.debug(f"Secrets Manager fetch failed for {secret_name}: {sm_err}, falling back to env var")
     except ImportError:
         logger.debug("boto3 not available, using env var fallback")
 
@@ -64,9 +62,7 @@ def get_api_key(secret_name: str, env_var: str, default: str = None) -> str:
         logger.debug(f"Using default value for {secret_name}")
         return default
 
-    logger.warning(
-        f"Could not find {secret_name} in Secrets Manager or {env_var} in environment"
-    )
+    logger.warning(f"Could not find {secret_name} in Secrets Manager or {env_var} in environment")
     return None
 
 
@@ -76,7 +72,7 @@ _cache_lock = threading.Lock()
 _CACHE_TTL_SECS = 300  # 5 minute cache
 
 
-def get_active_symbols(max_symbols: int = None, timeout_secs: int = 120) -> List[str]:
+def get_active_symbols(max_symbols: int | None = None, timeout_secs: int = 120) -> list[str]:
     """Get list of active symbols (stocks and ETFs) from database with timeout protection.
 
     Used by: load_balance_sheet.py, loadbuyselldaily.py, load_cash_flow.py,
@@ -121,9 +117,7 @@ def get_active_symbols(max_symbols: int = None, timeout_secs: int = 120) -> List
         def fetch_symbols():
             try:
                 with DatabaseContext("read") as cur:
-                    cur.execute(
-                        "SELECT symbol FROM stock_symbols WHERE active = true ORDER BY symbol"
-                    )
+                    cur.execute("SELECT symbol FROM stock_symbols WHERE active = true ORDER BY symbol")
                     rows = cur.fetchall()
                     result["symbols"] = [row[0] for row in rows]
             except (psycopg2.DatabaseError, psycopg2.OperationalError) as e:
@@ -158,7 +152,7 @@ def get_active_symbols(max_symbols: int = None, timeout_secs: int = 120) -> List
             signal.signal(signal.SIGALRM, old_handler)
 
 
-def _resolve_timeframe(cli_arg: str = None) -> str:
+def _resolve_timeframe(cli_arg: str | None = None) -> str:
     """Resolve timeframe from CLI arg or environment variable.
 
     Used by: loadbuyselldaily.py, loadpricedaily.py
@@ -173,7 +167,7 @@ def _resolve_timeframe(cli_arg: str = None) -> str:
     return "monthly" if "monthly" in loader_type else "weekly"
 
 
-def _resolve_period(cli_arg: str = None) -> str:
+def _resolve_period(cli_arg: str | None = None) -> str:
     """Resolve period from CLI arg or environment variable.
 
     Used by: load_balance_sheet.py, load_cash_flow.py, load_income_statement.py

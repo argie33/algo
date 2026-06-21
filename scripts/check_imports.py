@@ -4,8 +4,9 @@
 Catches broken imports from refactors, renames, and incomplete changes.
 """
 
-import sys
 import importlib.util
+import sys
+
 
 def check_import(filepath):
     """Try to import a Python file, return True if successful."""
@@ -24,13 +25,14 @@ def check_import(filepath):
         print(f"IMPORT ERROR in {filepath}:")
         print(f"  {e}")
         return False
-    except Exception as e:
+    except Exception:
         return True
+
 
 if __name__ == "__main__":
     failed = []
     for filepath in sys.argv[1:]:
-        if not filepath.endswith('.py'):
+        if not filepath.endswith(".py"):
             continue
         if not check_import(filepath):
             failed.append(filepath)
@@ -39,5 +41,5 @@ if __name__ == "__main__":
         print(f"\n❌ {len(failed)} file(s) have import errors")
         sys.exit(1)
     else:
-        print(f"✓ All {len(sys.argv)-1} files import successfully")
+        print(f"✓ All {len(sys.argv) - 1} files import successfully")
         sys.exit(0)

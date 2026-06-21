@@ -71,6 +71,7 @@ class TrendCriteriaLoader(OptimalLoader):
             from datetime import datetime, timezone
 
             from algo.infrastructure import MarketCalendar
+
             now_utc = datetime.now(timezone.utc)
             now_et = now_utc.astimezone(EASTERN_TZ)
             end = now_et.date()
@@ -90,11 +91,7 @@ class TrendCriteriaLoader(OptimalLoader):
                     )
                     row = cur.fetchone()
                     if row and row[0]:
-                        since = (
-                            row[0]
-                            if isinstance(row[0], date)
-                            else date.fromisoformat(str(row[0]))
-                        )
+                        since = row[0] if isinstance(row[0], date) else date.fromisoformat(str(row[0]))
             except (psycopg2.DatabaseError, psycopg2.OperationalError) as e:
                 raise RuntimeError(
                     f"[TrendCriteria] Failed to read watermark for {symbol}: {e}. "
@@ -222,9 +219,7 @@ class TrendCriteriaLoader(OptimalLoader):
             else:
                 consolidation = None
 
-            trend_dir = (
-                "uptrend" if score >= 6 else ("downtrend" if score <= 2 else "sideways")
-            )
+            trend_dir = "uptrend" if score >= 6 else ("downtrend" if score <= 2 else "sideways")
 
             results.append(
                 {
@@ -232,16 +227,8 @@ class TrendCriteriaLoader(OptimalLoader):
                     "date": row["date"].date().isoformat(),
                     "price_52w_high": round(float(high52), 4) if high52 else None,
                     "price_52w_low": round(float(low52), 4) if low52 else None,
-                    "percent_from_52w_low": (
-                        round(float(pct_from_low), 2)
-                        if pct_from_low is not None
-                        else None
-                    ),
-                    "percent_from_52w_high": (
-                        round(float(pct_from_high), 2)
-                        if pct_from_high is not None
-                        else None
-                    ),
+                    "percent_from_52w_low": (round(float(pct_from_low), 2) if pct_from_low is not None else None),
+                    "percent_from_52w_high": (round(float(pct_from_high), 2) if pct_from_high is not None else None),
                     "sma_50_slope": (
                         round(float(row["sma_50_slope"]), 4)
                         if pd.notna(row.get("sma_50_slope", float("nan")))
@@ -254,13 +241,9 @@ class TrendCriteriaLoader(OptimalLoader):
                     ),
                     "price_above_sma50": bool(c > sma50) if sma50 else None,
                     "price_above_sma200": bool(c > sma200) if sma200 else None,
-                    "sma50_above_sma200": (
-                        bool(sma50 > sma200) if (sma50 and sma200) else None
-                    ),
+                    "sma50_above_sma200": (bool(sma50 > sma200) if (sma50 and sma200) else None),
                     "ma_spread_percent": (
-                        round(float((sma50 - sma200) / sma200 * 100), 4)
-                        if (sma50 and sma200)
-                        else None
+                        round(float((sma50 - sma200) / sma200 * 100), 4) if (sma50 and sma200) else None
                     ),
                     "minervini_trend_score": score,
                     "weinstein_stage": weinstein_stage,
@@ -270,7 +253,6 @@ class TrendCriteriaLoader(OptimalLoader):
             )
 
         return results
-
 
 
 if __name__ == "__main__":

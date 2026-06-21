@@ -1,7 +1,7 @@
 """Pydantic models for API responses - single source of truth for response types."""
 
 from datetime import datetime
-from typing import Any, Dict, List, Optional, TypeVar
+from typing import Any, TypeVar
 
 from pydantic import BaseModel, Field
 
@@ -12,50 +12,42 @@ T = TypeVar("T")
 class DataFreshness(BaseModel):
     """Metadata about data freshness in a response."""
 
-    status: str = Field(
-        ..., description="Status of data freshness: OK, WARNING, STALE, CRITICAL"
-    )
-    table_name: Optional[str] = Field(None, description="Table being checked")
-    age_hours: Optional[float] = Field(None, description="Age of data in hours")
-    age_days: Optional[float] = Field(None, description="Age of data in days")
-    last_updated: Optional[datetime] = Field(None, description="Last update timestamp")
-    warning_threshold_days: Optional[int] = Field(
-        None, description="Days before warning"
-    )
+    status: str = Field(..., description="Status of data freshness: OK, WARNING, STALE, CRITICAL")
+    table_name: str | None = Field(None, description="Table being checked")
+    age_hours: float | None = Field(None, description="Age of data in hours")
+    age_days: float | None = Field(None, description="Age of data in days")
+    last_updated: datetime | None = Field(None, description="Last update timestamp")
+    warning_threshold_days: int | None = Field(None, description="Days before warning")
 
 
 class BaseResponse(BaseModel):
     """Base response wrapper for all API responses."""
 
     statusCode: int = Field(..., description="HTTP status code")
-    data_freshness: Optional[DataFreshness] = Field(
-        None, description="Data freshness metadata"
-    )
+    data_freshness: DataFreshness | None = Field(None, description="Data freshness metadata")
 
 
 class SuccessResponse(BaseResponse):
     """Success response for single object (generic for type safety)."""
 
     statusCode: int = Field(default=200, description="HTTP status code")
-    data: Dict[str, Any] | Any = Field(..., description="Response data")
+    data: dict[str, Any] | Any = Field(..., description="Response data")
 
 
 class ListResponseData(BaseModel):
     """Container for list response data."""
 
-    items: List[Dict[str, Any]] = Field(..., description="List of items")
-    total: Optional[int] = Field(None, description="Total count of items")
-    limit: Optional[int] = Field(None, description="Limit used in query")
-    offset: Optional[int] = Field(None, description="Offset used in query")
+    items: list[dict[str, Any]] = Field(..., description="List of items")
+    total: int | None = Field(None, description="Total count of items")
+    limit: int | None = Field(None, description="Limit used in query")
+    offset: int | None = Field(None, description="Offset used in query")
 
 
 class ListResponse(BaseResponse):
     """Success response for paginated lists."""
 
     statusCode: int = Field(default=200, description="HTTP status code")
-    data: ListResponseData = Field(
-        ..., description="List data with pagination metadata"
-    )
+    data: ListResponseData = Field(..., description="List data with pagination metadata")
 
 
 class ErrorResponse(BaseResponse):
@@ -65,7 +57,7 @@ class ErrorResponse(BaseResponse):
     errorType: str = Field(..., description="Error type for client-side handling")
     message: str = Field(..., description="Human-readable error message")
     error: str = Field(..., alias="_error", description="Error type identifier")
-    diagnostic: Optional[Dict[str, Any]] = Field(
+    diagnostic: dict[str, Any] | None = Field(
         None, alias="_diagnostic", description="Diagnostic info for developers"
     )
 
@@ -76,9 +68,9 @@ class HealthStatus(BaseModel):
     status: str = Field(..., description="health, degraded, or unhealthy")
     version: str = Field(..., description="API version")
     timestamp: datetime = Field(..., description="Check timestamp")
-    api_route_imports: Optional[Dict[str, Any]] = Field(None)
-    freshness: Optional[Dict[str, Any]] = Field(None)
-    last_load_time: Optional[datetime] = Field(None)
+    api_route_imports: dict[str, Any] | None = Field(None)
+    freshness: dict[str, Any] | None = Field(None)
+    last_load_time: datetime | None = Field(None)
 
 
 class HealthResponse(BaseResponse):
@@ -92,12 +84,12 @@ class StockProfile(BaseModel):
     """Stock profile response."""
 
     symbol: str
-    company_name: Optional[str] = None
-    sector: Optional[str] = None
-    industry: Optional[str] = None
-    website: Optional[str] = None
-    employees: Optional[int] = None
-    exchange: Optional[str] = None
+    company_name: str | None = None
+    sector: str | None = None
+    industry: str | None = None
+    website: str | None = None
+    employees: int | None = None
+    exchange: str | None = None
 
 
 class StockProfileResponse(SuccessResponse):
@@ -110,22 +102,22 @@ class KeyMetrics(BaseModel):
     """Key financial metrics for a stock."""
 
     symbol: str
-    date: Optional[datetime] = None
-    pe_ratio: Optional[float] = None
-    price_to_book: Optional[float] = None
-    price_to_sales: Optional[float] = None
-    peg_ratio: Optional[float] = None
-    dividend_yield: Optional[float] = None
-    fcf_yield: Optional[float] = None
-    debt_to_equity: Optional[float] = None
-    return_on_equity: Optional[float] = None
-    return_on_assets: Optional[float] = None
-    profit_margin: Optional[float] = None
-    current_ratio: Optional[float] = None
-    quick_ratio: Optional[float] = None
-    market_cap: Optional[float] = None
-    held_percent_insiders: Optional[float] = None
-    held_percent_institutions: Optional[float] = None
+    date: datetime | None = None
+    pe_ratio: float | None = None
+    price_to_book: float | None = None
+    price_to_sales: float | None = None
+    peg_ratio: float | None = None
+    dividend_yield: float | None = None
+    fcf_yield: float | None = None
+    debt_to_equity: float | None = None
+    return_on_equity: float | None = None
+    return_on_assets: float | None = None
+    profit_margin: float | None = None
+    current_ratio: float | None = None
+    quick_ratio: float | None = None
+    market_cap: float | None = None
+    held_percent_insiders: float | None = None
+    held_percent_institutions: float | None = None
 
 
 class KeyMetricsResponse(ListResponse):
@@ -135,57 +127,57 @@ class KeyMetricsResponse(ListResponse):
 class Signal(BaseModel):
     """Trading signal."""
 
-    id: Optional[int] = None
+    id: int | None = None
     symbol: str
     signal: str = Field(..., description="BUY or SELL")
     date: datetime
-    timeframe: Optional[str] = None
-    signal_type: Optional[str] = None
-    strength: Optional[float] = None
-    entry_quality_score: Optional[float] = None
-    signal_quality_score: Optional[float] = None
-    volume_surge_pct: Optional[float] = None
-    risk_reward_ratio: Optional[float] = None
-    rsi: Optional[float] = None
-    sma_50: Optional[float] = None
-    sma_200: Optional[float] = None
-    ema_21: Optional[float] = None
-    atr: Optional[float] = None
-    adx: Optional[float] = None
-    mansfield_rs: Optional[float] = None
-    rs_rating: Optional[float] = None
-    breakout_quality: Optional[float] = None
-    risk_pct: Optional[float] = None
-    current_gain_pct: Optional[float] = None
-    days_in_position: Optional[int] = None
-    position_size_recommendation: Optional[float] = None
-    stage_number: Optional[int] = None
-    reason: Optional[str] = None
-    substage: Optional[str] = None
-    close: Optional[float] = None
-    volume: Optional[float] = None
-    base_type: Optional[str] = None
-    base_length_days: Optional[int] = None
-    market_stage: Optional[str] = None
-    buylevel: Optional[float] = None
-    stoplevel: Optional[float] = None
-    signal_triggered_date: Optional[datetime] = None
-    entry_price: Optional[float] = None
-    buy_zone_start: Optional[float] = None
-    buy_zone_end: Optional[float] = None
-    pivot_price: Optional[float] = None
-    initial_stop: Optional[float] = None
-    trailing_stop: Optional[float] = None
-    sell_level: Optional[float] = None
-    profit_target_8pct: Optional[float] = None
-    profit_target_20pct: Optional[float] = None
-    profit_target_25pct: Optional[float] = None
-    exit_trigger_1_price: Optional[float] = None
-    exit_trigger_2_price: Optional[float] = None
-    avg_volume_50d: Optional[float] = None
-    sector: Optional[str] = None
-    industry: Optional[str] = None
-    is_fallback: Optional[bool] = Field(None, alias="_is_fallback")
+    timeframe: str | None = None
+    signal_type: str | None = None
+    strength: float | None = None
+    entry_quality_score: float | None = None
+    signal_quality_score: float | None = None
+    volume_surge_pct: float | None = None
+    risk_reward_ratio: float | None = None
+    rsi: float | None = None
+    sma_50: float | None = None
+    sma_200: float | None = None
+    ema_21: float | None = None
+    atr: float | None = None
+    adx: float | None = None
+    mansfield_rs: float | None = None
+    rs_rating: float | None = None
+    breakout_quality: float | None = None
+    risk_pct: float | None = None
+    current_gain_pct: float | None = None
+    days_in_position: int | None = None
+    position_size_recommendation: float | None = None
+    stage_number: int | None = None
+    reason: str | None = None
+    substage: str | None = None
+    close: float | None = None
+    volume: float | None = None
+    base_type: str | None = None
+    base_length_days: int | None = None
+    market_stage: str | None = None
+    buylevel: float | None = None
+    stoplevel: float | None = None
+    signal_triggered_date: datetime | None = None
+    entry_price: float | None = None
+    buy_zone_start: float | None = None
+    buy_zone_end: float | None = None
+    pivot_price: float | None = None
+    initial_stop: float | None = None
+    trailing_stop: float | None = None
+    sell_level: float | None = None
+    profit_target_8pct: float | None = None
+    profit_target_20pct: float | None = None
+    profit_target_25pct: float | None = None
+    exit_trigger_1_price: float | None = None
+    exit_trigger_2_price: float | None = None
+    avg_volume_50d: float | None = None
+    sector: str | None = None
+    industry: str | None = None
+    is_fallback: bool | None = Field(None, alias="_is_fallback")
 
 
 class SignalsResponse(ListResponse):
@@ -197,11 +189,11 @@ class IncomeStatement(BaseModel):
 
     symbol: str
     fiscal_year: int
-    fiscal_quarter: Optional[int] = None
-    revenue: Optional[float] = None
-    gross_profit: Optional[float] = None
-    operating_income: Optional[float] = None
-    net_income: Optional[float] = None
+    fiscal_quarter: int | None = None
+    revenue: float | None = None
+    gross_profit: float | None = None
+    operating_income: float | None = None
+    net_income: float | None = None
 
 
 class IncomeStatementResponse(ListResponse):
@@ -213,10 +205,10 @@ class BalanceSheet(BaseModel):
 
     symbol: str
     fiscal_year: int
-    fiscal_quarter: Optional[int] = None
-    total_assets: Optional[float] = None
-    total_liabilities: Optional[float] = None
-    stockholders_equity: Optional[float] = None
+    fiscal_quarter: int | None = None
+    total_assets: float | None = None
+    total_liabilities: float | None = None
+    stockholders_equity: float | None = None
 
 
 class BalanceSheetResponse(ListResponse):
@@ -228,12 +220,12 @@ class PriceData(BaseModel):
 
     symbol: str
     date: datetime
-    open: Optional[float] = None
-    high: Optional[float] = None
-    low: Optional[float] = None
-    close: Optional[float] = None
-    volume: Optional[float] = None
-    adjusted_close: Optional[float] = None
+    open: float | None = None
+    high: float | None = None
+    low: float | None = None
+    close: float | None = None
+    volume: float | None = None
+    adjusted_close: float | None = None
 
 
 class PriceDataResponse(ListResponse):
@@ -244,9 +236,9 @@ class Sector(BaseModel):
     """Sector information."""
 
     sector: str
-    count: Optional[int] = None
-    average_pe: Optional[float] = None
-    average_score: Optional[float] = None
+    count: int | None = None
+    average_pe: float | None = None
+    average_score: float | None = None
 
 
 class SectorResponse(ListResponse):
@@ -257,9 +249,9 @@ class Industry(BaseModel):
     """Industry information."""
 
     industry: str
-    sector: Optional[str] = None
-    count: Optional[int] = None
-    average_score: Optional[float] = None
+    sector: str | None = None
+    count: int | None = None
+    average_score: float | None = None
 
 
 class IndustryResponse(ListResponse):
@@ -270,9 +262,9 @@ class StockScore(BaseModel):
     """Stock quality score."""
 
     symbol: str
-    score: Optional[float] = None
-    percentile: Optional[float] = None
-    components: Optional[Dict[str, Any]] = None
+    score: float | None = None
+    percentile: float | None = None
+    components: dict[str, Any] | None = None
 
 
 class StockScoresResponse(ListResponse):
@@ -282,14 +274,14 @@ class StockScoresResponse(ListResponse):
 class Trade(BaseModel):
     """Trading record."""
 
-    id: Optional[int] = None
+    id: int | None = None
     symbol: str
     entry_date: datetime
     entry_price: float
-    exit_date: Optional[datetime] = None
-    exit_price: Optional[float] = None
-    quantity: Optional[int] = None
-    status: Optional[str] = None
+    exit_date: datetime | None = None
+    exit_price: float | None = None
+    quantity: int | None = None
+    status: str | None = None
 
 
 class TradesResponse(ListResponse):
@@ -301,9 +293,9 @@ class EarningsData(BaseModel):
 
     symbol: str
     date: datetime
-    eps: Optional[float] = None
-    revenue: Optional[float] = None
-    guidance: Optional[str] = None
+    eps: float | None = None
+    revenue: float | None = None
+    guidance: str | None = None
 
 
 class EarningsResponse(ListResponse):
@@ -315,9 +307,9 @@ class EconomicIndicator(BaseModel):
 
     indicator: str
     date: datetime
-    value: Optional[float] = None
-    previous_value: Optional[float] = None
-    forecast: Optional[float] = None
+    value: float | None = None
+    previous_value: float | None = None
+    forecast: float | None = None
 
 
 class EconomicResponse(ListResponse):
@@ -328,9 +320,9 @@ class SearchResult(BaseModel):
     """Search result."""
 
     symbol: str
-    name: Optional[str] = None
-    type: Optional[str] = None
-    exchange: Optional[str] = None
+    name: str | None = None
+    type: str | None = None
+    exchange: str | None = None
 
 
 class SearchResponse(ListResponse):
@@ -340,13 +332,13 @@ class SearchResponse(ListResponse):
 class ContactSubmission(BaseModel):
     """Contact form submission."""
 
-    id: Optional[str] = None
+    id: str | None = None
     email: str
-    name: Optional[str] = None
+    name: str | None = None
     subject: str
     message: str
-    status: Optional[str] = None
-    created_at: Optional[datetime] = None
+    status: str | None = None
+    created_at: datetime | None = None
 
 
 class ContactResponse(SuccessResponse):
@@ -358,10 +350,10 @@ class ContactResponse(SuccessResponse):
 class Settings(BaseModel):
     """User settings."""
 
-    theme: Optional[str] = None
-    notifications: Optional[bool] = None
-    language: Optional[str] = None
-    timezone: Optional[str] = None
+    theme: str | None = None
+    notifications: bool | None = None
+    language: str | None = None
+    timezone: str | None = None
 
 
 class SettingsResponse(SuccessResponse):
@@ -377,7 +369,7 @@ class DataCoverageStatus(BaseModel):
     row_count: int
     age_days: float
     status: str
-    last_updated: Optional[datetime] = None
+    last_updated: datetime | None = None
 
 
 class DataCoverageResponse(ListResponse):

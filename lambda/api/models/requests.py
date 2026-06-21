@@ -1,7 +1,6 @@
 """Pydantic models for API request bodies - single source of truth for request validation."""
 
 import re
-from typing import Optional
 
 from pydantic import BaseModel, Field, field_validator
 
@@ -27,26 +26,20 @@ XSS_PATTERNS = [
 class TradePreviewRequest(BaseModel):
     """Request model for POST /api/algo/preview - Calculate position preview before trade entry."""
 
-    symbol: str = Field(
-        ..., description="Stock ticker symbol (e.g., AAPL)", min_length=1, max_length=10
-    )
-    entry_price: float = Field(
-        ..., description="Proposed entry price for position", gt=0
-    )
-    stop_loss_price: Optional[float] = Field(None, description="Stop loss price level")
+    symbol: str = Field(..., description="Stock ticker symbol (e.g., AAPL)", min_length=1, max_length=10)
+    entry_price: float = Field(..., description="Proposed entry price for position", gt=0)
+    stop_loss_price: float | None = Field(None, description="Stop loss price level")
 
     @field_validator("symbol")
     @classmethod
     def validate_symbol(cls, v: str) -> str:
         if not re.match(r"^[A-Z0-9\-\^]{1,10}$", v.upper()):
-            raise ValueError(
-                "Symbol must be 1-10 alphanumeric characters, dashes, or carets"
-            )
+            raise ValueError("Symbol must be 1-10 alphanumeric characters, dashes, or carets")
         return v.upper()
 
     @field_validator("stop_loss_price")
     @classmethod
-    def validate_stop_loss(cls, v: Optional[float], info) -> Optional[float]:
+    def validate_stop_loss(cls, v: float | None, info) -> float | None:
         if v is not None and "entry_price" in info.data:
             entry_price = info.data["entry_price"]
             if v >= entry_price:
@@ -58,14 +51,10 @@ class ContactSubmissionRequest(BaseModel):
     """Request model for POST /api/contact - Submit contact form."""
 
     name: str = Field(..., description="Contact name", min_length=1, max_length=100)
-    email: str = Field(
-        ..., description="Contact email address", min_length=5, max_length=200
-    )
-    subject: Optional[str] = Field(None, description="Message subject", max_length=200)
+    email: str = Field(..., description="Contact email address", min_length=5, max_length=200)
+    subject: str | None = Field(None, description="Message subject", max_length=200)
     message: str = Field(..., description="Message body", min_length=1, max_length=5000)
-    phone: Optional[str] = Field(
-        None, description="Phone number (optional)", max_length=20
-    )
+    phone: str | None = Field(None, description="Phone number (optional)", max_length=20)
 
     @field_validator("email")
     @classmethod
@@ -76,7 +65,7 @@ class ContactSubmissionRequest(BaseModel):
 
     @field_validator("phone")
     @classmethod
-    def validate_phone(cls, v: Optional[str]) -> Optional[str]:
+    def validate_phone(cls, v: str | None) -> str | None:
         if v is not None and v.strip():
             # Pattern: +1-800-555-0123, (800) 555-0123, etc.
             if not re.match(r"^\+?[\d\s\-\(\)]{10,15}$", v):
@@ -86,14 +75,14 @@ class ContactSubmissionRequest(BaseModel):
 
     @field_validator("name", "message", "subject")
     @classmethod
-    def strip_whitespace(cls, v: Optional[str]) -> Optional[str]:
+    def strip_whitespace(cls, v: str | None) -> str | None:
         if v is not None:
             v = v.strip()
         return v
 
     @field_validator("message", "name", "subject")
     @classmethod
-    def check_dangerous_content(cls, v: Optional[str], info) -> Optional[str]:
+    def check_dangerous_content(cls, v: str | None, info) -> str | None:
         """Check for XSS patterns (plaintext input that will be rendered as HTML)."""
         if v is None:
             return v
@@ -109,72 +98,50 @@ class ContactSubmissionRequest(BaseModel):
 class VerifyUserEmailRequest(BaseModel):
     """Request model for POST /api/admin/verify-user-email - Verify user email in Cognito."""
 
-    username: str = Field(
-        ..., description="Cognito username to verify", min_length=1, max_length=256
-    )
+    username: str = Field(..., description="Cognito username to verify", min_length=1, max_length=256)
 
     @field_validator("username")
     @classmethod
     def validate_username(cls, v: str) -> str:
         # Allow email format or standard username format
         if not re.match(r"^[a-zA-Z0-9._\-@+]+$", v):
-            raise ValueError(
-                "Username must contain only alphanumeric characters, dots, underscores, dashes, @ or +"
-            )
+            raise ValueError("Username must contain only alphanumeric characters, dots, underscores, dashes, @ or +")
         return v
 
 
 class PreTradeImpactRequest(BaseModel):
     """Request model for POST /api/algo/pre-trade-impact - Estimate impact of a potential trade."""
 
-    symbol: str = Field(
-        ..., description="Stock ticker symbol (e.g., AAPL)", min_length=1, max_length=10
-    )
-    entry_price: Optional[float] = Field(
-        None, description="Proposed entry price for position", gt=0
-    )
-    position_dollars: Optional[float] = Field(
-        None, description="Position size in dollars (if specified)", gt=0
-    )
-    position_pct: Optional[float] = Field(
-        None, description="Position size as % of portfolio (0-100)", gt=0, le=100
-    )
+    symbol: str = Field(..., description="Stock ticker symbol (e.g., AAPL)", min_length=1, max_length=10)
+    entry_price: float | None = Field(None, description="Proposed entry price for position", gt=0)
+    position_dollars: float | None = Field(None, description="Position size in dollars (if specified)", gt=0)
+    position_pct: float | None = Field(None, description="Position size as % of portfolio (0-100)", gt=0, le=100)
 
     @field_validator("symbol")
     @classmethod
     def validate_symbol(cls, v: str) -> str:
         if not re.match(SYMBOL_PATTERN, v.upper()):
-            raise ValueError(
-                "Symbol must be 1-10 alphanumeric characters, dashes, or carets"
-            )
+            raise ValueError("Symbol must be 1-10 alphanumeric characters, dashes, or carets")
         return v.upper()
 
 
 class ManualTradeRequest(BaseModel):
     """Request model for POST /api/trades/manual - Manually log a trade entry."""
 
-    symbol: str = Field(
-        ..., description="Stock ticker symbol (1-10 chars)", min_length=1, max_length=10
-    )
+    symbol: str = Field(..., description="Stock ticker symbol (1-10 chars)", min_length=1, max_length=10)
     trade_type: str = Field(default="buy", description="Trade type: buy or sell")
     quantity: int = Field(..., description="Trade quantity (must be positive)", gt=0)
-    price: float = Field(
-        ..., description="Trade price per share (must be positive)", gt=0
-    )
-    execution_date: Optional[str] = Field(
+    price: float = Field(..., description="Trade price per share (must be positive)", gt=0)
+    execution_date: str | None = Field(
         None, description="Trade execution date (YYYY-MM-DD format, defaults to today)"
     )
-    stop_loss_price: Optional[float] = Field(
-        None, description="Stop loss price (optional)"
-    )
+    stop_loss_price: float | None = Field(None, description="Stop loss price (optional)")
 
     @field_validator("symbol")
     @classmethod
     def validate_symbol(cls, v: str) -> str:
         if not re.match(SYMBOL_PATTERN, v.upper()):
-            raise ValueError(
-                "Symbol must be 1-10 alphanumeric characters, dashes, or carets"
-            )
+            raise ValueError("Symbol must be 1-10 alphanumeric characters, dashes, or carets")
         return v.upper()
 
     @field_validator("trade_type")
@@ -187,7 +154,7 @@ class ManualTradeRequest(BaseModel):
 
     @field_validator("execution_date")
     @classmethod
-    def validate_execution_date(cls, v: Optional[str]) -> Optional[str]:
+    def validate_execution_date(cls, v: str | None) -> str | None:
         if v is not None:
             try:
                 # Validate it's a valid date format (YYYY-MM-DD)
@@ -200,7 +167,7 @@ class ManualTradeRequest(BaseModel):
 
     @field_validator("stop_loss_price")
     @classmethod
-    def validate_stop_loss(cls, v: Optional[float], info) -> Optional[float]:
+    def validate_stop_loss(cls, v: float | None, info) -> float | None:
         if v is not None and v <= 0:
             raise ValueError("Stop loss price must be greater than 0")
         return v
@@ -210,27 +177,13 @@ class PositionUpdateRequest(BaseModel):
     """Request model for POST/PUT /api/position/update - Update position parameters."""
 
     position_id: int = Field(..., description="Position ID to update")
-    quantity: Optional[int] = Field(
-        None, description="Updated quantity (must be positive if provided)", gt=0
-    )
-    stop_loss_price: Optional[float] = Field(
-        None, description="Updated stop loss price (must be > 0 and make sense)"
-    )
-    target_1_price: Optional[float] = Field(
-        None, description="Target 1 price (must be > entry_price for buys)"
-    )
-    target_2_price: Optional[float] = Field(
-        None, description="Target 2 price (must be > entry_price for buys)"
-    )
-    target_3_price: Optional[float] = Field(
-        None, description="Target 3 price (must be > entry_price for buys)"
-    )
-    entry_price: Optional[float] = Field(
-        None, description="Entry price (used for validation of stop loss and targets)"
-    )
-    position_type: Optional[str] = Field(
-        None, description="Position type: 'buy' or 'sell' (used for validation)"
-    )
+    quantity: int | None = Field(None, description="Updated quantity (must be positive if provided)", gt=0)
+    stop_loss_price: float | None = Field(None, description="Updated stop loss price (must be > 0 and make sense)")
+    target_1_price: float | None = Field(None, description="Target 1 price (must be > entry_price for buys)")
+    target_2_price: float | None = Field(None, description="Target 2 price (must be > entry_price for buys)")
+    target_3_price: float | None = Field(None, description="Target 3 price (must be > entry_price for buys)")
+    entry_price: float | None = Field(None, description="Entry price (used for validation of stop loss and targets)")
+    position_type: str | None = Field(None, description="Position type: 'buy' or 'sell' (used for validation)")
 
     @field_validator("position_id")
     @classmethod
@@ -241,7 +194,7 @@ class PositionUpdateRequest(BaseModel):
 
     @field_validator("quantity")
     @classmethod
-    def validate_quantity(cls, v: Optional[int]) -> Optional[int]:
+    def validate_quantity(cls, v: int | None) -> int | None:
         if v is not None:
             if not isinstance(v, int) or isinstance(v, bool):
                 raise ValueError("Quantity must be an integer")
@@ -253,7 +206,7 @@ class PositionUpdateRequest(BaseModel):
 
     @field_validator("stop_loss_price")
     @classmethod
-    def validate_stop_loss_price(cls, v: Optional[float]) -> Optional[float]:
+    def validate_stop_loss_price(cls, v: float | None) -> float | None:
         if v is not None:
             if v <= 0:
                 raise ValueError("Stop loss price must be greater than 0")
@@ -263,7 +216,7 @@ class PositionUpdateRequest(BaseModel):
 
     @field_validator("target_1_price", "target_2_price", "target_3_price")
     @classmethod
-    def validate_target_price(cls, v: Optional[float]) -> Optional[float]:
+    def validate_target_price(cls, v: float | None) -> float | None:
         if v is not None:
             if v <= 0:
                 raise ValueError("Target price must be greater than 0")
@@ -273,7 +226,7 @@ class PositionUpdateRequest(BaseModel):
 
     @field_validator("entry_price")
     @classmethod
-    def validate_entry_price(cls, v: Optional[float]) -> Optional[float]:
+    def validate_entry_price(cls, v: float | None) -> float | None:
         if v is not None:
             if v <= 0:
                 raise ValueError("Entry price must be greater than 0")
@@ -283,7 +236,7 @@ class PositionUpdateRequest(BaseModel):
 
     @field_validator("position_type")
     @classmethod
-    def validate_position_type(cls, v: Optional[str]) -> Optional[str]:
+    def validate_position_type(cls, v: str | None) -> str | None:
         if v is not None:
             v_lower = v.lower()
             if v_lower not in ("buy", "sell", "long", "short"):
@@ -304,9 +257,7 @@ class PositionUpdateRequest(BaseModel):
                 )
             risk_amount = self.entry_price - self.stop_loss_price
             if risk_amount < 0.01:
-                raise ValueError(
-                    f"Stop loss is too close to entry price (min risk: $0.01)"
-                )
+                raise ValueError("Stop loss is too close to entry price (min risk: $0.01)")
         elif self.position_type and self.position_type in ("sell", "short"):
             if self.stop_loss_price <= self.entry_price:
                 raise ValueError(
@@ -315,9 +266,7 @@ class PositionUpdateRequest(BaseModel):
                 )
             risk_amount = self.stop_loss_price - self.entry_price
             if risk_amount < 0.01:
-                raise ValueError(
-                    f"Stop loss is too close to entry price (min risk: $0.01)"
-                )
+                raise ValueError("Stop loss is too close to entry price (min risk: $0.01)")
 
     def validate_targets_vs_entry(self) -> None:
         """Cross-field validation: targets must be above entry price (for longs)."""
@@ -331,14 +280,10 @@ class PositionUpdateRequest(BaseModel):
 
             if self.position_type and self.position_type in ("buy", "long"):
                 if target <= self.entry_price:
-                    raise ValueError(
-                        f"Target {i} ({target}) must be above entry_price ({self.entry_price})"
-                    )
+                    raise ValueError(f"Target {i} ({target}) must be above entry_price ({self.entry_price})")
             elif self.position_type and self.position_type in ("sell", "short"):
                 if target >= self.entry_price:
-                    raise ValueError(
-                        f"Target {i} ({target}) must be below entry_price ({self.entry_price})"
-                    )
+                    raise ValueError(f"Target {i} ({target}) must be below entry_price ({self.entry_price})")
 
     def validate_targets_ordered(self) -> None:
         """Cross-field validation: targets should be in ascending order (for longs)."""
@@ -351,7 +296,4 @@ class PositionUpdateRequest(BaseModel):
         if self.position_type and self.position_type in ("buy", "long"):
             for i in range(len(valid_targets) - 1):
                 if valid_targets[i] >= valid_targets[i + 1]:
-                    raise ValueError(
-                        "Targets must be in ascending order (T1 < T2 < T3) for long positions"
-                    )
-
+                    raise ValueError("Targets must be in ascending order (T1 < T2 < T3) for long positions")

@@ -92,10 +92,7 @@ class LoaderConfigManager:
             Current active connections or None if unavailable.
         """
         now = time.time()
-        if (
-            self._rds_connection_cache is not None
-            and (now - self._rds_connection_cache_time) < self._rds_cache_ttl
-        ):
+        if self._rds_connection_cache is not None and (now - self._rds_connection_cache_time) < self._rds_cache_ttl:
             return self._rds_connection_cache
 
         try:
@@ -103,9 +100,7 @@ class LoaderConfigManager:
 
             import boto3
 
-            cloudwatch = boto3.client(
-                "cloudwatch", region_name=os.getenv("AWS_REGION", "us-east-1")
-            )
+            cloudwatch = boto3.client("cloudwatch", region_name=os.getenv("AWS_REGION", "us-east-1"))
             response = cloudwatch.get_metric_statistics(
                 Namespace="AWS/RDS",
                 MetricName="DatabaseConnections",
@@ -125,9 +120,7 @@ class LoaderConfigManager:
         except (ValueError, ZeroDivisionError, TypeError) as e:
             raise RuntimeError(f"Operation failed: {e}") from e
 
-    def _compute_adaptive_parallelism(
-        self, loader_name: str, base_parallelism: int
-    ) -> int:
+    def _compute_adaptive_parallelism(self, loader_name: str, base_parallelism: int) -> int:
         """Compute adaptive parallelism based on RDS load and per-loader constraints.
 
         CLUSTER 6 FIX: Dynamic parallelism adjustment based on RDS connection pool saturation.
@@ -201,9 +194,7 @@ class LoaderConfigManager:
         try:
             import boto3
 
-            client = boto3.client(
-                "dynamodb", region_name=os.getenv("AWS_REGION", "us-east-1")
-            )
+            client = boto3.client("dynamodb", region_name=os.getenv("AWS_REGION", "us-east-1"))
             response = client.describe_table(TableName=self.config_table)
             self._dynamodb_available = response["Table"]["TableStatus"] == "ACTIVE"
             if self._dynamodb_available:
@@ -228,12 +219,8 @@ class LoaderConfigManager:
         try:
             import boto3
 
-            client = boto3.client(
-                "dynamodb", region_name=os.getenv("AWS_REGION", "us-east-1")
-            )
-            response = client.get_item(
-                TableName=self.config_table, Key={"loader_name": {"S": loader_name}}
-            )
+            client = boto3.client("dynamodb", region_name=os.getenv("AWS_REGION", "us-east-1"))
+            response = client.get_item(TableName=self.config_table, Key={"loader_name": {"S": loader_name}})
 
             if "Item" in response:
                 item = response["Item"]
@@ -278,26 +265,20 @@ class LoaderConfigManager:
         cached = self._get_cache(loader_name)
         if cached is not None:
             base_parallelism = cached["parallelism"]
-            logger.debug(
-                f"Using cached parallelism for {loader_name}: {base_parallelism}"
-            )
+            logger.debug(f"Using cached parallelism for {loader_name}: {base_parallelism}")
         # Try DynamoDB if available
         elif self._check_dynamodb_available():
             config = self._get_from_dynamodb(loader_name)
             if config is not None:
                 self._set_cache(loader_name, config)
                 base_parallelism = config["parallelism"]
-                logger.debug(
-                    f"Loaded parallelism for {loader_name} from DynamoDB: {base_parallelism}"
-                )
+                logger.debug(f"Loaded parallelism for {loader_name} from DynamoDB: {base_parallelism}")
         # Fall back to environment variable, then per-loader constraint
         else:
             env_parallelism = os.getenv("LOADER_PARALLELISM", None)
             if env_parallelism is not None:
                 base_parallelism = int(env_parallelism)
-                logger.debug(
-                    f"Using env var parallelism for {loader_name}: {base_parallelism}"
-                )
+                logger.debug(f"Using env var parallelism for {loader_name}: {base_parallelism}")
             else:
                 # CLUSTER 6 FIX: Default to minimum parallelism (1) to prevent RDS pool exhaustion
                 # With 6 ECS tasks x 8 loaders x 2 workers = 96 connections hitting 100-conn proxy limit.

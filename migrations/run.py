@@ -211,7 +211,7 @@ class MigrationRunner:
             self.conn.rollback()
             raise
 
-    def get_applied_migrations(self) -> List[str]:
+    def get_applied_migrations(self) -> list[str]:
         """Get list of applied migrations that haven't been rolled back."""
         query = "SELECT version FROM schema_version WHERE rolled_back_at IS NULL ORDER BY applied_at"
         try:
@@ -221,7 +221,7 @@ class MigrationRunner:
             logger.warning(f"Could not fetch applied migrations: {e}")
             return []
 
-    def get_pending_migrations(self) -> List[Tuple[str, Path]]:
+    def get_pending_migrations(self) -> list[tuple[str, Path]]:
         """Get list of migration files that haven't been applied."""
         applied = set(self.get_applied_migrations())
 
@@ -281,7 +281,7 @@ class MigrationRunner:
         try:
             if mig_path.suffix == ".sql":
                 # Handle SQL migrations
-                with open(mig_path, "r") as f:
+                with open(mig_path) as f:
                     sql = f.read()
 
                 statements = _split_sql_statements(sql)

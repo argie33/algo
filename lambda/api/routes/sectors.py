@@ -1,7 +1,6 @@
 """Route: sectors"""
 
 import logging
-from typing import Dict
 
 import psycopg2
 import psycopg2.errors
@@ -18,6 +17,7 @@ from routes.utils import (
     safe_limit,
     safe_page,
 )
+
 from shared_contracts.response_validator import ResponseValidator
 
 
@@ -28,23 +28,19 @@ def handle(
     cur,
     path: str,
     method: str,
-    params: Dict,
-    body: Dict = None,
-    jwt_claims: Dict = None,
-) -> Dict:
+    params: dict,
+    body: dict | None = None,
+    jwt_claims: dict | None = None,
+) -> dict:
     """Handle /api/sectors and /api/sectors/* endpoints - return full ranking data."""
     try:
-        if path == "/api/sectors/trends-batch" or path.startswith(
-            "/api/sectors/trends-batch?"
-        ):
+        if path == "/api/sectors/trends-batch" or path.startswith("/api/sectors/trends-batch?"):
             sectors_str = params.get("sectors", [None])[0] if params else None
             days_str = params.get("days", [None])[0] if params else None
             days = safe_days(days_str or "90", max_val=365)
 
             if not sectors_str:
-                return error_response(
-                    400, "bad_request", "sectors parameter required (comma-separated)"
-                )
+                return error_response(400, "bad_request", "sectors parameter required (comma-separated)")
 
             sectors = [s.strip() for s in sectors_str.split(",") if s.strip()]
             result = {s: [] for s in sectors}
@@ -55,24 +51,22 @@ def handle(
             if sectors:
                 placeholders = ",".join(["%s"] * len(sectors))
                 cur.execute(
-                    """
+                    f"""
                         SELECT cp.sector, pd.date, AVG(pd.close) AS "avgPrice"
                         FROM price_daily pd
                         JOIN company_profile cp ON pd.symbol = cp.ticker
-                        WHERE cp.sector IN ({})
+                        WHERE cp.sector IN ({placeholders})
                           AND pd.date >= CURRENT_DATE - (%s * INTERVAL '1 day')
                         GROUP BY cp.sector, pd.date
                         ORDER BY cp.sector, pd.date ASC
-                    """.format(placeholders),
-                    tuple(sectors) + (days,),
+                    """,
+                    (*tuple(sectors), days),
                 )
                 for row in cur.fetchall():
                     r = safe_json_serialize(dict(row))
                     sector_key = r["sector"]
                     if sector_key in result:
-                        result[sector_key].append(
-                            {"date": r["date"], "avgPrice": r["avgPrice"]}
-                        )
+                        result[sector_key].append({"date": r["date"], "avgPrice": r["avgPrice"]})
 
             freshness = check_data_freshness(cur, "price_daily", "date", warning_days=1)
             result["data_freshness"] = freshness
@@ -87,7 +81,7 @@ def handle(
         sector_name = parts[3] if len(parts) > 3 else None
 
         if sector_name and sector_name not in ("performance", "trends-batch"):
-            if path.endswith("/trend") or path.endswith("/trend/"):
+            if path.endswith(("/trend", "/trend/")):
                 days_str = params.get("days", [None])[0] if params else None
                 days = safe_days(days_str or "90", max_val=365)
                 # Set timeout for trend query (10s for window function aggregations)
@@ -129,13 +123,7 @@ def handle(
                 )
                 rows = cur.fetchall()
                 trend_data = (
-                    [
-                        safe_json_serialize(dict(r))
-                        for r in rows
-                        if r and r.get("avgPrice") is not None
-                    ]
-                    if rows
-                    else []
+                    [safe_json_serialize(dict(r)) for r in rows if r and r.get("avgPrice") is not None] if rows else []
                 )
                 freshness = check_data_freshness(cur, "price_daily", "date", warning_days=1)
                 trend_result = {"trendData": trend_data, "data_freshness": freshness}
@@ -277,9 +265,7 @@ def handle(
             )
 
             sectors_data = cur.fetchall()
-            cur.execute(
-                """SELECT COUNT(DISTINCT sector) as cnt FROM company_profile WHERE sector IS NOT NULL"""
-            )
+            cur.execute("""SELECT COUNT(DISTINCT sector) as cnt FROM company_profile WHERE sector IS NOT NULL""")
             total = safe_json_serialize(dict(cur.fetchone())).get("cnt", 0)
 
             sectors = []
@@ -328,80 +314,30 @@ def handle(
                     {
                         "sector_name": s.get("sector_name"),
                         "current_rank": int(rank_val),
-                        "rank_1w_ago": (
-                            int(s["rank_1w_ago"])
-                            if s.get("rank_1w_ago") is not None
-                            else None
-                        ),
-                        "rank_4w_ago": (
-                            int(s["rank_4w_ago"])
-                            if s.get("rank_4w_ago") is not None
-                            else None
-                        ),
-                        "rank_12w_ago": (
-                            int(s["rank_12w_ago"])
-                            if s.get("rank_12w_ago") is not None
-                            else None
-                        ),
-                        "stock_count": (
-                            int(stock_count_val)
-                            if stock_count_val is not None
-                            else None
-                        ),
+                        "rank_1w_ago": (int(s["rank_1w_ago"]) if s.get("rank_1w_ago") is not None else None),
+                        "rank_4w_ago": (int(s["rank_4w_ago"]) if s.get("rank_4w_ago") is not None else None),
+                        "rank_12w_ago": (int(s["rank_12w_ago"]) if s.get("rank_12w_ago") is not None else None),
+                        "stock_count": (int(stock_count_val) if stock_count_val is not None else None),
                         "composite_score": composite,
-                        "momentum_score": (
-                            float(momentum_score_val)
-                            if momentum_score_val is not None
-                            else None
-                        ),
-                        "value_score": (
-                            float(value_score_val)
-                            if value_score_val is not None
-                            else None
-                        ),
-                        "quality_score": (
-                            float(quality_score_val)
-                            if quality_score_val is not None
-                            else None
-                        ),
-                        "growth_score": (
-                            float(growth_score_val)
-                            if growth_score_val is not None
-                            else None
-                        ),
-                        "stability_score": (
-                            float(stability_score_val)
-                            if stability_score_val is not None
-                            else None
-                        ),
+                        "momentum_score": (float(momentum_score_val) if momentum_score_val is not None else None),
+                        "value_score": (float(value_score_val) if value_score_val is not None else None),
+                        "quality_score": (float(quality_score_val) if quality_score_val is not None else None),
+                        "growth_score": (float(growth_score_val) if growth_score_val is not None else None),
+                        "stability_score": (float(stability_score_val) if stability_score_val is not None else None),
                         "current_momentum": momentum_label,
                         "current_trend": trend_label,
                         "performance_1d": perf1d,
                         "performance_5d": perf5d,
                         "performance_20d": perf20d,
                         "pe": {
-                            "trailing": (
-                                float(trailing_pe_val)
-                                if trailing_pe_val is not None
-                                else None
-                            ),
-                            "pb_ratio": (
-                                float(pb_ratio_val)
-                                if pb_ratio_val is not None
-                                else None
-                            ),
-                            "percentile": (
-                                float(pe_percentile_val)
-                                if pe_percentile_val is not None
-                                else None
-                            ),
+                            "trailing": (float(trailing_pe_val) if trailing_pe_val is not None else None),
+                            "pb_ratio": (float(pb_ratio_val) if pb_ratio_val is not None else None),
+                            "percentile": (float(pe_percentile_val) if pe_percentile_val is not None else None),
                         },
                     }
                 )
 
-            freshness = check_data_freshness(
-                cur, "sector_ranking", "date", warning_days=1
-            )
+            freshness = check_data_freshness(cur, "sector_ranking", "date", warning_days=1)
             sector_result = {
                 "items": sectors,
                 "total": total,

@@ -25,8 +25,8 @@ from routes.utils import (
     safe_limit,
     safe_offset,
 )
-from shared_contracts.response_validator import ResponseValidator
 
+from shared_contracts.response_validator import ResponseValidator
 from utils.validation import CognitoValidator
 
 
@@ -122,9 +122,7 @@ def handle(
             }
             if status_filter:
                 if status_filter.lower() not in valid_statuses:
-                    return error_response(
-                        400, "bad_request", f"Invalid status value: {status_filter}"
-                    )
+                    return error_response(400, "bad_request", f"Invalid status value: {status_filter}")
                 status_filter = status_filter.lower()
 
             where_clauses = []
@@ -144,7 +142,7 @@ def handle(
                 WHERE {where_sql}
                 ORDER BY created_at DESC LIMIT %s OFFSET %s
             """
-            query_args = where_args + [limit, offset]
+            query_args = [*where_args, limit, offset]
             cur.execute("SET LOCAL statement_timeout = '5000ms'")
             cur.execute(query, query_args)
             trades = cur.fetchall()
@@ -155,9 +153,7 @@ def handle(
             cur.execute(count_query, count_args)
             count_row = cur.fetchone()
             total = count_row[0] if count_row and count_row[0] is not None else 0
-            freshness = check_data_freshness(
-                cur, "algo_trades", "created_at", warning_days=1
-            )
+            freshness = check_data_freshness(cur, "algo_trades", "created_at", warning_days=1)
             trades_result = list_response(
                 [safe_json_serialize(dict(t)) for t in trades],
                 total=total,
@@ -181,9 +177,7 @@ def handle(
                     FROM algo_trades
                 """)
             summary = cur.fetchone()
-            freshness = check_data_freshness(
-                cur, "algo_trades", "created_at", warning_days=1
-            )
+            freshness = check_data_freshness(cur, "algo_trades", "created_at", warning_days=1)
             summary_result = safe_json_serialize(dict(summary)) if summary else {}
             summary_result["data_freshness"] = freshness
             is_valid, error_msg = ResponseValidator.validate_endpoint_response("trades", summary_result)
@@ -234,13 +228,15 @@ def _create_manual_trade(cur, body: dict, idempotency_key: str | None = None) ->
         if stop_loss is not None:
             if trade_type == "buy" and stop_loss >= price:
                 raise_api_error(
-                    400, "bad_request",
-                    f"For BUY trades, stop_loss_price ({stop_loss}) must be below entry_price ({price})"
+                    400,
+                    "bad_request",
+                    f"For BUY trades, stop_loss_price ({stop_loss}) must be below entry_price ({price})",
                 )
             elif trade_type == "sell" and stop_loss <= price:
                 raise_api_error(
-                    400, "bad_request",
-                    f"For SELL trades, stop_loss_price ({stop_loss}) must be above entry_price ({price})"
+                    400,
+                    "bad_request",
+                    f"For SELL trades, stop_loss_price ({stop_loss}) must be above entry_price ({price})",
                 )
 
         trade_id = f"MANUAL-{uuid.uuid4().hex[:12].upper()}"

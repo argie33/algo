@@ -1,7 +1,8 @@
 #!/usr/bin/env python3
 """Request Router - Route API requests to appropriate handlers."""
 
-from typing import Any, Callable
+from collections.abc import Callable
+from typing import Any
 
 
 class RequestRouter:

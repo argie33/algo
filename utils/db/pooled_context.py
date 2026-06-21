@@ -59,9 +59,7 @@ class PooledDatabaseContext:
             self.cursor = self.connection.cursor(cursor_factory=self.cursor_factory)
             return self.cursor
         except (psycopg2.DatabaseError, psycopg2.OperationalError) as e:
-            logger.error(
-                f"[POOLED_CONTEXT] Failed to create cursor: {e}", exc_info=True
-            )
+            logger.error(f"[POOLED_CONTEXT] Failed to create cursor: {e}", exc_info=True)
             raise
 
     def __exit__(self, exc_type, exc_val, exc_tb):

@@ -17,8 +17,8 @@ from routes.utils import (
     safe_json_serialize,
     safe_limit,
 )
-from shared_contracts.response_validator import ResponseValidator
 
+from shared_contracts.response_validator import ResponseValidator
 from utils.validation import DatabaseResultValidator
 
 
@@ -52,22 +52,14 @@ def handle(
             symbols_raw = extract_param(params, "symbols", required=False, default="")
             if symbols_raw:
                 # Delegate to batch-history handler logic
-                symbols = [
-                    s.strip().upper() for s in symbols_raw.split(",") if s.strip()
-                ]
+                symbols = [s.strip().upper() for s in symbols_raw.split(",") if s.strip()]
                 if not symbols:
-                    return error_response(
-                        400, "bad_request", "symbols parameter required"
-                    )
+                    return error_response(400, "bad_request", "symbols parameter required")
                 if len(symbols) > 20:
-                    return error_response(
-                        400, "bad_request", "maximum 20 symbols per batch"
-                    )
+                    return error_response(400, "bad_request", "maximum 20 symbols per batch")
                 for sym in symbols:
                     if not all(c.isalnum() or c in ("-", ".", "^") for c in sym):
-                        return error_response(
-                            400, "bad_request", f"Invalid symbol: {sym}"
-                        )
+                        return error_response(400, "bad_request", f"Invalid symbol: {sym}")
 
                 limit = safe_limit(
                     extract_param(params, "limit", required=False),
@@ -92,14 +84,10 @@ def handle(
                     WHERE rn <= %s
                     ORDER BY symbol, date DESC
                 """).format(psycopg2.sql.Identifier(table_name))
-                rows = execute_with_timeout(
-                    cur, batch_query, [symbols, limit], timeout_sec=20
-                )
+                rows = execute_with_timeout(cur, batch_query, [symbols, limit], timeout_sec=20)
 
                 # Validate rows is not None and not empty — fail fast if validation fails
-                if not DatabaseResultValidator.validate_rows_not_empty(
-                    rows, "prices batch query"
-                ):
+                if not DatabaseResultValidator.validate_rows_not_empty(rows, "prices batch query"):
                     raise_api_error(
                         503,
                         "ServiceUnavailable",
@@ -136,14 +124,10 @@ def handle(
                         WHERE rn <= %s
                         ORDER BY symbol, date DESC
                     """).format(psycopg2.sql.Identifier(etf_table_name))
-                    etf_rows = execute_with_timeout(
-                        cur, etf_query, [missing, limit], timeout_sec=20
-                    )
+                    etf_rows = execute_with_timeout(cur, etf_query, [missing, limit], timeout_sec=20)
 
                     # Validate ETF rows — fail fast if validation fails
-                    if not DatabaseResultValidator.validate_rows_not_empty(
-                        etf_rows, "prices ETF query"
-                    ):
+                    if not DatabaseResultValidator.validate_rows_not_empty(etf_rows, "prices ETF query"):
                         raise_api_error(
                             503,
                             "ServiceUnavailable",
@@ -176,9 +160,7 @@ def handle(
         # /api/prices/history/{symbol}
         if len(parts) >= 5 and parts[3] == "history":
             symbol = parts[4].upper()
-            if not symbol or not all(
-                c.isalnum() or c in ("-", ".", "^") for c in symbol
-            ):
+            if not symbol or not all(c.isalnum() or c in ("-", ".", "^") for c in symbol):
                 return error_response(400, "bad_request", "Invalid symbol")
 
             limit = safe_limit(
@@ -197,9 +179,7 @@ def handle(
             if days_str:
                 try:
                     days_int = max(1, min(int(days_str), 3650))
-                    where_clause += (
-                        f" AND date >= CURRENT_DATE - INTERVAL '{days_int} days'"
-                    )
+                    where_clause += f" AND date >= CURRENT_DATE - INTERVAL '{days_int} days'"
                 except ValueError:
                     logger.debug(f"Invalid days parameter: {days_str}, ignoring date filter")
 
@@ -223,9 +203,7 @@ def handle(
                     ORDER BY date DESC
                     LIMIT %s
                 """).format(psycopg2.sql.Identifier(etf_table_name), psycopg2.sql.SQL(where_clause))
-                rows = execute_with_timeout(
-                    cur, etf_query, [*qparams, limit], timeout_sec=10
-                )
+                rows = execute_with_timeout(cur, etf_query, [*qparams, limit], timeout_sec=10)
                 used_table = etf_table_name
             freshness = check_data_freshness(cur, used_table, "date", warning_days=1)
             result = list_response(
@@ -247,9 +225,7 @@ def handle(
             if not symbols:
                 return error_response(400, "bad_request", "symbols parameter required")
             if len(symbols) > 20:
-                return error_response(
-                    400, "bad_request", "maximum 20 symbols per batch"
-                )
+                return error_response(400, "bad_request", "maximum 20 symbols per batch")
             for sym in symbols:
                 if not all(c.isalnum() or c in ("-", ".", "^") for c in sym):
                     return error_response(400, "bad_request", f"Invalid symbol: {sym}")

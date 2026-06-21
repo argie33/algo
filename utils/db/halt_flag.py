@@ -40,9 +40,7 @@ class HaltFlagManager:
     """Manages halt flag with DynamoDB + RDS redundancy."""
 
     def __init__(self):
-        self._dynamodb_failure_times = (
-            []
-        )  # Track failure timestamps for circuit breaker
+        self._dynamodb_failure_times = []  # Track failure timestamps for circuit breaker
         self._circuit_breaker_open = False
 
     def _record_dynamodb_failure(self) -> None:
@@ -52,9 +50,7 @@ class HaltFlagManager:
 
         # Clean up old failure records (>5 min old)
         cutoff = now - timedelta(seconds=DYNAMODB_FAILURE_WINDOW_SEC)
-        self._dynamodb_failure_times = [
-            t for t in self._dynamodb_failure_times if t > cutoff
-        ]
+        self._dynamodb_failure_times = [t for t in self._dynamodb_failure_times if t > cutoff]
 
         # Open circuit breaker if too many failures in window
         if len(self._dynamodb_failure_times) >= DYNAMODB_FAILURE_THRESHOLD:
@@ -74,9 +70,7 @@ class HaltFlagManager:
         # Clean up old failures first
         now = datetime.now(timezone.utc)
         cutoff = now - timedelta(seconds=DYNAMODB_FAILURE_WINDOW_SEC)
-        self._dynamodb_failure_times = [
-            t for t in self._dynamodb_failure_times if t > cutoff
-        ]
+        self._dynamodb_failure_times = [t for t in self._dynamodb_failure_times if t > cutoff]
 
         if len(self._dynamodb_failure_times) >= DYNAMODB_FAILURE_THRESHOLD:
             if not self._circuit_breaker_open:
@@ -114,9 +108,7 @@ class HaltFlagManager:
             if halt_flag is not None:
                 return halt_flag, reason
         except (FileNotFoundError, OSError) as e:
-            logger.warning(
-                f"[HALT_FLAG] DynamoDB check failed: {e}. Falling back to RDS."
-            )
+            logger.warning(f"[HALT_FLAG] DynamoDB check failed: {e}. Falling back to RDS.")
             self._record_dynamodb_failure()
 
         # Fall back to RDS
@@ -142,9 +134,7 @@ class HaltFlagManager:
             table = dynamodb.Table(table_name)
 
             # Use timeout to prevent hanging
-            response = table.get_item(
-                Key={"key": HALT_FLAG_KEY}, ReturnConsumedCapacity="NONE"
-            )
+            response = table.get_item(Key={"key": HALT_FLAG_KEY}, ReturnConsumedCapacity="NONE")
 
             if "Item" not in response:
                 logger.debug("[HALT_FLAG] No halt flag in DynamoDB (not set)")
@@ -163,31 +153,21 @@ class HaltFlagManager:
             # Check if halt is from previous trading day (auto-expiry)
             if triggered_at:
                 try:
-                    trigger_dt = datetime.fromisoformat(
-                        triggered_at.replace("Z", "+00:00")
-                    )
+                    trigger_dt = datetime.fromisoformat(triggered_at.replace("Z", "+00:00"))
                     now_utc = datetime.now(timezone.utc)
                     trigger_et = trigger_dt.astimezone(EASTERN_TZ)
                     now_et = now_utc.astimezone(EASTERN_TZ)
 
                     if trigger_et.date() < now_et.date():
                         # Check if market has opened on current trading day
-                        market_open = now_et.replace(
-                            hour=9, minute=30, second=0, microsecond=0
-                        )
+                        market_open = now_et.replace(hour=9, minute=30, second=0, microsecond=0)
                         if now_et >= market_open:
-                            logger.info(
-                                f"[HALT_FLAG] Halt from {trigger_et.date()} expired (past market open)"
-                            )
+                            logger.info(f"[HALT_FLAG] Halt from {trigger_et.date()} expired (past market open)")
                             return False, None
                 except Exception as parse_err:
-                    logger.warning(
-                        f"[HALT_FLAG] Could not parse DynamoDB timestamp: {parse_err}"
-                    )
+                    logger.warning(f"[HALT_FLAG] Could not parse DynamoDB timestamp: {parse_err}")
 
-            logger.critical(
-                f"[HALT_FLAG] ACTIVE in DynamoDB: {reason} (count={halt_count})"
-            )
+            logger.critical(f"[HALT_FLAG] ACTIVE in DynamoDB: {reason} (count={halt_count})")
             return True, reason
 
         except Exception as e:
@@ -226,22 +206,14 @@ class HaltFlagManager:
                         now_et = datetime.now(timezone.utc).astimezone(EASTERN_TZ)
 
                         if trigger_et.date() < now_et.date():
-                            market_open = now_et.replace(
-                                hour=9, minute=30, second=0, microsecond=0
-                            )
+                            market_open = now_et.replace(hour=9, minute=30, second=0, microsecond=0)
                             if now_et >= market_open:
-                                logger.info(
-                                    f"[HALT_FLAG] Halt from {trigger_et.date()} expired (past market open)"
-                                )
+                                logger.info(f"[HALT_FLAG] Halt from {trigger_et.date()} expired (past market open)")
                                 return False, None
                     except (psycopg2.DatabaseError, psycopg2.OperationalError) as parse_err:
-                        logger.warning(
-                            f"[HALT_FLAG] Could not parse RDS timestamp: {parse_err}"
-                        )
+                        logger.warning(f"[HALT_FLAG] Could not parse RDS timestamp: {parse_err}")
 
-                logger.critical(
-                    f"[HALT_FLAG] ACTIVE in RDS: {reason} (count={halt_count})"
-                )
+                logger.critical(f"[HALT_FLAG] ACTIVE in RDS: {reason} (count={halt_count})")
                 return True, reason
 
         except (psycopg2.DatabaseError, psycopg2.OperationalError) as e:
@@ -278,9 +250,7 @@ class HaltFlagManager:
         # DynamoDB is read cache: best-effort, failure is tolerable
         if success_rds:
             success_dynamodb = self._set_halt_flag_dynamodb(halt_data, now_utc)
-            logger.critical(
-                f"[HALT_FLAG_SET] {reason} (RDS: True, DynamoDB: {success_dynamodb})"
-            )
+            logger.critical(f"[HALT_FLAG_SET] {reason} (RDS: True, DynamoDB: {success_dynamodb})")
             return True
 
         logger.error("[HALT_FLAG_SET_FAILED] Could not set halt flag in RDS (source of truth)")
@@ -355,9 +325,7 @@ class HaltFlagManager:
         # DynamoDB is read cache: best-effort, failure is tolerable
         if success_rds:
             success_dynamodb = self._clear_halt_flag_dynamodb()
-            logger.critical(
-                f"[HALT_FLAG_CLEARED] {reason} (RDS: True, DynamoDB: {success_dynamodb})"
-            )
+            logger.critical(f"[HALT_FLAG_CLEARED] {reason} (RDS: True, DynamoDB: {success_dynamodb})")
             return True
 
         logger.warning("[HALT_FLAG_CLEAR_FAILED] Could not clear halt flag in RDS (source of truth)")

@@ -8,7 +8,7 @@ Uses rules from utils/validation/freshness_config.py as ground truth.
 
 import logging
 from datetime import date, datetime
-from typing import Any, Dict, Optional, cast
+from typing import Any, cast
 
 from utils.db.context import DatabaseContext
 from utils.validation.freshness_config import get_freshness_rule
@@ -24,9 +24,9 @@ class DataAgeValidator:
     def check(
         table_name: str,
         date_column: str = "date",
-        current_date: Optional[date] = None,
+        current_date: date | None = None,
         verbose: bool = False,
-    ) -> Dict[str, Any]:
+    ) -> dict[str, Any]:
         """Check if table data is fresh.
 
         Args:
@@ -127,9 +127,7 @@ class DataAgeValidator:
         else:
             status = "✗"
             level = "STALE"
-            logger.warning(
-                f"[{table_name}] Data is {age_days} days old (threshold {adjusted_threshold}d)"
-            )
+            logger.warning(f"[{table_name}] Data is {age_days} days old (threshold {adjusted_threshold}d)")
 
         message = f"{status} {table_name}: {age_days}d old (threshold {adjusted_threshold}d) — {level}"
         if verbose and rule:
@@ -149,7 +147,7 @@ class DataAgeValidator:
     def is_fresh(
         table_name: str,
         date_column: str = "date",
-        current_date: Optional[date] = None,
+        current_date: date | None = None,
     ) -> bool:
         """Quick boolean check: is table data fresh?"""
         result = DataAgeValidator.check(table_name, date_column, current_date)
@@ -157,9 +155,9 @@ class DataAgeValidator:
 
     @staticmethod
     def check_multiple(
-        tables: Dict[str, str],
-        current_date: Optional[date] = None,
-    ) -> Dict[str, Any]:
+        tables: dict[str, str],
+        current_date: date | None = None,
+    ) -> dict[str, Any]:
         """Check freshness of multiple tables at once.
 
         Args:
@@ -201,9 +199,9 @@ class DataAgeValidator:
     def get_loader_watermark(
         loader_name: str,
         table_name: str,
-        symbol: Optional[str] = None,
+        symbol: str | None = None,
         granularity: str = "symbol",
-    ) -> Optional[date]:
+    ) -> date | None:
         """Get the watermark (last successfully loaded date) for a loader."""
         try:
             from utils.data.watermark import WatermarkManager
@@ -218,7 +216,7 @@ class DataAgeValidator:
         loader_name: str,
         table_name: str,
         new_watermark: date,
-        symbol: Optional[str] = None,
+        symbol: str | None = None,
         granularity: str = "symbol",
         rows_loaded: int = 0,
     ) -> bool:
@@ -227,18 +225,16 @@ class DataAgeValidator:
             from utils.data.watermark import WatermarkManager
 
             mgr = WatermarkManager(loader_name, table_name, granularity=granularity)
-            return mgr.advance_watermark(
-                new_watermark, symbol=symbol, rows_loaded=rows_loaded
-            )
+            return mgr.advance_watermark(new_watermark, symbol=symbol, rows_loaded=rows_loaded)
         except Exception as e:
             raise RuntimeError(f"Operation failed: {e}") from e
 
 
 # Backwards compatibility wrappers
 def is_fresh(
-    last_loaded_date: Optional[Any],
+    last_loaded_date: Any | None,
     data_type: str = "generic",
-    today: Optional[date] = None,
+    today: date | None = None,
 ) -> bool:
     """DEPRECATED: Use DataAgeValidator.check() instead."""
     if today is None:
@@ -261,11 +257,11 @@ def is_fresh(
 
 
 def check_freshness(
-    last_loaded_date: Optional[Any],
+    last_loaded_date: Any | None,
     data_type: str = "generic",
-    today: Optional[date] = None,
+    today: date | None = None,
     context: str = "",
-) -> Dict[str, Any]:
+) -> dict[str, Any]:
     """DEPRECATED: Use DataAgeValidator.check() instead."""
     if today is None:
         today = date.today()

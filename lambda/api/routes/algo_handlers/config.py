@@ -19,8 +19,6 @@ from shared_contracts.response_validator import ResponseValidator
 logger = logging.getLogger(__name__)
 
 
-
-
 @db_route_handler("fetch algo config")
 def _get_algo_config(cur) -> dict:
     """Return all algo configuration rows with defaults and categorization for TIER 3 visibility."""

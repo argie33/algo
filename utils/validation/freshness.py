@@ -11,13 +11,13 @@ This module is kept for backwards compatibility only. All new code should use:
 """
 
 import logging
-from typing import Any, Optional, cast
+from typing import Any, cast
 
 
 logger = logging.getLogger(__name__)
 
 # Re-export from new unified validator for backwards compatibility
-from utils.data.age_validator import check_freshness  # noqa: E402
+from utils.data.age_validator import check_freshness
 
 
 def get_staleness_threshold_days() -> int:
@@ -33,13 +33,12 @@ def get_staleness_threshold_days() -> int:
         return cast(int, get_config().get("max_data_staleness_days", 3))
     except Exception as e:
         raise RuntimeError(
-            f"Failed to read max_data_staleness_days config: {e}. "
-            "Cannot proceed without knowing freshness threshold."
+            f"Failed to read max_data_staleness_days config: {e}. Cannot proceed without knowing freshness threshold."
         ) from e
 
 
 def assert_fresh(
-    last_loaded_date: Optional[Any],
+    last_loaded_date: Any | None,
     data_type: str = "generic",
     context: str = "",
 ) -> None:

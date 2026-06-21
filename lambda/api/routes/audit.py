@@ -2,7 +2,6 @@
 
 import logging
 import os
-from typing import Dict, Optional
 
 import psycopg2
 import psycopg2.errors
@@ -22,7 +21,7 @@ from routes.utils import (
 logger = logging.getLogger(__name__)
 
 
-def _check_admin_access(jwt_claims: Optional[Dict]) -> bool:
+def _check_admin_access(jwt_claims: dict | None) -> bool:
     """Check if user has admin access from verified JWT claims.
 
     Only admin users can view audit logs.
@@ -35,9 +34,7 @@ def _check_admin_access(jwt_claims: Optional[Dict]) -> bool:
         groups = []
     is_admin = "admin" in groups
     if not is_admin:
-        logger.info(
-            f"Audit access denied: user {jwt_claims.get('sub')} not in admin group. Groups: {groups}"
-        )
+        logger.info(f"Audit access denied: user {jwt_claims.get('sub')} not in admin group. Groups: {groups}")
     return is_admin
 
 
@@ -45,16 +42,14 @@ def handle(
     cur,
     path: str,
     method: str,
-    params: Dict,
-    body: Optional[Dict] = None,
-    jwt_claims: Optional[Dict] = None,
-) -> Dict:
+    params: dict,
+    body: dict | None = None,
+    jwt_claims: dict | None = None,
+) -> dict:
     """Handle /api/audit/* endpoints."""
     # Require admin authorization for all audit endpoints (bypass in dev mode)
     if os.environ.get("DEV_BYPASS_AUTH") != "true" and not _check_admin_access(jwt_claims):
-        return error_response(
-            403, "forbidden", "Admin access required to view audit logs"
-        )
+        return error_response(403, "forbidden", "Admin access required to view audit logs")
 
     try:
         limit_str = params.get("limit", [None])[0] if params else None
@@ -77,12 +72,8 @@ def handle(
             audits = cur.fetchall()
             cur.execute("SELECT COUNT(*) FROM algo_audit_log")
             count_row = cur.fetchone()
-            total = next(
-                iter(safe_json_serialize(dict(count_row).values())), 0
-            ) if count_row else 0
-            freshness = check_data_freshness(
-                cur, "algo_audit_log", "created_at", warning_days=1
-            )
+            total = next(iter(safe_json_serialize(dict(count_row).values())), 0) if count_row else 0
+            freshness = check_data_freshness(cur, "algo_audit_log", "created_at", warning_days=1)
             return list_response(
                 [safe_json_serialize(dict(a)) for a in audits] if audits else [],
                 total=total,
@@ -107,12 +98,8 @@ def handle(
                     WHERE action_type IN ('entry', 'exit', 'partial_exit')
                 """)
             count_row = cur.fetchone()
-            total = next(
-                iter(safe_json_serialize(dict(count_row).values())), 0
-            ) if count_row else 0
-            freshness = check_data_freshness(
-                cur, "algo_audit_log", "created_at", warning_days=1
-            )
+            total = next(iter(safe_json_serialize(dict(count_row).values())), 0) if count_row else 0
+            freshness = check_data_freshness(cur, "algo_audit_log", "created_at", warning_days=1)
             return list_response(
                 [safe_json_serialize(dict(a)) for a in audits] if audits else [],
                 total=total,
@@ -137,21 +124,15 @@ def handle(
                     WHERE action_type LIKE 'config%' OR action_type = 'settings_change'
                 """)
             count_row = cur.fetchone()
-            total = next(
-                iter(safe_json_serialize(dict(count_row).values())), 0
-            ) if count_row else 0
-            freshness = check_data_freshness(
-                cur, "algo_audit_log", "created_at", warning_days=1
-            )
+            total = next(iter(safe_json_serialize(dict(count_row).values())), 0) if count_row else 0
+            freshness = check_data_freshness(cur, "algo_audit_log", "created_at", warning_days=1)
             return list_response(
                 [safe_json_serialize(dict(a)) for a in audits] if audits else [],
                 total=total,
                 data_freshness=freshness,
             )
 
-        elif path == "/api/audit/safeguards" or path.startswith(
-            "/api/audit/safeguards?"
-        ):
+        elif path == "/api/audit/safeguards" or path.startswith("/api/audit/safeguards?"):
             cur.execute(
                 """
                     SELECT id, created_at, action_type,
@@ -169,12 +150,8 @@ def handle(
                     WHERE action_type IN ('circuit_breaker_halt', 'circuit_breaker', 'safeguard', 'halt', 'exposure_policy')
                 """)
             count_row = cur.fetchone()
-            total = next(
-                iter(safe_json_serialize(dict(count_row).values())), 0
-            ) if count_row else 0
-            freshness = check_data_freshness(
-                cur, "algo_audit_log", "created_at", warning_days=1
-            )
+            total = next(iter(safe_json_serialize(dict(count_row).values())), 0) if count_row else 0
+            freshness = check_data_freshness(cur, "algo_audit_log", "created_at", warning_days=1)
             return list_response(
                 [safe_json_serialize(dict(a)) for a in audits] if audits else [],
                 total=total,

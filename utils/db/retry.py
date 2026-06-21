@@ -12,8 +12,9 @@ import time
 from collections.abc import Callable
 from typing import Any, TypeVar
 
-from utils.db.structured_logging import StructuredDBLogger
 import psycopg2
+
+from utils.db.structured_logging import StructuredDBLogger
 
 
 logger = logging.getLogger(__name__)
@@ -21,9 +22,7 @@ logger = logging.getLogger(__name__)
 T = TypeVar("T")
 
 
-def _get_retry_delay(
-    attempt: int, base_delay_ms: int = 100, max_delay_ms: int = 5000
-) -> float:
+def _get_retry_delay(attempt: int, base_delay_ms: int = 100, max_delay_ms: int = 5000) -> float:
     delay_ms = base_delay_ms * (2**attempt)
     delay_ms = min(delay_ms, max_delay_ms)
     return float(delay_ms / 1000.0)
@@ -115,9 +114,7 @@ class OptimisticLockRetry:
                     retry_attempt=attempt,
                     max_attempts=max_attempts,
                 )
-                logger.error(
-                    f"[Retry] {operation_name} failed with non-transient error: {e}"
-                )
+                logger.error(f"[Retry] {operation_name} failed with non-transient error: {e}")
                 raise
 
         # All retries exhausted
@@ -164,6 +161,7 @@ class OptimisticLockRetry:
 
         Raises: Non-retryable exceptions are raised immediately
         """
+
         def default_should_retry(e: Exception) -> bool:
             """Retry on connection/timeout errors, not on logic errors."""
             error_type = type(e).__name__
@@ -172,9 +170,7 @@ class OptimisticLockRetry:
                 "InterfaceError",  # psycopg2 connection error
                 "TimeoutError",  # Timeout
             )
-            return any(
-                retryable_type in error_type for retryable_type in retryable_types
-            )
+            return any(retryable_type in error_type for retryable_type in retryable_types)
 
         if should_retry is None:
             should_retry = default_should_retry
@@ -199,9 +195,7 @@ class OptimisticLockRetry:
                         retry_attempt=attempt,
                         max_attempts=max_attempts,
                     )
-                    logger.error(
-                        f"[Retry] {operation_name} failed with non-retryable error: {e}"
-                    )
+                    logger.error(f"[Retry] {operation_name} failed with non-retryable error: {e}")
                     raise
 
                 if attempt < max_attempts - 1:
@@ -218,9 +212,7 @@ class OptimisticLockRetry:
                     )
                     time.sleep(delay)
 
-        error_msg = (
-            f"[Retry] {operation_name} failed after {max_attempts} attempts: {last_error}"
-        )
+        error_msg = f"[Retry] {operation_name} failed after {max_attempts} attempts: {last_error}"
         StructuredDBLogger.log_db_error(
             operation_name=operation_name,
             query=query or "<operation>",
@@ -232,4 +224,3 @@ class OptimisticLockRetry:
         )
         logger.error(error_msg)
         raise RuntimeError(error_msg)
-

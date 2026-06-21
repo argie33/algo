@@ -1,7 +1,6 @@
 """Route: scores"""
 
 import logging
-from typing import Dict
 
 import psycopg2
 import psycopg2.errors
@@ -16,6 +15,7 @@ from routes.utils import (
     safe_limit,
     safe_offset,
 )
+
 from shared_contracts.response_validator import ResponseValidator
 
 
@@ -26,26 +26,20 @@ def handle(
     cur,
     path: str,
     method: str,
-    params: Dict,
-    body: Dict = None,
-    jwt_claims: Dict = None,
-) -> Dict:
+    params: dict,
+    body: dict | None = None,
+    jwt_claims: dict | None = None,
+) -> dict:
     """Handle /api/scores/* endpoints."""
     try:
         if (
-            path in ["/api/scores", "/api/scores/stockscores"]
-            or path.startswith("/api/scores?")
-            or path.startswith("/api/scores/stockscores?")
+            path in ["/api/scores", "/api/scores/stockscores"] or path.startswith(("/api/scores?", "/api/scores/stockscores?"))
         ):
             limit_str = params.get("limit", [None])[0] if params else None
             limit = safe_limit(limit_str or "1000", max_val=1000)
             offset_str = params.get("offset", [None])[0] if params else None
             offset = safe_offset(offset_str)
-            sort_by = (
-                params.get("sortBy", ["composite_score"])[0]
-                if params
-                else "composite_score"
-            )
+            sort_by = params.get("sortBy", ["composite_score"])[0] if params else "composite_score"
             sort_order = params.get("sortOrder", ["desc"])[0] if params else "desc"
             sp500_only = params.get("sp500Only", ["false"])[0] if params else "false"
             symbol = params.get("symbol", [None])[0] if params else None
@@ -64,16 +58,12 @@ def handle(
                 return error_response(
                     400,
                     "bad_request",
-                    f'Sort must be one of: {", ".join(allowed_sorts)}',
+                    f"Sort must be one of: {', '.join(allowed_sorts)}",
                 )
             if sort_order not in ["asc", "desc"]:
-                return error_response(
-                    400, "bad_request", 'Sort order must be "asc" or "desc"'
-                )
+                return error_response(400, "bad_request", 'Sort order must be "asc" or "desc"')
 
-            return _get_stock_scores(
-                cur, limit, offset, sort_by, sort_order, sp500_only == "true", symbol
-            )
+            return _get_stock_scores(cur, limit, offset, sort_by, sort_order, sp500_only == "true", symbol)
         else:
             return error_response(404, "not_found", f"No scores handler for {path}")
     except (
@@ -94,8 +84,8 @@ def _get_stock_scores(
     sort_by: str = "composite_score",
     sort_order: str = "desc",
     sp500_only: bool = False,
-    symbol: str = None,
-) -> Dict:
+    symbol: str | None = None,
+) -> dict:
     """Get stock scores with multi-factor ranking."""
     try:
         allowed_sorts = {
@@ -331,9 +321,7 @@ def _get_stock_scores(
             )
 
         # Check data freshness
-        freshness = check_data_freshness(
-            cur, "stock_scores", "updated_at", warning_days=7
-        )
+        freshness = check_data_freshness(cur, "stock_scores", "updated_at", warning_days=7)
 
         # Log warning if significant number of prices missing
         if prices_missing_count > 0 and items:

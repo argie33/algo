@@ -30,7 +30,6 @@ from utils.validation import (
 logger = logging.getLogger(__name__)
 
 
-
 @db_route_handler("fetch algo positions")
 def _get_algo_positions(cur, user_id: str | None = None) -> dict:
     """Get current open positions with computed fields.
@@ -209,9 +208,7 @@ def _get_algo_positions(cur, user_id: str | None = None) -> dict:
             "allocation_pct": round((abs(value) / total_abs_value) * 100, 1),
             "is_overweight": (abs(value) / total_abs_value) * 100 > 30,
         }
-        for sector, value in sorted(
-            sector_risk.items(), key=lambda x: abs(x[1]), reverse=True
-        )
+        for sector, value in sorted(sector_risk.items(), key=lambda x: abs(x[1]), reverse=True)
     ]
 
     freshness = check_data_freshness(cur, "algo_positions", "modified_at", warning_days=1)
@@ -234,7 +231,6 @@ def _get_algo_positions(cur, user_id: str | None = None) -> dict:
     return json_response(200, sanitized)
 
 
-
 @db_route_handler("fetch algo status")
 def _get_algo_status(cur) -> dict:
     """Get latest algo execution status plus latest portfolio snapshot."""
@@ -252,9 +248,7 @@ def _get_algo_status(cur) -> dict:
         """)
     row = cur.fetchone()
     if row is None:
-        return json_response(
-            200, {"status": "no_runs_yet", "last_run": None, "portfolio": {}}
-        )
+        return json_response(200, {"status": "no_runs_yet", "last_run": None, "portfolio": {}})
 
     portfolio = {}
     try:
@@ -275,15 +269,15 @@ def _get_algo_status(cur) -> dict:
                 "total_portfolio_value": format_decimal_string(pv, precision=2, allow_none=True),
                 "total_cash": format_decimal_string(float(snap["total_cash"]) or 0, precision=2),
                 "position_count": int(snap["position_count"]),
-                "daily_return_pct": format_decimal_string(float(snap["daily_return_pct"]), precision=2, allow_none=True),
+                "daily_return_pct": format_decimal_string(
+                    float(snap["daily_return_pct"]), precision=2, allow_none=True
+                ),
                 "unrealized_pnl_pct": format_decimal_string(
                     unrealized_pnl_pct,
                     precision=2,
                     allow_none=True,
                 ),
-                "unrealized_pnl_dollars": format_decimal_string(
-                    unrealized_pnl, precision=2, allow_none=True
-                ),
+                "unrealized_pnl_dollars": format_decimal_string(unrealized_pnl, precision=2, allow_none=True),
             }
     except (
         psycopg2.errors.UndefinedTable,
@@ -295,9 +289,7 @@ def _get_algo_status(cur) -> dict:
         code, error_type, message = handle_db_error(e, "fetch portfolio snapshot")
         return error_response(code, error_type, message)
 
-    freshness = check_data_freshness(
-        cur, "algo_audit_log", "created_at", warning_days=1
-    )
+    freshness = check_data_freshness(cur, "algo_audit_log", "created_at", warning_days=1)
     return json_response(
         200,
         {
@@ -312,11 +304,8 @@ def _get_algo_status(cur) -> dict:
     )
 
 
-
 @db_route_handler("fetch algo trades")
-def _get_algo_trades(
-    cur, limit: int = 200, user_id: str | None = None, status: str | None = None
-) -> dict:
+def _get_algo_trades(cur, limit: int = 200, user_id: str | None = None, status: str | None = None) -> dict:
     """Get recent trades with all fields for frontend (scoped to user if user_id provided, filtered by status if provided)."""
     where_parts = []
     params = []
@@ -368,7 +357,6 @@ def _get_algo_trades(
     return json_response(200, sanitized)
 
 
-
 @db_route_handler("fetch circuit breakers")
 def _get_circuit_breakers(cur) -> dict:
     """Get real-time circuit breaker state with current values vs thresholds."""
@@ -389,23 +377,15 @@ def _get_circuit_breakers(cur) -> dict:
                 from utils.db.sql_safety import assert_safe_table
 
                 table_safe = assert_safe_table(table)
-                cur.execute(
-                    psycopg2.sql.SQL("SELECT 1 FROM {} LIMIT 1").format(
-                        psycopg2.sql.Identifier(table_safe)
-                    )
-                )
+                cur.execute(psycopg2.sql.SQL("SELECT 1 FROM {} LIMIT 1").format(psycopg2.sql.Identifier(table_safe)))
             except (psycopg2.errors.UndefinedTable, psycopg2.errors.UndefinedSchema):
                 missing_tables.append(table)
             except (psycopg2.DatabaseError, psycopg2.OperationalError) as e:
-                logger.error(
-                    f"Unexpected error checking table {table}: {type(e).__name__}: {e}"
-                )
+                logger.error(f"Unexpected error checking table {table}: {type(e).__name__}: {e}")
                 missing_tables.append(table)
 
         if missing_tables:
-            logger.error(
-                f"ALERT: Circuit breaker CRITICAL config tables missing: {missing_tables}"
-            )
+            logger.error(f"ALERT: Circuit breaker CRITICAL config tables missing: {missing_tables}")
             return json_response(
                 503,
                 {
@@ -439,7 +419,11 @@ def _get_circuit_breakers(cur) -> dict:
                         "breakers": [],
                         "any_triggered": False,
                         "triggered_count": 0,
-                        "data_freshness": {"data_age_days": None, "is_stale": True, "warning": "Circuit breaker data unavailable"},
+                        "data_freshness": {
+                            "data_age_days": None,
+                            "is_stale": True,
+                            "warning": "Circuit breaker data unavailable",
+                        },
                         "errorType": "missing_circuit_breaker_data",
                         "message": "Circuit breaker metrics unavailable. Trading disabled until data is available.",
                         "_error": "Circuit breaker metrics unavailable. Trading disabled until data is available.",
@@ -447,7 +431,14 @@ def _get_circuit_breakers(cur) -> dict:
                 )
 
             # Validate critical fields exist and are non-null (fail-closed)
-            critical_fields = ["portfolio_drawdown_pct", "daily_loss_pct", "weekly_loss_pct", "open_risk_pct", "consecutive_losses", "market_stage"]
+            critical_fields = [
+                "portfolio_drawdown_pct",
+                "daily_loss_pct",
+                "weekly_loss_pct",
+                "open_risk_pct",
+                "consecutive_losses",
+                "market_stage",
+            ]
             missing = [f for f in critical_fields if cbm_row[f] is None]
             if missing:
                 logger.error(f"Circuit breaker critical fields missing: {missing}")
@@ -457,7 +448,11 @@ def _get_circuit_breakers(cur) -> dict:
                         "breakers": [],
                         "any_triggered": False,
                         "triggered_count": 0,
-                        "data_freshness": {"data_age_days": None, "is_stale": True, "warning": "Circuit breaker data incomplete"},
+                        "data_freshness": {
+                            "data_age_days": None,
+                            "is_stale": True,
+                            "warning": "Circuit breaker data incomplete",
+                        },
                         "errorType": "incomplete_circuit_breaker_data",
                         "message": f"Circuit breaker data incomplete (missing {', '.join(missing)}). Trading disabled.",
                         "_error": "Circuit breaker data incomplete. Trading disabled.",
@@ -506,7 +501,11 @@ def _get_circuit_breakers(cur) -> dict:
                     "breakers": [],
                     "any_triggered": False,
                     "triggered_count": 0,
-                    "data_freshness": {"data_age_days": None, "is_stale": True, "warning": "Circuit breaker data error"},
+                    "data_freshness": {
+                        "data_age_days": None,
+                        "is_stale": True,
+                        "warning": "Circuit breaker data error",
+                    },
                     "errorType": "circuit_breaker_computation_error",
                     "message": f"Circuit breaker computation error (drawdown): {e!s}",
                     "_error": "Circuit breaker computation failed. Trading disabled.",
@@ -536,7 +535,11 @@ def _get_circuit_breakers(cur) -> dict:
                     "breakers": [],
                     "any_triggered": False,
                     "triggered_count": 0,
-                    "data_freshness": {"data_age_days": None, "is_stale": True, "warning": "Circuit breaker data error"},
+                    "data_freshness": {
+                        "data_age_days": None,
+                        "is_stale": True,
+                        "warning": "Circuit breaker data error",
+                    },
                     "errorType": "circuit_breaker_computation_error",
                     "message": f"Circuit breaker computation error (daily_loss): {e!s}",
                     "_error": "Circuit breaker computation failed. Trading disabled.",
@@ -566,7 +569,11 @@ def _get_circuit_breakers(cur) -> dict:
                     "breakers": [],
                     "any_triggered": False,
                     "triggered_count": 0,
-                    "data_freshness": {"data_age_days": None, "is_stale": True, "warning": "Circuit breaker data error"},
+                    "data_freshness": {
+                        "data_age_days": None,
+                        "is_stale": True,
+                        "warning": "Circuit breaker data error",
+                    },
                     "errorType": "circuit_breaker_computation_error",
                     "message": f"Circuit breaker computation error (consecutive_losses): {e!s}",
                     "_error": "Circuit breaker computation failed. Trading disabled.",
@@ -625,7 +632,11 @@ def _get_circuit_breakers(cur) -> dict:
                     "breakers": [],
                     "any_triggered": False,
                     "triggered_count": 0,
-                    "data_freshness": {"data_age_days": None, "is_stale": True, "warning": "Circuit breaker data error"},
+                    "data_freshness": {
+                        "data_age_days": None,
+                        "is_stale": True,
+                        "warning": "Circuit breaker data error",
+                    },
                     "errorType": "circuit_breaker_computation_error",
                     "message": f"Circuit breaker computation error (weekly_loss): {e!s}",
                     "_error": "Circuit breaker computation failed. Trading disabled.",
@@ -654,7 +665,11 @@ def _get_circuit_breakers(cur) -> dict:
                     "breakers": [],
                     "any_triggered": False,
                     "triggered_count": 0,
-                    "data_freshness": {"data_age_days": None, "is_stale": True, "warning": "Circuit breaker data error"},
+                    "data_freshness": {
+                        "data_age_days": None,
+                        "is_stale": True,
+                        "warning": "Circuit breaker data error",
+                    },
                     "errorType": "circuit_breaker_computation_error",
                     "message": f"Circuit breaker computation error (market_stage): {e!s}",
                     "_error": "Circuit breaker computation failed. Trading disabled.",
@@ -684,7 +699,11 @@ def _get_circuit_breakers(cur) -> dict:
                     "breakers": [],
                     "any_triggered": False,
                     "triggered_count": 0,
-                    "data_freshness": {"data_age_days": None, "is_stale": True, "warning": "Circuit breaker data error"},
+                    "data_freshness": {
+                        "data_age_days": None,
+                        "is_stale": True,
+                        "warning": "Circuit breaker data error",
+                    },
                     "errorType": "circuit_breaker_computation_error",
                     "message": f"Circuit breaker computation error (total_risk): {e!s}",
                     "_error": "Circuit breaker computation failed. Trading disabled.",
@@ -724,9 +743,7 @@ def _get_circuit_breakers(cur) -> dict:
             else:
                 raise ValueError("Insufficient price history")
         except (ValueError, ZeroDivisionError, TypeError) as e:
-            logger.error(
-                f"CB8 (intraday_health) computation failed: {type(e).__name__}: {e}"
-            )
+            logger.error(f"CB8 (intraday_health) computation failed: {type(e).__name__}: {e}")
             breakers.append(
                 {
                     "id": "intraday_health",
@@ -788,9 +805,7 @@ def _get_circuit_breakers(cur) -> dict:
 
         any_halted = any(b["triggered"] for b in breakers)
         triggered_count = sum(1 for b in breakers if b["triggered"])
-        freshness = check_data_freshness(
-            cur, "algo_portfolio_snapshots", "snapshot_date", warning_days=1
-        )
+        freshness = check_data_freshness(cur, "algo_portfolio_snapshots", "snapshot_date", warning_days=1)
 
         for breaker in breakers:
             if breaker["unit"] == "%":
@@ -822,7 +837,6 @@ def _get_circuit_breakers(cur) -> dict:
         return error_response(code, error_type, message)
 
 
-
 @db_route_handler("fetch dashboard signals")
 def _get_dashboard_signals(cur) -> dict:
     """Get dashboard-specific signal data with aggregations for the Ops Terminal.
@@ -831,7 +845,6 @@ def _get_dashboard_signals(cur) -> dict:
     near-miss signals, top A-grade stocks, and signal trend.
     """
     try:
-
         # buy_sell_daily was removed from the pipeline; use swing_trader_scores instead.
         cur.execute(
             """
@@ -859,9 +872,7 @@ def _get_dashboard_signals(cur) -> dict:
                 WHERE s.date=(SELECT MAX(date) FROM swing_trader_scores)
                 ORDER BY s.score DESC
                 LIMIT 30""")
-        buy_sigs = [
-            safe_json_serialize(safe_dict_convert(row)) for row in cur.fetchall()
-        ]
+        buy_sigs = [safe_json_serialize(safe_dict_convert(row)) for row in cur.fetchall()]
 
         # Grade distribution (A/B/C/D by swing score)
         cur.execute("""
@@ -908,8 +919,7 @@ def _get_dashboard_signals(cur) -> dict:
 
         # Count qualifying buy signals (score >= 70) for the "n BUY" display
         qualifying_buy_count = sum(
-            1 for s in buy_sigs
-            if s.get("signal_quality_score") is not None and s.get("signal_quality_score") >= 70
+            1 for s in buy_sigs if s.get("signal_quality_score") is not None and s.get("signal_quality_score") >= 70
         )
         sig_response = {
             "n": qualifying_buy_count,
@@ -936,7 +946,6 @@ def _get_dashboard_signals(cur) -> dict:
     ) as e:
         code, error_type, message = handle_db_error(e, "fetch dashboard signals")
         return error_response(code, error_type, message)
-
 
 
 @db_route_handler("fetch equity curve")
@@ -969,9 +978,7 @@ def _get_equity_curve(cur, days: int = 180) -> dict:
             (cutoff_date,),
         )
         curve = cur.fetchall()
-        freshness = check_data_freshness(
-            cur, "algo_portfolio_snapshots", "snapshot_date", warning_days=1
-        )
+        freshness = check_data_freshness(cur, "algo_portfolio_snapshots", "snapshot_date", warning_days=1)
         return list_response(
             [safe_json_serialize(safe_dict_convert(c)) for c in reversed(curve) if c],
             data_freshness=freshness,
@@ -985,6 +992,3 @@ def _get_equity_curve(cur, days: int = 180) -> dict:
     ) as e:
         code, error_type, message = handle_db_error(e, "fetch equity curve")
         return error_response(code, error_type, message)
-
-
-

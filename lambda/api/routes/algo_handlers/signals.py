@@ -20,15 +20,14 @@ from routes.utils import (
     safe_dict_convert,
     safe_json_serialize,
 )
-from shared_contracts.response_validator import ResponseValidator
 
+from shared_contracts.response_validator import ResponseValidator
 from utils.validation import (
     format_decimal_string,
 )
 
 
 logger = logging.getLogger(__name__)
-
 
 
 def _calculate_pre_trade_impact(cur, body: dict) -> dict:
@@ -78,9 +77,12 @@ def _calculate_pre_trade_impact(cur, body: dict) -> dict:
         pct_of_portfolio = (actual_dollars / portfolio_value * 100) if portfolio_value > 0 else 0
 
         # Symbol sector
-        cur.execute("""
+        cur.execute(
+            """
             SELECT sector FROM company_profile WHERE ticker = %s LIMIT 1
-        """, (symbol,))
+        """,
+            (symbol,),
+        )
         profile_row = cur.fetchone()
         sector = profile_row["sector"] if profile_row else None
 
@@ -102,7 +104,6 @@ def _calculate_pre_trade_impact(cur, body: dict) -> dict:
                         return error_response(503, "data_unavailable", "Sector exposure data incomplete")
                     sector_exposure[sr["sector"]] = sector_val
         except (psycopg2.DatabaseError, psycopg2.OperationalError) as e:
-
             raise RuntimeError(f"Unexpected error: {e}") from e
 
         current_sector_dollars = sector_exposure.get(sector, 0.0) if sector else 0.0
@@ -115,23 +116,30 @@ def _calculate_pre_trade_impact(cur, body: dict) -> dict:
         available_slots = max(0, max_positions - open_positions)
         sector_warning = sector and projected_sector_pct > 30
 
-        return json_response(200, {
-            "symbol": symbol,
-            "sector": sector,
-            "entry_price": format_decimal_string(entry_price, precision=2, allow_none=True),
-            "shares": shares,
-            "position_dollars": format_decimal_string(actual_dollars, precision=2),
-            "pct_of_portfolio": format_decimal_string(pct_of_portfolio, precision=2),
-            "portfolio_value": format_decimal_string(portfolio_value, precision=2),
-            "open_positions": open_positions,
-            "available_slots": available_slots,
-            "sector_exposure": {
-                "current_pct": format_decimal_string((current_sector_dollars / portfolio_value * 100) if portfolio_value > 0 else 0, precision=2),
-                "projected_pct": format_decimal_string(projected_sector_pct, precision=2),
-                "warning": sector_warning,
-                "warning_msg": f"Sector {sector} would reach {projected_sector_pct:.1f}% (limit 30%)" if sector_warning else None,
+        return json_response(
+            200,
+            {
+                "symbol": symbol,
+                "sector": sector,
+                "entry_price": format_decimal_string(entry_price, precision=2, allow_none=True),
+                "shares": shares,
+                "position_dollars": format_decimal_string(actual_dollars, precision=2),
+                "pct_of_portfolio": format_decimal_string(pct_of_portfolio, precision=2),
+                "portfolio_value": format_decimal_string(portfolio_value, precision=2),
+                "open_positions": open_positions,
+                "available_slots": available_slots,
+                "sector_exposure": {
+                    "current_pct": format_decimal_string(
+                        (current_sector_dollars / portfolio_value * 100) if portfolio_value > 0 else 0, precision=2
+                    ),
+                    "projected_pct": format_decimal_string(projected_sector_pct, precision=2),
+                    "warning": sector_warning,
+                    "warning_msg": f"Sector {sector} would reach {projected_sector_pct:.1f}% (limit 30%)"
+                    if sector_warning
+                    else None,
+                },
             },
-        })
+        )
 
     except (
         psycopg2.errors.UndefinedTable,
@@ -142,7 +150,6 @@ def _calculate_pre_trade_impact(cur, body: dict) -> dict:
     ) as e:
         code, error_type, message = handle_db_error(e, "calculate pre-trade impact")
         return error_response(code, error_type, message)
-
 
 
 @db_route_handler("calculate trade preview")
@@ -172,11 +179,7 @@ def _calculate_trade_preview(cur, body: dict) -> dict:
             ORDER BY snapshot_date DESC LIMIT 1
         """)
         portfolio_row = cur.fetchone()
-        portfolio_value = (
-            float(portfolio_row["total_portfolio_value"])
-            if portfolio_row
-            else None
-        )
+        portfolio_value = float(portfolio_row["total_portfolio_value"]) if portfolio_row else None
 
         if not portfolio_value or portfolio_value <= 0:
             return error_response(
@@ -192,9 +195,7 @@ def _calculate_trade_preview(cur, body: dict) -> dict:
         base_risk_pct = 0.0075
         position_dollars = portfolio_value * base_risk_pct
         shares = int(position_dollars / entry_price) if entry_price > 0 else 0
-        pct_of_portfolio = (
-            (shares * entry_price / portfolio_value * 100) if portfolio_value > 0 else 0
-        )
+        pct_of_portfolio = (shares * entry_price / portfolio_value * 100) if portfolio_value > 0 else 0
         total_risk_amount = (risk_amount * shares) if risk_amount else None
 
         targets = {}
@@ -222,9 +223,7 @@ def _calculate_trade_preview(cur, body: dict) -> dict:
                 ),
                 "shares": shares,
                 "pct_of_portfolio": format_decimal_string(pct_of_portfolio, precision=2),
-                "risk_amount": (
-                    format_decimal_string(total_risk_amount, precision=2) if total_risk_amount else None
-                ),
+                "risk_amount": (format_decimal_string(total_risk_amount, precision=2) if total_risk_amount else None),
                 "position_value": format_decimal_string(shares * entry_price, precision=2),
                 "targets": targets,
                 "portfolio_value": format_decimal_string(portfolio_value, precision=2),
@@ -240,7 +239,6 @@ def _calculate_trade_preview(cur, body: dict) -> dict:
     ) as e:
         code, error_type, message = handle_db_error(e, "calculate trade preview")
         return error_response(code, error_type, message)
-
 
 
 @db_route_handler("fetch rejection funnel")
@@ -291,9 +289,7 @@ def _get_rejection_funnel(cur) -> dict:
 
         if initial_count > 0:
             scored_rejection = initial_count - scored_count
-            scored_pct = (
-                round((scored_count / initial_count * 100), 2) if initial_count else 0
-            )
+            scored_pct = round((scored_count / initial_count * 100), 2) if initial_count else 0
 
             funnel.append(
                 {
@@ -302,21 +298,13 @@ def _get_rejection_funnel(cur) -> dict:
                     "pct": scored_pct,
                     "rejection_reason": "Failed SQS calculation or data validation",
                     "rejection_count": scored_rejection,
-                    "rejection_pct": (
-                        round((scored_rejection / initial_count * 100), 2)
-                        if initial_count
-                        else 0
-                    ),
+                    "rejection_pct": (round((scored_rejection / initial_count * 100), 2) if initial_count else 0),
                 }
             )
 
             if scored_count > 0:
                 hq_rejection = scored_count - high_quality_count
-                hq_pct = (
-                    round((high_quality_count / scored_count * 100), 2)
-                    if scored_count
-                    else 0
-                )
+                hq_pct = round((high_quality_count / scored_count * 100), 2) if scored_count else 0
 
                 funnel.append(
                     {
@@ -325,11 +313,7 @@ def _get_rejection_funnel(cur) -> dict:
                         "pct": hq_pct,
                         "rejection_reason": "Low signal quality score (SQS < 60)",
                         "rejection_count": hq_rejection,
-                        "rejection_pct": (
-                            round((hq_rejection / scored_count * 100), 2)
-                            if scored_count
-                            else 0
-                        ),
+                        "rejection_pct": (round((hq_rejection / scored_count * 100), 2) if scored_count else 0),
                     }
                 )
 
@@ -369,11 +353,7 @@ def _get_rejection_funnel(cur) -> dict:
                 "total_initial": initial_count,
                 "total_passed": high_quality_count,
                 "total_rejected": initial_count - high_quality_count,
-                "pass_rate_pct": (
-                    round((high_quality_count / initial_count * 100), 2)
-                    if initial_count
-                    else 0
-                ),
+                "pass_rate_pct": (round((high_quality_count / initial_count * 100), 2) if initial_count else 0),
             },
             "rejected": rejected_list,
             "total": initial_count,
@@ -467,7 +447,6 @@ _TIER_CONFIG = {
 }
 
 
-
 def _get_rejection_reason_description(reason: str) -> str:
     """Generate human-readable description for rejection reason."""
     reason_lower = (reason or "").lower()
@@ -495,11 +474,8 @@ def _get_rejection_reason_description(reason: str) -> str:
     return reason or "Unknown rejection reason"
 
 
-
 @db_route_handler("fetch swing scores")
-def _get_swing_scores(
-    cur, limit: int = 100, min_score: float | None = None, symbol: str | None = None
-) -> dict:
+def _get_swing_scores(cur, limit: int = 100, min_score: float | None = None, symbol: str | None = None) -> dict:
     """Get swing trade candidates with scoring."""
     try:
         # Use psycopg2.sql for safe SQL composition
@@ -532,9 +508,7 @@ def _get_swing_scores(
             """).format(where_clause=where_clause)
         cur.execute(query, query_params)
         scores = cur.fetchall()
-        return list_response(
-            [safe_json_serialize(safe_dict_convert(s)) for s in scores]
-        )
+        return list_response([safe_json_serialize(safe_dict_convert(s)) for s in scores])
     except (
         psycopg2.errors.UndefinedTable,
         psycopg2.errors.UndefinedColumn,
@@ -544,7 +518,6 @@ def _get_swing_scores(
     ) as e:
         code, error_type, message = handle_db_error(e, "fetch swing scores")
         return error_response(code, error_type, message)
-
 
 
 @db_route_handler("fetch swing scores history")
@@ -568,9 +541,7 @@ def _get_swing_scores_history(cur, days: int = 30) -> dict:
             (cutoff_date,),
         )
         history = cur.fetchall()
-        return list_response(
-            [safe_json_serialize(safe_dict_convert(h)) for h in history]
-        )
+        return list_response([safe_json_serialize(safe_dict_convert(h)) for h in history])
     except (
         psycopg2.errors.UndefinedTable,
         psycopg2.errors.UndefinedColumn,
@@ -582,9 +553,4 @@ def _get_swing_scores_history(cur, days: int = 30) -> dict:
             f"Failed to fetch swing scores history: {type(e).__name__}: {e!s}\n  Operation: Query algo_swing_score_history with days parameter\n  Endpoint: GET /api/algo/swing-scores-history",
             exc_info=True,
         )
-        return error_response(
-            500, "internal_error", "Failed to fetch swing scores history"
-        )
-
-
-
+        return error_response(500, "internal_error", "Failed to fetch swing scores history")

@@ -20,9 +20,7 @@ class CompanyProfileLoader(OptimalLoader):
     primary_key = ("ticker",)
     watermark_field = "created_at"
 
-    def fetch_incremental(
-        self, symbol: str, since: date | None
-    ) -> list[dict] | None:
+    def fetch_incremental(self, symbol: str, since: date | None) -> list[dict] | None:
         """Fetch company info from yfinance for a symbol."""
         ticker = get_ticker(symbol)
         if not ticker:
@@ -67,9 +65,7 @@ class CompanyProfileLoader(OptimalLoader):
                     "exchange": exchange,
                     "website": info.get("website"),
                     "employees": info.get("fullTimeEmployees"),
-                    "market_cap": (
-                        int(market_cap) if market_cap and market_cap > 0 else None
-                    ),
+                    "market_cap": (int(market_cap) if market_cap and market_cap > 0 else None),
                 }
             ]
         except (ValueError, ZeroDivisionError, TypeError) as e:
@@ -77,7 +73,6 @@ class CompanyProfileLoader(OptimalLoader):
                 f"[COMPANY_PROFILE] Failed to fetch profile for {symbol}: {e}. "
                 "Cannot proceed without sector/industry data."
             )
-
 
 
 if __name__ == "__main__":

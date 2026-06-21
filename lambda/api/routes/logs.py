@@ -27,7 +27,6 @@ Body: {
 
 import json
 import logging
-from typing import Dict
 
 import boto3
 from routes.utils import error_response, success_response
@@ -62,10 +61,10 @@ def handle(
     cur,
     path: str,
     method: str,
-    params: Dict,
-    body: Dict = None,
-    jwt_claims: Dict = None,
-) -> Dict:
+    params: dict,
+    body: dict | None = None,
+    jwt_claims: dict | None = None,
+) -> dict:
     """Handle frontend error logging.
 
     POST /api/logs - Receive and log frontend errors to CloudWatch
@@ -134,9 +133,7 @@ def handle(
 
                     timestamp_ms = int(datetime.now(timezone.utc).timestamp() * 1000)
             except (ValueError, AttributeError, TypeError) as e:
-                logger.warning(
-                    f"Failed to parse log entry timestamp '{timestamp_str}': {e}, using current time"
-                )
+                logger.warning(f"Failed to parse log entry timestamp '{timestamp_str}': {e}, using current time")
                 from datetime import datetime, timezone
 
                 timestamp_ms = int(datetime.now(timezone.utc).timestamp() * 1000)
@@ -156,9 +153,7 @@ def handle(
                     logStreamName=stream_name,
                     logEvents=log_events,
                 )
-                logger.info(
-                    f"Logged {len(log_events)} frontend events to {stream_name}"
-                )
+                logger.info(f"Logged {len(log_events)} frontend events to {stream_name}")
             except (json.JSONDecodeError, ValueError) as e:
                 logger.error(f"Failed to put logs to CloudWatch: {e}")
                 # Still return success to avoid breaking frontend

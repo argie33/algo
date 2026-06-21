@@ -19,6 +19,7 @@ from typing import Any
 @dataclass(frozen=True)
 class FilterWeight:
     """A scoring weight for a filter component."""
+
     name: str
     value: float
     category: str
@@ -32,6 +33,7 @@ class FilterWeight:
 @dataclass(frozen=True)
 class FilterThreshold:
     """A validation threshold for filter gates."""
+
     name: str
     value: Any
     value_type: str  # 'int', 'float', 'bool', 'str'
@@ -262,9 +264,9 @@ class FilterRegistry:
     # ============= SUBSCORES (components of composite score) =============
     SUBSCORE_CAPS = {
         "momentum": 40.0,  # Maximum points from all momentum filters
-        "quality": 30.0,   # Maximum points from all quality filters
+        "quality": 30.0,  # Maximum points from all quality filters
         "catalyst": 15.0,  # Maximum points from all catalyst filters
-        "risk": 15.0,      # Maximum points from all risk filters
+        "risk": 15.0,  # Maximum points from all risk filters
     }
 
     @classmethod
@@ -281,21 +283,13 @@ class FilterRegistry:
         risk_total = sum(w.value for w in cls.WEIGHTS.values() if w.category == "Risk")
 
         if momentum_total != cls.SUBSCORE_CAPS["momentum"]:
-            raise ValueError(
-                f"Momentum weights sum to {momentum_total}, expected {cls.SUBSCORE_CAPS['momentum']}"
-            )
+            raise ValueError(f"Momentum weights sum to {momentum_total}, expected {cls.SUBSCORE_CAPS['momentum']}")
         if quality_total != cls.SUBSCORE_CAPS["quality"]:
-            raise ValueError(
-                f"Quality weights sum to {quality_total}, expected {cls.SUBSCORE_CAPS['quality']}"
-            )
+            raise ValueError(f"Quality weights sum to {quality_total}, expected {cls.SUBSCORE_CAPS['quality']}")
         if catalyst_total != cls.SUBSCORE_CAPS["catalyst"]:
-            raise ValueError(
-                f"Catalyst weights sum to {catalyst_total}, expected {cls.SUBSCORE_CAPS['catalyst']}"
-            )
+            raise ValueError(f"Catalyst weights sum to {catalyst_total}, expected {cls.SUBSCORE_CAPS['catalyst']}")
         if risk_total != cls.SUBSCORE_CAPS["risk"]:
-            raise ValueError(
-                f"Risk weights sum to {risk_total}, expected {cls.SUBSCORE_CAPS['risk']}"
-            )
+            raise ValueError(f"Risk weights sum to {risk_total}, expected {cls.SUBSCORE_CAPS['risk']}")
 
         # Validate that subscore caps sum to 100
         total = sum(cls.SUBSCORE_CAPS.values())

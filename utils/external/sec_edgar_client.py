@@ -10,23 +10,23 @@ import os
 import random
 import threading
 import time
-from typing import Any, Dict, List, Optional, cast
+from typing import Any, cast
 
 import requests
 
 from utils.external import sec_statements
 from utils.external.sec_ticker_cache import TickerCache
 
+
 logger = logging.getLogger(__name__)
 
 EDGAR_BASE = os.getenv("EDGAR_BASE_URL", "https://data.sec.gov")
-TICKER_URL = os.getenv(
-    "SEC_TICKER_URL", "https://www.sec.gov/files/company_tickers.json"
-)
+TICKER_URL = os.getenv("SEC_TICKER_URL", "https://www.sec.gov/files/company_tickers.json")
 DEFAULT_USER_AGENT = os.getenv(
     "SEC_USER_AGENT",
     "algo-trading argeropolos@gmail.com",
 )
+
 
 class RateLimiter:
     """SEC requires <10 req/sec. We target 8/sec for safety margin."""
@@ -43,6 +43,7 @@ class RateLimiter:
                 time.sleep(self.min_interval - elapsed)
             self._last_request = time.monotonic()
 
+
 class SecEdgarClient:
     """Client for SEC EDGAR XBRL APIs.
 
@@ -53,15 +54,14 @@ class SecEdgarClient:
 
     def __init__(
         self,
-        user_agent: Optional[str] = None,
+        user_agent: str | None = None,
         cache_ttl: int = 86400,
         timeout: float = 10.0,
     ):
         self.user_agent = user_agent or DEFAULT_USER_AGENT
         if "@" not in self.user_agent:
             logger.warning(
-                "SEC requires User-Agent with contact email. "
-                "Set SEC_USER_AGENT env var: 'AppName admin@example.com'"
+                "SEC requires User-Agent with contact email. Set SEC_USER_AGENT env var: 'AppName admin@example.com'"
             )
         self.timeout = timeout
         # Rate limiter: SEC allows 10 req/sec. With many parallel ECS tasks,
@@ -93,7 +93,7 @@ class SecEdgarClient:
 
     # ----- Core API -----
 
-    def get_company_facts(self, cik: str) -> Dict[str, Any]:
+    def get_company_facts(self, cik: str) -> dict[str, Any]:
         """All XBRL facts for a company. Single endpoint, returns everything.
 
         Returns: {
@@ -116,17 +116,17 @@ class SecEdgarClient:
         cik: str,
         taxonomy: str,
         concept: str,
-    ) -> Dict[str, Any]:
+    ) -> dict[str, Any]:
         """Specific concept (e.g. Revenues) — lighter than full company facts."""
         url = f"{EDGAR_BASE}/api/xbrl/companyconcept/CIK{cik}/{taxonomy}/{concept}.json"
         return self._get_json(url)
 
-    def get_submissions(self, cik: str) -> Dict[str, Any]:
+    def get_submissions(self, cik: str) -> dict[str, Any]:
         """List of all filings for a company (10K, 10Q, 8K, etc.)."""
         url = f"{EDGAR_BASE}/submissions/CIK{cik}.json"
         return self._get_json(url)
 
-    def _get_json(self, url: str) -> Dict[str, Any]:
+    def _get_json(self, url: str) -> dict[str, Any]:
         """Fetch JSON from SEC API with retry logic for rate limiting & 403 errors.
 
         With 8+ parallel ECS tasks hitting the 10 req/sec SEC limit, we need
@@ -141,14 +141,10 @@ class SecEdgarClient:
             except (requests.ConnectionError, requests.Timeout) as e:
                 if attempt < max_retries - 1:
                     wait_time = 4 * (2**attempt) + random.uniform(0, 2)
-                    logger.warning(
-                        f"SEC API network error for {url}: {e}. Retry in {wait_time:.1f}s"
-                    )
+                    logger.warning(f"SEC API network error for {url}: {e}. Retry in {wait_time:.1f}s")
                     time.sleep(wait_time)
                     continue
-                raise RuntimeError(
-                    f"SEC API network error after {max_retries} retries: {e}"
-                ) from e
+                raise RuntimeError(f"SEC API network error after {max_retries} retries: {e}") from e
 
             # 404 means the data doesn't exist
             if resp.status_code == 404:
@@ -160,25 +156,19 @@ class SecEdgarClient:
                     base_wait = 4 * (2**attempt)
                     jitter = random.uniform(0, base_wait * 0.3)
                     wait_time = base_wait + jitter
-                    status_name = (
-                        "rate limited (429)"
-                        if resp.status_code == 429
-                        else "forbidden (403)"
-                    )
+                    status_name = "rate limited (429)" if resp.status_code == 429 else "forbidden (403)"
                     logger.debug(
                         f"SEC API {status_name} for {url}. Retry in {wait_time:.1f}s (attempt {attempt + 1}/{max_retries})"
                     )
                     time.sleep(wait_time)
                     continue
                 else:
-                    raise RuntimeError(
-                        f"SEC API failed after {max_retries} retries: {resp.status_code} {resp.reason}"
-                    )
+                    raise RuntimeError(f"SEC API failed after {max_retries} retries: {resp.status_code} {resp.reason}")
 
             # Other HTTP errors
             try:
                 resp.raise_for_status()
-                return cast(Dict[str, Any], resp.json())
+                return cast(dict[str, Any], resp.json())
             except requests.HTTPError as e:
                 raise RuntimeError(f"SEC API error for {url}: {e}") from e
 
@@ -191,7 +181,7 @@ class SecEdgarClient:
         symbol: str,
         concept: str,
         taxonomy: str = "us-gaap",
-    ) -> List[Dict[str, Any]]:
+    ) -> list[dict[str, Any]]:
         """Fetch annual values for a GAAP concept. Filters to FY periods.
 
         Returns: [
@@ -203,7 +193,7 @@ class SecEdgarClient:
         data = self.get_concept(cik, taxonomy, concept)
 
         units = data.get("units")
-        results: List[Dict[str, Any]] = []
+        results: list[dict[str, Any]] = []
         if units is None:
             return results
         for unit, entries in units.items():
@@ -228,13 +218,13 @@ class SecEdgarClient:
         symbol: str,
         concept: str,
         taxonomy: str = "us-gaap",
-    ) -> List[Dict[str, Any]]:
+    ) -> list[dict[str, Any]]:
         """Same as annual, but returns quarterly periods (Q1-Q4)."""
         cik = self.symbol_to_cik(symbol)
         data = self.get_concept(cik, taxonomy, concept)
 
         units = data.get("units")
-        results: List[Dict[str, Any]] = []
+        results: list[dict[str, Any]] = []
         if units is None:
             return results
         for unit, entries in units.items():
@@ -257,20 +247,14 @@ class SecEdgarClient:
 
     # ----- Financial statements (balance sheet, income statement, cash flow) -----
 
-    def get_balance_sheet(
-        self, symbol: str, period: str = "annual"
-    ) -> List[Dict[str, Any]]:
+    def get_balance_sheet(self, symbol: str, period: str = "annual") -> list[dict[str, Any]]:
         """Aggregate balance sheet rows from key concepts."""
         return sec_statements.get_balance_sheet(self, symbol, period)
 
-    def get_income_statement(
-        self, symbol: str, period: str = "annual"
-    ) -> List[Dict[str, Any]]:
+    def get_income_statement(self, symbol: str, period: str = "annual") -> list[dict[str, Any]]:
         """Aggregate income statement rows from key concepts."""
         return sec_statements.get_income_statement(self, symbol, period)
 
-    def get_cash_flow(
-        self, symbol: str, period: str = "annual"
-    ) -> List[Dict[str, Any]]:
+    def get_cash_flow(self, symbol: str, period: str = "annual") -> list[dict[str, Any]]:
         """Aggregate cash flow rows from key concepts."""
         return sec_statements.get_cash_flow(self, symbol, period)

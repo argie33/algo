@@ -96,4 +96,5 @@ class MarketHealthDailyLoaderFacade:
         )
 
         handler = MarketHealthComputationHandler(self._loader)
-        return handler.compute(symbol, start, end)
+        result: Any = handler.run(symbol=symbol, since=start)
+        return result

@@ -232,7 +232,7 @@ class BuySignalGenerationHandler:
         decimal84_max = 9999.9999
 
         if volume is not None and i >= 5:
-            recent_vols = [rows[j].get("volume") for j in range(max(0, i - 20), i) if rows[j].get("volume") is not None]
+            recent_vols: list[Any] = [rows[j].get("volume") for j in range(max(0, i - 20), i) if rows[j].get("volume") is not None]
             if recent_vols:
                 avg_vol = sum(recent_vols) / len(recent_vols)
                 if avg_vol > 0:
@@ -246,7 +246,7 @@ class BuySignalGenerationHandler:
     def _compute_avg_volume_50d(self, rows: list[dict], i: int) -> int | None:
         """Compute 50-bar average volume."""
         if i >= 10:
-            vols_50 = [rows[j].get("volume") for j in range(max(0, i - 50), i) if rows[j].get("volume") is not None]
+            vols_50: list[Any] = [rows[j].get("volume") for j in range(max(0, i - 50), i) if rows[j].get("volume") is not None]
             if vols_50:
                 return int(sum(vols_50) / len(vols_50))
         return None
@@ -265,11 +265,11 @@ class BuySignalGenerationHandler:
         return None
 
     def _calculate_entry_exit_levels(
-        self, signal_type: str, close: float, buylevel: float | None, stoplevel: float | None
+        self, signal_type: str, close: float, buylevel: Decimal | float | None, stoplevel: Decimal | float | None
     ) -> dict[str, Any]:
         """Calculate entry/exit levels and risk/reward metrics."""
         risk_pct = 8.0
-        result = {
+        result: dict[str, Any] = {
             "buylevel": buylevel,
             "stoplevel": stoplevel,
             "initial_stop": None,
@@ -288,51 +288,49 @@ class BuySignalGenerationHandler:
         }
 
         if signal_type == "BUY" and close:
-            if buylevel is None:
-                buylevel = Decimal(str(close)).quantize(Decimal("0.0001"))
-            if stoplevel is None:
-                stoplevel = (Decimal(str(close)) * (Decimal(1) - Decimal(str(risk_pct)) / Decimal(100))).quantize(
-                    Decimal("0.0001")
-                )
+            # Ensure buylevel and stoplevel are Decimals for calculations
+            buy_dec = Decimal(str(close)) if buylevel is None else Decimal(str(buylevel))
+            stop_dec = (Decimal(str(close)) * (Decimal(1) - Decimal(str(risk_pct)) / Decimal(100))).quantize(
+                Decimal("0.0001")
+            ) if stoplevel is None else Decimal(str(stoplevel))
 
-            result["buylevel"] = buylevel
-            result["stoplevel"] = stoplevel
-            result["initial_stop"] = stoplevel
-            result["trailing_stop"] = stoplevel
-            result["sell_level"] = stoplevel
-            result["pivot_price"] = buylevel
-            result["buy_zone_start"] = (buylevel * Decimal("0.99")).quantize(Decimal("0.0001"))
-            result["buy_zone_end"] = (buylevel * Decimal("1.05")).quantize(Decimal("0.0001"))
-            result["profit_target_8pct"] = (buylevel * Decimal("1.08")).quantize(Decimal("0.0001"))
-            result["profit_target_20pct"] = (buylevel * Decimal("1.20")).quantize(Decimal("0.0001"))
-            result["profit_target_25pct"] = (buylevel * Decimal("1.25")).quantize(Decimal("0.0001"))
+            result["buylevel"] = buy_dec
+            result["stoplevel"] = stop_dec
+            result["initial_stop"] = stop_dec
+            result["trailing_stop"] = stop_dec
+            result["sell_level"] = stop_dec
+            result["pivot_price"] = buy_dec
+            result["buy_zone_start"] = (buy_dec * Decimal("0.99")).quantize(Decimal("0.0001"))
+            result["buy_zone_end"] = (buy_dec * Decimal("1.05")).quantize(Decimal("0.0001"))
+            result["profit_target_8pct"] = (buy_dec * Decimal("1.08")).quantize(Decimal("0.0001"))
+            result["profit_target_20pct"] = (buy_dec * Decimal("1.20")).quantize(Decimal("0.0001"))
+            result["profit_target_25pct"] = (buy_dec * Decimal("1.25")).quantize(Decimal("0.0001"))
             result["exit_trigger_1"] = result["profit_target_8pct"]
             result["exit_trigger_2"] = result["profit_target_20pct"]
             result["rr"] = (
-                (result["profit_target_20pct"] - buylevel) / max(buylevel - stoplevel, Decimal("0.01"))
+                (result["profit_target_20pct"] - buy_dec) / max(buy_dec - stop_dec, Decimal("0.01"))
             ).quantize(Decimal("0.01"))
 
         elif signal_type == "SELL" and close:
-            if buylevel is None:
-                buylevel = Decimal(str(close)).quantize(Decimal("0.0001"))
-            if stoplevel is None:
-                stoplevel = (Decimal(str(close)) * (Decimal(1) + Decimal(str(risk_pct)) / Decimal(100))).quantize(
-                    Decimal("0.0001")
-                )
+            # Ensure buylevel and stoplevel are Decimals for calculations
+            buy_dec = Decimal(str(close)) if buylevel is None else Decimal(str(buylevel))
+            stop_dec = (Decimal(str(close)) * (Decimal(1) + Decimal(str(risk_pct)) / Decimal(100))).quantize(
+                Decimal("0.0001")
+            ) if stoplevel is None else Decimal(str(stoplevel))
 
-            result["buylevel"] = buylevel
-            result["stoplevel"] = stoplevel
-            result["initial_stop"] = stoplevel
-            result["trailing_stop"] = stoplevel
+            result["buylevel"] = buy_dec
+            result["stoplevel"] = stop_dec
+            result["initial_stop"] = stop_dec
+            result["trailing_stop"] = stop_dec
             result["sell_level"] = Decimal(str(close)).quantize(Decimal("0.0001"))
-            result["pivot_price"] = buylevel
-            result["profit_target_8pct"] = (buylevel * Decimal("0.92")).quantize(Decimal("0.0001"))
-            result["profit_target_20pct"] = (buylevel * Decimal("0.80")).quantize(Decimal("0.0001"))
-            result["profit_target_25pct"] = (buylevel * Decimal("0.75")).quantize(Decimal("0.0001"))
+            result["pivot_price"] = buy_dec
+            result["profit_target_8pct"] = (buy_dec * Decimal("0.92")).quantize(Decimal("0.0001"))
+            result["profit_target_20pct"] = (buy_dec * Decimal("0.80")).quantize(Decimal("0.0001"))
+            result["profit_target_25pct"] = (buy_dec * Decimal("0.75")).quantize(Decimal("0.0001"))
             result["exit_trigger_1"] = result["profit_target_8pct"]
             result["exit_trigger_2"] = result["profit_target_20pct"]
             result["rr"] = (
-                (buylevel - result["profit_target_20pct"]) / max(stoplevel - buylevel, Decimal("0.01"))
+                (buy_dec - result["profit_target_20pct"]) / max(stop_dec - buy_dec, Decimal("0.01"))
             ).quantize(Decimal("0.01"))
 
         return result

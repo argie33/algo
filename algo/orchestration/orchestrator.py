@@ -13,6 +13,15 @@ from typing import Any, cast
 import psycopg2
 
 from algo.infrastructure import MarketCalendar
+from algo.orchestration.database_health_monitor import DatabaseHealthMonitor
+from algo.orchestration.halt_flag_manager import HaltFlagManager
+from algo.orchestration.phase_event_hub import (
+    PhaseCompletedEvent,
+    PhaseErrorEvent,
+    PhaseStartedEvent,
+    PhaseStatus,
+    get_event_hub,
+)
 from algo.orchestrator.phase_executor import OrchestratorPhaseExecutor, PhaseDefinition
 from algo.orchestrator.phase_registry import PhaseRegistry
 from algo.reporting import AlertManager
@@ -20,14 +29,8 @@ from monitoring.metrics_context import (
     TimeBlock,
     log_metrics_summary,
 )
-from utils.db import DatabaseContext, assert_safe_table
-from utils.infrastructure import (
-    EASTERN_TZ,
-    MARKET_OPEN_HOUR,
-    MARKET_OPEN_MINUTE,
-    ORCHESTRATOR_KILL_BUFFER_MINUTES,
-    ORCHESTRATOR_RUN_TIMES_TUPLE,
-)
+from utils.db import DatabaseContext
+from utils.infrastructure import EASTERN_TZ
 from utils.logging import get_tracker
 
 
@@ -43,8 +46,6 @@ logger = logging.getLogger(__name__)
 class Orchestrator:
     """Daily workflow runner with explicit phases."""
 
-    HALT_FLAG_DYNAMODB_KEY = "orchestrator_halt"
-
     def __init__(
         self,
         config: Any,
@@ -59,485 +60,69 @@ class Orchestrator:
             )
         self.config = config
 
-        # Override execution_mode from environment variable if set
         env_execution_mode = os.getenv("ORCHESTRATOR_EXECUTION_MODE", "").strip().lower()
         if env_execution_mode:
             self.config.override("execution_mode", env_execution_mode)
 
-        # FIX: Use ET date, not system date (AWS runs in UTC but trading is ET-based)
         self.run_date = run_date or datetime.now(EASTERN_TZ).date()
         self.dry_run = dry_run
         self.verbose = verbose
         self.phase_results: dict[int | str, Any] = {}
         self.run_id = f"RUN-{self.run_date.isoformat()}-{datetime.now(timezone.utc).strftime('%H%M%S')}"
-        # FIXED Issue #6: Initialize execution tracker for audit trail logging
+
         self.execution_tracker = get_tracker()
         self.execution_tracker.set_run_context(self.run_id, self.run_date)
-        # FIXED Issue #8: Use DynamoDB lock manager instead of filesystem lock for distributed locking in Fargate
-        from utils.db import DynamoDBLockManager
 
+        from utils.db import DynamoDBLockManager
         self.lock_manager = DynamoDBLockManager()
         self._lock_acquired = False
-        # FIXED Issue #3: Halt flag now uses DynamoDB instead of /tmp (which is ephemeral in Lambda)
-        self._halt_flag_checked = False
+
         self.degraded_mode = False
         self.alerts = AlertManager()
 
-        # RDS Proxy handles connection pooling - no local pool needed
-        # Database is ALWAYS required - both dry-run and live execution need data to validate phases
-        # degraded_mode is ONLY set if database connection actually fails (checked at pre-flight)
-        self.degraded_mode = False
-
-        # DB failure counter removed: /tmp is ephemeral in Lambda (doesn't persist across invocations).
-        # CloudWatch alarms on DB connection errors are more reliable for detecting outages.
+        self.db_monitor = DatabaseHealthMonitor(self.alerts)
+        self.halt_manager = HaltFlagManager(self.alerts, self.log_phase_result)
 
     def cleanup(self) -> None:
         """No-op: RDS Proxy handles connection cleanup."""
 
-    # ---------- Database health monitoring (B4) ----------
+    # ---------- Database health monitoring (delegated to specialist) ----------
 
     def _check_db_connectivity(self) -> bool:
-        """Test if database is reachable. Returns True if OK, False if failed."""
-        try:
-            with DatabaseContext("read") as cur:
-                cur.execute("SELECT 1")
-            return True
-        except (psycopg2.DatabaseError, psycopg2.OperationalError) as e:
-            raise RuntimeError(f"Operation failed: {e}") from e
+        """Delegate to DatabaseHealthMonitor."""
+        return self.db_monitor.check_db_connectivity()
 
     def _check_halt_flag(self) -> bool:
-        """Check for halt flag in DynamoDB. Returns True if halt was requested.
-
-        Uses DynamoDB instead of /tmp to work in Lambda where /tmp is ephemeral.
-        SECURITY: If DynamoDB is unreachable, emits CloudWatch alarm metric.
-
-        ISSUE #8 FIX: Halt flag persists through entire trading day (9:30 AM - 4:00 PM ET)
-        to prevent Phase 5 from generating signals with stale data set by early morning
-        Phase 1. Auto-expires only at market open of next trading day (9:30 AM ET).
-
-        Timeline example:
-        - 2:30 AM: Loaders detect stale data → Phase 1 sets halt_flag with triggered_at=2:30 AM
-        - 9:30 AM, 1 PM, 3 PM, 5:30 PM: Orchestrator runs check halt_flag → still active (same day)
-        - 9:30 AM NEXT DAY: Auto-clears halt_flag at market open (new trading day)
-
-        """
-
-        try:
-            import boto3
-
-            dynamodb = boto3.resource("dynamodb")
-            table_name = os.getenv("HALT_FLAG_TABLE", "algo_orchestrator_state")
-            table = dynamodb.Table(table_name)
-
-            response = table.get_item(Key={"key": self.HALT_FLAG_DYNAMODB_KEY})
-            if "Item" not in response:
-                return False
-
-            item = response["Item"]
-            if item.get("halt_flag") is not True:
-                return False
-
-            triggered_at_str = item.get("triggered_at")
-            if triggered_at_str:
-                try:
-                    trigger_dt = datetime.fromisoformat(triggered_at_str.replace("Z", "+00:00"))
-                    now_utc = datetime.now(timezone.utc)
-
-                    # Convert to ET for trading hour comparison
-                    trigger_et = trigger_dt.astimezone(EASTERN_TZ)
-                    now_et = now_utc.astimezone(EASTERN_TZ)
-
-                    trigger_date = trigger_et.date()
-                    now_date_et = now_et.date()
-
-                    # Check if halt is from a previous trading day
-                    if trigger_date < now_date_et:
-                        # Halt flag from previous day: auto-clear only if we've passed
-                        # market open (9:30 AM) of current trading day
-                        market_open_et = now_et.replace(
-                            hour=MARKET_OPEN_HOUR,
-                            minute=MARKET_OPEN_MINUTE,
-                            second=0,
-                            microsecond=0,
-                        )
-                        market_open_et = market_open_et.replace(tzinfo=EASTERN_TZ)
-
-                        if now_et >= market_open_et:
-                            logger.info(
-                                f"[HALT_FLAG] Halt from {trigger_date} past market open ({MARKET_OPEN_HOUR}:{MARKET_OPEN_MINUTE:02d} ET) "
-                                f"on {now_date_et} — auto-clearing"
-                            )
-                            table.put_item(
-                                Item={
-                                    "key": self.HALT_FLAG_DYNAMODB_KEY,
-                                    "halt_flag": False,
-                                    "reason": "Auto-expired: halt flag from prior trading day after market open",
-                                    "reset_at": now_utc.isoformat(),
-                                }
-                            )
-                            return False
-                        else:
-                            # Pre-market on current day, keep halt from previous day active
-                            # (e.g., stale data from night loaders should halt all-day trading)
-                            logger.info(f"[HALT_FLAG] Halt from {trigger_date} still active before market open today")
-                            return True
-
-                    # Same trading day: halt persists throughout entire day
-                    # (early morning Phase 1 sets flag to protect all-day trading)
-                    if trigger_date == now_date_et:
-                        hours_halted = (now_utc - trigger_dt).total_seconds() / 3600
-                        reason = item.get("reason")
-                        if not reason:
-                            logger.warning("[HALT_FLAG] Halt flag set but missing 'reason' field")
-                            reason = "Unknown"
-                        logger.critical(
-                            f"[HALT_FLAG_ACTIVE] HALT FLAG DETECTED on {now_date_et}. "
-                            f"Triggered {hours_halted:.1f}h ago at {trigger_et.strftime('%H:%M ET')}. "
-                            f"Reason: {reason[:150]}"
-                        )
-                        self.log_phase_result(
-                            0,
-                            "halt_flag_detected",
-                            "halted",
-                            f"Halt flag detected (triggered at {trigger_et.strftime('%H:%M ET')}: {reason[:100]})",
-                        )
-                        return True
-
-                except (ValueError, KeyError) as parse_err:
-                    logger.warning(f"[HALT_FLAG] Could not parse triggered_at: {parse_err}")
-
-                reason = item.get("reason")
-                if not reason:
-                    logger.warning("[HALT_FLAG] Halt flag set but missing 'reason' field")
-                    reason = "Unknown"
-                logger.critical(
-                    f"[HALT_FLAG_ACTIVE] HALT FLAG DETECTED (could not parse timestamp). Reason: {reason[:150]}"
-                )
-                self.log_phase_result(
-                    0,
-                    "halt_flag_detected",
-                    "halted",
-                    f"Halt flag detected: {reason[:100]}",
-                )
-                return True
-
-            # Halt flag not set in DynamoDB
-            return False
-        except (ValueError, ZeroDivisionError, TypeError) as e:
-            # CRITICAL SAFETY: DynamoDB unavailable means we cannot verify halt flag status
-            # MUST FAIL-CLOSED: Assume halt is set if we can't verify the flag
-            # Better to stop trading unnecessarily than to trade when halt was set
-            logger.critical(f"[CRITICAL] Could not check halt flag in DynamoDB: {e}")
-            logger.critical("[CRITICAL] FAILING CLOSED: Treating DynamoDB unavailability as halt condition for safety")
-
-            # Emit alert to operations team
-            try:
-                from algo.reporting import AlertManager
-
-                alerts = AlertManager()
-                alerts.send_position_alert(
-                    "DYNAMODB",
-                    "HALT_CHECK_UNAVAILABLE",
-                    "DynamoDB halt flag check failed. Emergency halt mechanism DISABLED. Trading halted as fail-safe. "
-                    f"Error: {str(e)[:200]}",
-                    {"error": str(e)[:200], "action": "manual_intervention_required"},
-                )
-            except (ValueError, ZeroDivisionError, TypeError) as alert_err:
-                logger.warning(f"Could not send DynamoDB unavailability alert: {alert_err}")
-
-            # Emit metric for monitoring
-            try:
-                from algo.reporting import MetricsPublisher
-
-                MetricsPublisher().add_metric("DynamoDBHaltCheckFailure", 1, unit="Count")
-            except (ValueError, ZeroDivisionError, TypeError) as metric_err:
-                logger.warning(f"Could not emit halt check failure metric: {metric_err}")
-
-            # Return True (halt condition) to fail-closed
-            return True
+        """Delegate to HaltFlagManager."""
+        return self.halt_manager.check_halt_flag()
 
     def _set_halt_flag(self, reason: str = "") -> bool:
-        """Set halt flag in DynamoDB. Returns True if successfully set.
-
-        ISSUE #8 FIX: When Phase 1 detects stale data, set halt flag to stop
-        Phase 5 from generating full-intensity signals during degradation.
-
-        ISSUE #10 FIX: Track multiple halt events in a day for escalation.
-        """
-        try:
-            import boto3
-
-            dynamodb = boto3.resource("dynamodb")
-            table_name = os.getenv("HALT_FLAG_TABLE", "algo_orchestrator_state")
-            table = dynamodb.Table(table_name)
-
-            now_utc = datetime.now(timezone.utc)
-            now_et = now_utc.astimezone(EASTERN_TZ)
-
-            # ISSUE #10 FIX: Check if halt flag was already set today (escalation tracking)
-            halt_count = 1
-            halt_escalated = False
-            response = table.get_item(Key={"key": self.HALT_FLAG_DYNAMODB_KEY})
-            if "Item" in response:
-                item = response["Item"]
-                if item.get("halt_flag") is True:
-                    # Flag already set today - this is a repeat failure requiring escalation
-                    first_trigger = item.get("triggered_at")
-                    if first_trigger:
-                        try:
-                            first_dt = datetime.fromisoformat(first_trigger.replace("Z", "+00:00"))
-                            first_et = first_dt.astimezone(EASTERN_TZ)
-                            # Same trading day = escalate
-                            if first_et.date() == now_et.date():
-                                prev_halt_count = item.get("halt_count")
-                                halt_count = (prev_halt_count if prev_halt_count else 0) + 1
-                                halt_escalated = True
-                            logger.critical(
-                                f"[HALT_FLAG_ESCALATION] REPEATED HALT on {now_et.date()}: "
-                                f"Halt #{halt_count} in same day. "
-                                f"First at {first_et.strftime('%H:%M ET')}, now at {now_et.strftime('%H:%M ET')}. "
-                                f"Reason: {reason[:100]}"
-                            )
-                            # Send escalation alert if repeated failures
-                            if halt_count >= 2:
-                                try:
-                                    self.alerts.send_position_alert(
-                                        "HALT_ESCALATION",
-                                        f"HALT_REPEAT_{halt_count}",
-                                        f"Halt flag triggered {halt_count} times on {now_et.date()}. "
-                                        "Repeated data quality issues. Manual investigation required.",
-                                        {
-                                            "halt_count": halt_count,
-                                            "first_at": first_trigger,
-                                            "latest_reason": reason[:100],
-                                        },
-                                    )
-                                except (ValueError, ZeroDivisionError, TypeError) as alert_err:
-                                    logger.warning(f"Could not send escalation alert: {alert_err}")
-                        except (ValueError, KeyError) as escalation_err:
-                            logger.warning(f"Could not check halt escalation: {escalation_err}")
-
-            table.put_item(
-                Item={
-                    "key": self.HALT_FLAG_DYNAMODB_KEY,
-                    "halt_flag": True,
-                    "triggered_at": now_utc.isoformat(),
-                    "reason": reason or "Phase 1 degraded: stale data detected",
-                    "halt_count": halt_count,
-                }
-            )
-
-            if halt_escalated and halt_count >= 2:
-                logger.critical(f"[HALT_FLAG_SET_ESCALATED] {reason or 'Phase 1 degraded'} (halt #{halt_count})")
-            else:
-                logger.critical(f"[HALT_FLAG_SET] {reason or 'Phase 1 degraded: halt flag activated'}")
-            return True
-        except (psycopg2.DatabaseError, psycopg2.OperationalError, ValueError) as e:
-            raise RuntimeError(f"Operation failed: {e}") from e
+        """Delegate to HaltFlagManager."""
+        return self.halt_manager.set_halt_flag(reason)
 
     def _clear_halt_flag(self, reason: str = "") -> bool:
-        """Clear halt flag in DynamoDB. Returns True if successfully cleared.
-
-        ISSUE #8 FIX: When Phase 1 verifies data is fresh, explicitly clear the
-        halt flag to allow Phase 5 to generate signals normally.
-
-        Args:
-            reason: Optional explanation for why halt was cleared
-
-        Returns: True if successfully cleared, False on error
-        """
-        try:
-            import boto3
-
-            dynamodb = boto3.resource("dynamodb")
-            table_name = os.getenv("HALT_FLAG_TABLE", "algo_orchestrator_state")
-            table = dynamodb.Table(table_name)
-
-            now_utc = datetime.now(timezone.utc)
-            table.put_item(
-                Item={
-                    "key": self.HALT_FLAG_DYNAMODB_KEY,
-                    "halt_flag": False,
-                    "cleared_at": now_utc.isoformat(),
-                    "reason": reason or "Phase 1 verified: data is fresh",
-                    "reset_at": now_utc.isoformat(),
-                }
-            )
-            logger.info(f"[HALT_FLAG_CLEARED] {reason or 'Phase 1 verified: data is fresh, resuming normal trading'}")
-            return True
-        except (psycopg2.DatabaseError, psycopg2.OperationalError, ValueError) as e:
-            raise RuntimeError(f"Operation failed: {e}") from e
+        """Delegate to HaltFlagManager."""
+        return self.halt_manager.clear_halt_flag(reason)
 
     def _check_connection_pool_health(self) -> None:
-        """Monitor RDS connection pool and alert if approaching limits."""
-        try:
-            from algo.monitoring import check_stuck_connections, get_pool_status
-
-            status = get_pool_status()
-            logger.debug(
-                f"[RDS_POOL] Status: {status['active_connections']}/{status['max_connections']} "
-                f"({status['usage_pct']:.0f}%)"
-            )
-
-            # Alert on stuck connections (held >5min)
-            if status["stuck_connections_count"] > 0:
-                logger.warning(f"[RDS_POOL] Found {status['stuck_connections_count']} stuck connections")
-                check_stuck_connections()
-        except (KeyError, ValueError, AttributeError) as e:
-            logger.debug(f"Could not check connection pool health: {e}")
+        """Delegate to DatabaseHealthMonitor."""
+        self.db_monitor.check_connection_pool_health()
 
     def _health_check_diagnostics(self) -> None:
-        """Log system health status: what's working, what's not, what's stale."""
-        try:
-            with DatabaseContext("read") as cur:
-                cur.execute("SET statement_timeout = 10000")  # 10s timeout
-
-                # Check key table freshness
-                tables_to_check = [
-                    ("price_daily", "Prices"),
-                    ("market_health_daily", "Market health"),
-                    ("market_exposure_daily", "Market exposure"),
-                    ("buy_sell_daily", "Buy/sell signals (Phase 5)"),
-                    ("trend_template_data", "Trend template"),
-                    ("sector_ranking", "Sector ranking"),
-                    ("swing_trader_scores", "Swing scores (legacy)"),
-                ]
-
-                logger.info("  Table Freshness Status:")
-                try:
-                    for table, _desc in tables_to_check:
-                        assert_safe_table(table)
-
-                    union_parts = []
-                    for table, _desc in tables_to_check:
-                        table_safe = assert_safe_table(table)
-                        union_parts.append(
-                            f"SELECT '{table}' as table_name, MAX(date) as latest_date FROM {table_safe}"
-                        )
-
-                    union_query = " UNION ALL ".join(union_parts)
-                    cur.execute(union_query)
-
-                    dates_by_table = {}
-                    for row in cur.fetchall():
-                        row_dict = dict(row)
-                        dates_by_table[row_dict["table_name"]] = row_dict["latest_date"]
-
-                    for table, desc in tables_to_check:
-                        try:
-                            latest_date = dates_by_table.get(table)
-                            if latest_date:
-                                from datetime import date as date_type
-                                from datetime import datetime as dt
-
-                                if isinstance(latest_date, date_type) and not isinstance(latest_date, datetime):
-                                    latest_dt = dt.combine(latest_date, dt.min.time()).replace(tzinfo=timezone.utc)
-                                elif isinstance(latest_date, datetime) and latest_date.tzinfo is None:
-                                    latest_dt = latest_date.replace(tzinfo=timezone.utc)
-                                else:
-                                    latest_dt = (
-                                        latest_date
-                                        if isinstance(latest_date, datetime)
-                                        else dt.fromisoformat(str(latest_date)).replace(tzinfo=timezone.utc)
-                                    )
-                                age = (datetime.now(timezone.utc) - latest_dt).days
-                                logger.info(f"    [{age}d old] {desc:20s}: {latest_date}")
-                            else:
-                                logger.info(f"    [EMPTY] {desc:20s}: no data")
-                        except (psycopg2.DatabaseError, psycopg2.OperationalError) as t_err:
-                            logger.warning(f"    [ERROR] {desc:20s}: {t_err}")
-                except (psycopg2.DatabaseError, psycopg2.OperationalError) as e:
-                    logger.warning(f"  Could not fetch table freshness: {e}")
-
-                # Check loader status
-                try:
-                    cur.execute("""
-                        SELECT table_name, status, last_updated
-                        FROM data_loader_status
-                        WHERE table_name IN ('price_daily', 'buy_sell_daily', 'market_health_daily', 'market_exposure_daily')
-                        ORDER BY table_name
-                    """)
-                    logger.info("  Loader Status:")
-                    for row in cur.fetchall():
-                        logger.info(f"    {row[0]:25s}: {row[1]:10s} (updated {row[2]})")
-                except (psycopg2.DatabaseError, psycopg2.OperationalError) as loader_err:
-                    logger.debug(f"    Could not check loader status: {loader_err}")
-
-        except (psycopg2.DatabaseError, psycopg2.OperationalError) as e:
-            logger.debug(f"  Health check failed: {e}")
+        """Delegate to DatabaseHealthMonitor."""
+        self.db_monitor.health_check_diagnostics()
 
     def _verify_task_stopped(
         self,
-        ecs,
+        ecs: Any,
         cluster: str,
         task_arn: str,
         loader_name: str,
         max_retries: int = 3,
         retry_delay_sec: float = 1.0,
     ) -> bool:
-        """Verify that a task actually stopped. Returns True if verified STOPPED, False if verification failed.
-
-        ISSUE #5 FIX: Prevents hung tasks consuming RDS connections by verifying termination.
-        Retries with escalating delays because ECS stop_task is async and may fail silently.
-        """
-        for attempt in range(1, max_retries + 1):
-            try:
-                response = ecs.describe_tasks(cluster=cluster, tasks=[task_arn])
-                tasks = response.get("tasks")
-                if not tasks or not isinstance(tasks, list) or len(tasks) == 0:
-                    logger.error(
-                        f"[TASK_TERMINATION] Attempt {attempt}: Task {task_arn} not found in describe_tasks response"
-                    )
-                    if attempt < max_retries:
-                        time.sleep(retry_delay_sec)
-                        retry_delay_sec *= 1.5  # Exponential backoff
-                    continue
-
-                task_status = tasks[0].get("lastStatus", "UNKNOWN")
-                desired_status = tasks[0].get("desiredStatus", "UNKNOWN")
-
-                logger.debug(
-                    f"[TASK_TERMINATION] Attempt {attempt}: {loader_name} lastStatus={task_status}, desiredStatus={desired_status}"
-                )
-
-                # Task is confirmed stopped
-                if task_status == "STOPPED":
-                    logger.info(f"[TASK_TERMINATION] ✓ {loader_name} task {task_arn} verified STOPPED")
-                    return True
-
-                # Task still running but stop was requested
-                if desired_status == "STOPPED" and task_status in (
-                    "RUNNING",
-                    "DEPROVISIONING",
-                ):
-                    if attempt < max_retries:
-                        logger.debug(
-                            f"[TASK_TERMINATION] Attempt {attempt}: Stop requested, waiting for status transition..."
-                        )
-                        time.sleep(retry_delay_sec)
-                        retry_delay_sec *= 1.5
-                        continue
-
-                # Task didn't receive stop signal
-                logger.error(
-                    f"[TASK_TERMINATION] Attempt {attempt}: Task status {task_status}/{desired_status} — stop not acknowledged"
-                )
-                if attempt < max_retries:
-                    time.sleep(retry_delay_sec)
-                    retry_delay_sec *= 1.5
-
-            except (ValueError, KeyError, AttributeError, psycopg2.DatabaseError, psycopg2.OperationalError) as e:
-                logger.error(f"[TASK_TERMINATION] Attempt {attempt}: Failed to verify task status: {e}")
-                if attempt < max_retries:
-                    time.sleep(retry_delay_sec)
-                    retry_delay_sec *= 1.5
-
-        # All retries exhausted — termination verification failed
-        logger.critical(
-            f"[TASK_TERMINATION] FAILED: {loader_name} task {task_arn} did not transition to STOPPED after {max_retries} attempts. "
-            "RDS connection may not be released. Manual intervention required."
-        )
-        return False
+        """Delegate to DatabaseHealthMonitor."""
+        return self.db_monitor.verify_task_stopped(ecs, cluster, task_arn, loader_name, max_retries, retry_delay_sec)
 
     def _kill_long_running_loaders(self) -> None:
         """CRITICAL: Kill hung loaders (analytics + critical-path) if approaching next orchestrator run.
@@ -804,6 +389,21 @@ class Orchestrator:
         self.execution_tracker.log_phase_result(phase_num, name, status, summary)
         if self.verbose:
             logger.info(f"\n-> Phase {phase_num} {status}: {summary}")
+
+        # Publish phase event to EventHub for dashboard/API subscribers
+        try:
+            hub = get_event_hub()
+            phase_status = PhaseStatus(status)
+            event = PhaseCompletedEvent(
+                phase_num=phase_num,
+                phase_name=name,
+                status=phase_status,
+                summary=summary,
+            )
+            hub.publish(event)
+        except (ValueError, Exception) as e:
+            logger.debug(f"Could not publish phase event: {e}")
+
         try:
             with DatabaseContext("write") as cur:
                 cur.execute(

@@ -27,7 +27,6 @@ import boto3
 import psycopg2
 
 
-
 logger = logging.getLogger()
 logger.setLevel(os.environ.get("LOG_LEVEL", "INFO"))
 
@@ -44,9 +43,7 @@ def get_db_credentials():
 
         return get_db_creds()
     except ImportError:
-        logger.warning(
-            "Could not import credential_manager, falling back to direct Secrets Manager fetch"
-        )
+        logger.warning("Could not import credential_manager, falling back to direct Secrets Manager fetch")
         # Fallback if config module not available
         secretsmanager = boto3.client("secretsmanager")
         try:
@@ -106,9 +103,7 @@ def get_portfolio_pnl(max_attempts: int = 3):
                 WHERE status = 'open'
             """)
             row = cur.fetchone()
-            total_equity = (
-                float(row[0]) if row is not None and row[0] is not None else 0
-            )
+            total_equity = float(row[0]) if row is not None and row[0] is not None else 0
             current_pnl = float(row[1]) if row and row[1] else 0
 
             # Get session opening P&L snapshot (captured at market open).
@@ -119,9 +114,7 @@ def get_portfolio_pnl(max_attempts: int = 3):
                 LIMIT 1
             """)
             session_row = cur.fetchone()
-            open_pnl = (
-                float(session_row[0]) if session_row and session_row[0] else current_pnl
-            )
+            open_pnl = float(session_row[0]) if session_row and session_row[0] else current_pnl
 
             cur.close()
             conn.close()
@@ -141,9 +134,7 @@ def get_portfolio_pnl(max_attempts: int = 3):
             if attempt < max_attempts:
                 time.sleep(3 * attempt)
 
-    logger.error(
-        f"Failed to query portfolio P&L after {max_attempts} attempts: {last_err}"
-    )
+    logger.error(f"Failed to query portfolio P&L after {max_attempts} attempts: {last_err}")
     return None, None, None
 
 
@@ -162,7 +153,8 @@ def _set_halt_flag_rds(halt: bool, reason: str, check_time: str) -> bool:
         )
         cur = conn.cursor()
         now_utc = datetime.now(timezone.utc)
-        cur.execute("""
+        cur.execute(
+            """
             INSERT INTO algo_runtime_state (
                 state_key, state_value, halt_flag, halt_triggered_at,
                 halt_reason, halt_count, updated_by, expires_at
@@ -174,16 +166,18 @@ def _set_halt_flag_rds(halt: bool, reason: str, check_time: str) -> bool:
                 halt_count = EXCLUDED.halt_count,
                 last_updated_at = CURRENT_TIMESTAMP,
                 expires_at = EXCLUDED.expires_at
-        """, (
-            "orchestrator_halt",
-            json.dumps({"halt_flag": halt, "triggered_at": now_utc.isoformat(), "reason": reason}),
-            halt,
-            now_utc.isoformat(),
-            reason,
-            1,
-            "circuit_breaker",
-            (now_utc.timestamp() + 86400),  # 24 hours from now
-        ))
+        """,
+            (
+                "orchestrator_halt",
+                json.dumps({"halt_flag": halt, "triggered_at": now_utc.isoformat(), "reason": reason}),
+                halt,
+                now_utc.isoformat(),
+                reason,
+                1,
+                "circuit_breaker",
+                (now_utc.timestamp() + 86400),  # 24 hours from now
+            ),
+        )
         conn.commit()
         cur.close()
         conn.close()
@@ -228,9 +222,7 @@ def _set_halt(table, halt: bool, reason: str, check_time: str) -> bool:
     # DynamoDB is read cache: best-effort, failure is tolerable
     if rds_success:
         ddb_success = _set_halt_flag_dynamodb(table, halt, reason, check_time)
-        logger.critical(
-            f"[CIRCUIT_BREAKER] Halt flag={halt} set: RDS=True, DynamoDB={ddb_success}, reason={reason}"
-        )
+        logger.critical(f"[CIRCUIT_BREAKER] Halt flag={halt} set: RDS=True, DynamoDB={ddb_success}, reason={reason}")
         return True
 
     logger.error(f"[CIRCUIT_BREAKER] Failed to set halt flag in RDS (source of truth): {reason}")
@@ -246,9 +238,7 @@ def lambda_handler(event, context):
         current_pnl, _, variance = get_portfolio_pnl()
 
         if variance is None:
-            logger.error(
-                "Unable to calculate variance after retries — halting trading (fail-closed)"
-            )
+            logger.error("Unable to calculate variance after retries — halting trading (fail-closed)")
             _set_halt(
                 table,
                 True,
@@ -272,9 +262,7 @@ def lambda_handler(event, context):
         threshold = ThresholdConfig.portfolio_variance_threshold()
 
         if variance > threshold:
-            logger.critical(
-                f"CIRCUIT BREAKER TRIGGERED: variance {variance:.1%} exceeds {threshold:.1%}"
-            )
+            logger.critical(f"CIRCUIT BREAKER TRIGGERED: variance {variance:.1%} exceeds {threshold:.1%}")
             _set_halt(
                 table,
                 True,
@@ -292,9 +280,7 @@ def lambda_handler(event, context):
                 ),
             }
         else:
-            logger.info(
-                f"Circuit breaker OK: variance {variance:.1%} < threshold {threshold:.1%}"
-            )
+            logger.info(f"Circuit breaker OK: variance {variance:.1%} < threshold {threshold:.1%}")
             _set_halt(
                 table,
                 False,
@@ -316,13 +302,9 @@ def lambda_handler(event, context):
     except (json.JSONDecodeError, ValueError) as e:
         logger.error(f"Circuit breaker check failed: {e}", exc_info=True)
         try:
-            _set_halt(
-                table, True, f"Circuit breaker check failed: {str(e)[:100]}", check_time
-            )
+            _set_halt(table, True, f"Circuit breaker check failed: {str(e)[:100]}", check_time)
         except (json.JSONDecodeError, ValueError) as ddb_err:
-            logger.error(
-                f"Failed to update DynamoDB halt flag: {ddb_err}", exc_info=True
-            )
+            logger.error(f"Failed to update DynamoDB halt flag: {ddb_err}", exc_info=True)
 
         return {
             "statusCode": 500,

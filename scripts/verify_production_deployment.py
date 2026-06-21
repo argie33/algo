@@ -11,7 +11,6 @@ Checks:
 7. No duplicate/corrupted data in database
 """
 
-import json
 import logging
 import sys
 from datetime import datetime, timedelta, timezone
@@ -20,14 +19,11 @@ from pathlib import Path
 import boto3
 import psycopg2
 
+
 # Add project root for imports
 sys.path.insert(0, str(Path(__file__).parent.parent))
 
-logging.basicConfig(
-    level=logging.INFO,
-    format="[%(asctime)s] %(levelname)s: %(message)s",
-    datefmt="%Y-%m-%d %H:%M:%S"
-)
+logging.basicConfig(level=logging.INFO, format="[%(asctime)s] %(levelname)s: %(message)s", datefmt="%Y-%m-%d %H:%M:%S")
 logger = logging.getLogger(__name__)
 
 
@@ -75,7 +71,7 @@ def check_loader_config():
         from utils.db import DatabaseContext
 
         with DatabaseContext("read") as cur:
-            config = AlgoConfig(cur)
+            AlgoConfig(cur)
 
             # Check yfinance rate limit
             logger.info("\n🔗 yfinance Rate Limiting:")
@@ -178,17 +174,14 @@ def check_no_errors():
     try:
         logs = boto3.client("logs", region_name="us-east-1")
 
-        log_groups = [
-            "/aws/ecs/positioning_metrics",
-            "/aws/ecs/value_metrics"
-        ]
+        log_groups = ["/aws/ecs/positioning_metrics", "/aws/ecs/value_metrics"]
 
         for log_group in log_groups:
             try:
                 response = logs.filter_log_events(
                     logGroupName=log_group,
                     startTime=int((datetime.now(timezone.utc) - timedelta(hours=1)).timestamp() * 1000),
-                    filterPattern="ERROR"
+                    filterPattern="ERROR",
                 )
 
                 if response["events"]:

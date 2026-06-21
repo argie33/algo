@@ -47,9 +47,7 @@ def _throttled_yf_request(fn):
     circuit_breaker = get_circuit_breaker()
     if circuit_breaker.is_banned():
         backoff = circuit_breaker.get_backoff_seconds()
-        logger.warning(
-            f"Shared IP banned across all ECS tasks. Waiting {backoff:.0f}s before retry..."
-        )
+        logger.warning(f"Shared IP banned across all ECS tasks. Waiting {backoff:.0f}s before retry...")
         time.sleep(backoff)
 
     # Apply per-process rate limiting (throttles this specific task)
@@ -78,10 +76,7 @@ class YFinanceWrapper:
         current_time = time.time()
 
         # Refresh session if expired
-        if (
-            cls._session is None
-            or (current_time - cls._last_session_time) > cls.SESSION_TIMEOUT
-        ):
+        if cls._session is None or (current_time - cls._last_session_time) > cls.SESSION_TIMEOUT:
             cls._session = cls._create_session()
             cls._last_session_time = current_time
 
@@ -94,11 +89,7 @@ class YFinanceWrapper:
         for attempt in range(max_retries):
             try:
                 session = requests.Session()
-                session.headers.update(
-                    {
-                        "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36"
-                    }
-                )
+                session.headers.update({"User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36"})
                 logger.info(f"Created yfinance session (attempt {attempt + 1})")
                 return session
             except (requests.RequestException, requests.Timeout) as e:
@@ -143,11 +134,7 @@ class YFinanceWrapper:
 
                 def _make_ticker():
                     session = cls.get_session()
-                    t = (
-                        yf.Ticker(symbol, session=session)
-                        if session
-                        else yf.Ticker(symbol)
-                    )
+                    t = yf.Ticker(symbol, session=session) if session else yf.Ticker(symbol)
                     _ = t.info  # trigger auth check early
                     return t
 
@@ -175,9 +162,7 @@ class YFinanceWrapper:
                 )
 
                 if is_rate_limit_error:
-                    logger.warning(
-                        f"Rate/auth error for {symbol} (attempt {attempt + 1}/{max_retries}): {e}"
-                    )
+                    logger.warning(f"Rate/auth error for {symbol} (attempt {attempt + 1}/{max_retries}): {e}")
 
                     # Report to shared circuit breaker (notifies all ECS tasks)
                     circuit_breaker.report_rate_limit_error()

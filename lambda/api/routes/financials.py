@@ -1,7 +1,6 @@
 """Route: financials"""
 
 import logging
-from typing import Dict
 
 import psycopg2
 import psycopg2.errors
@@ -16,6 +15,7 @@ from routes.utils import (
     safe_json_serialize,
     safe_limit,
 )
+
 from shared_contracts.response_validator import ResponseValidator
 
 
@@ -26,10 +26,10 @@ def handle(
     cur,
     path: str,
     method: str,
-    params: Dict,
-    body: Dict = None,
-    jwt_claims: Dict = None,
-) -> Dict:
+    params: dict,
+    body: dict | None = None,
+    jwt_claims: dict | None = None,
+) -> dict:
     try:
         parts = path.split("/")
         symbol = parts[3] if len(parts) > 3 else None
@@ -40,9 +40,7 @@ def handle(
 
         sym = symbol.upper()
         period = (params.get("period", [None])[0] if params else None) or "annual"
-        limit = safe_limit(
-            params.get("limit", [None])[0] if params else None, max_val=40, default=8
-        )
+        limit = safe_limit(params.get("limit", [None])[0] if params else None, max_val=40, default=8)
 
         if endpoint == "key-metrics":
             rows = execute_with_timeout(
@@ -77,9 +75,7 @@ def handle(
                 params=(sym, limit),
                 timeout_sec=5,
             )
-            freshness = check_data_freshness(
-                cur, "value_metrics", "created_at", warning_days=7
-            )
+            freshness = check_data_freshness(cur, "value_metrics", "created_at", warning_days=7)
             result = list_response(
                 [safe_json_serialize(dict(r)) for r in rows] if rows else [],
                 data_freshness=freshness,
@@ -101,9 +97,7 @@ def handle(
                     SELECT * FROM annual_income_statement
                     WHERE symbol = %s ORDER BY fiscal_year DESC LIMIT %s
                 """
-            rows = execute_with_timeout(
-                cur, income_query, params=(sym, limit), timeout_sec=5
-            )
+            rows = execute_with_timeout(cur, income_query, params=(sym, limit), timeout_sec=5)
             table_name = "quarterly_income_statement" if period == "quarterly" else "annual_income_statement"
             freshness = check_data_freshness(cur, table_name, "fiscal_year", warning_days=30)
             result = list_response(
@@ -127,9 +121,7 @@ def handle(
                     SELECT * FROM annual_balance_sheet
                     WHERE symbol = %s ORDER BY fiscal_year DESC LIMIT %s
                 """
-            rows = execute_with_timeout(
-                cur, balance_query, params=(sym, limit), timeout_sec=5
-            )
+            rows = execute_with_timeout(cur, balance_query, params=(sym, limit), timeout_sec=5)
             table_name = "quarterly_balance_sheet" if period == "quarterly" else "annual_balance_sheet"
             freshness = check_data_freshness(cur, table_name, "fiscal_year", warning_days=30)
             result = list_response(

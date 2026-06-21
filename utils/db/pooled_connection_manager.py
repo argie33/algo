@@ -19,7 +19,6 @@ import logging
 import threading
 import time
 from collections import deque
-from typing import Optional
 
 import psycopg2
 import psycopg2.pool
@@ -53,7 +52,7 @@ class IdleConnectionPool:
         self._cleanup_interval_sec = cleanup_interval_sec
         self._idle_connections: deque = deque()
         self._lock = threading.Lock()
-        self._cleanup_thread: Optional[threading.Thread] = None
+        self._cleanup_thread: threading.Thread | None = None
         self._stop_cleanup = threading.Event()
 
         self._start_cleanup_thread()
@@ -86,14 +85,9 @@ class IdleConnectionPool:
             return
 
         with self._lock:
-            self._idle_connections.append(
-                {"conn": conn, "idle_since": time.time()}
-            )
+            self._idle_connections.append({"conn": conn, "idle_since": time.time()})
 
-        logger.debug(
-            f"[IDLE_POOL] Connection returned to idle pool "
-            f"(idle connections: {len(self._idle_connections)})"
-        )
+        logger.debug(f"[IDLE_POOL] Connection returned to idle pool (idle connections: {len(self._idle_connections)})")
 
     def _cleanup_stale_connections(self):
         """Close connections idle > max_idle_sec."""
@@ -110,13 +104,10 @@ class IdleConnectionPool:
                         self._pool.putconn(conn_info["conn"], close=True)
                         closed_count += 1
                         logger.info(
-                            f"[IDLE_POOL] Closed idle connection "
-                            f"(idle for {idle_time:.1f}s > {self._max_idle_sec}s)"
+                            f"[IDLE_POOL] Closed idle connection (idle for {idle_time:.1f}s > {self._max_idle_sec}s)"
                         )
                     except Exception as e:
-                        logger.warning(
-                            f"[IDLE_POOL] Failed to close idle connection: {e}"
-                        )
+                        logger.warning(f"[IDLE_POOL] Failed to close idle connection: {e}")
                 else:
                     active_connections.append(conn_info)
 
@@ -139,9 +130,7 @@ class IdleConnectionPool:
             try:
                 self._cleanup_stale_connections()
             except Exception as e:
-                logger.error(
-                    f"[IDLE_POOL] Cleanup thread error: {e}", exc_info=True
-                )
+                logger.error(f"[IDLE_POOL] Cleanup thread error: {e}", exc_info=True)
 
         logger.debug("[IDLE_POOL] Cleanup thread stopped")
 
@@ -207,9 +196,7 @@ class PoolSemaphore:
         self._active_count = 0
         self._lock = threading.Lock()
 
-    def acquire(
-        self, loader_name: str = "unknown", timeout: int | None = None
-    ) -> bool:
+    def acquire(self, loader_name: str = "unknown", timeout: int | None = None) -> bool:
         """Try to acquire a slot from the pool.
 
         Args:
@@ -226,8 +213,7 @@ class PoolSemaphore:
             with self._lock:
                 self._active_count += 1
             logger.debug(
-                f"[POOL_SEMAPHORE] {loader_name} acquired slot "
-                f"({self._active_count}/{self.max_concurrent} active)"
+                f"[POOL_SEMAPHORE] {loader_name} acquired slot ({self._active_count}/{self.max_concurrent} active)"
             )
         else:
             logger.warning(
@@ -243,8 +229,7 @@ class PoolSemaphore:
         with self._lock:
             self._active_count -= 1
         logger.debug(
-            f"[POOL_SEMAPHORE] {loader_name} released slot "
-            f"({self._active_count}/{self.max_concurrent} active)"
+            f"[POOL_SEMAPHORE] {loader_name} released slot ({self._active_count}/{self.max_concurrent} active)"
         )
 
     def status(self) -> dict:
@@ -334,10 +319,7 @@ class PooledConnectionManager:
                     self._conn = pool.getconn()
                     self._acquired_at = time.time()
 
-                    logger.info(
-                        f"[{self.loader_name}] Acquired pooled connection "
-                        f"(held for up to {self.timeout_sec}s)"
-                    )
+                    logger.info(f"[{self.loader_name}] Acquired pooled connection (held for up to {self.timeout_sec}s)")
                     return self._conn
 
                 except psycopg2.pool.PoolError as e:
@@ -367,9 +349,7 @@ class PooledConnectionManager:
         """
         with self._lock:
             if self._conn is None:
-                logger.debug(
-                    f"[{self.loader_name}] Release called but no connection held"
-                )
+                logger.debug(f"[{self.loader_name}] Release called but no connection held")
                 return
 
             try:
@@ -380,15 +360,9 @@ class PooledConnectionManager:
 
                 try:
                     pool.putconn(self._conn)
-                    logger.info(
-                        f"[{self.loader_name}] Returned connection to pool "
-                        f"(held for {held_time:.1f}s)"
-                    )
+                    logger.info(f"[{self.loader_name}] Returned connection to pool (held for {held_time:.1f}s)")
                 except Exception as e:
-                    logger.warning(
-                        f"[{self.loader_name}] Failed to return connection to pool: {e}, "
-                        "closing instead"
-                    )
+                    logger.warning(f"[{self.loader_name}] Failed to return connection to pool: {e}, closing instead")
                     try:
                         self._conn.close()
                     except Exception as close_err:

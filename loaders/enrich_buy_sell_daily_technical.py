@@ -86,9 +86,7 @@ def enrich_technical_data(
                 logger.info(f"No records with NULL technical data found since {since}")
                 return stats
 
-            logger.info(
-                f"Found {len(records_to_update)} records with NULL technical data, enriching..."
-            )
+            logger.info(f"Found {len(records_to_update)} records with NULL technical data, enriching...")
 
             # CLUSTER 4 FIX: Batch-fetch all technical data instead of per-symbol queries
             # N+1 Problem: Previous code executed 1 query per record (could be 10,000+ queries)
@@ -184,9 +182,7 @@ def enrich_technical_data(
                         stats["updated"] += 1
                     else:
                         stats["nulls_remaining"] += 1
-                        logger.debug(
-                            f"{symbol} {signal_date}: No technical data available"
-                        )
+                        logger.debug(f"{symbol} {signal_date}: No technical data available")
                 except (psycopg2.DatabaseError, psycopg2.OperationalError) as e:
                     error_msg = f"{symbol} {signal_date}: {str(e)[:100]}"
                     stats["errors"].append(error_msg)
@@ -207,15 +203,15 @@ def enrich_technical_data(
                 success_rate = updated / checked
                 logger.info(
                     f"Enrichment complete: {updated}/{checked} records updated "
-                    f"({success_rate*100:.1f}%), {nulls} remain with NULL technical fields"
+                    f"({success_rate * 100:.1f}%), {nulls} remain with NULL technical fields"
                 )
 
                 if success_rate < min_success_rate:
                     errors_sample = stats["errors"][:3] if stats.get("errors") else []
                     raise RuntimeError(
                         f"[ENRICHMENT] Technical data enrichment failed coverage threshold: "
-                        f"{updated}/{checked} records enriched ({success_rate*100:.1f}%), "
-                        f"need >={min_success_rate*100:.0f}%. {nulls} records have NULL technical fields. "
+                        f"{updated}/{checked} records enriched ({success_rate * 100:.1f}%), "
+                        f"need >={min_success_rate * 100:.0f}%. {nulls} records have NULL technical fields. "
                         f"Cannot load buy_sell_daily with degraded signal quality—failing load to prevent silent data corruption. "
                         f"Errors: {errors_sample}"
                     )
@@ -233,17 +229,13 @@ def enrich_technical_data(
 
 def main():
     """Main entry point."""
-    parser = argparse.ArgumentParser(
-        description="Enrich buy_sell_daily with technical data"
-    )
+    parser = argparse.ArgumentParser(description="Enrich buy_sell_daily with technical data")
     parser.add_argument(
         "--since",
         type=str,
         help="Update from this date (YYYY-MM-DD), default: 7 days ago",
     )
-    parser.add_argument(
-        "--symbols", type=str, help="Comma-separated symbols to update (default: all)"
-    )
+    parser.add_argument("--symbols", type=str, help="Comma-separated symbols to update (default: all)")
     parser.add_argument(
         "--min-success-rate",
         type=float,
@@ -272,9 +264,7 @@ def main():
         symbols = [s.strip().upper() for s in args.symbols.split(",")]
 
     try:
-        stats = enrich_technical_data(
-            since=since, symbols=symbols, min_success_rate=args.min_success_rate
-        )
+        stats = enrich_technical_data(since=since, symbols=symbols, min_success_rate=args.min_success_rate)
         logger.info(f"Updated {stats['updated']} records")
         if stats["errors"]:
             logger.warning(f"{len(stats['errors'])} errors occurred")

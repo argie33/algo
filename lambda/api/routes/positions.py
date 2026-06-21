@@ -14,8 +14,8 @@ from routes.utils import (
     raise_api_error,
     raise_db_error,
 )
-from shared_contracts.response_validator import ResponseValidator
 
+from shared_contracts.response_validator import ResponseValidator
 from utils.validation import CognitoValidator
 
 

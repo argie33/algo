@@ -17,7 +17,7 @@ Architecture:
 """
 
 import logging
-from typing import Any, Dict
+from typing import Any
 
 
 logger = logging.getLogger(__name__)
@@ -79,7 +79,7 @@ class ThresholdConfig:
         return float(ThresholdConfig._get_config_value("signal_strong_threshold", 80.0))
 
     @staticmethod
-    def get_signal_strength_thresholds() -> Dict[str, float]:
+    def get_signal_strength_thresholds() -> dict[str, float]:
         """Get all signal strength thresholds as dict."""
         return {
             "weak": ThresholdConfig.signal_weak_threshold(),
@@ -92,12 +92,10 @@ class ThresholdConfig:
     # ═══════════════════════════════════════════════════════════════════════════
 
     @staticmethod
-    def swing_grade_thresholds() -> Dict[str, int]:
+    def swing_grade_thresholds() -> dict[str, int]:
         """Get swing trader score grade thresholds."""
         return {
-            "aplus": int(
-                ThresholdConfig._get_config_value("swing_grade_threshold_aplus", 85)
-            ),
+            "aplus": int(ThresholdConfig._get_config_value("swing_grade_threshold_aplus", 85)),
             "a": int(ThresholdConfig._get_config_value("swing_grade_threshold_a", 75)),
             "b": int(ThresholdConfig._get_config_value("swing_grade_threshold_b", 65)),
             "c": int(ThresholdConfig._get_config_value("swing_grade_threshold_c", 55)),
@@ -105,49 +103,23 @@ class ThresholdConfig:
         }
 
     @staticmethod
-    def advanced_filters_grade_thresholds() -> Dict[str, int]:
+    def advanced_filters_grade_thresholds() -> dict[str, int]:
         """Get advanced filters (IBD composite) grade thresholds."""
         return {
-            "aplus": int(
-                ThresholdConfig._get_config_value(
-                    "advanced_filters_grade_threshold_aplus", 90
-                )
-            ),
-            "a": int(
-                ThresholdConfig._get_config_value(
-                    "advanced_filters_grade_threshold_a", 80
-                )
-            ),
-            "b": int(
-                ThresholdConfig._get_config_value(
-                    "advanced_filters_grade_threshold_b", 70
-                )
-            ),
-            "c": int(
-                ThresholdConfig._get_config_value(
-                    "advanced_filters_grade_threshold_c", 60
-                )
-            ),
-            "d": int(
-                ThresholdConfig._get_config_value(
-                    "advanced_filters_grade_threshold_d", 50
-                )
-            ),
+            "aplus": int(ThresholdConfig._get_config_value("advanced_filters_grade_threshold_aplus", 90)),
+            "a": int(ThresholdConfig._get_config_value("advanced_filters_grade_threshold_a", 80)),
+            "b": int(ThresholdConfig._get_config_value("advanced_filters_grade_threshold_b", 70)),
+            "c": int(ThresholdConfig._get_config_value("advanced_filters_grade_threshold_c", 60)),
+            "d": int(ThresholdConfig._get_config_value("advanced_filters_grade_threshold_d", 50)),
         }
 
     @staticmethod
-    def dashboard_grade_thresholds() -> Dict[str, int]:
+    def dashboard_grade_thresholds() -> dict[str, int]:
         """Get dashboard signals grade thresholds."""
         return {
-            "a": int(
-                ThresholdConfig._get_config_value("dashboard_grade_threshold_a", 80)
-            ),
-            "b": int(
-                ThresholdConfig._get_config_value("dashboard_grade_threshold_b", 60)
-            ),
-            "c": int(
-                ThresholdConfig._get_config_value("dashboard_grade_threshold_c", 40)
-            ),
+            "a": int(ThresholdConfig._get_config_value("dashboard_grade_threshold_a", 80)),
+            "b": int(ThresholdConfig._get_config_value("dashboard_grade_threshold_b", 60)),
+            "c": int(ThresholdConfig._get_config_value("dashboard_grade_threshold_c", 40)),
         }
 
     # ═══════════════════════════════════════════════════════════════════════════
@@ -162,16 +134,12 @@ class ThresholdConfig:
     @staticmethod
     def data_staleness_stale_days_monday() -> int:
         """Data age (days) on Monday to be considered stale."""
-        return int(
-            ThresholdConfig._get_config_value("data_staleness_stale_days_monday", 10)
-        )
+        return int(ThresholdConfig._get_config_value("data_staleness_stale_days_monday", 10))
 
     @staticmethod
     def data_staleness_stale_days_other() -> int:
         """Data age (days) on non-Monday to be considered stale."""
-        return int(
-            ThresholdConfig._get_config_value("data_staleness_stale_days_other", 3)
-        )
+        return int(ThresholdConfig._get_config_value("data_staleness_stale_days_other", 3))
 
     @staticmethod
     def get_data_staleness_days(is_monday: bool) -> int:
@@ -192,9 +160,7 @@ class ThresholdConfig:
     @staticmethod
     def dashboard_min_quality_threshold() -> float:
         """Dashboard minimum quality score (0-100)."""
-        return float(
-            ThresholdConfig._get_config_value("dashboard_min_quality_threshold", 40.0)
-        )
+        return float(ThresholdConfig._get_config_value("dashboard_min_quality_threshold", 40.0))
 
     @staticmethod
     def min_close_quality_pct() -> float:
@@ -209,18 +175,12 @@ class ThresholdConfig:
     @staticmethod
     def dashboard_metrics_max_age_minutes() -> int:
         """Dashboard: maximum age of metrics in minutes before warning."""
-        return int(
-            ThresholdConfig._get_config_value("dashboard_metrics_max_age_minutes", 120)
-        )
+        return int(ThresholdConfig._get_config_value("dashboard_metrics_max_age_minutes", 120))
 
     @staticmethod
     def dashboard_fetcher_failure_threshold() -> float:
         """Dashboard: if >N% of fetchers fail, enter degraded mode."""
-        return float(
-            ThresholdConfig._get_config_value(
-                "dashboard_fetcher_failure_threshold", 0.5
-            )
-        )
+        return float(ThresholdConfig._get_config_value("dashboard_fetcher_failure_threshold", 0.5))
 
     # ═══════════════════════════════════════════════════════════════════════════
     # LOADER OPERATIONAL THRESHOLDS
@@ -229,29 +189,17 @@ class ThresholdConfig:
     @staticmethod
     def loader_rate_limit_circuit_break_threshold_eod() -> int:
         """Circuit break threshold (seconds) during EOD."""
-        return int(
-            ThresholdConfig._get_config_value(
-                "loader_rate_limit_circuit_break_threshold_eod", 180
-            )
-        )
+        return int(ThresholdConfig._get_config_value("loader_rate_limit_circuit_break_threshold_eod", 180))
 
     @staticmethod
     def loader_rate_limit_circuit_break_threshold_morning() -> int:
         """Circuit break threshold (seconds) during morning prep."""
-        return int(
-            ThresholdConfig._get_config_value(
-                "loader_rate_limit_circuit_break_threshold_morning", 480
-            )
-        )
+        return int(ThresholdConfig._get_config_value("loader_rate_limit_circuit_break_threshold_morning", 480))
 
     @staticmethod
     def loader_emergency_mode_threshold_multiplier() -> float:
         """Emergency mode triggered at N% of task timeout."""
-        return float(
-            ThresholdConfig._get_config_value(
-                "loader_emergency_mode_threshold_multiplier", 0.5
-            )
-        )
+        return float(ThresholdConfig._get_config_value("loader_emergency_mode_threshold_multiplier", 0.5))
 
     @staticmethod
     def get_rate_limit_threshold(is_eod_pipeline: bool) -> int:
@@ -306,12 +254,10 @@ class ThresholdConfig:
     @staticmethod
     def portfolio_variance_threshold() -> float:
         """Portfolio variance threshold to trigger CB circuit breaker."""
-        return float(
-            ThresholdConfig._get_config_value("portfolio_variance_threshold", 0.15)
-        )
+        return float(ThresholdConfig._get_config_value("portfolio_variance_threshold", 0.15))
 
     @staticmethod
-    def get_all_thresholds() -> Dict[str, Any]:
+    def get_all_thresholds() -> dict[str, Any]:
         """Export all thresholds as a flat dict for inspection/debugging.
 
         Returns:

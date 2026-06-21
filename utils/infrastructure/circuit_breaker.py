@@ -28,6 +28,7 @@ T = TypeVar("T")
 
 class CircuitBreakerState(Enum):
     """Circuit breaker state transitions."""
+
     CLOSED = "closed"  # Normal operation
     OPEN = "open"  # Failing — all requests denied
     HALF_OPEN = "half_open"  # Testing recovery — allow 1 request
@@ -35,6 +36,7 @@ class CircuitBreakerState(Enum):
 
 class DataImportance(Enum):
     """Data criticality for circuit breaker decisions."""
+
     CRITICAL = "critical"  # Fail pipeline if unavailable (e.g., VIX for position sizing)
     REQUIRED = "required"  # Can't complete computation without it
     OPTIONAL = "optional"  # Missing is OK, continue with None values
@@ -84,10 +86,7 @@ class CircuitBreaker:
 
         if self.state == CircuitBreakerState.OPEN:
             # Check if recovery timeout has elapsed
-            if (
-                self.opened_at is not None
-                and time.time() - self.opened_at >= self.recovery_timeout_sec
-            ):
+            if self.opened_at is not None and time.time() - self.opened_at >= self.recovery_timeout_sec:
                 logger.info(
                     f"[CIRCUIT_BREAKER:{self.name}] Recovery timeout elapsed, "
                     f"transitioning to HALF_OPEN to test API recovery"
@@ -105,18 +104,13 @@ class CircuitBreaker:
         if self.state == CircuitBreakerState.HALF_OPEN:
             self.success_count_in_half_open += 1
             if self.success_count_in_half_open >= 2:  # 2 successes = circuit recovered
-                logger.info(
-                    f"[CIRCUIT_BREAKER:{self.name}] API recovered, "
-                    f"transitioning from HALF_OPEN to CLOSED"
-                )
+                logger.info(f"[CIRCUIT_BREAKER:{self.name}] API recovered, transitioning from HALF_OPEN to CLOSED")
                 self.state = CircuitBreakerState.CLOSED
                 self.failure_count = 0
         elif self.state == CircuitBreakerState.CLOSED:
             # Reset failure count on success during normal operation
             if self.failure_count > 0:
-                logger.debug(
-                    f"[CIRCUIT_BREAKER:{self.name}] Success after prior failures, resetting counter"
-                )
+                logger.debug(f"[CIRCUIT_BREAKER:{self.name}] Success after prior failures, resetting counter")
                 self.failure_count = 0
 
     def record_failure(self) -> None:
@@ -126,10 +120,7 @@ class CircuitBreaker:
 
         if self.state == CircuitBreakerState.HALF_OPEN:
             # Failure during recovery attempt — go back to OPEN
-            logger.warning(
-                f"[CIRCUIT_BREAKER:{self.name}] Recovery test failed, "
-                f"reopening circuit (was in HALF_OPEN)"
-            )
+            logger.warning(f"[CIRCUIT_BREAKER:{self.name}] Recovery test failed, reopening circuit (was in HALF_OPEN)")
             self.state = CircuitBreakerState.OPEN
             self.opened_at = time.time()
             self.success_count_in_half_open = 0
@@ -168,8 +159,14 @@ class CircuitBreaker:
 
         # CRITICAL: Check circuit state and reject if appropriate
         if self.is_open():
-            failure_age = f"{(time.time() - self.last_failure_time):.0f}s ago" if self.last_failure_time is not None else "unknown"
-            retry_at = f"{(self.opened_at + self.recovery_timeout_sec):.0f} UTC" if self.opened_at is not None else "unknown"
+            failure_age = (
+                f"{(time.time() - self.last_failure_time):.0f}s ago"
+                if self.last_failure_time is not None
+                else "unknown"
+            )
+            retry_at = (
+                f"{(self.opened_at + self.recovery_timeout_sec):.0f} UTC" if self.opened_at is not None else "unknown"
+            )
             error_msg = (
                 f"[CIRCUIT_BREAKER:{self.name}] Circuit OPEN: API unavailable. "
                 f"Last failure: {failure_age}. "
@@ -216,17 +213,13 @@ class CircuitBreaker:
                     f"{error_msg} (failure {self.failure_count}/{self.failure_threshold}). "
                     "CRITICAL DATA FETCH FAILED — pipeline must halt."
                 )
-                raise RuntimeError(
-                    f"Critical data fetch failed for {self.name}: {e}"
-                ) from e
+                raise RuntimeError(f"Critical data fetch failed for {self.name}: {e}") from e
             elif importance == DataImportance.REQUIRED:
                 logger.error(
                     f"{error_msg} (failure {self.failure_count}/{self.failure_threshold}). "
                     "REQUIRED DATA FETCH FAILED — phase execution blocked."
                 )
-                raise RuntimeError(
-                    f"Required data fetch failed for {self.name}: {e}"
-                ) from e
+                raise RuntimeError(f"Required data fetch failed for {self.name}: {e}") from e
             else:
                 # OPTIONAL: Log warning, return fallback, don't raise
                 logger.warning(
@@ -239,18 +232,19 @@ class CircuitBreaker:
 
 class CriticalDataUnavailableError(Exception):
     """Raised when critical data cannot be fetched and circuit is open."""
+
     def __init__(self, resource_name: str, root_cause: str, retry_after_sec: int):
         self.resource_name = resource_name
         self.root_cause = root_cause
         self.retry_after_sec = retry_after_sec
         super().__init__(
-            f"Critical data unavailable: {resource_name}. "
-            f"Reason: {root_cause}. Retry in {retry_after_sec}s."
+            f"Critical data unavailable: {resource_name}. Reason: {root_cause}. Retry in {retry_after_sec}s."
         )
 
 
 class StaleDataError(Exception):
     """Raised when cached data exceeds freshness threshold."""
+
     def __init__(self, resource_name: str, age_hours: float, max_age_hours: float):
         self.resource_name = resource_name
         self.age_hours = age_hours

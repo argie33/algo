@@ -17,7 +17,7 @@ import math
 from abc import ABC, abstractmethod
 from dataclasses import dataclass, field
 from datetime import date, datetime, timezone
-from typing import Any, Dict, List, Optional, Type
+from typing import Any
 
 
 logger = logging.getLogger(__name__)
@@ -35,8 +35,8 @@ class ValidationResult:
     """Structured validation result with error details and cleaned data."""
 
     is_valid: bool
-    errors: List[str] = field(default_factory=list)
-    data: Optional[Any] = None
+    errors: list[str] = field(default_factory=list)
+    data: Any | None = None
     context: str = ""
     validator_name: str = ""
 
@@ -90,9 +90,7 @@ class TypeValidator(Validator):
         cleaned = data
 
         if data is None:
-            return ValidationResult(
-                is_valid=True, data=None, context=context, validator_name=self.name
-            )
+            return ValidationResult(is_valid=True, data=None, context=context, validator_name=self.name)
 
         if self.expected_type in ("float", "numeric"):
             try:
@@ -146,7 +144,7 @@ class TypeValidator(Validator):
 class EnumValidator(Validator):
     """Validates that value is one of allowed enum values."""
 
-    def __init__(self, allowed_values: List[str], case_sensitive: bool = False):
+    def __init__(self, allowed_values: list[str], case_sensitive: bool = False):
         super().__init__()
         self.allowed_values = [str(v) for v in allowed_values]
         self.case_sensitive = case_sensitive
@@ -165,9 +163,7 @@ class EnumValidator(Validator):
             return ValidationResult(is_valid=True, data=data, context=context)
 
         errors = [f"{context}: value {data!r} not in {self.allowed_values}"]
-        return ValidationResult(
-            is_valid=False, errors=errors, data=data, context=context
-        )
+        return ValidationResult(is_valid=False, errors=errors, data=data, context=context)
 
 
 class PhaseValidator(Validator):
@@ -206,9 +202,7 @@ class PhaseValidator(Validator):
         if not status:
             all_errors.append(f"{context}: missing 'status' field")
         elif status not in self.VALID_STATUSES:
-            all_errors.append(
-                f"{context}: invalid status {status!r} (valid: {sorted(self.VALID_STATUSES)})"
-            )
+            all_errors.append(f"{context}: invalid status {status!r} (valid: {sorted(self.VALID_STATUSES)})")
         else:
             cleaned["status"] = status
 
@@ -225,8 +219,8 @@ class ValidatorRegistry:
     """Central registry of all validators."""
 
     def __init__(self):
-        self._validators: Dict[str, Validator] = {}
-        self._metadata: Dict[str, Dict[str, str]] = {}
+        self._validators: dict[str, Validator] = {}
+        self._metadata: dict[str, dict[str, str]] = {}
 
     def register(self, name: str, validator: Validator, description: str = ""):
         self._validators[name] = validator
@@ -236,15 +230,13 @@ class ValidatorRegistry:
         }
         logger.debug(f"Registered validator: {name}")
 
-    def validate(
-        self, validator_name: str, data: Any, context: str = ""
-    ) -> ValidationResult:
+    def validate(self, validator_name: str, data: Any, context: str = "") -> ValidationResult:
         if validator_name not in self._validators:
             raise ValueError(f"Unknown validator: {validator_name!r}")
         validator = self._validators[validator_name]
         return validator.validate(data, context=context)
 
-    def get_validator(self, name: str) -> Optional[Validator]:
+    def get_validator(self, name: str) -> Validator | None:
         return self._validators.get(name)
 
 
@@ -355,7 +347,7 @@ def safe_int(value: Any, default: int = 0, context: str = "") -> int:
         return default
 
 
-def safe_parse_date(value: Any, context: str = "") -> Optional[date]:
+def safe_parse_date(value: Any, context: str = "") -> date | None:
     """Parse date from multiple formats: ISO, string, datetime.
 
     Handles:
@@ -436,9 +428,7 @@ def safe_json_loads(json_str: Any, default: Any = None, context: str = "") -> An
         return json_str
 
     if not isinstance(json_str, str):
-        logger.warning(
-            f"JSON parse: expected string, got {type(json_str).__name__} {context}"
-        )
+        logger.warning(f"JSON parse: expected string, got {type(json_str).__name__} {context}")
         return default
 
     try:
@@ -511,7 +501,7 @@ def safe_json_parse(
     *,
     default: Any = None,
     strict: bool = False,
-    field_name: Optional[str] = None,
+    field_name: str | None = None,
 ) -> Any:
     """Parse JSON string with configurable failure behavior (dashboard API variant).
 
@@ -526,9 +516,7 @@ def safe_json_parse(
     """
     if value is None:
         if strict:
-            raise ValueError(
-                f"Cannot parse None as JSON{f' for {field_name}' if field_name else ''}"
-            )
+            raise ValueError(f"Cannot parse None as JSON{f' for {field_name}' if field_name else ''}")
         return default if default is not None else {}
 
     if isinstance(value, (dict, list)):
@@ -557,9 +545,7 @@ def safe_json_parse(
     return default if default is not None else {}
 
 
-def validate_required_fields(
-    data: Dict[str, Any], required_fields: List[str], source: Optional[str] = None
-) -> bool:
+def validate_required_fields(data: dict[str, Any], required_fields: list[str], source: str | None = None) -> bool:
     """Check if required fields exist in data dict. Log warnings for missing fields."""
     missing = [f for f in required_fields if f not in data or data[f] is None]
     if missing:
@@ -569,9 +555,7 @@ def validate_required_fields(
     return True
 
 
-def validate_field_types(
-    data: Dict[str, Any], type_spec: Dict[str, Type], source: Optional[str] = None
-) -> bool:
+def validate_field_types(data: dict[str, Any], type_spec: dict[str, type], source: str | None = None) -> bool:
     """Validate that fields in data match expected types. Log warnings for type mismatches."""
     issues = []
     for field_name, expected_type in type_spec.items():
@@ -581,9 +565,7 @@ def validate_field_types(
         if value is None:
             continue
         if not isinstance(value, expected_type):
-            issues.append(
-                f"{field_name}: expected {expected_type.__name__}, got {type(value).__name__}"
-            )
+            issues.append(f"{field_name}: expected {expected_type.__name__}, got {type(value).__name__}")
 
     if issues:
         source_str = f" from {source}" if source else ""

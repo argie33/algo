@@ -20,13 +20,11 @@ from routes.utils import (
     success_response,
 )
 
-from utils.validation import format_decimal_string
-
 from shared_contracts.response_validator import ResponseValidator
+from utils.validation import format_decimal_string
 
 
 logger = logging.getLogger(__name__)
-
 
 
 @db_route_handler("get algo evaluate")
@@ -90,9 +88,7 @@ def _get_algo_evaluate(cur) -> dict:
                 GROUP BY sector
                 ORDER BY count DESC
             """)
-        sector_exposure = [
-            safe_json_serialize(safe_dict_convert(r)) for r in cur.fetchall()
-        ]
+        sector_exposure = [safe_json_serialize(safe_dict_convert(r)) for r in cur.fetchall()]
 
         # Risk metrics
         cur.execute("""
@@ -233,7 +229,6 @@ def _get_algo_evaluate(cur) -> dict:
         )
 
 
-
 @db_route_handler("get sector breadth")
 def _get_sector_breadth(cur) -> dict:
     """Get sector breadth indicators: % of stocks above 50-day and 200-day moving averages.
@@ -289,9 +284,7 @@ def _get_sector_breadth(cur) -> dict:
             """)
         breadth = cur.fetchall()
         cur.execute("RELEASE SAVEPOINT sector_breadth_check")
-        return list_response(
-            [safe_json_serialize(safe_dict_convert(b)) for b in breadth]
-        )
+        return list_response([safe_json_serialize(safe_dict_convert(b)) for b in breadth])
     except (
         psycopg2.errors.UndefinedTable,
         psycopg2.errors.UndefinedColumn,
@@ -308,7 +301,6 @@ def _get_sector_breadth(cur) -> dict:
         return error_response(code, error_type, message)
 
 
-
 @db_route_handler("get sector position warnings")
 def _get_sector_position_warnings(cur) -> dict:
     """Get sector position concentration warnings (FIX: missing endpoint for dashboard fallback).
@@ -316,7 +308,6 @@ def _get_sector_position_warnings(cur) -> dict:
     Returns list of sectors with position counts and concentration warnings.
     """
     try:
-
         cur.execute("""
                 SELECT cp.sector, COUNT(DISTINCT ap.symbol) as position_count
                 FROM algo_positions ap
@@ -338,11 +329,7 @@ def _get_sector_position_warnings(cur) -> dict:
             ("max_positions_per_sector",),
         )
         max_per_sector_row = cur.fetchone()
-        max_per_sector = (
-            int(max_per_sector_row["value"])
-            if max_per_sector_row and max_per_sector_row["value"]
-            else 3
-        )
+        max_per_sector = int(max_per_sector_row["value"]) if max_per_sector_row and max_per_sector_row["value"] else 3
 
         warnings = []
         at_cap = []
@@ -379,7 +366,6 @@ def _get_sector_position_warnings(cur) -> dict:
     ) as e:
         code, error_type, message = handle_db_error(e, "get sector position warnings")
         return error_response(code, error_type, message)
-
 
 
 @db_route_handler("get sector rotation")
@@ -477,7 +463,6 @@ def _get_sector_rotation(cur, days: int = 180) -> dict:
     return response
 
 
-
 @db_route_handler("get sector stage2")
 def _get_sector_stage2(cur) -> dict:
     """Get percentage of stocks in Stage 2 by sector."""
@@ -522,6 +507,3 @@ def _get_sector_stage2(cur) -> dict:
     ) as e:
         code, error_type, message = handle_db_error(e, "get sector stage2")
         return error_response(code, error_type, message)
-
-
-

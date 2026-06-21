@@ -11,7 +11,7 @@ Pattern: Call validate() after every external service call to catch errors early
 """
 
 import logging
-from typing import Any, Dict, List
+from typing import Any
 
 
 logger = logging.getLogger(__name__)
@@ -21,7 +21,7 @@ class CognitoValidator:
     """Validates Cognito JWT claims and API responses."""
 
     @staticmethod
-    def validate_jwt_claims(jwt_claims: Dict[str, Any] | None) -> Dict[str, Any]:
+    def validate_jwt_claims(jwt_claims: dict[str, Any] | None) -> dict[str, Any]:
         """Validate Cognito JWT claims structure.
 
         Returns: {
@@ -60,9 +60,7 @@ class CognitoValidator:
         # Validate 'cognito:groups' (group membership)
         groups = jwt_claims.get("cognito:groups")
         if groups is not None and not isinstance(groups, list):
-            errors.append(
-                f"'cognito:groups' must be list, got {type(groups).__name__}"
-            )
+            errors.append(f"'cognito:groups' must be list, got {type(groups).__name__}")
             groups = []
         elif groups is None:
             groups = []
@@ -82,7 +80,7 @@ class CognitoValidator:
         }
 
     @staticmethod
-    def validate_admin_access(jwt_claims: Dict[str, Any] | None) -> bool:
+    def validate_admin_access(jwt_claims: dict[str, Any] | None) -> bool:
         """Check if user has admin access.
 
         Properly validates JWT claims before checking group membership.
@@ -95,7 +93,7 @@ class CognitoValidator:
         return "admin" in validation["cognito_groups"]
 
     @staticmethod
-    def log_validation_errors(errors: List[str], context: str = "") -> None:
+    def log_validation_errors(errors: list[str], context: str = "") -> None:
         """Log Cognito validation errors for debugging."""
         for error in errors:
             logger.error(f"[Cognito Validation] {error} {context}")
@@ -105,7 +103,7 @@ class DynamoDBValidator:
     """Validates DynamoDB operation responses."""
 
     @staticmethod
-    def validate_get_item_response(response: Dict[str, Any]) -> Dict[str, Any]:
+    def validate_get_item_response(response: dict[str, Any]) -> dict[str, Any]:
         """Validate response from table.get_item().
 
         Returns: {
@@ -146,7 +144,7 @@ class DynamoDBValidator:
         }
 
     @staticmethod
-    def validate_put_item_response(response: Dict[str, Any]) -> Dict[str, Any]:
+    def validate_put_item_response(response: dict[str, Any]) -> dict[str, Any]:
         """Validate response from table.put_item().
 
         Returns: {
@@ -182,7 +180,7 @@ class DynamoDBValidator:
         }
 
     @staticmethod
-    def validate_update_item_response(response: Dict[str, Any]) -> Dict[str, Any]:
+    def validate_update_item_response(response: dict[str, Any]) -> dict[str, Any]:
         """Validate response from table.update_item().
 
         Returns: {
@@ -216,7 +214,7 @@ class DynamoDBValidator:
         }
 
     @staticmethod
-    def log_validation_errors(errors: List[str], context: str = "") -> None:
+    def log_validation_errors(errors: list[str], context: str = "") -> None:
         """Log DynamoDB validation errors for debugging."""
         for error in errors:
             logger.error(f"[DynamoDB Validation] {error} {context}")
@@ -226,9 +224,7 @@ class DatabaseResultValidator:
     """Validates database query results for type safety."""
 
     @staticmethod
-    def safe_get_float(
-        row: Dict[str, Any] | None, key: str, default: float = 0.0, strict: bool = False
-    ) -> float:
+    def safe_get_float(row: dict[str, Any] | None, key: str, default: float = 0.0, strict: bool = False) -> float:
         """Safely extract and convert float from database row.
 
         Args:
@@ -257,9 +253,7 @@ class DatabaseResultValidator:
             return default
 
     @staticmethod
-    def safe_get_int(
-        row: Dict[str, Any] | None, key: str, default: int = 0, strict: bool = False
-    ) -> int:
+    def safe_get_int(row: dict[str, Any] | None, key: str, default: int = 0, strict: bool = False) -> int:
         """Safely extract and convert int from database row."""
         if row is None:
             if strict:
@@ -278,9 +272,7 @@ class DatabaseResultValidator:
             return default
 
     @staticmethod
-    def safe_get_str(
-        row: Dict[str, Any] | None, key: str, default: str = "", strict: bool = False
-    ) -> str:
+    def safe_get_str(row: dict[str, Any] | None, key: str, default: str = "", strict: bool = False) -> str:
         """Safely extract and convert string from database row."""
         if row is None:
             if strict:
@@ -315,9 +307,7 @@ class DatabaseResultValidator:
         return True
 
     @staticmethod
-    def validate_rows_not_empty(
-        rows: List[Any] | None, context: str = "database query"
-    ) -> bool:
+    def validate_rows_not_empty(rows: list[Any] | None, context: str = "database query") -> bool:
         """Validate that database rows list is not empty.
 
         Args:
@@ -336,9 +326,7 @@ class DatabaseResultValidator:
         return True
 
     @staticmethod
-    def safe_get_first_row(
-        rows: List[Any] | None, context: str = "database query"
-    ) -> Any | None:
+    def safe_get_first_row(rows: list[Any] | None, context: str = "database query") -> Any | None:
         """Safely get first row from query results. Returns None if rows are empty or None.
 
         ALWAYS USE THIS instead of rows[0] to prevent IndexError.
@@ -361,6 +349,6 @@ class DatabaseResultValidator:
 
 __all__ = [
     "CognitoValidator",
-    "DynamoDBValidator",
     "DatabaseResultValidator",
+    "DynamoDBValidator",
 ]

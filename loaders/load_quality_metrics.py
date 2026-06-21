@@ -71,9 +71,7 @@ class QualityMetricsLoader(OptimalLoader):
             return None
 
     @staticmethod
-    def _compute_metrics(
-        symbol: str, income: tuple, balance: tuple | None
-    ) -> dict | None:
+    def _compute_metrics(symbol: str, income: tuple, balance: tuple | None) -> dict | None:
         """Compute quality metrics from financial data. Balance sheet is optional."""
         revenue, operating_income, net_income = income
         if balance:
@@ -86,17 +84,15 @@ class QualityMetricsLoader(OptimalLoader):
                 inventory,
             ) = balance
         else:
-            total_assets = stockholders_equity = current_assets = total_liabilities = (
-                current_liabilities
-            ) = inventory = None
+            total_assets = stockholders_equity = current_assets = total_liabilities = current_liabilities = (
+                inventory
+            ) = None
 
         metrics: dict[str, Any] = {"symbol": symbol}
 
         # Operating Margin: Operating Income / Revenue
         if revenue and revenue > 0 and operating_income is not None:
-            metrics["operating_margin"] = float(
-                round((operating_income / revenue) * 100, 2)
-            )
+            metrics["operating_margin"] = float(round((operating_income / revenue) * 100, 2))
         else:
             metrics["operating_margin"] = None
 
@@ -117,44 +113,24 @@ class QualityMetricsLoader(OptimalLoader):
             metrics["roa"] = None
 
         # Debt/Equity: Total Liabilities / Equity
-        if (
-            stockholders_equity
-            and stockholders_equity > 0
-            and total_liabilities is not None
-        ):
-            metrics["debt_to_equity"] = float(
-                round(total_liabilities / stockholders_equity, 2)
-            )
+        if stockholders_equity and stockholders_equity > 0 and total_liabilities is not None:
+            metrics["debt_to_equity"] = float(round(total_liabilities / stockholders_equity, 2))
         else:
             metrics["debt_to_equity"] = None
 
         # Current Ratio: Current Assets / Current Liabilities
-        if (
-            current_liabilities
-            and current_liabilities > 0
-            and current_assets is not None
-        ):
-            metrics["current_ratio"] = float(
-                round(current_assets / current_liabilities, 2)
-            )
+        if current_liabilities and current_liabilities > 0 and current_assets is not None:
+            metrics["current_ratio"] = float(round(current_assets / current_liabilities, 2))
         else:
             metrics["current_ratio"] = None
 
         # Quick Ratio: (Current Assets - Inventory) / Current Liabilities
-        if (
-            current_liabilities
-            and current_liabilities > 0
-            and current_assets is not None
-        ):
+        if current_liabilities and current_liabilities > 0 and current_assets is not None:
             if inventory and inventory > 0:
                 quick_assets = float(current_assets) - float(inventory)
             else:
-                quick_assets = float(
-                    current_assets
-                )  # No inventory data, use all current assets
-            metrics["quick_ratio"] = float(
-                round(quick_assets / float(current_liabilities), 2)
-            )
+                quick_assets = float(current_assets)  # No inventory data, use all current assets
+            metrics["quick_ratio"] = float(round(quick_assets / float(current_liabilities), 2))
         else:
             metrics["quick_ratio"] = None
 

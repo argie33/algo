@@ -10,7 +10,7 @@ Prevents different modules from implementing the same scoring logic multiple way
 
 import logging
 from datetime import date
-from typing import Any, Dict, Tuple
+from typing import Any
 
 
 logger = logging.getLogger(__name__)
@@ -49,9 +49,7 @@ class SignalScorer:
             )
 
     @staticmethod
-    def normalize_score(
-        raw_score: float, min_val: float = 0, max_val: float = 100
-    ) -> float:
+    def normalize_score(raw_score: float, min_val: float = 0, max_val: float = 100) -> float:
         """
         Normalize a raw score to 0-100 scale.
 
@@ -96,11 +94,7 @@ class SignalScorer:
             Strength classification: 'very_weak', 'weak', 'medium', 'strong', 'very_strong'
         """
         # Load from config if not provided
-        if (
-            weak_threshold is None
-            or medium_threshold is None
-            or strong_threshold is None
-        ):
+        if weak_threshold is None or medium_threshold is None or strong_threshold is None:
             w, m, s = SignalScorer._get_config_thresholds()
             weak_threshold = weak_threshold or w
             medium_threshold = medium_threshold or m
@@ -122,9 +116,9 @@ class SignalScorer:
         eval_date: date,
         score: float,
         strength: str | None = None,
-        details: Dict[str, Any] | None = None,
+        details: dict[str, Any] | None = None,
         threshold: float | None = None,
-    ) -> Dict[str, Any]:
+    ) -> dict[str, Any]:
         """
         Format a standardized signal result.
 
@@ -160,9 +154,7 @@ class SignalScorer:
         }
 
     @staticmethod
-    def blend_scores(
-        scores: Dict[str, Tuple[float, float]], weights: Dict[str, float] | None = None
-    ) -> float:
+    def blend_scores(scores: dict[str, tuple[float, float]], weights: dict[str, float] | None = None) -> float:
         """
         Blend multiple component scores using weights.
 
@@ -178,7 +170,7 @@ class SignalScorer:
 
         # Default to equal weights if not provided
         if weights is None:
-            weights = {name: 1.0 for name in scores.keys()}
+            weights = dict.fromkeys(scores.keys(), 1.0)
 
         total_weighted = 0.0
         total_weight = 0.0
@@ -194,13 +186,9 @@ class SignalScorer:
             return SignalScorer.SCORE_MIN
 
         blended = total_weighted / total_weight
-        return round(
-            max(SignalScorer.SCORE_MIN, min(blended, SignalScorer.SCORE_MAX)), 1
-        )
+        return round(max(SignalScorer.SCORE_MIN, min(blended, SignalScorer.SCORE_MAX)), 1)
 
     @staticmethod
-    def validate_score(
-        score: float, min_val: float = SCORE_MIN, max_val: float = SCORE_MAX
-    ) -> bool:
+    def validate_score(score: float, min_val: float = SCORE_MIN, max_val: float = SCORE_MAX) -> bool:
         """Validate that a score is in the expected range."""
         return min_val <= score <= max_val

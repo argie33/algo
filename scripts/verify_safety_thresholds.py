@@ -3,15 +3,17 @@
 
 CRITICAL: CLAUDE.md Rule #5: NEVER set thresholds to zero"""
 
-import sys
 import argparse
 import logging
+import sys
 from pathlib import Path
+
 
 sys.path.insert(0, str(Path(__file__).parent.parent))
 
 logging.basicConfig(level=logging.INFO, format="[%(levelname)s] %(message)s")
 logger = logging.getLogger(__name__)
+
 
 def main():
     parser = argparse.ArgumentParser(description="Verify trading safety thresholds")

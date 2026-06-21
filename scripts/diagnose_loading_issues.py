@@ -39,7 +39,13 @@ def check_table_data(table_name: str, description: str) -> dict:
             else:
                 status = f"STALE_{days_old}DAYS"
 
-            return {"table": table_name, "status": status, "count": count, "max_date": str(max_date), "desc": description}
+            return {
+                "table": table_name,
+                "status": status,
+                "count": count,
+                "max_date": str(max_date),
+                "desc": description,
+            }
     except Exception as e:
         return {"table": table_name, "status": "ERROR", "error": str(e), "desc": description}
 
@@ -67,7 +73,11 @@ def main():
         critical_results.append(result)
         status = result["status"]
         marker = "✓" if status in ("FRESH", "1DAY_OLD") else "✗"
-        info = f" (max_date: {result.get('max_date', 'N/A')})" if "max_date" in result else f" ({result.get('error', 'N/A')})"
+        info = (
+            f" (max_date: {result.get('max_date', 'N/A')})"
+            if "max_date" in result
+            else f" ({result.get('error', 'N/A')})"
+        )
         print(f"{marker} {table:30s} {status:20s} {desc:35s}{info}")
 
     # Score tables (depend on critical tables)
@@ -85,7 +95,11 @@ def main():
         score_results.append(result)
         status = result["status"]
         marker = "✓" if status in ("FRESH", "1DAY_OLD") else "✗"
-        info = f" ({result.get('count', 0)} rows, max_date: {result.get('max_date', 'N/A')})" if "max_date" in result else f" ({result.get('error', 'N/A')})"
+        info = (
+            f" ({result.get('count', 0)} rows, max_date: {result.get('max_date', 'N/A')})"
+            if "max_date" in result
+            else f" ({result.get('error', 'N/A')})"
+        )
         print(f"{marker} {table:30s} {status:20s} {desc:35s}{info}")
 
     # Factor input tables (for stock_scores)
@@ -137,7 +151,9 @@ def main():
         missing_factors = [name for name, r in factor_status.items() if r["status"] == "EMPTY"]
         if missing_factors:
             print(f"✗ stock_scores is EMPTY. Missing factors: {', '.join(missing_factors)}")
-            print("  ACTION: Run quality_metrics, growth_metrics, value_metrics, positioning_metrics, stability_metrics loaders")
+            print(
+                "  ACTION: Run quality_metrics, growth_metrics, value_metrics, positioning_metrics, stability_metrics loaders"
+            )
         else:
             print("✗ stock_scores is EMPTY but all factor inputs are available")
             print("  ACTION: Run load_stock_scores.py manually to populate")
@@ -195,5 +211,6 @@ if __name__ == "__main__":
     except Exception as e:
         print(f"\nERROR: {e}")
         import traceback
+
         traceback.print_exc()
         sys.exit(1)

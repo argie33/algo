@@ -91,11 +91,13 @@ _PERIOD_CONFIG = {
     },
 }
 
+
 def _resolve_period(cli_arg: str | None) -> str:
     if cli_arg:
         return cli_arg
     period_env = os.getenv("LOADER_PERIOD", "annual")
     return period_env
+
 
 class BalanceSheetLoader(OptimalLoader):
     watermark_field = "fiscal_year"
@@ -104,10 +106,10 @@ class BalanceSheetLoader(OptimalLoader):
         assert period in ("annual", "quarterly")
         cfg = _PERIOD_CONFIG[period]
         self.period = period
-        self.table_name = cfg["table_name"]
-        self.primary_key = cfg["primary_key"]
-        self._schema_cols = cfg["schema_cols"]
-        self._field_mapping = cfg.get("field_mapping")
+        self.table_name: str = cfg["table_name"]  # type: ignore[assignment]
+        self.primary_key: tuple[str, ...] = cfg["primary_key"]  # type: ignore[assignment]
+        self._schema_cols: frozenset[str] = cfg["schema_cols"]  # type: ignore[assignment]
+        self._field_mapping: dict[str, str] | None = cfg.get("field_mapping")
         super().__init__()
         self._sec_client = SecEdgarClient()
 
@@ -159,9 +161,7 @@ class BalanceSheetLoader(OptimalLoader):
                 if db_field in self._schema_cols:
                     row[db_field] = value
             if "fiscal_quarter" in row and isinstance(row["fiscal_quarter"], str):
-                row["fiscal_quarter"] = {"Q1": 1, "Q2": 2, "Q3": 3, "Q4": 4}.get(
-                    row["fiscal_quarter"]
-                )
+                row["fiscal_quarter"] = {"Q1": 1, "Q2": 2, "Q3": 3, "Q4": 4}.get(row["fiscal_quarter"])
             transformed.append(row)
 
         seen = {}
@@ -193,6 +193,7 @@ class BalanceSheetLoader(OptimalLoader):
             return False
 
         return True
+
 
 if __name__ == "__main__":
     sys.exit(run_loader(BalanceSheetLoader))

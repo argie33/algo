@@ -91,15 +91,11 @@ def fetch_cloudfront_domain_from_secrets():
                     domain = secret.strip()
                 else:
                     # JSON secret with domain key
-                    secret_dict = (
-                        json.loads(secret) if isinstance(secret, str) else secret
-                    )
+                    secret_dict = json.loads(secret) if isinstance(secret, str) else secret
                     domain = secret_dict.get("domain", "").strip()
 
                 if domain:
-                    logger.info(
-                        f"[CloudFront] Fetched domain from Secrets Manager: {domain}"
-                    )
+                    logger.info(f"[CloudFront] Fetched domain from Secrets Manager: {domain}")
                     _CLOUDFRONT_DOMAIN_CACHE = domain
                     _CLOUDFRONT_DOMAIN_CACHE_TIME = datetime.now(timezone.utc)
                     return domain, None
@@ -117,9 +113,7 @@ def fetch_cloudfront_domain_from_secrets():
                 return None, f"Invalid secret format: {e}"
 
         except ImportError:
-            logger.warning(
-                "[CloudFront] boto3 not available, skipping Secrets Manager fetch"
-            )
+            logger.warning("[CloudFront] boto3 not available, skipping Secrets Manager fetch")
             return None, "boto3 not available"
         except (json.JSONDecodeError, ValueError) as e:
             logger.error(
@@ -154,21 +148,15 @@ def validate_environment():
                 try:
                     int(port_str)
                 except (ValueError, TypeError):
-                    errors.append(
-                        f"{var} invalid: Must be a valid integer (e.g., 5432)"
-                    )
+                    errors.append(f"{var} invalid: Must be a valid integer (e.g., 5432)")
         else:
             if not os.getenv(var):
                 errors.append(f"{var} missing: {description}")
 
     # Validate DB_HOST points to proxy if it's an RDS endpoint
     db_host = os.getenv("DB_HOST", "")
-    is_likely_direct_rds = (
-        "db-" in db_host
-        and "rds.amazonaws.com" in db_host
-        and "proxy" not in db_host.lower()
-    )
-    is_localhost = db_host.startswith("localhost") or db_host.startswith("127.")
+    is_likely_direct_rds = "db-" in db_host and "rds.amazonaws.com" in db_host and "proxy" not in db_host.lower()
+    is_localhost = db_host.startswith(("localhost", "127."))
     if db_host and is_likely_direct_rds and not is_localhost:
         logger.error(
             "FATAL: DB_HOST appears to be direct RDS, not proxy. Connection pooling REQUIRED. Use RDS Proxy endpoint."
@@ -198,9 +186,7 @@ def validate_environment():
         cognito_region = os.getenv("COGNITO_REGION", "").strip()
 
         if not cognito_client_id:
-            warnings.append(
-                "COGNITO_CLIENT_ID missing: Required when COGNITO_USER_POOL_ID is set"
-            )
+            warnings.append("COGNITO_CLIENT_ID missing: Required when COGNITO_USER_POOL_ID is set")
         if not cognito_region:
             warnings.append("COGNITO_REGION missing: Will default to us-east-1")
 
@@ -214,28 +200,20 @@ def validate_environment():
             cf_domain, cf_error = fetch_cloudfront_domain_from_secrets()
             if cf_domain:
                 frontend_url = (
-                    f"https://{cf_domain}"
-                    if not cf_domain.startswith(("http://", "https://"))
-                    else cf_domain
+                    f"https://{cf_domain}" if not cf_domain.startswith(("http://", "https://")) else cf_domain
                 )
                 os.environ["FRONTEND_URL"] = frontend_url
-                logger.info(
-                    f"[CloudFront] Set FRONTEND_URL from Secrets Manager: {frontend_url}"
-                )
+                logger.info(f"[CloudFront] Set FRONTEND_URL from Secrets Manager: {frontend_url}")
             elif cf_error == "Secret not found":
                 # Expected on first deploy before CloudFront domain is set up
                 if allow_localhost:
-                    logger.info(
-                        "[CloudFront] Secret not found (OK on first deploy), ALLOW_LOCALHOST_CORS=true"
-                    )
+                    logger.info("[CloudFront] Secret not found (OK on first deploy), ALLOW_LOCALHOST_CORS=true")
                 else:
                     warnings.append(
                         "FRONTEND_URL missing: Set to frontend domain (e.g., https://myapp.example.com) for CORS, or enable ALLOW_LOCALHOST_CORS=true for dev"
                     )
             else:
-                warnings.append(
-                    f"[CloudFront] Fetch attempt returned error (may be first deploy): {cf_error}"
-                )
+                warnings.append(f"[CloudFront] Fetch attempt returned error (may be first deploy): {cf_error}")
 
     # Log warnings but don't fail
     for warning in warnings:
@@ -296,9 +274,7 @@ def test_db_connection():
                 conn.close()
             except (psycopg2.DatabaseError, psycopg2.OperationalError) as close_err:
                 logger.error(f"[DB_TEST_FAILED] Failed to close connection after query error: {close_err}")
-                raise RuntimeError(
-                    f"Cold start database test failed to clean up: {close_err}"
-                ) from close_err
+                raise RuntimeError(f"Cold start database test failed to clean up: {close_err}") from close_err
             raise qe
     except (psycopg2.DatabaseError, psycopg2.OperationalError) as e:
         error_msg = (
@@ -335,7 +311,7 @@ def redact_sensitive_headers(headers_dict):
     sensitive_keys = ["authorization", "cookie", "x-api-key", "x-auth-token"]
     for key in sensitive_keys:
         if key.lower() in [k.lower() for k in redacted.keys()]:
-            actual_key = [k for k in redacted.keys() if k.lower() == key.lower()][0]
+            actual_key = next(k for k in redacted.keys() if k.lower() == key.lower())
             redacted[actual_key] = "***REDACTED***"
     return redacted
 
@@ -383,7 +359,7 @@ def parse_query_params(event: dict) -> dict:
         for param in event["rawQueryString"].split("&"):
             if "=" in param:
                 k, v = param.split("=", 1)
-                params[k] = params.get(k) + [v]
+                params[k] = [*params.get(k), v]
             else:
                 params[param] = [""]
     return params
@@ -552,9 +528,7 @@ def _get_cognito_jwks():
     cognito_user_pool_id = os.getenv("COGNITO_USER_POOL_ID")
 
     if not cognito_user_pool_id:
-        logger.warning(
-            "COGNITO_USER_POOL_ID not set - JWT signature verification disabled"
-        )
+        logger.warning("COGNITO_USER_POOL_ID not set - JWT signature verification disabled")
         return None
 
     now = datetime.now(timezone.utc)
@@ -603,9 +577,7 @@ def validate_bearer_token(token: str | None) -> tuple:
         cognito_region = os.getenv("COGNITO_REGION", "us-east-1")
         cognito_user_pool_id = os.getenv("COGNITO_USER_POOL_ID")
         if not cognito_user_pool_id:
-            logger.error(
-                "FATAL: COGNITO_USER_POOL_ID not configured in Lambda environment"
-            )
+            logger.error("FATAL: COGNITO_USER_POOL_ID not configured in Lambda environment")
             return (
                 False,
                 None,
@@ -672,9 +644,7 @@ def validate_bearer_token(token: str | None) -> tuple:
         required_claims = ["sub"]
         missing_claims = [claim for claim in required_claims if not payload.get(claim)]
         if missing_claims:
-            logger.warning(
-                f"JWT missing required claims: {missing_claims}"
-            )
+            logger.warning(f"JWT missing required claims: {missing_claims}")
             return (False, None, f"Token missing required claims: {', '.join(missing_claims)}")
 
         # Manually verify client identity from either claim
@@ -684,9 +654,7 @@ def validate_bearer_token(token: str | None) -> tuple:
         if isinstance(actual_client, list):
             actual_client = actual_client[0] if actual_client else ""
         if actual_client != cognito_client_id:
-            logger.warning(
-                f"JWT client_id/aud mismatch: expected {cognito_client_id}, got {actual_client}"
-            )
+            logger.warning(f"JWT client_id/aud mismatch: expected {cognito_client_id}, got {actual_client}")
             return (False, None, "Token client mismatch")
 
         # SECURITY FIX S-21: Explicit expiration validation (PyJWT checks via verify_exp=True, but explicit check adds defense-in-depth)
@@ -712,9 +680,7 @@ def validate_bearer_token(token: str | None) -> tuple:
             except Exception as e:
                 logger.warning(f"Blocklist check failed (non-fatal): {e}")
 
-        logger.info(
-            f"JWT validated: user={payload.get('sub')}, valid until {payload.get('exp')}"
-        )
+        logger.info(f"JWT validated: user={payload.get('sub')}, valid until {payload.get('exp')}")
 
         # SECURITY FIX S-08: Validate JWT scope claim (if present)
         # Scope is optional, but if Cognito is configured to issue scopes, validate them
@@ -811,9 +777,7 @@ def log_api_request(
     try:
         client_ip = get_client_ip(event)
         path = event.get("rawPath", event.get("path", "/"))
-        method = (
-            event.get("requestContext").get("http").get("method", "UNKNOWN")
-        )
+        method = event.get("requestContext").get("http").get("method", "UNKNOWN")
         request_id = event.get("requestContext").get("requestId", "unknown")
 
         audit_log = {
@@ -841,30 +805,29 @@ def require_auth(event: dict, path: str) -> tuple:
     # Public endpoints (no auth required) - only aggregate market data (no strategy/trading info)
     # SECURITY FIX: Strategy and trading endpoints require authentication
     PUBLIC_PREFIXES = {  # noqa: N806
-
-            "/api/health",  # Basic health check (no auth required for uptime monitoring)
-            # /api/health/detailed and /api/health/pipeline intentionally require authentication
-            # (they expose DB table names, loader names, row counts, freshness ages).
-            "/api/market",  # Market breadth, distribution (aggregate only - no strategy)
-            "/api/algo/markets",  # Market regime data (public market conditions)
-            "/api/algo/swing-scores",  # Swing trader scores (used by TradingSignals page for all users)
-            "/api/algo/sector-rotation",  # Sector rotation analysis (public market analysis)
-            "/api/algo/sector-breadth",  # Sector breadth analysis (public market data)
-            "/api/algo/sector-stage2",  # Stage 2 sector stocks (public market analysis)
-            "/api/algo/dashboard-signals",  # Dashboard signals (used by ops terminal in local dev)
-            "/api/economic",  # Economic indicators (public data)
-            "/api/sectors",  # Sector analysis (aggregate market data only)
-            "/api/sentiment",  # Market sentiment (aggregate only)
-            "/api/industries",  # Industry analysis (aggregate market data)
-            "/api/prices",  # Historical prices (public market data)
-            "/api/stocks",  # Stock metadata/list (public data)
-            "/api/scores",  # Stock scores/analysis (public market analysis, used by Sentiment and SectorAnalysis)
-            "/api/financials",  # Company financials (public data)
-            "/api/earnings",  # Earnings data (public data)
-            # /api/research intentionally NOT public: exposes backtest strategy names, returns, trade history
-            "/api/data-coverage",  # Data freshness status (public metadata)
-            "/api/contact",  # Public contact form (no auth required)
-        }
+        "/api/health",  # Basic health check (no auth required for uptime monitoring)
+        # /api/health/detailed and /api/health/pipeline intentionally require authentication
+        # (they expose DB table names, loader names, row counts, freshness ages).
+        "/api/market",  # Market breadth, distribution (aggregate only - no strategy)
+        "/api/algo/markets",  # Market regime data (public market conditions)
+        "/api/algo/swing-scores",  # Swing trader scores (used by TradingSignals page for all users)
+        "/api/algo/sector-rotation",  # Sector rotation analysis (public market analysis)
+        "/api/algo/sector-breadth",  # Sector breadth analysis (public market data)
+        "/api/algo/sector-stage2",  # Stage 2 sector stocks (public market analysis)
+        "/api/algo/dashboard-signals",  # Dashboard signals (used by ops terminal in local dev)
+        "/api/economic",  # Economic indicators (public data)
+        "/api/sectors",  # Sector analysis (aggregate market data only)
+        "/api/sentiment",  # Market sentiment (aggregate only)
+        "/api/industries",  # Industry analysis (aggregate market data)
+        "/api/prices",  # Historical prices (public market data)
+        "/api/stocks",  # Stock metadata/list (public data)
+        "/api/scores",  # Stock scores/analysis (public market analysis, used by Sentiment and SectorAnalysis)
+        "/api/financials",  # Company financials (public data)
+        "/api/earnings",  # Earnings data (public data)
+        # /api/research intentionally NOT public: exposes backtest strategy names, returns, trade history
+        "/api/data-coverage",  # Data freshness status (public metadata)
+        "/api/contact",  # Public contact form (no auth required)
+    }
 
     # Protected endpoints requiring authentication (strategy/trading data)
     # These endpoints are NOT in PUBLIC_PREFIXES:
@@ -918,16 +881,12 @@ def require_auth(event: dict, path: str) -> tuple:
             if token:
                 is_valid, claims, error = validate_dev_token(token)
                 if is_valid:
-                    logger.info(
-                        "[DEV_AUTH] Development token accepted (local dev mode)"
-                    )
+                    logger.info("[DEV_AUTH] Development token accepted (local dev mode)")
                     return (True, True, None, claims)
         except ImportError:
             pass  # dev_auth not available - continue to error
 
-        logger.error(
-            f"[AUTH_FAILURE] Protected endpoint {path} accessed but Cognito not configured"
-        )
+        logger.error(f"[AUTH_FAILURE] Protected endpoint {path} accessed but Cognito not configured")
         return (
             True,
             False,
@@ -971,9 +930,7 @@ if not IMPORT_ERROR:
     with _COGNITO_ENABLED_LOCK:
         _COGNITO_ENABLED = bool(os.getenv("COGNITO_USER_POOL_ID"))
         if not _COGNITO_ENABLED:
-            logger.warning(
-                "[COGNITO] COGNITO_USER_POOL_ID not set - Cognito authentication is disabled"
-            )
+            logger.warning("[COGNITO] COGNITO_USER_POOL_ID not set - Cognito authentication is disabled")
 
     # Pre-cache allowed origins at module load to avoid building on every request
     _build_allowed_origins()
@@ -988,16 +945,13 @@ def lambda_handler(event: dict[str, Any], context: Any) -> dict[str, Any]:
 
         clear_expired_credentials()
     except (psycopg2.DatabaseError, psycopg2.OperationalError) as e:
-
-        raise RuntimeError(f"Unexpected error: {e}") from e  # If we can't clear expired creds, continue anyway (non-fatal)
+        raise RuntimeError(
+            f"Unexpected error: {e}"
+        ) from e  # If we can't clear expired creds, continue anyway (non-fatal)
 
     # Extract path and method before ANY checks so health/CORS always work
     path = event.get("rawPath", event.get("path", "/"))
-    method = (
-        event.get("requestContext")
-        .get("http")
-        .get("method", event.get("httpMethod", "GET"))
-    )
+    method = event.get("requestContext").get("http").get("method", event.get("httpMethod", "GET"))
 
     # CORS preflight: must succeed even during import failures (browsers need this)
     if method == "OPTIONS":
@@ -1109,9 +1063,7 @@ def lambda_handler(event: dict[str, Any], context: Any) -> dict[str, Any]:
         try:
             # Use read-only mode for GET/HEAD, write mode for POST/PUT/PATCH/DELETE
             http_method = method.upper() if method else "GET"
-            db_mode = (
-                "write" if http_method in ("POST", "PUT", "PATCH", "DELETE") else "read"
-            )
+            db_mode = "write" if http_method in ("POST", "PUT", "PATCH", "DELETE") else "read"
             with DatabaseContext(db_mode) as cur:
                 # statement_timeout is now set at RDS parameter group level (30s) — no per-request SET needed.
 
@@ -1121,12 +1073,8 @@ def lambda_handler(event: dict[str, Any], context: Any) -> dict[str, Any]:
                     body_str = event["body"]
                     if len(body_str) > MAX_REQUEST_BODY_SIZE:
                         cors_headers = get_cors_headers(event)
-                        logger.warning(
-                            f"Request body exceeds max size: {len(body_str)} > {MAX_REQUEST_BODY_SIZE}"
-                        )
-                        log_api_request(
-                            event, 413, error_msg="request_entity_too_large"
-                        )
+                        logger.warning(f"Request body exceeds max size: {len(body_str)} > {MAX_REQUEST_BODY_SIZE}")
+                        log_api_request(event, 413, error_msg="request_entity_too_large")
                         msg = "Request body too large"
                         return {
                             "statusCode": 413,
@@ -1212,9 +1160,7 @@ def lambda_handler(event: dict[str, Any], context: Any) -> dict[str, Any]:
                     }
 
                 # Route request to appropriate handler
-                response = api_router.route_request(
-                    cur, path, method, params, body, jwt_claims=jwt_claims
-                )
+                response = api_router.route_request(cur, path, method, params, body, jwt_claims=jwt_claims)
         except (ValueError, ZeroDivisionError, TypeError) as e:
             cors_headers = get_cors_headers(event)
 
@@ -1282,9 +1228,7 @@ def lambda_handler(event: dict[str, Any], context: Any) -> dict[str, Any]:
                 log_api_request(event, status)
             # Log errors (4xx, 5xx)
             elif status >= 400:
-                error_msg = response.get(
-                    "message", response.get("error", "unknown_error")
-                )
+                error_msg = response.get("message", response.get("error", "unknown_error"))
                 log_api_request(event, status, error_msg=str(error_msg))
 
             return {"statusCode": status, "headers": headers, "body": body}

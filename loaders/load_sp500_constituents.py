@@ -43,28 +43,23 @@ class SP500ConstituentsLoader(OptimalLoader):
         try:
             logger.info("Fetching S&P 500 constituents from Wikipedia")
 
-            headers = {
-                "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36"
-            }
+            headers = {"User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36"}
             try:
                 response = requests.get(SP500_URL, headers=headers, timeout=15)
                 response.raise_for_status()
             except requests.exceptions.Timeout:
                 raise RuntimeError(
-                    "S&P 500 fetch timeout. Wikipedia API is unreachable or slow. "
-                    "Cannot load S&P 500 constituent list."
+                    "S&P 500 fetch timeout. Wikipedia API is unreachable or slow. Cannot load S&P 500 constituent list."
                 )
             except requests.exceptions.ConnectionError:
                 raise RuntimeError(
-                    "S&P 500 connection error. Cannot reach Wikipedia. "
-                    "Cannot load S&P 500 constituent list."
+                    "S&P 500 connection error. Cannot reach Wikipedia. Cannot load S&P 500 constituent list."
                 )
 
             tables = pd.read_html(StringIO(response.text))
             if not tables:
                 raise RuntimeError(
-                    "Could not find S&P 500 table in Wikipedia response. "
-                    "Wikipedia page format may have changed."
+                    "Could not find S&P 500 table in Wikipedia response. Wikipedia page format may have changed."
                 )
 
             df = tables[0]
@@ -84,7 +79,6 @@ class SP500ConstituentsLoader(OptimalLoader):
 
         except (requests.RequestException, requests.Timeout, json.JSONDecodeError) as e:
             raise RuntimeError(f"Operation failed: {e}") from e
-
 
 
 if __name__ == "__main__":

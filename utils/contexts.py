@@ -11,7 +11,7 @@ Provides:
 import logging
 import time
 from contextlib import contextmanager
-from typing import Optional
+
 import psycopg2
 import requests
 
@@ -33,7 +33,7 @@ class DatabaseErrorContext:
     def __init__(
         self,
         operation: str,
-        table: Optional[str] = None,
+        table: str | None = None,
         role: str = "read",
     ):
         self.operation = operation
@@ -49,9 +49,7 @@ class DatabaseErrorContext:
         duration = time.time() - self.start_time
 
         if exc_type is None:
-            logger.debug(
-                f"[{self.role.upper()}] {self.operation} completed in {duration:.3f}s"
-            )
+            logger.debug(f"[{self.role.upper()}] {self.operation} completed in {duration:.3f}s")
             return False
 
         # Error occurred
@@ -86,8 +84,8 @@ class LoaderErrorContext:
     def __init__(
         self,
         table_name: str,
-        symbol: Optional[str] = None,
-        correlation_id: Optional[str] = None,
+        symbol: str | None = None,
+        correlation_id: str | None = None,
         operation_type: str = "insert",
     ):
         self.table_name = table_name
@@ -203,9 +201,7 @@ def TimeoutContext(
 
     def timeout_handler(signum, frame):
         elapsed = time.time() - start_time
-        raise TimeoutError(
-            f"{operation} exceeded {timeout_sec}s timeout (elapsed: {elapsed:.1f}s)"
-        )
+        raise TimeoutError(f"{operation} exceeded {timeout_sec}s timeout (elapsed: {elapsed:.1f}s)")
 
     # Set alarm (Unix only, Windows doesn't support signals well)
     old_handler = None
@@ -231,9 +227,7 @@ def TimeoutContext(
 
         elapsed = time.time() - start_time
         if elapsed > timeout_sec * 0.9:
-            logger.warning(
-                f"{operation} nearing timeout: {elapsed:.1f}s / {timeout_sec}s"
-            )
+            logger.warning(f"{operation} nearing timeout: {elapsed:.1f}s / {timeout_sec}s")
 
 
 @contextmanager
@@ -269,10 +263,6 @@ def TransactionContext(
                 cur.connection.rollback()
                 logger.error(f"[TRANSACTION] Rolled back {operation}")
             except (psycopg2.DatabaseError, psycopg2.OperationalError) as rollback_err:
-                logger.error(
-                    f"[TRANSACTION] Failed to rollback {operation}: {rollback_err}"
-                )
+                logger.error(f"[TRANSACTION] Failed to rollback {operation}: {rollback_err}")
 
         raise
-
-

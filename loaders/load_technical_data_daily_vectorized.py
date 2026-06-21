@@ -69,9 +69,7 @@ class VectorizedTechnicalLoader:
 
         start_date = end_date - timedelta(days=300)
 
-        logger.info(
-            f"VectorizedTechnicalLoader: {len(symbols)} symbols, date range {start_date} to {end_date}"
-        )
+        logger.info(f"VectorizedTechnicalLoader: {len(symbols)} symbols, date range {start_date} to {end_date}")
 
         try:
             all_prices = self._fetch_all_prices(symbols, start_date, end_date)
@@ -81,9 +79,7 @@ class VectorizedTechnicalLoader:
                     f"{start_date} to {end_date}. Cannot compute technical indicators without price data."
                 )
 
-            logger.info(
-                f"Fetched {len(all_prices)} price rows across {len(symbols)} symbols"
-            )
+            logger.info(f"Fetched {len(all_prices)} price rows across {len(symbols)} symbols")
 
             indicators_df = self._compute_all_indicators_vectorized(all_prices)
 
@@ -94,7 +90,7 @@ class VectorizedTechnicalLoader:
             # Get the latest date in the computed indicators
             latest_date = None
             if len(indicators_df) > 0:
-                latest_date = indicators_df['date'].max()
+                latest_date = indicators_df["date"].max()
 
             duration = time.time() - start_time
             logger.info(
@@ -127,9 +123,7 @@ class VectorizedTechnicalLoader:
                 "latest_date": None,
             }
 
-    def _fetch_all_prices(
-        self, symbols: list, start_date: date, end_date: date
-    ) -> list:
+    def _fetch_all_prices(self, symbols: list, start_date: date, end_date: date) -> list:
         """Fetch ALL price data in ONE query (institutional-scale efficiency).
 
         Instead of: FOR each symbol, fetch its prices (5000 queries)
@@ -181,10 +175,7 @@ class VectorizedTechnicalLoader:
                 "Cannot compute technical indicators without price data."
             ) from e
         except (ValueError, TypeError) as e:
-            raise RuntimeError(
-                f"[PRICES] Invalid price data format: {e}. "
-                "Price data may be corrupted."
-            ) from e
+            raise RuntimeError(f"[PRICES] Invalid price data format: {e}. Price data may be corrupted.") from e
 
     def _compute_all_indicators_vectorized(self, prices: list) -> pd.DataFrame:
         """Compute ALL technical indicators for ALL symbols at once using pandas.
@@ -198,9 +189,7 @@ class VectorizedTechnicalLoader:
         results = []
 
         for symbol in df["symbol"].unique():
-            symbol_df = (
-                df[df["symbol"] == symbol].sort_values("date").reset_index(drop=True)
-            )
+            symbol_df = df[df["symbol"] == symbol].sort_values("date").reset_index(drop=True)
 
             # Compute all indicators for this symbol's data
             try:
@@ -234,12 +223,8 @@ class VectorizedTechnicalLoader:
                     "roc_252d",
                 ]:
                     before = symbol_df[col].copy()
-                    symbol_df[col] = symbol_df[col].clip(
-                        -decimal84_max, decimal84_max
-                    )
-                    capped_count = (
-                        (before.abs() > decimal84_max) & (symbol_df[col].notna())
-                    ).sum()
+                    symbol_df[col] = symbol_df[col].clip(-decimal84_max, decimal84_max)
+                    capped_count = ((before.abs() > decimal84_max) & (symbol_df[col].notna())).sum()
                     if capped_count > 0:
                         logger.warning(
                             f"{symbol}: {capped_count} {col} values capped to +/{decimal84_max} (extreme market conditions)"
@@ -251,14 +236,10 @@ class VectorizedTechnicalLoader:
                     symbol_df[name] = values
 
                 # ATR & ADX
-                symbol_df["atr_14"] = compute_atr(
-                    symbol_df["high"], symbol_df["low"], symbol_df["close"], 14
-                )
+                symbol_df["atr_14"] = compute_atr(symbol_df["high"], symbol_df["low"], symbol_df["close"], 14)
                 symbol_df["atr"] = symbol_df["atr_14"]
-                symbol_df["plus_di"], symbol_df["minus_di"], symbol_df["adx"] = (
-                    compute_adx(
-                        symbol_df["high"], symbol_df["low"], symbol_df["close"], 14
-                    )
+                symbol_df["plus_di"], symbol_df["minus_di"], symbol_df["adx"] = compute_adx(
+                    symbol_df["high"], symbol_df["low"], symbol_df["close"], 14
                 )
 
                 # Bollinger Bands
@@ -272,9 +253,7 @@ class VectorizedTechnicalLoader:
                 # Mansfield RS (SPY comparison)
                 try:
                     # Fetch SPY data for this date range
-                    spy_prices = self._fetch_spy_prices(
-                        symbol_df["date"].min(), symbol_df["date"].max()
-                    )
+                    spy_prices = self._fetch_spy_prices(symbol_df["date"].min(), symbol_df["date"].max())
                     if spy_prices:
                         from algo.infrastructure.market_calendar import US_HOLIDAYS
 
@@ -288,32 +267,27 @@ class VectorizedTechnicalLoader:
                             symbol_df["mansfield_rs"] = None
                         else:
                             import numpy as np
+
                             holidays = list(US_HOLIDAYS.keys())
                             cbd = CustomBusinessDay(holidays=holidays)
-                            target_index = pd.DatetimeIndex(
-                                symbol_df["date"].values, freq=cbd
-                            )
+                            target_index = pd.DatetimeIndex(symbol_df["date"].values, freq=cbd)
                             spy_aligned = spy_closes.reindex(target_index)
 
                             # Forward-fill NaN values from missing SPY dates
-                            spy_filled = spy_aligned.fillna(method='pad')
+                            spy_filled = spy_aligned.fillna(method="pad")
                             rs_line = symbol_df["close"].values / spy_filled.values
                             rs_line_s = pd.Series(rs_line, index=symbol_df.index)
                             # Replace infinities with NaN
                             rs_line_s = rs_line_s.replace([np.inf, -np.inf], np.nan)
 
-                            rs_line_52w_ma = rs_line_s.rolling(
-                                window=252, min_periods=126
-                            ).mean()
+                            rs_line_52w_ma = rs_line_s.rolling(window=252, min_periods=126).mean()
 
                             # Only compute if rolling mean is not all NaN
                             if rs_line_52w_ma.isna().all():
                                 logger.debug(f"Insufficient RS history for {symbol} (need 126+ days)")
                                 symbol_df["mansfield_rs"] = None
                             else:
-                                mansfield_result = (
-                                    rs_line_s / rs_line_52w_ma - 1
-                                ) * 100
+                                mansfield_result = (rs_line_s / rs_line_52w_ma - 1) * 100
                                 # Replace infinities with NaN
                                 mansfield_result = mansfield_result.replace([np.inf, -np.inf], np.nan)
                                 symbol_df["mansfield_rs"] = mansfield_result
@@ -326,8 +300,7 @@ class VectorizedTechnicalLoader:
 
                 # Keep only rows after warmup period (skip first 300 days used for MA computation)
                 symbol_df = symbol_df[
-                    symbol_df["date"].dt.date
-                    >= (datetime.now(EASTERN_TZ).date() - timedelta(days=30))
+                    symbol_df["date"].dt.date >= (datetime.now(EASTERN_TZ).date() - timedelta(days=30))
                 ]
 
                 results.append(symbol_df)
@@ -359,8 +332,7 @@ class VectorizedTechnicalLoader:
             ) from e
         except (ValueError, TypeError) as e:
             raise RuntimeError(
-                f"[SPY_PRICES] Invalid SPY price data format: {e}. "
-                "SPY price data may be corrupted."
+                f"[SPY_PRICES] Invalid SPY price data format: {e}. SPY price data may be corrupted."
             ) from e
 
     def _bulk_insert(self, df: pd.DataFrame, since_date: date | None = None) -> int:
@@ -419,7 +391,7 @@ class VectorizedTechnicalLoader:
         for col in integer_cols:
             if col in df.columns:
                 # Round to int, convert to Int64 (nullable integer type)
-                df[col] = df[col].round(0).astype('Int64')
+                df[col] = df[col].round(0).astype("Int64")
 
         # Handle NaN -> None conversion for non-integer columns
         for col in df.columns:
@@ -465,13 +437,11 @@ class VectorizedTechnicalLoader:
 
         except psycopg2.Error as e:
             raise RuntimeError(
-                f"[BULK_INSERT] Failed to insert technical indicators: {e}. "
-                "Database connectivity or permissions issue."
+                f"[BULK_INSERT] Failed to insert technical indicators: {e}. Database connectivity or permissions issue."
             ) from e
         except (ValueError, TypeError, KeyError) as e:
             raise RuntimeError(
-                f"[BULK_INSERT] Invalid data format for bulk insert: {e}. "
-                "Data structure mismatch with schema."
+                f"[BULK_INSERT] Invalid data format for bulk insert: {e}. Data structure mismatch with schema."
             ) from e
 
 
@@ -537,9 +507,7 @@ def _tech_heartbeat_worker(stop_event):
 
 def main():
     parser = argparse.ArgumentParser(description="Vectorized Technical Data Loader")
-    parser.add_argument(
-        "--limit", type=int, default=None, help="Limit to N symbols (for testing)"
-    )
+    parser.add_argument("--limit", type=int, default=None, help="Limit to N symbols (for testing)")
     parser.add_argument("--since", type=str, help="Only load data after YYYY-MM-DD")
     args = parser.parse_args()
 
@@ -555,9 +523,7 @@ def main():
 
     # Start heartbeat thread for hung task detection
     stop_heartbeat = threading.Event()
-    heartbeat_thread = threading.Thread(
-        target=_tech_heartbeat_worker, args=(stop_heartbeat,), daemon=False
-    )
+    heartbeat_thread = threading.Thread(target=_tech_heartbeat_worker, args=(stop_heartbeat,), daemon=False)
     heartbeat_thread.start()
 
     try:
@@ -579,9 +545,7 @@ def main():
                 since_date = datetime.strptime(args.since, "%Y-%m-%d").date()
             except ValueError as e:
                 logger.error(f"Invalid date format: {args.since}: {e}")
-                _update_tech_loader_status(
-                    "FAILED", f"Invalid date format: {args.since}"
-                )
+                _update_tech_loader_status("FAILED", f"Invalid date format: {args.since}")
                 return 1
 
         # Run vectorized loader

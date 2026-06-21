@@ -12,7 +12,6 @@ This module should be imported early in the application lifecycle
 import logging
 import os
 import sys
-from typing import List, Tuple
 
 
 logger = logging.getLogger(__name__)
@@ -22,7 +21,7 @@ class CredentialValidationError(Exception):
     """Raised when required credentials are missing."""
 
 
-def validate_credentials() -> Tuple[bool, List[str]]:
+def validate_credentials() -> tuple[bool, list[str]]:
     """Validate that all required credentials are present and complete.
 
     CRITICAL ISSUE 4 FIX: Ensures credentials are complete (not partial),
@@ -34,10 +33,7 @@ def validate_credentials() -> Tuple[bool, List[str]]:
     # Detect environment
     bool(os.getenv("AWS_EXECUTION_ENV") or os.getenv("AWS_REGION"))
     "AWS_LAMBDA_FUNCTION_NAME" in os.environ
-    is_local_dev = (
-        os.getenv("ENVIRONMENT") in ("development", "local")
-        or os.getenv("LOCAL_DEV") == "true"
-    )
+    is_local_dev = os.getenv("ENVIRONMENT") in ("development", "local") or os.getenv("LOCAL_DEV") == "true"
 
     # === CRITICAL: Database Password ===
     # This is always required. No defaults allowed.
@@ -55,8 +51,7 @@ def validate_credentials() -> Tuple[bool, List[str]]:
         # Validate password is not empty string
         if len(db_password.strip()) == 0:
             errors.append(
-                "[ERROR] DB_PASSWORD is empty string. "
-                "Check that password is properly loaded from environment."
+                "[ERROR] DB_PASSWORD is empty string. Check that password is properly loaded from environment."
             )
         # In production, require longer passwords; in dev, allow shorter ones (test fixtures)
         elif not is_local_dev and len(db_password.strip()) < 8:
@@ -78,6 +73,7 @@ def validate_credentials() -> Tuple[bool, List[str]]:
     elif not is_local_dev:
         # In production, validate that DB_HOST is not a private/local IP
         import re
+
         private_ip_patterns = [
             r"^localhost$",
             r"^127\.",
@@ -101,10 +97,7 @@ def validate_credentials() -> Tuple[bool, List[str]]:
     os.getenv("DB_NAME", "stocks")
 
     if db_user == "stocks" and not os.getenv("DB_USER"):
-        warnings.append(
-            "[WARN] DB_USER not set, using default 'stocks'. "
-            "For security, consider explicit DB_USER."
-        )
+        warnings.append("[WARN] DB_USER not set, using default 'stocks'. For security, consider explicit DB_USER.")
 
     # === IMPORTANT: Database Timeout Settings ===
     # CRITICAL ISSUE 4 FIX: Validate timeout is configured
@@ -112,19 +105,14 @@ def validate_credentials() -> Tuple[bool, List[str]]:
     try:
         timeout_val = int(db_timeout)
         if timeout_val <= 0:
-            errors.append(
-                "[ERROR] DB_CONNECT_TIMEOUT must be positive. " f"Got: {db_timeout}"
-            )
+            errors.append(f"[ERROR] DB_CONNECT_TIMEOUT must be positive. Got: {db_timeout}")
         elif timeout_val > 30:
             warnings.append(
                 "[WARN] DB_CONNECT_TIMEOUT is very long ("
                 f"{timeout_val}s). Consider shorter timeout (10-15s recommended)."
             )
     except ValueError:
-        errors.append(
-            "[ERROR] DB_CONNECT_TIMEOUT must be integer (seconds). "
-            f"Got: {db_timeout}"
-        )
+        errors.append(f"[ERROR] DB_CONNECT_TIMEOUT must be integer (seconds). Got: {db_timeout}")
 
     # === IMPORTANT: Alpaca Trading Credentials ===
     # These are optional for paper trading but should be set for live trading
@@ -153,28 +141,16 @@ def validate_credentials() -> Tuple[bool, List[str]]:
                 "[ERROR] ALERT_ENABLED=true but ALERT_SMTP_PASSWORD or ALERT_SMTP_USER missing. "
                 "Set these credentials or set ALERT_ENABLED=false."
             )
-        elif (
-            not smtp_password
-            or not smtp_user
-            or len(smtp_password.strip()) == 0
-            or len(smtp_user.strip()) == 0
-        ):
+        elif not smtp_password or not smtp_user or len(smtp_password.strip()) == 0 or len(smtp_user.strip()) == 0:
             errors.append(
-                "[ERROR] ALERT_SMTP_PASSWORD or ALERT_SMTP_USER is empty string. "
-                "Check environment variable loading."
+                "[ERROR] ALERT_SMTP_PASSWORD or ALERT_SMTP_USER is empty string. Check environment variable loading."
             )
 
     twilio_token = os.getenv("TWILIO_AUTH_TOKEN")
     if os.getenv("ALERT_SMS_ENABLED") == "true" and not twilio_token:
-        errors.append(
-            "[ERROR] ALERT_SMS_ENABLED=true but TWILIO_AUTH_TOKEN missing. "
-            "Set it or disable SMS alerts."
-        )
+        errors.append("[ERROR] ALERT_SMS_ENABLED=true but TWILIO_AUTH_TOKEN missing. Set it or disable SMS alerts.")
     elif twilio_token and len(twilio_token.strip()) == 0:
-        errors.append(
-            "[ERROR] TWILIO_AUTH_TOKEN is empty string. "
-            "Check environment variable loading."
-        )
+        errors.append("[ERROR] TWILIO_AUTH_TOKEN is empty string. Check environment variable loading.")
 
     return len(errors) == 0, errors + warnings
 

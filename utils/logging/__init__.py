@@ -5,7 +5,7 @@ from .sla import SLAMonitor
 
 
 __all__ = [
-    "get_tracker",
     "OrchestratorExecutionTracker",
     "SLAMonitor",
+    "get_tracker",
 ]

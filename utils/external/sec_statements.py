@@ -6,14 +6,10 @@ These methods leverage the SecEdgarClient for company facts and aggregate multip
 GAAP concepts into structured financial statements.
 """
 
-from typing import Any, Dict, List
-
-from algo.exceptions import DataLoadError
+from typing import Any
 
 
-def get_balance_sheet(
-    client: Any, symbol: str, period: str = "annual"
-) -> List[Dict[str, Any]]:
+def get_balance_sheet(client: Any, symbol: str, period: str = "annual") -> list[dict[str, Any]]:
     """Aggregate balance sheet rows from key concepts.
 
     Args:
@@ -40,9 +36,7 @@ def get_balance_sheet(
     return _aggregate_concepts(client, symbol, concepts, period)
 
 
-def get_income_statement(
-    client: Any, symbol: str, period: str = "annual"
-) -> List[Dict[str, Any]]:
+def get_income_statement(client: Any, symbol: str, period: str = "annual") -> list[dict[str, Any]]:
     """Aggregate income statement rows from key concepts.
 
     Args:
@@ -72,9 +66,7 @@ def get_income_statement(
     return _aggregate_concepts(client, symbol, concepts, period)
 
 
-def get_cash_flow(
-    client: Any, symbol: str, period: str = "annual"
-) -> List[Dict[str, Any]]:
+def get_cash_flow(client: Any, symbol: str, period: str = "annual") -> list[dict[str, Any]]:
     """Aggregate cash flow rows from key concepts.
 
     Args:
@@ -99,9 +91,9 @@ def get_cash_flow(
 def _aggregate_concepts(
     client: Any,
     symbol: str,
-    concepts: List[str],
+    concepts: list[str],
     period: str,
-) -> List[Dict[str, Any]]:
+) -> list[dict[str, Any]]:
     """Pivot multiple concepts into rows keyed by (fiscal_year, fiscal_period).
 
     Optimized: Uses get_company_facts (1 API call) instead of multiple get_concept calls.
@@ -124,7 +116,7 @@ def _aggregate_concepts(
 
     # Extract concepts from all_facts (us-gaap taxonomy)
     us_gaap_facts = all_facts.get("facts").get("us-gaap")
-    rows: Dict[Any, Dict[str, Any]] = {}
+    rows: dict[Any, dict[str, Any]] = {}
     fp_filter = "FY" if period == "annual" else ("Q1", "Q2", "Q3", "Q4")
 
     for concept in concepts:
@@ -136,7 +128,7 @@ def _aggregate_concepts(
         if not units:
             continue
 
-        for unit, entries in units.items():
+        for _unit, entries in units.items():
             for entry in entries:
                 fp = entry.get("fp")
                 if period == "annual" and fp != "FY":
@@ -150,9 +142,7 @@ def _aggregate_concepts(
                 # have fy=2024 instead of fy=2022. Deriving year from end date correctly
                 # separates current-year data from the multi-year comparison tables.
                 end_date = entry.get("end", "")
-                period_year = (
-                    int(end_date[:4]) if end_date and len(end_date) >= 4 else entry.get("fy")
-                )
+                period_year = int(end_date[:4]) if end_date and len(end_date) >= 4 else entry.get("fy")
 
                 key = (
                     period_year,
@@ -172,9 +162,7 @@ def _aggregate_concepts(
                 # Snake-case the concept for column compatibility
                 col = _to_snake(concept)
                 # Keep latest filing if multiple for same period
-                if col not in row or (entry.get("filed") or "") > (
-                    row.get(f"_filed_{col}") or ""
-                ):
+                if col not in row or (entry.get("filed") or "") > (row.get(f"_filed_{col}") or ""):
                     row[col] = entry.get("val")
                     row[f"_filed_{col}"] = entry.get("filed")
 

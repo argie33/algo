@@ -1,4 +1,4 @@
-﻿#!/usr/bin/env python3
+#!/usr/bin/env python3
 
 """
 UNIFIED Price Loader - loads all intervals (1d, 1wk, 1mo) and asset classes (stock, etf).
@@ -46,6 +46,7 @@ logger = logging.getLogger(__name__)
 _correlation_id = os.getenv("PHASE1_CORRELATION_ID") or f"AUTO-{str(uuid.uuid4())[:8]}"
 set_correlation_id(_correlation_id)
 
+
 class PriceLoader(OptimalLoader):
     """
     Multi-timeframe price loader. Replaces 4 separate loaders.
@@ -58,30 +59,25 @@ class PriceLoader(OptimalLoader):
     with DataImportance.CRITICAL and freshness validation to prevent silent stale data.
     """
 
-    def __init__(
-        self, interval: str = "1d", asset_class: str = "stock", *args, **kwargs
-    ):
+    def __init__(self, interval: str = "1d", asset_class: str = "stock", *args, **kwargs):
         """Initialize with interval (1d/1wk/1mo) and asset class (stock/etf)."""
         assert interval in ("1d", "1wk", "1mo"), f"Invalid interval: {interval}"
         assert asset_class in ("stock", "etf"), f"Invalid asset_class: {asset_class}"
 
         self.interval = interval
         self.asset_class = asset_class
-        self._correlation_id = (
-            _correlation_id  # Instance variable for use in all methods
-        )
+        self._correlation_id = _correlation_id  # Instance variable for use in all methods
         self.batch_size = 500  # Batch 500 symbols per API call: ~20 calls for 10,506 symbols (cost optimization: reduced API calls from 35 to 20, saves ~50% on API costs)
 
         # Circuit breaker for data loader outage handling
-        self._circuit_breaker = CircuitBreaker(
-            name="yfinance_prices",
-            importance=DataImportance.CRITICAL
-        )
+        self._circuit_breaker = CircuitBreaker(name="yfinance_prices", importance=DataImportance.CRITICAL)
 
         # Freshness validator: stock prices must be <= 1 day old
-        self._freshness_validator = FreshnessValidator(max_age_hours={
-            "price_data": 24.0,  # 1 day for daily price data
-        })
+        self._freshness_validator = FreshnessValidator(
+            max_age_hours={
+                "price_data": 24.0,  # 1 day for daily price data
+            }
+        )
 
         # Map interval + asset_class to table name
         if asset_class == "etf":
@@ -115,9 +111,7 @@ class PriceLoader(OptimalLoader):
         self._rate_limit_tokens: float = 300  # Increased initial burst for 6 parallel threads
         self._rate_limit_max_tokens: float = 300  # Cap to prevent unlimited accumulation
         self._rate_limit_last_refill: float = time.time()
-        self._rate_limit_refill_rate = (
-            160 / 60
-        )  # 160 tokens per 60 seconds = 2.67 per second
+        self._rate_limit_refill_rate = 160 / 60  # 160 tokens per 60 seconds = 2.67 per second
         self._rate_limit_lock = threading.Lock()  # Thread-safe token access
         self._rate_limit_event = threading.Condition(
             self._rate_limit_lock
@@ -128,19 +122,13 @@ class PriceLoader(OptimalLoader):
         # Monitor actual API latency and adjust request rate to stay under 160 req/min limit
         self._request_latency_samples: list[tuple[float, float]] = []  # List of (timestamp, latency_sec) tuples
         self._latency_window_sec = 60  # Collect samples over 60s window
-        self._min_request_interval = (
-            0.1  # Minimum time between requests (0.1s = 10 req/sec max)
-        )
-        self._adaptive_request_interval = (
-            0.375  # Start at 160 req/min = 0.375s between requests
-        )
+        self._min_request_interval = 0.1  # Minimum time between requests (0.1s = 10 req/sec max)
+        self._adaptive_request_interval = 0.375  # Start at 160 req/min = 0.375s between requests
         self._last_request_time: float | None = None
 
         # CREATIVE FIX #2: Smart batch sizing based on API responsiveness
         # Tracks which batch sizes cause rate limiting for this specific API instance
-        self._batch_size_performance: dict[int, list[int]] = (
-            {}
-        )  # {batch_size: [success_count, failure_count]}
+        self._batch_size_performance: dict[int, list[int]] = {}  # {batch_size: [success_count, failure_count]}
 
         # Circuit breaker: track rate limit errors to detect persistent issues
         # CRITICAL: Threshold now depends on pipeline context (EOD vs morning prep)
@@ -152,17 +140,13 @@ class PriceLoader(OptimalLoader):
         # Load from centralized config (config/thresholds.py)
         from config.thresholds import ThresholdConfig
 
-        self._rate_limit_circuit_break_threshold = (
-            ThresholdConfig.get_rate_limit_threshold(self._is_eod_pipeline)
-        )
+        self._rate_limit_circuit_break_threshold = ThresholdConfig.get_rate_limit_threshold(self._is_eod_pipeline)
 
         # Granular failure tracking for partial batch credit
         # Instead of counting entire batch as 1 failure, track success ratio
         self._batch_success_count = 0  # Symbols successfully fetched in current batch
         self._batch_total_count = 0  # Total symbols in current batch
-        self._batch_failure_ratio = (
-            0.0  # Success rate (0.0 = all failed, 1.0 = all succeeded)
-        )
+        self._batch_failure_ratio = 0.0  # Success rate (0.0 = all failed, 1.0 = all succeeded)
 
         # Market close detection for EOD pipeline (4:05 PM ET start)
         # At 4:05 PM, market just closed at 4:00 PM. yfinance API can lag 5-10 minutes.
@@ -177,9 +161,7 @@ class PriceLoader(OptimalLoader):
         # - Rate limiting (429): reduce batch size, apply backoff
         # - API lag/timeout: increase timeout, reduce parallelism
         # - Other errors: log and fail
-        self._failure_cause = (
-            None  # 'market_close', 'rate_limit_429', 'api_lag', 'other'
-        )
+        self._failure_cause = None  # 'market_close', 'rate_limit_429', 'api_lag', 'other'
         self._api_lag_timeouts = 0  # Count of timeout errors (not rate limiting)
         self._api_lag_error_start_time = None  # When API lag started
 
@@ -192,9 +174,7 @@ class PriceLoader(OptimalLoader):
         from datetime import datetime
 
         now_et = datetime.now(EASTERN_TZ)
-        eod_start_et = now_et.replace(
-            hour=16, minute=5, second=0, microsecond=0
-        )  # 4:05 PM ET
+        eod_start_et = now_et.replace(hour=16, minute=5, second=0, microsecond=0)  # 4:05 PM ET
 
         # Check if we're within 2 hours of EOD start (accounts for possible scheduler delays)
         time_since_eod_start = (now_et - eod_start_et).total_seconds() / 60
@@ -224,9 +204,7 @@ class PriceLoader(OptimalLoader):
         from utils.validation.schema import validate_table_schema
 
         if self.table_name not in TABLE_SCHEMAS:
-            logger.warning(
-                f"[SCHEMA] No pre-defined schema for {self.table_name}, skipping validation"
-            )
+            logger.warning(f"[SCHEMA] No pre-defined schema for {self.table_name}, skipping validation")
             return
 
         required_schema = TABLE_SCHEMAS[self.table_name]
@@ -247,9 +225,7 @@ class PriceLoader(OptimalLoader):
                         "This will cause data loading to fail. "
                         "Verify table schema matches expected definition."
                     )
-                    raise RuntimeError(
-                        f"Schema validation failed for {self.table_name}: {error_msg}"
-                    )
+                    raise RuntimeError(f"Schema validation failed for {self.table_name}: {error_msg}")
 
                 logger.info(
                     f"[SCHEMA] âœ“ Schema validation passed for {self.table_name} ({len(required_schema)} columns)"
@@ -285,30 +261,34 @@ class PriceLoader(OptimalLoader):
         pk_cols = ",".join(self.primary_key)
         try:
             # Check for unique constraint or index on primary key
-            cur.execute("""
+            cur.execute(
+                """
                 SELECT 1 FROM information_schema.table_constraints
                 WHERE table_name = %s
                   AND constraint_type = 'UNIQUE'
                 LIMIT 1
-            """, (self.table_name,))
+            """,
+                (self.table_name,),
+            )
 
             constraint_exists = cur.fetchone() is not None
 
             if not constraint_exists:
                 # Check for unique index as fallback
-                cur.execute("""
+                cur.execute(
+                    """
                     SELECT 1 FROM pg_indexes
                     WHERE tablename = %s AND indexdef LIKE '%UNIQUE%'
                     LIMIT 1
-                """, (self.table_name,))
+                """,
+                    (self.table_name,),
+                )
                 index_exists = cur.fetchone() is not None
             else:
                 index_exists = True
 
             if constraint_exists or index_exists:
-                logger.info(
-                    f"[CONSTRAINT] âœ“ Unique constraint/index found on {self.table_name}({pk_cols})"
-                )
+                logger.info(f"[CONSTRAINT] âœ“ Unique constraint/index found on {self.table_name}({pk_cols})")
             else:
                 # This is a CRITICAL error - without the constraint, duplicates can occur
                 error_msg = (
@@ -350,16 +330,12 @@ class PriceLoader(OptimalLoader):
                 total = successes + failures
                 if total >= 2:  # Need at least 2 trials to consider
                     rate = successes / total
-                    if rate > best_rate or (
-                        rate == best_rate and (best_size is None or size > best_size)
-                    ):
+                    if rate > best_rate or (rate == best_rate and (best_size is None or size > best_size)):
                         best_rate = rate
                         best_size = size
 
             if best_size is not None and best_rate >= 0.5:
-                logger.debug(
-                    f"[BATCH_SIZE_SMART] Using batch={best_size} (success rate {best_rate:.0%})"
-                )
+                logger.debug(f"[BATCH_SIZE_SMART] Using batch={best_size} (success rate {best_rate:.0%})")
                 return best_size
 
         # Fallback: use default with context awareness
@@ -434,7 +410,7 @@ class PriceLoader(OptimalLoader):
 
         if success_count < total_count:
             logger.info(
-                f"[BATCH RESULT] Partial success: {success_count}/{total_count} symbols ({success_count/total_count*100:.0f}%). "
+                f"[BATCH RESULT] Partial success: {success_count}/{total_count} symbols ({success_count / total_count * 100:.0f}%). "
                 f"Failure ratio: {self._batch_failure_ratio:.2f}. "
                 f"Next batch size recommendation: {self._get_adaptive_batch_size()}"
             )
@@ -474,9 +450,7 @@ class PriceLoader(OptimalLoader):
                 from utils.db.context import DatabaseContext
 
                 with DatabaseContext("read") as config_cur:
-                    config_cur.execute(
-                        "SELECT value FROM algo_config WHERE key = %s", (config_key,)
-                    )
+                    config_cur.execute("SELECT value FROM algo_config WHERE key = %s", (config_key,))
                     config_result = config_cur.fetchone()
                     if config_result:
                         try:
@@ -519,7 +493,7 @@ class PriceLoader(OptimalLoader):
                 raise RuntimeError(error_msg) from config_err
 
             logger.info(
-                f"[MARKET_CLOSE] Using {config_used} timeout: {max_wait_sec}s ({max_wait_sec/60:.0f} min) "
+                f"[MARKET_CLOSE] Using {config_used} timeout: {max_wait_sec}s ({max_wait_sec / 60:.0f} min) "
                 f"(pipeline={'EOD' if self._is_eod_pipeline else 'morning'})"
             )
         else:
@@ -534,30 +508,22 @@ class PriceLoader(OptimalLoader):
 
         # Check if today is a trading day
         if not MarketCalendar.is_trading_day(today):
-            logger.info(
-                "[MARKET_CLOSE] Today is not a trading day, skipping close data check"
-            )
+            logger.info("[MARKET_CLOSE] Today is not a trading day, skipping close data check")
             return True
 
         # Check if we're within 45 minutes after market close (4:00 PM ET Â± 45 min = 3:15 PM - 4:45 PM)
         now_et = datetime.now(EASTERN_TZ)
-        market_close_et = now_et.replace(
-            hour=16, minute=0, second=0, microsecond=0
-        )  # 4 PM ET
+        market_close_et = now_et.replace(hour=16, minute=0, second=0, microsecond=0)  # 4 PM ET
         minutes_after_close = (now_et - market_close_et).total_seconds() / 60
 
         # If we're more than 45 minutes after market close, assume data is available (yfinance lag max 15 min)
         if minutes_after_close > 45:
-            logger.info(
-                f"[MARKET_CLOSE] {minutes_after_close:.0f}min after market close, data should be available"
-            )
+            logger.info(f"[MARKET_CLOSE] {minutes_after_close:.0f}min after market close, data should be available")
             return True
 
         # If we're before market close, skip (early run or different time zone)
         if minutes_after_close < 0:
-            logger.info(
-                f"[MARKET_CLOSE] Before market close ({minutes_after_close:.0f}min), skipping check"
-            )
+            logger.info(f"[MARKET_CLOSE] Before market close ({minutes_after_close:.0f}min), skipping check")
             return True
 
         # We're 0-45 minutes after market close - verify SPY data with efficient retry
@@ -571,9 +537,7 @@ class PriceLoader(OptimalLoader):
         # This allows ~4x more attempts in the same 30-min budget vs 120s timeout per attempt
         # Typical yfinance lag is 5-15 min, so more frequent polling catches data sooner
         short_check_timeout = 15  # Each yfinance check uses only 15s (not 120s)
-        wait_between_checks = (
-            3  # Wait only 3s between short checks (fixed, not exponential)
-        )
+        wait_between_checks = 3  # Wait only 3s between short checks (fixed, not exponential)
         last_error_type = None
         last_error_msg = None
 
@@ -587,9 +551,7 @@ class PriceLoader(OptimalLoader):
                 )
                 if data_available:
                     elapsed = time.time() - start_time
-                    logger.info(
-                        f"[MARKET_CLOSE] âœ“ Data available after {elapsed:.1f}s (attempt {attempt})"
-                    )
+                    logger.info(f"[MARKET_CLOSE] âœ“ Data available after {elapsed:.1f}s (attempt {attempt})")
                     # Emit success metric
                     try:
                         from algo.reporting import MetricsPublisher
@@ -603,28 +565,16 @@ class PriceLoader(OptimalLoader):
                         )
                         metrics.flush()
                     except Exception as metric_err:
-                        logger.debug(
-                            f"Could not publish market close success metric: {metric_err}"
-                        )
+                        logger.debug(f"Could not publish market close success metric: {metric_err}")
                     return True
             except Exception as e:
                 last_error_type = type(e).__name__
                 last_error_msg = str(e)[:200]  # Truncate for logging
                 error_str = str(e).lower()
-                is_timeout = (
-                    "timeout" in error_str
-                    or "connect" in error_str
-                    or "read timed" in error_str
-                )
-                is_rate_limit = (
-                    "429" in error_str or "too many" in error_str or "rate" in error_str
-                )
+                is_timeout = "timeout" in error_str or "connect" in error_str or "read timed" in error_str
+                is_rate_limit = "429" in error_str or "too many" in error_str or "rate" in error_str
 
-                log_level = (
-                    "warning"
-                    if is_rate_limit
-                    else ("warning" if is_timeout else "debug")
-                )
+                log_level = "warning" if is_rate_limit else ("warning" if is_timeout else "debug")
                 logger.log(
                     (
                         getattr(logging, log_level.upper())
@@ -632,11 +582,7 @@ class PriceLoader(OptimalLoader):
                         else logging.DEBUG
                     ),
                     f"[MARKET_CLOSE] Attempt {attempt}: {last_error_type} "
-                    + (
-                        "(rate limit)"
-                        if is_rate_limit
-                        else "(timeout)" if is_timeout else "(other)"
-                    )
+                    + ("(rate limit)" if is_rate_limit else "(timeout)" if is_timeout else "(other)")
                     + f" - {last_error_msg}",
                 )
 
@@ -647,7 +593,7 @@ class PriceLoader(OptimalLoader):
 
             if wait_time > 0 and wait_remaining > 0:
                 logger.debug(
-                    f"[MARKET_CLOSE] Waiting {wait_time:.0f}s before retry {attempt + 1}... (elapsed {elapsed/60:.1f}min/{max_wait_sec/60:.0f}min)"
+                    f"[MARKET_CLOSE] Waiting {wait_time:.0f}s before retry {attempt + 1}... (elapsed {elapsed / 60:.1f}min/{max_wait_sec / 60:.0f}min)"
                 )
                 time.sleep(wait_time)
             elif wait_remaining <= 0:
@@ -659,8 +605,7 @@ class PriceLoader(OptimalLoader):
         # ISSUE #7 FIX: Track consecutive market close timeouts to detect API degradation
         now = time.time()
         if (
-            self._last_market_close_timeout_time
-            and (now - self._last_market_close_timeout_time) < 86400
+            self._last_market_close_timeout_time and (now - self._last_market_close_timeout_time) < 86400
         ):  # Within 24 hours
             self._market_close_timeout_count += 1
         else:
@@ -708,19 +653,11 @@ class PriceLoader(OptimalLoader):
 
         # Determine root cause for clearer diagnostics
         last_error_lower = (last_error_msg or "").lower()
-        is_rate_limit = (
-            "429" in last_error_lower
-            or "too many" in last_error_lower
-            or "rate" in last_error_lower
-        )
-        root_cause = (
-            "yfinance rate limiting"
-            if is_rate_limit
-            else "yfinance API lag/unavailability"
-        )
+        is_rate_limit = "429" in last_error_lower or "too many" in last_error_lower or "rate" in last_error_lower
+        root_cause = "yfinance rate limiting" if is_rate_limit else "yfinance API lag/unavailability"
 
         error_msg = (
-            f"Market close data NOT available after {elapsed:.0f}s ({elapsed/60:.1f} min, {attempt} attempts). "
+            f"Market close data NOT available after {elapsed:.0f}s ({elapsed / 60:.1f} min, {attempt} attempts). "
             f"Root cause: {root_cause} | Last error: {last_error_type} - {last_error_msg or 'no message'}. "
             "Cannot load prices without market close data. Aborting to avoid stale price data. "
             "Phase 1 will trigger failsafe when data becomes available. "
@@ -742,24 +679,16 @@ class PriceLoader(OptimalLoader):
 
         # Keep only recent samples (within 60s window)
         cutoff = now - self._latency_window_sec
-        self._request_latency_samples = [
-            (t, lat) for t, lat in self._request_latency_samples if t >= cutoff
-        ]
+        self._request_latency_samples = [(t, lat) for t, lat in self._request_latency_samples if t >= cutoff]
 
-        if (
-            len(self._request_latency_samples) >= 3
-        ):  # Need at least 3 samples to estimate
-            avg_latency = sum(lat for _, lat in self._request_latency_samples) / len(
-                self._request_latency_samples
-            )
+        if len(self._request_latency_samples) >= 3:  # Need at least 3 samples to estimate
+            avg_latency = sum(lat for _, lat in self._request_latency_samples) / len(self._request_latency_samples)
 
             # If API is responding slowly, increase wait time to avoid rate limiting
             # Formula: if avg_latency > 0.6s, we're approaching the 160 req/min limit
             # Adjust interval to: latency + slack for other requests
             if avg_latency > 0.6:
-                new_interval = max(
-                    self._min_request_interval, avg_latency * 1.5
-                )  # 1.5x latency for safety
+                new_interval = max(self._min_request_interval, avg_latency * 1.5)  # 1.5x latency for safety
                 if new_interval > self._adaptive_request_interval:
                     self._adaptive_request_interval = new_interval
                     logger.info(
@@ -767,9 +696,7 @@ class PriceLoader(OptimalLoader):
                     )
             elif avg_latency < 0.3:
                 # API is responding quickly, we can be more aggressive
-                new_interval = max(
-                    self._min_request_interval, 0.375
-                )  # Default 160 req/min
+                new_interval = max(self._min_request_interval, 0.375)  # Default 160 req/min
                 if new_interval < self._adaptive_request_interval:
                     self._adaptive_request_interval = new_interval
                     logger.debug(
@@ -832,14 +759,10 @@ class PriceLoader(OptimalLoader):
 
             # Wait outside the lock using condition variable (wakes fairly when notified)
             if wait_sec > 0.01:  # Only log if waiting >10ms
-                logger.debug(
-                    f"Rate limit: waiting {wait_sec:.2f}s for {tokens_needed} tokens (fair queue)"
-                )
+                logger.debug(f"Rate limit: waiting {wait_sec:.2f}s for {tokens_needed} tokens (fair queue)")
             # Note: Condition.wait() releases lock while waiting, allowing other threads to proceed
             with self._rate_limit_event:
-                self._rate_limit_event.wait(
-                    timeout=wait_sec
-                )  # Wake on timeout or notify()
+                self._rate_limit_event.wait(timeout=wait_sec)  # Wake on timeout or notify()
 
     def fetch_incremental(self, symbol: str, since: date | None):
         """Fetch OHLCV from yfinance at specified interval."""
@@ -894,16 +817,12 @@ class PriceLoader(OptimalLoader):
             # Fetch yesterday's COMPLETE data (previous trading day)
             # yfinance end date is EXCLUSIVE, so end=today fetches up to (not including) today
             end = now_et.date()
-            logger.info(
-                f"[EOD_CONTEXT] Fetching data ending at {end} (yesterday's complete data for EOD)"
-            )
+            logger.info(f"[EOD_CONTEXT] Fetching data ending at {end} (yesterday's complete data for EOD)")
         else:
             # Morning prep or intraday - fetch up to today
             # yfinance end date is EXCLUSIVE: to fetch May 29 data we must pass end=May 30.
             end = now_et.date() + timedelta(days=1)
-            logger.debug(
-                f"[INTRADAY_CONTEXT] Fetching data ending at {end} (including today)"
-            )
+            logger.debug(f"[INTRADAY_CONTEXT] Fetching data ending at {end} (including today)")
 
         if since is None:
             start = end - timedelta(days=101)
@@ -921,13 +840,9 @@ class PriceLoader(OptimalLoader):
             f"(based on {self._batch_total_count} recent batches, {self._batch_success_count} successful)"
         )
 
-        return self._fetch_with_fallback(
-            symbols, start, end, batch_size=adaptive_batch_size, attempt=0
-        )
+        return self._fetch_with_fallback(symbols, start, end, batch_size=adaptive_batch_size, attempt=0)
 
-    def _execute_batch_fetch(
-        self, symbols: list[str], start: date, end: date
-    ) -> dict | None:
+    def _execute_batch_fetch(self, symbols: list[str], start: date, end: date) -> dict | None:
         """Execute batch fetch with circuit breaker and validate freshness."""
         import time
 
@@ -935,13 +850,9 @@ class PriceLoader(OptimalLoader):
         request_start = time.time()
 
         def fetch_batch():
-            return self.router.fetch_ohlcv_batch(
-                symbols, start, end, interval=self.interval
-            )
+            return self.router.fetch_ohlcv_batch(symbols, start, end, interval=self.interval)
 
-        result = self._circuit_breaker.execute(
-            fetch_func=fetch_batch, importance=DataImportance.CRITICAL
-        )
+        result = self._circuit_breaker.execute(fetch_func=fetch_batch, importance=DataImportance.CRITICAL)
         request_latency = time.time() - request_start
         self._record_request_latency(request_latency)
 
@@ -961,18 +872,13 @@ class PriceLoader(OptimalLoader):
 
             if latest_price_date is not None:
                 try:
-                    self._freshness_validator.check(
-                        "price_data", latest_price_date, allow_missing=False
-                    )
+                    self._freshness_validator.check("price_data", latest_price_date, allow_missing=False)
                 except StaleDataError as e:
                     logger.critical(
-                        f"[FRESHNESS_VALIDATION] {e}. "
-                        "Stock prices are too stale for position sizing. Cannot proceed."
+                        f"[FRESHNESS_VALIDATION] {e}. Stock prices are too stale for position sizing. Cannot proceed."
                     )
                     self._circuit_breaker.record_failure()
-                    raise RuntimeError(
-                        f"Price data freshness validation failed: {e}"
-                    ) from e
+                    raise RuntimeError(f"Price data freshness validation failed: {e}") from e
 
         return result
 
@@ -983,9 +889,7 @@ class PriceLoader(OptimalLoader):
                 f"[RATE_LIMIT_RECOVERY] API recovered after {self._rate_limit_errors} errors. "
                 f"Decreasing request interval from {self._adaptive_request_interval:.3f}s back to normal."
             )
-            self._adaptive_request_interval = max(
-                0.375, self._adaptive_request_interval * 0.9
-            )
+            self._adaptive_request_interval = max(0.375, self._adaptive_request_interval * 0.9)
 
         self._rate_limit_errors = 0
         self._rate_limit_error_start_time = None
@@ -1020,9 +924,7 @@ class PriceLoader(OptimalLoader):
                 "Circuit will break if persists >5 minutes. Monitoring yfinance API recovery."
             )
 
-        self._adaptive_request_interval = min(
-            2.0, self._adaptive_request_interval * 1.5
-        )
+        self._adaptive_request_interval = min(2.0, self._adaptive_request_interval * 1.5)
         logger.info(
             f"[RATE_LIMIT_PREDICT] Rate limit detected, increasing request interval to {self._adaptive_request_interval:.3f}s"
         )
@@ -1052,11 +954,7 @@ class PriceLoader(OptimalLoader):
                 "yfinance API appears down. Cannot proceed with price fetching."
             ) from error
 
-        if (
-            self._is_eod_pipeline
-            and batch_size <= 20
-            and self._rate_limit_errors >= 3
-        ):
+        if self._is_eod_pipeline and batch_size <= 20 and self._rate_limit_errors >= 3:
             raise RuntimeError(
                 f"[BATCH FETCH ABORT] Batch={batch_size} with {self._rate_limit_errors} rate limit errors. "
                 "yfinance severely degraded. Cannot proceed with price fetching."
@@ -1064,28 +962,21 @@ class PriceLoader(OptimalLoader):
 
         if attempt == 0:
             logger.info(
-                f"[RATE_LIMIT] Retrying batch={batch_size} with increased request pacing (attempt {attempt+1}/{max_attempts})..."
+                f"[RATE_LIMIT] Retrying batch={batch_size} with increased request pacing (attempt {attempt + 1}/{max_attempts})..."
             )
-            error_duration = (
-                time.time() - self._rate_limit_error_start_time
-                if self._rate_limit_error_start_time
-                else 0
-            )
+            error_duration = time.time() - self._rate_limit_error_start_time if self._rate_limit_error_start_time else 0
             base_wait = min(30, (2**attempt) * 5)
             jitter = random.uniform(0.9, 1.1)
             wait_time = base_wait * jitter
             logger.debug(f"[RATE_LIMIT] Waiting {wait_time:.1f}s before paced retry...")
             time.sleep(wait_time)
-            return cast(dict | None, self._fetch_with_fallback(
-                symbols, start, end, batch_size, attempt + 1, max_attempts, elapsed_sec
-            ))
+            return cast(
+                dict | None,
+                self._fetch_with_fallback(symbols, start, end, batch_size, attempt + 1, max_attempts, elapsed_sec),
+            )
 
         new_batch_size = max(1, batch_size // 2)
-        error_duration = (
-            time.time() - self._rate_limit_error_start_time
-            if self._rate_limit_error_start_time
-            else 0
-        )
+        error_duration = time.time() - self._rate_limit_error_start_time if self._rate_limit_error_start_time else 0
         total_elapsed = elapsed_sec + error_duration
 
         base_wait = min(60, (2**attempt) * 2)
@@ -1093,7 +984,7 @@ class PriceLoader(OptimalLoader):
         wait_time = base_wait * jitter
 
         logger.warning(
-            f"[BATCH FETCH] Rate limited after paced retry (attempt {attempt+1}/{max_attempts}, error #{self._rate_limit_errors}, "
+            f"[BATCH FETCH] Rate limited after paced retry (attempt {attempt + 1}/{max_attempts}, error #{self._rate_limit_errors}, "
             f"duration {error_duration:.0f}s, total elapsed {total_elapsed:.0f}s). "
             f"Batch {batch_size} -> {new_batch_size}, waiting {wait_time:.1f}s..."
         )
@@ -1138,20 +1029,14 @@ class PriceLoader(OptimalLoader):
 
         error_str = str(error).lower()
         is_timeout = "timeout" in error_str or "timed out" in error_str
-        is_connection = any(
-            x in error_str for x in ["connection", "reset", "broken", "closed"]
-        )
+        is_connection = any(x in error_str for x in ["connection", "reset", "broken", "closed"])
 
         error_type = (
-            "timeout (API slowness)"
-            if is_timeout
-            else "connection (network)" if is_connection else "other transient"
+            "timeout (API slowness)" if is_timeout else "connection (network)" if is_connection else "other transient"
         )
 
         if is_timeout or is_connection:
-            self._adaptive_request_interval = min(
-                2.0, self._adaptive_request_interval * 1.2
-            )
+            self._adaptive_request_interval = min(2.0, self._adaptive_request_interval * 1.2)
             logger.warning(
                 f"[BATCH FETCH] Transient {error_type} error, increasing request interval to {self._adaptive_request_interval:.3f}s for recovery"
             )
@@ -1161,20 +1046,23 @@ class PriceLoader(OptimalLoader):
         wait_time = base_wait * jitter
 
         logger.warning(
-            f"[BATCH FETCH] Transient {error_type} error (attempt {attempt+1}/{max_attempts}, elapsed {elapsed_sec:.0f}s): {error}. "
+            f"[BATCH FETCH] Transient {error_type} error (attempt {attempt + 1}/{max_attempts}, elapsed {elapsed_sec:.0f}s): {error}. "
             f"Retrying {len(symbols)} symbols with same batch_size={batch_size} in {wait_time:.1f}s... "
             "(Note: batch size not reduced for timeouts – if API fundamentally slow, increasing wait time not batch reduction)"
         )
         time.sleep(wait_time)
-        return cast(dict | None, self._fetch_with_fallback(
-            symbols,
-            start,
-            end,
-            batch_size,
-            attempt + 1,
-            max_attempts,
-            elapsed_sec=elapsed_sec + wait_time,
-        ))
+        return cast(
+            dict | None,
+            self._fetch_with_fallback(
+                symbols,
+                start,
+                end,
+                batch_size,
+                attempt + 1,
+                max_attempts,
+                elapsed_sec=elapsed_sec + wait_time,
+            ),
+        )
 
     def _fetch_with_fallback(
         self,
@@ -1210,11 +1098,11 @@ class PriceLoader(OptimalLoader):
         max_single_batch_wait = 120 if self._is_eod_pipeline else 300
         if batch_size == 1 and elapsed_sec > max_single_batch_wait:
             logger.critical(
-                f"[BATCH FETCH TIMEOUT] Batch=1 with {elapsed_sec/60:.1f}min elapsed. "
+                f"[BATCH FETCH TIMEOUT] Batch=1 with {elapsed_sec / 60:.1f}min elapsed. "
                 "Failing immediately to prevent Step Function timeout. yfinance severely degraded."
             )
             raise RuntimeError(
-                f"[BATCH FETCH TIMEOUT] Batch=1 with {elapsed_sec/60:.1f}min elapsed. "
+                f"[BATCH FETCH TIMEOUT] Batch=1 with {elapsed_sec / 60:.1f}min elapsed. "
                 "yfinance API severely degraded - cannot proceed without data."
             )
 
@@ -1238,17 +1126,11 @@ class PriceLoader(OptimalLoader):
         # This prevents: batch 150â†’20â†’10â†’5â†’1 cascade where load time balloons from 15 min â†’ 200+ min
         if batch_size >= 20 and self._rate_limit_errors >= 3:
             error_duration = (
-                (time.time() - self._rate_limit_error_start_time)
-                if self._rate_limit_error_start_time
-                else 0
+                (time.time() - self._rate_limit_error_start_time) if self._rate_limit_error_start_time else 0
             )
             should_abort = self._is_eod_pipeline or error_duration > 30
             if should_abort:
-                context = (
-                    "EOD (fail-fast)"
-                    if self._is_eod_pipeline
-                    else f"persistent {error_duration:.0f}s"
-                )
+                context = "EOD (fail-fast)" if self._is_eod_pipeline else f"persistent {error_duration:.0f}s"
                 logger.critical(
                     f"[RATE_LIMIT_EARLY_ABORT] Batch size {batch_size} with {self._rate_limit_errors} rate limit errors ({context}). "
                     "yfinance API severely degraded. Aborting early to prevent timeout cascade."
@@ -1263,9 +1145,7 @@ class PriceLoader(OptimalLoader):
             # Try with exponential backoff + longer wait times (up to 10 min) at batch=1
             max_batch1_wait = 600  # 10 minutes for batch=1 final attempts
             if error_duration := (
-                (time.time() - self._rate_limit_error_start_time)
-                if self._rate_limit_error_start_time
-                else 0
+                (time.time() - self._rate_limit_error_start_time) if self._rate_limit_error_start_time else 0
             ):
                 remaining_wait = max(0, max_batch1_wait - error_duration)
                 if remaining_wait > 60:  # Only if we have >1 min left
@@ -1283,7 +1163,7 @@ class PriceLoader(OptimalLoader):
             if error_duration and error_duration > max_batch1_wait:
                 logger.critical(
                     f"[BATCH FETCH ABORT] Batch size at minimum (1 symbol) with {self._rate_limit_errors} rate limit errors "
-                    f"persisting for {error_duration/60:.1f}min. yfinance API severely degraded. Failing to prevent timeout."
+                    f"persisting for {error_duration / 60:.1f}min. yfinance API severely degraded. Failing to prevent timeout."
                 )
                 try:
                     from algo.reporting import MetricsPublisher
@@ -1300,24 +1180,20 @@ class PriceLoader(OptimalLoader):
                     )
                     m.flush()
                 except Exception as metric_err:
-                    logger.debug(
-                        f"Could not publish batch fetch minimum size metric: {metric_err}"
-                    )
+                    logger.debug(f"Could not publish batch fetch minimum size metric: {metric_err}")
                 raise RuntimeError(
-                    f"[BATCH FETCH ABORT] Batch at minimum with {self._rate_limit_errors} rate limit errors for {error_duration/60:.1f}min. "
+                    f"[BATCH FETCH ABORT] Batch at minimum with {self._rate_limit_errors} rate limit errors for {error_duration / 60:.1f}min. "
                     "yfinance API severely degraded - cannot fetch price data."
                 )
 
         # Check circuit breaker: if rate limiting has persisted for > threshold, try smaller batch size
         # Issue #6: Instead of failing completely, reduce batch size to avoid timeout
         # ISSUE #1 FIX: Skip circuit breaker if early abort already triggered (prevents false retry loop)
-        if self._rate_limit_error_start_time is not None and not (
-            batch_size >= 20 and self._rate_limit_errors >= 3
-        ):
+        if self._rate_limit_error_start_time is not None and not (batch_size >= 20 and self._rate_limit_errors >= 3):
             error_duration = time.time() - self._rate_limit_error_start_time
             if error_duration > self._rate_limit_circuit_break_threshold:
                 logger.warning(
-                    f"[CIRCUIT BREAKER] Rate limiting persisted for {error_duration/60:.1f} minutes ({error_duration:.0f}s). "
+                    f"[CIRCUIT BREAKER] Rate limiting persisted for {error_duration / 60:.1f} minutes ({error_duration:.0f}s). "
                     "Attempting to continue with smaller batch size instead of failing completely."
                 )
 
@@ -1325,11 +1201,11 @@ class PriceLoader(OptimalLoader):
                 # ISSUE #6 FIX: Stop trying if already spent too long on rate limiting
                 if elapsed_sec > max_single_batch_wait * 0.8:  # 8 minutes threshold
                     logger.critical(
-                        f"[CIRCUIT BREAKER] Rate limiting {elapsed_sec/60:.1f}min, approaching timeout. "
+                        f"[CIRCUIT BREAKER] Rate limiting {elapsed_sec / 60:.1f}min, approaching timeout. "
                         "Skipping reduced batch size attempts, failing batch immediately."
                     )
                     raise RuntimeError(
-                        f"[CIRCUIT BREAKER TIMEOUT] Rate limiting for {elapsed_sec/60:.1f}min, approaching Step Function timeout. "
+                        f"[CIRCUIT BREAKER TIMEOUT] Rate limiting for {elapsed_sec / 60:.1f}min, approaching Step Function timeout. "
                         "yfinance API unavailable - cannot fetch price data."
                     )
 
@@ -1350,14 +1226,12 @@ class PriceLoader(OptimalLoader):
                         max_attempts=max_attempts,
                     )
                     if any(v is not None for v in reduced_attempt.values()):
-                        logger.info(
-                            f"[CIRCUIT BREAKER] âœ“ Partial success with batch={reduced_size}"
-                        )
+                        logger.info(f"[CIRCUIT BREAKER] âœ“ Partial success with batch={reduced_size}")
                         return reduced_attempt
 
                 # If all reduced sizes failed, emit alert and fail gracefully
                 logger.critical(
-                    f"[CIRCUIT BREAKER] Rate limiting persisted {error_duration/60:.1f}min despite batch size reduction. "
+                    f"[CIRCUIT BREAKER] Rate limiting persisted {error_duration / 60:.1f}min despite batch size reduction. "
                     "yfinance API experiencing degradation. Failing batch. Check yfinance API status."
                 )
                 try:
@@ -1367,7 +1241,7 @@ class PriceLoader(OptimalLoader):
                     alerts.send_position_alert(
                         "YFINANCE",
                         "RATE_LIMIT_CIRCUIT_BREAK",
-                        f"yfinance rate limiting persisted {error_duration/60:.1f}min despite batch reduction. "
+                        f"yfinance rate limiting persisted {error_duration / 60:.1f}min despite batch reduction. "
                         f"EOD pipeline may be impacted. {self._rate_limit_errors} rate limit errors detected.",
                         {
                             "duration_seconds": error_duration,
@@ -1386,7 +1260,9 @@ class PriceLoader(OptimalLoader):
         except Exception as e:
             error_str = str(e).lower()
 
-            is_circuit_open = "circuit" in error_str.lower() and ("open" in error_str.lower() or "unavailable" in error_str.lower())
+            is_circuit_open = "circuit" in error_str.lower() and (
+                "open" in error_str.lower() or "unavailable" in error_str.lower()
+            )
             if is_circuit_open:
                 logger.critical(
                     f"[CIRCUIT_BREAKER] yfinance_prices circuit open: {e}. "
@@ -1397,9 +1273,7 @@ class PriceLoader(OptimalLoader):
                     "Cannot proceed without price data. Waiting for API recovery."
                 ) from e
 
-            is_rate_limit = (
-                "rate" in error_str or "429" in error_str or "too many" in error_str
-            )
+            is_rate_limit = "rate" in error_str or "429" in error_str or "too many" in error_str
 
             if is_rate_limit:
                 return self._handle_rate_limit_error(
@@ -1417,9 +1291,7 @@ class PriceLoader(OptimalLoader):
 
         for attempt in range(max_retries):
             try:
-                return self.router.fetch_ohlcv_interval(
-                    symbol, start, end, self.interval
-                )
+                return self.router.fetch_ohlcv_interval(symbol, start, end, self.interval)
             except Exception as e:
                 error_str = str(e).lower()
                 # Rate limit errors - retry with exponential backoff + jitter
@@ -1427,9 +1299,7 @@ class PriceLoader(OptimalLoader):
                     if attempt < max_retries - 1:
                         # ISSUE #23 FIX: Reduced exponential backoff base from 5s to 2s
                         # Prevents long waits: 5 retries at old rate = 310s, new rate = 62s
-                        base_wait = min(
-                            120, (2**attempt) * 2
-                        )  # 2s, 4s, 8s, 16s, 32s, 64s, 128s â†’ capped at 120s
+                        base_wait = min(120, (2**attempt) * 2)  # 2s, 4s, 8s, 16s, 32s, 64s, 128s â†’ capped at 120s
                         jitter = random.uniform(0.9, 1.1)  # Â±10% jitter
                         wait_time = base_wait * jitter
                         logger.warning(
@@ -1443,15 +1313,10 @@ class PriceLoader(OptimalLoader):
                         "Cannot fetch price data when API is rate limited."
                     )
                 # Network/timeout errors - retry with backoff + jitter
-                if any(
-                    x in error_str
-                    for x in ["timeout", "json", "parse", "connection", "reset"]
-                ):
+                if any(x in error_str for x in ["timeout", "json", "parse", "connection", "reset"]):
                     if attempt < max_retries - 1:
                         base_wait = 2**attempt
-                        jitter = random.uniform(
-                            0.8, 1.2
-                        )  # Â±20% jitter for network errors
+                        jitter = random.uniform(0.8, 1.2)  # Â±20% jitter for network errors
                         wait_time = base_wait * jitter
                         logger.warning(
                             f"[{symbol}] Transient error (attempt {attempt + 1}/{max_retries}): {e}, "
@@ -1464,11 +1329,7 @@ class PriceLoader(OptimalLoader):
                         "Cannot fetch price data after exhausting retries."
                     )
                 # Auth errors - must fail fast
-                if (
-                    "403" in error_str
-                    or "401" in error_str
-                    or "unauthorized" in error_str
-                ):
+                if "403" in error_str or "401" in error_str or "unauthorized" in error_str:
                     raise RuntimeError(
                         f"[{symbol}] Authentication error accessing price data: {e}. "
                         "Cannot proceed without valid credentials."
@@ -1511,16 +1372,16 @@ class PriceLoader(OptimalLoader):
         if min_row_date and max_row_date:
             try:
                 trading_day_set = MarketCalendar.create_trading_day_set(min_row_date, max_row_date)
-                logger.debug(f"[CLUSTER_4_OPT] Precomputed {len(trading_day_set)} trading days in range [{min_row_date}, {max_row_date}]")
+                logger.debug(
+                    f"[CLUSTER_4_OPT] Precomputed {len(trading_day_set)} trading days in range [{min_row_date}, {max_row_date}]"
+                )
             except Exception as e:
                 logger.warning(f"Could not precompute trading days: {e}. Falling back to per-row checks.")
                 trading_day_set = None
 
         # PHASE 1: Validation via tick validator for provenance tracking
         final_validated = []
-        prior_close_by_symbol = (
-            {}
-        )  # FIXED: Track prior_close per-symbol to avoid cross-symbol contamination
+        prior_close_by_symbol = {}  # FIXED: Track prior_close per-symbol to avoid cross-symbol contamination
         non_trading_filtered = 0
         parse_errors = 0
 
@@ -1594,18 +1455,12 @@ class PriceLoader(OptimalLoader):
                 )
 
             final_validated.append(row)
-            prior_close_by_symbol[symbol] = row.get(
-                "close"
-            )  # FIXED: Update per-symbol prior_close
+            prior_close_by_symbol[symbol] = row.get("close")  # FIXED: Update per-symbol prior_close
 
         # Log data quality summary for this batch
         if non_trading_filtered > 0 or parse_errors > 0:
             total_input = len(rows)
-            filtered_pct = (
-                (non_trading_filtered + parse_errors) / total_input * 100
-                if total_input > 0
-                else 0
-            )
+            filtered_pct = (non_trading_filtered + parse_errors) / total_input * 100 if total_input > 0 else 0
             if not rows:
                 raise ValueError("No price data rows available for validation")
             symbol = rows[0].get("symbol")
@@ -1677,9 +1532,7 @@ class PriceLoader(OptimalLoader):
             return
 
         try:
-            market_close_available = (
-                self._check_market_close_data_available(max_wait_sec=10)
-            )
+            market_close_available = self._check_market_close_data_available(max_wait_sec=10)
             if not market_close_available:
                 raise RuntimeError(
                     "[MARKET_CLOSE] Market close data NOT available. "
@@ -1688,8 +1541,7 @@ class PriceLoader(OptimalLoader):
             logger.debug("[MARKET_CLOSE] âœ“ Market close data available")
         except Exception as e:
             raise RuntimeError(
-                f"[MARKET_CLOSE] Could not verify market close data: {e}. "
-                "Cannot load prices without this verification."
+                f"[MARKET_CLOSE] Could not verify market close data: {e}. Cannot load prices without this verification."
             )
 
     def _execute_batch_jobs(
@@ -1721,20 +1573,14 @@ class PriceLoader(OptimalLoader):
 
         max_concurrent = min(parallelism, 5)
         with ThreadPoolExecutor(max_workers=max_concurrent) as executor:
-            futures = {
-                executor.submit(self._load_batch, batch): batch for batch in batches
-            }
+            futures = {executor.submit(self._load_batch, batch): batch for batch in batches}
             for future in as_completed(futures):
                 batch = futures[future]
                 batch_start = time.time()
                 try:
                     future.result()
                 except Exception as e:
-                    symbols_str = (
-                        ", ".join(batch[:5]) + ("..." if len(batch) > 5 else "")
-                        if batch
-                        else "unknown"
-                    )
+                    symbols_str = ", ".join(batch[:5]) + ("..." if len(batch) > 5 else "") if batch else "unknown"
                     logger.error(
                         f"Batch {len(batch) if batch else 0} symbols failed: {type(e).__name__}: {str(e)[:200]}\n  Symbols: {symbols_str}\n  Operation: Fetch prices via yfinance\n  Endpoint: Data pipeline",
                         exc_info=True,
@@ -1803,7 +1649,7 @@ class PriceLoader(OptimalLoader):
         if total_estimated_sec > task_timeout_sec:
             logger.error(
                 f"[TIMEOUT_ALERT] ETA ({total_estimated_sec:.0f}s) exceeds task timeout ({task_timeout_sec}s). "
-                f"Currently at {completion_pct*100:.1f}% completion. Triggering emergency mode."
+                f"Currently at {completion_pct * 100:.1f}% completion. Triggering emergency mode."
             )
             try:
                 from algo.reporting import MetricsPublisher
@@ -1815,7 +1661,7 @@ class PriceLoader(OptimalLoader):
                     unit="Count",
                     dimensions={
                         "table": self.table_name,
-                        "progress_pct": f"{completion_pct*100:.0f}",
+                        "progress_pct": f"{completion_pct * 100:.0f}",
                         "eta_sec": f"{total_estimated_sec:.0f}",
                     },
                 )
@@ -1824,9 +1670,7 @@ class PriceLoader(OptimalLoader):
                 logger.debug(f"Could not publish timeout metric: {metric_err}")
 
             if not emergency_mode_enabled:
-                logger.warning(
-                    f"[EMERGENCY] Reducing parallelism from {max_concurrent} to 1 to finish before timeout"
-                )
+                logger.warning(f"[EMERGENCY] Reducing parallelism from {max_concurrent} to 1 to finish before timeout")
 
         if batch_elapsed > 120:
             logger.warning(
@@ -1840,27 +1684,21 @@ class PriceLoader(OptimalLoader):
             and not emergency_mode_enabled
         ):
             logger.error(
-                f"[TIMEOUT_WARNING] At {elapsed_sec/60:.1f}min, only {completion_pct*100:.1f}% complete "
-                f"(need {completion_threshold_pct*100:.1f}% by {emergency_mode_threshold/60:.1f}min). "
+                f"[TIMEOUT_WARNING] At {elapsed_sec / 60:.1f}min, only {completion_pct * 100:.1f}% complete "
+                f"(need {completion_threshold_pct * 100:.1f}% by {emergency_mode_threshold / 60:.1f}min). "
                 "Will timeout if pace doesn't improve."
             )
 
         current_batch_size = self._get_adaptive_batch_size()
         circuit_break_threshold_sec = self._rate_limit_circuit_break_threshold
-        if (
-            current_batch_size < 100 and elapsed_sec > circuit_break_threshold_sec
-        ):
-            pipeline_context = (
-                "EOD (85-min window)"
-                if self._is_eod_pipeline
-                else "Morning prep (450-min window)"
-            )
+        if current_batch_size < 100 and elapsed_sec > circuit_break_threshold_sec:
+            pipeline_context = "EOD (85-min window)" if self._is_eod_pipeline else "Morning prep (450-min window)"
             projected_total_sec = (elapsed_sec / completion_pct) if completion_pct > 0 else 0
             logger.critical(
                 f"[CIRCUIT_BREAKER] {pipeline_context}: Rate limit cascade detected! "
-                f"Batch size reduced to {current_batch_size} (from 150) after {elapsed_sec/60:.0f}min. "
-                f"Only {completion_pct*100:.0f}% complete. "
-                f"Projected total execution: {projected_total_sec/60:.0f}min (would exceed deadline). "
+                f"Batch size reduced to {current_batch_size} (from 150) after {elapsed_sec / 60:.0f}min. "
+                f"Only {completion_pct * 100:.0f}% complete. "
+                f"Projected total execution: {projected_total_sec / 60:.0f}min (would exceed deadline). "
                 "HALTING to trigger failsafe."
             )
             try:
@@ -1875,7 +1713,7 @@ class PriceLoader(OptimalLoader):
                         "table": self.table_name,
                         "batch_size": str(current_batch_size),
                         "elapsed_min": str(int(elapsed_sec / 60)),
-                        "completion_pct": f"{completion_pct*100:.0f}",
+                        "completion_pct": f"{completion_pct * 100:.0f}",
                     },
                 )
                 m.flush()
@@ -1947,9 +1785,7 @@ class PriceLoader(OptimalLoader):
             with DatabaseContext("read") as cur:
                 table_safe = assert_safe_table(self.table_name)
                 cur.execute(
-                    psycopg2.sql.SQL("SELECT COUNT(*), MAX(date) FROM {}").format(
-                        psycopg2.sql.Identifier(table_safe)
-                    )
+                    psycopg2.sql.SQL("SELECT COUNT(*), MAX(date) FROM {}").format(psycopg2.sql.Identifier(table_safe))
                 )
                 result = cur.fetchone()
                 total_rows = result[0] if result else 0
@@ -1958,18 +1794,12 @@ class PriceLoader(OptimalLoader):
             symbols_total = self._stats.get("symbols_total", 1)
             symbols_expected = symbols_total if isinstance(symbols_total, int) else 1
             if "symbols_processed" not in self._stats:
-                raise RuntimeError(
-                    f"[{self.table_name}] Load stats incomplete: 'symbols_processed' not tracked."
-                )
+                raise RuntimeError(f"[{self.table_name}] Load stats incomplete: 'symbols_processed' not tracked.")
             symbols_successfully_loaded = self._stats.get("symbols_processed", 0)
             if not isinstance(symbols_successfully_loaded, int):
                 symbols_successfully_loaded = 0
 
-            completion_pct = (
-                (symbols_successfully_loaded / symbols_expected * 100)
-                if symbols_expected > 0
-                else 100.0
-            )
+            completion_pct = (symbols_successfully_loaded / symbols_expected * 100) if symbols_expected > 0 else 100.0
 
             loader_status = "COMPLETED" if completion_pct >= 95 else "INCOMPLETE"
             if completion_pct < 95:
@@ -2049,17 +1879,12 @@ class PriceLoader(OptimalLoader):
         )
 
         if self.interval == "1d" and self._is_eod_pipeline:
-            logger.info(
-                "[SLA_OPT] Skipping 1d price load during EOD pipeline â€” reusing morning prep data"
-            )
+            logger.info("[SLA_OPT] Skipping 1d price load during EOD pipeline â€” reusing morning prep data")
             return {"symbols_loaded": 0, "symbols_failed": 0, "rows_inserted": 0}
 
         self._validate_and_check_preconditions()
 
-        batches = [
-            symbols[i : i + self.batch_size]
-            for i in range(0, len(symbols), self.batch_size)
-        ]
+        batches = [symbols[i : i + self.batch_size] for i in range(0, len(symbols), self.batch_size)]
         self._stats["symbols_total"] = len(symbols)
 
         circuit_breaker_result = self._execute_batch_jobs(batches, parallelism, start, len(symbols))
@@ -2096,9 +1921,7 @@ class PriceLoader(OptimalLoader):
         # (simplified: use same date for all, finest-grained would be per-symbol)
         if self._backfill_days > 0:
             # FIX: Use ET date, not system date (AWS runs in UTC but trading is ET-based)
-            previous_date = datetime.now(EASTERN_TZ).date() - timedelta(
-                days=self._backfill_days
-            )
+            previous_date = datetime.now(EASTERN_TZ).date() - timedelta(days=self._backfill_days)
         else:
             # Use earliest watermark from batch
             watermarks = [wm_store.get(s) if wm_store else None for s in symbols]
@@ -2114,18 +1937,14 @@ class PriceLoader(OptimalLoader):
         for symbol in symbols:
             rows = batch_results.get(symbol) if batch_results else None
             if not rows:
-                logger.debug(
-                    f"[{self.table_name}] {symbol}: No rows fetched (watermark current), skipping"
-                )
+                logger.debug(f"[{self.table_name}] {symbol}: No rows fetched (watermark current), skipping")
                 self._stats["symbols_skipped_by_watermark"] += 1  # type: ignore
                 self._stats[  # type: ignore
                     "symbols_processed"
                 ] += 1  # Count as processed (no new data needed, not a failure)
                 continue
 
-            logger.debug(
-                f"[{self.table_name}] {symbol}: Fetched {len(rows)} rows from batch"
-            )
+            logger.debug(f"[{self.table_name}] {symbol}: Fetched {len(rows)} rows from batch")
             self._stats["rows_fetched"] += len(rows)  # type: ignore
 
             if self.router and self.router.last_source:
@@ -2175,6 +1994,7 @@ class PriceLoader(OptimalLoader):
             self._stats["rows_inserted"] += inserted  # type: ignore
             self._stats["symbols_processed"] += 1  # type: ignore
 
+
 def _invalidate_phase1_cache():
     """Invalidate Phase 1 cache to force fresh status check on next run.
 
@@ -2199,17 +2019,13 @@ def _invalidate_phase1_cache():
         cache_date = datetime.now(EASTERN_TZ).date()
         cache_key = f"data_loader_status-{cache_date.isoformat()}"
         cache_table_name = os.getenv("CACHE_TABLE", "algo_phase1_cache")
-        dynamodb = boto3.resource(
-            "dynamodb", region_name=os.getenv("AWS_REGION", "us-east-1")
-        )
+        dynamodb = boto3.resource("dynamodb", region_name=os.getenv("AWS_REGION", "us-east-1"))
         cache_table = dynamodb.Table(cache_table_name)
 
         try:
             # Step 1: Try direct deletion
             cache_table.delete_item(Key={"cache_key": cache_key})
-            logger.info(
-                f"[CACHE INVALIDATION] âœ“ Successfully deleted Phase 1 cache: {cache_key}"
-            )
+            logger.info(f"[CACHE INVALIDATION] âœ“ Successfully deleted Phase 1 cache: {cache_key}")
             return
         except ClientError as delete_err:
             error_dict = delete_err.response.get("Error")
@@ -2251,13 +2067,9 @@ def _invalidate_phase1_cache():
                     "Loader will proceed without cache invalidation (risk: may use stale data from previous run)."
                 )
                 return
-            logger.error(
-                f"[CACHE INVALIDATION] âœ— POISONING ALSO FAILED: {type(poison_err).__name__}: {poison_err}"
-            )
+            logger.error(f"[CACHE INVALIDATION] âœ— POISONING ALSO FAILED: {type(poison_err).__name__}: {poison_err}")
         except (ValueError, ZeroDivisionError, TypeError) as poison_err:
-            logger.error(
-                f"[CACHE INVALIDATION] âœ— POISONING ALSO FAILED: {type(poison_err).__name__}: {poison_err}"
-            )
+            logger.error(f"[CACHE INVALIDATION] âœ— POISONING ALSO FAILED: {type(poison_err).__name__}: {poison_err}")
 
     except (ValueError, ZeroDivisionError, TypeError) as setup_err:
         logger.error(f"[CACHE INVALIDATION] Setup error: {setup_err}")
@@ -2271,6 +2083,7 @@ def _invalidate_phase1_cache():
         "CRITICAL: Cache invalidation completely failed (cannot delete or poison). "
         "Halting loader to prevent silent stale-data corruption."
     )
+
 
 def log_loader_execution(
     loader_name,
@@ -2314,10 +2127,9 @@ def log_loader_execution(
                 ),
             )
     except (psycopg2.DatabaseError, psycopg2.OperationalError) as e:
-        logger.critical(
-            f"[LOADER_EXECUTION_LOG] Failed to log execution to data_loader_runs: {e}"
-        )
+        logger.critical(f"[LOADER_EXECUTION_LOG] Failed to log execution to data_loader_runs: {e}")
         raise
+
 
 def main():
     """Read config from environment variables (set by ECS task definition)."""
@@ -2337,9 +2149,7 @@ def main():
         try:
             _invalidate_phase1_cache()
         except RuntimeError as cache_err:
-            logger.critical(
-                f"[MAIN] Cache invalidation failed on environment error: {cache_err}"
-            )
+            logger.critical(f"[MAIN] Cache invalidation failed on environment error: {cache_err}")
         try:
             log_loader_execution(
                 "loadpricedaily",
@@ -2363,9 +2173,7 @@ def main():
     # parallelism=8 reduces to ~2 hours while RDS Proxy handles connection pooling
     # FIXED Issue #13: Read parallelism from DynamoDB (dynamic), fallback to env var
     parallelism = get_parallelism("stock_prices_daily")
-    max_symbols_limit = int(
-        os.getenv("LOADER_MAX_SYMBOLS", "0")
-    )  # 0 = no limit (loads all symbols)
+    max_symbols_limit = int(os.getenv("LOADER_MAX_SYMBOLS", "0"))  # 0 = no limit (loads all symbols)
 
     # Parse comma-separated values
     intervals = [x.strip() for x in intervals_str.split(",")]
@@ -2378,9 +2186,7 @@ def main():
     import signal
 
     def timeout_handler(signum, frame):
-        logger.critical(
-            f"[TIMEOUT] Price loader exceeded {execution_timeout_sec}s timeout. Killing process."
-        )
+        logger.critical(f"[TIMEOUT] Price loader exceeded {execution_timeout_sec}s timeout. Killing process.")
         raise TimeoutError(f"Execution exceeded {execution_timeout_sec}s timeout")
 
     # SIGALRM only available on Unix; skip on Windows
@@ -2388,9 +2194,7 @@ def main():
         signal.signal(signal.SIGALRM, timeout_handler)
         signal.alarm(execution_timeout_sec)
     else:
-        logger.debug(
-            "[TIMEOUT] SIGALRM not available (Windows). Using process-level timeout instead."
-        )
+        logger.debug("[TIMEOUT] SIGALRM not available (Windows). Using process-level timeout instead.")
 
     # Validate
     valid_intervals = {"1d", "1wk", "1mo"}
@@ -2418,9 +2222,7 @@ def main():
             )
             acquired = _cur.fetchone()[0]
         if not acquired:
-            logger.warning(
-                "[MAIN] Skipping: another stock_prices_daily instance already running (advisory lock held)"
-            )
+            logger.warning("[MAIN] Skipping: another stock_prices_daily instance already running (advisory lock held)")
             try:
                 _lock_conn.close()
             except (psycopg2.DatabaseError, psycopg2.OperationalError) as close_err:
@@ -2447,9 +2249,7 @@ def main():
             symbols = get_active_symbols(max_symbols=limit, timeout_secs=300)
             logger.info(f"[MAIN] Loaded {len(symbols)} symbols from database")
             if len(symbols) == 0:
-                logger.warning(
-                    "[MAIN] No symbols found in stock_symbols table - exiting"
-                )
+                logger.warning("[MAIN] No symbols found in stock_symbols table - exiting")
                 try:
                     log_loader_execution(
                         "loadpricedaily",
@@ -2459,18 +2259,14 @@ def main():
                         duration_seconds=round(time.time() - start_time, 2),
                     )
                 except (ValueError, ZeroDivisionError, TypeError) as log_err:
-                    logger.critical(
-                        f"[MAIN] Could not log loader failure to audit trail: {log_err}"
-                    )
+                    logger.critical(f"[MAIN] Could not log loader failure to audit trail: {log_err}")
                 return 1
     except (ValueError, ZeroDivisionError, TypeError) as e:
         logger.error(f"[MAIN] Failed to get symbols: {e}", exc_info=True)
         try:
             _invalidate_phase1_cache()
         except RuntimeError as cache_err:
-            logger.critical(
-                f"[MAIN] Cache invalidation failed on symbols error: {cache_err}"
-            )
+            logger.critical(f"[MAIN] Cache invalidation failed on symbols error: {cache_err}")
         try:
             log_loader_execution(
                 "loadpricedaily",
@@ -2534,9 +2330,7 @@ def main():
     from utils.infrastructure.timeout import ExecutionTimeout
 
     try:
-        with ExecutionTimeout(
-            max_seconds=execution_timeout_sec, label="stock_prices_daily"
-        ):
+        with ExecutionTimeout(max_seconds=execution_timeout_sec, label="stock_prices_daily"):
             for asset_class in asset_classes:
                 for interval in intervals:
                     try:
@@ -2551,9 +2345,7 @@ def main():
                         # Build per-asset-class symbol list.
                         # dict.fromkeys preserves insertion order and deduplicates.
                         if asset_class == "stock":
-                            run_symbols = list(
-                                dict.fromkeys(symbols + essential_stock_price_daily)
-                            )
+                            run_symbols = list(dict.fromkeys(symbols + essential_stock_price_daily))
                             logger.info(
                                 f"[MAIN] stock symbols: {len(symbols)} from DB + {len(essential_stock_price_daily)} essential ETFs = {len(run_symbols)} total"
                             )
@@ -2574,9 +2366,7 @@ def main():
                         with TimeBlock(f"loadpricedaily_{asset_class}_{interval}"):
                             stats = loader.run(run_symbols, parallelism=parallelism)
 
-                        logger.info(
-                            f"[MAIN] Completed {asset_class}/{interval}: {stats}"
-                        )
+                        logger.info(f"[MAIN] Completed {asset_class}/{interval}: {stats}")
                         # Validate stats dict has required keys
                         for required_key in ["symbols_processed", "symbols_failed", "rows_inserted"]:
                             if required_key not in stats:
@@ -2586,17 +2376,15 @@ def main():
                         total_stats["symbols_failed"] += stats["symbols_failed"]
                         total_stats["rows_inserted"] += stats["rows_inserted"]
 
-                        fail_rate = stats["symbols_failed"] / max(
-                            len(run_symbols), 1
-                        )
+                        fail_rate = stats["symbols_failed"] / max(len(run_symbols), 1)
                         if fail_rate > 0.10:
                             logger.error(
-                                f"Too many failures for {asset_class}/{interval}: {stats['symbols_failed']}/{len(run_symbols)} ({fail_rate*100:.1f}%)"
+                                f"Too many failures for {asset_class}/{interval}: {stats['symbols_failed']}/{len(run_symbols)} ({fail_rate * 100:.1f}%)"
                             )
                             fail_count += 1
                         else:
                             logger.info(
-                                f"Acceptable failure rate for {asset_class}/{interval}: {stats['symbols_failed']}/{len(run_symbols)} ({fail_rate*100:.1f}%)"
+                                f"Acceptable failure rate for {asset_class}/{interval}: {stats['symbols_failed']}/{len(run_symbols)} ({fail_rate * 100:.1f}%)"
                             )
 
                         loader.close()
@@ -2608,9 +2396,7 @@ def main():
                         try:
                             _invalidate_phase1_cache()
                         except RuntimeError as cache_err:
-                            logger.critical(
-                                f"[MAIN] Cache invalidation failed on loader error: {cache_err}"
-                            )
+                            logger.critical(f"[MAIN] Cache invalidation failed on loader error: {cache_err}")
                         raise RuntimeError(
                             f"[MAIN] Loader failed for {asset_class}/{interval}: {e}. "
                             "Cannot proceed with price loading if an interval fails."
@@ -2620,9 +2406,7 @@ def main():
         try:
             _invalidate_phase1_cache()
         except RuntimeError as cache_err:
-            logger.critical(
-                f"[MAIN] Cache invalidation failed on timeout error: {cache_err}"
-            )
+            logger.critical(f"[MAIN] Cache invalidation failed on timeout error: {cache_err}")
         duration_seconds = round(time.time() - start_time, 2)
         try:
             log_loader_execution(
@@ -2646,9 +2430,7 @@ def main():
         try:
             _invalidate_phase1_cache()
         except RuntimeError as cache_err:
-            logger.critical(
-                f"[MAIN] Cache invalidation failed on final failure: {cache_err}"
-            )
+            logger.critical(f"[MAIN] Cache invalidation failed on final failure: {cache_err}")
         try:
             if "rows_inserted" not in total_stats:
                 raise RuntimeError("total_stats missing 'rows_inserted' key")
@@ -2688,6 +2470,7 @@ def main():
             logger.debug(f"Could not close lock connection: {close_err}")
     return 0
 
+
 if __name__ == "__main__":
     try:
         result = main()
@@ -2695,4 +2478,3 @@ if __name__ == "__main__":
     except RuntimeError as e:
         logger.error(str(e))
         sys.exit(1)
-

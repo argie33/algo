@@ -13,7 +13,8 @@ Validates all critical systems are configured correctly:
 import logging
 import os
 from datetime import datetime
-from typing import Any, Dict
+from typing import Any
+
 import psycopg2
 
 
@@ -71,24 +72,16 @@ class ProductionReadinessCheck:
                             check_row_count=False,  # Don't require table to have data yet
                         )
                         if is_valid:
-                            validation_results.append(
-                                f"{table_name} schema valid ({len(schema)} columns)"
-                            )
+                            validation_results.append(f"{table_name} schema valid ({len(schema)} columns)")
                         else:
-                            validation_results.append(
-                                f"{table_name} schema INVALID: {'; '.join(errors[:2])}"
-                            )
+                            validation_results.append(f"{table_name} schema INVALID: {'; '.join(errors[:2])}")
                             all_valid = False
 
                 if all_valid:
-                    self.checks_passed.append(
-                        f"Database connectivity and schema OK: {', '.join(validation_results)}"
-                    )
+                    self.checks_passed.append(f"Database connectivity and schema OK: {', '.join(validation_results)}")
                     return True
                 else:
-                    self.checks_failed.append(
-                        f"Schema validation failed: {'; '.join(validation_results)}"
-                    )
+                    self.checks_failed.append(f"Schema validation failed: {'; '.join(validation_results)}")
                     return False
 
         except (psycopg2.DatabaseError, psycopg2.OperationalError) as e:
@@ -104,9 +97,7 @@ class ProductionReadinessCheck:
             status = monitor.get_connection_pool_status()
 
             if "error" in status:
-                self.checks_warnings.append(
-                    f"RDS pool status check failed: {status['error']}"
-                )
+                self.checks_warnings.append(f"RDS pool status check failed: {status['error']}")
                 return False
 
             # Check available capacity
@@ -121,8 +112,7 @@ class ProductionReadinessCheck:
                 return True
             else:
                 self.checks_warnings.append(
-                    f"RDS pool near capacity: {available} connections available, "
-                    f"{utilization:.0f}% utilized"
+                    f"RDS pool near capacity: {available} connections available, {utilization:.0f}% utilized"
                 )
                 return False
 
@@ -175,9 +165,7 @@ class ProductionReadinessCheck:
                 missing.append("COGNITO_USER_POOL_ID")
 
             if missing:
-                self.checks_failed.append(
-                    f"Missing Cognito config: {', '.join(missing)}"
-                )
+                self.checks_failed.append(f"Missing Cognito config: {', '.join(missing)}")
                 return False
 
             # Try to validate against Cognito
@@ -188,9 +176,7 @@ class ProductionReadinessCheck:
                 pool = cognito.describe_user_pool(UserPoolId=pool_id)
 
                 if pool.get("UserPool"):
-                    self.checks_passed.append(
-                        f"Cognito configured: {pool_id}, client ID verified"
-                    )
+                    self.checks_passed.append(f"Cognito configured: {pool_id}, client ID verified")
                     return True
                 else:
                     self.checks_failed.append("Cognito user pool not found")
@@ -198,8 +184,7 @@ class ProductionReadinessCheck:
 
             except (ImportError, AttributeError, KeyError, ConnectionError):
                 self.checks_warnings.append(
-                    "Cannot validate Cognito with API (may lack IAM permissions), "
-                    f"but config exists: {client_id}"
+                    f"Cannot validate Cognito with API (may lack IAM permissions), but config exists: {client_id}"
                 )
                 return True  # Config exists, even if we can't validate
 
@@ -223,9 +208,7 @@ class ProductionReadinessCheck:
                 self.checks_failed.append("Cannot read halt flag from DynamoDB")
                 return False
 
-            self.checks_passed.append(
-                "DynamoDB state management OK (halt flag, degraded mode, locks)"
-            )
+            self.checks_passed.append("DynamoDB state management OK (halt flag, degraded mode, locks)")
             return True
 
         except Exception as e:
@@ -238,12 +221,8 @@ class ProductionReadinessCheck:
             from utils.logging import SLAMonitor
 
             # Just verify the module is importable and has required methods
-            if hasattr(SLAMonitor, "get_current_sla_window") and hasattr(
-                SLAMonitor, "check_deadline_passed"
-            ):
-                self.checks_passed.append(
-                    "SLA monitoring configured (morning prep, afternoon, pre-close, EOD)"
-                )
+            if hasattr(SLAMonitor, "get_current_sla_window") and hasattr(SLAMonitor, "check_deadline_passed"):
+                self.checks_passed.append("SLA monitoring configured (morning prep, afternoon, pre-close, EOD)")
                 return True
             else:
                 self.checks_failed.append("SLA monitor missing required methods")
@@ -263,9 +242,7 @@ class ProductionReadinessCheck:
             # Test basic functionality
             conflicts = detector.check_concurrent_loaders()
             if conflicts:
-                self.checks_passed.append(
-                    "Loader conflict detection OK (validates intraday pipeline sync)"
-                )
+                self.checks_passed.append("Loader conflict detection OK (validates intraday pipeline sync)")
                 return True
             else:
                 self.checks_failed.append("Loader conflict detector not functioning")
@@ -284,21 +261,17 @@ class ProductionReadinessCheck:
             result = validator.validate_all_loaders()
 
             if result["all_passed"]:
-                self.checks_passed.append(
-                    "Loader parallelism validated (5000+ symbols supported)"
-                )
+                self.checks_passed.append("Loader parallelism validated (5000+ symbols supported)")
                 return True
             else:
                 self.checks_warnings.extend(result["failures"])
                 return False
 
         except Exception as e:
-            self.checks_warnings.append(
-                f"Parallelism validation failed: {str(e)[:100]}"
-            )
+            self.checks_warnings.append(f"Parallelism validation failed: {str(e)[:100]}")
             return False
 
-    def run_all_checks(self) -> Dict[str, Any]:
+    def run_all_checks(self) -> dict[str, Any]:
         """Run all production readiness checks."""
         logger.info("=" * 70)
         logger.info("PRODUCTION READINESS CHECK")
@@ -344,12 +317,8 @@ class ProductionReadinessCheck:
 
         ready_for_production = total_failed == 0
 
-        logger.info(
-            f"\nResult: {total_passed} passed, {total_warnings} warnings, {total_failed} failures"
-        )
-        logger.info(
-            f"Status: {'✓ READY FOR PRODUCTION' if ready_for_production else '✗ NOT READY'}"
-        )
+        logger.info(f"\nResult: {total_passed} passed, {total_warnings} warnings, {total_failed} failures")
+        logger.info(f"Status: {'✓ READY FOR PRODUCTION' if ready_for_production else '✗ NOT READY'}")
 
         return {
             "ready_for_production": ready_for_production,

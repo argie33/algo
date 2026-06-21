@@ -41,14 +41,9 @@ def lambda_handler(event, context):
         timestamp = datetime.now(timezone.utc).isoformat()
 
         # Log the failure
-        degradation_mode = (
-            "FAIL-CLOSED (halting pipeline)"
-            if is_critical
-            else "FAIL-OPEN (graceful degradation)"
-        )
+        degradation_mode = "FAIL-CLOSED (halting pipeline)" if is_critical else "FAIL-OPEN (graceful degradation)"
         logger.warning(
-            f"Loader failure [{degradation_mode}]: loader={loader_name} "
-            f"error={error_type} message={error_message}"
+            f"Loader failure [{degradation_mode}]: loader={loader_name} error={error_type} message={error_message}"
         )
 
         # Publish CloudWatch metric for visibility
@@ -89,8 +84,7 @@ def lambda_handler(event, context):
             )
         else:
             alert_message += (
-                "\nPipeline is continuing with graceful degradation.\n"
-                "Some data may be incomplete or stale."
+                "\nPipeline is continuing with graceful degradation.\nSome data may be incomplete or stale."
             )
 
         sns_topic = os.getenv("SNS_ALERT_TOPIC_ARN")

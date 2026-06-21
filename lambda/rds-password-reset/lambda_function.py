@@ -132,10 +132,9 @@ def lambda_handler(event, context):
 
         return {
             "statusCode": 400,
-            "body": json.dumps({
-                "error": "Password does not meet strength requirements",
-                "details": validation["errors"]
-            }),
+            "body": json.dumps(
+                {"error": "Password does not meet strength requirements", "details": validation["errors"]}
+            ),
         }
 
     db_port = int(db_port_str)
@@ -144,9 +143,7 @@ def lambda_handler(event, context):
     if not secret_arn:
         return {
             "statusCode": 400,
-            "body": json.dumps(
-                {"error": "DB_SECRET_ARN required to fetch current credentials"}
-            ),
+            "body": json.dumps({"error": "DB_SECRET_ARN required to fetch current credentials"}),
         }
 
     try:
@@ -209,9 +206,7 @@ def lambda_handler(event, context):
 
         return {
             "statusCode": 500,
-            "body": json.dumps(
-                {"error": "Failed to retrieve credentials from Secrets Manager"}
-            ),
+            "body": json.dumps({"error": "Failed to retrieve credentials from Secrets Manager"}),
         }
 
     logger.info(f"Attempting to reset RDS password for {db_user}@{db_host}")
@@ -255,9 +250,7 @@ def lambda_handler(event, context):
 
         return {
             "statusCode": 500,
-            "body": json.dumps(
-                {"error": "Could not connect to RDS with provided credentials"}
-            ),
+            "body": json.dumps({"error": "Could not connect to RDS with provided credentials"}),
         }
 
     try:
@@ -267,9 +260,7 @@ def lambda_handler(event, context):
             # Reset the master user password using parameterized query
             logger.info(f"Resetting password for user '{db_user}'")
             cursor.execute(
-                psycopg2.sql.SQL("ALTER USER {} WITH PASSWORD %s").format(
-                    psycopg2.sql.Identifier(db_user)
-                ),
+                psycopg2.sql.SQL("ALTER USER {} WITH PASSWORD %s").format(psycopg2.sql.Identifier(db_user)),
                 (new_password,),
             )
             connection.commit()
@@ -317,13 +308,11 @@ def lambda_handler(event, context):
                     logger.info(f"SNS notification sent to {sns_topic_arn}")
                 except ClientError as e:
                     logger.warning(
-                        f"Failed to send SNS notification: {e}. "
-                        "Password reset succeeded but audit notification failed."
+                        f"Failed to send SNS notification: {e}. Password reset succeeded but audit notification failed."
                     )
             else:
                 logger.warning(
-                    "PASSWORD_RESET_SNS_TOPIC not configured. "
-                    "Password reset succeeded but no audit notification sent."
+                    "PASSWORD_RESET_SNS_TOPIC not configured. Password reset succeeded but no audit notification sent."
                 )
 
             return {

@@ -5,7 +5,6 @@ Single source of truth for all timezone conversions and datetime operations.
 """
 
 from datetime import date, datetime, timezone
-from typing import Union
 from zoneinfo import ZoneInfo
 
 
@@ -13,7 +12,7 @@ from zoneinfo import ZoneInfo
 EASTERN_TZ = ZoneInfo("America/New_York")
 
 
-def normalize_to_utc_datetime(dt: Union[datetime, date, None]) -> datetime:
+def normalize_to_utc_datetime(dt: datetime | date | None) -> datetime:
     """Convert any datetime or date to UTC-aware datetime.
 
     Handles:

@@ -211,9 +211,7 @@ class RDSPoolMonitor:
                 if slow:
                     logger.warning(f"[RDS-POOL] {len(slow)} slow queries (>5s):")
                     for q in slow[:3]:  # Show top 3
-                        logger.warning(
-                            f"  - PID {q['pid']} ({q['duration_sec']:.0f}s): {q['query']}"
-                        )
+                        logger.warning(f"  - PID {q['pid']} ({q['duration_sec']:.0f}s): {q['query']}")
             except (psycopg2.DatabaseError, psycopg2.OperationalError) as e:
                 logger.error(f"[RDS-POOL] Failed to query slow queries: {e}")
 
@@ -235,9 +233,7 @@ class RDSPoolMonitor:
             return {
                 "ready_for_eod": False,
                 "_error": status["_error"],
-                "recommendations": [
-                    "Cannot check pool status - RDS may be unavailable"
-                ],
+                "recommendations": ["Cannot check pool status - RDS may be unavailable"],
             }
 
         pool_pct = status["utilization_percent"]
@@ -262,9 +258,7 @@ class RDSPoolMonitor:
 
         # Estimate max safe parallelism
         # Conservative: reserve 30 connections for running loaders, use rest for system
-        max_parallelism = max(
-            1, (available - 10) // 3
-        )  # 3 connections per parallel loader
+        max_parallelism = max(1, (available - 10) // 3)  # 3 connections per parallel loader
 
         return {
             "ready_for_eod": ready,

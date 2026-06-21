@@ -45,9 +45,7 @@ def run_loader(
     Returns:
         Exit code: 0 on success, 1 if fail_rate > 5%.
     """
-    parser = argparse.ArgumentParser(
-        description=description or f"{loader_class.table_name} loader"
-    )
+    parser = argparse.ArgumentParser(description=description or f"{loader_class.table_name} loader")
 
     if not global_mode:
         parser.add_argument("--symbols", help="Comma-separated symbols. Default: all active symbols.")
@@ -93,8 +91,7 @@ def run_loader(
                 fail_rate = stats.get("symbols_failed", 0) / max(len(symbols), 1)
                 if fail_rate > 0.05:
                     logger.error(
-                        f"Too many failures: {stats['symbols_failed']}/{len(symbols)} "
-                        f"({fail_rate * 100:.1f}%)"
+                        f"Too many failures: {stats['symbols_failed']}/{len(symbols)} ({fail_rate * 100:.1f}%)"
                     )
                     return 1
 

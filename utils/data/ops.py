@@ -4,7 +4,8 @@ Data Operations Integration - Unified API for freshness, validation, caching
 """
 
 import logging
-from typing import Any, Callable, Optional
+from collections.abc import Callable
+from typing import Any
 
 from utils.data.age_validator import check_freshness, is_fresh
 from utils.db.query_cache import get_or_create_cache
@@ -18,12 +19,12 @@ def load_with_freshness(
     data_type: str,
     context: str = "",
     stale_ok: bool = False,
-) -> Optional[Any]:
+) -> Any | None:
     """Load data and validate freshness."""
     try:
         data, last_updated = fetch_fn()
     except Exception as e:
-            raise RuntimeError(f"Operation failed: {e}") from e
+        raise RuntimeError(f"Operation failed: {e}") from e
 
     if data is None:
         return None
@@ -46,7 +47,7 @@ def get_or_cache(
     cache_name: str = "default",
     context: str = "",
     allow_stale: bool = False,
-) -> Optional[Any]:
+) -> Any | None:
     """Get value from cache or compute if missing."""
     cache = get_or_create_cache(cache_name, ttl_seconds=ttl_seconds)
     try:
@@ -57,11 +58,11 @@ def get_or_cache(
             allow_stale=allow_stale,
         )
     except Exception as e:
-            raise RuntimeError(f"Operation failed: {e}") from e
+        raise RuntimeError(f"Operation failed: {e}") from e
 
 
 def check_data_fresh(
-    last_updated: Optional[Any],
+    last_updated: Any | None,
     data_type: str,
     context: str = "",
 ) -> bool:

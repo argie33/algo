@@ -176,8 +176,8 @@ class SignalsDailyLoader(OptimalLoader):
         if since is None:
             try:
                 # Try cache first (populated in _prepare_batch_context)
-                symbol_watermarks = self._batch_context.get("symbol_watermarks") if self._batch_context else {}
-                max_date = symbol_watermarks.get(symbol)
+                symbol_watermarks = self._batch_context.get("symbol_watermarks") if self._batch_context else None
+                max_date = symbol_watermarks.get(symbol) if symbol_watermarks else None
 
                 # Cache miss: query database as fallback
                 if max_date is None:

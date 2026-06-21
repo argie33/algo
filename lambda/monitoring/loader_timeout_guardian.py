@@ -82,13 +82,11 @@ def lambda_handler(event, context):
                     )
 
             if hung_loaders:
-                logger.warning(
-                    f"Found {len(hung_loaders)} indefinitely-running loaders:"
-                )
+                logger.warning(f"Found {len(hung_loaders)} indefinitely-running loaders:")
                 for loader in hung_loaders:
                     logger.warning(
-                        f'  {loader["name"]}: running {loader["runtime_sec"]/3600:.1f}h '
-                        f'(max {loader["max_allowed"]/3600:.1f}h)'
+                        f"  {loader['name']}: running {loader['runtime_sec'] / 3600:.1f}h "
+                        f"(max {loader['max_allowed'] / 3600:.1f}h)"
                     )
 
                     # Kill the ECS task
@@ -115,9 +113,7 @@ def lambda_handler(event, context):
                                 "MetricName": "LoaderTimeout",
                                 "Value": 1,
                                 "Unit": "Count",
-                                "Dimensions": [
-                                    {"Name": "LoaderName", "Value": loader["name"]}
-                                ],
+                                "Dimensions": [{"Name": "LoaderName", "Value": loader["name"]}],
                             }
                         ],
                     )
@@ -153,17 +149,14 @@ def kill_loader_task(loader_name):
                 # This depends on how tasks are launched
                 container_env = task["containers"][0].get("environment")
                 for env_var in container_env:
-                    if (
-                        env_var.get("name") == "LOADER_NAME"
-                        and env_var.get("value") == loader_name
-                    ):
+                    if env_var.get("name") == "LOADER_NAME" and env_var.get("value") == loader_name:
                         # Found it - stop the task
                         ecs.stop_task(
                             cluster="algo-dev",
                             task=arn,
                             reason=f"Killed by timeout guardian: {loader_name} exceeded max runtime",
                         )
-                        logger.info(f'Stopped ECS task {arn.split("/")[-1]}')
+                        logger.info(f"Stopped ECS task {arn.split('/')[-1]}")
                         return True
             except Exception as e:
                 logger.warning(f"Could not check task {arn}: {e}")
@@ -172,4 +165,4 @@ def kill_loader_task(loader_name):
         return False
 
     except Exception as e:
-            raise RuntimeError(f"Operation failed: {e}") from e
+        raise RuntimeError(f"Operation failed: {e}") from e

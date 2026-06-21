@@ -2,8 +2,8 @@
 
 import json
 import logging
+
 import psycopg2
-from typing import Dict
 
 # Ensure imports work - setup_imports is imported by parent module (lambda_function or api_router)
 from routes.utils import (
@@ -19,9 +19,8 @@ from routes.utils import (
 logger = logging.getLogger(__name__)
 
 
-
 @db_route_handler("fetch orchestrator execution details")
-def _get_orchestrator_execution_details(cur, run_id: str) -> Dict:
+def _get_orchestrator_execution_details(cur, run_id: str) -> dict:
     """Return full details of a specific orchestrator run."""
     cur.execute(
         """
@@ -48,9 +47,8 @@ def _get_orchestrator_execution_details(cur, run_id: str) -> Dict:
     return success_response(result)
 
 
-
 @db_route_handler("fetch orchestrator execution failed")
-def _get_orchestrator_execution_failed(cur, days: int = 30) -> Dict:
+def _get_orchestrator_execution_failed(cur, days: int = 30) -> dict:
     """Return failed/halted orchestrator runs."""
     cur.execute(
         """
@@ -63,14 +61,11 @@ def _get_orchestrator_execution_failed(cur, days: int = 30) -> Dict:
         (days,),
     )
     rows = cur.fetchall()
-    return list_response(
-        [safe_json_serialize(safe_dict_convert(r)) for r in rows], total=len(rows)
-    )
-
+    return list_response([safe_json_serialize(safe_dict_convert(r)) for r in rows], total=len(rows))
 
 
 @db_route_handler("fetch orchestrator execution patterns")
-def _get_orchestrator_execution_patterns(cur, days: int = 30) -> Dict:
+def _get_orchestrator_execution_patterns(cur, days: int = 30) -> dict:
     """Analyze halt patterns - which phases halt most often."""
     cur.execute(
         """
@@ -99,9 +94,8 @@ def _get_orchestrator_execution_patterns(cur, days: int = 30) -> Dict:
     return success_response({"patterns": patterns, "period_days": days})
 
 
-
 @db_route_handler("fetch orchestrator execution recent")
-def _get_orchestrator_execution_recent(cur, days: int = 7, limit: int = 50) -> Dict:
+def _get_orchestrator_execution_recent(cur, days: int = 7, limit: int = 50) -> dict:
     """Return recent orchestrator execution runs."""
     try:
         cur.execute(
@@ -136,20 +130,15 @@ def _get_orchestrator_execution_recent(cur, days: int = 7, limit: int = 50) -> D
             items = [safe_json_serialize(safe_dict_convert(r)) for r in rows]
             return list_response(items, total=len(rows), limit=limit)
         except (psycopg2.DatabaseError, psycopg2.OperationalError) as ser_e:
-            logger.warning(
-                f"Serialization error in execution recent: {type(ser_e).__name__}: {ser_e}"
-            )
+            logger.warning(f"Serialization error in execution recent: {type(ser_e).__name__}: {ser_e}")
             return list_response([], total=0, limit=limit)
     except (psycopg2.DatabaseError, psycopg2.OperationalError) as e:
-        logger.error(
-            f"Orchestrator execution recent fetch error: {type(e).__name__}: {e}"
-        )
+        logger.error(f"Orchestrator execution recent fetch error: {type(e).__name__}: {e}")
         return list_response([], total=0, limit=limit)
 
 
-
 @db_route_handler("fetch orchestrator execution stats")
-def _get_orchestrator_execution_stats(cur, days: int = 7) -> Dict:
+def _get_orchestrator_execution_stats(cur, days: int = 7) -> dict:
     """Return execution statistics."""
     cur.execute(
         """
@@ -175,14 +164,9 @@ def _get_orchestrator_execution_stats(cur, days: int = 7) -> Dict:
         {
             "total_runs": total,
             "by_status": stats_by_status,
-            "success_rate": (
-                f"{(success_count / total * 100):.1f}%" if total > 0 else "N/A"
-            ),
+            "success_rate": (f"{(success_count / total * 100):.1f}%" if total > 0 else "N/A"),
             "halt_rate": f"{(halt_count / total * 100):.1f}%" if total > 0 else "N/A",
             "error_rate": f"{(error_count / total * 100):.1f}%" if total > 0 else "N/A",
             "period_days": days,
         }
     )
-
-
-

@@ -4,7 +4,7 @@ import logging
 import time
 from datetime import date, datetime, timezone
 from functools import wraps
-from typing import Any, NoReturn, cast
+from typing import Any, cast
 
 import psycopg2
 import psycopg2.errors
@@ -28,11 +28,11 @@ logger = logging.getLogger(__name__)
 # Centralized query timeout configuration (milliseconds)
 # Values chosen based on expected query complexity and business impact
 QUERY_TIMEOUTS = {
-    "default": 5000,        # Standard list/filter queries
-    "count": 3000,          # COUNT(*) queries (fast)
-    "complex_join": 8000,   # Multi-table joins
-    "analytical": 15000,    # Analytical/aggregation queries
-    "list": 5000,           # Paginated list queries
+    "default": 5000,  # Standard list/filter queries
+    "count": 3000,  # COUNT(*) queries (fast)
+    "complex_join": 8000,  # Multi-table joins
+    "analytical": 15000,  # Analytical/aggregation queries
+    "list": 5000,  # Paginated list queries
 }
 
 
@@ -77,9 +77,7 @@ def normalize_to_utc_datetime(dt: date | datetime | None) -> datetime | None:
             dt = dt.replace(tzinfo=timezone.utc)
         return dt
 
-    raise TypeError(
-        f"normalize_to_utc_datetime requires date or datetime, got {type(dt).__name__}"
-    )
+    raise TypeError(f"normalize_to_utc_datetime requires date or datetime, got {type(dt).__name__}")
 
 
 def safe_limit(limit_str: str | None, max_val: int = 5000, default: int | None = None) -> int:
@@ -99,33 +97,34 @@ def safe_limit(limit_str: str | None, max_val: int = 5000, default: int | None =
     if not limit_str:
         if default is not None:
             return min(max(default, 1), max_val)
-        raise_api_error(400, "BadRequest", "limit parameter is required")  # noqa: F631
+        raise_api_error(400, "BadRequest", "limit parameter is required")
         return max_val  # unreachable
     try:
         value = int(limit_str)
         if value <= 0:
-            raise_api_error(400, "BadRequest", "limit must be greater than 0")  # noqa: F631
+            raise_api_error(400, "BadRequest", "limit must be greater than 0")
             return max_val  # unreachable
         return min(value, max_val)
     except (ValueError, TypeError):
-        raise_api_error(400, "BadRequest", "limit must be a valid integer")  # noqa: F631
+        raise_api_error(400, "BadRequest", "limit must be a valid integer")
         return max_val  # unreachable
 
 
 def safe_offset(offset_str: str | None, max_val: int = 1000000) -> int:
     """Parse and validate offset parameter. Always fails fast on invalid input."""
     if not offset_str:
-        raise_api_error(400, "BadRequest", "offset parameter is required")  # noqa: F631
+        raise_api_error(400, "BadRequest", "offset parameter is required")
         return 0  # unreachable
     try:
         value = int(offset_str)
         if value < 0:
-            raise_api_error(400, "BadRequest", "offset must be non-negative")  # noqa: F631
+            raise_api_error(400, "BadRequest", "offset must be non-negative")
             return 0  # unreachable
         return min(value, max_val)
     except (ValueError, TypeError):
-        raise_api_error(400, "BadRequest", "offset must be a valid integer")  # noqa: F631
+        raise_api_error(400, "BadRequest", "offset must be a valid integer")
         return 0  # unreachable
+
 
 def safe_days(days_str: str | None, max_val: int = 365, default: int | None = None) -> int:
     """Parse and validate days parameter. Optionally use default if missing.
@@ -144,17 +143,18 @@ def safe_days(days_str: str | None, max_val: int = 365, default: int | None = No
     if not days_str:
         if default is not None:
             return min(max(default, 1), max_val)
-        raise_api_error(400, "BadRequest", "days parameter is required")  # noqa: F631
+        raise_api_error(400, "BadRequest", "days parameter is required")
         return max_val  # unreachable
     try:
         value = int(days_str)
         if value < 1:
-            raise_api_error(400, "BadRequest", "days must be at least 1")  # noqa: F631
+            raise_api_error(400, "BadRequest", "days must be at least 1")
             return max_val  # unreachable
         return min(value, max_val)
     except (ValueError, TypeError):
-        raise_api_error(400, "BadRequest", "days must be a valid integer")  # noqa: F631
+        raise_api_error(400, "BadRequest", "days must be a valid integer")
         return max_val  # unreachable
+
 
 def safe_page(page_str: str | None, default: int | None = None) -> int:
     """Parse and validate page parameter. Optionally use default if missing.
@@ -172,17 +172,18 @@ def safe_page(page_str: str | None, default: int | None = None) -> int:
     if not page_str:
         if default is not None:
             return max(default, 1)
-        raise_api_error(400, "BadRequest", "page parameter is required")  # noqa: F631
+        raise_api_error(400, "BadRequest", "page parameter is required")
         return 1  # unreachable
     try:
         value = int(page_str)
         if value < 1:
-            raise_api_error(400, "BadRequest", "page must be at least 1")  # noqa: F631
+            raise_api_error(400, "BadRequest", "page must be at least 1")
             return 1  # unreachable
         return value
     except (ValueError, TypeError):
-        raise_api_error(400, "BadRequest", "page must be a valid integer")  # noqa: F631
+        raise_api_error(400, "BadRequest", "page must be a valid integer")
         return 1  # unreachable
+
 
 def safe_int(int_str: str | None, min_val: int | None = None, max_val: int | None = None) -> int:
     """Parse and validate integer parameter. Always fails fast on invalid input."""
@@ -198,6 +199,7 @@ def safe_int(int_str: str | None, min_val: int | None = None, max_val: int | Non
     except (ValueError, TypeError):
         raise_api_error(400, "BadRequest", "value must be a valid integer")
 
+
 def safe_float(float_str: str | None, min_val: float | None = None, max_val: float | None = None) -> float:
     """Parse and validate float parameter. Always fails fast on invalid input."""
     if float_str is None or float_str == "":
@@ -211,6 +213,7 @@ def safe_float(float_str: str | None, min_val: float | None = None, max_val: flo
         return value
     except (ValueError, TypeError):
         raise_api_error(400, "BadRequest", "value must be a valid float")
+
 
 def safe_string(value_str: str | None, allowed_values: set[str] | None = None, max_length: int = 100) -> str:
     """Validate and sanitize string parameter. Always fails fast on invalid input.
@@ -278,6 +281,7 @@ def get_api_version_headers() -> dict[str, str]:
         Dict with X-API-Version header
     """
     from api_utils.config import API_VERSION, API_VERSION_HEADER
+
     return {API_VERSION_HEADER: API_VERSION}
 
 
@@ -356,9 +360,11 @@ def extract_param(params, key: str, required: bool = False, default: str | None 
         return default
 
     value = params[key][0] if isinstance(params[key], list) else params[key]
-    return value if value else (default if not required else (
-        raise_api_error(400, "BadRequest", f"Required parameter missing: {key}")
-    ))
+    return (
+        value
+        if value
+        else (default if not required else (raise_api_error(400, "BadRequest", f"Required parameter missing: {key}")))
+    )
 
 
 def raise_api_error(status_code: int, error_type: str, message: str) -> Any:
@@ -401,7 +407,13 @@ def success_response(data: dict[str, Any], metadata: dict[str, Any] | None = Non
     return response
 
 
-def list_response(items: list[Any], total: int | None = None, data_freshness: dict[str, Any] | None = None, limit: int | None = None, offset: int | None = None) -> dict[str, Any]:
+def list_response(
+    items: list[Any],
+    total: int | None = None,
+    data_freshness: dict[str, Any] | None = None,
+    limit: int | None = None,
+    offset: int | None = None,
+) -> dict[str, Any]:
     """Standardized list response for paginated data.
 
     Always returns array in 'data.items' field with total count.
@@ -481,9 +493,7 @@ def execute_with_timeout(
                 try:
                     cur.connection.rollback()
                 except (psycopg2.DatabaseError, psycopg2.OperationalError) as rollback_err:
-                    logger.debug(
-                        f"Failed to rollback after query timeout: {rollback_err}"
-                    )
+                    logger.debug(f"Failed to rollback after query timeout: {rollback_err}")
                 time.sleep(0.1)
             else:
                 with log_sanitizer("query timeout final") as safe_log:
@@ -511,9 +521,7 @@ def execute_with_timeout(
         raise last_error
 
 
-def check_data_freshness(
-    cur, table_name: str, date_column: str = "date", warning_days: int | None = None
-) -> dict:
+def check_data_freshness(cur, table_name: str, date_column: str = "date", warning_days: int | None = None) -> dict:
     """Check how fresh data is in a table.
 
     Args:
@@ -628,17 +636,14 @@ def validate_dashboard_response(endpoint_name: str, response_data: dict[str, Any
     """
     try:
         from shared_contracts.response_validator import ResponseValidator
-        is_valid, error_msg = ResponseValidator.validate_endpoint_response(
-            endpoint_name, response_data
-        )
+
+        is_valid, error_msg = ResponseValidator.validate_endpoint_response(endpoint_name, response_data)
         if not is_valid:
             logger.warning(
                 f"[SCHEMA_VALIDATION] Endpoint '{endpoint_name}' response does not match contract: {error_msg}"
             )
     except (ImportError, AttributeError, KeyError, TypeError) as e:
-        logger.warning(
-            f"[SCHEMA_VALIDATION] Could not validate endpoint '{endpoint_name}': {type(e).__name__}: {e}"
-        )
+        logger.warning(f"[SCHEMA_VALIDATION] Could not validate endpoint '{endpoint_name}': {type(e).__name__}: {e}")
     return response_data
 
 
@@ -657,18 +662,13 @@ def ensure_valid_response(endpoint_name: str, response_data: dict[str, Any]) -> 
     """
     try:
         from shared_contracts.response_validator import ResponseValidator
-        is_valid, error_msg = ResponseValidator.validate_endpoint_response(
-            endpoint_name, response_data
-        )
+
+        is_valid, error_msg = ResponseValidator.validate_endpoint_response(endpoint_name, response_data)
         if not is_valid:
-            logger.warning(
-                f"[RESPONSE_VALIDATION] Endpoint '{endpoint_name}' validation failed: {error_msg}"
-            )
+            logger.warning(f"[RESPONSE_VALIDATION] Endpoint '{endpoint_name}' validation failed: {error_msg}")
         return is_valid
     except (ImportError, AttributeError, KeyError, TypeError) as e:
-        logger.warning(
-            f"[RESPONSE_VALIDATION] Could not validate endpoint '{endpoint_name}': {type(e).__name__}: {e}"
-        )
+        logger.warning(f"[RESPONSE_VALIDATION] Could not validate endpoint '{endpoint_name}': {type(e).__name__}: {e}")
         return False
 
 
@@ -700,6 +700,7 @@ def safe_dict_convert(row):
             f"  Row type: {type(row).__name__}\n"
             f"  This may indicate a schema mismatch between code and database."
         )
+
 
 def safe_json_serialize(obj):
     """Convert database objects to JSON-serializable format.

@@ -1,7 +1,6 @@
 """Route: research"""
 
 import logging
-from typing import Dict
 
 import psycopg2
 import psycopg2.errors
@@ -27,15 +26,13 @@ def handle(
     cur,
     path: str,
     method: str,
-    params: Dict,
-    body: Dict = None,
-    jwt_claims: Dict = None,
-) -> Dict:
+    params: dict,
+    body: dict | None = None,
+    jwt_claims: dict | None = None,
+) -> dict:
     """Handle /api/research/* endpoints."""
     try:
-        if path == "/api/research/backtests" or path.startswith(
-            "/api/research/backtests?"
-        ):
+        if path == "/api/research/backtests" or path.startswith("/api/research/backtests?"):
             limit_str = params.get("limit", [None])[0] if params else None
             limit = safe_limit(limit_str or "50000", max_val=50000)
             backtests = execute_with_timeout(
@@ -51,9 +48,7 @@ def handle(
                 (limit,),
                 timeout_sec=10,
             )
-            freshness = check_data_freshness(
-                cur, "backtest_runs", "created_at", warning_days=7
-            )
+            freshness = check_data_freshness(cur, "backtest_runs", "created_at", warning_days=7)
             return list_response(
                 [safe_json_serialize(dict(b)) for b in backtests] if backtests else [],
                 data_freshness=freshness,
@@ -83,9 +78,7 @@ def handle(
             )
             backtest = backtest_rows[0] if backtest_rows else None
             if not backtest:
-                return error_response(
-                    404, "not_found", f"Backtest run {run_id} not found"
-                )
+                return error_response(404, "not_found", f"Backtest run {run_id} not found")
 
             limit_str = params.get("limit", [None])[0] if params else None
             offset_str = params.get("offset", [None])[0] if params else None
@@ -117,23 +110,17 @@ def handle(
                 timeout_sec=3,
             )
             total_trades_count = (
-                next(iter(safe_json_serialize(dict(count_rows[0]).values())), 0)
-                if count_rows and count_rows[0]
-                else 0
+                next(iter(safe_json_serialize(dict(count_rows[0]).values())), 0) if count_rows and count_rows[0] else 0
             )
 
             # Build response
             run_dict = safe_json_serialize(dict(backtest))
-            freshness = check_data_freshness(
-                cur, "backtest_runs", "created_at", warning_days=7
-            )
+            freshness = check_data_freshness(cur, "backtest_runs", "created_at", warning_days=7)
             return json_response(
                 200,
                 {
                     "run": run_dict,
-                    "trades": (
-                        [safe_json_serialize(dict(t)) for t in trades] if trades else []
-                    ),
+                    "trades": ([safe_json_serialize(dict(t)) for t in trades] if trades else []),
                     "trade_pagination": {"total": total_trades_count},
                     "data_freshness": freshness,
                 },

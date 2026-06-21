@@ -98,8 +98,8 @@ def compute_circuit_breaker_metrics(cur, today: date | None = None):
 
         logger.info(
             f"Circuit breaker metrics computed for {today}: "
-            f'{metrics["triggered_count"]} triggered, '
-            f'any_triggered={metrics["any_triggered"]}'
+            f"{metrics['triggered_count']} triggered, "
+            f"any_triggered={metrics['any_triggered']}"
         )
 
         return metrics
@@ -175,7 +175,9 @@ def _compute_vix_level(cur) -> float | None:
     """)
     row = cur.fetchone()
     if not row or row[0] is None:
-        raise ValueError("VIX level not available in market_health_daily - circuit breaker CB4 metric cannot be computed")
+        raise ValueError(
+            "VIX level not available in market_health_daily - circuit breaker CB4 metric cannot be computed"
+        )
     vix = float(float(row[0]))
     return round(vix, 1)
 
@@ -223,7 +225,7 @@ def _compute_market_stage(cur) -> int | None:
     if not row or row[0] is None:
         logger.warning("Market stage not available in market_health_daily — circuit breaker CB6 will fail-closed")
         return None
-    stage = int(int(row[0]))
+    stage = int(row[0])
     return stage
 
 
@@ -297,8 +299,8 @@ def _compute_win_rate(cur) -> float:
     if not row:
         raise ValueError("Win rate query failed")
 
-    wins = int(int(row[0]))
-    losses = int(int(row[1]))
+    wins = int(row[0])
+    losses = int(row[1])
     decisive = wins + losses
 
     if decisive == 0:
@@ -527,13 +529,9 @@ def main():
     try:
         # Use ET date, not UTC (AWS containers run in UTC but trading is ET-based)
         run_date = dt.now(EASTERN_TZ).date()
-        with DatabaseContext(
-            "write", cursor_factory=psycopg2.extras.RealDictCursor
-        ) as cur:
+        with DatabaseContext("write", cursor_factory=psycopg2.extras.RealDictCursor) as cur:
             compute_circuit_breaker_metrics(cur, today=run_date)
-            logger.info(
-                f"Circuit breaker metrics loader completed successfully for {run_date}"
-            )
+            logger.info(f"Circuit breaker metrics loader completed successfully for {run_date}")
     except (psycopg2.DatabaseError, psycopg2.OperationalError) as e:
         logger.error(f"Circuit breaker metrics loader failed: {e}", exc_info=True)
         raise

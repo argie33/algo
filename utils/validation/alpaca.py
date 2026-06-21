@@ -9,7 +9,7 @@ Pattern: Call validate() after every API response to catch errors early.
 """
 
 import logging
-from typing import Any, Dict, List
+from typing import Any
 
 
 logger = logging.getLogger(__name__)
@@ -19,7 +19,7 @@ class AlpacaResponseValidator:
     """Validates Alpaca API responses for required fields and types."""
 
     @staticmethod
-    def validate_order_response(data: Dict[str, Any]) -> Dict[str, Any]:
+    def validate_order_response(data: dict[str, Any]) -> dict[str, Any]:
         """Validate order creation response from POST /v2/orders.
 
         Returns: {
@@ -74,9 +74,7 @@ class AlpacaResponseValidator:
             try:
                 filled_float = float(filled_avg_price)
                 if filled_float < 0:
-                    errors.append(
-                        f"Filled price must be non-negative, got {filled_float}"
-                    )
+                    errors.append(f"Filled price must be non-negative, got {filled_float}")
                 filled_avg_price = filled_float
             except (ValueError, TypeError):
                 errors.append(f"Filled price not numeric: {filled_avg_price}")
@@ -97,13 +95,11 @@ class AlpacaResponseValidator:
             "filled_avg_price": filled_avg_price,
             "order_class": order_class,
             "legs": legs,
-            "rejection_reason": data.get("cancel_reason")
-            or data.get("failed_reason")
-            or data.get("reason"),
+            "rejection_reason": data.get("cancel_reason") or data.get("failed_reason") or data.get("reason"),
         }
 
     @staticmethod
-    def validate_order_status_response(data: Dict[str, Any]) -> Dict[str, Any]:
+    def validate_order_status_response(data: dict[str, Any]) -> dict[str, Any]:
         """Validate order status response from GET /v2/orders/{order_id}.
 
         Returns: {
@@ -156,9 +152,7 @@ class AlpacaResponseValidator:
             try:
                 filled_avg_price = float(filled_avg_price)
                 if filled_avg_price < 0:
-                    errors.append(
-                        f"Filled price must be non-negative, got {filled_avg_price}"
-                    )
+                    errors.append(f"Filled price must be non-negative, got {filled_avg_price}")
             except (ValueError, TypeError):
                 errors.append(f"Filled price not numeric: {filled_avg_price}")
                 filled_avg_price = None
@@ -173,7 +167,7 @@ class AlpacaResponseValidator:
         }
 
     @staticmethod
-    def validate_account_response(data: Dict[str, Any]) -> Dict[str, Any]:
+    def validate_account_response(data: dict[str, Any]) -> dict[str, Any]:
         """Validate account response from GET /v2/account.
 
         Returns: {
@@ -201,9 +195,7 @@ class AlpacaResponseValidator:
             try:
                 portfolio_value = float(portfolio_value)
                 if portfolio_value < 0:
-                    errors.append(
-                        f"Portfolio value must be non-negative, got {portfolio_value}"
-                    )
+                    errors.append(f"Portfolio value must be non-negative, got {portfolio_value}")
             except (ValueError, TypeError):
                 errors.append(f"Portfolio value not numeric: {portfolio_value}")
                 portfolio_value = None
@@ -225,9 +217,7 @@ class AlpacaResponseValidator:
             try:
                 buying_power = float(buying_power)
                 if buying_power < 0:
-                    errors.append(
-                        f"Buying power must be non-negative, got {buying_power}"
-                    )
+                    errors.append(f"Buying power must be non-negative, got {buying_power}")
             except (ValueError, TypeError):
                 errors.append(f"Buying power not numeric: {buying_power}")
                 buying_power = None
@@ -241,7 +231,7 @@ class AlpacaResponseValidator:
         }
 
     @staticmethod
-    def validate_position_response(data: Dict[str, Any]) -> Dict[str, Any]:
+    def validate_position_response(data: dict[str, Any]) -> dict[str, Any]:
         """Validate single position response from GET /v2/positions/{symbol}.
 
         Returns: {
@@ -294,9 +284,7 @@ class AlpacaResponseValidator:
         }
 
     @staticmethod
-    def log_validation_errors(
-        response_type: str, errors: List[str], context: str = ""
-    ) -> None:
+    def log_validation_errors(response_type: str, errors: list[str], context: str = "") -> None:
         """Log validation errors for debugging.
 
         Args:

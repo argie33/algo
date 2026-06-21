@@ -10,11 +10,12 @@ Provides:
 """
 
 import functools
+import json
 import logging
 import threading
 import time
-from typing import Callable, Optional, Type
-import json
+from collections.abc import Callable
+
 import psycopg2
 import requests
 
@@ -26,7 +27,7 @@ def db_route_handler(
     operation_name: str,
     default_error_response=None,
     role: str = "read",
-    timeout_sec: Optional[int] = None,
+    timeout_sec: int | None = None,
 ):
     """Catch database errors, log, return standardized error response.
 
@@ -134,7 +135,7 @@ def external_api_handler(
 
 def validation_handler(
     operation_name: str,
-    schema_class: Optional[Type] = None,
+    schema_class: type | None = None,
 ):
     """Validate input with automatic schema validation.
 
@@ -181,7 +182,7 @@ def validation_handler(
                         from utils.exceptions import InputValidationError
 
                         raise InputValidationError(
-                            f"Invalid input: {str(e)}",
+                            f"Invalid input: {e!s}",
                             context={"validation_error": str(e)},
                         )
 
@@ -303,8 +304,8 @@ def transactional(
 def loader_operation(
     table_name: str,
     operation_type: str = "insert",
-    symbol: Optional[str] = None,
-    correlation_id: Optional[str] = None,
+    symbol: str | None = None,
+    correlation_id: str | None = None,
 ):
     """Wrap loader operation with auto-logging and status tracking.
 
@@ -332,10 +333,7 @@ def loader_operation(
             try:
                 result = func(*args, **kwargs)
                 duration = time.time() - start_time
-                logger.info(
-                    f"[{operation_type.upper()}] {table_name} "
-                    f"({symbol or 'all'}) completed in {duration:.2f}s"
-                )
+                logger.info(f"[{operation_type.upper()}] {table_name} ({symbol or 'all'}) completed in {duration:.2f}s")
                 return result
             except Exception as e:
                 duration = time.time() - start_time
@@ -452,10 +450,7 @@ def circuit_breaker(
                 # Check if circuit is open (too many failures)
                 if failures >= failure_threshold:
                     now = time.time()
-                    if (
-                        last_failure_time
-                        and now - last_failure_time < recovery_timeout_sec
-                    ):
+                    if last_failure_time and now - last_failure_time < recovery_timeout_sec:
                         from utils.error_handlers import make_error_response
                         from utils.exceptions import ServiceUnavailableError
 

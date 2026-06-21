@@ -1,7 +1,6 @@
 """Route: earnings"""
 
 import logging
-from typing import Dict
 
 import psycopg2
 import psycopg2.errors
@@ -27,10 +26,10 @@ def handle(
     cur,
     path: str,
     method: str,
-    params: Dict,
-    body: Dict = None,
-    jwt_claims: Dict = None,
-) -> Dict:
+    params: dict,
+    body: dict | None = None,
+    jwt_claims: dict | None = None,
+) -> dict:
     try:
         parts = path.split("/")
         symbol = parts[3] if len(parts) > 3 else None
@@ -61,14 +60,10 @@ def handle(
             )
 
             # Validate rows
-            if not DatabaseResultValidator.validate_rows_not_empty(
-                rows, "earnings history query"
-            ):
+            if not DatabaseResultValidator.validate_rows_not_empty(rows, "earnings history query"):
                 rows = []
 
-            freshness = check_data_freshness(
-                cur, "earnings_history", "earnings_date", warning_days=7
-            )
+            freshness = check_data_freshness(cur, "earnings_history", "earnings_date", warning_days=7)
             result = list_response(
                 [safe_json_serialize(dict(r)) for r in rows],
                 data_freshness=freshness,
@@ -104,9 +99,7 @@ def handle(
         if not DatabaseResultValidator.validate_rows_not_empty(rows, "earnings all query"):
             rows = []
 
-        freshness = check_data_freshness(
-            cur, "earnings_history", "earnings_date", warning_days=7
-        )
+        freshness = check_data_freshness(cur, "earnings_history", "earnings_date", warning_days=7)
         result = list_response(
             [safe_json_serialize(dict(r)) for r in rows],
             data_freshness=freshness,

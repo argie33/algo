@@ -106,7 +106,7 @@ def get_run_details(run_id: str) -> dict[str, Any] | None:
                 "phases_errored": row[10],
             }
     except (psycopg2.DatabaseError, psycopg2.OperationalError) as e:
-            raise RuntimeError(f"Operation failed: {e}") from e
+        raise RuntimeError(f"Operation failed: {e}") from e
 
 
 def get_failed_runs(days: int = 30) -> list[dict[str, Any]]:
@@ -226,21 +226,9 @@ def get_success_rate(days: int = 7) -> dict[str, Any]:
             return {
                 "total_runs": total,
                 "by_status": stats,
-                "success_rate": (
-                    f"{(stats.get('success', 0) / total * 100):.1f}%"
-                    if total > 0
-                    else "N/A"
-                ),
-                "halt_rate": (
-                    f"{(stats.get('halted', 0) / total * 100):.1f}%"
-                    if total > 0
-                    else "N/A"
-                ),
-                "error_rate": (
-                    f"{(stats.get('error', 0) / total * 100):.1f}%"
-                    if total > 0
-                    else "N/A"
-                ),
+                "success_rate": (f"{(stats.get('success', 0) / total * 100):.1f}%" if total > 0 else "N/A"),
+                "halt_rate": (f"{(stats.get('halted', 0) / total * 100):.1f}%" if total > 0 else "N/A"),
+                "error_rate": (f"{(stats.get('error', 0) / total * 100):.1f}%" if total > 0 else "N/A"),
                 "period_days": days,
             }
     except (psycopg2.DatabaseError, psycopg2.OperationalError) as e:
@@ -256,9 +244,7 @@ def print_recent_runs(days: int = 7, limit: int | None = 10) -> None:
         return
 
     logger.info(f"Recent Orchestrator Runs (past {days} days):")
-    logger.info(
-        f"{'Run ID':<20} {'Date':<12} {'Status':<10} {'OK/Halt/Err':<12} {'Summary':<50}"
-    )
+    logger.info(f"{'Run ID':<20} {'Date':<12} {'Status':<10} {'OK/Halt/Err':<12} {'Summary':<50}")
     logger.info("-" * 110)
 
     for run in runs:
@@ -268,8 +254,7 @@ def print_recent_runs(days: int = 7, limit: int | None = 10) -> None:
         summary = (run["summary"] or "")[:45]
 
         logger.info(
-            f"{run['run_id']:<20} {run['run_date']:<12} {run['status']:<10} "
-            f"{ok}/{halt}/{err:<10} {summary:<50}"
+            f"{run['run_id']:<20} {run['run_date']:<12} {run['status']:<10} {ok}/{halt}/{err:<10} {summary:<50}"
         )
 
 
@@ -286,9 +271,7 @@ def print_failed_runs(days: int = 30) -> None:
 
     for run in runs:
         reason = (run["halt_reason"] or run["summary"] or "")[:55]
-        logger.info(
-            f"{run['run_id']:<20} {run['run_date']:<12} {run['status']:<10} {reason:<60}"
-        )
+        logger.info(f"{run['run_id']:<20} {run['run_date']:<12} {run['status']:<10} {reason:<60}")
 
 
 def print_halt_patterns(days: int = 30) -> None:
@@ -300,9 +283,7 @@ def print_halt_patterns(days: int = 30) -> None:
 
     logger.info(f"Halt Patterns (past {days} days):")
     for pattern in patterns:
-        logger.info(
-            f"Phase {pattern['phase']:>2s}: halted {pattern['total_halts']} times"
-        )
+        logger.info(f"Phase {pattern['phase']:>2s}: halted {pattern['total_halts']} times")
         for reason, _count in pattern["common_reasons"].items():
             logger.info(f"  • {reason[:60]}")
         logger.info("")

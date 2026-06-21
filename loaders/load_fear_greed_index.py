@@ -17,6 +17,7 @@ from utils.optimal_loader import OptimalLoader
 
 logger = logging.getLogger(__name__)
 
+
 class FearGreedIndexLoader(OptimalLoader):
     """Load CNN Fear & Greed Index sentiment data."""
 
@@ -34,9 +35,7 @@ class FearGreedIndexLoader(OptimalLoader):
         url = "https://production.dataviz.cnn.io/index/fearandgreed/graphdata"
 
         # SECURITY FIX S-05: Validate URL to prevent SSRF attacks
-        is_valid, error_msg = validate_url(
-            url, allowed_domains=["cnn.io", "dataviz.cnn.io"]
-        )
+        is_valid, error_msg = validate_url(url, allowed_domains=["cnn.io", "dataviz.cnn.io"])
         if not is_valid:
             raise RuntimeError(f"SSRF prevention: Invalid URL {url}: {error_msg}")
         # CNN blocks plain User-Agent strings from data centers. Mimic a real browser.
@@ -56,21 +55,15 @@ class FearGreedIndexLoader(OptimalLoader):
                 if response.status_code == 418:
                     # CNN blocking — back off and retry
                     wait = (attempt + 1) * 10
-                    logger.warning(
-                        f"CNN 418 block (attempt {attempt + 1}/3), retrying in {wait}s"
-                    )
+                    logger.warning(f"CNN 418 block (attempt {attempt + 1}/3), retrying in {wait}s")
                     time.sleep(wait)
                     continue
                 response.raise_for_status()
                 data = response.json()
 
-                if not data or (
-                    "fear_and_greed" not in data
-                    and "fear_and_greed_historical" not in data
-                ):
+                if not data or ("fear_and_greed" not in data and "fear_and_greed_historical" not in data):
                     raise RuntimeError(
-                        "Invalid Fear & Greed data format from CNN API. "
-                        "Response is missing expected data fields."
+                        "Invalid Fear & Greed data format from CNN API. Response is missing expected data fields."
                     )
 
                 # CNN API two known formats:
@@ -113,9 +106,7 @@ class FearGreedIndexLoader(OptimalLoader):
                         x_val = entry.get("x")
                         date_str = entry.get("_date") or entry.get("date")
                         if x_val is not None:
-                            entry_date = _dt.utcfromtimestamp(
-                                int(x_val) / 1000
-                            ).strftime("%Y-%m-%d")
+                            entry_date = _dt.utcfromtimestamp(int(x_val) / 1000).strftime("%Y-%m-%d")
                         elif date_str:
                             entry_date = str(date_str)[:10]
                         else:
@@ -160,25 +151,19 @@ class FearGreedIndexLoader(OptimalLoader):
 
             except requests.exceptions.Timeout:
                 if attempt < 2:
-                    logger.warning(
-                        f"Fear & Greed timeout (attempt {attempt + 1}/3), retrying..."
-                    )
+                    logger.warning(f"Fear & Greed timeout (attempt {attempt + 1}/3), retrying...")
                     time.sleep((attempt + 1) * 5)
                 else:
                     raise RuntimeError(
-                        "Failed to fetch Fear & Greed index after 3 timeout attempts. "
-                        "CNN API is unreachable or slow."
+                        "Failed to fetch Fear & Greed index after 3 timeout attempts. CNN API is unreachable or slow."
                     )
             except requests.exceptions.ConnectionError:
                 if attempt < 2:
-                    logger.warning(
-                        f"Fear & Greed connection error (attempt {attempt + 1}/3), retrying..."
-                    )
+                    logger.warning(f"Fear & Greed connection error (attempt {attempt + 1}/3), retrying...")
                     time.sleep((attempt + 1) * 5)
                 else:
                     raise RuntimeError(
-                        "Failed to fetch Fear & Greed index after 3 connection errors. "
-                        "Cannot reach CNN API."
+                        "Failed to fetch Fear & Greed index after 3 connection errors. Cannot reach CNN API."
                     )
             except (ValueError, KeyError, TypeError) as e:
                 raise RuntimeError(
@@ -187,18 +172,16 @@ class FearGreedIndexLoader(OptimalLoader):
                 ) from e
             except requests.exceptions.HTTPError as e:
                 raise RuntimeError(
-                    f"[FEAR_GREED] HTTP error from CNN: {e}. "
-                    "Check CNN API status and rate limits."
+                    f"[FEAR_GREED] HTTP error from CNN: {e}. Check CNN API status and rate limits."
                 ) from e
             except (requests.RequestException, requests.Timeout) as e:
-                raise RuntimeError(
-                    f"[FEAR_GREED] Unexpected error fetching Fear & Greed index: {e}."
-                ) from e
+                raise RuntimeError(f"[FEAR_GREED] Unexpected error fetching Fear & Greed index: {e}.") from e
 
         raise RuntimeError(
             "Failed to fetch Fear & Greed index after 3 attempts (CNN 418 block). "
             "CNN API is blocking requests (rate limit or access restriction)."
         )
+
 
 if __name__ == "__main__":
     sys.exit(run_loader(FearGreedIndexLoader, global_mode=True))

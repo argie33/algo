@@ -39,11 +39,10 @@ import logging
 import sys
 import uuid
 from datetime import datetime
-from typing import Optional
 
 
 # Global trace ID (set once at orchestrator start)
-_trace_id: Optional[str] = None
+_trace_id: str | None = None
 
 
 def set_trace_id(trace_id: str) -> None:

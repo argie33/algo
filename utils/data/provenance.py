@@ -35,10 +35,11 @@ import logging
 import uuid
 from datetime import date as _date
 from datetime import datetime
-from typing import Any, Dict, List, Optional
+from typing import Any
+
+import psycopg2
 
 from utils.db import DatabaseContext
-import psycopg2
 
 
 logger = logging.getLogger(__name__)
@@ -65,15 +66,15 @@ class DataProvenanceTracker:
         self.table_name = table_name
         self.in_memory = in_memory
 
-        self.run_id: Optional[str] = None
-        self.start_time: Optional[datetime] = None
-        self.ticks_recorded: List[Dict] = [] if in_memory else []
-        self.error_log: List[Dict] = []
+        self.run_id: str | None = None
+        self.start_time: datetime | None = None
+        self.ticks_recorded: list[dict] = [] if in_memory else []
+        self.error_log: list[dict] = []
 
     def start_run(
         self,
         source_api: str = "unknown",
-        parameters: Optional[Dict] = None,
+        parameters: dict | None = None,
     ) -> str:
         """
         Start a new loader run. Returns run_id (UUID).
@@ -101,8 +102,8 @@ class DataProvenanceTracker:
         self,
         symbol: str,
         tick_date: _date,
-        data: Dict[str, Any],
-        source_timestamp: Optional[datetime] = None,
+        data: dict[str, Any],
+        source_timestamp: datetime | None = None,
         source_api: str = "unknown",
     ) -> str:
         """
@@ -128,9 +129,7 @@ class DataProvenanceTracker:
         checksum = self._compute_checksum(data)
 
         # Prepare data for JSON serialization (convert dates to strings)
-        data_for_json = {
-            k: v.isoformat() if isinstance(v, _date) else v for k, v in data.items()
-        }
+        data_for_json = {k: v.isoformat() if isinstance(v, _date) else v for k, v in data.items()}
 
         record = {
             "provenance_id": provenance_id,
@@ -143,9 +142,7 @@ class DataProvenanceTracker:
             "load_timestamp": load_timestamp,
             "source_api": source_api,
             "data_checksum": checksum,
-            "data_hash": hashlib.sha256(
-                json.dumps(data_for_json, default=str, sort_keys=True).encode()
-            ).hexdigest(),
+            "data_hash": hashlib.sha256(json.dumps(data_for_json, default=str, sort_keys=True).encode()).hexdigest(),
             "data_size_bytes": len(json.dumps(data_for_json, default=str).encode()),
         }
 
@@ -192,7 +189,7 @@ class DataProvenanceTracker:
     def end_run(
         self,
         success: bool,
-        summary: Optional[Dict] = None,
+        summary: dict | None = None,
     ):
         """
         Mark the run as complete.
@@ -215,7 +212,7 @@ class DataProvenanceTracker:
             f"({duration_seconds:.1f}s, {len(self.ticks_recorded)} ticks)"
         )
 
-    def get_run_replay_data(self, run_id: str) -> Optional[Dict[str, Any]]:
+    def get_run_replay_data(self, run_id: str) -> dict[str, Any] | None:
         """
         Get all data and metadata for a specific loader run.
         Use this to replay a date's trades with exact data that was used.
@@ -280,7 +277,7 @@ class DataProvenanceTracker:
     def _insert_loader_run(
         self,
         source_api: str,
-        parameters: Optional[Dict],
+        parameters: dict | None,
     ):
         """Insert the loader run record."""
         try:
@@ -304,7 +301,7 @@ class DataProvenanceTracker:
         except (json.JSONDecodeError, ValueError) as e:
             logger.error(f"Failed to insert loader run: {e}", exc_info=True)
 
-    def _insert_provenance_record(self, record: Dict):
+    def _insert_provenance_record(self, record: dict):
         """Insert a provenance record for a tick."""
         try:
             with DatabaseContext("write") as cur:
@@ -331,11 +328,9 @@ class DataProvenanceTracker:
                     ),
                 )
         except (psycopg2.DatabaseError, psycopg2.OperationalError) as e:
-            logger.error(
-                f"Failed to insert provenance record for {record.get('symbol')}: {e}"
-            )
+            logger.error(f"Failed to insert provenance record for {record.get('symbol')}: {e}")
 
-    def _insert_error_record(self, error_record: Dict):
+    def _insert_error_record(self, error_record: dict):
         """Insert an error record."""
         try:
             with DatabaseContext("write") as cur:
@@ -362,14 +357,13 @@ class DataProvenanceTracker:
         self,
         success: bool,
         duration_seconds: float,
-        summary: Optional[Dict],
+        summary: dict | None,
     ):
         """Mark the loader run as complete."""
         if not self.run_id:
             return
 
         try:
-
             with DatabaseContext("write") as cur:
                 cur.execute(
                     """
@@ -393,7 +387,7 @@ class DataProvenanceTracker:
             logger.error(f"Failed to finalize loader run: {e}")
 
     @staticmethod
-    def _compute_checksum(data: Dict[str, Any]) -> str:
+    def _compute_checksum(data: dict[str, Any]) -> str:
         """Compute a checksum of the data for integrity verification."""
         data_str = json.dumps(data, default=str, sort_keys=True)
         return hashlib.md5(data_str.encode()).hexdigest()

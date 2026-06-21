@@ -22,15 +22,13 @@ from routes.utils import (
     safe_json_serialize,
 )
 
-from utils.validation import format_decimal_string
-
 from shared_contracts.response_validator import ResponseValidator
+from utils.validation import format_decimal_string
 
 from .signals import _TIER_CONFIG
 
 
 logger = logging.getLogger(__name__)
-
 
 
 @db_route_handler("get data quality")
@@ -94,9 +92,7 @@ def _get_data_quality(cur) -> dict:
                     "severity": severity,
                     "message": entry.get("message"),
                     "detail": entry.get("data_detail"),
-                    "last_check": (
-                        entry.get("created_at") if entry.get("created_at") else None
-                    ),
+                    "last_check": (entry.get("created_at") if entry.get("created_at") else None),
                 }
             )
 
@@ -137,7 +133,6 @@ def _get_data_quality(cur) -> dict:
         return error_response(code, error_type, message)
 
 
-
 @db_route_handler("fetch data status")
 def _get_data_status(cur) -> dict:
     """Get data freshness status with summary for ServiceHealth/AlgoTradingDashboard.
@@ -147,8 +142,10 @@ def _get_data_status(cur) -> dict:
     """
     try:
         from algo.infrastructure import MarketCalendar
+
         try:
             from utils.validation.freshness_config import FRESHNESS_RULES
+
             _fr = FRESHNESS_RULES
         except ImportError:
             _fr = {}
@@ -169,8 +166,14 @@ def _get_data_status(cur) -> dict:
         # Algo-generated tables written by the orchestrator, not tracked in data_loader_status
         algo_rows = []
         for tbl_name, query in [
-            ("algo_portfolio_snapshots", "SELECT COUNT(*) AS row_count, MAX(snapshot_date) AS last_updated FROM algo_portfolio_snapshots"),
-            ("algo_performance_daily", "SELECT COUNT(*) AS row_count, MAX(report_date) AS last_updated FROM algo_performance_daily"),
+            (
+                "algo_portfolio_snapshots",
+                "SELECT COUNT(*) AS row_count, MAX(snapshot_date) AS last_updated FROM algo_portfolio_snapshots",
+            ),
+            (
+                "algo_performance_daily",
+                "SELECT COUNT(*) AS row_count, MAX(report_date) AS last_updated FROM algo_performance_daily",
+            ),
             ("algo_risk_daily", "SELECT COUNT(*) AS row_count, MAX(report_date) AS last_updated FROM algo_risk_daily"),
         ]:
             if tbl_name in loader_names:
@@ -179,9 +182,10 @@ def _get_data_status(cur) -> dict:
                 cur.execute(query)
                 r = cur.fetchone()
                 if r:
-                    algo_rows.append({"table_name": tbl_name, "row_count": r["row_count"], "last_updated": r["last_updated"]})
+                    algo_rows.append(
+                        {"table_name": tbl_name, "row_count": r["row_count"], "last_updated": r["last_updated"]}
+                    )
             except (psycopg2.DatabaseError, psycopg2.OperationalError) as e:
-
                 raise RuntimeError(f"Unexpected error: {e}") from e
 
         rows = loader_rows + algo_rows
@@ -190,7 +194,9 @@ def _get_data_status(cur) -> dict:
         # Note: trend_template_data is warning-only in Phase 1 — stale does NOT prevent
         # trading, so it remains non-critical even though freshness_config marks it otherwise.
         critical_tables = {t for t, r in _fr.items() if r.get("critical")} or {
-            "price_daily", "market_health_daily", "market_exposure_daily"
+            "price_daily",
+            "market_health_daily",
+            "market_exposure_daily",
         }
 
         # Compute expected data date using trading-day-aware logic (match Phase 1)
@@ -233,11 +239,7 @@ def _get_data_status(cur) -> dict:
             elif last_updated is None:
                 status = "empty"
             else:
-                data_date = (
-                    last_updated.date()
-                    if hasattr(last_updated, "date")
-                    else last_updated
-                )
+                data_date = last_updated.date() if hasattr(last_updated, "date") else last_updated
                 if max_age <= 1:
                     # Daily tables: use trading-day-aware comparison
                     status = "stale" if data_date < expected_date else "ok"
@@ -248,9 +250,7 @@ def _get_data_status(cur) -> dict:
             # Calculate age in hours for display
             last_updated_utc = normalize_to_utc_datetime(last_updated)
             if last_updated_utc:
-                age_h = (
-                    datetime.now(timezone.utc) - last_updated_utc
-                ).total_seconds() / 3600
+                age_h = (datetime.now(timezone.utc) - last_updated_utc).total_seconds() / 3600
             else:
                 age_h = 999
 
@@ -392,26 +392,19 @@ def _get_market(cur) -> dict:
             "exposure_pct": float(exposure["exposure_pct"]),
             "regime": exposure["regime"],
             "halt_reasons": exposure["halt_reasons"],
-            "vix_level": float(
-                market_health["vix_level"]),
+            "vix_level": float(market_health["vix_level"]),
             "market_stage": int(market_health["market_stage"]),
             "market_trend": market_health["market_trend"],
             "distribution_days_4w": int(exposure["distribution_days"]),
             "spy_close": spy_close,
-            "spy_change_pct": float(
-                market_health["spy_change_pct"]),
-            "up_volume_percent": float(
-                market_health["up_volume_percent"]),
-            "advance_decline_ratio": float(
-                market_health["advance_decline_ratio"]),
+            "spy_change_pct": float(market_health["spy_change_pct"]),
+            "up_volume_percent": float(market_health["up_volume_percent"]),
+            "advance_decline_ratio": float(market_health["advance_decline_ratio"]),
             "new_highs_count": int(market_health["new_highs_count"]),
             "new_lows_count": int(market_health["new_lows_count"]),
-            "put_call_ratio": float(
-                market_health["put_call_ratio"]),
-            "breadth_momentum_10d": float(
-                market_health["breadth_momentum_10d"]),
-            "yield_curve_slope": float(
-                market_health["yield_curve_slope"]),
+            "put_call_ratio": float(market_health["put_call_ratio"]),
+            "breadth_momentum_10d": float(market_health["breadth_momentum_10d"]),
+            "yield_curve_slope": float(market_health["yield_curve_slope"]),
             "fed_rate_environment": market_health["fed_rate_environment"],
         }
 
@@ -427,7 +420,6 @@ def _get_market(cur) -> dict:
             f"Failed to fetch market: {type(e).__name__}: {e}\n  Operation: Query market_health_daily with date filter\n  Endpoint: GET /api/algo/market"
         )
         return error_response(503, "service_unavailable", "Failed to fetch market data")
-
 
 
 @db_route_handler("get market factors")
@@ -488,10 +480,7 @@ def _get_market_factors(cur) -> dict:
         logger.error(
             f"Failed to fetch market factors: {type(e).__name__}: {e}\n  Operation: Calculate market exposure factors\n  Endpoint: GET /api/algo/market-factors"
         )
-        return error_response(
-            503, "service_unavailable", "Failed to fetch market factors"
-        )
-
+        return error_response(503, "service_unavailable", "Failed to fetch market factors")
 
 
 @db_route_handler("get market sentiment")
@@ -514,9 +503,7 @@ def _get_market_sentiment(cur) -> dict:
         return error_response(503, "no_data", "Market sentiment data not yet available")
 
     if not row.get("sentiment_score"):
-        return error_response(
-            503, "incomplete_data", "Market sentiment data incomplete"
-        )
+        return error_response(503, "incomplete_data", "Market sentiment data incomplete")
 
     sentiment_score = float(row["sentiment_score"])
     bullish = None  # Not available in market_sentiment view
@@ -542,7 +529,6 @@ def _get_market_sentiment(cur) -> dict:
             "neutral_pct": round(neutral, 1) if neutral else None,
         },
     )
-
 
 
 @db_route_handler("get markets")
@@ -571,9 +557,7 @@ def _get_markets(cur) -> dict:
         if row.get("halt_reasons"):
             try:
                 halt_reasons = (
-                    json.loads(row["halt_reasons"])
-                    if isinstance(row["halt_reasons"], str)
-                    else row["halt_reasons"]
+                    json.loads(row["halt_reasons"]) if isinstance(row["halt_reasons"], str) else row["halt_reasons"]
                 )
             except (json.JSONDecodeError, TypeError):
                 halt_reasons = []
@@ -581,11 +565,7 @@ def _get_markets(cur) -> dict:
         factors = {}
         if row.get("factors"):
             try:
-                factors = (
-                    json.loads(row["factors"])
-                    if isinstance(row["factors"], str)
-                    else row["factors"]
-                )
+                factors = json.loads(row["factors"]) if isinstance(row["factors"], str) else row["factors"]
             except (json.JSONDecodeError, TypeError):
                 factors = {}
 
@@ -611,11 +591,7 @@ def _get_markets(cur) -> dict:
             history.append(
                 {
                     "date": d.isoformat() if hasattr(d, "isoformat") else str(d),
-                    "exposure_pct": (
-                        float(h["exposure_pct"])
-                        if h.get("exposure_pct") is not None
-                        else None
-                    ),
+                    "exposure_pct": (float(h["exposure_pct"]) if h.get("exposure_pct") is not None else None),
                     "regime": h.get("regime"),
                     "distribution_days": h.get("distribution_days"),
                 }
@@ -637,11 +613,7 @@ def _get_markets(cur) -> dict:
                         "name": sr.get("name"),
                         "rank": sr.get("rank"),
                         "rank_4w_ago": sr.get("rank_4w_ago"),
-                        "momentum": (
-                            float(sr["momentum"])
-                            if sr.get("momentum") is not None
-                            else None
-                        ),
+                        "momentum": (float(sr["momentum"]) if sr.get("momentum") is not None else None),
                     }
                 )
         except (ValueError, ZeroDivisionError, TypeError) as se:
@@ -676,7 +648,9 @@ def _get_markets(cur) -> dict:
                     except (ValueError, TypeError):
                         pass
             else:
-                return error_response(503, "data_unavailable", "Market health data not available (market_health_daily empty)")
+                return error_response(
+                    503, "data_unavailable", "Market health data not available (market_health_daily empty)"
+                )
         except (psycopg2.DatabaseError, psycopg2.OperationalError) as mhe:
             logger.error(f"CRITICAL: Failed to fetch market_health_daily: {mhe}")
             return error_response(503, "data_unavailable", f"Market health unavailable: {type(mhe).__name__}")
@@ -715,26 +689,14 @@ def _get_markets(cur) -> dict:
 
         response = list_response(sectors, total=len(sectors), limit=None, offset=None)
         response_data = {
-            "exposure_pct": (
-                float(row["exposure_pct"])
-                if row.get("exposure_pct") is not None
-                else None
-            ),
-            "raw_score": (
-                float(row["raw_score"])
-                if row.get("raw_score") is not None
-                else None
-            ),
+            "exposure_pct": (float(row["exposure_pct"]) if row.get("exposure_pct") is not None else None),
+            "raw_score": (float(row["raw_score"]) if row.get("raw_score") is not None else None),
             "regime": row.get("regime"),
             "halt_reasons": halt_reasons,
             "distribution_days": row.get("distribution_days", 0),
             "factors": factors,
             "spy_close": spy_close,
-            "date": (
-                current_date.isoformat()
-                if hasattr(current_date, "isoformat")
-                else str(current_date)
-            ),
+            "date": (current_date.isoformat() if hasattr(current_date, "isoformat") else str(current_date)),
         }
         response["data"]["current"] = response_data
         response["data"]["active_tier"] = active_tier
@@ -755,10 +717,7 @@ def _get_markets(cur) -> dict:
         logger.error(
             f"Failed to fetch markets: {type(e).__name__}: {e}\n  Operation: Query market_exposure_daily\n  Endpoint: GET /api/algo/markets"
         )
-        return error_response(
-            503, "service_unavailable", "Failed to fetch markets data"
-        )
-
+        return error_response(503, "service_unavailable", "Failed to fetch markets data")
 
 
 @db_route_handler("get trend criteria")
@@ -787,6 +746,3 @@ def _get_trend_criteria(cur) -> dict:
     ]
 
     return list_response(criteria, total=total_symbols, limit=None, offset=None)
-
-
-

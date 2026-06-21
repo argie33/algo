@@ -13,7 +13,6 @@ import sys
 from datetime import datetime
 from pathlib import Path
 
-import psycopg2
 
 # Add project root for imports
 sys.path.insert(0, str(Path(__file__).parent.parent))
@@ -50,26 +49,26 @@ def check_data_freshness(conn) -> bool:
 
         # Check key tables and their freshness
         checks = [
-            ('stock_prices_daily', 'date', 1),
-            ('technical_data_daily', 'date', 1),
-            ('algo_metrics_daily', 'date', 1),
-            ('market_exposure_daily', 'date', 1),
+            ("stock_prices_daily", "date", 1),
+            ("technical_data_daily", "date", 1),
+            ("algo_metrics_daily", "date", 1),
+            ("market_exposure_daily", "date", 1),
         ]
 
         results = []
         for table, date_col, max_age_days in checks:
             try:
-                cursor.execute(f'SELECT MAX({date_col}) FROM {table}')
+                cursor.execute(f"SELECT MAX({date_col}) FROM {table}")
                 max_date = cursor.fetchone()[0]
 
                 if max_date is None:
-                    results.append((table, 'EMPTY', '∅'))
+                    results.append((table, "EMPTY", "∅"))
                 else:
                     age = (datetime.now().date() - max_date).days
-                    status = '✓' if age <= max_age_days else '⚠'
-                    results.append((table, status, f'{age}d'))
+                    status = "✓" if age <= max_age_days else "⚠"
+                    results.append((table, status, f"{age}d"))
             except Exception as e:
-                results.append((table, '✗', str(e)[:20]))
+                results.append((table, "✗", str(e)[:20]))
 
         cursor.close()
 
@@ -79,7 +78,7 @@ def check_data_freshness(conn) -> bool:
             logger.info(f"  {status} {table:30} {info}")
 
         # Consider healthy if at least one key table has recent data
-        return any(status in ('✓', '⚠') for _, status, _ in results)
+        return any(status in ("✓", "⚠") for _, status, _ in results)
 
     except Exception as e:
         logger.error(f"❌ Data freshness check failed: {e}")
@@ -127,5 +126,5 @@ def main():
         raise
 
 
-if __name__ == '__main__':
+if __name__ == "__main__":
     main()
