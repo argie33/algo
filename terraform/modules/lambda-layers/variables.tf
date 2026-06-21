@@ -15,9 +15,9 @@ variable "common_tags" {
 }
 
 variable "orchestrator_layer_enabled" {
-  description = "Whether to create the orchestrator Lambda layer"
+  description = "Whether orchestrator Lambda layer exists (built by GitHub Actions)"
   type        = bool
-  default     = true
+  default     = false
 }
 
 variable "api_layer_enabled" {
