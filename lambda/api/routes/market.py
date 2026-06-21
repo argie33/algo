@@ -18,9 +18,895 @@ from routes.utils import (
     safe_json_serialize,
 )
 
-
+from shared_contracts.response_validator import ResponseValidator
 
 logger = logging.getLogger(__name__)
+
+
+def _rollback_savepoint(cur, name: str) -> None:
+    """Consolidate savepoint rollback error handling."""
+    try:
+        cur.execute(f"ROLLBACK TO SAVEPOINT {name}")
+        cur.execute(f"RELEASE SAVEPOINT {name}")
+    except (psycopg2.OperationalError, psycopg2.DatabaseError) as sp_err:
+        logger.debug(
+            f"[SAVEPOINT_ROLLBACK] Error rolling back {name}: {type(sp_err).__name__}"
+        )
+
+
+def _handle_market_status(cur) -> dict:
+    """Handle /api/market and /api/market/status endpoints."""
+    cur.execute("SET LOCAL statement_timeout = '5000ms'")
+    cur.execute("""
+        SELECT date, market_trend, market_stage, advance_decline_ratio,
+                   new_highs_count, new_lows_count, vix_level, put_call_ratio
+        FROM market_health_daily
+        ORDER BY date DESC
+        LIMIT 1
+    """)
+    row = cur.fetchone()
+    if not row:
+        raise_api_error(503, "no_data", "Market status data not yet available")
+
+    result = safe_json_serialize(dict(row))
+
+    # Add freshness check
+    freshness = check_data_freshness(
+        cur, "market_health_daily", "date", warning_days=1
+    )
+
+    return json_response(200, result, data_freshness=freshness)
+
+
+def _handle_breadth(cur) -> dict:
+    """Handle /api/market/breadth endpoint."""
+    # Compute A/D per day using a self-join on consecutive trading dates.
+    # Self-join is faster than LAG window over 35 days × 9000 symbols.
+    # Uses retry logic with exponential backoff to handle transient timeouts
+    # when DB is under heavy write load from loaders.
+    breadth = []
+    freshness = {}
+
+    # MATERIALIZED CTEs force one evaluation each; explicit NOT LIKE on y lets
+    # PostgreSQL use the idx_price_daily_date_symbol partial index for both joins.
+    breadth_query = """
+        WITH trading_dates AS MATERIALIZED (
+            SELECT DISTINCT date
+            FROM price_daily
+            WHERE date >= CURRENT_DATE - INTERVAL '25 days'
+            ORDER BY date DESC LIMIT 12
+        ),
+        date_pairs AS MATERIALIZED (
+            SELECT d1.date AS d, MAX(d2.date) AS prev_d
+            FROM trading_dates d1
+            JOIN trading_dates d2 ON d2.date < d1.date
+            GROUP BY d1.date
+        )
+        SELECT
+            dp.d AS date,
+            COUNT(*) FILTER (WHERE t.close > y.close) AS advances,
+            COUNT(*) FILTER (WHERE t.close < y.close) AS declines,
+            COUNT(*) FILTER (WHERE t.close = y.close) AS unchanged,
+            COUNT(t.symbol) AS total
+        FROM date_pairs dp
+        JOIN price_daily t ON t.date = dp.d
+            AND t.symbol NOT LIKE '^%%' AND t.close IS NOT NULL
+        JOIN price_daily y ON y.date = dp.prev_d AND y.symbol = t.symbol
+            AND y.symbol NOT LIKE '^%%' AND y.close IS NOT NULL
+        GROUP BY dp.d
+        ORDER BY dp.d DESC
+        LIMIT 10
+    """
+
+    # 20s timeout — Lambda is 25s, APIGW is 29s; single attempt avoids double-hit.
+    try:
+        breadth = execute_with_timeout(
+            cur, breadth_query, timeout_sec=20, max_attempts=1
+        )
+    except psycopg2.errors.QueryCanceled as e:
+        logger.error(f"[MARKET_BREADTH] Query timeout: {type(e).__name__}: {e}")
+        raise_api_error(504, "timeout", "Market breadth data query exceeded timeout")
+    except (
+        psycopg2.errors.UndefinedTable,
+        psycopg2.errors.UndefinedColumn,
+        psycopg2.OperationalError,
+        psycopg2.DatabaseError,
+    ) as e:
+        logger.error(
+            f"[MARKET_BREADTH] Database error: {type(e).__name__}: {e}"
+        )
+        raise_db_error(e, "market breadth query")
+    except (psycopg2.DatabaseError, psycopg2.OperationalError) as e:
+        logger.error(
+            f"[MARKET_BREADTH] Unexpected error: {type(e).__name__}: {e}"
+        )
+        raise_db_error(e, "market breadth query")
+
+    if breadth:
+        # Only fetch freshness if query succeeded
+        try:
+            freshness = check_data_freshness(
+                cur, "price_daily", "date", warning_days=1
+            )
+        except (
+            psycopg2.errors.UndefinedTable,
+            psycopg2.errors.UndefinedColumn,
+            psycopg2.OperationalError,
+            psycopg2.DatabaseError,
+        ) as e:
+            logger.warning(
+                f"[BREADTH_FRESHNESS] Database error: {type(e).__name__}: {e}"
+            )
+            freshness = {}
+        except (psycopg2.DatabaseError, psycopg2.OperationalError) as e:
+            logger.warning(
+                f"[BREADTH_FRESHNESS] Error checking data freshness: {type(e).__name__}: {e}"
+            )
+            freshness = {}
+
+    return list_response(
+        [safe_json_serialize(dict(b)) for b in breadth],
+        data_freshness=freshness,
+    )
+
+
+def _handle_technicals(cur) -> dict:
+    """Handle /api/market/technicals endpoint."""
+    try:
+        cur.execute("SET LOCAL statement_timeout = '3000ms'")
+        rows = execute_with_timeout(
+            cur,
+            """
+            SELECT date, advance_decline_ratio, new_highs_count, new_lows_count,
+                       up_volume_percent, breadth_momentum_10d,
+                       vix_level, put_call_ratio, market_trend, market_stage
+            FROM market_health_daily
+            ORDER BY date DESC
+            LIMIT 1
+        """,
+            timeout_sec=3,
+        )
+    except psycopg2.errors.QueryCanceled as e:
+        logger.error(
+            f"[MARKET_TECHNICALS] Query timeout: {type(e).__name__}: {e}"
+        )
+        raise_api_error(504, "timeout", "Market technicals data query exceeded timeout")
+    except (
+        psycopg2.errors.UndefinedTable,
+        psycopg2.errors.UndefinedColumn,
+        psycopg2.OperationalError,
+        psycopg2.DatabaseError,
+    ) as e:
+        logger.error(
+            f"[MARKET_TECHNICALS] Database error: {type(e).__name__}: {e}"
+        )
+        raise_db_error(e, "market technicals query")
+    except (psycopg2.DatabaseError, psycopg2.OperationalError) as e:
+        logger.error(
+            f"[MARKET_TECHNICALS] Unexpected error: {type(e).__name__}: {e}"
+        )
+        raise_db_error(e, "market technicals query")
+
+    base = safe_json_serialize(dict(rows[0])) if rows else {}
+    # Ensure breadth and mcclellan_oscillator are always present
+    if "breadth" not in base:
+        base["breadth"] = {}
+    if "mcclellan_oscillator" not in base:
+        base["mcclellan_oscillator"] = []
+
+    # Compute today's advancing/declining counts from price_daily.
+    # OPTIMIZATION: Use date-based index for faster filtering
+    try:
+        cur.execute("SAVEPOINT technicals_breadth")
+        cur.execute("SET LOCAL statement_timeout = '3000ms'")
+        breadth_query = """
+            WITH latest AS (
+                SELECT date AS d FROM price_daily
+                WHERE close IS NOT NULL AND symbol NOT LIKE '^%'
+                ORDER BY date DESC LIMIT 1
+            ),
+            prev_day AS (
+                SELECT date AS d FROM price_daily
+                WHERE date < (SELECT d FROM latest)
+                      AND close IS NOT NULL AND symbol NOT LIKE '^%'
+                ORDER BY date DESC LIMIT 1
+            )
+            SELECT
+                COUNT(*) FILTER (WHERE t.close > y.close) AS advancing,
+                COUNT(*) FILTER (WHERE t.close < y.close) AS declining,
+                COUNT(*) FILTER (WHERE t.close = y.close) AS unchanged,
+                COUNT(t.symbol) AS total_stocks
+            FROM price_daily t
+            JOIN price_daily y ON t.symbol = y.symbol
+            WHERE t.date = (SELECT d FROM latest)
+              AND y.date = (SELECT d FROM prev_day)
+              AND t.close IS NOT NULL
+              AND y.close IS NOT NULL
+        """
+        breadth_rows = execute_with_timeout(cur, breadth_query, timeout_sec=3)
+        cur.execute("RELEASE SAVEPOINT technicals_breadth")
+        base["breadth"] = dict(breadth_rows[0]) if breadth_rows else {}
+    except psycopg2.errors.QueryCanceled as e:
+        logger.warning(
+            f"[TECHNICALS_BREADTH] Query timeout — skipping: {type(e).__name__}"
+        )
+        _rollback_savepoint(cur, "technicals_breadth")
+        base["breadth"] = {}
+    except (
+        psycopg2.errors.UndefinedTable,
+        psycopg2.errors.UndefinedColumn,
+        psycopg2.OperationalError,
+        psycopg2.DatabaseError,
+    ) as e:
+        logger.warning(
+            f"[TECHNICALS_BREADTH] Database error: {type(e).__name__}"
+        )
+        _rollback_savepoint(cur, "technicals_breadth")
+        base["breadth"] = {}
+    except (psycopg2.DatabaseError, psycopg2.OperationalError) as e:
+        logger.warning(
+            f"[TECHNICALS_BREADTH] Unexpected error: {type(e).__name__}"
+        )
+        _rollback_savepoint(cur, "technicals_breadth")
+        base["breadth"] = {}
+
+    # Build 30-day A/D line history (formerly labeled mcclellan_oscillator)
+    try:
+        cur.execute("SET LOCAL statement_timeout = '3000ms'")
+        cur.execute("""
+            SELECT date,
+                   (factors->'ad_line'->>'value')::float AS advance_decline_line
+            FROM market_exposure_daily
+            WHERE date >= CURRENT_DATE - INTERVAL '35 days'
+                  AND factors IS NOT NULL
+                  AND factors->'ad_line' IS NOT NULL
+                  AND (factors->'ad_line'->>'value') IS NOT NULL
+            ORDER BY date DESC
+            LIMIT 30
+        """)
+        adrows = cur.fetchall()
+        base["mcclellan_oscillator"] = [
+            safe_json_serialize(dict(r)) for r in adrows
+        ]
+    except (
+        psycopg2.errors.UndefinedTable,
+        psycopg2.errors.UndefinedColumn,
+        psycopg2.OperationalError,
+        psycopg2.DatabaseError,
+        psycopg2.errors.QueryCanceled,
+    ) as e:
+        logger.warning(f"[MCCLELLAN] Database error: {type(e).__name__}")
+        base["mcclellan_oscillator"] = []
+    except (psycopg2.DatabaseError, psycopg2.OperationalError) as e:
+        logger.warning(f"[MCCLELLAN] Unexpected error: {type(e).__name__}")
+        base["mcclellan_oscillator"] = []
+
+    freshness = check_data_freshness(
+        cur, "market_health_daily", "date", warning_days=1
+    )
+    return json_response(200, base, data_freshness=freshness)
+
+
+def _handle_top_movers(cur) -> dict:
+    """Handle /api/market/top-movers endpoint."""
+    movers = []
+    gainers = []
+    losers = []
+    try:
+        cur.execute("SAVEPOINT top_movers")
+        cur.execute("SET LOCAL statement_timeout = '8s'")
+        # OPTIMIZATION: Simplified query with better index usage
+        # Pre-filter at lower level to avoid joining all symbols
+        cur.execute("""
+            WITH latest_d AS (
+                SELECT date AS d FROM price_daily
+                WHERE close IS NOT NULL
+                ORDER BY date DESC LIMIT 1
+            ),
+            prev_d AS (
+                SELECT date AS d FROM price_daily
+                WHERE date < (SELECT d FROM latest_d)
+                      AND close IS NOT NULL
+                ORDER BY date DESC LIMIT 1
+            ),
+            today AS (
+                SELECT symbol, close
+                FROM price_daily
+                WHERE date = (SELECT d FROM latest_d)
+                      AND symbol NOT LIKE '^%'
+                      AND close > 0
+            ),
+            yesterday AS (
+                SELECT symbol, close
+                FROM price_daily
+                WHERE date = (SELECT d FROM prev_d)
+                      AND symbol NOT LIKE '^%'
+                      AND close > 0
+            )
+            SELECT t.symbol, COALESCE(ss.security_name, t.symbol) AS security_name,
+                   ROUND(((t.close - y.close) / y.close * 100)::numeric, 2) as pct_change
+            FROM today t
+            INNER JOIN yesterday y ON t.symbol = y.symbol
+            LEFT JOIN stock_symbols ss ON t.symbol = ss.symbol
+                                          AND (ss.etf IS NULL OR ss.etf != 'Y')
+            ORDER BY ABS(t.close - y.close) / y.close DESC
+            LIMIT 40
+        """)
+        movers = cur.fetchall()
+        cur.execute("RELEASE SAVEPOINT top_movers")
+    except psycopg2.errors.QueryCanceled as e:
+        logger.warning(f"[TOP_MOVERS] Query timeout: {type(e).__name__}")
+        _rollback_savepoint(cur, "top_movers")
+    except (
+        psycopg2.errors.UndefinedTable,
+        psycopg2.errors.UndefinedColumn,
+        psycopg2.OperationalError,
+        psycopg2.DatabaseError,
+    ) as e:
+        logger.warning(f"[TOP_MOVERS] Database error: {type(e).__name__}")
+        _rollback_savepoint(cur, "top_movers")
+    except (psycopg2.DatabaseError, psycopg2.OperationalError) as e:
+        logger.warning(f"[TOP_MOVERS] Unexpected error: {type(e).__name__}")
+        _rollback_savepoint(cur, "top_movers")
+
+    items = [safe_json_serialize(dict(m)) for m in movers] if movers else []
+    valid_items = [m for m in items if m.get("pct_change") is not None]
+    gainers = sorted(
+        [m for m in valid_items if m.get("pct_change") >= 0],
+        key=lambda x: -(x["pct_change"]),
+    )[:10]
+    losers = sorted(
+        [m for m in valid_items if m.get("pct_change") < 0],
+        key=lambda x: x["pct_change"],
+    )[:10]
+    return json_response(
+        200, {"gainers": gainers or [], "losers": losers or [], "items": items}
+    )
+
+
+def _handle_distribution_days(cur) -> dict:
+    """Handle /api/market/distribution-days endpoint."""
+    dist_index_names = {
+        "^GSPC": "S&P 500",
+        "^IXIC": "Nasdaq Composite",
+        "^NYA": "NYSE Composite",
+        "^DJI": "Dow Jones",
+        "^RUT": "Russell 2000",
+    }
+    try:
+        cur.execute("SAVEPOINT dist_days")
+        cur.execute(
+            "SET LOCAL statement_timeout = '15s'"
+        )  # Complex window function query
+        cur.execute("""
+            WITH recent_sessions AS (
+                SELECT symbol, date, close, volume,
+                       LAG(close) OVER (PARTITION BY symbol ORDER BY date) AS prev_close
+                FROM price_daily
+                WHERE symbol IN ('^GSPC', '^IXIC', '^NYA', '^DJI')
+                      AND date >= CURRENT_DATE - INTERVAL '35 days'
+            ),
+            volume_window AS (
+                SELECT symbol, date, close, volume, prev_close,
+                       AVG(volume) OVER (PARTITION BY symbol ORDER BY date ROWS BETWEEN 50 PRECEDING AND 1 PRECEDING) AS avg_vol
+                FROM recent_sessions
+            )
+            SELECT symbol, date, (CURRENT_DATE - date)::INTEGER AS days_ago,
+                       ROUND(((close - prev_close) / NULLIF(prev_close, 0) * 100)::NUMERIC, 2) AS change_pct,
+                       ROUND((volume::NUMERIC / NULLIF(avg_vol, 0))::NUMERIC, 2) AS volume_ratio
+            FROM volume_window
+            WHERE prev_close IS NOT NULL
+                  AND close < prev_close * 0.998
+                  AND (avg_vol IS NULL OR volume > avg_vol * 1.01)
+            ORDER BY symbol, date DESC
+        """)
+        rows = cur.fetchall()
+        by_sym = {}
+        for row in rows:
+            r = dict(row)
+            sym = r["symbol"]
+            if sym not in by_sym:
+                by_sym[sym] = []
+            by_sym[sym].append(
+                {
+                    "date": str(r["date"]),
+                    "change_pct": (
+                        float(r["change_pct"])
+                        if r["change_pct"] is not None
+                        else None
+                    ),
+                    "volume_ratio": (
+                        float(r["volume_ratio"])
+                        if r["volume_ratio"] is not None
+                        else None
+                    ),
+                    "days_ago": r["days_ago"],
+                }
+            )
+        result = {}
+        for sym, days in by_sym.items():
+            count = len(days)
+            signal = (
+                "DANGER"
+                if count >= 5
+                else (
+                    "CAUTION"
+                    if count >= 3
+                    else "WATCH" if count >= 1 else "NORMAL"
+                )
+            )
+            result[sym] = {
+                "name": dist_index_names.get(sym, sym),
+                "count": count,
+                "signal": signal,
+                "days": days,
+            }
+        cur.execute("RELEASE SAVEPOINT dist_days")
+        return json_response(200, result)
+    except (
+        psycopg2.errors.QueryCanceled,
+        psycopg2.errors.UndefinedTable,
+        psycopg2.errors.UndefinedColumn,
+        psycopg2.OperationalError,
+        psycopg2.DatabaseError,
+        Exception,
+    ) as e:
+        _rollback_savepoint(cur, "dist_days")
+        logger.error(f"[DIST_DAYS] Error: {type(e).__name__}: {e}")
+        raise_db_error(e, "distribution days query")
+
+
+def _handle_seasonality(cur) -> dict:
+    """Handle /api/market/seasonality endpoint."""
+    # Seasonality tables are market-wide aggregates (SPY-based)
+    monthly_data = []
+    best_month = None
+    worst_month = None
+    cur.execute("SET LOCAL statement_timeout = '2000ms'")
+    try:
+        cur.execute("""
+            SELECT month, month_name, avg_return, best_return, worst_return,
+                   winning_years, losing_years, years_counted
+            FROM seasonality_monthly_stats
+            ORDER BY month
+        """)
+        monthly_rows = cur.fetchall()
+        for r in monthly_rows:
+            r_dict = dict(r)
+            monthly_data.append(r_dict)
+            avg_ret = r_dict.get("avg_return")
+            if avg_ret is not None:
+                if not best_month or (best_month.get("avg_return") is None or avg_ret > best_month.get("avg_return")):
+                    best_month = r_dict
+                if not worst_month or (worst_month.get("avg_return") is None or avg_ret < worst_month.get("avg_return")):
+                    worst_month = r_dict
+    except psycopg2.errors.QueryCanceled as e:
+        logger.error(f"[SEASONALITY] Monthly query timeout: {type(e).__name__}")
+        raise_api_error(504, "timeout", "Seasonality data query exceeded timeout")
+    except (psycopg2.DatabaseError, psycopg2.OperationalError) as e:
+        logger.error(f"[SEASONALITY] Monthly query error: {type(e).__name__}")
+        raise_db_error(e, "seasonality monthly query")
+
+    dow_data = []
+    best_dow = None
+    worst_dow = None
+    try:
+        cur.execute("""
+            SELECT day, day_num, avg_return, win_rate, days_counted
+            FROM seasonality_day_of_week
+            ORDER BY day_num
+        """)
+        dow_rows = cur.fetchall()
+        for r in dow_rows:
+            r_dict = dict(r)
+            dow_data.append(r_dict)
+            avg_ret = r_dict.get("avg_return")
+            if avg_ret is not None:
+                if not best_dow or (best_dow.get("avg_return") is None or avg_ret > best_dow.get("avg_return")):
+                    best_dow = r_dict
+                if not worst_dow or (worst_dow.get("avg_return") is None or avg_ret < worst_dow.get("avg_return")):
+                    worst_dow = r_dict
+    except psycopg2.errors.QueryCanceled as e:
+        logger.error(f"[SEASONALITY] DOW query timeout: {type(e).__name__}")
+        raise_api_error(504, "timeout", "Seasonality data query exceeded timeout")
+    except (psycopg2.DatabaseError, psycopg2.OperationalError) as e:
+        logger.error(f"[SEASONALITY] DOW query error: {type(e).__name__}")
+        raise_db_error(e, "seasonality day of week query")
+
+    return json_response(
+        200,
+        {
+            "monthly": monthly_data or [],
+            "day_of_week": dow_data or [],
+            "summary": {
+                "best_month": (
+                    {
+                        "name": (
+                            best_month.get("month_name") if best_month else None
+                        ),
+                        "avg_return_pct": (
+                            float(best_month.get("avg_return"))
+                            if best_month
+                            and best_month.get("avg_return") is not None
+                            else None
+                        ),
+                        "win_rate_pct": (
+                            round(
+                                (
+                                    float(best_month.get("winning_years"))
+                                    / float(best_month.get("years_counted"))
+                                    * 100
+                                ),
+                                1,
+                            )
+                            if best_month
+                            and best_month.get("winning_years") is not None
+                            and best_month.get("years_counted") is not None
+                            else None
+                        ),
+                    }
+                    if best_month
+                    else None
+                ),
+                "worst_month": (
+                    {
+                        "name": (
+                            worst_month.get("month_name")
+                            if worst_month
+                            else None
+                        ),
+                        "avg_return_pct": (
+                            float(worst_month.get("avg_return"))
+                            if worst_month
+                            and worst_month.get("avg_return") is not None
+                            else None
+                        ),
+                        "win_rate_pct": (
+                            round(
+                                (
+                                    float(worst_month.get("winning_years"))
+                                    / float(worst_month.get("years_counted"))
+                                    * 100
+                                ),
+                                1,
+                            )
+                            if worst_month
+                            and worst_month.get("winning_years") is not None
+                            and worst_month.get("years_counted") is not None
+                            else None
+                        ),
+                    }
+                    if worst_month
+                    else None
+                ),
+                "best_day": (
+                    {
+                        "name": best_dow.get("day") if best_dow else None,
+                        "avg_return_pct": (
+                            float(best_dow.get("avg_return"))
+                            if best_dow
+                            and best_dow.get("avg_return") is not None
+                            else None
+                        ),
+                        "win_rate_pct": (
+                            float(best_dow.get("win_rate"))
+                            if best_dow and best_dow.get("win_rate") is not None
+                            else None
+                        ),
+                    }
+                    if best_dow
+                    else None
+                ),
+                "worst_day": (
+                    {
+                        "name": worst_dow.get("day") if worst_dow else None,
+                        "avg_return_pct": (
+                            float(worst_dow.get("avg_return"))
+                            if worst_dow
+                            and worst_dow.get("avg_return") is not None
+                            else None
+                        ),
+                        "win_rate_pct": (
+                            float(worst_dow.get("win_rate"))
+                            if worst_dow
+                            and worst_dow.get("win_rate") is not None
+                            else None
+                        ),
+                    }
+                    if worst_dow
+                    else None
+                ),
+            },
+            "insights": {
+                "sell_in_may_effect": "May returns" if monthly_data else None,
+                "monday_effect": (
+                    "Historically, Mondays trend lower" if dow_data else None
+                ),
+            },
+        },
+    )
+
+
+def _handle_sentiment(cur, params: dict) -> dict:
+    """Handle /api/market/sentiment endpoint."""
+    range_days = _parse_range_param(params) if params else 30
+    sentiment_data = {}
+    cutoff_date = (
+        datetime.now(timezone.utc) - timedelta(days=range_days)
+    ).date()
+
+    # OPTIMIZATION: Set timeout to prevent slow queries from blocking
+    cur.execute("SET LOCAL statement_timeout = '4000ms'")
+
+    # AAII investor sentiment
+    try:
+        cur.execute(
+            """
+            SELECT date, bullish, neutral, bearish
+            FROM aaii_sentiment
+            WHERE date >= %s
+            ORDER BY date ASC
+            LIMIT 100
+        """,
+            (cutoff_date,),
+        )
+        aaii_rows = [safe_json_serialize(dict(r)) for r in cur.fetchall()]
+        aaii_current = aaii_rows[-1] if aaii_rows else None
+
+        # Compute trend: is bullish rising or falling?
+        aaii_trend = "neutral"
+        if len(aaii_rows) >= 2:
+            prev_bull = aaii_rows[-2].get("bullish")
+            curr_bull = aaii_rows[-1].get("bullish")
+            if prev_bull is not None and curr_bull is not None:
+                prev = float(prev_bull)
+                curr = float(curr_bull)
+                if curr > prev * 1.02:
+                    aaii_trend = "rising"
+                elif curr < prev * 0.98:
+                    aaii_trend = "falling"
+                else:
+                    aaii_trend = "neutral"
+
+        sentiment_data["aaii"] = {
+            "current": aaii_current,
+            "history": aaii_rows,
+            "trend": aaii_trend,
+            "data": aaii_rows,
+            "bullish_pct": (
+                float(aaii_current.get("bullish"), context="aaii_bullish")
+                if aaii_current and aaii_current.get("bullish") is not None
+                else None
+            ),
+        }
+    except (ValueError, ZeroDivisionError, TypeError) as e:
+        logger.error(f"[SENTIMENT_AAII] Error: {type(e).__name__}")
+        raise_db_error(e, "AAII sentiment query")
+
+    # NAAIM manager exposure
+    try:
+        cur.execute(
+            """
+            SELECT date, naaim_number_mean, bullish, bearish
+            FROM naaim
+            WHERE date >= %s
+            ORDER BY date ASC
+            LIMIT 52
+        """,
+            (cutoff_date,),
+        )
+        naaim_rows = [safe_json_serialize(dict(r)) for r in cur.fetchall()]
+        naaim_current = naaim_rows[-1] if naaim_rows else None
+
+        # Compute trend
+        naaim_trend = "neutral"
+        if len(naaim_rows) >= 2:
+            prev_mean = naaim_rows[-2].get("naaim_number_mean")
+            curr_mean = naaim_rows[-1].get("naaim_number_mean")
+            if prev_mean is not None and curr_mean is not None:
+                prev = float(prev_mean)
+                curr = float(curr_mean)
+                if curr > prev * 1.02:
+                    naaim_trend = "rising"
+                elif curr < prev * 0.98:
+                    naaim_trend = "falling"
+                else:
+                    naaim_trend = "neutral"
+
+        sentiment_data["naaim"] = {
+            "current": (
+                float(naaim_current.get("naaim_number_mean"), context="naaim_number_mean")
+                if naaim_current
+                and naaim_current.get("naaim_number_mean") is not None
+                else None
+            ),
+            "history": naaim_rows,
+            "trend": naaim_trend,
+            "bullish_pct": (
+                float(naaim_current.get("bullish"), context="naaim_bullish")
+                if naaim_current and naaim_current.get("bullish") is not None
+                else None
+            ),
+            "bearish_pct": (
+                float(naaim_current.get("bearish"), context="naaim_bearish")
+                if naaim_current and naaim_current.get("bearish") is not None
+                else None
+            ),
+        }
+    except (ValueError, ZeroDivisionError, TypeError) as e:
+        logger.error(f"[SENTIMENT_NAAIM] Error: {type(e).__name__}")
+        raise_db_error(e, "NAAIM sentiment query")
+
+    # Fear & Greed
+    try:
+        cur.execute(
+            """
+            SELECT date, fear_greed_value as value, fear_greed_label as label
+            FROM fear_greed_index
+            WHERE date >= %s
+            ORDER BY date ASC
+            LIMIT 100
+        """,
+            (cutoff_date,),
+        )
+        fg_rows = [safe_json_serialize(dict(r)) for r in cur.fetchall()]
+        fg_current = fg_rows[-1] if fg_rows else None
+
+        # Compute trend
+        fg_trend = "neutral"
+        if len(fg_rows) >= 2:
+            prev_val = fg_rows[-2].get("value")
+            curr_val = fg_rows[-1].get("value")
+            if prev_val is not None and curr_val is not None:
+                prev = float(prev_val)
+                curr = float(curr_val)
+                if curr < prev * 0.98:
+                    fg_trend = "rising_fear"
+                elif curr > prev * 1.02:
+                    fg_trend = "rising_greed"
+                else:
+                    fg_trend = "neutral"
+
+        sentiment_data["fearGreed"] = {
+            "current": {
+                "value": (
+                    float(fg_current["value"])
+                    if fg_current and fg_current.get("value") is not None
+                    else None
+                ),
+                "label": fg_current.get("label") if fg_current else None,
+            },
+            "history": fg_rows,
+            "trend": fg_trend,
+            "data": fg_rows,
+        }
+    except (ValueError, ZeroDivisionError, TypeError) as e:
+        logger.error(f"[SENTIMENT_FG] Error: {type(e).__name__}")
+        raise_db_error(e, "fear/greed sentiment query")
+
+    freshness = check_data_freshness(
+        cur, "aaii_sentiment", "date", warning_days=1
+    )
+    return json_response(200, sentiment_data, data_freshness=freshness)
+
+
+def _handle_naaim(cur) -> dict:
+    """Handle /api/market/naaim endpoint."""
+    try:
+        cur.execute("SET LOCAL statement_timeout = '5000ms'")
+        cur.execute("""
+            SELECT date, naaim_number_mean, bullish, bearish
+            FROM naaim
+            ORDER BY date ASC
+            LIMIT 52
+        """)
+        rows = cur.fetchall()
+        if not rows:
+            return json_response(
+                200,
+                {
+                    "current": None,
+                    "history": [],
+                    "moving_averages": {},
+                    "signals": {
+                        "extreme_bullish": False,
+                        "extreme_bearish": False,
+                    },
+                },
+            )
+
+        history = []
+        for r in rows:
+            r_dict = dict(r)
+            naaim_val = r_dict.get("naaim_number_mean")
+            bullish_val = r_dict.get("bullish")
+            bearish_val = r_dict.get("bearish")
+            history.append(
+                {
+                    "date": str(r_dict.get("date") or ""),
+                    "value": (
+                        float(naaim_val) if naaim_val is not None else None
+                    ),
+                    "bullish_pct": (
+                        float(bullish_val) if bullish_val is not None else None
+                    ),
+                    "bearish_pct": (
+                        float(bearish_val) if bearish_val is not None else None
+                    ),
+                }
+            )
+
+        if history:
+            current = history[-1]
+            values = [h["value"] for h in history]
+
+            # Compute moving averages
+            ma_10 = (
+                sum(values[-10:]) / min(10, len(values))
+                if len(values) >= 10
+                else None
+            )
+            ma_20 = (
+                sum(values[-20:]) / min(20, len(values))
+                if len(values) >= 20
+                else None
+            )
+            ma_50 = (
+                sum(values[-50:]) / min(50, len(values))
+                if len(values) >= 50
+                else None
+            )
+
+            # Identify extremes (>80 = extreme bullish, <20 = extreme bearish)
+            curr_val = current["value"]
+            signals = {
+                "extreme_bullish": (
+                    curr_val > 80 if curr_val is not None else None
+                ),
+                "extreme_bearish": (
+                    curr_val < 20 if curr_val is not None else None
+                ),
+                "overbought": curr_val > 70 if curr_val is not None else None,
+                "oversold": curr_val < 30 if curr_val is not None else None,
+                "above_50": curr_val > 50 if curr_val is not None else None,
+                "below_50": curr_val <= 50 if curr_val is not None else None,
+            }
+
+            return json_response(
+                200,
+                {
+                    "current": current["value"],
+                    "bullish_pct": current["bullish_pct"],
+                    "bearish_pct": current["bearish_pct"],
+                    "history": history,
+                    "moving_averages": {
+                        "ma_10": round(ma_10, 2) if ma_10 else None,
+                        "ma_20": round(ma_20, 2) if ma_20 else None,
+                        "ma_50": round(ma_50, 2) if ma_50 else None,
+                    },
+                    "signals": signals,
+                    "interpretation": {
+                        "meaning": "Manager equity allocation %; 0=all cash, 100=fully invested",
+                        "current_stance": (
+                            "bullish" if curr_val > 50 else "bearish"
+                        ),
+                        "extremity": (
+                            "extreme_bullish"
+                            if curr_val > 80
+                            else (
+                                "extreme_bearish" if curr_val < 20 else "normal"
+                            )
+                        ),
+                    },
+                },
+            )
+        else:
+            return json_response(
+                200, {"current": None, "history": [], "signals": {}}
+            )
+    except (ValueError, ZeroDivisionError, TypeError) as e:
+        logger.error(f"[NAAIM] Error: {type(e).__name__}")
+        raise_db_error(e, "NAAIM query")
 
 
 def handle(
@@ -36,930 +922,26 @@ def handle(
         if path in ["/api/market", "/api/market/status"] or path.startswith(
             "/api/market?"
         ):
-            cur.execute("SET LOCAL statement_timeout = '5000ms'")
-            cur.execute("""
-                SELECT date, market_trend, market_stage, advance_decline_ratio,
-                           new_highs_count, new_lows_count, vix_level, put_call_ratio
-                FROM market_health_daily
-                ORDER BY date DESC
-                LIMIT 1
-            """)
-            row = cur.fetchone()
-            if not row:
-                raise_api_error(503, "no_data", "Market status data not yet available")
-
-            result = safe_json_serialize(dict(row))
-
-            # Add freshness check
-            freshness = check_data_freshness(
-                cur, "market_health_daily", "date", warning_days=1
-            )
-
-            return json_response(200, result, data_freshness=freshness)
+            return _handle_market_status(cur)
         elif path == "/api/market/indices":
             return _get_markets(cur)
         elif path == "/api/market/breadth":
-            # Compute A/D per day using a self-join on consecutive trading dates.
-            # Self-join is faster than LAG window over 35 days × 9000 symbols.
-            # Uses retry logic with exponential backoff to handle transient timeouts
-            # when DB is under heavy write load from loaders.
-            breadth = []
-            freshness = {}
-
-            # MATERIALIZED CTEs force one evaluation each; explicit NOT LIKE on y lets
-            # PostgreSQL use the idx_price_daily_date_symbol partial index for both joins.
-            breadth_query = """
-                WITH trading_dates AS MATERIALIZED (
-                    SELECT DISTINCT date
-                    FROM price_daily
-                    WHERE date >= CURRENT_DATE - INTERVAL '25 days'
-                    ORDER BY date DESC LIMIT 12
-                ),
-                date_pairs AS MATERIALIZED (
-                    SELECT d1.date AS d, MAX(d2.date) AS prev_d
-                    FROM trading_dates d1
-                    JOIN trading_dates d2 ON d2.date < d1.date
-                    GROUP BY d1.date
-                )
-                SELECT
-                    dp.d AS date,
-                    COUNT(*) FILTER (WHERE t.close > y.close) AS advances,
-                    COUNT(*) FILTER (WHERE t.close < y.close) AS declines,
-                    COUNT(*) FILTER (WHERE t.close = y.close) AS unchanged,
-                    COUNT(t.symbol) AS total
-                FROM date_pairs dp
-                JOIN price_daily t ON t.date = dp.d
-                    AND t.symbol NOT LIKE '^%%' AND t.close IS NOT NULL
-                JOIN price_daily y ON y.date = dp.prev_d AND y.symbol = t.symbol
-                    AND y.symbol NOT LIKE '^%%' AND y.close IS NOT NULL
-                GROUP BY dp.d
-                ORDER BY dp.d DESC
-                LIMIT 10
-            """
-
-            # 20s timeout — Lambda is 25s, APIGW is 29s; single attempt avoids double-hit.
-            try:
-                breadth = execute_with_timeout(
-                    cur, breadth_query, timeout_sec=20, max_attempts=1
-                )
-            except psycopg2.errors.QueryCanceled as e:
-                logger.error(f"[MARKET_BREADTH] Query timeout: {type(e).__name__}: {e}")
-                raise_api_error(504, "timeout", "Market breadth data query exceeded timeout")
-            except (
-                psycopg2.errors.UndefinedTable,
-                psycopg2.errors.UndefinedColumn,
-                psycopg2.OperationalError,
-                psycopg2.DatabaseError,
-            ) as e:
-                logger.error(
-                    f"[MARKET_BREADTH] Database error: {type(e).__name__}: {e}"
-                )
-                raise_db_error(e, "market breadth query")
-            except (psycopg2.DatabaseError, psycopg2.OperationalError) as e:
-                logger.error(
-                    f"[MARKET_BREADTH] Unexpected error: {type(e).__name__}: {e}"
-                )
-                raise_db_error(e, "market breadth query")
-
-            if breadth:
-                # Only fetch freshness if query succeeded
-                try:
-                    freshness = check_data_freshness(
-                        cur, "price_daily", "date", warning_days=1
-                    )
-                except (
-                    psycopg2.errors.UndefinedTable,
-                    psycopg2.errors.UndefinedColumn,
-                    psycopg2.OperationalError,
-                    psycopg2.DatabaseError,
-                ) as e:
-                    logger.warning(
-                        f"[BREADTH_FRESHNESS] Database error: {type(e).__name__}: {e}"
-                    )
-                    freshness = {}
-                except (psycopg2.DatabaseError, psycopg2.OperationalError) as e:
-                    logger.warning(
-                        f"[BREADTH_FRESHNESS] Error checking data freshness: {type(e).__name__}: {e}"
-                    )
-                    freshness = {}
-
-            return list_response(
-                [safe_json_serialize(dict(b)) for b in breadth],
-                data_freshness=freshness,
-            )
+            return _handle_breadth(cur)
         elif path == "/api/market/technicals":
-            try:
-                cur.execute("SET LOCAL statement_timeout = '3000ms'")
-                rows = execute_with_timeout(
-                    cur,
-                    """
-                    SELECT date, advance_decline_ratio, new_highs_count, new_lows_count,
-                               up_volume_percent, breadth_momentum_10d,
-                               vix_level, put_call_ratio, market_trend, market_stage
-                    FROM market_health_daily
-                    ORDER BY date DESC
-                    LIMIT 1
-                """,
-                    timeout_sec=3,
-                )
-            except psycopg2.errors.QueryCanceled as e:
-                logger.error(
-                    f"[MARKET_TECHNICALS] Query timeout: {type(e).__name__}: {e}"
-                )
-                raise_api_error(504, "timeout", "Market technicals data query exceeded timeout")
-            except (
-                psycopg2.errors.UndefinedTable,
-                psycopg2.errors.UndefinedColumn,
-                psycopg2.OperationalError,
-                psycopg2.DatabaseError,
-            ) as e:
-                logger.error(
-                    f"[MARKET_TECHNICALS] Database error: {type(e).__name__}: {e}"
-                )
-                raise_db_error(e, "market technicals query")
-            except (psycopg2.DatabaseError, psycopg2.OperationalError) as e:
-                logger.error(
-                    f"[MARKET_TECHNICALS] Unexpected error: {type(e).__name__}: {e}"
-                )
-                raise_db_error(e, "market technicals query")
-
-            base = safe_json_serialize(dict(rows[0])) if rows else {}
-            # Ensure breadth and mcclellan_oscillator are always present
-            if "breadth" not in base:
-                base["breadth"] = {}
-            if "mcclellan_oscillator" not in base:
-                base["mcclellan_oscillator"] = []
-
-            # Compute today's advancing/declining counts from price_daily.
-            # OPTIMIZATION: Use date-based index for faster filtering
-            try:
-                cur.execute("SAVEPOINT technicals_breadth")
-                cur.execute("SET LOCAL statement_timeout = '3000ms'")
-                breadth_query = """
-                    WITH latest AS (
-                        SELECT date AS d FROM price_daily
-                        WHERE close IS NOT NULL AND symbol NOT LIKE '^%'
-                        ORDER BY date DESC LIMIT 1
-                    ),
-                    prev_day AS (
-                        SELECT date AS d FROM price_daily
-                        WHERE date < (SELECT d FROM latest)
-                              AND close IS NOT NULL AND symbol NOT LIKE '^%'
-                        ORDER BY date DESC LIMIT 1
-                    )
-                    SELECT
-                        COUNT(*) FILTER (WHERE t.close > y.close) AS advancing,
-                        COUNT(*) FILTER (WHERE t.close < y.close) AS declining,
-                        COUNT(*) FILTER (WHERE t.close = y.close) AS unchanged,
-                        COUNT(t.symbol) AS total_stocks
-                    FROM price_daily t
-                    JOIN price_daily y ON t.symbol = y.symbol
-                    WHERE t.date = (SELECT d FROM latest)
-                      AND y.date = (SELECT d FROM prev_day)
-                      AND t.close IS NOT NULL
-                      AND y.close IS NOT NULL
-                """
-                breadth_rows = execute_with_timeout(cur, breadth_query, timeout_sec=3)
-                cur.execute("RELEASE SAVEPOINT technicals_breadth")
-                base["breadth"] = dict(breadth_rows[0]) if breadth_rows else {}
-            except psycopg2.errors.QueryCanceled as e:
-                logger.warning(
-                    f"[TECHNICALS_BREADTH] Query timeout — skipping: {type(e).__name__}"
-                )
-                try:
-                    cur.execute("ROLLBACK TO SAVEPOINT technicals_breadth")
-                    cur.execute("RELEASE SAVEPOINT technicals_breadth")
-                except (psycopg2.OperationalError, psycopg2.DatabaseError) as sp_err:
-                    logger.debug(
-                        f"[SAVEPOINT_ROLLBACK] Error rolling back: {type(sp_err).__name__}"
-                    )
-                except (psycopg2.DatabaseError, psycopg2.OperationalError) as sp_err:
-                    logger.debug(
-                        f"[SAVEPOINT_ROLLBACK] Error rolling back: {type(sp_err).__name__}"
-                    )
-                base["breadth"] = {}
-            except (
-                psycopg2.errors.UndefinedTable,
-                psycopg2.errors.UndefinedColumn,
-                psycopg2.OperationalError,
-                psycopg2.DatabaseError,
-            ) as e:
-                logger.warning(
-                    f"[TECHNICALS_BREADTH] Database error: {type(e).__name__}"
-                )
-                try:
-                    cur.execute("ROLLBACK TO SAVEPOINT technicals_breadth")
-                    cur.execute("RELEASE SAVEPOINT technicals_breadth")
-                except (psycopg2.OperationalError, psycopg2.DatabaseError) as sp_err:
-                    logger.debug(
-                        f"[SAVEPOINT_ROLLBACK] Error rolling back: {type(sp_err).__name__}"
-                    )
-                except (psycopg2.DatabaseError, psycopg2.OperationalError) as sp_err:
-                    logger.debug(
-                        f"[SAVEPOINT_ROLLBACK] Error rolling back: {type(sp_err).__name__}"
-                    )
-                base["breadth"] = {}
-            except (psycopg2.DatabaseError, psycopg2.OperationalError) as e:
-                logger.warning(
-                    f"[TECHNICALS_BREADTH] Unexpected error: {type(e).__name__}"
-                )
-                try:
-                    cur.execute("ROLLBACK TO SAVEPOINT technicals_breadth")
-                    cur.execute("RELEASE SAVEPOINT technicals_breadth")
-                except (psycopg2.OperationalError, psycopg2.DatabaseError) as sp_err:
-                    logger.debug(
-                        f"[SAVEPOINT_ROLLBACK] Error rolling back: {type(sp_err).__name__}"
-                    )
-                except (psycopg2.DatabaseError, psycopg2.OperationalError) as sp_err:
-                    logger.debug(
-                        f"[SAVEPOINT_ROLLBACK] Error rolling back: {type(sp_err).__name__}"
-                    )
-                base["breadth"] = {}
-
-            # Build 30-day A/D line history (formerly labeled mcclellan_oscillator)
-            try:
-                cur.execute("SET LOCAL statement_timeout = '3000ms'")
-                cur.execute("""
-                    SELECT date,
-                           (factors->'ad_line'->>'value')::float AS advance_decline_line
-                    FROM market_exposure_daily
-                    WHERE date >= CURRENT_DATE - INTERVAL '35 days'
-                          AND factors IS NOT NULL
-                          AND factors->'ad_line' IS NOT NULL
-                          AND (factors->'ad_line'->>'value') IS NOT NULL
-                    ORDER BY date DESC
-                    LIMIT 30
-                """)
-                adrows = cur.fetchall()
-                base["mcclellan_oscillator"] = [
-                    safe_json_serialize(dict(r)) for r in adrows
-                ]
-            except (
-                psycopg2.errors.UndefinedTable,
-                psycopg2.errors.UndefinedColumn,
-                psycopg2.OperationalError,
-                psycopg2.DatabaseError,
-                psycopg2.errors.QueryCanceled,
-            ) as e:
-                logger.warning(f"[MCCLELLAN] Database error: {type(e).__name__}")
-                base["mcclellan_oscillator"] = []
-            except (psycopg2.DatabaseError, psycopg2.OperationalError) as e:
-                logger.warning(f"[MCCLELLAN] Unexpected error: {type(e).__name__}")
-                base["mcclellan_oscillator"] = []
-
-            freshness = check_data_freshness(
-                cur, "market_health_daily", "date", warning_days=1
-            )
-            return json_response(200, base, data_freshness=freshness)
+            return _handle_technicals(cur)
         elif path == "/api/market/top-movers":
-            movers = []
-            gainers = []
-            losers = []
-            try:
-                cur.execute("SAVEPOINT top_movers")
-                cur.execute("SET LOCAL statement_timeout = '8s'")
-                # OPTIMIZATION: Simplified query with better index usage
-                # Pre-filter at lower level to avoid joining all symbols
-                cur.execute("""
-                    WITH latest_d AS (
-                        SELECT date AS d FROM price_daily
-                        WHERE close IS NOT NULL
-                        ORDER BY date DESC LIMIT 1
-                    ),
-                    prev_d AS (
-                        SELECT date AS d FROM price_daily
-                        WHERE date < (SELECT d FROM latest_d)
-                              AND close IS NOT NULL
-                        ORDER BY date DESC LIMIT 1
-                    ),
-                    today AS (
-                        SELECT symbol, close
-                        FROM price_daily
-                        WHERE date = (SELECT d FROM latest_d)
-                              AND symbol NOT LIKE '^%'
-                              AND close > 0
-                    ),
-                    yesterday AS (
-                        SELECT symbol, close
-                        FROM price_daily
-                        WHERE date = (SELECT d FROM prev_d)
-                              AND symbol NOT LIKE '^%'
-                              AND close > 0
-                    )
-                    SELECT t.symbol, COALESCE(ss.security_name, t.symbol) AS security_name,
-                           ROUND(((t.close - y.close) / y.close * 100)::numeric, 2) as pct_change
-                    FROM today t
-                    INNER JOIN yesterday y ON t.symbol = y.symbol
-                    LEFT JOIN stock_symbols ss ON t.symbol = ss.symbol
-                                                  AND (ss.etf IS NULL OR ss.etf != 'Y')
-                    ORDER BY ABS(t.close - y.close) / y.close DESC
-                    LIMIT 40
-                """)
-                movers = cur.fetchall()
-                cur.execute("RELEASE SAVEPOINT top_movers")
-            except psycopg2.errors.QueryCanceled as e:
-                logger.warning(f"[TOP_MOVERS] Query timeout: {type(e).__name__}")
-                try:
-                    cur.execute("ROLLBACK TO SAVEPOINT top_movers")
-                    cur.execute("RELEASE SAVEPOINT top_movers")
-                except (psycopg2.OperationalError, psycopg2.DatabaseError) as sp_err:
-                    logger.debug(
-                        f"[SAVEPOINT_ROLLBACK] Error rolling back: {type(sp_err).__name__}"
-                    )
-                except (psycopg2.DatabaseError, psycopg2.OperationalError) as sp_err:
-                    logger.debug(
-                        f"[SAVEPOINT_ROLLBACK] Error rolling back: {type(sp_err).__name__}"
-                    )
-            except (
-                psycopg2.errors.UndefinedTable,
-                psycopg2.errors.UndefinedColumn,
-                psycopg2.OperationalError,
-                psycopg2.DatabaseError,
-            ) as e:
-                logger.warning(f"[TOP_MOVERS] Database error: {type(e).__name__}")
-                try:
-                    cur.execute("ROLLBACK TO SAVEPOINT top_movers")
-                    cur.execute("RELEASE SAVEPOINT top_movers")
-                except (psycopg2.OperationalError, psycopg2.DatabaseError) as sp_err:
-                    logger.debug(
-                        f"[SAVEPOINT_ROLLBACK] Error rolling back: {type(sp_err).__name__}"
-                    )
-                except (psycopg2.DatabaseError, psycopg2.OperationalError) as sp_err:
-                    logger.debug(
-                        f"[SAVEPOINT_ROLLBACK] Error rolling back: {type(sp_err).__name__}"
-                    )
-            except (psycopg2.DatabaseError, psycopg2.OperationalError) as e:
-                logger.warning(f"[TOP_MOVERS] Unexpected error: {type(e).__name__}")
-                try:
-                    cur.execute("ROLLBACK TO SAVEPOINT top_movers")
-                    cur.execute("RELEASE SAVEPOINT top_movers")
-                except (psycopg2.OperationalError, psycopg2.DatabaseError) as sp_err:
-                    logger.debug(
-                        f"[SAVEPOINT_ROLLBACK] Error rolling back: {type(sp_err).__name__}"
-                    )
-                except (psycopg2.DatabaseError, psycopg2.OperationalError) as sp_err:
-                    logger.debug(
-                        f"[SAVEPOINT_ROLLBACK] Error rolling back: {type(sp_err).__name__}"
-                    )
-            items = [safe_json_serialize(dict(m)) for m in movers] if movers else []
-            valid_items = [m for m in items if m.get("pct_change") is not None]
-            gainers = sorted(
-                [m for m in valid_items if m.get("pct_change") >= 0],
-                key=lambda x: -(x["pct_change"]),
-            )[:10]
-            losers = sorted(
-                [m for m in valid_items if m.get("pct_change") < 0],
-                key=lambda x: x["pct_change"],
-            )[:10]
-            return json_response(
-                200, {"gainers": gainers or [], "losers": losers or [], "items": items}
-            )
+            return _handle_top_movers(cur)
         elif path == "/api/market/distribution-days":
-            dist_index_names = {
-                "^GSPC": "S&P 500",
-                "^IXIC": "Nasdaq Composite",
-                "^NYA": "NYSE Composite",
-                "^DJI": "Dow Jones",
-                "^RUT": "Russell 2000",
-            }
-            try:
-                cur.execute("SAVEPOINT dist_days")
-                cur.execute(
-                    "SET LOCAL statement_timeout = '15s'"
-                )  # Complex window function query
-                cur.execute("""
-                    WITH recent_sessions AS (
-                        SELECT symbol, date, close, volume,
-                               LAG(close) OVER (PARTITION BY symbol ORDER BY date) AS prev_close
-                        FROM price_daily
-                        WHERE symbol IN ('^GSPC', '^IXIC', '^NYA', '^DJI')
-                              AND date >= CURRENT_DATE - INTERVAL '35 days'
-                    ),
-                    volume_window AS (
-                        SELECT symbol, date, close, volume, prev_close,
-                               AVG(volume) OVER (PARTITION BY symbol ORDER BY date ROWS BETWEEN 50 PRECEDING AND 1 PRECEDING) AS avg_vol
-                        FROM recent_sessions
-                    )
-                    SELECT symbol, date, (CURRENT_DATE - date)::INTEGER AS days_ago,
-                               ROUND(((close - prev_close) / NULLIF(prev_close, 0) * 100)::NUMERIC, 2) AS change_pct,
-                               ROUND((volume::NUMERIC / NULLIF(avg_vol, 0))::NUMERIC, 2) AS volume_ratio
-                    FROM volume_window
-                    WHERE prev_close IS NOT NULL
-                          AND close < prev_close * 0.998
-                          AND (avg_vol IS NULL OR volume > avg_vol * 1.01)
-                    ORDER BY symbol, date DESC
-                """)
-                rows = cur.fetchall()
-                by_sym = {}
-                for row in rows:
-                    r = dict(row)
-                    sym = r["symbol"]
-                    if sym not in by_sym:
-                        by_sym[sym] = []
-                    by_sym[sym].append(
-                        {
-                            "date": str(r["date"]),
-                            "change_pct": (
-                                float(r["change_pct"])
-                                if r["change_pct"] is not None
-                                else None
-                            ),
-                            "volume_ratio": (
-                                float(r["volume_ratio"])
-                                if r["volume_ratio"] is not None
-                                else None
-                            ),
-                            "days_ago": r["days_ago"],
-                        }
-                    )
-                result = {}
-                for sym, days in by_sym.items():
-                    count = len(days)
-                    signal = (
-                        "DANGER"
-                        if count >= 5
-                        else (
-                            "CAUTION"
-                            if count >= 3
-                            else "WATCH" if count >= 1 else "NORMAL"
-                        )
-                    )
-                    result[sym] = {
-                        "name": dist_index_names.get(sym, sym),
-                        "count": count,
-                        "signal": signal,
-                        "days": days,
-                    }
-                cur.execute("RELEASE SAVEPOINT dist_days")
-                return json_response(200, result)
-            except (
-                psycopg2.errors.QueryCanceled,
-                psycopg2.errors.UndefinedTable,
-                psycopg2.errors.UndefinedColumn,
-                psycopg2.OperationalError,
-                psycopg2.DatabaseError,
-                Exception,
-            ) as e:
-                try:
-                    cur.execute("ROLLBACK TO SAVEPOINT dist_days")
-                    cur.execute("RELEASE SAVEPOINT dist_days")
-                except (psycopg2.OperationalError, psycopg2.DatabaseError) as sp_err:
-                    logger.debug(
-                        f"[SAVEPOINT_ROLLBACK] Error rolling back: {type(sp_err).__name__}: {sp_err}"
-                    )
-                except (psycopg2.DatabaseError, psycopg2.OperationalError) as sp_err:
-                    logger.debug(
-                        f"[SAVEPOINT_ROLLBACK] Error rolling back: {type(sp_err).__name__}: {sp_err}"
-                    )
-                logger.error(f"[DIST_DAYS] Error: {type(e).__name__}: {e}")
-                raise_db_error(e, "distribution days query")
+            return _handle_distribution_days(cur)
         elif path == "/api/market/seasonality":
-            # Seasonality tables are market-wide aggregates (SPY-based)
-            monthly_data = []
-            best_month = None
-            worst_month = None
-            cur.execute("SET LOCAL statement_timeout = '2000ms'")
-            try:
-                cur.execute("""
-                    SELECT month, month_name, avg_return, best_return, worst_return,
-                           winning_years, losing_years, years_counted
-                    FROM seasonality_monthly_stats
-                    ORDER BY month
-                """)
-                monthly_rows = cur.fetchall()
-                for r in monthly_rows:
-                    r_dict = dict(r)
-                    monthly_data.append(r_dict)
-                    avg_ret = r_dict.get("avg_return")
-                    if avg_ret is not None:
-                        if not best_month or (best_month.get("avg_return") is None or avg_ret > best_month.get("avg_return")):
-                            best_month = r_dict
-                        if not worst_month or (worst_month.get("avg_return") is None or avg_ret < worst_month.get("avg_return")):
-                            worst_month = r_dict
-            except psycopg2.errors.QueryCanceled as e:
-                logger.error(f"[SEASONALITY] Monthly query timeout: {type(e).__name__}")
-                raise_api_error(504, "timeout", "Seasonality data query exceeded timeout")
-            except (psycopg2.DatabaseError, psycopg2.OperationalError) as e:
-                logger.error(f"[SEASONALITY] Monthly query error: {type(e).__name__}")
-                raise_db_error(e, "seasonality monthly query")
-
-            dow_data = []
-            best_dow = None
-            worst_dow = None
-            try:
-                cur.execute("""
-                    SELECT day, day_num, avg_return, win_rate, days_counted
-                    FROM seasonality_day_of_week
-                    ORDER BY day_num
-                """)
-                dow_rows = cur.fetchall()
-                for r in dow_rows:
-                    r_dict = dict(r)
-                    dow_data.append(r_dict)
-                    avg_ret = r_dict.get("avg_return")
-                    if avg_ret is not None:
-                        if not best_dow or (best_dow.get("avg_return") is None or avg_ret > best_dow.get("avg_return")):
-                            best_dow = r_dict
-                        if not worst_dow or (worst_dow.get("avg_return") is None or avg_ret < worst_dow.get("avg_return")):
-                            worst_dow = r_dict
-            except psycopg2.errors.QueryCanceled as e:
-                logger.error(f"[SEASONALITY] DOW query timeout: {type(e).__name__}")
-                raise_api_error(504, "timeout", "Seasonality data query exceeded timeout")
-            except (psycopg2.DatabaseError, psycopg2.OperationalError) as e:
-                logger.error(f"[SEASONALITY] DOW query error: {type(e).__name__}")
-                raise_db_error(e, "seasonality day of week query")
-
-            return json_response(
-                200,
-                {
-                    "monthly": monthly_data or [],
-                    "day_of_week": dow_data or [],
-                    "summary": {
-                        "best_month": (
-                            {
-                                "name": (
-                                    best_month.get("month_name") if best_month else None
-                                ),
-                                "avg_return_pct": (
-                                    float(best_month.get("avg_return"))
-                                    if best_month
-                                    and best_month.get("avg_return") is not None
-                                    else None
-                                ),
-                                "win_rate_pct": (
-                                    round(
-                                        (
-                                            float(best_month.get("winning_years"))
-                                            / float(best_month.get("years_counted"))
-                                            * 100
-                                        ),
-                                        1,
-                                    )
-                                    if best_month
-                                    and best_month.get("winning_years") is not None
-                                    and best_month.get("years_counted") is not None
-                                    else None
-                                ),
-                            }
-                            if best_month
-                            else None
-                        ),
-                        "worst_month": (
-                            {
-                                "name": (
-                                    worst_month.get("month_name")
-                                    if worst_month
-                                    else None
-                                ),
-                                "avg_return_pct": (
-                                    float(worst_month.get("avg_return"))
-                                    if worst_month
-                                    and worst_month.get("avg_return") is not None
-                                    else None
-                                ),
-                                "win_rate_pct": (
-                                    round(
-                                        (
-                                            float(worst_month.get("winning_years"))
-                                            / float(worst_month.get("years_counted"))
-                                            * 100
-                                        ),
-                                        1,
-                                    )
-                                    if worst_month
-                                    and worst_month.get("winning_years") is not None
-                                    and worst_month.get("years_counted") is not None
-                                    else None
-                                ),
-                            }
-                            if worst_month
-                            else None
-                        ),
-                        "best_day": (
-                            {
-                                "name": best_dow.get("day") if best_dow else None,
-                                "avg_return_pct": (
-                                    float(best_dow.get("avg_return"))
-                                    if best_dow
-                                    and best_dow.get("avg_return") is not None
-                                    else None
-                                ),
-                                "win_rate_pct": (
-                                    float(best_dow.get("win_rate"))
-                                    if best_dow and best_dow.get("win_rate") is not None
-                                    else None
-                                ),
-                            }
-                            if best_dow
-                            else None
-                        ),
-                        "worst_day": (
-                            {
-                                "name": worst_dow.get("day") if worst_dow else None,
-                                "avg_return_pct": (
-                                    float(worst_dow.get("avg_return"))
-                                    if worst_dow
-                                    and worst_dow.get("avg_return") is not None
-                                    else None
-                                ),
-                                "win_rate_pct": (
-                                    float(worst_dow.get("win_rate"))
-                                    if worst_dow
-                                    and worst_dow.get("win_rate") is not None
-                                    else None
-                                ),
-                            }
-                            if worst_dow
-                            else None
-                        ),
-                    },
-                    "insights": {
-                        "sell_in_may_effect": "May returns" if monthly_data else None,
-                        "monday_effect": (
-                            "Historically, Mondays trend lower" if dow_data else None
-                        ),
-                    },
-                },
-            )
+            return _handle_seasonality(cur)
         elif path == "/api/market/sentiment":
-            range_days = _parse_range_param(params) if params else 30
-            sentiment_data = {}
-            cutoff_date = (
-                datetime.now(timezone.utc) - timedelta(days=range_days)
-            ).date()
-
-            # OPTIMIZATION: Set timeout to prevent slow queries from blocking
-            cur.execute("SET LOCAL statement_timeout = '4000ms'")
-
-            # AAII investor sentiment
-            try:
-                cur.execute(
-                    """
-                    SELECT date, bullish, neutral, bearish
-                    FROM aaii_sentiment
-                    WHERE date >= %s
-                    ORDER BY date ASC
-                    LIMIT 100
-                """,
-                    (cutoff_date,),
-                )
-                aaii_rows = [safe_json_serialize(dict(r)) for r in cur.fetchall()]
-                aaii_current = aaii_rows[-1] if aaii_rows else None
-
-                # Compute trend: is bullish rising or falling?
-                aaii_trend = "neutral"
-                if len(aaii_rows) >= 2:
-                    prev_bull = aaii_rows[-2].get("bullish")
-                    curr_bull = aaii_rows[-1].get("bullish")
-                    if prev_bull is not None and curr_bull is not None:
-                        prev = float(prev_bull)
-                        curr = float(curr_bull)
-                        if curr > prev * 1.02:
-                            aaii_trend = "rising"
-                        elif curr < prev * 0.98:
-                            aaii_trend = "falling"
-                        else:
-                            aaii_trend = "neutral"
-
-                sentiment_data["aaii"] = {
-                    "current": aaii_current,
-                    "history": aaii_rows,
-                    "trend": aaii_trend,
-                    "data": aaii_rows,
-                    "bullish_pct": (
-                        float(aaii_current.get("bullish"), context="aaii_bullish")
-                        if aaii_current and aaii_current.get("bullish") is not None
-                        else None
-                    ),
-                }
-            except (ValueError, ZeroDivisionError, TypeError) as e:
-                logger.error(f"[SENTIMENT_AAII] Error: {type(e).__name__}")
-                raise_db_error(e, "AAII sentiment query")
-
-            # NAAIM manager exposure
-            try:
-                cur.execute(
-                    """
-                    SELECT date, naaim_number_mean, bullish, bearish
-                    FROM naaim
-                    WHERE date >= %s
-                    ORDER BY date ASC
-                    LIMIT 52
-                """,
-                    (cutoff_date,),
-                )
-                naaim_rows = [safe_json_serialize(dict(r)) for r in cur.fetchall()]
-                naaim_current = naaim_rows[-1] if naaim_rows else None
-
-                # Compute trend
-                naaim_trend = "neutral"
-                if len(naaim_rows) >= 2:
-                    prev_mean = naaim_rows[-2].get("naaim_number_mean")
-                    curr_mean = naaim_rows[-1].get("naaim_number_mean")
-                    if prev_mean is not None and curr_mean is not None:
-                        prev = float(prev_mean)
-                        curr = float(curr_mean)
-                        if curr > prev * 1.02:
-                            naaim_trend = "rising"
-                        elif curr < prev * 0.98:
-                            naaim_trend = "falling"
-                        else:
-                            naaim_trend = "neutral"
-
-                sentiment_data["naaim"] = {
-                    "current": (
-                        float(naaim_current.get("naaim_number_mean"), context="naaim_number_mean")
-                        if naaim_current
-                        and naaim_current.get("naaim_number_mean") is not None
-                        else None
-                    ),
-                    "history": naaim_rows,
-                    "trend": naaim_trend,
-                    "bullish_pct": (
-                        float(naaim_current.get("bullish"), context="naaim_bullish")
-                        if naaim_current and naaim_current.get("bullish") is not None
-                        else None
-                    ),
-                    "bearish_pct": (
-                        float(naaim_current.get("bearish"), context="naaim_bearish")
-                        if naaim_current and naaim_current.get("bearish") is not None
-                        else None
-                    ),
-                }
-            except (ValueError, ZeroDivisionError, TypeError) as e:
-                logger.error(f"[SENTIMENT_NAAIM] Error: {type(e).__name__}")
-                raise_db_error(e, "NAAIM sentiment query")
-
-            # Fear & Greed
-            try:
-                cur.execute(
-                    """
-                    SELECT date, fear_greed_value as value, fear_greed_label as label
-                    FROM fear_greed_index
-                    WHERE date >= %s
-                    ORDER BY date ASC
-                    LIMIT 100
-                """,
-                    (cutoff_date,),
-                )
-                fg_rows = [safe_json_serialize(dict(r)) for r in cur.fetchall()]
-                fg_current = fg_rows[-1] if fg_rows else None
-
-                # Compute trend
-                fg_trend = "neutral"
-                if len(fg_rows) >= 2:
-                    prev_val = fg_rows[-2].get("value")
-                    curr_val = fg_rows[-1].get("value")
-                    if prev_val is not None and curr_val is not None:
-                        prev = float(prev_val)
-                        curr = float(curr_val)
-                        if curr < prev * 0.98:
-                            fg_trend = "rising_fear"
-                        elif curr > prev * 1.02:
-                            fg_trend = "rising_greed"
-                        else:
-                            fg_trend = "neutral"
-
-                sentiment_data["fearGreed"] = {
-                    "current": {
-                        "value": (
-                            float(fg_current["value"])
-                            if fg_current and fg_current.get("value") is not None
-                            else None
-                        ),
-                        "label": fg_current.get("label") if fg_current else None,
-                    },
-                    "history": fg_rows,
-                    "trend": fg_trend,
-                    "data": fg_rows,
-                }
-            except (ValueError, ZeroDivisionError, TypeError) as e:
-                logger.error(f"[SENTIMENT_FG] Error: {type(e).__name__}")
-                raise_db_error(e, "fear/greed sentiment query")
-
-            freshness = check_data_freshness(
-                cur, "aaii_sentiment", "date", warning_days=1
-            )
-            return json_response(200, sentiment_data, data_freshness=freshness)
+            return _handle_sentiment(cur, params)
         elif path == "/api/market/fear-greed":
             range_days = _parse_range_param(params) if params else 30
             return _get_fear_greed_history(cur, range_days)
         elif path == "/api/market/naaim":
-            try:
-                cur.execute("SET LOCAL statement_timeout = '5000ms'")
-                cur.execute("""
-                    SELECT date, naaim_number_mean, bullish, bearish
-                    FROM naaim
-                    ORDER BY date ASC
-                    LIMIT 52
-                """)
-                rows = cur.fetchall()
-                if not rows:
-                    return json_response(
-                        200,
-                        {
-                            "current": None,
-                            "history": [],
-                            "moving_averages": {},
-                            "signals": {
-                                "extreme_bullish": False,
-                                "extreme_bearish": False,
-                            },
-                        },
-                    )
-
-                history = []
-                for r in rows:
-                    r_dict = dict(r)
-                    naaim_val = r_dict.get("naaim_number_mean")
-                    bullish_val = r_dict.get("bullish")
-                    bearish_val = r_dict.get("bearish")
-                    history.append(
-                        {
-                            "date": str(r_dict.get("date") or ""),
-                            "value": (
-                                float(naaim_val) if naaim_val is not None else None
-                            ),
-                            "bullish_pct": (
-                                float(bullish_val) if bullish_val is not None else None
-                            ),
-                            "bearish_pct": (
-                                float(bearish_val) if bearish_val is not None else None
-                            ),
-                        }
-                    )
-
-                if history:
-                    current = history[-1]
-                    values = [h["value"] for h in history]
-
-                    # Compute moving averages
-                    ma_10 = (
-                        sum(values[-10:]) / min(10, len(values))
-                        if len(values) >= 10
-                        else None
-                    )
-                    ma_20 = (
-                        sum(values[-20:]) / min(20, len(values))
-                        if len(values) >= 20
-                        else None
-                    )
-                    ma_50 = (
-                        sum(values[-50:]) / min(50, len(values))
-                        if len(values) >= 50
-                        else None
-                    )
-
-                    # Identify extremes (>80 = extreme bullish, <20 = extreme bearish)
-                    curr_val = current["value"]
-                    signals = {
-                        "extreme_bullish": (
-                            curr_val > 80 if curr_val is not None else None
-                        ),
-                        "extreme_bearish": (
-                            curr_val < 20 if curr_val is not None else None
-                        ),
-                        "overbought": curr_val > 70 if curr_val is not None else None,
-                        "oversold": curr_val < 30 if curr_val is not None else None,
-                        "above_50": curr_val > 50 if curr_val is not None else None,
-                        "below_50": curr_val <= 50 if curr_val is not None else None,
-                    }
-
-                    return json_response(
-                        200,
-                        {
-                            "current": current["value"],
-                            "bullish_pct": current["bullish_pct"],
-                            "bearish_pct": current["bearish_pct"],
-                            "history": history,
-                            "moving_averages": {
-                                "ma_10": round(ma_10, 2) if ma_10 else None,
-                                "ma_20": round(ma_20, 2) if ma_20 else None,
-                                "ma_50": round(ma_50, 2) if ma_50 else None,
-                            },
-                            "signals": signals,
-                            "interpretation": {
-                                "meaning": "Manager equity allocation %; 0=all cash, 100=fully invested",
-                                "current_stance": (
-                                    "bullish" if curr_val > 50 else "bearish"
-                                ),
-                                "extremity": (
-                                    "extreme_bullish"
-                                    if curr_val > 80
-                                    else (
-                                        "extreme_bearish" if curr_val < 20 else "normal"
-                                    )
-                                ),
-                            },
-                        },
-                    )
-                else:
-                    return json_response(
-                        200, {"current": None, "history": [], "signals": {}}
-                    )
-            except (ValueError, ZeroDivisionError, TypeError) as e:
-                logger.error(f"[NAAIM] Error: {type(e).__name__}")
-                raise_db_error(e, "NAAIM query")
+            return _handle_naaim(cur)
         elif path == "/api/market/latest":
             return _get_market_latest(cur)
         elif path == "/api/market/cap-distribution":

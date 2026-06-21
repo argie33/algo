@@ -90,18 +90,42 @@ def _get_algo_positions(cur, user_id: str | None = None) -> dict:
         d = safe_json_serialize(safe_dict_convert(p))
 
         # Validate required data before adding to items (Issue #1 fix)
-        pos_val = float(d.get("position_value"))
-        if pos_val is None:
+        pos_val_raw = d.get("position_value")
+        if pos_val_raw is None:
             invalid_positions.append(d.get("symbol", "unknown"))
+            continue
+        try:
+            pos_val = float(pos_val_raw)
+        except (ValueError, TypeError) as e:
+            invalid_positions.append(d.get("symbol", "unknown"))
+            logger.warning(f"Position {d.get('symbol')} has invalid position_value: {pos_val_raw} ({e})")
             continue
 
         # Compute ladder_pct_* fields for visualization (Issue #2)
-        entry = float(d.get("avg_entry_price"))
-        cur_price = float(d.get("current_price"))
-        stop = float(d.get("stop_loss_price"))
-        t1 = float(d.get("target_1_price"))
-        t2 = float(d.get("target_2_price"))
-        t3 = float(d.get("target_3_price"))
+        # Validate all price fields before conversion
+        entry_raw = d.get("avg_entry_price")
+        cur_price_raw = d.get("current_price")
+        stop_raw = d.get("stop_loss_price")
+        t1_raw = d.get("target_1_price")
+        t2_raw = d.get("target_2_price")
+        t3_raw = d.get("target_3_price")
+
+        if any(v is None for v in [entry_raw, cur_price_raw, stop_raw, t1_raw, t2_raw, t3_raw]):
+            invalid_positions.append(d.get("symbol", "unknown"))
+            logger.warning(f"Position {d.get('symbol')} missing required price fields")
+            continue
+
+        try:
+            entry = float(entry_raw)
+            cur_price = float(cur_price_raw)
+            stop = float(stop_raw)
+            t1 = float(t1_raw)
+            t2 = float(t2_raw)
+            t3 = float(t3_raw)
+        except (ValueError, TypeError) as e:
+            invalid_positions.append(d.get("symbol", "unknown"))
+            logger.warning(f"Position {d.get('symbol')} has invalid price fields: {e}")
+            continue
 
         if entry and cur_price and stop:
             lo = min(stop, entry, cur_price)
@@ -126,7 +150,18 @@ def _get_algo_positions(cur, user_id: str | None = None) -> dict:
             d["ladder_pct_t3"] = None
 
         # Compute stage_label for stage distribution (Issue #8)
-        stage = int(d.get("weinstein_stage"))
+        stage_raw = d.get("weinstein_stage")
+        stage = None
+        if stage_raw is None:
+            logger.warning(f"Position {d.get('symbol')} missing weinstein_stage")
+            d["stage_label"] = "Unknown"
+        else:
+            try:
+                stage = int(stage_raw)
+            except (ValueError, TypeError):
+                logger.warning(f"Position {d.get('symbol')} has invalid weinstein_stage: {stage_raw}")
+                d["stage_label"] = "Unknown"
+
         trend_score_raw = d.get("minervini_trend_score")
         trend_score = float(trend_score_raw) if trend_score_raw is not None else None
         if stage == 2:

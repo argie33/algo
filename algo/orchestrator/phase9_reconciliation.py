@@ -478,15 +478,22 @@ def run(
             logger.warning(f"[PHASE 7] Could not refresh algo_positions_with_risk: {e}")
             log_phase_result_fn(9, "positions_view_refresh", "warn", f"refresh failed: {str(e)[:60]}")
 
-        data = {
-            "portfolio_value": result.get("portfolio_value") if reconciliation_succeeded else 0,
-            "positions": result.get("positions") if reconciliation_succeeded else 0,
-            "unrealized_pnl": result.get("unrealized_pnl") if reconciliation_succeeded else 0,
-            "reconciliation": result,
-        }
+        # Fail-fast: if reconciliation failed, don't include partial data with 0 defaults
+        # Downstream code should check phase_status and error message instead
+        if reconciliation_succeeded:
+            data = {
+                "portfolio_value": result.get("portfolio_value"),
+                "positions": result.get("positions"),
+                "unrealized_pnl": result.get("unrealized_pnl"),
+                "reconciliation": result,
+            }
+            phase_status = "ok"
+        else:
+            data = {
+                "reconciliation": result,
+            }
+            phase_status = "error"
 
-        # Return status reflecting whether the core reconciliation succeeded
-        phase_status = "ok" if reconciliation_succeeded else "error"
         return PhaseResult(9, "reconciliation", phase_status, data, False, None)
 
     except (psycopg2.DatabaseError, psycopg2.OperationalError) as e:

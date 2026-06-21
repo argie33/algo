@@ -254,9 +254,7 @@ def run_backtest(
                 del positions[symbol]
 
         # Record equity curve snapshot (all position prices already validated above)
-        invested_value = sum(
-            current_prices[sym] * pos["shares"] for sym, pos in positions.items()
-        )
+        invested_value = sum(current_prices[sym] * pos["shares"] for sym, pos in positions.items())
         total_value = capital + invested_value
         equity_curve.append({"date": sim_date.isoformat(), "value": round(total_value, 2)})
 

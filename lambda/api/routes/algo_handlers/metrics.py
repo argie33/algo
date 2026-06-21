@@ -91,13 +91,24 @@ def _get_algo_metrics(cur) -> dict:
         entries = int(entries)
         exits = int(exits)
 
+        avg_signal_score_raw = data.get("avg_signal_score")
+        if avg_signal_score_raw is None:
+            logger.error("Algo metrics has None avg_signal_score")
+            return error_response(503, "incomplete_data", "Algo metrics missing avg_signal_score")
+
+        try:
+            avg_signal_score = float(avg_signal_score_raw)
+        except (ValueError, TypeError) as e:
+            logger.error(f"Cannot convert avg_signal_score to float: {avg_signal_score_raw} ({e})")
+            return error_response(503, "incomplete_data", "Algo metrics has invalid avg_signal_score")
+
         return success_response(
             {
                 "date": date,
                 "total_actions": total_actions,
                 "entries": entries,
                 "exits": exits,
-                "avg_signal_score": float(data.get("avg_signal_score")),
+                "avg_signal_score": avg_signal_score,
             }
         )
     except (
@@ -675,16 +686,22 @@ def _get_portfolio_summary(cur) -> dict:
     if not row:
         return error_response(503, "no_data", "Portfolio snapshot not yet available")
 
-    if not row.get("total_portfolio_value"):
+    # Validate critical fields (fail-fast: check for None, not falsiness - 0.0 is valid)
+    total_value_raw = row.get("total_portfolio_value")
+    if total_value_raw is None:
         return error_response(
-            503, "incomplete_data", "Portfolio snapshot missing required fields"
+            503, "incomplete_data", "Portfolio snapshot missing total_portfolio_value"
         )
 
-    total_value = float(row["total_portfolio_value"])
-    cash = float(row["total_cash"])
-    invested = float(row["total_equity"])
-    positions = int(row["position_count"])
-    daily_return_pct = float(row["daily_return_pct"])
+    try:
+        total_value = float(total_value_raw)
+        cash = float(row["total_cash"])
+        invested = float(row["total_equity"])
+        positions = int(row["position_count"])
+        daily_return_pct = float(row["daily_return_pct"])
+    except (ValueError, TypeError) as e:
+        logger.error(f"Cannot convert portfolio fields to numeric types: {e}")
+        return error_response(503, "incomplete_data", "Portfolio snapshot has invalid numeric fields")
 
     daily_change_dollars = (
         (daily_return_pct / 100 * total_value)
