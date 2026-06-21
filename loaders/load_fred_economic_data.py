@@ -162,7 +162,23 @@ class FredEconomicDataLoader(OptimalLoader):
                     # read_timeout: 20s to receive response (can be slow with large datasets)
                     resp = requests.get(fred_url, params=params, timeout=(10, 20))
                     resp.raise_for_status()
-                    observations = resp.json().get("observations", [])
+                    resp_data = resp.json()
+                    if not isinstance(resp_data, dict):
+                        raise RuntimeError(
+                            f"FRED API response for {series_id} is not a dict: {type(resp_data).__name__}. "
+                            "This indicates an API schema change. Check FRED API documentation."
+                        )
+                    observations = resp_data.get("observations")
+                    if observations is None:
+                        raise RuntimeError(
+                            f"FRED API response for {series_id} missing required 'observations' field. "
+                            "This indicates an API schema change or data corruption. Available keys: {list(resp_data.keys())}"
+                        )
+                    if not isinstance(observations, list):
+                        raise RuntimeError(
+                            f"FRED API response for {series_id}: 'observations' field must be list, got {type(observations).__name__}. "
+                            "This indicates an API schema change. Check FRED API documentation."
+                        )
 
                     for obs in observations:
                         val_str = obs.get("value", ".")

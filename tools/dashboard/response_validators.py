@@ -113,6 +113,8 @@ def validate_positions_response(data: dict[str, Any]) -> dict[str, Any]:
 
     # Validate each position has critical fields
     items = data.get("items", [])
+    if items is None:
+        raise ResponseValidationError("Positions response 'items' field is None (API contract violation)")
     if items:
         for i, pos in enumerate(items):
             if not isinstance(pos, dict):

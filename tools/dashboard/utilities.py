@@ -124,14 +124,21 @@ def normalize_positions_data(data):
     if isinstance(data, dict):
         if check_has_error(data):
             return data, None, True
-        if "items" in data:
-            return data.get("items", []), data.get("timestamp"), False
-        # Dict without items or error — log and fail
-        logger.error(f"[DATA_FORMAT] Positions dict malformed: missing 'items' and no '_error'. Keys: {list(data.keys())}")
-        raise ValueError(
-            "Positions data is dict but missing 'items' array. "
-            "Check API response schema — may indicate upstream data corruption."
-        )
+        if "items" not in data:
+            # Dict without items or error — log and fail
+            logger.error(f"[DATA_FORMAT] Positions dict malformed: missing 'items' and no '_error'. Keys: {list(data.keys())}")
+            raise ValueError(
+                "Positions data is dict but missing 'items' array. "
+                "Check API response schema — may indicate upstream data corruption."
+            )
+        items = data.get("items")
+        if not isinstance(items, list):
+            logger.error(f"[DATA_FORMAT] Positions 'items' field is not a list: {type(items).__name__}")
+            raise ValueError(
+                f"Positions 'items' must be list, got {type(items).__name__}. "
+                "Check API response schema — may indicate upstream data corruption."
+            )
+        return items, data.get("timestamp"), False
     elif isinstance(data, list):
         return data, None, False
     else:

@@ -163,9 +163,9 @@ def fetch_run(c):
         completed_phases = [p for p in phases if safe_get_field(p, "status") == "success"]
         halt_reason = safe_get_field(halted_phases[0], "summary") if halted_phases else None
 
-        # Timestamps are required — fail if all are missing (Issue #6)
+        # Timestamps are required - fail if all are missing (Issue #6)
         run_at = safe_get_field(inner, "run_at") or safe_get_field(inner, "completed_at") or safe_get_field(inner, "started_at")
-        # No runs yet (algo hasn't executed) — fail-fast: return error instead of placeholder
+        # No runs yet (algo hasn't executed) - fail-fast: return error instead of placeholder
         if not run_at and not safe_get_field(inner, "run_id") and not inner["success"] and not inner["halted"]:
             error_msg = "No algo runs available yet (algo has not executed)"
             logger.warning(error_msg)
@@ -244,7 +244,7 @@ def fetch_algo_config(c):
 
         cfg = {i["key"]: i.get("value") for i in items if "key" in i}
 
-        # Issue #8: enable_algo is REQUIRED — no default to True (fail-closed)
+        # Issue #8: enable_algo is REQUIRED - no default to True (fail-closed)
         required_config = [
             "enable_algo",
             "execution_mode",
@@ -346,7 +346,7 @@ def fetch_market(c):
             record_data_quality_issue("market", "critical_field", "conversion_failed", str(e))
             return FetcherValidator.build_error_response(error_msg)
 
-        # Issue #9: Market regime is REQUIRED — no fallback to "unknown"
+        # Issue #9: Market regime is REQUIRED - no fallback to "unknown"
         tier = current.get("regime")
         if not tier:
             error_msg = (
@@ -507,7 +507,7 @@ def fetch_perf(c):
         data = api_call("/api/algo/performance")
         perf = data
 
-        # Check for API error — 503 means no performance data yet (fail-fast: return error)
+        # Check for API error - 503 means no performance data yet (fail-fast: return error)
         is_error, error_msg = FetcherValidator.check_api_error(perf)
         if is_error:
             record_data_quality_issue("per", "api_call", "api_error", error_msg)
@@ -608,8 +608,8 @@ def fetch_positions(c):
 def fetch_recent_trades(c):
     """AWS-only trades data. Fail-fast: error only on failure.
 
-    Returns closed trades only — open positions are in the positions panel.
-    Note: 503 means no closed trades yet (algo just started) — treat as no data.
+    Returns closed trades only - open positions are in the positions panel.
+    Note: 503 means no closed trades yet (algo just started) - treat as no data.
     """
     from tools.dashboard.fetcher_validator import FetcherValidator
 
@@ -619,7 +619,7 @@ def fetch_recent_trades(c):
             params={"limit": 30, "status": "closed"},
         )
 
-        # Check for API error — fail-fast: return error for all API failures
+        # Check for API error - fail-fast: return error for all API failures
         is_error, error_msg = FetcherValidator.check_api_error(data)
         if is_error:
             record_data_quality_issue("trades", "api_call", "api_error", error_msg)
@@ -669,20 +669,39 @@ def fetch_signals(c):
 
         result = data
         buy_sigs = result.get("buy_sigs")
-        if not isinstance(buy_sigs, list):
-            buy_sigs = None
+        if buy_sigs is not None and not isinstance(buy_sigs, list):
+            error_msg = f"Signals response 'buy_sigs' must be list, got {type(buy_sigs).__name__}"
+            logger.error(error_msg)
+            record_data_quality_issue("sig", "validation", "buy_sigs_invalid_type")
+            return FetcherValidator.build_error_response(error_msg)
+
         near = result.get("near")
-        if not isinstance(near, list):
-            near = None
+        if near is not None and not isinstance(near, list):
+            error_msg = f"Signals response 'near' must be list, got {type(near).__name__}"
+            logger.error(error_msg)
+            record_data_quality_issue("sig", "validation", "near_invalid_type")
+            return FetcherValidator.build_error_response(error_msg)
+
         top_a = result.get("top_a")
-        if not isinstance(top_a, list):
-            top_a = None
+        if top_a is not None and not isinstance(top_a, list):
+            error_msg = f"Signals response 'top_a' must be list, got {type(top_a).__name__}"
+            logger.error(error_msg)
+            record_data_quality_issue("sig", "validation", "top_a_invalid_type")
+            return FetcherValidator.build_error_response(error_msg)
+
         trend = result.get("trend")
-        if not isinstance(trend, list):
-            trend = None
+        if trend is not None and not isinstance(trend, list):
+            error_msg = f"Signals response 'trend' must be list, got {type(trend).__name__}"
+            logger.error(error_msg)
+            record_data_quality_issue("sig", "validation", "trend_invalid_type")
+            return FetcherValidator.build_error_response(error_msg)
+
         grades = result.get("grades")
-        if not isinstance(grades, dict):
-            grades = None
+        if grades is not None and not isinstance(grades, dict):
+            error_msg = f"Signals response 'grades' must be dict, got {type(grades).__name__}"
+            logger.error(error_msg)
+            record_data_quality_issue("sig", "validation", "grades_invalid_type")
+            return FetcherValidator.build_error_response(error_msg)
 
         n = result.get("n")
         if n is None and buy_sigs:
@@ -1345,15 +1364,29 @@ def fetch_sector_rotation(c):
             return FetcherValidator.build_error_response(error_msg)
 
         raw = data
-        items = None
-        if isinstance(raw, dict):
-            items = raw.get("items")
-            if not isinstance(items, list):
-                items = None
-        if not items:
-            error_msg = "No sector rotation data available"
+        if not isinstance(raw, dict):
+            error_msg = f"Sector rotation API response: expected dict, got {type(raw).__name__}"
             logger.error(error_msg)
-            record_data_quality_issue("sec_rot", "validation", "no_items")
+            record_data_quality_issue("sec_rot", "validation", "invalid_response_type")
+            return FetcherValidator.build_error_response(error_msg)
+
+        items = raw.get("items")
+        if items is None:
+            error_msg = "Sector rotation API response missing required 'items' field"
+            logger.error(error_msg)
+            record_data_quality_issue("sec_rot", "validation", "missing_items_field")
+            return FetcherValidator.build_error_response(error_msg)
+
+        if not isinstance(items, list):
+            error_msg = f"Sector rotation 'items' field must be list, got {type(items).__name__}"
+            logger.error(error_msg)
+            record_data_quality_issue("sec_rot", "validation", "items_not_list")
+            return FetcherValidator.build_error_response(error_msg)
+
+        if not items:
+            error_msg = "No sector rotation data available (items array is empty)"
+            logger.error(error_msg)
+            record_data_quality_issue("sec_rot", "validation", "empty_items")
             return FetcherValidator.build_error_response(error_msg)
 
         row = items[0]
@@ -1479,7 +1512,7 @@ def fetch_scores(c):
             record_data_quality_issue("scores", "api_call", "api_error", error_msg)
             return FetcherValidator.build_error_response(error_msg)
 
-        # Validate response structure — fail-fast if missing items field
+        # Validate response structure - fail-fast if missing items field
         if not isinstance(top_data, dict):
             error_msg = f"Scores API response: expected dict, got {type(top_data).__name__}"
             logger.error(error_msg)
@@ -1573,22 +1606,56 @@ def fetch_circuit(c):
             return FetcherValidator.build_error_response(error_msg)
 
         result = data
-        bs = result.get("breakers", [])
+        bs = result.get("breakers")
+        if bs is None:
+            error_msg = "Circuit breaker API response missing required 'breakers' field"
+            logger.error(error_msg)
+            record_data_quality_issue("cb", "validation", "missing_breakers_field")
+            return FetcherValidator.build_error_response(error_msg)
+
+        if not isinstance(bs, list):
+            error_msg = f"Circuit breaker 'breakers' field must be list, got {type(bs).__name__}"
+            logger.error(error_msg)
+            record_data_quality_issue("cb", "validation", "breakers_not_list")
+            return FetcherValidator.build_error_response(error_msg)
+
         formatted_bs = []
         for r in bs:
+            label = r.get("label") or r.get("breaker_name")
+            if not label:
+                error_msg = f"Circuit breaker entry missing both 'label' and 'breaker_name' fields"
+                logger.error(error_msg)
+                record_data_quality_issue("cb", "validation", "breaker_missing_label")
+                return FetcherValidator.build_error_response(error_msg)
+
             formatted_bs.append(
                 {
-                    "lbl": r.get("label", r.get("breaker_name", "")),
-                    "cur": safe_float(r.get("current_value", r.get("current"))),
-                    "thr": safe_float(r.get("threshold_value", r.get("threshold"))),
+                    "lbl": label,
+                    "cur": safe_float(r.get("current_value") or r.get("current")),
+                    "thr": safe_float(r.get("threshold_value") or r.get("threshold")),
                     "u": r.get("unit", ""),
-                    "fired": safe_bool(r.get("is_active", r.get("triggered"))),
+                    "fired": safe_bool(r.get("is_active") or r.get("triggered")),
                 }
             )
+
+        any_triggered = result.get("any_triggered")
+        if any_triggered is None:
+            error_msg = "Circuit breaker API response missing 'any_triggered' field"
+            logger.error(error_msg)
+            record_data_quality_issue("cb", "validation", "missing_any_triggered")
+            return FetcherValidator.build_error_response(error_msg)
+
+        triggered_count = result.get("triggered_count")
+        if triggered_count is None:
+            error_msg = "Circuit breaker API response missing 'triggered_count' field"
+            logger.error(error_msg)
+            record_data_quality_issue("cb", "validation", "missing_triggered_count")
+            return FetcherValidator.build_error_response(error_msg)
+
         return {
             "bs": formatted_bs,
-            "any": result.get("any_triggered", False),
-            "n": result.get("triggered_count", 0),
+            "any": any_triggered,
+            "n": triggered_count,
         }
     except Exception as e:
         error_msg = _format_fetcher_error("cb", e)

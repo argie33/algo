@@ -155,11 +155,19 @@ def _get_algo_performance(cur) -> dict:
         losing_raw = metrics.get("losing_trades")
         breakeven_raw = metrics.get("breakeven_trades")
 
-        total_trades = int(total_trades_raw) if total_trades_raw is not None else None
-        winning = int(winning_raw) if winning_raw is not None else None
-        losing = int(losing_raw) if losing_raw is not None else None
-        breakeven = int(breakeven_raw) if breakeven_raw is not None else None
-        win_loss_total = (winning if winning is not None else 0) + (losing if losing is not None else 0)
+        # Validate critical trade count fields exist and are non-None
+        if total_trades_raw is None or winning_raw is None or losing_raw is None:
+            logger.error(
+                f"Performance metrics incomplete: total_trades={total_trades_raw}, "
+                f"winning_trades={winning_raw}, losing_trades={losing_raw} (breakeven={breakeven_raw})"
+            )
+            return error_response(503, "incomplete_data", "Performance metrics missing required trade counts")
+
+        total_trades = int(total_trades_raw)
+        winning = int(winning_raw)
+        losing = int(losing_raw)
+        breakeven = int(breakeven_raw) if breakeven_raw is not None else 0
+        win_loss_total = winning + losing
 
         # Compute trade-level metrics missing from algo_performance_metrics (CRITICAL for performance panel)
         trade_stats = {}
