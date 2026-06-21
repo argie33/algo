@@ -257,6 +257,15 @@ class TradeExecutor:
 
         portfolio_value = self._get_portfolio_value()
 
+        # symbol must be non-None since validator requires it
+        if not symbol:
+            return {
+                "success": False,
+                "trade_id": "",
+                "status": "invalid",
+                "message": "symbol is required",
+            }
+
         # Validate all entry preconditions using TradeValidator
         valid, error_msg, validation_result = self.validator.validate_entry_preconditions(
             symbol=symbol,

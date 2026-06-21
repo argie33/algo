@@ -51,7 +51,12 @@ def run(
         # Check for partial fills that need immediate reconciliation
         with DatabaseContext("write") as cur:
             partial_fill_result = recon.check_partial_fills(cur)
-            if partial_fill_result.get("mismatches", 0) > 0:
+            if "mismatches" not in partial_fill_result:
+                raise RuntimeError(
+                    f"Partial fill check returned incomplete data: missing 'mismatches' field. "
+                    f"Got keys: {list(partial_fill_result.keys())}"
+                )
+            if partial_fill_result["mismatches"] > 0:
                 logger.warning(
                     f"[PHASE_3A] Detected {partial_fill_result['mismatches']} "
                     f"partial fills — corrected quantities to match Alpaca"

@@ -1,6 +1,3 @@
-import psycopg2
-
-
 #!/usr/bin/env python3
 
 """
@@ -25,6 +22,8 @@ composite score by 5-10 points (handled in algo_market_exposure.py).
 import json
 import logging
 from datetime import date as _date
+
+import psycopg2
 
 from utils.db import DatabaseContext
 

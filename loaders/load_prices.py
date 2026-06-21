@@ -1987,7 +1987,12 @@ class PriceLoader(OptimalLoader):
 
             # ISSUE #2 FIX: Track completion percentage and mark INCOMPLETE if <95%
             symbols_expected = len(symbols) if symbols else 1
-            symbols_successfully_loaded = self._stats.get("symbols_processed", 0)
+            if "symbols_processed" not in self._stats:
+                raise RuntimeError(
+                    f"[{self.table_name}] Load stats incomplete: 'symbols_processed' not tracked. "
+                    "Loader did not properly initialize statistics tracking."
+                )
+            symbols_successfully_loaded = self._stats["symbols_processed"]
             completion_pct = (
                 (symbols_successfully_loaded / symbols_expected * 100)  # type: ignore
                 if symbols_expected > 0

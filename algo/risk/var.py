@@ -516,12 +516,21 @@ class ValueAtRisk:
                         }
                     )
 
+                    # Require sector/industry fields; use "Unknown" only for truly missing data
+                    if sector is None:
+                        raise ValueError(f"Position {symbol} missing required 'sector' field")
+                    if industry is None:
+                        raise ValueError(f"Position {symbol} missing required 'industry' field")
                     if not sector:
                         sector = "Unknown"
                     if not industry:
                         industry = "Unknown"
-                    sector_exposure[sector] = sector_exposure.get(sector, 0.0) + position_pct
-                    industry_exposure[industry] = industry_exposure.get(industry, 0.0) + position_pct
+                    if sector not in sector_exposure:
+                        sector_exposure[sector] = 0.0
+                    if industry not in industry_exposure:
+                        industry_exposure[industry] = 0.0
+                    sector_exposure[sector] += position_pct
+                    industry_exposure[industry] += position_pct
 
                 top_5_pct = sum([h["pct_of_portfolio"] for h in top_holdings[:5]])
 

@@ -8,6 +8,7 @@ from typing import Any
 
 import psycopg2
 
+from algo.exceptions import ValidationError
 from algo.orchestrator.phase_result import PhaseResult
 from algo.reporting import AlertManager
 from utils.db.advisory_locks import (
@@ -16,8 +17,8 @@ from utils.db.advisory_locks import (
     release_advisory_lock,
 )
 from utils.db.context import DatabaseContext
-
 from utils.trading.status import PositionStatus
+
 
 logger = logging.getLogger(__name__)
 
@@ -157,11 +158,18 @@ def run(
                         logger.critical(f"  CRITICAL: Cannot execute exit without current price for {action['position_id']}: {e}")
                         raise
                     if cur_price is not None and cur_price > 0:
+                        if "exit_fraction" not in action:
+                            raise ValidationError(
+                                field="exit_fraction",
+                                value=None,
+                                expected="float between 0.0 and 1.0",
+                                context={"position_id": action.get("position_id"), "action_type": "exposure_partial"}
+                            )
                         result = executor.exit_trade(
                             trade_id=action["trade_id"],
                             exit_price=cur_price,
                             exit_reason=action["reason"],
-                            exit_fraction=action.get("exit_fraction", 0.5),
+                            exit_fraction=float(action["exit_fraction"]),
                             exit_stage="exposure_partial",
                             new_stop_price=action.get("new_stop"),
                         )

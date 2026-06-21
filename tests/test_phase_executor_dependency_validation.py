@@ -4,7 +4,7 @@
 import pytest
 
 from algo.orchestrator.phase_executor import OrchestratorPhaseExecutor, PhaseDefinition
-from algo.orchestrator.phase_result import PhaseResult, Phase5Result, Phase7Result
+from algo.orchestrator.phase_result import Phase5Result, Phase7Result, PhaseResult
 
 
 def test_executor_detects_missing_dependency():
@@ -124,7 +124,7 @@ def test_executor_allows_valid_dependency():
         )
     )
 
-    success, error = executor.execute_phase(7)
+    success, _error = executor.execute_phase(7)
     assert success
     assert phase7_executed
 

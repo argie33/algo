@@ -12,7 +12,6 @@ from datetime import date as _date
 from typing import Any
 
 
-
 logger = logging.getLogger(__name__)
 
 

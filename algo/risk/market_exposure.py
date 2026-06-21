@@ -378,7 +378,10 @@ class MarketExposure:
                 # Use detector's own connection (don't share) to avoid transaction abort propagation
                 rotation = detector.compute(eval_date)
                 if rotation:
-                    rot_penalty = rotation.get("reduce_exposure_pts", 0)
+                    if "reduce_exposure_pts" not in rotation:
+                        logger.error(f"Sector rotation missing 'reduce_exposure_pts' field: {rotation.keys()}")
+                        raise ValueError("Sector rotation detector returned incomplete data: missing reduce_exposure_pts")
+                    rot_penalty = rotation["reduce_exposure_pts"]
                     if rot_penalty > 0:
                         score = max(0.0, score - rot_penalty)
                         factors["sector_rotation"] = {
@@ -401,8 +404,11 @@ class MarketExposure:
 
             try:
                 eco = self._economic_regime_overlay(eval_date, cur)
-                eco_penalty = eco.get("penalty", 0)
-                eco_cap = eco.get("cap", 100.0)
+                if "penalty" not in eco or "cap" not in eco:
+                    logger.error(f"Economic overlay missing required fields: {eco.keys()}")
+                    raise ValueError("Economic regime overlay missing 'penalty' and/or 'cap' fields")
+                eco_penalty = eco["penalty"]
+                eco_cap = eco["cap"]
                 if eco_penalty != 0 or eco_cap < 100.0:
                     score = max(0.0, min(100.0, score - eco_penalty))
                 factors["economic_overlay"] = {**eco, "pts": -eco_penalty, "max": 0}
@@ -429,7 +435,10 @@ class MarketExposure:
                 halt_reasons.append(f"VIX {vix_value:.1f} rising > 40")
                 cap = min(cap, 30.0)
             # Veto 3: 6+ selling-pressure days (severe institutional distribution)
-            sp_count = sp.get("count", 0)
+            if "count" not in sp:
+                logger.error(f"Selling pressure data incomplete: missing 'count' field. Data: {sp}")
+                raise ValueError("Selling pressure data missing required 'count' field")
+            sp_count = sp["count"]
             if sp_count >= 6:
                 halt_reasons.append(f"{sp_count} selling-pressure days >= 6")
                 cap = min(cap, 35.0)
@@ -1210,10 +1219,10 @@ class MarketExposure:
             stlfsi = float(stlfsi_rows[0][0])
             if stlfsi > 1.5:
                 stress += 25.0
-                signals.append(f"Financial stress index {stlfsi:.2f}σ (severe stress)")
+                signals.append(f"Financial stress index {stlfsi:.2f}s (severe stress)")
             elif stlfsi > 0.8:
                 stress += 12.0
-                signals.append(f"Financial stress index {stlfsi:.2f}σ (elevated)")
+                signals.append(f"Financial stress index {stlfsi:.2f}s (elevated)")
 
         # Signal 4: Chicago Fed National Activity Index — 85-indicator broad economic composite
         cur.execute(
@@ -1283,8 +1292,16 @@ class MarketExposure:
                 long_exp = 0
                 short_exp = abs(exposure_pct)
 
-            factors_json = json.dumps(result.get("factors", {}))
-            halt_reasons_json = json.dumps(result.get("halt_reasons", []))
+            # Validate required fields for database persistence
+            if "distribution_days" not in result:
+                raise ValueError("Market exposure result missing required 'distribution_days' field")
+            if "factors" not in result or not isinstance(result["factors"], dict):
+                raise ValueError("Market exposure result missing or invalid 'factors' field")
+            if "halt_reasons" not in result or not isinstance(result["halt_reasons"], list):
+                raise ValueError("Market exposure result missing or invalid 'halt_reasons' field")
+
+            factors_json = json.dumps(result["factors"])
+            halt_reasons_json = json.dumps(result["halt_reasons"])
             with DatabaseContext("write") as cur:
                 cur.execute(
                     """
@@ -1309,7 +1326,7 @@ class MarketExposure:
                         exposure_pct,
                         result.get("raw_score", exposure_pct),
                         result.get("regime", "unknown"),
-                        result.get("distribution_days", 0),
+                        result["distribution_days"],
                         factors_json,
                         halt_reasons_json,
                         long_exp,

@@ -7,7 +7,6 @@ from typing import Any, cast
 import psycopg2
 
 
-
 logger = logging.getLogger(__name__)
 
 # Severity levels
@@ -122,7 +121,7 @@ class PatrolConfig:
                 "condition": "date >= CURRENT_DATE - INTERVAL '14 days'",
                 "min_rows": self.get("patrol_price_daily_14d_min", 40000),
                 "severity": ERROR,
-                "description": "Daily price data should be ~5000 symbols × 14 days",
+                "description": "Daily price data should be ~5000 symbols x 14 days",
             },
             "technical_data_daily": {
                 "condition": "date >= CURRENT_DATE - INTERVAL '14 days'",
@@ -140,7 +139,7 @@ class PatrolConfig:
                 "condition": "date >= CURRENT_DATE - INTERVAL '14 days'",
                 "min_rows": self.get("patrol_trend_14d_min", 16000),
                 "severity": ERROR,
-                "description": "Trend template covers 4900+ symbols × 14 days",
+                "description": "Trend template covers 4900+ symbols x 14 days",
             },
             "signal_quality_scores": {
                 "condition": "date >= CURRENT_DATE - INTERVAL '14 days'",

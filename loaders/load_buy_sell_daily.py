@@ -253,16 +253,23 @@ class SignalsDailyLoader(OptimalLoader):
 
                 # ROOT CAUSE #4 FIX: Use cached counts from batch context (computed once)
                 # instead of querying per-symbol. Eliminates ~20k per-symbol database queries.
-                price_coverage_symbols = (
-                    self._batch_context.get("price_coverage_symbols", 0)
-                    if self._batch_context
-                    else 0
-                )
-                tech_coverage_symbols = (
-                    self._batch_context.get("tech_coverage_symbols", 0)
-                    if self._batch_context
-                    else 0
-                )
+                if not self._batch_context:
+                    raise RuntimeError(
+                        f"{symbol}: batch context not initialized. "
+                        "Cannot determine data coverage without batch context."
+                    )
+                if "price_coverage_symbols" not in self._batch_context:
+                    raise RuntimeError(
+                        f"{symbol}: batch context missing 'price_coverage_symbols'. "
+                        "Coverage validation failed - cannot verify price data availability."
+                    )
+                if "tech_coverage_symbols" not in self._batch_context:
+                    raise RuntimeError(
+                        f"{symbol}: batch context missing 'tech_coverage_symbols'. "
+                        "Coverage validation failed - cannot verify technical data availability."
+                    )
+                price_coverage_symbols = self._batch_context["price_coverage_symbols"]
+                tech_coverage_symbols = self._batch_context["tech_coverage_symbols"]
 
                 # Require at least 3000 symbols with prices before generating signals
                 if price_coverage_symbols < 3000:

@@ -74,11 +74,17 @@ def run(
 
         stale_result = monitor.check_stale_orders(run_date)
         if stale_result and stale_result.get("status") == "STALE_ORDERS_FOUND":
+            if "count" not in stale_result:
+                raise RuntimeError(
+                    f"Stale order check returned incomplete data: missing 'count' field. "
+                    f"Got keys: {list(stale_result.keys())}"
+                )
+            stale_count = stale_result["count"]
             alerts.send_position_alert(
                 "STALE_ORDERS",
                 "STALE_ORDER_ALERT",
-                f"{stale_result.get('count', 0)} orders pending >1 hour",
-                {"orders": stale_result.get("count", 0)},
+                f"{stale_count} orders pending >1 hour",
+                {"orders": stale_count},
             )
 
         recommendations = monitor.review_positions(run_date)

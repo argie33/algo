@@ -698,7 +698,12 @@ class CircuitBreaker:
                 return {"halted": False, "reason": "No open positions"}
 
             sector_counts: dict[str, int] = {}
-            for _, sector in rows:
+            for row in rows:
+                if not row or len(row) < 2:
+                    raise RuntimeError(f"Sector concentration check: invalid row structure {row}")
+                _, sector = row[0], row[1]
+                if not sector:
+                    raise RuntimeError("Sector concentration check: row has None/empty sector")
                 sector_counts[sector] = sector_counts.get(sector, 0) + 1
 
             concentrated = {s: n for s, n in sector_counts.items() if n >= max_sector_positions and s != "Unknown"}

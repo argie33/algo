@@ -199,7 +199,7 @@ class TestConfigValidationSchema:
         from algo.infrastructure.config import AlgoConfig
 
         config = AlgoConfig()
-        with pytest.raises(ValueError, match="below minimum|CRITICAL SAFETY GATE"):
+        with pytest.raises(ValueError, match=r"below minimum\|CRITICAL SAFETY GATE"):
             config._validate_value("min_signal_quality_score", "0", "int")
 
     def test_validation_rejects_negative_min_swing_score(self):
@@ -215,8 +215,10 @@ class TestConfigValidationSchema:
         from algo.infrastructure.config import AlgoConfig
 
         config = AlgoConfig()
-        with pytest.raises(ValueError, match="above maximum"):
+        # Value 0 triggers critical safety gate (zero/near-zero not allowed for critical params)
+        with pytest.raises(ValueError, match="CRITICAL SAFETY GATE"):
             config._validate_value("halt_drawdown_pct", "0", "float")
+        # Value 10 (positive) triggers above maximum check
         with pytest.raises(ValueError, match="above maximum"):
             config._validate_value("halt_drawdown_pct", "10", "float")
 
@@ -225,7 +227,8 @@ class TestConfigValidationSchema:
         from algo.infrastructure.config import AlgoConfig
 
         config = AlgoConfig()
-        with pytest.raises(ValueError, match="above maximum"):
+        # Value 0 triggers critical safety gate (zero/near-zero not allowed for critical params)
+        with pytest.raises(ValueError, match="CRITICAL SAFETY GATE"):
             config._validate_value("sector_drawdown_halt_pct", "0", "float")
 
     def test_validation_accepts_valid_percentages(self):

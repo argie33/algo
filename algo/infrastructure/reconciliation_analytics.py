@@ -8,7 +8,6 @@ position reconciliation logic.
 import logging
 from typing import Any
 
-from utils.db import DatabaseContext
 
 logger = logging.getLogger(__name__)
 
@@ -24,7 +23,6 @@ class ReconciliationAnalytics:
 
     def __init__(self):
         """Initialize analytics computer."""
-        pass
 
     def compute_analytics_metrics(self, cur) -> dict[str, Any]:
         """Compute daily analytics: equity curves, returns, risk metrics.

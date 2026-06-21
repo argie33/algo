@@ -110,10 +110,10 @@ CORPORATE_ACTION_LOOKBACK_DAYS = 30
 # ── Data Loader Contracts ───────────────────────────────────────────────────
 
 # Minimum acceptable data volumes
-LOADER_PRICE_DAILY_14D_MIN = 40_000  # ~5000 symbols × 14 days × 60% coverage
+LOADER_PRICE_DAILY_14D_MIN = 40_000  # ~5000 symbols x 14 days x 60% coverage
 LOADER_TECHNICAL_DAILY_14D_MIN = 40_000
 LOADER_BUY_SELL_DAILY_14D_MIN = 800  # 50+ per day minimum
-LOADER_TREND_TEMPLATE_14D_MIN = 16_000  # 4900+ symbols × 14 days × 20% coverage
+LOADER_TREND_TEMPLATE_14D_MIN = 16_000  # 4900+ symbols x 14 days x 20% coverage
 LOADER_SIGNAL_QUALITY_14D_MIN = 16_000
 LOADER_MARKET_HEALTH_14D_MIN = 10  # ~14 daily rows expected
 LOADER_MARKET_EXPOSURE_14D_MIN = 4  # Most days

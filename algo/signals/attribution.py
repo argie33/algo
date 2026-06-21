@@ -1,8 +1,4 @@
-import psycopg2
-
-
 #!/usr/bin/env python3
-
 """
 Signal Attribution Engine — Measures which swing score components predict realized P&L (IC).
 
@@ -15,6 +11,7 @@ import logging
 from datetime import date as _date
 from typing import Any
 
+import psycopg2
 
 try:
     import numpy as np

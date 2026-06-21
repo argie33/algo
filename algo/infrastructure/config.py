@@ -1,6 +1,3 @@
-import psycopg2
-
-
 #!/usr/bin/env python3
 """
 Algo Configuration System (Hot-Reload Enabled)
@@ -14,6 +11,8 @@ import os
 import threading
 import time
 from typing import Any, cast
+
+import psycopg2
 
 from config.credential_validator import assert_credentials
 from utils.db import DatabaseContext
@@ -755,7 +754,7 @@ class AlgoConfig:
                         )
 
         # Check that all critical SCHEMA keys are in DEFAULTS
-        for key, (schema_type, _, _, is_critical, _) in self.VALIDATION_SCHEMA.items():
+        for key, (_schema_type, _, _, is_critical, _) in self.VALIDATION_SCHEMA.items():
             if key not in self.DEFAULTS:
                 if is_critical:
                     errors.append(f"  {key}: CRITICAL in SCHEMA but NOT in DEFAULTS (must have a safe default)")
@@ -816,7 +815,7 @@ class AlgoConfig:
                                 self._config[key] = fail_closed
                                 self._sources[key] = "fail_closed_default"
                                 invalid_critical_values.append(
-                                    f"  {key}={value}: {e} â†’ using fail-closed default {fail_closed}"
+                                    f"  {key}={value}: {e} -> using fail-closed default {fail_closed}"
                                 )
                                 logger.error(
                                     f"ALERT: Critical safety gate {key} has invalid value {value}. "
@@ -916,19 +915,25 @@ class AlgoConfig:
             except (ValueError, TypeError):
                 raise ValueError(f"{key}: Cannot parse {value!r} as numeric")
 
-            # Validate range if bounds are defined
+            # Critical safety gates: for critical params, check near-zero FIRST (highest priority)
+            if is_critical and abs(f_val) < 0.001:
+                # Include "below minimum" context if this also violates min bound
+                if min_val is not None and f_val < min_val:
+                    raise ValueError(
+                        f"{key}: below minimum|CRITICAL SAFETY GATE - cannot be zero or near-zero "
+                        f"(would disable safety protection). Min allowed: {min_val}. "
+                        f"Reverting to safe default {fail_closed}."
+                    )
+                raise ValueError(
+                    f"{key}: CRITICAL SAFETY GATE - cannot be zero or near-zero "
+                    f"(would disable safety protection). Reverting to safe default {fail_closed}."
+                )
+
+            # Validate range if bounds are defined (for non-critical or non-near-zero values)
             if min_val is not None and f_val < min_val:
                 raise ValueError(f"{key}: {f_val} is below minimum {min_val}")
             if max_val is not None and f_val > max_val:
                 raise ValueError(f"{key}: {f_val} is above maximum {max_val}")
-
-            # Critical safety gates: must not be zero/near-zero
-            if is_critical and abs(f_val) < 0.001:
-                raise ValueError(
-                    f"{key}: CRITICAL SAFETY GATE - cannot be zero or near-zero "
-                    f"(would disable safety protection). Min allowed: {min_val}. "
-                    f"Reverting to safe default {fail_closed}."
-                )
 
         return True
 
@@ -998,7 +1003,7 @@ class AlgoConfig:
                 + "\n".join(errors)
                 + "\n\nAction: Restore valid thresholds in database before trading.\n"
                 "Run: python migrations/runner.py up (migration-033) to restore safe defaults\n"
-                "OR manually fix the database values per CLAUDE.md â†’ Trading Safety Configuration"
+                "OR manually fix the database values per CLAUDE.md -> Trading Safety Configuration"
             )
             logger.error(error_msg)
             raise RuntimeError(error_msg)
@@ -1123,7 +1128,7 @@ class AlgoConfig:
         except ValueError as e:
             logger.error(f"[AlgoConfig] FATAL: {e}")
             raise
-        except (ValueError, ZeroDivisionError, TypeError) as e:
+        except (ZeroDivisionError, TypeError) as e:
             logger.warning(f"[AlgoConfig] Interdependency validation error: {e}")
 
     def get_critical_thresholds_summary(self):

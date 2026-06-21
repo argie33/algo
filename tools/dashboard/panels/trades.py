@@ -3,8 +3,6 @@
 import logging
 from typing import Any
 
-from utils.safe_data_conversion import safe_float
-
 
 logger = logging.getLogger(__name__)
 

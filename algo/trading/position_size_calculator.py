@@ -7,6 +7,7 @@ Calculates appropriate position sizes based on risk parameters and portfolio sta
 import logging
 from typing import Any
 
+
 logger = logging.getLogger(__name__)
 
 

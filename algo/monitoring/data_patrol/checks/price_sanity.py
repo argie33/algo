@@ -5,7 +5,6 @@ import logging
 
 import psycopg2
 
-
 from ..base import BaseCheck, CheckResult
 from ..config import ERROR, INFO, WARN
 

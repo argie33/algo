@@ -1,15 +1,13 @@
 #!/usr/bin/env python3
-from __future__ import (
-    annotations,
-)  # Defer annotation evaluation so np.ndarray doesn't fail when np=None
-
-
 """
 Dynamic Weight Optimizer — Adapts swing score component weights based on realized IC.
 
 Reads Information Coefficient, optimizes weights (constrained), blends smoothly to avoid whip-saw,
 persists to algo_config (live reloading via SwingTraderScore._load_config_weights).
 """
+from __future__ import (
+    annotations,
+)  # Defer annotation evaluation so np.ndarray doesn't fail when np=None
 
 import logging
 from datetime import date as _date
@@ -260,8 +258,13 @@ class WeightOptimizer:
             # Get current weights
             current = self.get_current_weights()
 
-            # Get blend factor from regime
-            blend_alpha = self.BLEND_FACTORS.get(regime, 0.10)
+            # Get blend factor from regime (fail-fast if regime unknown)
+            if regime not in self.BLEND_FACTORS:
+                raise ValueError(
+                    f"Unknown market regime '{regime}' has no defined blending factor. "
+                    f"Valid regimes: {list(self.BLEND_FACTORS.keys())}"
+                )
+            blend_alpha = self.BLEND_FACTORS[regime]
 
             # Blend
             blended = {}

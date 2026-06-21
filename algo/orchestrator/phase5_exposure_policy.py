@@ -96,8 +96,10 @@ def run(
 
         logger.info(f"\n  {len(actions)} exposure-policy actions:")
         for a in actions:
+            r_mult = a.get('r_multiple')
+            r_str = f"{r_mult:+.2f}" if r_mult is not None else "N/A"
             logger.info(
-                f"    {a['symbol']:6s} -> {a['action'].upper():15s} R={a.get('r_multiple', 0):+.2f}  {a['reason']}"
+                f"    {a['symbol']:6s} -> {a['action'].upper():15s} R={r_str}  {a['reason']}"
             )
 
         tier_name = constraints["tier_name"] if constraints else "unknown"

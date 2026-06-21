@@ -87,9 +87,9 @@ class MarketEventHandler:
         """Check if market circuit breaker is active (S&P 500 down 7%+) with concurrent API calls.
 
         Circuit breaker levels:
-        - L1: S&P 500 down 7% intraday â†’ 15-min halt
-        - L2: S&P 500 down 13% intraday â†’ 15-min halt
-        - L3: S&P 500 down 20% intraday â†’ halt for rest of day
+        - L1: S&P 500 down 7% intraday -> 15-min halt
+        - L2: S&P 500 down 13% intraday -> 15-min halt
+        - L3: S&P 500 down 20% intraday -> halt for rest of day
 
         Fetches quotes and bars concurrently to reduce timeout latency from 15s sequential
         to ~10s concurrent (both timeout at 10s, run in parallel).

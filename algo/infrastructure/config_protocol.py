@@ -7,7 +7,7 @@ It supports both AlgoConfig instances and plain dicts for maximum flexibility du
 the transition to dependency injection.
 """
 
-from typing import Any, Protocol, Union, runtime_checkable
+from typing import Any, Protocol, runtime_checkable
 
 
 @runtime_checkable
@@ -23,5 +23,5 @@ class ConfigProtocol(Protocol):
     def to_dict(self) -> dict: ...
 
 
-ConfigType = Union[ConfigProtocol, dict]
+ConfigType = ConfigProtocol | dict
 """Type alias for configuration objects accepted in dependency injection."""

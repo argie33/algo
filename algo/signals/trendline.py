@@ -192,7 +192,7 @@ class TrendlineSupport:
         # Entry should be near (1-5% above) the support line
         entry_price_float = float(entry_price)
         if entry_price_float is None:
-            raise ValueError(f"Cannot evaluate trendline: entry_price missing/invalid")
+            raise ValueError("Cannot evaluate trendline: entry_price missing/invalid")
         distance_pct = ((entry_price_float - support_level) / support_level) * 100
 
         # Accept entries 0.5-5% above support (not on the line, above it)

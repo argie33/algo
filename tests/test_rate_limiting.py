@@ -106,7 +106,7 @@ def test_different_users_independent():
 
     # User 1: 3 requests
     for _i in range(3):
-        allowed, msg = check_admin_rate_limit("user_1", endpoint, max_requests=3, window_seconds=60)
+        allowed, _msg = check_admin_rate_limit("user_1", endpoint, max_requests=3, window_seconds=60)
         assert allowed is True
 
     # User 2: Should not be rate limited (independent bucket)

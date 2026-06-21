@@ -49,7 +49,11 @@ def run(
         # Publish per-breaker CloudWatch metrics (non-blocking)
         try:
             with MetricsPublisher(dry_run=dry_run) as _m:
-                checks = result.get("checks") or {}
+                if "checks" not in result:
+                    raise RuntimeError("Circuit breaker check failed: 'checks' field missing from result")
+                checks = result["checks"]
+                if not isinstance(checks, dict):
+                    raise RuntimeError(f"Circuit breaker check failed: 'checks' must be dict, got {type(checks).__name__}")
                 for name, state in checks.items():
                     _m.put_circuit_breaker(name, bool(state.get("halted")))
         except (OSError, RuntimeError) as e:

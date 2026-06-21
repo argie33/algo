@@ -62,19 +62,10 @@ exclude = [
 
 [[tool.mypy.overrides]]
 module = [
-    "tests.*",
     "utils.loaders.helpers",
     "algo.algo_data_patrol",
     "algo.backtest.run_backtest",
     "algo.signals.trendline",
-    "loaders.load_analyst_upgrade_downgrade",
-    "loaders.load_balance_sheet",
-    "loaders.load_cash_flow",
-    "loaders.load_economic_calendar_data",
-    "loaders.load_income_statement",
-    "loaders.load_sentiment_aggregate",
-    "loaders.load_technical_data_daily",
-    "utils.validation.registry",
 ]
 ignore_errors = true
 

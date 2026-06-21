@@ -1025,7 +1025,12 @@ class Orchestrator:
             self._check_halt_flag,
         )
         self._phase8_result = result
-        self.phase_results.setdefault(8, {})["trades_executed"] = result.data.get("entered", 0)
+        if "entered" not in result.data:
+            raise RuntimeError(
+                f"Phase 8 (entry execution) returned incomplete result: missing 'entered' field. "
+                f"Got keys: {list(result.data.keys())}"
+            )
+        self.phase_results.setdefault(8, {})["trades_executed"] = result.data["entered"]
         return not result.halted
 
     def phase_9_reconcile(self) -> bool:
@@ -1037,7 +1042,12 @@ class Orchestrator:
 
         result = run_phase9(self.config, self.run_date, self.log_phase_result)
         self._phase9_result = result
-        self.phase_results.setdefault(9, {})["open_positions"] = result.data.get("positions", 0)
+        if "positions" not in result.data:
+            raise RuntimeError(
+                f"Phase 9 (reconciliation) returned incomplete result: missing 'positions' field. "
+                f"Got keys: {list(result.data.keys())}"
+            )
+        self.phase_results.setdefault(9, {})["open_positions"] = result.data["positions"]
         return not result.halted
 
     # ---------- Executor setup (Phase 2: Phase Executor Framework) ----------
