@@ -18,6 +18,7 @@ from routes.utils import (
     safe_limit,
     safe_page,
 )
+from shared_contracts.response_validator import ResponseValidator
 
 
 logger = logging.getLogger(__name__)
@@ -74,7 +75,12 @@ def handle(
                         )
 
             freshness = check_data_freshness(cur, "price_daily", "date", warning_days=1)
-            return json_response(200, result, data_freshness=freshness)
+            result["data_freshness"] = freshness
+            is_valid, error_msg = ResponseValidator.validate_endpoint_response("srank", result)
+            if not is_valid:
+                logger.error(f"Endpoint response validation failed: {error_msg}")
+                return error_response(500, "response_validation_error", error_msg)
+            return json_response(200, result)
 
         # Extract sector name if provided: /api/sectors/Technology
         parts = path.split("/")
@@ -132,7 +138,12 @@ def handle(
                     else []
                 )
                 freshness = check_data_freshness(cur, "price_daily", "date", warning_days=1)
-                return json_response(200, {"trendData": trend_data}, data_freshness=freshness)
+                trend_result = {"trendData": trend_data, "data_freshness": freshness}
+                is_valid, error_msg = ResponseValidator.validate_endpoint_response("srank", trend_result)
+                if not is_valid:
+                    logger.error(f"Endpoint response validation failed: {error_msg}")
+                    return error_response(500, "response_validation_error", error_msg)
+                return json_response(200, trend_result)
             else:
                 days_str = params.get("days", [None])[0] if params else None
                 days = safe_days(days_str or "90", max_val=365)
@@ -391,16 +402,18 @@ def handle(
             freshness = check_data_freshness(
                 cur, "sector_ranking", "date", warning_days=1
             )
-            return json_response(
-                200,
-                {
-                    "items": sectors,
-                    "total": total,
-                    "page": page,
-                    "limit": limit,
-                    "data_freshness": freshness,
-                },
-            )
+            sector_result = {
+                "items": sectors,
+                "total": total,
+                "page": page,
+                "limit": limit,
+                "data_freshness": freshness,
+            }
+            is_valid, error_msg = ResponseValidator.validate_endpoint_response("srank", sector_result)
+            if not is_valid:
+                logger.error(f"Endpoint response validation failed: {error_msg}")
+                return error_response(500, "response_validation_error", error_msg)
+            return json_response(200, sector_result)
         elif "/trend" in path:
             parts = path.split("/")
             sector_name = parts[3] if len(parts) > 3 else None

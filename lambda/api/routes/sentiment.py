@@ -17,6 +17,7 @@ from routes.utils import (
     safe_limit,
     safe_page,
 )
+from shared_contracts.response_validator import ResponseValidator
 
 from utils.validation import DatabaseResultValidator
 
@@ -112,35 +113,37 @@ def handle(
                 )
 
             freshness = check_data_freshness(cur, "fear_greed_index", "date", warning_days=1)
-            return json_response(
-                200,
-                {
-                    "fear_greed": (
-                        {"value": fg_value, "label": fg_label}
-                        if fg_value is not None
-                        else None
-                    ),
-                    "aaii": safe_json_serialize(dict(aaii_row)) if aaii_row else None,
-                    "naaim": (
-                        safe_json_serialize(dict(naaim_row)) if naaim_row else None
-                    ),
-                    "analyst": (
-                        safe_json_serialize(dict(analyst_row))
-                        if analyst_row and analyst_row.get("analyst_count")
-                        else None
-                    ),
-                    "put_call_ratio": (
-                        float(row["put_call_ratio"])
-                        if row and row["put_call_ratio"]
-                        else None
-                    ),
-                    "vix_level": (
-                        float(row["vix_level"]) if row and row["vix_level"] else None
-                    ),
-                    "date": str(row["date"]) if row else None,
-                    "data_freshness": freshness,
-                },
-            )
+            sentiment_result = {
+                "fear_greed": (
+                    {"value": fg_value, "label": fg_label}
+                    if fg_value is not None
+                    else None
+                ),
+                "aaii": safe_json_serialize(dict(aaii_row)) if aaii_row else None,
+                "naaim": (
+                    safe_json_serialize(dict(naaim_row)) if naaim_row else None
+                ),
+                "analyst": (
+                    safe_json_serialize(dict(analyst_row))
+                    if analyst_row and analyst_row.get("analyst_count")
+                    else None
+                ),
+                "put_call_ratio": (
+                    float(row["put_call_ratio"])
+                    if row and row["put_call_ratio"]
+                    else None
+                ),
+                "vix_level": (
+                    float(row["vix_level"]) if row and row["vix_level"] else None
+                ),
+                "date": str(row["date"]) if row else None,
+                "data_freshness": freshness,
+            }
+            is_valid, error_msg = ResponseValidator.validate_endpoint_response("sentiment", sentiment_result)
+            if not is_valid:
+                logger.error(f"Endpoint response validation failed: {error_msg}")
+                return error_response(500, "response_validation_error", error_msg)
+            return json_response(200, sentiment_result)
         elif path == "/api/sentiment/data" or path.startswith("/api/sentiment/data?"):
             limit_str = params.get("limit", [None])[0] if params else None
             limit = safe_limit(limit_str or "50000", max_val=50000)
@@ -162,10 +165,15 @@ def handle(
             freshness = check_data_freshness(
                 cur, "analyst_sentiment_analysis", "date", warning_days=7
             )
-            return list_response(
+            sentiment_data_result = list_response(
                 [safe_json_serialize(dict(s)) for s in sentiment] if sentiment else [],
                 data_freshness=freshness,
             )
+            is_valid, error_msg = ResponseValidator.validate_endpoint_response("sentiment", sentiment_data_result)
+            if not is_valid:
+                logger.error(f"Endpoint response validation failed: {error_msg}")
+                return error_response(500, "response_validation_error", error_msg)
+            return sentiment_data_result
         elif path == "/api/sentiment/divergence":
             rows = execute_with_timeout(
                 cur,
@@ -185,10 +193,15 @@ def handle(
                 timeout_sec=5,
             )
             freshness = check_data_freshness(cur, "analyst_sentiment_analysis", "date", warning_days=7)
-            return list_response(
+            divergence_result = list_response(
                 [safe_json_serialize(dict(r)) for r in rows] if rows else [],
                 data_freshness=freshness,
             )
+            is_valid, error_msg = ResponseValidator.validate_endpoint_response("sentiment", divergence_result)
+            if not is_valid:
+                logger.error(f"Endpoint response validation failed: {error_msg}")
+                return error_response(500, "response_validation_error", error_msg)
+            return divergence_result
         elif path.startswith("/api/sentiment/analyst/insights/"):
             symbol = path.split("/api/sentiment/analyst/insights/")[-1].upper()
             # Validate symbol format: max 5 chars, alphanumeric + dash only
@@ -283,17 +296,19 @@ def handle(
                 if dict(r).get("target_price")
             ]
             freshness = check_data_freshness(cur, "analyst_sentiment_analysis", "date", warning_days=7)
-            return json_response(
-                200,
-                {
-                    "metrics": metrics,
-                    "priceTargets": price_targets,
-                    "momentum": None,
-                    "coverage": None,
-                    "recentUpgrades": [],
-                    "data_freshness": freshness,
-                },
-            )
+            analyst_result = {
+                "metrics": metrics,
+                "priceTargets": price_targets,
+                "momentum": None,
+                "coverage": None,
+                "recentUpgrades": [],
+                "data_freshness": freshness,
+            }
+            is_valid, error_msg = ResponseValidator.validate_endpoint_response("sentiment", analyst_result)
+            if not is_valid:
+                logger.error(f"Endpoint response validation failed: {error_msg}")
+                return error_response(500, "response_validation_error", error_msg)
+            return json_response(200, analyst_result)
         elif path.startswith("/api/sentiment/social/insights/"):
             symbol = path.split("/api/sentiment/social/insights/")[-1].upper()
             if (
@@ -385,16 +400,18 @@ def handle(
                 for r in rows
                 if dict(r).get("target_price")
             ]
-            return json_response(
-                200,
-                {
-                    "sentiment": sentiment_data,
-                    "priceTargets": price_targets,
-                    "coverage": {"totalAnalysts": total} if total else None,
-                    "momentum": None,
-                    "recentTrends": [],
-                },
-            )
+            social_result = {
+                "sentiment": sentiment_data,
+                "priceTargets": price_targets,
+                "coverage": {"totalAnalysts": total} if total else None,
+                "momentum": None,
+                "recentTrends": [],
+            }
+            is_valid, error_msg = ResponseValidator.validate_endpoint_response("sentiment", social_result)
+            if not is_valid:
+                logger.error(f"Endpoint response validation failed: {error_msg}")
+                return error_response(500, "response_validation_error", error_msg)
+            return json_response(200, social_result)
         elif path == "/api/sentiment/vix":
             return _get_vix_data(cur)
         elif path == "/api/sentiment" or path.startswith("/api/sentiment?"):
@@ -409,28 +426,30 @@ def handle(
                 """)
             row = cur.fetchone()
             if row:
-                return json_response(
-                    200,
-                    {
-                        "fear_greed": (
-                            {
-                                "value": float(row["fear_greed_value"]),
-                                "label": row["fear_greed_label"],
-                            }
-                            if row["fear_greed_value"]
-                            else None
-                        ),
-                        "put_call_ratio": (
-                            float(row["put_call_ratio"])
-                            if row["put_call_ratio"]
-                            else None
-                        ),
-                        "vix_level": (
-                            float(row["vix_level"]) if row["vix_level"] else None
-                        ),
-                        "date": str(row["date"]),
-                    },
-                )
+                default_result = {
+                    "fear_greed": (
+                        {
+                            "value": float(row["fear_greed_value"]),
+                            "label": row["fear_greed_label"],
+                        }
+                        if row["fear_greed_value"]
+                        else None
+                    ),
+                    "put_call_ratio": (
+                        float(row["put_call_ratio"])
+                        if row["put_call_ratio"]
+                        else None
+                    ),
+                    "vix_level": (
+                        float(row["vix_level"]) if row["vix_level"] else None
+                    ),
+                    "date": str(row["date"]),
+                }
+                is_valid, error_msg = ResponseValidator.validate_endpoint_response("sentiment", default_result)
+                if not is_valid:
+                    logger.error(f"Endpoint response validation failed: {error_msg}")
+                    return error_response(500, "response_validation_error", error_msg)
+                return json_response(200, default_result)
             return error_response(503, "no_data", "Sentiment data not available")
         return error_response(404, "not_found", f"No sentiment handler for {path}")
     except (
@@ -490,9 +509,12 @@ def _get_vix_data(cur) -> dict:
         else:
             signal = None
 
-        return json_response(
-            200, {"latest": latest, "history": history, "signal": signal}
-        )
+        vix_result = {"latest": latest, "history": history, "signal": signal}
+        is_valid, error_msg = ResponseValidator.validate_endpoint_response("sentiment", vix_result)
+        if not is_valid:
+            logger.error(f"Endpoint response validation failed: {error_msg}")
+            return error_response(500, "response_validation_error", error_msg)
+        return json_response(200, vix_result)
     except (
         psycopg2.errors.UndefinedTable,
         psycopg2.errors.UndefinedColumn,

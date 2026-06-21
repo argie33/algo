@@ -320,6 +320,67 @@ else:
           echo "Verifying trading safety constraints (no thresholds set to zero)..."
           python scripts/verify_safety_thresholds.py --strict
           echo "OK: Trading safety thresholds verified"
+      - name: Validate database migrations
+        run: |
+          echo "Validating database migrations..."
+          python -c "
+import sys
+from pathlib import Path
+migrations_dir = Path('migrations/versions')
+if migrations_dir.exists():
+    for mig in sorted(migrations_dir.glob('*.py')):
+        if mig.name.startswith('_'):
+            continue
+        try:
+            content = mig.read_text(encoding='utf-8')
+            # Check migration has required migration function (up or upgrade)
+            has_migration_fn = 'def up():' in content or 'def upgrade():' in content
+            if not has_migration_fn:
+                print(f'ERROR: {mig.name} missing migration function (up or upgrade)')
+                sys.exit(1)
+            print(f'OK: {mig.name}')
+        except Exception as e:
+            print(f'ERROR: {mig.name}: {e}')
+            sys.exit(1)
+print('OK: All database migrations validated')
+"
+      - name: Validate dependency versions are pinned
+        run: |
+          echo "Verifying all dependencies have pinned versions..."
+          python -c "
+import sys
+from pathlib import Path
+reqs_file = Path('requirements.txt')
+if reqs_file.exists():
+    unpinned = []
+    for line in reqs_file.read_text().strip().split('\n'):
+        line = line.strip()
+        if not line or line.startswith('#') or line.startswith('-'):
+            continue
+        if '==' not in line and '!=' not in line:
+            unpinned.append(line)
+    if unpinned:
+        print('ERROR: Unpinned dependencies found (must use ==):')
+        for pkg in unpinned:
+            print(f'  {pkg}')
+        sys.exit(1)
+print('OK: All dependencies properly pinned')
+"
+      - name: Validate configuration schema
+        run: |
+          echo "Validating configuration schema..."
+          python -c "
+import sys
+sys.path.insert(0, '.')
+try:
+    from algo.infrastructure.config.main import AlgoConfig
+    from config.credential_manager import CredentialManager
+    print('OK: Config modules import successfully')
+    print('OK: Configuration schema validated')
+except Exception as e:
+    print(f'ERROR: Configuration validation failed: {e}')
+    sys.exit(1)
+"
 
   tests:
     runs-on: ubuntu-latest

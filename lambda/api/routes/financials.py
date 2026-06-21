@@ -16,6 +16,7 @@ from routes.utils import (
     safe_json_serialize,
     safe_limit,
 )
+from shared_contracts.response_validator import ResponseValidator
 
 
 logger = logging.getLogger(__name__)
@@ -79,10 +80,15 @@ def handle(
             freshness = check_data_freshness(
                 cur, "value_metrics", "created_at", warning_days=7
             )
-            return list_response(
+            result = list_response(
                 [safe_json_serialize(dict(r)) for r in rows] if rows else [],
                 data_freshness=freshness,
             )
+            is_valid, error_msg = ResponseValidator.validate_endpoint_response("financials/key-metrics", result)
+            if not is_valid:
+                logger.error(f"Endpoint response validation failed: {error_msg}")
+                return error_response(500, "response_validation_error", error_msg)
+            return result
 
         if endpoint == "income-statement":
             if period == "quarterly":
@@ -100,10 +106,15 @@ def handle(
             )
             table_name = "quarterly_income_statement" if period == "quarterly" else "annual_income_statement"
             freshness = check_data_freshness(cur, table_name, "fiscal_year", warning_days=30)
-            return list_response(
+            result = list_response(
                 [safe_json_serialize(dict(r)) for r in rows] if rows else [],
                 data_freshness=freshness,
             )
+            is_valid, error_msg = ResponseValidator.validate_endpoint_response("financials/income-statement", result)
+            if not is_valid:
+                logger.error(f"Endpoint response validation failed: {error_msg}")
+                return error_response(500, "response_validation_error", error_msg)
+            return result
 
         if endpoint == "balance-sheet":
             if period == "quarterly":
@@ -121,10 +132,15 @@ def handle(
             )
             table_name = "quarterly_balance_sheet" if period == "quarterly" else "annual_balance_sheet"
             freshness = check_data_freshness(cur, table_name, "fiscal_year", warning_days=30)
-            return list_response(
+            result = list_response(
                 [safe_json_serialize(dict(r)) for r in rows] if rows else [],
                 data_freshness=freshness,
             )
+            is_valid, error_msg = ResponseValidator.validate_endpoint_response("financials/balance-sheet", result)
+            if not is_valid:
+                logger.error(f"Endpoint response validation failed: {error_msg}")
+                return error_response(500, "response_validation_error", error_msg)
+            return result
 
         if endpoint == "cash-flow":
             if period == "quarterly":
@@ -149,10 +165,15 @@ def handle(
                 )
             table_name = "quarterly_cash_flow" if period == "quarterly" else "annual_cash_flow"
             freshness = check_data_freshness(cur, table_name, "fiscal_year", warning_days=30)
-            return list_response(
+            result = list_response(
                 [safe_json_serialize(dict(r)) for r in rows] if rows else [],
                 data_freshness=freshness,
             )
+            is_valid, error_msg = ResponseValidator.validate_endpoint_response("financials/cash-flow", result)
+            if not is_valid:
+                logger.error(f"Endpoint response validation failed: {error_msg}")
+                return error_response(500, "response_validation_error", error_msg)
+            return result
 
         return error_response(404, "not_found", f"No financials handler for {path}")
     except (

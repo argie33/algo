@@ -32,7 +32,7 @@ from pathlib import Path
 
 # Add parent directory to sys.path to enable imports from lambda/api module
 sys.path.insert(0, str(Path(__file__).parent.parent))
-from types import JWTClaims, RouteBody, RouteParams, RouteResponse  # type: ignore[name-defined]
+from api_types import JWTClaims, RouteBody, RouteParams, RouteResponse
 
 
 logger = logging.getLogger(__name__)

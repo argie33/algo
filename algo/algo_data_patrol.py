@@ -13,6 +13,7 @@ from pathlib import Path
 
 from algo.monitoring.data_patrol import DataPatrol
 from utils.infrastructure.timeout import ExecutionTimeout
+from utils.infrastructure.timeout import TimeoutError as ExecutionTimeoutError
 
 
 root = Path(__file__).parent.parent
@@ -38,6 +39,6 @@ if __name__ == "__main__":
                 logger.info(json.dumps(summary, default=str, indent=2))
 
             sys.exit(0 if summary["ready"] else 1)
-    except (ExecutionTimeout, KeyError, ValueError, RuntimeError) as e:
+    except (ExecutionTimeoutError, KeyError, ValueError, RuntimeError) as e:
         logger.error(f"Data patrol execution failed: {e}", exc_info=True)
         sys.exit(1)

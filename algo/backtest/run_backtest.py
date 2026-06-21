@@ -475,7 +475,7 @@ def save_results(results: dict) -> int | None:
             row = cur.fetchone()
             if row is None or row[0] is None:
                 raise RuntimeError("Backtest run insert failed: RETURNING run_id returned no row")
-            run_id = row[0]
+            run_id = int(row[0])
 
         # Write individual trades
         if trades and run_id:
@@ -521,7 +521,7 @@ def save_results(results: dict) -> int | None:
                     )
 
         logger.info(f"[BACKTEST] Saved to DB: run_id={run_id}, {len(trades)} trades written")
-        return run_id  # type: ignore[return-value]
+        return run_id
 
     except (psycopg2.DatabaseError, psycopg2.OperationalError) as e:
         raise RuntimeError(f"Operation failed: {e}") from e

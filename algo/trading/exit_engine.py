@@ -210,17 +210,20 @@ class ExitEngine:
             )
         return False, None
 
-    def _check_target_t1(self, cur, ctx: PositionContext) -> tuple[bool, dict[str, Any] | None]:
+    def _was_target_hit_today(self, hit_time: Any | None, current_date: datetime) -> bool:
+        """Check if target was already hit today."""
+        if hit_time is None:
+            return False
+        hit_date = hit_time.date() if hasattr(hit_time, "date") else hit_time
+        return cast(bool, hit_date == current_date.date())
+
+    def _check_target_t1(self, cur: Any, ctx: PositionContext) -> tuple[bool, dict[str, Any] | None]:
         """T1 target exit (1.5R): 50% position reduction."""
         if ctx.target_hits == 0 and ctx.t1_price is not None and ctx.cur_price >= ctx.t1_price:
-            def _was_hit_today(hit_time):
-                if hit_time is None:
-                    return False
-                hit_date = hit_time.date() if hasattr(hit_time, "date") else hit_time
-                return hit_date == ctx.current_date
-
+            if self._was_target_hit_today(ctx.t1_hit_time, ctx.current_date):
+                return False, None
             require_pb = bool(self.config.get("require_target_pullback", False))
-            if not _was_hit_today(ctx.t1_hit_time) and (not require_pb or self._is_pulling_back(cur, ctx.symbol, ctx.current_date)):
+            if not require_pb or self._is_pulling_back(cur, ctx.symbol, ctx.current_date):
                 return (
                     True,
                     {
@@ -232,17 +235,13 @@ class ExitEngine:
                 )
         return False, None
 
-    def _check_target_t2(self, cur, ctx: PositionContext) -> tuple[bool, dict[str, Any] | None]:
+    def _check_target_t2(self, cur: Any, ctx: PositionContext) -> tuple[bool, dict[str, Any] | None]:
         """T2 target exit (3R): 25% position reduction with stop raise to T1."""
         if ctx.target_hits == 1 and ctx.t2_price is not None and ctx.cur_price >= ctx.t2_price:
-            def _was_hit_today(hit_time):
-                if hit_time is None:
-                    return False
-                hit_date = hit_time.date() if hasattr(hit_time, "date") else hit_time
-                return hit_date == ctx.current_date
-
+            if self._was_target_hit_today(ctx.t2_hit_time, ctx.current_date):
+                return False, None
             require_pb = bool(self.config.get("require_target_pullback", False))
-            if not _was_hit_today(ctx.t2_hit_time) and (not require_pb or self._is_pulling_back(cur, ctx.symbol, ctx.current_date)):
+            if not require_pb or self._is_pulling_back(cur, ctx.symbol, ctx.current_date):
                 stop_for_t2 = max(ctx.active_stop, ctx.t1_price) if ctx.t1_price is not None else ctx.active_stop
                 return (
                     True,
@@ -258,13 +257,7 @@ class ExitEngine:
     def _check_target_t3(self, ctx: PositionContext) -> tuple[bool, dict[str, Any] | None]:
         """T3 target exit (4R): final 25% position reduction."""
         if ctx.target_hits == 2 and ctx.t3_price is not None and ctx.cur_price >= ctx.t3_price:
-            def _was_hit_today(hit_time):
-                if hit_time is None:
-                    return False
-                hit_date = hit_time.date() if hasattr(hit_time, "date") else hit_time
-                return hit_date == ctx.current_date
-
-            if not _was_hit_today(ctx.t3_hit_time):
+            if not self._was_target_hit_today(ctx.t3_hit_time, ctx.current_date):
                 return (
                     True,
                     {
@@ -357,7 +350,9 @@ class ExitEngine:
         if r_mult >= Decimal("2.5") and ctx.prev_close is not None and ctx.prev_close > 0:
             down_pct = float(
                 (
-                    (Decimal(str(ctx.prev_close)) - Decimal(str(ctx.cur_price))) / Decimal(str(ctx.prev_close)) * Decimal(100)
+                    (Decimal(str(ctx.prev_close)) - Decimal(str(ctx.cur_price)))
+                    / Decimal(str(ctx.prev_close))
+                    * Decimal(100)
                 ).quantize(Decimal("0.01"), rounding=ROUND_HALF_UP)
             )
             if down_pct >= 1.5:
@@ -709,9 +704,9 @@ class ExitEngine:
     ) -> dict[str, Any]:
         """Decide what exit to take (or hold decision).
 
-        Dispatches to specialized decision rule functions in order.
-        Each rule returns (should_exit, decision_dict) or (False, None).
-        First matching rule wins; if none match, holds position.
+        Uses ExitStrategyChain to evaluate strategies in priority order.
+        Each strategy returns an ExitSignal; first triggered signal wins.
+        If none triggered, returns hold decision.
         """
         min_hold_val = self.config.get("min_hold_days")
         if min_hold_val is None:
@@ -725,7 +720,7 @@ class ExitEngine:
                 "reason": f"Minimum holding period not met: {days_held} days held < {min_hold_days} required",
             }
 
-        # Consolidate all context into PositionContext for rule functions
+        # Consolidate all context into PositionContext for strategy evaluation
         ctx = PositionContext(
             symbol=symbol,
             current_date=current_date,
@@ -745,26 +740,14 @@ class ExitEngine:
             t3_hit_time=t3_hit_time,
         )
 
-        # Check rules in priority order; first match wins
-        rules = [
-            (self._check_stop_loss, (ctx,)),
-            (self._check_minervini_break, (cur, ctx)),
-            (self._check_rs_line_break, (cur, ctx)),
-            (self._check_time_exit, (cur, ctx)),
-            (self._check_target_t1, (cur, ctx)),
-            (self._check_target_t2, (cur, ctx)),
-            (self._check_target_t3, (ctx,)),
-            (self._check_chandelier_trail, (cur, ctx)),
-            (self._check_td_sequential, (cur, ctx)),
-            (self._check_first_red_day, (cur, ctx)),
-            (self._check_climax_exhaustion, (cur, ctx)),
-            (self._check_distribution, (ctx,)),
-        ]
+        # Evaluate all strategies in priority order using strategy chain
+        from algo.trading.exit_strategies import ExitStrategyChain
 
-        for rule_func, rule_args in rules:
-            should_exit, decision = rule_func(*rule_args)  # type: ignore[operator]
-            if should_exit and decision is not None:
-                return cast(dict[str, Any], decision)
+        chain = ExitStrategyChain(self.config)
+        signal = chain.evaluate(ctx, cur)
+
+        if signal.triggered:
+            return signal.to_dict()
 
         # No exit conditions met - hold the position
         return {

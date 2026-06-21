@@ -16,6 +16,7 @@ from routes.utils import (
     safe_limit,
     safe_offset,
 )
+from shared_contracts.response_validator import ResponseValidator
 
 
 logger = logging.getLogger(__name__)
@@ -340,7 +341,12 @@ def _get_stock_scores(
                 f"Scores endpoint: {prices_missing_count} scores filtered due to missing price data (out of {prices_missing_count + len(items)})"
             )
 
-        return list_response(items, data_freshness=freshness)
+        result = list_response(items, data_freshness=freshness)
+        is_valid, error_msg = ResponseValidator.validate_endpoint_response("scores", result)
+        if not is_valid:
+            logger.error(f"Endpoint response validation failed: {error_msg}")
+            return error_response(500, "response_validation_error", error_msg)
+        return result
     except (
         psycopg2.errors.UndefinedTable,
         psycopg2.errors.UndefinedColumn,

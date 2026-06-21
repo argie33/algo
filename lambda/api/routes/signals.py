@@ -17,6 +17,7 @@ from routes.utils import (
     safe_json_serialize,
     safe_limit,
 )
+from shared_contracts.response_validator import ResponseValidator
 
 
 logger = logging.getLogger(__name__)
@@ -171,9 +172,14 @@ def _get_signals_stocks(
         )
         signals = cur.fetchall()
         freshness = check_data_freshness(cur, "buy_sell_daily", "date", warning_days=1)
-        return list_response(
+        signals_result = list_response(
             [safe_json_serialize(dict(s)) for s in signals], data_freshness=freshness
         )
+        is_valid, error_msg = ResponseValidator.validate_endpoint_response("sig", signals_result)
+        if not is_valid:
+            logger.error(f"Endpoint response validation failed: {error_msg}")
+            return error_response(500, "response_validation_error", error_msg)
+        return signals_result
     except (
         psycopg2.errors.UndefinedTable,
         psycopg2.errors.UndefinedColumn,
@@ -233,7 +239,12 @@ def _get_signals_etf(cur, limit: int = 500) -> Dict:
         )
         signals = cur.fetchall()
         freshness = check_data_freshness(cur, "etf_price_daily", "date", warning_days=1)
-        return list_response([safe_json_serialize(dict(s)) for s in signals], data_freshness=freshness)
+        etf_signals_result = list_response([safe_json_serialize(dict(s)) for s in signals], data_freshness=freshness)
+        is_valid, error_msg = ResponseValidator.validate_endpoint_response("sig", etf_signals_result)
+        if not is_valid:
+            logger.error(f"Endpoint response validation failed: {error_msg}")
+            return error_response(500, "response_validation_error", error_msg)
+        return etf_signals_result
     except (
         psycopg2.errors.UndefinedTable,
         psycopg2.errors.UndefinedColumn,

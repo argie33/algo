@@ -20,6 +20,7 @@ from routes.utils import (
     safe_dict_convert,
     safe_json_serialize,
 )
+from shared_contracts.response_validator import ResponseValidator
 
 from utils.validation import (
     format_decimal_string,
@@ -362,27 +363,29 @@ def _get_rejection_funnel(cur) -> dict:
         except (psycopg2.errors.UndefinedTable, psycopg2.errors.UndefinedColumn):
             rejected_list = []
 
-        return json_response(
-            200,
-            {
-                "funnel": funnel,
-                "summary": {
-                    "total_initial": initial_count,
-                    "total_passed": high_quality_count,
-                    "total_rejected": initial_count - high_quality_count,
-                    "pass_rate_pct": (
-                        round((high_quality_count / initial_count * 100), 2)
-                        if initial_count
-                        else 0
-                    ),
-                },
-                "rejected": rejected_list,
-                "total": initial_count,
-                "t1": initial_count - scored_count if initial_count > 0 else 0,
-                "t5": high_quality_count,
-                "avg_score": 0,
+        result = {
+            "funnel": funnel,
+            "summary": {
+                "total_initial": initial_count,
+                "total_passed": high_quality_count,
+                "total_rejected": initial_count - high_quality_count,
+                "pass_rate_pct": (
+                    round((high_quality_count / initial_count * 100), 2)
+                    if initial_count
+                    else 0
+                ),
             },
-        )
+            "rejected": rejected_list,
+            "total": initial_count,
+            "t1": initial_count - scored_count if initial_count > 0 else 0,
+            "t5": high_quality_count,
+            "avg_score": 0,
+        }
+        is_valid, error_msg = ResponseValidator.validate_endpoint_response("sig_eval", result)
+        if not is_valid:
+            logger.error(f"Endpoint response validation failed: {error_msg}")
+            return error_response(500, "response_validation_error", error_msg)
+        return json_response(200, result)
     except (psycopg2.OperationalError, psycopg2.DatabaseError) as e:
         logger.error(
             f"Failed to fetch rejection funnel: {type(e).__name__}: {e}\n  Operation: Query candidate_signals_reject table\n  Endpoint: GET /api/algo/rejection-funnel"

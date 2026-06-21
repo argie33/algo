@@ -14,7 +14,6 @@ import json
 import logging
 import time
 import uuid
-from datetime import datetime, timezone
 from decimal import ROUND_HALF_UP, Decimal
 from typing import Any
 
@@ -26,6 +25,7 @@ from algo.trading.exceptions import (
     NotificationError,
     OrderExecutionError,
 )
+from algo.trading.trade_context import TradeContext
 
 
 logger = logging.getLogger(__name__)
@@ -41,6 +41,7 @@ STAGE_PHASE_MAPPING = {
 def _redact_for_logs(message: str) -> str:
     """Redact sensitive trade data from log messages."""
     import re
+
     message = re.sub(r"\$[\d.]+", "$***", message)
     message = re.sub(r"(\d+)sh\b", "***sh", message)
     message = re.sub(r"([+-]\d+\.\d+)%", "***%", message)
@@ -60,34 +61,7 @@ class EntryHandler:
         self.t2_target_r_multiple = executor.t2_target_r_multiple
         self.t3_target_r_multiple = executor.t3_target_r_multiple
 
-    def execute_entry(
-        self,
-        symbol: str,
-        entry_price: Decimal | float,
-        shares: Decimal | float,
-        stop_loss_price: Decimal | float,
-        target_1_price: Decimal | float | None,
-        target_2_price: Decimal | float | None,
-        target_3_price: Decimal | float | None,
-        signal_date: Any,
-        entry_date: Any,
-        sqs: Any | None,
-        trend_score: float | None,
-        swing_score: float | None,
-        swing_grade: str | None,
-        base_type: str | None,
-        base_quality: str | None,
-        stage_phase: str | None,
-        sector: str | None,
-        industry: str | None,
-        rs_percentile: float | None,
-        market_exposure_at_entry: float | None,
-        exposure_tier_at_entry: str | None,
-        stop_method: str | None,
-        stop_reasoning: str | None,
-        swing_components: dict | None,
-        advanced_components: dict | None,
-    ) -> dict[str, Any]:
+    def execute_entry(self, context: TradeContext) -> dict[str, Any]:
         """Execute entry trade with all validations and database operations.
 
         Returns: {
@@ -98,24 +72,16 @@ class EntryHandler:
             'message': str,
         }
         """
-        # Convert types to Decimal for precision
-        entry_price = Decimal(str(entry_price))
-        shares = Decimal(str(shares))
-        stop_loss_price = Decimal(str(stop_loss_price))
-        if target_1_price is not None:
-            target_1_price = Decimal(str(target_1_price))
-        if target_2_price is not None:
-            target_2_price = Decimal(str(target_2_price))
-        if target_3_price is not None:
-            target_3_price = Decimal(str(target_3_price))
+        entry_price = context.prices.entry_price
+        shares = context.shares
+        stop_loss_price = context.prices.stop_loss_price
+        target_1_price = context.prices.target_1_price
+        target_2_price = context.prices.target_2_price
+        target_3_price = context.prices.target_3_price
+        symbol = context.symbol
+        signal_date = context.signal_date
+        entry_date = context.entry_date
 
-        # Normalize dates
-        if not signal_date:
-            signal_date = datetime.now(timezone.utc).date()
-        if not entry_date:
-            entry_date = datetime.now(timezone.utc).date()
-
-        # Validate symbol
         if not symbol:
             return {
                 "success": False,
@@ -124,7 +90,6 @@ class EntryHandler:
                 "message": "symbol is required",
             }
 
-        # Validate entry preconditions (prices, quantities, portfolio)
         valid, error_msg, validation_result = self.validator.validate_entry_preconditions(
             symbol=symbol,
             entry_price=entry_price,
@@ -176,6 +141,7 @@ class EntryHandler:
 
         # Generate idempotency key
         import hashlib
+
         key_source = f"{symbol}|{signal_date}|{entry_price}|{stop_loss_price}"
         idempotency_key = hashlib.sha256(key_source.encode()).hexdigest()
 
@@ -282,21 +248,48 @@ class EntryHandler:
             pv_for_pct = self.executor._get_portfolio_value()
             position_size_pct = self._calculate_position_size_pct(shares, executed_price or entry_price, pv_for_pct)
 
-            # Build entry reason
-            entry_reason = self._build_entry_reason(swing_grade, base_type, stage_phase, exposure_tier_at_entry)
+            entry_reason = self._build_entry_reason(
+                context.signals.swing_grade,
+                context.signals.base_type,
+                context.signals.stage_phase,
+                context.market.exposure_tier_at_entry,
+            )
 
-            # Insert trade record
             self._insert_trade_record(
-                cur, trade_id, idempotency_key, symbol, signal_date, entry_date,
-                executed_price, shares, entry_reason, stop_loss_price, stop_method,
-                tgt_1_price, tgt_2_price, tgt_3_price,
-                order_status, execution_mode, alpaca_order_id,
-                position_size_pct, sqs, trend_score, swing_score, swing_grade,
-                base_type, base_quality, stage_phase,
-                sector, industry, rs_percentile,
-                market_exposure_at_entry, exposure_tier_at_entry,
-                stop_reasoning, swing_components, advanced_components,
-                rejection_reason
+                cur,
+                trade_id,
+                idempotency_key,
+                symbol,
+                signal_date,
+                entry_date,
+                executed_price,
+                shares,
+                entry_reason,
+                stop_loss_price,
+                context.execution.stop_method,
+                tgt_1_price,
+                tgt_2_price,
+                tgt_3_price,
+                order_status,
+                execution_mode,
+                alpaca_order_id,
+                position_size_pct,
+                context.sqs,
+                context.signals.trend_score,
+                context.signals.swing_score,
+                context.signals.swing_grade,
+                context.signals.base_type,
+                context.signals.base_quality,
+                context.signals.stage_phase,
+                context.market.sector,
+                context.market.industry,
+                context.signals.rs_percentile,
+                context.market.market_exposure_at_entry,
+                context.market.exposure_tier_at_entry,
+                context.execution.stop_reasoning,
+                context.signals.swing_components,
+                context.signals.advanced_components,
+                rejection_reason,
             )
 
             # Insert position record if order was filled
@@ -344,9 +337,15 @@ class EntryHandler:
                     )
                     """,
                     (
-                        position_id, symbol, actual_shares, executed_price,
-                        executed_price, position_value,
-                        [trade_id], stop_loss_price, stop_loss_price,
+                        position_id,
+                        symbol,
+                        actual_shares,
+                        executed_price,
+                        executed_price,
+                        position_value,
+                        [trade_id],
+                        stop_loss_price,
+                        stop_loss_price,
                     ),
                 )
 
@@ -354,10 +353,15 @@ class EntryHandler:
             if self.executor.execution_mode == "auto" and order_status in ("filled", "partially_filled"):
                 self._record_tca(trade_id, symbol, entry_price, executed_price, order_status)
 
-            # Send entry notification
             self._send_entry_notification(
-                symbol, shares, executed_price or entry_price, stop_loss_price,
-                tgt_1_price, swing_score, base_type, trade_id
+                symbol,
+                shares,
+                executed_price or entry_price,
+                stop_loss_price,
+                tgt_1_price,
+                context.signals.swing_score,
+                context.signals.base_type,
+                trade_id,
             )
 
             return {
@@ -420,10 +424,8 @@ class EntryHandler:
             logger.warning("Portfolio value unavailable for position size calculation")
             return None
 
-        position_size = (
-            (Decimal(shares) * Decimal(str(price)) / Decimal(str(portfolio_value)) * Decimal(100)).quantize(
-                Decimal("0.01"), rounding=ROUND_HALF_UP
-            )
+        position_size = (Decimal(shares) * Decimal(str(price)) / Decimal(str(portfolio_value)) * Decimal(100)).quantize(
+            Decimal("0.01"), rounding=ROUND_HALF_UP
         )
         return position_size
 
@@ -443,15 +445,40 @@ class EntryHandler:
         return " | ".join(parts)
 
     def _insert_trade_record(
-        self, cur: Any, trade_id: str, idempotency_key: str, symbol: str, signal_date: Any, entry_date: Any,
-        executed_price: Decimal | None, shares: Decimal, entry_reason: str, stop_loss_price: Decimal,
-        stop_method: str | None, target_1_price: Decimal | None, target_2_price: Decimal | None,
-        target_3_price: Decimal | None, order_status: str, execution_mode: str, alpaca_order_id: str,
-        position_size_pct: Decimal | None, sqs: Any, trend_score: float | None, swing_score: float | None,
-        swing_grade: str | None, base_type: str | None, base_quality: str | None, stage_phase: str | None,
-        sector: str | None, industry: str | None, rs_percentile: float | None,
-        market_exposure_at_entry: float | None, exposure_tier_at_entry: str | None,
-        stop_reasoning: str | None, swing_components: dict | None, advanced_components: dict | None,
+        self,
+        cur: Any,
+        trade_id: str,
+        idempotency_key: str,
+        symbol: str,
+        signal_date: Any,
+        entry_date: Any,
+        executed_price: Decimal | None,
+        shares: Decimal,
+        entry_reason: str,
+        stop_loss_price: Decimal,
+        stop_method: str | None,
+        target_1_price: Decimal | None,
+        target_2_price: Decimal | None,
+        target_3_price: Decimal | None,
+        order_status: str,
+        execution_mode: str,
+        alpaca_order_id: str,
+        position_size_pct: Decimal | None,
+        sqs: Any,
+        trend_score: float | None,
+        swing_score: float | None,
+        swing_grade: str | None,
+        base_type: str | None,
+        base_quality: str | None,
+        stage_phase: str | None,
+        sector: str | None,
+        industry: str | None,
+        rs_percentile: float | None,
+        market_exposure_at_entry: float | None,
+        exposure_tier_at_entry: str | None,
+        stop_reasoning: str | None,
+        swing_components: dict | None,
+        advanced_components: dict | None,
         rejection_reason: str | None,
     ) -> None:
         """Insert trade record into database."""
@@ -490,32 +517,52 @@ class EntryHandler:
             )
             """,
             (
-                trade_id, idempotency_key, symbol, signal_date, entry_date,
-                executed_price, shares, entry_reason,
-                stop_loss_price, stop_method or "minervini_break_or_swing_low",
-                target_1_price, self.t1_target_r_multiple,
-                target_2_price, self.t2_target_r_multiple,
-                target_3_price, self.t3_target_r_multiple,
-                order_status, execution_mode, alpaca_order_id,
+                trade_id,
+                idempotency_key,
+                symbol,
+                signal_date,
+                entry_date,
+                executed_price,
+                shares,
+                entry_reason,
+                stop_loss_price,
+                stop_method or "minervini_break_or_swing_low",
+                target_1_price,
+                self.t1_target_r_multiple,
+                target_2_price,
+                self.t2_target_r_multiple,
+                target_3_price,
+                self.t3_target_r_multiple,
+                order_status,
+                execution_mode,
+                alpaca_order_id,
                 position_size_pct,
                 float(sqs) if sqs is not None else None,
                 float(trend_score) if trend_score is not None else None,
-                swing_score, swing_grade,
-                base_type, base_quality,
-                STAGE_PHASE_MAPPING.get(stage_phase) if stage_phase else None, stage_phase,
-                sector, industry, rs_percentile,
-                market_exposure_at_entry, exposure_tier_at_entry,
-                stop_method, stop_reasoning,
+                swing_score,
+                swing_grade,
+                base_type,
+                base_quality,
+                STAGE_PHASE_MAPPING.get(stage_phase) if stage_phase else None,
+                stage_phase,
+                sector,
+                industry,
+                rs_percentile,
+                market_exposure_at_entry,
+                exposure_tier_at_entry,
+                stop_method,
+                stop_reasoning,
                 json.dumps(swing_components) if swing_components else None,
                 json.dumps(advanced_components) if advanced_components else None,
                 execution_mode == "auto",
-                0, None, rejection_reason,
+                0,
+                None,
+                rejection_reason,
             ),
         )
 
     def _record_tca(
-        self, trade_id: str, symbol: str, entry_price: Decimal,
-        executed_price: Decimal | None, order_status: str
+        self, trade_id: str, symbol: str, entry_price: Decimal, executed_price: Decimal | None, order_status: str
     ) -> None:
         """Record trade cost analysis (execution quality)."""
         try:
@@ -552,9 +599,15 @@ class EntryHandler:
             logger.warning(f"TCA recording failed: {e}")
 
     def _send_entry_notification(
-        self, symbol: str, shares: Decimal, executed_price: Decimal | float,
-        stop_loss_price: Decimal | float, target_1_price: Decimal | None,
-        swing_score: float | None, base_type: str | None, trade_id: str
+        self,
+        symbol: str,
+        shares: Decimal,
+        executed_price: Decimal | float,
+        stop_loss_price: Decimal | float,
+        target_1_price: Decimal | None,
+        swing_score: float | None,
+        base_type: str | None,
+        trade_id: str,
     ) -> None:
         """Send trade entry notification."""
         try:

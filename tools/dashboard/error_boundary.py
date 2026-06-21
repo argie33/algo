@@ -9,7 +9,48 @@ from typing import Any, cast
 from rich.panel import Panel
 from rich.text import Text
 
-from .error_types import get_error_message_plain, has_error, is_data_stale
+
+# Color constants for dashboard rendering
+G = "bright_green"
+R = "bright_red"
+Y = "yellow"
+CY = "cyan"
+DIM = "dim"
+MG = "magenta"
+WH = "white"
+
+TIER_COLOR = {
+    "confirmed_uptrend": "bright_green",
+    "healthy_uptrend": "green",
+    "pressure": "yellow",
+    "caution": "orange1",
+    "correction": "bright_red",
+}
+
+TIER_SHORT = {
+    "confirmed_uptrend": "CONFIRMED UP",
+    "healthy_uptrend": "HEALTHY UP",
+    "pressure": "PRESSURE",
+    "caution": "CAUTION",
+    "correction": "CORRECTION",
+}
+
+
+def has_error(data: Any) -> bool:
+    """Check if data dict contains an error marker."""
+    return isinstance(data, dict) and "_error" in data
+
+
+def is_data_stale(data: Any) -> bool:
+    """Check if data dict is marked as stale."""
+    return isinstance(data, dict) and data.get("_data_stale") is True
+
+
+def get_error_message_plain(data: Any) -> str | None:
+    """Extract error message from data without Rich formatting."""
+    if not isinstance(data, dict):
+        return None
+    return data.get("_error")
 
 
 def get_error_message(data: Any) -> str | None:
@@ -69,7 +110,6 @@ def error_summary_panel(data_dict: dict[str, Any]) -> Panel | None:
     Distinguishes between hard errors (red) and stale data (yellow).
     Returns None if no errors or stale data, otherwise returns a Panel listing them.
     """
-    from .colors import R, Y
 
     failed_errors = []
     stale_data = []
@@ -111,7 +151,6 @@ def error_summary_panel_expanded(data_dict: dict[str, Any]) -> Panel | None:
     Shows complete error messages without truncation for full visibility into data problems.
     Returns None if no errors or stale data, otherwise returns a Panel listing them.
     """
-    from .colors import R, Y
 
     failed_errors = []
     stale_data = []
@@ -149,7 +188,6 @@ def make_panel_safe(panel_fn):
 
     Catches rendering errors and returns an error panel instead of crashing.
     """
-    from .colors import DIM, R
 
     def wrapper(*args, **kwargs):
         try:

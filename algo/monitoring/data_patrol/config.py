@@ -29,9 +29,7 @@ class PatrolConfig:
         """Legacy method - reload AlgoConfig instead."""
         self._config.reload()
 
-    def get(
-        self, key: str, default: int | float | str | None = None
-    ) -> int | float | str | None:
+    def get(self, key: str, default: int | float | str | None = None) -> int | float | str | None:
         """Get config value with fallback to default."""
         return cast(int | float | str | None, self._config.get(key, default))
 

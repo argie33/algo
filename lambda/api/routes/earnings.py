@@ -15,6 +15,8 @@ from routes.utils import (
     safe_json_serialize,
     safe_limit,
 )
+
+from shared_contracts.response_validator import ResponseValidator
 from utils.validation import DatabaseResultValidator
 
 
@@ -67,10 +69,15 @@ def handle(
             freshness = check_data_freshness(
                 cur, "earnings_history", "earnings_date", warning_days=7
             )
-            return list_response(
+            result = list_response(
                 [safe_json_serialize(dict(r)) for r in rows],
                 data_freshness=freshness,
             )
+            is_valid, error_msg = ResponseValidator.validate_endpoint_response("earnings", result)
+            if not is_valid:
+                logger.error(f"Earnings response validation failed: {error_msg}")
+                return error_response(500, "response_validation_error", error_msg)
+            return result
 
         limit = safe_limit(
             params.get("limit", [None])[0] if params else None,
@@ -100,10 +107,15 @@ def handle(
         freshness = check_data_freshness(
             cur, "earnings_history", "earnings_date", warning_days=7
         )
-        return list_response(
+        result = list_response(
             [safe_json_serialize(dict(r)) for r in rows],
             data_freshness=freshness,
         )
+        is_valid, error_msg = ResponseValidator.validate_endpoint_response("earnings", result)
+        if not is_valid:
+            logger.error(f"Earnings response validation failed: {error_msg}")
+            return error_response(500, "response_validation_error", error_msg)
+        return result
     except (
         psycopg2.errors.UndefinedTable,
         psycopg2.errors.UndefinedColumn,

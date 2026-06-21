@@ -179,9 +179,7 @@ class Orchestrator:
                         else:
                             # Pre-market on current day, keep halt from previous day active
                             # (e.g., stale data from night loaders should halt all-day trading)
-                            logger.info(
-                                f"[HALT_FLAG] Halt from {trigger_date} still active before market open today"
-                            )
+                            logger.info(f"[HALT_FLAG] Halt from {trigger_date} still active before market open today")
                             return True
 
                     # Same trading day: halt persists throughout entire day

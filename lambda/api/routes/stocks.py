@@ -17,6 +17,7 @@ from routes.utils import (
     safe_limit,
     safe_offset,
 )
+from shared_contracts.response_validator import ResponseValidator
 
 
 logger = logging.getLogger(__name__)
@@ -62,7 +63,12 @@ def handle(
             )
             row = cur.fetchone()
             if row:
-                return json_response(200, safe_json_serialize(dict(row)))
+                stock_result = safe_json_serialize(dict(row))
+                is_valid, error_msg = ResponseValidator.validate_endpoint_response("stocks", stock_result)
+                if not is_valid:
+                    logger.error(f"Endpoint response validation failed: {error_msg}")
+                    return error_response(500, "response_validation_error", error_msg)
+                return json_response(200, stock_result)
             return error_response(404, "not_found", f"Stock {symbol} not found")
 
         if path == "/api/stocks/deep-value":
@@ -257,11 +263,21 @@ def handle(
                     freshness = check_data_freshness(
                         cur, "price_daily", "date", warning_days=1
                     )
-                    return list_response(
+                    deep_value_result = list_response(
                         [safe_json_serialize(dict(r)) for r in rows],
                         data_freshness=freshness,
                     )
-                return list_response([])
+                    is_valid, error_msg = ResponseValidator.validate_endpoint_response("stocks", deep_value_result)
+                    if not is_valid:
+                        logger.error(f"Endpoint response validation failed: {error_msg}")
+                        return error_response(500, "response_validation_error", error_msg)
+                    return deep_value_result
+                empty_result = list_response([])
+                is_valid, error_msg = ResponseValidator.validate_endpoint_response("stocks", empty_result)
+                if not is_valid:
+                    logger.error(f"Endpoint response validation failed: {error_msg}")
+                    return error_response(500, "response_validation_error", error_msg)
+                return empty_result
             except (
                 psycopg2.errors.UndefinedTable,
                 psycopg2.errors.UndefinedColumn,
@@ -352,13 +368,15 @@ def handle(
             raise ValueError("COUNT(*) query returned no result")
         total = count_row[0]
 
-        return json_response(
-            200,
-            {
-                "items": [safe_json_serialize(dict(r)) for r in rows],
-                "total": total,
-            },
-        )
+        stocks_list_result = {
+            "items": [safe_json_serialize(dict(r)) for r in rows],
+            "total": total,
+        }
+        is_valid, error_msg = ResponseValidator.validate_endpoint_response("stocks", stocks_list_result)
+        if not is_valid:
+            logger.error(f"Endpoint response validation failed: {error_msg}")
+            return error_response(500, "response_validation_error", error_msg)
+        return json_response(200, stocks_list_result)
     except (
         psycopg2.errors.UndefinedTable,
         psycopg2.errors.UndefinedColumn,

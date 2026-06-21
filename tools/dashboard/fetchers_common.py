@@ -142,7 +142,7 @@ def check_data_freshness(data_dict, max_age_seconds=3600):
 
 
 # Cache for market data (used by both fetch_market and fetch_exp_factors)
-_market_cache = {}
+_market_cache: dict[str, object] = {}
 _market_cache_lock = __import__("threading").Lock()
 
 
@@ -164,7 +164,7 @@ def get_markets_cached():
 
 
 # Cache for data status (used by fetch_health)
-_data_status_cache = {}
+_data_status_cache: dict[str, object] = {}
 _data_status_cache_lock = __import__("threading").Lock()
 
 

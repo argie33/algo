@@ -14,6 +14,7 @@ from routes.utils import (
     raise_api_error,
     raise_db_error,
 )
+from shared_contracts.response_validator import ResponseValidator
 
 from utils.validation import CognitoValidator
 
@@ -128,22 +129,24 @@ def _update_position(cur, body: dict) -> dict[str, Any]:
             update_args,
         )
 
-        return json_response(  # type: ignore
-            200,
-            {
-                "status": "success",
-                "message": f"Updated position {position_id} ({symbol})",
-                "position_id": position_id,
-                "symbol": symbol,
-                "updates": {
-                    "quantity": req.quantity,
-                    "stop_loss_price": req.stop_loss_price,
-                    "target_1_price": req.target_1_price,
-                    "target_2_price": req.target_2_price,
-                    "target_3_price": req.target_3_price,
-                },
+        result = {
+            "status": "success",
+            "message": f"Updated position {position_id} ({symbol})",
+            "position_id": position_id,
+            "symbol": symbol,
+            "updates": {
+                "quantity": req.quantity,
+                "stop_loss_price": req.stop_loss_price,
+                "target_1_price": req.target_1_price,
+                "target_2_price": req.target_2_price,
+                "target_3_price": req.target_3_price,
             },
-        )
+        }
+        is_valid, error_msg = ResponseValidator.validate_endpoint_response("pos", result)
+        if not is_valid:
+            logger.error(f"Endpoint response validation failed: {error_msg}")
+            return error_response(500, "response_validation_error", error_msg)
+        return json_response(200, result)  # type: ignore
 
     except (
         psycopg2.errors.UndefinedTable,

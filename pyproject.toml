@@ -63,9 +63,6 @@ exclude = [
 [[tool.mypy.overrides]]
 module = [
     "utils.loaders.helpers",
-    "algo.algo_data_patrol",
-    "algo.backtest.run_backtest",
-    "algo.signals.trendline",
 ]
 ignore_errors = true
 

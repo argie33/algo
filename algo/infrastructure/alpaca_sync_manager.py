@@ -27,6 +27,21 @@ class AlpacaSyncManager:
         self._alpaca_secret = creds.get("secret")
         self._alpaca_base_url = get_alpaca_base_url()
 
+    @property
+    def alpaca_key(self) -> str | None:
+        """Public accessor for Alpaca API key."""
+        return self._alpaca_key
+
+    @property
+    def alpaca_secret(self) -> str | None:
+        """Public accessor for Alpaca API secret."""
+        return self._alpaca_secret
+
+    @property
+    def alpaca_base_url(self) -> str | None:
+        """Public accessor for Alpaca API base URL."""
+        return self._alpaca_base_url
+
     def fetch_alpaca_account(self) -> dict[str, Any]:
         """Fetch current account data from Alpaca.
 

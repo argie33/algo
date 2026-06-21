@@ -4,7 +4,6 @@ from __future__ import annotations
 import logging
 import os
 import time
-from dataclasses import dataclass
 from decimal import Decimal
 from typing import Any
 
@@ -29,6 +28,7 @@ from algo.trading.exceptions import (
 from algo.trading.executor_entry_handler import EntryHandler
 from algo.trading.executor_exit_handler import ExitHandler
 from algo.trading.order_manager import OrderManager
+from algo.trading.trade_context import TradeContext
 from config.api_endpoints import get_alpaca_base_url
 from config.credential_manager import get_alpaca_credentials
 from utils.db import DatabaseContext, OptimisticLockRetry
@@ -76,38 +76,6 @@ def _redact_for_logs(message: str) -> str:
     # Mask slippage: +1.23% '' +***%
     message = re.sub(r"([+-]\d+\.\d+)%", "***%", message)
     return message
-
-
-@dataclass
-class ExecuteTradeParams:
-    """Parameters for executing a new trade entry."""
-
-    symbol: str
-    entry_price: Decimal
-    shares: Decimal
-    stop_loss_price: Decimal
-    target_1_price: Decimal | None = None
-    target_2_price: Decimal | None = None
-    target_3_price: Decimal | None = None
-    signal_date: Any | None = None
-    entry_date: Any | None = None
-    sqs: Any | None = None
-    trend_score: float | None = None
-    swing_score: float | None = None
-    swing_grade: str | None = None
-    base_type: str | None = None
-    base_quality: str | None = None
-    stage_phase: str | None = None
-    sector: str | None = None
-    industry: str | None = None
-    rs_percentile: float | None = None
-    market_exposure_at_entry: float | None = None
-    exposure_tier_at_entry: str | None = None
-    stop_method: str | None = None
-    stop_reasoning: str | None = None
-    swing_components: dict | None = None
-    advanced_components: dict | None = None
-    execution_mode: str = "auto"
 
 
 class TradeExecutor:
@@ -640,7 +608,7 @@ class TradeExecutor:
         }
         """
         try:
-            return self.entry_handler.execute_entry(
+            context = TradeContext.from_params(
                 symbol=symbol,
                 entry_price=entry_price,
                 shares=shares,
@@ -667,6 +635,7 @@ class TradeExecutor:
                 swing_components=swing_components,
                 advanced_components=advanced_components,
             )
+            return self.entry_handler.execute_entry(context)
         except DuplicatePositionError as e:
             logger.error(f"Trade blocked (duplicate/idempotency): {e}")
             return {

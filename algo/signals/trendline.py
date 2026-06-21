@@ -10,6 +10,7 @@ HIGH CONFIDENCE ENTRY: Stage 2 + RS > 70 + Volume + Entry near trendline support
 
 import logging
 from datetime import date, timedelta
+from typing import Any
 
 import psycopg2
 
@@ -29,7 +30,7 @@ class TrendlineSupport:
         """
         self.lookback_days = lookback_days
 
-    def get_price_history(self, symbol: str, end_date: date, days: int = 130) -> list:
+    def get_price_history(self, symbol: str, end_date: date, days: int = 130) -> list[Any]:
         """Get closing prices for the lookback period."""
         try:
             with DatabaseContext("read") as cur:
@@ -43,7 +44,7 @@ class TrendlineSupport:
                     """,
                     (symbol, end_date - timedelta(days=days), end_date),
                 )
-                return cur.fetchall()
+                return cur.fetchall()  # type: ignore[no-any-return]
         except (psycopg2.DatabaseError, psycopg2.OperationalError) as e:
             raise RuntimeError(
                 f"Failed to fetch price history for {symbol}: {e}. "

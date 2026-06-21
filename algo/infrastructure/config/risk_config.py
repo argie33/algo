@@ -139,9 +139,7 @@ class RiskConfig:
         return {
             "position_halt_flag_count": self.get("position_halt_flag_count"),
             "max_reentries_per_name": self.get("max_reentries_per_name"),
-            "min_days_before_reentry_same_symbol": self.get(
-                "min_days_before_reentry_same_symbol"
-            ),
+            "min_days_before_reentry_same_symbol": self.get("min_days_before_reentry_same_symbol"),
         }
 
     def get_risk_metrics_config(self) -> dict[str, Any]:

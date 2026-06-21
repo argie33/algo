@@ -112,9 +112,7 @@ class ExitHandler:
             logger.exception(f"Unexpected error during trade exit: {type(e).__name__}: {e}")
             return {"success": False, "message": f"Unexpected error: {type(e).__name__}"}
 
-    def _raise_stop_only(
-        self, trade_id: int, new_stop_price: float | None, cur: Any | None
-    ) -> dict[str, Any]:
+    def _raise_stop_only(self, trade_id: int, new_stop_price: float | None, cur: Any | None) -> dict[str, Any]:
         """Raise stop on residual position without exiting shares."""
         if new_stop_price is None:
             return {
@@ -238,9 +236,7 @@ class ExitHandler:
         # Calculate shares to exit
         current_qty_dec = Decimal(str(current_qty))
         exit_frac_dec = Decimal(str(exit_fraction))
-        shares_to_exit_dec = (current_qty_dec * exit_frac_dec).quantize(
-            Decimal("0.01"), rounding=ROUND_HALF_UP
-        )
+        shares_to_exit_dec = (current_qty_dec * exit_frac_dec).quantize(Decimal("0.01"), rounding=ROUND_HALF_UP)
         shares_to_exit_dec = max(Decimal("0.01"), shares_to_exit_dec)
         shares_to_exit_dec = min(shares_to_exit_dec, current_qty_dec)
         shares_to_exit = float(float(shares_to_exit_dec))
@@ -263,9 +259,7 @@ class ExitHandler:
         if execution_mode == "auto":
             exit_order_result = self.executor._send_alpaca_exit(symbol, shares_to_exit)
             if exit_order_result.get("success"):
-                actual_fill_price = (
-                    exit_order_result["filled_price"] if "filled_price" in exit_order_result else None
-                )
+                actual_fill_price = exit_order_result["filled_price"] if "filled_price" in exit_order_result else None
                 is_estimated_price = False
             else:
                 try:
@@ -302,15 +296,9 @@ class ExitHandler:
             else 0.0
         )
         pnl_per_share = Decimal(str(final_exit_price)) - Decimal(str(entry_price))
-        pnl_dollars = float(
-            (pnl_per_share * Decimal(str(shares_to_exit))).quantize(Decimal("0.01"), ROUND_HALF_UP)
-        )
+        pnl_dollars = float((pnl_per_share * Decimal(str(shares_to_exit))).quantize(Decimal("0.01"), ROUND_HALF_UP))
         pnl_pct = (
-            float(
-                (pnl_per_share / Decimal(str(entry_price)) * Decimal(100)).quantize(
-                    Decimal("0.01"), ROUND_HALF_UP
-                )
-            )
+            float((pnl_per_share / Decimal(str(entry_price)) * Decimal(100)).quantize(Decimal("0.01"), ROUND_HALF_UP))
             if entry_price > 0
             else 0.0
         )
@@ -327,10 +315,7 @@ class ExitHandler:
         if not isinstance(pnl_pct, (int, float)):
             raise ValueError(f"P&L percent calculation produced invalid type: {type(pnl_pct)}")
         if isinstance(pnl_pct, float) and pnl_pct != pnl_pct:  # NaN check
-            raise ValueError(
-                f"P&L percent calculation produced NaN; check entry_price={entry_price} "
-                f"for zero value"
-            )
+            raise ValueError(f"P&L percent calculation produced NaN; check entry_price={entry_price} for zero value")
 
         # TRANSACTION GUARD 3: Update algo_trades
         if full_exit:
@@ -480,7 +465,6 @@ class ExitHandler:
             "r_multiple": r_multiple,
             "full_exit": full_exit,
             "message": (
-                f"Exited {shares_to_exit}sh of {symbol} @ ${final_exit_price:.2f} "
-                f"({pnl_pct:+.2f}%, {r_multiple:+.2f}R)"
+                f"Exited {shares_to_exit}sh of {symbol} @ ${final_exit_price:.2f} ({pnl_pct:+.2f}%, {r_multiple:+.2f}R)"
             ),
         }

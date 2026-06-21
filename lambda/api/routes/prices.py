@@ -17,6 +17,7 @@ from routes.utils import (
     safe_json_serialize,
     safe_limit,
 )
+from shared_contracts.response_validator import ResponseValidator
 
 from utils.validation import DatabaseResultValidator
 
@@ -163,7 +164,12 @@ def handle(
 
                         result[sym].append(safe_json_serialize(dict(row)))
 
-                return json_response(200, {"symbols": result, "limit": limit})
+                price_result = {"symbols": result, "limit": limit}
+                is_valid, error_msg = ResponseValidator.validate_endpoint_response("prices", price_result)
+                if not is_valid:
+                    logger.error(f"Endpoint response validation failed: {error_msg}")
+                    return error_response(500, "response_validation_error", error_msg)
+                return json_response(200, price_result)
             else:
                 return error_response(400, "bad_request", "symbols parameter required")
 
@@ -222,10 +228,15 @@ def handle(
                 )
                 used_table = etf_table_name
             freshness = check_data_freshness(cur, used_table, "date", warning_days=1)
-            return list_response(
+            result = list_response(
                 [safe_json_serialize(dict(r)) for r in rows] if rows else [],
                 data_freshness=freshness,
             )
+            is_valid, error_msg = ResponseValidator.validate_endpoint_response("prices", result)
+            if not is_valid:
+                logger.error(f"Endpoint response validation failed: {error_msg}")
+                return error_response(500, "response_validation_error", error_msg)
+            return result
 
         # /api/prices/batch-history?symbols=SPY,QQQ,IWM&limit=30&timeframe=daily
         # Returns {symbols: {SYM: [{date, open, high, low, close, volume}, ...]}}
@@ -292,7 +303,12 @@ def handle(
                     sym = row["symbol"]
                     result[sym].append(safe_json_serialize(dict(row)))
 
-            return json_response(200, {"symbols": result, "limit": limit})
+            batch_result = {"symbols": result, "limit": limit}
+            is_valid, error_msg = ResponseValidator.validate_endpoint_response("prices", batch_result)
+            if not is_valid:
+                logger.error(f"Endpoint response validation failed: {error_msg}")
+                return error_response(500, "response_validation_error", error_msg)
+            return json_response(200, batch_result)
 
         return error_response(404, "not_found", f"No prices handler for {path}")
     except (

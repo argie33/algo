@@ -25,6 +25,7 @@ from routes.utils import (
     safe_limit,
     safe_offset,
 )
+from shared_contracts.response_validator import ResponseValidator
 
 from utils.validation import CognitoValidator
 
@@ -157,11 +158,16 @@ def handle(
             freshness = check_data_freshness(
                 cur, "algo_trades", "created_at", warning_days=1
             )
-            return list_response(
+            trades_result = list_response(
                 [safe_json_serialize(dict(t)) for t in trades],
                 total=total,
                 data_freshness=freshness,
             )
+            is_valid, error_msg = ResponseValidator.validate_endpoint_response("trades", trades_result)
+            if not is_valid:
+                logger.error(f"Endpoint response validation failed: {error_msg}")
+                return error_response(500, "response_validation_error", error_msg)
+            return trades_result
         elif path == "/api/trades/summary":
             if os.environ.get("DEV_BYPASS_AUTH") != "true" and not _check_admin_access(jwt_claims):
                 raise_api_error(403, "forbidden", "Admin access required")
@@ -178,9 +184,13 @@ def handle(
             freshness = check_data_freshness(
                 cur, "algo_trades", "created_at", warning_days=1
             )
-            result = safe_json_serialize(dict(summary)) if summary else {}
-            result["data_freshness"] = freshness
-            return json_response(200, result)
+            summary_result = safe_json_serialize(dict(summary)) if summary else {}
+            summary_result["data_freshness"] = freshness
+            is_valid, error_msg = ResponseValidator.validate_endpoint_response("trades", summary_result)
+            if not is_valid:
+                logger.error(f"Endpoint response validation failed: {error_msg}")
+                return error_response(500, "response_validation_error", error_msg)
+            return json_response(200, summary_result)
         raise_api_error(404, "not_found", f"Unknown trade endpoint: {path}")
     except (psycopg2.DatabaseError, psycopg2.OperationalError) as e:
         logger.error(f"[TRADES] Unhandled error: {type(e).__name__}: {e}")
@@ -259,13 +269,16 @@ def _create_manual_trade(cur, body: dict, idempotency_key: str | None = None) ->
             ),
         )
         row = cur.fetchone()
-        response = json_response(
-            201,
-            {
-                "success": True,
-                "data": {"id": row["trade_id"], "trade_id": row["trade_id"]},
-            },
-        )
+        manual_trade_response = {
+            "success": True,
+            "data": {"id": row["trade_id"], "trade_id": row["trade_id"]},
+        }
+        response = json_response(201, manual_trade_response)
+
+        is_valid, error_msg = ResponseValidator.validate_endpoint_response("trades", manual_trade_response)
+        if not is_valid:
+            logger.error(f"Endpoint response validation failed: {error_msg}")
+            return error_response(500, "response_validation_error", error_msg)
 
         if signature:
             _store_idempotent_response(cur, signature, response)

@@ -37,10 +37,6 @@ class DailyReconciliation:
         try:
             self.alpaca_sync = AlpacaSyncManager(config)
             self.audit_logger = TradeAuditLogger()
-            # Cache Alpaca credentials for direct access
-            self._alpaca_key = self.alpaca_sync._alpaca_key
-            self._alpaca_secret = self.alpaca_sync._alpaca_secret
-            self._alpaca_base_url = self.alpaca_sync._alpaca_base_url
             self.trading_client = True  # Signals credentials are available
         except (KeyError, ValueError, AttributeError) as e:
             logger.critical(f"Reconciliation manager initialization FAILED: {e}")
@@ -53,6 +49,24 @@ class DailyReconciliation:
             except (psycopg2.DatabaseError, psycopg2.OperationalError):
                 logger.warning("Failed to send initialization failure notification")
             raise ValueError(f"Reconciliation initialization failed: {e}") from e
+
+    @property
+    def _alpaca_key(self) -> str | None:
+        """Delegate to alpaca_sync (fixes inappropriate intimacy)."""
+        key = self.alpaca_sync.alpaca_key
+        return key if isinstance(key, str) or key is None else None
+
+    @property
+    def _alpaca_secret(self) -> str | None:
+        """Delegate to alpaca_sync (fixes inappropriate intimacy)."""
+        secret = self.alpaca_sync.alpaca_secret
+        return secret if isinstance(secret, str) or secret is None else None
+
+    @property
+    def _alpaca_base_url(self) -> str | None:
+        """Delegate to alpaca_sync (fixes inappropriate intimacy)."""
+        url = self.alpaca_sync.alpaca_base_url
+        return url if isinstance(url, str) or url is None else None
 
     def run_daily_reconciliation(self, reconcile_date=None, dry_run=False):
         """Run full daily reconciliation. If dry_run=True, skip Alpaca API calls and return mock data.
@@ -314,7 +328,9 @@ class DailyReconciliation:
                     (largest_position_dec / total_equity_dec * Decimal(100)) if total_equity_dec > 0 else Decimal(0)
                 )
 
-                avg_position_size_dec = (total_position_value / len(positions)) if (positions and total_position_value > 0) else Decimal(0)
+                avg_position_size_dec = (
+                    (total_position_value / len(positions)) if (positions and total_position_value > 0) else Decimal(0)
+                )
 
                 cur.execute("""
                     SELECT total_portfolio_value FROM algo_portfolio_snapshots
@@ -372,7 +388,7 @@ class DailyReconciliation:
                             f"CRITICAL: Invalid initial_capital={initial_capital} - cannot calculate cumulative return. "
                             "Check Alpaca account initialization and capital history."
                         )
-                    cumulative_return_pct = (cumulative_pnl / initial_capital * 100)
+                    cumulative_return_pct = cumulative_pnl / initial_capital * 100
                     logger.info(
                         f"   Cumulative Return: {cumulative_return_pct:+.2f}% (on initial capital ${initial_capital:,.2f})"
                     )
@@ -534,14 +550,14 @@ class DailyReconciliation:
         when placing market exit orders before market open. This reconciles those
         estimated prices with actual Alpaca fill prices after market opens.
         """
-        if not self._alpaca_key or not self._alpaca_secret:
+        if not self.alpaca_sync.alpaca_key or not self.alpaca_sync.alpaca_secret:
             return {"updated": 0, "message": "No Alpaca credentials"}
         try:
             import requests
 
             since = (datetime.now(timezone.utc) - timedelta(days=2)).strftime("%Y-%m-%dT%H:%M:%SZ")
             resp = requests.get(
-                f"{self._alpaca_base_url}/v2/orders",
+                f"{self.alpaca_sync.alpaca_base_url}/v2/orders",
                 params={
                     "status": "closed",
                     "side": "sell",
@@ -550,8 +566,8 @@ class DailyReconciliation:
                     "limit": 500,
                 },
                 headers={
-                    "APCA-API-KEY-ID": self._alpaca_key,
-                    "APCA-API-SECRET-KEY": self._alpaca_secret,
+                    "APCA-API-KEY-ID": self.alpaca_sync.alpaca_key,
+                    "APCA-API-SECRET-KEY": self.alpaca_sync.alpaca_secret,
                 },
                 timeout=self.config.get("api_request_timeout_seconds", 5),
             )
@@ -934,17 +950,17 @@ class DailyReconciliation:
 
         Returns: dict with reconciliation status and any detected drift
         """
-        if not self._alpaca_key or not self._alpaca_secret:
+        if not self.alpaca_sync.alpaca_key or not self.alpaca_sync.alpaca_secret:
             return {"checked": 0, "message": "No Alpaca credentials"}
 
         try:
             import requests
 
             resp = requests.get(
-                f"{self._alpaca_base_url}/v2/orders?status=filled&status=partially_filled",
+                f"{self.alpaca_sync.alpaca_base_url}/v2/orders?status=filled&status=partially_filled",
                 headers={
-                    "APCA-API-KEY-ID": self._alpaca_key,
-                    "APCA-API-SECRET-KEY": self._alpaca_secret,
+                    "APCA-API-KEY-ID": self.alpaca_sync.alpaca_key,
+                    "APCA-API-SECRET-KEY": self.alpaca_sync.alpaca_secret,
                 },
                 timeout=self.config.get("api_request_timeout_seconds", 5),
             )
@@ -1112,7 +1128,7 @@ class DailyReconciliation:
 
     def _fetch_alpaca_account(self):
         """Fetch account data from Alpaca via direct HTTP REST call."""
-        if not self._alpaca_key or not self._alpaca_secret:
+        if not self.alpaca_sync.alpaca_key or not self.alpaca_sync.alpaca_secret:
             raise RuntimeError(
                 "CRITICAL: Alpaca API credentials not available. "
                 "Cannot reconcile account without valid credentials. "
@@ -1122,10 +1138,10 @@ class DailyReconciliation:
             import requests
 
             resp = requests.get(
-                f"{self._alpaca_base_url}/v2/account",
+                f"{self.alpaca_sync.alpaca_base_url}/v2/account",
                 headers={
-                    "APCA-API-KEY-ID": self._alpaca_key,
-                    "APCA-API-SECRET-KEY": self._alpaca_secret,
+                    "APCA-API-KEY-ID": self.alpaca_sync.alpaca_key,
+                    "APCA-API-SECRET-KEY": self.alpaca_sync.alpaca_secret,
                 },
                 timeout=self.config.get("api_request_timeout_seconds", 5),
             )
@@ -1152,7 +1168,7 @@ class DailyReconciliation:
         Falls back to the oldest algo_portfolio_snapshots entry if Alpaca history unavailable.
         Raises ValueError if initial capital cannot be determined.
         """
-        if not self._alpaca_key or not self._alpaca_secret:
+        if not self.alpaca_sync.alpaca_key or not self.alpaca_sync.alpaca_secret:
             logger.warning("No Alpaca credentials; checking database for initial capital")
             try:
                 cur.execute("""
@@ -1173,11 +1189,11 @@ class DailyReconciliation:
             import requests
 
             resp = requests.get(
-                f"{self._alpaca_base_url}/v2/account/portfolio/history",
+                f"{self.alpaca_sync.alpaca_base_url}/v2/account/portfolio/history",
                 params={"period": "all"},
                 headers={
-                    "APCA-API-KEY-ID": self._alpaca_key,
-                    "APCA-API-SECRET-KEY": self._alpaca_secret,
+                    "APCA-API-KEY-ID": self.alpaca_sync.alpaca_key,
+                    "APCA-API-SECRET-KEY": self.alpaca_sync.alpaca_secret,
                 },
                 timeout=self.config.get("api_request_timeout_seconds", 5),
             )
