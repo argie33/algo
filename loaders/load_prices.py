@@ -1,7 +1,6 @@
 #!/usr/bin/env python3
 
-"""
-UNIFIED Price Loader - loads all intervals (1d, 1wk, 1mo) and asset classes (stock, etf).
+"""UNIFIED Price Loader - loads all intervals (1d, 1wk, 1mo) and asset classes (stock, etf).
 
 Environment variables (set by Terraform/ECS task definition):
   LOADER_INTERVALS: comma-separated intervals (default: "1d,1wk,1mo")
@@ -48,8 +47,7 @@ set_correlation_id(_correlation_id)
 
 
 class PriceLoader(OptimalLoader):
-    """
-    Multi-timeframe price loader. Replaces 4 separate loaders.
+    """Multi-timeframe price loader. Replaces 4 separate loaders.
 
     Data Criticality: CRITICAL (used for position sizing, P&L calculations)
     Failure Mode: Fails fast on unavailable/stale data, does not degrade to stale prices
@@ -824,10 +822,7 @@ class PriceLoader(OptimalLoader):
             end = now_et.date() + timedelta(days=1)
             logger.debug(f"[INTRADAY_CONTEXT] Fetching data ending at {end} (including today)")
 
-        if since is None:
-            start = end - timedelta(days=101)
-        else:
-            start = since
+        start = end - timedelta(days=101) if since is None else since
 
         if start >= end:
             return dict.fromkeys(symbols)
@@ -1556,6 +1551,7 @@ class PriceLoader(OptimalLoader):
         Returns:
           - None if all batches completed successfully
           - dict with circuit breaker metrics if halted early
+
         """
         import time
         from concurrent.futures import ThreadPoolExecutor, as_completed
@@ -1627,6 +1623,7 @@ class PriceLoader(OptimalLoader):
         Returns:
           - dict with early halt metrics if circuit breaker triggered
           - None if execution should continue
+
         """
         import time
 
