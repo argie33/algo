@@ -11,6 +11,7 @@ import psycopg2
 import requests
 
 from algo.infrastructure.alpaca_sync_manager import AlpacaSyncManager
+from algo.infrastructure.audit_logger import TradeAuditLogger
 from algo.infrastructure.price_auditor import PriceAuditor
 from algo.infrastructure.reconciliation_analytics import ReconciliationAnalytics
 from algo.reporting import notify
@@ -39,6 +40,7 @@ class DailyReconciliation:
             self.alpaca_sync = AlpacaSyncManager(config)
             self.analytics = ReconciliationAnalytics()
             self.price_auditor = PriceAuditor(config)
+            self.audit_logger = TradeAuditLogger()
             # Cache Alpaca credentials for direct access
             self._alpaca_key = self.alpaca_sync._alpaca_key
             self._alpaca_secret = self.alpaca_sync._alpaca_secret
@@ -488,6 +490,16 @@ class DailyReconciliation:
                     )
                 finally:
                     cur.execute("SELECT pg_advisory_unlock(%s)", (PORTFOLIO_SNAPSHOT_LOCK_ID,))
+
+            # Audit log portfolio snapshot for traceability
+            self.audit_logger.log_portfolio_snapshot_audit(
+                snapshot_date=reconcile_date,
+                total_portfolio_value=safe_float(total_equity_dec, default=0.0),
+                total_cash=safe_float(cash_dec, default=0.0),
+                position_count=positions_with_prices,
+                unrealized_pnl_total=safe_float(unrealized_pnl, default=0.0),
+                unrealized_pnl_pct=safe_float(unrealized_pnl_pct_dec, default=0.0),
+            )
 
             logger.info("\n3. Portfolio Summary:")
             logger.info(f"   Total Value: ${safe_float(total_equity_dec, default=0.0):,.2f}")
