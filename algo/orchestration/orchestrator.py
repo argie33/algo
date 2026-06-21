@@ -893,7 +893,8 @@ class Orchestrator:
         self._phase3_result = result
         if not result.ok:
             return False
-        self._position_recs = result.data.get("recommendations", [])
+        recs = result.data.get("recommendations")
+        self._position_recs = recs if recs is not None else []
         return True
 
     def phase_5_exposure_policy(self) -> bool:
@@ -913,7 +914,8 @@ class Orchestrator:
         if not result.ok:
             return False
         self._exposure_constraints = result.data.get("constraints")
-        self._exposure_actions = result.data.get("actions", [])
+        actions = result.data.get("actions")
+        self._exposure_actions = actions if actions is not None else []
         return True
 
     def phase_6_exit_execution(self) -> bool:
@@ -989,7 +991,8 @@ class Orchestrator:
             config=self.config,
         )
         self._phase7_result = result
-        self._qualified_trades = result.data.get("qualified_trades", [])
+        trades = result.data.get("qualified_trades")
+        self._qualified_trades = trades if trades is not None else []
         self.phase_results.setdefault(7, {})["signals_evaluated"] = len(self._qualified_trades)
         return not result.halted
 

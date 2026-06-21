@@ -9,7 +9,7 @@ Finance principle: Missing data is NOT the same as zero. Use strict mode for cri
 
 import json
 import logging
-from typing import Any, TypeVar, overload
+from typing import Any, Literal, TypeVar, cast, overload
 
 
 logger = logging.getLogger(__name__)
@@ -26,7 +26,7 @@ def safe_float(
     value: Any,
     *,
     default: float | None = None,
-    strict: bool = False,
+    strict: Literal[False] = False,
     field_name: str | None = None,
 ) -> float | None: ...
 
@@ -36,7 +36,7 @@ def safe_float(
     value: Any,
     *,
     default: float | None = None,
-    strict: bool = True,
+    strict: Literal[True],
     field_name: str | None = None,
 ) -> float: ...
 
@@ -91,7 +91,7 @@ def safe_int(
     value: Any,
     *,
     default: int | None = None,
-    strict: bool = False,
+    strict: Literal[False] = False,
     field_name: str | None = None,
 ) -> int | None: ...
 
@@ -101,7 +101,7 @@ def safe_int(
     value: Any,
     *,
     default: int | None = None,
-    strict: bool = True,
+    strict: Literal[True],
     field_name: str | None = None,
 ) -> int: ...
 

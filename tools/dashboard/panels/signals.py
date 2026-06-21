@@ -165,7 +165,8 @@ def _build_grade_radar(sig_data: dict) -> list:
                 parts.append(f"[{sc_c}]{safe_get_field(s, 'symbol', '')}[/][dim]{sc:.0f}[/]")
             else:
                 parts.append(f"[dim]{safe_get_field(s, 'symbol', '')}[/][dim]--[/]")
-        grades_dict = safe_get_dict(safe_get_field(overview, "grades", {}))
+        grades_field = safe_get_field(overview, "grades", {})
+        grades_dict = safe_get_dict(grades_field) if grades_field else {}
         ga = safe_get_field(grades_dict, "a")
         extra = f"  [dim]+{ga - min(ga, 8)} more[/]" if ga is not None and ga > 8 else ""
         rows.append(Text.from_markup("[dim]A radar:[/]  " + "  ".join(parts) + extra))

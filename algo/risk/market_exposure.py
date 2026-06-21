@@ -1102,9 +1102,9 @@ class MarketExposure:
         if not rows:
             return {"score_factor": None, "value": None, "reason": "No HY spread data"}
 
-        hy = float(rows[0][0])
+        hy = safe_float(rows[0][0], default=0.0, context="hy_oas")
         # Trend: compare latest vs 20 days ago
-        hy_20d_ago = float(rows[-1][0]) if len(rows) >= 20 else hy
+        hy_20d_ago = safe_float(rows[-1][0], default=0.0, context="hy_20d_ago") if len(rows) >= 20 else hy
         widening_1pp = (hy - hy_20d_ago) > 1.0  # widened > 1pp in ~20 trading days
 
         if hy < 3.5:
@@ -1155,7 +1155,7 @@ class MarketExposure:
         )
         curve_rows = cur.fetchall()
         if curve_rows:
-            latest_spread = float(curve_rows[0][0])
+            latest_spread = safe_float(curve_rows[0][0], default=0.0, context="latest_spread")
             # How many consecutive weeks inverted?
             weeks_inverted = sum(1 for r in curve_rows[:12] if safe_float(r[0], default=0.0, context="r[0]") < 0)
             if latest_spread < -0.5 and weeks_inverted >= 8:
@@ -1179,8 +1179,8 @@ class MarketExposure:
         )
         claims_rows = cur.fetchall()
         if len(claims_rows) >= 26:
-            claims_now = float(claims_rows[0][0])
-            claims_26w = float(claims_rows[-1][0])
+            claims_now = safe_float(claims_rows[0][0], default=0.0, context="claims_now")
+            claims_26w = safe_float(claims_rows[-1][0], default=0.0, context="claims_26w")
             chg_pct = (claims_now - claims_26w) / claims_26w * 100 if claims_26w > 0 else 0
             if chg_pct > 30:
                 stress += 30.0
@@ -1200,7 +1200,7 @@ class MarketExposure:
         )
         stlfsi_rows = cur.fetchall()
         if stlfsi_rows:
-            stlfsi = float(stlfsi_rows[0][0])
+            stlfsi = safe_float(stlfsi_rows[0][0], default=0.0, context="stlfsi")
             if stlfsi > 1.5:
                 stress += 25.0
                 signals.append(f"Financial stress index {stlfsi:.2f}σ (severe stress)")
