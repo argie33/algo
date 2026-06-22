@@ -917,17 +917,11 @@ if not IMPORT_ERROR:
         ENV_VALIDATION_ERROR = "; ".join(env_errors)
         logger.error(f"[MODULE_INIT_ENV_VALIDATION_FAILED] {ENV_VALIDATION_ERROR}")
 
-    try:
-        db_test_ok, db_test_error = test_db_connection()
-        if not db_test_ok:
-            # Log the error but do NOT set DB_CONNECTION_ERROR as a permanent flag.
-            # A transient DB blip during cold-start should not brick this instance for its lifetime.
-            # Each request will attempt its own connection via DatabaseContext and fail gracefully if needed.
-            logger.error(f"[MODULE_INIT_DB_TEST_FAILED] {db_test_error}")
-    except Exception as e:
-        # If DB test itself fails (e.g., missing credentials), log and continue
-        # This allows the module to load in test environments without AWS credentials
-        logger.warning(f"[MODULE_INIT_DB_TEST_EXCEPTION] DB connection test failed during module init: {e}")
+    # DB connection test removed from module-level init.
+    # Fetching the DB password from Secrets Manager (connect_timeout=10, read_timeout=15,
+    # retries=2) can exceed the 25s Lambda function timeout on VPC cold-starts, causing
+    # INIT timeouts that prevent Lambda from scaling. The first real request via
+    # DatabaseContext will test connectivity with proper retries and error responses.
 
     # Determine if Cognito authentication is enabled
     with _COGNITO_ENABLED_LOCK:
