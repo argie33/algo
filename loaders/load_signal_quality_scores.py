@@ -237,10 +237,11 @@ class SignalQualityScoresLoader(OptimalLoader):
 
         buy_sell_rows = self._fetch_buy_sell_signals(symbol, start, end)
         if not buy_sell_rows:
-            raise RuntimeError(
-                f"[SIGNAL_QUALITY] {symbol} {start}..{end}: "
-                "No buy/sell signals found. Check buy_sell_daily table for symbol and date range."
+            logger.debug(
+                "[signal_quality_scores] %s: No buy/sell signals for %s..%s; skipping (delisted or not in buy_sell_daily)",
+                symbol, start, end,
             )
+            return None
 
         technical_rows = self._fetch_technical_data(symbol, start, end)
         trend_rows = self._fetch_trend_data(symbol, start, end)
@@ -251,10 +252,11 @@ class SignalQualityScoresLoader(OptimalLoader):
             symbol, buy_sell_rows, technical_rows, trend_rows, vcp_rows, positioning_data
         )
         if not scores:
-            raise RuntimeError(
-                f"[SIGNAL_QUALITY] {symbol} {start}..{end}: "
-                "Failed to compute quality scores from signals. Check technical/trend/vcp data availability."
+            logger.debug(
+                "[signal_quality_scores] %s: No scores computed for %s..%s; skipping",
+                symbol, start, end,
             )
+            return None
 
         # Filter to incremental range using datetime comparison (not string)
         if since is not None:
