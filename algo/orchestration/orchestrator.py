@@ -547,12 +547,14 @@ class Orchestrator:
 
         result = run_phase9(self.config, self.run_date, self.log_phase_result)
         self._phase9_result = result
-        if "positions" not in result.data:
-            raise RuntimeError(
-                f"Phase 9 (reconciliation) returned incomplete result: missing 'positions' field. "
+        if "positions" in result.data:
+            self.phase_results.setdefault(9, {})["open_positions"] = result.data["positions"]
+        else:
+            logger.warning(
+                "Phase 9 reconciliation returned without positions data "
+                "(broker unavailable or reconciliation failed). "
                 f"Got keys: {list(result.data.keys())}"
             )
-        self.phase_results.setdefault(9, {})["open_positions"] = result.data["positions"]
         return not result.halted
 
     # ---------- Executor setup (Phase 2: Phase Executor Framework) ----------
