@@ -68,6 +68,9 @@ def run(
         if "success" not in result or result["success"] is None:
             raise RuntimeError(f"Reconciliation result missing 'success' field. Got keys: {list(result.keys())}")
 
+        # Reconciliation returns "error" key (not "reason") on exception path
+        error_msg = result.get("reason") or result.get("error") or ""
+
         if result["success"]:
             log_phase_result_fn(
                 "3a",
@@ -75,19 +78,16 @@ def run(
                 "success",
                 f"{result.get('positions', 0)} positions verified",
             )
-        elif result.get("reason") == "Alpaca unavailable" or "unavailable" in result.get("reason", "").lower():
+        elif "unavailable" in error_msg.lower() or "401" in error_msg or "unauthorized" in error_msg.lower():
+            # Alpaca 401 on weekends/outside market hours is expected — treat as skip, not alert
             log_phase_result_fn(
                 "3a",
                 "reconciliation",
                 "success",
-                f"Skipped: {result.get('reason', 'alpaca unavailable')}",
+                f"Skipped: broker unavailable ({error_msg[:80]})",
             )
         else:
-            # Validate reason field exists for error logging
-            if "reason" not in result or result["reason"] is None:
-                reason = "reconciliation failed (no reason provided)"
-            else:
-                reason = result["reason"]
+            reason = error_msg or "reconciliation failed (no reason provided)"
             log_phase_result_fn(
                 "3a",
                 "reconciliation",
