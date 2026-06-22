@@ -36,14 +36,8 @@ repos:
         exclude: ^(tests/|migrations/|\.github/|scripts/.*)
         stages: [commit]
 
-  # Security scanning
-  - repo: https://github.com/PyCQA/bandit
-    rev: 1.7.9
-    hooks:
-      - id: bandit
-        args: [--severity-level=medium, --confidence-level=high]
-        name: Bandit security scan
-        exclude: ^(tests/|tools/dashboard/)
+  # Security scanning moved to CI (too slow for pre-commit)
+  # Bandit runs async in GitHub Actions instead
 
   # Secret detection
   - repo: https://github.com/trufflesecurity/trufflehog

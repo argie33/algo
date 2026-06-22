@@ -22,7 +22,7 @@ jobs:
       - name: Install dependencies
         run: |
           python -m pip install --upgrade pip
-          pip install -r requirements.txt ruff mypy
+          pip install -r requirements.txt ruff mypy bandit
 
       - name: Run CI validation script (all modules)
         run: python scripts/ci_validation.py
@@ -46,6 +46,13 @@ jobs:
       - name: Type check with mypy — lambda/api
         run: |
           cd lambda/api && mypy . --ignore-missing-imports --show-error-codes --explicit-package-bases
+
+      - name: Security scan with Bandit
+        run: |
+          bandit -r algo/ loaders/ utils/ config/ tools/ lambda/base_handler.py \
+            lambda/algo_orchestrator/ lambda/monitoring/ \
+            --severity-level=medium --confidence-level=high \
+            --exclude tests/,tools/dashboard/
 
       - name: Report results
         if: always()
