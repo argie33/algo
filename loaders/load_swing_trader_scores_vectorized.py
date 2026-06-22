@@ -112,6 +112,7 @@ class VectorizedSwingScoresLoader:
                 "symbols_processed": len(symbols),
                 "rows_inserted": inserted,
                 "duration_sec": round(duration, 2),
+                "error": None,
             }
 
         except Exception as e:
@@ -478,7 +479,7 @@ def main():
 
         # Validate result structure upfront
         required_fields = ["rows_inserted", "error"]
-        missing = [f for f in required_fields if f not in result or result[f] is None]
+        missing = [f for f in required_fields if f not in result]
         if missing:
             raise RuntimeError(
                 f"Loader returned incomplete result: missing {missing}. "

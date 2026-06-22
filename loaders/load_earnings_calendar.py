@@ -6,6 +6,8 @@ import sys
 import time
 from datetime import date, timedelta
 
+import requests
+
 from loaders.runner import run_loader
 from utils.optimal_loader import OptimalLoader
 
@@ -102,6 +104,11 @@ class EarningsCalendarLoader(OptimalLoader):
                         logger.debug(f"[{symbol}] No earnings date in calendar (within cutoff)")
                         return []
 
+                except requests.exceptions.HTTPError as e:
+                    if e.response is not None and e.response.status_code == 404:
+                        logger.debug(f"[{symbol}] Not found on Yahoo Finance (404), skipping")
+                        return None
+                    raise
                 except (KeyError, ValueError, TypeError) as e:
                     logger.warning(
                         f"[{symbol}] Error parsing earnings calendar (attempt {attempt + 1}/{max_retries}): {e}"

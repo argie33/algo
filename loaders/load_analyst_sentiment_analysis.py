@@ -37,6 +37,8 @@ Run:
 import logging
 import sys
 
+import requests
+
 
 logger = logging.getLogger(__name__)
 from datetime import date
@@ -121,6 +123,14 @@ class AnalystSentimentLoader(OptimalLoader):
                     "Cannot load analyst sentiment without recommendations."
                 )
             return results
+        except requests.exceptions.HTTPError as e:
+            if e.response is not None and e.response.status_code == 404:
+                logger.debug("[%s] Not found on Yahoo Finance (404), skipping", symbol)
+                return None
+            raise RuntimeError(
+                f"[ANALYST_SENTIMENT] HTTP error fetching sentiment for {symbol}: {e}. "
+                "Cannot generate signals without sentiment data."
+            ) from e
         except Exception as e:
             raise RuntimeError(
                 f"[ANALYST_SENTIMENT] Failed to fetch sentiment for {symbol}: {e}. "

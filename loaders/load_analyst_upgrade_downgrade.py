@@ -13,6 +13,8 @@ Run:
 import logging
 import sys
 
+import requests
+
 
 logger = logging.getLogger(__name__)
 from datetime import date
@@ -64,6 +66,14 @@ class AnalystRatingsLoader(OptimalLoader):
                 )
 
             return results if results else None
+        except requests.exceptions.HTTPError as e:
+            if e.response is not None and e.response.status_code == 404:
+                logger.debug("[%s] Not found on Yahoo Finance (404), skipping", symbol)
+                return None
+            raise RuntimeError(
+                f"[ANALYST_RATINGS] HTTP error fetching ratings for {symbol}: {e}. "
+                "Cannot generate signals without analyst data."
+            ) from e
         except Exception as e:
             raise RuntimeError(
                 f"[ANALYST_RATINGS] Failed to fetch ratings for {symbol}: {e}. "
