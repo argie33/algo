@@ -14,7 +14,7 @@ to prevent DoS attacks and protect expensive operations.
 import logging
 import os
 from time import time
-from typing import cast
+from typing import TypedDict
 
 import requests
 
@@ -54,12 +54,18 @@ def _get_admin_rate_limit_key(user_id: str, endpoint: str) -> str:
     return f"{user_id}:{endpoint}"
 
 
+class _RateLimitConfig(TypedDict):
+    max_requests: int
+    window: int
+    description: str
+
+
 # =====================================================================
 # PUBLIC ENDPOINTS (No Authentication Required)
 # Global per-endpoint rate limiting to prevent DoS attacks
 # =====================================================================
 
-PUBLIC_RATE_LIMITS = {
+PUBLIC_RATE_LIMITS: dict[str, _RateLimitConfig] = {
     # Market data endpoints (commonly accessed)
     "/api/algo/markets": {
         "max_requests": PUBLIC_ENDPOINT_LIMIT,
@@ -124,13 +130,13 @@ def check_public_rate_limit(
     # Resolve max_requests and window_seconds with defaults
     if max_requests is None:
         if endpoint in PUBLIC_RATE_LIMITS:
-            max_requests = cast(int, PUBLIC_RATE_LIMITS[endpoint]["max_requests"])
+            max_requests = PUBLIC_RATE_LIMITS[endpoint]["max_requests"]
         else:
             max_requests = PUBLIC_ENDPOINT_LIMIT
 
     if window_seconds is None:
         if endpoint in PUBLIC_RATE_LIMITS:
-            window_seconds = cast(int, PUBLIC_RATE_LIMITS[endpoint]["window"])
+            window_seconds = PUBLIC_RATE_LIMITS[endpoint]["window"]
         else:
             window_seconds = DEFAULT_TIME_WINDOW
 
@@ -162,7 +168,7 @@ def check_public_rate_limit(
 # Per-user, per-endpoint rate limiting to prevent abuse
 # =====================================================================
 
-ADMIN_RATE_LIMITS = {
+ADMIN_RATE_LIMITS: dict[str, _RateLimitConfig] = {
     # Health checks (OK to poll frequently)
     "/api/admin/loader-status": {
         "max_requests": ADMIN_HEALTH_CHECK_LIMIT,
@@ -327,13 +333,13 @@ def check_admin_rate_limit(
     # Resolve max_requests and window_seconds with defaults
     if max_requests is None:
         if endpoint in ADMIN_RATE_LIMITS:
-            max_requests = cast(int, ADMIN_RATE_LIMITS[endpoint]["max_requests"])
+            max_requests = ADMIN_RATE_LIMITS[endpoint]["max_requests"]
         else:
             max_requests = ADMIN_HEALTH_CHECK_LIMIT
 
     if window_seconds is None:
         if endpoint in ADMIN_RATE_LIMITS:
-            window_seconds = cast(int, ADMIN_RATE_LIMITS[endpoint]["window"])
+            window_seconds = ADMIN_RATE_LIMITS[endpoint]["window"]
         else:
             window_seconds = DEFAULT_TIME_WINDOW
 

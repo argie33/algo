@@ -123,7 +123,7 @@ def _apply_schema_migrations():
             for sql in migrations:
                 cur.execute(sql)
     except (psycopg2.DatabaseError, psycopg2.OperationalError) as e:
-        logger.warning(f"Schema migration failed (non-fatal): {e}")
+        raise RuntimeError(f"Schema migration failed: {e}") from e
 
 
 if __name__ == "__main__":

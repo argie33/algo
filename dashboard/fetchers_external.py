@@ -99,36 +99,33 @@ def fetch_economic_pulse(c: None) -> dict[str, Any]:
         if isinstance(credit, dict):
             credit_latest = credit.get("currentSpreads")
 
-        t10 = safe_float(curve.get("10Y"), default=None, field_name="curve.10Y") if isinstance(curve, dict) else None
-        t2 = safe_float(curve.get("2Y"), default=None, field_name="curve.2Y") if isinstance(curve, dict) else None
-        t3m = safe_float(curve.get("3M"), default=None, field_name="curve.3M") if isinstance(curve, dict) else None
-        t6m = safe_float(curve.get("6M"), default=None, field_name="curve.6M") if isinstance(curve, dict) else None
-        yc_10_2 = (
-            safe_float(spreads.get("T10Y2Y"), default=None, field_name="spreads.T10Y2Y")
-            if isinstance(spreads, dict)
-            else None
+        # Critical yield curve data: strict mode (risk calculations depend on accuracy)
+        if not isinstance(curve, dict):
+            raise ValueError("Yield curve data missing from API response")
+        t10 = safe_float(curve.get("10Y"), strict=True, field_name="curve.10Y")
+        t2 = safe_float(curve.get("2Y"), strict=True, field_name="curve.2Y")
+        t3m = safe_float(curve.get("3M"), strict=True, field_name="curve.3M")
+        t6m = safe_float(curve.get("6M"), strict=True, field_name="curve.6M")
+
+        # Critical spreads: strict mode (signal generation depends on accuracy)
+        if not isinstance(spreads, dict):
+            raise ValueError("Spreads data missing from API response")
+        yc_10_2 = safe_float(spreads.get("T10Y2Y"), strict=True, field_name="spreads.T10Y2Y")
+        yc_10_3m = safe_float(spreads.get("T10Y3M"), strict=True, field_name="spreads.T10Y3M")
+
+        # Credit spreads: strict mode (portfolio risk depends on accuracy)
+        if not isinstance(credit_latest, dict):
+            raise ValueError("Credit spread data missing from API response")
+        hy = safe_float(
+            credit_latest.get("BAMLH0A0HYM2"),
+            strict=True,
+            field_name="credit.BAMLH0A0HYM2",
         )
-        yc_10_3m = (
-            safe_float(spreads.get("T10Y3M"), default=None, field_name="spreads.T10Y3M")
-            if isinstance(spreads, dict)
-            else None
+        ig = safe_float(
+            credit_latest.get("BAMLH0A0IG") or credit_latest.get("BAMLC0A0CM"),
+            strict=True,
+            field_name="credit.BAMLH0A0IG",
         )
-        hy = (
-            safe_float(
-                credit_latest.get("BAMLH0A0HYM2"),
-                default=None,
-                field_name="credit.BAMLH0A0HYM2",
-            )
-            if isinstance(credit_latest, dict)
-            else None
-        )
-        ig = None
-        if isinstance(credit_latest, dict):
-            ig = safe_float(
-                credit_latest.get("BAMLH0A0IG") or credit_latest.get("BAMLC0A0CM"),
-                default=None,
-                field_name="credit.BAMLH0A0IG",
-            )
 
         # Extract indicators data
         d2 = ind_data
@@ -137,18 +134,29 @@ def fetch_economic_pulse(c: None) -> dict[str, Any]:
             indicators = d2.get("indicators")
             if not isinstance(indicators, list):
                 indicators = None
-        by_series = {}
+        by_series: dict[str, float] = {}
         if indicators:
-            by_series = {
-                i["series_id"]: safe_float(
-                    i.get("rawValue"),
-                    default=None,
-                    field_name=f"indicator.{i.get('series_id')}.rawValue",
-                )
-                for i in indicators
-                if isinstance(i, dict) and i.get("series_id")
-            }
+            for i in indicators:
+                if isinstance(i, dict) and i.get("series_id"):
+                    raw_val = i.get("rawValue")
+                    if raw_val is None:
+                        raise ValueError(f"Missing rawValue for indicator {i.get('series_id')}")
+                    try:
+                        val = safe_float(
+                            raw_val,
+                            strict=True,
+                            field_name=f"indicator.{i.get('series_id')}.rawValue",
+                        )
+                        by_series[i["series_id"]] = val  # type: ignore[assignment]
+                    except Exception as e:
+                        raise ValueError(f"Invalid indicator value for {i.get('series_id')}: {e}") from e
+
+        # Critical indicators: fail fast if missing
         fed_funds = by_series.get("FEDFUNDS")
+        if fed_funds is None:
+            raise ValueError("Federal Funds Rate (FEDFUNDS) missing from indicators")
+
+        # Other important indicators (optional if not published yet)
         cpi_yoy = by_series.get("CPIAUCSL")
         unrate = by_series.get("UNRATE")
         be10 = by_series.get("T10YIE")

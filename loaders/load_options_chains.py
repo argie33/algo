@@ -99,141 +99,132 @@ class OptionsLoader:
         return result
 
     def _load_symbol_options(self, cur, symbol: str, eval_date: date) -> tuple[int, int]:
-        """Load options chains and IV for a single symbol. Returns (chains, iv)."""
+        """Load options chains and IV for a single symbol. Returns (chains, iv).
+
+        Fails fast: raises exception if data cannot be loaded (no fallback to zero counts).
+        """
+        ticker = yf.Ticker(symbol)
+        options_list = ticker.options
+        if not options_list:
+            logger.debug(f"{symbol} has no options")
+            return 0, 0
+
         chains_inserted = 0
         iv_inserted = 0
 
+        # Load nearest expiration for put/call volume
         try:
-            ticker = yf.Ticker(symbol)
-            options_list = ticker.options
-            if not options_list:
-                logger.debug(f"{symbol} has no options")
-                return 0, 0
+            chain = ticker.option_chain(options_list[0])
+            calls_df = chain.calls
+            puts_df = chain.puts
 
-            # Load nearest expiration for put/call volume
-            try:
-                chain = ticker.option_chain(options_list[0])
-                calls_df = chain.calls
-                puts_df = chain.puts
-
-                if not calls_df.empty or not puts_df.empty:
-                    chains_inserted = self._insert_options_chains(cur, symbol, calls_df, puts_df, eval_date)
-            except Exception as e:
-                logger.warning(f"Failed to get chain for {symbol}: {e}")
-
-            # Load IV history from multiple expirations
-            try:
-                iv_inserted = self._insert_iv_history(cur, symbol, options_list, eval_date)
-            except Exception as e:
-                logger.warning(f"Failed to load IV for {symbol}: {e}")
-
+            if not calls_df.empty or not puts_df.empty:
+                chains_inserted = self._insert_options_chains(cur, symbol, calls_df, puts_df, eval_date)
         except Exception as e:
-            logger.warning(f"Error processing {symbol}: {e}")
+            raise RuntimeError(f"Failed to get chain for {symbol}: {e}") from e
+
+        # Load IV history from multiple expirations
+        try:
+            iv_inserted = self._insert_iv_history(cur, symbol, options_list, eval_date)
+        except Exception as e:
+            raise RuntimeError(f"Failed to load IV for {symbol}: {e}") from e
 
         return chains_inserted, iv_inserted
 
     def _insert_options_chains(self, cur, symbol: str, calls_df, puts_df, eval_date: date) -> int:
-        """Insert options chain data (put/call volumes)."""
+        """Insert options chain data (put/call volumes). Fails fast on database errors."""
         inserted = 0
 
         # Process calls
         for _, row in calls_df.iterrows():
-            try:
-                vol = row.get("volume")
-                if vol and vol > 0:
-                    cur.execute(
-                        """
-                        INSERT INTO options_chains
-                        (symbol, option_type, strike_price, volume, quote_date)
-                        VALUES (%s, %s, %s, %s, %s)
-                        """,
-                        (symbol, "call", float(row["strike"]), int(vol), eval_date),
-                    )
-                    inserted += 1
-            except Exception as e:
-                logger.warning(f"Failed to insert call for {symbol}: {e}")
+            vol = row.get("volume")
+            if vol and vol > 0:
+                cur.execute(
+                    """
+                    INSERT INTO options_chains
+                    (symbol, option_type, strike_price, volume, quote_date)
+                    VALUES (%s, %s, %s, %s, %s)
+                    """,
+                    (symbol, "call", float(row["strike"]), int(vol), eval_date),
+                )
+                inserted += 1
 
         # Process puts
         for _, row in puts_df.iterrows():
-            try:
-                vol = row.get("volume")
-                if vol and vol > 0:
-                    cur.execute(
-                        """
-                        INSERT INTO options_chains
-                        (symbol, option_type, strike_price, volume, quote_date)
-                        VALUES (%s, %s, %s, %s, %s)
-                        """,
-                        (symbol, "put", float(row["strike"]), int(vol), eval_date),
-                    )
-                    inserted += 1
-            except Exception as e:
-                logger.warning(f"Failed to insert put for {symbol}: {e}")
+            vol = row.get("volume")
+            if vol and vol > 0:
+                cur.execute(
+                    """
+                    INSERT INTO options_chains
+                    (symbol, option_type, strike_price, volume, quote_date)
+                    VALUES (%s, %s, %s, %s, %s)
+                    """,
+                    (symbol, "put", float(row["strike"]), int(vol), eval_date),
+                )
+                inserted += 1
 
         return inserted
 
     def _insert_iv_history(self, cur, symbol: str, options_list: list, eval_date: date) -> int:
-        """Insert IV history: current IV + high/low from available expirations."""
-        try:
-            iv_values = []
+        """Insert IV history: current IV + high/low from available expirations.
 
-            # Collect IV from first 5 expirations to estimate range
-            for exp_str in options_list[:5]:
-                try:
-                    chain = yf.Ticker(symbol).option_chain(exp_str)
-                    calls_df = chain.calls
-                    if not calls_df.empty:
-                        iv_col = calls_df.get("impliedVolatility")
-                        if iv_col is not None:
-                            iv_values.extend(iv_col.dropna().tolist())
-                except Exception as e:
-                    logger.warning(f"Failed to fetch IV for {symbol} expiration {exp_str}: {e}")
+        Fails fast: raises exception if IV data cannot be collected/inserted.
+        """
+        iv_values = []
 
-            if not iv_values:
-                return 0
-
-            current_iv = sum(iv_values) / len(iv_values)  # Mean IV
-            iv_52w_high = max(iv_values)
-            iv_52w_low = min(iv_values)
-
-            # Try INSERT first, then UPDATE if it already exists
+        # Collect IV from first 5 expirations to estimate range
+        for exp_str in options_list[:5]:
             try:
-                cur.execute(
-                    """
-                    INSERT INTO iv_history
-                    (symbol, date, current_iv, iv_52w_high, iv_52w_low)
-                    VALUES (%s, %s, %s, %s, %s)
-                    """,
-                    (
-                        symbol,
-                        eval_date,
-                        float(current_iv),
-                        float(iv_52w_high),
-                        float(iv_52w_low),
-                    ),
-                )
-            except psycopg2.IntegrityError:
-                # Row already exists, update it
-                cur.execute(
-                    """
-                    UPDATE iv_history
-                    SET current_iv = %s, iv_52w_high = %s, iv_52w_low = %s
-                    WHERE symbol = %s AND date = %s
-                    """,
-                    (
-                        float(current_iv),
-                        float(iv_52w_high),
-                        float(iv_52w_low),
-                        symbol,
-                        eval_date,
-                    ),
-                )
+                chain = yf.Ticker(symbol).option_chain(exp_str)
+                calls_df = chain.calls
+                if not calls_df.empty:
+                    iv_col = calls_df.get("impliedVolatility")
+                    if iv_col is not None:
+                        iv_values.extend(iv_col.dropna().tolist())
+            except Exception as e:
+                raise RuntimeError(f"Failed to fetch IV for {symbol} expiration {exp_str}: {e}") from e
 
-            return 1
+        if not iv_values:
+            raise RuntimeError(f"No IV data available for {symbol}")
 
-        except Exception as e:
-            logger.warning(f"IV history failed for {symbol}: {e}")
-            return 0
+        current_iv = sum(iv_values) / len(iv_values)  # Mean IV
+        iv_52w_high = max(iv_values)
+        iv_52w_low = min(iv_values)
+
+        # Try INSERT first, then UPDATE if it already exists
+        try:
+            cur.execute(
+                """
+                INSERT INTO iv_history
+                (symbol, date, current_iv, iv_52w_high, iv_52w_low)
+                VALUES (%s, %s, %s, %s, %s)
+                """,
+                (
+                    symbol,
+                    eval_date,
+                    float(current_iv),
+                    float(iv_52w_high),
+                    float(iv_52w_low),
+                ),
+            )
+        except psycopg2.IntegrityError:
+            # Row already exists, update it
+            cur.execute(
+                """
+                UPDATE iv_history
+                SET current_iv = %s, iv_52w_high = %s, iv_52w_low = %s
+                WHERE symbol = %s AND date = %s
+                """,
+                (
+                    float(current_iv),
+                    float(iv_52w_high),
+                    float(iv_52w_low),
+                    symbol,
+                    eval_date,
+                ),
+            )
+
+        return 1
 
 
 def main():

@@ -239,11 +239,13 @@ def _get_data_status(cur) -> dict[str, Any]:
             table_name = row["table_name"]
 
             # Extract max_age with consistent default of 1 day for unknown tables
-            max_age = rule.get("max_age_days") if rule is not None else None
-            if max_age is None:
-                max_age = 1
+            max_age_raw = rule.get("max_age_days") if rule is not None else None
+            if max_age_raw is None:
+                max_age: int = 1
                 if table_name in _fr:
                     logger.warning(f"Freshness rule for {table_name} missing max_age_days field")
+            else:
+                max_age = int(max_age_raw)
 
             if row_count is None or row_count == 0:
                 status = "empty"

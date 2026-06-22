@@ -231,8 +231,8 @@ class OptimalLoader:
         except Exception as e:
             try:
                 self._log_execution_history("failed", str(e)[:500])
-            except Exception:
-                pass
+            except Exception as log_err:
+                logger.warning(f"[{self.table_name}] Failed to log execution history: {log_err}")
             raise
         finally:
             self._infrastructure.stop_heartbeat()
@@ -240,13 +240,13 @@ class OptimalLoader:
                 from utils.db.pooled_context_var import set_pooled_connection
                 set_pooled_connection(None)
                 conn_manager.release()
-            except Exception:
-                pass
+            except Exception as cleanup_err:
+                logger.warning(f"[{self.table_name}] Failed to clean up connection: {cleanup_err}")
             if lock_manager:
                 try:
                     lock_manager.release(lock_key=self.table_name)
-                except Exception:
-                    pass
+                except Exception as lock_err:
+                    logger.warning(f"[{self.table_name}] Failed to release lock: {lock_err}")
 
     def load_global(self) -> int:
         lock_manager = None
@@ -301,13 +301,13 @@ class OptimalLoader:
                 from utils.db.pooled_context_var import set_pooled_connection
                 set_pooled_connection(None)
                 conn_manager.release()
-            except Exception:
-                pass
+            except Exception as cleanup_err:
+                logger.warning(f"[{self.table_name}] Failed to clean up connection in load_global: {cleanup_err}")
             if lock_manager:
                 try:
                     lock_manager.release(lock_key=self.table_name)
-                except Exception:
-                    pass
+                except Exception as lock_err:
+                    logger.warning(f"[{self.table_name}] Failed to release lock in load_global: {lock_err}")
 
     def close(self) -> None:
         pass
@@ -349,7 +349,8 @@ class OptimalLoader:
                     try:
                         fut.result(timeout=5)
                         done += 1
-                    except Exception:
+                    except Exception as fut_err:
+                        logger.error(f"[{self.table_name}] Future task failed: {fut_err}")
                         done += 1
                     if done % 100 == 0:
                         logger.info(f"  Progress: {done}/{len(symbols)}")

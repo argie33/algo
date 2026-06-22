@@ -367,7 +367,7 @@ def _get_rejection_funnel(cur) -> dict[str, Any]:
         is_valid, error_msg = ResponseValidator.validate_endpoint_response("sig_eval", result)
         if not is_valid:
             logger.error(f"Endpoint response validation failed: {error_msg}")
-            return error_response(500, "response_validation_error", error_msg)
+            return error_response(500, "response_validation_error", error_msg or "Validation failed")
         return json_response(200, result)
     except (psycopg2.OperationalError, psycopg2.DatabaseError) as e:
         logger.error(

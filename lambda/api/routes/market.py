@@ -783,6 +783,7 @@ def _handle_naaim(cur) -> dict[str, Any]:
     except (ValueError, ZeroDivisionError, TypeError) as e:
         logger.error(f"[NAAIM] Error: {type(e).__name__}")
         raise_db_error(e, "NAAIM query")
+        raise  # unreachable — raise_db_error is NoReturn; satisfies mypy without lambda path config
 
 
 @db_route_handler("get fear greed history")
