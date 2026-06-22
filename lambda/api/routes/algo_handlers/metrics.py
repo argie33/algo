@@ -251,7 +251,8 @@ def _get_algo_performance(cur) -> dict[str, Any]:
                 total_open_losses_dollars = float(pos_row["total_losses"])
                 if total_open_losses_dollars is None:
                     total_open_losses_dollars = 0.0
-                wr = float(metrics.get("win_rate_pct"))
+                win_rate_val = metrics.get("win_rate_pct")
+                wr = float(win_rate_val) if win_rate_val is not None else None
                 if open_losses_count > 0 and wr is not None:
                     win_count = winning if winning is not None else 0
                     lose_count = losing if losing is not None else 0
@@ -264,9 +265,12 @@ def _get_algo_performance(cur) -> dict[str, Any]:
         # Compute expectancy_r from win_rate and average R multiples
         expectancy_r = None
         try:
-            wr = float(metrics.get("win_rate_pct"))
-            avg_wr = float(trade_stats.get("avg_win_r"))  # type: ignore[arg-type]
-            avg_lr = float(trade_stats.get("avg_loss_r"))  # type: ignore[arg-type]
+            win_rate_val = metrics.get("win_rate_pct")
+            wr = float(win_rate_val) if win_rate_val is not None else None
+            avg_wr_val = trade_stats.get("avg_win_r")
+            avg_wr = float(avg_wr_val) if avg_wr_val is not None else None
+            avg_lr_val = trade_stats.get("avg_loss_r")
+            avg_lr = float(avg_lr_val) if avg_lr_val is not None else None
             if wr is not None and avg_wr is not None and avg_lr is not None:
                 wr_frac = wr / 100
                 expectancy_r = round(wr_frac * avg_wr + (1 - wr_frac) * avg_lr, 3)
@@ -347,12 +351,16 @@ def _get_algo_performance(cur) -> dict[str, Any]:
             "avg_hold_days": fds(metrics.get("avg_holding_days"), 1, True),
             "avg_holding_days": fds(metrics.get("avg_holding_days"), 1, True),
             "portfolio_snapshots": len(equity_vals),
-            "best_win_streak": int(metrics.get("best_win_streak"))
-            if metrics.get("best_win_streak") is not None
-            else None,
-            "worst_loss_streak": int(metrics.get("worst_loss_streak"))
-            if metrics.get("worst_loss_streak") is not None
-            else None,
+            "best_win_streak": (
+                int(best_win_streak_val)
+                if (best_win_streak_val := metrics.get("best_win_streak")) is not None
+                else None
+            ),
+            "worst_loss_streak": (
+                int(worst_loss_streak_val)
+                if (worst_loss_streak_val := metrics.get("worst_loss_streak")) is not None
+                else None
+            ),
             "current_streak": current_streak,
             "equity_vals": equity_vals,
             "recent_rets": recent_rets,
@@ -415,17 +423,25 @@ def _get_algo_portfolio(cur) -> dict[str, Any]:
             )
         data = safe_dict_convert(row)
         pv = format_decimal_string(data.get("total_portfolio_value"), precision=2, allow_none=True)
+        position_count_val = data.get("position_count")
+        position_count = int(position_count_val) if position_count_val is not None else 0
+        winning_count_val = data.get("unrealized_pnl_winning_count")
+        winning_count = int(winning_count_val) if winning_count_val is not None else 0
+        losing_count_val = data.get("unrealized_pnl_losing_count")
+        losing_count = int(losing_count_val) if losing_count_val is not None else 0
+        breakeven_count_val = data.get("unrealized_pnl_breakeven_count")
+        breakeven_count = int(breakeven_count_val) if breakeven_count_val is not None else 0
         response_data = {
             "total_portfolio_value": pv,
             "total_cash": format_decimal_string(data.get("total_cash"), precision=2, allow_none=True),
-            "position_count": int(data.get("position_count")),
+            "position_count": position_count,
             "daily_return_pct": format_decimal_string(data.get("daily_return_pct"), precision=2, allow_none=True),
             "unrealized_pnl": {
                 "total_dollars": format_decimal_string(data.get("unrealized_pnl_total"), precision=2, allow_none=True),
                 "total_pct": format_decimal_string(data.get("unrealized_pnl_pct"), precision=2, allow_none=True),
-                "winning_positions": int(data.get("unrealized_pnl_winning_count")),
-                "losing_positions": int(data.get("unrealized_pnl_losing_count")),
-                "breakeven_positions": int(data.get("unrealized_pnl_breakeven_count")),
+                "winning_positions": winning_count,
+                "losing_positions": losing_count,
+                "breakeven_positions": breakeven_count,
                 "source": data.get("unrealized_pnl_source", "open_positions_only"),
                 "note": "Includes only open positions (no closed trades, no dividends)",
             },
@@ -716,18 +732,19 @@ def _get_risk_metrics(cur) -> dict[str, Any]:
                 "Risk metrics not available. Check data loader health.",
             )
         data = safe_dict_convert(row)
+        var_95 = data.get("var_pct_95")
+        cvar_95 = data.get("cvar_pct_95")
+        stressed_var = data.get("stressed_var_pct")
+        portfolio_beta = data.get("portfolio_beta")
+        concentration = data.get("top_5_concentration")
         return success_response(
             {
                 "report_date": data.get("report_date"),
-                "var_pct_95": float(data.get("var_pct_95")) if data.get("var_pct_95") is not None else None,
-                "cvar_pct_95": float(data.get("cvar_pct_95")) if data.get("cvar_pct_95") is not None else None,
-                "stressed_var_pct": float(data.get("stressed_var_pct"))
-                if data.get("stressed_var_pct") is not None
-                else None,
-                "portfolio_beta": float(data.get("portfolio_beta")) if data.get("portfolio_beta") is not None else None,
-                "top_5_concentration": float(data.get("top_5_concentration"))
-                if data.get("top_5_concentration") is not None
-                else None,
+                "var_pct_95": float(var_95) if var_95 is not None else None,
+                "cvar_pct_95": float(cvar_95) if cvar_95 is not None else None,
+                "stressed_var_pct": float(stressed_var) if stressed_var is not None else None,
+                "portfolio_beta": float(portfolio_beta) if portfolio_beta is not None else None,
+                "top_5_concentration": float(concentration) if concentration is not None else None,
             }
         )
     except (psycopg2.errors.UndefinedTable, psycopg2.errors.UndefinedColumn):

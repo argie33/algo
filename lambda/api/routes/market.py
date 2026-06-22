@@ -126,8 +126,7 @@ def _handle_breadth(cur) -> dict[str, Any]:
             psycopg2.OperationalError,
             psycopg2.DatabaseError,
         ) as e:
-            logger.warning(f"[BREADTH_FRESHNESS] Error checking data freshness: {type(e).__name__}: {e}")
-            freshness = {}
+            raise RuntimeError(f"Market breadth freshness check failed - cannot verify data: {e}") from e
 
     return list_response(
         [safe_json_serialize(dict(b)) for b in breadth],
@@ -163,12 +162,9 @@ def _handle_technicals(cur) -> dict[str, Any]:
         logger.error(f"[MARKET_TECHNICALS] Database error: {type(e).__name__}: {e}")
         raise_db_error(e, "market technicals query")
 
-    base = safe_json_serialize(dict(rows[0])) if rows else {}
-    # Ensure breadth and mcclellan_oscillator are always present
-    if "breadth" not in base:
-        base["breadth"] = {}
-    if "mcclellan_oscillator" not in base:
-        base["mcclellan_oscillator"] = []
+    if not rows:
+        raise RuntimeError("No market technicals data available")
+    base = safe_json_serialize(dict(rows[0]))
 
     # Compute today's advancing/declining counts from price_daily.
     # OPTIMIZATION: Use date-based index for faster filtering
@@ -203,18 +199,16 @@ def _handle_technicals(cur) -> dict[str, Any]:
         cur.execute("RELEASE SAVEPOINT technicals_breadth")
         base["breadth"] = dict(breadth_rows[0]) if breadth_rows else {}
     except psycopg2.errors.QueryCanceled as e:
-        logger.warning(f"[TECHNICALS_BREADTH] Query timeout — skipping: {type(e).__name__}")
         _rollback_savepoint(cur, "technicals_breadth")
-        base["breadth"] = {}
+        raise RuntimeError(f"Market technicals breadth calculation timed out: {e}") from e
     except (
         psycopg2.errors.UndefinedTable,
         psycopg2.errors.UndefinedColumn,
         psycopg2.OperationalError,
         psycopg2.DatabaseError,
     ) as e:
-        logger.warning(f"[TECHNICALS_BREADTH] Database error: {type(e).__name__}")
         _rollback_savepoint(cur, "technicals_breadth")
-        base["breadth"] = {}
+        raise RuntimeError(f"Market technicals breadth query failed: {e}") from e
 
     # Build 30-day A/D line history (formerly labeled mcclellan_oscillator)
     try:

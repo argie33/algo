@@ -335,7 +335,7 @@ def _get_sector_position_warnings(cur) -> dict[str, Any]:
         warnings = []
         at_cap = []
         for sector, count in sector_counts:
-            if not sector:
+            if not sector or count is None:
                 continue
             if count >= max_per_sector:
                 at_cap.append(
