@@ -67,10 +67,29 @@ def _connect_autocommit():
     return conn
 
 
+def _table_exists(cur, table_name: str) -> bool:
+    cur.execute(
+        "SELECT EXISTS (SELECT 1 FROM information_schema.tables WHERE table_name = %s AND table_schema = 'public')",
+        (table_name,),
+    )
+    return cur.fetchone()[0]
+
+
+def _table_from_sql(sql: str) -> str:
+    """Extract table name from CREATE INDEX ... ON <table>(...) SQL."""
+    import re
+    m = re.search(r"\bON\s+(\w+)\s*\(", sql, re.IGNORECASE)
+    return m.group(1) if m else ""
+
+
 def up():
     conn = _connect_autocommit()
     cur = conn.cursor()
     for sql in _INDEXES:
+        table = _table_from_sql(sql)
+        if table and not _table_exists(cur, table):
+            print(f"  SKIP (table '{table}' does not exist): {sql[:70]}...")
+            continue
         print(f"  {sql[:70]}...")
         cur.execute(sql)
     cur.close()
