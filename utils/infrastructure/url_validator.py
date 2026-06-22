@@ -29,6 +29,51 @@ def is_private_ip(ip_str: str) -> bool:
         return False
 
 
+def _check_url_format(url: str) -> tuple[bool, str | None]:
+    """Check URL format: empty, length, and protocol."""
+    if not url:
+        return False, "URL is empty"
+    if len(url) > 2048:
+        return False, "URL is too long"
+    if not url.startswith(("https://", "http://")):
+        return False, "URL must use HTTP or HTTPS protocol"
+    return True, None
+
+
+def _extract_hostname(url: str) -> tuple[str | None, str | None]:
+    """Extract hostname from URL. Returns (hostname, error_msg)."""
+    try:
+        parsed = urlparse(url)
+        hostname = parsed.hostname or parsed.netloc.split(":")[0]
+        if not hostname:
+            return None, "URL has no hostname"
+        return hostname, None
+    except Exception as e:
+        return None, f"URL parsing failed: {e}"
+
+
+def _check_hostname_safety(hostname: str) -> tuple[bool, str | None]:
+    """Check if hostname is safe (not localhost/private IP)."""
+    if hostname.lower() in ("localhost", "127.0.0.1", "::1", "[::1]"):
+        return False, "Localhost URLs not allowed"
+    if is_private_ip(hostname):
+        return False, f"Private/reserved IP address not allowed: {hostname}"
+    return True, None
+
+
+def _check_domain_whitelist(hostname: str, allowed_domains: list[str]) -> tuple[bool, str | None]:
+    """Check if hostname matches allowed domains."""
+    for allowed in allowed_domains:
+        if hostname.endswith(allowed) or hostname == allowed:
+            return True, None
+    return False, f"Domain {hostname} not in whitelist: {allowed_domains}"
+
+
+def _check_path_traversal(url: str) -> bool:
+    """Check for suspicious URL patterns (directory traversal, etc.)."""
+    return any(char in url for char in ["../", "..\\", "%2e%2e"])
+
+
 def validate_url(url: str, allowed_domains: list[str] | None = None) -> tuple:
     """
     Validate URL for SSRF safety.
@@ -41,50 +86,24 @@ def validate_url(url: str, allowed_domains: list[str] | None = None) -> tuple:
     Returns:
         (is_valid: bool, error_msg: Optional[str])
     """
-    if not url:
-        return False, "URL is empty"
+    is_valid, error = _check_url_format(url)
+    if not is_valid:
+        return is_valid, error
 
-    if len(url) > 2048:
-        return False, "URL is too long"
+    hostname, error = _extract_hostname(url)
+    if error:
+        return False, error
 
-    # Must be HTTPS in production (or HTTP for localhost only)
-    if not (url.startswith(("https://", "http://"))):
-        return False, "URL must use HTTP or HTTPS protocol"
+    is_valid, error = _check_hostname_safety(hostname)
+    if not is_valid:
+        return is_valid, error
 
-    try:
-        parsed = urlparse(url)
-    except Exception as e:
-        return False, f"URL parsing failed: {e}"
-
-    # Extract hostname
-    hostname = parsed.hostname or parsed.netloc.split(":")[0]
-    if not hostname:
-        return False, "URL has no hostname"
-
-    # SECURITY: Reject localhost and private IPs
-    if hostname.lower() in ("localhost", "127.0.0.1", "::1", "[::1]"):
-        return False, "Localhost URLs not allowed"
-
-    # Check if hostname is an IP address
-    try:
-        if is_private_ip(hostname):
-            return False, f"Private/reserved IP address not allowed: {hostname}"
-    except ValueError:
-        pass  # Not an IP, continue to domain check
-
-    # SECURITY: If allowed_domains specified, URL must match one
     if allowed_domains:
-        domain_match = False
-        for allowed in allowed_domains:
-            if hostname.endswith(allowed) or hostname == allowed:
-                domain_match = True
-                break
+        is_valid, error = _check_domain_whitelist(hostname, allowed_domains)
+        if not is_valid:
+            return is_valid, error
 
-        if not domain_match:
-            return False, f"Domain {hostname} not in whitelist: {allowed_domains}"
-
-    # Check for suspicious URL patterns (directory traversal, etc.)
-    if any(char in url for char in ["../", "..\\", "%2e%2e"]):
+    if _check_path_traversal(url):
         return False, "Path traversal detected in URL"
 
     return True, None

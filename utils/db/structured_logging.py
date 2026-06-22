@@ -49,6 +49,54 @@ class StructuredDBLogger:
         return query
 
     @staticmethod
+    def _format_param_value(param: Any) -> str:
+        """Format a single parameter value."""
+        if param is None:
+            return "None"
+        if isinstance(param, str):
+            val = param if len(param) <= 50 else param[:47] + "..."
+            return f'"{val}"'
+        if isinstance(param, (int, float, bool)):
+            return str(param)
+        return str(type(param).__name__)
+
+    @staticmethod
+    def _format_list_params(params: list | tuple, max_items: int) -> str:
+        """Format list/tuple parameters."""
+        if len(params) == 0:
+            return "[]"
+        formatted = [StructuredDBLogger._format_param_value(p) for p in params[:max_items]]
+        result = "[" + ", ".join(formatted)
+        if len(params) > max_items:
+            result += f", +{len(params) - max_items} more]"
+        else:
+            result += "]"
+        return result
+
+    @staticmethod
+    def _format_dict_params(params: dict, max_items: int) -> str:
+        """Format dictionary parameters."""
+        if len(params) == 0:
+            return "{}"
+        formatted = []
+        for key, val in list(params.items())[:max_items]:
+            if val is None:
+                formatted.append(f"{key}: None")
+            elif isinstance(val, str):
+                v = val if len(val) <= 30 else val[:27] + "..."
+                formatted.append(f'{key}: "{v}"')
+            elif isinstance(val, (int, float, bool)):
+                formatted.append(f"{key}: {val}")
+            else:
+                formatted.append(f"{key}: <{type(val).__name__}>")
+        result = "{" + ", ".join(formatted)
+        if len(params) > max_items:
+            result += f", +{len(params) - max_items} more}}"
+        else:
+            result += "}"
+        return result
+
+    @staticmethod
     def format_parameters(params: Any, max_items: int = 10) -> str:
         """Format query parameters for logging.
 
@@ -57,56 +105,11 @@ class StructuredDBLogger:
         """
         if params is None:
             return "None"
-
         if isinstance(params, (list, tuple)):
-            if len(params) == 0:
-                return "[]"
-
-            formatted = []
-            for _i, param in enumerate(params[:max_items]):
-                if param is None:
-                    formatted.append("None")
-                elif isinstance(param, str):
-                    # Truncate long strings
-                    val = param if len(param) <= 50 else param[:47] + "..."
-                    formatted.append(f'"{val}"')
-                elif isinstance(param, (int, float, bool)):
-                    formatted.append(str(param))
-                else:
-                    formatted.append(str(type(param).__name__))
-
-            result = "[" + ", ".join(formatted)
-            if len(params) > max_items:
-                result += f", +{len(params) - max_items} more]"
-            else:
-                result += "]"
-            return result
-
-        elif isinstance(params, dict):
-            if len(params) == 0:
-                return "{}"
-
-            formatted = []
-            for _i, (key, val) in enumerate(list(params.items())[:max_items]):
-                if val is None:
-                    formatted.append(f"{key}: None")
-                elif isinstance(val, str):
-                    v = val if len(val) <= 30 else val[:27] + "..."
-                    formatted.append(f'{key}: "{v}"')
-                elif isinstance(val, (int, float, bool)):
-                    formatted.append(f"{key}: {val}")
-                else:
-                    formatted.append(f"{key}: <{type(val).__name__}>")
-
-            result = "{" + ", ".join(formatted)
-            if len(params) > max_items:
-                result += f", +{len(params) - max_items} more}}"
-            else:
-                result += "}"
-            return result
-
-        else:
-            return str(params)
+            return StructuredDBLogger._format_list_params(params, max_items)
+        if isinstance(params, dict):
+            return StructuredDBLogger._format_dict_params(params, max_items)
+        return str(params)
 
     @staticmethod
     def log_db_error(
