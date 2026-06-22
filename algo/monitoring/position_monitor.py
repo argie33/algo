@@ -365,14 +365,7 @@ class PositionMonitor:
                     cur.execute(f"ROLLBACK TO {sp_name}")
                     continue
 
-            # If ALL positions failed validation, monitoring is incomplete - raise to signal caller
-            if validation_errors and len(recs) == len(validation_errors):
-                all_failures = "\n".join([f"  {sym}: {msg}" for sym, msg in validation_errors])
-                raise PositionValidationError(
-                    f"Monitoring incomplete: ALL {len(positions)} position(s) failed validation:\n{all_failures}"
-                )
-
-            # If SOME positions failed validation, log warning but continue (failures now in recs)
+            # Log warning for any validation failures (included in recs as FAILED_VALIDATION)
             if validation_errors:
                 logger.warning(
                     f"[WARNING] {len(validation_errors)}/{len(positions)} position(s) failed validation (included in results)"
