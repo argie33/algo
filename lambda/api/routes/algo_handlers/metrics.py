@@ -73,7 +73,7 @@ def _get_algo_metrics(cur: cursor) -> dict[str, Any]:
                 503,
                 "no_data",
                 "Algo metrics not yet available - no daily runs have completed",
-            )
+            )  # type: ignore[no-any-return]
         data = safe_dict_convert(row)
 
         # Validate critical fields
@@ -83,13 +83,13 @@ def _get_algo_metrics(cur: cursor) -> dict[str, Any]:
         exits = data.get("exits")
 
         if date is None:
-            return error_response(503, "incomplete_data", "Algo metrics date missing")
+            return error_response(503, "incomplete_data", "Algo metrics date missing")  # type: ignore[no-any-return]
         if total_actions is None or entries is None or exits is None:
             return error_response(
                 503,
                 "incomplete_data",
                 "Algo metrics incomplete (missing actions/entries/exits)",
-            )
+            )  # type: ignore[no-any-return]
 
         total_actions = int(total_actions)
         entries = int(entries)
@@ -111,7 +111,7 @@ def _get_algo_metrics(cur: cursor) -> dict[str, Any]:
                 "exits": exits,
                 "avg_signal_score": avg_signal_score,
             }
-        )
+        )  # type: ignore[no-any-return]
     except (
         psycopg2.errors.UndefinedTable,
         psycopg2.errors.UndefinedColumn,
@@ -120,7 +120,7 @@ def _get_algo_metrics(cur: cursor) -> dict[str, Any]:
         Exception,
     ) as e:
         code, error_type, message = handle_db_error(e, "fetch algo metrics")
-        return error_response(code, error_type, message)
+        return error_response(code, error_type, message)  # type: ignore[no-any-return]
 
 
 @db_route_handler("calculate performance")
@@ -158,7 +158,7 @@ def _get_algo_performance(cur: cursor) -> dict[str, Any]:
             503,
             "data_unavailable",
             "Performance metrics not pre-computed. Check data loader health.",
-        )
+        )  # type: ignore[no-any-return]
 
     try:
         metrics = safe_dict_convert(row)
@@ -177,7 +177,7 @@ def _get_algo_performance(cur: cursor) -> dict[str, Any]:
                 503,
                 "incomplete_data",
                 "Performance metrics missing required trade counts",
-            )
+            )  # type: ignore[no-any-return]
 
         total_trades = int(total_trades_raw)
         winning = int(winning_raw)
@@ -208,7 +208,7 @@ def _get_algo_performance(cur: cursor) -> dict[str, Any]:
                 503,
                 "data_unavailable",
                 f"Trade metrics unavailable: {type(te).__name__}",
-            )
+            )  # type: ignore[no-any-return]
 
         # Compute current win/loss streak from most recent closed trades (CRITICAL for performance panel)
         current_streak = 0
@@ -244,7 +244,7 @@ def _get_algo_performance(cur: cursor) -> dict[str, Any]:
                 503,
                 "data_unavailable",
                 f"Streak computation failed: {type(ce).__name__}",
-            )
+            )  # type: ignore[no-any-return]
 
         # Compute open losses for adjusted win rate
         open_losses_count = 0
@@ -329,14 +329,14 @@ def _get_algo_performance(cur: cursor) -> dict[str, Any]:
                 503,
                 "data_unavailable",
                 f"Portfolio snapshot data unavailable: {type(eq_err).__name__}",
-            )
+            )  # type: ignore[no-any-return]
         except (ValueError, ZeroDivisionError, TypeError) as eq_err:
             logger.error(f"CRITICAL: Equity data format error: {eq_err}")
             return error_response(
                 500,
                 "data_format_error",
                 f"Portfolio data format invalid: {type(eq_err).__name__}",
-            )
+            )  # type: ignore[no-any-return]
 
         fds = format_decimal_string  # Shorthand for readability
         response_data = {
@@ -402,7 +402,7 @@ def _get_algo_performance(cur: cursor) -> dict[str, Any]:
         # Validate performance response matches contract schema
         ensure_valid_response("perf", sanitized)
 
-        return json_response(200, sanitized)
+        return json_response(200, sanitized)  # type: ignore[no-any-return]
     except (
         psycopg2.errors.UndefinedTable,
         psycopg2.errors.UndefinedColumn,
@@ -411,7 +411,7 @@ def _get_algo_performance(cur: cursor) -> dict[str, Any]:
         Exception,
     ) as e:
         code, error_type, message = handle_db_error(e, "fetch performance metrics")
-        return error_response(code, error_type, message)
+        return error_response(code, error_type, message)  # type: ignore[no-any-return]
 
 
 @db_route_handler("get algo portfolio")
@@ -443,7 +443,7 @@ def _get_algo_portfolio(cur: cursor) -> dict[str, Any]:
                 503,
                 "data_unavailable",
                 "Portfolio snapshots not available yet. Check data loader health.",
-            )
+            )  # type: ignore[no-any-return]
         data = safe_dict_convert(row)
         pv = format_decimal_string(data.get("total_portfolio_value"), precision=2, allow_none=True)
         position_count_val = data.get("position_count")
@@ -482,23 +482,23 @@ def _get_algo_portfolio(cur: cursor) -> dict[str, Any]:
         # Validate portfolio response matches contract schema
         ensure_valid_response("port", validated_data)
 
-        return success_response(validated_data)
+        return success_response(validated_data)  # type: ignore[no-any-return]
     except (psycopg2.DatabaseError, psycopg2.OperationalError) as e:
         logger.error(f"CRITICAL: Portfolio fetch database error: {type(e).__name__}: {e}")
-        return error_response(503, "data_unavailable", f"Portfolio data unavailable: {type(e).__name__}")
+        return error_response(503, "data_unavailable", f"Portfolio data unavailable: {type(e).__name__}")  # type: ignore[no-any-return]
     except (ValueError, ZeroDivisionError, TypeError) as e:
         logger.error(f"CRITICAL: Portfolio data format error: {type(e).__name__}: {e}")
         return error_response(
             500,
             "data_format_error",
             f"Portfolio data format invalid: {type(e).__name__}",
-        )
+        )  # type: ignore[no-any-return]
     except (AttributeError, KeyError) as e:
         logger.error(
             f"CRITICAL: Portfolio fetch unexpected error: {type(e).__name__}: {e}",
             exc_info=True,
         )
-        return error_response(503, "service_error", f"Portfolio service error: {type(e).__name__}")
+        return error_response(503, "service_error", f"Portfolio service error: {type(e).__name__}")  # type: ignore[no-any-return]
 
 
 @db_route_handler("get daily return histogram")
@@ -571,7 +571,7 @@ def _get_holding_period_distribution(cur: cursor) -> dict[str, Any]:
     durations = [int(r["trade_duration_days"]) for r in rows if r.get("trade_duration_days") is not None]
 
     if not durations:
-        return list_response([], total=0, limit=None, offset=None)
+        return list_response([], total=0, limit=None, offset=None)  # type: ignore[no-any-return]
 
     buckets: list[dict[str, Any]] = [
         {"range": "0-3 days", "count": 0},
@@ -603,7 +603,7 @@ def _get_holding_period_distribution(cur: cursor) -> dict[str, Any]:
             buckets[7]["count"] += 1
 
     filtered_buckets = [b for b in buckets if b["count"] > 0]
-    return list_response(filtered_buckets, total=len(filtered_buckets), limit=None, offset=None)
+    return list_response(filtered_buckets, total=len(filtered_buckets), limit=None, offset=None)  # type: ignore[no-any-return]
 
 
 @db_route_handler("get performance analytics")
@@ -630,7 +630,7 @@ def _get_performance_analytics(cur: cursor) -> dict[str, Any]:
                 503,
                 "data_unavailable",
                 "Performance analytics not available. Check data loader health.",
-            )
+            )  # type: ignore[no-any-return]
         data = safe_dict_convert(row)
         sharpe: Any = data.get("rolling_sharpe_252d")
         sortino: Any = data.get("rolling_sortino_252d")
@@ -651,14 +651,14 @@ def _get_performance_analytics(cur: cursor) -> dict[str, Any]:
                 "expectancy": (float(expectancy_val) if expectancy_val is not None else None),
                 "max_drawdown_pct": float(max_dd) if max_dd is not None else None,
             }
-        )
+        )  # type: ignore[no-any-return]
     except (psycopg2.errors.UndefinedTable, psycopg2.errors.UndefinedColumn):
         try:
             cur.execute("ROLLBACK TO SAVEPOINT perf_analytics")
         except (psycopg2.DatabaseError, psycopg2.OperationalError) as e:
             raise RuntimeError(f"Unexpected error: {e}") from e
         logger.error("Performance analytics table missing or schema changed")
-        return error_response(503, "table_missing", "Performance analytics table not found")
+        return error_response(503, "table_missing", "Performance analytics table not found")  # type: ignore[no-any-return]
     except (
         psycopg2.OperationalError,
         psycopg2.DatabaseError,
@@ -670,7 +670,7 @@ def _get_performance_analytics(cur: cursor) -> dict[str, Any]:
         except (psycopg2.DatabaseError, psycopg2.OperationalError) as save_err:
             raise RuntimeError(f"Savepoint rollback failed: {save_err}") from save_err
         code, error_type, message = handle_db_error(e, "fetch performance analytics")
-        return error_response(code, error_type, message)
+        return error_response(code, error_type, message)  # type: ignore[no-any-return]
 
 
 @db_route_handler("get performance metrics endpoint")
@@ -685,7 +685,7 @@ def _get_performance_metrics_endpoint(cur: cursor) -> dict[str, Any]:
     row = cur.fetchone()
 
     if not row:
-        return error_response(503, "no_data", "Performance metrics not yet available")
+        return error_response(503, "no_data", "Performance metrics not yet available")  # type: ignore[no-any-return]
 
     return json_response(
         200,
@@ -696,7 +696,7 @@ def _get_performance_metrics_endpoint(cur: cursor) -> dict[str, Any]:
             "sharpe_ratio": float(row["sharpe_ratio"]),
             "max_drawdown": (float(row["max_drawdown_pct"]) / 100 if row["max_drawdown_pct"] else None),
         },
-    )
+    )  # type: ignore[no-any-return]
 
 
 @db_route_handler("get portfolio summary")
@@ -711,12 +711,12 @@ def _get_portfolio_summary(cur: cursor) -> dict[str, Any]:
     row = cur.fetchone()
 
     if not row:
-        return error_response(503, "no_data", "Portfolio snapshot not yet available")
+        return error_response(503, "no_data", "Portfolio snapshot not yet available")  # type: ignore[no-any-return]
 
     # Validate critical fields (fail-fast: check for None, not falsiness - 0.0 is valid)
     total_value_raw = row.get("total_portfolio_value")
     if total_value_raw is None:
-        return error_response(503, "incomplete_data", "Portfolio snapshot missing total_portfolio_value")
+        return error_response(503, "incomplete_data", "Portfolio snapshot missing total_portfolio_value")  # type: ignore[no-any-return]
 
     try:
         total_value = float(total_value_raw)
@@ -726,7 +726,7 @@ def _get_portfolio_summary(cur: cursor) -> dict[str, Any]:
         daily_return_pct = float(row["daily_return_pct"])
     except (ValueError, TypeError) as e:
         logger.error(f"Cannot convert portfolio fields to numeric types: {e}")
-        return error_response(503, "incomplete_data", "Portfolio snapshot has invalid numeric fields")
+        return error_response(503, "incomplete_data", "Portfolio snapshot has invalid numeric fields")  # type: ignore[no-any-return]
 
     daily_change_dollars = (daily_return_pct / 100 * total_value) if total_value and daily_return_pct else None
 
@@ -740,7 +740,7 @@ def _get_portfolio_summary(cur: cursor) -> dict[str, Any]:
             "daily_change": (round(daily_change_dollars, 2) if daily_change_dollars else None),
             "daily_change_percent": (round(daily_return_pct, 2) if daily_return_pct else None),
         },
-    )
+    )  # type: ignore[no-any-return]
 
 
 @db_route_handler("get risk metrics")
@@ -767,7 +767,7 @@ def _get_risk_metrics(cur: cursor) -> dict[str, Any]:
                 503,
                 "data_unavailable",
                 "Risk metrics not available. Check data loader health.",
-            )
+            )  # type: ignore[no-any-return]
         data = safe_dict_convert(row)
         var_95 = data.get("var_pct_95")
         cvar_95 = data.get("cvar_pct_95")
@@ -783,14 +783,14 @@ def _get_risk_metrics(cur: cursor) -> dict[str, Any]:
                 "portfolio_beta": (float(portfolio_beta) if portfolio_beta is not None else None),
                 "top_5_concentration": (float(concentration) if concentration is not None else None),
             }
-        )
+        )  # type: ignore[no-any-return]
     except (psycopg2.errors.UndefinedTable, psycopg2.errors.UndefinedColumn):
         try:
             cur.execute("ROLLBACK TO SAVEPOINT risk_metrics")
         except (psycopg2.DatabaseError, psycopg2.OperationalError) as e:
             raise RuntimeError(f"Unexpected error: {e}") from e
         logger.error("Risk metrics table missing or schema changed")
-        return error_response(503, "table_missing", "Risk metrics table not found")
+        return error_response(503, "table_missing", "Risk metrics table not found")  # type: ignore[no-any-return]
     except (
         psycopg2.OperationalError,
         psycopg2.DatabaseError,
@@ -802,7 +802,7 @@ def _get_risk_metrics(cur: cursor) -> dict[str, Any]:
         except (psycopg2.DatabaseError, psycopg2.OperationalError) as save_err:
             raise RuntimeError(f"Unexpected error: {save_err}") from save_err
         code, error_type, message = handle_db_error(e, "fetch risk metrics")
-        return error_response(code, error_type, message)
+        return error_response(code, error_type, message)  # type: ignore[no-any-return]
 
 
 @db_route_handler("get stage distribution")
@@ -830,11 +830,11 @@ def _get_stage_distribution(cur: cursor) -> dict[str, Any]:
     rows = cur.fetchall()
 
     if not rows:
-        return list_response([], total=0, limit=None, offset=None)
+        return list_response([], total=0, limit=None, offset=None)  # type: ignore[no-any-return]
 
     distribution = [{"phase": r["phase"], "count": int(r["count"])} for r in rows]
 
-    return list_response(distribution, total=len(distribution), limit=None, offset=None)
+    return list_response(distribution, total=len(distribution), limit=None, offset=None)  # type: ignore[no-any-return]
 
 
 @db_route_handler("get trade distribution")
@@ -851,7 +851,7 @@ def _get_trade_distribution(cur: cursor) -> dict[str, Any]:
     r_multiples = [float(r["exit_r_multiple"]) for r in rows if r.get("exit_r_multiple") is not None]
 
     if not r_multiples:
-        return list_response([], total=0, limit=None, offset=None)
+        return list_response([], total=0, limit=None, offset=None)  # type: ignore[no-any-return]
 
     buckets: list[dict[str, Any]] = [
         {"range": "<-2R", "count": 0, "min": -999},
@@ -880,4 +880,4 @@ def _get_trade_distribution(cur: cursor) -> dict[str, Any]:
             buckets[6]["count"] += 1
 
     filtered_buckets = [b for b in buckets if b["count"] > 0]
-    return list_response(filtered_buckets, total=len(filtered_buckets), limit=None, offset=None)
+    return list_response(filtered_buckets, total=len(filtered_buckets), limit=None, offset=None)  # type: ignore[no-any-return]

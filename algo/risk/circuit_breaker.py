@@ -154,7 +154,9 @@ class CircuitBreaker:
                     state["label"] = CHECK_LABELS.get(check_name, check_name)
                     results["checks"][check_name] = state
                     if "halted" not in state:
-                        raise ValueError(f"Circuit breaker check '{check_name}' missing required 'halted' field in state: {state}")
+                        raise ValueError(
+                            f"Circuit breaker check '{check_name}' missing required 'halted' field in state: {state}"
+                        )
                     if state["halted"]:
                         results["halted"] = True
                         results["halt_reasons"].append(f"{state['label']}: {state['reason']}")

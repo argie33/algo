@@ -35,7 +35,7 @@ def _get_orchestrator_execution_details(cur: cursor, run_id: str) -> dict[str, A
     )
     row = cur.fetchone()
     if not row:
-        return error_response(404, "not_found", f"Run {run_id} not found")
+        return error_response(404, "not_found", f"Run {run_id} not found")  # type: ignore[no-any-return]
 
     result = safe_json_serialize(safe_dict_convert(row))
     # Parse phase_results JSONB
@@ -45,7 +45,7 @@ def _get_orchestrator_execution_details(cur: cursor, run_id: str) -> dict[str, A
         except (psycopg2.DatabaseError, psycopg2.OperationalError) as e:
             logger.warning(f"Failed to parse phase_results JSON: {e}")
             result["phase_results"] = {}
-    return success_response(result)
+    return success_response(result)  # type: ignore[no-any-return]
 
 
 @db_route_handler("fetch orchestrator execution failed")
@@ -62,7 +62,7 @@ def _get_orchestrator_execution_failed(cur: cursor, days: int = 30) -> dict[str,
         (days,),
     )
     rows = cur.fetchall()
-    return list_response([safe_json_serialize(safe_dict_convert(r)) for r in rows], total=len(rows))
+    return list_response([safe_json_serialize(safe_dict_convert(r)) for r in rows], total=len(rows))  # type: ignore[no-any-return]
 
 
 @db_route_handler("fetch orchestrator execution patterns")
@@ -92,7 +92,7 @@ def _get_orchestrator_execution_patterns(cur: cursor, days: int = 30) -> dict[st
         }
         for r in rows
     ]
-    return success_response({"patterns": patterns, "period_days": days})
+    return success_response({"patterns": patterns, "period_days": days})  # type: ignore[no-any-return]
 
 
 @db_route_handler("fetch orchestrator execution recent")
@@ -126,16 +126,16 @@ def _get_orchestrator_execution_recent(cur: cursor, days: int = 7, limit: int = 
         )
         rows = cur.fetchall()
         if not rows:
-            return list_response([], total=0, limit=limit)
+            return list_response([], total=0, limit=limit)  # type: ignore[no-any-return]
         try:
             items = [safe_json_serialize(safe_dict_convert(r)) for r in rows]
-            return list_response(items, total=len(rows), limit=limit)
+            return list_response(items, total=len(rows), limit=limit)  # type: ignore[no-any-return]
         except (psycopg2.DatabaseError, psycopg2.OperationalError) as ser_e:
             logger.warning(f"Serialization error in execution recent: {type(ser_e).__name__}: {ser_e}")
-            return list_response([], total=0, limit=limit)
+            return list_response([], total=0, limit=limit)  # type: ignore[no-any-return]
     except (psycopg2.DatabaseError, psycopg2.OperationalError) as e:
         logger.error(f"Orchestrator execution recent fetch error: {type(e).__name__}: {e}")
-        return list_response([], total=0, limit=limit)
+        return list_response([], total=0, limit=limit)  # type: ignore[no-any-return]
 
 
 @db_route_handler("fetch orchestrator execution stats")
@@ -170,4 +170,4 @@ def _get_orchestrator_execution_stats(cur: cursor, days: int = 7) -> dict[str, A
             "error_rate": f"{(error_count / total * 100):.1f}%" if total > 0 else "N/A",
             "period_days": days,
         }
-    )
+    )  # type: ignore[no-any-return]

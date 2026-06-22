@@ -60,7 +60,7 @@ def _get_algo_evaluate(cur: cursor) -> dict[str, Any]:
                         "available_slots": 15,
                     },
                 },
-            )
+            )  # type: ignore[no-any-return]
 
         # Current portfolio positions and constraints
         cur.execute("""
@@ -128,7 +128,7 @@ def _get_algo_evaluate(cur: cursor) -> dict[str, Any]:
                         },
                     },
                 },
-            )
+            )  # type: ignore[no-any-return]
 
         # Fail-fast: critical fields must be present
         critical_fields = [
@@ -148,7 +148,7 @@ def _get_algo_evaluate(cur: cursor) -> dict[str, Any]:
                     "stage": "incomplete_data",
                     "_error": f"Portfolio health metrics incomplete: {', '.join(missing)}",
                 },
-            )
+            )  # type: ignore[no-any-return]
 
         today_return = risk_row.get("today_return_pct")
         unrealized_pnl_total = risk_row.get("unrealized_pnl_total")
@@ -174,7 +174,7 @@ def _get_algo_evaluate(cur: cursor) -> dict[str, Any]:
                     "stage": "incomplete_data",
                     "_error": f"Signal evaluation incomplete: {', '.join(missing_candidates)}",
                 },
-            )
+            )  # type: ignore[no-any-return]
 
         return json_response(
             200,
@@ -214,7 +214,7 @@ def _get_algo_evaluate(cur: cursor) -> dict[str, Any]:
                     },
                 },
             },
-        )
+        )  # type: ignore[no-any-return]
     except (psycopg2.OperationalError, psycopg2.DatabaseError) as e:
         logger.error(
             f"Failed to evaluate algorithm: {type(e).__name__}: {e}\n  Operation: Evaluate algorithm with signals and constraints\n  Endpoint: GET /api/algo/evaluate"
@@ -229,7 +229,7 @@ def _get_algo_evaluate(cur: cursor) -> dict[str, Any]:
                 "sector_exposure": {},
                 "portfolio_health": {},
             },
-        )
+        )  # type: ignore[no-any-return]
 
 
 @db_route_handler("get sector breadth")
@@ -287,7 +287,7 @@ def _get_sector_breadth(cur: cursor) -> dict[str, Any]:
             """)
         breadth = cur.fetchall()
         cur.execute("RELEASE SAVEPOINT sector_breadth_check")
-        return list_response([safe_json_serialize(safe_dict_convert(b)) for b in breadth])
+        return list_response([safe_json_serialize(safe_dict_convert(b)) for b in breadth])  # type: ignore[no-any-return]
     except (
         psycopg2.errors.UndefinedTable,
         psycopg2.errors.UndefinedColumn,
@@ -301,7 +301,7 @@ def _get_sector_breadth(cur: cursor) -> dict[str, Any]:
         except (psycopg2.DatabaseError, psycopg2.OperationalError) as sp_err:
             logger.debug(f"Failed to rollback sector_breadth_check savepoint: {sp_err}")
         code, error_type, message = handle_db_error(e, "get sector breadth")
-        return error_response(code, error_type, message)
+        return error_response(code, error_type, message)  # type: ignore[no-any-return]
 
 
 @db_route_handler("get sector position warnings")
@@ -358,7 +358,7 @@ def _get_sector_position_warnings(cur: cursor) -> dict[str, Any]:
                     }
                 )
 
-        return success_response({"warnings": warnings, "at_cap": at_cap})
+        return success_response({"warnings": warnings, "at_cap": at_cap})  # type: ignore[no-any-return]
 
     except (
         psycopg2.errors.UndefinedTable,
@@ -368,7 +368,7 @@ def _get_sector_position_warnings(cur: cursor) -> dict[str, Any]:
         Exception,
     ) as e:
         code, error_type, message = handle_db_error(e, "get sector position warnings")
-        return error_response(code, error_type, message)
+        return error_response(code, error_type, message)  # type: ignore[no-any-return]
 
 
 @db_route_handler("get sector rotation")
@@ -461,7 +461,7 @@ def _get_sector_rotation(cur: cursor, days: int = 180) -> dict[str, Any]:
     is_valid, error_msg = ResponseValidator.validate_endpoint_response("sec_rot", response["data"])
     if not is_valid:
         logger.error(f"Sector rotation response validation failed: {error_msg}")
-        return error_response(500, "response_validation_error", error_msg)
+        return error_response(500, "response_validation_error", error_msg)  # type: ignore[no-any-return]
 
     return response
 
@@ -500,7 +500,7 @@ def _get_sector_stage2(cur: cursor) -> dict[str, Any]:
                 ORDER BY pct_stage_2 DESC
             """)
         rows = cur.fetchall()
-        return list_response([safe_json_serialize(safe_dict_convert(r)) for r in rows])
+        return list_response([safe_json_serialize(safe_dict_convert(r)) for r in rows])  # type: ignore[no-any-return]
     except (
         psycopg2.errors.UndefinedTable,
         psycopg2.errors.UndefinedColumn,
@@ -509,4 +509,4 @@ def _get_sector_stage2(cur: cursor) -> dict[str, Any]:
         Exception,
     ) as e:
         code, error_type, message = handle_db_error(e, "get sector stage2")
-        return error_response(code, error_type, message)
+        return error_response(code, error_type, message)  # type: ignore[no-any-return]

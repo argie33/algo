@@ -182,9 +182,7 @@ class BreadthFetcher:
                     "declines": item.get("declines", 0),
                     "unchanged": item.get("unchanged", 0),
                     "advance_decline_ratio": (
-                        item.get("advances", 0) / item.get("declines", 1)
-                        if item.get("declines", 0) > 0
-                        else 0
+                        item.get("advances", 0) / item.get("declines", 1) if item.get("declines", 0) > 0 else 0
                     ),
                 }
             return result

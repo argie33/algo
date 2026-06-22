@@ -79,9 +79,7 @@ class BulkInsertManager:
                 if "duplicate" in str(e).lower() or "already exists" in str(e).lower():
                     try:
                         cur.execute(
-                            psycopg2.sql.SQL("DROP TABLE IF EXISTS {} CASCADE").format(
-                                psycopg2.sql.Identifier(staging)
-                            )
+                            psycopg2.sql.SQL("DROP TABLE IF EXISTS {} CASCADE").format(psycopg2.sql.Identifier(staging))
                         )
                     except psycopg2.Error as drop_err:
                         logger.warning(f"Failed to drop staging table {staging}: {drop_err}")

@@ -1,7 +1,7 @@
 """Route: openapi_spec - Serve OpenAPI specification and UI."""
 
 import logging
-from typing import cast, Any
+from typing import Any, cast
 
 from openapi_spec import generate_openapi_spec
 from routes.utils import error_response, json_response

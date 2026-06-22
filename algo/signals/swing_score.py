@@ -309,8 +309,7 @@ class SwingTraderScore:
             row = cur.fetchone()
             if not row or row[0] is None:
                 raise ValueError(
-                    f"52-week high extension data missing for {symbol} on {eval_date} — "
-                    f"cannot validate extension limit"
+                    f"52-week high extension data missing for {symbol} on {eval_date} — cannot validate extension limit"
                 )
             pct_from_high = float(row[0])
             # pct_from_high is (close - high52w) / high52w * 100, always ≤ 0.
@@ -350,8 +349,7 @@ class SwingTraderScore:
                 r = cur.fetchone()
                 if not r or r[0] is None:
                     raise ValueError(
-                        f"Industry rank missing for {industry} on {eval_date} — "
-                        f"cannot validate industry strength"
+                        f"Industry rank missing for {industry} on {eval_date} — cannot validate industry strength"
                     )
                 industry_rank = int(r[0])
                 if industry_rank > max_industry_rank:

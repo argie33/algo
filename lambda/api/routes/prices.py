@@ -56,12 +56,12 @@ def handle(
                 # Delegate to batch-history handler logic
                 symbols = [s.strip().upper() for s in symbols_raw.split(",") if s.strip()]
                 if not symbols:
-                    return error_response(400, "bad_request", "symbols parameter required")
+                    return error_response(400, "bad_request", "symbols parameter required")  # type: ignore[no-any-return]
                 if len(symbols) > 20:
-                    return error_response(400, "bad_request", "maximum 20 symbols per batch")
+                    return error_response(400, "bad_request", "maximum 20 symbols per batch")  # type: ignore[no-any-return]
                 for sym in symbols:
                     if not all(c.isalnum() or c in ("-", ".", "^") for c in sym):
-                        return error_response(400, "bad_request", f"Invalid symbol: {sym}")
+                        return error_response(400, "bad_request", f"Invalid symbol: {sym}")  # type: ignore[no-any-return]
 
                 limit = safe_limit(
                     extract_param(params, "limit", required=False),
@@ -154,16 +154,16 @@ def handle(
                 is_valid, error_msg = ResponseValidator.validate_endpoint_response("prices", price_result)
                 if not is_valid:
                     logger.error(f"Endpoint response validation failed: {error_msg}")
-                    return error_response(500, "response_validation_error", error_msg)
-                return json_response(200, price_result)
+                    return error_response(500, "response_validation_error", error_msg)  # type: ignore[no-any-return]
+                return json_response(200, price_result)  # type: ignore[no-any-return]
             else:
-                return error_response(400, "bad_request", "symbols parameter required")
+                return error_response(400, "bad_request", "symbols parameter required")  # type: ignore[no-any-return]
 
         # /api/prices/history/{symbol}
         if len(parts) >= 5 and parts[3] == "history":
             symbol = parts[4].upper()
             if not symbol or not all(c.isalnum() or c in ("-", ".", "^") for c in symbol):
-                return error_response(400, "bad_request", "Invalid symbol")
+                return error_response(400, "bad_request", "Invalid symbol")  # type: ignore[no-any-return]
 
             limit = safe_limit(
                 extract_param(params, "limit", required=False),
@@ -218,7 +218,7 @@ def handle(
             is_valid, error_msg = ResponseValidator.validate_endpoint_response("prices", result)
             if not is_valid:
                 logger.error(f"Endpoint response validation failed: {error_msg}")
-                return error_response(500, "response_validation_error", error_msg)
+                return error_response(500, "response_validation_error", error_msg)  # type: ignore[no-any-return]
             return result
 
         # /api/prices/batch-history?symbols=SPY,QQQ,IWM&limit=30&timeframe=daily
@@ -228,12 +228,12 @@ def handle(
             symbols_raw = extract_param(params, "symbols", required=False, default="") or ""
             symbols = [s.strip().upper() for s in symbols_raw.split(",") if s.strip()]
             if not symbols:
-                return error_response(400, "bad_request", "symbols parameter required")
+                return error_response(400, "bad_request", "symbols parameter required")  # type: ignore[no-any-return]
             if len(symbols) > 20:
-                return error_response(400, "bad_request", "maximum 20 symbols per batch")
+                return error_response(400, "bad_request", "maximum 20 symbols per batch")  # type: ignore[no-any-return]
             for sym in symbols:
                 if not all(c.isalnum() or c in ("-", ".", "^") for c in sym):
-                    return error_response(400, "bad_request", f"Invalid symbol: {sym}")
+                    return error_response(400, "bad_request", f"Invalid symbol: {sym}")  # type: ignore[no-any-return]
 
             limit = safe_limit(
                 extract_param(params, "limit", required=False),
@@ -260,7 +260,7 @@ def handle(
             """).format(psycopg2.sql.Identifier(table_name))
             rows = execute_with_timeout(cur, batch_query, [symbols, limit], timeout_sec=20)
             if not DatabaseResultValidator.validate_rows_not_empty(rows, "prices batch-history query"):
-                return json_response(200, result3)
+                return json_response(200, result3)  # type: ignore[no-any-return]
             found_symbols = set()
             for row in rows:
                 sym = row["symbol"]
@@ -291,10 +291,10 @@ def handle(
             is_valid, error_msg = ResponseValidator.validate_endpoint_response("prices", batch_result)
             if not is_valid:
                 logger.error(f"Endpoint response validation failed: {error_msg}")
-                return error_response(500, "response_validation_error", error_msg)
-            return json_response(200, batch_result)
+                return error_response(500, "response_validation_error", error_msg)  # type: ignore[no-any-return]
+            return json_response(200, batch_result)  # type: ignore[no-any-return]
 
-        return error_response(404, "not_found", f"No prices handler for {path}")
+        return error_response(404, "not_found", f"No prices handler for {path}")  # type: ignore[no-any-return]
     except (
         psycopg2.errors.UndefinedTable,
         psycopg2.errors.UndefinedColumn,
@@ -303,4 +303,4 @@ def handle(
         Exception,
     ) as e:
         code, error_type, message = handle_db_error(e, "handle prices")
-        return error_response(code, error_type, message)
+        return error_response(code, error_type, message)  # type: ignore[no-any-return]

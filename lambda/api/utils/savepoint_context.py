@@ -11,7 +11,9 @@ logger = logging.getLogger(__name__)
 
 
 @contextmanager
-def savepoint_context(cur: Any, savepoint_name: str, fallback_value: Any = None, log_errors: bool = True) -> Generator[None, None, None]:
+def savepoint_context(
+    cur: Any, savepoint_name: str, fallback_value: Any = None, log_errors: bool = True
+) -> Generator[None, None, None]:
     """Context manager for SAVEPOINT blocks with automatic rollback on error.
 
     Usage:

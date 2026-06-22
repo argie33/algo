@@ -190,6 +190,7 @@ def _resolve_period(cli_arg: str | None = None) -> str:
 # =======================
 # These eliminate 169+ repetitions of `with DatabaseContext("read") as cur:` pattern
 
+
 def execute_query(query: str, params=None, role: str = "read", timeout: int = 30):
     """Execute a query and return all results.
 
@@ -309,6 +310,7 @@ def count_rows(
 # Circuit Breaker Factory
 # =======================
 # Eliminates repetitive CircuitBreaker initialization patterns
+
 
 def create_circuit_breaker(
     name: str,

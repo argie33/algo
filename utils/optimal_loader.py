@@ -82,6 +82,7 @@ class OptimalLoader:
     def router(self):
         if self._router is None:
             from utils.data.source_router import DataSourceRouter
+
             self._router = DataSourceRouter()
         return self._router
 
@@ -141,8 +142,11 @@ class OptimalLoader:
         lock_manager = None
         try:
             from utils.db.dynamo_lock import DynamoDBLockManager
-            lock_table = os.getenv("LOADER_LOCKS_TABLE",
-                f"{os.getenv('PROJECT_NAME', 'algo')}-loader-locks-{os.getenv('ENVIRONMENT', 'dev')}")
+
+            lock_table = os.getenv(
+                "LOADER_LOCKS_TABLE",
+                f"{os.getenv('PROJECT_NAME', 'algo')}-loader-locks-{os.getenv('ENVIRONMENT', 'dev')}",
+            )
             lock_manager = DynamoDBLockManager(table_name=lock_table, lock_duration_seconds=1800)
             if not lock_manager.acquire(lock_key=self.table_name, timeout_seconds=5):
                 logger.warning(f"[{self.table_name}] Skipping: another instance already running")
@@ -150,12 +154,15 @@ class OptimalLoader:
         except Exception as _lock_err:
             logger.critical(f"[{self.table_name}] DynamoDB lock failed: {_lock_err}")
             from algo.exceptions import LockAcquisitionError
-            raise LockAcquisitionError(lock_key=self.table_name, reason=str(_lock_err),
-                context={"table_name": self.table_name}) from _lock_err
+
+            raise LockAcquisitionError(
+                lock_key=self.table_name, reason=str(_lock_err), context={"table_name": self.table_name}
+            ) from _lock_err
 
         sla_monitor = None
         try:
             from utils.loaders.sla_monitor import SLAMonitor
+
             sla_monitor = SLAMonitor(self.table_name)
             sla_monitor.start()
         except Exception as e:
@@ -212,6 +219,7 @@ class OptimalLoader:
 
             try:
                 from algo.reporting.metrics import MetricsPublisher
+
                 with MetricsPublisher() as m:
                     m.put_loader_result(self.table_name, stats_dict)
             except Exception as e:
@@ -238,6 +246,7 @@ class OptimalLoader:
             self._infrastructure.stop_heartbeat()
             try:
                 from utils.db.pooled_context_var import set_pooled_connection
+
                 set_pooled_connection(None)
                 conn_manager.release()
             except Exception as cleanup_err:
@@ -252,8 +261,11 @@ class OptimalLoader:
         lock_manager = None
         try:
             from utils.db.dynamo_lock import DynamoDBLockManager
-            lock_table = os.getenv("LOADER_LOCKS_TABLE",
-                f"{os.getenv('PROJECT_NAME', 'algo')}-loader-locks-{os.getenv('ENVIRONMENT', 'dev')}")
+
+            lock_table = os.getenv(
+                "LOADER_LOCKS_TABLE",
+                f"{os.getenv('PROJECT_NAME', 'algo')}-loader-locks-{os.getenv('ENVIRONMENT', 'dev')}",
+            )
             lock_manager = DynamoDBLockManager(table_name=lock_table, lock_duration_seconds=1800)
             if not lock_manager.acquire(lock_key=self.table_name, timeout_seconds=5):
                 logger.warning(f"[{self.table_name}] Skipping global load: another instance running")
@@ -261,8 +273,10 @@ class OptimalLoader:
         except Exception as _lock_err:
             logger.critical(f"[{self.table_name}] DynamoDB lock failed: {_lock_err}")
             from algo.exceptions import LockAcquisitionError
-            raise LockAcquisitionError(lock_key=self.table_name, reason=str(_lock_err),
-                context={"table_name": self.table_name}) from _lock_err
+
+            raise LockAcquisitionError(
+                lock_key=self.table_name, reason=str(_lock_err), context={"table_name": self.table_name}
+            ) from _lock_err
 
         try:
             from utils.db.pooled_connection_manager import PooledConnectionManager
@@ -299,6 +313,7 @@ class OptimalLoader:
         finally:
             try:
                 from utils.db.pooled_context_var import set_pooled_connection
+
                 set_pooled_connection(None)
                 conn_manager.release()
             except Exception as cleanup_err:
@@ -405,6 +420,7 @@ class OptimalLoader:
             return
         try:
             from utils.db.pooled_context_var import get_pooled_connection, set_pooled_connection
+
             _saved = get_pooled_connection()
             set_pooled_connection(None)
             try:
@@ -441,6 +457,7 @@ class OptimalLoader:
             loader_status = "COMPLETED" if completion_pct >= 95 else "INCOMPLETE"
 
             from utils.db.pooled_context_var import get_pooled_connection, set_pooled_connection
+
             _saved = get_pooled_connection()
             set_pooled_connection(None)
             try:
@@ -452,8 +469,15 @@ class OptimalLoader:
                         "(table_name, row_count, latest_date, last_updated, status, "
                         "completion_pct, symbol_count, symbols_loaded, execution_started, execution_completed) "
                         "VALUES (%s, %s, %s, NOW(), %s, %s, %s, %s, NOW(), NOW())",
-                        (self.table_name, total_rows, latest_date, loader_status, completion_pct,
-                         expected_symbols, symbols_processed),
+                        (
+                            self.table_name,
+                            total_rows,
+                            latest_date,
+                            loader_status,
+                            completion_pct,
+                            expected_symbols,
+                            symbols_processed,
+                        ),
                     )
             finally:
                 set_pooled_connection(_saved)
@@ -463,6 +487,7 @@ class OptimalLoader:
     def _invalidate_cache(self) -> None:
         try:
             import boto3
+
             dynamodb = boto3.resource("dynamodb", region_name=os.getenv("AWS_REGION", "us-east-1"))
             cache_table = dynamodb.Table(os.getenv("CACHE_TABLE", "algo_phase1_cache"))
             cache_table.delete_item(Key={"cache_key": f"data_loader_status-{date.today().isoformat()}"})

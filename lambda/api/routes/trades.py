@@ -123,7 +123,7 @@ def handle(
             }
             if status_filter:
                 if status_filter.lower() not in valid_statuses:
-                    return error_response(400, "bad_request", f"Invalid status value: {status_filter}")
+                    return error_response(400, "bad_request", f"Invalid status value: {status_filter}")  # type: ignore[no-any-return]
                 status_filter = status_filter.lower()
 
             where_clauses = []
@@ -163,7 +163,7 @@ def handle(
             is_valid, error_msg = ResponseValidator.validate_endpoint_response("trades", trades_result)
             if not is_valid:
                 logger.error(f"Endpoint response validation failed: {error_msg}")
-                return error_response(500, "response_validation_error", error_msg)
+                return error_response(500, "response_validation_error", error_msg)  # type: ignore[no-any-return]
             return trades_result
         elif path == "/api/trades/summary":
             if os.environ.get("DEV_BYPASS_AUTH") != "true" and not _check_admin_access(jwt_claims):
@@ -184,8 +184,8 @@ def handle(
             is_valid, error_msg = ResponseValidator.validate_endpoint_response("trades", summary_result)
             if not is_valid:
                 logger.error(f"Endpoint response validation failed: {error_msg}")
-                return error_response(500, "response_validation_error", error_msg)
-            return json_response(200, summary_result)
+                return error_response(500, "response_validation_error", error_msg)  # type: ignore[no-any-return]
+            return json_response(200, summary_result)  # type: ignore[no-any-return]
         raise_api_error(404, "not_found", f"Unknown trade endpoint: {path}")
     except (psycopg2.DatabaseError, psycopg2.OperationalError) as e:
         logger.error(f"[TRADES] Unhandled error: {type(e).__name__}: {e}")
@@ -275,7 +275,7 @@ def _create_manual_trade(cur: cursor, body: dict[str, Any], idempotency_key: str
         is_valid, error_msg = ResponseValidator.validate_endpoint_response("trades", manual_trade_response)
         if not is_valid:
             logger.error(f"Endpoint response validation failed: {error_msg}")
-            return error_response(500, "response_validation_error", error_msg)
+            return error_response(500, "response_validation_error", error_msg)  # type: ignore[no-any-return]
 
         if signature:
             _store_idempotent_response(cur, signature, response)
@@ -289,4 +289,4 @@ def _create_manual_trade(cur: cursor, body: dict[str, Any], idempotency_key: str
         Exception,
     ) as e:
         code, error_type, message = handle_db_error(e, "create manual trade")
-        return error_response(code, error_type, message)
+        return error_response(code, error_type, message)  # type: ignore[no-any-return]

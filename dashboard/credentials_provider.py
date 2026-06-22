@@ -23,14 +23,17 @@ class CredentialsProvider:
     def fetch_secrets_manager_credentials() -> tuple[str | None, str | None, str | None]:
         """Fetch dashboard credentials from AWS Secrets Manager.
 
+        Fails fast on credential load failures - credentials are required, not optional.
+
         Returns: (dashboard_api_url, cognito_user_pool_id, cognito_client_id)
+        Raises: RuntimeError if credentials cannot be fetched
         """
+        import json
+
+        import boto3
+
+        CredentialsProvider.ensure_aws_profile()
         try:
-            import json
-
-            import boto3
-
-            CredentialsProvider.ensure_aws_profile()
             secrets_client = boto3.client("secretsmanager", region_name=os.getenv("AWS_REGION", "us-east-1"))
 
             secret_name = os.getenv("DASHBOARD_SECRETS_NAME", "algo/dashboard-config")
@@ -43,39 +46,49 @@ class CredentialsProvider:
                     secret.get("cognito_user_pool_id"),
                     secret.get("cognito_user_pool_client_id") or secret.get("cognito_client_id"),
                 )
+            raise RuntimeError(f"No SecretString in response from {secret_name}")
         except Exception as e:
-            logger.warning(f"Failed to fetch credentials from Secrets Manager: {e}")
-        return None, None, None
+            msg = f"Failed to fetch dashboard credentials from Secrets Manager: {e}"
+            logger.error(msg)
+            raise RuntimeError(msg) from e
 
     @staticmethod
     def fetch_terraform_credentials() -> tuple[str | None, str | None, str | None]:
         """Fetch dashboard credentials from Terraform outputs.
 
+        Fails fast on credential load failures when Terraform is available.
+
         Returns: (dashboard_api_url, cognito_user_pool_id, cognito_client_id)
+        Raises: RuntimeError if Terraform is available but credentials cannot be extracted
         """
+        tf_dir = CredentialsProvider._find_terraform_directory()
+        if not tf_dir:
+            logger.debug("Terraform directory not found; skipping Terraform credentials")
+            return None, None, None
+
+        if not CredentialsProvider._check_terraform_installed():
+            logger.debug("Terraform not installed; skipping Terraform credentials")
+            return None, None, None
+
         try:
-            tf_dir = CredentialsProvider._find_terraform_directory()
-            if not tf_dir:
-                return None, None, None
-
-            if not CredentialsProvider._check_terraform_installed():
-                return None, None, None
-
             if not CredentialsProvider._init_terraform(tf_dir):
-                return None, None, None
+                raise RuntimeError(f"Failed to initialize Terraform in {tf_dir}")
 
             outputs = CredentialsProvider._get_terraform_outputs(tf_dir)
             if not outputs:
-                return None, None, None
+                raise RuntimeError(f"No outputs from Terraform in {tf_dir}")
 
             return (
                 CredentialsProvider._extract_tf_value(outputs, "dashboard_api_url"),
                 CredentialsProvider._extract_tf_value(outputs, "cognito_user_pool_id"),
                 CredentialsProvider._extract_tf_value(outputs, "cognito_client_id"),
             )
+        except RuntimeError:
+            raise
         except Exception as e:
-            logger.warning(f"Failed to fetch credentials from Terraform: {e}")
-        return None, None, None
+            msg = f"Failed to fetch dashboard credentials from Terraform: {e}"
+            logger.error(msg)
+            raise RuntimeError(msg) from e
 
     @staticmethod
     def _find_terraform_directory() -> str | None:
@@ -123,6 +136,7 @@ class CredentialsProvider:
                 text=True,
             )
             import json
+
             return json.loads(result.stdout)  # type: ignore[no-any-return]
         except Exception as e:
             logger.warning(f"Failed to get Terraform outputs: {e}")
@@ -143,6 +157,7 @@ class CredentialsProvider:
         """Validate API URL format."""
         try:
             from urllib.parse import urlparse
+
             parsed = urlparse(url)
             return bool(parsed.scheme and parsed.netloc)
         except Exception:

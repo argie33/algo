@@ -832,7 +832,7 @@ def db_route_handler(operation_name: str, default_error_response: Any = None) ->
                 return json_response(
                     code,
                     {"errorType": error_type, "message": message, "_error": message},
-                )
+                )  # type: ignore[no-any-return]
 
         return wrapper
 

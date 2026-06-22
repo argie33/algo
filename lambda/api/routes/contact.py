@@ -161,25 +161,25 @@ def handle(
     try:
         if path == "/api/contact/submissions":
             if not jwt_claims or not jwt_claims.get("sub"):
-                return error_response(401, "unauthorized", "Authentication required")
+                return error_response(401, "unauthorized", "Authentication required")  # type: ignore[no-any-return]
             if os.environ.get("DEV_BYPASS_AUTH") != "true" and not _check_admin_access(jwt_claims):
                 logger.warning(f"Unauthorized contact submissions access attempt by {jwt_claims.get('sub')}")
-                return error_response(403, "forbidden", "Admin access required")
+                return error_response(403, "forbidden", "Admin access required")  # type: ignore[no-any-return]
             if method == "GET":
                 return _get_submissions(cur, params)
-            return error_response(405, "method_not_allowed", "GET required")
+            return error_response(405, "method_not_allowed", "GET required")  # type: ignore[no-any-return]
 
         if path == "/api/contact":
             if method == "POST":
                 if not body:
-                    return error_response(400, "bad_request", "Request body is required")
+                    return error_response(400, "bad_request", "Request body is required")  # type: ignore[no-any-return]
                 return _submit_contact(cur, body)
-            return error_response(405, "method_not_allowed", "POST required")
+            return error_response(405, "method_not_allowed", "POST required")  # type: ignore[no-any-return]
 
-        return error_response(404, "not_found", f"No contact handler for {path}")
+        return error_response(404, "not_found", f"No contact handler for {path}")  # type: ignore[no-any-return]
     except Exception as e:
         logger.error(f"[CONTACT] unhandled {type(e).__name__}: {e}", exc_info=True)
-        return error_response(500, "internal_error", "An error occurred processing your request")
+        return error_response(500, "internal_error", "An error occurred processing your request")  # type: ignore[no-any-return]
 
 
 def _submit_contact(cur: cursor, body: dict[str, Any]) -> dict[str, Any]:
@@ -192,8 +192,8 @@ def _submit_contact(cur: cursor, body: dict[str, Any]) -> dict[str, Any]:
             error_detail = errors[0]
             field = error_detail.get("loc", ("unknown",))[0]
             msg = error_detail.get("msg", "Validation failed")
-            return error_response(400, "bad_request", f"Invalid {field}: {msg}")
-        return error_response(400, "bad_request", "Invalid request")
+            return error_response(400, "bad_request", f"Invalid {field}: {msg}")  # type: ignore[no-any-return]
+        return error_response(400, "bad_request", "Invalid request")  # type: ignore[no-any-return]
 
     name = req.name
     email = req.email
@@ -211,7 +211,7 @@ def _submit_contact(cur: cursor, body: dict[str, Any]) -> dict[str, Any]:
                 "success": True,
                 "message": "Thank you for reaching out. We'll get back to you soon.",
             },
-        )
+        )  # type: ignore[no-any-return]
 
     try:
         # Try with phone column first (migration 007 adds it; falls back gracefully if not yet applied)
@@ -246,17 +246,17 @@ def _submit_contact(cur: cursor, body: dict[str, Any]) -> dict[str, Any]:
                 "success": True,
                 "message": "Thank you for reaching out. We'll get back to you soon.",
             },
-        )
+        )  # type: ignore[no-any-return]
     except psycopg2.errors.UndefinedTable:
         logger.error("contact_submissions table missing; unable to process submission")
         return error_response(
             503,
             "service_unavailable",
             "Contact service unavailable. Please try again later.",
-        )
+        )  # type: ignore[no-any-return]
     except (psycopg2.DatabaseError, psycopg2.OperationalError) as e:
         code, error_type, message = handle_db_error(e, "submit_contact")
-        return error_response(code, error_type, message)
+        return error_response(code, error_type, message)  # type: ignore[no-any-return]
 
 
 def _get_submissions(cur: cursor, params: dict[str, Any]) -> dict[str, Any]:
@@ -285,10 +285,10 @@ def _get_submissions(cur: cursor, params: dict[str, Any]) -> dict[str, Any]:
                 (limit,),
                 timeout_sec=8,
             )
-        return list_response(rows, total=len(rows))
+        return list_response(rows, total=len(rows))  # type: ignore[no-any-return]
     except psycopg2.errors.UndefinedTable:
         logger.error("contact_submissions table missing; unable to list submissions")
-        return error_response(503, "service_unavailable", "Contact service unavailable.")
+        return error_response(503, "service_unavailable", "Contact service unavailable.")  # type: ignore[no-any-return]
     except (psycopg2.DatabaseError, psycopg2.OperationalError) as e:
         code, error_type, message = handle_db_error(e, "get_submissions")
-        return error_response(code, error_type, message)
+        return error_response(code, error_type, message)  # type: ignore[no-any-return]

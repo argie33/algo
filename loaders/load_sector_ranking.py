@@ -29,9 +29,7 @@ class SectorRankingLoader(OptimalLoader):
             latest_date = row["date"] if row else None
 
             if not latest_date:
-                raise ValueError(
-                    "No price data found in price_daily table. Required for sector ranking computation."
-                )
+                raise ValueError("No price data found in price_daily table. Required for sector ranking computation.")
 
             # Rank sectors by average composite score; pull historical ranks for comparison
             rows = execute_query("""

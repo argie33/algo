@@ -180,7 +180,7 @@ def _dispatch(
                 "UPDATE algo_notifications SET seen=TRUE, seen_at=NOW() WHERE id=%s",
                 (notif_id_int,),
             )
-            return json_response(200, {"status": "updated"})
+            return json_response(200, {"status": "updated"})  # type: ignore[no-any-return]
         except (
             psycopg2.errors.UndefinedTable,
             psycopg2.errors.UndefinedColumn,
@@ -208,7 +208,7 @@ def _dispatch(
                 raise_api_error(404, "not_found", "Notification not found")
 
             cur.execute("DELETE FROM algo_notifications WHERE id=%s", (notif_id_int,))
-            return json_response(200, {"status": "deleted"})
+            return json_response(200, {"status": "deleted"})  # type: ignore[no-any-return]
         except (
             psycopg2.errors.UndefinedTable,
             psycopg2.errors.UndefinedColumn,

@@ -195,10 +195,7 @@ class MarketHealthDailyLoader(OptimalLoader):
 
         date_start = health_metrics[0]["date"]
         date_end = health_metrics[-1]["date"]
-        logger.info(
-            f"Computed {len(health_metrics)} metrics from {len(rows)} rows, "
-            f"range: {date_start} to {date_end}"
-        )
+        logger.info(f"Computed {len(health_metrics)} metrics from {len(rows)} rows, range: {date_start} to {date_end}")
 
         self._merge_breadth_data(health_metrics, start, end)
         self._merge_vix_data(health_metrics, start, end)

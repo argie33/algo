@@ -105,7 +105,8 @@ def _lazy_relative_imports_in_functions(path: Path) -> list[str]:
 print("\nScanning entrypoint scripts for lazy relative imports...")
 repo_root = Path(".")
 py_files = [
-    p for p in repo_root.rglob("*.py")
+    p
+    for p in repo_root.rglob("*.py")
     if not any(part in p.parts for part in ("node_modules", ".git", "__pycache__", ".venv", "venv"))
 ]
 

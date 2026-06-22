@@ -81,7 +81,9 @@ def check_idempotency_key(cur: Any, idempotency_key: str, endpoint: str, timeout
         return None
 
 
-def store_idempotency_key(cur: Any, idempotency_key: str, endpoint: str, response_data: dict[str, Any], timeout_sec: int = 5) -> bool:
+def store_idempotency_key(
+    cur: Any, idempotency_key: str, endpoint: str, response_data: dict[str, Any], timeout_sec: int = 5
+) -> bool:
     """Store idempotency key with response for future replays.
 
     Args:

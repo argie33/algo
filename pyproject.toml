@@ -59,7 +59,6 @@ warn_no_return = true
 exclude = [
     "^migrations/",
     "^tests/",
-    "^lambda/",
 ]
 
 [[tool.mypy.overrides]]

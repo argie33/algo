@@ -71,7 +71,7 @@ def _get_algo_audit_log(cur: cursor, limit: int = 100, offset: int = 0, action_t
         total=total,
         limit=limit,
         offset=offset,
-    )
+    )  # type: ignore[no-any-return]
 
 
 # FIXED Issue #6: Orchestrator execution history endpoints
@@ -90,7 +90,7 @@ def _get_last_run(cur: cursor) -> dict[str, Any]:
     """)
     latest = cur.fetchone()
     if not latest or not latest["run_id"]:
-        return json_response(200, {"run_id": None, "run_at": None, "halted": False, "phases": []})
+        return json_response(200, {"run_id": None, "run_at": None, "halted": False, "phases": []})  # type: ignore[no-any-return]
 
     run_id = latest["run_id"]
     run_at = latest["run_at"]
@@ -123,7 +123,7 @@ def _get_last_run(cur: cursor) -> dict[str, Any]:
     # Validate response matches contract schema
     ensure_valid_response("run", response_data)
 
-    return json_response(200, response_data)
+    return json_response(200, response_data)  # type: ignore[no-any-return]
 
 
 @db_route_handler("fetch notifications")
@@ -152,9 +152,9 @@ def _get_notifications(cur: cursor, params: dict[str, Any] | None = None, jwt_cl
         valid_severities = {"info", "warning", "error", "critical"}
 
         if kind and kind not in valid_kinds:
-            return error_response(400, "bad_request", f"Invalid kind: {kind}")
+            return error_response(400, "bad_request", f"Invalid kind: {kind}")  # type: ignore[no-any-return]
         if severity and severity not in valid_severities:
-            return error_response(400, "bad_request", f"Invalid severity: {severity}")
+            return error_response(400, "bad_request", f"Invalid severity: {severity}")  # type: ignore[no-any-return]
 
         where_clauses = []
         where_params = []
@@ -187,7 +187,7 @@ def _get_notifications(cur: cursor, params: dict[str, Any] | None = None, jwt_cl
         is_valid, error_msg = ResponseValidator.validate_endpoint_response("notifs", response["data"])
         if not is_valid:
             logger.error(f"Notifications response validation failed: {error_msg}")
-            return error_response(500, "response_validation_error", error_msg)
+            return error_response(500, "response_validation_error", error_msg)  # type: ignore[no-any-return]
 
         return response
     except (
@@ -198,7 +198,7 @@ def _get_notifications(cur: cursor, params: dict[str, Any] | None = None, jwt_cl
         Exception,
     ) as e:
         code, error_type, message = handle_db_error(e, "fetch notifications")
-        return error_response(code, error_type, message)
+        return error_response(code, error_type, message)  # type: ignore[no-any-return]
 
 
 @db_route_handler("get patrol log")
@@ -218,7 +218,7 @@ def _get_patrol_log(cur: cursor, limit: int = 50, offset: int = 0) -> dict[str, 
         (limit, offset),
     )
     findings = cur.fetchall()
-    return list_response([safe_json_serialize(safe_dict_convert(f)) for f in findings], total=total)
+    return list_response([safe_json_serialize(safe_dict_convert(f)) for f in findings], total=total)  # type: ignore[no-any-return]
 
 
 @db_route_handler("trigger data patrol")
@@ -239,12 +239,12 @@ def _trigger_data_patrol() -> dict[str, Any]:
                 400,
                 "bad_request",
                 "Patrol service not configured (check environment variables)",
-            )
+            )  # type: ignore[no-any-return]
 
         # Validate task definition ARN format
         if not task_def_arn.startswith("arn:aws:ecs:"):
             logger.error(f"Invalid patrol task definition ARN format: {task_def_arn}")
-            return error_response(400, "bad_request", "Invalid patrol task definition configuration")
+            return error_response(400, "bad_request", "Invalid patrol task definition configuration")  # type: ignore[no-any-return]
 
         # Attempt to validate task definition exists (early fail if misconfigured)
         try:
@@ -253,7 +253,7 @@ def _trigger_data_patrol() -> dict[str, Any]:
         except ClientError as desc_err:
             if desc_err.response["Error"]["Code"] == "ClientException":
                 logger.error(f"Patrol task definition not found: {task_def_arn}")
-                return error_response(400, "bad_request", "Patrol task definition not found")
+                return error_response(400, "bad_request", "Patrol task definition not found")  # type: ignore[no-any-return]
             raise  # Re-raise other errors to be caught by outer exception handler
 
         response = ecs.run_task(
@@ -284,21 +284,21 @@ def _trigger_data_patrol() -> dict[str, Any]:
                     "task_arn": task_arn,
                     "task_id": task_arn.split("/")[-1],
                 },
-            )
+            )  # type: ignore[no-any-return]
         else:
             logger.error(f"Failed to run patrol task: {response.get('failures')}")
-            return error_response(500, "internal_error", "Failed to trigger patrol task")
+            return error_response(500, "internal_error", "Failed to trigger patrol task")  # type: ignore[no-any-return]
     except ClientError as e:
         error_code = e.response["Error"]["Code"]
         if error_code == "ClusterNotFoundException":
             logger.error(f"ECS cluster not found: {error_code}")
-            return error_response(503, "service_unavailable", "Patrol service not configured")
+            return error_response(503, "service_unavailable", "Patrol service not configured")  # type: ignore[no-any-return]
         elif error_code == "InvalidParameterException":
             logger.error(f"Invalid ECS parameters: {error_code}")
-            return error_response(503, "service_unavailable", "Patrol service configuration invalid")
+            return error_response(503, "service_unavailable", "Patrol service configuration invalid")  # type: ignore[no-any-return]
         else:
             logger.error(f"AWS error triggering patrol: {error_code}", exc_info=True)
-            return error_response(503, "service_unavailable", "Unable to trigger patrol service")
+            return error_response(503, "service_unavailable", "Unable to trigger patrol service")  # type: ignore[no-any-return]
     except (
         psycopg2.errors.UndefinedTable,
         psycopg2.errors.UndefinedColumn,
@@ -307,4 +307,4 @@ def _trigger_data_patrol() -> dict[str, Any]:
         Exception,
     ) as e:
         code, error_type, message = handle_db_error(e, "trigger data patrol")
-        return error_response(code, error_type, message)
+        return error_response(code, error_type, message)  # type: ignore[no-any-return]

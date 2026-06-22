@@ -58,7 +58,7 @@ def _handle_market_status(cur: cursor) -> dict[str, Any]:
         logger.error(f"Market status response validation failed: {error_msg}")
         raise_api_error(500, "response_validation_error", error_msg)
 
-    return json_response(200, result, data_freshness=freshness)
+    return json_response(200, result, data_freshness=freshness)  # type: ignore[no-any-return]
 
 
 def _handle_breadth(cur: cursor) -> dict[str, Any]:
@@ -131,7 +131,7 @@ def _handle_breadth(cur: cursor) -> dict[str, Any]:
     return list_response(
         [safe_json_serialize(dict(b)) for b in breadth],
         data_freshness=freshness,
-    )
+    )  # type: ignore[no-any-return]
 
 
 def _handle_technicals(cur: cursor) -> dict[str, Any]:
@@ -237,7 +237,7 @@ def _handle_technicals(cur: cursor) -> dict[str, Any]:
         base["mcclellan_oscillator"] = []
 
     freshness = check_data_freshness(cur, "market_health_daily", "date", warning_days=1)
-    return json_response(200, base, data_freshness=freshness)
+    return json_response(200, base, data_freshness=freshness)  # type: ignore[no-any-return]
 
 
 def _handle_top_movers(cur: cursor) -> dict[str, Any]:
@@ -309,7 +309,7 @@ def _handle_top_movers(cur: cursor) -> dict[str, Any]:
         [m for m in valid_items if m.get("pct_change") < 0],
         key=lambda x: x["pct_change"],
     )[:10]
-    return json_response(200, {"gainers": gainers or [], "losers": losers or [], "items": items})
+    return json_response(200, {"gainers": gainers or [], "losers": losers or [], "items": items})  # type: ignore[no-any-return]
 
 
 def _handle_distribution_days(cur: cursor) -> dict[str, Any]:
@@ -372,7 +372,7 @@ def _handle_distribution_days(cur: cursor) -> dict[str, Any]:
                 "days": days,
             }
         cur.execute("RELEASE SAVEPOINT dist_days")
-        return json_response(200, result)
+        return json_response(200, result)  # type: ignore[no-any-return]
     except (
         psycopg2.errors.QueryCanceled,
         psycopg2.errors.UndefinedTable,
@@ -539,7 +539,7 @@ def _handle_seasonality(cur: cursor) -> dict[str, Any]:
                 "monday_effect": ("Historically, Mondays trend lower" if dow_data else None),
             },
         },
-    )
+    )  # type: ignore[no-any-return]
 
 
 def _handle_sentiment(cur: cursor, params: dict[str, Any] | None) -> dict[str, Any]:
@@ -691,7 +691,7 @@ def _handle_sentiment(cur: cursor, params: dict[str, Any] | None) -> dict[str, A
         raise_db_error(e, "fear/greed sentiment query")
 
     freshness = check_data_freshness(cur, "aaii_sentiment", "date", warning_days=1)
-    return json_response(200, sentiment_data, data_freshness=freshness)
+    return json_response(200, sentiment_data, data_freshness=freshness)  # type: ignore[no-any-return]
 
 
 def _handle_naaim(cur: cursor) -> dict[str, Any]:
@@ -717,7 +717,7 @@ def _handle_naaim(cur: cursor) -> dict[str, Any]:
                         "extreme_bearish": False,
                     },
                 },
-            )
+            )  # type: ignore[no-any-return]
 
         history = []
         for r in rows:
@@ -778,9 +778,9 @@ def _handle_naaim(cur: cursor) -> dict[str, Any]:
                         ),
                     },
                 },
-            )
+            )  # type: ignore[no-any-return]
         else:
-            return json_response(200, {"current": None, "history": [], "signals": {}})
+            return json_response(200, {"current": None, "history": [], "signals": {}})  # type: ignore[no-any-return]
     except (ValueError, ZeroDivisionError, TypeError) as e:
         logger.error(f"[NAAIM] Error: {type(e).__name__}")
         raise_db_error(e, "NAAIM query")
@@ -813,7 +813,7 @@ def _get_fear_greed_history(cur: cursor, days: int = 30) -> dict[str, Any]:
                 "statistics": {"min": None, "max": None, "avg": None},
                 "signals": {"extreme_fear": False, "extreme_greed": False},
             },
-        )
+        )  # type: ignore[no-any-return]
 
     history = [safe_json_serialize(dict(h)) for h in history_rows]
 
@@ -866,7 +866,7 @@ def _get_fear_greed_history(cur: cursor, days: int = 30) -> dict[str, Any]:
                     "extremity": ("extreme_fear" if curr_val < 25 else "extreme_greed" if curr_val > 75 else "normal"),
                 },
             },
-        )
+        )  # type: ignore[no-any-return]
     else:
         return json_response(
             200,
@@ -876,7 +876,7 @@ def _get_fear_greed_history(cur: cursor, days: int = 30) -> dict[str, Any]:
                 "statistics": {"min": None, "max": None, "avg": None},
                 "signals": {},
             },
-        )
+        )  # type: ignore[no-any-return]
 
 
 @db_route_handler("get market latest")
@@ -917,7 +917,7 @@ def _get_market_latest(cur: cursor) -> dict[str, Any]:
     if recent_prices:
         result["prices"] = [safe_json_serialize(dict(p)) for p in recent_prices]
 
-    return json_response(200, result if result else {})
+    return json_response(200, result if result else {})  # type: ignore[no-any-return]
 
 
 def _parse_range_param(params: dict, default: int = 30) -> int:
@@ -967,7 +967,7 @@ def _get_correlation_matrix(cur: cursor) -> dict[str, Any]:
                     },
                 },
             },
-        )
+        )  # type: ignore[no-any-return]
 
     prices_by_symbol: dict[str, list[Any]] = {}
     for row in rows:
@@ -1013,7 +1013,7 @@ def _get_correlation_matrix(cur: cursor) -> dict[str, Any]:
                     },
                 },
             },
-        )
+        )  # type: ignore[no-any-return]
 
     def pearson_corr(x_ret: list[float], y_ret: list[float]) -> float | None:
         if len(x_ret) < 2 or len(y_ret) < 2:
@@ -1120,7 +1120,7 @@ def _get_correlation_matrix(cur: cursor) -> dict[str, Any]:
             },
         },
         data_freshness=freshness,
-    )
+    )  # type: ignore[no-any-return]
 
 
 @db_route_handler("get cap distribution")
@@ -1159,7 +1159,7 @@ def _get_cap_distribution(cur: cursor) -> dict[str, Any]:
                     "category_distribution": {},
                 },
             },
-        )
+        )  # type: ignore[no-any-return]
 
     stocks = [safe_json_serialize(dict(r)) for r in rows]
     total_cap = sum(s["market_cap"] for s in stocks if s["market_cap"])
@@ -1238,7 +1238,7 @@ def _get_cap_distribution(cur: cursor) -> dict[str, Any]:
             },
         },
         data_freshness=freshness,
-    )
+    )  # type: ignore[no-any-return]
 
 
 INDEX_SYMBOLS = ["^GSPC", "^IXIC", "^NYA", "^RUT"]
@@ -1357,7 +1357,7 @@ def _get_markets(cur: cursor) -> dict[str, Any]:
         "stale_alerts": stale_alerts,
         "fallback_symbols": fallback_symbols if fallback_symbols else None,
     }
-    return json_response(200, result)
+    return json_response(200, result)  # type: ignore[no-any-return]
 
 
 @db_route_handler("get sector overview")
@@ -1380,8 +1380,8 @@ def _get_sector_overview(cur: cursor) -> dict[str, Any]:
             LIMIT 100
         """)
         rows = cur.fetchall()
-        return list_response([{"sector_name": r["sector"], "stock_count": r["stock_count"]} for r in rows])
-    return list_response([safe_json_serialize(dict(r)) for r in rows])
+        return list_response([{"sector_name": r["sector"], "stock_count": r["stock_count"]} for r in rows])  # type: ignore[no-any-return]
+    return list_response([safe_json_serialize(dict(r)) for r in rows])  # type: ignore[no-any-return]
 
 
 class _MarketHandlerRegistry:

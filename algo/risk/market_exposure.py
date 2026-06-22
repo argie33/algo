@@ -428,14 +428,18 @@ class MarketExposure:
             cap = eco_cap  # Start with eco-overlay cap (may already restrict)
 
             # Veto 1: SPY < rising 30wk MA AND breadth weak
-            # CRITICAL: Don't apply veto if breadth data is missing (score_factor=None)
-            # Use breadth data only if explicitly available; default=100 would hide missing data
+            # CRITICAL: Breadth data is required for market exposure assessment
             b50_value = b50.get("value")
-            if t30.get("price_below_ma") and b50_value is not None and b50_value < 30:
-                halt_reasons.append("SPY < 30wk MA AND <30% above 50-DMA")
-                cap = min(cap, 25.0)
-            elif t30.get("price_below_ma") and b50_value is None:
-                logger.warning("Veto 1 skipped: breadth data unavailable, cannot assess SPY + breadth confirmation")
+            if t30.get("price_below_ma"):
+                if b50_value is None:
+                    raise ValueError(
+                        "Market exposure assessment failed: breadth data unavailable when SPY is below 30-week MA. "
+                        "Cannot assess market conditions without breadth confirmation. "
+                        "Check breadth_50dma_factor data pipeline."
+                    )
+                if b50_value < 30:
+                    halt_reasons.append("SPY < 30wk MA AND <30% above 50-DMA")
+                    cap = min(cap, 25.0)
             # Veto 2: VIX > 40 rising (only if VIX data available)
             vix_value = vix.get("value")
             if vix_value is not None and vix_value > 40 and vix.get("rising"):

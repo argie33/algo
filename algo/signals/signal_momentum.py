@@ -330,9 +330,7 @@ class SignalMomentumMixin:
             )
             row = cur.fetchone()
             if row is None or row[0] is None:
-                raise ValueError(
-                    f"CRITICAL: Cannot calculate distribution days for {symbol} — price data unavailable"
-                )
+                raise ValueError(f"CRITICAL: Cannot calculate distribution days for {symbol} — price data unavailable")
             return int(row[0])
 
         return int(self._with_cursor(_count_dist))

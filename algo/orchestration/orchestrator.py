@@ -87,9 +87,7 @@ class Orchestrator:
             self.alerts = AlertManager()
         except RuntimeError as e:
             if self.dry_run:
-                logger.warning(
-                    f"[ALERTS] No alert channels configured — using null alerts for dry-run: {e}"
-                )
+                logger.warning(f"[ALERTS] No alert channels configured — using null alerts for dry-run: {e}")
                 self.alerts = NullAlertManager()  # type: ignore[assignment]
             else:
                 raise
@@ -452,7 +450,9 @@ class Orchestrator:
                 logger.info(f"[DEGRADED_MODE] Phase 1 returned degraded status: {result.error}")
                 self.halt_manager.set_halt_flag(f"Phase 1 degraded: {result.error}")
             elif result.status == "ok":
-                self.halt_manager.clear_halt_flag(f"Phase 1 verified data is fresh at {datetime.now(timezone.utc).isoformat()}")
+                self.halt_manager.clear_halt_flag(
+                    f"Phase 1 verified data is fresh at {datetime.now(timezone.utc).isoformat()}"
+                )
         except (ValueError, KeyError, AttributeError) as e:
             logger.warning(f"Failed to manage halt flag after Phase 1: {e}")
 
@@ -630,8 +630,12 @@ class Orchestrator:
         """
         from algo.orchestrator.phase6_exit_execution import run as run_phase6
 
-        position_recs = executor.get_phase_data(3, "recommendations", []) if executor else []
-        exposure_actions = executor.get_phase_data(5, "actions", []) if executor else []
+        if executor:
+            position_recs = executor.get_phase_data_required(3, "recommendations")
+            exposure_actions = executor.get_phase_data_required(5, "actions")
+        else:
+            position_recs = []
+            exposure_actions = []
 
         result = run_phase6(
             self.config,
@@ -652,7 +656,7 @@ class Orchestrator:
         """
         from algo.orchestrator.phase7_signal_generation import run as run_phase7
 
-        exposure_constraints = executor.get_phase_data(5, "constraints") if executor else None
+        exposure_constraints = executor.get_phase_data_required(5, "constraints") if executor else None
 
         result = run_phase7(
             self.run_date,

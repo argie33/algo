@@ -156,9 +156,7 @@ class LoaderInfrastructure:
             finally:
                 set_pooled_connection(saved_conn)
         except (psycopg2.DatabaseError, psycopg2.OperationalError) as e:
-            raise RuntimeError(
-                f"[{self.table_name}] CRITICAL: Failed to update loader status to {status}: {e}"
-            ) from e
+            raise RuntimeError(f"[{self.table_name}] CRITICAL: Failed to update loader status to {status}: {e}") from e
 
     def check_shutdown_requested(self) -> bool:
         """Check if graceful shutdown was requested."""

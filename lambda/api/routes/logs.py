@@ -73,10 +73,10 @@ def handle(
     """
 
     if method != "POST":
-        return error_response(405, "method_not_allowed", "Only POST is supported")
+        return error_response(405, "method_not_allowed", "Only POST is supported")  # type: ignore[no-any-return]
 
     if not body:
-        return error_response(400, "missing_body", "Request body required")
+        return error_response(400, "missing_body", "Request body required")  # type: ignore[no-any-return]
 
     try:
         logs = body.get("logs")
@@ -85,7 +85,7 @@ def handle(
         environment = body.get("environment", "unknown")
 
         if not logs:
-            return success_response({"logged": 0, "message": "No logs to process"})
+            return success_response({"logged": 0, "message": "No logs to process"})  # type: ignore[no-any-return]
 
         # Create log stream for this user/session
         stream_name = f"{environment}/{user_id}/{session_id[:8]}"
@@ -164,7 +164,7 @@ def handle(
                         "message": "Logs received (CloudWatch delivery failed)",
                         "warning": "Local logging may be unavailable",
                     }
-                )
+                )  # type: ignore[no-any-return]
 
         return success_response(
             {
@@ -172,7 +172,7 @@ def handle(
                 "sessionId": session_id,
                 "message": f"Logged {len(log_events)} events to CloudWatch",
             }
-        )
+        )  # type: ignore[no-any-return]
 
     except (ValueError, ZeroDivisionError, TypeError) as e:
         logger.error(f"Log handler error: {e}", exc_info=True)
@@ -183,4 +183,4 @@ def handle(
                 "message": "Log handler error (frontend not affected)",
                 "error": str(e)[:100],
             }
-        )
+        )  # type: ignore[no-any-return]

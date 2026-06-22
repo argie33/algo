@@ -172,9 +172,14 @@ class PriceValidator:
         if not self.validate_schema_preflight(cur):
             return False
 
-        # Check unique constraint
+        # Check unique constraint - CRITICAL: must exist to prevent duplicate prices
         if not self.verify_unique_constraint_exists(cur):
-            logger.warning("[PRECONDITION] Unique constraint missing - continuing anyway (may cause duplicates)")
+            raise RuntimeError(
+                f"[PRECONDITION FAILED] Unique constraint missing on {self.table_name}. "
+                "Cannot load prices without uniqueness guarantee. "
+                "Duplicate prices would corrupt all technical indicators and P&L calculations. "
+                "Verify database schema and constraint creation."
+            )
 
         # For daily prices, check market close
         if interval == "1d" and check_market_close:

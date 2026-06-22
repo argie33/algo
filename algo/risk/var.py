@@ -373,15 +373,17 @@ class ValueAtRisk:
                 for symbol, qty, cur_price, _entry_price in positions:
                     # CRITICAL: Do NOT use entry_price as fallback for current_price
                     if cur_price is None or qty is None:
-                        logger.warning(f"[VAR] {symbol}: missing current_price/quantity, skipping from VAR calculation")
-                        continue
+                        raise ValueError(
+                            f"[VAR CALCULATION FAILED] {symbol}: missing current_price or quantity. "
+                            f"Cannot calculate portfolio VAR without complete position data."
+                        )
                     safe_price = float(cur_price)
                     safe_qty = float(qty)
                     if safe_price is None or safe_price <= 0 or safe_qty is None or safe_qty <= 0:
-                        logger.warning(
-                            f"[VAR] {symbol}: missing or invalid current_price/quantity, skipping from VAR calculation"
+                        raise ValueError(
+                            f"[VAR CALCULATION FAILED] {symbol}: invalid current_price ({cur_price}) or quantity ({qty}). "
+                            f"Cannot calculate portfolio VAR with invalid position data."
                         )
-                        continue
                     position_value = Decimal(str(safe_qty)) * Decimal(str(safe_price))
                     position_weight = position_value / portfolio_value if portfolio_value > 0 else Decimal(0)
 

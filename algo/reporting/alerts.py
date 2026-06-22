@@ -415,7 +415,13 @@ class AlertManager:
 
     def _send_email(self, subject, body):
         """Send email via SMTP."""
-        if not self.email_to or not self.smtp_host or not self.smtp_user or not self.smtp_password or not self.email_from:
+        if (
+            not self.email_to
+            or not self.smtp_host
+            or not self.smtp_user
+            or not self.smtp_password
+            or not self.email_from
+        ):
             # Skip email if credentials not configured
             return
 

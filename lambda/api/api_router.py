@@ -295,7 +295,14 @@ def _add_cors_headers(response: Any) -> Any:
     return response
 
 
-def route_request(cur: cursor, path: str, method: str, params: dict[str, Any], body: dict[str, Any] | None = None, jwt_claims: dict[str, Any] | None = None) -> Any:
+def route_request(
+    cur: cursor,
+    path: str,
+    method: str,
+    params: dict[str, Any],
+    body: dict[str, Any] | None = None,
+    jwt_claims: dict[str, Any] | None = None,
+) -> Any:
     """Route request to handler. Public handlers checked first (no auth required)."""
 
     # Issue #11 FIX: Use strict path matching to distinguish /api/algo from /api/algorithm

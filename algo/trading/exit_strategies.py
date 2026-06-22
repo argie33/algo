@@ -111,11 +111,18 @@ class MinerviniBreakStrategy(ExitStrategy):
         _should_exit, decision = ctx.check_minervini_break(engine)
 
         if _should_exit and decision:
+            required_fields = ["stage", "reason", "fraction"]
+            missing = [f for f in required_fields if f not in decision or decision[f] is None]
+            if missing:
+                raise ValueError(
+                    f"Minervini break exit decision incomplete: missing {missing}. "
+                    f"Cannot process exit without all required fields."
+                )
             return ExitSignal(
                 triggered=True,
-                stage=decision.get("stage", "minervini_break"),
-                reason=decision.get("reason", ""),
-                fraction=decision.get("fraction", 1.0),
+                stage=decision["stage"],
+                reason=decision["reason"],
+                fraction=decision["fraction"],
             )
         return ExitSignal(triggered=False, stage="hold", reason="", fraction=0.0)
 
@@ -130,11 +137,18 @@ class RSLineBreakStrategy(ExitStrategy):
         _should_exit, decision = ctx.check_rs_line_break(engine)
 
         if _should_exit and decision:
+            required_fields = ["stage", "reason", "fraction"]
+            missing = [f for f in required_fields if f not in decision or decision[f] is None]
+            if missing:
+                raise ValueError(
+                    f"RS line break exit decision incomplete: missing {missing}. "
+                    f"Cannot process exit without all required fields."
+                )
             return ExitSignal(
                 triggered=True,
-                stage=decision.get("stage", "rs_breakdown"),
-                reason=decision.get("reason", ""),
-                fraction=decision.get("fraction", 1.0),
+                stage=decision["stage"],
+                reason=decision["reason"],
+                fraction=decision["fraction"],
             )
         return ExitSignal(triggered=False, stage="hold", reason="", fraction=0.0)
 
@@ -149,11 +163,18 @@ class TimeBasedExitStrategy(ExitStrategy):
         _should_exit, decision = ctx.check_time_exit(engine)
 
         if _should_exit and decision:
+            required_fields = ["stage", "reason", "fraction"]
+            missing = [f for f in required_fields if f not in decision or decision[f] is None]
+            if missing:
+                raise ValueError(
+                    f"Time-based exit decision incomplete: missing {missing}. "
+                    f"Cannot process exit without all required fields."
+                )
             return ExitSignal(
                 triggered=True,
-                stage=decision.get("stage", "time"),
-                reason=decision.get("reason", ""),
-                fraction=decision.get("fraction", 1.0),
+                stage=decision["stage"],
+                reason=decision["reason"],
+                fraction=decision["fraction"],
             )
         return ExitSignal(triggered=False, stage="hold", reason="", fraction=0.0)
 
@@ -179,11 +200,18 @@ class ProfitTargetStrategy(ExitStrategy):
             return ExitSignal(triggered=False, stage="hold", reason="", fraction=0.0)
 
         if _should_exit and decision:
+            required_fields = ["stage", "reason", "fraction"]
+            missing = [f for f in required_fields if f not in decision or decision[f] is None]
+            if missing:
+                raise ValueError(
+                    f"Profit target T{self.target_level} exit decision incomplete: missing {missing}. "
+                    f"Cannot process exit without all required fields."
+                )
             return ExitSignal(
                 triggered=True,
-                stage=decision.get("stage", f"target_{self.target_level}"),
-                reason=decision.get("reason", ""),
-                fraction=decision.get("fraction", self.default_fraction),
+                stage=decision["stage"],
+                reason=decision["reason"],
+                fraction=decision["fraction"],
                 new_stop=decision.get("new_stop"),
             )
         return ExitSignal(triggered=False, stage="hold", reason="", fraction=0.0)
@@ -220,11 +248,18 @@ class ChandelierTrailStrategy(ExitStrategy):
         _should_exit, decision = ctx.check_chandelier_trail(engine)
 
         if _should_exit and decision:
+            required_fields = ["stage", "reason", "fraction"]
+            missing = [f for f in required_fields if f not in decision or decision[f] is None]
+            if missing:
+                raise ValueError(
+                    f"Chandelier trail exit decision incomplete: missing {missing}. "
+                    f"Cannot process exit without all required fields."
+                )
             return ExitSignal(
                 triggered=True,
-                stage=decision.get("stage", "chandelier_trail"),
-                reason=decision.get("reason", ""),
-                fraction=decision.get("fraction", 1.0),
+                stage=decision["stage"],
+                reason=decision["reason"],
+                fraction=decision["fraction"],
                 new_stop=decision.get("new_stop"),
             )
         return ExitSignal(triggered=False, stage="hold", reason="", fraction=0.0)
@@ -315,11 +350,18 @@ class DistributionStrategy(ExitStrategy):
         _should_exit, decision = ctx.check_distribution()
 
         if _should_exit and decision:
+            required_fields = ["stage", "reason", "fraction"]
+            missing = [f for f in required_fields if f not in decision or decision[f] is None]
+            if missing:
+                raise ValueError(
+                    f"Distribution exit decision incomplete: missing {missing}. "
+                    f"Cannot process exit without all required fields."
+                )
             return ExitSignal(
                 triggered=True,
-                stage=decision.get("stage", "distribution"),
-                reason=decision.get("reason", ""),
-                fraction=decision.get("fraction", 1.0),
+                stage=decision["stage"],
+                reason=decision["reason"],
+                fraction=decision["fraction"],
                 new_stop=decision.get("new_stop"),
             )
         return ExitSignal(triggered=False, stage="hold", reason="", fraction=0.0)

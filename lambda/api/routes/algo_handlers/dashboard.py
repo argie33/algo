@@ -229,7 +229,7 @@ def _get_algo_positions(cur: cursor, user_id: str | None = None) -> dict[str, An
     # Validate positions response matches contract schema
     ensure_valid_response("pos", sanitized)
 
-    return json_response(200, sanitized)
+    return json_response(200, sanitized)  # type: ignore[no-any-return]
 
 
 @db_route_handler("fetch algo status")
@@ -249,7 +249,7 @@ def _get_algo_status(cur: cursor) -> dict[str, Any]:
         """)
     row = cur.fetchone()
     if row is None:
-        return json_response(200, {"status": "no_runs_yet", "last_run": None, "portfolio": {}})
+        return json_response(200, {"status": "no_runs_yet", "last_run": None, "portfolio": {}})  # type: ignore[no-any-return]
 
     portfolio = {}
     try:
@@ -288,7 +288,7 @@ def _get_algo_status(cur: cursor) -> dict[str, Any]:
         Exception,
     ) as e:
         code, error_type, message = handle_db_error(e, "fetch portfolio snapshot")
-        return error_response(code, error_type, message)
+        return error_response(code, error_type, message)  # type: ignore[no-any-return]
 
     freshness = check_data_freshness(cur, "algo_audit_log", "created_at", warning_days=1)
     return json_response(
@@ -302,7 +302,7 @@ def _get_algo_status(cur: cursor) -> dict[str, Any]:
             "portfolio": portfolio,
             "data_freshness": freshness,
         },
-    )
+    )  # type: ignore[no-any-return]
 
 
 @db_route_handler("fetch algo trades")
@@ -355,7 +355,7 @@ def _get_algo_trades(cur: cursor, limit: int = 200, user_id: str | None = None, 
     # Validate trades response matches contract schema
     ensure_valid_response("trades", sanitized)
 
-    return json_response(200, sanitized)
+    return json_response(200, sanitized)  # type: ignore[no-any-return]
 
 
 @db_route_handler("fetch circuit breakers")
@@ -402,7 +402,7 @@ def _get_circuit_breakers(cur: cursor) -> dict[str, Any]:
                     "message": f"Circuit breaker configuration incomplete: missing tables {missing_tables}. Trading is disabled until data is available.",
                     "_error": f"Circuit breaker configuration incomplete: missing tables {missing_tables}. Trading is disabled until data is available.",
                 },
-            )
+            )  # type: ignore[no-any-return]
 
         # Fetch pre-computed circuit breaker metrics from database
         # CRITICAL: Fail-fast if metrics are unavailable (don't default to 0 for trading safety)
@@ -429,7 +429,7 @@ def _get_circuit_breakers(cur: cursor) -> dict[str, Any]:
                         "message": "Circuit breaker metrics unavailable. Trading disabled until data is available.",
                         "_error": "Circuit breaker metrics unavailable. Trading disabled until data is available.",
                     },
-                )
+                )  # type: ignore[no-any-return]
 
             # Validate critical fields exist and are non-null (fail-closed)
             critical_fields = [
@@ -458,7 +458,7 @@ def _get_circuit_breakers(cur: cursor) -> dict[str, Any]:
                         "message": f"Circuit breaker data incomplete (missing {', '.join(missing)}). Trading disabled.",
                         "_error": "Circuit breaker data incomplete. Trading disabled.",
                     },
-                )
+                )  # type: ignore[no-any-return]
 
             cbm_data = {
                 "drawdown": float(cbm_row["portfolio_drawdown_pct"]),
@@ -477,7 +477,7 @@ def _get_circuit_breakers(cur: cursor) -> dict[str, Any]:
             Exception,
         ) as e:
             code, error_type, message = handle_db_error(e, "fetch circuit breaker metrics")
-            return error_response(code, error_type, message)
+            return error_response(code, error_type, message)  # type: ignore[no-any-return]
 
         # CB1: Portfolio drawdown (from pre-computed metrics)
         try:
@@ -511,7 +511,7 @@ def _get_circuit_breakers(cur: cursor) -> dict[str, Any]:
                     "message": f"Circuit breaker computation error (drawdown): {e!s}",
                     "_error": "Circuit breaker computation failed. Trading disabled.",
                 },
-            )
+            )  # type: ignore[no-any-return]
 
         # CB2: Daily loss (from pre-computed metrics)
         try:
@@ -545,7 +545,7 @@ def _get_circuit_breakers(cur: cursor) -> dict[str, Any]:
                     "message": f"Circuit breaker computation error (daily_loss): {e!s}",
                     "_error": "Circuit breaker computation failed. Trading disabled.",
                 },
-            )
+            )  # type: ignore[no-any-return]
 
         # CB3: Consecutive losses (from pre-computed metrics)
         try:
@@ -579,7 +579,7 @@ def _get_circuit_breakers(cur: cursor) -> dict[str, Any]:
                     "message": f"Circuit breaker computation error (consecutive_losses): {e!s}",
                     "_error": "Circuit breaker computation failed. Trading disabled.",
                 },
-            )
+            )  # type: ignore[no-any-return]
 
         # CB4: VIX spike (from pre-computed metrics)
         try:
@@ -642,7 +642,7 @@ def _get_circuit_breakers(cur: cursor) -> dict[str, Any]:
                     "message": f"Circuit breaker computation error (weekly_loss): {e!s}",
                     "_error": "Circuit breaker computation failed. Trading disabled.",
                 },
-            )
+            )  # type: ignore[no-any-return]
 
         # CB6: Market stage break (Stage 4 = downtrend) (from pre-computed metrics)
         try:
@@ -675,7 +675,7 @@ def _get_circuit_breakers(cur: cursor) -> dict[str, Any]:
                     "message": f"Circuit breaker computation error (market_stage): {e!s}",
                     "_error": "Circuit breaker computation failed. Trading disabled.",
                 },
-            )
+            )  # type: ignore[no-any-return]
 
         # CB7: Total open risk (from pre-computed metrics)
         try:
@@ -709,7 +709,7 @@ def _get_circuit_breakers(cur: cursor) -> dict[str, Any]:
                     "message": f"Circuit breaker computation error (total_risk): {e!s}",
                     "_error": "Circuit breaker computation failed. Trading disabled.",
                 },
-            )
+            )  # type: ignore[no-any-return]
 
         # CB8: Intraday market health (SPY down >2% yesterday)
         try:
@@ -826,7 +826,7 @@ def _get_circuit_breakers(cur: cursor) -> dict[str, Any]:
         # Validate circuit breaker response matches contract schema
         ensure_valid_response("cb", cb_response)
 
-        return json_response(200, cb_response)
+        return json_response(200, cb_response)  # type: ignore[no-any-return]
     except (
         psycopg2.errors.UndefinedTable,
         psycopg2.errors.UndefinedColumn,
@@ -835,7 +835,7 @@ def _get_circuit_breakers(cur: cursor) -> dict[str, Any]:
         Exception,
     ) as e:
         code, error_type, message = handle_db_error(e, "fetch circuit breakers")
-        return error_response(code, error_type, message)
+        return error_response(code, error_type, message)  # type: ignore[no-any-return]
 
 
 @db_route_handler("fetch dashboard signals")
@@ -852,7 +852,7 @@ def _get_dashboard_signals(cur: cursor) -> dict[str, Any]:
                 WHERE date=(SELECT MAX(date) FROM swing_trader_scores)""")
         sig = cur.fetchone()
         if sig is None or sig.get("n") is None:
-            return error_response(503, "no_data", "No swing trader signals available")
+            return error_response(503, "no_data", "No swing trader signals available")  # type: ignore[no-any-return]
         total_n = int(sig["n"])
 
         # Top swing candidates with swing score and sector
@@ -935,7 +935,7 @@ def _get_dashboard_signals(cur: cursor) -> dict[str, Any]:
         # Validate signals response matches contract schema
         ensure_valid_response("sig", sig_response)
 
-        return json_response(200, sig_response)
+        return json_response(200, sig_response)  # type: ignore[no-any-return]
     except (
         psycopg2.errors.UndefinedTable,
         psycopg2.errors.UndefinedColumn,
@@ -944,7 +944,7 @@ def _get_dashboard_signals(cur: cursor) -> dict[str, Any]:
         Exception,
     ) as e:
         code, error_type, message = handle_db_error(e, "fetch dashboard signals")
-        return error_response(code, error_type, message)
+        return error_response(code, error_type, message)  # type: ignore[no-any-return]
 
 
 @db_route_handler("fetch equity curve")
@@ -981,7 +981,7 @@ def _get_equity_curve(cur: cursor, days: int = 180) -> dict[str, Any]:
         return list_response(
             [safe_json_serialize(safe_dict_convert(c)) for c in reversed(curve) if c],
             data_freshness=freshness,
-        )
+        )  # type: ignore[no-any-return]
     except (
         psycopg2.errors.UndefinedTable,
         psycopg2.errors.UndefinedColumn,
@@ -990,4 +990,4 @@ def _get_equity_curve(cur: cursor, days: int = 180) -> dict[str, Any]:
         Exception,
     ) as e:
         code, error_type, message = handle_db_error(e, "fetch equity curve")
-        return error_response(code, error_type, message)
+        return error_response(code, error_type, message)  # type: ignore[no-any-return]

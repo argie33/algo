@@ -74,10 +74,7 @@ class PaperExecutionMode(ExecutionModeStrategy):
     def validate_and_log_initialization(
         self, alpaca_key: str | None, alpaca_secret: str | None, resolved_url: str
     ) -> None:
-        logger.info(
-            "[EXECUTOR] mode=paper (sandbox) | "
-            f"key_set={bool(alpaca_key)} secret_set={bool(alpaca_secret)}"
-        )
+        logger.info(f"[EXECUTOR] mode=paper (sandbox) | key_set={bool(alpaca_key)} secret_set={bool(alpaca_secret)}")
 
 
 class ReviewExecutionMode(ExecutionModeStrategy):
@@ -132,11 +129,7 @@ class AutoExecutionMode(ExecutionModeStrategy):
         live_ack = os.getenv("ALGO_LIVE_TRADING", "").strip()
         paper_flag = os.getenv("ALPACA_PAPER_TRADING", "false").strip().lower()
         url_says_paper = "paper" in (resolved_url or "").lower()
-        live_intent = (
-            live_ack == "I_UNDERSTAND_REAL_MONEY"
-            and paper_flag != "true"
-            and not url_says_paper
-        )
+        live_intent = live_ack == "I_UNDERSTAND_REAL_MONEY" and paper_flag != "true" and not url_says_paper
 
         logger.info(
             f"[EXECUTOR] mode=auto live_intent={live_intent} "
@@ -163,11 +156,7 @@ class AutoExecutionMode(ExecutionModeStrategy):
         live_ack = os.getenv("ALGO_LIVE_TRADING", "").strip()
         paper_flag = os.getenv("ALPACA_PAPER_TRADING", "false").strip().lower()
         url_says_paper = "paper" in (configured_url or "").lower()
-        return (
-            live_ack == "I_UNDERSTAND_REAL_MONEY"
-            and paper_flag != "true"
-            and not url_says_paper
-        )
+        return live_ack == "I_UNDERSTAND_REAL_MONEY" and paper_flag != "true" and not url_says_paper
 
 
 def create_execution_mode_strategy(mode: str) -> ExecutionModeStrategy:
@@ -189,9 +178,6 @@ def create_execution_mode_strategy(mode: str) -> ExecutionModeStrategy:
     }
 
     if mode not in strategies:
-        raise ValueError(
-            f"Invalid execution_mode: '{mode}'. "
-            f"Must be one of: {', '.join(strategies.keys())}"
-        )
+        raise ValueError(f"Invalid execution_mode: '{mode}'. Must be one of: {', '.join(strategies.keys())}")
 
     return strategies[mode]

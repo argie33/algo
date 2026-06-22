@@ -74,9 +74,7 @@ class VIXAccessor:
             {
                 "date": r.get("date"),
                 "vix_level": float(r["vix_level"]) if r.get("vix_level") else None,
-                "put_call_ratio": float(r["put_call_ratio"])
-                if r.get("put_call_ratio")
-                else None,
+                "put_call_ratio": float(r["put_call_ratio"]) if r.get("put_call_ratio") else None,
                 "market_trend": r.get("market_trend"),
                 "market_stage": r.get("market_stage"),
             }

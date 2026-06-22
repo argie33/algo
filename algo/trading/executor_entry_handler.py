@@ -69,6 +69,7 @@ class TradeInsertionRequest:
     advanced_components: dict[str, Any] | None
     rejection_reason: str | None
 
+
 # Map stage phase names to integer IDs for database storage
 STAGE_PHASE_MAPPING = {
     "early": 1,

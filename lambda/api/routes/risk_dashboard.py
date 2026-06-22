@@ -46,7 +46,7 @@ def handle(
 ) -> dict[str, Any]:
     """Route risk dashboard endpoints."""
     if os.environ.get("DEV_BYPASS_AUTH") != "true" and not _check_admin_access(jwt_claims):
-        return error_response(403, "forbidden", "Admin access required")
+        return error_response(403, "forbidden", "Admin access required")  # type: ignore[no-any-return]
     if path == "/api/algo/risk-dashboard":
         return _get_comprehensive_risk_dashboard(cur)
     elif path == "/api/algo/risk-dashboard/drawdown":
@@ -66,7 +66,7 @@ def handle(
         days_int = safe_limit(days[0], max_val=365)
         return _get_exit_rules_distribution(cur, days_int)
     else:
-        return error_response(404, "not_found", f"No risk dashboard handler for {path}")
+        return error_response(404, "not_found", f"No risk dashboard handler for {path}")  # type: ignore[no-any-return]
 
 
 def _get_comprehensive_risk_dashboard(cur: cursor) -> dict[str, Any]:
@@ -184,7 +184,7 @@ def _get_comprehensive_risk_dashboard(cur: cursor) -> dict[str, Any]:
         return response
     except (ValueError, ZeroDivisionError, TypeError) as e:
         code, error_type, message = handle_db_error(e, "fetch comprehensive risk dashboard")
-        return error_response(code, error_type, message)
+        return error_response(code, error_type, message)  # type: ignore[no-any-return]
 
 
 def _fetch_drawdown_info(cur: cursor) -> dict[str, Any]:
@@ -276,20 +276,20 @@ def _get_drawdown_metrics(cur: cursor) -> dict[str, Any]:
     """GET /api/algo/risk-dashboard/drawdown"""
     try:
         info = _fetch_drawdown_info(cur)
-        return json_response(200, info)
+        return json_response(200, info)  # type: ignore[no-any-return]
     except (ValueError, ZeroDivisionError, TypeError) as e:
         code, error_type, message = handle_db_error(e, "fetch drawdown metrics")
-        return error_response(code, error_type, message)
+        return error_response(code, error_type, message)  # type: ignore[no-any-return]
 
 
 def _get_exposure_tier_info(cur: cursor) -> dict[str, Any]:
     """GET /api/algo/risk-dashboard/exposure-tier"""
     try:
         info = _fetch_exposure_tier_info(cur)
-        return json_response(200, info)
+        return json_response(200, info)  # type: ignore[no-any-return]
     except (ValueError, ZeroDivisionError, TypeError) as e:
         code, error_type, message = handle_db_error(e, "fetch exposure tier info")
-        return error_response(code, error_type, message)
+        return error_response(code, error_type, message)  # type: ignore[no-any-return]
 
 
 def _get_position_sizing_audit(cur: cursor, days: int) -> dict[str, Any]:
@@ -332,10 +332,10 @@ def _get_position_sizing_audit(cur: cursor, days: int) -> dict[str, Any]:
                 }
             )
 
-        return list_response(items)
+        return list_response(items)  # type: ignore[no-any-return]
     except (ValueError, ZeroDivisionError, TypeError) as e:
         code, error_type, message = handle_db_error(e, "fetch position sizing audit")
-        return error_response(code, error_type, message)
+        return error_response(code, error_type, message)  # type: ignore[no-any-return]
 
 
 def _get_stop_loss_audit(cur: cursor, days: int) -> dict[str, Any]:
@@ -374,10 +374,10 @@ def _get_stop_loss_audit(cur: cursor, days: int) -> dict[str, Any]:
                 }
             )
 
-        return list_response(items)
+        return list_response(items)  # type: ignore[no-any-return]
     except (ValueError, ZeroDivisionError, TypeError) as e:
         code, error_type, message = handle_db_error(e, "fetch stop loss audit")
-        return error_response(code, error_type, message)
+        return error_response(code, error_type, message)  # type: ignore[no-any-return]
 
 
 def _get_exit_rules_distribution(cur: cursor, days: int) -> dict[str, Any]:
@@ -416,10 +416,10 @@ def _get_exit_rules_distribution(cur: cursor, days: int) -> dict[str, Any]:
                 }
             )
 
-        return list_response(items)
+        return list_response(items)  # type: ignore[no-any-return]
     except (ValueError, ZeroDivisionError, TypeError) as e:
         code, error_type, message = handle_db_error(e, "fetch exit rules distribution")
-        return error_response(code, error_type, message)
+        return error_response(code, error_type, message)  # type: ignore[no-any-return]
 
 
 def _get_drawdown_status(drawdown_pct: float) -> str:
