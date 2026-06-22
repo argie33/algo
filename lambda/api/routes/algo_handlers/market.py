@@ -324,7 +324,7 @@ def _normalize_market_health(mh: dict) -> dict[str, Any]:
     Critical fields (halt circuit breaker): vix_level, market_stage, market_trend
     """
     critical_fields = {"vix_level", "market_stage", "market_trend"}
-    missing = critical_fields - set(k for k in mh.keys() if mh[k] is not None)
+    missing = critical_fields - {k for k in mh.keys() if mh[k] is not None}
     if missing:
         raise ValueError(f"Market health missing critical fields: {missing}")
     return {
@@ -349,7 +349,7 @@ def _normalize_exposure(exp: dict) -> dict[str, Any]:
     Critical fields (position sizing, trading halts): exposure_pct, regime
     """
     critical_fields = {"exposure_pct", "regime"}
-    missing = critical_fields - set(k for k in exp.keys() if exp[k] is not None)
+    missing = critical_fields - {k for k in exp.keys() if exp[k] is not None}
     if missing:
         raise ValueError(f"Market exposure missing critical fields: {missing}")
     halt_reasons = exp.get("halt_reasons")
@@ -367,7 +367,7 @@ def _get_market(cur) -> dict[str, Any]:
     try:
         cur.execute("SET LOCAL statement_timeout = '8000ms'")
 
-        # Fetch market health: 11 fields from market_health_daily
+        # CRITICAL: Fetch market health; fail fast if unavailable
         cur.execute("""
             SELECT market_trend, market_stage, vix_level,
                    up_volume_percent, advance_decline_ratio, new_highs_count,
@@ -377,17 +377,21 @@ def _get_market(cur) -> dict[str, Any]:
             ORDER BY date DESC LIMIT 1
         """)
         mh = cur.fetchone()
-        mh_raw = safe_json_serialize(safe_dict_convert(mh)) if mh else {}
+        if not mh:
+            return error_response(503, "data_unavailable", "Market health data unavailable")
+        mh_raw = safe_json_serialize(safe_dict_convert(mh))
         market_health = _normalize_market_health(mh_raw)
 
-        # Fetch exposure data and distribution days from market_exposure_daily
+        # CRITICAL: Fetch exposure data; fail fast if unavailable
         cur.execute("""
             SELECT exposure_pct, regime, halt_reasons, distribution_days
             FROM market_exposure_daily
             ORDER BY date DESC LIMIT 1
         """)
         exp = cur.fetchone()
-        exp_raw = safe_json_serialize(safe_dict_convert(exp)) if exp else {}
+        if not exp:
+            return error_response(503, "data_unavailable", "Market exposure data unavailable")
+        exp_raw = safe_json_serialize(safe_dict_convert(exp))
         exposure = _normalize_exposure(exp_raw)
 
         # Parse JSON strings from database (halt_reasons is stored as JSON text)
@@ -401,19 +405,16 @@ def _get_market(cur) -> dict[str, Any]:
             except (json.JSONDecodeError, TypeError):
                 exposure["halt_reasons"] = []
 
-        # Fetch SPY close price
-        spy_close = None
-        try:
-            cur.execute("""
-                SELECT close FROM price_daily
-                WHERE symbol = 'SPY'
-                ORDER BY date DESC LIMIT 1
-            """)
-            spy_row = cur.fetchone()
-            if spy_row:
-                spy_close = float(spy_row["close"]) if spy_row["close"] else None
-        except (psycopg2.DatabaseError, psycopg2.OperationalError) as e:
-            logger.warning(f"[MARKET] SPY price unavailable: {e}")
+        # CRITICAL: Fetch SPY close price; fail fast if unavailable
+        cur.execute("""
+            SELECT close FROM price_daily
+            WHERE symbol = 'SPY'
+            ORDER BY date DESC LIMIT 1
+        """)
+        spy_row = cur.fetchone()
+        if not spy_row or spy_row["close"] is None:
+            return error_response(503, "data_unavailable", "SPY price data unavailable")
+        spy_close = float(spy_row["close"])
 
         data = {
             "exposure_pct": float(exposure["exposure_pct"]),
@@ -710,18 +711,29 @@ def _get_markets(cur) -> dict[str, Any]:
 
         current_date = row.get("date")
 
-        # Validate vix_regime is present in factors; log if missing
+        # CRITICAL: Validate vix_regime is present in factors; fail-fast if missing
         if "vix_regime" not in factors:
-            logger.warning(
-                f"[MARKETS API] vix_regime missing from factors for {current_date}: "
+            logger.error(
+                f"[MARKETS API] CRITICAL: vix_regime missing from factors for {current_date}: "
                 f"market exposure computation may not have run or vix_regime computation failed. "
                 f"Check market_exposure_daily and load_market_exposure_daily logs."
             )
-        elif (factors.get("vix_regime") or {}).get("value") is None:
-            logger.warning(
-                f"[MARKETS API] VIX value is None in vix_regime for {current_date}: "
+            return error_response(
+                503,
+                "data_unavailable",
+                "VIX regime data unavailable - cannot assess volatility risk",
+            )
+        vix_regime_obj = factors.get("vix_regime")
+        if vix_regime_obj is None or vix_regime_obj.get("value") is None:
+            logger.error(
+                f"[MARKETS API] CRITICAL: VIX value is None in vix_regime for {current_date}: "
                 f"VIX fetch from ^VIX or market_health_daily returned no data. "
                 f"Check load_market_health_daily logs and yfinance availability."
+            )
+            return error_response(
+                503,
+                "data_unavailable",
+                "VIX data unavailable - cannot assess volatility risk",
             )
 
         response = list_response(sectors, total=len(sectors), limit=None, offset=None)
