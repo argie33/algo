@@ -190,6 +190,7 @@ describe("Scores Routes Unit Tests", () => {
         .get("/scores")
         .set("Authorization", "Bearer test-token");
       if (response.status !== 200) {
+        // Non-200 response received but test expects 200
       }
       expect(response.status).toBe(200);
       expect(response.body).toHaveProperty("success", true);

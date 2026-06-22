@@ -179,7 +179,9 @@ describe("F12 Browser Console Validation", () => {
         await page.waitForTimeout(500);
 
         // Count DOM elements
+        // eslint-disable-next-line no-undef
         domElements = await page.evaluate(
+          // eslint-disable-next-line no-undef
           () => document.querySelectorAll("*").length
         );
 

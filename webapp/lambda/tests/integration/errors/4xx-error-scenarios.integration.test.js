@@ -8,6 +8,7 @@
 
 const request = require("supertest");
 const { app } = require("../../../index");
+const { initializeDatabase } = require("../../../utils/database");
 describe("4xx Client Error Scenarios Integration", () => {
   // NO MOCKS - Use REAL DATABASE ONLY
   beforeAll(async () => {

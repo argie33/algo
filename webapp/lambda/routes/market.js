@@ -1,6 +1,5 @@
 const express = require("express");
 
-const { getMarketDataPath } = require("../utils/market-data-path");
 const { getLatestMarketDate } = require("../utils/market-cache");
 
 let query;

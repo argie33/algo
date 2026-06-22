@@ -10,16 +10,15 @@ const express = require("express");
 
 const { sendSuccess, sendError } = require("../utils/apiResponse");
 const { authenticateToken } = require("../middleware/auth");
-const logger = require("../utils/logger");
 const {
   validateQueryResult,
   validateAndCoerceRow,
   validateAndCoerceRows,
 } = require("../utils/responseValidation");
+const { query } = require("../utils/database");
 
 const router = express.Router();
 router.use(authenticateToken);
-const { query } = require("../utils/database");
 
 async function getPerformanceMetrics(req, res) {
   try {

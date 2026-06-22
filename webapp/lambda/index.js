@@ -1,7 +1,6 @@
 ﻿// Load environment variables ONCE at startup from .env.local (LOCAL DEVELOPMENT ONLY)
 // Production (Lambda/CI): NEVER load from .env files - uses AWS environment variables or Secrets Manager
 const path = require("path");
-const fs = require("fs");
 
 // Only load .env.local in local development (never in Lambda/CI)
 if (!process.env.AWS_LAMBDA_FUNCTION_NAME && !process.env.CI) {

@@ -556,7 +556,9 @@ async function runSiteFunctionalityTests(baseURL) {
     }
 
     if (workflowPassed) {
+      // Workflow tests passed - results recorded above
     } else {
+      // Workflow tests failed - results recorded above
     }
   }
 }

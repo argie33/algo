@@ -1276,7 +1276,17 @@ class MarketExposure:
     def _persist(self, eval_date, result):
         try:
             # Determine tier from regime
-            regime = result.get("regime", "caution")
+            regime = result.get("regime")
+            if not regime:
+                logger.critical(
+                    "CRITICAL: Market regime calculation returned None. "
+                    "Cannot determine market exposure tier without knowing regime. "
+                    "Risk tier sizing will be wrong."
+                )
+                raise ValueError(
+                    "Market exposure: regime result missing. Cannot calculate position size tier. "
+                    "Market regime evaluation incomplete."
+                )
             if regime == "confirmed_uptrend":
                 tier = "tier_1_strong_uptrend"
             elif regime == "uptrend_under_pressure":

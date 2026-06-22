@@ -29,7 +29,6 @@ const router = express.Router();
 router.get("/", async (req, res) => {
   try {
     const symbol = req.query.symbol;
-    const days = parseInt(req.query.days) || 30;
     const limit = Math.min(parseInt(req.query.limit) || 1000, 10000);
 
     const pool = getPool();

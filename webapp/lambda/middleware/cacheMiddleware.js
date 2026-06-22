@@ -47,12 +47,10 @@ class CacheManager {
   startCleanupInterval(intervalSeconds = 300) {
     setInterval(() => {
       const now = Date.now();
-      let cleaned = 0;
       for (const [key, expiry] of this.ttl.entries()) {
         if (expiry && now > expiry) {
           this.cache.delete(key);
           this.ttl.delete(key);
-          cleaned++;
         }
       }
     }, intervalSeconds * 1000);

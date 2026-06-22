@@ -14,7 +14,7 @@ const requiredInProduction = {
   JWT_SECRET: "JWT signing secret",
 };
 
-const optional = {
+const _optional = {
   AWS_REGION: { default: "us-east-1" },
   WEBAPP_AWS_REGION: { default: "us-east-1" },
   FRED_API_KEY: { default: "" },

@@ -429,9 +429,18 @@ class SwingTraderScore:
                 if key in comp:
                     default_components[key].update(comp[key])
 
+            # Validate critical signal quality fields
+            grade = result.get("grade")
+            if not grade:
+                logger.critical(
+                    f"CRITICAL: Swing score result missing grade for {symbol}. "
+                    f"Cannot assess signal quality. Swing score validation failed."
+                )
+                raise ValueError(f"Swing score: grade field missing for {symbol}. Cannot publish incomplete signal.")
+
             components_json = {
                 **default_components,
-                "grade": result.get("grade", "F"),
+                "grade": grade,
                 "pass": result["pass"],
                 "reason": result.get("reason"),
             }

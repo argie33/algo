@@ -22,7 +22,7 @@ const requireAuth = authenticateToken;
  * GET /api/research/backtests
  * List all backtest runs with pagination
  */
-router.get("/", requireAuth, async (req, res, next) => {
+router.get("/", requireAuth, async (req, res, _next) => {
   try {
     const {
       strategy_name,
@@ -119,7 +119,7 @@ router.get("/", requireAuth, async (req, res, next) => {
  * GET /api/research/backtests/:run_id
  * Get detailed backtest run with trades
  */
-router.get("/:run_id", requireAuth, async (req, res, next) => {
+router.get("/:run_id", requireAuth, async (req, res, _next) => {
   try {
     const { run_id } = req.params;
     const { limit, offset } = paginationConfig.sanitize(
@@ -208,7 +208,7 @@ router.get("/:run_id", requireAuth, async (req, res, next) => {
  * POST /api/research/backtests
  * Create a new backtest run record (used by backtest.py)
  */
-router.post("/", requireAuth, async (req, res, next) => {
+router.post("/", requireAuth, async (req, res, _next) => {
   try {
     const {
       run_name,

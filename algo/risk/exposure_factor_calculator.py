@@ -67,11 +67,22 @@ class ExposureFactorCalculator:
         }
 
     def calculate_factor(self, name: str, market_data: dict[str, Any]) -> float:
-        """Calculate single exposure factor."""
+        """Calculate single exposure factor.
+
+        Raises ValueError if factor is unknown. Do not return 0.0 — that masks
+        missing factors in composite calculations.
+        """
         factor = self.factors.get(name)
         if not factor:
-            logger.warning(f"Unknown factor: {name}")
-            return 0.0
+            logger.critical(
+                f"CRITICAL: Unknown exposure factor: {name}. "
+                f"Available factors: {list(self.factors.keys())}. "
+                f"Cannot calculate exposure without all defined factors."
+            )
+            raise ValueError(
+                f"Unknown exposure factor: {name}. "
+                f"Exposure calculation incomplete. Cannot proceed without all factors."
+            )
         return factor.calculate(market_data)
 
     def calculate_composite(self, market_data: dict[str, Any], weights: dict[str, float] | None = None) -> float:

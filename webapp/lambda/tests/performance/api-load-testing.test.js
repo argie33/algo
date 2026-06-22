@@ -7,7 +7,12 @@ jest.mock("../../utils/database", () => ({
   initializeDatabase: jest.fn().mockResolvedValue(undefined),
   closeDatabase: jest.fn().mockResolvedValue(undefined),
   getPool: jest.fn(),
-  transaction: jest.fn((cb) => cb({ query: jest.fn().mockResolvedValue({ rows: [] }), release: jest.fn().mockResolvedValue(undefined) })),
+  transaction: jest.fn((cb) =>
+    cb({
+      query: jest.fn().mockResolvedValue({ rows: [] }),
+      release: jest.fn().mockResolvedValue(undefined),
+    })
+  ),
   healthCheck: jest.fn(),
 }));
 
@@ -403,6 +408,7 @@ describe("API Load Testing and Performance", () => {
         queryTimes.reduce((sum, time) => sum + time, 0) / queryIterations;
       expect(avgQueryTime).toBeLessThan(500); // Should still be fast with more data
 
+      console.log(
         `Query performance with larger dataset: ${avgQueryTime.toFixed(2)}ms average`
       );
     });
@@ -428,6 +434,7 @@ describe("API Load Testing and Performance", () => {
       const avgErrorTime = totalTime / errorRequests.length;
       expect(avgErrorTime).toBeLessThan(50); // Error responses should be very fast
 
+      console.log(
         `Error handling: ${avgErrorTime.toFixed(2)}ms average for 404 responses`
       );
     });
@@ -452,6 +459,7 @@ describe("API Load Testing and Performance", () => {
       const avgAuthErrorTime = totalTime / authErrorRequests.length;
       expect(avgAuthErrorTime).toBeLessThan(100); // Auth errors should be fast to prevent timing attacks
 
+      console.log(
         `Auth error handling: ${avgAuthErrorTime.toFixed(2)}ms average`
       );
     });
@@ -490,6 +498,7 @@ describe("API Load Testing and Performance", () => {
 
       // Log performance metrics
       Object.entries(metricsData).forEach(([endpoint, metrics]) => {
+        console.log(
           `${endpoint} - Avg: ${metrics.avg.toFixed(2)}ms, Min: ${metrics.min.toFixed(2)}ms, Max: ${metrics.max.toFixed(2)}ms, P95: ${metrics.p95.toFixed(2)}ms`
         );
 
@@ -534,6 +543,7 @@ describe("API Load Testing and Performance", () => {
       // Performance should be consistent (low standard deviation)
       expect(standardDeviation).toBeLessThan(avgTime * 0.5); // SD should be less than 50% of average
 
+      console.log(
         `Performance consistency - Avg: ${avgTime.toFixed(2)}ms, StdDev: ${standardDeviation.toFixed(2)}ms`
       );
     });

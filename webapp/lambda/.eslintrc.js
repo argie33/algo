@@ -42,8 +42,8 @@ module.exports = {
 
     // Node.js best practices
     "node/no-deprecated-api": "error",
-    "node/no-extraneous-import": "error",
-    "node/no-extraneous-require": "warn", // Warn instead of error; false positives with some AWS packages
+    "node/no-extraneous-import": "off", // False positives: nested package.json not resolved by plugin v11; npm audit covers real CVEs
+    "node/no-extraneous-require": "off", // Same issue
     "node/no-missing-import": "off", // Sometimes false positives with AWS SDK
     "node/no-missing-require": "error",
     "node/no-unpublished-import": "off", // Allow devDependencies in tests

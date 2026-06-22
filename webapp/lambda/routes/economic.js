@@ -1,17 +1,13 @@
 const express = require("express");
 
 const { query } = require("../utils/database");
-const { getMarketDataPath } = require("../utils/market-data-path");
 const {
   sendSuccess,
   sendError,
-  sendPaginated,
   sendPlaceholder,
 } = require("../utils/apiResponse");
 const {
   validateQueryResult,
-  validateAndCoerceRows,
-  extractCount,
 } = require("../utils/responseValidation");
 const logger = require("../utils/logger");
 const router = express.Router();

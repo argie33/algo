@@ -242,6 +242,7 @@ describe("Authentication Security Tests", () => {
 
       // If we got an error, the route might not exist or auth failed
       if (response.status >= 400) {
+        // Route may not be implemented or auth failed
       }
 
       // Verify that the API key service was called

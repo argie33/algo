@@ -405,6 +405,7 @@ describe("Real Data Flow Verification", () => {
       // Check that when data is unavailable, we return null (not calculated estimates)
       // Example: beta requires SPY correlation - should be null if not calculated
       if (summary.beta === null) {
+        // TODO: Add assertion or remove block
       }
 
       // Example: period returns require historical data - should be null if unavailable
@@ -414,6 +415,7 @@ describe("Real Data Flow Verification", () => {
         !summary.return_6m &&
         !summary.return_1y
       ) {
+        // TODO: Add assertion or remove block
       }
     }, 30000);
   });

@@ -44,7 +44,7 @@ const RETRY_CONFIG = {
 async function retryWithBackoff(
   operation,
   operationType = "api_call",
-  context = {}
+  _context = {}
 ) {
   const config = RETRY_CONFIG[operationType] || RETRY_CONFIG.api_call;
   let lastError;

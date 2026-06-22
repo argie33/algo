@@ -2,6 +2,7 @@ const {
   runContractTest,
   runSiteFunctionalityTests,
   API_CONTRACTS,
+  validateContract,
 } = require("./contract-test-runner");
 
 describe("API Contract Tests", () => {

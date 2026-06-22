@@ -1680,7 +1680,6 @@ router.post("/run", requireAuth, requireAdmin, async (req, res) => {
 
     const runId = `RUN-${new Date().toISOString().replace(/[:.]/g, "-").slice(0, 19)}`;
     const output = [];
-    let exitCode = null;
 
     child.stdout.on("data", (chunk) => {
       output.push(chunk.toString());
@@ -1703,7 +1702,6 @@ router.post("/run", requireAuth, requireAdmin, async (req, res) => {
 
       child.on("exit", (code) => {
         clearTimeout(timeout);
-        exitCode = code;
         resolve({ timeout: false, exitCode: code, output });
       });
     });

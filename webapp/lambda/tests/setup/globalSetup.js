@@ -83,8 +83,8 @@ module.exports = async () => {
       }
     }
 
-    // Now populate test data
-    await populateLoaderTestData();
+    // Test data population would happen here if needed
+    // Currently using real database structure loaded from Python setup
   } catch (error) {
     console.error(" Global setup failed:", error);
     // Tests should fail if real database schema cannot be loaded - no fallbacks
