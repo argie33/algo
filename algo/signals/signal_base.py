@@ -28,3 +28,43 @@ class SignalBase(ABC):
             "reason": reason,
             "timestamp": datetime.utcnow().isoformat(),
         }
+
+    def _period_return(self, cur, symbol: str, end_date, lookback_days: int) -> float:
+        """Compute simple return over a lookback period.
+
+        Args:
+            cur: Database cursor
+            symbol: Stock symbol
+            end_date: End date for return calculation
+            lookback_days: Number of days to look back
+
+        Returns:
+            Simple return as decimal (e.g., 0.15 for +15%)
+
+        Raises:
+            ValueError: If price data is missing or invalid for the period
+        """
+        cur.execute(
+            """
+            WITH bracket AS (
+                SELECT close, ROW_NUMBER() OVER (ORDER BY date DESC) AS rn
+                FROM price_daily
+                WHERE symbol = %s AND date <= %s
+                  AND date >= %s::date - (%s * INTERVAL '1 day')
+            )
+            SELECT
+                (SELECT close FROM bracket WHERE rn = 1),
+                (SELECT close FROM bracket ORDER BY rn DESC LIMIT 1)
+            """,
+            (symbol, end_date, end_date, lookback_days + 5),
+        )
+        row = cur.fetchone()
+        if not row or row[0] is None or row[1] is None:
+            raise ValueError(
+                f"Period return data missing for {symbol} on {end_date} ({lookback_days}d lookback) — insufficient price history"
+            )
+        recent = float(row[0])
+        oldest = float(row[1])
+        if oldest <= 0:
+            raise ValueError(f"Invalid historical price for {symbol}: oldest close {oldest} <= 0")
+        return (recent - oldest) / oldest
