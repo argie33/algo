@@ -12,11 +12,6 @@ jest.mock("../../../utils/database", () => ({
 
 const {
   query,
-  closeDatabase,
-  initializeDatabase,
-  getPool,
-  transaction,
-  healthCheck,
 } = require("../../../utils/database");
 describe("Market Routes Unit Tests", () => {
   let app;
@@ -438,7 +433,7 @@ describe("Market Routes Unit Tests", () => {
   });
   describe("GET /market/", () => {
     test("should return market info", async () => {
-      const response = await request(app).get("/market/").expect(200);
+      const _response = await request(app).get("/market/").expect(200);
       expect(response.body).toHaveProperty("success");
       expect(response.body.success).toBe(true);
       expect(response.body).toHaveProperty("data");
@@ -450,7 +445,7 @@ describe("Market Routes Unit Tests", () => {
   });
   describe("GET /market/debug", () => {
     test("should return debug information", async () => {
-      const response = await request(app).get("/market/debug").expect(200);
+      const _response = await request(app).get("/market/debug").expect(200);
       expect(response.body).toHaveProperty("success");
       expect(response.body).toHaveProperty("tables");
       expect(response.body).toHaveProperty("recordCounts");
@@ -458,27 +453,27 @@ describe("Market Routes Unit Tests", () => {
   });
   describe("GET /market/overview", () => {
     test("should return market overview", async () => {
-      const response = await request(app).get("/market/overview").expect(200);
+      const _response = await request(app).get("/market/overview").expect(200);
       expect(response.body).toHaveProperty("success");
       expect(response.body).toHaveProperty("data");
     });
   });
   describe("GET /market/sectors", () => {
     test("should return sector data", async () => {
-      const response = await request(app).get("/market/sectors").expect(200);
+      const _response = await request(app).get("/market/sectors").expect(200);
       expect(response.body).toHaveProperty("success");
     });
   });
   describe("GET /market/economic", () => {
     test("should return economic data", async () => {
-      const response = await request(app).get("/market/economic");
+      const _response = await request(app).get("/market/economic");
       expect([200, 503]).toContain(response.status);
       expect(response.body).toHaveProperty("success");
     });
   });
   describe("GET /market/sentiment", () => {
     test("should return sentiment history with AAII data", async () => {
-      const response = await request(app).get("/market/sentiment?days=30");
+      const _response = await request(app).get("/market/sentiment?days=30");
       expect([200, 404]).toContain(response.status);
       expect(response.body).toBeDefined();
       expect(typeof response.body).toBe("object");
@@ -497,7 +492,7 @@ describe("Market Routes Unit Tests", () => {
       }
     });
     test("should handle sentiment with custom parameters", async () => {
-      const response = await request(app).get(
+      const _response = await request(app).get(
         "/market/sentiment?days=7&limit=10"
       );
       expect([200, 404]).toContain(response.status);
@@ -512,7 +507,7 @@ describe("Market Routes Unit Tests", () => {
   });
   describe("GET /market/aaii", () => {
     test("should return AAII sentiment data", async () => {
-      const response = await request(app).get("/market/aaii").expect(200);
+      const _response = await request(app).get("/market/aaii").expect(200);
       // AAII endpoint returns data directly without success wrapper
       if (response.body && typeof response.body === "object") {
         expect(response.body).toHaveProperty("bullish");
@@ -525,13 +520,13 @@ describe("Market Routes Unit Tests", () => {
   // Add comprehensive tests for major market endpoints
   describe("GET /market/data", () => {
     test("should return market data with success flag", async () => {
-      const response = await request(app).get("/market/data").expect(200);
+      const _response = await request(app).get("/market/data").expect(200);
       expect(response.body).toBeDefined();
       expect(typeof response.body).toBe("object");
       expect(response.body).toHaveProperty("data");
     });
     test("should handle query parameters", async () => {
-      const response = await request(app)
+      const _response = await request(app)
         .get("/market/data?limit=5&sort=volume")
         .expect(200);
       expect(response.body).toBeDefined();
@@ -540,7 +535,7 @@ describe("Market Routes Unit Tests", () => {
   });
   describe("GET /market/overview", () => {
     test("should return market overview data", async () => {
-      const response = await request(app).get("/market/overview").expect(200);
+      const _response = await request(app).get("/market/overview").expect(200);
       expect(response.body).toBeDefined();
       expect(typeof response.body).toBe("object");
       expect(response.body).toHaveProperty("data");
@@ -550,7 +545,7 @@ describe("Market Routes Unit Tests", () => {
       }
     });
     test("should handle market overview with parameters", async () => {
-      const response = await request(app)
+      const _response = await request(app)
         .get("/market/overview?detailed=true")
         .expect(200);
       expect(response.body).toBeDefined();
@@ -559,7 +554,7 @@ describe("Market Routes Unit Tests", () => {
   });
   describe("GET /market/sectors/performance", () => {
     test("should return sector performance data", async () => {
-      const response = await request(app).get("/market/sectors/performance");
+      const _response = await request(app).get("/market/sectors/performance");
       expect([200, 503]).toContain(response.status);
       expect(response.body).toBeDefined();
       expect(typeof response.body).toBe("object");
@@ -568,7 +563,7 @@ describe("Market Routes Unit Tests", () => {
       }
     });
     test("should handle sector performance with timeframe", async () => {
-      const response = await request(app).get(
+      const _response = await request(app).get(
         "/market/sectors/performance?timeframe=1d"
       );
       expect([200, 503]).toContain(response.status);
@@ -578,7 +573,7 @@ describe("Market Routes Unit Tests", () => {
   });
   describe("GET /market/economic/indicators", () => {
     test("should return economic indicators", async () => {
-      const response = await request(app)
+      const _response = await request(app)
         .get("/market/economic/indicators")
         .expect(200);
       expect(response.body).toBeDefined();
@@ -590,14 +585,14 @@ describe("Market Routes Unit Tests", () => {
       }
     });
     test("should filter by category", async () => {
-      const response = await request(app)
+      const _response = await request(app)
         .get("/market/economic/indicators?category=inflation")
         .expect(200);
       expect(response.body).toBeDefined();
       expect(typeof response.body).toBe("object");
     });
     test("should include historical data when requested", async () => {
-      const response = await request(app)
+      const _response = await request(app)
         .get("/market/economic/indicators?historical=true")
         .expect(200);
       expect(response.body).toBeDefined();
@@ -614,7 +609,7 @@ describe("Market Routes Unit Tests", () => {
   });
   describe("GET /market/breadth", () => {
     test("should return market breadth data", async () => {
-      const response = await request(app).get("/market/breadth");
+      const _response = await request(app).get("/market/breadth");
       expect([200, 503]).toContain(response.status);
       expect(response.body).toBeDefined();
       expect(typeof response.body).toBe("object");
@@ -623,7 +618,7 @@ describe("Market Routes Unit Tests", () => {
       }
     });
     test("should handle breadth with parameters", async () => {
-      const response = await request(app).get("/market/breadth?period=5d");
+      const _response = await request(app).get("/market/breadth?period=5d");
       expect([200, 503]).toContain(response.status);
       expect(response.body).toBeDefined();
       expect(typeof response.body).toBe("object");
@@ -631,7 +626,7 @@ describe("Market Routes Unit Tests", () => {
   });
   describe("GET /market/distribution-days", () => {
     test("should return distribution days data for major indices", async () => {
-      const response = await request(app).get("/market/distribution-days");
+      const _response = await request(app).get("/market/distribution-days");
       expect([200, 503]).toContain(response.status);
       expect(response.body).toBeDefined();
       expect(typeof response.body).toBe("object");
@@ -672,7 +667,7 @@ describe("Market Routes Unit Tests", () => {
       }
     });
     test("should return proper distribution day structure", async () => {
-      const response = await request(app).get("/market/distribution-days");
+      const _response = await request(app).get("/market/distribution-days");
       if (response.status === 200 && response.body.data) {
         const data = response.body.data;
         // Check at least one index has distribution days with proper structure
@@ -709,7 +704,7 @@ describe("Market Routes Unit Tests", () => {
         }
         return Promise.resolve({ rows: [] });
       });
-      const response = await request(app).get("/market/distribution-days");
+      const _response = await request(app).get("/market/distribution-days");
       expect(response.status).toBe(503);
       expect(response.body).toHaveProperty("success", false);
       expect(response.body).toHaveProperty("error");
@@ -733,7 +728,7 @@ describe("Market Routes Unit Tests", () => {
         }
         return Promise.resolve({ rows: [] });
       });
-      const response = await request(app).get("/market/distribution-days");
+      const _response = await request(app).get("/market/distribution-days");
       expect(response.status).toBe(503);
       expect(response.body).toHaveProperty("success", false);
       expect(response.body).toHaveProperty("error");
@@ -754,7 +749,7 @@ describe("Market Routes Unit Tests", () => {
         }
         return Promise.resolve({ rows: [] });
       });
-      const response = await request(app).get("/market/distribution-days");
+      const _response = await request(app).get("/market/distribution-days");
       expect(response.status).toBe(404);
       expect(response.body).toHaveProperty("success", false);
       expect(response.body).toHaveProperty("error");
@@ -763,13 +758,13 @@ describe("Market Routes Unit Tests", () => {
   });
   describe("GET /market/summary", () => {
     test("should return market summary", async () => {
-      const response = await request(app).get("/market/summary").expect(200);
+      const _response = await request(app).get("/market/summary").expect(200);
       expect(response.body).toBeDefined();
       expect(typeof response.body).toBe("object");
       expect(response.body).toHaveProperty("data");
     });
     test("should handle summary with filters", async () => {
-      const response = await request(app)
+      const _response = await request(app)
         .get("/market/summary?include_sectors=true")
         .expect(200);
       expect(response.body).toBeDefined();
@@ -778,7 +773,7 @@ describe("Market Routes Unit Tests", () => {
   });
   describe("GET /market/naaim", () => {
     test("should return NAAIM data", async () => {
-      const response = await request(app).get("/market/naaim");
+      const _response = await request(app).get("/market/naaim");
       expect([200, 404, 503]).toContain(response.status);
       expect(response.body).toBeDefined();
       expect(typeof response.body).toBe("object");
@@ -789,7 +784,7 @@ describe("Market Routes Unit Tests", () => {
   });
   describe("GET /market/ping", () => {
     test("should return ping response", async () => {
-      const response = await request(app).get("/market/ping").expect(200);
+      const _response = await request(app).get("/market/ping").expect(200);
       expect(response.body).toBeDefined();
       expect(typeof response.body).toBe("object");
       expect(response.body).toHaveProperty("status", "ok");
@@ -798,7 +793,7 @@ describe("Market Routes Unit Tests", () => {
   // AWS Failing Endpoints Tests (Previously failing due to mock responses)
   describe("AWS Failing Endpoints - Database-Driven", () => {
     test("GET /market/recession-forecast should return database-driven recession analysis (or 503 if missing data)", async () => {
-      const response = await request(app).get("/market/recession-forecast");
+      const _response = await request(app).get("/market/recession-forecast");
       // Expect either 200 (data loaded) or 503 (data missing) - NO mock fallbacks
       expect([200, 503]).toContain(response.status);
       expect(response.body).toBeDefined();
@@ -817,7 +812,7 @@ describe("Market Routes Unit Tests", () => {
       }
     });
     test("GET /market/leading-indicators should return database-driven leading indicators (or 503 if missing data)", async () => {
-      const response = await request(app).get("/market/leading-indicators");
+      const _response = await request(app).get("/market/leading-indicators");
       // Expect either 200 (data loaded) or 503 (data missing) - NO mock fallbacks
       expect([200, 503]).toContain(response.status);
       expect(response.body).toBeDefined();
@@ -831,7 +826,7 @@ describe("Market Routes Unit Tests", () => {
       }
     });
     test("GET /market/sectoral-analysis should return database-driven sector analysis", async () => {
-      const response = await request(app)
+      const _response = await request(app)
         .get("/market/sectoral-analysis")
         .expect(200);
       expect(response.body).toBeDefined();
@@ -843,7 +838,7 @@ describe("Market Routes Unit Tests", () => {
       }
     });
     test("GET /market/ai-insights should return database-driven AI insights", async () => {
-      const response = await request(app)
+      const _response = await request(app)
         .get("/market/ai-insights")
         .expect(200);
       expect(response.body).toBeDefined();
@@ -864,7 +859,7 @@ describe("Market Routes Unit Tests", () => {
       }
     });
     test("GET /market/economic-scenarios should return database-driven economic scenarios (or 503 if missing data)", async () => {
-      const response = await request(app).get("/market/economic-scenarios");
+      const _response = await request(app).get("/market/economic-scenarios");
       // Expect either 200 (data loaded) or 503 (data missing) - NO mock fallbacks
       expect([200, 503]).toContain(response.status);
       expect(response.body).toBeDefined();
@@ -892,13 +887,13 @@ describe("Market Routes Unit Tests", () => {
   // Error handling tests
   describe("Error Handling", () => {
     test("should handle invalid query parameters gracefully", async () => {
-      const response = await request(app)
+      const _response = await request(app)
         .get("/market/overview?limit=invalid")
         .expect(200); // Most endpoints handle invalid params gracefully
       expect(response.body).toHaveProperty("success");
     });
     test("should handle missing optional parameters", async () => {
-      const response = await request(app)
+      const _response = await request(app)
         .get("/market/economic/indicators?category=")
         .expect(200);
       expect(response.body).toBeDefined();

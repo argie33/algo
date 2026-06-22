@@ -3,10 +3,8 @@ const express = require("express");
 const { query } = require("../utils/database");
 const { sendSuccess, sendError } = require("../utils/apiResponse");
 const { authenticateToken } = require("../middleware/auth");
-const logger = require("../utils/logger");
 const {
   validateQueryResult,
-  validateAndCoerceRows,
 } = require("../utils/responseValidation");
 const router = express.Router();
 router.use(authenticateToken);

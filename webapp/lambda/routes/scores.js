@@ -8,10 +8,7 @@ const {
 } = require("../utils/apiResponse");
 const {
   validateQueryResult,
-  validateAndCoerceRows,
-  extractCount,
 } = require("../utils/responseValidation");
-const logger = require("../utils/logger");
 const router = express.Router();
 
 // GET / - Get stock scores with optional filters
@@ -115,7 +112,6 @@ router.get("/stockscores", async (req, res) => {
       symbol,
       sortBy = "composite_score",
       sortOrder = "DESC",
-      sp500Only = false,
     } = req.query;
 
     const limitNum = Math.min(parseInt(limit) || 50, 5000);

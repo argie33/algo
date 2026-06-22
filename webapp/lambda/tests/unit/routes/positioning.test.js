@@ -14,11 +14,6 @@ jest.mock("../../../utils/database", () => ({
 
 const {
   query,
-  closeDatabase,
-  initializeDatabase,
-  getPool,
-  transaction,
-  healthCheck,
 } = require("../../../utils/database");
 const mockQuery = query;
 const app = express();
@@ -84,7 +79,7 @@ describe("Positioning Routes", () => {
         .mockResolvedValueOnce({ rows: [mockPositioningMetrics] }) // positioning_metrics
         .mockResolvedValueOnce({ rows: mockInstitutionalData }) // institutional_positioning
         .mockResolvedValueOnce({ rows: [mockSentimentData] }); // retail_sentiment
-      const response = await request(app)
+      const _response = await request(app)
         .get("/api/positioning/stocks")
         .expect(200);
       expect(response.body).toHaveProperty("positioning_metrics");
@@ -113,7 +108,7 @@ describe("Positioning Routes", () => {
         .mockResolvedValueOnce({ rows: [mockPositioningMetrics] })
         .mockResolvedValueOnce({ rows: mockInstitutionalData })
         .mockResolvedValueOnce({ rows: [mockSentimentData] });
-      const response = await request(app)
+      const _response = await request(app)
         .get("/api/positioning/stocks?symbol=AAPL")
         .expect(200);
       expect(response.body.metadata.symbol).toBe("AAPL");
@@ -140,7 +135,7 @@ describe("Positioning Routes", () => {
         .mockResolvedValueOnce({ rows: [mockPositioningMetrics] })
         .mockResolvedValueOnce({ rows: mockInstitutionalData })
         .mockResolvedValueOnce({ rows: [mockSentimentData] });
-      const response = await request(app)
+      const _response = await request(app)
         .get("/api/positioning/stocks?timeframe=weekly")
         .expect(200);
       expect(response.body.metadata.timeframe).toBe("weekly");
@@ -150,7 +145,7 @@ describe("Positioning Routes", () => {
     });
     it("should handle database query failures with 500 error", async () => {
       mockQuery.mockRejectedValueOnce(new Error("Query failed"));
-      const response = await request(app)
+      const _response = await request(app)
         .get("/api/positioning/stocks")
         .expect(500);
       expect(response.body.success).toBe(false);
@@ -167,7 +162,7 @@ describe("Positioning Routes", () => {
         .mockResolvedValueOnce({ rows: [] })
         .mockResolvedValueOnce({ rows: [] })
         .mockResolvedValueOnce({ rows: [] });
-      const response = await request(app)
+      const _response = await request(app)
         .get("/api/positioning/stocks")
         .expect(404);
       expect(response.body.success).toBe(false);
@@ -178,7 +173,7 @@ describe("Positioning Routes", () => {
     });
     it("should handle database errors properly", async () => {
       mockQuery.mockRejectedValueOnce(new Error("Database failed"));
-      const response = await request(app)
+      const _response = await request(app)
         .get("/api/positioning/stocks")
         .expect(500);
       expect(response.body.success).toBe(false);
@@ -195,7 +190,7 @@ describe("Positioning Routes", () => {
         .mockResolvedValueOnce({ rows: [mockPositioningMetrics] })
         .mockResolvedValueOnce({ rows: mockInstitutionalData })
         .mockResolvedValueOnce({ rows: [mockSentimentData] });
-      const response = await request(app)
+      const _response = await request(app)
         .get("/api/positioning/stocks?symbol=TSLA&timeframe=monthly")
         .expect(200);
       expect(response.body.metadata).toEqual({
@@ -216,7 +211,7 @@ describe("Positioning Routes", () => {
       mockQuery.mockImplementation(() => {
         throw new Error("Database connection failed");
       });
-      const response = await request(app)
+      const _response = await request(app)
         .get("/api/positioning/stocks")
         .expect(500);
       expect(response.body.success).toBe(false);
@@ -265,7 +260,7 @@ describe("Positioning Routes", () => {
         .mockResolvedValueOnce({ rows: [highScoreMetrics] })
         .mockResolvedValueOnce({ rows: [] })
         .mockResolvedValueOnce({ rows: [] });
-      const response = await request(app)
+      const _response = await request(app)
         .get("/api/positioning/stocks?symbol=AAPL")
         .expect(200);
       // Score = 50 + 30 + 15 + 10 + 15 = 120, capped at 100
@@ -283,7 +278,7 @@ describe("Positioning Routes", () => {
         .mockResolvedValueOnce({ rows: [nullMetrics] })
         .mockResolvedValueOnce({ rows: [] })
         .mockResolvedValueOnce({ rows: [] });
-      const response = await request(app)
+      const _response = await request(app)
         .get("/api/positioning/stocks?symbol=TEST")
         .expect(200);
       // Should return neutral score when all null
@@ -320,7 +315,7 @@ describe("Positioning Routes", () => {
       mockQuery
         .mockResolvedValueOnce(mockInstitutionalSummary)
         .mockResolvedValueOnce(mockRetailSummary);
-      const response = await request(app)
+      const _response = await request(app)
         .get("/api/positioning/summary")
         .set("Authorization", "Bearer test-token")
         .expect(200);
@@ -352,7 +347,7 @@ describe("Positioning Routes", () => {
       mockQuery
         .mockResolvedValueOnce(bullishInstitutional)
         .mockResolvedValueOnce(bullishRetail);
-      const response = await request(app)
+      const _response = await request(app)
         .get("/api/positioning/summary")
         .set("Authorization", "Bearer test-token")
         .expect(200);
@@ -374,7 +369,7 @@ describe("Positioning Routes", () => {
       mockQuery
         .mockResolvedValueOnce(modBullishInstitutional)
         .mockResolvedValueOnce(modBullishRetail);
-      const response = await request(app)
+      const _response = await request(app)
         .get("/api/positioning/summary")
         .set("Authorization", "Bearer test-token")
         .expect(200);
@@ -398,7 +393,7 @@ describe("Positioning Routes", () => {
       mockQuery
         .mockResolvedValueOnce(bearishInstitutional)
         .mockResolvedValueOnce(bearishRetail);
-      const response = await request(app)
+      const _response = await request(app)
         .get("/api/positioning/summary")
         .set("Authorization", "Bearer test-token")
         .expect(200);
@@ -420,7 +415,7 @@ describe("Positioning Routes", () => {
       mockQuery
         .mockResolvedValueOnce(modBearishInstitutional)
         .mockResolvedValueOnce(modBearishRetail);
-      const response = await request(app)
+      const _response = await request(app)
         .get("/api/positioning/summary")
         .set("Authorization", "Bearer test-token")
         .expect(200);
@@ -445,7 +440,7 @@ describe("Positioning Routes", () => {
       mockQuery
         .mockResolvedValueOnce(neutralInstitutional)
         .mockResolvedValueOnce(neutralRetail);
-      const response = await request(app)
+      const _response = await request(app)
         .get("/api/positioning/summary")
         .set("Authorization", "Bearer test-token")
         .expect(200);
@@ -478,7 +473,7 @@ describe("Positioning Routes", () => {
       mockQuery
         .mockResolvedValueOnce(nullInstitutional)
         .mockResolvedValueOnce(nullRetail);
-      const response = await request(app)
+      const _response = await request(app)
         .get("/api/positioning/summary")
         .set("Authorization", "Bearer test-token")
         .expect(200);
@@ -510,7 +505,7 @@ describe("Positioning Routes", () => {
         mockQuery
           .mockResolvedValueOnce(mockInstitutionalSummary)
           .mockResolvedValueOnce(retailData);
-        const response = await request(app)
+        const _response = await request(app)
           .get("/api/positioning/summary")
           .set("Authorization", "Bearer test-token")
           .expect(200);
@@ -523,7 +518,7 @@ describe("Positioning Routes", () => {
       mockQuery
         .mockResolvedValueOnce(mockInstitutionalSummary)
         .mockResolvedValueOnce(mockRetailSummary);
-      const response = await request(app)
+      const _response = await request(app)
         .get("/api/positioning/summary")
         .set("Authorization", "Bearer test-token")
         .expect(200);
@@ -534,7 +529,7 @@ describe("Positioning Routes", () => {
     });
     it("should handle database errors properly", async () => {
       mockQuery.mockRejectedValue(new Error("Summary query failed"));
-      const response = await request(app)
+      const _response = await request(app)
         .get("/api/positioning/summary")
         .set("Authorization", "Bearer test-token")
         .expect(500);
@@ -569,7 +564,7 @@ describe("Positioning Routes", () => {
       mockQuery
         .mockResolvedValueOnce(mockInstitutionalSummary)
         .mockResolvedValueOnce(mockRetailSummary);
-      const response = await request(app)
+      const _response = await request(app)
         .get("/api/positioning/summary")
         .set("Authorization", "Bearer test-token")
         .expect(200);

@@ -3,10 +3,6 @@
  * Provides utilities for setting up and tearing down test data
  */
 
-const { Pool } = require("pg");
-
-let testPool = null;
-
 /**
  * Initialize test database pool (use existing connection from database.js)
  */

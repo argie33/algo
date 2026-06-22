@@ -9,8 +9,6 @@ const {
 } = require("../utils/apiResponse");
 const {
   validateQueryResult,
-  validateAndCoerceRows,
-  extractCount,
 } = require("../utils/responseValidation");
 const logger = require("../utils/logger");
 const router = express.Router();
@@ -399,7 +397,6 @@ router.get("/divergence", async (req, res) => {
 
 // GET /api/sentiment/social/insights/:symbol - Social sentiment insights for a specific symbol
 router.get("/social/insights/:symbol", (req, res) => {
-  const { symbol } = req.params;
   return sendError(res, "Social sentiment data not available", 404);
 });
 

@@ -8,10 +8,7 @@ const {
 } = require("../utils/apiResponse");
 const {
   validateQueryResult,
-  validateAndCoerceRows,
-  extractCount,
 } = require("../utils/responseValidation");
-const logger = require("../utils/logger");
 const router = express.Router();
 
 // GET / - Get all sectors with full performance rankings, scores, and price performance

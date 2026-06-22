@@ -8,10 +8,7 @@ const {
 } = require("../utils/apiResponse");
 const {
   validateQueryResult,
-  validateAndCoerceRows,
-  extractCount,
 } = require("../utils/responseValidation");
-const logger = require("../utils/logger");
 const paginationConfig = require("../config/pagination");
 const router = express.Router();
 

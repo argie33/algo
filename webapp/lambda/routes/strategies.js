@@ -8,7 +8,6 @@ const {
   sendPlaceholder,
 } = require("../utils/apiResponse");
 const { authenticateToken } = require("../middleware/auth");
-const logger = require("../utils/logger");
 const {
   validateQueryResult,
   validateAndCoerceRows,

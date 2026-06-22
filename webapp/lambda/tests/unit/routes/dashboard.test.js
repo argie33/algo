@@ -11,8 +11,6 @@ jest.mock("../../../utils/database", () => ({
 // Import mocked functions AFTER jest.mock
 const {
   query,
-  closeDatabase,
-  initializeDatabase,
 } = require("../../../utils/database");
 
 describe("Dashboard Routes Unit Tests", () => {
@@ -54,7 +52,7 @@ describe("Dashboard Routes Unit Tests", () => {
   });
   describe("GET /dashboard/", () => {
     test("should return dashboard info", async () => {
-      const response = await request(app).get("/api/dashboard/").expect(200);
+      const _response = await request(app).get("/api/dashboard/").expect(200);
       expect(response.body).toHaveProperty("success");
       expect(response.body).toHaveProperty("message");
       expect(response.body.message).toBe("Dashboard API - Ready");
@@ -62,7 +60,7 @@ describe("Dashboard Routes Unit Tests", () => {
   });
   describe("GET /dashboard/overview", () => {
     test("should handle dashboard overview", async () => {
-      const response = await request(app)
+      const _response = await request(app)
         .get("/api/dashboard/overview")
         .set("Authorization", "Bearer test-token");
       // Should return 200 with overview data or appropriate error status
@@ -72,7 +70,7 @@ describe("Dashboard Routes Unit Tests", () => {
   });
   describe("GET /dashboard/widgets", () => {
     test("should handle dashboard widgets", async () => {
-      const response = await request(app)
+      const _response = await request(app)
         .get("/api/dashboard/widgets")
         .set("Authorization", "Bearer test-token");
       expect([200, 401, 403, 404, 503]).toContain(response.status);
