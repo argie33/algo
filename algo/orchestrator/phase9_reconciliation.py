@@ -87,7 +87,7 @@ def run(
         pnl_validation_status = "warn"
         pnl_validation_summary = "N/A"
         try:
-            account_data = recon._fetch_account()
+            account_data = recon.broker.fetch_account()
             if account_data and reconciliation_succeeded:
                 broker_equity = account_data.get("equity")
                 if broker_equity is None:

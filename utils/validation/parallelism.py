@@ -182,7 +182,7 @@ class ParallelismValidator:
                 issues.append("Vectorization method not found")
 
             # Check 2: Memory efficiency for large datasets
-            # 5000 symbols × 300 days = 1.5M rows
+            # 5000 symbols x 300 days = 1.5M rows
             # Need to estimate memory usage
 
             return {

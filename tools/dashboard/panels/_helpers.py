@@ -2,6 +2,7 @@
 
 import json
 import logging
+from typing import Any
 
 from rich.panel import Panel
 from rich.text import Text
@@ -145,7 +146,7 @@ def _fmt_phases_halted(phases_halted) -> str:
     return ", ".join(names[:3])
 
 
-def _error_panel(data_name: str, data, title: str, border="magenta"):
+def _error_panel(data_name: str, data: Any, title: str, border: str = "magenta") -> Panel | None:
     """Create a panel showing granular error info for failed data sources.
 
     Checks for both hard errors (_error) and stale data (_data_stale) using error_boundary.

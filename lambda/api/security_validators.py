@@ -301,11 +301,11 @@ def validate_order_type(order_type: str) -> str:
     Raises:
         ValidationError: If not in whitelist
     """
-    VALID_TYPES = {"market", "limit", "stop", "stop_limit", "trailing_stop"}
+    valid_types = {"market", "limit", "stop", "stop_limit", "trailing_stop"}
     order_type = order_type.lower().strip()
 
-    if order_type not in VALID_TYPES:
-        raise ValidationError(f"Invalid order type: {order_type}. Must be one of: {VALID_TYPES}")
+    if order_type not in valid_types:
+        raise ValidationError(f"Invalid order type: {order_type}. Must be one of: {valid_types}")
 
     return order_type
 

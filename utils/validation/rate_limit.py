@@ -73,7 +73,7 @@ class RateLimitValidator:
         rpm_limit = self.yfinance_limit["requests_per_minute"]
         safe_rpm = rpm_limit * self.yfinance_limit["safe_margin"]
 
-        # Time needed = (batches × 60 seconds) / safe_rpm
+        # Time needed = (batches x 60 seconds) / safe_rpm
         estimated_sec = (batches_needed * 60) / safe_rpm
 
         issues = []

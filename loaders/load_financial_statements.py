@@ -91,7 +91,7 @@ class FinancialStatementLoader:
         self.config = self.STATEMENT_CONFIGS[statement_type]["periods"][period]
         self.edgar_client = SecEdgarClient()
 
-    def load(self, symbols: Optional[list[str]] = None, since: Optional[date] = None) -> int:
+    def load(self, symbols: list[str] | None = None, since: date | None = None) -> int:
         """Load financial statement data for given symbols.
 
         Uses OptimalLoader for efficient parallel fetching with deduplication.

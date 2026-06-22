@@ -117,3 +117,52 @@ class AlpacaBrokerAdapter(BrokerAdapter):
         except (requests.RequestException, requests.Timeout, ValueError, KeyError, TypeError) as e:
             logger.debug(f"Could not fetch Alpaca portfolio history: {e}")
             return []
+
+    def fetch_closed_orders(self, since=None) -> list[dict]:
+        """Fetch closed/filled orders from Alpaca REST API.
+
+        Args:
+            since: Optional datetime to filter orders after
+
+        Returns:
+            List of order dicts from Alpaca API
+        """
+        if not self.alpaca_sync.alpaca_key or not self.alpaca_sync.alpaca_secret:
+            logger.debug("No Alpaca credentials available for closed orders fetch")
+            return []
+
+        try:
+            url = f"{self.alpaca_sync.alpaca_base_url}/v2/orders"
+            params = {"status": ["filled", "partially_filled"]}
+            if since:
+                params["after"] = since.isoformat() if hasattr(since, "isoformat") else str(since)
+
+            resp = requests.get(
+                url,
+                params=params,
+                headers={
+                    "APCA-API-KEY-ID": self.alpaca_sync.alpaca_key,
+                    "APCA-API-SECRET-KEY": self.alpaca_sync.alpaca_secret,
+                },
+                timeout=self.config.get("api_request_timeout_seconds", 5),
+            )
+            if resp.status_code == 200:
+                orders = resp.json()
+                return orders if isinstance(orders, list) else []
+            logger.debug(f"Alpaca closed orders fetch returned HTTP {resp.status_code}")
+            return []
+        except (requests.RequestException, requests.Timeout, ValueError, KeyError) as e:
+            logger.debug(f"Could not fetch Alpaca closed orders: {e}")
+            return []
+
+    def fetch_initial_capital(self) -> float | None:
+        """Fetch initial portfolio equity from Alpaca portfolio history.
+
+        Returns:
+            Initial capital (first equity value), or None if unavailable
+        """
+        history = self.fetch_portfolio_history()
+        if history:
+            return float(history[0])
+        logger.debug("No Alpaca portfolio history available to determine initial capital")
+        return None

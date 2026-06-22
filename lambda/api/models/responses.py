@@ -3,7 +3,7 @@
 from datetime import datetime
 from typing import Any, TypeVar
 
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, ConfigDict, Field
 
 
 T = TypeVar("T")
@@ -23,14 +23,16 @@ class DataFreshness(BaseModel):
 class BaseResponse(BaseModel):
     """Base response wrapper for all API responses."""
 
-    statusCode: int = Field(..., description="HTTP status code")
+    model_config = ConfigDict(populate_by_name=True, by_alias=True)
+
+    status_code: int = Field(..., alias="statusCode", description="HTTP status code")
     data_freshness: DataFreshness | None = Field(None, description="Data freshness metadata")
 
 
 class SuccessResponse(BaseResponse):
     """Success response for single object (generic for type safety)."""
 
-    statusCode: int = Field(default=200, description="HTTP status code")
+    status_code: int = Field(default=200, alias="statusCode", description="HTTP status code")
     data: dict[str, Any] | Any = Field(..., description="Response data")
 
 
@@ -46,15 +48,15 @@ class ListResponseData(BaseModel):
 class ListResponse(BaseResponse):
     """Success response for paginated lists."""
 
-    statusCode: int = Field(default=200, description="HTTP status code")
+    status_code: int = Field(default=200, alias="statusCode", description="HTTP status code")
     data: ListResponseData = Field(..., description="List data with pagination metadata")
 
 
 class ErrorResponse(BaseResponse):
     """Error response."""
 
-    statusCode: int = Field(..., description="HTTP error code")
-    errorType: str = Field(..., description="Error type for client-side handling")
+    status_code: int = Field(..., alias="statusCode", description="HTTP error code")
+    error_type: str = Field(..., alias="errorType", description="Error type for client-side handling")
     message: str = Field(..., description="Human-readable error message")
     error: str = Field(..., alias="_error", description="Error type identifier")
     diagnostic: dict[str, Any] | None = Field(
@@ -76,7 +78,7 @@ class HealthStatus(BaseModel):
 class HealthResponse(BaseResponse):
     """Health check response wrapper."""
 
-    statusCode: int = Field(default=200)
+    status_code: int = Field(default=200, alias="statusCode")
     data: HealthStatus = Field(...)
 
 

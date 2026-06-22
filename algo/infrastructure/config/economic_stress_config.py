@@ -126,8 +126,8 @@ class EconomicStressConfig:
 
         Returns:
             {
-                "severe": 40,      # Severe financial stress (>1.5σ)
-                "elevated": 20,    # Elevated stress (>0.8σ)
+                "severe": 40,      # Severe financial stress (>1.5 std dev)
+                "elevated": 20,    # Elevated stress (>0.8 std dev)
             }
         """
         return {

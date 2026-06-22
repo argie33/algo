@@ -17,26 +17,26 @@ except ImportError as e:
         return lambda fn: fn
 
 
-from rich import box  # noqa: E402
-from rich.console import Group  # noqa: E402
-from rich.panel import Panel  # noqa: E402
-from rich.rule import Rule  # noqa: E402
-from rich.table import Table  # noqa: E402
-from rich.text import Text  # noqa: E402
+from rich import box
+from rich.console import Group
+from rich.panel import Panel
+from rich.rule import Rule
+from rich.table import Table
+from rich.text import Text
 
-from .. import error_boundary  # noqa: E402
-from ..formatters import (  # noqa: E402
+from .. import error_boundary
+from ..formatters import (
     fmt_age,
     sign,
 )
-from ..utilities import (  # noqa: E402
+from ..utilities import (
     CY,
     DIM,
     G,
     R,
     Y,
 )
-from .data_extractors import safe_get_field  # noqa: E402
+from .data_extractors import safe_get_field
 
 
 def _extract_items(data: Any) -> list | dict:

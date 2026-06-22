@@ -252,6 +252,34 @@ def _dispatch(
     if path.startswith("/api/position/"):
         return handle_positions(cur, path, method, params, body, jwt_claims)
 
+    # Config key sub-routes with custom dispatch
+    if path.startswith("/api/algo/config/"):
+        if not _check_admin_access(jwt_claims):
+            logger.warning(f"Unauthorized algo config access attempt by {user_id}")
+            raise_api_error(403, "forbidden", "Admin access required")
+        key = path[len("/api/algo/config/") :]
+        if method == "GET":
+            return _get_algo_config_key(cur, key)
+        elif method == "PUT":
+            if not body or not isinstance(body, dict):
+                raise_api_error(400, "bad_request", "Request body must be a JSON object")
+            if not jwt_claims or "sub" not in jwt_claims:
+                raise_api_error(401, "missing_actor", "Cannot audit config change without user ID")
+            actor = jwt_claims["sub"]
+            return _update_algo_config_key(cur, key, body, actor)
+        elif method == "DELETE":
+            if not jwt_claims or "sub" not in jwt_claims:
+                raise_api_error(401, "missing_actor", "Cannot audit config reset without user ID")
+            actor = jwt_claims["sub"]
+            return _reset_algo_config_key(cur, key, actor)
+
+    if path.startswith("/api/algo/execution/details/"):
+        if not _check_admin_access(jwt_claims):
+            logger.warning(f"Unauthorized execution history access attempt by {user_id}")
+            raise_api_error(403, "forbidden", "Admin access required")
+        run_id = path.split("/api/algo/execution/details/")[-1]
+        return _get_orchestrator_execution_details(cur, run_id)
+
     # Dispatch to handler functions by path
     if path == "/api/algo/status":
         return _get_algo_status(cur)
@@ -349,25 +377,6 @@ def _dispatch(
         return _get_sector_stage2(cur)
     elif path == "/api/algo/config":
         return _get_algo_config(cur)
-    elif path.startswith("/api/algo/config/"):
-        if not _check_admin_access(jwt_claims):
-            logger.warning(f"Unauthorized algo config access attempt by {user_id}")
-            raise_api_error(403, "forbidden", "Admin access required")
-        key = path[len("/api/algo/config/") :]
-        if method == "GET":
-            return _get_algo_config_key(cur, key)
-        elif method == "PUT":
-            if not body or not isinstance(body, dict):
-                raise_api_error(400, "bad_request", "Request body must be a JSON object")
-            if not jwt_claims or "sub" not in jwt_claims:
-                raise_api_error(401, "missing_actor", "Cannot audit config change without user ID")
-            actor = jwt_claims["sub"]
-            return _update_algo_config_key(cur, key, body, actor)
-        elif method == "DELETE":
-            if not jwt_claims or "sub" not in jwt_claims:
-                raise_api_error(401, "missing_actor", "Cannot audit config reset without user ID")
-            actor = jwt_claims["sub"]
-            return _reset_algo_config_key(cur, key, actor)
     elif path == "/api/algo/last-run":
         return _get_last_run(cur)
     elif path == "/api/algo/audit-log":
@@ -441,12 +450,6 @@ def _dispatch(
         days_str = params.get("days", [None])[0] if params else None
         days = safe_days(days_str or "30", max_val=90)
         return _get_orchestrator_execution_failed(cur, days)
-    elif path.startswith("/api/algo/execution/details/"):
-        if not _check_admin_access(jwt_claims):
-            logger.warning(f"Unauthorized execution history access attempt by {user_id}")
-            raise_api_error(403, "forbidden", "Admin access required")
-        run_id = path.split("/api/algo/execution/details/")[-1]
-        return _get_orchestrator_execution_details(cur, run_id)
     elif path == "/api/algo/execution/patterns":
         if not _check_admin_access(jwt_claims):
             logger.warning(f"Unauthorized execution history access attempt by {user_id}")

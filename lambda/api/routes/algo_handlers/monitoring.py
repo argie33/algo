@@ -137,7 +137,7 @@ def _get_notifications(cur, params: dict | None = None, jwt_claims: dict | None 
         limit = safe_limit(limit_str, max_val=10000, default=100)
 
         # SECURITY M-04: Validate kind and severity against whitelists
-        VALID_KINDS = {
+        valid_kinds = {
             "signal",
             "halt",
             "alert",
@@ -148,11 +148,11 @@ def _get_notifications(cur, params: dict | None = None, jwt_claims: dict | None 
             "system",
             "safeguard",
         }
-        VALID_SEVERITIES = {"info", "warning", "error", "critical"}
+        valid_severities = {"info", "warning", "error", "critical"}
 
-        if kind and kind not in VALID_KINDS:
+        if kind and kind not in valid_kinds:
             return error_response(400, "bad_request", f"Invalid kind: {kind}")
-        if severity and severity not in VALID_SEVERITIES:
+        if severity and severity not in valid_severities:
             return error_response(400, "bad_request", f"Invalid severity: {severity}")
 
         where_clauses = []

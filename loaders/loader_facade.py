@@ -52,11 +52,7 @@ class SignalsDailyLoaderFacade:
         from loaders.buy_signal_generation_handler import BuySignalGenerationHandler
 
         handler = BuySignalGenerationHandler(self._loader)
-        tech_data_age = (
-            self._loader._batch_context.get("tech_data_age")
-            if self._loader._batch_context
-            else None
-        )
+        tech_data_age = self._loader.get_tech_data_age()
         return handler.run(symbol, rows, tech_data_age)
 
 

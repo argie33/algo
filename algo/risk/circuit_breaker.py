@@ -1,4 +1,4 @@
-from __future__ import annotations
+﻿from __future__ import annotations
 
 import json
 import logging
@@ -570,7 +570,7 @@ class CircuitBreaker:
                     break
                 min_acceptable_date -= timedelta(days=1)
         except (psycopg2.DatabaseError, psycopg2.OperationalError) as cal_e:
-            logger.debug(f"MarketCalendar check failed, falling back to weekday check: {cal_e}")
+            logger.warning(f"MarketCalendar check failed, falling back to weekday check: {cal_e}")
             while expected_date.weekday() >= 5:
                 expected_date -= timedelta(days=1)
             while min_acceptable_date.weekday() >= 5:
@@ -669,7 +669,7 @@ class CircuitBreaker:
                     break
                 min_acceptable -= timedelta(days=1)
         except (psycopg2.DatabaseError, psycopg2.OperationalError) as cal_e:
-            logger.debug(f"MarketCalendar check failed, falling back to weekday check: {cal_e}")
+            logger.warning(f"MarketCalendar check failed, falling back to weekday check: {cal_e}")
             while expected.weekday() >= 5:
                 expected -= timedelta(days=1)
             while min_acceptable.weekday() >= 5:
@@ -730,7 +730,7 @@ class CircuitBreaker:
                 "market_change_pct": round(prior_day_change, 2),
             }
         except (psycopg2.DatabaseError, psycopg2.OperationalError) as e:
-            logger.debug(f"Prior-day market health check failed: {e}")
+            logger.warning(f"Prior-day market health check failed: {e}")
             # Fail-open on data errors — this is an observational check, not a core gate.
             # Core gates (Phase 1 freshness, CB drawdown, VIX) handle true safety halts.
             return {

@@ -31,8 +31,6 @@ def validate_credentials() -> tuple[bool, list[str]]:
     warnings = []
 
     # Detect environment
-    bool(os.getenv("AWS_EXECUTION_ENV") or os.getenv("AWS_REGION"))
-    "AWS_LAMBDA_FUNCTION_NAME" in os.environ
     is_local_dev = os.getenv("ENVIRONMENT") in ("development", "local") or os.getenv("LOCAL_DEV") == "true"
 
     # === CRITICAL: Database Password ===

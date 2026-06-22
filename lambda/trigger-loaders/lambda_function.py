@@ -74,7 +74,6 @@ def lambda_handler(event, context):
             "economic_metrics_daily",
         }
         use_fargate = loader_name in critical_loaders
-        "FARGATE" if use_fargate else None
 
         # Run ECS task
         task_def = f"{project_name}-{loader_name}-loader"

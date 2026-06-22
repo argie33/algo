@@ -127,7 +127,7 @@ except ImportError as e:
         return lambda fn: fn
 
 
-from ..utilities import (  # noqa: E402
+from ..utilities import (
     LOAD_SEQ,
     MASCOT_COLORS,
     MASCOT_FRAMES,

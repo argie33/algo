@@ -6,8 +6,11 @@ Responsibility: Fetch price data from yfinance API with error handling, retries,
 """
 
 import logging
+import random
 import threading
 import time
+from datetime import date, datetime, timedelta
+from typing import cast
 
 
 logger = logging.getLogger(__name__)
@@ -23,8 +26,13 @@ class PriceFetcher:
     - Batch fetch orchestration
     """
 
-    def __init__(self, rate_limit_config: dict | None = None):
+    def __init__(self, router=None, interval: str = "1d", asset_class: str = "stock", is_eod_pipeline: bool = False, rate_limit_config: dict | None = None):
         """Initialize PriceFetcher with rate limiting config."""
+        self.router = router
+        self.interval = interval
+        self.asset_class = asset_class
+        self._is_eod_pipeline = is_eod_pipeline
+
         # Rate limit: 160 API calls per minute (safe margin below yfinance's 200/min)
         self._rate_limit_tokens: float = 300  # Initial burst
         self._rate_limit_max_tokens: float = 300
@@ -32,6 +40,20 @@ class PriceFetcher:
         self._rate_limit_refill_rate = 160 / 60  # 2.67 tokens/sec
         self._rate_limit_lock = threading.Lock()
         self._rate_limit_event = threading.Condition(self._rate_limit_lock)
+
+        # Rate limit error tracking
+        self._rate_limit_errors: int = 0
+        self._rate_limit_error_start_time: float | None = None
+        self._rate_limit_circuit_break_threshold: int = 10
+
+        # Market close timeout tracking
+        self._market_close_timeout_count: int = 0
+        self._last_market_close_timeout_time: float | None = None
+
+        # Batch success tracking
+        self._batch_success_count: int = 0
+        self._batch_total_count: int = 0
+        self._batch_failure_ratio: float = 0.0
 
         # Adaptive request pacing
         self._request_latency_samples: list[tuple[float, float]] = []
@@ -43,6 +65,9 @@ class PriceFetcher:
         # Batch sizing optimization
         self._batch_size_performance: dict[int, list[int]] = {}
         self.batch_size = 500
+
+        # Circuit breaker integration
+        self._circuit_breaker = None
 
     def _rate_limit_wait(self, tokens_needed: int = 1) -> None:
         """Wait until enough tokens are available (thread-safe)."""
@@ -114,3 +139,313 @@ class PriceFetcher:
 
         self._batch_size_performance[batch_size][0] += success_count
         self._batch_size_performance[batch_size][1] += (total_count - success_count)
+
+    def set_circuit_breaker(self, circuit_breaker) -> None:
+        """Set circuit breaker for API call protection."""
+        self._circuit_breaker = circuit_breaker
+
+    def fetch_incremental(self, symbol: str, since: date | None, is_eod_pipeline: bool = False):
+        """Fetch OHLCV from yfinance at specified interval.
+
+        Args:
+            symbol: Stock symbol
+            since: Start date for incremental fetch
+            is_eod_pipeline: Whether this is end-of-day pipeline (affects end date logic)
+        """
+        from utils.infrastructure.timezone import EASTERN_TZ
+
+        now_utc = datetime.now().astimezone()  # type: ignore
+        now_et = now_utc.astimezone(EASTERN_TZ)
+        end = now_et.date() + timedelta(days=1)
+
+        if since is None:
+            start = end - timedelta(days=101)
+        else:
+            start = since
+
+        if start > end:
+            error_msg = f"Invalid date range: start ({start}) > end ({end})"
+            logger.error(error_msg)
+            raise ValueError(error_msg)
+
+        rows = self._try_fetch(symbol, start, end)
+        return rows
+
+    def fetch_batch_incremental(self, symbols: list[str], since: date | None, is_eod_pipeline: bool = False):
+        """Fetch OHLCV for multiple symbols at once (50x faster than per-symbol).
+
+        Returns: dict[symbol] -> rows or None
+        """
+        from utils.infrastructure.timezone import EASTERN_TZ
+
+        now_utc = datetime.now().astimezone()  # type: ignore
+        now_et = now_utc.astimezone(EASTERN_TZ)
+
+        if is_eod_pipeline:
+            end = now_et.date()
+            logger.info(f"[EOD_CONTEXT] Fetching data ending at {end} (yesterday's complete data for EOD)")
+        else:
+            end = now_et.date() + timedelta(days=1)
+            logger.debug(f"[INTRADAY_CONTEXT] Fetching data ending at {end} (including today)")
+
+        start = end - timedelta(days=101) if since is None else since
+
+        if start >= end:
+            return dict.fromkeys(symbols)
+
+        adaptive_batch_size = min(len(symbols), self._get_smart_batch_size())
+        logger.debug(f"[FETCH] {len(symbols)} symbols, adaptive batch size: {adaptive_batch_size}")
+
+        return self._fetch_with_fallback(symbols, start, end, batch_size=adaptive_batch_size, attempt=0)
+
+    def _try_fetch(self, symbol: str, start: date, end: date, max_retries: int = 5):
+        """Try to fetch data from yfinance with retry logic for transient failures."""
+        for attempt in range(max_retries):
+            try:
+                if not self.router:
+                    raise RuntimeError("Router not configured in PriceFetcher")
+                return self.router.fetch_ohlcv_interval(symbol, start, end, self.interval)
+            except Exception as e:
+                error_str = str(e).lower()
+                # Rate limit errors - retry with exponential backoff + jitter
+                if "rate" in error_str or "429" in error_str or "too many" in error_str:
+                    if attempt < max_retries - 1:
+                        base_wait = min(120, (2**attempt) * 2)
+                        jitter = random.uniform(0.9, 1.1)
+                        wait_time = base_wait * jitter
+                        logger.warning(
+                            f"[{symbol}] Rate limited (attempt {attempt + 1}/{max_retries}), "
+                            f"retrying in {wait_time:.1f}s (base {base_wait}s)..."
+                        )
+                        time.sleep(wait_time)
+                        continue
+                    raise RuntimeError(
+                        f"[{symbol}] Rate limited after {max_retries} attempts. "
+                        "Cannot fetch price data when API is rate limited."
+                    )
+                # Network/timeout errors - retry with backoff + jitter
+                if any(x in error_str for x in ["timeout", "json", "parse", "connection", "reset"]):
+                    if attempt < max_retries - 1:
+                        base_wait = 2**attempt
+                        jitter = random.uniform(0.8, 1.2)
+                        wait_time = base_wait * jitter
+                        logger.warning(
+                            f"[{symbol}] Transient error (attempt {attempt + 1}/{max_retries}): {e}, "
+                            f"retrying in {wait_time:.1f}s..."
+                        )
+                        time.sleep(wait_time)
+                        continue
+                    raise RuntimeError(
+                        f"[{symbol}] Transient error after {max_retries} attempts: {e}. "
+                        "Cannot fetch price data after exhausting retries."
+                    )
+                # Auth errors - must fail fast
+                if "403" in error_str or "401" in error_str or "unauthorized" in error_str:
+                    raise RuntimeError(
+                        f"[{symbol}] Authentication error accessing price data: {e}. "
+                        "Cannot proceed without valid credentials."
+                    )
+                logger.error(f"[{symbol}] Unexpected error: {e}")
+                raise
+        raise RuntimeError(f"[{symbol}] Exhausted all fetch attempts without successful data fetch")
+
+    def _execute_batch_fetch(self, symbols: list[str], start: date, end: date) -> dict | None:
+        """Execute batch fetch with circuit breaker and validate freshness."""
+        self._adaptive_request_pacing()
+        request_start = time.time()
+
+        def fetch_batch():
+            if not self.router:
+                raise RuntimeError("Router not configured in PriceFetcher")
+            return self.router.fetch_ohlcv_batch(symbols, start, end, interval=self.interval)
+
+        if self._circuit_breaker:
+            from utils.infrastructure.circuit_breaker import DataImportance
+            result = self._circuit_breaker.execute(fetch_func=fetch_batch, importance=DataImportance.CRITICAL)
+        else:
+            result = fetch_batch()
+
+        request_latency = time.time() - request_start
+        self._record_request_latency(request_latency)
+        return result
+
+    def _fetch_with_fallback(self, symbols: list[str], start: date, end: date, batch_size: int = 500, attempt: int = 0, max_attempts: int = 3, elapsed_sec: float = 0) -> dict:
+        """Fetch batch with fallback to smaller batch size on rate limiting."""
+        batch_size = min(len(symbols), batch_size)
+        logger.debug(f"[FETCH_BATCH] Attempting with batch_size={batch_size}, attempt={attempt}")
+
+        if batch_size < 1:
+            raise RuntimeError("Cannot further reduce batch size for fallback")
+
+        # Split symbols into batches
+        all_results = {}
+        for i in range(0, len(symbols), batch_size):
+            batch = symbols[i : i + batch_size]
+            try:
+                result = self._execute_batch_fetch(batch, start, end)
+                if result:
+                    all_results.update(result)
+                    self._record_batch_result(batch_size, len([r for r in result.values() if r]), len(batch))
+            except RuntimeError as e:
+                error_str = str(e).lower()
+                # Rate limit errors - use dedicated handler
+                if "rate" in error_str or "429" in error_str:
+                    return self._handle_rate_limit_error(batch, start, end, batch_size, attempt, max_attempts, elapsed_sec, e)
+                # Transient errors - retry with backoff
+                if any(x in error_str for x in ["timeout", "connection", "reset"]):
+                    return self._handle_transient_error(batch, start, end, batch_size, attempt, max_attempts, elapsed_sec, e)
+                raise
+
+        return all_results
+
+    def _handle_rate_limit_error(
+        self,
+        symbols: list[str],
+        start: date,
+        end: date,
+        batch_size: int,
+        attempt: int,
+        max_attempts: int,
+        elapsed_sec: float,
+        error: Exception,
+    ) -> dict:
+        """Retry rate limit errors with pacing or batch reduction."""
+        self._rate_limit_errors += 1
+        if self._rate_limit_error_start_time is None:
+            self._rate_limit_error_start_time = time.time()
+            logger.warning(
+                f"[RATE_LIMIT] First rate limiting error detected (error #{self._rate_limit_errors}). "
+                "Circuit will break if persists >5 minutes. Monitoring yfinance API recovery."
+            )
+
+        self._adaptive_request_interval = min(2.0, self._adaptive_request_interval * 1.5)
+        logger.info(
+            f"[RATE_LIMIT_PREDICT] Rate limit detected, increasing request interval to {self._adaptive_request_interval:.3f}s"
+        )
+
+        try:
+            from algo.reporting import MetricsPublisher
+            metrics = MetricsPublisher()
+            metrics.add_metric(
+                "RateLimitErrors",
+                1,
+                unit="Count",
+                dimensions={"Loader": "stock_prices_daily"},
+            )
+            metrics.flush()
+        except Exception as metric_err:
+            logger.debug(f"Could not publish rate limit metric: {metric_err}")
+
+        batch_size_key = len(symbols)
+        if batch_size_key not in self._batch_size_performance:
+            self._batch_size_performance[batch_size_key] = [0, 0]
+        self._batch_size_performance[batch_size_key][1] += 1
+
+        # Fail fast if batch size 1 and already rate limited
+        if batch_size == 1 and self._rate_limit_errors >= 2:
+            raise RuntimeError(
+                f"[BATCH=1 RATE LIMIT ABORT] Batch=1 with {self._rate_limit_errors} rate limit errors. "
+                "yfinance API appears down. Cannot proceed with price fetching."
+            ) from error
+
+        # Fail if EOD pipeline and heavily rate limited
+        if self._is_eod_pipeline and batch_size <= 20 and self._rate_limit_errors >= 3:
+            raise RuntimeError(
+                f"[BATCH FETCH ABORT] Batch={batch_size} with {self._rate_limit_errors} rate limit errors. "
+                "yfinance severely degraded. Cannot proceed with price fetching."
+            )
+
+        if attempt == 0:
+            logger.info(
+                f"[RATE_LIMIT] Retrying batch={batch_size} with increased request pacing (attempt {attempt + 1}/{max_attempts})..."
+            )
+            error_duration = time.time() - self._rate_limit_error_start_time if self._rate_limit_error_start_time else 0
+            base_wait = min(30, (2**attempt) * 5)
+            jitter = random.uniform(0.9, 1.1)
+            wait_time = base_wait * jitter
+            logger.debug(f"[RATE_LIMIT] Waiting {wait_time:.1f}s before paced retry...")
+            time.sleep(wait_time)
+            return self._fetch_with_fallback(symbols, start, end, batch_size, attempt + 1, max_attempts, elapsed_sec)
+
+        # Reduce batch size and retry
+        new_batch_size = max(1, batch_size // 2)
+        error_duration = time.time() - self._rate_limit_error_start_time if self._rate_limit_error_start_time else 0
+        total_elapsed = elapsed_sec + error_duration
+
+        base_wait = min(60, (2**attempt) * 2)
+        jitter = random.uniform(0.8, 1.2)
+        wait_time = base_wait * jitter
+
+        logger.warning(
+            f"[BATCH FETCH] Rate limited after paced retry (attempt {attempt + 1}/{max_attempts}, error #{self._rate_limit_errors}, "
+            f"duration {error_duration:.0f}s, total elapsed {total_elapsed:.0f}s). "
+            f"Batch {batch_size} -> {new_batch_size}, waiting {wait_time:.1f}s..."
+        )
+        time.sleep(wait_time)
+
+        results = {}
+        successful_chunks = 0
+        for i in range(0, len(symbols), new_batch_size):
+            chunk = symbols[i : i + new_batch_size]
+            chunk_results = self._fetch_with_fallback(
+                chunk,
+                start,
+                end,
+                new_batch_size,
+                attempt + 1,
+                max_attempts,
+                elapsed_sec=total_elapsed,
+            )
+            results.update(chunk_results)
+            if any(v is not None for v in chunk_results.values()):
+                successful_chunks += 1
+
+        total_chunks = (len(symbols) + new_batch_size - 1) // new_batch_size
+        self._record_batch_result(new_batch_size, successful_chunks, total_chunks)
+
+        return results
+
+    def _handle_transient_error(
+        self,
+        symbols: list[str],
+        start: date,
+        end: date,
+        batch_size: int,
+        attempt: int,
+        max_attempts: int,
+        elapsed_sec: float,
+        error: Exception,
+    ) -> dict:
+        """Retry transient errors with exponential backoff."""
+        error_str = str(error).lower()
+        is_timeout = "timeout" in error_str or "timed out" in error_str
+        is_connection = any(x in error_str for x in ["connection", "reset", "broken", "closed"])
+
+        error_type = (
+            "timeout (API slowness)" if is_timeout else "connection (network)" if is_connection else "other transient"
+        )
+
+        if is_timeout or is_connection:
+            self._adaptive_request_interval = min(2.0, self._adaptive_request_interval * 1.2)
+            logger.warning(
+                f"[BATCH FETCH] Transient {error_type} error, increasing request interval to {self._adaptive_request_interval:.3f}s for recovery"
+            )
+
+        base_wait = min(30, 2**attempt)
+        jitter = random.uniform(0.9, 1.1)
+        wait_time = base_wait * jitter
+
+        logger.warning(
+            f"[BATCH FETCH] Transient {error_type} error (attempt {attempt + 1}/{max_attempts}, elapsed {elapsed_sec:.0f}s): {error}. "
+            f"Retrying {len(symbols)} symbols with same batch_size={batch_size} in {wait_time:.1f}s... "
+            "(Note: batch size not reduced for timeouts – if API fundamentally slow, increasing wait time not batch reduction)"
+        )
+        time.sleep(wait_time)
+
+        if attempt < max_attempts - 1:
+            return self._fetch_with_fallback(symbols, start, end, batch_size, attempt + 1, max_attempts, elapsed_sec)
+
+        raise RuntimeError(
+            f"[BATCH FETCH] Exhausted retries after {max_attempts} attempts with transient {error_type} errors. "
+            f"Last error: {error}"
+        ) from error

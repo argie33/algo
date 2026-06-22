@@ -482,61 +482,81 @@ class TradeExecutor:
 
         for check_fn, args, check_name in checks:
             result = check_fn(*args)  # type: ignore[operator]
-
-            if check_name == "idempotent":
-                is_dup, error_msg, existing_trade_id = result
-                if is_dup:
-                    return (
-                        False,
-                        error_msg,
-                        {
-                            "status": "duplicate",
-                            "trade_id": existing_trade_id or "",
-                            "duplicate": True,
-                        },
-                    )
-            elif check_name == "open_position":
-                is_dup, error_msg = result
-                if is_dup:
-                    return (
-                        False,
-                        error_msg,
-                        {"status": "duplicate", "duplicate": True},
-                    )
-            elif check_name == "fingerprint":
-                is_dup, error_msg, existing_trade_id = result
-                if is_dup:
-                    return (
-                        False,
-                        error_msg,
-                        {
-                            "status": "duplicate",
-                            "trade_id": existing_trade_id or "",
-                            "duplicate": True,
-                        },
-                    )
-            elif check_name == "pending":
-                has_pending, error_msg, _ = result
-                if has_pending:
-                    return (
-                        False,
-                        error_msg,
-                        {"status": "pending_trade_exists"},
-                    )
-            elif check_name == "reentry":
-                valid, error_msg, _ = result
-                if not valid:
-                    status = "reentry_blocked" if "prior re-entries" in (error_msg or "") else "reentry_cooldown"
-                    return (
-                        False,
-                        error_msg,
-                        {
-                            "status": status,
-                            "reentry_blocked": "prior" in (error_msg or "").lower(),
-                        },
-                    )
+            check_failed, error_msg, status_dict = self._process_validation_result(check_name, result)
+            if check_failed:
+                return check_failed, error_msg, status_dict
 
         return True, "", None
+
+    def _process_validation_result(
+        self, check_name: str, result: tuple
+    ) -> tuple[bool, str, dict | None]:
+        """Process validation check result and return early-exit tuple if check failed.
+
+        Eliminates if-elif chain for different check result types by delegating
+        to a single handler that knows how to unpack each result type.
+
+        Args:
+            check_name: Name of the validation check
+            result: Tuple result from the check (structure varies by check_name)
+
+        Returns:
+            (should_return_early, error_msg, status_dict_or_none)
+        """
+        if check_name == "idempotent":
+            is_dup, error_msg, existing_trade_id = result
+            if is_dup:
+                return (
+                    True,
+                    error_msg,
+                    {
+                        "status": "duplicate",
+                        "trade_id": existing_trade_id or "",
+                        "duplicate": True,
+                    },
+                )
+        elif check_name == "open_position":
+            is_dup, error_msg = result
+            if is_dup:
+                return (
+                    True,
+                    error_msg,
+                    {"status": "duplicate", "duplicate": True},
+                )
+        elif check_name == "fingerprint":
+            is_dup, error_msg, existing_trade_id = result
+            if is_dup:
+                return (
+                    True,
+                    error_msg,
+                    {
+                        "status": "duplicate",
+                        "trade_id": existing_trade_id or "",
+                        "duplicate": True,
+                    },
+                )
+        elif check_name == "pending":
+            has_pending, error_msg, _ = result
+            if has_pending:
+                return (
+                    True,
+                    error_msg,
+                    {"status": "pending_trade_exists"},
+                )
+        elif check_name == "reentry":
+            valid, error_msg, _ = result
+            if not valid:
+                status = "reentry_blocked" if "prior re-entries" in (error_msg or "") else "reentry_cooldown"
+                return (
+                    True,
+                    error_msg,
+                    {
+                        "status": status,
+                        "reentry_blocked": "prior" in (error_msg or "").lower(),
+                    },
+                )
+
+        return False, "", None
 
     def _with_cursor(self, operation: Any, acquire_locks: bool = False) -> Any:
         """Execute an operation with a cursor via DatabaseContext.

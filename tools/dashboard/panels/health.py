@@ -17,20 +17,20 @@ except ImportError as e:
         return lambda fn: fn
 
 
-from rich import box  # noqa: E402
-from rich.console import Group  # noqa: E402
-from rich.layout import Layout  # noqa: E402
-from rich.panel import Panel  # noqa: E402
-from rich.rule import Rule  # noqa: E402
-from rich.table import Table  # noqa: E402
-from rich.text import Text  # noqa: E402
+from rich import box
+from rich.console import Group
+from rich.layout import Layout
+from rich.panel import Panel
+from rich.rule import Rule
+from rich.table import Table
+from rich.text import Text
 
-from ..error_boundary import has_error  # noqa: E402
-from ..formatters import (  # noqa: E402
+from ..error_boundary import has_error
+from ..formatters import (
     fmt_age,
     next_run_str,
 )
-from ..utilities import (  # noqa: E402
+from ..utilities import (
     CY,
     DIM,
     PHASE_NAMES,
@@ -38,12 +38,12 @@ from ..utilities import (  # noqa: E402
     R,
     Y,
 )
-from ._helpers import (  # noqa: E402
+from ._helpers import (
     _best_halt_reason,
     _error_panel,
     _fmt_phases_halted,
 )
-from .data_extractors import (  # noqa: E402
+from .data_extractors import (
     extract_config_params,
     extract_health_items,
     extract_risk_metrics,

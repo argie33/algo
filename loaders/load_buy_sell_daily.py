@@ -347,6 +347,14 @@ class SignalsDailyLoader(OptimalLoader):
             raise RuntimeError(f"Operation failed: {e}") from e
         return None
 
+    def get_tech_data_age(self) -> float | None:
+        """Return current batch tech_data_age for signal generation.
+
+        Facade elimination: public getter for _batch_context['tech_data_age']
+        used by SignalsDailyLoaderFacade to eliminate private member access.
+        """
+        return self._batch_context.get("tech_data_age") if self._batch_context else None
+
     def _log_rejection_if_available(self, symbol: str, signal_date: date, reason: str) -> None:
         """Log signal rejection to signal_rejection_log for observability (non-fatal)."""
         try:

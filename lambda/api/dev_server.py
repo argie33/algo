@@ -326,7 +326,7 @@ class APIHandler(BaseHTTPRequestHandler):
             error_response = json.dumps({"statusCode": 500, "message": "Internal server error"})
             self.wfile.write(error_response.encode("utf-8"))
 
-    def log_message(self, format, *args):
+    def log_message(self, fmt, *args):
         """Suppress default HTTP logging."""
 
 

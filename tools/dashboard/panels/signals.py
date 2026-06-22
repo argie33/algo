@@ -16,18 +16,18 @@ except ImportError as e:
         return lambda fn: fn
 
 
-from rich import box  # noqa: E402
-from rich.console import Group  # noqa: E402
-from rich.panel import Panel  # noqa: E402
-from rich.rule import Rule  # noqa: E402
-from rich.table import Table  # noqa: E402
-from rich.text import Text  # noqa: E402
+from rich import box
+from rich.console import Group
+from rich.panel import Panel
+from rich.rule import Rule
+from rich.table import Table
+from rich.text import Text
 
-from ..error_boundary import has_error  # noqa: E402
-from ..formatters import (  # noqa: E402
+from ..error_boundary import has_error
+from ..formatters import (
     fmt_age,
 )
-from ..utilities import (  # noqa: E402
+from ..utilities import (
     CY,
     DIM,
     SPARKLINE_CHARS,
@@ -35,14 +35,14 @@ from ..utilities import (  # noqa: E402
     R,
     Y,
 )
-from ._helpers import (  # noqa: E402
+from ._helpers import (
     _build_buy_sig_map,
     _composite_score_color,
     _error_panel,
     _score_cell,
     _swing_cell,
 )
-from .data_extractors import (  # noqa: E402
+from .data_extractors import (
     extract_eval_funnel,
     extract_signal_overview,
     safe_get_dict,

@@ -533,33 +533,12 @@ class DailyReconciliation:
         when placing market exit orders before market open. This reconciles those
         estimated prices with actual Alpaca fill prices after market opens.
         """
-        if not self.broker.alpaca_key or not self.broker.alpaca_secret:
-            raise ValueError("Cannot reconcile exit fills: Alpaca credentials unavailable")
         try:
-            import requests
-
-            since = (datetime.now(timezone.utc) - timedelta(days=2)).strftime("%Y-%m-%dT%H:%M:%SZ")
-            resp = requests.get(
-                f"{self.broker.alpaca_base_url}/v2/orders",
-                params={
-                    "status": "closed",
-                    "side": "sell",
-                    "after": since,
-                    "direction": "desc",
-                    "limit": 500,
-                },
-                headers={
-                    "APCA-API-KEY-ID": self.broker.alpaca_key,
-                    "APCA-API-SECRET-KEY": self.broker.alpaca_secret,
-                },
-                timeout=self.config.get("api_request_timeout_seconds", 5),
-            )
-            if resp.status_code != 200:
-                raise ValueError(f"Alpaca orders API returned {resp.status_code} - cannot reconcile exit fills")
-
-            orders = resp.json()
-            if not isinstance(orders, list):
-                raise ValueError(f"Unexpected Alpaca response format: expected list, got {type(orders)}")
+            since = datetime.now(timezone.utc) - timedelta(days=2)
+            orders = self.broker.fetch_closed_orders(since=since)
+            if not orders:
+                logger.debug("No closed orders found for exit fill reconciliation")
+                return {"updated": 0, "message": "No closed orders to reconcile"}
 
             updated = 0
             two_days_ago = reconcile_date - timedelta(days=2)
@@ -930,27 +909,11 @@ class DailyReconciliation:
 
         Returns: dict with reconciliation status and any detected drift
         """
-        if not self.broker.alpaca_key or not self.broker.alpaca_secret:
-            raise ValueError("Cannot check partial fills: Alpaca credentials unavailable")
-
         try:
-            import requests
-
-            resp = requests.get(
-                f"{self.broker.alpaca_base_url}/v2/orders?status=filled&status=partially_filled",
-                headers={
-                    "APCA-API-KEY-ID": self.broker.alpaca_key,
-                    "APCA-API-SECRET-KEY": self.broker.alpaca_secret,
-                },
-                timeout=self.config.get("api_request_timeout_seconds", 5),
-            )
-
-            if resp.status_code != 200:
-                raise ValueError(f"Alpaca orders API returned {resp.status_code} - cannot check partial fills")
-
-            orders = resp.json()
-            if not isinstance(orders, list):
-                raise ValueError(f"Unexpected Alpaca response format: expected list, got {type(orders)}")
+            orders = self.broker.fetch_closed_orders()
+            if not orders:
+                logger.debug("No closed orders found for partial fill check")
+                return {"mismatches": [], "message": "No closed orders to check"}
 
             # Check each order against our DB records
             mismatches = []
@@ -1111,55 +1074,19 @@ class DailyReconciliation:
         return self.broker.fetch_account()
 
     def _fetch_initial_capital(self, cur):
-        """Get the actual initial capital from Alpaca account history.
+        """Get the actual initial capital from broker account history.
 
-        Returns the oldest portfolio value from Alpaca portfolio history.
-        Falls back to the oldest algo_portfolio_snapshots entry if Alpaca history unavailable.
+        Returns the oldest portfolio value from broker history.
+        Falls back to the oldest algo_portfolio_snapshots entry if broker history unavailable.
         Raises ValueError if initial capital cannot be determined.
         """
-        if not self.broker.alpaca_key or not self.broker.alpaca_secret:
-            logger.warning("No Alpaca credentials; checking database for initial capital")
-            try:
-                cur.execute("""
-                    SELECT total_portfolio_value FROM algo_portfolio_snapshots
-                    ORDER BY snapshot_date ASC LIMIT 1
-                """)
-                row = cur.fetchone()
-                if row is not None and row[0] is not None:
-                    val = float(row[0])
-                    if val > 0:
-                        logger.info(f"Using oldest database snapshot as initial capital: ${val:,.2f}")
-                        return val
-            except (psycopg2.DatabaseError, psycopg2.OperationalError, ValueError, TypeError) as e:
-                logger.warning(f"Could not query database for initial capital: {e}")
-            raise ValueError("Cannot determine initial capital: no Alpaca credentials and no database history")
-
         try:
-            import requests
-
-            resp = requests.get(
-                f"{self.broker.alpaca_base_url}/v2/account/portfolio/history",
-                params={"period": "all"},
-                headers={
-                    "APCA-API-KEY-ID": self.broker.alpaca_key,
-                    "APCA-API-SECRET-KEY": self.broker.alpaca_secret,
-                },
-                timeout=self.config.get("api_request_timeout_seconds", 5),
-            )
-            if resp.status_code == 200:
-                data = resp.json()
-                if isinstance(data, dict) and "equity" in data:
-                    equity_list = data.get("equity")
-                    if equity_list is None:
-                        equity_list = []
-                    if equity_list:
-                        initial_val = float(equity_list[0])
-                        if initial_val > 0:
-                            logger.info(f"Initial capital from Alpaca history: ${initial_val:,.2f}")
-                            return initial_val
-            logger.warning(f"Alpaca portfolio history unavailable (HTTP {resp.status_code}); checking database")
-        except (requests.RequestException, requests.Timeout, ValueError, KeyError) as e:
-            logger.warning(f"Could not fetch Alpaca portfolio history: {e}; checking database")
+            initial_val = self.broker.fetch_initial_capital()
+            if initial_val and initial_val > 0:
+                logger.info(f"Initial capital from broker history: ${initial_val:,.2f}")
+                return initial_val
+        except Exception as e:
+            logger.warning(f"Could not fetch broker initial capital: {e}; checking database")
 
         try:
             cur.execute("""

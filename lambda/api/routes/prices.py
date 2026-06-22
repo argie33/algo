@@ -254,9 +254,11 @@ def handle(
                 WHERE rn <= %s
                 ORDER BY symbol, date DESC
             """).format(psycopg2.sql.Identifier(table_name))
-            cur.execute(batch_query, [symbols, limit])
+            rows = execute_with_timeout(cur, batch_query, [symbols, limit], timeout_sec=20)
+            if not DatabaseResultValidator.validate_rows_not_empty(rows, "prices batch-history query"):
+                return json_response(200, result)
             found_symbols = set()
-            for row in cur.fetchall():
+            for row in rows:
                 sym = row["symbol"]
                 result[sym].append(safe_json_serialize(dict(row)))
                 found_symbols.add(sym)
@@ -275,10 +277,11 @@ def handle(
                     WHERE rn <= %s
                     ORDER BY symbol, date DESC
                 """).format(psycopg2.sql.Identifier(etf_table_name))
-                cur.execute(etf_query, [missing, limit])
-                for row in cur.fetchall():
-                    sym = row["symbol"]
-                    result[sym].append(safe_json_serialize(dict(row)))
+                etf_rows = execute_with_timeout(cur, etf_query, [missing, limit], timeout_sec=20)
+                if etf_rows:
+                    for row in etf_rows:
+                        sym = row["symbol"]
+                        result[sym].append(safe_json_serialize(dict(row)))
 
             batch_result = {"symbols": result, "limit": limit}
             is_valid, error_msg = ResponseValidator.validate_endpoint_response("prices", batch_result)

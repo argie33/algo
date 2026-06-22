@@ -139,6 +139,9 @@ class AuditManager:
 
         Returns:
             List of audit entries
+
+        Raises:
+            RuntimeError: If position history cannot be retrieved
         """
         try:
             if cur is None:
@@ -147,8 +150,7 @@ class AuditManager:
             else:
                 return self._fetch_history(symbol, lookback_days, cur)
         except Exception as e:
-            logger.error(f"[AUDIT] Failed to fetch history for {symbol}: {e}")
-            return []
+            raise RuntimeError(f"Cannot retrieve position history for {symbol}: {e}") from e
 
     def _fetch_history(
         self, symbol: str, lookback_days: int, cur: Any

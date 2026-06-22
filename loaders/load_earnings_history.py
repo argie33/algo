@@ -85,7 +85,7 @@ class EarningsHistoryLoader(OptimalLoader):
                         }
                     )
                 except (ValueError, ZeroDivisionError, TypeError) as e:
-                    logging.debug(f"Earnings row error {symbol} {idx}: {e}")
+                    logger.debug(f"Earnings row error {symbol} {idx}: {e}")
 
             # Deduplicate by (symbol, quarter) - keep most recent earnings_date
             if rows:

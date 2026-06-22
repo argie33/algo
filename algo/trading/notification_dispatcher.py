@@ -7,7 +7,7 @@ from decimal import Decimal
 from typing import Any
 
 from algo.reporting import TradeNotificationService, notify
-from algo.trading.exceptions import NotificationError, DatabaseError
+from algo.trading.exceptions import DatabaseError, NotificationError
 
 
 logger = logging.getLogger(__name__)

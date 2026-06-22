@@ -56,3 +56,22 @@ class BrokerAdapter(Protocol):
         Returns list of equity values (oldest first), or empty list if unavailable.
         """
         ...
+
+    def fetch_closed_orders(self, since: Any | None = None) -> list[dict[str, Any]]:
+        """Fetch closed/filled orders from broker.
+
+        Args:
+            since: Optional datetime to fetch orders after
+
+        Returns:
+            List of order dicts with at minimum symbol, qty, price, filled_at
+        """
+        ...
+
+    def fetch_initial_capital(self) -> float | None:
+        """Fetch initial portfolio equity (first known value from account history).
+
+        Returns:
+            Initial capital amount, or None if unavailable
+        """
+        ...

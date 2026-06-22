@@ -23,6 +23,9 @@ from typing import Optional, cast
 
 import psycopg2.sql
 
+from loaders.price_fetcher import PriceFetcher
+from loaders.price_transformer import PriceTransformer
+from loaders.price_validator import PriceValidator
 from monitoring.metrics_context import TimeBlock
 from utils.data.provenance import DataProvenanceTracker
 from utils.data.tick_validator import validate_price_tick
@@ -64,34 +67,30 @@ class PriceLoader(OptimalLoader):
 
         self.interval = interval
         self.asset_class = asset_class
-        self._correlation_id = _correlation_id  # Instance variable for use in all methods
-        self.batch_size = 500  # Batch 500 symbols per API call: ~20 calls for 10,506 symbols (cost optimization: reduced API calls from 35 to 20, saves ~50% on API costs)
+        self._correlation_id = _correlation_id
+        self.batch_size = 500
 
         # Circuit breaker for data loader outage handling
         self._circuit_breaker = CircuitBreaker(name="yfinance_prices", importance=DataImportance.CRITICAL)
 
         # Freshness validator: stock prices must be <= 1 day old
         self._freshness_validator = FreshnessValidator(
-            max_age_hours={
-                "price_data": 24.0,  # 1 day for daily price data
-            }
+            max_age_hours={"price_data": 24.0}
         )
 
         # Map interval + asset_class to table name
         if asset_class == "etf":
-            if interval == "1d":
-                self.table_name = "etf_price_daily"
-            elif interval == "1wk":
-                self.table_name = "etf_price_weekly"
-            else:  # 1mo
-                self.table_name = "etf_price_monthly"
-        else:  # stock
-            if interval == "1d":
-                self.table_name = "price_daily"
-            elif interval == "1wk":
-                self.table_name = "price_weekly"
-            else:  # 1mo
-                self.table_name = "price_monthly"
+            self.table_name = {
+                "1d": "etf_price_daily",
+                "1wk": "etf_price_weekly",
+                "1mo": "etf_price_monthly",
+            }[interval]
+        else:
+            self.table_name = {
+                "1d": "price_daily",
+                "1wk": "price_weekly",
+                "1mo": "price_monthly",
+            }[interval]
 
         self.primary_key = ("symbol", "date")
         self.watermark_field = "date"
@@ -100,55 +99,27 @@ class PriceLoader(OptimalLoader):
         self.watermark_mgr = None
         self.run_id = None
 
-        # ISSUE #3 FIX: Improved token bucket with per-thread fairness and anti-starvation
-        # Rate limit: 160 API calls per minute (safe margin below yfinance's 200/min)
-        # Initial burst: 300 tokens (enough for 2 parallel batches of 150 symbols each)
-        # Refill: 160 tokens per 60s = 2.67 tokens/sec (conservative to stay under limit)
-        # With 6 parallel threads: each thread should get ~27 tokens/sec refill rate
-        # Thread fairness: use condition variable to wake waiting threads fairly
-        self._rate_limit_tokens: float = 300  # Increased initial burst for 6 parallel threads
-        self._rate_limit_max_tokens: float = 300  # Cap to prevent unlimited accumulation
-        self._rate_limit_last_refill: float = time.time()
-        self._rate_limit_refill_rate = 160 / 60  # 160 tokens per 60 seconds = 2.67 per second
-        self._rate_limit_lock = threading.Lock()  # Thread-safe token access
-        self._rate_limit_event = threading.Condition(
-            self._rate_limit_lock
-        )  # Notify waiting threads when tokens available
-
-        # CREATIVE FIX #1: Predictive rate limiting with adaptive request pacing
-        # Instead of reactive circuit breaker that fails after 180-480s, we prevent rate limits proactively
-        # Monitor actual API latency and adjust request rate to stay under 160 req/min limit
-        self._request_latency_samples: list[tuple[float, float]] = []  # List of (timestamp, latency_sec) tuples
-        self._latency_window_sec = 60  # Collect samples over 60s window
-        self._min_request_interval = 0.1  # Minimum time between requests (0.1s = 10 req/sec max)
-        self._adaptive_request_interval = 0.375  # Start at 160 req/min = 0.375s between requests
-        self._last_request_time: float | None = None
-
-        # CREATIVE FIX #2: Smart batch sizing based on API responsiveness
-        # Tracks which batch sizes cause rate limiting for this specific API instance
-        self._batch_size_performance: dict[int, list[int]] = {}  # {batch_size: [success_count, failure_count]}
-
-        # Circuit breaker: track rate limit errors to detect persistent issues
-        # CRITICAL: Threshold now depends on pipeline context (EOD vs morning prep)
-        # EOD pipeline (4:05-5:30 PM, 85 min): Use aggressive threshold (180s) to fail fast
-        # Morning prep (3:30-9:30 AM, 6h): Use generous threshold (480s) for recovery time
-        self._rate_limit_errors = 0
-        self._rate_limit_error_start_time: float | None = None
+        # Initialize specialists
         self._is_eod_pipeline = self._detect_eod_pipeline_context()
-        # Load from centralized config (config/thresholds.py)
         from config.thresholds import ThresholdConfig
-
         self._rate_limit_circuit_break_threshold = ThresholdConfig.get_rate_limit_threshold(self._is_eod_pipeline)
 
-        # Granular failure tracking for partial batch credit
-        # Instead of counting entire batch as 1 failure, track success ratio
-        self._batch_success_count = 0  # Symbols successfully fetched in current batch
-        self._batch_total_count = 0  # Total symbols in current batch
-        self._batch_failure_ratio = 0.0  # Success rate (0.0 = all failed, 1.0 = all succeeded)
+        # Instantiate specialists - each handles a specific concern
+        self.fetcher = PriceFetcher(
+            router=self.router,
+            interval=interval,
+            asset_class=asset_class,
+            is_eod_pipeline=self._is_eod_pipeline,
+        )
+        self.fetcher.set_circuit_breaker(self._circuit_breaker)
 
-        # Market close detection for EOD pipeline (4:05 PM ET start)
-        # At 4:05 PM, market just closed at 4:00 PM. yfinance API can lag 5-10 minutes.
-        # If running 1d interval at market close, wait for SPY close data before proceeding.
+        self.validator = PriceValidator(table_name=self.table_name, asset_class=asset_class)
+        self.transformer = PriceTransformer(asset_class=asset_class)
+
+        # Batch tracking for rate limit detection
+        self._batch_success_count = 0
+        self._batch_total_count = 0
+        self._batch_failure_ratio = 0.0
         self._market_close_detected = False
         self._market_close_timeout_count = 0
         self._last_market_close_timeout_time: float | None = None
@@ -764,78 +735,14 @@ class PriceLoader(OptimalLoader):
 
     def fetch_incremental(self, symbol: str, since: date | None):
         """Fetch OHLCV from yfinance at specified interval."""
-        from datetime import datetime, timezone
-
-        # CRITICAL: Use ET (trading hours), not UTC, to determine end date.
-        now_utc = datetime.now(timezone.utc)
-        now_et = now_utc.astimezone(EASTERN_TZ)
-        # yfinance end date is EXCLUSIVE: pass today+1 so today's trading data is always fetchable
-        end = now_et.date() + timedelta(days=1)
-
-        if since is None:
-            # First run: load 100 days instead of 5 years for speed
-            # Technical indicators need ~60-100 days, full history can be backfilled later
-            start = end - timedelta(days=101)
-        else:
-            start = since
-
-        if start > end:
-            error_msg = f"Invalid date range: start ({start}) > end ({end})"
-            logger.error(error_msg)
-            raise ValueError(error_msg)
-
-        # Try to fetch fresh data from live APIs
-        rows = self._try_fetch(symbol, start, end)
-        return rows
+        return self.fetcher.fetch_incremental(symbol, since, is_eod_pipeline=self._is_eod_pipeline)
 
     def fetch_batch_incremental(self, symbols: list[str], since: date | None):
         """Fetch OHLCV for multiple symbols at once (50x faster than per-symbol).
 
         Returns: dict[symbol] -> rows or None
-
-        Fallback: If batch API fails, retry with smaller batch size. Only falls back
-        to per-symbol for large rate-limiting errors.
-
-        Uses adaptive batch sizing based on recent success rates to reduce retries.
         """
-        from datetime import datetime, timezone
-
-        # CRITICAL: Use ET (trading hours), not UTC, to determine end date.
-        now_utc = datetime.now(timezone.utc)
-        now_et = now_utc.astimezone(EASTERN_TZ)
-
-        # ISSUE FIX: EOD pipeline must fetch yesterday's COMPLETE data, not today's INCOMPLETE data
-        # At 4:05 PM ET (market close is 4:00 PM), today's market data is only partial/intraday.
-        # yfinance may not have the full day's close data yet (can lag 5-15 minutes).
-        # Solution: For EOD pipeline, fetch the PREVIOUS trading day (guaranteed complete).
-        # For morning/intraday: fetch today's data (freshly available).
-
-        if self._is_eod_pipeline:
-            # EOD runs at 4:05 PM - market just closed at 4:00 PM
-            # Fetch yesterday's COMPLETE data (previous trading day)
-            # yfinance end date is EXCLUSIVE, so end=today fetches up to (not including) today
-            end = now_et.date()
-            logger.info(f"[EOD_CONTEXT] Fetching data ending at {end} (yesterday's complete data for EOD)")
-        else:
-            # Morning prep or intraday - fetch up to today
-            # yfinance end date is EXCLUSIVE: to fetch May 29 data we must pass end=May 30.
-            end = now_et.date() + timedelta(days=1)
-            logger.debug(f"[INTRADAY_CONTEXT] Fetching data ending at {end} (including today)")
-
-        start = end - timedelta(days=101) if since is None else since
-
-        if start >= end:
-            return dict.fromkeys(symbols)
-
-        # Batch fetch with adaptive batch sizing based on recent success rates
-        # If recent batches had high success, use full batch. If rate limited recently, use smaller batches.
-        adaptive_batch_size = min(len(symbols), self._get_adaptive_batch_size())
-        logger.debug(
-            f"[FETCH] {len(symbols)} symbols, adaptive batch size: {adaptive_batch_size} "
-            f"(based on {self._batch_total_count} recent batches, {self._batch_success_count} successful)"
-        )
-
-        return self._fetch_with_fallback(symbols, start, end, batch_size=adaptive_batch_size, attempt=0)
+        return self.fetcher.fetch_batch_incremental(symbols, since, is_eod_pipeline=self._is_eod_pipeline)
 
     def _execute_batch_fetch(self, symbols: list[str], start: date, end: date) -> dict | None:
         """Execute batch fetch with circuit breaker and validate freshness."""

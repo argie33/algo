@@ -81,8 +81,8 @@ def _get_signals_stocks(cur, limit: int = 500, timeframe: str = "daily", symbol_
     quality scores. This endpoint sources from buy_sell_daily with price/sector data.
     """
     try:
-        VALID_TIMEFRAMES = {"daily"}
-        if timeframe.lower() not in VALID_TIMEFRAMES:
+        valid_timeframes = {"daily"}
+        if timeframe.lower() not in valid_timeframes:
             return error_response(
                 400,
                 "bad_request",
