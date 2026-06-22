@@ -9,7 +9,6 @@ from typing import Any
 from algo.reporting import TradeNotificationService, notify
 from algo.trading.exceptions import DatabaseError, NotificationError
 
-
 logger = logging.getLogger(__name__)
 
 
@@ -63,7 +62,7 @@ class NotificationDispatcher:
 
             try:
                 tca_result = self.tca_engine.record_fill(
-                    trade_id=int(trade_id) if isinstance(trade_id, str) and trade_id.isdigit() else 0,
+                    trade_id=(int(trade_id) if isinstance(trade_id, str) and trade_id.isdigit() else 0),
                     symbol=symbol,
                     signal_price=float(entry_price),
                     fill_price=float(executed_price),
@@ -136,7 +135,11 @@ class NotificationDispatcher:
     def notify_position_alert(self, symbol: str, alert_type: str, message: str) -> None:
         """Notify of position-related alert."""
         try:
-            notify("warning", title=f"Position Alert: {alert_type}", message=f"{symbol}: {message}")
+            notify(
+                "warning",
+                title=f"Position Alert: {alert_type}",
+                message=f"{symbol}: {message}",
+            )
             logger.warning(f"[NOTIFY_ALERT] {symbol} {alert_type}: {message}")
         except Exception as e:
             logger.warning(f"Failed to send alert notification: {e}")

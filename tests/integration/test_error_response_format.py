@@ -12,7 +12,6 @@ from pathlib import Path
 
 import pytest
 
-
 sys.path.insert(0, str(Path(__file__).parent.parent.parent / "lambda" / "api"))
 sys.path.insert(0, str(Path(__file__).parent.parent.parent))
 
@@ -30,9 +29,9 @@ class TestErrorResponseFormat:
         assert response["errorType"] == "bad_request"
         assert response["message"] == "Invalid input"
         assert response["_error"] == "Invalid input"
-        assert len(response) == 4, (
-            f"Error response should have exactly 4 fields, got {len(response)}: {response.keys()}"
-        )
+        assert (
+            len(response) == 4
+        ), f"Error response should have exactly 4 fields, got {len(response)}: {response.keys()}"
 
     def test_error_response_500(self):
         """error_response() with 500 should include _error field."""

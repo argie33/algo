@@ -14,7 +14,6 @@ import sys
 
 from loaders.loader_helper import setup_imports
 
-
 setup_imports()
 
 import logging
@@ -23,7 +22,6 @@ from typing import Optional
 
 from loaders.runner import run_loader
 from utils.optimal_loader import OptimalLoader
-
 
 logger = logging.getLogger(__name__)
 

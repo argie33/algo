@@ -11,7 +11,6 @@ but allow NULL values, causing missing sectors in results. This migration:
 
 from utils.db.context import DatabaseContext
 
-
 DESCRIPTION = "Add NOT NULL constraint to company_profile.sector"
 
 

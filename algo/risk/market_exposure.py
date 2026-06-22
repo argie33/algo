@@ -66,7 +66,6 @@ from psycopg2 import sql as pgsql
 from algo.risk.market_factor_calculator import MarketFactorCalculator
 from utils.db import DatabaseContext
 
-
 logger = logging.getLogger(__name__)
 
 
@@ -525,7 +524,11 @@ class MarketExposure:
         )
         rows = cur.fetchall()
         if len(rows) < 250:
-            return {"score_factor": None, "value": None, "reason": "Insufficient history"}
+            return {
+                "score_factor": None,
+                "value": None,
+                "reason": "Insufficient history",
+            }
 
         current_close = float(rows[0][1])
         past_close = float(rows[251][1])  # ~252 trading days ago

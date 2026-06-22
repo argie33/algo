@@ -12,7 +12,6 @@ import logging
 from datetime import datetime, timezone
 from typing import Any
 
-
 logger = logging.getLogger(__name__)
 
 
@@ -67,12 +66,18 @@ class FetcherValidator:
 
         age = datetime.now(timezone.utc) - timestamp
         if age.total_seconds() > max_age_seconds:
-            return False, f"Data is stale ({age.total_seconds():.0f}s old, max {max_age_seconds}s)"
+            return (
+                False,
+                f"Data is stale ({age.total_seconds():.0f}s old, max {max_age_seconds}s)",
+            )
         return True, None
 
     @staticmethod
     def validate_numeric(
-        value: Any, field_name: str, min_val: float | None = None, max_val: float | None = None
+        value: Any,
+        field_name: str,
+        min_val: float | None = None,
+        max_val: float | None = None,
     ) -> tuple[bool, str | None]:
         """Validate numeric field is in acceptable range.
 

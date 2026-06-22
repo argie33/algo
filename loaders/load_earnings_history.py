@@ -1,7 +1,6 @@
 #!/usr/bin/env python3
 import sys
 
-
 """
 Earnings History Loader - Optimal Pattern.
 
@@ -13,7 +12,6 @@ Run:
 """
 
 import logging
-
 
 logger = logging.getLogger(__name__)
 from datetime import date

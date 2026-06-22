@@ -7,7 +7,6 @@ from typing import Any
 
 from utils.logging import get_tracker
 
-
 logger = logging.getLogger(__name__)
 
 
@@ -28,7 +27,10 @@ class ExecutionTracker:
 
         # Publish event for subscribers (dashboard, monitoring, etc)
         try:
-            from algo.orchestration.phase_event_hub import PhaseStartedEvent, get_event_hub
+            from algo.orchestration.phase_event_hub import (
+                PhaseStartedEvent,
+                get_event_hub,
+            )
 
             hub = get_event_hub()
             hub.publish(PhaseStartedEvent(phase_num, name))
@@ -37,7 +39,11 @@ class ExecutionTracker:
 
     def log_phase_result(self, phase_num: int | str, name: str, status: str = "OK", summary: str = "") -> None:
         """Log phase result. Publishes phase_completed event."""
-        self.phase_results[phase_num] = {"phase": name, "status": status, "summary": summary}
+        self.phase_results[phase_num] = {
+            "phase": name,
+            "status": status,
+            "summary": summary,
+        }
         if status == "OK":
             logger.info(f"[PHASE {phase_num}] {name} completed successfully")
         elif status == "FAILED":
@@ -46,15 +52,21 @@ class ExecutionTracker:
 
         # Publish event for subscribers (dashboard, monitoring, etc)
         try:
-            from algo.orchestration.phase_event_hub import PhaseCompletedEvent, PhaseStatus, get_event_hub
+            from algo.orchestration.phase_event_hub import (
+                PhaseCompletedEvent,
+                PhaseStatus,
+                get_event_hub,
+            )
 
             hub = get_event_hub()
             phase_status = (
                 PhaseStatus.SUCCESS
                 if status == "OK"
-                else PhaseStatus(status.lower())
-                if status.upper() in [s.name for s in PhaseStatus]
-                else PhaseStatus.DEGRADED
+                else (
+                    PhaseStatus(status.lower())
+                    if status.upper() in [s.name for s in PhaseStatus]
+                    else PhaseStatus.DEGRADED
+                )
             )
             hub.publish(PhaseCompletedEvent(phase_num, name, phase_status, summary))
         except Exception as e:

@@ -20,7 +20,13 @@ VALIDATION_SCHEMA = {
     "max_positions": ("int", 1, 100, False, 15),
     "max_concentration_pct": ("float", 0.0, 100.0, False, 50.0),
     # Drawdown Defense (halt_drawdown_pct must be negative)
-    "halt_drawdown_pct": ("float", -100.0, -5.0, True, -20.0),  # MUST be negative; fail-closed to -20%
+    "halt_drawdown_pct": (
+        "float",
+        -100.0,
+        -5.0,
+        True,
+        -20.0,
+    ),  # MUST be negative; fail-closed to -20%
     "risk_reduction_at_minus_5": ("float", 0.0, 1.0, False, 0.75),
     "risk_reduction_at_minus_10": ("float", 0.0, 1.0, False, 0.5),
     "risk_reduction_at_minus_15": ("float", 0.0, 1.0, False, 0.25),
@@ -126,7 +132,13 @@ VALIDATION_SCHEMA = {
     "max_weekly_loss_pct": ("float", 0.1, 100.0, False, 5.0),
     "max_data_staleness_days": ("int", 0, 30, False, 3),
     "daily_profit_cap_pct": ("float", 0.0, 100.0, False, 2.0),
-    "sector_drawdown_halt_pct": ("float", -100.0, -1.0, True, -12.0),  # Must be negative
+    "sector_drawdown_halt_pct": (
+        "float",
+        -100.0,
+        -1.0,
+        True,
+        -12.0,
+    ),  # Must be negative
     # Position Monitoring & Re-entry
     "position_halt_flag_count": ("int", 1, 100, False, 2),
     "max_reentries_per_name": ("int", 0, 100, False, 2),

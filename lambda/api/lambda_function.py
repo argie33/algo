@@ -12,7 +12,6 @@ from typing import Any
 
 import psycopg2
 
-
 # Set up imports for Lambda API - ensures routes, api_utils, utils, and other packages are importable
 # setup_imports only available in Lambda runtime; during local testing, continue anyway
 try:

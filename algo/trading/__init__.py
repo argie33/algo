@@ -8,7 +8,6 @@ from .position_sizer import PositionSizer
 from .pretrade_checks import PreTradeChecks
 from .tca import TCAEngine
 
-
 __all__ = [
     "ExitEngine",
     "OrderManager",

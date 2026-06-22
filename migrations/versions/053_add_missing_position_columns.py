@@ -20,7 +20,6 @@ SOLUTION:
 
 from utils.db.context import DatabaseContext
 
-
 DESCRIPTION = "Add missing target and risk columns to algo_positions table"
 
 

@@ -7,7 +7,6 @@ from datetime import datetime, timezone
 
 import boto3
 
-
 cloudwatch = boto3.client("cloudwatch")
 sns = boto3.client("sns")
 

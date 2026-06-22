@@ -18,7 +18,6 @@ from routes.utils import (
     safe_offset,
 )
 
-
 logger = logging.getLogger(__name__)
 
 

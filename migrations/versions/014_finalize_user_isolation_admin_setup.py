@@ -11,7 +11,6 @@ import psycopg2
 
 from utils.db.context import DatabaseContext
 
-
 DESCRIPTION = "Finalize user isolation admin setup (verify preconditions)"
 
 

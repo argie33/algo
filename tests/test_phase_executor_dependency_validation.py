@@ -145,7 +145,11 @@ def test_executor_validates_all_dependencies():
 
     phase5_result = Phase5Result(
         status="ok",
-        constraints={"tier_name": "NORMAL", "risk_multiplier": 1.0, "max_new_positions_today": 5},
+        constraints={
+            "tier_name": "NORMAL",
+            "risk_multiplier": 1.0,
+            "max_new_positions_today": 5,
+        },
         actions=[],
     )
     executor.phase_results[5] = phase5_result

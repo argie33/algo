@@ -3,7 +3,6 @@
 
 import sys
 
-
 sys.path.insert(0, ".")
 try:
     from algo.infrastructure.config.main import AlgoConfig  # noqa: F401

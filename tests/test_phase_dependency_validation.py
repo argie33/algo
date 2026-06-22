@@ -17,7 +17,11 @@ def test_phase_5_constraints_validation():
     with pytest.raises(DataContractError):
         validate_phase_5_constraints({"tier_name": "NORMAL"})
 
-    valid_constraints = {"tier_name": "NORMAL", "risk_multiplier": 1.0, "max_new_positions_today": 5}
+    valid_constraints = {
+        "tier_name": "NORMAL",
+        "risk_multiplier": 1.0,
+        "max_new_positions_today": 5,
+    }
     validate_phase_5_constraints(valid_constraints)
 
 
@@ -38,7 +42,11 @@ def test_phase7_dependency_validation():
     with pytest.raises(DataContractError):
         validate_phase_5_constraints(mock_orch._exposure_constraints)
 
-    mock_orch._exposure_constraints = {"tier_name": "NORMAL", "risk_multiplier": 1.0, "max_new_positions_today": 5}
+    mock_orch._exposure_constraints = {
+        "tier_name": "NORMAL",
+        "risk_multiplier": 1.0,
+        "max_new_positions_today": 5,
+    }
     validate_phase_5_constraints(mock_orch._exposure_constraints)
 
 

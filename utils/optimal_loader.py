@@ -14,7 +14,6 @@ import psycopg2.sql
 from utils.db.context import DatabaseContext
 from utils.db.sql_safety import assert_safe_table
 
-
 # Configure root logger so INFO+ messages appear in CloudWatch (via stdout).
 # Without this, Python's lastResort handler only emits WARNING+ to stderr with no timestamp.
 if not logging.root.handlers:
@@ -740,7 +739,7 @@ class OptimalLoader:
         self._stats["rows_quality_dropped"] += dropped_count  # type: ignore
 
         # Bloom dedup (cheap pre-filter)
-        dedup = self._get_dedup()
+        dedup = self._get_dedup()  # pylint: disable=assignment-from-no-return
         if dedup and self.primary_key:
             before_dedup = len(rows)
             rows = self._dedup_filter(dedup, rows)
@@ -881,7 +880,10 @@ class OptimalLoader:
                                 )
                         finally:
                             set_pooled_connection(_saved)
-                    except (psycopg2.DatabaseError, psycopg2.OperationalError) as handler_err:
+                    except (
+                        psycopg2.DatabaseError,
+                        psycopg2.OperationalError,
+                    ) as handler_err:
                         raise RuntimeError(
                             f"[{self.table_name}] Failure handler itself failed: {handler_err}"
                         ) from handler_err
@@ -1254,7 +1256,10 @@ class OptimalLoader:
                     logger.debug(f"[CACHE] Invalidated {cache_key} on {self.table_name} completion")
                 except (psycopg2.DatabaseError, psycopg2.OperationalError) as cache_err:
                     logger.debug(f"[CACHE] Could not invalidate cache: {cache_err}")
-            except (psycopg2.DatabaseError, psycopg2.OperationalError) as cache_setup_err:
+            except (
+                psycopg2.DatabaseError,
+                psycopg2.OperationalError,
+            ) as cache_setup_err:
                 logger.debug(f"[CACHE] Cache invalidation unavailable: {cache_setup_err}")
 
             # Log execution to loader_execution_history table
@@ -1408,7 +1413,7 @@ class OptimalLoader:
                 since = self._parse_watermark_date(row[0]) if row is not None and row[0] is not None else None
 
             try:
-                rows = self.fetch_global(since)
+                rows = self.fetch_global(since)  # pylint: disable=assignment-from-no-return
             except (psycopg2.DatabaseError, psycopg2.OperationalError) as e:
                 raise RuntimeError(f"[{self.table_name}] fetch_global failed: {e}") from e
 

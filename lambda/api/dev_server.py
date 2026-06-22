@@ -12,7 +12,6 @@ import sys
 from http.server import BaseHTTPRequestHandler, HTTPServer
 from urllib.parse import parse_qs, urlparse
 
-
 os.environ["ENVIRONMENT"] = "development"
 
 
@@ -144,7 +143,6 @@ sys.path.insert(1, lambda_dir)
 sys.path.insert(2, api_dir)
 
 import lambda_function
-
 
 log_file = os.path.join(os.environ.get("TEMP", "/tmp"), "dev_server.log")
 

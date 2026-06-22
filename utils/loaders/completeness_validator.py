@@ -22,7 +22,6 @@ import psycopg2
 
 from utils.db.context import DatabaseContext
 
-
 logger = logging.getLogger(__name__)
 
 # Minimum symbol coverage required for loader to be considered "complete"
@@ -189,7 +188,10 @@ class LoaderCompletenessValidator:
                 if completion_pct is None:
                     completion_pct = 100.0
 
-                is_complete = completion_pct >= self.min_completion_pct and status in ("COMPLETED", "INCOMPLETE")
+                is_complete = completion_pct >= self.min_completion_pct and status in (
+                    "COMPLETED",
+                    "INCOMPLETE",
+                )
 
                 if not is_complete:
                     logger.error(

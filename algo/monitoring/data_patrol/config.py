@@ -4,7 +4,6 @@
 import logging
 from typing import Any, cast
 
-
 logger = logging.getLogger(__name__)
 
 # Severity levels (for backward compatibility)

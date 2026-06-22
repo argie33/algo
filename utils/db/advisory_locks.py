@@ -19,7 +19,6 @@ from typing import Any
 
 import psycopg2
 
-
 logger = logging.getLogger(__name__)
 
 # Advisory lock IDs (non-conflicting, high values to avoid user app locks)

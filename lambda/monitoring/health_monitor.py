@@ -20,7 +20,6 @@ import psycopg2
 from utils.db.connection import get_db_connection
 from utils.db.sql_safety import assert_safe_table
 
-
 logger = logging.getLogger()
 logger.setLevel(logging.INFO)
 

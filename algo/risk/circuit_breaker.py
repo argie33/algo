@@ -12,7 +12,6 @@ import psycopg2
 from utils.db import DatabaseContext
 from utils.trading import PositionStatus, TradeStatus
 
-
 if TYPE_CHECKING:
     from algo.infrastructure.config import AlgoConfig
 
@@ -188,7 +187,10 @@ class CircuitBreaker:
         halt_dd_val = self.config.get("halt_drawdown_pct")
         if halt_dd_val is None:
             logger.error("CRITICAL: halt_drawdown_pct config missing. Cannot enforce drawdown circuit breaker.")
-            return {"halted": True, "reason": "CRITICAL: halt_drawdown_pct config missing"}
+            return {
+                "halted": True,
+                "reason": "CRITICAL: halt_drawdown_pct config missing",
+            }
         threshold = _float(
             halt_dd_val,
             None,
@@ -220,7 +222,10 @@ class CircuitBreaker:
         halt_dd_val = self.config.get("halt_drawdown_pct")
         if halt_dd_val is None:
             logger.error("CRITICAL: halt_drawdown_pct config missing during re-engagement check.")
-            return {"halted": True, "reason": "CRITICAL: halt_drawdown_pct config missing"}
+            return {
+                "halted": True,
+                "reason": "CRITICAL: halt_drawdown_pct config missing",
+            }
         threshold = float(halt_dd_val)
 
         # First check: is current drawdown >= threshold? If not, no re-engagement needed
@@ -316,7 +321,10 @@ class CircuitBreaker:
         max_daily_val = self.config.get("max_daily_loss_pct")
         if max_daily_val is None:
             logger.error("CRITICAL: max_daily_loss_pct config missing. Cannot enforce daily loss circuit breaker.")
-            return {"halted": True, "reason": "CRITICAL: max_daily_loss_pct config missing"}
+            return {
+                "halted": True,
+                "reason": "CRITICAL: max_daily_loss_pct config missing",
+            }
         threshold = -_float(
             max_daily_val,
             None,
@@ -364,7 +372,10 @@ class CircuitBreaker:
             logger.error(
                 "CRITICAL: max_consecutive_losses config missing. Cannot enforce consecutive loss circuit breaker."
             )
-            return {"halted": True, "reason": "CRITICAL: max_consecutive_losses config missing"}
+            return {
+                "halted": True,
+                "reason": "CRITICAL: max_consecutive_losses config missing",
+            }
         threshold = int(max_consec_val)
         return {
             "halted": streak >= threshold,
@@ -420,7 +431,10 @@ class CircuitBreaker:
         win_rate_val = self.config.get("min_win_rate_pct")
         if win_rate_val is None:
             logger.error("CRITICAL: min_win_rate_pct config missing. Cannot enforce win-rate circuit breaker.")
-            return {"halted": True, "reason": "CRITICAL: min_win_rate_pct config missing"}
+            return {
+                "halted": True,
+                "reason": "CRITICAL: min_win_rate_pct config missing",
+            }
         threshold = float(win_rate_val)
         return {
             "halted": win_rate < threshold,
@@ -473,7 +487,10 @@ class CircuitBreaker:
         max_risk_val = self.config.get("max_total_risk_pct")
         if max_risk_val is None:
             logger.error("CRITICAL: max_total_risk_pct config missing. Cannot enforce total risk circuit breaker.")
-            return {"halted": True, "reason": "CRITICAL: max_total_risk_pct config missing"}
+            return {
+                "halted": True,
+                "reason": "CRITICAL: max_total_risk_pct config missing",
+            }
         threshold = _float(
             max_risk_val,
             None,

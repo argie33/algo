@@ -27,7 +27,6 @@ import psycopg2
 from utils.db.context import DatabaseContext
 from utils.infrastructure.timezone import EASTERN_TZ
 
-
 logger = logging.getLogger(__name__)
 
 HALT_FLAG_KEY = "orchestrator_halt"
@@ -210,7 +209,10 @@ class HaltFlagManager:
                             if now_et >= market_open:
                                 logger.info(f"[HALT_FLAG] Halt from {trigger_et.date()} expired (past market open)")
                                 return False, None
-                    except (psycopg2.DatabaseError, psycopg2.OperationalError) as parse_err:
+                    except (
+                        psycopg2.DatabaseError,
+                        psycopg2.OperationalError,
+                    ) as parse_err:
                         logger.warning(f"[HALT_FLAG] Could not parse RDS timestamp: {parse_err}")
 
                 logger.critical(f"[HALT_FLAG] ACTIVE in RDS: {reason} (count={halt_count})")

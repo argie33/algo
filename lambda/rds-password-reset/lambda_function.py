@@ -15,7 +15,6 @@ import psycopg2
 import psycopg2.sql
 from botocore.exceptions import ClientError
 
-
 logger = logging.getLogger()
 logger.setLevel(logging.INFO)
 
@@ -133,7 +132,10 @@ def lambda_handler(event, context):
         return {
             "statusCode": 400,
             "body": json.dumps(
-                {"error": "Password does not meet strength requirements", "details": validation["errors"]}
+                {
+                    "error": "Password does not meet strength requirements",
+                    "details": validation["errors"],
+                }
             ),
         }
 

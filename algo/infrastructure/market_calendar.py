@@ -12,7 +12,6 @@ from datetime import datetime, time
 from functools import lru_cache
 from zoneinfo import ZoneInfo
 
-
 _ET = ZoneInfo("America/New_York")
 
 logger = logging.getLogger(__name__)

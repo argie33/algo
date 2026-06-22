@@ -36,7 +36,16 @@ def validate_imports():
             d
             for d in dirs
             if d
-            not in [".git", "__pycache__", ".pytest_cache", "node_modules", ".venv", "venv", ".terraform", "migrations"]
+            not in [
+                ".git",
+                "__pycache__",
+                ".pytest_cache",
+                "node_modules",
+                ".venv",
+                "venv",
+                ".terraform",
+                "migrations",
+            ]
         ]
 
         for file in sorted(files):

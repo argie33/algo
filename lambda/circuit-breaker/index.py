@@ -26,7 +26,6 @@ from pathlib import Path
 import boto3
 import psycopg2
 
-
 logger = logging.getLogger()
 logger.setLevel(os.environ.get("LOG_LEVEL", "INFO"))
 
@@ -169,7 +168,13 @@ def _set_halt_flag_rds(halt: bool, reason: str, check_time: str) -> bool:
         """,
             (
                 "orchestrator_halt",
-                json.dumps({"halt_flag": halt, "triggered_at": now_utc.isoformat(), "reason": reason}),
+                json.dumps(
+                    {
+                        "halt_flag": halt,
+                        "triggered_at": now_utc.isoformat(),
+                        "reason": reason,
+                    }
+                ),
                 halt,
                 now_utc.isoformat(),
                 reason,

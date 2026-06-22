@@ -14,7 +14,6 @@ import logging
 
 import psycopg2.sql
 
-
 logger = logging.getLogger(__name__)
 
 

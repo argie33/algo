@@ -21,7 +21,6 @@ from utils.db.context import DatabaseContext
 from utils.infrastructure.timezone import EASTERN_TZ
 from utils.optimal_loader import OptimalLoader
 
-
 logger = logging.getLogger(__name__)
 ET = EASTERN_TZ
 

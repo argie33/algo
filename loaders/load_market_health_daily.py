@@ -22,7 +22,6 @@ from utils.infrastructure.circuit_breaker import CircuitBreaker, DataImportance
 from utils.infrastructure.timezone import EASTERN_TZ
 from utils.optimal_loader import OptimalLoader
 
-
 logger = logging.getLogger(__name__)
 
 
@@ -356,7 +355,13 @@ class MarketHealthDailyLoader(OptimalLoader):
                     chain = _throttled_yf_request(lambda e=exp: ticker.option_chain(e))
                     total_puts += float(chain.puts["volume"].fillna(0).sum())
                     total_calls += float(chain.calls["volume"].fillna(0).sum())
-                except (AttributeError, KeyError, ValueError, TypeError, ZeroDivisionError) as e:
+                except (
+                    AttributeError,
+                    KeyError,
+                    ValueError,
+                    TypeError,
+                    ZeroDivisionError,
+                ) as e:
                     logger.warning(f"Put/call: option_chain({exp}) fetch error: {e}")
                     chain_errors += 1
                     continue

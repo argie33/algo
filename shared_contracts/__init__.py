@@ -16,7 +16,6 @@ from .dashboard_api_contract import (
     ResponseSchema,
 )
 
-
 __all__ = [
     "DASHBOARD_ENDPOINTS",
     "DASHBOARD_PANELS",

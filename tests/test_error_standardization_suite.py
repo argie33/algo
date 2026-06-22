@@ -16,7 +16,6 @@ from pathlib import Path
 
 import pytest
 
-
 # Add repo to path
 REPO_ROOT = Path(__file__).parent.parent
 sys.path.insert(0, str(REPO_ROOT))
@@ -29,7 +28,6 @@ from utils.exceptions import (
     InputValidationError,
     RateLimitedError,
 )
-
 
 # ============================================================================
 # TEST SUITE: Exception Hierarchy
@@ -265,9 +263,9 @@ class TestFileStandardization:
             try:
                 content = route_file.read_text(encoding="utf-8", errors="ignore")
                 # Should have imports or decorators related to error handling
-                assert "error_response" in content or "handle_db_error" in content or "@db_route_handler" in content, (
-                    f"{route_file.name} missing error handling"
-                )
+                assert (
+                    "error_response" in content or "handle_db_error" in content or "@db_route_handler" in content
+                ), f"{route_file.name} missing error handling"
             except Exception:
                 # Skip files with encoding issues - they're not critical for this test
                 pass

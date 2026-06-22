@@ -17,7 +17,6 @@ All code has been updated to load these values dynamically from the database.
 
 from utils.db.context import DatabaseContext
 
-
 DESCRIPTION = "Add configurable grade thresholds to algo_config"
 
 

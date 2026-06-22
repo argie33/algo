@@ -4,7 +4,6 @@
 import sys
 from pathlib import Path
 
-
 reqs_file = Path("requirements.txt")
 if reqs_file.exists():
     unpinned = []

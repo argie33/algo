@@ -11,7 +11,6 @@ from typing import Any, TypedDict
 
 from algo.exceptions import DataContractError, MissingPhaseDataError
 
-
 logger = logging.getLogger(__name__)
 
 
@@ -154,11 +153,24 @@ class PhaseDataSchema:
 # Define what each phase produces
 PHASE_CONTRACTS = {
     1: PhaseDataSchema(
-        1, "DATA FRESHNESS CHECK", required_keys=["status"], optional_keys=["summary", "tables_checked"]
+        1,
+        "DATA FRESHNESS CHECK",
+        required_keys=["status"],
+        optional_keys=["summary", "tables_checked"],
     ),
-    2: PhaseDataSchema(2, "CIRCUIT BREAKERS", required_keys=["status"], optional_keys=["checks", "breaker_triggered"]),
+    2: PhaseDataSchema(
+        2,
+        "CIRCUIT BREAKERS",
+        required_keys=["status"],
+        optional_keys=["checks", "breaker_triggered"],
+    ),
     3: PhaseDataSchema(3, "POSITION MONITOR", required_keys=["recommendations"]),
-    4: PhaseDataSchema(4, "RECONCILIATION", required_keys=["success"], optional_keys=["positions", "reason"]),
+    4: PhaseDataSchema(
+        4,
+        "RECONCILIATION",
+        required_keys=["success"],
+        optional_keys=["positions", "reason"],
+    ),
     # Phase 5 is CRITICAL: constraints MUST be validated separately with validate_phase_5_constraints()
     5: PhaseDataSchema(5, "EXPOSURE POLICY", required_keys=["constraints", "actions"]),
     6: PhaseDataSchema(6, "EXIT EXECUTION", optional_keys=["exits_executed", "summary"]),

@@ -9,7 +9,6 @@ Validates that:
 import logging
 from typing import Any
 
-
 logger = logging.getLogger(__name__)
 
 # =====================================================================
@@ -172,7 +171,11 @@ class RateLimitValidator:
                 issues.append("Rate limiter not initialized")
 
             # Check 2: Circuit breaker threshold appropriate
-            threshold = getattr(loader, "_rate_limit_circuit_break_threshold", CIRCUIT_BREAK_THRESHOLD_SECONDS)
+            threshold = getattr(
+                loader,
+                "_rate_limit_circuit_break_threshold",
+                CIRCUIT_BREAK_THRESHOLD_SECONDS,
+            )
             if threshold < CIRCUIT_BREAK_THRESHOLD_SECONDS:
                 recommendations.append(
                     f"Rate limit circuit break threshold {threshold}s may be too aggressive - "

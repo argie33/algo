@@ -9,12 +9,12 @@ Runs orchestrator as a subprocess to maintain proper module initialization.
 import subprocess
 import sys
 
-
 if __name__ == "__main__":
     # Run orchestrator.py as a subprocess to avoid import issues
     # Pass through all command-line arguments
     result = subprocess.run(
         [sys.executable, "-m", "algo.orchestration.orchestrator", *sys.argv[1:]],
         cwd="/app",
+        check=False,
     )
     sys.exit(result.returncode)

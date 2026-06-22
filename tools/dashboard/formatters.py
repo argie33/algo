@@ -23,7 +23,6 @@ from .utilities import (
     Y,
 )
 
-
 _schedule_cache: dict[str, Any] = {"result": None, "timestamp": 0}
 _SCHEDULE_CACHE_TTL = 300
 
@@ -91,9 +90,7 @@ def mkt_hours_str() -> tuple[str, str]:
     except Exception as market_err:
         import logging
 
-        logging.debug(  # noqa: LOG015
-            f"Could not get market status from calendar: {market_err}, using fallback"
-        )
+        logging.debug(f"Could not get market status from calendar: {market_err}, using fallback")  # noqa: LOG015
 
     n = datetime.now(ET)
     wd = n.weekday()
@@ -137,7 +134,10 @@ def mkt_hours_str() -> tuple[str, str]:
     next_days = 3 if wd == 4 else 1
     open_dt = (n + timedelta(days=next_days)).replace(hour=9, minute=30, second=0, microsecond=0)
     diff_m = max(0, int((open_dt - n).total_seconds() / 60))
-    return "[orange1]⊘ CLOSED[/]", f"opens {open_dt.strftime('%a')} in {_fmt_mins(diff_m)}"
+    return (
+        "[orange1]⊘ CLOSED[/]",
+        f"opens {open_dt.strftime('%a')} in {_fmt_mins(diff_m)}",
+    )
 
 
 def next_run_str() -> str:
@@ -164,9 +164,7 @@ def next_run_str() -> str:
     except Exception as sched_err:
         import logging
 
-        logging.debug(  # noqa: LOG015
-            f"Could not fetch next run schedule: {sched_err}, using fallback"
-        )
+        logging.debug(f"Could not fetch next run schedule: {sched_err}, using fallback")  # noqa: LOG015
 
     result = _next_run_hardcoded()
     _schedule_cache["result"] = result

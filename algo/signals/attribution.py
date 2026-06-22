@@ -13,7 +13,6 @@ from typing import Any
 
 import psycopg2
 
-
 try:
     import numpy as np
 except ImportError:
@@ -25,7 +24,6 @@ except ImportError:
     stats = None
 
 from utils.db import DatabaseContext
-
 
 logger = logging.getLogger(__name__)
 

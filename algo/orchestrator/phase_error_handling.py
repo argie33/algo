@@ -12,7 +12,6 @@ from dataclasses import dataclass
 from enum import Enum
 from typing import Any
 
-
 logger = logging.getLogger(__name__)
 
 
@@ -81,7 +80,8 @@ def log_phase_error(phase_num: int | str, error: PhaseError, log_fn=None) -> Non
     log_level = getattr(logging, error.log_level.upper(), logging.CRITICAL)
     if error.root_cause:
         logger.log(
-            log_level, f"{prefix} {error.category.value.upper()}: {error.message}\n  Root cause: {error.root_cause}"
+            log_level,
+            f"{prefix} {error.category.value.upper()}: {error.message}\n  Root cause: {error.root_cause}",
         )
     else:
         logger.log(log_level, f"{prefix} {error.category.value.upper()}: {error.message}")

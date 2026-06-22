@@ -29,7 +29,6 @@ import psycopg2.extras
 from utils.db.context import DatabaseContext
 from utils.metrics_calculator import MetricsCalculator
 
-
 logger = logging.getLogger(__name__)
 
 

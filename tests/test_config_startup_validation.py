@@ -11,7 +11,6 @@ from unittest import mock
 
 import pytest
 
-
 # Add project root to path
 project_root = str(Path(__file__).parent.parent)
 sys.path.insert(0, project_root)
@@ -184,7 +183,13 @@ class TestConfigValidationSchema:
         from algo.infrastructure.config import AlgoConfig
 
         config = AlgoConfig()
-        for key, (dtype, min_val, max_val, is_critical, fail_closed) in config.VALIDATION_SCHEMA.items():
+        for key, (
+            dtype,
+            min_val,
+            max_val,
+            is_critical,
+            fail_closed,
+        ) in config.VALIDATION_SCHEMA.items():
             if is_critical:
                 assert fail_closed is not None, f"Critical key {key} must have a fail_closed default"
                 if dtype in ("int", "float"):
@@ -269,9 +274,9 @@ class TestConfigFailClosedBehavior:
         # Should fail the set (return False)
         assert not success, "set() should return False when applying fail-closed default"
         # But config should be set to safe default
-        assert config.get("min_signal_quality_score") == 60, (
-            "Should revert to fail-closed default 60 when 0 is attempted"
-        )
+        assert (
+            config.get("min_signal_quality_score") == 60
+        ), "Should revert to fail-closed default 60 when 0 is attempted"
 
     def test_set_out_of_range_critical_value_uses_fail_closed_default(self):
         """Should apply fail-closed default when setting out-of-range critical value."""

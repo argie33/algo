@@ -13,7 +13,6 @@ Validates that:
 import os
 import sys
 
-
 # Add project root to path
 project_root = str(os.path.dirname(__file__).rsplit("/", 1)[0])
 sys.path.insert(0, project_root)

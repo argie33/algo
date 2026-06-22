@@ -23,7 +23,6 @@ from .market_timing import (
 )
 from .timezone import EASTERN_TZ
 
-
 __all__ = [
     "EASTERN_TZ",
     "MARKET_CLOSE_HOUR",

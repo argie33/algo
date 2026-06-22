@@ -6,7 +6,6 @@ import time
 from collections.abc import Callable
 from typing import Any, TypeVar
 
-
 logger = logging.getLogger(__name__)
 
 T = TypeVar("T")
@@ -61,7 +60,10 @@ class RetryStrategy:
             except Exception as e:
                 last_exception = e
                 if attempt < self.max_attempts:
-                    delay = min(self.base_delay * (self.multiplier ** (attempt - 1)), self.max_delay)
+                    delay = min(
+                        self.base_delay * (self.multiplier ** (attempt - 1)),
+                        self.max_delay,
+                    )
                     logger.warning(f"[RETRY] Attempt {attempt} failed, retrying in {delay:.1f}s: {e}")
                     time.sleep(delay)
                 else:

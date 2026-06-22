@@ -9,19 +9,16 @@ or --period CLI flag for manual runs.
 """
 
 import logging
-import sys
-
-
-logger = logging.getLogger(__name__)
 import os
+import sys
 from datetime import date
-from typing import Optional, cast
+from typing import cast
 
 from loaders.runner import run_loader
 from utils.external.sec_edgar import SecEdgarClient
-from utils.loaders.config import get_parallelism
 from utils.optimal_loader import OptimalLoader
 
+logger = logging.getLogger(__name__)
 
 _PERIOD_CONFIG = {
     "annual": {
@@ -129,7 +126,11 @@ class BalanceSheetLoader(OptimalLoader):
         try:
             rows = self._sec_client.get_balance_sheet(symbol, period=self.period)
             if not rows:
-                logger.debug("%s: no %s balance sheet data in SEC EDGAR, skipping", symbol, self.period)
+                logger.debug(
+                    "%s: no %s balance sheet data in SEC EDGAR, skipping",
+                    symbol,
+                    self.period,
+                )
                 return None
             logger.info("%s: Fetched %d %s balance sheet row(s)", symbol, len(rows), self.period)
 
@@ -145,7 +146,7 @@ class BalanceSheetLoader(OptimalLoader):
             raise RuntimeError(
                 f"[BALANCE_SHEET] Failed to fetch balance sheet for {symbol}: {e}. "
                 "Cannot proceed without fundamental data."
-            )
+            ) from e
 
     def transform(self, rows):
         transformed = []

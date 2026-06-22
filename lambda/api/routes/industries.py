@@ -21,7 +21,6 @@ from routes.utils import (
 
 from shared_contracts.response_validator import ResponseValidator
 
-
 logger = logging.getLogger(__name__)
 
 
@@ -198,21 +197,21 @@ def _industry_list(cur, params):
         momentum_label = (
             "Strong"
             if composite is not None and composite >= 60
-            else "Moderate"
-            if composite is not None and composite >= 45
-            else "Weak"
+            else "Moderate" if composite is not None and composite >= 45 else "Weak"
         )
         trend_label = (
             "Uptrend"
             if perf_20d is not None and perf_20d > 2
-            else "Downtrend"
-            if perf_20d is not None and perf_20d < -2
-            else "Sideways"
+            else "Downtrend" if perf_20d is not None and perf_20d < -2 else "Sideways"
         )
 
         current_rank = ind.get("current_rank")
         if current_rank is None:
-            return error_response(503, "data_incomplete", f"Industry {ind.get('industry')} missing current_rank")
+            return error_response(
+                503,
+                "data_incomplete",
+                f"Industry {ind.get('industry')} missing current_rank",
+            )
 
         industries.append(
             {
@@ -350,7 +349,11 @@ def _industry_trend(cur, industry_name, params):
     ]
 
     freshness = check_data_freshness(cur, "price_daily", "date", warning_days=1)
-    result = {"industry": industry_name, "trendData": trend_data, "data_freshness": freshness}
+    result = {
+        "industry": industry_name,
+        "trendData": trend_data,
+        "data_freshness": freshness,
+    }
 
     is_valid, error_msg = ResponseValidator.validate_endpoint_response("industries/trend", result)
     if not is_valid:

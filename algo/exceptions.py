@@ -109,7 +109,12 @@ class ValidationError(AlgoError):
             expected: What was expected
             context: Additional validation context
         """
-        ctx = {"field": field, "value": str(value), "expected": expected, **(context or {})}
+        ctx = {
+            "field": field,
+            "value": str(value),
+            "expected": expected,
+            **(context or {}),
+        }
         super().__init__(
             message=f"Validation failed for {field}: got {value!r}, expected {expected}",
             error_category=ErrorCategory.DATA_QUALITY,
@@ -190,7 +195,7 @@ class PortfolioError(AlgoError):
         """Init portfolio error."""
         super().__init__(
             message=f"Portfolio error: {message}",
-            error_category=ErrorCategory.DATA_QUALITY if not retry_eligible else ErrorCategory.TRANSIENT,
+            error_category=(ErrorCategory.DATA_QUALITY if not retry_eligible else ErrorCategory.TRANSIENT),
             retry_eligible=retry_eligible,
             recovery_suggestion="Verify portfolio snapshot is current and complete",
             context=context,

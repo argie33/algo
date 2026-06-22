@@ -25,7 +25,6 @@ This migration restores safe defaults immediately.
 
 from utils.db.context import DatabaseContext
 
-
 DESCRIPTION = "URGENT: Restore safety thresholds from zero to safe defaults"
 
 # Safe default values (matching AlgoConfig.DEFAULTS)

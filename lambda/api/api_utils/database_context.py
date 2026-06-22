@@ -29,10 +29,8 @@ import sys
 
 from psycopg2.extras import DictCursor
 
-
 sys.path.insert(0, "/".join(__file__.split("/")[:-4]))  # Navigate to root
 from utils.db.context import DatabaseContext as _DatabaseContext
-
 
 __all__ = ["DatabaseContext"]
 

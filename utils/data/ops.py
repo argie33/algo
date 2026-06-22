@@ -10,7 +10,6 @@ from typing import Any
 from utils.data.age_validator import check_freshness, is_fresh
 from utils.db.query_cache import get_or_create_cache
 
-
 logger = logging.getLogger(__name__)
 
 

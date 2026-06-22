@@ -109,7 +109,11 @@ class TestFormatExecHistorySummary:
     def test_last_halt_shown_in_details(self):
         hist = [
             {"overall_status": "success"},
-            {"overall_status": "halted", "halt_reason": "Market closed", "phases_halted": []},
+            {
+                "overall_status": "halted",
+                "halt_reason": "Market closed",
+                "phases_halted": [],
+            },
         ]
         result = _format_exec_history_summary(hist)
         # Should have details about halt if available
@@ -176,12 +180,26 @@ class TestFormatNotificationsSummary:
 
     def test_notification_age_formatting(self):
         now = datetime.now()
-        notifs = [{"severity": "warning", "title": "Position exited", "created_at": now, "seen": False}]
+        notifs = [
+            {
+                "severity": "warning",
+                "title": "Position exited",
+                "created_at": now,
+                "seen": False,
+            }
+        ]
         result = _format_notifications_summary(notifs)
         assert len(result) > 0
 
     def test_unread_indicator_shown(self):
-        notifs = [{"severity": "info", "title": "New signal", "created_at": datetime.now(), "seen": False}]
+        notifs = [
+            {
+                "severity": "info",
+                "title": "New signal",
+                "created_at": datetime.now(),
+                "seen": False,
+            }
+        ]
         result = _format_notifications_summary(notifs)
         assert len(result) > 0
         # Unread should show as "-" or indicator
@@ -208,7 +226,12 @@ class TestFormatLoaderStatus:
 
     def test_problem_loaders_shown(self):
         loader = [
-            {"status": "error", "table_name": "options", "age_days": 5, "error_message": "API timeout"},
+            {
+                "status": "error",
+                "table_name": "options",
+                "age_days": 5,
+                "error_message": "API timeout",
+            },
             {"status": "ok", "table_name": "trades", "completion_pct": 100},
         ]
         result = _format_loader_status(loader)
@@ -249,8 +272,18 @@ class TestFormatDailyMetricsSummary:
 
     def test_multiple_days_metrics(self):
         metrics = [
-            {"date": datetime(2026, 6, 20), "total_actions": 5, "entries": 3, "exits": 2},
-            {"date": datetime(2026, 6, 19), "total_actions": 4, "entries": 2, "exits": 2},
+            {
+                "date": datetime(2026, 6, 20),
+                "total_actions": 5,
+                "entries": 3,
+                "exits": 2,
+            },
+            {
+                "date": datetime(2026, 6, 19),
+                "total_actions": 4,
+                "entries": 2,
+                "exits": 2,
+            },
         ]
         result = _format_daily_metrics_summary(metrics)
         assert len(result) > 0

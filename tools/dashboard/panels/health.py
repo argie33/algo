@@ -3,7 +3,6 @@
 import json
 import logging
 
-
 logger = logging.getLogger(__name__)
 
 try:
@@ -51,7 +50,6 @@ from .data_extractors import (
     safe_get_dict,
     safe_get_list,
 )
-
 
 # Status state constants
 SUCCESS_STATES = ("success", "completed", "ok")
@@ -945,7 +943,14 @@ def panel_algo_health(
         # Validate critical fields exist upfront (fail-fast pattern)
         try:
             run_fields = safe_extract(
-                run, "success", "halted", "errored", "run_id", "halt_reason", "summary", "phase_results"
+                run,
+                "success",
+                "halted",
+                "errored",
+                "run_id",
+                "halt_reason",
+                "summary",
+                "phase_results",
             )
             success = run_fields["success"]
             halted = run_fields["halted"]

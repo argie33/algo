@@ -2,7 +2,6 @@
 import sys
 from pathlib import Path
 
-
 _lambda_api_dir = Path(__file__).parent
 _project_root = _lambda_api_dir.parent.parent
 

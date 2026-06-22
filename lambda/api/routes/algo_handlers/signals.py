@@ -27,7 +27,6 @@ from utils.validation import (
     format_decimal_string,
 )
 
-
 logger = logging.getLogger(__name__)
 
 
@@ -131,13 +130,16 @@ def _calculate_pre_trade_impact(cur, body: dict) -> dict[str, Any]:
                 "available_slots": available_slots,
                 "sector_exposure": {
                     "current_pct": format_decimal_string(
-                        (current_sector_dollars / portfolio_value * 100) if portfolio_value > 0 else 0, precision=2
+                        ((current_sector_dollars / portfolio_value * 100) if portfolio_value > 0 else 0),
+                        precision=2,
                     ),
                     "projected_pct": format_decimal_string(projected_sector_pct, precision=2),
                     "warning": sector_warning,
-                    "warning_msg": f"Sector {sector} would reach {projected_sector_pct:.1f}% (limit 30%)"
-                    if sector_warning
-                    else None,
+                    "warning_msg": (
+                        f"Sector {sector} would reach {projected_sector_pct:.1f}% (limit 30%)"
+                        if sector_warning
+                        else None
+                    ),
                 },
             },
         )

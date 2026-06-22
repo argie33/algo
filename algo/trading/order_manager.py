@@ -21,7 +21,6 @@ import requests
 from algo.infrastructure import get_api_timeout
 from utils.validation import AlpacaResponseValidator
 
-
 logger = logging.getLogger(__name__)
 validator = AlpacaResponseValidator()
 
@@ -106,7 +105,11 @@ class OrderManager:
             if response.status_code in (200, 201):
                 try:
                     data = response.json()
-                except (requests.RequestException, requests.Timeout, json.JSONDecodeError) as e:
+                except (
+                    requests.RequestException,
+                    requests.Timeout,
+                    json.JSONDecodeError,
+                ) as e:
                     logger.error(
                         f"[SEND_ORDER] {symbol}: Failed to parse response JSON: {e}. Response: {response.text}"
                     )
@@ -388,18 +391,27 @@ class OrderManager:
                     # Issue #13: filled_avg_price is required — no silent None
                     if not order_id:
                         logger.error(f"[SEND_EXIT] {symbol}: Alpaca response missing order id")
-                        return {"success": False, "message": "Alpaca response missing order id"}
+                        return {
+                            "success": False,
+                            "message": "Alpaca response missing order id",
+                        }
                     filled_price_raw = data.get("filled_avg_price")
                     if not filled_price_raw:
                         logger.error(
                             f"[SEND_EXIT] {symbol}: Alpaca response missing filled_avg_price for order {order_id}"
                         )
-                        return {"success": False, "message": "Alpaca response missing filled_avg_price"}
+                        return {
+                            "success": False,
+                            "message": "Alpaca response missing filled_avg_price",
+                        }
                     try:
                         filled_price = float(filled_price_raw)
                     except (ValueError, TypeError) as e:
                         logger.error(f"[SEND_EXIT] {symbol}: filled_avg_price not numeric: {e}")
-                        return {"success": False, "message": f"filled_avg_price not numeric: {e}"}
+                        return {
+                            "success": False,
+                            "message": f"filled_avg_price not numeric: {e}",
+                        }
                     logger.info(f"[SEND_EXIT] {symbol}: Exit order {order_id} created, fill=${filled_price}")
                     return {
                         "success": True,
@@ -418,7 +430,11 @@ class OrderManager:
                 else:
                     last_error = f"Alpaca {resp.status_code}: {resp.text[:200]}"
                     logger.warning(f"[SEND_EXIT] {symbol}: {last_error} (attempt {attempt + 1}/{max_attempts})")
-            except (requests.RequestException, requests.Timeout, json.JSONDecodeError) as e:
+            except (
+                requests.RequestException,
+                requests.Timeout,
+                json.JSONDecodeError,
+            ) as e:
                 last_error = f"Error: {e!s}"
                 logger.warning(f"[SEND_EXIT] {symbol}: {last_error} (attempt {attempt + 1}/{max_attempts})")
                 if attempt < max_attempts - 1:

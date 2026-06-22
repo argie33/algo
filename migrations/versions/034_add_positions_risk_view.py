@@ -7,7 +7,6 @@ Allows API layer to be a pure display layer (not calculation engine).
 
 from utils.db.context import DatabaseContext
 
-
 DESCRIPTION = "Add positions with risk materialized view"
 
 

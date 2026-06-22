@@ -11,7 +11,6 @@ In production, this code path is unreachable because COGNITO_USER_POOL_ID is alw
 import logging
 import os
 
-
 logger = logging.getLogger(__name__)
 
 

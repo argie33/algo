@@ -23,7 +23,10 @@ class CredentialRotationChecker:
             print(f"ERROR: Failed to parse credential status JSON: {e}", file=sys.stderr)
             raise
         except Exception as e:
-            print(f"ERROR: Could not retrieve credentials from Secrets Manager: {e}", file=sys.stderr)
+            print(
+                f"ERROR: Could not retrieve credentials from Secrets Manager: {e}",
+                file=sys.stderr,
+            )
             raise
 
     def check_grace_period(self, creds: dict) -> tuple[bool, str]:
@@ -39,10 +42,16 @@ class CredentialRotationChecker:
             now = datetime.now(timezone.utc)
 
             if now >= cleanup_date:
-                return False, f"GRACE_PERIOD_EXPIRED: Cleanup should have occurred on {cleanup_date_str}"
+                return (
+                    False,
+                    f"GRACE_PERIOD_EXPIRED: Cleanup should have occurred on {cleanup_date_str}",
+                )
 
             days_remaining = (cleanup_date - now).days
-            return True, f"GRACE_PERIOD_ACTIVE: Update by {cleanup_date_str} ({days_remaining} days remaining)"
+            return (
+                True,
+                f"GRACE_PERIOD_ACTIVE: Update by {cleanup_date_str} ({days_remaining} days remaining)",
+            )
 
         elif status == "active":
             return True, "NORMAL: No rotation in progress"

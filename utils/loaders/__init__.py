@@ -2,5 +2,4 @@
 
 from .conflict_detector import LoaderConflictDetector
 
-
 __all__ = ["LoaderConflictDetector"]

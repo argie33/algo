@@ -28,7 +28,6 @@ from algo.trading.exceptions import (
 )
 from utils.db.context import DatabaseContext
 
-
 logger = logging.getLogger(__name__)
 
 PORTFOLIO_SNAPSHOT_LOCK_ID = 2147483647
@@ -692,7 +691,12 @@ class PositionSizer:
                 "reason": f"{shares} shares @ ${entry_price:.2f} = ${float(position_value):.2f} ({float(position_pct_of_portfolio):.1f}%)",
             }
 
-        except (DataUnavailableError, ConfigurationError, ValueError, RuntimeError) as e:
+        except (
+            DataUnavailableError,
+            ConfigurationError,
+            ValueError,
+            RuntimeError,
+        ) as e:
             logger.error(f"Position calculation failed: {type(e).__name__}: {e}")
             return {
                 "shares": 0,

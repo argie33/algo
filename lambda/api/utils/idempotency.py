@@ -23,7 +23,6 @@ import logging
 import psycopg2
 import psycopg2.errors
 
-
 logger = logging.getLogger(__name__)
 
 
@@ -54,7 +53,11 @@ def check_idempotency_key(cur, idempotency_key: str, endpoint: str, timeout_sec:
         )
         row = cur.fetchone()
         if row:
-            logger.info("Idempotency key cache hit: %s (key=%s...)", endpoint, idempotency_key[:16])
+            logger.info(
+                "Idempotency key cache hit: %s (key=%s...)",
+                endpoint,
+                idempotency_key[:16],
+            )
             try:
                 response = json.loads(row["response_data"])
                 if isinstance(response, dict):
@@ -62,7 +65,10 @@ def check_idempotency_key(cur, idempotency_key: str, endpoint: str, timeout_sec:
                 logger.error("Cached response is not a dict: %s", type(response))
                 return None
             except (json.JSONDecodeError, TypeError) as e:
-                logger.error("Failed to deserialize cached response: %s. Treating as cache miss.", e)
+                logger.error(
+                    "Failed to deserialize cached response: %s. Treating as cache miss.",
+                    e,
+                )
                 return None
         return None
     except (
@@ -109,7 +115,10 @@ def store_idempotency_key(cur, idempotency_key: str, endpoint: str, response_dat
         psycopg2.OperationalError,
         psycopg2.DatabaseError,
     ) as e:
-        logger.debug("Idempotency key storage skipped (table missing or DB error): %s", type(e).__name__)
+        logger.debug(
+            "Idempotency key storage skipped (table missing or DB error): %s",
+            type(e).__name__,
+        )
         return False
 
 
@@ -140,7 +149,11 @@ def cleanup_expired_keys(cur, days_old: int = 7, timeout_sec: int = 10) -> int:
         if deleted_count > 0:
             logger.info("Cleaned up %s expired idempotency keys", deleted_count)
         return deleted_count
-    except (psycopg2.errors.UndefinedTable, psycopg2.DatabaseError, psycopg2.OperationalError) as e:  # pylint: disable=no-member
+    except (
+        psycopg2.errors.UndefinedTable,  # pylint: disable=no-member
+        psycopg2.DatabaseError,
+        psycopg2.OperationalError,
+    ) as e:
         if isinstance(e, psycopg2.errors.UndefinedTable):  # pylint: disable=no-member
             logger.warning("Cleanup skipped: idempotency key table does not exist")
         else:

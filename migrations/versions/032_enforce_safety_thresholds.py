@@ -33,7 +33,6 @@ which is the core risk: weak signals + missing earnings data = blown stops.
 
 from utils.db.context import DatabaseContext
 
-
 DESCRIPTION = "Enforce safety thresholds for entry quality gates and earnings blackout"
 
 # Safety config values: all thresholds that prevent low-quality trading

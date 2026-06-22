@@ -17,7 +17,6 @@ from routes.utils import (
 from algo.infrastructure import AlgoConfig
 from shared_contracts.response_validator import ResponseValidator
 
-
 logger = logging.getLogger(__name__)
 
 

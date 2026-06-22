@@ -1,7 +1,6 @@
 #!/usr/bin/env python3
 import sys
 
-
 """
 Growth Metrics Loader - Computes multi-year growth metrics from annual financials.
 
@@ -14,7 +13,6 @@ from datetime import date
 from typing import Any, Optional
 
 import psycopg2
-
 
 logger = logging.getLogger(__name__)
 

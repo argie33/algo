@@ -12,7 +12,6 @@ from utils.db import assert_safe_column, assert_safe_table
 from ..base import BaseCheck, CheckResult
 from ..config import ERROR, INFO, WARN
 
-
 logger = logging.getLogger(__name__)
 
 
@@ -61,12 +60,10 @@ class SpecializedChecker(BaseCheck):
             try:
                 col = col_options[0]
                 tbl_safe = assert_safe_table(tbl)
-                cur.execute(
-                    f"""
+                cur.execute(f"""
                     SELECT COUNT(*), MAX({col}::date) as latest
                     FROM {tbl_safe}
-                """
-                )
+                """)
                 result = cur.fetchone()
                 count, latest = result[0], result[1]
 
@@ -129,7 +126,13 @@ class SpecializedChecker(BaseCheck):
                 f"{pct:.1f}% symbol coverage ({est_syms}/{price_syms})",
                 {"coverage_pct": round(pct, 1)},
             )
-        except (psycopg2.DatabaseError, psycopg2.OperationalError, ValueError, ZeroDivisionError, TypeError) as e:
+        except (
+            psycopg2.DatabaseError,
+            psycopg2.OperationalError,
+            ValueError,
+            ZeroDivisionError,
+            TypeError,
+        ) as e:
             self.log(
                 "earnings_coverage",
                 WARN,
@@ -273,7 +276,13 @@ class SpecializedChecker(BaseCheck):
                     "No NaN/Infinity values in technical data",
                     None,
                 )
-        except (psycopg2.DatabaseError, psycopg2.OperationalError, ValueError, ZeroDivisionError, TypeError) as e:
+        except (
+            psycopg2.DatabaseError,
+            psycopg2.OperationalError,
+            ValueError,
+            ZeroDivisionError,
+            TypeError,
+        ) as e:
             self.log(
                 "derived_metrics",
                 ERROR,

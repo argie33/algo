@@ -15,7 +15,6 @@ from typing import Any
 import psycopg2
 import psycopg2.pool
 
-
 # Add project root to path for imports to work in both local dev and Lambda
 # In Lambda: /var/task is already in path, credential_manager is in /var/task/config/
 # In local dev: need to add the project root so config.credential_manager can be found
@@ -24,7 +23,6 @@ if project_root not in sys.path:
     sys.path.insert(0, project_root)
 
 from config.credential_manager import get_db_config  # noqa: E402
-
 
 logger = logging.getLogger(__name__)
 

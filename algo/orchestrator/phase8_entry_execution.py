@@ -36,7 +36,6 @@ from algo.risk import LiquidityChecks
 from algo.trading import PositionSizer, PreTradeChecks, TradeExecutor
 from utils.db.context import DatabaseContext
 
-
 logger = logging.getLogger(__name__)
 
 
@@ -295,7 +294,11 @@ def run(
         log_phase_result_fn(8, "entry_execution", "halt", msg)
         return PhaseResult(8, "entry_execution", "halted", {"entered": 0}, True, msg)
 
-    required_constraint_keys = ["halt_new_entries", "max_new_positions_today", "max_concentration_pct"]
+    required_constraint_keys = [
+        "halt_new_entries",
+        "max_new_positions_today",
+        "max_concentration_pct",
+    ]
     missing_keys = [k for k in required_constraint_keys if k not in exposure_constraints]
     if missing_keys:
         msg = (

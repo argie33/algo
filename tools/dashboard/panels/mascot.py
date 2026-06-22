@@ -9,7 +9,6 @@ from rich.layout import Layout
 from rich.panel import Panel
 from rich.text import Text
 
-
 logger = logging.getLogger(__name__)
 
 
@@ -133,7 +132,6 @@ from ..utilities import (
     MASCOT_FRAMES,
     MASCOT_W,
 )
-
 
 # MASCOT_H = 1 top border + 1 blank + 4 pose lines + 1 blank + 1 bottom border = 8
 MASCOT_H = 8

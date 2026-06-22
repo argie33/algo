@@ -20,7 +20,6 @@ from routes.utils import (
     success_response,
 )
 
-
 logger = logging.getLogger(__name__)
 
 

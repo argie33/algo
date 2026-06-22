@@ -28,7 +28,6 @@ from dataclasses import dataclass
 from decimal import Decimal
 from typing import TYPE_CHECKING, Any
 
-
 if TYPE_CHECKING:
     from algo.infrastructure.config import AlgoConfig
     from algo.trading.exit_engine import PositionContext

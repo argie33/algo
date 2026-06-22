@@ -8,7 +8,6 @@ from .quality import QualityChecker
 from .specialized import SpecializedChecker
 from .staleness import StalenessChecker
 
-
 __all__ = [
     "AlignmentChecker",
     "CoverageChecker",

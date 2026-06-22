@@ -45,7 +45,6 @@ from utils.db.retry import OptimisticLockRetry
 from utils.trading.status import PositionStatus
 from utils.validation import AlpacaResponseValidator
 
-
 """
 Trade Executor - Execute trades via Alpaca and track positions
 
@@ -130,7 +129,11 @@ class TradeExecutor:
 
         # Validate R-multiple config values at init time (fail-fast) — must come before
         # handler initializations since EntryHandler and ExitHandler read these attributes
-        required_r_multiples = ["t1_target_r_multiple", "t2_target_r_multiple", "t3_target_r_multiple"]
+        required_r_multiples = [
+            "t1_target_r_multiple",
+            "t2_target_r_multiple",
+            "t3_target_r_multiple",
+        ]
         for r_key in required_r_multiples:
             if r_key not in config or config[r_key] is None:
                 raise ValueError(
@@ -261,7 +264,7 @@ class TradeExecutor:
 
             try:
                 tca_result = self.tca.record_fill(
-                    trade_id=int(trade_id) if isinstance(trade_id, str) and trade_id.isdigit() else 0,
+                    trade_id=(int(trade_id) if isinstance(trade_id, str) and trade_id.isdigit() else 0),
                     symbol=symbol,
                     signal_price=float(entry_price),
                     fill_price=float(executed_price),
@@ -447,7 +450,12 @@ class TradeExecutor:
             )
 
     def _validate_entry_conditions(
-        self, cur: Any, symbol: str, signal_date: Any, entry_price: Decimal, stop_loss_price: Decimal
+        self,
+        cur: Any,
+        symbol: str,
+        signal_date: Any,
+        entry_price: Decimal,
+        stop_loss_price: Decimal,
     ) -> tuple[bool, str, dict[str, Any] | None]:
         """Validate all entry conditions in a single consolidated check.
 

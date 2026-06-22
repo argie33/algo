@@ -30,7 +30,6 @@ from .core import (
     TimeoutError as APITimeoutError,
 )
 
-
 __all__ = [
     "APITimeoutError",
     "BaseAPIException",

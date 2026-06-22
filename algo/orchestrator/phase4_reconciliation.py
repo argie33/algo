@@ -8,10 +8,13 @@ from typing import Any
 
 import psycopg2
 
-from algo.orchestrator.phase_error_handling import ErrorCategory, PhaseError, log_phase_error
+from algo.orchestrator.phase_error_handling import (
+    ErrorCategory,
+    PhaseError,
+    log_phase_error,
+)
 from algo.orchestrator.phase_result import PhaseResult
 from algo.reporting import AlertManager
-
 
 logger = logging.getLogger(__name__)
 

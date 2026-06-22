@@ -56,7 +56,6 @@ from .fetchers_signals import (
     fetch_signals,
 )
 
-
 logger = logging.getLogger(__name__)
 
 
@@ -300,7 +299,12 @@ def load_all() -> dict:
     remaining_time = max(60, batch_timeout - critical_elapsed)
     optional_timeout = remaining_time
     optional_out = _execute_fetcher_batch(
-        optional_fetchers, 6, max(60, optional_timeout), one, fetcher_timeout_seconds, "optional"
+        optional_fetchers,
+        6,
+        max(60, optional_timeout),
+        one,
+        fetcher_timeout_seconds,
+        "optional",
     )
     out.update(optional_out)
 

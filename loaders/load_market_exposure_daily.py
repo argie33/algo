@@ -21,7 +21,6 @@ import sys
 
 import psycopg2
 
-
 # Configure logging
 logging.basicConfig(level=logging.INFO, format="%(asctime)s - %(name)s - %(levelname)s - %(message)s")
 logger = logging.getLogger(__name__)

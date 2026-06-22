@@ -10,7 +10,6 @@ from abc import ABC, abstractmethod
 
 import pandas as pd
 
-
 logger = logging.getLogger(__name__)
 
 

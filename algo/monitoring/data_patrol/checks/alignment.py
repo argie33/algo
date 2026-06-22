@@ -10,7 +10,6 @@ from utils.db import assert_safe_table
 from ..base import BaseCheck, CheckResult
 from ..config import ERROR, INFO, WARN
 
-
 logger = logging.getLogger(__name__)
 
 
@@ -321,7 +320,10 @@ class AlignmentChecker(BaseCheck):
                             sev,
                             tbl,
                             f"{tbl} coverage {ratio * 100:.1f}% < {min_ratio * 100:.0f}% ({count}/{baseline} symbols)",
-                            {"coverage_pct": round(ratio * 100, 1), "baseline": baseline},
+                            {
+                                "coverage_pct": round(ratio * 100, 1),
+                                "baseline": baseline,
+                            },
                         )
                     else:
                         self.log(
@@ -334,4 +336,10 @@ class AlignmentChecker(BaseCheck):
                 except (psycopg2.DatabaseError, psycopg2.OperationalError) as e:
                     self.log("cross_align", WARN, tbl, f"Check skipped: {e}", None)
         except (psycopg2.DatabaseError, psycopg2.OperationalError) as e:
-            self.log("cross_align", ERROR, "alignment", f"Cross-alignment check failed: {e}", None)
+            self.log(
+                "cross_align",
+                ERROR,
+                "alignment",
+                f"Cross-alignment check failed: {e}",
+                None,
+            )

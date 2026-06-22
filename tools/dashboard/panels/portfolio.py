@@ -2,7 +2,6 @@
 
 import logging
 
-
 logger = logging.getLogger(__name__)
 
 try:
@@ -448,7 +447,10 @@ def panel_portfolio_perf_expanded(port, cfg, risk=None, perf=None, perf_anl=None
         )
         perfblk.add_row(
             "Unrealized P&L:",
-            Text(fmt_money(unrlzd_pnl) if unrlzd_pnl is not None else "--", style=G if (unrlzd_pnl or 0) >= 0 else R),
+            Text(
+                fmt_money(unrlzd_pnl) if unrlzd_pnl is not None else "--",
+                style=G if (unrlzd_pnl or 0) >= 0 else R,
+            ),
             "Open Positions:",
             Text(str(open_cnt) if open_cnt is not None else "--", style="white"),
         )
@@ -526,7 +528,7 @@ def panel_portfolio_perf_expanded(port, cfg, risk=None, perf=None, perf_anl=None
             "Sharpe (252d):",
             Text(
                 f"{sharpe252:.2f}" if sharpe252 is not None else "--",
-                style=G if (sharpe252 or 0) >= 1 else (Y if (sharpe252 or 0) >= 0 else R),
+                style=(G if (sharpe252 or 0) >= 1 else (Y if (sharpe252 or 0) >= 0 else R)),
             ),
             "Sortino:",
             Text(
@@ -541,7 +543,10 @@ def panel_portfolio_perf_expanded(port, cfg, risk=None, perf=None, perf_anl=None
                 style=G if (calmar or 0) >= 0.5 else (Y if (calmar or 0) >= 0 else R),
             ),
             "Win Rate (50T):",
-            Text(f"{wr50:.0f}%" if wr50 else "--", style=G if (wr50 or 0) >= 50 else (Y if (wr50 or 0) >= 42 else R)),
+            Text(
+                f"{wr50:.0f}%" if wr50 else "--",
+                style=G if (wr50 or 0) >= 50 else (Y if (wr50 or 0) >= 42 else R),
+            ),
         )
         anl.add_row(
             "Avg Win R (50T):",
@@ -556,7 +561,7 @@ def panel_portfolio_perf_expanded(port, cfg, risk=None, perf=None, perf_anl=None
                 "Max Drawdown:",
                 Text(
                     f"-{abs(maxdd2):.1f}%" if maxdd2 else "--",
-                    style=R if abs(maxdd2 or 0) >= 15 else (Y if abs(maxdd2 or 0) >= 5 else G),
+                    style=(R if abs(maxdd2 or 0) >= 15 else (Y if abs(maxdd2 or 0) >= 5 else G)),
                 ),
             )
         rows.append(anl)

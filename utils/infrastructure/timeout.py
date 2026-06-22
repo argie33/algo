@@ -18,7 +18,6 @@ import sys
 import threading
 from contextlib import contextmanager
 
-
 logger = logging.getLogger(__name__)
 
 

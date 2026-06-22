@@ -17,7 +17,6 @@ from loaders.runner import run_loader
 from utils.infrastructure.url_validator import validate_redirect_url, validate_url
 from utils.optimal_loader import OptimalLoader
 
-
 logger = logging.getLogger(__name__)
 
 
@@ -148,7 +147,10 @@ class AAIISentimentLoader(OptimalLoader):
                     )
                 return rows
 
-            except (requests.exceptions.Timeout, requests.exceptions.ConnectionError) as e:
+            except (
+                requests.exceptions.Timeout,
+                requests.exceptions.ConnectionError,
+            ) as e:
                 logger.warning(f"Download attempt {attempt} network error: {e}")
                 if attempt < 5:
                     import time
@@ -158,7 +160,17 @@ class AAIISentimentLoader(OptimalLoader):
                     time.sleep(wait_time)
                 else:
                     raise RuntimeError(f"[AAII] Failed after 5 attempts: Cannot reach AAII server. {e}") from e
-            except (ValueError, OSError, zipfile.BadZipFile) as e:
+            except (json.JSONDecodeError, zipfile.BadZipFile) as e:
+                logger.warning(f"Download attempt {attempt} data format error: {e}")
+                if attempt < 5:
+                    import time
+
+                    wait_time = 3 * (2 ** (attempt - 1))
+                    logger.info(f"Retrying in {wait_time}s...")
+                    time.sleep(wait_time)
+                else:
+                    raise RuntimeError(f"[AAII] Failed after 5 attempts: Invalid Excel data format. {e}") from e
+            except ValueError as e:
                 logger.warning(f"Download attempt {attempt} data format error: {e}")
                 if attempt < 5:
                     import time
@@ -172,7 +184,7 @@ class AAIISentimentLoader(OptimalLoader):
                 raise RuntimeError(
                     f"[AAII] Data format error parsing Excel: {e}. AAII file structure may have changed."
                 ) from e
-            except (requests.RequestException, requests.Timeout, json.JSONDecodeError) as e:
+            except (OSError, requests.RequestException) as e:
                 logger.error(f"Download attempt {attempt} unexpected error: {e}")
                 if attempt < 5:
                     import time

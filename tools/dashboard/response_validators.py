@@ -24,7 +24,6 @@ from utils.safe_data_conversion import StrictValidationError, safe_float, safe_i
 
 from .error_boundary import has_error
 
-
 logger = logging.getLogger(__name__)
 
 

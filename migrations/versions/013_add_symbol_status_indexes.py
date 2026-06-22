@@ -18,7 +18,6 @@ so we open our own connection outside the runner's transaction context.
 
 import os
 
-
 DESCRIPTION = "Add symbol/status indexes for frequent WHERE clauses in trading operations"
 
 _INDEXES = [

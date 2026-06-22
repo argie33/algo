@@ -53,7 +53,10 @@ def check_step_functions():
                 failed = sfn.list_executions(
                     stateMachineArn=machine_arn,
                     statusFilter="FAILED",
-                    executionFilter={"before": datetime.utcnow(), "after": datetime.utcnow() - timedelta(hours=24)},
+                    executionFilter={
+                        "before": datetime.utcnow(),
+                        "after": datetime.utcnow() - timedelta(hours=24),
+                    },
                 )["executions"]
 
                 if failed:

@@ -95,7 +95,6 @@ from .algo_handlers.signals import (
 )
 from .positions import handle as handle_positions
 
-
 logger = logging.getLogger(__name__)
 
 
@@ -291,9 +290,16 @@ def _dispatch(
         limit = safe_limit(limit_str or "100", max_val=10000)
         _status_list = params.get("status") if params else None
         status_filter = _status_list[0] if _status_list else None
-        if status_filter and status_filter not in ("open", "closed", "halted", "cancelled"):
+        if status_filter and status_filter not in (
+            "open",
+            "closed",
+            "halted",
+            "cancelled",
+        ):
             raise_api_error(
-                400, "bad_request", f"Invalid status '{status_filter}'. Must be one of: open, closed, halted, cancelled"
+                400,
+                "bad_request",
+                f"Invalid status '{status_filter}'. Must be one of: open, closed, halted, cancelled",
             )
         is_admin = _check_admin_access(jwt_claims)
         effective_user_id = None if is_admin else user_id

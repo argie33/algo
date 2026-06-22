@@ -9,7 +9,6 @@ import logging
 from datetime import datetime
 from typing import Any
 
-
 logger = logging.getLogger(__name__)
 
 
@@ -230,7 +229,12 @@ class PriceTransformer:
             return False, 0, 1
 
         if tracker:
-            tracker.record_tick(symbol=symbol, tick_date=row.get("date"), data=row, source_api="yfinance")
+            tracker.record_tick(
+                symbol=symbol,
+                tick_date=row.get("date"),
+                data=row,
+                source_api="yfinance",
+            )
         prior_close_by_symbol[symbol] = row.get("close")
         return True, 0, 0
 

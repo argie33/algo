@@ -20,7 +20,6 @@ from utils.db.connection import get_db_connection
 from utils.db.pooled_context_var import get_pooled_connection
 from utils.db.structured_logging import StructuredDBLogger
 
-
 logger = logging.getLogger(__name__)
 __all__ = ["DatabaseContext"]
 

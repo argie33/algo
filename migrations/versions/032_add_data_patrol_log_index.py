@@ -21,7 +21,6 @@ Related:
 
 import os
 
-
 DESCRIPTION = "Add index on data_patrol_log(created_at DESC) to fix COUNT(*) query timeouts"
 
 _INDEXES = [

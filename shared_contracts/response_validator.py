@@ -17,7 +17,6 @@ from typing import Any, cast
 
 from .dashboard_api_contract import DASHBOARD_ENDPOINTS, ResponseSchema
 
-
 logger = logging.getLogger(__name__)
 
 

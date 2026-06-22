@@ -18,7 +18,6 @@ so there are no valid rows to preserve.
 
 from utils.db.context import DatabaseContext
 
-
 DESCRIPTION = "Fix user_dashboard_settings: VARCHAR user_id, remove pgcrypto dependency"
 
 

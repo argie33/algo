@@ -12,7 +12,11 @@ def _minimal_good_data():
         "run": {"run_at": "2024-01-01", "success": True},
         "cfg": {"mode": "LIVE", "enabled": True},
         "mkt": {"spy_close": 500, "vix_level": 15},
-        "port": {"total_portfolio_value": 100000, "total_cash": 50000, "position_count": 5},
+        "port": {
+            "total_portfolio_value": 100000,
+            "total_cash": 50000,
+            "position_count": 5,
+        },
         "pos": {"items": []},
         "perf": {"n": 0, "w": 0, "l": 0, "streak": 0},
         "sig": {"items": []},
@@ -59,7 +63,17 @@ def test_dashboard_handles_all_api_errors():
     """FAIL if dashboard crashes when ANY critical API returns error."""
     from tools.dashboard.dashboard import render_dashboard
 
-    critical_fields = ["run", "cfg", "mkt", "port", "perf", "pos", "sig", "cb", "trades"]
+    critical_fields = [
+        "run",
+        "cfg",
+        "mkt",
+        "port",
+        "perf",
+        "pos",
+        "sig",
+        "cb",
+        "trades",
+    ]
 
     for field in critical_fields:
         broken_data = _minimal_good_data()

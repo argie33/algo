@@ -32,7 +32,6 @@ from algo.orchestrator.phase_result import PhaseResult
 from algo.reporting import AlertManager
 from utils.db.context import DatabaseContext
 
-
 logger = logging.getLogger(__name__)
 
 
@@ -175,7 +174,11 @@ def run(
                     "halt",
                     f"DataPatrol CRITICAL/ERROR: {issues_summary}",
                 )
-                from algo.orchestrator.phase_error_handling import ErrorCategory, PhaseError, log_phase_error
+                from algo.orchestrator.phase_error_handling import (
+                    ErrorCategory,
+                    PhaseError,
+                    log_phase_error,
+                )
 
                 error = PhaseError(
                     category=ErrorCategory.DATA_INVALID,
@@ -289,7 +292,11 @@ def run(
                 last_trading_day -= td(days=1)
 
             if max_date < last_trading_day:
-                from algo.orchestrator.phase_error_handling import ErrorCategory, PhaseError, log_phase_error
+                from algo.orchestrator.phase_error_handling import (
+                    ErrorCategory,
+                    PhaseError,
+                    log_phase_error,
+                )
 
                 days_stale = (last_trading_day - max_date).days
                 logger.critical(f"[PHASE 1] Price data stale: {max_date} vs expected {last_trading_day}")
@@ -334,7 +341,11 @@ def run(
             coverage_pct = (symbols_loaded / max(prior_count, 1)) * 100
 
             if symbols_loaded < min_symbol_count or coverage_pct < min_coverage_pct:
-                from algo.orchestrator.phase_error_handling import ErrorCategory, PhaseError, log_phase_error
+                from algo.orchestrator.phase_error_handling import (
+                    ErrorCategory,
+                    PhaseError,
+                    log_phase_error,
+                )
 
                 fail_reason = (
                     f"symbols {symbols_loaded} < min {min_symbol_count}"

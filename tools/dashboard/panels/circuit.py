@@ -2,7 +2,6 @@
 
 import logging
 
-
 logger = logging.getLogger(__name__)
 
 try:
@@ -199,10 +198,14 @@ def panel_circuit_expanded(cb):
             tbl.add_row(
                 Text(
                     lbl,
-                    style=f"bold {R}"
-                    if fired
-                    else (
-                        "white" if (cur is not None and thr is not None and float(cur) / float(thr) >= 0.75) else "dim"
+                    style=(
+                        f"bold {R}"
+                        if fired
+                        else (
+                            "white"
+                            if (cur is not None and thr is not None and float(cur) / float(thr) >= 0.75)
+                            else "dim"
+                        )
                     ),
                 ),
                 Text(cur_s, style=R if fired else "white"),

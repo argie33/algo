@@ -17,7 +17,6 @@ from typing import Any
 
 import boto3
 
-
 logger = logging.getLogger()
 logger.setLevel(logging.INFO)
 

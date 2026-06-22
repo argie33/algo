@@ -2,7 +2,6 @@
 
 import logging
 
-
 logger = logging.getLogger(__name__)
 
 try:
@@ -285,7 +284,10 @@ def panel_economic_expanded(eco, econ_cal=None):
         ycc = G if yc10_2 >= 0.5 else (Y if yc10_2 >= 0 else R)
         inv = "  ⚠ INVERTED" if yc10_2 < 0 else ""
         spreads_data.append(
-            ("10Y-2Y Spread", Text.from_markup(f"[{ycc}]{yc10_2:+.2f}%[/][{R if yc10_2 < 0 else 'dim'}]{inv}[/]"))
+            (
+                "10Y-2Y Spread",
+                Text.from_markup(f"[{ycc}]{yc10_2:+.2f}%[/][{R if yc10_2 < 0 else 'dim'}]{inv}[/]"),
+            )
         )
     if yc10_3m is not None:
         ycc2 = G if yc10_3m >= 0.5 else (Y if yc10_3m >= 0 else R)
@@ -346,13 +348,25 @@ def panel_economic_expanded(eco, econ_cal=None):
         mtbl.add_row("Chicago Fed (NFCI):", Text.from_markup(f"[{nc}]{nfci:+.3f}[/]"), nfci_ctx)
     if dxy is not None:
         dxy_c = R if dxy >= 110 else (Y if dxy >= 100 else G)
-        mtbl.add_row("USD Index (DXY):", Text.from_markup(f"[{dxy_c}]{dxy:.1f}[/]"), "broad trade-weighted")
+        mtbl.add_row(
+            "USD Index (DXY):",
+            Text.from_markup(f"[{dxy_c}]{dxy:.1f}[/]"),
+            "broad trade-weighted",
+        )
     if mortgage is not None:
         mg_c = R if mortgage >= 7.0 else (Y if mortgage >= 6.0 else G)
-        mtbl.add_row("30Y Mortgage Rate:", Text.from_markup(f"[{mg_c}]{mortgage:.2f}%[/]"), "weekly average")
+        mtbl.add_row(
+            "30Y Mortgage Rate:",
+            Text.from_markup(f"[{mg_c}]{mortgage:.2f}%[/]"),
+            "weekly average",
+        )
     if umcsent is not None:
         uc = G if umcsent >= 80 else (Y if umcsent >= 60 else R)
-        mtbl.add_row("UMich Consumer Sentiment:", Text.from_markup(f"[{uc}]{umcsent:.0f}[/]"), "survey index")
+        mtbl.add_row(
+            "UMich Consumer Sentiment:",
+            Text.from_markup(f"[{uc}]{umcsent:.0f}[/]"),
+            "survey index",
+        )
     rows.append(mtbl)
 
     # Inflation breakevens
@@ -365,10 +379,18 @@ def panel_economic_expanded(eco, econ_cal=None):
         btbl.add_column("context", style="dim")
         if be10 is not None:
             be_c = R if be10 >= 3.0 else (Y if be10 >= 2.5 else G)
-            btbl.add_row("10Y Breakeven:", Text.from_markup(f"[{be_c}]{be10:.2f}%[/]"), "market inflation expectation")
+            btbl.add_row(
+                "10Y Breakeven:",
+                Text.from_markup(f"[{be_c}]{be10:.2f}%[/]"),
+                "market inflation expectation",
+            )
         if be5 is not None:
             be5_c = R if be5 >= 3.0 else (Y if be5 >= 2.5 else G)
-            btbl.add_row("5Y Breakeven:", Text.from_markup(f"[{be5_c}]{be5:.2f}%[/]"), "5Y forward expectation")
+            btbl.add_row(
+                "5Y Breakeven:",
+                Text.from_markup(f"[{be5_c}]{be5:.2f}%[/]"),
+                "5Y forward expectation",
+            )
         rows.append(btbl)
 
     cal_rows = _build_calendar_rows(econ_cal)

@@ -11,7 +11,6 @@ Purpose: Prevents cascading IP bans by coordinating backoff across all tasks.
 
 from utils.db.context import DatabaseContext
 
-
 DESCRIPTION = "Add yfinance_ip_ban table for coordinating rate limiting across ECS tasks"
 
 

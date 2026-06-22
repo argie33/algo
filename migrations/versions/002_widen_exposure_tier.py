@@ -9,7 +9,6 @@ VARCHAR(50) so all tier values fit without truncation errors.
 
 from utils.db.context import DatabaseContext
 
-
 DESCRIPTION = "Widen market_exposure_daily.exposure_tier to VARCHAR(50)"
 
 

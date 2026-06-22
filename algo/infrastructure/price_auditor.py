@@ -9,7 +9,6 @@ import logging
 from datetime import datetime, timedelta, timezone
 from typing import Any
 
-
 logger = logging.getLogger(__name__)
 
 

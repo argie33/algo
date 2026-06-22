@@ -8,7 +8,6 @@ import psycopg2
 
 from utils.db import DatabaseContext
 
-
 logger = logging.getLogger(__name__)
 
 

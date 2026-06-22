@@ -18,7 +18,6 @@ from algo.reporting import notify
 from utils.db import DatabaseContext
 from utils.trading import PositionStatus
 
-
 logger = logging.getLogger(__name__)
 
 PORTFOLIO_SNAPSHOT_LOCK_ID = 2147483647
@@ -525,7 +524,14 @@ class DailyReconciliation:
                 "unrealized_pnl": float(unrealized_pnl),
             }
 
-        except (ValueError, RuntimeError, requests.RequestException, json.JSONDecodeError, KeyError, TypeError) as e:
+        except (
+            ValueError,
+            RuntimeError,
+            requests.RequestException,
+            json.JSONDecodeError,
+            KeyError,
+            TypeError,
+        ) as e:
             logger.error(f"Error in reconciliation: {e}", exc_info=True)
             return {"success": False, "error": str(e)}
 
@@ -672,7 +678,11 @@ class DailyReconciliation:
                 "updated": updated,
                 "message": f"Reconciled {updated} exit fills with actual Alpaca prices",
             }
-        except (requests.RequestException, json.JSONDecodeError, psycopg2.DatabaseError) as e:
+        except (
+            requests.RequestException,
+            json.JSONDecodeError,
+            psycopg2.DatabaseError,
+        ) as e:
             logger.warning(f"Exit fill reconciliation error: {e}")
             return {"updated": 0, "message": f"Error: {e}"}
 
@@ -896,7 +906,12 @@ class DailyReconciliation:
         """Compute analytics metrics (stub - returns empty result)."""
         return {
             "ic": {"valid": False, "ic": 0.0, "trade_count": 0},
-            "expectancy": {"valid": False, "expectancy": 0.0, "win_rate": 0.0, "kelly_fraction": 0.0},
+            "expectancy": {
+                "valid": False,
+                "expectancy": 0.0,
+                "win_rate": 0.0,
+                "kelly_fraction": 0.0,
+            },
         }
 
     def compute_closed_trade_metrics(self, cur):
@@ -995,7 +1010,12 @@ class DailyReconciliation:
                 "details": mismatches,
             }
 
-        except (ValueError, requests.RequestException, json.JSONDecodeError, psycopg2.DatabaseError) as e:
+        except (
+            ValueError,
+            requests.RequestException,
+            json.JSONDecodeError,
+            psycopg2.DatabaseError,
+        ) as e:
             logger.warning(f"Partial fill check error: {e}")
             return {"checked": 0, "mismatches": 0, "message": f"Error: {e}"}
 
@@ -1102,7 +1122,12 @@ class DailyReconciliation:
                 if val > 0:
                     logger.info(f"Using oldest database snapshot as initial capital: ${val:,.2f}")
                     return val
-        except (psycopg2.DatabaseError, psycopg2.OperationalError, ValueError, TypeError) as e:
+        except (
+            psycopg2.DatabaseError,
+            psycopg2.OperationalError,
+            ValueError,
+            TypeError,
+        ) as e:
             logger.warning(f"Could not query database for initial capital: {e}")
 
         raise ValueError("Cannot determine initial capital: Alpaca history unavailable and no database snapshots found")

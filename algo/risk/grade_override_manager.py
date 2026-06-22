@@ -13,7 +13,6 @@ from datetime import datetime, timezone
 
 from algo.infrastructure.config import get_config
 
-
 logger = logging.getLogger(__name__)
 
 _override_state_lock = threading.Lock()

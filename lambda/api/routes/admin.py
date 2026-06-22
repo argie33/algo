@@ -30,11 +30,9 @@ from routes.utils import (
 from utils.rate_limiting import ADMIN_RATE_LIMITS, check_admin_rate_limit
 from utils.validation import CognitoValidator
 
-
 # Add parent directory to sys.path to enable imports from lambda/api module
 sys.path.insert(0, str(Path(__file__).parent.parent))
 from api_types import JWTClaims, RouteBody, RouteParams
-
 
 logger = logging.getLogger(__name__)
 
@@ -91,7 +89,11 @@ def handle(
         if not jwt_claims:
             return error_response(401, "missing_jwt_claims", "JWT claims required for request attribution")
         if "sub" not in jwt_claims or not jwt_claims["sub"]:
-            return error_response(401, "missing_user_id", "JWT missing 'sub' (user ID) — cannot audit request")
+            return error_response(
+                401,
+                "missing_user_id",
+                "JWT missing 'sub' (user ID) — cannot audit request",
+            )
         user_id = jwt_claims["sub"]
 
         # Require admin role for all admin endpoints (bypass in dev mode)
@@ -342,7 +344,10 @@ def _get_database_stats(cur) -> dict[str, Any]:
 @db_route_handler("get data quality")
 def _get_data_quality(cur) -> dict[str, Any]:
     """Get data quality metrics."""
-    quality: dict[str, Any] = {"timestamp": datetime.now(timezone.utc).isoformat(), "checks": {}}
+    quality: dict[str, Any] = {
+        "timestamp": datetime.now(timezone.utc).isoformat(),
+        "checks": {},
+    }
     cur.execute("SET LOCAL statement_timeout = '10000ms'")
 
     cur.execute("""

@@ -36,16 +36,14 @@ Run:
 
 import logging
 import sys
+from datetime import date
 
 import requests
 
-
-logger = logging.getLogger(__name__)
-from datetime import date
-from typing import Optional
-
 from loaders.runner import run_loader
 from utils.optimal_loader import OptimalLoader
+
+logger = logging.getLogger(__name__)
 
 
 class AnalystSentimentLoader(OptimalLoader):
@@ -135,13 +133,10 @@ class AnalystSentimentLoader(OptimalLoader):
             raise RuntimeError(
                 f"[ANALYST_SENTIMENT] Failed to fetch sentiment for {symbol}: {e}. "
                 "Cannot generate signals without sentiment data."
-            )
+            ) from e
 
     def transform(self, rows):
         return rows
-
-    def _validate_row(self, row: dict) -> bool:
-        return super()._validate_row(row)
 
 
 if __name__ == "__main__":

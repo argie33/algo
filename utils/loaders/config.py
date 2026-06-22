@@ -17,7 +17,6 @@ import threading
 import time
 from typing import Any, cast
 
-
 logger = logging.getLogger(__name__)
 
 
@@ -47,8 +46,14 @@ class LoaderConfigManager:
         "signal_quality_scores": (1, 3),  # Critical path
         "swing_trader_scores": (1, 3),  # Critical path
         # yfinance-dependent metrics: MUST stay low (shared IP across 6 tasks)
-        "positioning_metrics": (1, 1),  # CRITICAL FIX: Was unlimited, now 1 (pure yfinance, single-threaded)
-        "value_metrics": (1, 2),  # CRITICAL FIX: Was 1-8, now 1-2 (yfinance-heavy, rate limit prone)
+        "positioning_metrics": (
+            1,
+            1,
+        ),  # CRITICAL FIX: Was unlimited, now 1 (pure yfinance, single-threaded)
+        "value_metrics": (
+            1,
+            2,
+        ),  # CRITICAL FIX: Was 1-8, now 1-2 (yfinance-heavy, rate limit prone)
         "company_profile": (1, 2),
         "analyst_sentiment": (1, 3),
         "stability_metrics": (1, 3),

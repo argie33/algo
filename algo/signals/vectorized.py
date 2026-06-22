@@ -22,7 +22,6 @@ import numpy as np
 
 from utils.db import DatabaseContext
 
-
 logger = logging.getLogger(__name__)
 
 

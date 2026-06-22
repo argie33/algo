@@ -9,7 +9,6 @@ import requests
 from algo.infrastructure.alpaca_sync_manager import AlpacaSyncManager
 from algo.infrastructure.broker_adapter import BrokerAdapter
 
-
 logger = logging.getLogger(__name__)
 
 
@@ -70,11 +69,17 @@ class AlpacaBrokerAdapter(BrokerAdapter):
                 return {
                     "cash": float(cash_val) if cash_val is not None else None,
                     "equity": float(equity_val) if equity_val is not None else None,
-                    "portfolio_value": float(portfolio_value_val) if portfolio_value_val is not None else None,
-                    "buying_power": float(buying_power_val) if buying_power_val is not None else None,
+                    "portfolio_value": (float(portfolio_value_val) if portfolio_value_val is not None else None),
+                    "buying_power": (float(buying_power_val) if buying_power_val is not None else None),
                 }
             raise ValueError(f"Alpaca /v2/account returned HTTP {resp.status_code}: {resp.text[:100]}")
-        except (requests.RequestException, requests.Timeout, ValueError, KeyError, AttributeError) as e:
+        except (
+            requests.RequestException,
+            requests.Timeout,
+            ValueError,
+            KeyError,
+            AttributeError,
+        ) as e:
             raise ValueError(f"Could not fetch Alpaca account: {e}") from e
 
     def sync_positions(self, cur: Any) -> dict[str, Any]:
@@ -114,7 +119,13 @@ class AlpacaBrokerAdapter(BrokerAdapter):
                         return [float(val) for val in equity_list]
             logger.debug(f"Alpaca portfolio history unavailable (HTTP {resp.status_code})")
             return []
-        except (requests.RequestException, requests.Timeout, ValueError, KeyError, TypeError) as e:
+        except (
+            requests.RequestException,
+            requests.Timeout,
+            ValueError,
+            KeyError,
+            TypeError,
+        ) as e:
             logger.debug(f"Could not fetch Alpaca portfolio history: {e}")
             return []
 

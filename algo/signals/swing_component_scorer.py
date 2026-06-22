@@ -15,7 +15,6 @@ import psycopg2
 
 from utils.db import DatabaseContext
 
-
 logger = logging.getLogger(__name__)
 
 
@@ -350,8 +349,14 @@ class SwingComponentScorer:
             weekly_above = bool(row[2])
             monthly_above = bool(row[3])
 
-            weekly_buy = weekly_signal and weekly_signal.lower() in ("buy", "strong_buy")
-            monthly_up = monthly_signal and monthly_signal.lower() in ("buy", "strong_buy")
+            weekly_buy = weekly_signal and weekly_signal.lower() in (
+                "buy",
+                "strong_buy",
+            )
+            monthly_up = monthly_signal and monthly_signal.lower() in (
+                "buy",
+                "strong_buy",
+            )
 
             pts = 0.0
             if weekly_buy:

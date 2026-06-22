@@ -14,7 +14,6 @@ from typing import Any
 
 import psycopg2
 
-
 # Inlined from algo.infrastructure.constants — avoids importing the algo package
 # at module load time, which is not available in the API Lambda runtime.
 DB_MAX_CONNECTIONS = 100  # db.t4g.small safety threshold

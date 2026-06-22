@@ -17,7 +17,6 @@ from typing import Any
 
 import psycopg2
 
-
 logger = logging.getLogger(__name__)
 
 

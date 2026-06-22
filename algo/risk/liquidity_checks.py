@@ -13,7 +13,6 @@ import psycopg2
 from algo.infrastructure.config import AlgoConfig
 from utils.db import DatabaseContext
 
-
 logger = logging.getLogger(__name__)
 
 
@@ -98,7 +97,10 @@ class LiquidityChecks:
 
         except (ValueError, ZeroDivisionError, TypeError) as e:
             logger.error(f"ADV check failed for {symbol}: {e} — blocking as safety measure")
-            return False, f"ADV check unavailable ({type(e).__name__}) — blocking as safety measure"
+            return (
+                False,
+                f"ADV check unavailable ({type(e).__name__}) — blocking as safety measure",
+            )
 
     def _check_dollar_volume(self, symbol: str, signal_date) -> tuple:
         """
@@ -142,7 +144,10 @@ class LiquidityChecks:
 
         except (ValueError, ZeroDivisionError, TypeError) as e:
             logger.error(f"Dollar volume check failed for {symbol}: {e} — blocking as safety measure")
-            return False, f"Dollar volume check unavailable ({type(e).__name__}) — blocking as safety measure"
+            return (
+                False,
+                f"Dollar volume check unavailable ({type(e).__name__}) — blocking as safety measure",
+            )
 
     def _check_price_history_age(self, symbol: str, signal_date) -> tuple:
         """
@@ -192,4 +197,7 @@ class LiquidityChecks:
 
         except (ValueError, ZeroDivisionError, TypeError) as e:
             logger.error(f"Price history age check failed for {symbol}: {e} — blocking as safety measure")
-            return False, f"Price history age check unavailable ({type(e).__name__}) — blocking as safety measure"
+            return (
+                False,
+                f"Price history age check unavailable ({type(e).__name__}) — blocking as safety measure",
+            )

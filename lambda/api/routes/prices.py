@@ -23,7 +23,6 @@ from routes.utils import (
 from shared_contracts.response_validator import ResponseValidator
 from utils.validation import DatabaseResultValidator
 
-
 logger = logging.getLogger(__name__)
 
 _TABLE_MAP = {
@@ -204,7 +203,10 @@ def handle(
                     WHERE {}
                     ORDER BY date DESC
                     LIMIT %s
-                """).format(psycopg2.sql.Identifier(etf_table_name), psycopg2.sql.SQL(where_clause))
+                """).format(
+                    psycopg2.sql.Identifier(etf_table_name),
+                    psycopg2.sql.SQL(where_clause),
+                )
                 rows = execute_with_timeout(cur, etf_query, [*qparams, limit], timeout_sec=10)
                 used_table = etf_table_name
             freshness = check_data_freshness(cur, used_table, "date", warning_days=1)

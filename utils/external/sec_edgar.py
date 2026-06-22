@@ -7,5 +7,4 @@ Backward-compatibility wrapper that re-exports from sec_edgar_client and sec_sta
 from utils.external import sec_statements
 from utils.external.sec_edgar_client import RateLimiter, SecEdgarClient
 
-
 __all__ = ["RateLimiter", "SecEdgarClient", "sec_statements"]

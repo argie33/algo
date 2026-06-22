@@ -27,7 +27,6 @@ from routes.utils import (
 
 from utils.validation import CognitoValidator
 
-
 logger = logging.getLogger(__name__)
 
 

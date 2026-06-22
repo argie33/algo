@@ -19,7 +19,6 @@ from .main import (
     validate_environment,
 )
 
-
 __all__ = [
     "AlgoConfig",
     "DatabaseContext",

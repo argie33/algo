@@ -11,7 +11,6 @@ from utils.db import assert_safe_column, assert_safe_table, safe_select_count
 from ..base import BaseCheck, CheckResult
 from ..config import CRIT, ERROR, INFO, WARN
 
-
 logger = logging.getLogger(__name__)
 
 
@@ -32,7 +31,13 @@ class StalenessChecker(BaseCheck):
                 "patrol_staleness_technical_daily",
                 CRIT,
             ),
-            ("buy_sell_daily", "date", "daily", "patrol_staleness_buy_sell_daily", CRIT),
+            (
+                "buy_sell_daily",
+                "date",
+                "daily",
+                "patrol_staleness_buy_sell_daily",
+                CRIT,
+            ),
             (
                 "trend_template_data",
                 "date",
@@ -113,7 +118,11 @@ class StalenessChecker(BaseCheck):
         ]
 
         today = _date.today()
-        critical_signal_tables = {"buy_sell_daily", "signal_quality_scores", "trend_template_data"}
+        critical_signal_tables = {
+            "buy_sell_daily",
+            "signal_quality_scores",
+            "trend_template_data",
+        }
         stale_critical_signals = []
 
         for tbl, col, freq, config_key, sev_on_stale in sources:

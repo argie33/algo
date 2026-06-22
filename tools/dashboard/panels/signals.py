@@ -2,7 +2,6 @@
 
 import logging
 
-
 logger = logging.getLogger(__name__)
 
 try:
@@ -119,7 +118,7 @@ def _build_signal_header(sig_data: dict, scores_data: dict | None) -> tuple[list
     trend = safe_get_list(trend_field) if trend_field else []
     if trend and len(trend) >= 2:
         counts = [
-            int(safe_get_field(t, "buy_n")) if safe_get_field(t, "buy_n") is not None else 0 for t in reversed(trend)
+            (int(safe_get_field(t, "buy_n")) if safe_get_field(t, "buy_n") is not None else 0) for t in reversed(trend)
         ]
         max_b = max(counts) if counts else 1
         spark = "".join(SPARKLINE_CHARS[min(7, int(v / max(max_b, 1) * 7.9))] for v in counts)
@@ -386,7 +385,10 @@ def _build_scores_table(top_scores: list) -> list:
             _score_cell(qual),
             _score_cell(grwth),
             _score_cell(stab),
-            Text(f"{rs_v:.0f}" if rs_v is not None else "--", style=G if (rs_v or 0) >= 70 else DIM),
+            Text(
+                f"{rs_v:.0f}" if rs_v is not None else "--",
+                style=G if (rs_v or 0) >= 70 else DIM,
+            ),
             Text(f"{chg_v:+.1f}%" if chg_v is not None else "--", style=chg_c),
             Text(sector, style=DIM),
         )
@@ -410,7 +412,12 @@ def panel_signals_compact(sig, sig_eval=None, scores=None):
 
     overview = extract_signal_overview(sig)
     if has_error(overview):
-        return _error_panel("signals", {"_error": "Signal overview extraction failed"}, "SIGNALS", border="magenta")
+        return _error_panel(
+            "signals",
+            {"_error": "Signal overview extraction failed"},
+            "SIGNALS",
+            border="magenta",
+        )
 
     top_scores = None
     if scores and isinstance(scores, dict) and not has_error(scores):
@@ -482,7 +489,12 @@ def panel_signals_expanded(sig, sig_eval=None, scores=None):
 
     overview = extract_signal_overview(sig)
     if has_error(overview):
-        return _error_panel("signals", {"_error": "Signal overview extraction failed"}, "SIGNALS", border="magenta")
+        return _error_panel(
+            "signals",
+            {"_error": "Signal overview extraction failed"},
+            "SIGNALS",
+            border="magenta",
+        )
 
     raw = safe_get_field(overview, "n")
     total = safe_get_field(overview, "total")
@@ -613,11 +625,20 @@ def panel_signals_expanded(sig, sig_eval=None, scores=None):
                 _score_cell(grwth),
                 _score_cell(stab),
                 _score_cell(pos),
-                Text(f"{rs_v:.0f}" if rs_v is not None else "--", style=G if (rs_v or 0) >= 70 else DIM),
+                Text(
+                    f"{rs_v:.0f}" if rs_v is not None else "--",
+                    style=G if (rs_v or 0) >= 70 else DIM,
+                ),
                 Text(f"${float(price):.2f}" if price else "--", style=DIM),
                 Text(f"{chg_v:+.1f}%" if chg_v is not None else "--", style=chg_c),
-                Text(f"{vs50_v:+.1f}%" if vs50_v is not None else "--", style=G if (vs50_v or 0) > 0 else R),
-                Text(f"{vs200_v:+.1f}%" if vs200_v is not None else "--", style=G if (vs200_v or 0) > 0 else R),
+                Text(
+                    f"{vs50_v:+.1f}%" if vs50_v is not None else "--",
+                    style=G if (vs50_v or 0) > 0 else R,
+                ),
+                Text(
+                    f"{vs200_v:+.1f}%" if vs200_v is not None else "--",
+                    style=G if (vs200_v or 0) > 0 else R,
+                ),
                 Text(sector, style=DIM),
             )
         rows.append(sig_tbl)

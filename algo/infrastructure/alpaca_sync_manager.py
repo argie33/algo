@@ -11,7 +11,6 @@ from typing import Any
 from config.api_endpoints import get_alpaca_base_url
 from config.credential_manager import get_credential_manager
 
-
 logger = logging.getLogger(__name__)
 
 

@@ -29,7 +29,6 @@ from utils.infrastructure import (
     ORCHESTRATOR_RUN_TIMES_TUPLE,
 )
 
-
 logger = logging.getLogger(__name__)
 
 
@@ -127,7 +126,10 @@ class DatabaseHealthMonitor:
                                 logger.info(f"    [{age}d old] {desc:20s}: {latest_date}")
                             else:
                                 logger.info(f"    [EMPTY] {desc:20s}: no data")
-                        except (psycopg2.DatabaseError, psycopg2.OperationalError) as t_err:
+                        except (
+                            psycopg2.DatabaseError,
+                            psycopg2.OperationalError,
+                        ) as t_err:
                             logger.warning(f"    [ERROR] {desc:20s}: {t_err}")
                 except (psycopg2.DatabaseError, psycopg2.OperationalError) as e:
                     logger.warning(f"  Could not fetch table freshness: {e}")
@@ -142,7 +144,10 @@ class DatabaseHealthMonitor:
                     logger.info("  Loader Status:")
                     for row in cur.fetchall():
                         logger.info(f"    {row[0]:25s}: {row[1]:10s} (updated {row[2]})")
-                except (psycopg2.DatabaseError, psycopg2.OperationalError) as loader_err:
+                except (
+                    psycopg2.DatabaseError,
+                    psycopg2.OperationalError,
+                ) as loader_err:
                     logger.debug(f"    Could not check loader status: {loader_err}")
 
         except (psycopg2.DatabaseError, psycopg2.OperationalError) as e:
@@ -205,7 +210,13 @@ class DatabaseHealthMonitor:
                     time.sleep(retry_delay_sec)
                     retry_delay_sec *= 1.5
 
-            except (ValueError, KeyError, AttributeError, psycopg2.DatabaseError, psycopg2.OperationalError) as e:
+            except (
+                ValueError,
+                KeyError,
+                AttributeError,
+                psycopg2.DatabaseError,
+                psycopg2.OperationalError,
+            ) as e:
                 logger.error(f"[TASK_TERMINATION] Attempt {attempt}: Failed to verify task status: {e}")
                 if attempt < max_retries:
                     time.sleep(retry_delay_sec)
@@ -375,7 +386,13 @@ class DatabaseHealthMonitor:
                 except (ValueError, ZeroDivisionError, TypeError) as alert_err:
                     logger.error(f"[TASK_TERMINATION] Could not send escalation alert: {alert_err}")
 
-        except (ValueError, KeyError, AttributeError, psycopg2.DatabaseError, psycopg2.OperationalError) as e:
+        except (
+            ValueError,
+            KeyError,
+            AttributeError,
+            psycopg2.DatabaseError,
+            psycopg2.OperationalError,
+        ) as e:
             logger.warning(f"[OOM_PREVENTION] Could not check/kill long-running loaders: {e}")
 
     def validate_required_tables(self, cur: Any) -> bool:

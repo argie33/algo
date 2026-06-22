@@ -13,7 +13,6 @@ from typing import Any, cast
 from utils.db.context import DatabaseContext
 from utils.validation.freshness_config import get_freshness_rule
 
-
 logger = logging.getLogger(__name__)
 
 

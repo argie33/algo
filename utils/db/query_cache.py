@@ -51,7 +51,6 @@ from dataclasses import dataclass
 from enum import Enum
 from typing import Any, Generic, TypeVar
 
-
 logger = logging.getLogger(__name__)
 
 T = TypeVar("T")

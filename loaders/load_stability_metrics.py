@@ -16,7 +16,6 @@ import psycopg2
 
 from loaders.loader_helper import setup_imports
 
-
 setup_imports()
 
 import logging
@@ -27,7 +26,6 @@ from typing import Optional
 from loaders.runner import run_loader
 from utils.db.context import DatabaseContext
 from utils.optimal_loader import OptimalLoader
-
 
 logger = logging.getLogger(__name__)
 

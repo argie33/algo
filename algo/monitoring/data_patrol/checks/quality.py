@@ -9,7 +9,6 @@ import psycopg2
 from ..base import BaseCheck, CheckResult
 from ..config import CRIT, ERROR, INFO, WARN
 
-
 logger = logging.getLogger(__name__)
 
 

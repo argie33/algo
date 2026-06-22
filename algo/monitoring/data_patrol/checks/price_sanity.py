@@ -8,7 +8,6 @@ import psycopg2
 from ..base import BaseCheck, CheckResult
 from ..config import ERROR, INFO, WARN
 
-
 logger = logging.getLogger(__name__)
 
 
@@ -89,8 +88,7 @@ class PriceSanityChecker(BaseCheck):
             lookback_days = corp_cfg["lookback_days"]
             drop_ratio = corp_cfg["drop_ratio"]
 
-            cur.execute(
-                f"""
+            cur.execute(f"""
                 WITH d AS (
                     SELECT pd.symbol, pd.date, pd.close,
                            LAG(pd.close) OVER (PARTITION BY pd.symbol ORDER BY pd.date) AS prev,
@@ -106,8 +104,7 @@ class PriceSanityChecker(BaseCheck):
                   AND (close - prev) / NULLIF(prev, 0) < {drop_ratio}
                 ORDER BY pct_change ASC
                 LIMIT 50
-            """
-            )
+            """)
             extreme_drops = cur.fetchall()
 
             if extreme_drops:

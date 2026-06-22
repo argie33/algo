@@ -5,7 +5,6 @@ import os
 from datetime import datetime, timezone
 from typing import Any
 
-
 logger = logging.getLogger(__name__)
 
 NAMESPACE = "AlgoTrading"
@@ -150,7 +149,11 @@ class MetricsPublisher:
         )
 
     def add_metric(
-        self, metric_name: str, value: float, unit: str = "Count", dimensions: dict[str, str] | None = None
+        self,
+        metric_name: str,
+        value: float,
+        unit: str = "Count",
+        dimensions: dict[str, str] | None = None,
     ) -> None:
         """Emit a single metric immediately (no batching)."""
         self._emit(metric_name, value, unit, dimensions)

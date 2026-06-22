@@ -30,7 +30,6 @@ from .checks import (
 from .config import CRIT, ERROR, INFO, WARN, PatrolConfig
 from .logger import PatrolLogger
 
-
 logger = logging.getLogger(__name__)
 
 
@@ -69,7 +68,12 @@ class DataPatrol:
             # Log configuration snapshot
             try:
                 self.logger.log_configuration(cur, self.config.as_dict())
-            except (RuntimeError, psycopg2.DatabaseError, psycopg2.OperationalError, DataLoadError) as e:
+            except (
+                RuntimeError,
+                psycopg2.DatabaseError,
+                psycopg2.OperationalError,
+                DataLoadError,
+            ) as e:
                 logger.error(f"Failed to log configuration: {e}")
 
             # Run checks
@@ -78,7 +82,12 @@ class DataPatrol:
             # Log all results
             try:
                 self.logger.log_results(cur, self.results)
-            except (RuntimeError, psycopg2.DatabaseError, psycopg2.OperationalError, DataLoadError) as e:
+            except (
+                RuntimeError,
+                psycopg2.DatabaseError,
+                psycopg2.OperationalError,
+                DataLoadError,
+            ) as e:
                 logger.error(f"Failed to log results: {e}")
 
             elapsed = time.time() - start_time
@@ -181,7 +190,11 @@ if __name__ == "__main__":
         with ExecutionTimeout(max_seconds=600, label="data_patrol"):
             parser = argparse.ArgumentParser(description="Data integrity patrol")
             parser.add_argument("--quick", action="store_true", help="Critical checks only")
-            parser.add_argument("--validate-alpaca", action="store_true", help="Cross-validate vs Alpaca")
+            parser.add_argument(
+                "--validate-alpaca",
+                action="store_true",
+                help="Cross-validate vs Alpaca",
+            )
             parser.add_argument("--json", action="store_true", help="JSON output")
             args = parser.parse_args()
 

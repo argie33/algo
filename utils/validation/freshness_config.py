@@ -20,7 +20,6 @@ import logging
 from datetime import date, datetime, timezone
 from typing import Any, cast
 
-
 logger = logging.getLogger(__name__)
 ET_ZONE = "America/New_York"
 

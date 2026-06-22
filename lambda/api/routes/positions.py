@@ -18,7 +18,6 @@ from routes.utils import (
 from shared_contracts.response_validator import ResponseValidator
 from utils.validation import CognitoValidator
 
-
 logger = logging.getLogger(__name__)
 
 

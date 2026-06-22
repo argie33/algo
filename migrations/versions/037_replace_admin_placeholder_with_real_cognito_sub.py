@@ -17,7 +17,6 @@ import os
 
 from utils.db.context import DatabaseContext
 
-
 DESCRIPTION = "Replace admin-user placeholder with real Cognito sub"
 
 

@@ -9,7 +9,6 @@ from typing import Any, cast
 from rich.panel import Panel
 from rich.text import Text
 
-
 # Color constants for dashboard rendering
 G = "bright_green"
 R = "bright_red"

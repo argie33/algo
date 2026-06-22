@@ -22,7 +22,6 @@ from routes.utils import (
 from shared_contracts.response_validator import ResponseValidator
 from utils.validation import DatabaseResultValidator
 
-
 logger = logging.getLogger(__name__)
 
 

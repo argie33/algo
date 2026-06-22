@@ -37,7 +37,6 @@ import psycopg2
 
 from utils.db.context import DatabaseContext
 
-
 logger = logging.getLogger(__name__)
 
 
@@ -388,7 +387,7 @@ def run_backtest(
         "max_drawdown_pct": round(max_dd_pct, 4),
         "sharpe_ratio": sharpe,
         "win_rate_pct": round(win_rate_pct, 4),
-        "profit_factor": round(profit_factor, 4) if profit_factor != float("inf") else 9999.0,
+        "profit_factor": (round(profit_factor, 4) if profit_factor != float("inf") else 9999.0),
         "total_trades": total_trades,
         "winning_trades": win_count,
         "losing_trades": loss_count,
@@ -534,15 +533,30 @@ def main():
     )
 
     parser = argparse.ArgumentParser(description="Run composite score + buy/sell signal backtest")
-    parser.add_argument("--start-date", type=str, default=None, help="Start date YYYY-MM-DD (default: 2 years ago)")
-    parser.add_argument("--end-date", type=str, default=None, help="End date YYYY-MM-DD (default: today)")
+    parser.add_argument(
+        "--start-date",
+        type=str,
+        default=None,
+        help="Start date YYYY-MM-DD (default: 2 years ago)",
+    )
+    parser.add_argument(
+        "--end-date",
+        type=str,
+        default=None,
+        help="End date YYYY-MM-DD (default: today)",
+    )
     parser.add_argument("--initial-capital", type=float, default=100_000.0, help="Starting capital")
     parser.add_argument("--max-positions", type=int, default=10, help="Max concurrent positions")
     parser.add_argument("--min-composite", type=float, default=50.0, help="Min composite_score (0-100)")
     parser.add_argument("--profit-target", type=float, default=20.0, help="Profit target %%")
     parser.add_argument("--stop-loss", type=float, default=8.0, help="Stop loss %%")
     parser.add_argument("--max-hold-days", type=int, default=60, help="Max holding period in days")
-    parser.add_argument("--position-size", type=float, default=10.0, help="Position size as %% of portfolio")
+    parser.add_argument(
+        "--position-size",
+        type=float,
+        default=10.0,
+        help="Position size as %% of portfolio",
+    )
     parser.add_argument("--strategy", type=str, default="composite_score_signals", help="Strategy name")
     parser.add_argument("--dry-run", action="store_true", help="Print results without saving to DB")
     args = parser.parse_args()

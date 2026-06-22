@@ -28,7 +28,6 @@ from utils.validation import format_decimal_string
 
 from .signals import _TIER_CONFIG
 
-
 logger = logging.getLogger(__name__)
 
 
@@ -154,7 +153,11 @@ def _get_data_status(cur) -> dict[str, Any]:
         # Tables intentionally removed from the EOD pipeline — orchestrator Phase 5
         # computes these signals on-the-fly. Excluding them prevents permanent false-stale
         # alerts on the health panel (they will never be refreshed again by a loader).
-        pipeline_removed_tables = {"technical_data_daily", "buy_sell_daily", "signal_quality_scores"}
+        pipeline_removed_tables = {
+            "technical_data_daily",
+            "buy_sell_daily",
+            "signal_quality_scores",
+        }
 
         cur.execute("""
                 SELECT table_name, row_count, last_updated
@@ -175,7 +178,10 @@ def _get_data_status(cur) -> dict[str, Any]:
                 "algo_performance_daily",
                 "SELECT COUNT(*) AS row_count, MAX(report_date) AS last_updated FROM algo_performance_daily",
             ),
-            ("algo_risk_daily", "SELECT COUNT(*) AS row_count, MAX(report_date) AS last_updated FROM algo_risk_daily"),
+            (
+                "algo_risk_daily",
+                "SELECT COUNT(*) AS row_count, MAX(report_date) AS last_updated FROM algo_risk_daily",
+            ),
         ]:
             if tbl_name in loader_names:
                 continue
@@ -184,7 +190,11 @@ def _get_data_status(cur) -> dict[str, Any]:
                 r = cur.fetchone()
                 if r:
                     algo_rows.append(
-                        {"table_name": tbl_name, "row_count": r["row_count"], "last_updated": r["last_updated"]}
+                        {
+                            "table_name": tbl_name,
+                            "row_count": r["row_count"],
+                            "last_updated": r["last_updated"],
+                        }
                     )
             except (psycopg2.DatabaseError, psycopg2.OperationalError) as e:
                 raise RuntimeError(f"Unexpected error: {e}") from e
@@ -650,11 +660,17 @@ def _get_markets(cur) -> dict[str, Any]:
                         pass
             else:
                 return error_response(
-                    503, "data_unavailable", "Market health data not available (market_health_daily empty)"
+                    503,
+                    "data_unavailable",
+                    "Market health data not available (market_health_daily empty)",
                 )
         except (psycopg2.DatabaseError, psycopg2.OperationalError) as mhe:
             logger.error(f"CRITICAL: Failed to fetch market_health_daily: {mhe}")
-            return error_response(503, "data_unavailable", f"Market health unavailable: {type(mhe).__name__}")
+            return error_response(
+                503,
+                "data_unavailable",
+                f"Market health unavailable: {type(mhe).__name__}",
+            )
 
         # Fetch latest SPY close for dashboard header (critical for position sizing)
         spy_close = None
@@ -670,7 +686,11 @@ def _get_markets(cur) -> dict[str, Any]:
             spy_close = float(spy_row["close"])
         except (psycopg2.DatabaseError, psycopg2.OperationalError) as spy_e:
             logger.error(f"CRITICAL: Failed to fetch SPY price: {spy_e}")
-            return error_response(503, "data_unavailable", f"SPY price unavailable: {type(spy_e).__name__}")
+            return error_response(
+                503,
+                "data_unavailable",
+                f"SPY price unavailable: {type(spy_e).__name__}",
+            )
 
         current_date = row.get("date")
 
@@ -740,10 +760,26 @@ def _get_trend_criteria(cur) -> dict[str, Any]:
 
     total_symbols = int(row["total_symbols"])
     criteria = [
-        {"name": "Price Above 50-Day MA", "passing": int(row["above_sma50"]), "total": total_symbols},
-        {"name": "50-Day Above 200-Day MA", "passing": int(row["sma50_above_sma200"]), "total": total_symbols},
-        {"name": "Price Above 200-Day MA", "passing": int(row["above_sma200"]), "total": total_symbols},
-        {"name": "Stage 2 Uptrend (Weinstein)", "passing": int(row["stage2"]), "total": total_symbols},
+        {
+            "name": "Price Above 50-Day MA",
+            "passing": int(row["above_sma50"]),
+            "total": total_symbols,
+        },
+        {
+            "name": "50-Day Above 200-Day MA",
+            "passing": int(row["sma50_above_sma200"]),
+            "total": total_symbols,
+        },
+        {
+            "name": "Price Above 200-Day MA",
+            "passing": int(row["above_sma200"]),
+            "total": total_symbols,
+        },
+        {
+            "name": "Stage 2 Uptrend (Weinstein)",
+            "passing": int(row["stage2"]),
+            "total": total_symbols,
+        },
     ]
 
     return list_response(criteria, total=total_symbols, limit=None, offset=None)

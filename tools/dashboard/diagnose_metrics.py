@@ -9,7 +9,6 @@ import logging
 from tools.dashboard.api_data_layer import api_call
 from tools.dashboard.error_boundary import has_error
 
-
 logging.basicConfig(level=logging.DEBUG)
 
 print("\n" + "=" * 80)

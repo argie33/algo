@@ -15,7 +15,6 @@ from algo.trading.exceptions import DataUnavailableError
 from utils.db import DatabaseContext, OptimisticLockRetry
 from utils.trading import PositionStatus
 
-
 logger = logging.getLogger(__name__)
 
 

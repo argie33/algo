@@ -15,7 +15,6 @@ from contextlib import contextmanager
 import psycopg2
 import requests
 
-
 logger = logging.getLogger(__name__)
 
 

@@ -67,7 +67,6 @@ from .trades import (
     panel_trades_expanded,
 )
 
-
 __all__ = [
     "_best_halt_reason",
     "_build_buy_sig_map",

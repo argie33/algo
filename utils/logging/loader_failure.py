@@ -16,7 +16,6 @@ import psycopg2
 
 from utils.db import DatabaseContext
 
-
 logger = logging.getLogger(__name__)
 
 
@@ -156,7 +155,9 @@ def calculate_failure_trends(loader_name: str) -> dict | None:
         raise RuntimeError(f"Operation failed: {e}") from e
 
 
-def check_chronic_failures(threshold_pct: float = 50.0) -> tuple[list[dict[str, Any]], dict[str, Any]]:
+def check_chronic_failures(
+    threshold_pct: float = 50.0,
+) -> tuple[list[dict[str, Any]], dict[str, Any]]:
     """Check all loaders for chronic failures (failure_rate_7day > threshold).
 
     Args:

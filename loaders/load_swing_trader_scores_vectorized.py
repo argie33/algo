@@ -30,7 +30,6 @@ from utils.db.context import DatabaseContext
 from utils.infrastructure.timezone import EASTERN_TZ
 from utils.loaders.helpers import get_active_symbols
 
-
 logger = logging.getLogger(__name__)
 
 

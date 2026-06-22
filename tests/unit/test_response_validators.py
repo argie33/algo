@@ -315,7 +315,9 @@ class TestNewEndpointValidators:
 
     def test_dashboard_signals_valid(self):
         """Valid dashboard signals response passes."""
-        from tools.dashboard.response_validators import validate_dashboard_signals_response
+        from tools.dashboard.response_validators import (
+            validate_dashboard_signals_response,
+        )
 
         data = {
             "items": [
@@ -328,7 +330,9 @@ class TestNewEndpointValidators:
 
     def test_dashboard_signals_no_items(self):
         """Signals response without items key is valid (no signals yet)."""
-        from tools.dashboard.response_validators import validate_dashboard_signals_response
+        from tools.dashboard.response_validators import (
+            validate_dashboard_signals_response,
+        )
 
         data = {"n": 0, "total": 100}
         result = validate_dashboard_signals_response(data)
@@ -336,7 +340,9 @@ class TestNewEndpointValidators:
 
     def test_circuit_breakers_valid(self):
         """Valid circuit breakers response passes."""
-        from tools.dashboard.response_validators import validate_circuit_breakers_response
+        from tools.dashboard.response_validators import (
+            validate_circuit_breakers_response,
+        )
 
         data = {
             "breakers": [
@@ -350,7 +356,9 @@ class TestNewEndpointValidators:
 
     def test_circuit_breakers_invalid_type(self):
         """Circuit breakers with non-list breakers raises error."""
-        from tools.dashboard.response_validators import validate_circuit_breakers_response
+        from tools.dashboard.response_validators import (
+            validate_circuit_breakers_response,
+        )
 
         data = {"breakers": "not_a_list"}
         with pytest.raises(ResponseValidationError) as exc_info:
@@ -359,7 +367,9 @@ class TestNewEndpointValidators:
 
     def test_sector_rotation_valid(self):
         """Valid sector rotation response passes."""
-        from tools.dashboard.response_validators import validate_sector_rotation_response
+        from tools.dashboard.response_validators import (
+            validate_sector_rotation_response,
+        )
 
         data = {
             "items": [

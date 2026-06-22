@@ -7,7 +7,6 @@ from utils.safe_data_conversion import safe_bool
 
 from .api_data_layer import api_call
 
-
 logger = logging.getLogger(__name__)
 
 

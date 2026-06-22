@@ -28,7 +28,6 @@ from config.credential_manager import get_credential_manager
 from utils.db import DatabaseContext
 from utils.infrastructure import EASTERN_TZ
 
-
 logger = logging.getLogger(__name__)
 
 
@@ -111,7 +110,11 @@ class MarketEventHandler:
                     if resp.status_code != 200:
                         raise RuntimeError(f"Quotes API error: status {resp.status_code}")
                     return resp.json().get("quote").get("ap")
-                except (requests.RequestException, json.JSONDecodeError, RuntimeError) as e:
+                except (
+                    requests.RequestException,
+                    json.JSONDecodeError,
+                    RuntimeError,
+                ) as e:
                     raise RuntimeError(f"Operation failed: {e}") from e
 
             def fetch_bars():
@@ -121,7 +124,11 @@ class MarketEventHandler:
                     if resp.status_code != 200:
                         raise RuntimeError(f"Bars API error: status {resp.status_code}")
                     return resp.json().get("bar").get("o")
-                except (requests.RequestException, json.JSONDecodeError, RuntimeError) as e:
+                except (
+                    requests.RequestException,
+                    json.JSONDecodeError,
+                    RuntimeError,
+                ) as e:
                     raise RuntimeError(f"Operation failed: {e}") from e
 
             with ThreadPoolExecutor(max_workers=2) as executor:
@@ -405,7 +412,11 @@ class MarketEventHandler:
                 check_name = futures[future]
                 try:
                     result["checks"][check_name] = future.result()
-                except (requests.RequestException, requests.Timeout, json.JSONDecodeError) as e:
+                except (
+                    requests.RequestException,
+                    requests.Timeout,
+                    json.JSONDecodeError,
+                ) as e:
                     logger.warning(f"Pre-market check {check_name} failed: {e}")
                     result["checks"][check_name] = None
 

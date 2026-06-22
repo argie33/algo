@@ -11,7 +11,6 @@ import json
 import logging
 from typing import Any, Literal, TypeVar, overload
 
-
 logger = logging.getLogger(__name__)
 
 T = TypeVar("T")
@@ -151,7 +150,13 @@ def safe_int(
         return default
 
 
-def safe_json_parse(value: Any, *, default: Any = None, strict: bool = False, field_name: str | None = None) -> Any:
+def safe_json_parse(
+    value: Any,
+    *,
+    default: Any = None,
+    strict: bool = False,
+    field_name: str | None = None,
+) -> Any:
     """Parse JSON string with configurable failure behavior.
 
     Args:

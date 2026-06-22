@@ -636,7 +636,15 @@ DASHBOARD_ENDPOINTS = {
         "description": "Yield curve and credit spreads",
         "response_schema": ResponseSchema(
             required_fields=[],
-            optional_fields=["currentCurve", "spreads", "isInverted", "history", "credit", "breakevens", "stress"],
+            optional_fields=[
+                "currentCurve",
+                "spreads",
+                "isInverted",
+                "history",
+                "credit",
+                "breakevens",
+                "stress",
+            ],
             field_types={"currentCurve": dict, "spreads": dict, "isInverted": bool},
             description="Yield curve and financial stress data",
         ),

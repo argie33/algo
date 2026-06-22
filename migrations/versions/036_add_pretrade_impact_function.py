@@ -7,7 +7,6 @@ Eliminates multiple calculations in /pre-trade-impact endpoint.
 
 from utils.db.context import DatabaseContext
 
-
 DESCRIPTION = "Add pre-trade impact calculation function"
 
 

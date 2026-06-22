@@ -6,7 +6,6 @@ from zoneinfo import ZoneInfo
 
 from .api_data_layer import api_call
 
-
 ET = ZoneInfo("America/New_York")
 logger = logging.getLogger(__name__)
 

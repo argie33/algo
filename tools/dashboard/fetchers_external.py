@@ -7,7 +7,6 @@ from utils.safe_data_conversion import safe_float
 from .api_data_layer import api_call
 from .utilities import CY, G, R, Y
 
-
 logger = logging.getLogger(__name__)
 
 
@@ -114,7 +113,11 @@ def fetch_economic_pulse(c):
             else None
         )
         hy = (
-            safe_float(credit_latest.get("BAMLH0A0HYM2"), default=None, field_name="credit.BAMLH0A0HYM2")
+            safe_float(
+                credit_latest.get("BAMLH0A0HYM2"),
+                default=None,
+                field_name="credit.BAMLH0A0HYM2",
+            )
             if isinstance(credit_latest, dict)
             else None
         )
@@ -137,7 +140,9 @@ def fetch_economic_pulse(c):
         if indicators:
             by_series = {
                 i["series_id"]: safe_float(
-                    i.get("rawValue"), default=None, field_name=f"indicator.{i.get('series_id')}.rawValue"
+                    i.get("rawValue"),
+                    default=None,
+                    field_name=f"indicator.{i.get('series_id')}.rawValue",
                 )
                 for i in indicators
                 if isinstance(i, dict) and i.get("series_id")

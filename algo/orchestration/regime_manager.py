@@ -38,7 +38,6 @@ from algo.infrastructure.constants import (
 )
 from utils.db import DatabaseContext
 
-
 logger = logging.getLogger(__name__)
 
 
@@ -133,7 +132,10 @@ class RegimeManager:
     def get_regime_params(self, as_of_date: _date | None = None) -> dict[str, Any]:
         """Get parameter overrides for current regime."""
         regime = self.get_current_regime(as_of_date)
-        return cast(dict[str, Any], self.REGIME_PARAMS.get(regime, self.REGIME_PARAMS["caution"]))
+        return cast(
+            dict[str, Any],
+            self.REGIME_PARAMS.get(regime, self.REGIME_PARAMS["caution"]),
+        )
 
     def get_position_size_multiplier(self, as_of_date: _date | None = None) -> float:
         """Get position size multiplier (0.0 - 1.0)."""

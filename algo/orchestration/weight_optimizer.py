@@ -14,7 +14,6 @@ import logging
 from datetime import date as _date
 from typing import Any, ClassVar
 
-
 try:
     import numpy as np
 except ImportError:
@@ -27,7 +26,6 @@ except ImportError:
 
 from algo.signals.attribution import SignalAttributionEngine
 from utils.db import DatabaseContext
-
 
 logger = logging.getLogger(__name__)
 

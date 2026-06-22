@@ -43,7 +43,6 @@ import yfinance as yf
 from algo.infrastructure import RateLimiter, retry
 from utils.infrastructure import EASTERN_TZ
 
-
 logger = logging.getLogger(__name__)
 
 # Global/shared rate limiters to prevent multiple DataSourceRouter instances from exceeding API limits
@@ -362,7 +361,11 @@ class DataSourceRouter:
             except TimeoutError as timeout_e:
                 logger.critical(f"[yfinance] BATCH TIMEOUT EXCEEDED: {timeout_e}")
                 raise
-            except (requests.RequestException, requests.Timeout, json.JSONDecodeError) as e:
+            except (
+                requests.RequestException,
+                requests.Timeout,
+                json.JSONDecodeError,
+            ) as e:
                 logger.critical(
                     f"[yfinance] BATCH FETCH FAILED: {type(e).__name__}: {e}",
                     exc_info=True,

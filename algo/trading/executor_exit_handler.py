@@ -26,7 +26,6 @@ from algo.trading.exceptions import (
 )
 from utils.trading import PositionStatus
 
-
 logger = logging.getLogger(__name__)
 
 
@@ -89,12 +88,24 @@ class ExitHandler:
         try:
             if cur is not None:
                 return self._execute_exit(
-                    cur, trade_id, validated_exit_price, exit_reason, exit_fraction, exit_stage, new_stop_price
+                    cur,
+                    trade_id,
+                    validated_exit_price,
+                    exit_reason,
+                    exit_fraction,
+                    exit_stage,
+                    new_stop_price,
                 )
             else:
                 result = self.executor._with_cursor(
                     lambda c: self._execute_exit(
-                        c, trade_id, validated_exit_price, exit_reason, exit_fraction, exit_stage, new_stop_price
+                        c,
+                        trade_id,
+                        validated_exit_price,
+                        exit_reason,
+                        exit_fraction,
+                        exit_stage,
+                        new_stop_price,
                     ),
                     acquire_locks=True,
                 )
@@ -110,7 +121,10 @@ class ExitHandler:
             return {"success": False, "message": str(e)}
         except Exception as e:
             logger.exception(f"Unexpected error during trade exit: {type(e).__name__}: {e}")
-            return {"success": False, "message": f"Unexpected error: {type(e).__name__}"}
+            return {
+                "success": False,
+                "message": f"Unexpected error: {type(e).__name__}",
+            }
 
     def _raise_stop_only(self, trade_id: int, new_stop_price: float | None, cur: Any | None) -> dict[str, Any]:
         """Raise stop on residual position without exiting shares."""
@@ -161,10 +175,16 @@ class ExitHandler:
     def _validate_exit_params(self, exit_fraction: float, exit_price: float | None) -> dict[str, Any] | None:
         """Validate exit parameters. Returns error dict if invalid, None if valid."""
         if not (0 < exit_fraction <= 1.0):
-            return {"success": False, "message": f"Invalid exit_fraction {exit_fraction}"}
+            return {
+                "success": False,
+                "message": f"Invalid exit_fraction {exit_fraction}",
+            }
 
         if not exit_price or exit_price <= 0:
-            return {"success": False, "message": f"Invalid exit price: {exit_price} (must be > 0)"}
+            return {
+                "success": False,
+                "message": f"Invalid exit price: {exit_price} (must be > 0)",
+            }
 
         return None
 

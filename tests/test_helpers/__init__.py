@@ -13,7 +13,6 @@ from tests.test_helpers.config_fixtures import (
     validate_config,
 )
 
-
 __all__ = [
     "BASE_CONFIG",
     "bull_market_config",

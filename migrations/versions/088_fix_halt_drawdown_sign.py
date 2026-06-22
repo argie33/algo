@@ -14,7 +14,6 @@ This fix ensures the config validation warning is resolved.
 
 from utils.db.context import DatabaseContext
 
-
 DESCRIPTION = "Fix halt_drawdown_pct sign error (should be negative)"
 
 

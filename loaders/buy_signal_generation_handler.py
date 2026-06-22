@@ -12,7 +12,6 @@ import logging
 from decimal import Decimal
 from typing import Any
 
-
 logger = logging.getLogger(__name__)
 
 
@@ -70,7 +69,13 @@ class BuySignalGenerationHandler:
 
             # Phase 2: Generate signal from pivots
             signal_type, strength, reason, buylevel, stoplevel = self._generate_signal(
-                symbol, close, high, low, recent_swing_high, swing_high_sma50, recent_swing_low
+                symbol,
+                close,
+                high,
+                low,
+                recent_swing_high,
+                swing_high_sma50,
+                recent_swing_low,
             )
 
             # Phase 3: Compute metrics if signal generated
@@ -104,9 +109,9 @@ class BuySignalGenerationHandler:
                     "ema_21": float(ema_21) if ema_21 is not None else None,
                     "atr": float(atr) if atr is not None else None,
                     "adx": float(adx) if adx is not None else None,
-                    "mansfield_rs": float(mansfield_rs) if mansfield_rs is not None else None,
+                    "mansfield_rs": (float(mansfield_rs) if mansfield_rs is not None else None),
                     "macd": float(macd) if macd is not None else None,
-                    "macd_signal": float(macd_signal) if macd_signal is not None else None,
+                    "macd_signal": (float(macd_signal) if macd_signal is not None else None),
                     "stage_number": None,
                     "market_stage": market_stage,
                     "open": row.get("open"),
@@ -269,7 +274,11 @@ class BuySignalGenerationHandler:
         return None
 
     def _calculate_entry_exit_levels(
-        self, signal_type: str, close: float, buylevel: Decimal | float | None, stoplevel: Decimal | float | None
+        self,
+        signal_type: str,
+        close: float,
+        buylevel: Decimal | float | None,
+        stoplevel: Decimal | float | None,
     ) -> dict[str, Any]:
         """Calculate entry/exit levels and risk/reward metrics."""
         risk_pct = 8.0

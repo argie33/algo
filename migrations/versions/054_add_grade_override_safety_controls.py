@@ -12,7 +12,6 @@ and ensure override is time-bounded (resets at market close).
 
 from utils.db.context import DatabaseContext
 
-
 DESCRIPTION = "Add grade override safety controls (explicit enable flag + duration limit)"
 
 # New config keys for grade override safety

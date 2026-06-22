@@ -26,7 +26,6 @@ import threading
 import time
 from typing import Any, cast
 
-
 logger = logging.getLogger(__name__)
 
 

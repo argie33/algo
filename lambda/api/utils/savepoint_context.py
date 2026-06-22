@@ -5,7 +5,6 @@ from contextlib import contextmanager
 
 import psycopg2
 
-
 logger = logging.getLogger(__name__)
 
 
@@ -46,6 +45,10 @@ def savepoint_context(cur, savepoint_name: str, fallback_value=None, log_errors=
             cur.execute(f"RELEASE SAVEPOINT {savepoint_name}")
         except (psycopg2.OperationalError, psycopg2.DatabaseError) as rollback_err:
             if log_errors:
-                logger.debug("[SAVEPOINT] Rollback failed for %s: %s", savepoint_name, type(rollback_err).__name__)
+                logger.debug(
+                    "[SAVEPOINT] Rollback failed for %s: %s",
+                    savepoint_name,
+                    type(rollback_err).__name__,
+                )
         if fallback_value is not None:
             raise

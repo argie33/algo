@@ -18,7 +18,6 @@ from typing import cast
 
 import requests
 
-
 logger = logging.getLogger(__name__)
 
 # =====================================================================

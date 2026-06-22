@@ -91,7 +91,15 @@ def extract_config_params(cfg: dict[str, Any]) -> dict[str, Any]:
     """
     if not isinstance(cfg, dict) or has_error(cfg):
         return {"_error": "Config data unavailable"}
-    required = ["mode", "enabled", "max_pos_n", "max_sec_n", "min_score", "base_risk", "t1_r"]
+    required = [
+        "mode",
+        "enabled",
+        "max_pos_n",
+        "max_sec_n",
+        "min_score",
+        "base_risk",
+        "t1_r",
+    ]
     missing = [k for k in required if k not in cfg]
     if missing:
         raise KeyError(f"Config missing critical fields: {missing}")

@@ -25,7 +25,6 @@ USAGE:
 import logging
 from datetime import date as _date
 
-
 logger = logging.getLogger(__name__)
 
 

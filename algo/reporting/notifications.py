@@ -12,7 +12,6 @@ import psycopg2
 from algo.reporting import AlertManager
 from utils.db import DatabaseContext
 
-
 logger = logging.getLogger(__name__)
 
 

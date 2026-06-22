@@ -10,7 +10,6 @@ Schema changes:
 
 from utils.db.context import DatabaseContext
 
-
 DESCRIPTION = "Add user isolation to portfolio snapshots and trade adds"
 
 

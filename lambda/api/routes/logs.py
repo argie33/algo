@@ -32,7 +32,6 @@ from typing import Any
 import boto3
 from routes.utils import error_response, success_response
 
-
 logger = logging.getLogger(__name__)
 
 # CloudWatch Logs client (lazy init to avoid NoRegionError at import time)

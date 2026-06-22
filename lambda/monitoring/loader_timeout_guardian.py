@@ -18,7 +18,6 @@ from datetime import datetime, timezone
 import boto3
 import psycopg2
 
-
 logger = logging.getLogger()
 logger.setLevel(logging.INFO)
 

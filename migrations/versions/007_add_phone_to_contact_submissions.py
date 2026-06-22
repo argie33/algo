@@ -8,7 +8,6 @@ from the initial schema, causing 500 errors on contact form submissions.
 
 from utils.db.context import DatabaseContext
 
-
 DESCRIPTION = "Add phone column to contact_submissions table"
 
 

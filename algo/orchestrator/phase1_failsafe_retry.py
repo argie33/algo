@@ -30,7 +30,6 @@ import psycopg2
 from utils.db.context import DatabaseContext
 from utils.loaders.helpers import get_active_symbols
 
-
 logger = logging.getLogger(__name__)
 
 # Loaders that are critical for downstream phases (halt if incomplete after retry)
@@ -82,8 +81,7 @@ def check_and_retry_incomplete_loaders(dry_run: bool = False) -> dict[str, Any]:
     try:
         with DatabaseContext("read") as cur:
             # Find loaders with <95% completion in the last 1 hour
-            cur.execute(
-                """
+            cur.execute("""
                 SELECT
                     table_name,
                     status,
@@ -97,8 +95,7 @@ def check_and_retry_incomplete_loaders(dry_run: bool = False) -> dict[str, Any]:
                 WHERE (completion_pct < 95.0 OR status = 'INCOMPLETE')
                     AND last_updated >= CURRENT_TIMESTAMP - INTERVAL '1 hour'
                 ORDER BY completion_pct ASC, table_name
-            """
-            )
+            """)
 
             incomplete_rows = cur.fetchall()
 
@@ -240,7 +237,10 @@ def retry_loader(loader_name: str, symbols_missing: int, is_critical: bool) -> d
             result["status_reason"] = status_reason
 
     except (RuntimeError, ValueError, TimeoutError) as e:
-        logger.error(f"[PHASE 1 FAILSAFE] Error retrying loader {loader_name}: {e}", exc_info=True)
+        logger.error(
+            f"[PHASE 1 FAILSAFE] Error retrying loader {loader_name}: {e}",
+            exc_info=True,
+        )
 
     return result
 

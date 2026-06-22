@@ -33,7 +33,6 @@ from config.api_endpoints import get_alpaca_base_url
 from config.credential_manager import get_alpaca_credentials, get_credential_manager
 from utils.db import DatabaseContext
 
-
 logger = logging.getLogger(__name__)
 
 
@@ -193,7 +192,10 @@ class PositionMonitor:
                                    ) VALUES (%s, %s, CURRENT_TIMESTAMP, %s, %s, %s, %s, CURRENT_TIMESTAMP)""",
                                 audit_entries,
                             )
-                        except (psycopg2.DatabaseError, psycopg2.OperationalError) as audit_e:
+                        except (
+                            psycopg2.DatabaseError,
+                            psycopg2.OperationalError,
+                        ) as audit_e:
                             cur.execute(f"ROLLBACK TO {sp_name}")
                             logger.critical(
                                 f"[AUDIT_FAILURE] Stale order batch transaction failed (rolled back): {audit_e}"
@@ -1114,7 +1116,14 @@ class PositionMonitor:
         return int(alpaca_pos.get("qty", 0))
 
     def _handle_qty_variance(
-        self, cur: Any, pos_id: Any, symbol: str, db_qty: Any, db_stop: Any, alpaca_qty: int, adjustments: list
+        self,
+        cur: Any,
+        pos_id: Any,
+        symbol: str,
+        db_qty: Any,
+        db_stop: Any,
+        alpaca_qty: int,
+        adjustments: list,
     ) -> None:
         """Handle quantity changes between DB and Alpaca."""
         if alpaca_qty == 0:
@@ -1142,7 +1151,14 @@ class PositionMonitor:
         self._apply_split_adjustment(cur, pos_id, symbol, db_qty, db_stop, alpaca_qty, adjustments)
 
     def _apply_split_adjustment(
-        self, cur: Any, pos_id: Any, symbol: str, db_qty: Any, db_stop: Any, alpaca_qty: int, adjustments: list
+        self,
+        cur: Any,
+        pos_id: Any,
+        symbol: str,
+        db_qty: Any,
+        db_stop: Any,
+        alpaca_qty: int,
+        adjustments: list,
     ) -> None:
         """Apply stock split adjustment if stop available, else update qty only."""
         split_ratio = alpaca_qty / db_qty if db_qty > 0 else 1.0

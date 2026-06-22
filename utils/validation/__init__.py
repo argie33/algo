@@ -35,6 +35,7 @@ from .framework import (
     log_data_issue,
     safe_bool,
     # Functional API - numeric
+    safe_float,
     safe_int,
     safe_json_loads,
     safe_json_parse,
@@ -51,7 +52,6 @@ from .freshness_config import get_freshness_rule
 from .parallelism import ParallelismValidator
 from .rate_limit import RateLimitValidator
 from .schema import validate_table_schema
-
 
 # Import unified data age validator (consolidates watermark + freshness checking)
 try:

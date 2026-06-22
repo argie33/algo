@@ -22,7 +22,6 @@ from exceptions import (
 
 from utils.validation import APIResponseValidator
 
-
 logger = logging.getLogger(__name__)
 
 # Centralized query timeout configuration (milliseconds)
@@ -492,7 +491,10 @@ def execute_with_timeout(
                     safe_log.warning(e)
                 try:
                     cur.connection.rollback()
-                except (psycopg2.DatabaseError, psycopg2.OperationalError) as rollback_err:
+                except (
+                    psycopg2.DatabaseError,
+                    psycopg2.OperationalError,
+                ) as rollback_err:
                     logger.debug(f"Failed to rollback after query timeout: {rollback_err}")
                 time.sleep(0.1)
             else:
@@ -500,7 +502,10 @@ def execute_with_timeout(
                     safe_log.warning(e)
                 try:
                     cur.connection.rollback()
-                except (psycopg2.DatabaseError, psycopg2.OperationalError) as rollback_err:
+                except (
+                    psycopg2.DatabaseError,
+                    psycopg2.OperationalError,
+                ) as rollback_err:
                     logger.debug(f"Failed to rollback after final timeout: {rollback_err}")
                 raise e
         except (psycopg2.DatabaseError, psycopg2.OperationalError) as e:
@@ -590,7 +595,13 @@ def check_data_freshness(
             "max_date": str(max_date),
             "warning": f"Data is {data_age} days old" if is_stale else None,
         }
-    except (psycopg2.DatabaseError, psycopg2.OperationalError, ValueError, ZeroDivisionError, TypeError) as e:
+    except (
+        psycopg2.DatabaseError,
+        psycopg2.OperationalError,
+        ValueError,
+        ZeroDivisionError,
+        TypeError,
+    ) as e:
         # Fail fast on data freshness check errors — don't silently mark as stale
         # Caller should know if freshness verification failed, not assume stale
         logger.error(f"[DATA_FRESHNESS] Failed to check freshness for {table_name}: {e}")

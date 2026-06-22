@@ -19,7 +19,6 @@ from contextlib import contextmanager
 from datetime import datetime, timezone
 from typing import Any
 
-
 logger = logging.getLogger(__name__)
 
 # Global metrics buffer (persisted per session or sent to CloudWatch)
@@ -56,7 +55,12 @@ def _emit_cloudwatch_metric(operation_name: str, duration_seconds: float) -> Non
         error_msg = str(e).lower()
         # Only swallow credential-related errors (expected in local dev)
         if any(
-            phrase in error_msg for phrase in ["nocredentialswarning", "unable to locate credentials", "not authorized"]
+            phrase in error_msg
+            for phrase in [
+                "nocredentialswarning",
+                "unable to locate credentials",
+                "not authorized",
+            ]
         ):
             logger.warning("[METRICS] AWS credentials unavailable; CloudWatch metrics skipped")
         else:

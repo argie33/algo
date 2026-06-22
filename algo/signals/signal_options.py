@@ -11,7 +11,6 @@ import logging
 from datetime import date as _date
 from typing import Any
 
-
 logger = logging.getLogger(__name__)
 
 
@@ -38,7 +37,11 @@ class SignalOptionsMixin:
                 return {"iv_rank": None, "signal": "neutral", "bonus_pts": 0.0}
 
             try:
-                current_iv, iv_high, iv_low = float(row[0]), float(row[1]), float(row[2])
+                current_iv, iv_high, iv_low = (
+                    float(row[0]),
+                    float(row[1]),
+                    float(row[2]),
+                )
             except (ValueError, TypeError) as e:
                 logger.error(f"IV conversion failed for {symbol}: {e}")
                 return {"iv_rank": None, "signal": "neutral", "bonus_pts": 0.0}

@@ -4,7 +4,6 @@
 import sys
 from pathlib import Path
 
-
 migrations_dir = Path("migrations/versions")
 if migrations_dir.exists():
     for mig in sorted(migrations_dir.glob("*.py")):

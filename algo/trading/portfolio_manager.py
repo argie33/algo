@@ -13,7 +13,6 @@ import requests
 
 from algo.infrastructure import get_api_timeout
 
-
 logger = logging.getLogger(__name__)
 
 

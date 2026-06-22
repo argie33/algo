@@ -12,7 +12,6 @@ Tests that validate:
 import sys
 from pathlib import Path
 
-
 # Setup path
 _test_dir = Path(__file__).parent
 _project_root = _test_dir.parent
@@ -27,7 +26,6 @@ import pytest
 
 from utils.loaders.completeness_validator import LoaderCompletenessValidator
 from utils.loaders.sla_monitor import PipelineSLAMonitor, SLAMonitor
-
 
 logger = logging.getLogger(__name__)
 

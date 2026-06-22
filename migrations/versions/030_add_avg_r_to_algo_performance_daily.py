@@ -11,7 +11,6 @@ doesn't exist, the dashboard falls back to expensive per-request recalculation.
 
 from utils.db.context import DatabaseContext
 
-
 DESCRIPTION = "Add avg_r column to algo_performance_daily"
 
 

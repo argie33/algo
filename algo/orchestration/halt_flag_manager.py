@@ -20,7 +20,6 @@ from typing import Any
 
 from utils.infrastructure import EASTERN_TZ, MARKET_OPEN_HOUR, MARKET_OPEN_MINUTE
 
-
 logger = logging.getLogger(__name__)
 
 
@@ -223,7 +222,11 @@ class HaltFlagManager:
                                             "latest_reason": reason[:100],
                                         },
                                     )
-                                except (ValueError, ZeroDivisionError, TypeError) as alert_err:
+                                except (
+                                    ValueError,
+                                    ZeroDivisionError,
+                                    TypeError,
+                                ) as alert_err:
                                     logger.warning(f"Could not send escalation alert: {alert_err}")
                         except (ValueError, KeyError) as escalation_err:
                             logger.warning(f"Could not check halt escalation: {escalation_err}")

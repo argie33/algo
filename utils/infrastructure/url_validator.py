@@ -15,7 +15,6 @@ from urllib.parse import urlparse
 
 import requests
 
-
 logger = logging.getLogger(__name__)
 
 

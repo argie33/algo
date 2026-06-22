@@ -11,7 +11,6 @@ import contextvars
 
 import psycopg2
 
-
 # Context variable holding the current thread's pooled connection
 # Set by OptimalLoader at startup, used by DatabaseContext operations
 _pooled_connection: contextvars.ContextVar[psycopg2.extensions.connection | None] = contextvars.ContextVar(

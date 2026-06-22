@@ -14,10 +14,8 @@ from typing import Any
 
 import boto3
 
-
 sys.path.insert(0, os.path.dirname(os.path.dirname(__file__)))
 from base_handler import LambdaHandler, LambdaResponse, create_lambda_handler
-
 
 logger = logging.getLogger()
 

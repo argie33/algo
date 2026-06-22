@@ -55,7 +55,6 @@ from algo.risk import LiquidityChecks
 from config.thresholds import ThresholdConfig
 from utils.db.context import DatabaseContext
 
-
 logger = logging.getLogger(__name__)
 
 _LIQUIDITY_CHECK_LIMIT = 10
@@ -325,7 +324,17 @@ def _get_candidates_from_buysell(
                 ORDER BY swing_score DESC, composite_score DESC
                 LIMIT %s
                 """,
-                (lookback_date, run_date, run_date, run_date, run_date, run_date, min_score, min_close_quality, limit),
+                (
+                    lookback_date,
+                    run_date,
+                    run_date,
+                    run_date,
+                    run_date,
+                    run_date,
+                    min_score,
+                    min_close_quality,
+                    limit,
+                ),
             )
             rows = cur.fetchall()
 
@@ -530,8 +539,20 @@ def run(
     if not regime["is_entry_allowed"]:
         reasons = "; ".join(regime["halt_reasons"]) if regime["halt_reasons"] else "no halt reasons logged"
         logger.warning(f"[PHASE 7] Entries halted by market regime: {reasons}")
-        log_phase_result_fn(7, "signal_generation", "halt", f"Market regime halted entries: {reasons[:100]}")
-        return PhaseResult(7, "signal_generation", "halted", {"qualified_trades": []}, True, reasons[:100])
+        log_phase_result_fn(
+            7,
+            "signal_generation",
+            "halt",
+            f"Market regime halted entries: {reasons[:100]}",
+        )
+        return PhaseResult(
+            7,
+            "signal_generation",
+            "halted",
+            {"qualified_trades": []},
+            True,
+            reasons[:100],
+        )
 
     # ISSUE #7 FIX: Exposure policy gate — fail-closed if constraints not provided
     if exposure_constraints is None:
@@ -583,7 +604,14 @@ def run(
             log_level="critical",
         )
         log_phase_error(7, error, log_phase_result_fn)
-        return PhaseResult(7, "signal_generation", "halted", {"qualified_trades": []}, True, error.message)
+        return PhaseResult(
+            7,
+            "signal_generation",
+            "halted",
+            {"qualified_trades": []},
+            True,
+            error.message,
+        )
     except RuntimeError as e:
         # DB or data loading error
         from algo.orchestrator.phase_error_handling import (
@@ -600,7 +628,14 @@ def run(
             log_level="critical",
         )
         log_phase_error(7, error, log_phase_result_fn)
-        return PhaseResult(7, "signal_generation", "halted", {"qualified_trades": []}, True, error.message)
+        return PhaseResult(
+            7,
+            "signal_generation",
+            "halted",
+            {"qualified_trades": []},
+            True,
+            error.message,
+        )
 
     if not raw_candidates:
         msg = (

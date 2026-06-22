@@ -1,7 +1,6 @@
 #!/usr/bin/env python3
 import sys
 
-
 """
 Cash Flow Loader -â€ annual and quarterly from SEC EDGAR.
 
@@ -10,7 +9,6 @@ or --period CLI flag for manual runs.
 """
 
 import logging
-
 
 logger = logging.getLogger(__name__)
 import os
@@ -21,7 +19,6 @@ from loaders.runner import run_loader
 from utils.external.sec_edgar import SecEdgarClient
 from utils.loaders.config import get_parallelism
 from utils.optimal_loader import OptimalLoader
-
 
 _PERIOD_CONFIG = {
     "annual": {
@@ -116,7 +113,11 @@ class CashFlowLoader(OptimalLoader):
         try:
             rows = self._sec_client.get_cash_flow(symbol, period=self.period)
             if not rows:
-                logger.debug("%s: no %s cash flow data in SEC EDGAR, skipping", symbol, self.period)
+                logger.debug(
+                    "%s: no %s cash flow data in SEC EDGAR, skipping",
+                    symbol,
+                    self.period,
+                )
                 return None
             logger.info("%s: Fetched %d %s cash flow row(s)", symbol, len(rows), self.period)
 

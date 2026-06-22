@@ -21,7 +21,6 @@ from .retry import OptimisticLockRetry
 from .sql_safety import assert_safe_column, assert_safe_table, safe_select_count
 from .structured_logging import StructuredDBLogger
 
-
 __all__ = [
     "DatabaseContext",
     "DynamoDBHealthCheck",

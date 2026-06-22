@@ -17,7 +17,6 @@ import requests
 from utils.external import sec_statements
 from utils.external.sec_ticker_cache import TickerCache
 
-
 logger = logging.getLogger(__name__)
 
 EDGAR_BASE = os.getenv("EDGAR_BASE_URL", "https://data.sec.gov")

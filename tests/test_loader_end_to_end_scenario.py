@@ -12,7 +12,6 @@ Simulates complete loader workflows to verify:
 import sys
 from pathlib import Path
 
-
 _test_dir = Path(__file__).parent
 _project_root = _test_dir.parent
 if str(_project_root) not in sys.path:
@@ -118,11 +117,26 @@ class TestRealisticLoaderScenarios:
         check_points = [
             (15 * 60, "OK", False, False),  # 15 min: OK
             (30 * 60, "OK", False, False),  # 30 min: OK
-            (50 * 60, "WARNING", True, False),  # 50 min: Approaching limit (warn at 45min)
-            (58 * 60, "WARNING", True, False),  # 58 min: Getting close (critical at 60min)
+            (
+                50 * 60,
+                "WARNING",
+                True,
+                False,
+            ),  # 50 min: Approaching limit (warn at 45min)
+            (
+                58 * 60,
+                "WARNING",
+                True,
+                False,
+            ),  # 58 min: Getting close (critical at 60min)
         ]
 
-        for elapsed, _expected_status, should_breach, should_be_critical in check_points:
+        for (
+            elapsed,
+            _expected_status,
+            should_breach,
+            should_be_critical,
+        ) in check_points:
             monitor.start_time = time.time() - elapsed
             status = monitor.get_status()
 

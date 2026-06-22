@@ -31,7 +31,6 @@ from routes.utils import (
 from utils.db.sql_safety import assert_safe_table
 from utils.validation import DatabaseResultValidator
 
-
 logger = logging.getLogger(__name__)
 
 
@@ -254,7 +253,10 @@ def get_loader_health(cur) -> dict[str, Any]:
             health_by_table = {}
             for row in cur.fetchall():
                 row_dict = dict(row)
-                health_by_table[row_dict["tbl_name"]] = (row_dict["last_update"], row_dict["row_count"])
+                health_by_table[row_dict["tbl_name"]] = (
+                    row_dict["last_update"],
+                    row_dict["row_count"],
+                )
 
             for table in tables_to_check:
                 try:
@@ -263,7 +265,10 @@ def get_loader_health(cur) -> dict[str, Any]:
                         days_old = (datetime.now(timezone.utc) - last_update).days if last_update else 999
                         status = "stale" if days_old > 7 else "fresh"
                         table_health.append((table, status, last_update, count))
-                except (psycopg2.errors.UndefinedTable, psycopg2.errors.UndefinedColumn):
+                except (
+                    psycopg2.errors.UndefinedTable,
+                    psycopg2.errors.UndefinedColumn,
+                ):
                     logger.warning(f"[LOADER_HEALTH] Table {table} not found - skipping")
                 except (psycopg2.OperationalError, psycopg2.DatabaseError) as e:
                     logger.warning(f"[LOADER_HEALTH] Database error checking {table}: {type(e).__name__}: {e}")

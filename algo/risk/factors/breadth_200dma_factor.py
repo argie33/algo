@@ -8,7 +8,6 @@ from psycopg2 import sql as pgsql
 
 from algo.risk.market_factor_strategy import MarketFactorStrategy
 
-
 logger = logging.getLogger(__name__)
 
 

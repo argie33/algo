@@ -6,7 +6,6 @@ from typing import Any
 
 from algo.risk.market_factor_strategy import MarketFactorStrategy
 
-
 logger = logging.getLogger(__name__)
 
 
@@ -68,31 +67,51 @@ class Trend30WkFactor(MarketFactorStrategy):
             return {
                 "score": 100,
                 "reason": f"Confirmed uptrend (SPY +{pct_above:.1f}% above 30-week MA)",
-                "details": {"price": current_price, "ma_30wk": ma_30wk, "pct_above": pct_above},
+                "details": {
+                    "price": current_price,
+                    "ma_30wk": ma_30wk,
+                    "pct_above": pct_above,
+                },
             }
         elif pct_above >= 1:
             score = 75 + (pct_above - 1) / 4 * 25  # Scale 1-5% → 75-100
             return {
                 "score": score,
                 "reason": f"Uptrend forming (SPY +{pct_above:.1f}% above 30-week MA)",
-                "details": {"price": current_price, "ma_30wk": ma_30wk, "pct_above": pct_above},
+                "details": {
+                    "price": current_price,
+                    "ma_30wk": ma_30wk,
+                    "pct_above": pct_above,
+                },
             }
         elif pct_above >= -1:
             return {
                 "score": 50,
                 "reason": f"Neutral/consolidation (SPY {pct_above:+.1f}% vs 30-week MA)",
-                "details": {"price": current_price, "ma_30wk": ma_30wk, "pct_above": pct_above},
+                "details": {
+                    "price": current_price,
+                    "ma_30wk": ma_30wk,
+                    "pct_above": pct_above,
+                },
             }
         elif pct_above >= -5:
             score = 25 - (abs(pct_above) - 1) / 4 * 25  # Scale -5% to -1% → 25-0
             return {
                 "score": score,
                 "reason": f"Downtrend forming (SPY {pct_above:.1f}% below 30-week MA)",
-                "details": {"price": current_price, "ma_30wk": ma_30wk, "pct_above": pct_above},
+                "details": {
+                    "price": current_price,
+                    "ma_30wk": ma_30wk,
+                    "pct_above": pct_above,
+                },
             }
         else:
             return {
                 "score": 0,
                 "reason": f"Confirmed downtrend (SPY {pct_above:.1f}% below 30-week MA)",
-                "details": {"price": current_price, "ma_30wk": ma_30wk, "pct_above": pct_above},
+                "details": {
+                    "price": current_price,
+                    "ma_30wk": ma_30wk,
+                    "pct_above": pct_above,
+                },
             }

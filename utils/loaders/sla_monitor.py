@@ -16,7 +16,6 @@ import logging
 import time
 from dataclasses import dataclass
 
-
 # MetricsPublisher is optional (fail-open if not available)
 try:
     from algo.reporting import MetricsPublisher
@@ -30,7 +29,11 @@ logger = logging.getLogger(__name__)
 # Format: {loader_name: (expected_seconds, warning_threshold_seconds, critical_threshold_seconds)}
 LOADER_SLA_TARGETS = {
     # Critical loaders
-    "stock_prices_daily": (20 * 60, 90 * 60, 120 * 60),  # Expect 20 min, warn at 90, critical at 120
+    "stock_prices_daily": (
+        20 * 60,
+        90 * 60,
+        120 * 60,
+    ),  # Expect 20 min, warn at 90, critical at 120
     "stock_symbols": (10 * 60, 15 * 60, 30 * 60),
     "trend_template_data": (30 * 60, 60 * 60, 90 * 60),
     "market_health_daily": (20 * 60, 30 * 60, 60 * 60),
@@ -52,10 +55,22 @@ LOADER_SLA_TARGETS = {
 
 # Pipeline SLA targets (minute-based)
 PIPELINE_SLA_TARGETS = {
-    "morning_prep_pipeline": (90 * 60, 240 * 60, 300 * 60),  # 90 min expected, 5 hour max before 9:30 AM
+    "morning_prep_pipeline": (
+        90 * 60,
+        240 * 60,
+        300 * 60,
+    ),  # 90 min expected, 5 hour max before 9:30 AM
     "eod_pipeline": (120 * 60, 240 * 60, 300 * 60),  # 2 hour expected, 5 hour max
-    "afternoon_update_pipeline": (15 * 60, 25 * 60, 30 * 60),  # 15 min expected, 30 min max
-    "preclose_update_pipeline": (15 * 60, 25 * 60, 30 * 60),  # 15 min expected, 30 min max
+    "afternoon_update_pipeline": (
+        15 * 60,
+        25 * 60,
+        30 * 60,
+    ),  # 15 min expected, 30 min max
+    "preclose_update_pipeline": (
+        15 * 60,
+        25 * 60,
+        30 * 60,
+    ),  # 15 min expected, 30 min max
 }
 
 

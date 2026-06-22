@@ -136,9 +136,9 @@ class TradeContext:
         prices = PriceContext(
             entry_price=Decimal(str(entry_price)),
             stop_loss_price=Decimal(str(stop_loss_price)),
-            target_1_price=Decimal(str(target_1_price)) if target_1_price is not None else None,
-            target_2_price=Decimal(str(target_2_price)) if target_2_price is not None else None,
-            target_3_price=Decimal(str(target_3_price)) if target_3_price is not None else None,
+            target_1_price=(Decimal(str(target_1_price)) if target_1_price is not None else None),
+            target_2_price=(Decimal(str(target_2_price)) if target_2_price is not None else None),
+            target_3_price=(Decimal(str(target_3_price)) if target_3_price is not None else None),
         )
 
         signals = SignalContext(

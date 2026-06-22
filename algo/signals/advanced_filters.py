@@ -11,7 +11,6 @@ from algo.signals.signal_api import SignalAPI
 from utils.db import DatabaseContext
 from utils.signals import GradeClassifier
 
-
 logger = logging.getLogger(__name__)
 
 
@@ -150,7 +149,12 @@ class AdvancedFilters:
     # ---------- Per-candidate evaluation ----------
 
     def evaluate_candidate(
-        self, symbol: str, signal_date: Any, entry_price: float, sector: str | None, industry: str | None
+        self,
+        symbol: str,
+        signal_date: Any,
+        entry_price: float,
+        sector: str | None,
+        industry: str | None,
     ) -> dict[str, Any]:
         """Run all advanced filters for one candidate.
 
@@ -345,7 +349,10 @@ class AdvancedFilters:
             raise ValueError("Sector name is missing or empty")
         rank = self._sector_full_ranking.get(sector, 99) if self._sector_full_ranking else 99
         # Top sector = 10pts, rank 5 = 5pts, rank 11 = 0pts
-        return max(0.0, FilterRegistry.get_weight("momentum_sector") * (1.0 - (rank - 1) / 10.0))
+        return max(
+            0.0,
+            FilterRegistry.get_weight("momentum_sector") * (1.0 - (rank - 1) / 10.0),
+        )
 
     def _industry_momentum_score(self, industry):
         if self._strong_industries is None:
@@ -382,7 +389,10 @@ class AdvancedFilters:
         vol_range = vol_full_points - vol_breakeven
         pts = max(
             0.0,
-            min(momentum_vol_weight, (ratio - vol_breakeven) * momentum_vol_weight / vol_range),
+            min(
+                momentum_vol_weight,
+                (ratio - vol_breakeven) * momentum_vol_weight / vol_range,
+            ),
         )
         return pts, round(ratio, 2)
 
@@ -520,7 +530,13 @@ class AdvancedFilters:
         quality_ibd_weight = FilterRegistry.get_weight("quality_ibd")
         ibd_min = FilterRegistry.get_threshold("ibd_composite_min")
         ibd_max = FilterRegistry.get_threshold("ibd_composite_max")
-        pts = max(0.0, min(quality_ibd_weight, (composite - ibd_min) * quality_ibd_weight / (ibd_max - ibd_min)))
+        pts = max(
+            0.0,
+            min(
+                quality_ibd_weight,
+                (composite - ibd_min) * quality_ibd_weight / (ibd_max - ibd_min),
+            ),
+        )
 
         # Assign letter grade using configurable thresholds from algo_config
         grade = GradeClassifier.classify_ibd_composite(composite)
@@ -553,7 +569,13 @@ class AdvancedFilters:
         q = float(row[0]) if row[0] is not None else fin_neutral
         # Linear scale: fin_neutral = 0 pts, fin_max = quality_financial pts
         quality_fin_weight = FilterRegistry.get_weight("quality_financial")
-        pts = max(0.0, min(quality_fin_weight, (q - fin_neutral) * quality_fin_weight / (fin_max - fin_neutral)))
+        pts = max(
+            0.0,
+            min(
+                quality_fin_weight,
+                (q - fin_neutral) * quality_fin_weight / (fin_max - fin_neutral),
+            ),
+        )
         return pts, round(q, 1)
 
     def _earnings_quality_score(self, symbol, cur):
@@ -646,7 +668,11 @@ class AdvancedFilters:
         thresh_min = FilterRegistry.get_threshold("analyst_net_positive_threshold")
         thresh_max = FilterRegistry.get_threshold("analyst_net_full_score")
         pts = max(
-            0.0, min(catalyst_analyst_weight, (net - thresh_min) * catalyst_analyst_weight / (thresh_max - thresh_min))
+            0.0,
+            min(
+                catalyst_analyst_weight,
+                (net - thresh_min) * catalyst_analyst_weight / (thresh_max - thresh_min),
+            ),
         )
         return pts, net
 

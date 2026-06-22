@@ -3,7 +3,6 @@
 
 from utils.db.context import DatabaseContext
 
-
 DESCRIPTION = "Add rejection_reason column to algo_trades"
 
 

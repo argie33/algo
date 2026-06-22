@@ -14,7 +14,6 @@ from utils.infrastructure.timeout import ExecutionTimeout
 from utils.infrastructure.url_validator import validate_url
 from utils.optimal_loader import OptimalLoader
 
-
 logger = logging.getLogger(__name__)
 
 
@@ -76,7 +75,11 @@ class Russell2000ConstituentsLoader(OptimalLoader):
                                 }
                                 for sym in symbols
                             ]
-                except (requests.RequestException, requests.Timeout, json.JSONDecodeError) as e:
+                except (
+                    requests.RequestException,
+                    requests.Timeout,
+                    json.JSONDecodeError,
+                ) as e:
                     logger.debug(f"URL {url} failed: {e}")
                     continue
 

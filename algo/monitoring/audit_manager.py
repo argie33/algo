@@ -8,7 +8,6 @@ from typing import Any
 
 from utils.db import DatabaseContext
 
-
 logger = logging.getLogger(__name__)
 
 

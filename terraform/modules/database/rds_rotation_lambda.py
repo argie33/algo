@@ -20,7 +20,6 @@ from typing import Any, cast
 import boto3
 import psycopg2
 
-
 logger = logging.getLogger()
 logger.setLevel(logging.INFO)
 

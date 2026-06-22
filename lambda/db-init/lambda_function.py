@@ -15,7 +15,6 @@ from pathlib import Path
 import psycopg2
 import psycopg2.sql
 
-
 logger = logging.getLogger()
 logger.setLevel(logging.INFO)
 

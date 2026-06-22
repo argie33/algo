@@ -10,7 +10,6 @@ from .data_patrol import DataPatrol
 from .pipeline_health import PipelineHealth
 from .position_monitor import PositionMonitor
 
-
 __all__ = [
     "DataPatrol",
     "PipelineHealth",
@@ -24,6 +23,5 @@ __all__ = [
 # Wire pool tracking into the db module. utils.db cannot import us directly (circular dep),
 # so we register the callbacks here once both modules are fully loaded.
 from utils.db.connection import register_connection_callbacks
-
 
 register_connection_callbacks(on_connect, on_disconnect)

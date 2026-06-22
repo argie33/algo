@@ -27,7 +27,6 @@ from utils.loaders.helpers import get_api_key
 from utils.optimal_loader import OptimalLoader
 from utils.validation.data_freshness import FreshnessValidator, StaleDataError
 
-
 logger = logging.getLogger(__name__)
 
 SERIES = [
@@ -329,7 +328,11 @@ class FredEconomicDataLoader(OptimalLoader):
                     logger.error(f"[FRED] Circuit breaker failed for {series_id}: {e}; skipping series")
                     failed_series.append(series_id)
                     break
-                except (requests.RequestException, requests.Timeout, json.JSONDecodeError) as e:
+                except (
+                    requests.RequestException,
+                    requests.Timeout,
+                    json.JSONDecodeError,
+                ) as e:
                     logger.error(
                         f"[FRED] Unexpected error fetching {series_id}: {e}. "
                         "Cannot proceed reliably — stopping FRED data fetch."

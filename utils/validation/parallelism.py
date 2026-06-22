@@ -10,7 +10,6 @@ Validates that loader parallelism auto-scaling correctly adapts to:
 import logging
 from typing import Any
 
-
 logger = logging.getLogger(__name__)
 
 

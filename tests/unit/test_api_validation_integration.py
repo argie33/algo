@@ -92,9 +92,7 @@ def test_api_call_catches_invalid_trades_items():
             mock_resp.status_code = 200
             mock_resp.json.return_value = {
                 "statusCode": 200,
-                "data": {
-                    "items": "not_a_list"  # Should be list
-                },
+                "data": {"items": "not_a_list"},  # Should be list
             }
             mock_get.return_value = mock_resp
 
@@ -111,7 +109,10 @@ def test_api_call_generic_validation_for_unknown_endpoint():
             # Mock a response for an endpoint without specific validator
             mock_resp = MagicMock()
             mock_resp.status_code = 200
-            mock_resp.json.return_value = {"statusCode": 200, "data": {"some_field": "some_value"}}
+            mock_resp.json.return_value = {
+                "statusCode": 200,
+                "data": {"some_field": "some_value"},
+            }
             mock_get.return_value = mock_resp
 
             result = api_call("/api/unknown/endpoint")

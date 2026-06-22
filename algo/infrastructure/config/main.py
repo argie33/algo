@@ -16,7 +16,6 @@ import psycopg2
 from config.credential_validator import assert_credentials
 from utils.db import DatabaseContext
 
-
 logger = logging.getLogger(__name__)
 
 
@@ -49,10 +48,30 @@ class AlgoConfig:
     # Format: (value, type, description, category) - category enables metadata-driven grouping
     DEFAULTS = {
         # Risk Management
-        "base_risk_pct": ("0.75", "float", "Base portfolio risk per trade", "Risk Management"),
-        "max_position_size_pct": ("6.3", "float", "Maximum single position size", "Risk Management"),
-        "max_positions": ("15", "int", "Maximum concurrent positions", "Risk Management"),
-        "max_concentration_pct": ("50.0", "float", "Max concentration in top position", "Risk Management"),
+        "base_risk_pct": (
+            "0.75",
+            "float",
+            "Base portfolio risk per trade",
+            "Risk Management",
+        ),
+        "max_position_size_pct": (
+            "6.3",
+            "float",
+            "Maximum single position size",
+            "Risk Management",
+        ),
+        "max_positions": (
+            "15",
+            "int",
+            "Maximum concurrent positions",
+            "Risk Management",
+        ),
+        "max_concentration_pct": (
+            "50.0",
+            "float",
+            "Max concentration in top position",
+            "Risk Management",
+        ),
         # Drawdown Defense
         "halt_drawdown_pct": (
             "-20.0",
@@ -1024,7 +1043,12 @@ class AlgoConfig:
         except ValueError as e:
             logger.error(f"Config validation error: {e}")
             raise
-        except (psycopg2.DatabaseError, psycopg2.OperationalError, ConnectionError, Exception) as e:
+        except (
+            psycopg2.DatabaseError,
+            psycopg2.OperationalError,
+            ConnectionError,
+            Exception,
+        ) as e:
             logger.error(f"CRITICAL: Failed to load config from database: {e}")
             raise RuntimeError(
                 f"Config initialization failed: cannot load safety thresholds from database. "

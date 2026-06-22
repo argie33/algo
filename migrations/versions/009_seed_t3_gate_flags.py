@@ -10,7 +10,6 @@ ON CONFLICT DO NOTHING keeps any manually-set DB value.
 
 from utils.db.context import DatabaseContext
 
-
 DESCRIPTION = "Seed rs_slope_gate_enabled and volume_decay_gate_enabled into algo_config"
 
 _NEW_KEYS = [

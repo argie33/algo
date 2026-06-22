@@ -17,7 +17,6 @@ This ensures position sizing respects the portfolio-wide exposure limit.
 
 from utils.db.context import DatabaseContext
 
-
 DESCRIPTION = "Fix position sizing conflict (max_position_size_pct should be 7.9%)"
 
 

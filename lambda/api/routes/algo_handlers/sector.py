@@ -24,7 +24,6 @@ from routes.utils import (
 from shared_contracts.response_validator import ResponseValidator
 from utils.validation import format_decimal_string
 
-
 logger = logging.getLogger(__name__)
 
 
@@ -186,10 +185,12 @@ def _get_algo_evaluate(cur) -> dict[str, Any]:
                     "excellent_sqs_70": sig_dict["candidates_excellent"],
                     "exceptional_sqs_80": sig_dict["candidates_exceptional"],
                     "score_range": {
-                        "min": float(sig_dict["min_score"]) if sig_dict.get("min_score") is not None else None,
-                        "median": float(sig_dict["median_score"]) if sig_dict.get("median_score") is not None else None,
-                        "average": float(sig_dict["avg_score"]) if sig_dict.get("avg_score") is not None else None,
-                        "max": float(sig_dict["top_score"]) if sig_dict.get("top_score") is not None else None,
+                        "min": (float(sig_dict["min_score"]) if sig_dict.get("min_score") is not None else None),
+                        "median": (
+                            float(sig_dict["median_score"]) if sig_dict.get("median_score") is not None else None
+                        ),
+                        "average": (float(sig_dict["avg_score"]) if sig_dict.get("avg_score") is not None else None),
+                        "max": (float(sig_dict["top_score"]) if sig_dict.get("top_score") is not None else None),
                     },
                 },
                 "constraints": {

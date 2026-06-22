@@ -17,7 +17,6 @@ from typing import Any
 
 from utils.db import DatabaseContext
 
-
 try:
     from scipy.stats import pearsonr
 except ImportError:

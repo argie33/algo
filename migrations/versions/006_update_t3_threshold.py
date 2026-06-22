@@ -11,7 +11,6 @@ first, so this migration explicitly overwrites the T3 threshold.
 
 from utils.db.context import DatabaseContext
 
-
 DESCRIPTION = "Lower min_trend_template_score from 7 to 6 for broader T3 signal capture"
 
 

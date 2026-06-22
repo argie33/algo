@@ -11,7 +11,6 @@ Pattern: Call validate() after every API response to catch errors early.
 import logging
 from typing import Any
 
-
 logger = logging.getLogger(__name__)
 
 

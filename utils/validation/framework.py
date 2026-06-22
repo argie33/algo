@@ -19,7 +19,6 @@ from dataclasses import dataclass, field
 from datetime import date, datetime, timezone
 from typing import Any
 
-
 logger = logging.getLogger(__name__)
 
 # Eastern timezone for all time-based conversions

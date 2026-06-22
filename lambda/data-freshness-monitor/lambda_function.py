@@ -14,7 +14,6 @@ from datetime import datetime, timezone
 import boto3
 import psycopg2
 
-
 logger = logging.getLogger()
 logger.setLevel(logging.INFO)
 
@@ -162,7 +161,12 @@ def _check_critical_table_freshness() -> dict:
                 "halt_stale": halt_stale,
                 "age_details": age_details,
             }
-        return {"status": "ok", "stale_tables": all_stale, "halt_stale": [], "age_details": age_details}
+        return {
+            "status": "ok",
+            "stale_tables": all_stale,
+            "halt_stale": [],
+            "age_details": age_details,
+        }
 
     except Exception as e:
         logger.error(f"Data freshness check failed: {e}")
@@ -212,7 +216,13 @@ def _set_halt_flag_rds(reason: str, now_utc: datetime) -> bool:
         """,
             (
                 "orchestrator_halt",
-                json.dumps({"halt_flag": True, "triggered_at": now_utc.isoformat(), "reason": reason}),
+                json.dumps(
+                    {
+                        "halt_flag": True,
+                        "triggered_at": now_utc.isoformat(),
+                        "reason": reason,
+                    }
+                ),
                 True,
                 now_utc.isoformat(),
                 reason,

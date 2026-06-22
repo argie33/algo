@@ -22,7 +22,6 @@ from utils.validation import (
     safe_str,
 )
 
-
 logger = logging.getLogger(__name__)
 
 __all__ = [

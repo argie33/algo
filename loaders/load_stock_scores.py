@@ -19,7 +19,6 @@ import sys
 
 from loaders.loader_helper import setup_imports
 
-
 setup_imports()
 
 import logging
@@ -31,7 +30,6 @@ import psycopg2
 from loaders.runner import run_loader
 from utils.db.context import DatabaseContext
 from utils.optimal_loader import OptimalLoader
-
 
 logger = logging.getLogger(__name__)
 
@@ -175,12 +173,12 @@ class StockScoresLoader(OptimalLoader):
             return {
                 "symbol": symbol,
                 "composite_score": composite_score,
-                "quality_score": round(clamped_quality, 2) if clamped_quality is not None else None,
-                "growth_score": round(clamped_growth, 2) if clamped_growth is not None else None,
-                "value_score": round(clamped_value, 2) if clamped_value is not None else None,
-                "momentum_score": round(clamped_momentum, 2) if clamped_momentum is not None else None,
-                "positioning_score": round(clamped_positioning, 2) if clamped_positioning is not None else None,
-                "stability_score": round(clamped_stability, 2) if clamped_stability is not None else None,
+                "quality_score": (round(clamped_quality, 2) if clamped_quality is not None else None),
+                "growth_score": (round(clamped_growth, 2) if clamped_growth is not None else None),
+                "value_score": (round(clamped_value, 2) if clamped_value is not None else None),
+                "momentum_score": (round(clamped_momentum, 2) if clamped_momentum is not None else None),
+                "positioning_score": (round(clamped_positioning, 2) if clamped_positioning is not None else None),
+                "stability_score": (round(clamped_stability, 2) if clamped_stability is not None else None),
                 "rs_percentile": rs_percentile,
                 "data_completeness": data_completeness,
                 "updated_at": datetime.now(timezone.utc).isoformat(),
@@ -263,7 +261,7 @@ class StockScoresLoader(OptimalLoader):
             row = cur.fetchone()
             if row:
                 return {
-                    "institutional_ownership": float(row[0]) if row[0] is not None else None,
+                    "institutional_ownership": (float(row[0]) if row[0] is not None else None),
                     "insider_ownership": float(row[1]) if row[1] is not None else None,
                     "short_interest": float(row[2]) if row[2] is not None else None,
                 }

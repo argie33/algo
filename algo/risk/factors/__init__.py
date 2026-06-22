@@ -25,7 +25,6 @@ from algo.risk.factors.vix_regime_factor import VixRegimeFactor
 from algo.risk.factors.volume_trend_factor import VolumeTrendFactor
 from algo.risk.factors.yield_curve_factor import YieldCurveFactor
 
-
 __all__ = [
     # Core 12 factors
     "AAIISentimentFactor",

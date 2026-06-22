@@ -40,7 +40,6 @@ from utils.loaders.helpers import get_active_symbols
 from utils.optimal_loader import OptimalLoader
 from utils.validation.data_freshness import FreshnessValidator, StaleDataError
 
-
 logger = logging.getLogger(__name__)
 
 # Correlation ID for tracing - Phase 1 passes PHASE1_CORRELATION_ID via environment
@@ -192,7 +191,10 @@ class PriceLoader(OptimalLoader):
         from utils.validation.schema import validate_table_schema
 
         if self.table_name not in TABLE_SCHEMAS:
-            logger.warning("[SCHEMA] No pre-defined schema for %s, skipping validation", self.table_name)
+            logger.warning(
+                "[SCHEMA] No pre-defined schema for %s, skipping validation",
+                self.table_name,
+            )
             return
 
         required_schema = TABLE_SCHEMAS[self.table_name]
@@ -243,7 +245,10 @@ class PriceLoader(OptimalLoader):
         were inserted when the unique constraint didn't exist.
         """
         if not self.primary_key:
-            logger.debug("[CONSTRAINT] No primary_key defined for %s, skipping check", self.table_name)
+            logger.debug(
+                "[CONSTRAINT] No primary_key defined for %s, skipping check",
+                self.table_name,
+            )
             return
 
         pk_cols = ",".join(self.primary_key)
@@ -276,7 +281,10 @@ class PriceLoader(OptimalLoader):
                 index_exists = True
 
             if constraint_exists or index_exists:
-                logger.info("[CONSTRAINT] âœ“ Unique constraint/index found on {self.table_name}(%s)", pk_cols)
+                logger.info(
+                    "[CONSTRAINT] âœ“ Unique constraint/index found on {self.table_name}(%s)",
+                    pk_cols,
+                )
             else:
                 # This is a CRITICAL error - without the constraint, duplicates can occur
                 error_msg = (
@@ -323,7 +331,10 @@ class PriceLoader(OptimalLoader):
                         best_size = size
 
             if best_size is not None and best_rate >= 0.5:
-                logger.debug("[BATCH_SIZE_SMART] Using batch={best_size} (success rate %s)", best_rate)
+                logger.debug(
+                    "[BATCH_SIZE_SMART] Using batch={best_size} (success rate %s)",
+                    best_rate,
+                )
                 return best_size
 
         # Fallback: use default with context awareness
@@ -506,12 +517,18 @@ class PriceLoader(OptimalLoader):
 
         # If we're more than 45 minutes after market close, assume data is available (yfinance lag max 15 min)
         if minutes_after_close > 45:
-            logger.info("[MARKET_CLOSE] %smin after market close, data should be available", minutes_after_close)
+            logger.info(
+                "[MARKET_CLOSE] %smin after market close, data should be available",
+                minutes_after_close,
+            )
             return True
 
         # If we're before market close, skip (early run or different time zone)
         if minutes_after_close < 0:
-            logger.info("[MARKET_CLOSE] Before market close (%smin), skipping check", minutes_after_close)
+            logger.info(
+                "[MARKET_CLOSE] Before market close (%smin), skipping check",
+                minutes_after_close,
+            )
             return True
 
         # We're 0-45 minutes after market close - verify SPY data with efficient retry
@@ -539,7 +556,10 @@ class PriceLoader(OptimalLoader):
                 )
                 if data_available:
                     elapsed = time.time() - start_time
-                    logger.info("[MARKET_CLOSE] âœ“ Data available after {elapsed:.1f}s (attempt %s)", attempt)
+                    logger.info(
+                        "[MARKET_CLOSE] âœ“ Data available after {elapsed:.1f}s (attempt %s)",
+                        attempt,
+                    )
                     # Emit success metric
                     try:
                         from algo.reporting import MetricsPublisher
@@ -553,7 +573,10 @@ class PriceLoader(OptimalLoader):
                         )
                         metrics.flush()
                     except Exception as metric_err:
-                        logger.debug("Could not publish market close success metric: %s", metric_err)
+                        logger.debug(
+                            "Could not publish market close success metric: %s",
+                            metric_err,
+                        )
                     return True
             except Exception as e:
                 last_error_type = type(e).__name__
@@ -747,7 +770,10 @@ class PriceLoader(OptimalLoader):
 
             # Wait outside the lock using condition variable (wakes fairly when notified)
             if wait_sec > 0.01:  # Only log if waiting >10ms
-                logger.debug("Rate limit: waiting {wait_sec:.2f}s for %s tokens (fair queue)", tokens_needed)
+                logger.debug(
+                    "Rate limit: waiting {wait_sec:.2f}s for %s tokens (fair queue)",
+                    tokens_needed,
+                )
             # Note: Condition.wait() releases lock while waiting, allowing other threads to proceed
             with self._rate_limit_event:
                 self._rate_limit_event.wait(timeout=wait_sec)  # Wake on timeout or notify()
@@ -883,7 +909,15 @@ class PriceLoader(OptimalLoader):
             time.sleep(wait_time)
             return cast(
                 dict | None,
-                self._fetch_with_fallback(symbols, start, end, batch_size, attempt + 1, max_attempts, elapsed_sec),
+                self._fetch_with_fallback(
+                    symbols,
+                    start,
+                    end,
+                    batch_size,
+                    attempt + 1,
+                    max_attempts,
+                    elapsed_sec,
+                ),
             )
 
         new_batch_size = max(1, batch_size // 2)
@@ -1091,7 +1125,10 @@ class PriceLoader(OptimalLoader):
                     )
                     m.flush()
                 except Exception as metric_err:
-                    logger.debug("Could not publish batch fetch minimum size metric: %s", metric_err)
+                    logger.debug(
+                        "Could not publish batch fetch minimum size metric: %s",
+                        metric_err,
+                    )
                 raise RuntimeError(
                     f"[BATCH FETCH ABORT] Batch at minimum with {self._rate_limit_errors} rate limit errors for {error_duration / 60:.1f}min. "
                     "yfinance API severely degraded - cannot fetch price data."
@@ -1137,7 +1174,10 @@ class PriceLoader(OptimalLoader):
                         max_attempts=max_attempts,
                     )
                     if any(v is not None for v in reduced_attempt.values()):
-                        logger.info("[CIRCUIT BREAKER] âœ“ Partial success with batch=%s", reduced_size)
+                        logger.info(
+                            "[CIRCUIT BREAKER] âœ“ Partial success with batch=%s",
+                            reduced_size,
+                        )
                         return reduced_attempt
 
                 # If all reduced sizes failed, emit alert and fail gracefully
@@ -1188,11 +1228,25 @@ class PriceLoader(OptimalLoader):
 
             if is_rate_limit:
                 return self._handle_rate_limit_error(
-                    symbols, start, end, batch_size, attempt, max_attempts, elapsed_sec, e
+                    symbols,
+                    start,
+                    end,
+                    batch_size,
+                    attempt,
+                    max_attempts,
+                    elapsed_sec,
+                    e,
                 )
             else:
                 return self._handle_transient_error(
-                    symbols, start, end, batch_size, attempt, max_attempts, elapsed_sec, e
+                    symbols,
+                    start,
+                    end,
+                    batch_size,
+                    attempt,
+                    max_attempts,
+                    elapsed_sec,
+                    e,
                 )
 
     def _try_fetch(self, symbol: str, start: date, end: date, max_retries: int = 5):
@@ -1447,7 +1501,10 @@ class PriceLoader(OptimalLoader):
                 logger.debug("Could not publish timeout metric: %s", metric_err)
 
             if not emergency_mode_enabled:
-                logger.warning("[EMERGENCY] Reducing parallelism from %s to 1 to finish before timeout", max_concurrent)
+                logger.warning(
+                    "[EMERGENCY] Reducing parallelism from %s to 1 to finish before timeout",
+                    max_concurrent,
+                )
 
         if batch_elapsed > 120:
             logger.warning(
@@ -1619,14 +1676,15 @@ class PriceLoader(OptimalLoader):
                 # Cache invalidation failed after exhausting all retry strategies.
                 # This means Phase 1 might use stale data = data corruption risk.
                 # Must halt loader to maintain data integrity.
-                logger.critical("[CACHE INVALIDATION] CRITICAL FAILURE in _finalize_loader_metadata: %s", cache_err)
+                logger.critical(
+                    "[CACHE INVALIDATION] CRITICAL FAILURE in _finalize_loader_metadata: %s",
+                    cache_err,
+                )
                 raise
         except (psycopg2.DatabaseError, psycopg2.OperationalError) as e:
             logger.warning("Failed to update data_loader_status for {self.table_name}: %s", e)
 
-    def run(  # type: ignore
-        self, symbols: list, parallelism: int = 1, backfill_days: int | None = None
-    ) -> dict:
+    def run(self, symbols: list, parallelism: int = 1, backfill_days: int | None = None) -> dict:  # type: ignore
         """Override to use batch fetching (50x faster than per-symbol) + concurrent batches."""
         if backfill_days is not None:
             self._backfill_days = backfill_days
@@ -1709,7 +1767,10 @@ class PriceLoader(OptimalLoader):
         for symbol in symbols:
             rows = batch_results.get(symbol) if batch_results else None
             if not rows:
-                logger.debug("[{self.table_name}] %s: No rows fetched (watermark current), skipping", symbol)
+                logger.debug(
+                    "[{self.table_name}] %s: No rows fetched (watermark current), skipping",
+                    symbol,
+                )
                 self._stats["symbols_skipped_by_watermark"] += 1  # type: ignore
                 self._stats[  # type: ignore
                     "symbols_processed"
@@ -1797,11 +1858,17 @@ def _invalidate_phase1_cache():
         try:
             # Step 1: Try direct deletion
             cache_table.delete_item(Key={"cache_key": cache_key})
-            logger.info("[CACHE INVALIDATION] âœ“ Successfully deleted Phase 1 cache: %s", cache_key)
+            logger.info(
+                "[CACHE INVALIDATION] âœ“ Successfully deleted Phase 1 cache: %s",
+                cache_key,
+            )
             return
         except ClientError as delete_err:
             error_dict = delete_err.response.get("Error")
-            if error_dict and error_dict.get("Code") in ("AccessDenied", "AccessDeniedException"):
+            if error_dict and error_dict.get("Code") in (
+                "AccessDenied",
+                "AccessDeniedException",
+            ):
                 logger.warning(
                     "[CACHE INVALIDATION]  Permission denied (DELETE): No DynamoDB write access. "
                     "Loader will proceed without cache invalidation (risk: may use stale data from previous run)."
@@ -1833,15 +1900,24 @@ def _invalidate_phase1_cache():
             return
         except ClientError as poison_err:
             error_dict = poison_err.response.get("Error")
-            if error_dict and error_dict.get("Code") in ("AccessDenied", "AccessDeniedException"):
+            if error_dict and error_dict.get("Code") in (
+                "AccessDenied",
+                "AccessDeniedException",
+            ):
                 logger.warning(
                     "[CACHE INVALIDATION]  Permission denied (UPDATE): No DynamoDB write access. "
                     "Loader will proceed without cache invalidation (risk: may use stale data from previous run)."
                 )
                 return
-            logger.error("[CACHE INVALIDATION] âœ— POISONING ALSO FAILED: {type(poison_err).__name__}: %s", poison_err)
+            logger.error(
+                "[CACHE INVALIDATION] âœ— POISONING ALSO FAILED: {type(poison_err).__name__}: %s",
+                poison_err,
+            )
         except (ValueError, ZeroDivisionError, TypeError) as poison_err:
-            logger.error("[CACHE INVALIDATION] âœ— POISONING ALSO FAILED: {type(poison_err).__name__}: %s", poison_err)
+            logger.error(
+                "[CACHE INVALIDATION] âœ— POISONING ALSO FAILED: {type(poison_err).__name__}: %s",
+                poison_err,
+            )
 
     except (ValueError, ZeroDivisionError, TypeError) as setup_err:
         logger.error("[CACHE INVALIDATION] Setup error: %s", setup_err)
@@ -1958,7 +2034,10 @@ def main():
     import signal
 
     def timeout_handler(signum, frame):
-        logger.critical("[TIMEOUT] Price loader exceeded %ss timeout. Killing process.", execution_timeout_sec)
+        logger.critical(
+            "[TIMEOUT] Price loader exceeded %ss timeout. Killing process.",
+            execution_timeout_sec,
+        )
         raise TimeoutError(f"Execution exceeded {execution_timeout_sec}s timeout")
 
     # SIGALRM only available on Unix; skip on Windows
@@ -2031,7 +2110,10 @@ def main():
                         duration_seconds=round(time.time() - start_time, 2),
                     )
                 except (ValueError, ZeroDivisionError, TypeError) as log_err:
-                    logger.critical("[MAIN] Could not log loader failure to audit trail: %s", log_err)
+                    logger.critical(
+                        "[MAIN] Could not log loader failure to audit trail: %s",
+                        log_err,
+                    )
                 return 1
     except (ValueError, ZeroDivisionError, TypeError) as e:
         logger.error("[MAIN] Failed to get symbols: %s", e, exc_info=True)
@@ -2140,7 +2222,11 @@ def main():
 
                         logger.info("[MAIN] Completed {asset_class}/{interval}: %s", stats)
                         # Validate stats dict has required keys
-                        for required_key in ["symbols_processed", "symbols_failed", "rows_inserted"]:
+                        for required_key in [
+                            "symbols_processed",
+                            "symbols_failed",
+                            "rows_inserted",
+                        ]:
                             if required_key not in stats:
                                 raise RuntimeError(f"Stats dict missing required key '{required_key}': {stats}")
 
@@ -2168,7 +2254,10 @@ def main():
                         try:
                             _invalidate_phase1_cache()
                         except RuntimeError as cache_err:
-                            logger.critical("[MAIN] Cache invalidation failed on loader error: %s", cache_err)
+                            logger.critical(
+                                "[MAIN] Cache invalidation failed on loader error: %s",
+                                cache_err,
+                            )
                         raise RuntimeError(
                             f"[MAIN] Loader failed for {asset_class}/{interval}: {e}. "
                             "Cannot proceed with price loading if an interval fails."

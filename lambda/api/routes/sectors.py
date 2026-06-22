@@ -21,7 +21,6 @@ from routes.utils import (
 
 from shared_contracts.response_validator import ResponseValidator
 
-
 logger = logging.getLogger(__name__)
 
 
@@ -148,7 +147,10 @@ def handle(
                 )
                 rows = cur.fetchall()
                 freshness = check_data_freshness(cur, "sector_performance", "date", warning_days=1)
-                return list_response([safe_json_serialize(dict(r)) for r in rows], data_freshness=freshness)
+                return list_response(
+                    [safe_json_serialize(dict(r)) for r in rows],
+                    data_freshness=freshness,
+                )
         elif path in ("/api/sectors", "/api/sectors/performance"):
             limit_str = params.get("limit", [None])[0] if params else None
             limit = safe_limit(limit_str or "50000", max_val=50000)

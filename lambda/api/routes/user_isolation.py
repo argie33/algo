@@ -16,7 +16,6 @@ from routes.utils import error_response
 
 from utils.db.sql_safety import assert_safe_column, assert_safe_table
 
-
 logger = logging.getLogger(__name__)
 
 

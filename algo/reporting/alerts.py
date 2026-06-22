@@ -24,7 +24,6 @@ import requests
 
 from algo.infrastructure import get_webhook_timeout
 
-
 logger = logging.getLogger(__name__)
 
 try:

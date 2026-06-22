@@ -24,7 +24,6 @@ import logging
 import psycopg2
 from psycopg2.extras import DictCursor
 
-
 logger = logging.getLogger(__name__)
 
 

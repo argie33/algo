@@ -10,7 +10,6 @@ from typing import TYPE_CHECKING, Any
 
 from utils.trading import PositionStatus, TradeStatus
 
-
 if TYPE_CHECKING:
     from algo.infrastructure.config import AlgoConfig
 
@@ -44,7 +43,11 @@ class TradeValidator:
         self.pretrade_checks = pretrade_checks
 
         # Validate critical trading config values at init time (fail-fast)
-        required_r_multiples = ["t1_target_r_multiple", "t2_target_r_multiple", "t3_target_r_multiple"]
+        required_r_multiples = [
+            "t1_target_r_multiple",
+            "t2_target_r_multiple",
+            "t3_target_r_multiple",
+        ]
         for r_key in required_r_multiples:
             if r_key not in config or config[r_key] is None:
                 raise ValueError(
@@ -94,19 +97,31 @@ class TradeValidator:
 
         # Validate date ordering
         if entry_date < signal_date:
-            return False, f"Invalid: entry_date {entry_date} must be >= signal_date {signal_date}", {}
+            return (
+                False,
+                f"Invalid: entry_date {entry_date} must be >= signal_date {signal_date}",
+                {},
+            )
 
         # Validate basic prices and quantities
         if entry_price <= 0:
             return False, f"Invalid entry price: {entry_price} (must be > 0)", {}
         if stop_loss_price <= 0:
-            return False, f"Invalid stop loss price: {stop_loss_price} (must be > 0)", {}
+            return (
+                False,
+                f"Invalid stop loss price: {stop_loss_price} (must be > 0)",
+                {},
+            )
         if shares <= 0:
             return False, f"Invalid share count: {shares} (must be > 0)", {}
 
         # Validate portfolio availability
         if not portfolio_value or portfolio_value <= 0:
-            return False, "Cannot execute trade: portfolio value unavailable from Alpaca and DB snapshot", {}
+            return (
+                False,
+                "Cannot execute trade: portfolio value unavailable from Alpaca and DB snapshot",
+                {},
+            )
 
         # Run pre-trade risk checks if available
         if self.pretrade_checks:
@@ -172,11 +187,23 @@ class TradeValidator:
 
         # Validate individual targets exceed entry
         if target_1_price <= entry_price:
-            return False, f"Invalid target_1: ${target_1_price:.2f} <= entry ${entry_price:.2f}", {}
+            return (
+                False,
+                f"Invalid target_1: ${target_1_price:.2f} <= entry ${entry_price:.2f}",
+                {},
+            )
         if target_2_price <= entry_price:
-            return False, f"Invalid target_2: ${target_2_price:.2f} <= entry ${entry_price:.2f}", {}
+            return (
+                False,
+                f"Invalid target_2: ${target_2_price:.2f} <= entry ${entry_price:.2f}",
+                {},
+            )
         if target_3_price <= entry_price:
-            return False, f"Invalid target_3: ${target_3_price:.2f} <= entry ${entry_price:.2f}", {}
+            return (
+                False,
+                f"Invalid target_3: ${target_3_price:.2f} <= entry ${entry_price:.2f}",
+                {},
+            )
 
         # Validate target hierarchy
         if target_1_price >= target_2_price:
@@ -209,11 +236,19 @@ class TradeValidator:
             (symbol, PositionStatus.OPEN.value),
         )
         if cur.fetchone():
-            return True, f"Symbol {symbol} already has an open position. Close it before entering another."
+            return (
+                True,
+                f"Symbol {symbol} already has an open position. Close it before entering another.",
+            )
         return False, None
 
     def check_idempotent_duplicate(
-        self, cur, symbol: str, signal_date: Any, entry_price: Decimal | float, stop_loss_price: Decimal | float
+        self,
+        cur,
+        symbol: str,
+        signal_date: Any,
+        entry_price: Decimal | float,
+        stop_loss_price: Decimal | float,
     ) -> tuple[bool, str | None, str | None]:
         """Check if trade already exists via idempotency key.
 
@@ -231,7 +266,11 @@ class TradeValidator:
         if result:
             trade_id = result[0]
             logger.warning(f"DUPLICATE EXECUTION BLOCKED: Idempotency key exists for {symbol} (trade_id: {trade_id})")
-            return True, f"Trade already exists for {symbol} on {signal_date} (idempotent duplicate)", trade_id
+            return (
+                True,
+                f"Trade already exists for {symbol} on {signal_date} (idempotent duplicate)",
+                trade_id,
+            )
         return False, None, None
 
     def check_open_position_in_symbol(self, cur, symbol: str) -> tuple[bool, str | None]:
@@ -249,7 +288,12 @@ class TradeValidator:
         return False, None
 
     def check_signal_fingerprint_duplicate(
-        self, cur, symbol: str, signal_date: Any, entry_price: Decimal | float, stop_loss_price: Decimal | float
+        self,
+        cur,
+        symbol: str,
+        signal_date: Any,
+        entry_price: Decimal | float,
+        stop_loss_price: Decimal | float,
     ) -> tuple[bool, str | None, str | None]:
         """Check if same signal already exists as OPEN or PENDING trade.
 

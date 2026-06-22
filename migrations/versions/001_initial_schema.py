@@ -8,7 +8,6 @@ It creates the schema_version table to track all future migrations.
 
 from utils.db.context import DatabaseContext
 
-
 DESCRIPTION = "Initialize schema version tracking table"
 
 

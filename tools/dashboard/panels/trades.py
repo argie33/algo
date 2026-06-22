@@ -3,7 +3,6 @@
 import logging
 from typing import Any
 
-
 logger = logging.getLogger(__name__)
 
 try:
@@ -321,14 +320,23 @@ def panel_trades_expanded(trades):
             _fd(exit_date),
             Text(f"${entry_p:.2f}" if entry_p is not None else "--", style="dim"),
             Text(f"${exit_p:.2f}" if exit_p is not None else "--", style="dim"),
-            Text(f"{sign(pnl_d)}${abs(pnl_d):.0f}" if pnl_d is not None else "--", style=pc),
+            Text(
+                f"{sign(pnl_d)}${abs(pnl_d):.0f}" if pnl_d is not None else "--",
+                style=pc,
+            ),
             Text(f"{sign(pnl_p)}{pnl_p:.1f}%" if pnl_p is not None else "--", style=pc),
             Text(f"{sign(rmul)}{rmul:.2f}R" if rmul is not None else "--", style=pc),
             Text(f"{dur}d" if dur is not None else "--", style="dim"),
             Text(grade, style=grade_c),
             Text(exit_rsn, style=exit_rsn_c),
-            Text(f"{mfe:.1f}%" if mfe is not None else "--", style=G if (mfe or 0) > 0 else DIM),
-            Text(f"{mae:.1f}%" if mae is not None else "--", style=R if (mae or 0) < 0 else DIM),
+            Text(
+                f"{mfe:.1f}%" if mfe is not None else "--",
+                style=G if (mfe or 0) > 0 else DIM,
+            ),
+            Text(
+                f"{mae:.1f}%" if mae is not None else "--",
+                style=R if (mae or 0) < 0 else DIM,
+            ),
         )
 
     rows.append(tbl)

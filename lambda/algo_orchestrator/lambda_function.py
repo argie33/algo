@@ -15,7 +15,6 @@ from pathlib import Path
 
 import psycopg2
 
-
 # Setup logging
 logger = logging.getLogger()
 logger.setLevel(os.environ.get("LOG_LEVEL", "INFO").upper())

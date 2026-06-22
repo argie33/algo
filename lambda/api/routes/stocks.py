@@ -20,7 +20,6 @@ from routes.utils import (
 
 from shared_contracts.response_validator import ResponseValidator
 
-
 logger = logging.getLogger(__name__)
 
 
@@ -92,8 +91,7 @@ def handle(
                 code, error_type, message = handle_db_error(e, "deep-value check")
                 return error_response(code, error_type, message)
             try:
-                deep_value_query = (
-                    """
+                deep_value_query = """
                 WITH value_stocks AS (
                     SELECT DISTINCT symbol FROM value_metrics WHERE pe_ratio IS NOT NULL
                 ),
@@ -239,9 +237,7 @@ def handle(
                 CROSS JOIN market_median mm
                 ORDER BY generational_score DESC NULLS LAST
                 LIMIT %s
-                """
-                    % limit
-                )
+                """ % limit
 
                 # Execute with single attempt at 23s — complex multi-CTE query needs headroom.
                 # Lambda timeout is 25s; provisioned concurrency keeps instance warm so no cold-start risk.
@@ -334,8 +330,7 @@ def handle(
             """
             SELECT COUNT(*) FROM stock_symbols ss
             LEFT JOIN company_profile cp ON ss.symbol = cp.ticker
-            WHERE """
-            + where_sql,
+            WHERE """ + where_sql,
             query_params,
         )
         count_row = cur.fetchone()

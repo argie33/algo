@@ -20,7 +20,6 @@ import yfinance as yf
 
 from utils.external.yfinance_circuit_breaker import get_circuit_breaker
 
-
 logger = logging.getLogger(__name__)
 
 # Global per-process rate limiter: enforces minimum interval between requests

@@ -10,7 +10,6 @@ from unittest.mock import Mock
 
 import pytest
 
-
 sys.path.insert(0, str(Path(__file__).parent.parent.parent / "lambda" / "api"))
 sys.path.insert(0, str(Path(__file__).parent.parent.parent))
 
@@ -171,7 +170,10 @@ class TestPublicEndpointAccess:
     def test_api_algo_markets_allows_all(self):
         """Public markets endpoint should allow all authenticated users."""
         # /api/algo/markets does not call _check_admin_access
-        trader_claims = {"sub": "test-trader-user", "cognito:groups": ["trader"]}  # Non-admin user
+        trader_claims = {
+            "sub": "test-trader-user",
+            "cognito:groups": ["trader"],
+        }  # Non-admin user
         from routes.algo import _check_admin_access
 
         # Verify _check_admin_access is NOT called for this endpoint
@@ -185,7 +187,10 @@ class TestPublicEndpointAccess:
     def test_api_scores_allows_all(self):
         """Public scores endpoint should allow all authenticated users."""
         # /api/scores does not call _check_admin_access
-        trader_claims = {"sub": "test-trader-user", "cognito:groups": ["trader"]}  # Non-admin user
+        trader_claims = {
+            "sub": "test-trader-user",
+            "cognito:groups": ["trader"],
+        }  # Non-admin user
         from routes.algo import _check_admin_access
 
         # Scores endpoint is public - doesn't require admin check
@@ -197,7 +202,10 @@ class TestPublicEndpointAccess:
     def test_api_prices_allows_all(self):
         """Public prices endpoint should allow all authenticated users."""
         # /api/prices does not call _check_admin_access
-        trader_claims = {"sub": "test-trader-user", "cognito:groups": ["trader"]}  # Non-admin user
+        trader_claims = {
+            "sub": "test-trader-user",
+            "cognito:groups": ["trader"],
+        }  # Non-admin user
         from routes.algo import _check_admin_access
 
         # Prices endpoint is public - doesn't require admin check

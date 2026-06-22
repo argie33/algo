@@ -7,7 +7,6 @@ import logging
 from decimal import Decimal
 from typing import Any
 
-
 logger = logging.getLogger(__name__)
 
 

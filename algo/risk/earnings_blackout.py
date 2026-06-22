@@ -16,7 +16,6 @@ import psycopg2.errors
 from algo.infrastructure import MarketCalendar
 from utils.db import DatabaseContext
 
-
 logger = logging.getLogger(__name__)
 
 

@@ -3,14 +3,12 @@
 
 import logging
 import sys
-from datetime import date
-from typing import Optional
+from datetime import date, datetime, timezone
 
 from loaders.runner import run_loader
 from utils.db.context import DatabaseContext
 from utils.infrastructure.timezone import EASTERN_TZ
 from utils.optimal_loader import OptimalLoader
-
 
 logger = logging.getLogger(__name__)
 
@@ -25,8 +23,6 @@ class AlgoMetricsDailyLoader(OptimalLoader):
     def fetch_global(self, since: date | None) -> list[dict] | None:
         """Compute daily algo metrics from audit log."""
         try:
-            from datetime import datetime, timezone
-
             now_utc = datetime.now(timezone.utc)
             now_et = now_utc.astimezone(EASTERN_TZ)
             run_date = now_et.date()
@@ -67,7 +63,7 @@ class AlgoMetricsDailyLoader(OptimalLoader):
         except (ValueError, ZeroDivisionError, TypeError) as e:
             raise RuntimeError(
                 f"[ALGO_METRICS] Failed to compute daily metrics: {e}. Cannot proceed without performance tracking."
-            )
+            ) from e
 
 
 if __name__ == "__main__":

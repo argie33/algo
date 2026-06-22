@@ -14,7 +14,6 @@ import psycopg2
 
 from utils.db import DatabaseContext
 
-
 logger = logging.getLogger(__name__)
 
 
@@ -132,7 +131,7 @@ def get_active_symbols(max_symbols: int | None = None, timeout_secs: int = 120) 
             raise TimeoutError(f"get_active_symbols() exceeded {timeout_secs}s timeout")
 
         if result["error"]:
-            raise result["error"]
+            raise result["error"]  # pylint: disable=raising-bad-type
 
         symbols = result["symbols"] or []
 
@@ -146,10 +145,13 @@ def get_active_symbols(max_symbols: int | None = None, timeout_secs: int = 120) 
 
         return symbols
     finally:
-        # Cancel alarm
+        # Cancel alarm (only on Unix/Linux where SIGALRM is available)
         if old_handler is not None:
-            signal.alarm(0)
-            signal.signal(signal.SIGALRM, old_handler)
+            try:
+                signal.alarm(0)
+                signal.signal(signal.SIGALRM, old_handler)
+            except (AttributeError, ValueError):
+                pass
 
 
 def _resolve_timeframe(cli_arg: str | None = None) -> str:

@@ -9,7 +9,6 @@ All dynamic SQL patterns are validated against whitelists before execution.
 
 import re
 
-
 # Known safe tables (whitelist for dynamic table names)
 # Security: M-001 SQL injection prevention — table names validated against whitelist
 SAFE_TABLES = {

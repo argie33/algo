@@ -3,7 +3,6 @@ import os
 
 import boto3
 
-
 logger = logging.getLogger()
 dynamodb = boto3.resource("dynamodb")
 token_blocklist_table = dynamodb.Table(os.environ.get("TOKEN_BLOCKLIST_TABLE", "algo-token-blocklist-dev"))

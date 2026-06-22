@@ -1,4 +1,5 @@
 """Route: algo"""
+
 # mypy: disable-error-code=no-any-return
 
 import logging
@@ -27,7 +28,6 @@ from utils.validation import (
     APIResponseValidator,
     format_decimal_string,
 )
-
 
 logger = logging.getLogger(__name__)
 
@@ -84,7 +84,11 @@ def _get_algo_metrics(cur) -> dict[str, Any]:
         if date is None:
             return error_response(503, "incomplete_data", "Algo metrics date missing")
         if total_actions is None or entries is None or exits is None:
-            return error_response(503, "incomplete_data", "Algo metrics incomplete (missing actions/entries/exits)")
+            return error_response(
+                503,
+                "incomplete_data",
+                "Algo metrics incomplete (missing actions/entries/exits)",
+            )
 
         total_actions = int(total_actions)
         entries = int(entries)
@@ -171,7 +175,11 @@ def _get_algo_performance(cur) -> dict[str, Any]:
                 f"Performance metrics incomplete: total_trades={total_trades_raw}, "
                 f"winning_trades={winning_raw}, losing_trades={losing_raw} (breakeven={breakeven_raw})"
             )
-            return error_response(503, "incomplete_data", "Performance metrics missing required trade counts")
+            return error_response(
+                503,
+                "incomplete_data",
+                "Performance metrics missing required trade counts",
+            )
 
         total_trades = int(total_trades_raw)
         winning = int(winning_raw)
@@ -198,7 +206,11 @@ def _get_algo_performance(cur) -> dict[str, Any]:
                 trade_stats = safe_dict_convert(ts_row)
         except (psycopg2.DatabaseError, psycopg2.OperationalError) as te:
             logger.error(f"CRITICAL: Could not compute trade-level stats: {te}")
-            return error_response(503, "data_unavailable", f"Trade metrics unavailable: {type(te).__name__}")
+            return error_response(
+                503,
+                "data_unavailable",
+                f"Trade metrics unavailable: {type(te).__name__}",
+            )
 
         # Compute current win/loss streak from most recent closed trades (CRITICAL for performance panel)
         current_streak = 0
@@ -230,7 +242,11 @@ def _get_algo_performance(cur) -> dict[str, Any]:
                             break
         except (psycopg2.DatabaseError, psycopg2.OperationalError) as ce:
             logger.error(f"CRITICAL: Could not compute current streak: {ce}")
-            return error_response(503, "data_unavailable", f"Streak computation failed: {type(ce).__name__}")
+            return error_response(
+                503,
+                "data_unavailable",
+                f"Streak computation failed: {type(ce).__name__}",
+            )
 
         # Compute open losses for adjusted win rate
         open_losses_count = 0
@@ -300,21 +316,29 @@ def _get_algo_performance(cur) -> dict[str, Any]:
                 # Last 10 in chronological order; panel takes [-5:] for the 5 most recent
                 recent_rets = [
                     [
-                        r["snapshot_date"].isoformat()
-                        if hasattr(r["snapshot_date"], "isoformat")
-                        else str(r["snapshot_date"]),
-                        float(r["daily_return_pct"]) if r.get("daily_return_pct") is not None else 0.0,
+                        (
+                            r["snapshot_date"].isoformat()
+                            if hasattr(r["snapshot_date"], "isoformat")
+                            else str(r["snapshot_date"])
+                        ),
+                        (float(r["daily_return_pct"]) if r.get("daily_return_pct") is not None else 0.0),
                     ]
                     for r in snap_rows[-10:]
                 ]
         except (psycopg2.DatabaseError, psycopg2.OperationalError) as eq_err:
             logger.error(f"CRITICAL: Could not fetch equity sparkline data for performance: {eq_err}")
             return error_response(
-                503, "data_unavailable", f"Portfolio snapshot data unavailable: {type(eq_err).__name__}"
+                503,
+                "data_unavailable",
+                f"Portfolio snapshot data unavailable: {type(eq_err).__name__}",
             )
         except (ValueError, ZeroDivisionError, TypeError) as eq_err:
             logger.error(f"CRITICAL: Equity data format error: {eq_err}")
-            return error_response(500, "data_format_error", f"Portfolio data format invalid: {type(eq_err).__name__}")
+            return error_response(
+                500,
+                "data_format_error",
+                f"Portfolio data format invalid: {type(eq_err).__name__}",
+            )
 
         fds = format_decimal_string  # Shorthand for readability
         response_data = {
@@ -466,9 +490,16 @@ def _get_algo_portfolio(cur) -> dict[str, Any]:
         return error_response(503, "data_unavailable", f"Portfolio data unavailable: {type(e).__name__}")
     except (ValueError, ZeroDivisionError, TypeError) as e:
         logger.error(f"CRITICAL: Portfolio data format error: {type(e).__name__}: {e}")
-        return error_response(500, "data_format_error", f"Portfolio data format invalid: {type(e).__name__}")
+        return error_response(
+            500,
+            "data_format_error",
+            f"Portfolio data format invalid: {type(e).__name__}",
+        )
     except (AttributeError, KeyError) as e:
-        logger.error(f"CRITICAL: Portfolio fetch unexpected error: {type(e).__name__}: {e}", exc_info=True)
+        logger.error(
+            f"CRITICAL: Portfolio fetch unexpected error: {type(e).__name__}: {e}",
+            exc_info=True,
+        )
         return error_response(503, "service_error", f"Portfolio service error: {type(e).__name__}")
 
 
@@ -619,7 +650,7 @@ def _get_performance_analytics(cur) -> dict[str, Any]:
                 "win_rate_50t": float(wr_50t) if wr_50t is not None else None,
                 "avg_win_r_50t": float(avg_wr) if avg_wr is not None else None,
                 "avg_loss_r_50t": float(avg_lr) if avg_lr is not None else None,
-                "expectancy": float(expectancy_val) if expectancy_val is not None else None,
+                "expectancy": (float(expectancy_val) if expectancy_val is not None else None),
                 "max_drawdown_pct": float(max_dd) if max_dd is not None else None,
             }
         )
@@ -630,7 +661,12 @@ def _get_performance_analytics(cur) -> dict[str, Any]:
             raise RuntimeError(f"Unexpected error: {e}") from e
         logger.error("Performance analytics table missing or schema changed")
         return error_response(503, "table_missing", "Performance analytics table not found")
-    except (psycopg2.OperationalError, psycopg2.DatabaseError, ValueError, KeyError) as e:
+    except (
+        psycopg2.OperationalError,
+        psycopg2.DatabaseError,
+        ValueError,
+        KeyError,
+    ) as e:
         try:
             cur.execute("ROLLBACK TO SAVEPOINT perf_analytics")
         except (psycopg2.DatabaseError, psycopg2.OperationalError) as save_err:
@@ -745,9 +781,9 @@ def _get_risk_metrics(cur) -> dict[str, Any]:
                 "report_date": data.get("report_date"),
                 "var_pct_95": float(var_95) if var_95 is not None else None,
                 "cvar_pct_95": float(cvar_95) if cvar_95 is not None else None,
-                "stressed_var_pct": float(stressed_var) if stressed_var is not None else None,
-                "portfolio_beta": float(portfolio_beta) if portfolio_beta is not None else None,
-                "top_5_concentration": float(concentration) if concentration is not None else None,
+                "stressed_var_pct": (float(stressed_var) if stressed_var is not None else None),
+                "portfolio_beta": (float(portfolio_beta) if portfolio_beta is not None else None),
+                "top_5_concentration": (float(concentration) if concentration is not None else None),
             }
         )
     except (psycopg2.errors.UndefinedTable, psycopg2.errors.UndefinedColumn):
@@ -757,7 +793,12 @@ def _get_risk_metrics(cur) -> dict[str, Any]:
             raise RuntimeError(f"Unexpected error: {e}") from e
         logger.error("Risk metrics table missing or schema changed")
         return error_response(503, "table_missing", "Risk metrics table not found")
-    except (psycopg2.OperationalError, psycopg2.DatabaseError, ValueError, KeyError) as e:
+    except (
+        psycopg2.OperationalError,
+        psycopg2.DatabaseError,
+        ValueError,
+        KeyError,
+    ) as e:
         try:
             cur.execute("ROLLBACK TO SAVEPOINT risk_metrics")
         except (psycopg2.DatabaseError, psycopg2.OperationalError) as save_err:

@@ -20,7 +20,6 @@ from routes.utils import (
 from shared_contracts.response_validator import ResponseValidator
 from utils.validation import DatabaseResultValidator
 
-
 logger = logging.getLogger(__name__)
 
 
@@ -488,7 +487,7 @@ def _get_yield_curve_full(cur) -> dict[str, Any]:
         vixcls = history.get("VIXCLS")
         credit_history = {
             "BAMLH0A0HYM2": bamlh if bamlh is not None else [],
-            "BAMLH0A0IG": bamlc if bamlc is not None else [],  # BAMLC0A0CM is IG corporate OAS
+            "BAMLH0A0IG": (bamlc if bamlc is not None else []),  # BAMLC0A0CM is IG corporate OAS
             "VIXCLS": vixcls if vixcls is not None else [],
         }
         credit_latest = {k: v[-1].get("value") if v else None for k, v in credit_history.items()}

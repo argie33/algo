@@ -2,7 +2,6 @@
 
 import logging
 
-
 logger = logging.getLogger(__name__)
 
 try:
@@ -404,7 +403,12 @@ def panel_header_market(mkt, sentiment, ts, mkt_s, elapsed, refresh_s="", cfg=No
             rows.append(Text.from_markup("  ".join(parts6)))
     else:
         rows.append(Text("no market data", style="dim"))
-    return Panel(Group(*rows), title="[bold blue]MARKET[/]  [dim][m] expand[/]", border_style="blue", padding=(0, 1))
+    return Panel(
+        Group(*rows),
+        title="[bold blue]MARKET[/]  [dim][m] expand[/]",
+        border_style="blue",
+        padding=(0, 1),
+    )
 
 
 __all__ = [

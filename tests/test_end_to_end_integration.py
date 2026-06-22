@@ -30,7 +30,6 @@ import sys
 from datetime import datetime, timedelta
 from pathlib import Path
 
-
 sys.path.insert(0, str(Path(__file__).parent.parent))
 
 from algo.infrastructure import MarketCalendar, get_config
@@ -38,7 +37,6 @@ from algo.orchestration import Orchestrator
 from utils.db.context import DatabaseContext
 from utils.db.sql_safety import assert_safe_table
 from utils.infrastructure.timezone import EASTERN_TZ
-
 
 logging.basicConfig(level=logging.INFO, format="%(asctime)s [%(name)s] %(levelname)s: %(message)s")
 logger = logging.getLogger(__name__)
@@ -190,7 +188,13 @@ class EndToEndIntegrationTest:
             except Exception as e:
                 logger.warning(f"  Could not read load_prices.py: {e}")
                 checks = dict.fromkeys(
-                    ["circuit_breaker_code", "batch_threshold_check", "error_threshold_check", "timeout_dynamic"], False
+                    [
+                        "circuit_breaker_code",
+                        "batch_threshold_check",
+                        "error_threshold_check",
+                        "timeout_dynamic",
+                    ],
+                    False,
                 )
 
             for check, passed in checks.items():

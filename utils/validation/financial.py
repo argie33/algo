@@ -14,7 +14,6 @@ import math
 from decimal import Decimal, InvalidOperation
 from typing import Any
 
-
 logger = logging.getLogger(__name__)
 
 

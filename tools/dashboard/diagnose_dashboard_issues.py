@@ -8,7 +8,6 @@ from zoneinfo import ZoneInfo
 from tools.dashboard.error_boundary import has_error
 from tools.dashboard.fetchers import load_all
 
-
 ET = ZoneInfo("America/New_York")
 
 

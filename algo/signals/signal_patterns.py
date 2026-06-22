@@ -7,7 +7,6 @@ from typing import Any
 
 from utils.db.context import DatabaseContext
 
-
 logger = logging.getLogger(__name__)
 
 

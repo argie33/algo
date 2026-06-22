@@ -23,7 +23,6 @@ import psycopg2
 
 from utils.db.context import DatabaseContext
 
-
 logger = logging.getLogger(__name__)
 
 
@@ -109,7 +108,8 @@ class YFinanceIPCircuitBreaker:
             failure_count = (state.get("failure_count", 0) or 0) + 1
             # Exponential backoff: initial 10s, then 20s, 40s, 80s, 160s, 300s, 300s, ...
             backoff = min(
-                self.INITIAL_BACKOFF_SECS * (self.BACKOFF_MULTIPLIER ** (failure_count - 1)), self.MAX_BACKOFF_SECS
+                self.INITIAL_BACKOFF_SECS * (self.BACKOFF_MULTIPLIER ** (failure_count - 1)),
+                self.MAX_BACKOFF_SECS,
             )
 
         ban_until = datetime.now(timezone.utc) + timedelta(seconds=backoff)
@@ -204,7 +204,15 @@ class YFinanceIPCircuitBreaker:
                         reason = EXCLUDED.reason,
                         updated_at = CURRENT_TIMESTAMP
                     """,
-                    (self.STATE_KEY, is_banned, failure_count, ban_until, last_error_time, last_success_time, reason),
+                    (
+                        self.STATE_KEY,
+                        is_banned,
+                        failure_count,
+                        ban_until,
+                        last_error_time,
+                        last_success_time,
+                        reason,
+                    ),
                 )
 
             # Invalidate local cache
@@ -256,9 +264,9 @@ class YFinanceIPCircuitBreaker:
             "is_banned": state.get("is_banned", False),
             "failure_count": state.get("failure_count", 0),
             "backoff_secs": remaining_secs,
-            "ban_until": ban_until.isoformat() if isinstance(ban_until, datetime) else None,
-            "last_error_time": last_error_time.isoformat() if isinstance(last_error_time, datetime) else None,
-            "last_success_time": last_success_time.isoformat() if isinstance(last_success_time, datetime) else None,
+            "ban_until": (ban_until.isoformat() if isinstance(ban_until, datetime) else None),
+            "last_error_time": (last_error_time.isoformat() if isinstance(last_error_time, datetime) else None),
+            "last_success_time": (last_success_time.isoformat() if isinstance(last_success_time, datetime) else None),
             "reason": state.get("reason", ""),
         }
 

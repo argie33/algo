@@ -10,7 +10,6 @@ from utils.db import assert_safe_table, safe_select_count
 from ..base import BaseCheck, CheckResult
 from ..config import ERROR, INFO, WARN
 
-
 logger = logging.getLogger(__name__)
 
 
@@ -148,14 +147,29 @@ class CoverageChecker(BaseCheck):
                                 INFO,
                                 table_name,
                                 f"{table_name} coverage {coverage_pct:.1f}% OK",
-                                {"coverage_pct": round(coverage_pct, 1), "count": table_count},
+                                {
+                                    "coverage_pct": round(coverage_pct, 1),
+                                    "count": table_count,
+                                },
                             )
                     except (psycopg2.DatabaseError, psycopg2.OperationalError) as e:
                         self.log("coverage", ERROR, table_name, f"Check failed: {e}", None)
             except (psycopg2.DatabaseError, psycopg2.OperationalError) as e:
-                self.log("coverage", ERROR, "patrol_coverage", f"Union query check failed: {e}", None)
+                self.log(
+                    "coverage",
+                    ERROR,
+                    "patrol_coverage",
+                    f"Union query check failed: {e}",
+                    None,
+                )
         except (psycopg2.DatabaseError, psycopg2.OperationalError) as e:
-            self.log("coverage", ERROR, "patrol_coverage", f"Coverage check failed: {e}", None)
+            self.log(
+                "coverage",
+                ERROR,
+                "patrol_coverage",
+                f"Coverage check failed: {e}",
+                None,
+            )
 
     def check_loader_contracts(self, cur) -> None:
         """Verify per-loader output contracts."""

@@ -67,7 +67,7 @@ class Phase3Result(PhaseResult):
             phase_name="POSITION MONITOR",
             status=status,
             dependencies=[],
-            data={"recommendations": recommendations if recommendations is not None else []},
+            data={"recommendations": (recommendations if recommendations is not None else [])},
             **kwargs,
         )
 
@@ -150,7 +150,7 @@ class Phase7Result(PhaseResult):
             phase_name="SIGNAL GENERATION & RANKING",
             status=status,
             dependencies=[5],
-            data={"qualified_trades": qualified_trades if qualified_trades is not None else []},
+            data={"qualified_trades": (qualified_trades if qualified_trades is not None else [])},
             **kwargs,
         )
 

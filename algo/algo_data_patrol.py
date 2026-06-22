@@ -14,7 +14,6 @@ from pathlib import Path
 from algo.monitoring.data_patrol import DataPatrol
 from utils.infrastructure.timeout import ExecutionTimeout, ExecutionTimeoutError
 
-
 root = Path(__file__).parent.parent
 if str(root) not in sys.path:
     sys.path.insert(0, str(root))
@@ -27,7 +26,11 @@ if __name__ == "__main__":
         with ExecutionTimeout(max_seconds=600, label="data_patrol"):
             parser = argparse.ArgumentParser(description="Data integrity patrol")
             parser.add_argument("--quick", action="store_true", help="Critical checks only")
-            parser.add_argument("--validate-alpaca", action="store_true", help="Cross-validate vs Alpaca")
+            parser.add_argument(
+                "--validate-alpaca",
+                action="store_true",
+                help="Cross-validate vs Alpaca",
+            )
             parser.add_argument("--json", action="store_true", help="JSON output")
             args = parser.parse_args()
 

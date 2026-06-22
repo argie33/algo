@@ -32,7 +32,6 @@ from utils.infrastructure.timezone import EASTERN_TZ
 from utils.loaders.helpers import get_active_symbols
 from utils.validation.data_freshness import FreshnessValidator, StaleDataError
 
-
 logger = logging.getLogger(__name__)
 
 
@@ -199,7 +198,13 @@ class OptionsLoader:
                     (symbol, date, current_iv, iv_52w_high, iv_52w_low)
                     VALUES (%s, %s, %s, %s, %s)
                     """,
-                    (symbol, eval_date, float(current_iv), float(iv_52w_high), float(iv_52w_low)),
+                    (
+                        symbol,
+                        eval_date,
+                        float(current_iv),
+                        float(iv_52w_high),
+                        float(iv_52w_low),
+                    ),
                 )
             except psycopg2.IntegrityError:
                 # Row already exists, update it
@@ -209,7 +214,13 @@ class OptionsLoader:
                     SET current_iv = %s, iv_52w_high = %s, iv_52w_low = %s
                     WHERE symbol = %s AND date = %s
                     """,
-                    (float(current_iv), float(iv_52w_high), float(iv_52w_low), symbol, eval_date),
+                    (
+                        float(current_iv),
+                        float(iv_52w_high),
+                        float(iv_52w_low),
+                        symbol,
+                        eval_date,
+                    ),
                 )
 
             return 1

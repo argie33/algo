@@ -37,7 +37,6 @@ from utils.infrastructure.market_timing import (
 )
 from utils.logging import get_tracker
 
-
 # Add project root (parent of parent of parent since we're in algo/orchestration)
 _project_root = Path(__file__).parent.parent.parent
 if str(_project_root) not in sys.path:
@@ -307,7 +306,13 @@ class Orchestrator:
                 except (ValueError, ZeroDivisionError, TypeError) as alert_err:
                     logger.error(f"[TASK_TERMINATION] Could not send escalation alert: {alert_err}")
 
-        except (ValueError, KeyError, AttributeError, psycopg2.DatabaseError, psycopg2.OperationalError) as e:
+        except (
+            ValueError,
+            KeyError,
+            AttributeError,
+            psycopg2.DatabaseError,
+            psycopg2.OperationalError,
+        ) as e:
             logger.warning(f"[OOM_PREVENTION] Could not check/kill long-running loaders: {e}")
             # Don't halt trading for this check - it's advisory
 
@@ -776,7 +781,10 @@ class Orchestrator:
                 report["reason"] = "database_timeout"
                 return report
             except (psycopg2.DatabaseError, psycopg2.OperationalError) as e:
-                logger.error(f"  [HALT] Pre-flight check failed: {type(e).__name__}: {e}", exc_info=True)
+                logger.error(
+                    f"  [HALT] Pre-flight check failed: {type(e).__name__}: {e}",
+                    exc_info=True,
+                )
                 # Return skipped=True when DB is unreachable so test verification
                 # treats this as a transient skip, not a code bug (phases={})
                 report = cast(dict[str, Any], self._final_report())
@@ -922,7 +930,13 @@ class Orchestrator:
                 else:
                     logger.warning("Phase 7 result missing from phase_results")
 
-        except (ValueError, ZeroDivisionError, TypeError, KeyError, AttributeError) as e:
+        except (
+            ValueError,
+            ZeroDivisionError,
+            TypeError,
+            KeyError,
+            AttributeError,
+        ) as e:
             # Never let metrics publishing interrupt trading results
             logger.error(f"CloudWatch metric publish failed: {e}")
 

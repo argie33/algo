@@ -7,7 +7,6 @@ from .liquidity_checks import LiquidityChecks
 from .market_exposure import MarketExposure, read_market_regime
 from .var import ValueAtRisk
 
-
 __all__ = [
     "CircuitBreaker",
     "EarningsBlackout",

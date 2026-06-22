@@ -9,7 +9,6 @@ Default: 30 minutes (conservative, prevents false positives).
 
 from utils.db.context import DatabaseContext
 
-
 DESCRIPTION = "Add stale data detection threshold configuration"
 
 _NEW_CONFIGS = [

@@ -6,7 +6,6 @@ from .metrics import MetricsPublisher
 from .notifications import TradeNotificationService, notify
 from .performance import LivePerformance
 
-
 __all__ = [
     "AlertManager",
     "DailyFinanceReport",

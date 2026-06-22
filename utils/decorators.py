@@ -19,7 +19,6 @@ from collections.abc import Callable
 import psycopg2
 import requests
 
-
 logger = logging.getLogger(__name__)
 
 
@@ -120,7 +119,11 @@ def external_api_handler(
                     )
                 finally:
                     signal.alarm(0)  # Cancel alarm
-            except (requests.RequestException, requests.Timeout, json.JSONDecodeError) as e:
+            except (
+                requests.RequestException,
+                requests.Timeout,
+                json.JSONDecodeError,
+            ) as e:
                 context = {
                     "operation": operation_name,
                     "timeout_sec": timeout,
@@ -290,7 +293,10 @@ def transactional(
                     try:
                         cur.connection.rollback()
                         logger.error(f"Rolled back transaction for {operation_name}")
-                    except (psycopg2.DatabaseError, psycopg2.OperationalError) as rollback_err:
+                    except (
+                        psycopg2.DatabaseError,
+                        psycopg2.OperationalError,
+                    ) as rollback_err:
                         logger.error(f"Failed to rollback: {rollback_err}")
 
                 context = {"operation": operation_name}

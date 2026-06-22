@@ -12,7 +12,6 @@ Thresholds are configurable via algo_config table.
 
 import logging
 
-
 logger = logging.getLogger(__name__)
 
 

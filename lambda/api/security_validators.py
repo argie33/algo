@@ -12,7 +12,6 @@ import logging
 import re
 from decimal import Decimal, InvalidOperation
 
-
 logger = logging.getLogger(__name__)
 
 # Validation patterns

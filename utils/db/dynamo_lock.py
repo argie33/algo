@@ -13,7 +13,6 @@ from datetime import datetime, timedelta
 
 import boto3
 
-
 logger = logging.getLogger(__name__)
 
 

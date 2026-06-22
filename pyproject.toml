@@ -111,12 +111,16 @@ max-complexity = 12
 [tool.ruff.lint.isort]
 known-first-party = ["algo", "utils", "loaders", "lambda", "config", "tools", "monitoring"]
 known-third-party = ["numpy", "pandas", "scipy", "boto3", "flask", "requests", "psycopg2"]
-lines-after-imports = 2
 
 [tool.ruff.format]
 quote-style = "double"
 indent-style = "space"
 line-ending = "auto"
+
+[tool.black]
+line-length = 120
+target-version = ['py310']
+include = '\.pyi?$'
 
 [tool.pylint.messages_control]
 disable = [
@@ -130,6 +134,9 @@ disable = [
     "too-few-public-methods",
     "inconsistent-return-statements",
     "fixme",
+    "assignment-from-no-return",
+    "raising-bad-type",
+    "no-member",
 ]
 
 [tool.pylint.variables]

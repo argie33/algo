@@ -19,7 +19,6 @@ import logging
 import statistics
 from typing import Any, cast
 
-
 logger = logging.getLogger(__name__)
 
 

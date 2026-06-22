@@ -40,7 +40,6 @@ import sys
 import uuid
 from datetime import datetime
 
-
 # Global trace ID (set once at orchestrator start)
 _trace_id: str | None = None
 

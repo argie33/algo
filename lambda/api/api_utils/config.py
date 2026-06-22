@@ -8,7 +8,6 @@ import logging
 import os
 import threading
 
-
 logger = logging.getLogger(__name__)
 
 # API Versioning constants
@@ -69,7 +68,13 @@ class HealthCheckConfig:
             f"pipeline_healthy={self.pipeline_healthy_days}d, pipeline_critical={self.pipeline_critical_days}d"
         )
 
-    def _read_int_env(self, key: str, default: int, min_val: int | None = None, max_val: int | None = None) -> int:
+    def _read_int_env(
+        self,
+        key: str,
+        default: int,
+        min_val: int | None = None,
+        max_val: int | None = None,
+    ) -> int:
         """Read integer from environment variable with bounds checking.
 
         Args:

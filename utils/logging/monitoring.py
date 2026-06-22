@@ -18,7 +18,6 @@ from contextlib import contextmanager
 from datetime import datetime, timezone
 from typing import Any
 
-
 logger = logging.getLogger(__name__)
 
 # Global metrics buffer (persisted per session or sent to CloudWatch)

@@ -10,7 +10,6 @@ so tests can verify behavior across different trading regimes without mocking ge
 from copy import deepcopy
 from typing import Any
 
-
 # Base configuration with all required keys
 BASE_CONFIG: dict[str, Any] = {
     # Risk Management

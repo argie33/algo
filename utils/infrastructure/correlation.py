@@ -22,7 +22,6 @@ import contextvars
 import uuid
 from contextlib import contextmanager
 
-
 # Thread-safe context variable for correlation_id
 _correlation_id_var: contextvars.ContextVar[str | None] = contextvars.ContextVar("correlation_id", default=None)
 

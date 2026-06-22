@@ -14,7 +14,6 @@ from pathlib import Path
 
 import psycopg2
 
-
 sys.path.insert(0, str(Path(__file__).parent.parent))
 
 import argparse
@@ -23,12 +22,13 @@ from datetime import date, datetime, timedelta
 
 from utils.db.context import DatabaseContext
 
-
 logger = logging.getLogger(__name__)
 
 
 def enrich_technical_data(
-    since: date | None = None, symbols: list[str] | None = None, min_success_rate: float = 0.95
+    since: date | None = None,
+    symbols: list[str] | None = None,
+    min_success_rate: float = 0.95,
 ) -> dict:
     """
     Enrich buy_sell_daily with technical data from technical_data_daily.
@@ -116,7 +116,17 @@ def enrich_technical_data(
                 tech_data_by_symbol_date: dict = {}
                 tech_data_by_symbol_latest: dict = {}  # Fallback: latest data for each symbol
                 for row in cur.fetchall():
-                    symbol, row_date, rsi, sma_50, sma_200, ema_21, atr, adx, mansfield_rs = row
+                    (
+                        symbol,
+                        row_date,
+                        rsi,
+                        sma_50,
+                        sma_200,
+                        ema_21,
+                        atr,
+                        adx,
+                        mansfield_rs,
+                    ) = row
                     if symbol not in tech_data_by_symbol_date:
                         tech_data_by_symbol_date[symbol] = {}
                     if row_date not in tech_data_by_symbol_date[symbol]:

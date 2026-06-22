@@ -6,7 +6,6 @@ The error boundary middleware in api_router catches them and formats standardize
 
 import logging
 
-
 logger = logging.getLogger(__name__)
 
 
@@ -20,7 +19,12 @@ class APIException(Exception):  # noqa: N818
     status_code = 500
     error_type = "internal_error"
 
-    def __init__(self, message: str, error_type: str | None = None, status_code: int | None = None):
+    def __init__(
+        self,
+        message: str,
+        error_type: str | None = None,
+        status_code: int | None = None,
+    ):
         self.message = message
         if error_type is not None:
             self.error_type = error_type

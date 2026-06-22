@@ -14,7 +14,6 @@ from typing import cast
 
 import requests
 
-
 logger = logging.getLogger(__name__)
 
 TICKER_URL = "https://www.sec.gov/files/company_tickers.json"

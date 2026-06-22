@@ -19,7 +19,6 @@ Provides logical grouping methods for convenience.
 import logging
 from typing import TYPE_CHECKING, Any, cast
 
-
 if TYPE_CHECKING:
     from algo.infrastructure.config import AlgoConfig
 

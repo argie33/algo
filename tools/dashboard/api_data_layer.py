@@ -38,7 +38,6 @@ from typing import Any, cast
 import requests
 import requests.exceptions
 
-
 try:
     from .response_validators import ResponseValidationError, validate_response
 except ImportError:

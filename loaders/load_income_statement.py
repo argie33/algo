@@ -1,7 +1,6 @@
 #!/usr/bin/env python3
 import sys
 
-
 """
 Income Statement Loader -â€ annual and quarterly from SEC EDGAR.
 
@@ -13,7 +12,6 @@ import logging
 
 import psycopg2
 
-
 logger = logging.getLogger(__name__)
 import os
 from datetime import date
@@ -23,7 +21,6 @@ from loaders.runner import run_loader
 from utils.external.sec_edgar import SecEdgarClient
 from utils.loaders.config import get_parallelism
 from utils.optimal_loader import OptimalLoader
-
 
 _PERIOD_CONFIG = {
     "annual": {
@@ -149,9 +146,18 @@ class IncomeStatementLoader(OptimalLoader):
         try:
             rows = self._sec_client.get_income_statement(symbol, period=self._edgar_period)
             if not rows:
-                logger.debug("%s: no %s income statement data in SEC EDGAR, skipping", symbol, self._edgar_period)
+                logger.debug(
+                    "%s: no %s income statement data in SEC EDGAR, skipping",
+                    symbol,
+                    self._edgar_period,
+                )
                 return None
-            logger.info("%s: Fetched %d %s income statement row(s)", symbol, len(rows), self._edgar_period)
+            logger.info(
+                "%s: Fetched %d %s income statement row(s)",
+                symbol,
+                len(rows),
+                self._edgar_period,
+            )
 
             since_year = int(since.year) if since else 2000
             # Also include years already in DB where revenue is NULL (backfill ASC 606 gaps)

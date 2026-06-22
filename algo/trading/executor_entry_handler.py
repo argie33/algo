@@ -27,7 +27,6 @@ from algo.trading.exceptions import (
 )
 from algo.trading.trade_context import TradeContext
 
-
 logger = logging.getLogger(__name__)
 
 # Map stage phase names to integer IDs for database storage
@@ -171,16 +170,21 @@ class EntryHandler:
             trade_id = f"TRD-{uuid.uuid4().hex[:10].upper()}"
             execution_mode = self.executor.execution_mode
 
-            order_ok, alpaca_order_id, order_status, order_error, executed_price, rejection_reason = (
-                self.executor._submit_and_validate_order(
-                    symbol,
-                    trade_id,
-                    shares,
-                    entry_price,
-                    stop_loss_price,
-                    tgt_1_price,
-                    execution_mode,
-                )
+            (
+                order_ok,
+                alpaca_order_id,
+                order_status,
+                order_error,
+                executed_price,
+                rejection_reason,
+            ) = self.executor._submit_and_validate_order(
+                symbol,
+                trade_id,
+                shares,
+                entry_price,
+                stop_loss_price,
+                tgt_1_price,
+                execution_mode,
             )
 
             if not order_ok:
@@ -212,7 +216,12 @@ class EntryHandler:
                 if order_result.get("order_class") == "bracket" and len(legs) < 2:
                     try:
                         self.executor._cancel_bracket_orders(alpaca_order_id)
-                    except (OrderExecutionError, DatabaseError, requests.RequestException, requests.Timeout) as e:
+                    except (
+                        OrderExecutionError,
+                        DatabaseError,
+                        requests.RequestException,
+                        requests.Timeout,
+                    ) as e:
                         logger.warning(f"Failed to cancel bracket order {alpaca_order_id}: {e}")
                     return {
                         "success": False,
@@ -350,7 +359,10 @@ class EntryHandler:
                 )
 
             # Record TCA (execution quality) for fills in auto mode
-            if self.executor.execution_mode == "auto" and order_status in ("filled", "partially_filled"):
+            if self.executor.execution_mode == "auto" and order_status in (
+                "filled",
+                "partially_filled",
+            ):
                 self._record_tca(trade_id, symbol, entry_price, executed_price, order_status)
 
             self._send_entry_notification(
@@ -442,7 +454,11 @@ class EntryHandler:
         return position_size
 
     def _build_entry_reason(
-        self, swing_grade: str | None, base_type: str | None, stage_phase: str | None, exposure_tier: str | None
+        self,
+        swing_grade: str | None,
+        base_type: str | None,
+        stage_phase: str | None,
+        exposure_tier: str | None,
     ) -> str:
         """Build comprehensive entry reason string."""
         parts = ["Algo signal - all tiers passed"]
@@ -574,7 +590,12 @@ class EntryHandler:
         )
 
     def _record_tca(
-        self, trade_id: str, symbol: str, entry_price: Decimal, executed_price: Decimal | None, order_status: str
+        self,
+        trade_id: str,
+        symbol: str,
+        entry_price: Decimal,
+        executed_price: Decimal | None,
+        order_status: str,
     ) -> None:
         """Record trade cost analysis (execution quality)."""
         try:
@@ -589,7 +610,7 @@ class EntryHandler:
                 trade_id=trade_id,
                 symbol=symbol,
                 signal_price=float(entry_price),
-                fill_price=float(executed_price) if executed_price else float(entry_price),
+                fill_price=(float(executed_price) if executed_price else float(entry_price)),
                 shares_requested=1,
                 shares_filled=1,
                 side="BUY",

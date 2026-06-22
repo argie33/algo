@@ -7,7 +7,6 @@ from zoneinfo import ZoneInfo
 from .api_data_layer import api_call
 from .panels.data_extractors import safe_get_dict, safe_get_list
 
-
 ET = ZoneInfo("America/New_York")
 logger = logging.getLogger(__name__)
 
@@ -72,7 +71,12 @@ def fetch_portfolio(c):
         port = data
 
         # Comprehensive validation using FetcherValidator
-        required_fields = ["total_portfolio_value", "total_cash", "position_count", "last_run"]
+        required_fields = [
+            "total_portfolio_value",
+            "total_cash",
+            "position_count",
+            "last_run",
+        ]
         valid, error_msg = FetcherValidator.validate_response(
             response=port,
             required_fields=required_fields,

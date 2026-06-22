@@ -6,7 +6,6 @@ from typing import Any
 
 from algo.risk.market_factor_strategy import MarketFactorStrategy
 
-
 logger = logging.getLogger(__name__)
 
 

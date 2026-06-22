@@ -19,7 +19,6 @@ from typing import Any
 import boto3
 import psycopg2
 
-
 logger = logging.getLogger()
 
 

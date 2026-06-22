@@ -20,7 +20,6 @@ from decimal import ROUND_HALF_UP, Decimal
 
 from utils.db import DatabaseContext
 
-
 logger = logging.getLogger(__name__)
 
 

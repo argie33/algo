@@ -6,7 +6,6 @@ from typing import Any
 
 from algo.risk.market_factor_strategy import MarketFactorStrategy
 
-
 logger = logging.getLogger(__name__)
 
 
@@ -74,7 +73,11 @@ class MomentumFactor(MarketFactorStrategy):
             return {
                 "score": 100,
                 "reason": f"Strong uptrend momentum (+{return_pct:.1f}% 12M return)",
-                "details": {"current": current_price, "12m_ago": price_12m_ago, "return_pct": return_pct},
+                "details": {
+                    "current": current_price,
+                    "12m_ago": price_12m_ago,
+                    "return_pct": return_pct,
+                },
             }
         elif return_pct >= 10:
             # Scale 10-25% → 75-100
@@ -82,7 +85,11 @@ class MomentumFactor(MarketFactorStrategy):
             return {
                 "score": score,
                 "reason": f"Moderate momentum (+{return_pct:.1f}% 12M return)",
-                "details": {"current": current_price, "12m_ago": price_12m_ago, "return_pct": return_pct},
+                "details": {
+                    "current": current_price,
+                    "12m_ago": price_12m_ago,
+                    "return_pct": return_pct,
+                },
             }
         elif return_pct >= -5:
             # Scale -5% to +10% → 40-75
@@ -90,7 +97,11 @@ class MomentumFactor(MarketFactorStrategy):
             return {
                 "score": score,
                 "reason": f"Weak/neutral ({return_pct:+.1f}% 12M return)",
-                "details": {"current": current_price, "12m_ago": price_12m_ago, "return_pct": return_pct},
+                "details": {
+                    "current": current_price,
+                    "12m_ago": price_12m_ago,
+                    "return_pct": return_pct,
+                },
             }
         elif return_pct >= -10:
             # Scale -10% to -5% → 20-40
@@ -98,7 +109,11 @@ class MomentumFactor(MarketFactorStrategy):
             return {
                 "score": score,
                 "reason": f"Weak downtrend ({return_pct:.1f}% 12M return)",
-                "details": {"current": current_price, "12m_ago": price_12m_ago, "return_pct": return_pct},
+                "details": {
+                    "current": current_price,
+                    "12m_ago": price_12m_ago,
+                    "return_pct": return_pct,
+                },
             }
         elif return_pct >= -25:
             # Scale -25% to -10% → 10-20
@@ -106,11 +121,19 @@ class MomentumFactor(MarketFactorStrategy):
             return {
                 "score": score,
                 "reason": f"Strong downtrend ({return_pct:.1f}% 12M return)",
-                "details": {"current": current_price, "12m_ago": price_12m_ago, "return_pct": return_pct},
+                "details": {
+                    "current": current_price,
+                    "12m_ago": price_12m_ago,
+                    "return_pct": return_pct,
+                },
             }
         else:
             return {
                 "score": 0,
                 "reason": f"Severe downtrend ({return_pct:.1f}% 12M return)",
-                "details": {"current": current_price, "12m_ago": price_12m_ago, "return_pct": return_pct},
+                "details": {
+                    "current": current_price,
+                    "12m_ago": price_12m_ago,
+                    "return_pct": return_pct,
+                },
             }

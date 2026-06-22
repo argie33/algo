@@ -12,16 +12,14 @@ Run:
 
 import logging
 import sys
+from datetime import date
 
 import requests
 
-
-logger = logging.getLogger(__name__)
-from datetime import date
-from typing import Optional
-
 from loaders.runner import run_loader
 from utils.optimal_loader import OptimalLoader
+
+logger = logging.getLogger(__name__)
 
 
 class AnalystRatingsLoader(OptimalLoader):
@@ -36,7 +34,7 @@ class AnalystRatingsLoader(OptimalLoader):
         except ImportError as e:
             raise RuntimeError(
                 f"[ANALYST] Failed to import yfinance module: {e}. Cannot fetch analyst rating data without yfinance."
-            )
+            ) from e
 
         ticker = get_ticker(symbol)
         if not ticker:
@@ -78,13 +76,10 @@ class AnalystRatingsLoader(OptimalLoader):
             raise RuntimeError(
                 f"[ANALYST_RATINGS] Failed to fetch ratings for {symbol}: {e}. "
                 "Cannot generate signals without analyst data."
-            )
+            ) from e
 
     def transform(self, rows):
         return rows
-
-    def _validate_row(self, row: dict) -> bool:
-        return super()._validate_row(row)
 
 
 if __name__ == "__main__":

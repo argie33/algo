@@ -24,7 +24,6 @@ from utils.loaders.config import get_default_parallelism
 from utils.loaders.helpers import get_active_symbols
 from utils.optimal_loader import OptimalLoader
 
-
 logger = logging.getLogger(__name__)
 
 
@@ -82,7 +81,11 @@ def run_loader(
                     symbols = get_active_symbols(timeout_secs=60)
 
                 if args.backfill_days:
-                    stats = loader.run(symbols, parallelism=args.parallelism, backfill_days=args.backfill_days)
+                    stats = loader.run(
+                        symbols,
+                        parallelism=args.parallelism,
+                        backfill_days=args.backfill_days,
+                    )
                 else:
                     stats = loader.run(symbols, parallelism=args.parallelism)
 

@@ -7,7 +7,6 @@ from zoneinfo import ZoneInfo
 
 from utils.db.context import DatabaseContext
 
-
 EASTERN = ZoneInfo("America/New_York")
 
 
@@ -20,14 +19,24 @@ def check_table_data(table_name: str, description: str) -> dict:
             count = row[0] if row else 0
 
             if count == 0:
-                return {"table": table_name, "status": "EMPTY", "count": 0, "desc": description}
+                return {
+                    "table": table_name,
+                    "status": "EMPTY",
+                    "count": 0,
+                    "desc": description,
+                }
 
             cur.execute(f"SELECT MAX(date) FROM {table_name}")
             row = cur.fetchone()
             max_date = row[0] if row and row[0] else None
 
             if max_date is None:
-                return {"table": table_name, "status": "NO_DATE", "count": count, "desc": description}
+                return {
+                    "table": table_name,
+                    "status": "NO_DATE",
+                    "count": count,
+                    "desc": description,
+                }
 
             days_old = (date.today() - max_date).days
             if days_old == 0:
@@ -47,7 +56,12 @@ def check_table_data(table_name: str, description: str) -> dict:
                 "desc": description,
             }
     except Exception as e:
-        return {"table": table_name, "status": "ERROR", "error": str(e), "desc": description}
+        return {
+            "table": table_name,
+            "status": "ERROR",
+            "error": str(e),
+            "desc": description,
+        }
 
 
 def main():
@@ -84,9 +98,18 @@ def main():
     print("\n### FACTOR SCORE TABLES (Dependent) ###")
     print("-" * 100)
     score_tables = [
-        ("stock_scores", "Composite stock scores (Quality/Growth/Value/Momentum/Stability)"),
-        ("swing_trader_scores", "Legacy swing trader scores (depends on signal_quality_scores)"),
-        ("signal_quality_scores", "Signal quality validation (depends on buy_sell_daily)"),
+        (
+            "stock_scores",
+            "Composite stock scores (Quality/Growth/Value/Momentum/Stability)",
+        ),
+        (
+            "swing_trader_scores",
+            "Legacy swing trader scores (depends on signal_quality_scores)",
+        ),
+        (
+            "signal_quality_scores",
+            "Signal quality validation (depends on buy_sell_daily)",
+        ),
     ]
 
     score_results = []

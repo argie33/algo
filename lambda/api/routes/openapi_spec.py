@@ -6,7 +6,6 @@ from typing import Any
 from openapi_spec import generate_openapi_spec
 from routes.utils import error_response, json_response
 
-
 logger = logging.getLogger(__name__)
 
 

@@ -20,7 +20,6 @@ from utils.db.advisory_locks import (
 )
 from utils.db.context import DatabaseContext
 
-
 logger = logging.getLogger(__name__)
 
 
@@ -169,7 +168,12 @@ def run(
                     acquire_advisory_lock(write_cursor, ALGO_TRADES_LOCK_ID, "algo_trades")
                     acquire_advisory_lock(write_cursor, ALGO_POSITIONS_LOCK_ID, "algo_positions")
                     try:
-                        for symbol, entry_price, exit_price, quantity in closed_positions:
+                        for (
+                            symbol,
+                            entry_price,
+                            exit_price,
+                            quantity,
+                        ) in closed_positions:
                             if not exit_price:
                                 logger.critical(
                                     f"[CRITICAL] Exit price missing for {symbol}: cannot use entry price "
@@ -218,7 +222,10 @@ def run(
                                     f"Recorded exit: {symbol} {quantity}sh @ ${exit_price:.2f} on {run_date} "
                                     f"(P&L: ${pnl:.2f} / {pnl_pct:.1f}%)"
                                 )
-                            except (psycopg2.DatabaseError, psycopg2.OperationalError) as e:
+                            except (
+                                psycopg2.DatabaseError,
+                                psycopg2.OperationalError,
+                            ) as e:
                                 logger.error(f"Failed to record exit for {symbol}: {e}")
 
                         if exits_recorded > 0:
@@ -327,7 +334,10 @@ def run(
             report_text = daily_report.format_text(report)
             logger.info(f"\n{report_text}")
         except Exception as e:
-            logger.error(f"Daily report generation failed (could not generate): {e}", exc_info=True)
+            logger.error(
+                f"Daily report generation failed (could not generate): {e}",
+                exc_info=True,
+            )
             log_phase_result_fn(9, "daily_report", "warn", f"generation error: {str(e)[:60]}")
         else:
             # Validate critical report data before use
@@ -359,7 +369,12 @@ def run(
                                     action_type, action_date, symbol, details, created_at
                                 ) VALUES (%s, %s, %s, %s, CURRENT_TIMESTAMP)
                                 """,
-                                ("daily_report", run_date, "PORTFOLIO", json.dumps(report)),
+                                (
+                                    "daily_report",
+                                    run_date,
+                                    "PORTFOLIO",
+                                    json.dumps(report),
+                                ),
                             )
                         finally:
                             release_advisory_lock(cur, ALGO_AUDIT_LOG_LOCK_ID, "algo_audit_log")
@@ -532,7 +547,12 @@ def run(
             with DatabaseContext("write") as cur:
                 cur.execute("REFRESH MATERIALIZED VIEW algo_positions_with_risk")
             logger.info("[PHASE 7] Refreshed algo_positions_with_risk materialized view")
-            log_phase_result_fn(9, "positions_view_refresh", "success", "algo_positions_with_risk refreshed")
+            log_phase_result_fn(
+                9,
+                "positions_view_refresh",
+                "success",
+                "algo_positions_with_risk refreshed",
+            )
         except (psycopg2.DatabaseError, psycopg2.OperationalError) as e:
             logger.warning(f"[PHASE 7] Could not refresh algo_positions_with_risk: {e}")
             log_phase_result_fn(9, "positions_view_refresh", "warn", f"refresh failed: {str(e)[:60]}")

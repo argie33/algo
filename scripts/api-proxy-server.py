@@ -20,7 +20,6 @@ import sys
 from http.server import BaseHTTPRequestHandler, HTTPServer
 from urllib.parse import parse_qs, urlparse
 
-
 # --- Set DB env vars for local Docker PostgreSQL BEFORE importing lambda modules ---
 os.environ.setdefault("DB_HOST", os.environ.get("LOCAL_DB_HOST", "localhost"))
 os.environ.setdefault("DB_PORT", "5432")

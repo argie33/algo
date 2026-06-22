@@ -12,7 +12,6 @@ import time
 from datetime import date, datetime, timedelta
 from typing import cast
 
-
 logger = logging.getLogger(__name__)
 
 
@@ -311,12 +310,26 @@ class PriceFetcher:
                 # Rate limit errors - use dedicated handler
                 if "rate" in error_str or "429" in error_str:
                     return self._handle_rate_limit_error(
-                        batch, start, end, batch_size, attempt, max_attempts, elapsed_sec, e
+                        batch,
+                        start,
+                        end,
+                        batch_size,
+                        attempt,
+                        max_attempts,
+                        elapsed_sec,
+                        e,
                     )
                 # Transient errors - retry with backoff
                 if any(x in error_str for x in ["timeout", "connection", "reset"]):
                     return self._handle_transient_error(
-                        batch, start, end, batch_size, attempt, max_attempts, elapsed_sec, e
+                        batch,
+                        start,
+                        end,
+                        batch_size,
+                        attempt,
+                        max_attempts,
+                        elapsed_sec,
+                        e,
                     )
                 raise
 

@@ -14,7 +14,6 @@ from routes.utils import (
     json_response,
 )
 
-
 logger = logging.getLogger(__name__)
 
 _DEFAULTS = {

@@ -36,7 +36,6 @@ from algo.infrastructure.constants import (
     YFINANCE_RATE_LIMIT_CPM,
 )
 
-
 logger = logging.getLogger(__name__)
 
 

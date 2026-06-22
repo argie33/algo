@@ -6,7 +6,6 @@ Run: python tools/diagnose_data.py
 
 import logging
 
-
 logging.basicConfig(level=logging.INFO)
 
 print("\n" + "=" * 80)

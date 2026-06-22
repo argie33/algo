@@ -13,7 +13,6 @@ from typing import Any
 
 import psycopg2
 
-
 logger = logging.getLogger(__name__)
 
 
@@ -247,7 +246,10 @@ class MarketFactorCalculator:
                 # Contrarian: PCR > 1.0 = fear = bullish (100 pts), < 0.7 = greed = bearish (0 pts)
                 score = max(0, min(100, (pcr - 0.7) * 100))
                 return {"put_call_ratio": round(pcr, 2), "score": score}
-            logger.warning("[put_call_ratio] No data in options_daily for %s; using neutral score 50", eval_date)
+            logger.warning(
+                "[put_call_ratio] No data in options_daily for %s; using neutral score 50",
+                eval_date,
+            )
             return {"put_call_ratio": None, "score": 50.0}
         except (psycopg2.DatabaseError, psycopg2.OperationalError) as e:
             try:
@@ -255,7 +257,10 @@ class MarketFactorCalculator:
                 cur.execute("RELEASE SAVEPOINT sp_put_call")
             except Exception:
                 pass
-            logger.warning("[put_call_ratio] Query failed (table may be missing): %s; using neutral score 50", e)
+            logger.warning(
+                "[put_call_ratio] Query failed (table may be missing): %s; using neutral score 50",
+                e,
+            )
             return {"put_call_ratio": None, "score": 50.0}
 
     def new_highs_lows(self, eval_date, cur) -> dict[str, Any]:
@@ -281,8 +286,16 @@ class MarketFactorCalculator:
                     nh_pct = nh * 100 / total
                     # NH% > 80 = 100, 50-80 = 70, 20-50 = 30, < 20 = 0
                     score = 100.0 if nh_pct > 80 else (70.0 if nh_pct > 50 else (30.0 if nh_pct > 20 else 0.0))
-                    return {"new_highs": nh, "new_lows": nl, "nh_pct": round(nh_pct, 1), "score": score}
-            logger.warning("[new_highs_lows] No data in market_breadth for %s; using neutral score 50", eval_date)
+                    return {
+                        "new_highs": nh,
+                        "new_lows": nl,
+                        "nh_pct": round(nh_pct, 1),
+                        "score": score,
+                    }
+            logger.warning(
+                "[new_highs_lows] No data in market_breadth for %s; using neutral score 50",
+                eval_date,
+            )
             return {"new_highs": None, "new_lows": None, "score": 50.0}
         except (psycopg2.DatabaseError, psycopg2.OperationalError) as e:
             try:
@@ -290,7 +303,10 @@ class MarketFactorCalculator:
                 cur.execute("RELEASE SAVEPOINT sp_nhnl")
             except Exception:
                 pass
-            logger.warning("[new_highs_lows] Query failed (table may be missing): %s; using neutral score 50", e)
+            logger.warning(
+                "[new_highs_lows] Query failed (table may be missing): %s; using neutral score 50",
+                e,
+            )
             return {"new_highs": None, "new_lows": None, "score": 50.0}
 
     def ad_line(self, eval_date, cur) -> dict[str, Any]:
@@ -312,7 +328,10 @@ class MarketFactorCalculator:
                 direction = row[0]
                 score = 100.0 if direction == "up" else 0.0
                 return {"direction": direction, "score": score}
-            logger.warning("[ad_line] No data in ad_line_daily for %s; using neutral score 50", eval_date)
+            logger.warning(
+                "[ad_line] No data in ad_line_daily for %s; using neutral score 50",
+                eval_date,
+            )
             return {"direction": None, "score": 50.0}
         except (psycopg2.DatabaseError, psycopg2.OperationalError) as e:
             try:
@@ -320,7 +339,10 @@ class MarketFactorCalculator:
                 cur.execute("RELEASE SAVEPOINT sp_ad_line")
             except Exception:
                 pass
-            logger.warning("[ad_line] Query failed (table may be missing): %s; using neutral score 50", e)
+            logger.warning(
+                "[ad_line] Query failed (table may be missing): %s; using neutral score 50",
+                e,
+            )
             return {"direction": None, "score": 50.0}
 
     def credit_spread(self, eval_date, cur) -> dict[str, Any]:
@@ -338,7 +360,10 @@ class MarketFactorCalculator:
                 # Higher OAS = higher stress = lower score. 300bps = 100, 500bps = 0
                 score = max(0, min(100, 100 - (oas - 300) / 2))
                 return {"hy_oas": round(oas, 0), "score": score}
-            logger.warning("[credit_spread] No data in credit_spreads for %s; using neutral score 50", eval_date)
+            logger.warning(
+                "[credit_spread] No data in credit_spreads for %s; using neutral score 50",
+                eval_date,
+            )
             return {"hy_oas": None, "score": 50.0}
         except (psycopg2.DatabaseError, psycopg2.OperationalError) as e:
             try:
@@ -346,7 +371,10 @@ class MarketFactorCalculator:
                 cur.execute("RELEASE SAVEPOINT sp_credit")
             except Exception:
                 pass
-            logger.warning("[credit_spread] Query failed (table may be missing): %s; using neutral score 50", e)
+            logger.warning(
+                "[credit_spread] Query failed (table may be missing): %s; using neutral score 50",
+                e,
+            )
             return {"hy_oas": None, "score": 50.0}
 
     def aaii(self, eval_date, cur) -> dict[str, Any]:
@@ -371,7 +399,10 @@ class MarketFactorCalculator:
                     "spread": round(spread, 1),
                     "score": score,
                 }
-            logger.warning("[aaii] No data in aaii_sentiment for %s; using neutral score 0", eval_date)
+            logger.warning(
+                "[aaii] No data in aaii_sentiment for %s; using neutral score 0",
+                eval_date,
+            )
             return {"bullish": None, "bearish": None, "score": 0.0}
         except (psycopg2.DatabaseError, psycopg2.OperationalError) as e:
             try:
@@ -379,7 +410,10 @@ class MarketFactorCalculator:
                 cur.execute("RELEASE SAVEPOINT sp_aaii")
             except Exception:
                 pass
-            logger.warning("[aaii] Query failed (table may be missing): %s; using neutral score 0", e)
+            logger.warning(
+                "[aaii] Query failed (table may be missing): %s; using neutral score 0",
+                e,
+            )
             return {"bullish": None, "bearish": None, "score": 0.0}
 
     def naaim(self, eval_date, cur) -> dict[str, Any]:
@@ -397,7 +431,10 @@ class MarketFactorCalculator:
                 # NAAIM 0-100 scale: > 80 = greed = lower score, < 30 = fear = higher score
                 score = min(100, max(0, 100 - exp / 2))
                 return {"exposure": round(exp, 1), "score": score}
-            logger.warning("[naaim] No data in naaim_exposure for %s; using neutral score 50", eval_date)
+            logger.warning(
+                "[naaim] No data in naaim_exposure for %s; using neutral score 50",
+                eval_date,
+            )
             return {"exposure": None, "score": 50.0}
         except (psycopg2.DatabaseError, psycopg2.OperationalError) as e:
             try:
@@ -405,5 +442,8 @@ class MarketFactorCalculator:
                 cur.execute("RELEASE SAVEPOINT sp_naaim")
             except Exception:
                 pass
-            logger.warning("[naaim] Query failed (table may be missing): %s; using neutral score 50", e)
+            logger.warning(
+                "[naaim] Query failed (table may be missing): %s; using neutral score 50",
+                e,
+            )
             return {"exposure": None, "score": 50.0}

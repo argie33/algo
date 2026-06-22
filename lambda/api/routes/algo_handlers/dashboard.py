@@ -27,7 +27,6 @@ from utils.validation import (
     format_decimal_string,
 )
 
-
 logger = logging.getLogger(__name__)
 
 
@@ -847,11 +846,9 @@ def _get_dashboard_signals(cur) -> dict[str, Any]:
     """
     try:
         # buy_sell_daily was removed from the pipeline; use swing_trader_scores instead.
-        cur.execute(
-            """
+        cur.execute("""
                 SELECT COUNT(*) AS n, MAX(date) AS d FROM swing_trader_scores
-                WHERE date=(SELECT MAX(date) FROM swing_trader_scores)"""
-        )
+                WHERE date=(SELECT MAX(date) FROM swing_trader_scores)""")
         sig = cur.fetchone()
         if sig is None or sig.get("n") is None:
             return error_response(503, "no_data", "No swing trader signals available")

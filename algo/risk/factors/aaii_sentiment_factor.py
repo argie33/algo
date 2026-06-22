@@ -6,7 +6,6 @@ from typing import Any
 
 from algo.risk.market_factor_strategy import MarketFactorStrategy
 
-
 logger = logging.getLogger(__name__)
 
 
@@ -60,7 +59,11 @@ class AAIISentimentFactor(MarketFactorStrategy):
             return {
                 "score": min(100, score),
                 "reason": f"Extreme bearish (spread={spread:.1f}) - contrarian bullish",
-                "details": {"bullish": bullish_pct, "bearish": bearish_pct, "spread": spread},
+                "details": {
+                    "bullish": bullish_pct,
+                    "bearish": bearish_pct,
+                    "spread": spread,
+                },
             }
         # Extremely bullish (spread > 15) = bearish signal
         elif spread > 15:
@@ -68,12 +71,20 @@ class AAIISentimentFactor(MarketFactorStrategy):
             return {
                 "score": max(0, score),
                 "reason": f"Extreme bullish (spread={spread:.1f}) - contrarian bearish",
-                "details": {"bullish": bullish_pct, "bearish": bearish_pct, "spread": spread},
+                "details": {
+                    "bullish": bullish_pct,
+                    "bearish": bearish_pct,
+                    "spread": spread,
+                },
             }
         # Neutral range: -15 ≤ spread ≤ 15
         else:
             return {
                 "score": 50,
                 "reason": f"Neutral range (spread={spread:.1f})",
-                "details": {"bullish": bullish_pct, "bearish": bearish_pct, "spread": spread},
+                "details": {
+                    "bullish": bullish_pct,
+                    "bearish": bearish_pct,
+                    "spread": spread,
+                },
             }

@@ -19,7 +19,6 @@ from typing import Any
 import boto3
 from botocore.config import Config
 
-
 logger = logging.getLogger(__name__)
 
 

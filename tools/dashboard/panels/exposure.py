@@ -2,7 +2,6 @@
 
 import logging
 
-
 logger = logging.getLogger(__name__)
 
 try:
@@ -31,10 +30,9 @@ from ..utilities import (
     R,
     Y,
 )
-
+from ._helpers import _error_panel
 
 _tier_formatter = TierFormatter()
-from ._helpers import _error_panel
 
 
 @register_panel(

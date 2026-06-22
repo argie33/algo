@@ -11,7 +11,6 @@ import sys
 
 from loaders.loader_helper import setup_imports
 
-
 setup_imports()
 
 import argparse
@@ -27,7 +26,6 @@ from utils.loaders.config import get_default_parallelism
 from utils.loaders.helpers import get_active_symbols
 from utils.optimal_loader import OptimalLoader
 from utils.validation import safe_parse_date
-
 
 logger = logging.getLogger(__name__)
 
@@ -204,7 +202,7 @@ class SignalQualityScoresLoader(OptimalLoader):
             "symbol": symbol,
             "signal_date": end,
             "buy_sell_daily_signal_count": actual_symbols,
-            "coverage_pct": round((actual_symbols / 10000) * 100, 2) if actual_symbols > 0 else 0,
+            "coverage_pct": (round((actual_symbols / 10000) * 100, 2) if actual_symbols > 0 else 0),
         }
 
         # Hard limit: if signals drop below 50 (<0.5% coverage), reject all scores
@@ -251,7 +249,12 @@ class SignalQualityScoresLoader(OptimalLoader):
         positioning_data = self._fetch_positioning_data(symbol)
 
         scores = self._compute_quality_scores(
-            symbol, buy_sell_rows, technical_rows, trend_rows, vcp_rows, positioning_data
+            symbol,
+            buy_sell_rows,
+            technical_rows,
+            trend_rows,
+            vcp_rows,
+            positioning_data,
         )
         if not scores:
             logger.debug(
@@ -331,7 +334,7 @@ class SignalQualityScoresLoader(OptimalLoader):
                         "date": r[0].isoformat(),
                         "minervini_score": float(r[1]) if r[1] is not None else None,
                         "weinstein_stage": r[2],
-                        "percent_from_52w_high": float(r[3]) if r[3] is not None else None,
+                        "percent_from_52w_high": (float(r[3]) if r[3] is not None else None),
                     }
                     for r in cur.fetchall()
                 ]

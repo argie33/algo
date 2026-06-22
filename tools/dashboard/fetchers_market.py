@@ -7,7 +7,6 @@ from utils.safe_data_conversion import StrictValidationError, safe_float, safe_i
 
 from .api_data_layer import api_call
 
-
 logger = logging.getLogger(__name__)
 
 
@@ -174,13 +173,28 @@ def fetch_market(c):
             "dist": safe_int(current.get("distribution_days"), field_name="market.distribution_days"),
             "spy": spy,
             "spy_chg": safe_float(market_health.get("spy_change_pct"), field_name="market.spy_change_pct"),
-            "upvol": safe_float(market_health.get("up_volume_percent"), field_name="market.up_volume_percent"),
-            "adr": safe_float(market_health.get("advance_decline_ratio"), field_name="market.advance_decline_ratio"),
-            "nh": safe_int(market_health.get("new_highs_count"), field_name="market.new_highs_count"),
+            "upvol": safe_float(
+                market_health.get("up_volume_percent"),
+                field_name="market.up_volume_percent",
+            ),
+            "adr": safe_float(
+                market_health.get("advance_decline_ratio"),
+                field_name="market.advance_decline_ratio",
+            ),
+            "nh": safe_int(
+                market_health.get("new_highs_count"),
+                field_name="market.new_highs_count",
+            ),
             "nl": safe_int(market_health.get("new_lows_count"), field_name="market.new_lows_count"),
             "pcr": safe_float(market_health.get("put_call_ratio"), field_name="market.put_call_ratio"),
-            "bmom": safe_float(market_health.get("breadth_momentum_10d"), field_name="market.breadth_momentum_10d"),
-            "ycs": safe_float(market_health.get("yield_curve_slope"), field_name="market.yield_curve_slope"),
+            "bmom": safe_float(
+                market_health.get("breadth_momentum_10d"),
+                field_name="market.breadth_momentum_10d",
+            ),
+            "ycs": safe_float(
+                market_health.get("yield_curve_slope"),
+                field_name="market.yield_curve_slope",
+            ),
             "fed": market_health.get("fed_rate_environment"),
         }
     except Exception as e:
@@ -357,10 +371,14 @@ def fetch_sector_rotation(c):
             "strength": safe_float(row.get("spread"), default=None, field_name="sec_rot.spread"),
             "weeks": row.get("weeks_persistent", 1),
             "def_score": safe_float(
-                row.get("defensive_lead_score"), default=None, field_name="sec_rot.defensive_lead_score"
+                row.get("defensive_lead_score"),
+                default=None,
+                field_name="sec_rot.defensive_lead_score",
             ),
             "cyc_score": safe_float(
-                row.get("cyclical_weak_score"), default=None, field_name="sec_rot.cyclical_weak_score"
+                row.get("cyclical_weak_score"),
+                default=None,
+                field_name="sec_rot.cyclical_weak_score",
             ),
         }
     except Exception as e:

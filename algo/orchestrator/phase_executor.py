@@ -8,7 +8,6 @@ from typing import Any
 
 from algo.orchestrator.phase_result import PhaseResult
 
-
 logger = logging.getLogger(__name__)
 
 

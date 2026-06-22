@@ -9,7 +9,6 @@ import sys
 
 from loaders.loader_helper import setup_imports
 
-
 setup_imports()
 
 import argparse
@@ -26,7 +25,6 @@ from utils.infrastructure.timezone import EASTERN_TZ
 from utils.loaders.config import get_default_parallelism
 from utils.loaders.helpers import get_active_symbols
 from utils.optimal_loader import OptimalLoader
-
 
 logger = logging.getLogger(__name__)
 
@@ -67,7 +65,11 @@ class SignalsDailyLoader(OptimalLoader):
                     ("signal_quality_scores",),
                 )
                 sqs_status = cur.fetchone()
-                if not sqs_status or sqs_status[0] not in ("COMPLETED", "success", "OK"):
+                if not sqs_status or sqs_status[0] not in (
+                    "COMPLETED",
+                    "success",
+                    "OK",
+                ):
                     logger.warning(
                         "signal_quality_scores is not COMPLETED (status=%s). "
                         "Proceeding with NULL quality scores on this run. "

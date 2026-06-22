@@ -16,7 +16,6 @@ import psycopg2
 
 from utils.db.structured_logging import StructuredDBLogger
 
-
 logger = logging.getLogger(__name__)
 
 T = TypeVar("T")

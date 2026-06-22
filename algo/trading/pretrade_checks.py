@@ -11,7 +11,6 @@ import psycopg2
 from algo.risk import EarningsBlackout
 from utils.db import DatabaseContext
 
-
 if TYPE_CHECKING:
     from algo.infrastructure.config import AlgoConfig
 
@@ -103,7 +102,10 @@ class PreTradeChecks:
                 earnings_check = EarningsBlackout(config=self.config)
                 result = earnings_check.run(symbol, eval_date)
                 if not result.get("pass"):
-                    return (False, result.get("reason", "Failed earnings blackout check"))
+                    return (
+                        False,
+                        result.get("reason", "Failed earnings blackout check"),
+                    )
             except ValueError as e:
                 return (False, f"Earnings blackout check failed: {e}")
 

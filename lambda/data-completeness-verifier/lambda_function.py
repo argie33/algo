@@ -14,10 +14,8 @@ import sys
 from datetime import date, timedelta
 from typing import Any
 
-
 sys.path.insert(0, os.path.dirname(os.path.dirname(__file__)))
 from base_handler import LambdaHandler, create_lambda_handler
-
 
 logger = logging.getLogger()
 
@@ -62,7 +60,10 @@ class DataCompletenessHandler(LambdaHandler):
                     "phase1_halted": True,
                 }
 
-            cursor.execute("SELECT COUNT(DISTINCT symbol) FROM price_daily WHERE date = %s", (max_date,))
+            cursor.execute(
+                "SELECT COUNT(DISTINCT symbol) FROM price_daily WHERE date = %s",
+                (max_date,),
+            )
             row = cursor.fetchone()
             symbols_today = row[0] if row and row[0] is not None else 0
 
@@ -84,9 +85,21 @@ class DataCompletenessHandler(LambdaHandler):
             cloudwatch.put_metric_data(
                 Namespace="AlgoTrading",
                 MetricData=[
-                    {"MetricName": "PriceCoverage_Symbols", "Value": symbols_today, "Unit": "Count"},
-                    {"MetricName": "PriceCoverage_Percent", "Value": coverage_pct, "Unit": "Percent"},
-                    {"MetricName": "Phase1_Pass", "Value": 1.0 if passes else 0.0, "Unit": "Count"},
+                    {
+                        "MetricName": "PriceCoverage_Symbols",
+                        "Value": symbols_today,
+                        "Unit": "Count",
+                    },
+                    {
+                        "MetricName": "PriceCoverage_Percent",
+                        "Value": coverage_pct,
+                        "Unit": "Percent",
+                    },
+                    {
+                        "MetricName": "Phase1_Pass",
+                        "Value": 1.0 if passes else 0.0,
+                        "Unit": "Count",
+                    },
                 ],
             )
 

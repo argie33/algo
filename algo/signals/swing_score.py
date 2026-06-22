@@ -10,7 +10,6 @@ import psycopg2
 from algo.signals.swing_component_scorer import SwingComponentScorer
 from utils.db import DatabaseContext
 
-
 logger = logging.getLogger(__name__)
 
 
@@ -51,7 +50,12 @@ class SwingTraderScore:
         try:
             val = self.config.get(key)
             return val if val is not None else default
-        except (RuntimeError, OSError, psycopg2.DatabaseError, psycopg2.OperationalError) as e:
+        except (
+            RuntimeError,
+            OSError,
+            psycopg2.DatabaseError,
+            psycopg2.OperationalError,
+        ) as e:
             raise RuntimeError(f"CRITICAL: Database/connection error loading config[{key}]: {e}") from e
 
     def compute(

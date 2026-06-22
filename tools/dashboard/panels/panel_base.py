@@ -20,7 +20,6 @@ from rich.text import Text
 
 from ._helpers import _error_panel
 
-
 logger = logging.getLogger(__name__)
 
 
@@ -61,7 +60,7 @@ class PanelBase(ABC):
 
         """
         # Step 1: Validate inputs
-        validation_error = self.validate_inputs(**kwargs)
+        validation_error = self.validate_inputs(**kwargs)  # pylint: disable=assignment-from-no-return
         if validation_error:
             return self._error_panel(validation_error)
 
@@ -193,7 +192,7 @@ class MultiViewPanelBase(ABC):
 
     def _render_with_error_handling(self, expanded: bool = False, **kwargs) -> Panel:
         """Render with error handling."""
-        validation_error = self.validate_inputs(**kwargs)
+        validation_error = self.validate_inputs(**kwargs)  # pylint: disable=assignment-from-no-return
         if validation_error:
             return self._error_panel(validation_error)
 

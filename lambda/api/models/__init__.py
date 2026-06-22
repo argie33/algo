@@ -32,7 +32,6 @@ from .responses import (
     TradesResponse,
 )
 
-
 __all__ = [
     "BalanceSheetResponse",
     "BaseResponse",

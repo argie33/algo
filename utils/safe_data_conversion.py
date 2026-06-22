@@ -14,7 +14,6 @@ import math
 from datetime import date, datetime, timezone
 from typing import Any, overload
 
-
 logger = logging.getLogger(__name__)
 
 
@@ -32,19 +31,33 @@ EASTERN_TZ = timezone.utc
 
 @overload
 def safe_float(
-    value: Any, default: float, *, context: str = "", strict: bool = False, field_name: str | None = None
+    value: Any,
+    default: float,
+    *,
+    context: str = "",
+    strict: bool = False,
+    field_name: str | None = None,
 ) -> float: ...
 
 
 @overload
 def safe_float(
-    value: Any, default: None, *, context: str = "", strict: bool = False, field_name: str | None = None
+    value: Any,
+    default: None,
+    *,
+    context: str = "",
+    strict: bool = False,
+    field_name: str | None = None,
 ) -> float | None: ...
 
 
 @overload
 def safe_float(
-    value: Any, *, context: str = "", strict: bool = False, field_name: str | None = None
+    value: Any,
+    *,
+    context: str = "",
+    strict: bool = False,
+    field_name: str | None = None,
 ) -> float | None: ...
 
 

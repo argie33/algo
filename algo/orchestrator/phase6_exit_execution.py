@@ -19,7 +19,6 @@ from utils.db.advisory_locks import (
 from utils.db.context import DatabaseContext
 from utils.trading.status import PositionStatus
 
-
 logger = logging.getLogger(__name__)
 
 
@@ -170,7 +169,10 @@ def run(
                                 field="exit_fraction",
                                 value=None,
                                 expected="float between 0.0 and 1.0",
-                                context={"position_id": action.get("position_id"), "action_type": "exposure_partial"},
+                                context={
+                                    "position_id": action.get("position_id"),
+                                    "action_type": "exposure_partial",
+                                },
                             )
                         result = executor.exit_trade(
                             trade_id=action["trade_id"],

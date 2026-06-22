@@ -9,7 +9,6 @@ import psycopg2
 
 from utils.db import DatabaseContext
 
-
 logger = logging.getLogger(__name__)
 
 # Four tiers aligned with RegimeManager vocabulary so both systems speak the same language.

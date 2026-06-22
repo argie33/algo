@@ -11,7 +11,6 @@ computation if trend_template_data is stale.
 import logging
 from typing import Any
 
-
 logger = logging.getLogger(__name__)
 
 

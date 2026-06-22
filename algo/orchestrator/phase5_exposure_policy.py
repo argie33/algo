@@ -8,7 +8,6 @@ from typing import Any
 from algo.orchestrator.phase_result import PhaseResult
 from algo.reporting import AlertManager
 
-
 logger = logging.getLogger(__name__)
 
 
@@ -140,7 +139,10 @@ def run(
         }
 
         log_phase_result_fn(
-            "3b", "exposure_policy", "fallback", f"Using conservative constraints due to error: {str(e)[:80]}"
+            "3b",
+            "exposure_policy",
+            "fallback",
+            f"Using conservative constraints due to error: {str(e)[:80]}",
         )
         return PhaseResult(
             "3b",

@@ -16,7 +16,6 @@ from utils.exceptions import (
     BaseAPIException,
 )
 
-
 logger = logging.getLogger(__name__)
 
 # Check if psycopg2 is available

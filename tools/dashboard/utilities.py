@@ -14,7 +14,6 @@ from rich.console import Console
 
 from utils.safe_data_conversion import safe_float
 
-
 # ── globals ───────────────────────────────────────────────────────────────────
 ET = ZoneInfo("America/New_York")
 CONSOLE = Console(force_terminal=True, legacy_windows=False, highlight=False)

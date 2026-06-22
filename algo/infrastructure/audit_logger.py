@@ -18,7 +18,6 @@ import psycopg2
 
 from utils.db import DatabaseContext
 
-
 logger = logging.getLogger(__name__)
 
 
@@ -259,8 +258,7 @@ class TradeAuditLogger:
         """Get position sizing statistics for dashboard."""
         try:
             with DatabaseContext("read") as cur:
-                cur.execute(
-                    """
+                cur.execute("""
                     SELECT
                         COUNT(*) as total_trades,
                         AVG(cascade_multiplier) as avg_cascade_mult,
@@ -269,9 +267,7 @@ class TradeAuditLogger:
                         AVG(position_size_pct) as avg_position_size_pct
                     FROM algo_position_sizing_audit
                     WHERE created_at >= NOW() - INTERVAL '%d days'
-                """
-                    % days
-                )
+                """ % days)
 
                 row = cur.fetchone()
                 if row:
@@ -290,16 +286,13 @@ class TradeAuditLogger:
         """Get which exit rules fire most (diagnostic)."""
         try:
             with DatabaseContext("read") as cur:
-                cur.execute(
-                    """
+                cur.execute("""
                     SELECT exit_rule, COUNT(*) as count
                     FROM algo_exit_rules_distribution
                     WHERE created_at >= NOW() - INTERVAL '%d days'
                     GROUP BY exit_rule
                     ORDER BY count DESC
-                """
-                    % days
-                )
+                """ % days)
 
                 result = {}
                 for row in cur.fetchall():
