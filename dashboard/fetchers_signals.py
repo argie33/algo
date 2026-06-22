@@ -178,7 +178,7 @@ def fetch_scores(c):
     from dashboard.fetcher_validator import FetcherValidator
 
     try:
-        top_data = api_call("/api/scores", params={"limit": 50, "sortOrder": "desc"})
+        top_data = api_call("/api/scores", params={"limit": 50, "sortOrder": "desc", "offset": 0})
 
         # Check for API error
         is_error, error_msg = FetcherValidator.check_api_error(top_data)
