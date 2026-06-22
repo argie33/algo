@@ -420,8 +420,9 @@ def _update_swing_loader_status(status: str, error_message: str | None = None):
 def _swing_heartbeat_worker(stop_event):
     """Periodically update last_updated to signal loader is alive."""
     while not stop_event.is_set():
+        if stop_event.wait(timeout=60):  # exits immediately when stop is requested
+            break
         try:
-            time.sleep(60)
             with DatabaseContext("write") as cur:
                 cur.execute(
                     """
