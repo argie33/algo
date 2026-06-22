@@ -172,29 +172,39 @@ class SignalOptionsMixin:
 
             implied_move = current_iv * (days_to_exp / 365.0) ** 0.5 * 100
 
-            # Get base depth from technical analysis
-            base_type = self.classify_base_type(symbol, eval_date)
-            if base_type is None:
-                logger.warning(f"Base type unavailable for {symbol} - cannot evaluate implied move vs base depth")
-                return None
-
-            base_depth = base_type.get("depth_pct")
-            if base_depth is None:
-                logger.warning(f"Base depth missing from base_type for {symbol} - implied move signal incomplete")
-                return None
-
+            # Get base depth from technical analysis — required if we have IV data
             try:
+                base_type = self.classify_base_type(symbol, eval_date)
+                if base_type is None:
+                    raise ValueError(
+                        f"{symbol}: Base type classification unavailable — "
+                        f"cannot evaluate implied move vs base depth. "
+                        f"Options signal evaluation requires technical base analysis."
+                    )
+
+                base_depth = base_type.get("depth_pct")
+                if base_depth is None:
+                    raise ValueError(
+                        f"{symbol}: Base depth missing from classification — "
+                        f"cannot compare implied move to setup depth. "
+                        f"Options signal evaluation requires complete base analysis."
+                    )
+
                 base_depth = float(base_depth)
-            except (ValueError, TypeError) as e:
-                logger.error(f"Base depth conversion failed for {symbol}: {e}")
-                return None
+            except ValueError:
+                raise
+            except (TypeError, AttributeError) as e:
+                raise ValueError(
+                    f"{symbol}: Failed to extract base depth: {e}. "
+                    f"Options signal evaluation cannot proceed without technical base context."
+                ) from e
 
             underpriced = implied_move < base_depth
             bonus_pts = 1.5 if underpriced else 0.0
 
             return {
                 "implied_move_pct": round(implied_move, 2),
-                "vs_base_depth_pct": round(base_depth, 2) if base_depth else None,
+                "vs_base_depth_pct": round(base_depth, 2),
                 "underpriced": underpriced,
                 "bonus_pts": bonus_pts,
             }
