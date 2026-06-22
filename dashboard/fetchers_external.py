@@ -1,6 +1,7 @@
 """Fetcher functions for external and enrichment data sources."""
 
 import logging
+from typing import Any
 
 from utils.safe_data_conversion import safe_float
 
@@ -10,7 +11,7 @@ from .utilities import CY, G, R, Y
 logger = logging.getLogger(__name__)
 
 
-def record_data_quality_issue(*args, **kwargs):
+def record_data_quality_issue(*args: object, **kwargs: object) -> None:
     """Placeholder for data quality issue recording."""
 
 
@@ -57,7 +58,7 @@ def _get_endpoint_path(fetcher_key: str, params: dict | None = None) -> str:
     return endpoint
 
 
-def fetch_economic_pulse(c):
+def fetch_economic_pulse(c: None) -> dict[str, Any]:
     """Fetch economic macro indicators. Fail-fast: error only on failure.
 
     Fetches from /api/economic/yield-curve-full and /api/economic/indicators.
@@ -187,7 +188,7 @@ def fetch_economic_pulse(c):
         return FetcherValidator.build_error_response(error_msg)
 
 
-def fetch_economic_calendar(c):
+def fetch_economic_calendar(c: None) -> dict[str, Any]:
     """Fetch economic calendar events. API returns {items: [{event_date,
     event_name, country, importance, category, ...}], total: N}."""
     from dashboard.fetcher_validator import FetcherValidator
@@ -226,7 +227,7 @@ def fetch_economic_calendar(c):
         return FetcherValidator.build_error_response(error_msg)
 
 
-def fetch_exec_history(c):
+def fetch_exec_history(c: None) -> dict[str, Any] | list[Any]:
     """Fetch recent execution history. Panel expects a flat list (not wrapped
     in a dict) so it can do valid_hist[:7] directly."""
     from dashboard.fetcher_validator import FetcherValidator
@@ -265,7 +266,7 @@ def fetch_exec_history(c):
         return FetcherValidator.build_error_response(error_msg)
 
 
-def fetch_sentiment(c):
+def fetch_sentiment(c: None) -> dict[str, Any]:
     """API-only sentiment data. Fail-fast: error only on failure."""
     from dashboard.fetcher_validator import FetcherValidator
 
@@ -303,7 +304,7 @@ def fetch_sentiment(c):
         return FetcherValidator.build_error_response(error_msg)
 
 
-def fetch_industry_ranking(c):
+def fetch_industry_ranking(c: None) -> dict[str, Any]:
     """Fetch industry rankings. API returns {items: [{industry, sector,
     current_rank, overall_rank, rank_1w_ago, rank_4w_ago}], total: N}."""
     from dashboard.fetcher_validator import FetcherValidator
@@ -348,7 +349,7 @@ def fetch_industry_ranking(c):
         return FetcherValidator.build_error_response(error_msg)
 
 
-def fetch_activity(c):
+def fetch_activity(c: None) -> dict[str, Any]:
     """Fetch activity from audit log API (fail-fast: error if unavailable)."""
     from dashboard.fetcher_validator import FetcherValidator
 
@@ -393,7 +394,7 @@ def fetch_activity(c):
         return FetcherValidator.build_error_response(error_msg)
 
 
-def fetch_audit_log(c):
+def fetch_audit_log(c: None) -> dict[str, Any] | list[Any]:
     """Fetch audit log entries. Panel expects a flat list (not wrapped in a
     dict) for direct iteration. API returns {items: [...], total, limit, offset}."""
     from dashboard.fetcher_validator import FetcherValidator
@@ -429,7 +430,7 @@ def fetch_audit_log(c):
         return FetcherValidator.build_error_response(error_msg)
 
 
-def fetch_notifications(c):
+def fetch_notifications(c: None) -> dict[str, Any]:
     from dashboard.fetcher_validator import FetcherValidator
 
     try:

@@ -2,6 +2,7 @@
 
 import logging
 import threading
+from typing import Any, cast
 
 from utils.safe_data_conversion import safe_bool
 
@@ -10,7 +11,7 @@ from .api_data_layer import api_call
 logger = logging.getLogger(__name__)
 
 
-def record_data_quality_issue(*args, **kwargs):
+def record_data_quality_issue(*args: object, **kwargs: object) -> None:
     """Placeholder for data quality issue recording."""
 
 
@@ -61,7 +62,7 @@ def _get_endpoint_path(fetcher_key: str, params: dict | None = None) -> str:
     return endpoint
 
 
-def _get_data_status_cached():
+def _get_data_status_cached() -> dict[str, Any]:
     """Issue 2.2 FIX: Unified fetch for /api/algo/data-status endpoint.
 
     Both fetch_health and fetch_loader_status need the same endpoint. This
@@ -69,11 +70,11 @@ def _get_data_status_cached():
     in parallel. Thread-safe with lock to ensure single API call.
     """
     if "result" in _data_status_cache:
-        return _data_status_cache["result"]
+        return cast(dict[str, Any], _data_status_cache["result"])
 
     with _data_status_lock:
         if "result" in _data_status_cache:
-            return _data_status_cache["result"]
+            return cast(dict[str, Any], _data_status_cache["result"])
 
         try:
             data = api_call(_get_endpoint_path("health"))
@@ -85,7 +86,7 @@ def _get_data_status_cached():
             return error_result
 
 
-def fetch_run(c):
+def fetch_run(c: None) -> dict[str, Any]:
     from dashboard.fetcher_validator import FetcherValidator
 
     try:
@@ -150,7 +151,7 @@ def fetch_run(c):
         return FetcherValidator.build_error_response(error_msg)
 
 
-def fetch_algo_config(c):
+def fetch_algo_config(c: None) -> dict[str, Any]:
     """AWS-only algo configuration (fail-fast: error if unavailable)."""
     from dashboard.fetcher_validator import FetcherValidator
 
@@ -230,7 +231,7 @@ def fetch_algo_config(c):
         return FetcherValidator.build_error_response(error_msg)
 
 
-def fetch_health(c):
+def fetch_health(c: None) -> dict[str, Any]:
     """Fetch data loader health status from API. Uses cached data-status (fail-fast: error if unavailable)."""
     from dashboard.fetcher_validator import FetcherValidator
 
@@ -306,7 +307,7 @@ def fetch_health(c):
         return FetcherValidator.build_error_response(error_msg)
 
 
-def fetch_circuit(c):
+def fetch_circuit(c: None) -> dict[str, Any]:
     """Fetch circuit breakers from API."""
     from dashboard.fetcher_validator import FetcherValidator
 
@@ -378,7 +379,7 @@ def fetch_circuit(c):
         return FetcherValidator.build_error_response(error_msg)
 
 
-def fetch_algo_metrics(c):
+def fetch_algo_metrics(c: None) -> dict[str, Any] | list[Any]:
     """Fetch algo metrics. API returns a single dict {date, total_actions,
     entries, exits, avg_signal_score}; panel expects a flat list so it can
     do valid_metrics[0] and iterate over multiple days."""

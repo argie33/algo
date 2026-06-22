@@ -81,6 +81,17 @@ module = [
 ]
 ignore_errors = true  # Uses contextlib generics that require architectural rework
 
+[[tool.mypy.overrides]]
+module = [
+    "dashboard.fetchers_config",
+    "dashboard.fetchers_market",
+    "dashboard.fetchers_portfolio",
+    "dashboard.fetchers_signals",
+    "dashboard.fetchers_external",
+    "dashboard.fetchers_common",
+]
+disallow_untyped_defs = true  # Fetchers must be annotated — unannotated defs hide type errors from API data
+
 [tool.ruff]
 line-length = 120
 target-version = "py310"

@@ -2,6 +2,7 @@
 
 import logging
 from datetime import datetime
+from typing import Any
 from zoneinfo import ZoneInfo
 
 from utils.safe_data_conversion import safe_float, safe_int
@@ -12,7 +13,7 @@ ET = ZoneInfo("America/New_York")
 logger = logging.getLogger(__name__)
 
 
-def record_data_quality_issue(*args, **kwargs):
+def record_data_quality_issue(*args: object, **kwargs: object) -> None:
     """Placeholder for data quality issue recording."""
 
 
@@ -59,7 +60,7 @@ def _get_endpoint_path(fetcher_key: str, params: dict | None = None) -> str:
     return endpoint
 
 
-def fetch_signals(c):
+def fetch_signals(c: None) -> dict[str, Any]:
     """Fetch dashboard signals from API. Fail-fast: error only on failure."""
     from dashboard.fetcher_validator import FetcherValidator
 
@@ -141,7 +142,7 @@ def fetch_signals(c):
         return FetcherValidator.build_error_response(error_msg)
 
 
-def fetch_signal_eval(c):
+def fetch_signal_eval(c: None) -> dict[str, Any]:
     """Fetch signal evaluation stats from API."""
     from dashboard.fetcher_validator import FetcherValidator
 
@@ -173,7 +174,7 @@ def fetch_signal_eval(c):
         return FetcherValidator.build_error_response(error_msg)
 
 
-def fetch_scores(c):
+def fetch_scores(c: None) -> dict[str, Any]:
     """Fetch top stock scores from /api/scores. Used by signals panel for composite score display."""
     from dashboard.fetcher_validator import FetcherValidator
 

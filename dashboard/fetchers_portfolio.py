@@ -2,6 +2,7 @@
 
 import logging
 from datetime import datetime
+from typing import Any
 from zoneinfo import ZoneInfo
 
 from utils.safe_data_conversion import safe_float
@@ -13,7 +14,7 @@ ET = ZoneInfo("America/New_York")
 logger = logging.getLogger(__name__)
 
 
-def record_data_quality_issue(*args, **kwargs):
+def record_data_quality_issue(*args: object, **kwargs: object) -> None:
     """Placeholder for data quality issue recording."""
 
 
@@ -60,7 +61,7 @@ def _get_endpoint_path(fetcher_key: str, params: dict | None = None) -> str:
     return endpoint
 
 
-def fetch_portfolio(c):
+def fetch_portfolio(c: None) -> dict[str, Any]:
     """Fetch portfolio snapshot from API. Fails clean if unavailable.
 
     STRICT MODE: Uses direct conversion for critical financial fields (no defaults to 0).
@@ -123,7 +124,7 @@ def fetch_portfolio(c):
         return {"_error": error_msg}
 
 
-def fetch_positions(c):
+def fetch_positions(c: None) -> dict[str, Any]:
     """Fetch positions via AWS API only (fail-fast: error if unavailable)."""
     from dashboard.fetcher_validator import FetcherValidator
 
@@ -159,7 +160,7 @@ def fetch_positions(c):
         return FetcherValidator.build_error_response(error_msg)
 
 
-def fetch_recent_trades(c):
+def fetch_recent_trades(c: None) -> dict[str, Any]:
     """AWS-only trades data. Fail-fast: error only on failure.
 
     Returns closed trades only - open positions are in the positions panel.
@@ -202,7 +203,7 @@ def fetch_recent_trades(c):
         return FetcherValidator.build_error_response(error_msg)
 
 
-def fetch_perf(c):
+def fetch_perf(c: None) -> dict[str, Any]:
     """AWS-only performance data (no local fallback).
 
     STRICT MODE: Trade counts (total, winning, losing) are critical finance metrics.
@@ -269,7 +270,7 @@ def fetch_perf(c):
         return {"_error": error_msg}
 
 
-def fetch_perf_analytics(c):
+def fetch_perf_analytics(c: None) -> dict[str, Any]:
     """API-only performance analytics. Fail-fast: error only on failure."""
     from dashboard.fetcher_validator import FetcherValidator
 

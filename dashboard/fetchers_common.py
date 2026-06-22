@@ -2,6 +2,7 @@
 
 import logging
 from datetime import datetime
+from typing import Any, cast
 from zoneinfo import ZoneInfo
 
 from .api_data_layer import api_call
@@ -10,7 +11,7 @@ ET = ZoneInfo("America/New_York")
 logger = logging.getLogger(__name__)
 
 
-def record_data_quality_issue(*args, **kwargs):
+def record_data_quality_issue(*args: object, **kwargs: object) -> None:
     """Placeholder for data quality issue recording."""
 
 
@@ -113,7 +114,7 @@ def get_error_message(response: dict) -> str:
     return f"API error {status if status is not None else 'unknown'}"
 
 
-def validate_required_fields(data_dict, required_fields, source_name):
+def validate_required_fields(data_dict: Any, required_fields: list[str], source_name: str) -> dict[str, Any] | None:
     """Validate that all required fields exist in response dict. Return error dict if missing."""
     if not isinstance(data_dict, dict):
         return {"_error": f"{source_name}: expected dict but got {type(data_dict).__name__}"}
@@ -123,7 +124,7 @@ def validate_required_fields(data_dict, required_fields, source_name):
     return None  # No error
 
 
-def check_data_freshness(data_dict, max_age_seconds=3600):
+def check_data_freshness(data_dict: Any, max_age_seconds: int = 3600) -> dict[str, Any] | None:
     """Check if data timestamp is within acceptable age. Returns error dict if stale."""
     if not isinstance(data_dict, dict):
         return None
@@ -145,7 +146,7 @@ _market_cache: dict[str, object] = {}
 _market_cache_lock = __import__("threading").Lock()
 
 
-def get_markets_cached():
+def get_markets_cached() -> dict[str, Any]:
     """Get cached market data or fetch fresh."""
     with _market_cache_lock:
         cached = _market_cache.get("_data")
@@ -153,7 +154,7 @@ def get_markets_cached():
         now = __import__("time").time()
 
         if cached and (now - cached_time) < 5:  # 5 second cache
-            return cached
+            return cast(dict[str, Any], cached)
 
     mkt = api_call("/api/algo/markets")
     with _market_cache_lock:
@@ -167,7 +168,7 @@ _data_status_cache: dict[str, object] = {}
 _data_status_cache_lock = __import__("threading").Lock()
 
 
-def get_data_status_cached():
+def get_data_status_cached() -> dict[str, Any]:
     """Get cached data status or fetch fresh."""
     with _data_status_cache_lock:
         cached = _data_status_cache.get("_data")
@@ -175,7 +176,7 @@ def get_data_status_cached():
         now = __import__("time").time()
 
         if cached and (now - cached_time) < 10:  # 10 second cache
-            return cached
+            return cast(dict[str, Any], cached)
 
     status = api_call("/api/algo/data-status")
     with _data_status_cache_lock:

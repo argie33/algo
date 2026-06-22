@@ -2,6 +2,7 @@
 
 import logging
 import threading
+from typing import Any, cast
 
 from utils.safe_data_conversion import StrictValidationError, safe_float, safe_int
 
@@ -10,7 +11,7 @@ from .api_data_layer import api_call
 logger = logging.getLogger(__name__)
 
 
-def record_data_quality_issue(*args, **kwargs):
+def record_data_quality_issue(*args: object, **kwargs: object) -> None:
     """Placeholder for data quality issue recording."""
 
 
@@ -61,7 +62,7 @@ def _get_endpoint_path(fetcher_key: str, params: dict | None = None) -> str:
     return endpoint
 
 
-def _get_markets_cached():
+def _get_markets_cached() -> dict[str, Any]:
     """Issue 14 FIX: Unified fetch for /api/algo/markets endpoint.
 
     Both fetch_market and fetch_exp_factors need the same endpoint. This
@@ -69,11 +70,11 @@ def _get_markets_cached():
     in parallel. Thread-safe with lock to ensure single API call.
     """
     if "result" in _markets_cache:
-        return _markets_cache["result"]
+        return cast(dict[str, Any], _markets_cache["result"])
 
     with _markets_lock:
         if "result" in _markets_cache:
-            return _markets_cache["result"]
+            return cast(dict[str, Any], _markets_cache["result"])
 
         try:
             data = api_call("/api/algo/markets")
@@ -85,7 +86,7 @@ def _get_markets_cached():
             return error_result
 
 
-def fetch_market(c):
+def fetch_market(c: None) -> dict[str, Any]:
     """Issue 3 FIX: API-only market data.
 
     STRICT MODE: SPY price and VIX are critical for position sizing. Missing them
@@ -204,7 +205,7 @@ def fetch_market(c):
         return {"_error": error_msg}
 
 
-def fetch_exp_factors(c):
+def fetch_exp_factors(c: None) -> dict[str, Any]:
     """Fetch 12-factor market exposure data. Uses /api/algo/markets (public, already fetched).
 
     Extracts factors from data.current.factors which has the full 12-factor breakdown
@@ -252,7 +253,7 @@ def fetch_exp_factors(c):
         return FetcherValidator.build_error_response(error_msg)
 
 
-def fetch_risk_metrics(c):
+def fetch_risk_metrics(c: None) -> dict[str, Any]:
     """API-only risk metrics. Fail-fast: error only on failure."""
     from dashboard.fetcher_validator import FetcherValidator
 
@@ -281,7 +282,7 @@ def fetch_risk_metrics(c):
         return FetcherValidator.build_error_response(error_msg)
 
 
-def fetch_sector_ranking(c):
+def fetch_sector_ranking(c: None) -> dict[str, Any]:
     """Fetch per-sector rankings from /api/sectors (fail-fast: error if unavailable)."""
     from dashboard.fetcher_validator import FetcherValidator
 
@@ -325,7 +326,7 @@ def fetch_sector_ranking(c):
         return FetcherValidator.build_error_response(error_msg)
 
 
-def fetch_sector_rotation(c):
+def fetch_sector_rotation(c: None) -> dict[str, Any]:
     """Fetch sector rotation signal from API. Fail-fast: error only on failure."""
     from dashboard.fetcher_validator import FetcherValidator
 
