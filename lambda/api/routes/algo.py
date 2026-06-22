@@ -6,6 +6,7 @@ from typing import Any
 
 import psycopg2
 import psycopg2.errors
+from database_query_service import DatabaseQueryService
 from routes.utils import (
     json_response,
     raise_api_error,
@@ -116,7 +117,9 @@ def handle(
 ) -> Any:
     """Handle /api/algo/* endpoints."""
     try:
-        return _dispatch(cur, path, method, params, body, jwt_claims, idempotency_key)
+        # Wrap cursor in DatabaseQueryService to decouple handlers from direct psycopg2 access
+        db = DatabaseQueryService(cur)
+        return _dispatch(db, path, method, params, body, jwt_claims, idempotency_key)
     except Exception as e:
         # Re-raise APIException so api_router can format it properly
         try:
