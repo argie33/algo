@@ -311,7 +311,7 @@ export const validatePosition = (position) => {
   if (!position || typeof position !== 'object') return null;
 
   const required = ['symbol', 'avg_entry_price', 'current_price', 'quantity'];
-  const missing = required.filter(field => !position.hasOwnProperty(field));
+  const missing = required.filter(field => !Object.prototype.hasOwnProperty.call(position, field));
 
   if (missing.length > 0) {
     console.warn('[SafeCalculations] Position missing required fields:', missing, position);

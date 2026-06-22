@@ -133,7 +133,8 @@ class PriceTransformer:
             from algo.infrastructure import MarketCalendar
             trading_day_set = MarketCalendar.create_trading_day_set(min_row_date, max_row_date)
             logger.debug(
-                f"[CLUSTER_4_OPT] Precomputed {len(trading_day_set)} trading days in range [{min_row_date}, {max_row_date}]"
+                f"[CLUSTER_4_OPT] Precomputed {len(trading_day_set)} trading days "
+                f"in range [{min_row_date}, {max_row_date}]"
             )
             return trading_day_set
         except Exception as e:
@@ -198,6 +199,40 @@ class PriceTransformer:
                 logger.warning(f"Could not record error for {symbol}: {e}")
         return is_valid, errors[0] if errors else None
 
+    def _process_row(
+        self, row: dict, trading_day_set: set, prior_close_by_symbol: dict, tracker
+    ) -> tuple[bool, int, int]:
+        """Process single row; returns (was_valid, non_trading_count, parse_error_count)."""
+        row_date_str: str | None = row.get("date")
+        symbol: str | None = row.get("symbol")
+
+        try:
+            if not row_date_str or not isinstance(row_date_str, str):
+                logger.warning(f"[{symbol}] No date in row, skipping")
+                return False, 0, 1
+            row_date = datetime.fromisoformat(row_date_str).date()
+            if not self._validate_row_trading_day(row_date_str, row_date, trading_day_set, symbol, tracker):
+                logger.debug(f"[{symbol}] {row_date}: Non-trading day, rejecting")
+                return False, 1, 0
+        except (ValueError, TypeError) as e:
+            logger.warning(f"[{symbol}] Could not parse date {row_date_str}: {e}")
+            return False, 0, 1
+
+        if not symbol or not isinstance(symbol, str):
+            logger.warning("[unknown] Missing symbol, skipping row")
+            return False, 0, 1
+
+        is_valid, error_msg = self._validate_row_prices(row, symbol, prior_close_by_symbol, tracker)
+        if not is_valid:
+            if error_msg:
+                logger.warning(f"[{symbol}] {row.get('date')}: {error_msg}")
+            return False, 0, 1
+
+        if tracker:
+            tracker.record_tick(symbol=symbol, tick_date=row.get("date"), data=row, source_api="yfinance")
+        prior_close_by_symbol[symbol] = row.get("close")
+        return True, 0, 0
+
     def validate_and_transform(self, rows: list[dict], tracker=None) -> list[dict]:
         """Validate and filter rows with trading day filtering and provenance tracking.
 
@@ -217,46 +252,12 @@ class PriceTransformer:
         parse_errors = 0
 
         for row in rows:
-            row_date_str: str | None = row.get("date")
-            symbol: str | None = row.get("symbol")
-            try:
-                if not row_date_str or not isinstance(row_date_str, str):
-                    parse_errors += 1
-                    logger.warning(f"[{symbol}] No date in row, skipping")
-                    continue
-                row_date = datetime.fromisoformat(row_date_str).date()
-
-                if not self._validate_row_trading_day(row_date_str, row_date, trading_day_set, symbol, tracker):
-                    non_trading_filtered += 1
-                    logger.debug(f"[{symbol}] {row_date}: Non-trading day, rejecting")
-                    continue
-            except (ValueError, TypeError) as e:
-                parse_errors += 1
-                logger.warning(f"[{symbol}] Could not parse date {row_date_str}: {e}")
-                continue
-
-            if not symbol or not isinstance(symbol, str):
-                parse_errors += 1
-                logger.warning("[unknown] Missing symbol, skipping row")
-                continue
-
-            is_valid, error_msg = self._validate_row_prices(row, symbol, prior_close_by_symbol, tracker)
-            if not is_valid:
-                parse_errors += 1
-                if error_msg:
-                    logger.warning(f"[{symbol}] {row.get('date')}: {error_msg}")
-                continue
-
-            if tracker:
-                tracker.record_tick(
-                    symbol=symbol,
-                    tick_date=row.get("date"),
-                    data=row,
-                    source_api="yfinance",
-                )
-
-            final_validated.append(row)
-            prior_close_by_symbol[symbol] = row.get("close")
+            is_valid, non_trading, parse_error = self._process_row(row, trading_day_set, prior_close_by_symbol, tracker)
+            if is_valid:
+                final_validated.append(row)
+            else:
+                non_trading_filtered += non_trading
+                parse_errors += parse_error
 
         # Log data quality summary
         if non_trading_filtered > 0 or parse_errors > 0:
@@ -266,8 +267,9 @@ class PriceTransformer:
                 symbol = rows[0].get("symbol", "unknown")
                 if filtered_pct > 5:
                     logger.warning(
-                        f"[{symbol}] High rejection rate: {non_trading_filtered} non-trading-day + {parse_errors} parse errors "
-                        f"out of {total_input} rows ({filtered_pct:.1f}%). This may indicate bad data or API issues."
+                        f"[{symbol}] High rejection rate: {non_trading_filtered} non-trading + "
+                        f"{parse_errors} parse errors out of {total_input} rows ({filtered_pct:.1f}%). "
+                        f"This may indicate bad data or API issues."
                     )
                 else:
                     logger.info(

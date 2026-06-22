@@ -23,17 +23,16 @@ import {
   ResponsiveContainer, CartesianGrid, PieChart, Pie, Legend, ReferenceLine,
 } from 'recharts';
 import { useApiQuery } from '../hooks/useApiQuery';
-import { useDataStalenessCheck, safeGetNonPhantomArray, isArraySafe, safeGetValue } from '../hooks/useDataStalenessCheck';
+import { useDataStalenessCheck } from '../hooks/useDataStalenessCheck';
 import { api } from '../services/api';
 import ErrorBoundary from '../components/ErrorBoundary';
-import { DataAgeIndicator, StaleDataWarning, SafeDataAgeIndicator } from '../components/DataAgeIndicator';
+import { StaleDataWarning, SafeDataAgeIndicator } from '../components/DataAgeIndicator';
 import { SkeletonKpi, SkeletonChart, SkeletonTable, SkeletonCircuitBreaker, SkeletonChartContent, AddGlobalStyles } from '../components/Skeleton';
 import { fmtMoney, fmtMoneyShort, num, pct } from '../components/dashboard/shared/utils/dashboardFormatters';
-import { safeGetMarketCurrent, safeNumericValue, ensureArray } from '../utils/dataValidation';
-import { add } from '../utils/decimalMath';
+import { safeGetMarketCurrent, safeNumericValue } from '../utils/dataValidation';
 import {
-  toSafeNumber, safeDivide, safePercentage, safePortfolioValue, safePnlPercentage,
-  safeAccumulate, safeGet, safeGetArray, isValidCalculation, buildSafeObject,
+  toSafeNumber, safePercentage, safePortfolioValue, safePnlPercentage,
+  safeAccumulate, safeGet, safeGetArray,
 } from '../utils/safeCalculations';
 
 const Pnl = ({ value, suffix = '' }) => {

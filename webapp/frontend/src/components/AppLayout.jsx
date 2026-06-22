@@ -17,7 +17,7 @@ import {
   TrendingUp, Briefcase, Globe, Activity, Target,
   Award, Layers, Wallet, History, GitBranch,
   HeartPulse, Zap, Crosshair,
-  Bot, Bell, FileText, Map, Shield, AlertCircle,
+  Bot, Bell, FileText, Map,
 } from 'lucide-react';
 import { useAuth } from '../contexts/AuthContext';
 import { api } from '../services/api';

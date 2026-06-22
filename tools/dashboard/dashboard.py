@@ -22,6 +22,7 @@ import threading
 import time
 import traceback
 from datetime import datetime
+from typing import Any, cast
 from urllib.parse import urlparse
 
 
@@ -265,7 +266,10 @@ def _ensure_aws_profile() -> None:
 
 
 def _fetch_secrets_manager_credentials() -> tuple[str | None, str | None, str | None]:
-    """Fetch dashboard credentials from AWS Secrets Manager. Returns (api_url, pool_id, client_id) or (None, None, None)."""
+    """Fetch dashboard credentials from AWS Secrets Manager.
+
+    Returns (api_url, pool_id, client_id) or (None, None, None).
+    """
 
     try:
         # Ensure AWS_PROFILE is set
@@ -297,115 +301,109 @@ def _fetch_secrets_manager_credentials() -> tuple[str | None, str | None, str | 
         return (None, None, None)
 
 
+def _find_terraform_directory() -> str | None:
+    """Find terraform directory from multiple candidate locations."""
+    for root in [
+        os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__)))),
+        os.getcwd(),
+        os.path.dirname(os.getcwd()),
+    ]:
+        candidate = os.path.join(root, "terraform")
+        if os.path.isdir(candidate) and os.path.exists(os.path.join(candidate, "main.tf")):
+            logger.debug("Found terraform directory at %s", candidate)
+            return candidate
+    return None
+
+
+def _check_terraform_installed() -> bool:
+    """Check if terraform CLI is available."""
+    try:
+        subprocess.run(["terraform", "--version"], capture_output=True, timeout=5, check=True)
+        return True
+    except FileNotFoundError:
+        logger.warning("Terraform not installed - use launcher script or set env vars manually")
+    except subprocess.TimeoutExpired:
+        logger.warning("Terraform check timed out (running but slow) - use launcher script or set env vars manually")
+    except subprocess.CalledProcessError as e:
+        logger.warning("Terraform version check failed (code %d) - may be misconfigured", e.returncode)
+    return False
+
+
+def _init_terraform(tf_dir: str) -> bool:
+    """Initialize terraform if needed."""
+    if os.path.exists(os.path.join(tf_dir, ".terraform")):
+        return True
+    logger.debug("Initializing Terraform...")
+    try:
+        result = subprocess.run(
+            ["terraform", "init", "-backend=true"],
+            cwd=tf_dir,
+            capture_output=True,
+            text=True,
+            timeout=60,
+        )
+        if result.returncode == 0:
+            return True
+        error_output = result.stderr.strip() if result.stderr else "(no error output)"
+        logger.warning("Terraform init failed: %s - may need manual setup", error_output[:200])
+    except subprocess.TimeoutExpired:
+        logger.warning("Terraform init timed out (60s) - running but slow, may need manual setup")
+    return False
+
+
+def _get_terraform_outputs(tf_dir: str) -> dict | None:
+    """Fetch terraform outputs as JSON dict."""
+    try:
+        result = subprocess.run(
+            ["terraform", "output", "-json"],
+            cwd=tf_dir,
+            capture_output=True,
+            text=True,
+            timeout=30,
+        )
+    except subprocess.TimeoutExpired:
+        logger.warning("Terraform output timed out (30s) - running but slow, may need manual setup")
+        return None
+    if result.returncode != 0:
+        error_output = result.stderr.strip() if result.stderr else "(no error output)"
+        logger.warning("Terraform output failed: %s", error_output[:100])
+        return None
+    try:
+        return cast(dict[str, Any], json.loads(result.stdout))
+    except json.JSONDecodeError as e:
+        logger.error(f"Failed to parse terraform outputs: {e}")
+        return None
+
+
+def _extract_tf_value(outputs: dict, key: str) -> str | None:
+    """Extract terraform output value, handling both dict and string formats."""
+    val = outputs.get(key)
+    result = val.get("value", "").strip() if isinstance(val, dict) else str(val or "").strip()
+    return result if result else None
+
+
 def _fetch_terraform_credentials() -> tuple[str | None, str | None, str | None]:
     """Fetch AWS credentials from Terraform. Returns (api_url, pool_id, client_id) or (None, None, None)."""
-
     try:
-        # Ensure AWS_PROFILE is set for Terraform
         _ensure_aws_profile()
-
-        # Find terraform directory - try multiple paths
-        possible_roots = [
-            os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__)))),  # From tools/dashboard/
-            os.getcwd(),  # Current working directory
-            os.path.dirname(os.getcwd()),  # Parent of cwd
-        ]
-
-        tf_dir = None
-        for root in possible_roots:
-            candidate = os.path.join(root, "terraform")
-            if os.path.isdir(candidate) and os.path.exists(os.path.join(candidate, "main.tf")):
-                tf_dir = candidate
-                logger.debug("Found terraform directory at %s", tf_dir)
-                break
-
+        tf_dir = _find_terraform_directory()
         if not tf_dir:
             logger.warning("Terraform directory not found - cannot auto-fetch credentials")
             return (None, None, None)
-
-        # Check if terraform is available
-        try:
-            subprocess.run(["terraform", "--version"], capture_output=True, timeout=5, check=True)
-        except FileNotFoundError:
-            logger.warning("Terraform not installed - use launcher script or set env vars manually")
+        if not _check_terraform_installed():
             return (None, None, None)
-        except subprocess.TimeoutExpired:
-            logger.warning(
-                "Terraform check timed out (running but slow) - use launcher script or set env vars manually"
-            )
-            return (None, None, None)
-        except subprocess.CalledProcessError as e:
-            logger.warning(
-                "Terraform version check failed (code %d) - may be misconfigured",
-                e.returncode,
-            )
+        if not _init_terraform(tf_dir):
             return (None, None, None)
 
-        # Initialize if needed
-        if not os.path.exists(os.path.join(tf_dir, ".terraform")):
-            logger.debug("Initializing Terraform...")
-            try:
-                result = subprocess.run(
-                    ["terraform", "init", "-backend=true"],
-                    cwd=tf_dir,
-                    capture_output=True,
-                    text=True,
-                    timeout=60,
-                )
-                if result.returncode != 0:
-                    error_output = result.stderr.strip() if result.stderr else "(no error output)"
-                    logger.warning("Terraform init failed: %s - may need manual setup", error_output[:200])
-                    return (None, None, None)
-            except subprocess.TimeoutExpired:
-                logger.warning("Terraform init timed out (60s) - running but slow, may need manual setup")
-                return (None, None, None)
-
-        # Fetch outputs
-        try:
-            result = subprocess.run(
-                ["terraform", "output", "-json"],
-                cwd=tf_dir,
-                capture_output=True,
-                text=True,
-                timeout=30,
-            )
-        except subprocess.TimeoutExpired:
-            logger.warning("Terraform output timed out (30s) - running but slow, may need manual setup")
+        outputs = _get_terraform_outputs(tf_dir)
+        if not outputs:
             return (None, None, None)
 
-        if result.returncode != 0:
-            error_output = result.stderr.strip() if result.stderr else "(no error output)"
-            logger.warning("Terraform output failed: %s", error_output[:100])
-            return (None, None, None)
+        api_url = _extract_tf_value(outputs, "api_url")
+        pool_id = _extract_tf_value(outputs, "cognito_user_pool_id")
+        client_id = _extract_tf_value(outputs, "cognito_user_pool_client_id")
 
-        try:
-            outputs = json.loads(result.stdout)
-        except json.JSONDecodeError as e:
-            logger.error(f"Failed to parse terraform outputs: {e}")
-            return (None, None, None)
-
-        # Validate outputs are present and non-empty
-        # Handle both JSON object format and raw value format
-        api_url = None
-        pool_id = None
-        client_id = None
-
-        if isinstance(outputs.get("api_url"), dict):
-            api_url = outputs.get("api_url").get("value", "").strip()
-        else:
-            api_url = str(outputs.get("api_url", "")).strip()
-
-        if isinstance(outputs.get("cognito_user_pool_id"), dict):
-            pool_id = outputs.get("cognito_user_pool_id").get("value", "").strip()
-        else:
-            pool_id = str(outputs.get("cognito_user_pool_id", "")).strip()
-
-        if isinstance(outputs.get("cognito_user_pool_client_id"), dict):
-            client_id = outputs.get("cognito_user_pool_client_id").get("value", "").strip()
-        else:
-            client_id = str(outputs.get("cognito_user_pool_client_id", "")).strip()
-
-        if not all([api_url, pool_id, client_id]):
+        if api_url is None or pool_id is None or client_id is None:
             logger.warning(
                 "Terraform outputs incomplete: url=%s, pool=%s, client=%s",
                 bool(api_url),
@@ -415,7 +413,6 @@ def _fetch_terraform_credentials() -> tuple[str | None, str | None, str | None]:
             logger.debug(f"Available outputs: {list(outputs.keys())}")
             return (None, None, None)
 
-        # Validate API URL format
         if not _validate_api_url(api_url):
             logger.error(f"Invalid API URL format from terraform: {api_url[:50]}")
             return (None, None, None)
@@ -424,7 +421,9 @@ def _fetch_terraform_credentials() -> tuple[str | None, str | None, str | None]:
         return (api_url, pool_id, client_id)
     except Exception as e:
         logger.error(
-            f"Failed to fetch terraform credentials: {type(e).__name__}: {e}\n  Operation: Read Terraform outputs (api_url, pool_id, client_id)\n  File: terraform/outputs.json"
+            f"Failed to fetch terraform credentials: {type(e).__name__}: {e}\n"
+            f"  Operation: Read Terraform outputs (api_url, pool_id, client_id)\n"
+            f"  File: terraform/outputs.json"
         )
         return (None, None, None)
 
@@ -693,104 +692,122 @@ def render_dashboard(
 
     _exp_top = (hdr_panel, exp_panel, mascot_panel)
 
-    if view_mode == "circuit":
-        if has_error(cb):
-            return _expanded_layout(*_exp_top, Panel("[red]Circuit breaker data unavailable[/]", border_style="red"))
-        return _expanded_layout(*_exp_top, panel_circuit_expanded(cb))
-
-    if view_mode == "exposure":
-        if has_error(exp_f):
-            return _expanded_layout(*_exp_top, Panel("[red]Exposure factors unavailable[/]", border_style="red"))
-        return _expanded_layout(*_exp_top, panel_exposure_expanded(exp_f))
-
-    if view_mode == "market":
-        if has_error(mkt):
-            return _expanded_layout(*_exp_top, Panel("[red]Market data unavailable[/]", border_style="red"))
-        return _expanded_layout(*_exp_top, panel_market_expanded(mkt, sentiment))
-
-    if view_mode == "positions":
-        if has_error(pos):
-            return _expanded_layout(*_exp_top, Panel("[red]Positions data unavailable[/]", border_style="red"))
-        hint = Text.from_markup("[dim]press [/][bold cyan]p[/][dim] to return to dashboard[/]")
-        if isinstance(pos, dict):
-            if "items" not in pos:
-                logger.error("Positions response missing 'items' field")
-                _pos_items = []
-            else:
-                items = pos["items"]
-                _pos_items = items if isinstance(items, list) else []
-        elif isinstance(pos, list):
-            _pos_items = pos
-        else:
-            logger.error(f"Positions data has unexpected type: {type(pos).__name__}")
-            _pos_items = []
-        return _expanded_layout(
-            *_exp_top,
-            Panel(
-                Group(
-                    hint,
-                    Rule(style="dim"),
-                    panel_positions(pos, compact=False, trades=rec, extended=True),
-                ),
-                title=f"[bold cyan]ALL POSITIONS ({len(_pos_items)})[/]  [dim][p] return[/]",
-                border_style="cyan",
-                padding=(0, 1),
-            ),
-        )
-
-    if view_mode == "signals":
-        if has_error(sig) or has_error(scores):
-            return _expanded_layout(*_exp_top, Panel("[red]Signals data unavailable[/]", border_style="red"))
-        return _expanded_layout(*_exp_top, panel_signals_expanded(sig, sig_eval, scores=scores))
-
-    if view_mode == "health":
-        if has_error(run) or has_error(hlth):
-            return _expanded_layout(*_exp_top, Panel("[red]Health data unavailable[/]", border_style="red"))
-        return _expanded_layout(
-            *_exp_top,
-            panel_algo_health_expanded(
-                run,
-                act,
-                hlth,
-                notifs,
-                algo_metrics,
-                audit,
-                exec_hist,
-                risk=risk,
-            ),
-        )
-
-    if view_mode == "sectors":
-        if has_error(pos) or has_error(port):
-            return _expanded_layout(*_exp_top, Panel("[red]Sectors data unavailable[/]", border_style="red"))
-        return _expanded_layout(*_exp_top, panel_sectors_expanded(srank, pos, port, sec_rot, irank))
-
-    if view_mode == "trades":
-        if has_error(rec):
-            return _expanded_layout(*_exp_top, Panel("[red]Trade history unavailable[/]", border_style="red"))
-        return _expanded_layout(*_exp_top, panel_trades_expanded(rec))
-
-    if view_mode == "economic":
-        if has_error(eco):
-            return _expanded_layout(*_exp_top, Panel("[red]Economic data unavailable[/]", border_style="red"))
-        return _expanded_layout(*_exp_top, panel_economic_expanded(eco, econ_cal))
-
-    if view_mode == "portfolio":
-        if has_error(port) or has_error(cfg):
-            return _expanded_layout(*_exp_top, Panel("[red]Portfolio data unavailable[/]", border_style="red"))
-        return _expanded_layout(
-            *_exp_top,
-            panel_portfolio_perf_expanded(port, cfg, risk=risk, perf=perf, perf_anl=perf_anl, pos=pos),
-        )
-
-    if view_mode == "errors":
-        error_panel_exp = error_summary_panel_expanded(data)
-        if error_panel_exp:
-            return _expanded_layout(*_exp_top, error_panel_exp)
-        # Fall back to normal if no errors
-        return outer
+    if view_mode != "normal":
+        match view_mode:
+            case "circuit":
+                if has_error(cb):
+                    panel = Panel("[red]Circuit breaker data unavailable[/]", border_style="red")
+                    return _expanded_layout(*_exp_top, panel)
+                return _expanded_layout(*_exp_top, panel_circuit_expanded(cb))
+            case "exposure":
+                if has_error(exp_f):
+                    panel = Panel("[red]Exposure factors unavailable[/]", border_style="red")
+                    return _expanded_layout(*_exp_top, panel)
+                return _expanded_layout(*_exp_top, panel_exposure_expanded(exp_f))
+            case "market":
+                if has_error(mkt):
+                    return _expanded_layout(*_exp_top, Panel("[red]Market data unavailable[/]", border_style="red"))
+                return _expanded_layout(*_exp_top, panel_market_expanded(mkt, sentiment))
+            case "positions":
+                if has_error(pos):
+                    return _expanded_layout(*_exp_top, Panel("[red]Positions data unavailable[/]", border_style="red"))
+                _pos_items = pos if isinstance(pos, list) else (pos.get("items", []) if isinstance(pos, dict) else [])
+                hint = Text.from_markup("[dim]press [/][bold cyan]p[/][dim] to return to dashboard[/]")
+                return _expanded_layout(
+                    *_exp_top,
+                    Panel(
+                        Group(
+                            hint,
+                            Rule(style="dim"),
+                            panel_positions(pos, compact=False, trades=rec, extended=True),
+                        ),
+                        title=f"[bold cyan]ALL POSITIONS ({len(_pos_items)})[/]  [dim][p] return[/]",
+                        border_style="cyan",
+                        padding=(0, 1),
+                    ),
+                )
+            case "signals":
+                if has_error(sig) or has_error(scores):
+                    return _expanded_layout(*_exp_top, Panel("[red]Signals data unavailable[/]", border_style="red"))
+                return _expanded_layout(*_exp_top, panel_signals_expanded(sig, sig_eval, scores=scores))
+            case "health":
+                if has_error(run) or has_error(hlth):
+                    return _expanded_layout(*_exp_top, Panel("[red]Health data unavailable[/]", border_style="red"))
+                return _expanded_layout(
+                    *_exp_top,
+                    panel_algo_health_expanded(
+                        run,
+                        act,
+                        hlth,
+                        notifs,
+                        algo_metrics,
+                        audit,
+                        exec_hist,
+                        risk=risk,
+                    ),
+                )
+            case "sectors":
+                if has_error(pos) or has_error(port):
+                    return _expanded_layout(*_exp_top, Panel("[red]Sectors data unavailable[/]", border_style="red"))
+                return _expanded_layout(*_exp_top, panel_sectors_expanded(srank, pos, port, sec_rot, irank))
+            case "trades":
+                if has_error(rec):
+                    return _expanded_layout(*_exp_top, Panel("[red]Trade history unavailable[/]", border_style="red"))
+                return _expanded_layout(*_exp_top, panel_trades_expanded(rec))
+            case "economic":
+                if has_error(eco):
+                    return _expanded_layout(*_exp_top, Panel("[red]Economic data unavailable[/]", border_style="red"))
+                return _expanded_layout(*_exp_top, panel_economic_expanded(eco, econ_cal))
+            case "portfolio":
+                if has_error(port) or has_error(cfg):
+                    return _expanded_layout(*_exp_top, Panel("[red]Portfolio data unavailable[/]", border_style="red"))
+                return _expanded_layout(
+                    *_exp_top,
+                    panel_portfolio_perf_expanded(port, cfg, risk=risk, perf=perf, perf_anl=perf_anl, pos=pos),
+                )
+            case "errors":
+                error_panel_exp = error_summary_panel_expanded(data)
+                if error_panel_exp:
+                    return _expanded_layout(*_exp_top, error_panel_exp)
 
     return outer
+
+
+def _run_once_update_frame_and_mode(key: str, frame: int, view_mode: str) -> tuple[int, str]:
+    """Update frame counter and view mode based on keypress."""
+    if key in KEY_MAP:
+        target = KEY_MAP[key]
+        view_mode = "normal" if view_mode == target else target
+    frame += 1
+    if frame > 1_000_000:
+        frame = 0
+    return frame, view_mode
+
+
+def _run_once_update_display(
+    live: Live, done: threading.Event, state: _LoadState, frame: int, view_mode: str,
+    recovery: RenderRecovery, render_wrapper: _RenderWrapper, data_source: str
+) -> None:
+    """Update display during loading or render dashboard."""
+    if not done.is_set():
+        live.update(loading_layout(frame, data_source=data_source))
+        return
+
+    with render_wrapper._state_lock:
+        render_wrapper.elapsed = state.elapsed
+        render_wrapper.frame = frame
+        render_wrapper.view_mode = view_mode
+    try:
+        layout, _recovery_status = recovery.render_with_recovery(state.result, render_wrapper)
+        live.update(layout)
+    except Exception as e:
+        error_panel = _handle_render_error(e, recovery.get_recovery_status())
+        try:
+            live.update(error_panel)
+        except Exception as panel_error:
+            logger.error(
+                f"Failed to render error panel: {type(panel_error).__name__}: {panel_error}"
+            )
 
 
 def run_once(compact: bool, data_source: str = "AWS") -> None:
@@ -816,7 +833,6 @@ def run_once(compact: bool, data_source: str = "AWS") -> None:
         frame = 0
         view_mode = "normal"
         recovery = RenderRecovery()
-        key_map = KEY_MAP
         render_wrapper = _RenderWrapper(compact, data_source)
         with Live(console=CONSOLE, refresh_per_second=8, screen=True) as live:
             try:
@@ -824,30 +840,8 @@ def run_once(compact: bool, data_source: str = "AWS") -> None:
                     key = _keypress()
                     if key == "q":
                         break
-                    if key in key_map:
-                        target = key_map[key]
-                        view_mode = "normal" if view_mode == target else target
-                    frame += 1
-                    if frame > 1_000_000:
-                        frame = 0
-                    if not done.is_set():
-                        live.update(loading_layout(frame, data_source=data_source))
-                    else:
-                        with render_wrapper._state_lock:
-                            render_wrapper.elapsed = state.elapsed
-                            render_wrapper.frame = frame
-                            render_wrapper.view_mode = view_mode
-                        try:
-                            layout, _recovery_status = recovery.render_with_recovery(state.result, render_wrapper)
-                            live.update(layout)
-                        except Exception as e:
-                            error_panel = _handle_render_error(e, recovery.get_recovery_status())
-                            try:
-                                live.update(error_panel)
-                            except Exception as panel_error:
-                                logger.error(
-                                    f"Failed to render error panel: {type(panel_error).__name__}: {panel_error}"
-                                )
+                    frame, view_mode = _run_once_update_frame_and_mode(key, frame, view_mode)
+                    _run_once_update_display(live, done, state, frame, view_mode, recovery, render_wrapper, data_source)
                     time.sleep(0.125)
             except KeyboardInterrupt:
                 pass

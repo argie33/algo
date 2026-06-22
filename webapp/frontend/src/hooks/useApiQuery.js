@@ -1,8 +1,8 @@
 import { useQuery } from '@tanstack/react-query';
-import { extractData, extractPaginatedData, validateItems } from '../utils/responseNormalizer';
+import { extractData, extractPaginatedData } from '../utils/responseNormalizer';
 import { validateResponse, validateArrayItems } from '../utils/responseValidator';
 import {
-  getEndpointSchema, getRequiredFields, getItemRequiredFields, getDecimalFields,
+  getEndpointSchema, getItemRequiredFields, getDecimalFields,
 } from '../utils/endpointSchemas';
 import dataCache from '../services/dataCache';
 import { toFixed } from '../utils/decimalMath';

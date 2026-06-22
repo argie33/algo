@@ -1,4 +1,4 @@
-﻿﻿/**
+﻿/**
  * Enterprise-Grade Chart Theme System
  * Award-winning financial data visualization
  * Designed for wealth management & professional trading platforms

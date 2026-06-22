@@ -192,7 +192,7 @@ class PriceLoader(OptimalLoader):
         from utils.validation.schema import validate_table_schema
 
         if self.table_name not in TABLE_SCHEMAS:
-            logger.warning(f"[SCHEMA] No pre-defined schema for {self.table_name}, skipping validation")
+            logger.warning("[SCHEMA] No pre-defined schema for %s, skipping validation", self.table_name)
             return
 
         required_schema = TABLE_SCHEMAS[self.table_name]
@@ -243,7 +243,7 @@ class PriceLoader(OptimalLoader):
         were inserted when the unique constraint didn't exist.
         """
         if not self.primary_key:
-            logger.debug(f"[CONSTRAINT] No primary_key defined for {self.table_name}, skipping check")
+            logger.debug("[CONSTRAINT] No primary_key defined for %s, skipping check", self.table_name)
             return
 
         pk_cols = ",".join(self.primary_key)
@@ -276,7 +276,7 @@ class PriceLoader(OptimalLoader):
                 index_exists = True
 
             if constraint_exists or index_exists:
-                logger.info(f"[CONSTRAINT] âœ“ Unique constraint/index found on {self.table_name}({pk_cols})")
+                logger.info("[CONSTRAINT] âœ“ Unique constraint/index found on {self.table_name}(%s)", pk_cols)
             else:
                 # This is a CRITICAL error - without the constraint, duplicates can occur
                 error_msg = (
@@ -323,7 +323,7 @@ class PriceLoader(OptimalLoader):
                         best_size = size
 
             if best_size is not None and best_rate >= 0.5:
-                logger.debug(f"[BATCH_SIZE_SMART] Using batch={best_size} (success rate {best_rate:.0%})")
+                logger.debug("[BATCH_SIZE_SMART] Using batch={best_size} (success rate %s)", best_rate)
                 return best_size
 
         # Fallback: use default with context awareness
@@ -485,7 +485,7 @@ class PriceLoader(OptimalLoader):
                 f"(pipeline={'EOD' if self._is_eod_pipeline else 'morning'})"
             )
         else:
-            logger.debug(f"[MARKET_CLOSE] Using override timeout: {max_wait_sec}s")
+            logger.debug("[MARKET_CLOSE] Using override timeout: %ss", max_wait_sec)
 
         from datetime import datetime
 
@@ -506,12 +506,12 @@ class PriceLoader(OptimalLoader):
 
         # If we're more than 45 minutes after market close, assume data is available (yfinance lag max 15 min)
         if minutes_after_close > 45:
-            logger.info(f"[MARKET_CLOSE] {minutes_after_close:.0f}min after market close, data should be available")
+            logger.info("[MARKET_CLOSE] %smin after market close, data should be available", minutes_after_close)
             return True
 
         # If we're before market close, skip (early run or different time zone)
         if minutes_after_close < 0:
-            logger.info(f"[MARKET_CLOSE] Before market close ({minutes_after_close:.0f}min), skipping check")
+            logger.info("[MARKET_CLOSE] Before market close (%smin), skipping check", minutes_after_close)
             return True
 
         # We're 0-45 minutes after market close - verify SPY data with efficient retry
@@ -539,7 +539,7 @@ class PriceLoader(OptimalLoader):
                 )
                 if data_available:
                     elapsed = time.time() - start_time
-                    logger.info(f"[MARKET_CLOSE] âœ“ Data available after {elapsed:.1f}s (attempt {attempt})")
+                    logger.info("[MARKET_CLOSE] âœ“ Data available after {elapsed:.1f}s (attempt %s)", attempt)
                     # Emit success metric
                     try:
                         from algo.reporting import MetricsPublisher
@@ -553,7 +553,7 @@ class PriceLoader(OptimalLoader):
                         )
                         metrics.flush()
                     except Exception as metric_err:
-                        logger.debug(f"Could not publish market close success metric: {metric_err}")
+                        logger.debug("Could not publish market close success metric: %s", metric_err)
                     return True
             except Exception as e:
                 last_error_type = type(e).__name__
@@ -606,7 +606,7 @@ class PriceLoader(OptimalLoader):
                 f"ALERT: Market close data unavailable {self._market_close_timeout_count} times in 24h. "
                 "Possible yfinance API degradation. Check status page and consider switching data provider."
             )
-            logger.critical(f"[{self._correlation_id}] {alert_msg}")
+            logger.critical("[{self._correlation_id}] %s", alert_msg)
             try:
                 from algo.reporting import AlertManager
 
@@ -652,7 +652,7 @@ class PriceLoader(OptimalLoader):
             "Check yfinance API status and RDS connection pool health. "
             f"[Consecutive timeouts: {self._market_close_timeout_count}/24h]"
         )
-        logger.error(f"[{self._correlation_id}] [MARKET_CLOSE] âœ— {error_msg}")
+        logger.error("[{self._correlation_id}] [MARKET_CLOSE] âœ— %s", error_msg)
         raise RuntimeError(error_msg)
 
     def _record_request_latency(self, latency_sec: float) -> None:
@@ -747,7 +747,7 @@ class PriceLoader(OptimalLoader):
 
             # Wait outside the lock using condition variable (wakes fairly when notified)
             if wait_sec > 0.01:  # Only log if waiting >10ms
-                logger.debug(f"Rate limit: waiting {wait_sec:.2f}s for {tokens_needed} tokens (fair queue)")
+                logger.debug("Rate limit: waiting {wait_sec:.2f}s for %s tokens (fair queue)", tokens_needed)
             # Note: Condition.wait() releases lock while waiting, allowing other threads to proceed
             with self._rate_limit_event:
                 self._rate_limit_event.wait(timeout=wait_sec)  # Wake on timeout or notify()
@@ -852,7 +852,7 @@ class PriceLoader(OptimalLoader):
             )
             metrics.flush()
         except Exception as metric_err:
-            logger.debug(f"Could not publish rate limit metric: {metric_err}")
+            logger.debug("Could not publish rate limit metric: %s", metric_err)
 
         batch_size_key = len(symbols)
         if batch_size_key not in self._batch_size_performance:
@@ -879,7 +879,7 @@ class PriceLoader(OptimalLoader):
             base_wait = min(30, (2**attempt) * 5)
             jitter = random.uniform(0.9, 1.1)
             wait_time = base_wait * jitter
-            logger.debug(f"[RATE_LIMIT] Waiting {wait_time:.1f}s before paced retry...")
+            logger.debug("[RATE_LIMIT] Waiting %ss before paced retry...", wait_time)
             time.sleep(wait_time)
             return cast(
                 dict | None,
@@ -1091,7 +1091,7 @@ class PriceLoader(OptimalLoader):
                     )
                     m.flush()
                 except Exception as metric_err:
-                    logger.debug(f"Could not publish batch fetch minimum size metric: {metric_err}")
+                    logger.debug("Could not publish batch fetch minimum size metric: %s", metric_err)
                 raise RuntimeError(
                     f"[BATCH FETCH ABORT] Batch at minimum with {self._rate_limit_errors} rate limit errors for {error_duration / 60:.1f}min. "
                     "yfinance API severely degraded - cannot fetch price data."
@@ -1137,7 +1137,7 @@ class PriceLoader(OptimalLoader):
                         max_attempts=max_attempts,
                     )
                     if any(v is not None for v in reduced_attempt.values()):
-                        logger.info(f"[CIRCUIT BREAKER] âœ“ Partial success with batch={reduced_size}")
+                        logger.info("[CIRCUIT BREAKER] âœ“ Partial success with batch=%s", reduced_size)
                         return reduced_attempt
 
                 # If all reduced sizes failed, emit alert and fail gracefully
@@ -1160,7 +1160,7 @@ class PriceLoader(OptimalLoader):
                         },
                     )
                 except Exception as alert_err:
-                    logger.debug(f"Could not send rate limit alert: {alert_err}")
+                    logger.debug("Could not send rate limit alert: %s", alert_err)
                 return dict.fromkeys(symbols)
 
         try:
@@ -1246,7 +1246,7 @@ class PriceLoader(OptimalLoader):
                         "Cannot proceed without valid credentials."
                     )
                 # Other errors - log and re-raise
-                logger.error(f"[{symbol}] Unexpected error: {e}")
+                logger.error("[{symbol}] Unexpected error: %s", e)
                 raise
         # Should not reach here, but if we do, raise error
         raise RuntimeError(f"[{symbol}] Exhausted all fetch attempts without successful data fetch")
@@ -1283,13 +1283,13 @@ class PriceLoader(OptimalLoader):
                 granularity="symbol",
             )
             self.run_id = self.tracker.start_run(source_api="yfinance")
-            logger.info(f"[Phase 1] Started provenance tracking: run_id={self.run_id}")
+            logger.info("[Phase 1] Started provenance tracking: run_id=%s", self.run_id)
 
     def end_provenance_tracking(self, success: bool = True):
         """Finalize Phase 1 data integrity tracking."""
         if self.tracker and self.run_id:
             self.tracker.end_run(success=success)
-            logger.info(f"[Phase 1] Ended provenance tracking: run_id={self.run_id}")
+            logger.info("[Phase 1] Ended provenance tracking: run_id=%s", self.run_id)
 
     def _validate_and_check_preconditions(self) -> None:
         """Validate preflight conditions: schema and market close availability."""
@@ -1444,10 +1444,10 @@ class PriceLoader(OptimalLoader):
                 )
                 m.flush()
             except Exception as metric_err:
-                logger.debug(f"Could not publish timeout metric: {metric_err}")
+                logger.debug("Could not publish timeout metric: %s", metric_err)
 
             if not emergency_mode_enabled:
-                logger.warning(f"[EMERGENCY] Reducing parallelism from {max_concurrent} to 1 to finish before timeout")
+                logger.warning("[EMERGENCY] Reducing parallelism from %s to 1 to finish before timeout", max_concurrent)
 
         if batch_elapsed > 120:
             logger.warning(
@@ -1495,7 +1495,7 @@ class PriceLoader(OptimalLoader):
                 )
                 m.flush()
             except (ValueError, ZeroDivisionError, TypeError) as metric_err:
-                logger.debug(f"Could not publish circuit breaker metric: {metric_err}")
+                logger.debug("Could not publish circuit breaker metric: %s", metric_err)
 
             logger.warning(
                 f"[CIRCUIT_BREAKER] Returning with {processed}/{total_symbols} symbols loaded. "
@@ -1552,7 +1552,7 @@ class PriceLoader(OptimalLoader):
                             },
                         )
         except Exception as e:
-            logger.debug(f"metrics unavailable: {e}")
+            logger.debug("metrics unavailable: %s", e)
 
         self._update_loader_status()
 
@@ -1619,10 +1619,10 @@ class PriceLoader(OptimalLoader):
                 # Cache invalidation failed after exhausting all retry strategies.
                 # This means Phase 1 might use stale data = data corruption risk.
                 # Must halt loader to maintain data integrity.
-                logger.critical(f"[CACHE INVALIDATION] CRITICAL FAILURE in _finalize_loader_metadata: {cache_err}")
+                logger.critical("[CACHE INVALIDATION] CRITICAL FAILURE in _finalize_loader_metadata: %s", cache_err)
                 raise
         except (psycopg2.DatabaseError, psycopg2.OperationalError) as e:
-            logger.warning(f"Failed to update data_loader_status for {self.table_name}: {e}")
+            logger.warning("Failed to update data_loader_status for {self.table_name}: %s", e)
 
     def run(  # type: ignore
         self, symbols: list, parallelism: int = 1, backfill_days: int | None = None
@@ -1709,14 +1709,14 @@ class PriceLoader(OptimalLoader):
         for symbol in symbols:
             rows = batch_results.get(symbol) if batch_results else None
             if not rows:
-                logger.debug(f"[{self.table_name}] {symbol}: No rows fetched (watermark current), skipping")
+                logger.debug("[{self.table_name}] %s: No rows fetched (watermark current), skipping", symbol)
                 self._stats["symbols_skipped_by_watermark"] += 1  # type: ignore
                 self._stats[  # type: ignore
                     "symbols_processed"
                 ] += 1  # Count as processed (no new data needed, not a failure)
                 continue
 
-            logger.debug(f"[{self.table_name}] {symbol}: Fetched {len(rows)} rows from batch")
+            logger.debug("[{self.table_name}] {symbol}: Fetched %s rows from batch", len(rows))
             self._stats["rows_fetched"] += len(rows)  # type: ignore
 
             if self.router and self.router.last_source:
@@ -1797,7 +1797,7 @@ def _invalidate_phase1_cache():
         try:
             # Step 1: Try direct deletion
             cache_table.delete_item(Key={"cache_key": cache_key})
-            logger.info(f"[CACHE INVALIDATION] âœ“ Successfully deleted Phase 1 cache: {cache_key}")
+            logger.info("[CACHE INVALIDATION] âœ“ Successfully deleted Phase 1 cache: %s", cache_key)
             return
         except ClientError as delete_err:
             error_dict = delete_err.response.get("Error")
@@ -1839,12 +1839,12 @@ def _invalidate_phase1_cache():
                     "Loader will proceed without cache invalidation (risk: may use stale data from previous run)."
                 )
                 return
-            logger.error(f"[CACHE INVALIDATION] âœ— POISONING ALSO FAILED: {type(poison_err).__name__}: {poison_err}")
+            logger.error("[CACHE INVALIDATION] âœ— POISONING ALSO FAILED: {type(poison_err).__name__}: %s", poison_err)
         except (ValueError, ZeroDivisionError, TypeError) as poison_err:
-            logger.error(f"[CACHE INVALIDATION] âœ— POISONING ALSO FAILED: {type(poison_err).__name__}: {poison_err}")
+            logger.error("[CACHE INVALIDATION] âœ— POISONING ALSO FAILED: {type(poison_err).__name__}: %s", poison_err)
 
     except (ValueError, ZeroDivisionError, TypeError) as setup_err:
-        logger.error(f"[CACHE INVALIDATION] Setup error: {setup_err}")
+        logger.error("[CACHE INVALIDATION] Setup error: %s", setup_err)
 
     # Step 3: Both deletion AND poisoning failed - CRITICAL: MUST HALT
     logger.critical(
@@ -1899,7 +1899,7 @@ def log_loader_execution(
                 ),
             )
     except (psycopg2.DatabaseError, psycopg2.OperationalError) as e:
-        logger.critical(f"[LOADER_EXECUTION_LOG] Failed to log execution to data_loader_runs: {e}")
+        logger.critical("[LOADER_EXECUTION_LOG] Failed to log execution to data_loader_runs: %s", e)
         raise
 
 
@@ -1912,16 +1912,16 @@ def main():
 
     setup_loader_timeouts(socket_timeout_sec=30.0)
 
-    logger.info(f"[{_correlation_id}] [MAIN] Starting price loader instance")
+    logger.info("[%s] [MAIN] Starting price loader instance", _correlation_id)
 
     try:
-        logger.info(f"[{_correlation_id}] [MAIN] Environment loaded successfully")
+        logger.info("[%s] [MAIN] Environment loaded successfully", _correlation_id)
     except (psycopg2.DatabaseError, psycopg2.OperationalError) as e:
-        logger.error(f"[MAIN] Failed to load environment: {e}", exc_info=True)
+        logger.error("[MAIN] Failed to load environment: %s", e, exc_info=True)
         try:
             _invalidate_phase1_cache()
         except RuntimeError as cache_err:
-            logger.critical(f"[MAIN] Cache invalidation failed on environment error: {cache_err}")
+            logger.critical("[MAIN] Cache invalidation failed on environment error: %s", cache_err)
         try:
             log_loader_execution(
                 "loadpricedaily",
@@ -1958,7 +1958,7 @@ def main():
     import signal
 
     def timeout_handler(signum, frame):
-        logger.critical(f"[TIMEOUT] Price loader exceeded {execution_timeout_sec}s timeout. Killing process.")
+        logger.critical("[TIMEOUT] Price loader exceeded %ss timeout. Killing process.", execution_timeout_sec)
         raise TimeoutError(f"Execution exceeded {execution_timeout_sec}s timeout")
 
     # SIGALRM only available on Unix; skip on Windows
@@ -1973,11 +1973,11 @@ def main():
     valid_classes = {"stock", "etf"}
     for i in intervals:
         if i not in valid_intervals:
-            logger.error(f"Invalid interval: {i}. Must be one of: {valid_intervals}")
+            logger.error("Invalid interval: {i}. Must be one of: %s", valid_intervals)
             return 1
     for a in asset_classes:
         if a not in valid_classes:
-            logger.error(f"Invalid asset class: {a}. Must be one of: {valid_classes}")
+            logger.error("Invalid asset class: {a}. Must be one of: %s", valid_classes)
             return 1
 
     # Advisory lock: only one price loader instance at a time.
@@ -1998,7 +1998,7 @@ def main():
             try:
                 _lock_conn.close()
             except (psycopg2.DatabaseError, psycopg2.OperationalError) as close_err:
-                logger.debug(f"Could not close lock connection: {close_err}")
+                logger.debug("Could not close lock connection: %s", close_err)
             _lock_conn = None
             return 0
     except (psycopg2.DatabaseError, psycopg2.OperationalError) as _lock_err:
@@ -2011,7 +2011,7 @@ def main():
     try:
         if symbols_str:
             symbols = [s.strip().upper() for s in symbols_str.split(",")]
-            logger.info(f"[MAIN] Loaded {len(symbols)} symbols from environment")
+            logger.info("[MAIN] Loaded %s symbols from environment", len(symbols))
         else:
             # max_symbols_limit=0 means no limit (loads all ~5000 symbols).
             # ECS task timeout is 12h which is sufficient for all symbols across all intervals.
@@ -2019,7 +2019,7 @@ def main():
             # Use 300s timeout (5 min) for symbol list query under EOD pipeline load
             # Multiple loaders running concurrently can exhaust connection pool; allow extra time
             symbols = get_active_symbols(max_symbols=limit, timeout_secs=300)
-            logger.info(f"[MAIN] Loaded {len(symbols)} symbols from database")
+            logger.info("[MAIN] Loaded %s symbols from database", len(symbols))
             if len(symbols) == 0:
                 logger.warning("[MAIN] No symbols found in stock_symbols table - exiting")
                 try:
@@ -2031,14 +2031,14 @@ def main():
                         duration_seconds=round(time.time() - start_time, 2),
                     )
                 except (ValueError, ZeroDivisionError, TypeError) as log_err:
-                    logger.critical(f"[MAIN] Could not log loader failure to audit trail: {log_err}")
+                    logger.critical("[MAIN] Could not log loader failure to audit trail: %s", log_err)
                 return 1
     except (ValueError, ZeroDivisionError, TypeError) as e:
-        logger.error(f"[MAIN] Failed to get symbols: {e}", exc_info=True)
+        logger.error("[MAIN] Failed to get symbols: %s", e, exc_info=True)
         try:
             _invalidate_phase1_cache()
         except RuntimeError as cache_err:
-            logger.critical(f"[MAIN] Cache invalidation failed on symbols error: {cache_err}")
+            logger.critical("[MAIN] Cache invalidation failed on symbols error: %s", cache_err)
         try:
             log_loader_execution(
                 "loadpricedaily",
@@ -2138,7 +2138,7 @@ def main():
                         with TimeBlock(f"loadpricedaily_{asset_class}_{interval}"):
                             stats = loader.run(run_symbols, parallelism=parallelism)
 
-                        logger.info(f"[MAIN] Completed {asset_class}/{interval}: {stats}")
+                        logger.info("[MAIN] Completed {asset_class}/{interval}: %s", stats)
                         # Validate stats dict has required keys
                         for required_key in ["symbols_processed", "symbols_failed", "rows_inserted"]:
                             if required_key not in stats:
@@ -2168,17 +2168,17 @@ def main():
                         try:
                             _invalidate_phase1_cache()
                         except RuntimeError as cache_err:
-                            logger.critical(f"[MAIN] Cache invalidation failed on loader error: {cache_err}")
+                            logger.critical("[MAIN] Cache invalidation failed on loader error: %s", cache_err)
                         raise RuntimeError(
                             f"[MAIN] Loader failed for {asset_class}/{interval}: {e}. "
                             "Cannot proceed with price loading if an interval fails."
                         )
     except Exception as timeout_err:
-        logger.critical(f"[MAIN] Loader execution timeout exceeded: {timeout_err}")
+        logger.critical("[MAIN] Loader execution timeout exceeded: %s", timeout_err)
         try:
             _invalidate_phase1_cache()
         except RuntimeError as cache_err:
-            logger.critical(f"[MAIN] Cache invalidation failed on timeout error: {cache_err}")
+            logger.critical("[MAIN] Cache invalidation failed on timeout error: %s", cache_err)
         duration_seconds = round(time.time() - start_time, 2)
         try:
             log_loader_execution(
@@ -2194,15 +2194,15 @@ def main():
                 "Audit trail integrity is mandatory for Phase 7 reconciliation."
             )
 
-    logger.info(f"[MAIN] All intervals completed. Total: {total_stats}")
+    logger.info("[MAIN] All intervals completed. Total: %s", total_stats)
 
     duration_seconds = round(time.time() - start_time, 2)
     if fail_count > 0:
-        logger.error(f"[MAIN] {fail_count} interval(s) had too many failures")
+        logger.error("[MAIN] %s interval(s) had too many failures", fail_count)
         try:
             _invalidate_phase1_cache()
         except RuntimeError as cache_err:
-            logger.critical(f"[MAIN] Cache invalidation failed on final failure: {cache_err}")
+            logger.critical("[MAIN] Cache invalidation failed on final failure: %s", cache_err)
         try:
             if "rows_inserted" not in total_stats:
                 raise RuntimeError("total_stats missing 'rows_inserted' key")
@@ -2239,7 +2239,7 @@ def main():
         try:
             _lock_conn.close()
         except Exception as close_err:
-            logger.debug(f"Could not close lock connection: {close_err}")
+            logger.debug("Could not close lock connection: %s", close_err)
     return 0
 
 

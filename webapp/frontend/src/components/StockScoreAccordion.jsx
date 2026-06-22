@@ -11,7 +11,7 @@ import {
   alpha,
   CircularProgress,
 } from '@mui/material';
-import { ExpandMore, Star, TrendingUp } from '@mui/icons-material';
+import { ExpandMore, Star } from '@mui/icons-material';
 import { formatNumber, formatPercentageChange, formatCurrency } from '../utils/formatters';
 import { api } from '../services/api';
 

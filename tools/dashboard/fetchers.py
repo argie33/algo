@@ -13,7 +13,9 @@ Architecture (refactored for maintainability):
 import logging
 import random
 import time
-from concurrent.futures import ThreadPoolExecutor, as_completed
+from collections.abc import Callable
+from concurrent.futures import Future, ThreadPoolExecutor, as_completed
+from typing import Any
 
 from .api_data_layer import API_MAX_BACKOFF
 from .fetchers_common import FETCHER_METADATA, format_fetcher_error
@@ -117,6 +119,53 @@ FETCHERS = {
     "exp_factors": fetch_exp_factors,
     "scores": fetch_scores,
 }
+
+
+def _execute_fetcher_batch(
+    fetcher_set: set,
+    max_workers: int,
+    timeout_sec: float,
+    one_func: Callable,
+    fetcher_timeout_dict: dict,
+    batch_name: str,
+) -> dict:
+    """Execute a batch of fetchers with thread pool and timeout handling."""
+    out = {}
+    with ThreadPoolExecutor(max_workers=max_workers) as pool:
+        items = {k: v for k, v in FETCHERS.items() if k in fetcher_set}
+        futures: dict[Future, Any] = {
+            pool.submit(one_func, k, v, fetcher_timeout_dict.get(k, 8.0)): k
+            for k, v in items.items()
+        }
+        pending_futures = set(futures.keys())
+
+        try:
+            for f in as_completed(futures, timeout=timeout_sec):
+                try:
+                    n, d = f.result()
+                    out[n] = d
+                    pending_futures.discard(f)
+                except Exception as e:
+                    k = futures[f]
+                    error_msg = format_fetcher_error(k, e)
+                    logger.error("Thread exception: %s", error_msg)
+                    out[k] = {"_error": error_msg}
+                    pending_futures.discard(f)
+        except TimeoutError:
+            logger.error(f"load_all {batch_name} timeout after {timeout_sec}s")
+            for f in pending_futures:
+                k_opt = futures.get(f)
+                if k_opt and not f.done():
+                    k = k_opt
+                    meta = FETCHER_METADATA.get(k)
+                    endpoint = meta.get("endpoint", "unknown endpoint") if meta else "unknown endpoint"
+                    desc = meta.get("desc", "") if meta else ""
+                    context = f"{endpoint}" + (f": {desc}" if desc else "")
+                    timeout_msg = f"Fetcher {k} ({context}) timed out (exceeded {timeout_sec}s)"
+                    logger.warning(timeout_msg)
+                    out[k] = {"_error": timeout_msg}
+
+    return out
 
 
 def load_all() -> dict:
@@ -233,7 +282,8 @@ def load_all() -> dict:
                     meta = FETCHER_METADATA.get(name)
                     endpoint = meta.get("endpoint", "unknown endpoint")
                     logger.warning(
-                        f"Fetcher {name} ({endpoint}) retry {attempt + 1}/{max_retries} (backoff {backoff:.1f}s): {type(e).__name__}"
+                        f"Fetcher {name} ({endpoint}) retry {attempt + 1}/{max_retries} "
+                        f"(backoff {backoff:.1f}s): {type(e).__name__}"
                     )
                     time.sleep(backoff)
                     continue
@@ -241,72 +291,18 @@ def load_all() -> dict:
                 logger.error(error_msg)
                 return name, {"_error": error_msg}
 
-    # Execute critical fetchers first (max 10 concurrent to reduce RDS load)
     critical_start_time = time.monotonic()
-    with ThreadPoolExecutor(max_workers=10) as pool:
-        critical_items = {k: v for k, v in FETCHERS.items() if k in critical_fetchers}
-        futures = {pool.submit(one, k, v, fetcher_timeout_seconds.get(k, 8.0)): k for k, v in critical_items.items()}
-        pending_futures = set(futures.keys())
+    critical_out = _execute_fetcher_batch(
+        critical_fetchers, 10, batch_timeout, one, fetcher_timeout_seconds, "critical"
+    )
+    out.update(critical_out)
 
-        try:
-            for f in as_completed(futures, timeout=batch_timeout):
-                try:
-                    n, d = f.result()
-                    out[n] = d
-                    pending_futures.discard(f)
-                except Exception as e:
-                    k = futures[f]
-                    error_msg = format_fetcher_error(k, e)
-                    logger.error("Thread exception: %s", error_msg)
-                    out[k] = {"_error": error_msg}
-                    pending_futures.discard(f)
-        except TimeoutError:
-            logger.error(f"load_all critical timeout after {batch_timeout}s")
-            for f in pending_futures:
-                k_opt = futures.get(f)
-                if k_opt and not f.done():
-                    k = k_opt
-                    meta = FETCHER_METADATA.get(k)
-                    endpoint = meta.get("endpoint", "unknown endpoint") if meta else "unknown endpoint"
-                    desc = meta.get("desc", "") if meta else ""
-                    context = f"{endpoint}" + (f": {desc}" if desc else "")
-                    timeout_msg = f"Fetcher {k} ({context}) timed out (exceeded {batch_timeout}s)"
-                    logger.warning(timeout_msg)
-                    out[k] = {"_error": timeout_msg}
-
-    # Execute optional fetchers with reduced concurrency
-    # Calculate remaining time based on actual elapsed time, not number of fetchers
     critical_elapsed = time.monotonic() - critical_start_time
     remaining_time = max(60, batch_timeout - critical_elapsed)
     optional_timeout = remaining_time
-    with ThreadPoolExecutor(max_workers=6) as pool:
-        optional_items = {k: v for k, v in FETCHERS.items() if k in optional_fetchers}
-        futures = {pool.submit(one, k, v, fetcher_timeout_seconds.get(k, 3.0)): k for k, v in optional_items.items()}
-        pending_futures = set(futures.keys())
-
-        try:
-            for f in as_completed(futures, timeout=max(60, optional_timeout)):
-                try:
-                    n, d = f.result()
-                    out[n] = d
-                    pending_futures.discard(f)
-                except Exception as e:
-                    k = futures[f]
-                    error_msg = format_fetcher_error(k, e)
-                    logger.debug("Optional fetcher failed: %s", error_msg)
-                    out[k] = {"_error": error_msg}
-                    pending_futures.discard(f)
-        except TimeoutError:
-            logger.debug(f"load_all optional timeout - {len(pending_futures)} fetchers incomplete")
-            for f in pending_futures:
-                k_opt = futures.get(f)
-                if k_opt and not f.done():
-                    k = k_opt
-                    meta = FETCHER_METADATA.get(k)
-                    endpoint = meta.get("endpoint", "unknown endpoint") if meta else "unknown endpoint"
-                    desc = meta.get("desc", "") if meta else ""
-                    context = f"{endpoint}" + (f": {desc}" if desc else "")
-                    timeout_msg = f"Optional fetcher {k} ({context}) timed out (exceeded {max(60, optional_timeout)}s)"
-                    out[k] = {"_error": timeout_msg}
+    optional_out = _execute_fetcher_batch(
+        optional_fetchers, 6, max(60, optional_timeout), one, fetcher_timeout_seconds, "optional"
+    )
+    out.update(optional_out)
 
     return out
