@@ -24,6 +24,8 @@ from rich.rule import Rule
 from rich.table import Table
 from rich.text import Text
 
+from tools.dashboard.data_validation import safe_float
+
 from ..error_boundary import has_error
 from ..formatters import (
     fmt_age,
@@ -168,9 +170,11 @@ def _build_freshness_panel(hlth_items: list, ready_to_trade: bool | None) -> Pan
         ah = r.get("age_hours")
         ad = r.get("age")
         if ah is not None:
-            return f"{ah:.0f}h" if float(ah) < 24 else f"{float(ah) / 24:.1f}d"
+            ah_f = safe_float(ah, default=0.0)
+            return f"{ah_f:.0f}h" if ah_f < 24 else f"{ah_f / 24:.1f}d"
         elif ad is not None:
-            return f"{float(ad):.1f}d"
+            ad_f = safe_float(ad, default=0.0)
+            return f"{ad_f:.1f}d"
         return "?"
 
     def _fmt_updated(r):
@@ -248,7 +252,8 @@ def panel_orch(run, cfg, risk=None):
     base_risk = cfg_params["base_risk"]
     t1r = cfg_params["t1_r"]
 
-    score_s = f"[dim]min score ≥[/][white]{min_score}[/]" if min_score and float(min_score) > 0 else ""
+    min_score_f = safe_float(min_score, default=0.0)
+    score_s = f"[dim]min score ≥[/][white]{min_score}[/]" if min_score and min_score_f > 0 else ""
     slots_s = f"[dim]max [/][white]{max_n}[/][dim] positions[/]" if max_n else ""
     sec_s = f"[dim]sector ≤[/][white]{max_sec_n}[/]" if max_sec_n else ""
     risk_s = f"[dim]base risk [/][white]{base_risk}%[/]" if base_risk else ""
@@ -259,7 +264,8 @@ def panel_orch(run, cfg, risk=None):
     var_line = ""
     risk_dict = safe_get_dict(risk) if not has_error(risk) else {}
     var95_check = risk_dict.get("var95") if risk_dict else None
-    if risk_dict and var95_check and float(var95_check) > 0:
+    var95_check_f = safe_float(var95_check, default=0.0)
+    if risk_dict and var95_check is not None and var95_check_f > 0:
         risk_metrics = extract_risk_metrics(risk)
         if risk_metrics:
             var95_val = risk_metrics["var95"]
@@ -269,8 +275,9 @@ def panel_orch(run, cfg, risk=None):
             svar_val = risk_metrics["svar"]
             beta_c = R if beta_val >= 1.2 else (Y if beta_val >= 0.8 else G)
             var_c = _var_color(var95_val)
+            svar_f = safe_float(svar_val, default=0.0)
             svar_s = (
-                f"\n[dim]Stressed VaR:[/][{R}]{float(svar_val):.2f}%[/]" if svar_val and float(svar_val) > 0 else ""
+                f"\n[dim]Stressed VaR:[/][{R}]{svar_f:.2f}%[/]" if svar_val is not None and svar_f > 0 else ""
             )
             var_line = (
                 f"\n[dim]VaR 95%:[/][{var_c}]{var95_val:.2f}%[/]"

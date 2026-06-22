@@ -189,7 +189,7 @@ jobs:
           echo "The dashboard will automatically fetch these credentials from Terraform outputs."
           echo ""
           echo "```bash"
-          echo "python tools/dashboard/dashboard.py"
+          echo "python -m tools.dashboard.dashboard"
           echo "```"
           echo ""
           echo "### For Local Development"

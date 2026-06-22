@@ -21,6 +21,8 @@ from rich.rule import Rule
 from rich.table import Table
 from rich.text import Text
 
+from tools.dashboard.data_validation import safe_float, safe_int
+
 from ..formatters import (
     fmt_age,
     fmt_money,
@@ -80,16 +82,16 @@ def panel_portfolio(port, cfg, risk=None, perf=None):
     if err_panel:
         return err_panel
 
-    pv = float(port["total_portfolio_value"])
-    cash = float(port["total_cash"])
-    npos = int(port["position_count"])
-    dr = float(port.get("daily_return_pct")) if port.get("daily_return_pct") is not None else None
-    urp = float(port.get("unrealized_pnl_pct")) if port.get("unrealized_pnl_pct") is not None else None
-    cum = port.get("cumulative_return_pct")
-    mxdd = port.get("max_drawdown_pct")
-    lgpos = port.get("largest_position_pct")
+    pv = safe_float(port["total_portfolio_value"], default=0.0)
+    cash = safe_float(port["total_cash"], default=0.0)
+    npos = safe_int(port["position_count"], default=0)
+    dr = safe_float(port.get("daily_return_pct"), default=None)
+    urp = safe_float(port.get("unrealized_pnl_pct"), default=None)
+    cum = safe_float(port.get("cumulative_return_pct"), default=None)
+    mxdd = safe_float(port.get("max_drawdown_pct"), default=None)
+    lgpos = safe_float(port.get("largest_position_pct"), default=None)
     snap = port.get("snapshot_date")
-    max_n = int(cfg.get("max_pos_n") or 0) if cfg else 0
+    max_n = safe_int(cfg.get("max_pos_n") if cfg else None, default=0)
     snap_s = f"  [dim]{fmt_age(snap)}[/]" if snap is not None else ""
 
     # Header: portfolio value + age
@@ -134,19 +136,21 @@ def panel_portfolio(port, cfg, risk=None, perf=None):
 
     # Largest position
     if lgpos is not None:
-        lp_c = R if float(lgpos) >= 20 else (Y if float(lgpos) >= 15 else "white")
+        lgpos_f = safe_float(lgpos, default=0.0)
+        lp_c = R if lgpos_f >= 20 else (Y if lgpos_f >= 15 else "white")
         tbl.add_row(
-            cell("Largest Position:", f"[{lp_c}]{float(lgpos):.1f}%[/]"),
+            cell("Largest Position:", f"[{lp_c}]{lgpos_f:.1f}%[/]"),
             Text(""),
         )
 
     # Risk metrics (VaR, CVaR, Beta, concentration, Stressed VaR)
-    if risk and not risk.get("_error") and risk.get("var95") and float(risk.get("var95") or 0) > 0:
-        var_v = risk.get("var95") or 0
-        cvar_v = risk.get("cvar95") or 0
-        beta_v = risk.get("beta") or 0
-        conc5_v = risk.get("conc5") or 0
-        svar_v = risk.get("svar")
+    var95_val = safe_float(risk.get("var95") if risk else None, default=0.0) if risk and not risk.get("_error") else 0.0
+    if risk and not risk.get("_error") and var95_val > 0:
+        var_v = safe_float(risk.get("var95"), default=0.0)
+        cvar_v = safe_float(risk.get("cvar95"), default=0.0)
+        beta_v = safe_float(risk.get("beta"), default=0.0)
+        conc5_v = safe_float(risk.get("conc5"), default=0.0)
+        svar_v = safe_float(risk.get("svar"), default=None)
         conc_c = R if conc5_v >= 35 else (Y if conc5_v >= 25 else "white")
         var_c = R if var_v >= 4 else (Y if var_v >= 2 else "white")
         beta_c = R if beta_v >= 1.2 else (Y if beta_v >= 0.8 else G)
@@ -158,9 +162,9 @@ def panel_portfolio(port, cfg, risk=None, perf=None):
             cell("Portfolio Beta:", f"[{beta_c}]{beta_v:.2f}[/]"),
             cell("Top 5 Concentration:", f"[{conc_c}]{conc5_v:.0f}%[/]"),
         )
-        if svar_v and float(svar_v) > 0:
+        if svar_v is not None and svar_v > 0:
             tbl.add_row(
-                cell("Stressed VaR:", f"[{R}]{float(svar_v):.2f}%[/]"),
+                cell("Stressed VaR:", f"[{R}]{svar_v:.2f}%[/]"),
                 Text(""),
             )
 

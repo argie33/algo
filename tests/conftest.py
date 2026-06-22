@@ -119,6 +119,27 @@ def pytest_configure(config):
     boto3.client = mock_client
 
 
+def pytest_collection_modifyitems(items: list) -> None:
+    """Auto-apply pytest marks based on directory so `make test-unit/edge/integration` work.
+
+    Files under tests/unit/       → @pytest.mark.unit
+    Files under tests/edge_cases/ → @pytest.mark.edge
+    Files under tests/integration/→ @pytest.mark.integration
+    Top-level tests/test_*.py     → @pytest.mark.unit (default tier)
+    """
+    for item in items:
+        path = str(item.fspath)
+        if "/unit/" in path or "\\unit\\" in path:
+            item.add_marker(pytest.mark.unit)
+        elif "/edge_cases/" in path or "\\edge_cases\\" in path:
+            item.add_marker(pytest.mark.edge)
+        elif "/integration/" in path or "\\integration\\" in path:
+            item.add_marker(pytest.mark.integration)
+        else:
+            # Top-level tests/ files — treat as unit tests
+            item.add_marker(pytest.mark.unit)
+
+
 @pytest.fixture
 def mock_db():
     """Mock database context."""

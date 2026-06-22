@@ -218,12 +218,6 @@ def fetch_economic_calendar(c):
             record_data_quality_issue("econ_cal", "validation", "invalid_response_type")
             return FetcherValidator.build_error_response(error_msg)
 
-        if not items:
-            error_msg = "No economic calendar events available"
-            logger.error(error_msg)
-            record_data_quality_issue("econ_cal", "validation", "no_items")
-            return FetcherValidator.build_error_response(error_msg)
-
         return {"items": items}
     except Exception as e:
         error_msg = _format_fetcher_error("econ_cal", e)
@@ -257,18 +251,8 @@ def fetch_exec_history(c):
                 logger.error(error_msg)
                 record_data_quality_issue("exec_hist", "validation", "items_not_list")
                 return FetcherValidator.build_error_response(error_msg)
-            if not items:
-                error_msg = "No execution history available"
-                logger.error(error_msg)
-                record_data_quality_issue("exec_hist", "validation", "no_items")
-                return FetcherValidator.build_error_response(error_msg)
             return items
         if isinstance(raw, list):
-            if not raw:
-                error_msg = "Execution history API returned empty list"
-                logger.error(error_msg)
-                record_data_quality_issue("exec_hist", "validation", "empty_list")
-                return FetcherValidator.build_error_response(error_msg)
             return raw
         error_msg = f"Execution history API response unexpected type: expected list or dict, got {type(raw).__name__}"
         logger.error(error_msg)
@@ -394,13 +378,7 @@ def fetch_activity(c):
             record_data_quality_issue("activity", "validation", "invalid_response_type")
             return FetcherValidator.build_error_response(error_msg)
 
-        if not items:
-            error_msg = "No activity data available"
-            logger.error(error_msg)
-            record_data_quality_issue("activity", "validation", "no_items")
-            return FetcherValidator.build_error_response(error_msg)
-
-        run_at = items[0].get("action_date")
+        run_at = items[0].get("action_date") if items else None
         phases = [i for i in items if (i.get("action_type") or "").startswith("phase_")]
         return {
             "run_id": None,
@@ -437,18 +415,8 @@ def fetch_audit_log(c):
                 logger.error(error_msg)
                 record_data_quality_issue("audit", "validation", "items_not_list")
                 return FetcherValidator.build_error_response(error_msg)
-            if not items:
-                error_msg = "No audit log entries available"
-                logger.error(error_msg)
-                record_data_quality_issue("audit", "validation", "no_items")
-                return FetcherValidator.build_error_response(error_msg)
             return items
         if isinstance(raw, list):
-            if not raw:
-                error_msg = "Audit log API returned empty list"
-                logger.error(error_msg)
-                record_data_quality_issue("audit", "validation", "empty_list")
-                return FetcherValidator.build_error_response(error_msg)
             return raw
         error_msg = f"Audit log API response unexpected type: expected list or dict, got {type(raw).__name__}"
         logger.error(error_msg)
@@ -488,12 +456,6 @@ def fetch_notifications(c):
             error_msg = f"Notifications API response: expected dict or list, got {type(raw).__name__}"
             logger.error(error_msg)
             record_data_quality_issue("notifs", "validation", "invalid_response_type")
-            return FetcherValidator.build_error_response(error_msg)
-
-        if not items:
-            error_msg = "No notifications available"
-            logger.error(error_msg)
-            record_data_quality_issue("notifs", "validation", "no_items")
             return FetcherValidator.build_error_response(error_msg)
 
         return {"items": items}

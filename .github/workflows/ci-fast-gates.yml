@@ -101,7 +101,7 @@ jobs:
         run: pip install -q bandit[toml]
       - name: Scan Python code for security issues
         run: |
-          bandit -r algo loaders config lambda --severity-level medium --confidence-level high
+          bandit -r algo loaders config lambda tools --severity-level medium --confidence-level high
           echo "OK: No high-confidence security issues detected"
 
   validate-terraform:
@@ -445,6 +445,7 @@ jobs:
             --cov=algo \
             --cov=loaders \
             --cov=lambda \
+            --cov=tools \
             --cov-report=term-missing:skip-covered \
             --cov-report=html \
             --cov-report=xml \

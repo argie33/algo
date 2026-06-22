@@ -21,7 +21,7 @@ from rich.rule import Rule
 from rich.table import Table
 from rich.text import Text
 
-from utils.safe_data_conversion import safe_float
+from tools.dashboard.data_validation import safe_float
 
 from ..error_boundary import has_error
 from ..formatters import sign
@@ -74,9 +74,9 @@ def panel_sector_compact(srank, pos, port, sec_rot=None, irank=None):
         def_s = safe_get_field(sec_rot, "def_score")
         cyc_s = safe_get_field(sec_rot, "cyc_score")
         strength = safe_get_field(sec_rot, "strength")
-        def_f = float(def_s) if def_s is not None else None
-        cyc_f = float(cyc_s) if cyc_s is not None else None
-        strength_f = float(strength) if strength is not None else None
+        def_f = safe_float(def_s, default=None)
+        cyc_f = safe_float(cyc_s, default=None)
+        strength_f = safe_float(strength, default=None)
         sig_c = R if def_f is not None and def_f >= 60 else (Y if def_f is not None and def_f >= 40 else G)
         scores_s = f" [dim]def:{def_f:.0f} cyc:{cyc_f:.0f}[/]" if def_f is not None or cyc_f is not None else ""
         str_s = f" [dim]spread:{strength_f:.1f}[/]" if strength_f is not None else ""
@@ -138,12 +138,14 @@ def panel_sector_compact(srank, pos, port, sec_rot=None, irank=None):
         for a, b in zip(valid_srank[::2], [*valid_srank[1::2], None], strict=False):
             na = (safe_get_field(a, "sector_name", ""))[:13]
             mma = safe_get_field(a, "momentum_score")
-            ms_a = f"[dim] mom:{float(mma):.0f}[/]" if mma is not None else ""
+            mma_f = safe_float(mma, default=None)
+            ms_a = f"[dim] mom:{mma_f:.0f}[/]" if mma_f is not None else ""
             la = f"[{G}]#{a['current_rank']:<2}[/] [dim]{na}[/]{ms_a}{_rdelta(a, wk4='rank_4w_ago')}"
             if b:
                 nb = (safe_get_field(b, "sector_name", ""))[:13]
                 mmb = safe_get_field(b, "momentum_score")
-                ms_b = f"[dim] mom:{float(mmb):.0f}[/]" if mmb is not None else ""
+                mmb_f = safe_float(mmb, default=None)
+                ms_b = f"[dim] mom:{mmb_f:.0f}[/]" if mmb_f is not None else ""
                 lb = f"[{G}]#{b['current_rank']:<2}[/] [dim]{nb}[/]{ms_b}{_rdelta(b, wk4='rank_4w_ago')}"
             else:
                 lb = ""
@@ -224,19 +226,24 @@ def panel_sectors_expanded(srank, pos, port, sec_rot=None, irank=None):
         cyc_s_raw = safe_get_field(sec_rot, "cyc_score")
         strength_raw = safe_get_field(sec_rot, "strength")
         if def_s_raw is not None and cyc_s_raw is not None and strength_raw is not None:
-            def_s = float(def_s_raw)
-            cyc_s = float(cyc_s_raw)
-            strength = float(strength_raw)
-            sig_c = R if def_s >= 60 else (Y if def_s >= 40 else G)
-            rot_date = safe_get_field(sec_rot, "date")
-            date_s = f"  [dim]as of {str(rot_date)[:10]}[/]" if rot_date else ""
-            rows.append(
-                Text.from_markup(
-                    f"[dim]Sector Rotation:[/] [{sig_c}]{sig_name}[/]  [dim]{wks}wk  "
-                    f"defensive:{def_s:.0f}  cyclical:{cyc_s:.0f}  spread:{strength:.1f}[/]{date_s}"
+            def_s = safe_float(def_s_raw, default=None)
+            cyc_s = safe_float(cyc_s_raw, default=None)
+            strength = safe_float(strength_raw, default=None)
+            if def_s is not None and cyc_s is not None and strength is not None:
+                sig_c = R if def_s >= 60 else (Y if def_s >= 40 else G)
+                rot_date = safe_get_field(sec_rot, "date")
+                date_s = f"  [dim]as of {str(rot_date)[:10]}[/]" if rot_date else ""
+                rows.append(
+                    Text.from_markup(
+                        f"[dim]Sector Rotation:[/] [{sig_c}]{sig_name}[/]  [dim]{wks}wk  "
+                        f"defensive:{def_s:.0f}  cyclical:{cyc_s:.0f}  spread:{strength:.1f}[/]{date_s}"
+                    )
                 )
-            )
-            rows.append(Rule(style="dim"))
+                rows.append(Rule(style="dim"))
+            else:
+                logger.warning(
+                    f"Sector rotation missing required fields: def_score={def_s_raw}, cyc_score={cyc_s_raw}, strength={strength_raw}"
+                )
         else:
             logger.warning(
                 f"Sector rotation missing required fields: def_score={def_s_raw}, cyc_score={cyc_s_raw}, strength={strength_raw}"
@@ -251,7 +258,7 @@ def panel_sectors_expanded(srank, pos, port, sec_rot=None, irank=None):
             logger.warning("Total portfolio value unavailable for sector breakdown")
             pv = None
         else:
-            pv = float(pv_raw)
+            pv = safe_float(pv_raw, default=None)
         sd: dict = {}
         invalid_count = 0
         for p in pos_list:

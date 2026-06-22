@@ -12,6 +12,7 @@ from enum import Enum
 from typing import cast
 
 from rich.layout import Layout
+from rich.markup import escape
 from rich.panel import Panel
 from rich.text import Text
 
@@ -202,7 +203,7 @@ class RenderRecovery:
     def _create_error_panel(self, e: Exception, status: str) -> Layout:
         """Create an error panel for display."""
         layout = Layout()
-        error_line = f"{type(e).__name__}: {str(e)[:80]}"
+        error_line = escape(f"{type(e).__name__}: {str(e)[:80]}")
         if status:
             content = f"[bold red]⚠ Render Error[/]\n[dim]{error_line}[/]\n\n{status}"
         else:

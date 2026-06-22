@@ -1,9 +1,8 @@
 """Entry point for running dashboard as a module.
 
-Supports both:
+Supports:
   python -m tools.dashboard
   python -m tools.dashboard.dashboard
-  python tools/dashboard/dashboard.py (via sys.path hack)
 """
 
 from .dashboard import main

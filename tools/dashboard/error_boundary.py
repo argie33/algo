@@ -6,6 +6,7 @@ and making error state visible to operators.
 
 from typing import Any, cast
 
+from rich.markup import escape
 from rich.panel import Panel
 from rich.text import Text
 
@@ -103,38 +104,71 @@ def safe_list(data: Any) -> list:
     return cast(list, {"_error": f"Expected list or dict, got {type(data).__name__}"})
 
 
-def error_summary_panel(data_dict: dict[str, Any]) -> Panel | None:
-    """Generate a panel showing all failed data fetchers and stale data.
+def _classify_errors(
+    data_dict: dict[str, Any],
+) -> tuple[list[tuple[str, str]], list[tuple[str, str]], list[str]]:
+    """Classify data errors into hard errors, stale data, and circuit-breaker-open keys.
 
-    Distinguishes between hard errors (red) and stale data (yellow).
-    Returns None if no errors or stale data, otherwise returns a Panel listing them.
+    Returns (hard_errors, stale_entries, circuit_open_keys) where each hard/stale
+    entry is a (key, plain_message) tuple so callers can format as needed.
+    Circuit-breaker-open entries are grouped into circuit_open_keys to avoid flooding
+    the panel when a single API outage blocks many fetchers simultaneously.
     """
-
-    failed_errors = []
-    stale_data = []
+    hard_errors: list[tuple[str, str]] = []
+    stale_entries: list[tuple[str, str]] = []
+    circuit_open_keys: list[str] = []
 
     for key, data in data_dict.items():
         if not has_error(data):
             continue
-        error_msg = get_error_message(data) or "Unknown error"
-        # Truncate long error messages (keep endpoint/type visible)
-        if len(error_msg) > 80:
-            error_msg = error_msg[:77] + "..."
-
+        if isinstance(data, dict) and data.get("_circuit_open"):
+            circuit_open_keys.append(key)
+            continue
+        plain_msg = get_error_message_plain(data) or "Unknown error"
         if is_data_stale(data):
-            stale_data.append(f"[{Y}]⚠ {key}[/]: {error_msg}")
+            stale_entries.append((key, plain_msg))
         else:
-            failed_errors.append(f"[{R}]✗ {key}[/]: {error_msg}")
+            hard_errors.append((key, plain_msg))
 
-    if not failed_errors and not stale_data:
+    return hard_errors, stale_entries, circuit_open_keys
+
+
+def error_summary_panel(data_dict: dict[str, Any]) -> Panel | None:
+    """Generate a compact panel showing all failed data fetchers and stale data.
+
+    Distinguishes between hard errors (red) and stale data (yellow).
+    Circuit-breaker cascades are collapsed into a single entry.
+    Returns None if no errors or stale data.
+    """
+    hard_errors, stale_entries, circuit_open_keys = _classify_errors(data_dict)
+
+    failed_lines: list[str] = []
+    stale_lines: list[str] = []
+
+    if circuit_open_keys:
+        keys_str = escape(", ".join(sorted(circuit_open_keys)))
+        failed_lines.append(
+            f"[{R}]✗ circuit breaker OPEN[/]: API unavailable — "
+            f"{len(circuit_open_keys)} fetchers blocked ({keys_str})"
+        )
+
+    for key, plain_msg in hard_errors:
+        if len(plain_msg) > 80:
+            plain_msg = plain_msg[:77] + "..."
+        failed_lines.append(f"[{R}]✗ {key}[/]: {escape(plain_msg)}")
+
+    for key, plain_msg in stale_entries:
+        if len(plain_msg) > 80:
+            plain_msg = plain_msg[:77] + "..."
+        stale_lines.append(f"[{Y}]⚠ {key}[/]: [yellow]⚠ STALE[/]: {escape(plain_msg)}")
+
+    if not failed_lines and not stale_lines:
         return None
 
-    # Show stale data warning in yellow, hard errors in red
-    content_parts = failed_errors + stale_data
-    content = "\n".join(content_parts)
-
-    border_color = R if failed_errors else Y
-    title = f"[bold {border_color}]{'⚠ ' if stale_data else '✗ '}Data Issues ({len(failed_errors) + len(stale_data)})[/]  [dim][d] expand[/]"
+    content = "\n".join(failed_lines + stale_lines)
+    border_color = R if failed_lines else Y
+    total = len(failed_lines) + len(stale_lines)
+    title = f"[bold {border_color}]{'⚠ ' if stale_lines else '✗ '}Data Issues ({total})[/]  [dim][d] expand[/]"
 
     return Panel(
         Text.from_markup(content),
@@ -147,32 +181,36 @@ def error_summary_panel(data_dict: dict[str, Any]) -> Panel | None:
 def error_summary_panel_expanded(data_dict: dict[str, Any]) -> Panel | None:
     """Generate expanded panel showing all failed data fetchers and stale data with full details.
 
-    Shows complete error messages without truncation for full visibility into data problems.
-    Returns None if no errors or stale data, otherwise returns a Panel listing them.
+    Shows complete error messages without truncation.
+    Circuit-breaker cascades are collapsed into a single entry.
+    Returns None if no errors or stale data.
     """
+    hard_errors, stale_entries, circuit_open_keys = _classify_errors(data_dict)
 
-    failed_errors = []
-    stale_data = []
+    failed_lines: list[str] = []
+    stale_lines: list[str] = []
 
-    for key, data in data_dict.items():
-        if not has_error(data):
-            continue
-        error_msg = get_error_message(data) or "Unknown error"
+    if circuit_open_keys:
+        keys_str = escape(", ".join(sorted(circuit_open_keys)))
+        failed_lines.append(
+            f"[{R}]✗ circuit breaker OPEN[/]:\n"
+            f"  [dim]API unavailable — {len(circuit_open_keys)} fetchers blocked\n"
+            f"  Blocked: {keys_str}[/]"
+        )
 
-        if is_data_stale(data):
-            stale_data.append(f"[{Y}]⚠ {key}[/]:\n  [dim]{error_msg}[/]")
-        else:
-            failed_errors.append(f"[{R}]✗ {key}[/]:\n  [dim]{error_msg}[/]")
+    for key, plain_msg in hard_errors:
+        failed_lines.append(f"[{R}]✗ {key}[/]:\n  [dim]{escape(plain_msg)}[/]")
 
-    if not failed_errors and not stale_data:
+    for key, plain_msg in stale_entries:
+        stale_lines.append(f"[{Y}]⚠ {key}[/]:\n  [dim][yellow]⚠ STALE[/]: {escape(plain_msg)}[/]")
+
+    if not failed_lines and not stale_lines:
         return None
 
-    # Show stale data warning in yellow, hard errors in red
-    content_parts = failed_errors + stale_data
-    content = "\n\n".join(content_parts)
-
-    border_color = R if failed_errors else Y
-    title = f"[bold {border_color}]{'⚠ ' if stale_data else '✗ '}Data Issues ({len(failed_errors) + len(stale_data)})[/]  [dim][d] collapse[/]"
+    content = "\n\n".join(failed_lines + stale_lines)
+    border_color = R if failed_lines else Y
+    total = len(failed_lines) + len(stale_lines)
+    title = f"[bold {border_color}]{'⚠ ' if stale_lines else '✗ '}Data Issues ({total})[/]  [dim][d] collapse[/]"
 
     return Panel(
         Text.from_markup(content),

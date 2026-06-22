@@ -21,6 +21,8 @@ from rich.rule import Rule
 from rich.table import Table
 from rich.text import Text
 
+from tools.dashboard.data_validation import safe_float
+
 from ..error_boundary import has_error
 from ..utilities import (
     G,
@@ -80,18 +82,20 @@ def _build_calendar_rows(econ_cal) -> list:
         else:
             when = "--"
         vals = ""
-        try:
-            if a_v is not None:
-                a_f = float(a_v)
-                f_f = float(f_v) if f_v is not None else a_f
+        if a_v is not None:
+            a_f = safe_float(a_v, default=None)
+            if a_f is not None:
+                f_f = safe_float(f_v, default=a_f)
                 ac = G if a_f <= f_f else R
                 vals = f" [{ac}]A={a_f:.1f}[/]"
-            elif f_v is not None:
-                vals = f" [dim]F={float(f_v):.1f}[/]"
-            if p_v is not None:
-                vals += f"[dim] P={float(p_v):.1f}[/]"
-        except (ValueError, TypeError):
-            pass
+        elif f_v is not None:
+            f_f = safe_float(f_v, default=None)
+            if f_f is not None:
+                vals = f" [dim]F={f_f:.1f}[/]"
+        if p_v is not None:
+            p_f = safe_float(p_v, default=None)
+            if p_f is not None:
+                vals += f"[dim] P={p_f:.1f}[/]"
         et = ev.get("event_time")
         et_s = f" [dim]{str(et)[:5]}[/]" if et else ""
         rows.append(Text.from_markup(f"[{ic}]{when!s:<5}[/]{et_s} [white]{name!s}[/]{vals}"))

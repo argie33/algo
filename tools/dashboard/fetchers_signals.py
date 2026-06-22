@@ -4,6 +4,8 @@ import logging
 from datetime import datetime
 from zoneinfo import ZoneInfo
 
+from utils.safe_data_conversion import safe_float, safe_int
+
 from .api_data_layer import api_call
 
 ET = ZoneInfo("America/New_York")
@@ -154,13 +156,13 @@ def fetch_signal_eval(c):
 
         result = data
         return {
-            "total": int(result.get("total")),
-            "t1": int(result.get("t1")),
-            "t2": int(result.get("t2")),
-            "t3": int(result.get("t3")),
-            "t4": int(result.get("t4")),
-            "t5": int(result.get("t5")),
-            "avg_score": float(result.get("avg_score")),
+            "total": safe_int(result.get("total"), default=None),
+            "t1": safe_int(result.get("t1"), default=None),
+            "t2": safe_int(result.get("t2"), default=None),
+            "t3": safe_int(result.get("t3"), default=None),
+            "t4": safe_int(result.get("t4"), default=None),
+            "t5": safe_int(result.get("t5"), default=None),
+            "avg_score": safe_float(result.get("avg_score"), default=None),
             "date": result.get("signal_date"),
             "rejected": result.get("rejected"),
         }
@@ -202,12 +204,6 @@ def fetch_scores(c):
             error_msg = "Scores API response: 'items' field is not a list"
             logger.error(error_msg)
             record_data_quality_issue("scores", "validation", "items_not_list")
-            return FetcherValidator.build_error_response(error_msg)
-
-        if not items:
-            error_msg = "No score data available"
-            logger.error(error_msg)
-            record_data_quality_issue("scores", "validation", "no_items")
             return FetcherValidator.build_error_response(error_msg)
 
         return {"top": items}

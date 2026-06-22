@@ -268,11 +268,11 @@ def fetch_risk_metrics(c):
         d = data
         return {
             "date": d.get("report_date"),
-            "var95": float(d.get("var_pct_95")),
-            "cvar95": float(d.get("cvar_pct_95")),
-            "svar": float(d.get("stressed_var_pct")),
-            "beta": float(d.get("portfolio_beta")),
-            "conc5": float(d.get("top_5_concentration")),
+            "var95": safe_float(d.get("var_pct_95"), default=None),
+            "cvar95": safe_float(d.get("cvar_pct_95"), default=None),
+            "svar": safe_float(d.get("stressed_var_pct"), default=None),
+            "beta": safe_float(d.get("portfolio_beta"), default=None),
+            "conc5": safe_float(d.get("top_5_concentration"), default=None),
         }
     except Exception as e:
         error_msg = _format_fetcher_error("risk", e)
@@ -330,7 +330,7 @@ def fetch_sector_rotation(c):
     from tools.dashboard.fetcher_validator import FetcherValidator
 
     try:
-        data = api_call(_get_endpoint_path("srank"))
+        data = api_call("/api/algo/sector-rotation")
 
         # Check for API error
         is_error, error_msg = FetcherValidator.check_api_error(data)
@@ -346,23 +346,14 @@ def fetch_sector_rotation(c):
             return FetcherValidator.build_error_response(error_msg)
 
         items = raw.get("items")
-        if items is None:
-            error_msg = "Sector rotation API response missing required 'items' field"
-            logger.error(error_msg)
-            record_data_quality_issue("sec_rot", "validation", "missing_items_field")
-            return FetcherValidator.build_error_response(error_msg)
-
-        if not isinstance(items, list):
+        if items is not None and not isinstance(items, list):
             error_msg = f"Sector rotation 'items' field must be list, got {type(items).__name__}"
             logger.error(error_msg)
             record_data_quality_issue("sec_rot", "validation", "items_not_list")
             return FetcherValidator.build_error_response(error_msg)
 
         if not items:
-            error_msg = "No sector rotation data available (items array is empty)"
-            logger.error(error_msg)
-            record_data_quality_issue("sec_rot", "validation", "empty_items")
-            return FetcherValidator.build_error_response(error_msg)
+            return {}
 
         row = items[0]
         return {

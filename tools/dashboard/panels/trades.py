@@ -23,6 +23,8 @@ from rich.rule import Rule
 from rich.table import Table
 from rich.text import Text
 
+from tools.dashboard.data_validation import safe_float, safe_int
+
 from .. import error_boundary
 from ..formatters import (
     fmt_age,
@@ -137,12 +139,12 @@ def panel_recent_trades(trades):
         dur_raw = safe_get_field(tr, "trade_duration_days")
 
         # Convert to typed values
-        pnl_d = float(pnl_d_raw) if pnl_d_raw is not None else None
-        pnl_p = float(pnl_p_raw) if pnl_p_raw is not None else None
-        rmul = float(rmul_raw) if rmul_raw is not None else None
-        entry_p = float(entry_raw) if entry_raw is not None else None
-        exit_p = float(exit_raw) if exit_raw is not None else None
-        dur = int(dur_raw) if dur_raw is not None else None
+        pnl_d = safe_float(pnl_d_raw, default=None)
+        pnl_p = safe_float(pnl_p_raw, default=None)
+        rmul = safe_float(rmul_raw, default=None)
+        entry_p = safe_float(entry_raw, default=None)
+        exit_p = safe_float(exit_raw, default=None)
+        dur = safe_int(dur_raw, default=None)
         exit_date = safe_get_field(tr, "exit_date") or safe_get_field(tr, "trade_date")
 
         has_pnl = pnl_p is not None

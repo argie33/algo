@@ -64,6 +64,10 @@ class FetcherValidator:
             except (ValueError, TypeError):
                 return False, f"Invalid timestamp format: {timestamp}"
 
+        # Make naive datetimes timezone-aware (assume UTC) to avoid TypeError
+        if timestamp.tzinfo is None:
+            timestamp = timestamp.replace(tzinfo=timezone.utc)
+
         age = datetime.now(timezone.utc) - timestamp
         if age.total_seconds() > max_age_seconds:
             return (

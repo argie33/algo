@@ -13,7 +13,7 @@ $env:AWS_PROFILE = 'algo-developer'
 python scripts/setup-cognito-test-user.py
 
 # 3. Run dashboard (will prompt for Cognito credentials)
-python tools/dashboard/dashboard.py
+python -m tools.dashboard.dashboard
 ```
 
 ## How It Works
@@ -45,13 +45,13 @@ $env:COGNITO_USERNAME = "edgebrookecapital@gmail.com"
 $env:COGNITO_PASSWORD = "TestPassword123!"
 
 # Run dashboard
-python tools/dashboard/dashboard.py
+python -m tools.dashboard.dashboard
 ```
 
 ### Option 2: Interactive Prompt (Recommended for Local Dev)
 
 ```powershell
-python tools/dashboard/dashboard.py
+python -m tools.dashboard.dashboard
 # Dashboard will prompt:
 # Email: edgebrookecapital@gmail.com
 # Password: ***hidden***
@@ -78,7 +78,7 @@ $env:COGNITO_PASSWORD = "your.password"
 
 # Run dashboard
 cd ..
-python tools/dashboard/dashboard.py
+python -m tools.dashboard.dashboard
 ```
 
 ## Test User Management
@@ -117,7 +117,7 @@ python scripts/setup-cognito-test-user.py
 Requires Cognito authentication. Shows live data from Lambda API.
 
 ```powershell
-python tools/dashboard/dashboard.py
+python -m tools.dashboard.dashboard
 ```
 
 **Endpoints available:** All protected endpoints require Bearer token
@@ -131,7 +131,7 @@ No authentication needed. Connect to local dev server on localhost:3001.
 npm run dev --prefix webapp/frontend
 
 # In terminal 2: Run dashboard in local mode
-python tools/dashboard/dashboard.py --local
+python -m tools.dashboard.dashboard --local
 ```
 
 ## Troubleshooting
@@ -153,7 +153,7 @@ $env:COGNITO_PASSWORD = "password"
 **Solution:** Delete cache, dashboard will re-authenticate:
 ```powershell
 rm ~/.algo/cognito_token.json
-python tools/dashboard/dashboard.py
+python -m tools.dashboard.dashboard
 ```
 
 ### "Authentication failed - invalid credentials"
@@ -173,7 +173,7 @@ python scripts/setup-cognito-test-user.py
 ```powershell
 $env:COGNITO_USERNAME = "email@example.com"
 $env:COGNITO_PASSWORD = "password"
-python tools/dashboard/dashboard.py
+python -m tools.dashboard.dashboard
 ```
 
 ## API Endpoint Authentication
@@ -233,7 +233,7 @@ env:
   COGNITO_PASSWORD: ${{ secrets.COGNITO_TEST_USER_PASSWORD }}
 
 script:
-  - python tools/dashboard/dashboard.py --watch 30
+  - python -m tools.dashboard.dashboard --watch 30
 ```
 
 Store credentials in GitHub Secrets, never in code.

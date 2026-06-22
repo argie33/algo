@@ -22,6 +22,8 @@ from rich.rule import Rule
 from rich.table import Table
 from rich.text import Text
 
+from tools.dashboard.data_validation import safe_float
+
 from ..formatter_strategies import TierFormatter
 from ..formatters import mini_bar
 from ..utilities import (
@@ -140,7 +142,7 @@ def panel_exposure_compact(exp_f):
             items.append(f"[dim]{label}:[/] [yellow]⚠ N/A[/][dim] /{max_pts}[/]")
         else:
             pts_raw = f.get("pts")
-            pts = float(pts_raw) if pts_raw is not None else 0.0
+            pts = safe_float(pts_raw, default=0.0)
             bar = mini_bar(pts, max_pts, w=4)
             fc = G if pts >= max_pts * 0.75 else (Y if pts >= max_pts * 0.35 else R)
             det = factor_detail(key)
@@ -157,8 +159,8 @@ def panel_exposure_compact(exp_f):
         if isinstance(eco_raw, dict):
             eco = eco_raw
 
-    sr_pen = float(sr.get("pts", 0)) if sr else 0
-    eco_pen = float(eco.get("pts", 0)) if eco else 0
+    sr_pen = safe_float(sr.get("pts", 0) if sr else 0, default=0.0)
+    eco_pen = safe_float(eco.get("pts", 0) if eco else 0, default=0.0)
     if sr_pen < 0 and sr:
         sig = (sr.get("signal", "")).replace("_", " ")[:18]
         items.append(f"[dim]Sector Rotation:[/] [{R}]{sr_pen:+.0f}[/] [dim]{sig}[/]")
@@ -273,7 +275,7 @@ def panel_exposure_expanded(exp_f):
             continue
 
         pts_raw = f.get("pts")
-        pts = float(pts_raw) if pts_raw is not None else 0.0
+        pts = safe_float(pts_raw, default=0.0)
         bar_f = int(min(pts / max_pts, 1.0) * 12) if max_pts > 0 else 0
         fc = G if pts >= max_pts * 0.75 else (Y if pts >= max_pts * 0.35 else R)
         bar_s = Text.from_markup(f"[{fc}]{'█' * bar_f}[/][dim]{'░' * (12 - bar_f)}[/]  [{fc}]{pts:.0f}/{max_pts}[/]")
@@ -343,8 +345,8 @@ def panel_exposure_expanded(exp_f):
         if isinstance(eco_raw, dict):
             eco = eco_raw
 
-    sr_pen = float(sr.get("pts", 0)) if sr else 0
-    eco_pen = float(eco.get("pts", 0)) if eco else 0
+    sr_pen = safe_float(sr.get("pts", 0) if sr else 0, default=0.0)
+    eco_pen = safe_float(eco.get("pts", 0) if eco else 0, default=0.0)
     if sr_pen != 0 or eco_pen != 0:
         rows.append(Rule(style="dim"))
         rows.append(Text.from_markup("[dim bold]ADJUSTMENTS[/]"))

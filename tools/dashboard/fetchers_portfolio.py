@@ -4,6 +4,8 @@ import logging
 from datetime import datetime
 from zoneinfo import ZoneInfo
 
+from utils.safe_data_conversion import safe_float
+
 from .api_data_layer import api_call
 from .panels.data_extractors import safe_get_dict, safe_get_list
 
@@ -283,14 +285,14 @@ def fetch_perf_analytics(c):
 
         d = data
         return {
-            "sharpe252": float(d.get("rolling_sharpe_252d")),
-            "sortino": float(d.get("rolling_sortino_252d")),
-            "calmar": float(d.get("calmar_ratio")),
-            "wr50": float(d.get("win_rate_50t")),
-            "avg_w_r": float(d.get("avg_win_r_50t")),
-            "avg_l_r": float(d.get("avg_loss_r_50t")),
-            "expectancy": float(d.get("expectancy")),
-            "maxdd": float(d.get("max_drawdown_pct")),
+            "sharpe252": safe_float(d.get("rolling_sharpe_252d"), default=None),
+            "sortino": safe_float(d.get("rolling_sortino_252d"), default=None),
+            "calmar": safe_float(d.get("calmar_ratio"), default=None),
+            "wr50": safe_float(d.get("win_rate_50t"), default=None),
+            "avg_w_r": safe_float(d.get("avg_win_r_50t"), default=None),
+            "avg_l_r": safe_float(d.get("avg_loss_r_50t"), default=None),
+            "expectancy": safe_float(d.get("expectancy"), default=None),
+            "maxdd": safe_float(d.get("max_drawdown_pct"), default=None),
         }
     except Exception as e:
         error_msg = _format_fetcher_error("perf_anl", e)

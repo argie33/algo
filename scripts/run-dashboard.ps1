@@ -115,4 +115,5 @@ Write-Host "Press 'q' or Ctrl+C to exit" -ForegroundColor Gray
 Write-Host ""
 
 # Run dashboard with passed arguments
-& python tools/dashboard/dashboard.py @DashboardArgs
+# Use -m to run as a module (not a script) so relative imports within the package work correctly
+& python -m tools.dashboard.dashboard @DashboardArgs

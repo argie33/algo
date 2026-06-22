@@ -22,6 +22,8 @@ from rich.rule import Rule
 from rich.table import Table
 from rich.text import Text
 
+from tools.dashboard.data_validation import safe_float
+
 from ..error_boundary import has_error
 from ..formatters import (
     fmt_age,
@@ -161,7 +163,8 @@ def _build_grade_radar(sig_data: dict) -> list:
     if top_a:
         parts = []
         for s in top_a[:8]:
-            sc = float(safe_get_field(s, "score")) if safe_get_field(s, "score") is not None else None
+            score_raw = safe_get_field(s, "score")
+            sc = safe_float(score_raw, default=None)
             if sc is not None:
                 sc_c = G if sc >= 90 else ("bright_green" if sc >= 85 else "green")
                 parts.append(f"[{sc_c}]{safe_get_field(s, 'symbol', '')}[/][dim]{sc:.0f}[/]")
@@ -175,7 +178,8 @@ def _build_grade_radar(sig_data: dict) -> list:
     elif near:
         parts = []
         for a in near[:8]:
-            sc = float(safe_get_field(a, "score")) if safe_get_field(a, "score") is not None else None
+            score_raw = safe_get_field(a, "score")
+            sc = safe_float(score_raw, default=None)
             sc_s = f"{sc:.0f}" if sc is not None else "--"
             sym = safe_get_field(a, "symbol", "")
             parts.append(f"[{CY}]{sym}[/][dim]{sc_s}[/]")
@@ -294,24 +298,30 @@ def _build_buy_signals_table(scored_with_signals: list, buy_sig_details: dict) -
             price = safe_get_field(score_item, "current_price")
 
         rr_ratio = None
-        if buy_lvl and stop_lvl and float(stop_lvl) > 0:
+        stop_lvl_f = safe_float(stop_lvl, default=0.0)
+        if buy_lvl is not None and stop_lvl is not None and stop_lvl_f > 0:
             try:
-                rr_ratio = (float(buy_lvl) - float(stop_lvl)) / float(stop_lvl)
+                buy_lvl_f = safe_float(buy_lvl, default=0.0)
+                stop_lvl_f = safe_float(stop_lvl, default=0.0)
+                rr_ratio = (buy_lvl_f - stop_lvl_f) / stop_lvl_f
             except (ValueError, TypeError, ZeroDivisionError):
                 pass
 
-        comp_v = float(comp_score) if comp_score is not None else 0
+        comp_v = safe_float(comp_score, default=0.0)
         comp_c = _composite_score_color(comp_v)
         swing_c = G if swing_score >= 80 else (CY if swing_score >= 70 else Y)
         rr_c = G if rr_ratio and rr_ratio > 1.5 else (Y if rr_ratio and rr_ratio > 1 else (CY if rr_ratio else DIM))
 
+        price_f = safe_float(price, default=None)
+        buy_lvl_f = safe_float(buy_lvl, default=None)
+        stop_lvl_f = safe_float(stop_lvl, default=None)
         sig_table.add_row(
             Text(sym, style=f"bold {G}"),
             Text(f"{comp_v:.0f}", style=comp_c),
             Text(f"▲{swing_score:.0f}", style=swing_c),
-            Text(f"${float(price):.2f}" if price else "--", style="dim"),
-            Text(f"${float(buy_lvl):.2f}" if buy_lvl else "--", style=CY),
-            Text(f"${float(stop_lvl):.2f}" if stop_lvl else "--", style=R),
+            Text(f"${price_f:.2f}" if price_f is not None else "--", style="dim"),
+            Text(f"${buy_lvl_f:.2f}" if buy_lvl_f is not None else "--", style=CY),
+            Text(f"${stop_lvl_f:.2f}" if stop_lvl_f is not None else "--", style=R),
             Text(f"{rr_ratio:.2f}" if rr_ratio else "--", style=rr_c),
             Text(f"{entry_qual:.0f}", style=CY),
         )

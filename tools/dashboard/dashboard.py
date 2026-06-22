@@ -61,6 +61,7 @@ import boto3
 from rich.console import Group
 from rich.layout import Layout
 from rich.live import Live
+from rich.markup import escape as _escape_markup
 from rich.panel import Panel
 from rich.rule import Rule
 from rich.text import Text
@@ -79,6 +80,7 @@ from tools.dashboard.cognito_auth import (
 from tools.dashboard.error_boundary import (
     error_summary_panel,
     error_summary_panel_expanded,
+    has_error,
 )
 from tools.dashboard.error_recovery import RenderRecovery
 from tools.dashboard.fetchers import load_all
@@ -481,11 +483,11 @@ def _handle_render_error(e: Exception, recovery_status: str | None = None) -> Pa
     logger.error(f"Dashboard render error: {type(e).__name__}: {e}")
     logger.error(f"Traceback: {traceback.format_exc()}")
 
-    error_line = f"{type(e).__name__}: {str(e)[:80]}"
+    error_line = _escape_markup(f"{type(e).__name__}: {str(e)[:80]}")
     if recovery_status:
-        content = f"[bold red]�  Render Error[/]\n[dim]{error_line}[/]\n\n{recovery_status}"
+        content = f"[bold red]⚠  Render Error[/]\n[dim]{error_line}[/]\n\n{recovery_status}"
     else:
-        content = f"[bold red]�  Render Error[/]\n[dim]{error_line}[/]"
+        content = f"[bold red]⚠  Render Error[/]\n[dim]{error_line}[/]"
 
     return Panel(
         Text.from_markup(content),
@@ -522,8 +524,6 @@ def render_dashboard(
     if view_mode not in valid_modes:
         logger.warning(f"Invalid view_mode '{view_mode}', falling back to 'normal'")
         view_mode = "normal"
-
-    from .error_boundary import has_error
 
     run = data.get("run")
     cfg = data.get("cfg")

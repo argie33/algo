@@ -21,7 +21,7 @@ from rich.panel import Panel
 from rich.table import Table
 from rich.text import Text
 
-from utils.safe_data_conversion import safe_float
+from tools.dashboard.data_validation import safe_float
 
 from ..formatters import (
     fmt_age,
@@ -103,15 +103,14 @@ def panel_positions(pos, compact=False, trades=None, extended=False):
         price = safe_float(p.get("current_price"), default=None)
         pval = safe_float(p.get("position_value"), default=None)
         stop = safe_float(p.get("stop_loss_price"), default=None)
-        safe_float(p.get("target_1_price"), default=None)
         pnl = safe_float(p.get("unrealized_pnl_pct"), default=None)
         days = p.get("days_since_entry", "--")
         stg = p.get("weinstein_stage")
         swg = p.get("swing_score")
         sec = (p.get("sector", "--"))[:12]
-        rmul = float(p.get("r_multiple")) if p.get("r_multiple") is not None else None
-        dist = float(p.get("distance_to_stop_pct")) if p.get("distance_to_stop_pct") is not None else None
-        t1pct = float(p.get("distance_to_t1_pct")) if p.get("distance_to_t1_pct") is not None else None
+        rmul = safe_float(p.get("r_multiple"), default=None)
+        dist = safe_float(p.get("distance_to_stop_pct"), default=None)
+        t1pct = safe_float(p.get("distance_to_t1_pct"), default=None)
         pc = G if (pnl is not None and pnl >= 0) else R
         rc = G if (rmul is not None and rmul >= 0) else R
         dc = R if (dist is not None and dist < 3) else (Y if (dist is not None and dist < 5) else "white")
