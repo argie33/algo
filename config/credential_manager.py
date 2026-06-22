@@ -81,12 +81,11 @@ class CredentialManager:
                 import boto3
                 import botocore.config
 
-                # Timeouts for Secrets Manager API calls (must handle VPC latency).
-                # VPC requests to Secrets Manager endpoint can take 5-10s on cold-start.
-                # connect_timeout=10: Allow 10s for TCP handshake through NAT/endpoint
-                # read_timeout=15: Allow 15s for full response (includes API processing)
-                # max_attempts=2: 1 retry for transient failures (still under 30s total)
-                _cfg = botocore.config.Config(connect_timeout=10, read_timeout=15, retries={"max_attempts": 2})
+                # Short timeouts so SM failures are fast errors, not 25s Lambda hangs.
+                # Lambda timeout is 25s; connect+read must leave room for the actual DB call.
+                # connect_timeout=3, read_timeout=5 -> worst case 8s per attempt x 2 = 16s,
+                # leaving ~9s for the DB query. Previous 10+15=25s was hitting the timeout.
+                _cfg = botocore.config.Config(connect_timeout=3, read_timeout=5, retries={"max_attempts": 2})
                 aws_region = os.getenv("AWS_REGION")
                 if not aws_region:
                     raise ValueError(
