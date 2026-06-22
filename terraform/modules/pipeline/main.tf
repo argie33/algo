@@ -797,6 +797,10 @@ resource "aws_sfn_state_machine" "eod_pipeline" {
                 {
                   Name  = "ORCHESTRATOR_LOCK_TABLE"
                   Value = var.orchestrator_locks_table_name
+                },
+                {
+                  Name  = "ALERTS_SNS_TOPIC"
+                  Value = var.sns_alert_topic_arn
                 }
               ]
             }]
