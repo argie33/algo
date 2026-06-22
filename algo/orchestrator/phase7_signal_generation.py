@@ -61,7 +61,7 @@ logger = logging.getLogger(__name__)
 _LIQUIDITY_CHECK_LIMIT = 10
 _MAX_WORKERS = 4
 _MIN_COMPOSITE_SCORE = 50  # Minimum composite_score to qualify (0-100 scale)
-_BUYSELL_LOOKBACK_DAYS = 3  # Calendar days; covers 2 trading days including weekends
+_BUYSELL_LOOKBACK_DAYS = 7  # Calendar days; covers full prior week including weekends and missed EOD runs
 
 # ISSUE #6 FIX: Define required signal fields for Phase 6 execution
 _REQUIRED_SIGNAL_FIELDS = {
