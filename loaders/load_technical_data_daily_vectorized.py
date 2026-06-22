@@ -560,7 +560,7 @@ def main():
 
         # Validate result structure upfront
         required_fields = ["rows_inserted", "error", "latest_date"]
-        missing = [f for f in required_fields if f not in result or result[f] is None]
+        missing = [f for f in required_fields if f not in result]
         if missing:
             raise RuntimeError(
                 f"Loader returned incomplete result: missing {missing}. "
