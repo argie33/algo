@@ -312,9 +312,7 @@ def _safe_call(cur, fn) -> dict[str, Any]:
         try:
             cur.execute("ROLLBACK TO SAVEPOINT coverage_check")
         except (psycopg2.OperationalError, psycopg2.DatabaseError) as rollback_err:
-            logger.warning(
-                f"[SAVEPOINT_ROLLBACK] Error rolling back: {type(rollback_err).__name__}: {rollback_err}"
-            )
+            logger.warning(f"[SAVEPOINT_ROLLBACK] Error rolling back: {type(rollback_err).__name__}: {rollback_err}")
         logger.warning(f"[COVERAGE_CHECK] Coverage check function failed: {type(e).__name__}: {e}")
         code, error_type, message = handle_db_error(e, "data coverage check")
         return error_response(code, error_type, message)

@@ -35,8 +35,8 @@ def handle(
     try:
         if not params:
             params = {}
-        if (
-            path in ["/api/signals", "/api/signals/stocks"] or path.startswith(("/api/signals?", "/api/signals/stocks?"))
+        if path in ["/api/signals", "/api/signals/stocks"] or path.startswith(
+            ("/api/signals?", "/api/signals/stocks?")
         ):
             limit_list = params.get("limit")
             if limit_list is None:

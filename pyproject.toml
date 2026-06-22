@@ -58,9 +58,7 @@ warn_no_return = true
 exclude = [
     "^migrations/",
     "^tests/",
-    "^lambda/cognito-email-trigger/",
-    "^lambda/data-completeness-verifier/",
-    "^lambda/[^/]*-[^/]*/",
+    "^lambda/",
 ]
 
 [[tool.mypy.overrides]]

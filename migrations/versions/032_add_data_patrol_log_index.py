@@ -22,9 +22,7 @@ Related:
 import os
 
 
-DESCRIPTION = (
-    "Add index on data_patrol_log(created_at DESC) to fix COUNT(*) query timeouts"
-)
+DESCRIPTION = "Add index on data_patrol_log(created_at DESC) to fix COUNT(*) query timeouts"
 
 _INDEXES = [
     # Primary index: created_at DESC for COUNT(*) and ORDER BY queries
@@ -42,9 +40,7 @@ def _connect_autocommit():
 
     db_host = os.getenv("DB_HOST")
     if not db_host:
-        raise ValueError(
-            "DB_HOST environment variable is required (no localhost fallback for safety)"
-        )
+        raise ValueError("DB_HOST environment variable is required (no localhost fallback for safety)")
 
     ssl_map = {
         "true": "require",

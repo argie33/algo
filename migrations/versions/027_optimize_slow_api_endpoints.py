@@ -43,9 +43,7 @@ def _connect_autocommit():
 
     db_host = os.getenv("DB_HOST")
     if not db_host:
-        raise ValueError(
-            "DB_HOST environment variable is required (no localhost fallback for safety)"
-        )
+        raise ValueError("DB_HOST environment variable is required (no localhost fallback for safety)")
 
     ssl_map = {
         "true": "require",

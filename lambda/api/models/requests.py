@@ -132,9 +132,7 @@ class ManualTradeRequest(BaseModel):
     trade_type: str = Field(default="buy", description="Trade type: buy or sell")
     quantity: int = Field(..., description="Trade quantity (must be positive)", gt=0)
     price: float = Field(..., description="Trade price per share (must be positive)", gt=0)
-    execution_date: str | None = Field(
-        None, description="Trade execution date (YYYY-MM-DD format, defaults to today)"
-    )
+    execution_date: str | None = Field(None, description="Trade execution date (YYYY-MM-DD format, defaults to today)")
     stop_loss_price: float | None = Field(None, description="Stop loss price (optional)")
 
     @field_validator("symbol")

@@ -189,6 +189,7 @@ class DataSourceRouter:
         if last_exc:
             logger.error("All sources failed for %s. Last error: %s", request_desc, last_exc)
             from algo.exceptions import DataSourceError
+
             raise DataSourceError(
                 request_desc=request_desc,
                 sources_attempted=sources_attempted,

@@ -232,7 +232,9 @@ class BuySignalGenerationHandler:
         decimal84_max = 9999.9999
 
         if volume is not None and i >= 5:
-            recent_vols: list[Any] = [rows[j].get("volume") for j in range(max(0, i - 20), i) if rows[j].get("volume") is not None]
+            recent_vols: list[Any] = [
+                rows[j].get("volume") for j in range(max(0, i - 20), i) if rows[j].get("volume") is not None
+            ]
             if recent_vols:
                 avg_vol = sum(recent_vols) / len(recent_vols)
                 if avg_vol > 0:
@@ -246,7 +248,9 @@ class BuySignalGenerationHandler:
     def _compute_avg_volume_50d(self, rows: list[dict], i: int) -> int | None:
         """Compute 50-bar average volume."""
         if i >= 10:
-            vols_50: list[Any] = [rows[j].get("volume") for j in range(max(0, i - 50), i) if rows[j].get("volume") is not None]
+            vols_50: list[Any] = [
+                rows[j].get("volume") for j in range(max(0, i - 50), i) if rows[j].get("volume") is not None
+            ]
             if vols_50:
                 return int(sum(vols_50) / len(vols_50))
         return None
@@ -290,9 +294,11 @@ class BuySignalGenerationHandler:
         if signal_type == "BUY" and close:
             # Ensure buylevel and stoplevel are Decimals for calculations
             buy_dec = Decimal(str(close)) if buylevel is None else Decimal(str(buylevel))
-            stop_dec = (Decimal(str(close)) * (Decimal(1) - Decimal(str(risk_pct)) / Decimal(100))).quantize(
-                Decimal("0.0001")
-            ) if stoplevel is None else Decimal(str(stoplevel))
+            stop_dec = (
+                (Decimal(str(close)) * (Decimal(1) - Decimal(str(risk_pct)) / Decimal(100))).quantize(Decimal("0.0001"))
+                if stoplevel is None
+                else Decimal(str(stoplevel))
+            )
 
             result["buylevel"] = buy_dec
             result["stoplevel"] = stop_dec
@@ -314,9 +320,11 @@ class BuySignalGenerationHandler:
         elif signal_type == "SELL" and close:
             # Ensure buylevel and stoplevel are Decimals for calculations
             buy_dec = Decimal(str(close)) if buylevel is None else Decimal(str(buylevel))
-            stop_dec = (Decimal(str(close)) * (Decimal(1) + Decimal(str(risk_pct)) / Decimal(100))).quantize(
-                Decimal("0.0001")
-            ) if stoplevel is None else Decimal(str(stoplevel))
+            stop_dec = (
+                (Decimal(str(close)) * (Decimal(1) + Decimal(str(risk_pct)) / Decimal(100))).quantize(Decimal("0.0001"))
+                if stoplevel is None
+                else Decimal(str(stoplevel))
+            )
 
             result["buylevel"] = buy_dec
             result["stoplevel"] = stop_dec

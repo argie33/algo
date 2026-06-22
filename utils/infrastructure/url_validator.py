@@ -91,8 +91,8 @@ def validate_url(url: str, allowed_domains: list[str] | None = None) -> tuple:
         return is_valid, error
 
     hostname, error = _extract_hostname(url)
-    if error:
-        return False, error
+    if error or not hostname:
+        return False, error or "URL has no hostname"
 
     is_valid, error = _check_hostname_safety(hostname)
     if not is_valid:

@@ -22,7 +22,9 @@ class SignalQualityScorer(ABC):
         """Base quality score (40-60): signal existence + trend alignment."""
 
     @abstractmethod
-    def calculate_volume_confirmation_score(self, rsi: float | None, macd: float | None, macd_signal: float | None) -> int:
+    def calculate_volume_confirmation_score(
+        self, rsi: float | None, macd: float | None, macd_signal: float | None
+    ) -> int:
         """Volume confirmation score (0-20): based on MACD/RSI."""
 
     @abstractmethod
@@ -37,7 +39,9 @@ class BuySignalScorer(SignalQualityScorer):
         """BUY signals get 50 base points."""
         return 50
 
-    def calculate_volume_confirmation_score(self, rsi: float | None, macd: float | None, macd_signal: float | None) -> int:
+    def calculate_volume_confirmation_score(
+        self, rsi: float | None, macd: float | None, macd_signal: float | None
+    ) -> int:
         """For BUY: RSI 40-80 (+10), MACD > MACD_signal (+10)."""
         score = 0
 
@@ -94,7 +98,9 @@ class SellSignalScorer(SignalQualityScorer):
         """SELL signals get 45 base points."""
         return 45
 
-    def calculate_volume_confirmation_score(self, rsi: float | None, macd: float | None, macd_signal: float | None) -> int:
+    def calculate_volume_confirmation_score(
+        self, rsi: float | None, macd: float | None, macd_signal: float | None
+    ) -> int:
         """For SELL: RSI 20-60 (+10), MACD < MACD_signal (+10)."""
         score = 0
 

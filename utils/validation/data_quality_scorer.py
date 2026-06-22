@@ -80,8 +80,13 @@ class DataQualityScorer:
         return 1.0 - (invalid_count / len(rows))
 
     @classmethod
-    def score_overall(cls, rows: list[dict[str, Any]], required_fields: set[str],
-                      key_fields: list[str], validators: dict[str, Callable] | None = None) -> dict[str, float]:
+    def score_overall(
+        cls,
+        rows: list[dict[str, Any]],
+        required_fields: set[str],
+        key_fields: list[str],
+        validators: dict[str, Callable] | None = None,
+    ) -> dict[str, float]:
         """Calculate overall data quality score."""
         if validators is None:
             validators = {}

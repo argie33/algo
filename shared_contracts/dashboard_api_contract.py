@@ -580,11 +580,22 @@ DASHBOARD_ENDPOINTS = {
         "description": "Single industry detail",
         "response_schema": ResponseSchema(
             required_fields=[],
-            optional_fields=["industry_name", "stock_count", "composite_score", "momentum_score",
-                             "value_score", "quality_score", "growth_score", "stability_score",
-                             "data_freshness"],
-            field_types={"stock_count": int, "composite_score": (float, type(None)),
-                         "momentum_score": (float, type(None))},
+            optional_fields=[
+                "industry_name",
+                "stock_count",
+                "composite_score",
+                "momentum_score",
+                "value_score",
+                "quality_score",
+                "growth_score",
+                "stability_score",
+                "data_freshness",
+            ],
+            field_types={
+                "stock_count": int,
+                "composite_score": (float, type(None)),
+                "momentum_score": (float, type(None)),
+            },
             description="Industry detail with scores",
         ),
         "freshness_max_age_seconds": 3600,
@@ -793,10 +804,7 @@ class PanelRegistry:
         """
         panel = DASHBOARD_PANELS.get(name)
         if not panel:
-            raise KeyError(
-                f"Panel '{name}' not found in dashboard contract. "
-                "All referenced panels must be defined."
-            )
+            raise KeyError(f"Panel '{name}' not found in dashboard contract. All referenced panels must be defined.")
         if "endpoint_deps" not in panel:
             raise KeyError(
                 f"Panel '{name}' missing required 'endpoint_deps' field. "
@@ -813,10 +821,7 @@ class PanelRegistry:
         """
         panel = DASHBOARD_PANELS.get(name)
         if not panel:
-            raise KeyError(
-                f"Panel '{name}' not found in dashboard contract. "
-                "All referenced panels must be defined."
-            )
+            raise KeyError(f"Panel '{name}' not found in dashboard contract. All referenced panels must be defined.")
         if "optional" not in panel:
             raise KeyError(
                 f"Panel '{name}' missing required 'optional' field. "

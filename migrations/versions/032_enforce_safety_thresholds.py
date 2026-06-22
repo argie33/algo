@@ -41,22 +41,18 @@ _SAFETY_CONFIG = [
     # Entry Quality Gates (warn-only, not hard-gates)
     ("rs_slope_gate_enabled", "false", "bool"),
     ("volume_decay_gate_enabled", "false", "bool"),
-
     # Quality Score Thresholds (hard gates)
     ("min_signal_quality_score", "60", "int"),
     ("min_swing_score", "55.0", "float"),
     ("min_completeness_score", "70", "int"),
-
     # Earnings Blackout (hard gate)
     ("earnings_blackout_days_before", "7", "int"),
     ("earnings_blackout_days_after", "3", "int"),
-
     # Liquidity Thresholds
     ("min_volume_ma_50d", "300000", "int"),
     ("min_avg_daily_dollar_volume", "500000", "float"),
     ("min_daily_volume_shares", "500000", "int"),
     ("min_price_history_days", "200", "int"),
-
     # Fundamental Filters
     ("max_short_interest_pct", "30.0", "float"),
     ("min_market_cap_millions", "300.0", "float"),

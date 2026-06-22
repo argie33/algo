@@ -44,10 +44,7 @@ def up():
     with DatabaseContext("write") as cur:
         for key, safe_value, value_type in SAFE_DEFAULTS:
             # Get current value for audit
-            cur.execute(
-                "SELECT value FROM algo_config WHERE key = %s",
-                (key,)
-            )
+            cur.execute("SELECT value FROM algo_config WHERE key = %s", (key,))
             row = cur.fetchone()
             old_value = row[0] if row else None
 

@@ -30,9 +30,7 @@ secrets_client = boto3.client("secretsmanager")
 def get_secret_dict(secret_id: str, stage: str = "AWSCURRENT") -> dict[str, Any]:
     """Fetch secret from Secrets Manager."""
     try:
-        response = secrets_client.get_secret_value(
-            SecretId=secret_id, VersionStage=stage
-        )
+        response = secrets_client.get_secret_value(SecretId=secret_id, VersionStage=stage)
         return cast(dict[str, Any], json.loads(response["SecretString"]))
     except Exception as e:
         logger.error(f"Failed to get secret {secret_id}: {e}")
@@ -54,9 +52,7 @@ def set_secret_version(secret_id: str, secret_value: dict[str, Any]) -> str:
         raise
 
 
-def update_rds_password(
-    host: str, port: int, username: str, current_password: str, new_password: str
-) -> bool:
+def update_rds_password(host: str, port: int, username: str, current_password: str, new_password: str) -> bool:
     """Connect to RDS and update the master user password."""
     import psycopg2
     import psycopg2.sql
@@ -72,9 +68,7 @@ def update_rds_password(
         cur = conn.cursor()
 
         cur.execute(
-            psycopg2.sql.SQL("ALTER USER {} WITH PASSWORD %s").format(
-                psycopg2.sql.Identifier(username)
-            ),
+            psycopg2.sql.SQL("ALTER USER {} WITH PASSWORD %s").format(psycopg2.sql.Identifier(username)),
             (new_password,),
         )
 

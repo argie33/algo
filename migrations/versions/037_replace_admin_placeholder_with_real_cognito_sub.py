@@ -48,20 +48,12 @@ def up():
                     continue
 
                 cur.execute(
-                    "UPDATE "
-                    + table_name
-                    + " SET cognito_sub = %s WHERE cognito_sub = 'admin-user'",
+                    "UPDATE " + table_name + " SET cognito_sub = %s WHERE cognito_sub = 'admin-user'",
                     (admin_cognito_sub,),
                 )
                 rows_updated = cur.rowcount
                 if rows_updated > 0:
-                    print(
-                        "  [OK] "
-                        + table_name
-                        + ": "
-                        + str(rows_updated)
-                        + " rows updated"
-                    )
+                    print("  [OK] " + table_name + ": " + str(rows_updated) + " rows updated")
             except Exception as e:
                 print("  [ERR] " + table_name + ": " + str(e))
                 raise
@@ -94,13 +86,7 @@ def down():
                 )
                 rows_reverted = cur.rowcount
                 if rows_reverted > 0:
-                    print(
-                        "  [OK] "
-                        + table_name
-                        + ": "
-                        + str(rows_reverted)
-                        + " rows reverted"
-                    )
+                    print("  [OK] " + table_name + ": " + str(rows_reverted) + " rows reverted")
             except Exception as e:
                 print("  [ERR] " + table_name + ": " + str(e))
                 raise

@@ -10,11 +10,11 @@ class SchemaValidator:
     SCHEMAS = {
         "market/status": {
             "required": ["date", "market_trend", "market_stage", "vix_level"],
-            "types": {"date": str, "vix_level": float, "market_stage": int}
+            "types": {"date": str, "vix_level": float, "market_stage": int},
         },
         "portfolio": {
             "required": ["value", "cash", "positions", "unrealized_pnl"],
-            "types": {"value": float, "cash": float, "positions": int}
+            "types": {"value": float, "cash": float, "positions": int},
         },
     }
 

@@ -55,9 +55,7 @@ class LoaderResultLoggerHandler(LambdaHandler):
 
         logger.info(f"[LOADER-RESULT] Logged {loader_name} result to DynamoDB")
 
-        return LambdaResponse.success(
-            {"loader": loader_name, "status": status, "logged": True}
-        )
+        return LambdaResponse.success({"loader": loader_name, "status": status, "logged": True})
 
 
 lambda_handler = create_lambda_handler(LoaderResultLoggerHandler)

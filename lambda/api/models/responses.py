@@ -59,9 +59,7 @@ class ErrorResponse(BaseResponse):
     error_type: str = Field(..., alias="errorType", description="Error type for client-side handling")
     message: str = Field(..., description="Human-readable error message")
     error: str = Field(..., alias="_error", description="Error type identifier")
-    diagnostic: dict[str, Any] | None = Field(
-        None, alias="_diagnostic", description="Diagnostic info for developers"
-    )
+    diagnostic: dict[str, Any] | None = Field(None, alias="_diagnostic", description="Diagnostic info for developers")
 
 
 class HealthStatus(BaseModel):

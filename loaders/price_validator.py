@@ -165,7 +165,9 @@ class PriceValidator:
             logger.error(f"[CONSTRAINT_CHECK] Could not verify unique constraint: {e}")
             return False
 
-    def validate_and_check_preconditions(self, cur: Any, interval: str = "1d", check_market_close: bool = False) -> bool:
+    def validate_and_check_preconditions(
+        self, cur: Any, interval: str = "1d", check_market_close: bool = False
+    ) -> bool:
         """Validate preflight conditions: schema and market close availability."""
         # Always validate schema
         if not self.validate_schema_preflight(cur):

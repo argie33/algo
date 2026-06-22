@@ -21,9 +21,7 @@ import psycopg2
 
 
 # Set up logging
-logging.basicConfig(
-    level=logging.INFO, format="%(asctime)s - %(levelname)s - %(message)s"
-)
+logging.basicConfig(level=logging.INFO, format="%(asctime)s - %(levelname)s - %(message)s")
 logger = logging.getLogger(__name__)
 
 
@@ -108,9 +106,7 @@ def _load_credentials():
             creds = json.loads(creds_json)
             host = creds.get("host")
             if not host:
-                logger.error(
-                    "ERROR: 'host' is required in credentials JSON (no localhost fallback for safety)"
-                )
+                logger.error("ERROR: 'host' is required in credentials JSON (no localhost fallback for safety)")
                 sys.exit(1)
             return (
                 host,
@@ -126,9 +122,7 @@ def _load_credentials():
     # DB_HOST is required - no localhost fallback for safety
     db_host = os.getenv("DB_HOST")
     if not db_host:
-        logger.error(
-            "ERROR: DB_HOST environment variable is required (no localhost fallback for safety)"
-        )
+        logger.error("ERROR: DB_HOST environment variable is required (no localhost fallback for safety)")
         sys.exit(1)
 
     return (
@@ -227,8 +221,7 @@ class MigrationRunner:
         # Find all .sql and .py migration files (exclude __init__.py)
         all_files = [
             f
-            for f in list(MIGRATIONS_DIR.glob("*.sql"))
-            + list(MIGRATIONS_DIR.glob("*.py"))
+            for f in list(MIGRATIONS_DIR.glob("*.sql")) + list(MIGRATIONS_DIR.glob("*.py"))
             if not f.name.startswith("_")
         ]
         migration_files = sorted(all_files, key=lambda f: f.stem)

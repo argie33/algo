@@ -38,7 +38,9 @@ class HeartbeatMonitor:
 
         elapsed = time.time() - self.start_time
         rate = self.total_rows / elapsed if elapsed > 0 else 0
-        logger.info(f"[HEARTBEAT] {self.table_name}: batch {self.batch_count}, {self.total_rows} rows, {rate:.0f} rows/sec")
+        logger.info(
+            f"[HEARTBEAT] {self.table_name}: batch {self.batch_count}, {self.total_rows} rows, {rate:.0f} rows/sec"
+        )
 
     def is_stalled(self) -> bool:
         """Check if loader is stalled (no heartbeat for timeout period).

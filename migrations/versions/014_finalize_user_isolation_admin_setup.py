@@ -37,25 +37,19 @@ def up():
                 row = cur.fetchone()
                 if row is not None and row[0] is not None and row[0] > 0:
                     # Verify 'admin-user' entries exist
-                    cur.execute(
-                        f"SELECT COUNT(*) as count FROM {table_name} WHERE cognito_sub = 'admin-user'"
-                    )
+                    cur.execute(f"SELECT COUNT(*) as count FROM {table_name} WHERE cognito_sub = 'admin-user'")
                     row = cur.fetchone()
                     if row is not None and row[0] is not None:
                         count = row[0]
                     else:
                         raise RuntimeError(f"Count query failed for {table_name}")
                     if count > 0:
-                        print(
-                            f"  âœ“ {table_name}: {count} rows with 'admin-user' placeholder found"
-                        )
+                        print(f"  âœ“ {table_name}: {count} rows with 'admin-user' placeholder found")
             except (psycopg2.ProgrammingError, psycopg2.DatabaseError):
                 # Table may not exist yet, that's OK
                 pass
 
-        print(
-            "\nNextstep: Run migration 015 to replace 'admin-user' with real Cognito sub:"
-        )
+        print("\nNextstep: Run migration 015 to replace 'admin-user' with real Cognito sub:")
         print("  1. Get admin Cognito sub from AWS Cognito console")
         print("  2. Set ADMIN_COGNITO_SUB environment variable")
         print("  3. Run: python -m alembic upgrade head")

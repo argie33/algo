@@ -375,6 +375,7 @@ class OptimalLoader(ABC):
 
     # ---- Subclass interface ----
 
+    @abstractmethod
     def fetch_incremental(self, symbol: str, since: date | None) -> list[dict] | None:
         """Return rows newer than `since` for the given symbol. Override for per-symbol loaders."""
         raise NotImplementedError("Implement fetch_incremental (per-symbol) or fetch_global (market-wide)")
@@ -1001,6 +1002,7 @@ class OptimalLoader(ABC):
                 _lock_err,
             )
             from algo.exceptions import LockAcquisitionError
+
             raise LockAcquisitionError(
                 lock_key=self.table_name,
                 reason=f"DynamoDB lock acquisition failed: {_lock_err}",
@@ -1016,7 +1018,9 @@ class OptimalLoader(ABC):
             sla_monitor.start()
         except Exception as e:
             # SLA monitor detects hung loaders — its absence is a loss of observability
-            logger.warning(f"[{self.table_name}] SLA monitoring initialization failed (critical observability loss): {e}")
+            logger.warning(
+                f"[{self.table_name}] SLA monitoring initialization failed (critical observability loss): {e}"
+            )
 
         try:
             # OPTIMIZATION: Acquire pooled connection for entire loader lifecycle
@@ -1333,7 +1337,6 @@ class OptimalLoader(ABC):
                 except (psycopg2.DatabaseError, psycopg2.OperationalError) as e:
                     logger.warning(f"Failed to release DynamoDB lock: {e}")
 
-    @abstractmethod
     def close(self) -> None:
         """No-op. DatabaseContext handles connection cleanup automatically."""
 
@@ -1374,6 +1377,7 @@ class OptimalLoader(ABC):
                 _lock_err,
             )
             from algo.exceptions import LockAcquisitionError
+
             raise LockAcquisitionError(
                 lock_key=self.table_name,
                 reason=f"DynamoDB lock acquisition failed: {_lock_err}",

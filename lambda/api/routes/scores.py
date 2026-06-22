@@ -32,8 +32,8 @@ def handle(
 ) -> dict:
     """Handle /api/scores/* endpoints."""
     try:
-        if (
-            path in ["/api/scores", "/api/scores/stockscores"] or path.startswith(("/api/scores?", "/api/scores/stockscores?"))
+        if path in ["/api/scores", "/api/scores/stockscores"] or path.startswith(
+            ("/api/scores?", "/api/scores/stockscores?")
         ):
             limit_str = params.get("limit", [None])[0] if params else None
             limit = safe_limit(limit_str or "1000", max_val=1000)

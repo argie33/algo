@@ -24,19 +24,14 @@ DESCRIPTION = "Add symbol/status indexes for frequent WHERE clauses in trading o
 _INDEXES = [
     # algo_trades: (symbol, status) for fast lookup of open positions
     "CREATE INDEX IF NOT EXISTS idx_algo_trades_symbol_status ON algo_trades(symbol, status) WHERE status IN ('open', 'active')",
-
     # algo_positions: (symbol, status) for portfolio management queries
     "CREATE INDEX IF NOT EXISTS idx_algo_positions_symbol_status ON algo_positions(symbol, status) WHERE status IN ('open', 'active')",
-
     # alpaca_import_failures: (symbol, resolved) for sync error detection
     "CREATE INDEX IF NOT EXISTS idx_alpaca_import_failures_symbol_resolved ON alpaca_import_failures(symbol, resolved) WHERE resolved = FALSE",
-
     # pending_exits: symbol-only for quick exit lookups
     "CREATE INDEX IF NOT EXISTS idx_pending_exits_symbol ON pending_exits(symbol)",
-
     # signal_quality_scores: (date, symbol) for signal validation and scoring
     "CREATE INDEX IF NOT EXISTS idx_signal_quality_scores_date_symbol ON signal_quality_scores(date DESC, symbol)",
-
     # market_health_daily: (symbol, date) for market breadth/regime queries
     "CREATE INDEX IF NOT EXISTS idx_market_health_daily_symbol_date ON market_health_daily(symbol, date DESC)",
 ]
@@ -51,9 +46,7 @@ def _connect_autocommit():
 
     db_host = os.getenv("DB_HOST")
     if not db_host:
-        raise ValueError(
-            "DB_HOST environment variable is required (no localhost fallback for safety)"
-        )
+        raise ValueError("DB_HOST environment variable is required (no localhost fallback for safety)")
 
     ssl_map = {
         "true": "require",

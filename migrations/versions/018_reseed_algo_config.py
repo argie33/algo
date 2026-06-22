@@ -11,9 +11,7 @@ Safe to re-run on an already-populated table.
 from utils.db.context import DatabaseContext
 
 
-DESCRIPTION = (
-    "Re-seed algo_config table â€” idempotent, preserves existing custom values"
-)
+DESCRIPTION = "Re-seed algo_config table â€” idempotent, preserves existing custom values"
 
 # Mirrors AlgoConfig.DEFAULTS. ON CONFLICT DO NOTHING keeps any existing custom value.
 _DEFAULTS = [

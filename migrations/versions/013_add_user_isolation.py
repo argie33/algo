@@ -71,6 +71,4 @@ def down():
 
         # Drop columns
         cur.execute("ALTER TABLE algo_trade_adds DROP COLUMN IF EXISTS cognito_sub")
-        cur.execute(
-            "ALTER TABLE algo_portfolio_snapshots DROP COLUMN IF EXISTS cognito_sub"
-        )
+        cur.execute("ALTER TABLE algo_portfolio_snapshots DROP COLUMN IF EXISTS cognito_sub")
