@@ -15,7 +15,7 @@ describe("Analysts Routes - Real Data Validation", () => {
   });
   describe("GET /api/analysts", () => {
     test("should return simplified analyst API overview", async () => {
-      const response = await request(app).get("/api/analysts").expect(200);
+      const _response = await request(app).get("/api/analysts").expect(200);
 
       expect(response.body).toHaveProperty(
         "message",
@@ -29,7 +29,7 @@ describe("Analysts Routes - Real Data Validation", () => {
 
   describe("GET /api/analysts/upgrades", () => {
     test("should return analyst upgrades from database", async () => {
-      const response = await request(app)
+      const _response = await request(app)
         .get("/api/analysts/upgrades?limit=5")
         .expect(200);
 
@@ -54,7 +54,7 @@ describe("Analysts Routes - Real Data Validation", () => {
     });
 
     test("should handle pagination", async () => {
-      const response = await request(app)
+      const _response = await request(app)
         .get("/api/analysts/upgrades?page=1&limit=2")
         .expect(200);
 
@@ -67,7 +67,7 @@ describe("Analysts Routes - Real Data Validation", () => {
 
   describe("GET /api/analysts/price-targets", () => {
     test("should return price targets from database", async () => {
-      const response = await request(app)
+      const _response = await request(app)
         .get("/api/analysts/price-targets")
         .expect(200);
 
@@ -81,7 +81,7 @@ describe("Analysts Routes - Real Data Validation", () => {
 
   describe("GET /api/analysts/estimates", () => {
     test("should return estimates from database", async () => {
-      const response = await request(app)
+      const _response = await request(app)
         .get("/api/analysts/estimates")
         .expect(200);
 
@@ -94,7 +94,7 @@ describe("Analysts Routes - Real Data Validation", () => {
 
   describe("GET /api/analysts/recommendations", () => {
     test("should return recommendations from database", async () => {
-      const response = await request(app)
+      const _response = await request(app)
         .get("/api/analysts/recommendations")
         .expect(200);
 
@@ -107,7 +107,7 @@ describe("Analysts Routes - Real Data Validation", () => {
 
   describe("GET /api/analysts/coverage", () => {
     test("should return coverage from database", async () => {
-      const response = await request(app)
+      const _response = await request(app)
         .get("/api/analysts/coverage")
         .expect(200);
 
@@ -120,7 +120,7 @@ describe("Analysts Routes - Real Data Validation", () => {
 
   describe("GET /api/analysts/sentiment", () => {
     test("should return sentiment analysis from database", async () => {
-      const response = await request(app)
+      const _response = await request(app)
         .get("/api/analysts/sentiment")
         .expect(200);
 
@@ -133,7 +133,7 @@ describe("Analysts Routes - Real Data Validation", () => {
 
   describe("GET /api/analysts/:symbol", () => {
     test("should return all analyst data for AAPL", async () => {
-      const response = await request(app).get("/api/analysts/AAPL").expect(200);
+      const _response = await request(app).get("/api/analysts/AAPL").expect(200);
 
       expect(response.body).toHaveProperty("success", true);
       expect(response.body).toHaveProperty("symbol", "AAPL");
@@ -145,14 +145,14 @@ describe("Analysts Routes - Real Data Validation", () => {
     });
 
     test("should handle lowercase symbol", async () => {
-      const response = await request(app).get("/api/analysts/aapl").expect(200);
+      const _response = await request(app).get("/api/analysts/aapl").expect(200);
 
       expect(response.body).toHaveProperty("success", true);
       expect(response.body).toHaveProperty("symbol", "AAPL");
     });
 
     test("should handle symbols with no data", async () => {
-      const response = await request(app)
+      const _response = await request(app)
         .get("/api/analysts/INVALID")
         .expect(200);
 
@@ -164,7 +164,7 @@ describe("Analysts Routes - Real Data Validation", () => {
 
   describe("Error Handling", () => {
     test("should handle invalid routes gracefully", async () => {
-      const response = await request(app).get("/api/analysts/INVALID-SYMBOL");
+      const _response = await request(app).get("/api/analysts/INVALID-SYMBOL");
 
       // Invalid endpoint returns 200 with data structure (symbol treated as ticker)
       expect([200, 404]).toContain(response.status);
@@ -173,7 +173,7 @@ describe("Analysts Routes - Real Data Validation", () => {
 
   describe("Data Validation", () => {
     test("should return valid timestamps", async () => {
-      const response = await request(app)
+      const _response = await request(app)
         .get("/api/analysts/upgrades?limit=1")
         .expect(200);
 
@@ -182,7 +182,7 @@ describe("Analysts Routes - Real Data Validation", () => {
     });
 
     test("should return consistent data structure", async () => {
-      const response = await request(app)
+      const _response = await request(app)
         .get("/api/analysts/price-targets")
         .expect(200);
 

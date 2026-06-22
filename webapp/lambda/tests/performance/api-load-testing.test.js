@@ -16,7 +16,7 @@ jest.mock("../../utils/database", () => ({
   healthCheck: jest.fn(),
 }));
 
-const { query } = require("../../utils/database");
+const { _query } = require("../../utils/database");
 const { app } = require("../../index");
 
 describe("API Load Testing and Performance", () => {
@@ -156,7 +156,7 @@ describe("API Load Testing and Performance", () => {
 
       for (let i = 0; i < iterations; i++) {
         const startTime = Date.now();
-        const response = await request(app).get("/api/health");
+        const _response = await request(app).get("/api/health");
         const responseTime = Date.now() - startTime;
 
         responseTimes.push(responseTime);
@@ -187,7 +187,7 @@ describe("API Load Testing and Performance", () => {
 
         for (let i = 0; i < iterations; i++) {
           const startTime = Date.now();
-          const response = await request(app)
+          const _response = await request(app)
             .get(endpoint.path)
             .set("Authorization", `Bearer ${validToken}`);
           const responseTime = Date.now() - startTime;
@@ -211,7 +211,7 @@ describe("API Load Testing and Performance", () => {
     test("should maintain performance with large response payloads", async () => {
       // Test with a potentially large dataset
       const startTime = Date.now();
-      const response = await request(app)
+      const _response = await request(app)
         .get("/api/health")
         .set("Authorization", `Bearer ${validToken}`);
       const responseTime = Date.now() - startTime;
@@ -324,7 +324,7 @@ describe("API Load Testing and Performance", () => {
 
       // Create multiple connections
       for (let i = 0; i < connectionTests; i++) {
-        const response = await request(app)
+        const _response = await request(app)
           .get("/api/health")
           .set("Authorization", `Bearer ${validToken}`);
         responses.push(response);
@@ -393,7 +393,7 @@ describe("API Load Testing and Performance", () => {
 
       for (let i = 0; i < queryIterations; i++) {
         const startTime = Date.now();
-        const response = await request(app)
+        const _response = await request(app)
           .get("/api/stocks/sectors")
           .set("Authorization", `Bearer ${validToken}`);
         const queryTime = Date.now() - startTime;
@@ -475,7 +475,7 @@ describe("API Load Testing and Performance", () => {
 
         for (let i = 0; i < 10; i++) {
           const startTime = process.hrtime.bigint();
-          const response = await request(app).get(endpoint);
+          const _response = await request(app).get(endpoint);
           const endTime = process.hrtime.bigint();
 
           const responseTimeMs = Number(endTime - startTime) / 1000000; // Convert to milliseconds

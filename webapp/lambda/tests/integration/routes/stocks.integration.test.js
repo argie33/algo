@@ -15,7 +15,7 @@ describe("Stocks Routes Integration - Real Data Validation", () => {
   });
   describe("GET /stocks - Real Data Validation", () => {
     test("should return stocks from real database (NOT mocked)", async () => {
-      const response = await request(app).get("/stocks");
+      const _response = await request(app).get("/stocks");
 
       // Validate response structure
       expect(response.status).toBe(200);
@@ -40,7 +40,7 @@ describe("Stocks Routes Integration - Real Data Validation", () => {
     });
 
     test("should return specific stock data when requested", async () => {
-      const response = await request(app).get("/stocks?symbol=AAPL");
+      const _response = await request(app).get("/stocks?symbol=AAPL");
 
       expect(response.status).toBe(200);
 
@@ -55,7 +55,7 @@ describe("Stocks Routes Integration - Real Data Validation", () => {
     });
 
     test("should handle pagination with real data", async () => {
-      const response = await request(app).get("/stocks?page=1&limit=10");
+      const _response = await request(app).get("/stocks?page=1&limit=10");
 
       expect(response.status).toBe(200);
 
@@ -72,7 +72,7 @@ describe("Stocks Routes Integration - Real Data Validation", () => {
     });
 
     test("should validate NO-FALLBACK policy - real data without artificial defaults", async () => {
-      const response = await request(app).get("/stocks?limit=5");
+      const _response = await request(app).get("/stocks?limit=5");
 
       expect(response.status).toBe(200);
 
@@ -109,7 +109,7 @@ describe("Stocks Routes Integration - Real Data Validation", () => {
 
   describe("GET /stocks/:symbol - Real Stock Data", () => {
     test("should return REAL data for specific stock or proper error", async () => {
-      const response = await request(app).get("/stocks/AAPL");
+      const _response = await request(app).get("/stocks/AAPL");
 
       // Accept 200 (with data) or 404 (no data in test database)
       expect([200, 404].includes(response.status)).toBe(true);
@@ -127,7 +127,7 @@ describe("Stocks Routes Integration - Real Data Validation", () => {
     });
 
     test("should handle invalid symbols appropriately with REAL validation", async () => {
-      const response = await request(app).get("/stocks/INVALID_SYMBOL_XYZ");
+      const _response = await request(app).get("/stocks/INVALID_SYMBOL_XYZ");
 
       // Should return 200 with empty data or proper error
       expect([200, 400, 404]).toContain(response.status);
@@ -143,7 +143,7 @@ describe("Stocks Routes Integration - Real Data Validation", () => {
 
   describe("Stock Data Integrity - NO-FALLBACK Validation", () => {
     test("should preserve NULL values - NO artificial defaults", async () => {
-      const response = await request(app).get("/stocks?limit=20");
+      const _response = await request(app).get("/stocks?limit=20");
 
       expect(response.status).toBe(200);
 

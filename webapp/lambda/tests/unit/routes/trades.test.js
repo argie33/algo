@@ -8,7 +8,7 @@ jest.mock("../../../utils/database", () => ({
   closeDatabase: jest.fn(),
 }));
 // Import mocked functions
-const { query, transaction } = require("../../../utils/database");
+const { query} = require("../../../utils/database");
 // Mock authentication middleware for unit tests
 jest.mock("../../../middleware/auth", () => ({
   authenticateToken: jest.fn((req, res, next) => {
@@ -116,7 +116,7 @@ describe("Trades Routes - Testing Your Actual Site", () => {
   });
   describe("GET /trades/health - Health check", () => {
     test("should return trade service health status", async () => {
-      const response = await request(app).get("/trades/health").expect(200);
+      const _response = await request(app).get("/trades/health").expect(200);
       expect(response.body).toMatchObject({
         success: true,
         status: "operational",
@@ -129,7 +129,7 @@ describe("Trades Routes - Testing Your Actual Site", () => {
   });
   describe("GET /trades/ - Root endpoint", () => {
     test("should return trade API ready message", async () => {
-      const response = await request(app).get("/trades/").expect(200);
+      const _response = await request(app).get("/trades/").expect(200);
       expect(response.body).toMatchObject({
         success: true,
         message: "Trade History API - Ready",
@@ -141,7 +141,7 @@ describe("Trades Routes - Testing Your Actual Site", () => {
   });
   describe("GET /trades/import/status - Trade import status", () => {
     test("should return import status information", async () => {
-      const response = await request(app)
+      const _response = await request(app)
         .get("/trades/import/status")
         .set("Authorization", "Bearer test-token")
         .expect([200, 400, 500]); // May succeed, fail validation, or have missing dependencies
@@ -179,7 +179,7 @@ describe("Trades Routes - Testing Your Actual Site", () => {
       query
         .mockResolvedValueOnce({ rows: mockTrades })
         .mockResolvedValueOnce({ rows: [{ total: "2" }] });
-      const response = await request(app).get("/trades/history").expect(200);
+      const _response = await request(app).get("/trades/history").expect(200);
       expect(response.body).toHaveProperty("success", true);
       expect(response.body).toHaveProperty("data");
       expect(response.body.data).toHaveProperty("trades");
@@ -197,7 +197,7 @@ describe("Trades Routes - Testing Your Actual Site", () => {
       query
         .mockResolvedValueOnce({ rows: [] })
         .mockResolvedValueOnce({ rows: [{ total: "0" }] });
-      const response = await request(app)
+      const _response = await request(app)
         .get("/trades/history?start_date=2024-01-01&end_date=2024-01-31")
         .expect(200);
       expect(response.body.success).toBe(true);
@@ -207,7 +207,7 @@ describe("Trades Routes - Testing Your Actual Site", () => {
       query
         .mockResolvedValueOnce({ rows: [] })
         .mockResolvedValueOnce({ rows: [{ total: "0" }] });
-      const response = await request(app)
+      const _response = await request(app)
         .get("/trades/history?symbol=AAPL")
         .expect(200);
       expect(response.body.success).toBe(true);
@@ -217,7 +217,7 @@ describe("Trades Routes - Testing Your Actual Site", () => {
       query
         .mockResolvedValueOnce({ rows: [] })
         .mockResolvedValueOnce({ rows: [{ total: "0" }] });
-      const response = await request(app)
+      const _response = await request(app)
         .get("/trades/history?page=2&limit=25")
         .expect(200);
       expect(response.body.success).toBe(true);
@@ -239,7 +239,7 @@ describe("Trades Routes - Testing Your Actual Site", () => {
         largest_loss: -420.0,
       };
       query.mockResolvedValue({ rows: [mockAnalytics] });
-      const response = await request(app).get("/trades/analytics").expect(200);
+      const _response = await request(app).get("/trades/analytics").expect(200);
       expect(response.body).toHaveProperty("success", true);
       expect(response.body).toHaveProperty("data");
       expect(response.body.data).toHaveProperty("analytics");
@@ -252,7 +252,7 @@ describe("Trades Routes - Testing Your Actual Site", () => {
     });
     test("should handle time period filters", async () => {
       query.mockResolvedValue({ rows: [{}] });
-      const response = await request(app)
+      const _response = await request(app)
         .get("/trades/analytics?period=30d")
         .expect(200);
       expect(response.body.success).toBe(true);
@@ -260,7 +260,7 @@ describe("Trades Routes - Testing Your Actual Site", () => {
     });
     test("should include benchmark comparison", async () => {
       query.mockResolvedValue({ rows: [{}] });
-      const response = await request(app)
+      const _response = await request(app)
         .get("/trades/analytics?benchmark=SPY")
         .expect(200);
       expect(response.body.success).toBe(true);
@@ -279,7 +279,7 @@ MSFT,sell,50,300.00,2024-01-16`;
       transaction.mockImplementation(async (callback) => {
         return await callback({ query });
       });
-      const response = await request(app)
+      const _response = await request(app)
         .post("/trades/import")
         .send({
           format: "csv",
@@ -292,7 +292,7 @@ MSFT,sell,50,300.00,2024-01-16`;
       expect(response.body.data).toHaveProperty("skipped_count");
     });
     test("should validate required fields", async () => {
-      const response = await request(app)
+      const _response = await request(app)
         .post("/trades/import")
         .send({})
         .expect(400);
@@ -304,7 +304,7 @@ MSFT,sell,50,300.00,2024-01-16`;
         format: "csv",
         data: "symbol,side,quantity,price,executed_at\nAAPL,buy,100,150.00,2024-01-15T10:30:00Z\nAAPL,buy,100,150.00,2024-01-15T10:30:00Z",
       };
-      const response = await request(app)
+      const _response = await request(app)
         .post("/trades/import")
         .send(tradeData)
         .expect(200);
@@ -313,7 +313,7 @@ MSFT,sell,50,300.00,2024-01-16`;
       expect(response.body.data).toHaveProperty("skipped_count", 0);
     });
     test("should handle invalid data formats", async () => {
-      const response = await request(app)
+      const _response = await request(app)
         .post("/trades/import")
         .send({ format: "invalid", data: "bad data" })
         .expect(400);
@@ -333,7 +333,7 @@ MSFT,sell,50,300.00,2024-01-16`;
         },
       ];
       query.mockResolvedValue({ rows: mockTrades });
-      const response = await request(app)
+      const _response = await request(app)
         .get("/trades/export?format=csv")
         .expect(200);
       expect(response.body).toHaveProperty("success", true);
@@ -352,7 +352,7 @@ MSFT,sell,50,300.00,2024-01-16`;
         },
       ];
       query.mockResolvedValue({ rows: mockTrades });
-      const response = await request(app)
+      const _response = await request(app)
         .get("/trades/export?format=json")
         .expect(200);
       expect(response.body.success).toBe(true);
@@ -361,7 +361,7 @@ MSFT,sell,50,300.00,2024-01-16`;
     });
     test("should handle date range for export", async () => {
       query.mockResolvedValue({ rows: [] });
-      const response = await request(app)
+      const _response = await request(app)
         .get(
           "/trades/export?format=csv&start_date=2024-01-01&end_date=2024-01-31"
         )
@@ -376,27 +376,27 @@ MSFT,sell,50,300.00,2024-01-16`;
   describe("GET /trades/brokers - Broker integration status", () => {
     test("should return connected brokers status", async () => {
       // This endpoint doesn't exist, so it should return 404
-      const response = await request(app).get("/trades/brokers").expect(404);
+      const _response = await request(app).get("/trades/brokers").expect(404);
     });
   });
   describe("POST /trades/sync/:broker - Sync trades from broker", () => {
     test("should sync trades from Alpaca", async () => {
       // This endpoint doesn't exist, so it should return 404
-      const response = await request(app)
+      const _response = await request(app)
         .post("/trades/sync/alpaca")
         .send({ start_date: "2024-01-01", end_date: "2024-01-15" })
         .expect(404);
     });
     test("should handle unsupported broker", async () => {
       // This endpoint doesn't exist, so it should return 404
-      const response = await request(app)
+      const _response = await request(app)
         .post("/trades/sync/unsupported_broker")
         .send({ start_date: "2024-01-01" })
         .expect(404);
     });
     test("should validate date parameters", async () => {
       // This endpoint doesn't exist, so it should return 404
-      const response = await request(app)
+      const _response = await request(app)
         .post("/trades/sync/alpaca")
         .send({ start_date: "invalid-date" })
         .expect(404);
@@ -419,7 +419,7 @@ MSFT,sell,50,300.00,2024-01-16`;
         largest_losing_streak: 3,
       };
       query.mockResolvedValue({ rows: [mockPerformance] });
-      const response = await request(app)
+      const _response = await request(app)
         .get("/trades/performance")
         .expect(200);
       expect(response.body).toHaveProperty("success", true);
@@ -434,7 +434,7 @@ MSFT,sell,50,300.00,2024-01-16`;
     });
     test("should include benchmark comparison", async () => {
       query.mockResolvedValue({ rows: [{}] });
-      const response = await request(app)
+      const _response = await request(app)
         .get("/trades/performance?benchmark=SPY")
         .expect(200);
       expect(response.body.success).toBe(true);
@@ -445,7 +445,7 @@ MSFT,sell,50,300.00,2024-01-16`;
     });
     test("should support different time periods", async () => {
       query.mockResolvedValue({ rows: [{}] });
-      const response = await request(app)
+      const _response = await request(app)
         .get("/trades/performance?period=1y")
         .expect(200);
       expect(response.body.success).toBe(true);
@@ -472,7 +472,7 @@ MSFT,sell,50,300.00,2024-01-16`;
         ],
       };
       query.mockResolvedValue({ rows: [mockAttribution] });
-      const response = await request(app)
+      const _response = await request(app)
         .get("/trades/performance/attribution")
         .expect(404);
       // Attribution data is available through /trades/performance endpoint instead
@@ -497,20 +497,20 @@ MSFT,sell,50,300.00,2024-01-16`;
       };
       // /stats is caught by /:id route and treated as trade ID lookup
       query.mockResolvedValue({ rows: [] }); // No trade found with ID "stats"
-      const response = await request(app).get("/trades/stats").expect(404);
+      const _response = await request(app).get("/trades/stats").expect(404);
       expect(response.body.success).toBe(false);
       expect(response.body.error).toContain("Trade not found");
     });
     test("should filter stats by date range", async () => {
       query.mockResolvedValue({ rows: [] }); // No trade found with ID "stats"
-      const response = await request(app)
+      const _response = await request(app)
         .get("/trades/stats?start_date=2024-01-01&end_date=2024-01-31")
         .expect(404);
       expect(response.body.success).toBe(false);
     });
     test("should group stats by time period", async () => {
       query.mockResolvedValue({ rows: [] }); // No trade found with ID "stats"
-      const response = await request(app)
+      const _response = await request(app)
         .get("/trades/stats?group_by=month")
         .expect(404);
       expect(response.body.success).toBe(false);
@@ -528,7 +528,7 @@ MSFT,sell,50,300.00,2024-01-16`;
         price: 150.0,
         date: "2024-01-15T10:30:00Z",
       };
-      const response = await request(app)
+      const _response = await request(app)
         .post("/trades/validate")
         .send({ trades: [tradeData] })
         .expect(404);
@@ -542,7 +542,7 @@ MSFT,sell,50,300.00,2024-01-16`;
         price: 0, // Zero price
         date: "invalid-date",
       };
-      const response = await request(app)
+      const _response = await request(app)
         .post("/trades/validate")
         .send({ trades: [invalidTrade] })
         .expect(404);
@@ -564,14 +564,14 @@ MSFT,sell,50,300.00,2024-01-16`;
         end_date: "2024-01-31",
       };
       query.mockResolvedValue({ rows: [] });
-      const response = await request(app)
+      const _response = await request(app)
         .post("/trades/search")
         .send(searchCriteria)
         .expect(404);
       // Search functionality is available through /trades/history with query parameters
     });
     test("should handle empty search criteria", async () => {
-      const response = await request(app)
+      const _response = await request(app)
         .post("/trades/search")
         .send({})
         .expect(404);
@@ -583,7 +583,7 @@ MSFT,sell,50,300.00,2024-01-16`;
   describe("Error handling", () => {
     test("should handle database connection errors", async () => {
       query.mockRejectedValue(new Error("Connection timeout"));
-      const response = await request(app)
+      const _response = await request(app)
         .get("/trades/history")
         .set("Authorization", "Bearer test-token")
         .expect([500, 503]); // Accept both Internal Server Error and Service Unavailable
@@ -592,7 +592,7 @@ MSFT,sell,50,300.00,2024-01-16`;
     });
     test("should handle transaction rollback on import errors", async () => {
       transaction.mockRejectedValue(new Error("Transaction failed"));
-      const response = await request(app)
+      const _response = await request(app)
         .post("/trades/import")
         .set("Authorization", "Bearer test-token")
         .send({ format: "json", trades: [] })
@@ -601,7 +601,7 @@ MSFT,sell,50,300.00,2024-01-16`;
       expect(response.body.error || response.body.message).toBeDefined();
     });
     test("should handle malformed request data", async () => {
-      const response = await request(app)
+      const _response = await request(app)
         .post("/trades/import")
         .send("invalid json data")
         .expect(400);
@@ -611,7 +611,7 @@ MSFT,sell,50,300.00,2024-01-16`;
       authenticateToken.mockImplementation((req, res, _next) => {
         res.status(401).json({ success: false, error: "Unauthorized" });
       });
-      const response = await request(app).get("/trades/history").expect(401);
+      const _response = await request(app).get("/trades/history").expect(401);
       expect(response.body.success).toBe(false);
       expect(response.body.error).toBe("Unauthorized");
     });
@@ -620,7 +620,7 @@ MSFT,sell,50,300.00,2024-01-16`;
       query.mockImplementation(() => {
         throw new Error("Database error");
       });
-      const response = await request(app)
+      const _response = await request(app)
         .get("/trades/import/status")
         .set("Authorization", "Bearer test-token");
       // Should return 500, 503, or 401 depending on auth and error handling
@@ -628,7 +628,7 @@ MSFT,sell,50,300.00,2024-01-16`;
       expect(response.body).toHaveProperty("success", false);
     });
     test("should validate request parameters", async () => {
-      const response = await request(app)
+      const _response = await request(app)
         .get("/trades/history?page=invalid&limit=abc")
         .set("Authorization", "Bearer test-token")
         .expect([200, 400, 401]); // May succeed with defaults, return validation error, or auth error

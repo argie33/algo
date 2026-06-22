@@ -408,15 +408,15 @@ describe("Connection Pool Stress Integration", () => {
 
       const transactionPromises = Array.from(
         { length: concurrentTransactions },
-        (_, transactionId) =>
+        (_Id) =>
           transaction(async (client) => {
             const operations = [];
 
             for (let opId = 0; opId < operationsPerTransaction; opId++) {
               operations.push(
                 client.query(
-                  "INSERT INTO test_transaction_stress (value, updated_by, transaction_id) VALUES ($1, $2, $3)",
-                  [opId, `test-${transactionId}`, transactionId.toString()]
+                  "INSERT INTO test_transaction_stress (value, updated_by_id) VALUES ($1, $2)",
+                  [opId, `test-${transactionId}-${opId}`]
                 )
               );
             }

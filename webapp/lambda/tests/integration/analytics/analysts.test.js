@@ -12,7 +12,7 @@ const { app } = require("../../../index");
 describe("Analysts API Integration", () => {
   describe("Analyst Recommendations", () => {
     test("should retrieve analyst recommendations for stock", async () => {
-      const response = await request(app).get("/api/analysts/AAPL");
+      const _response = await request(app).get("/api/analysts/AAPL");
 
       expect(response.status).toBe(200);
       expect(response.body).toHaveProperty("success", true);
@@ -33,7 +33,7 @@ describe("Analysts API Integration", () => {
     });
 
     test("should handle invalid stock symbols", async () => {
-      const response = await request(app).get("/api/analysts/INVALID123");
+      const _response = await request(app).get("/api/analysts/INVALID123");
 
       expect([200, 404]).toContain(response.status);
       if (response.status === 404) {
@@ -45,14 +45,14 @@ describe("Analysts API Integration", () => {
 
   describe("Analyst Coverage", () => {
     test("should return error for individual analyst coverage (not available from yfinance)", async () => {
-      const response = await request(app).get("/api/analysts/coverage/AAPL");
+      const _response = await request(app).get("/api/analysts/coverage/AAPL");
       expect(response.status).toBe(404);
     });
   });
 
   describe("Price Targets", () => {
     test("should retrieve price targets for stock", async () => {
-      const response = await request(app).get(
+      const _response = await request(app).get(
         "/api/analysts/price-targets/AAPL"
       );
 
@@ -75,7 +75,7 @@ describe("Analysts API Integration", () => {
     });
 
     test("should provide consensus price targets", async () => {
-      const response = await request(app).get("/api/analysts/consensus/AAPL");
+      const _response = await request(app).get("/api/analysts/consensus/AAPL");
 
       expect(response.status).toBe(200);
       expect(response.body).toHaveProperty("success", true);
@@ -101,7 +101,7 @@ describe("Analysts API Integration", () => {
 
   describe("Analyst Research", () => {
     test("should retrieve research reports", async () => {
-      const response = await request(app).get(
+      const _response = await request(app).get(
         "/api/analysts/research?symbol=AAPL&limit=10"
       );
 
@@ -122,7 +122,7 @@ describe("Analysts API Integration", () => {
     });
 
     test("should filter research by analyst firm", async () => {
-      const response = await request(app).get(
+      const _response = await request(app).get(
         "/api/analysts/research?firm=Goldman&limit=5"
       );
 

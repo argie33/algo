@@ -6,7 +6,7 @@
 
 const express = require("express");
 const request = require("supertest");
-const { query } = require("../../../utils/database");
+const { _query } = require("../../../utils/database");
 
 // DO NOT MOCK - use real database
 describe("Economic Endpoints - REAL DATA Integration Tests", () => {
@@ -22,7 +22,7 @@ describe("Economic Endpoints - REAL DATA Integration Tests", () => {
 
   describe("GET /market/recession-forecast - REAL DATA", () => {
     test("should return recession forecast with REAL data from database", async () => {
-      const response = await request(app).get("/market/recession-forecast");
+      const _response = await request(app).get("/market/recession-forecast");
 
       // Should return 200 or 503 (503 if data not loaded)
       expect([200, 503]).toContain(response.status);
@@ -76,7 +76,7 @@ describe("Economic Endpoints - REAL DATA Integration Tests", () => {
     });
 
     test("should validate no mock fallback values are used", async () => {
-      const response = await request(app).get("/market/recession-forecast");
+      const _response = await request(app).get("/market/recession-forecast");
 
       if (response.status === 200) {
         const data = response.body.data;
@@ -105,7 +105,7 @@ describe("Economic Endpoints - REAL DATA Integration Tests", () => {
 
   describe("GET /market/credit-spreads - REAL DATA", () => {
     test("should return credit spreads with REAL data from database", async () => {
-      const response = await request(app).get("/market/credit-spreads");
+      const _response = await request(app).get("/market/credit-spreads");
 
       expect([200, 503]).toContain(response.status);
 
@@ -144,7 +144,7 @@ describe("Economic Endpoints - REAL DATA Integration Tests", () => {
 
   describe("GET /market/leading-indicators - REAL DATA", () => {
     test("should return leading indicators with REAL data from database", async () => {
-      const response = await request(app).get("/market/leading-indicators");
+      const _response = await request(app).get("/market/leading-indicators");
 
       expect([200, 503]).toContain(response.status);
 
@@ -198,7 +198,7 @@ describe("Economic Endpoints - REAL DATA Integration Tests", () => {
 
   describe("GET /market/economic-scenarios - REAL DATA", () => {
     test("should return scenarios based on REAL database data", async () => {
-      const response = await request(app).get("/market/economic-scenarios");
+      const _response = await request(app).get("/market/economic-scenarios");
 
       expect([200, 503]).toContain(response.status);
 
@@ -270,7 +270,7 @@ describe("Economic Endpoints - REAL DATA Integration Tests", () => {
       ];
 
       for (const endpoint of endpoints) {
-        const response = await request(app).get(endpoint);
+        const _response = await request(app).get(endpoint);
 
         if (response.status === 200) {
           expect(response.body).toHaveProperty("timestamp");
@@ -282,7 +282,7 @@ describe("Economic Endpoints - REAL DATA Integration Tests", () => {
 
   describe("Error Handling - Missing FRED Data", () => {
     test("should return 503 with missing data indicators if FRED data not loaded", async () => {
-      const response = await request(app).get("/market/recession-forecast");
+      const _response = await request(app).get("/market/recession-forecast");
 
       // If database is empty and data not loaded
       if (response.status === 503) {
@@ -296,7 +296,7 @@ describe("Economic Endpoints - REAL DATA Integration Tests", () => {
 
   describe("Data Types Validation", () => {
     test("all numeric values should be valid numbers", async () => {
-      const response = await request(app).get("/market/recession-forecast");
+      const _response = await request(app).get("/market/recession-forecast");
 
       if (response.status === 200) {
         const data = response.body.data;
@@ -314,7 +314,7 @@ describe("Economic Endpoints - REAL DATA Integration Tests", () => {
     });
 
     test("all strings should be properly formatted", async () => {
-      const response = await request(app).get("/market/leading-indicators");
+      const _response = await request(app).get("/market/leading-indicators");
 
       if (response.status === 200) {
         const data = response.body.data;

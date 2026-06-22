@@ -16,7 +16,7 @@ describe("News Routes - Real Data Validation", () => {
 
   describe("GET /api/news/health", () => {
     test("should return health status", async () => {
-      const response = await request(app).get("/api/news/health");
+      const _response = await request(app).get("/api/news/health");
 
       expect([200, 404]).toContain(response.status);
       if (response.body.status) {
@@ -34,7 +34,7 @@ describe("News Routes - Real Data Validation", () => {
 
   describe("GET /api/news", () => {
     test("should return news API status", async () => {
-      const response = await request(app).get("/api/news");
+      const _response = await request(app).get("/api/news");
 
       expect([200, 404]).toContain(response.status);
       if (response.body.message) {
@@ -55,7 +55,7 @@ describe("News Routes - Real Data Validation", () => {
 
   describe("GET /api/news/recent", () => {
     test("should return recent news", async () => {
-      const response = await request(app).get("/api/news/recent");
+      const _response = await request(app).get("/api/news/recent");
 
       expect([200, 404]).toContain(response.status);
       if (response.status === 200 && response.body.success !== undefined) {
@@ -78,7 +78,7 @@ describe("News Routes - Real Data Validation", () => {
     });
 
     test("should handle limit parameter", async () => {
-      const response = await request(app).get("/api/news/recent?limit=5");
+      const _response = await request(app).get("/api/news/recent?limit=5");
 
       expect([200, 404]).toContain(response.status);
       if (response.status === 200 && response.body.success !== undefined) {
@@ -96,7 +96,7 @@ describe("News Routes - Real Data Validation", () => {
     });
 
     test("should handle category filtering", async () => {
-      const response = await request(app).get(
+      const _response = await request(app).get(
         "/api/news/recent?category=earnings"
       );
 
@@ -113,7 +113,7 @@ describe("News Routes - Real Data Validation", () => {
 
   describe("GET /api/news/search", () => {
     test("should search news articles", async () => {
-      const response = await request(app).get("/api/news/search?q=market");
+      const _response = await request(app).get("/api/news/search?q=market");
 
       expect([200, 404]).toContain(response.status);
 
@@ -134,7 +134,7 @@ describe("News Routes - Real Data Validation", () => {
 
   describe("GET /api/news/sentiment", () => {
     test("should return news sentiment analysis", async () => {
-      const response = await request(app).get("/api/news/sentiment");
+      const _response = await request(app).get("/api/news/sentiment");
 
       expect([200, 404]).toContain(response.status);
 
@@ -155,7 +155,7 @@ describe("News Routes - Real Data Validation", () => {
 
   describe("GET /api/news/symbols/:symbol", () => {
     test("should return news for specific symbol", async () => {
-      const response = await request(app).get("/api/news/symbols/AAPL");
+      const _response = await request(app).get("/api/news/symbols/AAPL");
 
       expect([200, 404]).toContain(response.status);
       if (response.status === 200 && response.body.success !== undefined) {

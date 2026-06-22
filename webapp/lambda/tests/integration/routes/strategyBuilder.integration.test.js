@@ -9,7 +9,7 @@ describe("Strategy Builder Routes", () => {
 
   describe("POST /api/strategies/ai-generate", () => {
     test("should require authentication", async () => {
-      const response = await request(app)
+      const _response = await request(app)
         .post("/api/strategies/ai-generate")
         .send({
           prompt: "Create a momentum trading strategy",
@@ -20,7 +20,7 @@ describe("Strategy Builder Routes", () => {
     });
 
     test("should require prompt parameter", async () => {
-      const response = await request(app)
+      const _response = await request(app)
         .post("/api/strategies/ai-generate")
         .set("Authorization", "Bearer dev-bypass-token")
         .send({
@@ -34,7 +34,7 @@ describe("Strategy Builder Routes", () => {
     });
 
     test("should require symbols parameter", async () => {
-      const response = await request(app)
+      const _response = await request(app)
         .post("/api/strategies/ai-generate")
         .set("Authorization", "Bearer dev-bypass-token")
         .send({
@@ -48,7 +48,7 @@ describe("Strategy Builder Routes", () => {
     });
 
     test("should validate prompt length", async () => {
-      const response = await request(app)
+      const _response = await request(app)
         .post("/api/strategies/ai-generate")
         .set("Authorization", "Bearer dev-bypass-token")
         .send({
@@ -63,7 +63,7 @@ describe("Strategy Builder Routes", () => {
     });
 
     test("should handle valid AI generation request", async () => {
-      const response = await request(app)
+      const _response = await request(app)
         .post("/api/strategies/ai-generate")
         .set("Authorization", "Bearer dev-bypass-token")
         .send({
@@ -89,7 +89,7 @@ describe("Strategy Builder Routes", () => {
     });
 
     test("should handle empty symbols array", async () => {
-      const response = await request(app)
+      const _response = await request(app)
         .post("/api/strategies/ai-generate")
         .set("Authorization", "Bearer dev-bypass-token")
         .send({
@@ -104,7 +104,7 @@ describe("Strategy Builder Routes", () => {
     });
 
     test("should handle preferences parameter", async () => {
-      const response = await request(app)
+      const _response = await request(app)
         .post("/api/strategies/ai-generate")
         .set("Authorization", "Bearer dev-bypass-token")
         .send({
@@ -123,7 +123,7 @@ describe("Strategy Builder Routes", () => {
 
   describe("POST /api/strategies/validate", () => {
     test("should require authentication", async () => {
-      const response = await request(app)
+      const _response = await request(app)
         .post("/api/strategies/validate")
         .send({
           strategy: {
@@ -136,7 +136,7 @@ describe("Strategy Builder Routes", () => {
     });
 
     test("should require strategy parameter", async () => {
-      const response = await request(app)
+      const _response = await request(app)
         .post("/api/strategies/validate")
         .set("Authorization", "Bearer dev-bypass-token")
         .send({});
@@ -148,7 +148,7 @@ describe("Strategy Builder Routes", () => {
     });
 
     test("should require strategy code", async () => {
-      const response = await request(app)
+      const _response = await request(app)
         .post("/api/strategies/validate")
         .set("Authorization", "Bearer dev-bypass-token")
         .send({
@@ -164,7 +164,7 @@ describe("Strategy Builder Routes", () => {
     });
 
     test("should validate strategy with code", async () => {
-      const response = await request(app)
+      const _response = await request(app)
         .post("/api/strategies/validate")
         .set("Authorization", "Bearer dev-bypass-token")
         .send({
@@ -193,7 +193,7 @@ describe("Strategy Builder Routes", () => {
     });
 
     test("should handle empty strategy code", async () => {
-      const response = await request(app)
+      const _response = await request(app)
         .post("/api/strategies/validate")
         .set("Authorization", "Bearer dev-bypass-token")
         .send({
@@ -211,7 +211,7 @@ describe("Strategy Builder Routes", () => {
 
   describe("POST /api/strategies/run-ai-strategy", () => {
     test("should require authentication", async () => {
-      const response = await request(app)
+      const _response = await request(app)
         .post("/api/strategies/run-ai-strategy")
         .send({
           strategy: {
@@ -224,7 +224,7 @@ describe("Strategy Builder Routes", () => {
     });
 
     test("should run AI strategy backtest successfully", async () => {
-      const response = await request(app)
+      const _response = await request(app)
         .post("/api/strategies/run-ai-strategy")
         .set("Authorization", "Bearer dev-bypass-token")
         .send({
@@ -251,7 +251,7 @@ describe("Strategy Builder Routes", () => {
     });
 
     test("should require strategy parameter", async () => {
-      const response = await request(app)
+      const _response = await request(app)
         .post("/api/strategies/run-ai-strategy")
         .set("Authorization", "Bearer dev-bypass-token")
         .send({});
@@ -263,7 +263,7 @@ describe("Strategy Builder Routes", () => {
     });
 
     test("should require strategy code", async () => {
-      const response = await request(app)
+      const _response = await request(app)
         .post("/api/strategies/run-ai-strategy")
         .set("Authorization", "Bearer dev-bypass-token")
         .send({
@@ -279,7 +279,7 @@ describe("Strategy Builder Routes", () => {
     });
 
     test("should handle config parameters", async () => {
-      const response = await request(app)
+      const _response = await request(app)
         .post("/api/strategies/run-ai-strategy")
         .set("Authorization", "Bearer dev-bypass-token")
         .send({
@@ -305,7 +305,7 @@ describe("Strategy Builder Routes", () => {
     });
 
     test("should handle missing symbols", async () => {
-      const response = await request(app)
+      const _response = await request(app)
         .post("/api/strategies/run-ai-strategy")
         .set("Authorization", "Bearer dev-bypass-token")
         .send({
@@ -327,7 +327,7 @@ describe("Strategy Builder Routes", () => {
 
   describe("GET /api/strategies/available-symbols", () => {
     test("should require authentication", async () => {
-      const response = await request(app).get(
+      const _response = await request(app).get(
         "/api/strategies/available-symbols"
       );
 
@@ -335,7 +335,7 @@ describe("Strategy Builder Routes", () => {
     });
 
     test("should return available symbols", async () => {
-      const response = await request(app)
+      const _response = await request(app)
         .get("/api/strategies/available-symbols")
         .set("Authorization", "Bearer dev-bypass-token");
 
@@ -355,7 +355,7 @@ describe("Strategy Builder Routes", () => {
     });
 
     test("should handle database connection issues", async () => {
-      const response = await request(app)
+      const _response = await request(app)
         .get("/api/strategies/available-symbols")
         .set("Authorization", "Bearer dev-bypass-token");
 
@@ -365,13 +365,13 @@ describe("Strategy Builder Routes", () => {
 
   describe("GET /api/strategies/list", () => {
     test("should require authentication", async () => {
-      const response = await request(app).get("/api/strategies/list");
+      const _response = await request(app).get("/api/strategies/list");
 
       expect([401].includes(response.status)).toBe(true);
     });
 
     test("should return 501 not implemented", async () => {
-      const response = await request(app)
+      const _response = await request(app)
         .get("/api/strategies/list")
         .set("Authorization", "Bearer dev-bypass-token");
 
@@ -383,7 +383,7 @@ describe("Strategy Builder Routes", () => {
     });
 
     test("should handle query parameters", async () => {
-      const response = await request(app)
+      const _response = await request(app)
         .get(
           "/api/strategies/list?includeBacktests=true&includeDeployments=true"
         )
@@ -403,7 +403,7 @@ describe("Strategy Builder Routes", () => {
     });
 
     test("should handle boolean query parameters", async () => {
-      const response = await request(app)
+      const _response = await request(app)
         .get(
           "/api/strategies/list?includeBacktests=false&includeDeployments=false"
         )
@@ -419,13 +419,13 @@ describe("Strategy Builder Routes", () => {
 
   describe("GET /api/strategies/templates", () => {
     test("should require authentication", async () => {
-      const response = await request(app).get("/api/strategies/templates");
+      const _response = await request(app).get("/api/strategies/templates");
 
       expect([401].includes(response.status)).toBe(true);
     });
 
     test("should return strategy templates", async () => {
-      const response = await request(app)
+      const _response = await request(app)
         .get("/api/strategies/templates")
         .set("Authorization", "Bearer dev-bypass-token");
 
@@ -462,7 +462,7 @@ describe("Strategy Builder Routes", () => {
     });
 
     test("should handle empty templates", async () => {
-      const response = await request(app)
+      const _response = await request(app)
         .get("/api/strategies/templates")
         .set("Authorization", "Bearer dev-bypass-token");
 
@@ -478,7 +478,7 @@ describe("Strategy Builder Routes", () => {
 
   describe("Authentication and Error Handling", () => {
     test("should handle invalid authentication tokens", async () => {
-      const response = await request(app)
+      const _response = await request(app)
         .get("/api/strategies/templates")
         .set("Authorization", "Bearer invalid-token");
 
@@ -486,7 +486,7 @@ describe("Strategy Builder Routes", () => {
     });
 
     test("should handle missing authorization header", async () => {
-      const response = await request(app)
+      const _response = await request(app)
         .post("/api/strategies/ai-generate")
         .send({
           prompt: "Create a strategy",
@@ -497,7 +497,7 @@ describe("Strategy Builder Routes", () => {
     });
 
     test("should handle malformed request bodies", async () => {
-      const response = await request(app)
+      const _response = await request(app)
         .post("/api/strategies/validate")
         .set("Authorization", "Bearer dev-bypass-token")
         .send("invalid json");
@@ -506,7 +506,7 @@ describe("Strategy Builder Routes", () => {
     });
 
     test("should handle empty request bodies", async () => {
-      const response = await request(app)
+      const _response = await request(app)
         .post("/api/strategies/ai-generate")
         .set("Authorization", "Bearer dev-bypass-token")
         .send({});
@@ -520,7 +520,7 @@ describe("Strategy Builder Routes", () => {
     test("should respond within reasonable time", async () => {
       const startTime = Date.now();
 
-      const response = await request(app)
+      const _response = await request(app)
         .get("/api/strategies/templates")
         .set("Authorization", "Bearer dev-bypass-token");
 

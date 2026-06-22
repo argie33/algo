@@ -12,7 +12,7 @@ describe("Dashboard Routes Integration Tests", () => {
 
   describe("GET /api/dashboard (Dashboard Root)", () => {
     test("should return dashboard endpoints and operational status", async () => {
-      const response = await request(app).get("/api/dashboard");
+      const _response = await request(app).get("/api/dashboard");
 
       expect(response.status).toBe(200);
 
@@ -48,7 +48,7 @@ describe("Dashboard Routes Integration Tests", () => {
 
   describe("GET /api/dashboard/summary (Dashboard Summary)", () => {
     test("should return comprehensive dashboard summary data", async () => {
-      const response = await request(app)
+      const _response = await request(app)
         .get("/api/dashboard/summary")
         .set("Authorization", `Bearer ${authToken}`);
 
@@ -79,7 +79,7 @@ describe("Dashboard Routes Integration Tests", () => {
     });
 
     test("should validate market overview data structure", async () => {
-      const response = await request(app)
+      const _response = await request(app)
         .get("/api/dashboard/summary")
         .set("Authorization", `Bearer ${authToken}`);
 
@@ -96,7 +96,7 @@ describe("Dashboard Routes Integration Tests", () => {
     });
 
     test("should validate sector performance data", async () => {
-      const response = await request(app)
+      const _response = await request(app)
         .get("/api/dashboard/summary")
         .set("Authorization", `Bearer ${authToken}`);
 
@@ -113,7 +113,7 @@ describe("Dashboard Routes Integration Tests", () => {
     });
 
     test("should handle database connectivity issues gracefully", async () => {
-      const response = await request(app)
+      const _response = await request(app)
         .get("/api/dashboard/summary")
         .set("Authorization", `Bearer ${authToken}`);
 
@@ -128,13 +128,13 @@ describe("Dashboard Routes Integration Tests", () => {
 
   describe("GET /api/dashboard/holdings (Portfolio Holdings)", () => {
     test("should require authentication", async () => {
-      const response = await request(app).get("/api/dashboard/holdings");
+      const _response = await request(app).get("/api/dashboard/holdings");
 
       expect([401].includes(response.status)).toBe(true);
     });
 
     test("should return holdings data with valid authentication", async () => {
-      const response = await request(app)
+      const _response = await request(app)
         .get("/api/dashboard/holdings")
         .set("Authorization", `Bearer ${authToken}`);
 
@@ -150,7 +150,7 @@ describe("Dashboard Routes Integration Tests", () => {
     });
 
     test("should validate holdings data structure", async () => {
-      const response = await request(app)
+      const _response = await request(app)
         .get("/api/dashboard/holdings")
         .set("Authorization", `Bearer ${authToken}`);
 
@@ -165,7 +165,7 @@ describe("Dashboard Routes Integration Tests", () => {
     });
 
     test("should handle invalid authentication tokens", async () => {
-      const response = await request(app)
+      const _response = await request(app)
         .get("/api/dashboard/holdings")
         .set("Authorization", "Bearer invalid-token");
 
@@ -175,13 +175,13 @@ describe("Dashboard Routes Integration Tests", () => {
 
   describe("GET /api/dashboard/performance (Portfolio Performance)", () => {
     test("should require authentication for performance data", async () => {
-      const response = await request(app).get("/api/dashboard/performance");
+      const _response = await request(app).get("/api/dashboard/performance");
 
       expect([401].includes(response.status)).toBe(true);
     });
 
     test("should return performance data with valid authentication", async () => {
-      const response = await request(app)
+      const _response = await request(app)
         .get("/api/dashboard/performance")
         .set("Authorization", `Bearer ${authToken}`);
 
@@ -196,7 +196,7 @@ describe("Dashboard Routes Integration Tests", () => {
     });
 
     test("should validate performance metrics structure", async () => {
-      const response = await request(app)
+      const _response = await request(app)
         .get("/api/dashboard/performance")
         .set("Authorization", `Bearer ${authToken}`);
 
@@ -213,7 +213,7 @@ describe("Dashboard Routes Integration Tests", () => {
     });
 
     test("should validate performance metrics calculations", async () => {
-      const response = await request(app)
+      const _response = await request(app)
         .get("/api/dashboard/performance")
         .set("Authorization", `Bearer ${authToken}`);
 
@@ -234,13 +234,13 @@ describe("Dashboard Routes Integration Tests", () => {
 
   describe("GET /api/dashboard/alerts (Trading Alerts)", () => {
     test("should require authentication for alerts", async () => {
-      const response = await request(app).get("/api/dashboard/alerts");
+      const _response = await request(app).get("/api/dashboard/alerts");
 
       expect([401, 403, 500, 501].includes(response.status)).toBe(true);
     });
 
     test("should return alerts data with authentication", async () => {
-      const response = await request(app)
+      const _response = await request(app)
         .get("/api/dashboard/alerts")
         .set("Authorization", `Bearer ${authToken}`);
 
@@ -256,7 +256,7 @@ describe("Dashboard Routes Integration Tests", () => {
     });
 
     test("should validate alert data structure", async () => {
-      const response = await request(app)
+      const _response = await request(app)
         .get("/api/dashboard/alerts")
         .set("Authorization", `Bearer ${authToken}`);
 
@@ -272,7 +272,7 @@ describe("Dashboard Routes Integration Tests", () => {
     });
 
     test("should handle alert summary aggregation", async () => {
-      const response = await request(app)
+      const _response = await request(app)
         .get("/api/dashboard/alerts")
         .set("Authorization", `Bearer ${authToken}`);
 
@@ -289,7 +289,7 @@ describe("Dashboard Routes Integration Tests", () => {
 
   describe("GET /api/dashboard/market-data (Market Data)", () => {
     test("should return comprehensive market data", async () => {
-      const response = await request(app).get("/api/dashboard/market-data");
+      const _response = await request(app).get("/api/dashboard/market-data");
 
       expect(response.status).toBe(200);
 
@@ -309,7 +309,7 @@ describe("Dashboard Routes Integration Tests", () => {
     });
 
     test("should validate economic indicators structure", async () => {
-      const response = await request(app).get("/api/dashboard/market-data");
+      const _response = await request(app).get("/api/dashboard/market-data");
 
       if (
         response.status === 200 &&
@@ -324,7 +324,7 @@ describe("Dashboard Routes Integration Tests", () => {
     });
 
     test("should validate sector rotation data", async () => {
-      const response = await request(app).get("/api/dashboard/market-data");
+      const _response = await request(app).get("/api/dashboard/market-data");
 
       if (
         response.status === 200 &&
@@ -341,7 +341,7 @@ describe("Dashboard Routes Integration Tests", () => {
     });
 
     test("should validate market internals data", async () => {
-      const response = await request(app).get("/api/dashboard/market-data");
+      const _response = await request(app).get("/api/dashboard/market-data");
 
       if (
         response.status === 200 &&
@@ -362,7 +362,7 @@ describe("Dashboard Routes Integration Tests", () => {
 
   describe("GET /api/dashboard/debug (Debug Endpoint)", () => {
     test("should return debug information about database connectivity", async () => {
-      const response = await request(app).get("/api/dashboard/debug");
+      const _response = await request(app).get("/api/dashboard/debug");
 
       expect(response.status).toBe(200);
 
@@ -376,7 +376,7 @@ describe("Dashboard Routes Integration Tests", () => {
     });
 
     test("should validate table count information", async () => {
-      const response = await request(app).get("/api/dashboard/debug");
+      const _response = await request(app).get("/api/dashboard/debug");
 
       if (response.status === 200 && response.body.data.table_counts) {
         const tableCounts = response.body.data.table_counts;
@@ -408,7 +408,7 @@ describe("Dashboard Routes Integration Tests", () => {
     });
 
     test("should validate database connection status", async () => {
-      const response = await request(app).get("/api/dashboard/debug");
+      const _response = await request(app).get("/api/dashboard/debug");
 
       if (response.status === 200) {
         expect(response.body.data.database_status).toBeDefined();
@@ -423,7 +423,7 @@ describe("Dashboard Routes Integration Tests", () => {
 
   describe("GET /api/dashboard/overview (Market Overview)", () => {
     test("should return market overview data", async () => {
-      const response = await request(app)
+      const _response = await request(app)
         .get("/api/dashboard/overview")
         .set("Authorization", `Bearer ${authToken}`);
 
@@ -444,7 +444,7 @@ describe("Dashboard Routes Integration Tests", () => {
     });
 
     test("should validate market status information", async () => {
-      const response = await request(app)
+      const _response = await request(app)
         .get("/api/dashboard/overview")
         .set("Authorization", `Bearer ${authToken}`);
 
@@ -461,7 +461,7 @@ describe("Dashboard Routes Integration Tests", () => {
     });
 
     test("should validate top movers structure", async () => {
-      const response = await request(app)
+      const _response = await request(app)
         .get("/api/dashboard/overview")
         .set("Authorization", `Bearer ${authToken}`);
 
@@ -485,7 +485,7 @@ describe("Dashboard Routes Integration Tests", () => {
     });
 
     test("should handle empty market data gracefully", async () => {
-      const response = await request(app)
+      const _response = await request(app)
         .get("/api/dashboard/overview")
         .set("Authorization", `Bearer ${authToken}`);
 
@@ -531,7 +531,7 @@ describe("Dashboard Routes Integration Tests", () => {
 
     test("should maintain response time consistency", async () => {
       const startTime = Date.now();
-      const response = await request(app)
+      const _response = await request(app)
         .get("/api/dashboard/summary")
         .set("Authorization", `Bearer ${authToken}`);
       const responseTime = Date.now() - startTime;
@@ -550,7 +550,7 @@ describe("Dashboard Routes Integration Tests", () => {
       ];
 
       for (const header of malformedHeaders) {
-        const response = await request(app)
+        const _response = await request(app)
           .get("/api/dashboard/holdings")
           .set("Authorization", header);
 
@@ -559,7 +559,7 @@ describe("Dashboard Routes Integration Tests", () => {
     });
 
     test("should handle database connection failures gracefully", async () => {
-      const response = await request(app)
+      const _response = await request(app)
         .get("/api/dashboard/summary")
         .set("Authorization", `Bearer ${authToken}`);
 
@@ -572,7 +572,7 @@ describe("Dashboard Routes Integration Tests", () => {
     });
 
     test("should validate numeric data integrity", async () => {
-      const response = await request(app)
+      const _response = await request(app)
         .get("/api/dashboard/summary")
         .set("Authorization", `Bearer ${authToken}`);
 
@@ -603,7 +603,7 @@ describe("Dashboard Routes Integration Tests", () => {
       ];
 
       for (const input of maliciousInputs) {
-        const response = await request(app)
+        const _response = await request(app)
           .get(`/api/dashboard/summary?filter=${encodeURIComponent(input)}`)
           .set("Authorization", `Bearer ${authToken}`);
 
@@ -612,7 +612,7 @@ describe("Dashboard Routes Integration Tests", () => {
     });
 
     test("should handle memory pressure with large data requests", async () => {
-      const response = await request(app)
+      const _response = await request(app)
         .get("/api/dashboard/summary")
         .set("Authorization", `Bearer ${authToken}`);
 
@@ -629,7 +629,7 @@ describe("Dashboard Routes Integration Tests", () => {
       ];
 
       for (const endpoint of endpoints) {
-        const response = await request(app).get(endpoint);
+        const _response = await request(app).get(endpoint);
 
         if ([200].includes(response.status)) {
           expect(response.headers["content-type"]).toMatch(/application\/json/);

@@ -16,7 +16,7 @@ describe("Health Routes - Real Data Validation", () => {
 
   describe("GET /api/health", () => {
     test("should return quick health check", async () => {
-      const response = await request(app).get("/api/health?quick=true");
+      const _response = await request(app).get("/api/health?quick=true");
 
       expect(response.status).toBe(200);
       expect(response.body.status).toBe("healthy");
@@ -33,7 +33,7 @@ describe("Health Routes - Real Data Validation", () => {
     });
 
     test("should return full health check with database", async () => {
-      const response = await request(app).get("/api/health");
+      const _response = await request(app).get("/api/health");
 
       expect(response.status).toBe(200);
 
@@ -56,7 +56,7 @@ describe("Health Routes - Real Data Validation", () => {
     });
 
     test("should handle test environment correctly", async () => {
-      const response = await request(app).get("/api/health");
+      const _response = await request(app).get("/api/health");
 
       // In test environment, should return 200
       expect(response.status).toBe(200);
@@ -72,7 +72,7 @@ describe("Health Routes - Real Data Validation", () => {
 
   describe("GET /api/health/database", () => {
     test("should return comprehensive database health", async () => {
-      const response = await request(app).get("/api/health/database");
+      const _response = await request(app).get("/api/health/database");
 
       expect(response.status).toBe(200);
 
@@ -94,7 +94,7 @@ describe("Health Routes - Real Data Validation", () => {
     });
 
     test("should provide table summary statistics", async () => {
-      const response = await request(app).get("/api/health/database");
+      const _response = await request(app).get("/api/health/database");
 
       if (response.status === 200) {
         const summary = response.body.database.summary;
@@ -112,7 +112,7 @@ describe("Health Routes - Real Data Validation", () => {
 
   describe("GET /api/health/test-connection", () => {
     test("should test database connection", async () => {
-      const response = await request(app).get("/api/health/test-connection");
+      const _response = await request(app).get("/api/health/test-connection");
 
       expect(response.status).toBe(200);
 
@@ -132,7 +132,7 @@ describe("Health Routes - Real Data Validation", () => {
 
   describe("GET /api/health/debug-secret", () => {
     test("should handle debug secret endpoint", async () => {
-      const response = await request(app).get("/api/health/debug-secret");
+      const _response = await request(app).get("/api/health/debug-secret");
 
       // This endpoint can return 200 (success) or error codes (400, 500, 501) depending on AWS environment
       expect([200, 400, 500, 501].includes(response.status)).toBe(true);
@@ -154,7 +154,7 @@ describe("Health Routes - Real Data Validation", () => {
 
   describe("GET /api/health/database/diagnostics", () => {
     test("should provide comprehensive database diagnostics", async () => {
-      const response = await request(app).get(
+      const _response = await request(app).get(
         "/api/health/database/diagnostics"
       );
 
@@ -193,7 +193,7 @@ describe("Health Routes - Real Data Validation", () => {
     });
 
     test("should include performance metrics", async () => {
-      const response = await request(app).get(
+      const _response = await request(app).get(
         "/api/health/database/diagnostics"
       );
 
@@ -210,7 +210,7 @@ describe("Health Routes - Real Data Validation", () => {
     });
 
     test("should provide actionable recommendations", async () => {
-      const response = await request(app).get(
+      const _response = await request(app).get(
         "/api/health/database/diagnostics"
       );
 
@@ -224,7 +224,7 @@ describe("Health Routes - Real Data Validation", () => {
     });
 
     test("should handle database table errors gracefully", async () => {
-      const response = await request(app).get(
+      const _response = await request(app).get(
         "/api/health/database/diagnostics"
       );
 

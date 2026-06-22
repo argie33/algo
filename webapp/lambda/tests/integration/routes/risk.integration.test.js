@@ -26,14 +26,14 @@ describe("Risk Integration Routes - Real Data Validation", () => {
 
   describe("GET /risk", () => {
     test("should return risk analysis data", async () => {
-      const response = await request(app).get("/risk");
+      const _response = await request(app).get("/risk");
 
       expect(response.status).toBe(200);
       expect(response.body).toBeDefined();
     });
 
     test("should handle portfolio risk analysis", async () => {
-      const response = await request(app)
+      const _response = await request(app)
         .get("/risk")
         .query({ type: "portfolio" });
 
@@ -42,7 +42,7 @@ describe("Risk Integration Routes - Real Data Validation", () => {
     });
 
     test("should handle individual stock risk analysis", async () => {
-      const response = await request(app)
+      const _response = await request(app)
         .get("/risk")
         .query({ symbol: "AAPL" });
 
@@ -53,7 +53,7 @@ describe("Risk Integration Routes - Real Data Validation", () => {
 
   describe("GET /risk/analysis", () => {
     test("should handle risk analysis requests", async () => {
-      const response = await request(app)
+      const _response = await request(app)
         .get("/risk/analysis")
         .set("Authorization", "Bearer dev-bypass-token")
         .query({
@@ -67,7 +67,7 @@ describe("Risk Integration Routes - Real Data Validation", () => {
     });
 
     test("should handle different time periods", async () => {
-      const response = await request(app)
+      const _response = await request(app)
         .get("/risk/analysis")
         .set("Authorization", "Bearer dev-bypass-token")
         .query({ period: "1m" });
@@ -78,7 +78,7 @@ describe("Risk Integration Routes - Real Data Validation", () => {
     });
 
     test("should handle missing query parameters", async () => {
-      const response = await request(app)
+      const _response = await request(app)
         .get("/risk/analysis")
         .set("Authorization", "Bearer dev-bypass-token");
 
@@ -90,7 +90,7 @@ describe("Risk Integration Routes - Real Data Validation", () => {
 
   describe("GET /risk/health", () => {
     test("should return health status", async () => {
-      const response = await request(app).get("/risk/health");
+      const _response = await request(app).get("/risk/health");
 
       expect(response.status).toBe(200);
       expect(response.body).toBeDefined();
@@ -101,7 +101,7 @@ describe("Risk Integration Routes - Real Data Validation", () => {
 
   describe("Error handling", () => {
     test("should handle invalid endpoints", async () => {
-      const response = await request(app)
+      const _response = await request(app)
         .get("/risk/nonexistent")
         .set("Authorization", "Bearer dev-bypass-token");
 
@@ -109,14 +109,14 @@ describe("Risk Integration Routes - Real Data Validation", () => {
     });
 
     test("should return consistent response format", async () => {
-      const response = await request(app).get("/risk");
+      const _response = await request(app).get("/risk");
 
       expect(response.headers["content-type"]).toMatch(/json/);
       expect(typeof response.body).toBe("object");
     });
 
     test("should handle database connection issues", async () => {
-      const response = await request(app).get("/risk");
+      const _response = await request(app).get("/risk");
 
       // Should not crash even if database issues occur
       expect(response.status).toBe(200);
@@ -126,7 +126,7 @@ describe("Risk Integration Routes - Real Data Validation", () => {
 
   describe("Security tests", () => {
     test("should handle SQL injection attempts", async () => {
-      const response = await request(app).get("/risk").query({
+      const _response = await request(app).get("/risk").query({
         symbol: "'; DROP TABLE trading_alerts; --",
         type: "portfolio'; DELETE FROM risk_metrics; --",
       });
@@ -137,7 +137,7 @@ describe("Risk Integration Routes - Real Data Validation", () => {
     });
 
     test("should handle XSS attempts in query parameters", async () => {
-      const response = await request(app)
+      const _response = await request(app)
         .get("/risk/analysis")
         .set("Authorization", "Bearer dev-bypass-token")
         .query({
@@ -150,7 +150,7 @@ describe("Risk Integration Routes - Real Data Validation", () => {
     });
 
     test("should handle malicious query parameters", async () => {
-      const response = await request(app)
+      const _response = await request(app)
         .get("/risk/analysis")
         .set("Authorization", "Bearer dev-bypass-token")
         .query({
@@ -167,7 +167,7 @@ describe("Risk Integration Routes - Real Data Validation", () => {
     test("should respond within reasonable time", async () => {
       const startTime = Date.now();
 
-      const response = await request(app).get("/risk");
+      const _response = await request(app).get("/risk");
 
       const responseTime = Date.now() - startTime;
 

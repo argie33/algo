@@ -82,14 +82,14 @@ describe("WebSocket API Routes - API Key Dependencies", () => {
   });
   describe("Basic Endpoints", () => {
     it("should return test endpoint status", async () => {
-      const response = await request(app)
+      const _response = await request(app)
         .get("/api/websocket/test")
         .expect(200);
       expect(response.body.status).toBe("websocket route is working");
       expect(response.body.timestamp).toBeDefined();
     });
     it("should return health status with dependencies", async () => {
-      const response = await request(app)
+      const _response = await request(app)
         .get("/api/websocket/health")
         .expect(200);
       expect(response.body.success).toBe(true);
@@ -118,7 +118,7 @@ describe("WebSocket API Routes - API Key Dependencies", () => {
         askSize: 200,
         timestamp: Date.now(),
       });
-      const response = await request(app)
+      const _response = await request(app)
         .get("/api/websocket/stream/AAPL")
         .expect(200);
       expect(response.body.success).toBe(true);
@@ -139,7 +139,7 @@ describe("WebSocket API Routes - API Key Dependencies", () => {
     });
     it("should return 400 when API credentials are missing", async () => {
       mockApiKeyService.getDecryptedApiKey.mockResolvedValue(null);
-      const response = await request(app)
+      const _response = await request(app)
         .get("/api/websocket/stream/AAPL")
         .expect(400);
       expect(response.body).toMatchObject({
@@ -157,7 +157,7 @@ describe("WebSocket API Routes - API Key Dependencies", () => {
       mockApiKeyService.getDecryptedApiKey.mockRejectedValue(
         new Error("Database connection failed")
       );
-      const response = await request(app)
+      const _response = await request(app)
         .get("/api/websocket/stream/AAPL")
         .expect(500);
       expect(response.body).toMatchObject({
@@ -176,7 +176,7 @@ describe("WebSocket API Routes - API Key Dependencies", () => {
       mockAlpacaService.mockImplementation(() => {
         throw new Error("Invalid API credentials");
       });
-      const response = await request(app)
+      const _response = await request(app)
         .get("/api/websocket/stream/AAPL")
         .expect(500);
       expect(response.body).toMatchObject({
@@ -188,7 +188,7 @@ describe("WebSocket API Routes - API Key Dependencies", () => {
       });
     });
     it("should handle invalid symbol validation", async () => {
-      const response = await request(app)
+      const _response = await request(app)
         .get("/api/websocket/stream/INVALID!@#")
         .expect(400);
       expect(response.body).toMatchObject({
@@ -210,7 +210,7 @@ describe("WebSocket API Routes - API Key Dependencies", () => {
         timestamp: Date.now(),
         conditions: ["@"],
       });
-      const response = await request(app)
+      const _response = await request(app)
         .get("/api/websocket/trades/AAPL")
         .expect(200);
       expect(response.body.success).toBe(true);
@@ -227,7 +227,7 @@ describe("WebSocket API Routes - API Key Dependencies", () => {
     });
     it("should return 403 when API credentials are missing", async () => {
       mockApiKeyService.getDecryptedApiKey.mockResolvedValue(null);
-      const response = await request(app)
+      const _response = await request(app)
         .get("/api/websocket/trades/AAPL")
         .expect(403);
       expect(response.body).toMatchObject({
@@ -254,7 +254,7 @@ describe("WebSocket API Routes - API Key Dependencies", () => {
         },
       ];
       mockAlpacaInstance.getBars.mockResolvedValue(mockBarsData);
-      const response = await request(app)
+      const _response = await request(app)
         .get("/api/websocket/bars/AAPL?timeframe=1Min")
         .expect(200);
       expect(response.body.success).toBe(true);
@@ -271,7 +271,7 @@ describe("WebSocket API Routes - API Key Dependencies", () => {
     });
     it("should return 403 when API credentials are missing", async () => {
       mockApiKeyService.getDecryptedApiKey.mockResolvedValue(null);
-      const response = await request(app)
+      const _response = await request(app)
         .get("/api/websocket/bars/AAPL")
         .expect(403);
       expect(response.body).toMatchObject({
@@ -282,7 +282,7 @@ describe("WebSocket API Routes - API Key Dependencies", () => {
   });
   describe("Subscription Management", () => {
     it("should subscribe to symbols successfully", async () => {
-      const response = await request(app)
+      const _response = await request(app)
         .post("/api/websocket/subscribe")
         .send({
           symbols: ["AAPL", "TSLA"],
@@ -299,7 +299,7 @@ describe("WebSocket API Routes - API Key Dependencies", () => {
       });
     });
     it("should handle invalid symbols array", async () => {
-      const response = await request(app)
+      const _response = await request(app)
         .post("/api/websocket/subscribe")
         .send({
           symbols: "invalid",
@@ -316,7 +316,7 @@ describe("WebSocket API Routes - API Key Dependencies", () => {
         .post("/api/websocket/subscribe")
         .send({ symbols: ["AAPL", "TSLA"] });
       // Then get subscriptions
-      const response = await request(app)
+      const _response = await request(app)
         .get("/api/websocket/subscriptions")
         .expect(200);
       expect(response.body).toMatchObject({
@@ -333,7 +333,7 @@ describe("WebSocket API Routes - API Key Dependencies", () => {
         .post("/api/websocket/subscribe")
         .send({ symbols: ["AAPL", "TSLA", "MSFT"] });
       // Then unsubscribe from specific symbols
-      const response = await request(app)
+      const _response = await request(app)
         .delete("/api/websocket/subscribe")
         .send({ symbols: ["AAPL", "TSLA"] })
         .expect(200);

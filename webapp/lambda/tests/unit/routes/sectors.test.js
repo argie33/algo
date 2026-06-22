@@ -7,7 +7,7 @@ jest.mock("../../../utils/database");
 jest.mock("../../../middleware/auth");
 
 // Import after mocks
-const { query } = require("../../../utils/database");
+const { _query } = require("../../../utils/database");
 const { authenticateToken } = require("../../../middleware/auth");
 
 describe("Sectors Routes", () => {
@@ -27,7 +27,7 @@ describe("Sectors Routes", () => {
   });
   describe("GET /sectors/health", () => {
     test("should return health status", async () => {
-      const response = await request(app).get("/sectors/health").expect(200);
+      const _response = await request(app).get("/sectors/health").expect(200);
       expect(response.body).toMatchObject({
         status: "operational",
         service: "sectors",
@@ -62,7 +62,7 @@ describe("Sectors Routes", () => {
         ],
       });
 
-      const response = await request(app).get("/sectors/").expect(200);
+      const _response = await request(app).get("/sectors/").expect(200);
       expect(response.body).toMatchObject({
         success: true,
         timestamp: expect.any(String),
@@ -168,7 +168,7 @@ describe("Sectors Routes", () => {
         ],
       };
       query.mockResolvedValueOnce(mockSectorAnalysis);
-      const response = await request(app).get("/sectors/analysis").expect(200);
+      const _response = await request(app).get("/sectors/analysis").expect(200);
       // Verify response structure with real database data
       expect(response.body.success).toBe(true);
       expect(response.body.data.timeframe).toBe("daily");
@@ -188,7 +188,7 @@ describe("Sectors Routes", () => {
       expect(query).toHaveBeenCalledTimes(1);
     });
     test("should handle timeframe parameter validation", async () => {
-      const response = await request(app)
+      const _response = await request(app)
         .get("/sectors/analysis")
         .query({ timeframe: "invalid" })
         .expect(400);
@@ -201,7 +201,7 @@ describe("Sectors Routes", () => {
     test("should accept valid timeframes", async () => {
       const mockData = { rows: [] };
       query.mockResolvedValueOnce(mockData);
-      const response = await request(app)
+      const _response = await request(app)
         .get("/sectors/analysis")
         .query({ timeframe: "weekly" })
         .expect(200);
@@ -210,7 +210,7 @@ describe("Sectors Routes", () => {
     });
     test("should handle database errors", async () => {
       query.mockRejectedValueOnce(new Error("Database connection failed"));
-      const response = await request(app).get("/sectors/analysis").expect(500);
+      const _response = await request(app).get("/sectors/analysis").expect(500);
       expect(response.body).toMatchObject({
         success: false,
         error: "Database connection failed",
@@ -254,7 +254,7 @@ describe("Sectors Routes", () => {
         ],
       };
       query.mockResolvedValueOnce(mockSectorsList);
-      const response = await request(app).get("/sectors/list").expect(200);
+      const _response = await request(app).get("/sectors/list").expect(200);
       expect(response.body).toMatchObject({
         success: true,
         data: expect.objectContaining({
@@ -285,7 +285,7 @@ describe("Sectors Routes", () => {
     });
     test("should handle empty sector list", async () => {
       query.mockResolvedValueOnce({ rows: [] });
-      const response = await request(app).get("/sectors/list").expect(200);
+      const _response = await request(app).get("/sectors/list").expect(200);
       expect(response.body).toMatchObject({
         success: true,
         data: expect.objectContaining({
@@ -302,7 +302,7 @@ describe("Sectors Routes", () => {
     });
     test("should handle database errors for sector list", async () => {
       query.mockRejectedValueOnce(new Error("Database query failed"));
-      const response = await request(app).get("/sectors/list").expect(500);
+      const _response = await request(app).get("/sectors/list").expect(500);
       expect(response.body).toMatchObject({
         success: false,
         error: "Database query failed",
@@ -374,7 +374,7 @@ describe("Sectors Routes", () => {
         ],
       };
       query.mockResolvedValueOnce(mockSectorDetails);
-      const response = await request(app)
+      const _response = await request(app)
         .get("/sectors/Technology/details")
         .expect(200);
       // Verify response structure with real database data
@@ -396,7 +396,7 @@ describe("Sectors Routes", () => {
     });
     test("should handle non-existent sector", async () => {
       query.mockResolvedValueOnce({ rows: [] });
-      const response = await request(app)
+      const _response = await request(app)
         .get("/sectors/NonExistentSector/details")
         .expect(404);
       expect(response.body).toEqual({
@@ -407,7 +407,7 @@ describe("Sectors Routes", () => {
     });
     test("should handle database errors for sector details", async () => {
       query.mockRejectedValueOnce(new Error("Database connection failed"));
-      const response = await request(app)
+      const _response = await request(app)
         .get("/sectors/Technology/details")
         .expect(500);
       expect(response.body).toMatchObject({
@@ -452,7 +452,7 @@ describe("Sectors Routes", () => {
         ],
       };
       query.mockResolvedValueOnce(mockRankingData);
-      const response = await request(app)
+      const _response = await request(app)
         .get("/sectors/ranking-history")
         .expect(200);
       expect(response.body).toMatchObject({
@@ -510,7 +510,7 @@ describe("Sectors Routes", () => {
         ],
       };
       query.mockResolvedValueOnce(mockRankingData);
-      const response = await request(app)
+      const _response = await request(app)
         .get("/sectors/ranking-history?sector=Technology")
         .expect(200);
       expect(response.body).toMatchObject({
@@ -528,7 +528,7 @@ describe("Sectors Routes", () => {
     });
     test("should return empty data when no ranking history available", async () => {
       query.mockResolvedValueOnce({ rows: [] });
-      const response = await request(app)
+      const _response = await request(app)
         .get("/sectors/ranking-history")
         .expect(200);
       expect(response.body).toMatchObject({
@@ -540,7 +540,7 @@ describe("Sectors Routes", () => {
     });
     test("should handle database errors for ranking history", async () => {
       query.mockRejectedValueOnce(new Error("Database query failed"));
-      const response = await request(app)
+      const _response = await request(app)
         .get("/sectors/ranking-history")
         .expect(500);
       expect(response.body).toMatchObject({
@@ -581,7 +581,7 @@ describe("Sectors Routes", () => {
         ],
       };
       query.mockResolvedValueOnce(mockRankingData);
-      const response = await request(app)
+      const _response = await request(app)
         .get("/sectors/industries/ranking-history")
         .expect(200);
       expect(response.body).toMatchObject({
@@ -635,7 +635,7 @@ describe("Sectors Routes", () => {
         ],
       };
       query.mockResolvedValueOnce(mockRankingData);
-      const response = await request(app)
+      const _response = await request(app)
         .get(
           "/sectors/industries/ranking-history?industry=Software%20Infrastructure"
         )
@@ -652,7 +652,7 @@ describe("Sectors Routes", () => {
     });
     test("should return empty data when no industry ranking history available", async () => {
       query.mockResolvedValueOnce({ rows: [] });
-      const response = await request(app)
+      const _response = await request(app)
         .get("/sectors/industries/ranking-history")
         .expect(200);
       expect(response.body).toMatchObject({
@@ -664,7 +664,7 @@ describe("Sectors Routes", () => {
     });
     test("should handle database errors for industry ranking history", async () => {
       query.mockRejectedValueOnce(new Error("Database query failed"));
-      const response = await request(app)
+      const _response = await request(app)
         .get("/sectors/industries/ranking-history")
         .expect(500);
       expect(response.body).toMatchObject({

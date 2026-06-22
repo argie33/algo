@@ -267,7 +267,7 @@ describe("Concurrent Database Transaction Integration", () => {
         });
       })();
 
-      await Promise.all([transaction1Promise, transaction2Promise]);
+      await Promise.all([transaction1Promise2Promise]);
 
       expect(transaction1Complete).toBe(true);
       // Transaction 2 should read either the old value (100) or new value (200)
@@ -333,7 +333,7 @@ describe("Concurrent Database Transaction Integration", () => {
         });
       })();
 
-      await Promise.all([transaction1Promise, transaction2Promise]);
+      await Promise.all([transaction1Promise2Promise]);
 
       expect(transactionRolledBack).toBe(true);
       // Should not see the dirty value (999), should see original value (500)

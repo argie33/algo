@@ -16,7 +16,7 @@ describe("Calendar Routes - Real Data Validation", () => {
 
   describe("GET /api/calendar", () => {
     test("should return calendar endpoints", async () => {
-      const response = await request(app).get("/api/calendar");
+      const _response = await request(app).get("/api/calendar");
 
       expect([200, 400, 404, 500]).toContain(response.status);
       expect(response.body).toHaveProperty("message");
@@ -28,7 +28,7 @@ describe("Calendar Routes - Real Data Validation", () => {
 
   describe("GET /api/calendar/earnings", () => {
     test("should return comprehensive earnings calendar data", async () => {
-      const response = await request(app).get("/api/calendar/earnings");
+      const _response = await request(app).get("/api/calendar/earnings");
 
       expect([200, 400, 404, 500]).toContain(response.status);
       expect(response.body.success).toBe(true);
@@ -57,7 +57,7 @@ describe("Calendar Routes - Real Data Validation", () => {
     });
 
     test("should handle date range parameters", async () => {
-      const response = await request(app).get(
+      const _response = await request(app).get(
         "/api/calendar/earnings?start_date=2024-01-01&end_date=2024-01-31"
       );
 
@@ -67,7 +67,7 @@ describe("Calendar Routes - Real Data Validation", () => {
     });
 
     test("should handle symbol parameter", async () => {
-      const response = await request(app).get(
+      const _response = await request(app).get(
         "/api/calendar/earnings?symbol=AAPL"
       );
 
@@ -77,7 +77,7 @@ describe("Calendar Routes - Real Data Validation", () => {
     });
 
     test("should handle days_ahead parameter", async () => {
-      const response = await request(app).get(
+      const _response = await request(app).get(
         "/api/calendar/earnings?days_ahead=7"
       );
 
@@ -87,7 +87,7 @@ describe("Calendar Routes - Real Data Validation", () => {
     });
 
     test("should handle limit parameter", async () => {
-      const response = await request(app).get(
+      const _response = await request(app).get(
         "/api/calendar/earnings?limit=10"
       );
 
@@ -97,7 +97,7 @@ describe("Calendar Routes - Real Data Validation", () => {
     });
 
     test("should handle multiple parameters together", async () => {
-      const response = await request(app).get(
+      const _response = await request(app).get(
         "/api/calendar/earnings?symbol=AAPL&days_ahead=30&limit=25"
       );
 
@@ -107,7 +107,7 @@ describe("Calendar Routes - Real Data Validation", () => {
     });
 
     test("should return valid response structure for empty results", async () => {
-      const response = await request(app).get(
+      const _response = await request(app).get(
         "/api/calendar/earnings?symbol=NONEXISTENT&start_date=2050-01-01&end_date=2050-01-02"
       );
 
@@ -119,7 +119,7 @@ describe("Calendar Routes - Real Data Validation", () => {
 
     test("should handle invalid dates gracefully", async () => {
       // Invalid date format - earnings endpoint handles this gracefully
-      const response = await request(app).get(
+      const _response = await request(app).get(
         "/api/calendar/earnings?start_date=invalid-date"
       );
 
@@ -137,7 +137,7 @@ describe("Calendar Routes - Real Data Validation", () => {
 
   describe("GET /api/calendar/dividends", () => {
     test("should return dividend calendar data", async () => {
-      const response = await request(app)
+      const _response = await request(app)
         .get("/api/calendar/dividends")
         .expect(200);
 
@@ -151,7 +151,7 @@ describe("Calendar Routes - Real Data Validation", () => {
     });
 
     test("should handle symbol parameter in dividend calendar", async () => {
-      const response = await request(app)
+      const _response = await request(app)
         .get("/api/calendar/dividends?symbol=AAPL")
         .expect(200);
 
@@ -163,7 +163,7 @@ describe("Calendar Routes - Real Data Validation", () => {
 
   describe("GET /api/calendar/economic", () => {
     test("should return economic calendar data", async () => {
-      const response = await request(app)
+      const _response = await request(app)
         .get("/api/calendar/economic")
         .expect(200);
 
@@ -178,7 +178,7 @@ describe("Calendar Routes - Real Data Validation", () => {
     });
 
     test("should handle country parameter in 501 response", async () => {
-      const response = await request(app).get(
+      const _response = await request(app).get(
         "/api/calendar/economic?country=US"
       );
 
@@ -192,7 +192,7 @@ describe("Calendar Routes - Real Data Validation", () => {
 
   describe("GET /api/calendar/upcoming", () => {
     test("should return 501 not implemented", async () => {
-      const response = await request(app).get("/api/calendar/upcoming");
+      const _response = await request(app).get("/api/calendar/upcoming");
 
       expect([200, 400, 401, 404, 422, 500]).toContain(response.status);
       if (response.status >= 400) {
@@ -203,7 +203,7 @@ describe("Calendar Routes - Real Data Validation", () => {
     });
 
     test("should handle days parameter in 501 response", async () => {
-      const response = await request(app).get("/api/calendar/upcoming?days=7");
+      const _response = await request(app).get("/api/calendar/upcoming?days=7");
 
       expect([200, 400, 401, 404, 422, 500]).toContain(response.status);
       if (response.status >= 400) {
@@ -212,7 +212,7 @@ describe("Calendar Routes - Real Data Validation", () => {
     });
 
     test("should handle multiple parameters in 501 response", async () => {
-      const response = await request(app).get(
+      const _response = await request(app).get(
         "/api/calendar/upcoming?days=14&type=earnings&symbol=AAPL&limit=25"
       );
 
@@ -226,7 +226,7 @@ describe("Calendar Routes - Real Data Validation", () => {
 
   describe("GET /api/calendar/health", () => {
     test("should return health status", async () => {
-      const response = await request(app).get("/api/calendar/health");
+      const _response = await request(app).get("/api/calendar/health");
 
       expect([200, 400, 404, 500]).toContain(response.status);
       expect(response.body.status).toBe("operational");
@@ -240,7 +240,7 @@ describe("Calendar Routes - Real Data Validation", () => {
 
   describe("GET /api/calendar/debug", () => {
     test("should return debug information", async () => {
-      const response = await request(app).get("/api/calendar/debug");
+      const _response = await request(app).get("/api/calendar/debug");
 
       expect([200, 400, 404, 500]).toContain(response.status);
       expect(response.body).toHaveProperty("tableExists");
@@ -249,7 +249,7 @@ describe("Calendar Routes - Real Data Validation", () => {
     });
 
     test("should include table information when table exists", async () => {
-      const response = await request(app).get("/api/calendar/debug");
+      const _response = await request(app).get("/api/calendar/debug");
 
       if (response.body.tableExists) {
         expect(response.body.tableName).toBe("earnings_history");
@@ -262,7 +262,7 @@ describe("Calendar Routes - Real Data Validation", () => {
 
   describe("GET /api/calendar/test", () => {
     test("should return test data", async () => {
-      const response = await request(app).get("/api/calendar/test");
+      const _response = await request(app).get("/api/calendar/test");
 
       expect([200, 404].includes(response.status)).toBe(true);
 
@@ -277,7 +277,7 @@ describe("Calendar Routes - Real Data Validation", () => {
 
   describe("GET /api/calendar/events", () => {
     test("should handle database errors gracefully", async () => {
-      const response = await request(app).get("/api/calendar/events");
+      const _response = await request(app).get("/api/calendar/events");
 
       // Events endpoint has database dependencies that may fail
       expect([200, 400, 404, 500]).toContain(response.status);
@@ -293,19 +293,19 @@ describe("Calendar Routes - Real Data Validation", () => {
     });
 
     test("should handle page parameter", async () => {
-      const response = await request(app).get("/api/calendar/events?page=2");
+      const _response = await request(app).get("/api/calendar/events?page=2");
 
       expect([200, 400, 404, 500]).toContain(response.status);
     });
 
     test("should handle limit parameter", async () => {
-      const response = await request(app).get("/api/calendar/events?limit=10");
+      const _response = await request(app).get("/api/calendar/events?limit=10");
 
       expect([200, 400, 404, 500]).toContain(response.status);
     });
 
     test("should handle type filter parameter", async () => {
-      const response = await request(app).get(
+      const _response = await request(app).get(
         "/api/calendar/events?type=upcoming"
       );
 
@@ -315,7 +315,7 @@ describe("Calendar Routes - Real Data Validation", () => {
 
   describe("GET /api/calendar/earnings-estimates", () => {
     test("should handle database dependencies gracefully", async () => {
-      const response = await request(app).get(
+      const _response = await request(app).get(
         "/api/calendar/earnings-estimates"
       );
 
@@ -331,7 +331,7 @@ describe("Calendar Routes - Real Data Validation", () => {
     });
 
     test("should handle pagination parameters", async () => {
-      const response = await request(app).get(
+      const _response = await request(app).get(
         "/api/calendar/earnings-estimates?page=1&limit=5"
       );
 
@@ -341,7 +341,7 @@ describe("Calendar Routes - Real Data Validation", () => {
 
   describe("GET /api/calendar/earnings-history", () => {
     test("should handle database dependencies gracefully", async () => {
-      const response = await request(app).get("/api/calendar/earnings-history");
+      const _response = await request(app).get("/api/calendar/earnings-history");
 
       // Earnings history requires earnings_history table
       expect([200, 404, 500].includes(response.status)).toBe(true);
@@ -357,7 +357,7 @@ describe("Calendar Routes - Real Data Validation", () => {
 
   describe("GET /api/calendar/earnings-metrics", () => {
     test("should handle database dependencies gracefully", async () => {
-      const response = await request(app).get("/api/calendar/earnings-metrics");
+      const _response = await request(app).get("/api/calendar/earnings-metrics");
 
       // Earnings metrics requires earnings_history table
       expect([200, 400, 404, 500]).toContain(response.status);

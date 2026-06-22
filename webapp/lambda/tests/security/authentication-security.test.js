@@ -32,7 +32,7 @@ describe("Authentication Security Tests", () => {
 
   describe("JWT Token Validation", () => {
     test("should reject requests without authorization header", async () => {
-      const response = await request(app)
+      const _response = await request(app)
         .get("/api/portfolio/holdings")
         .expect(401);
 
@@ -51,7 +51,7 @@ describe("Authentication Security Tests", () => {
       ];
 
       for (const header of malformedHeaders) {
-        const response = await request(app)
+        const _response = await request(app)
           .get("/api/portfolio/holdings")
           .set("Authorization", header)
           .expect(401);
@@ -66,7 +66,7 @@ describe("Authentication Security Tests", () => {
         jwtSecret
       );
 
-      const response = await request(app)
+      const _response = await request(app)
         .get("/api/portfolio/holdings")
         .set("Authorization", `Bearer ${expiredToken}`)
         .expect(401);
@@ -78,7 +78,7 @@ describe("Authentication Security Tests", () => {
     test("should reject tokens with invalid signatures", async () => {
       const tamperedToken = jwt.sign({ sub: validUserId }, "wrong-secret");
 
-      const response = await request(app)
+      const _response = await request(app)
         .get("/api/portfolio/holdings")
         .set("Authorization", `Bearer ${tamperedToken}`)
         .expect(401);
@@ -93,7 +93,7 @@ describe("Authentication Security Tests", () => {
         jwtSecret
       );
 
-      const response = await request(app)
+      const _response = await request(app)
         .get("/api/portfolio/holdings")
         .set("Authorization", `Bearer ${tokenWithoutSub}`)
         .expect(401);
@@ -108,7 +108,7 @@ describe("Authentication Security Tests", () => {
         jwtSecret
       );
 
-      const response = await request(app)
+      const _response = await request(app)
         .get("/api/portfolio/holdings")
         .set("Authorization", `Bearer ${futureToken}`)
         .expect(401);
@@ -121,7 +121,7 @@ describe("Authentication Security Tests", () => {
         expiresIn: "1h",
       });
 
-      const response = await request(app)
+      const _response = await request(app)
         .get("/api/health")
         .set("Authorization", `Bearer ${validToken}`)
         .expect(200);
@@ -138,7 +138,7 @@ describe("Authentication Security Tests", () => {
         { algorithm: "none" }
       );
 
-      const response = await request(app)
+      const _response = await request(app)
         .get("/api/portfolio/holdings")
         .set("Authorization", `Bearer ${noneAlgorithmToken}`)
         .expect(401);
@@ -195,7 +195,7 @@ describe("Authentication Security Tests", () => {
         expiresIn: "1h",
       });
 
-      const response = await request(app)
+      const _response = await request(app)
         .get("/api/health")
         .set("Authorization", `Bearer ${validToken}`)
         .expect(200);
@@ -226,7 +226,7 @@ describe("Authentication Security Tests", () => {
         expiresIn: "1h",
       });
 
-      const response = await request(app)
+      const _response = await request(app)
         .post("/api/settings/api-keys")
         .set("Authorization", `Bearer ${validToken}`)
         .send({
@@ -263,7 +263,7 @@ describe("Authentication Security Tests", () => {
 
       const invalidKey = { keyId: "", secret: "valid-secret" };
 
-      const response = await request(app)
+      const _response = await request(app)
         .post("/api/settings/api-keys")
         .set("Authorization", `Bearer ${validToken}`)
         .send({
@@ -284,7 +284,7 @@ describe("Authentication Security Tests", () => {
       });
 
       // Try to access API key endpoint without proper authorization
-      const response = await request(app)
+      const _response = await request(app)
         .get("/api/settings/api-keys")
         .set("Authorization", `Bearer ${validToken}`);
 
@@ -377,7 +377,7 @@ describe("Authentication Security Tests", () => {
       // Test that our authentication middleware handles malicious header values safely
       // Note: SuperTest validates headers, so we test the server's response to edge cases
 
-      const response = await request(app)
+      const _response = await request(app)
         .get("/api/portfolio/holdings")
         .set("Authorization", "Bearer malformed-token")
         .set("X-Custom-Header", "safe-value")
@@ -403,7 +403,7 @@ describe("Authentication Security Tests", () => {
         { expiresIn: "1h" }
       );
 
-      const response = await request(app)
+      const _response = await request(app)
         .get("/api/health")
         .set("Authorization", `Bearer ${maliciousToken}`)
         .expect(200);
@@ -418,7 +418,7 @@ describe("Authentication Security Tests", () => {
         expiresIn: "1h",
       });
 
-      const response = await request(app)
+      const _response = await request(app)
         .post("/api/settings/api-keys")
         .set("Authorization", `Bearer ${validToken}`)
         .set("Content-Type", "text/plain") // Wrong content type
@@ -436,7 +436,7 @@ describe("Authentication Security Tests", () => {
   describe("CORS Security", () => {
     test("should enforce CORS policy for cross-origin requests", async () => {
       // Test that the application properly blocks unauthorized origins
-      const response = await request(app)
+      const _response = await request(app)
         .get("/api/health")
         .set("Origin", "https://malicious-site.com")
         .expect(500); // CORS middleware should block unauthorized origins with 500
@@ -459,7 +459,7 @@ describe("Authentication Security Tests", () => {
       ];
 
       for (const origin of legitimateOrigins) {
-        const response = await request(app)
+        const _response = await request(app)
           .options("/api/portfolio/holdings")
           .set("Origin", origin)
           .set("Access-Control-Request-Method", "GET");
@@ -472,7 +472,7 @@ describe("Authentication Security Tests", () => {
 
   describe("Error Information Disclosure", () => {
     test("should not expose sensitive information in error responses", async () => {
-      const response = await request(app)
+      const _response = await request(app)
         .get("/api/nonexistent-endpoint")
         .expect(404);
 
@@ -484,7 +484,7 @@ describe("Authentication Security Tests", () => {
     });
 
     test("should use generic error messages for security-sensitive operations", async () => {
-      const response = await request(app)
+      const _response = await request(app)
         .get("/api/portfolio/holdings")
         .send({ provider: "nonexistent" })
         .expect(401);

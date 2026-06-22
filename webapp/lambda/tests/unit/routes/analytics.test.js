@@ -2,7 +2,7 @@ const express = require("express");
 const request = require("supertest");
 
 // Real database for integration
-const { query } = require("../../../utils/database");
+const { _query } = require("../../../utils/database");
 
 describe("Analytics Routes Unit Tests", () => {
   let app;
@@ -35,7 +35,7 @@ describe("Analytics Routes Unit Tests", () => {
 
   describe("GET /analytics/", () => {
     test("should return analytics info", async () => {
-      const response = await request(app).get("/analytics/").expect(200);
+      const _response = await request(app).get("/analytics/").expect(200);
 
       expect(response.body).toHaveProperty("success");
       expect(response.body).toHaveProperty("status");
@@ -44,7 +44,7 @@ describe("Analytics Routes Unit Tests", () => {
 
   describe("GET /analytics/performance", () => {
     test("should handle performance analytics", async () => {
-      const response = await request(app).get("/analytics/performance");
+      const _response = await request(app).get("/analytics/performance");
 
       // API may return 200 for success or 401 for auth or 500/503 for database issues
       expect([200, 401, 500, 503]).toContain(response.status);
@@ -54,7 +54,7 @@ describe("Analytics Routes Unit Tests", () => {
 
   describe("GET /analytics/risk", () => {
     test("should handle risk analytics", async () => {
-      const response = await request(app).get("/analytics/risk");
+      const _response = await request(app).get("/analytics/risk");
 
       // API may return 200 for success or 401 for auth or 500 for database issues
       expect([200, 401, 500]).toContain(response.status);
@@ -64,7 +64,7 @@ describe("Analytics Routes Unit Tests", () => {
 
   describe("GET /analytics/correlation", () => {
     test("should handle correlation analysis", async () => {
-      const response = await request(app).get("/analytics/correlation");
+      const _response = await request(app).get("/analytics/correlation");
 
       expect([200, 401, 500]).toContain(response.status);
       expect(response.body).toHaveProperty("success");
@@ -73,7 +73,7 @@ describe("Analytics Routes Unit Tests", () => {
 
   describe("GET /analytics/allocation", () => {
     test("should handle allocation analytics", async () => {
-      const response = await request(app).get("/analytics/allocation");
+      const _response = await request(app).get("/analytics/allocation");
 
       expect([200, 401, 500]).toContain(response.status);
       expect(response.body).toHaveProperty("success");
@@ -82,7 +82,7 @@ describe("Analytics Routes Unit Tests", () => {
 
   describe("GET /analytics/returns", () => {
     test("should handle returns analytics", async () => {
-      const response = await request(app).get("/analytics/returns");
+      const _response = await request(app).get("/analytics/returns");
 
       expect([200, 401, 500]).toContain(response.status);
       expect(response.body).toHaveProperty("success");
@@ -91,7 +91,7 @@ describe("Analytics Routes Unit Tests", () => {
 
   describe("GET /analytics/sectors", () => {
     test("should handle sectors analytics", async () => {
-      const response = await request(app).get("/analytics/sectors");
+      const _response = await request(app).get("/analytics/sectors");
 
       expect([200, 401, 500]).toContain(response.status);
       expect(response.body).toHaveProperty("success");
@@ -100,7 +100,7 @@ describe("Analytics Routes Unit Tests", () => {
 
   describe("GET /analytics/volatility", () => {
     test("should handle volatility analytics", async () => {
-      const response = await request(app).get("/analytics/volatility");
+      const _response = await request(app).get("/analytics/volatility");
 
       expect([200, 401, 500]).toContain(response.status);
       expect(response.body).toHaveProperty("success");
@@ -109,7 +109,7 @@ describe("Analytics Routes Unit Tests", () => {
 
   describe("GET /analytics/trends", () => {
     test("should handle trends analytics", async () => {
-      const response = await request(app).get("/analytics/trends");
+      const _response = await request(app).get("/analytics/trends");
 
       expect([200, 401, 500]).toContain(response.status);
       expect(response.body).toHaveProperty("success");
@@ -124,7 +124,7 @@ describe("Analytics Routes Unit Tests", () => {
         benchmark: "SPY",
       };
 
-      const response = await request(app)
+      const _response = await request(app)
         .post("/analytics/custom")
         .send(customRequest);
 

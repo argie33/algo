@@ -16,7 +16,7 @@ describe("Commodities Routes - Real Data Validation", () => {
 
   describe("GET /api/commodities (Root Endpoint)", () => {
     test("should return commodities system information", async () => {
-      const response = await request(app).get("/api/commodities");
+      const _response = await request(app).get("/api/commodities");
 
       expect(response.status).toBe(200);
 
@@ -38,7 +38,7 @@ describe("Commodities Routes - Real Data Validation", () => {
     });
 
     test("should include expected endpoint information", async () => {
-      const response = await request(app).get("/api/commodities");
+      const _response = await request(app).get("/api/commodities");
 
       if (response.status === 200) {
         const endpoints = response.body.data.available_endpoints.join(" ");
@@ -52,7 +52,7 @@ describe("Commodities Routes - Real Data Validation", () => {
 
   describe("GET /api/commodities/health (Health Check)", () => {
     test("should return health status", async () => {
-      const response = await request(app).get("/api/commodities/health");
+      const _response = await request(app).get("/api/commodities/health");
 
       expect(response.status).toBe(200);
 
@@ -70,7 +70,7 @@ describe("Commodities Routes - Real Data Validation", () => {
 
   describe("GET /api/commodities/categories (Commodity Categories)", () => {
     test("should return commodity categories", async () => {
-      const response = await request(app).get("/api/commodities/categories");
+      const _response = await request(app).get("/api/commodities/categories");
 
       expect(response.status).toBe(200);
 
@@ -95,7 +95,7 @@ describe("Commodities Routes - Real Data Validation", () => {
     });
 
     test("should validate category performance data", async () => {
-      const response = await request(app).get("/api/commodities/categories");
+      const _response = await request(app).get("/api/commodities/categories");
 
       if (response.status === 200 && response.body.data.length > 0) {
         const category = response.body.data[0];
@@ -112,7 +112,7 @@ describe("Commodities Routes - Real Data Validation", () => {
     });
 
     test("should include major commodity categories", async () => {
-      const response = await request(app).get("/api/commodities/categories");
+      const _response = await request(app).get("/api/commodities/categories");
 
       if (response.status === 200 && response.body.data.length > 0) {
         const categoryIds = response.body.data.map((cat) =>
@@ -130,7 +130,7 @@ describe("Commodities Routes - Real Data Validation", () => {
 
   describe("GET /api/commodities/prices (Current Prices)", () => {
     test("should return current commodity prices", async () => {
-      const response = await request(app).get("/api/commodities/prices");
+      const _response = await request(app).get("/api/commodities/prices");
 
       expect(response.status).toBe(200);
 
@@ -153,7 +153,7 @@ describe("Commodities Routes - Real Data Validation", () => {
     });
 
     test("should handle limit parameter", async () => {
-      const response = await request(app).get(
+      const _response = await request(app).get(
         "/api/commodities/prices?limit=5"
       );
 
@@ -168,7 +168,7 @@ describe("Commodities Routes - Real Data Validation", () => {
       const categories = ["energy", "metals", "agriculture"];
 
       for (const category of categories) {
-        const response = await request(app).get(
+        const _response = await request(app).get(
           `/api/commodities/prices?category=${category}`
         );
 
@@ -187,7 +187,7 @@ describe("Commodities Routes - Real Data Validation", () => {
 
   describe("GET /api/commodities/market-summary (Market Summary)", () => {
     test("should return market summary data", async () => {
-      const response = await request(app).get(
+      const _response = await request(app).get(
         "/api/commodities/market-summary"
       );
 
@@ -204,7 +204,7 @@ describe("Commodities Routes - Real Data Validation", () => {
     });
 
     test("should validate market overview structure", async () => {
-      const response = await request(app).get(
+      const _response = await request(app).get(
         "/api/commodities/market-summary"
       );
 
@@ -219,7 +219,7 @@ describe("Commodities Routes - Real Data Validation", () => {
     });
 
     test("should validate top gainers and losers", async () => {
-      const response = await request(app).get(
+      const _response = await request(app).get(
         "/api/commodities/market-summary"
       );
 
@@ -247,7 +247,7 @@ describe("Commodities Routes - Real Data Validation", () => {
 
   describe("GET /api/commodities/correlations (Price Correlations)", () => {
     test("should return correlation analysis", async () => {
-      const response = await request(app).get("/api/commodities/correlations");
+      const _response = await request(app).get("/api/commodities/correlations");
 
       expect(response.status).toBe(200);
 
@@ -273,7 +273,7 @@ describe("Commodities Routes - Real Data Validation", () => {
       const timeframes = ["1W", "1M", "3M", "1Y"];
 
       for (const timeframe of timeframes) {
-        const response = await request(app).get(
+        const _response = await request(app).get(
           `/api/commodities/correlations?timeframe=${timeframe}`
         );
 
@@ -282,7 +282,7 @@ describe("Commodities Routes - Real Data Validation", () => {
     });
 
     test("should validate correlation strength classifications", async () => {
-      const response = await request(app).get("/api/commodities/correlations");
+      const _response = await request(app).get("/api/commodities/correlations");
 
       if (
         response.status === 200 &&
@@ -303,7 +303,7 @@ describe("Commodities Routes - Real Data Validation", () => {
 
   describe("GET /api/commodities/news (Commodity News)", () => {
     test("should return commodity-related news", async () => {
-      const response = await request(app).get("/api/commodities/news");
+      const _response = await request(app).get("/api/commodities/news");
 
       expect(response.status).toBe(200);
 
@@ -330,7 +330,7 @@ describe("Commodities Routes - Real Data Validation", () => {
       const categories = ["energy", "metals", "agriculture"];
 
       for (const category of categories) {
-        const response = await request(app).get(
+        const _response = await request(app).get(
           `/api/commodities/news?category=${category}`
         );
 
@@ -345,7 +345,7 @@ describe("Commodities Routes - Real Data Validation", () => {
     });
 
     test("should handle limit parameter for news", async () => {
-      const response = await request(app).get("/api/commodities/news?limit=5");
+      const _response = await request(app).get("/api/commodities/news?limit=5");
 
       expect([200, 400, 500, 503].includes(response.status)).toBe(true);
 
@@ -355,7 +355,7 @@ describe("Commodities Routes - Real Data Validation", () => {
     });
 
     test("should validate news article timestamps", async () => {
-      const response = await request(app).get("/api/commodities/news");
+      const _response = await request(app).get("/api/commodities/news");
 
       if (response.status === 200 && response.body.data.articles.length > 0) {
         response.body.data.articles.forEach((article) => {
@@ -389,7 +389,7 @@ describe("Commodities Routes - Real Data Validation", () => {
 
     test("should maintain response time consistency", async () => {
       const startTime = Date.now();
-      const response = await request(app).get(
+      const _response = await request(app).get(
         "/api/commodities/market-summary"
       );
       const responseTime = Date.now() - startTime;
@@ -407,7 +407,7 @@ describe("Commodities Routes - Real Data Validation", () => {
       ];
 
       for (const param of invalidParams) {
-        const response = await request(app).get(
+        const _response = await request(app).get(
           `/api/commodities/prices?${param}`
         );
 
@@ -416,7 +416,7 @@ describe("Commodities Routes - Real Data Validation", () => {
     });
 
     test("should validate numeric data integrity", async () => {
-      const response = await request(app).get("/api/commodities/prices");
+      const _response = await request(app).get("/api/commodities/prices");
 
       if (response.status === 200 && response.body.data.length > 0) {
         response.body.data.forEach((commodity) => {
@@ -433,7 +433,7 @@ describe("Commodities Routes - Real Data Validation", () => {
     });
 
     test("should handle memory pressure with large data requests", async () => {
-      const response = await request(app).get(
+      const _response = await request(app).get(
         "/api/commodities/prices?limit=1000"
       );
 
@@ -451,7 +451,7 @@ describe("Commodities Routes - Real Data Validation", () => {
       ];
 
       for (const endpoint of endpoints) {
-        const response = await request(app).get(endpoint);
+        const _response = await request(app).get(endpoint);
 
         if ([200].includes(response.status)) {
           expect(response.headers["content-type"]).toMatch(/application\/json/);
@@ -460,7 +460,7 @@ describe("Commodities Routes - Real Data Validation", () => {
     });
 
     test("should handle database connection issues gracefully", async () => {
-      const response = await request(app).get("/api/commodities/prices");
+      const _response = await request(app).get("/api/commodities/prices");
 
       expect(response.status).toBe(200);
 
@@ -478,7 +478,7 @@ describe("Commodities Routes - Real Data Validation", () => {
       ];
 
       for (const input of maliciousInputs) {
-        const response = await request(app).get(
+        const _response = await request(app).get(
           `/api/commodities/prices?category=${encodeURIComponent(input)}`
         );
 

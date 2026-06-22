@@ -16,7 +16,7 @@ describe("Portfolio Integration Tests - Real Data", () => {
   // Core Portfolio Endpoints
   describe("Core Portfolio APIs", () => {
     test("GET /api/portfolio - should return portfolio API info", async () => {
-      const response = await request(app).get("/api/portfolio").set(auth);
+      const _response = await request(app).get("/api/portfolio").set(auth);
 
       expect([200, 401]).toContain(response.status);
 
@@ -29,7 +29,7 @@ describe("Portfolio Integration Tests - Real Data", () => {
     });
 
     test("GET /api/portfolio/summary - should return portfolio summary or real error", async () => {
-      const response = await request(app)
+      const _response = await request(app)
         .get("/api/portfolio/summary")
         .set(auth);
 
@@ -46,7 +46,7 @@ describe("Portfolio Integration Tests - Real Data", () => {
     });
 
     test("GET /api/portfolio/positions - should return real positions or error", async () => {
-      const response = await request(app)
+      const _response = await request(app)
         .get("/api/portfolio/positions")
         .set(auth);
 
@@ -61,7 +61,7 @@ describe("Portfolio Integration Tests - Real Data", () => {
     });
 
     test("GET /api/portfolio/holdings - should return real holdings", async () => {
-      const response = await request(app)
+      const _response = await request(app)
         .get("/api/portfolio/holdings")
         .set(auth);
 
@@ -77,7 +77,7 @@ describe("Portfolio Integration Tests - Real Data", () => {
     });
 
     test("GET /api/portfolio/value - should return real portfolio value", async () => {
-      const response = await request(app).get("/api/portfolio/value").set(auth);
+      const _response = await request(app).get("/api/portfolio/value").set(auth);
 
       expect([200, 401, 500, 503]).toContain(response.status);
 
@@ -88,7 +88,7 @@ describe("Portfolio Integration Tests - Real Data", () => {
     });
 
     test("GET /api/portfolio/allocation - should return real allocation", async () => {
-      const response = await request(app)
+      const _response = await request(app)
         .get("/api/portfolio/allocation")
         .set(auth);
 
@@ -101,7 +101,7 @@ describe("Portfolio Integration Tests - Real Data", () => {
     });
 
     test("GET /api/portfolio/allocations - should return real allocations", async () => {
-      const response = await request(app)
+      const _response = await request(app)
         .get("/api/portfolio/allocations")
         .set(auth);
 
@@ -117,7 +117,7 @@ describe("Portfolio Integration Tests - Real Data", () => {
   // Analytics and Analysis
   describe("Analytics and Analysis APIs", () => {
     test("GET /api/portfolio/analytics - should return real analytics", async () => {
-      const response = await request(app)
+      const _response = await request(app)
         .get("/api/portfolio/analytics")
         .set(auth);
 
@@ -133,7 +133,7 @@ describe("Portfolio Integration Tests - Real Data", () => {
   // Performance and Returns
   describe("Performance and Returns APIs", () => {
     test("GET /api/portfolio/returns - should return real returns", async () => {
-      const response = await request(app)
+      const _response = await request(app)
         .get("/api/portfolio/returns")
         .set(auth);
 
@@ -146,7 +146,7 @@ describe("Portfolio Integration Tests - Real Data", () => {
     });
 
     test("GET /api/portfolio/benchmark - should return real benchmark comparison", async () => {
-      const response = await request(app)
+      const _response = await request(app)
         .get("/api/portfolio/benchmark")
         .set(auth);
 
@@ -162,7 +162,7 @@ describe("Portfolio Integration Tests - Real Data", () => {
   // Risk Management
   describe("Risk Management APIs", () => {
     test("GET /api/portfolio/risk - should return real risk assessment", async () => {
-      const response = await request(app).get("/api/portfolio/risk").set(auth);
+      const _response = await request(app).get("/api/portfolio/risk").set(auth);
 
       expect([200, 401, 500, 503]).toContain(response.status);
 
@@ -173,7 +173,7 @@ describe("Portfolio Integration Tests - Real Data", () => {
     });
 
     test("GET /api/portfolio/risk-analysis - should return real risk analysis", async () => {
-      const response = await request(app)
+      const _response = await request(app)
         .get("/api/portfolio/risk-analysis")
         .set(auth);
 
@@ -186,7 +186,7 @@ describe("Portfolio Integration Tests - Real Data", () => {
     });
 
     test("GET /api/portfolio/risk/analysis - should return detailed real risk analysis", async () => {
-      const response = await request(app)
+      const _response = await request(app)
         .get("/api/portfolio/risk/analysis")
         .set(auth);
 
@@ -199,7 +199,7 @@ describe("Portfolio Integration Tests - Real Data", () => {
     });
 
     test("GET /api/portfolio/risk/var - should return real VaR analysis", async () => {
-      const response = await request(app)
+      const _response = await request(app)
         .get("/api/portfolio/risk/var")
         .set(auth);
 
@@ -212,7 +212,7 @@ describe("Portfolio Integration Tests - Real Data", () => {
     });
 
     test("GET /api/portfolio/risk/stress-test - should return real stress test", async () => {
-      const response = await request(app)
+      const _response = await request(app)
         .get("/api/portfolio/risk/stress-test")
         .set(auth);
 
@@ -225,7 +225,7 @@ describe("Portfolio Integration Tests - Real Data", () => {
     });
 
     test("GET /api/portfolio/risk/concentration - should return real concentration risk", async () => {
-      const response = await request(app)
+      const _response = await request(app)
         .get("/api/portfolio/risk/concentration")
         .set(auth);
 
@@ -241,7 +241,7 @@ describe("Portfolio Integration Tests - Real Data", () => {
   // Portfolio Management
   describe("Portfolio Management APIs", () => {
     test("GET /api/portfolio/rebalance - should return real rebalance recommendations", async () => {
-      const response = await request(app)
+      const _response = await request(app)
         .get("/api/portfolio/rebalance")
         .set(auth);
 
@@ -254,7 +254,7 @@ describe("Portfolio Integration Tests - Real Data", () => {
     });
 
     test("GET /api/portfolio/optimization - should return real optimization", async () => {
-      const response = await request(app)
+      const _response = await request(app)
         .get("/api/portfolio/optimization")
         .set(auth);
 
@@ -267,7 +267,7 @@ describe("Portfolio Integration Tests - Real Data", () => {
     });
 
     test("GET /api/portfolio/watchlist - should return real watchlist", async () => {
-      const response = await request(app)
+      const _response = await request(app)
         .get("/api/portfolio/watchlist")
         .set(auth);
 
@@ -280,7 +280,7 @@ describe("Portfolio Integration Tests - Real Data", () => {
     });
 
     test("GET /api/portfolio/transactions - should return real transactions", async () => {
-      const response = await request(app)
+      const _response = await request(app)
         .get("/api/portfolio/transactions")
         .set(auth);
 
@@ -302,7 +302,7 @@ describe("Portfolio Integration Tests - Real Data", () => {
   // Broker Integration APIs
   describe("Broker Integration APIs", () => {
     test("GET /api/portfolio/api-keys - should return real API keys status", async () => {
-      const response = await request(app)
+      const _response = await request(app)
         .get("/api/portfolio/api-keys")
         .set(auth);
 
@@ -315,7 +315,7 @@ describe("Portfolio Integration Tests - Real Data", () => {
     });
 
     test("POST /api/portfolio/api-keys - should handle real API key creation", async () => {
-      const response = await request(app)
+      const _response = await request(app)
         .post("/api/portfolio/api-keys")
         .set(auth)
         .send({
@@ -335,7 +335,7 @@ describe("Portfolio Integration Tests - Real Data", () => {
   // Health and System
   describe("Health and System APIs", () => {
     test("GET /api/portfolio/health - should return real health status", async () => {
-      const response = await request(app)
+      const _response = await request(app)
         .get("/api/portfolio/health")
         .set(auth);
 
@@ -352,7 +352,7 @@ describe("Portfolio Integration Tests - Real Data", () => {
   // Error Handling and Edge Cases
   describe("Error Handling and Authentication", () => {
     test("should require authentication for protected endpoints", async () => {
-      const response = await request(app).get("/api/portfolio/holdings");
+      const _response = await request(app).get("/api/portfolio/holdings");
 
       // Check if authentication is enabled or bypassed
       if (response.status === 401) {
@@ -365,7 +365,7 @@ describe("Portfolio Integration Tests - Real Data", () => {
     });
 
     test("should handle invalid endpoints gracefully", async () => {
-      const response = await request(app)
+      const _response = await request(app)
         .get("/api/portfolio/invalid-endpoint")
         .set(auth);
 
@@ -373,7 +373,7 @@ describe("Portfolio Integration Tests - Real Data", () => {
     });
 
     test("should handle invalid user IDs gracefully", async () => {
-      const response = await request(app)
+      const _response = await request(app)
         .get("/api/portfolio/invalid-user-id/holdings")
         .set(auth);
 
@@ -381,7 +381,7 @@ describe("Portfolio Integration Tests - Real Data", () => {
     });
 
     test("DELETE /api/portfolio/api-keys/test-broker - should handle real deletion", async () => {
-      const response = await request(app)
+      const _response = await request(app)
         .delete("/api/portfolio/api-keys/test-broker")
         .set(auth);
 
@@ -393,7 +393,7 @@ describe("Portfolio Integration Tests - Real Data", () => {
     });
 
     test("GET /api/portfolio/data - should redirect to holdings endpoint", async () => {
-      const response = await request(app).get("/api/portfolio/data").set(auth);
+      const _response = await request(app).get("/api/portfolio/data").set(auth);
 
       expect([302, 404]).toContain(response.status);
 
@@ -406,7 +406,7 @@ describe("Portfolio Integration Tests - Real Data", () => {
   // NO-FALLBACK VALIDATION TEST
   describe("NO-FALLBACK Validation", () => {
     test("should NEVER return fake mock data - validate real data or errors", async () => {
-      const response = await request(app)
+      const _response = await request(app)
         .get("/api/portfolio/holdings")
         .set(auth);
 

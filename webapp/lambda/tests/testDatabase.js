@@ -635,7 +635,7 @@ const createTestDatabase = () => {
   const originalQuery = client.query.bind(client);
 
   // Create a wrapper that ensures connection
-  client.query = async (text, params = []) => {
+  client._query = async (text, _params = []) => {
     try {
       await client.connect();
     } catch (e) {

@@ -9,7 +9,7 @@ describe("Positioning Routes", () => {
 
   describe("GET /api/positioning/stocks", () => {
     test("should return stock positioning data", async () => {
-      const response = await request(app)
+      const _response = await request(app)
         .get("/api/positioning/stocks")
         .set("Authorization", "Bearer dev-bypass-token");
 
@@ -33,7 +33,7 @@ describe("Positioning Routes", () => {
     });
 
     test("should support symbol parameter", async () => {
-      const response = await request(app)
+      const _response = await request(app)
         .get("/api/positioning/stocks?symbol=AAPL")
         .set("Authorization", "Bearer dev-bypass-token");
 
@@ -45,7 +45,7 @@ describe("Positioning Routes", () => {
     });
 
     test("should support timeframe parameter", async () => {
-      const response = await request(app)
+      const _response = await request(app)
         .get("/api/positioning/stocks?timeframe=weekly")
         .set("Authorization", "Bearer dev-bypass-token");
 
@@ -57,7 +57,7 @@ describe("Positioning Routes", () => {
     });
 
     test("should support pagination parameters", async () => {
-      const response = await request(app)
+      const _response = await request(app)
         .get("/api/positioning/stocks?limit=10&page=1")
         .set("Authorization", "Bearer dev-bypass-token");
 
@@ -72,7 +72,7 @@ describe("Positioning Routes", () => {
     });
 
     test("should handle pagination with different page numbers", async () => {
-      const response = await request(app)
+      const _response = await request(app)
         .get("/api/positioning/stocks?limit=5&page=2")
         .set("Authorization", "Bearer dev-bypass-token");
 
@@ -80,7 +80,7 @@ describe("Positioning Routes", () => {
     });
 
     test("should validate response structure when data exists", async () => {
-      const response = await request(app)
+      const _response = await request(app)
         .get("/api/positioning/stocks")
         .set("Authorization", "Bearer dev-bypass-token");
 
@@ -134,7 +134,7 @@ describe("Positioning Routes", () => {
     });
 
     test("should handle mixed case symbol parameter", async () => {
-      const response = await request(app)
+      const _response = await request(app)
         .get("/api/positioning/stocks?symbol=aapl")
         .set("Authorization", "Bearer dev-bypass-token");
 
@@ -142,7 +142,7 @@ describe("Positioning Routes", () => {
     });
 
     test("should handle special characters in symbol", async () => {
-      const response = await request(app)
+      const _response = await request(app)
         .get("/api/positioning/stocks?symbol=BRK.A")
         .set("Authorization", "Bearer dev-bypass-token");
 
@@ -150,7 +150,7 @@ describe("Positioning Routes", () => {
     });
 
     test("should return 404 for non-existent symbol", async () => {
-      const response = await request(app)
+      const _response = await request(app)
         .get("/api/positioning/stocks?symbol=NONEXISTENT")
         .set("Authorization", "Bearer dev-bypass-token");
 
@@ -166,7 +166,7 @@ describe("Positioning Routes", () => {
 
   describe("GET /api/positioning/summary", () => {
     test("should return positioning summary", async () => {
-      const response = await request(app)
+      const _response = await request(app)
         .get("/api/positioning/summary")
         .set("Authorization", "Bearer dev-bypass-token");
 
@@ -220,7 +220,7 @@ describe("Positioning Routes", () => {
     });
 
     test("should include valid positioning values", async () => {
-      const response = await request(app)
+      const _response = await request(app)
         .get("/api/positioning/summary")
         .set("Authorization", "Bearer dev-bypass-token");
 
@@ -254,7 +254,7 @@ describe("Positioning Routes", () => {
     });
 
     test("should have valid timestamp format", async () => {
-      const response = await request(app)
+      const _response = await request(app)
         .get("/api/positioning/summary")
         .set("Authorization", "Bearer dev-bypass-token");
 
@@ -268,7 +268,7 @@ describe("Positioning Routes", () => {
 
   describe("Authentication", () => {
     test("should require authentication for stock positioning", async () => {
-      const response = await request(app).get("/api/positioning/stocks");
+      const _response = await request(app).get("/api/positioning/stocks");
       // No auth header
 
       // Accept 200 (success), 401 (unauthorized), or 404 (table not loaded)
@@ -276,7 +276,7 @@ describe("Positioning Routes", () => {
     });
 
     test("should require authentication for positioning summary", async () => {
-      const response = await request(app).get("/api/positioning/summary");
+      const _response = await request(app).get("/api/positioning/summary");
       // No auth header
 
       // Accept 200 (success), 401 (unauthorized), or 404 (table not loaded)
@@ -284,7 +284,7 @@ describe("Positioning Routes", () => {
     });
 
     test("should handle invalid authentication", async () => {
-      const response = await request(app)
+      const _response = await request(app)
         .get("/api/positioning/stocks")
         .set("Authorization", "Bearer invalid-token");
 
@@ -295,7 +295,7 @@ describe("Positioning Routes", () => {
 
   describe("Error Handling", () => {
     test("should handle database errors gracefully", async () => {
-      const response = await request(app)
+      const _response = await request(app)
         .get("/api/positioning/stocks?symbol=INVALID_TEST_SYMBOL")
         .set("Authorization", "Bearer dev-bypass-token");
 
@@ -310,7 +310,7 @@ describe("Positioning Routes", () => {
     });
 
     test("should handle malformed parameters", async () => {
-      const response = await request(app)
+      const _response = await request(app)
         .get("/api/positioning/stocks?limit=invalid&page=invalid")
         .set("Authorization", "Bearer dev-bypass-token");
 
@@ -319,7 +319,7 @@ describe("Positioning Routes", () => {
     });
 
     test("should handle extremely large limit values", async () => {
-      const response = await request(app)
+      const _response = await request(app)
         .get("/api/positioning/stocks?limit=99999")
         .set("Authorization", "Bearer dev-bypass-token");
 
@@ -327,7 +327,7 @@ describe("Positioning Routes", () => {
     });
 
     test("should handle negative pagination values", async () => {
-      const response = await request(app)
+      const _response = await request(app)
         .get("/api/positioning/stocks?limit=-1&page=-1")
         .set("Authorization", "Bearer dev-bypass-token");
 
@@ -337,7 +337,7 @@ describe("Positioning Routes", () => {
 
   describe("Data Validation", () => {
     test("should return consistent data structure", async () => {
-      const response = await request(app)
+      const _response = await request(app)
         .get("/api/positioning/stocks")
         .set("Authorization", "Bearer dev-bypass-token");
 
@@ -355,7 +355,7 @@ describe("Positioning Routes", () => {
     });
 
     test("should include data freshness indicators", async () => {
-      const response = await request(app)
+      const _response = await request(app)
         .get("/api/positioning/summary")
         .set("Authorization", "Bearer dev-bypass-token");
 
@@ -382,7 +382,7 @@ describe("Positioning Routes", () => {
     test("should respond within reasonable time", async () => {
       const startTime = Date.now();
 
-      const response = await request(app)
+      const _response = await request(app)
         .get("/api/positioning/stocks")
         .set("Authorization", "Bearer dev-bypass-token");
 
@@ -415,7 +415,7 @@ describe("Positioning Routes", () => {
 
   describe("Query Parameter Validation", () => {
     test("should use default values for missing parameters", async () => {
-      const response = await request(app)
+      const _response = await request(app)
         .get("/api/positioning/stocks")
         .set("Authorization", "Bearer dev-bypass-token");
 
@@ -426,7 +426,7 @@ describe("Positioning Routes", () => {
     });
 
     test("should handle empty string parameters", async () => {
-      const response = await request(app)
+      const _response = await request(app)
         .get("/api/positioning/stocks?symbol=&timeframe=")
         .set("Authorization", "Bearer dev-bypass-token");
 
@@ -434,7 +434,7 @@ describe("Positioning Routes", () => {
     });
 
     test("should handle URL encoded parameters", async () => {
-      const response = await request(app)
+      const _response = await request(app)
         .get("/api/positioning/stocks?symbol=BRK%2EA")
         .set("Authorization", "Bearer dev-bypass-token");
 

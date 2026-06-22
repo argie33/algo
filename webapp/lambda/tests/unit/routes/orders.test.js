@@ -2,7 +2,7 @@ const express = require("express");
 const request = require("supertest");
 
 // Real database for integration
-const { query } = require("../../../utils/database");
+const { _query } = require("../../../utils/database");
 
 describe("Orders Routes Unit Tests", () => {
   let app;
@@ -29,7 +29,7 @@ describe("Orders Routes Unit Tests", () => {
 
   describe("GET /orders/", () => {
     test("should handle user orders request", async () => {
-      const response = await request(app)
+      const _response = await request(app)
         .get("/orders/")
         .set("Authorization", "Bearer test-token");
 
@@ -47,7 +47,7 @@ describe("Orders Routes Unit Tests", () => {
         order_type: "market",
       };
 
-      const response = await request(app)
+      const _response = await request(app)
         .post("/orders/")
         .set("Authorization", "Bearer test-token")
         .send(orderData);
@@ -59,7 +59,7 @@ describe("Orders Routes Unit Tests", () => {
 
   describe("GET /orders/:orderId", () => {
     test("should handle specific order request", async () => {
-      const response = await request(app)
+      const _response = await request(app)
         .get("/orders/test-order-123")
         .set("Authorization", "Bearer test-token");
 
