@@ -90,7 +90,7 @@ def _handle_basic(cur: cursor) -> dict[str, Any]:
         # Verify DB connectivity (2 second timeout)
         result = execute_with_timeout(cur, "SELECT 1", timeout_sec=2)
         if not result:
-            return cast(dict[str, Any], error_response(503, "connection_error", "Database connection failed"))
+            return error_response(503, "connection_error", "Database connection failed")
 
         # Signal freshness check using swing_trader_scores (primary signal source).
         # signal_quality_scores was removed from the pipeline; swing_trader_scores replaced it.
@@ -162,13 +162,13 @@ def _handle_basic(cur: cursor) -> dict[str, Any]:
         is_valid, error_msg = ResponseValidator.validate_endpoint_response("health", health)
         if not is_valid:
             logger.error(f"Health response validation failed: {error_msg}")
-            return cast(dict[str, Any], error_response(500, "response_validation_error", error_msg))
+            return error_response(500, "response_validation_error", error_msg)
 
         return success_response(health)
 
     except Exception as e:
         code, error_type, message = handle_db_error(e, "health check")
-        return cast(dict[str, Any], error_response(code, error_type, message))
+        return error_response(code, error_type, message)
 
 
 def _handle_cognito(cur: cursor) -> dict[str, Any]:
@@ -204,13 +204,13 @@ def _handle_cognito(cur: cursor) -> dict[str, Any]:
             health["status"] = "misconfigured"
             health["error"] = "COGNITO_CLIENT_ID not configured"
             logger.error("CRITICAL: COGNITO_CLIENT_ID environment variable is missing")
-            return cast(dict[str, Any], error_response(503, "misconfigured", "Cognito client ID not configured"))
+            return error_response(503, "misconfigured", "Cognito client ID not configured")
 
         if not cognito_user_pool_id:
             health["status"] = "misconfigured"
             health["error"] = "COGNITO_USER_POOL_ID not configured"
             logger.error("CRITICAL: COGNITO_USER_POOL_ID environment variable is missing")
-            return cast(dict[str, Any], error_response(503, "misconfigured", "Cognito user pool ID not configured"))
+            return error_response(503, "misconfigured", "Cognito user pool ID not configured")
 
         health["configured_client_id"] = configured_client_id
         health["cognito_user_pool_id"] = cognito_user_pool_id
@@ -272,11 +272,11 @@ def _handle_cognito(cur: cursor) -> dict[str, Any]:
                 logger.error(
                     f"CRITICAL: COGNITO_CLIENT_ID {configured_client_id} not found in user pool {cognito_user_pool_id}"
                 )
-                return cast(dict[str, Any], error_response(
+                return error_response(
                     503,
                     "misconfigured",
                     f"Client ID {configured_client_id} not found in Cognito user pool",
-                )))
+                )
 
         except Exception as cognito_err:
             from utils.error_handlers import sanitize_error_message
@@ -293,13 +293,13 @@ def _handle_cognito(cur: cursor) -> dict[str, Any]:
 
         sanitized = sanitize_error_message(str(e)[:100])
         logger.error(f"Cognito health check error: {sanitized}")
-        return cast(dict[str, Any], error_response(503, "health_check_error", sanitized))
+        return error_response(503, "health_check_error", sanitized)
 
 
 def _handle_detailed(cur: cursor, jwt_claims: dict[str, Any] | None) -> dict[str, Any]:
     """Detailed health check - AUTHENTICATED. Exposes schema information."""
     if not jwt_claims:
-        return cast(dict[str, Any], error_response(401, "unauthorized", "Authentication required"))
+        return error_response(401, "unauthorized", "Authentication required")
 
     try:
         health_tables = (
@@ -326,13 +326,13 @@ def _handle_detailed(cur: cursor, jwt_claims: dict[str, Any] | None) -> dict[str
         return success_response({"status": "healthy", "dbStatus": "connected", "tables": table_counts})
     except Exception as e:
         code, error_type, message = handle_db_error(e, "detailed health check")
-        return cast(dict[str, Any], error_response(code, error_type, message))
+        return error_response(code, error_type, message)
 
 
 def _handle_pipeline(cur: cursor, jwt_claims: dict[str, Any] | None) -> dict[str, Any]:
     """Pipeline health check - AUTHENTICATED. Data freshness of critical loaders."""
     if not jwt_claims:
-        return cast(dict[str, Any], error_response(401, "unauthorized", "Authentication required"))
+        return error_response(401, "unauthorized", "Authentication required")
 
     try:
         # Query freshness of current pipeline critical tables (15s timeout)
@@ -409,4 +409,4 @@ def _handle_pipeline(cur: cursor, jwt_claims: dict[str, Any] | None) -> dict[str
         )
     except (ValueError, ZeroDivisionError, TypeError) as e:
         code, error_type, message = handle_db_error(e, "pipeline health check")
-        return cast(dict[str, Any], error_response(code, error_type, message))
+        return error_response(code, error_type, message)

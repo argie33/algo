@@ -41,7 +41,7 @@ def handle(
             days = safe_days(days_str or "90", max_val=365)
 
             if not sectors_str:
-                return cast(dict[str, Any], error_response(400, "bad_request", "sectors parameter required (comma-separated)")  # type: ignore[no-any-return])
+                return cast(dict[str, Any], error_response(400, "bad_request", "sectors parameter required (comma-separated)"))
 
             sectors = [s.strip() for s in sectors_str.split(",") if s.strip()]
             result: dict[str, Any] = {s: [] for s in sectors}
@@ -74,8 +74,8 @@ def handle(
             is_valid, error_msg = ResponseValidator.validate_endpoint_response("srank", result)
             if not is_valid:
                 logger.error(f"Endpoint response validation failed: {error_msg}")
-                return cast(dict[str, Any], error_response(500, "response_validation_error", error_msg)  # type: ignore[no-any-return])
-            return cast(dict[str, Any], json_response(200, result)  # type: ignore[no-any-return])
+                return cast(dict[str, Any], error_response(500, "response_validation_error", error_msg))
+            return cast(dict[str, Any], json_response(200, result))
 
         # Extract sector name if provided: /api/sectors/Technology
         parts = path.split("/")
@@ -131,8 +131,8 @@ def handle(
                 is_valid, error_msg = ResponseValidator.validate_endpoint_response("srank", trend_result)
                 if not is_valid:
                     logger.error(f"Endpoint response validation failed: {error_msg}")
-                    return cast(dict[str, Any], error_response(500, "response_validation_error", error_msg)  # type: ignore[no-any-return])
-                return cast(dict[str, Any], json_response(200, trend_result)  # type: ignore[no-any-return])
+                    return cast(dict[str, Any], error_response(500, "response_validation_error", error_msg))
+                return cast(dict[str, Any], json_response(200, trend_result))
             else:
                 days_str = params.get("days", [None])[0] if params else None
                 days = safe_days(days_str or "90", max_val=365)
@@ -151,7 +151,7 @@ def handle(
                 return list_response(
                     [safe_json_serialize(dict(r)) for r in rows],
                     data_freshness=freshness,
-                )  # type: ignore[no-any-return]
+                )
         elif path in ("/api/sectors", "/api/sectors/performance"):
             limit_str = params.get("limit", [None])[0] if params else None
             limit = safe_limit(limit_str or "50000", max_val=50000)
@@ -352,15 +352,15 @@ def handle(
             is_valid, error_msg = ResponseValidator.validate_endpoint_response("srank", sector_result)
             if not is_valid:
                 logger.error(f"Endpoint response validation failed: {error_msg}")
-                return cast(dict[str, Any], error_response(500, "response_validation_error", error_msg)  # type: ignore[no-any-return])
-            return cast(dict[str, Any], json_response(200, sector_result)  # type: ignore[no-any-return])
+                return cast(dict[str, Any], error_response(500, "response_validation_error", error_msg))
+            return cast(dict[str, Any], json_response(200, sector_result))
         elif "/trend" in path:
             parts = path.split("/")
             sector_name = parts[3] if len(parts) > 3 else None
             days_str = params.get("days", [None])[0] if params else None
             days = safe_days(days_str or "90", max_val=365)
             if not sector_name:
-                return cast(dict[str, Any], error_response(400, "bad_request", "Sector name required")  # type: ignore[no-any-return])
+                return cast(dict[str, Any], error_response(400, "bad_request", "Sector name required"))
             cur.execute("SET LOCAL statement_timeout = '10000ms'")
             cur.execute(
                 """
@@ -372,8 +372,8 @@ def handle(
                 (sector_name, days),
             )
             rows = cur.fetchall()
-            return list_response([safe_json_serialize(dict(r)) for r in rows])  # type: ignore[no-any-return]
-        return cast(dict[str, Any], error_response(404, "not_found", f"No sector handler for {path}")  # type: ignore[no-any-return])
+            return list_response([safe_json_serialize(dict(r)) for r in rows])
+        return cast(dict[str, Any], error_response(404, "not_found", f"No sector handler for {path}"))
     except (
         psycopg2.errors.UndefinedTable,
         psycopg2.errors.UndefinedColumn,
@@ -382,4 +382,4 @@ def handle(
         Exception,
     ) as e:
         code, error_type, message = handle_db_error(e, "handle sectors")
-        return cast(dict[str, Any], error_response(code, error_type, message)  # type: ignore[no-any-return])
+        return cast(dict[str, Any], error_response(code, error_type, message))

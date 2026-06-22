@@ -229,7 +229,7 @@ def _get_algo_positions(cur: cursor, user_id: str | None = None) -> dict[str, An
     # Validate positions response matches contract schema
     ensure_valid_response("pos", sanitized)
 
-    return cast(dict[str, Any], json_response(200, sanitized)  # type: ignore[no-any-return])
+    return cast(dict[str, Any], json_response(200, sanitized)  # type: ignore[no-any-return]))
 
 
 @db_route_handler("fetch algo status")
@@ -249,7 +249,7 @@ def _get_algo_status(cur: cursor) -> dict[str, Any]:
         """)
     row = cur.fetchone()
     if row is None:
-        return cast(dict[str, Any], json_response(200, {"status": "no_runs_yet", "last_run": None, "portfolio": {}})  # type: ignore[no-any-return])
+        return cast(dict[str, Any], json_response(200, {"status": "no_runs_yet", "last_run": None, "portfolio": {}})  # type: ignore[no-any-return]))
 
     portfolio = {}
     try:
@@ -288,7 +288,7 @@ def _get_algo_status(cur: cursor) -> dict[str, Any]:
         Exception,
     ) as e:
         code, error_type, message = handle_db_error(e, "fetch portfolio snapshot")
-        return cast(dict[str, Any], error_response(code, error_type, message)  # type: ignore[no-any-return])
+        return cast(dict[str, Any], error_response(code, error_type, message)  # type: ignore[no-any-return]))
 
     freshness = check_data_freshness(cur, "algo_audit_log", "created_at", warning_days=1)
     return cast(dict[str, Any], json_response()
@@ -355,7 +355,7 @@ def _get_algo_trades(cur: cursor, limit: int = 200, user_id: str | None = None, 
     # Validate trades response matches contract schema
     ensure_valid_response("trades", sanitized)
 
-    return cast(dict[str, Any], json_response(200, sanitized)  # type: ignore[no-any-return])
+    return cast(dict[str, Any], json_response(200, sanitized)  # type: ignore[no-any-return]))
 
 
 @db_route_handler("fetch circuit breakers")
@@ -477,7 +477,7 @@ def _get_circuit_breakers(cur: cursor) -> dict[str, Any]:
             Exception,
         ) as e:
             code, error_type, message = handle_db_error(e, "fetch circuit breaker metrics")
-            return cast(dict[str, Any], error_response(code, error_type, message)  # type: ignore[no-any-return])
+            return cast(dict[str, Any], error_response(code, error_type, message)  # type: ignore[no-any-return]))
 
         # CB1: Portfolio drawdown (from pre-computed metrics)
         try:
@@ -826,7 +826,7 @@ def _get_circuit_breakers(cur: cursor) -> dict[str, Any]:
         # Validate circuit breaker response matches contract schema
         ensure_valid_response("cb", cb_response)
 
-        return cast(dict[str, Any], json_response(200, cb_response)  # type: ignore[no-any-return])
+        return cast(dict[str, Any], json_response(200, cb_response)  # type: ignore[no-any-return]))
     except (
         psycopg2.errors.UndefinedTable,
         psycopg2.errors.UndefinedColumn,
@@ -835,7 +835,7 @@ def _get_circuit_breakers(cur: cursor) -> dict[str, Any]:
         Exception,
     ) as e:
         code, error_type, message = handle_db_error(e, "fetch circuit breakers")
-        return cast(dict[str, Any], error_response(code, error_type, message)  # type: ignore[no-any-return])
+        return cast(dict[str, Any], error_response(code, error_type, message)  # type: ignore[no-any-return]))
 
 
 @db_route_handler("fetch dashboard signals")
@@ -852,7 +852,7 @@ def _get_dashboard_signals(cur: cursor) -> dict[str, Any]:
                 WHERE date=(SELECT MAX(date) FROM swing_trader_scores)""")
         sig = cur.fetchone()
         if sig is None or sig.get("n") is None:
-            return cast(dict[str, Any], error_response(503, "no_data", "No swing trader signals available")  # type: ignore[no-any-return])
+            return cast(dict[str, Any], error_response(503, "no_data", "No swing trader signals available")  # type: ignore[no-any-return]))
         total_n = int(sig["n"])
 
         # Top swing candidates with swing score and sector
@@ -935,7 +935,7 @@ def _get_dashboard_signals(cur: cursor) -> dict[str, Any]:
         # Validate signals response matches contract schema
         ensure_valid_response("sig", sig_response)
 
-        return cast(dict[str, Any], json_response(200, sig_response)  # type: ignore[no-any-return])
+        return cast(dict[str, Any], json_response(200, sig_response)  # type: ignore[no-any-return]))
     except (
         psycopg2.errors.UndefinedTable,
         psycopg2.errors.UndefinedColumn,
@@ -944,7 +944,7 @@ def _get_dashboard_signals(cur: cursor) -> dict[str, Any]:
         Exception,
     ) as e:
         code, error_type, message = handle_db_error(e, "fetch dashboard signals")
-        return cast(dict[str, Any], error_response(code, error_type, message)  # type: ignore[no-any-return])
+        return cast(dict[str, Any], error_response(code, error_type, message)  # type: ignore[no-any-return]))
 
 
 @db_route_handler("fetch equity curve")
@@ -990,4 +990,4 @@ def _get_equity_curve(cur: cursor, days: int = 180) -> dict[str, Any]:
         Exception,
     ) as e:
         code, error_type, message = handle_db_error(e, "fetch equity curve")
-        return cast(dict[str, Any], error_response(code, error_type, message)  # type: ignore[no-any-return])
+        return cast(dict[str, Any], error_response(code, error_type, message)  # type: ignore[no-any-return]))

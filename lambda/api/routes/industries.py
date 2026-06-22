@@ -74,7 +74,7 @@ def handle(
             extra={"operation": "get industries"},
         )
         code, error_type, message = handle_db_error(e, "get industries")
-        return error_response(code, error_type, message)  # type: ignore[no-any-return]
+        return error_response(code, error_type, message)
 
 
 def _industry_list(cur: cursor, params: dict[str, Any]) -> Any:
@@ -216,7 +216,7 @@ def _industry_list(cur: cursor, params: dict[str, Any]) -> Any:
                 503,
                 "data_incomplete",
                 f"Industry {ind.get('industry')} missing current_rank",
-            )  # type: ignore[no-any-return]
+            )
 
         industries.append(
             {
@@ -259,9 +259,9 @@ def _industry_list(cur: cursor, params: dict[str, Any]) -> Any:
     is_valid, error_msg = ResponseValidator.validate_endpoint_response("industries/list", result)
     if not is_valid:
         logger.error(f"Industries list response validation failed: {error_msg}")
-        return error_response(500, "response_validation_error", error_msg)  # type: ignore[no-any-return]
+        return error_response(500, "response_validation_error", error_msg)
 
-    return json_response(200, result)  # type: ignore[no-any-return]
+    return json_response(200, result)
 
 
 def _industry_detail(cur: cursor, industry_name: str) -> Any:
@@ -286,7 +286,7 @@ def _industry_detail(cur: cursor, industry_name: str) -> Any:
     )
     row = cur.fetchone()
     if not row:
-        return error_response(404, "not_found", f"Industry not found: {industry_name}")  # type: ignore[no-any-return]
+        return error_response(404, "not_found", f"Industry not found: {industry_name}")
 
     r = safe_json_serialize(dict(row))
     freshness = check_data_freshness(cur, "stock_scores", "date", warning_days=1)
@@ -305,9 +305,9 @@ def _industry_detail(cur: cursor, industry_name: str) -> Any:
     is_valid, error_msg = ResponseValidator.validate_endpoint_response("industries/detail", result)
     if not is_valid:
         logger.error(f"Industries detail response validation failed: {error_msg}")
-        return error_response(500, "response_validation_error", error_msg)  # type: ignore[no-any-return]
+        return error_response(500, "response_validation_error", error_msg)
 
-    return json_response(200, result)  # type: ignore[no-any-return]
+    return json_response(200, result)
 
 
 def _industry_trend(cur: cursor, industry_name: str, params: dict[str, Any]) -> Any:
@@ -363,6 +363,6 @@ def _industry_trend(cur: cursor, industry_name: str, params: dict[str, Any]) -> 
     is_valid, error_msg = ResponseValidator.validate_endpoint_response("industries/trend", result)
     if not is_valid:
         logger.error(f"Industries trend response validation failed: {error_msg}")
-        return error_response(500, "response_validation_error", error_msg)  # type: ignore[no-any-return]
+        return error_response(500, "response_validation_error", error_msg)
 
-    return json_response(200, result)  # type: ignore[no-any-return]
+    return json_response(200, result)

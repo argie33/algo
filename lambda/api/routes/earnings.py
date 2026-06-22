@@ -72,7 +72,7 @@ def handle(
             is_valid, error_msg = ResponseValidator.validate_endpoint_response("earnings", result)
             if not is_valid:
                 logger.error(f"Earnings response validation failed: {error_msg}")
-                return cast(dict[str, Any], error_response(500, "response_validation_error", error_msg)  # type: ignore[no-any-return])
+                return cast(dict[str, Any], error_response(500, "response_validation_error", error_msg))
             return result
 
         limit = safe_limit(
@@ -108,7 +108,7 @@ def handle(
         is_valid, error_msg = ResponseValidator.validate_endpoint_response("earnings", result)
         if not is_valid:
             logger.error(f"Earnings response validation failed: {error_msg}")
-            return cast(dict[str, Any], error_response(500, "response_validation_error", error_msg)  # type: ignore[no-any-return])
+            return cast(dict[str, Any], error_response(500, "response_validation_error", error_msg))
         return result
     except (
         psycopg2.errors.UndefinedTable,
@@ -118,4 +118,4 @@ def handle(
         Exception,
     ) as e:
         code, error_type, message = handle_db_error(e, "handle earnings")
-        return cast(dict[str, Any], error_response(code, error_type, message)  # type: ignore[no-any-return])
+        return cast(dict[str, Any], error_response(code, error_type, message))

@@ -37,7 +37,7 @@ def handle(
         endpoint = parts[4] if len(parts) > 4 else None
 
         if not symbol:
-            return cast(dict[str, Any], error_response(400, "bad_request", "Symbol required")  # type: ignore[no-any-return])
+            return cast(dict[str, Any], error_response(400, "bad_request", "Symbol required"))
 
         sym = symbol.upper()
         period = (params.get("period", [None])[0] if params else None) or "annual"
@@ -84,7 +84,7 @@ def handle(
             is_valid, error_msg = ResponseValidator.validate_endpoint_response("financials/key-metrics", result)
             if not is_valid:
                 logger.error(f"Endpoint response validation failed: {error_msg}")
-                return cast(dict[str, Any], error_response(500, "response_validation_error", error_msg)  # type: ignore[no-any-return])
+                return cast(dict[str, Any], error_response(500, "response_validation_error", error_msg))
             return result
 
         if endpoint == "income-statement":
@@ -108,7 +108,7 @@ def handle(
             is_valid, error_msg = ResponseValidator.validate_endpoint_response("financials/income-statement", result)
             if not is_valid:
                 logger.error(f"Endpoint response validation failed: {error_msg}")
-                return cast(dict[str, Any], error_response(500, "response_validation_error", error_msg)  # type: ignore[no-any-return])
+                return cast(dict[str, Any], error_response(500, "response_validation_error", error_msg))
             return result
 
         if endpoint == "balance-sheet":
@@ -132,7 +132,7 @@ def handle(
             is_valid, error_msg = ResponseValidator.validate_endpoint_response("financials/balance-sheet", result)
             if not is_valid:
                 logger.error(f"Endpoint response validation failed: {error_msg}")
-                return cast(dict[str, Any], error_response(500, "response_validation_error", error_msg)  # type: ignore[no-any-return])
+                return cast(dict[str, Any], error_response(500, "response_validation_error", error_msg))
             return result
 
         if endpoint == "cash-flow":
@@ -165,10 +165,10 @@ def handle(
             is_valid, error_msg = ResponseValidator.validate_endpoint_response("financials/cash-flow", result)
             if not is_valid:
                 logger.error(f"Endpoint response validation failed: {error_msg}")
-                return cast(dict[str, Any], error_response(500, "response_validation_error", error_msg)  # type: ignore[no-any-return])
+                return cast(dict[str, Any], error_response(500, "response_validation_error", error_msg))
             return result
 
-        return cast(dict[str, Any], error_response(404, "not_found", f"No financials handler for {path}")  # type: ignore[no-any-return])
+        return cast(dict[str, Any], error_response(404, "not_found", f"No financials handler for {path}"))
     except (
         psycopg2.errors.UndefinedTable,
         psycopg2.errors.UndefinedColumn,
@@ -177,4 +177,4 @@ def handle(
         Exception,
     ) as e:
         code, error_type, message = handle_db_error(e, "handle financials")
-        return cast(dict[str, Any], error_response(code, error_type, message)  # type: ignore[no-any-return])
+        return cast(dict[str, Any], error_response(code, error_type, message))
