@@ -235,23 +235,33 @@ class MarketFactorCalculator:
     def put_call_ratio(self, eval_date, cur) -> dict[str, Any]:
         """Put/call ratio (contrarian indicator)."""
         try:
+            cur.execute("SAVEPOINT sp_put_call")
             cur.execute(
                 "SELECT put_call_ratio FROM options_daily WHERE date = %s ORDER BY date DESC LIMIT 1",
                 (eval_date,),
             )
             row = cur.fetchone()
+            cur.execute("RELEASE SAVEPOINT sp_put_call")
             if row and row[0]:
                 pcr = float(row[0])
                 # Contrarian: PCR > 1.0 = fear = bullish (100 pts), < 0.7 = greed = bearish (0 pts)
                 score = max(0, min(100, (pcr - 0.7) * 100))
                 return {"put_call_ratio": round(pcr, 2), "score": score}
-            raise RuntimeError("No options data available for put/call ratio calculation")
+            logger.warning("[put_call_ratio] No data in options_daily for %s; using neutral score 50", eval_date)
+            return {"put_call_ratio": None, "score": 50.0}
         except (psycopg2.DatabaseError, psycopg2.OperationalError) as e:
-            raise RuntimeError(f"Put/call ratio calculation failed: {e}") from e
+            try:
+                cur.execute("ROLLBACK TO SAVEPOINT sp_put_call")
+                cur.execute("RELEASE SAVEPOINT sp_put_call")
+            except Exception:
+                pass
+            logger.warning("[put_call_ratio] Query failed (table may be missing): %s; using neutral score 50", e)
+            return {"put_call_ratio": None, "score": 50.0}
 
     def new_highs_lows(self, eval_date, cur) -> dict[str, Any]:
         """52-week new highs vs new lows."""
         try:
+            cur.execute("SAVEPOINT sp_nhnl")
             cur.execute(
                 """
                 SELECT new_highs, new_lows FROM market_breadth
@@ -260,6 +270,7 @@ class MarketFactorCalculator:
                 (eval_date,),
             )
             row = cur.fetchone()
+            cur.execute("RELEASE SAVEPOINT sp_nhnl")
             if row and row[0] and row[1]:
                 nh_val = int(row[0])
                 nl_val = int(row[1])
@@ -271,13 +282,21 @@ class MarketFactorCalculator:
                     # NH% > 80 = 100, 50-80 = 70, 20-50 = 30, < 20 = 0
                     score = 100.0 if nh_pct > 80 else (70.0 if nh_pct > 50 else (30.0 if nh_pct > 20 else 0.0))
                     return {"new_highs": nh, "new_lows": nl, "nh_pct": round(nh_pct, 1), "score": score}
-            raise RuntimeError("No breadth data available for new highs/lows calculation")
+            logger.warning("[new_highs_lows] No data in market_breadth for %s; using neutral score 50", eval_date)
+            return {"new_highs": None, "new_lows": None, "score": 50.0}
         except (psycopg2.DatabaseError, psycopg2.OperationalError) as e:
-            raise RuntimeError(f"New highs/lows calculation failed: {e}") from e
+            try:
+                cur.execute("ROLLBACK TO SAVEPOINT sp_nhnl")
+                cur.execute("RELEASE SAVEPOINT sp_nhnl")
+            except Exception:
+                pass
+            logger.warning("[new_highs_lows] Query failed (table may be missing): %s; using neutral score 50", e)
+            return {"new_highs": None, "new_lows": None, "score": 50.0}
 
     def ad_line(self, eval_date, cur) -> dict[str, Any]:
         """Advance/decline line vs SPY."""
         try:
+            cur.execute("SAVEPOINT sp_ad_line")
             cur.execute(
                 """
                 WITH ad AS (
@@ -288,39 +307,58 @@ class MarketFactorCalculator:
                 (eval_date,),
             )
             row = cur.fetchone()
+            cur.execute("RELEASE SAVEPOINT sp_ad_line")
             if row and row[0]:
                 direction = row[0]
                 score = 100.0 if direction == "up" else 0.0
                 return {"direction": direction, "score": score}
-            raise RuntimeError("No A/D line data available for advance/decline calculation")
+            logger.warning("[ad_line] No data in ad_line_daily for %s; using neutral score 50", eval_date)
+            return {"direction": None, "score": 50.0}
         except (psycopg2.DatabaseError, psycopg2.OperationalError) as e:
-            raise RuntimeError(f"A/D line calculation failed: {e}") from e
+            try:
+                cur.execute("ROLLBACK TO SAVEPOINT sp_ad_line")
+                cur.execute("RELEASE SAVEPOINT sp_ad_line")
+            except Exception:
+                pass
+            logger.warning("[ad_line] Query failed (table may be missing): %s; using neutral score 50", e)
+            return {"direction": None, "score": 50.0}
 
     def credit_spread(self, eval_date, cur) -> dict[str, Any]:
         """High-yield credit spread (HY OAS)."""
         try:
+            cur.execute("SAVEPOINT sp_credit")
             cur.execute(
                 "SELECT hy_oas FROM credit_spreads WHERE date = %s ORDER BY date DESC LIMIT 1",
                 (eval_date,),
             )
             row = cur.fetchone()
+            cur.execute("RELEASE SAVEPOINT sp_credit")
             if row and row[0]:
                 oas = float(row[0])
                 # Higher OAS = higher stress = lower score. 300bps = 100, 500bps = 0
                 score = max(0, min(100, 100 - (oas - 300) / 2))
                 return {"hy_oas": round(oas, 0), "score": score}
-            raise RuntimeError("No credit data available for credit spread calculation")
+            logger.warning("[credit_spread] No data in credit_spreads for %s; using neutral score 50", eval_date)
+            return {"hy_oas": None, "score": 50.0}
         except (psycopg2.DatabaseError, psycopg2.OperationalError) as e:
-            raise RuntimeError(f"Credit spread calculation failed: {e}") from e
+            try:
+                cur.execute("ROLLBACK TO SAVEPOINT sp_credit")
+                cur.execute("RELEASE SAVEPOINT sp_credit")
+            except Exception:
+                pass
+            logger.warning("[credit_spread] Query failed (table may be missing): %s; using neutral score 50", e)
+            return {"hy_oas": None, "score": 50.0}
 
     def aaii(self, eval_date, cur) -> dict[str, Any]:
         """AAII sentiment (contrarian at extremes only)."""
         try:
+            cur.execute("SAVEPOINT sp_aaii")
             cur.execute(
                 "SELECT bullish, bearish FROM aaii_sentiment WHERE date = %s ORDER BY date DESC LIMIT 1",
                 (eval_date,),
             )
             row = cur.fetchone()
+            cur.execute("RELEASE SAVEPOINT sp_aaii")
             if row and row[0] and row[1]:
                 bull = float(row[0])
                 bear = float(row[1])
@@ -333,23 +371,39 @@ class MarketFactorCalculator:
                     "spread": round(spread, 1),
                     "score": score,
                 }
-            raise RuntimeError("No sentiment data available for AAII sentiment calculation")
+            logger.warning("[aaii] No data in aaii_sentiment for %s; using neutral score 0", eval_date)
+            return {"bullish": None, "bearish": None, "score": 0.0}
         except (psycopg2.DatabaseError, psycopg2.OperationalError) as e:
-            raise RuntimeError(f"AAII calculation failed: {e}") from e
+            try:
+                cur.execute("ROLLBACK TO SAVEPOINT sp_aaii")
+                cur.execute("RELEASE SAVEPOINT sp_aaii")
+            except Exception:
+                pass
+            logger.warning("[aaii] Query failed (table may be missing): %s; using neutral score 0", e)
+            return {"bullish": None, "bearish": None, "score": 0.0}
 
     def naaim(self, eval_date, cur) -> dict[str, Any]:
         """NAAIM exposure (contrarian positioning)."""
         try:
+            cur.execute("SAVEPOINT sp_naaim")
             cur.execute(
                 "SELECT exposure FROM naaim_exposure WHERE date = %s ORDER BY date DESC LIMIT 1",
                 (eval_date,),
             )
             row = cur.fetchone()
+            cur.execute("RELEASE SAVEPOINT sp_naaim")
             if row and row[0]:
                 exp = float(row[0])
                 # NAAIM 0-100 scale: > 80 = greed = lower score, < 30 = fear = higher score
                 score = min(100, max(0, 100 - exp / 2))
                 return {"exposure": round(exp, 1), "score": score}
-            raise RuntimeError("No NAAIM data available for NAAIM exposure calculation")
+            logger.warning("[naaim] No data in naaim_exposure for %s; using neutral score 50", eval_date)
+            return {"exposure": None, "score": 50.0}
         except (psycopg2.DatabaseError, psycopg2.OperationalError) as e:
-            raise RuntimeError(f"NAAIM calculation failed: {e}") from e
+            try:
+                cur.execute("ROLLBACK TO SAVEPOINT sp_naaim")
+                cur.execute("RELEASE SAVEPOINT sp_naaim")
+            except Exception:
+                pass
+            logger.warning("[naaim] Query failed (table may be missing): %s; using neutral score 50", e)
+            return {"exposure": None, "score": 50.0}
