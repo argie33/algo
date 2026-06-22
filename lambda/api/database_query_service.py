@@ -5,7 +5,7 @@ Provides a simple interface for common query patterns used across 50+ API handle
 Reduces coupling: handlers call db.query(...) instead of cur.execute(...).
 """
 
-from typing import Any
+from typing import Any, cast
 
 
 class DatabaseQueryService:
@@ -59,7 +59,7 @@ class DatabaseQueryService:
             List of rows
         """
         self.cursor.execute(query, params)
-        return self.cursor.fetchall()
+        return cast(list[Any], self.cursor.fetchall())
 
     def fetch_many(self, query: str, size: int, params: tuple | dict | None = None) -> list[Any]:
         """Execute query and fetch multiple rows.
@@ -73,7 +73,7 @@ class DatabaseQueryService:
             List of rows (up to size)
         """
         self.cursor.execute(query, params)
-        return self.cursor.fetchmany(size)
+        return cast(list[Any], self.cursor.fetchmany(size))
 
     def commit(self) -> None:
         """Commit current transaction."""
