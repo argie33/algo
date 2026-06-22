@@ -208,20 +208,6 @@ def lambda_handler(event, context):
         # FIXED Issue #18: Default Lambda timeout to 600s instead of 240s (close to Lambda max)
         lambda_timeout = context.get_remaining_time_in_millis() // 1000 if context else 600
 
-        # FIXED Issue #7: Parse per-phase timeout from event payload (seconds)
-        # Defaults to 300s per phase (5 min), which allows 7 phases to complete in ~35min before Lambda timeout
-        # Can be overridden via event: {"per_phase_timeout": 120}
-        per_phase_timeout = event.get("per_phase_timeout")
-        if per_phase_timeout is not None:
-            try:
-                per_phase_timeout = int(per_phase_timeout)
-                if per_phase_timeout <= 0:
-                    logger.warning(f"Invalid per_phase_timeout: {per_phase_timeout}, using default")
-                    per_phase_timeout = None
-            except (ValueError, TypeError):
-                logger.warning(f"Invalid per_phase_timeout type: {type(per_phase_timeout)}, using default")
-                per_phase_timeout = None
-
         # Parse run date if provided (skip 'now'/'today' to use system date logic)
         run_date = None
         if run_date_str and run_date_str.lower() not in ("now", "today", ""):
@@ -295,7 +281,6 @@ def lambda_handler(event, context):
             run_date=run_date,
             dry_run=dry_run,
             verbose=not is_test,
-            per_phase_timeout=per_phase_timeout,
         )
 
         # Apply event-level config overrides (for testing only — overrides AlgoConfig defaults)
