@@ -213,16 +213,31 @@ class BuySignalGenerationHandler:
         # BUY: Breakout above swing high where swing_high > SMA50
         if recent_swing_high and swing_high_sma50 and high > recent_swing_high and recent_swing_high > swing_high_sma50:
             signal_type = "BUY"
-            breakout_pct = ((high - recent_swing_high) / recent_swing_high * 100) if recent_swing_high > 0 else 0
+            if recent_swing_high <= 0:
+                raise RuntimeError(
+                    f"[SIGNAL_GENERATION] Invalid recent_swing_high={recent_swing_high} for {symbol}: "
+                    "swing high must be positive for BUY signal calculation."
+                )
+            breakout_pct = (high - recent_swing_high) / recent_swing_high * 100
             strength = min(0.5 + (breakout_pct / 5.0), 1.0)
             reason = f"Breakout above swing high ({abs(breakout_pct):.1f}%) with price > SMA50"
             buylevel = round(recent_swing_high, 4)
-            stoplevel = round(recent_swing_low, 4) if recent_swing_low else round(close * 0.92, 4)
+            if not recent_swing_low:
+                raise RuntimeError(
+                    f"[SIGNAL_GENERATION] {symbol}: BUY signal requires recent_swing_low for stop loss calculation. "
+                    "Cannot generate signal without technical pivot data."
+                )
+            stoplevel = round(recent_swing_low, 4)
 
         # SELL: Breakdown below swing low (stop loss)
         elif recent_swing_low and low < recent_swing_low:
             signal_type = "SELL"
-            breakdown_pct = ((recent_swing_low - low) / recent_swing_low * 100) if recent_swing_low > 0 else 0
+            if recent_swing_low <= 0:
+                raise RuntimeError(
+                    f"[SIGNAL_GENERATION] Invalid recent_swing_low={recent_swing_low} for {symbol}: "
+                    "swing low must be positive for SELL signal calculation."
+                )
+            breakdown_pct = (recent_swing_low - low) / recent_swing_low * 100
             strength = min(0.5 + (breakdown_pct / 5.0), 1.0)
             reason = f"Breakdown below swing low ({abs(breakdown_pct):.1f}%)"
             buylevel = round(close, 4)

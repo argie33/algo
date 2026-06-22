@@ -28,7 +28,6 @@ from routes.utils import (
     success_response,
 )
 
-from utils.db.sql_safety import assert_safe_table
 from utils.validation import DatabaseResultValidator
 
 logger = logging.getLogger(__name__)
@@ -116,16 +115,28 @@ def get_technical_coverage(cur) -> dict[str, Any]:
 
         symbols, latest_date, _total_rows, rsi_cov, ema_cov, atr_cov, incomplete = row
 
-        min_coverage = min(rsi_cov, ema_cov, atr_cov) if None not in (rsi_cov, ema_cov, atr_cov) else 0
+        if None in (rsi_cov, ema_cov, atr_cov):
+            missing_indicators = []
+            if rsi_cov is None:
+                missing_indicators.append("rsi")
+            if ema_cov is None:
+                missing_indicators.append("ema_12")
+            if atr_cov is None:
+                missing_indicators.append("atr")
+            error_msg = f"Technical data incomplete: missing coverage for {', '.join(missing_indicators)}"
+            logger.error(error_msg)
+            return error_response(503, "incomplete_data", error_msg)
+
+        min_coverage = min(rsi_cov, ema_cov, atr_cov)
 
         return success_response(
             {
                 "symbols_with_technicals": symbols,
                 "latest_date": str(latest_date),
                 "indicator_coverage": {
-                    "rsi_pct": round(rsi_cov * 100, 1) if rsi_cov else 0,
-                    "ema50_pct": round(ema_cov * 100, 1) if ema_cov else 0,
-                    "atr_pct": round(atr_cov * 100, 1) if atr_cov else 0,
+                    "rsi_pct": round(rsi_cov * 100, 1),
+                    "ema50_pct": round(ema_cov * 100, 1),
+                    "atr_pct": round(atr_cov * 100, 1),
                     "min_coverage_pct": round(min_coverage * 100, 1),
                 },
                 "incomplete_rows": incomplete,
@@ -213,76 +224,19 @@ def get_loader_health(cur) -> dict[str, Any]:
 
         rows = cur.fetchall()
 
-        # If patrol data is recent, use it
-        if rows:
-            stale_loaders = [row[0] for row in rows if row[1] in ("stale", "error") or row[1] is None]
-            return success_response(
-                {
-                    "total_tracked": len(rows),
-                    "stale_loaders": list(set(stale_loaders)),
-                    "stale_count": len(set(stale_loaders)),
-                    "status": "healthy" if not stale_loaders else "degraded",
-                }
-            )
+        # Patrol data is REQUIRED - fail fast if missing
+        if not rows:
+            error_msg = "Loader health data unavailable: data_loader_status table is empty or no recent updates"
+            logger.error(error_msg)
+            return error_response(503, "no_loader_status", error_msg)
 
-        # Fallback: if patrol data is missing/stale, check key tables directly
-        tables_to_check = [
-            "price_daily",
-            "technical_data_daily",
-            "market_health_daily",
-            "sector_performance",
-            "economic_data",
-            "stock_symbols",
-        ]
-
-        table_health = []
-        try:
-            for table in tables_to_check:
-                assert_safe_table(table)
-
-            union_parts = []
-            for table in tables_to_check:
-                table_safe = assert_safe_table(table)
-                union_parts.append(
-                    f"SELECT '{table}' as tbl_name, MAX(date) as last_update, COUNT(*) as row_count FROM {table_safe}"
-                )
-
-            union_query = " UNION ALL ".join(union_parts)
-            cur.execute(union_query)
-
-            health_by_table = {}
-            for row in cur.fetchall():
-                row_dict = dict(row)
-                health_by_table[row_dict["tbl_name"]] = (
-                    row_dict["last_update"],
-                    row_dict["row_count"],
-                )
-
-            for table in tables_to_check:
-                try:
-                    if table in health_by_table:
-                        last_update, count = health_by_table[table]
-                        days_old = (datetime.now(timezone.utc) - last_update).days if last_update else 999
-                        status = "stale" if days_old > 7 else "fresh"
-                        table_health.append((table, status, last_update, count))
-                except (
-                    psycopg2.errors.UndefinedTable,
-                    psycopg2.errors.UndefinedColumn,
-                ):
-                    logger.warning(f"[LOADER_HEALTH] Table {table} not found - skipping")
-                except (psycopg2.OperationalError, psycopg2.DatabaseError) as e:
-                    logger.warning(f"[LOADER_HEALTH] Database error checking {table}: {type(e).__name__}: {e}")
-        except (psycopg2.DatabaseError, psycopg2.OperationalError) as e:
-            logger.warning(f"[LOADER_HEALTH] Failed to check table health: {e}")
-
-        stale_loaders = [t[0] for t in table_health if t[1] == "stale"]
+        stale_loaders = [row[0] for row in rows if row[1] in ("stale", "error") or row[1] is None]
         return success_response(
             {
-                "total_tracked": len(table_health),
-                "stale_loaders": stale_loaders,
-                "stale_count": len(stale_loaders),
+                "total_tracked": len(rows),
+                "stale_loaders": list(set(stale_loaders)),
+                "stale_count": len(set(stale_loaders)),
                 "status": "healthy" if not stale_loaders else "degraded",
-                "source": "patrol" if rows else "table_check",
             }
         )
     except (psycopg2.DatabaseError, psycopg2.OperationalError) as e:

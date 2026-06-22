@@ -251,12 +251,18 @@ def fetch_health(c):
             return FetcherValidator.build_error_response(error_msg)
         raw_sources = inner.get("sources")
         if not isinstance(raw_sources, list):
-            raw_sources = None
+            error_msg = f"Health API 'sources' field must be list, got {type(raw_sources).__name__}"
+            logger.error(error_msg)
+            record_data_quality_issue("health", "validation", "sources_not_list")
+            return FetcherValidator.build_error_response(error_msg)
         critical_stale = inner.get("critical_stale")
-        if not isinstance(critical_stale, list):
-            critical_stale = None
+        if critical_stale is not None and not isinstance(critical_stale, list):
+            error_msg = f"Health API 'critical_stale' field must be list or null, got {type(critical_stale).__name__}"
+            logger.error(error_msg)
+            record_data_quality_issue("health", "validation", "critical_stale_not_list")
+            return FetcherValidator.build_error_response(error_msg)
         sources = []
-        for s in raw_sources or []:
+        for s in raw_sources:
             name = s.get("name", "")
             # API now returns role (CRIT/IMP/NORM); fall back to freshness_config if absent
             role = s.get("role")
