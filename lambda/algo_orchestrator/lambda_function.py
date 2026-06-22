@@ -133,32 +133,38 @@ def lambda_handler(event, context):
         # Parse run_identifier from EventBridge Scheduler to determine run purpose
         # Issue #15: dry_run should be explicit; default based on run_identifier only if not specified
         run_identifier = event.get("run_identifier", "")
-        if not run_identifier:
-            logger.error("run_identifier is required (evening or preclose)")
-            return {
-                "statusCode": 400,
-                "body": json.dumps({"error": "run_identifier required"}),
-            }
 
-        # Determine dry_run: use explicit value if provided, otherwise default by run_identifier
+        # Determine dry_run: explicit event value takes priority over run_identifier defaults
         dry_run_raw = event.get("dry_run")
         if dry_run_raw is not None:
-            # Explicit value provided — use it
+            # Explicit value provided — use it; run_identifier optional (used for logging only)
             dry_run = bool(dry_run_raw)
+            if not run_identifier:
+                run_identifier = "manual"
         else:
-            # No explicit value — use sensible default by run time
-            if run_identifier == "evening":
-                # Evening orchestrator runs AFTER market close (5:30 PM ET) — no trading allowed
-                dry_run = True
-            elif run_identifier == "preclose":
-                # Preclose orchestrator runs BEFORE market close (3 PM ET) — this MUST trade
-                dry_run = False
-            else:
-                logger.error(f"Unknown run_identifier: {run_identifier} (must be 'evening' or 'preclose')")
+            # No explicit dry_run — run_identifier is required to determine trading mode
+            if not run_identifier:
+                logger.error("run_identifier is required when dry_run is not explicitly set")
                 return {
                     "statusCode": 400,
-                    "body": json.dumps({"error": f"Unknown run_identifier: {run_identifier}"}),
+                    "body": json.dumps({"error": "run_identifier required (or set dry_run explicitly)"}),
                 }
+            # Map run_identifier to dry_run mode:
+            # Live-trading runs execute real orders (paper or live per execution_mode)
+            # Dry-run/monitor runs generate signals for review but do not submit orders
+            live_trading_ids = {"morning", "afternoon", "preclose", "premarket"}
+            monitor_ids = {"evening", "default", "prewarm", "manual"}
+            if run_identifier in live_trading_ids:
+                dry_run = False
+            elif run_identifier in monitor_ids:
+                dry_run = True
+            else:
+                # Unknown identifier — fail safe: observe-only, no trades
+                logger.warning(
+                    f"Unknown run_identifier: '{run_identifier}' — defaulting to dry_run=True (safe mode). "
+                    "Add it to _LIVE_TRADING_IDS or _MONITOR_IDS to suppress this warning."
+                )
+                dry_run = True
 
         # FIXED Issue #12: Parse execution_mode from event (EventBridge Scheduler passes it)
         execution_mode = event.get("execution_mode", os.getenv("ORCHESTRATOR_EXECUTION_MODE", "auto")).strip().lower()

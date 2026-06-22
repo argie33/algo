@@ -11,6 +11,16 @@ on:
         options:
           - 'false'
           - 'true'
+      run_identifier:
+        description: 'Run identifier (morning/evening/manual)'
+        required: false
+        default: 'manual'
+        type: choice
+        options:
+          - manual
+          - morning
+          - evening
+          - preclose
       run_date:
         description: 'Run date (YYYY-MM-DD, leave blank for today)'
         required: false
@@ -47,20 +57,25 @@ jobs:
           RUN_DATE="${{ github.event.inputs.run_date }}"
           EXEC_MODE="${{ github.event.inputs.execution_mode }}"
 
+          RUN_ID="${{ github.event.inputs.run_identifier }}"
+          RUN_ID="${RUN_ID:-manual}"
+
           # Build JSON payload
           if [ -z "$RUN_DATE" ]; then
             PAYLOAD=$(jq -n \
               --argjson dry_run "$( [ "$DRY_RUN" = "true" ] && echo true || echo false )" \
               --arg execution_mode "$EXEC_MODE" \
+              --arg run_identifier "$RUN_ID" \
               --arg source "github-manual-dispatch" \
-              '{source: $source, dry_run: $dry_run, execution_mode: $execution_mode, run_date: "now"}')
+              '{source: $source, dry_run: $dry_run, execution_mode: $execution_mode, run_identifier: $run_identifier, run_date: "now"}')
           else
             PAYLOAD=$(jq -n \
               --argjson dry_run "$( [ "$DRY_RUN" = "true" ] && echo true || echo false )" \
               --arg execution_mode "$EXEC_MODE" \
+              --arg run_identifier "$RUN_ID" \
               --arg run_date "$RUN_DATE" \
               --arg source "github-manual-dispatch" \
-              '{source: $source, dry_run: $dry_run, execution_mode: $execution_mode, run_date: $run_date}')
+              '{source: $source, dry_run: $dry_run, execution_mode: $execution_mode, run_identifier: $run_identifier, run_date: $run_date}')
           fi
 
           echo "Payload: $PAYLOAD"
