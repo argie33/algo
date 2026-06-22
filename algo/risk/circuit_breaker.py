@@ -197,9 +197,12 @@ class CircuitBreaker:
         if threshold is None:
             logger.error("CRITICAL: halt_drawdown_pct is invalid (NaN/Inf). Circuit breaker cannot function.")
             return {"halted": True, "reason": "CRITICAL: halt_drawdown_pct invalid"}
+        # halt_drawdown_pct is stored as negative (e.g. -20.0 = halt at 20% down).
+        # dd is computed as a positive percentage drop from peak.
+        halt_threshold = abs(threshold)
         return {
-            "halted": dd >= threshold,
-            "reason": (f"Drawdown {dd:.2f}% >= {threshold:.0f}%" if dd >= threshold else f"Drawdown {dd:.2f}%"),
+            "halted": dd >= halt_threshold,
+            "reason": (f"Drawdown {dd:.2f}% >= {halt_threshold:.0f}%" if dd >= halt_threshold else f"Drawdown {dd:.2f}%"),
             "value": round(dd, 2),
             "threshold": threshold,
         }
@@ -234,9 +237,10 @@ class CircuitBreaker:
             return {"halted": False, "reason": "Invalid values"}
 
         dd = (peak - cur_val) / peak * 100.0
+        halt_threshold_abs = abs(threshold)
 
         # If NOT currently halted due to drawdown, no re-engagement check needed
-        if dd < threshold:
+        if dd < halt_threshold_abs:
             return {"halted": False, "reason": "Not in drawdown halt"}
 
         recovery_val = self.config.get("re_engage_recovery_pct")
