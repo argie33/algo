@@ -913,7 +913,7 @@ class DailyReconciliation:
             orders = self.broker.fetch_closed_orders()
             if not orders:
                 logger.debug("No closed orders found for partial fill check")
-                return {"mismatches": [], "message": "No closed orders to check"}
+                return {"mismatches": 0, "message": "No closed orders to check"}
 
             # Check each order against our DB records
             mismatches = []
@@ -992,9 +992,9 @@ class DailyReconciliation:
                 "details": mismatches,
             }
 
-        except (requests.RequestException, json.JSONDecodeError, psycopg2.DatabaseError) as e:
+        except (ValueError, requests.RequestException, json.JSONDecodeError, psycopg2.DatabaseError) as e:
             logger.warning(f"Partial fill check error: {e}")
-            return {"checked": 0, "message": f"Error: {e}"}
+            return {"checked": 0, "mismatches": 0, "message": f"Error: {e}"}
 
     def check_pending_reconciliations(self, cur) -> dict:
         """Identify and report on trades pending Phase 7 price reconciliation.
