@@ -258,7 +258,7 @@ class PriceFetcher:
                 raise
         raise RuntimeError(f"[{symbol}] Exhausted all fetch attempts without successful data fetch")
 
-    def _execute_batch_fetch(self, symbols: list[str], start: date, end: date) -> dict | None:
+    def execute_batch_fetch(self, symbols: list[str], start: date, end: date) -> dict | None:
         """Execute batch fetch with circuit breaker and validate freshness."""
         self._adaptive_request_pacing()
         request_start = time.time()
@@ -301,7 +301,7 @@ class PriceFetcher:
         for i in range(0, len(symbols), batch_size):
             batch = symbols[i : i + batch_size]
             try:
-                result = self._execute_batch_fetch(batch, start, end)
+                result = self.execute_batch_fetch(batch, start, end)
                 if result:
                     all_results.update(result)
                     self._record_batch_result(batch_size, len([r for r in result.values() if r]), len(batch))

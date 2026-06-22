@@ -42,6 +42,7 @@ class DynamoDBLockManager:
         try:
             self.dynamodb = boto3.resource("dynamodb")
             self.table = self.dynamodb.Table(self.table_name)
+            self._conditional_check_failed = self.dynamodb.meta.client.exceptions.ConditionalCheckFailedException
         except Exception as e:
             logger.error(f"DynamoDB lock manager initialization failed: {e}")
             raise
@@ -87,7 +88,7 @@ class DynamoDBLockManager:
                 logger.info(f"[LOCK] Acquired lock {lock_key} (expires at {expiry})")
                 return True
 
-            except self.dynamodb.meta.client.exceptions.ConditionalCheckFailedException:
+            except self._conditional_check_failed:
                 # Someone else holds a valid lock
                 logger.warning(f"[LOCK] Another instance holds {lock_key} — retrying...")
                 time.sleep(0.1)
@@ -130,7 +131,7 @@ class DynamoDBLockManager:
             logger.info(f"[LOCK] Released lock {lock_key}")
             return True
 
-        except self.dynamodb.meta.client.exceptions.ConditionalCheckFailedException:
+        except self._conditional_check_failed:
             # Someone else acquired the lock (shouldn't happen)
             logger.warning(f"[LOCK] Lock {lock_key} already released or acquired by another instance")
             return False

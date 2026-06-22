@@ -117,7 +117,6 @@ class PriceLoader(OptimalLoader):
         # - Rate limiting (429): reduce batch size, apply backoff
         # - API lag/timeout: increase timeout, reduce parallelism
         # - Other errors: log and fail
-        self._failure_cause = None  # 'market_close', 'rate_limit_429', 'api_lag', 'other'
         self._api_lag_timeouts = 0  # Count of timeout errors (not rate limiting)
         self._api_lag_error_start_time = None  # When API lag started
 
@@ -790,7 +789,7 @@ class PriceLoader(OptimalLoader):
 
     def _execute_batch_fetch(self, symbols: list[str], start: date, end: date) -> dict | None:
         """Execute batch fetch with circuit breaker and validate freshness."""
-        result = self.fetcher._execute_batch_fetch(symbols, start, end)
+        result = self.fetcher.execute_batch_fetch(symbols, start, end)
 
         if result and isinstance(result, dict):
             latest_price_date: datetime | None = None
