@@ -155,16 +155,11 @@ class CashFlowLoader(OptimalLoader):
                         f"Expected one of {list(quarter_map.keys())}"
                     )
                 row["fiscal_quarter"] = quarter_map[quarter_value]
-            # Calculate free_cash_flow: OCF - CapEx (both required)
+            # Calculate free_cash_flow: OCF - CapEx (both required; omit FCF if capex missing)
             if "free_cash_flow" in self._schema_cols:
                 ocf = row.get("operating_cash_flow")
                 if ocf is not None and capex is not None:
                     row["free_cash_flow"] = ocf - capex
-                elif ocf is not None and capex is None:
-                    raise ValueError(
-                        f"CapEx data missing for {r.get('symbol')} fiscal_year {r.get('fiscal_year')} — "
-                        "Cannot calculate FCF without capital expenditure data (FCF ≠ OCF)"
-                    )
             transformed.append(row)
 
         seen = {}
