@@ -10,9 +10,7 @@ jest.mock("../../../utils/database", () => ({
   query: jest.fn().mockResolvedValue({ rows: [], rowCount: 0 }),
 }));
 
-const {
-  query,
-} = require("../../../utils/database");
+const { query } = require("../../../utils/database");
 // Import sentiment route
 const sentimentRoutes = require("../../../routes/sentiment");
 describe("Sentiment Routes - Unit Tests", () => {

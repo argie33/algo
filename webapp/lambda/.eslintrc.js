@@ -80,7 +80,7 @@ module.exports = {
         "node/no-unpublished-require": "off",
         "node/no-missing-require": "off", // Allow complex mocking in tests
         "import/order": "off", // Disable import order for test files
-        // Test-specific rule adjustments
+        "no-unused-vars": "off", // Test setup often assigns vars for structure/documentation
       },
     },
     {

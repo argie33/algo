@@ -3,7 +3,6 @@ const express = require("express");
 const { query } = require("../utils/database");
 const {
   sendSuccess,
-  sendError,
   sendPaginated,
   sendPlaceholder,
 } = require("../utils/apiResponse");

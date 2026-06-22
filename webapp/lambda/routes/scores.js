@@ -6,9 +6,7 @@ const {
   sendError,
   sendPaginated,
 } = require("../utils/apiResponse");
-const {
-  validateQueryResult,
-} = require("../utils/responseValidation");
+const { validateQueryResult } = require("../utils/responseValidation");
 const router = express.Router();
 
 // GET / - Get stock scores with optional filters

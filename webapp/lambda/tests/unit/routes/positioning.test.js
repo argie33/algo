@@ -12,9 +12,7 @@ jest.mock("../../../utils/database", () => ({
   healthCheck: jest.fn(),
 }));
 
-const {
-  query,
-} = require("../../../utils/database");
+const { query } = require("../../../utils/database");
 const mockQuery = query;
 const app = express();
 app.use(responseFormatterMiddleware);

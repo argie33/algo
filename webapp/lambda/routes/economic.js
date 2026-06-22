@@ -6,9 +6,7 @@ const {
   sendError,
   sendPlaceholder,
 } = require("../utils/apiResponse");
-const {
-  validateQueryResult,
-} = require("../utils/responseValidation");
+const { validateQueryResult } = require("../utils/responseValidation");
 const logger = require("../utils/logger");
 const router = express.Router();
 
@@ -244,11 +242,6 @@ router.get("/leading-indicators", async (req, res) => {
         `[WARN] Missing economic indicators: ${missingSeries.join(", ")} - returning partial response with null values`
       );
     }
-
-    // Calculate yield curve data
-    const spread2y10y = indicators["T10Y2Y"]
-      ? indicators["T10Y2Y"].value
-      : null;
 
     const indicatorsArray = [
       {

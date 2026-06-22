@@ -10,9 +10,7 @@ jest.mock("../../../utils/database", () => ({
   healthCheck: jest.fn(),
 }));
 // Import mocked functions
-const {
-  query,
-} = require("../../../utils/database");
+const { query } = require("../../../utils/database");
 
 describe("Calendar Routes Unit Tests", () => {
   let app;

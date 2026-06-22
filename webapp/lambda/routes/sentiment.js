@@ -7,9 +7,7 @@ const {
   sendPaginated,
   sendPlaceholder,
 } = require("../utils/apiResponse");
-const {
-  validateQueryResult,
-} = require("../utils/responseValidation");
+const { validateQueryResult } = require("../utils/responseValidation");
 const logger = require("../utils/logger");
 const router = express.Router();
 

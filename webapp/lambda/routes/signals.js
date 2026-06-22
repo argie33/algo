@@ -4,11 +4,8 @@ const { query } = require("../utils/database");
 const {
   sendSuccess,
   sendError,
-  sendPaginated,
 } = require("../utils/apiResponse");
-const {
-  validateQueryResult,
-} = require("../utils/responseValidation");
+const { validateQueryResult } = require("../utils/responseValidation");
 const paginationConfig = require("../config/pagination");
 const router = express.Router();
 

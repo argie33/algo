@@ -9,9 +9,7 @@ jest.mock("../../../utils/database", () => ({
 }));
 
 // Import mocked functions AFTER jest.mock
-const {
-  query,
-} = require("../../../utils/database");
+const { query } = require("../../../utils/database");
 
 describe("Dashboard Routes Unit Tests", () => {
   let app;

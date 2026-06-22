@@ -9,9 +9,7 @@ jest.mock("../../../utils/database", () => ({
   query: jest.fn().mockResolvedValue({ rows: [], rowCount: 0 }),
 }));
 
-const {
-  query,
-} = require("../../../utils/database");
+const { query } = require("../../../utils/database");
 // Mock the authentication middleware
 jest.mock("../../../middleware/auth", () => ({
   authenticateToken: (req, res, next) => {

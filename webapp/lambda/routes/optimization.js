@@ -3,9 +3,7 @@ const express = require("express");
 const { query } = require("../utils/database");
 const { sendSuccess, sendError } = require("../utils/apiResponse");
 const { authenticateToken } = require("../middleware/auth");
-const {
-  validateQueryResult,
-} = require("../utils/responseValidation");
+const { validateQueryResult } = require("../utils/responseValidation");
 const router = express.Router();
 router.use(authenticateToken);
 

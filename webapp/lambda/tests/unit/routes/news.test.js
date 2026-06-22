@@ -555,7 +555,9 @@ describe("News Routes", () => {
       query
         .mockResolvedValueOnce({ rows: [] })
         .mockResolvedValueOnce({ rows: [{ total_matches: 0 }] });
-      const response = await request(app).get("/news/search?query =nonexistent");
+      const response = await request(app).get(
+        "/news/search?query =nonexistent"
+      );
       if (response.body.success !== undefined) {
         expect([true, false]).toContain(response.body.success);
       } else {

@@ -10,9 +10,7 @@ jest.mock("../../../utils/database", () => ({
   healthCheck: jest.fn(),
 }));
 
-const {
-  query,
-} = require("../../../utils/database");
+const { query } = require("../../../utils/database");
 describe("Market Routes Unit Tests", () => {
   let app;
   beforeAll(() => {

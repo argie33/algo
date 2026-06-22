@@ -13,7 +13,6 @@ const { authenticateToken } = require("../middleware/auth");
 const {
   validateQueryResult,
   validateAndCoerceRow,
-  validateAndCoerceRows,
 } = require("../utils/responseValidation");
 const logger = require("../utils/logger");
 const { query } = require("../utils/database");

@@ -12,9 +12,7 @@ jest.mock("../../../utils/database", () => ({
   tableExists: mockTableExists,
 }));
 
-const {
-  query,
-} = require("../../../utils/database");
+const { query } = require("../../../utils/database");
 
 // Create test app
 const app = express();

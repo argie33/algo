@@ -21,56 +21,10 @@ const {
   sendNotFound,
   sendPlaceholder,
 } = require("../utils/apiResponse");
-const {
-  validateQueryResult,
-} = require("../utils/responseValidation");
+const { validateQueryResult } = require("../utils/responseValidation");
 const logger = require("../utils/logger");
 const paginationConfig = require("../config/pagination");
 const router = express.Router();
-
-// Helper function to check if required tables exist
-async function checkRequiredTables(tableNames) {
-  const results = {};
-
-  // If database is not available, return false for all tables
-  if (!query) {
-    console.warn("Database not available - marking all tables as non-existent");
-    for (const tableName of tableNames) {
-      results[tableName] = false;
-    }
-    return results;
-  }
-
-  for (const tableName of tableNames) {
-    try {
-      const tableExistsResult = await query(
-        `SELECT EXISTS (
-          SELECT FROM information_schema.tables
-          WHERE table_schema = 'public'
-          AND table_name = $1
-        );`,
-        [tableName]
-      );
-      // Add null checking for database availability
-      if (
-        !tableExistsResult ||
-        !tableExistsResult.rows ||
-        tableExistsResult.rows.length === 0
-      ) {
-        console.warn(
-          `Table existence query returned null result for ${tableName}, database may be unavailable`
-        );
-        results[tableName] = false;
-      } else {
-        results[tableName] = tableExistsResult.rows[0].exists;
-      }
-    } catch (error) {
-      console.error(`Error checking table ${tableName}:`, error.message);
-      results[tableName] = false;
-    }
-  }
-  return results;
-}
 
 // Helper functions for safe numeric conversion
 function safeFloat(value) {

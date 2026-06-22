@@ -10,7 +10,6 @@ const { query: dbQuery, safeFloat, safeInt } = require("../utils/database");
 const {
   sendSuccess,
   sendError,
-  sendPaginated,
 } = require("../utils/apiResponse");
 const { validateQueryResult } = require("../utils/responseValidation");
 const logger = require("../utils/logger");

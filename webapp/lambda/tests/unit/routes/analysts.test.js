@@ -9,9 +9,7 @@ jest.mock("../../../utils/database", () => ({
   query: jest.fn().mockResolvedValue({ rows: [], rowCount: 0 }),
 }));
 
-const {
-  query,
-} = require("../../../utils/database");
+const { query } = require("../../../utils/database");
 
 describe("Analyst Routes Unit Tests - Real YFinance Data", () => {
   let app;

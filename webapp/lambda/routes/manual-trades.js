@@ -4,10 +4,7 @@ const express = require("express");
 
 const { query: dbQuery } = require("../utils/database");
 const { authenticateToken } = require("../middleware/auth");
-const {
-  sendSuccess,
-  sendError,
-} = require("../utils/apiResponse");
+const { sendSuccess, sendError } = require("../utils/apiResponse");
 const {
   createInputValidationMiddleware,
   inputSchemas,
@@ -115,7 +112,6 @@ router.post(
         quantity,
         price,
         execution_date,
-        commission,
       } = req.body;
       const userId = req.user.sub;
 

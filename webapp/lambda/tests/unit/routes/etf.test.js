@@ -10,9 +10,7 @@ const mockQuery = jest.fn();
 jest.mock("../../../utils/database", () => ({
   query: mockQuery,
 }));
-const {
-  query,
-} = require("../../../utils/database");
+const { query } = require("../../../utils/database");
 
 // Create test app
 const app = express();

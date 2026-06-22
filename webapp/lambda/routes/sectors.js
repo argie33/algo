@@ -6,9 +6,7 @@ const {
   sendError,
   sendPaginated,
 } = require("../utils/apiResponse");
-const {
-  validateQueryResult,
-} = require("../utils/responseValidation");
+const { validateQueryResult } = require("../utils/responseValidation");
 const router = express.Router();
 
 // GET / - Get all sectors with full performance rankings, scores, and price performance

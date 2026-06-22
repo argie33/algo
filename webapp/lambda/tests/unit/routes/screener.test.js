@@ -8,9 +8,7 @@ const request = require("supertest");
 jest.mock("../../../utils/database", () => ({
   query: jest.fn(),
 }));
-const {
-  query,
-} = require("../../../utils/database");
+const { query } = require("../../../utils/database");
 
 // Mock the factor scoring engine
 const mockCalculateCompositeScore = jest.fn();
