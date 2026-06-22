@@ -118,6 +118,30 @@ class TradeExecutor:
 
         self.validator = TradeValidator(config, self.pretrade)
 
+        # Get execution mode from config (supports both dict and AlgoConfig objects)
+        if "execution_mode" not in config or not config["execution_mode"]:
+            raise ValueError(
+                "CRITICAL: 'execution_mode' config missing or empty. "
+                "Cannot proceed without explicit execution mode (paper/review/auto). "
+                "Silently defaulting to paper would hide configuration errors. "
+                "Check configuration and restart."
+            )
+        self.execution_mode = str(config["execution_mode"]).lower()
+
+        # Validate R-multiple config values at init time (fail-fast) — must come before
+        # handler initializations since EntryHandler and ExitHandler read these attributes
+        required_r_multiples = ["t1_target_r_multiple", "t2_target_r_multiple", "t3_target_r_multiple"]
+        for r_key in required_r_multiples:
+            if r_key not in config or config[r_key] is None:
+                raise ValueError(
+                    f"CRITICAL: '{r_key}' config missing or None. "
+                    f"Cannot execute trades without explicit R-multiple configuration. "
+                    f"Required: {required_r_multiples}"
+                )
+        self.t1_target_r_multiple = float(config["t1_target_r_multiple"])
+        self.t2_target_r_multiple = float(config["t2_target_r_multiple"])
+        self.t3_target_r_multiple = float(config["t3_target_r_multiple"])
+
         # Initialize position tracker specialist for all position DB operations
         self.position_tracker = PositionTracker(self.alpaca_key, self.alpaca_secret, self.alpaca_base_url)
 
@@ -132,29 +156,6 @@ class TradeExecutor:
 
         # Initialize order manager specialist for order submission and validation
         self.order_manager = OrderManager(self.alpaca_key, self.alpaca_secret, self.alpaca_base_url)
-
-        # Get execution mode from config (supports both dict and AlgoConfig objects)
-        if "execution_mode" not in config or not config["execution_mode"]:
-            raise ValueError(
-                "CRITICAL: 'execution_mode' config missing or empty. "
-                "Cannot proceed without explicit execution mode (paper/review/auto). "
-                "Silently defaulting to paper would hide configuration errors. "
-                "Check configuration and restart."
-            )
-        self.execution_mode = str(config["execution_mode"]).lower()
-
-        # Validate R-multiple config values at init time (fail-fast)
-        required_r_multiples = ["t1_target_r_multiple", "t2_target_r_multiple", "t3_target_r_multiple"]
-        for r_key in required_r_multiples:
-            if r_key not in config or config[r_key] is None:
-                raise ValueError(
-                    f"CRITICAL: '{r_key}' config missing or None. "
-                    f"Cannot execute trades without explicit R-multiple configuration. "
-                    f"Required: {required_r_multiples}"
-                )
-        self.t1_target_r_multiple = float(config["t1_target_r_multiple"])
-        self.t2_target_r_multiple = float(config["t2_target_r_multiple"])
-        self.t3_target_r_multiple = float(config["t3_target_r_multiple"])
 
         live_ack = os.getenv("ALGO_LIVE_TRADING", "").strip()
         paper_flag = os.getenv("ALPACA_PAPER_TRADING", "false").strip().lower()

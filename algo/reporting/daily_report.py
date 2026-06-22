@@ -257,9 +257,9 @@ class DailyFinanceReport:
         dpnl = portfolio["daily_pnl_pct"]
         ytd = portfolio["ytd_pnl_pct"]
 
-        var95 = risk["var_95_pct"]
+        var95 = risk.get("var_95_pct")
         beta = risk.get("beta")
-        sharpe = risk["sharpe_ytd"]
+        sharpe = risk.get("sharpe_ytd")
 
         exp_r = strategy.get("expectancy_r")
         win_rate = strategy["win_rate_pct"]
