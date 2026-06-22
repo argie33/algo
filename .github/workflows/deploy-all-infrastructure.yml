@@ -1316,6 +1316,8 @@ jobs:
           cp -r config/ api-pkg/config/
           # Copy algo package (algo/infrastructure etc. imported by routes/algo.py and routes/admin.py)
           cp -r algo/ api-pkg/algo/
+          # Copy shared_contracts (response_validator etc. imported by routes/health.py and others)
+          cp -r shared_contracts/ api-pkg/shared_contracts/
           pip install -r lambda/api/requirements.txt \
             -t api-pkg/ --platform manylinux2014_x86_64 --only-binary=:all: --quiet
           cd api-pkg && zip -r ../api_lambda.zip . -x "*.pyc" -x "__pycache__/*" && cd ..
