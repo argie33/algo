@@ -70,11 +70,13 @@ class EarningsHistoryLoader(OptimalLoader):
                         qstart_month = (q - 1) * 3 + 1
                         quarter_str = f"{dt.year}-{qstart_month:02d}-01"
                     except (ValueError, ZeroDivisionError, TypeError) as e:
-                        logger.warning(
-                            f"[{symbol}] Could not derive quarter from earnings date {ed!r}, "
-                            f"using date as-is: {e}"
+                        error_msg = (
+                            f"[{symbol}] Failed to derive quarter from earnings date {ed!r}: {e}. "
+                            f"Cannot use earnings data with unparseable dates — "
+                            f"primary key (symbol, quarter) depends on valid date parsing."
                         )
-                        quarter_str = str(ed)[:10]
+                        logger.error(error_msg)
+                        raise ValueError(error_msg) from e
 
                     rows.append(
                         {

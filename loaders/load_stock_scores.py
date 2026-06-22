@@ -635,6 +635,9 @@ class StockScoresLoader(OptimalLoader):
 
         Uses PERCENT_RANK() so a stock scoring higher than 90% of peers gets rs_percentile=90.
         Must run after all per-symbol scores are loaded.
+
+        CRITICAL: Raises on failure. RS percentiles are essential for ranking signal quality;
+        missing or stale percentiles invalidate momentum-based signal filtering.
         """
         try:
             with DatabaseContext("write") as cur:
@@ -653,7 +656,9 @@ class StockScoresLoader(OptimalLoader):
                 """)
             logger.info("RS percentiles updated via batch rank")
         except (psycopg2.DatabaseError, psycopg2.OperationalError) as e:
-            logger.warning(f"RS percentile batch update failed: {e}")
+            error_msg = f"RS percentile batch update failed — stock scores cannot be finalized: {e}"
+            logger.error(error_msg)
+            raise RuntimeError(error_msg) from e
 
 
 if __name__ == "__main__":

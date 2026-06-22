@@ -350,7 +350,12 @@ class SwingComponentScorer:
             raise ValueError(f"{symbol}: Volume component database error: {e}") from e
 
     def _fundamentals_component(self, symbol: str, cur) -> tuple[float, dict[str, Any]]:
-        """Fundamentals: EPS growth, revenue growth, ROE."""
+        """Fundamentals: EPS growth, revenue growth, ROE.
+
+        CRITICAL: Raises on missing fundamentals data instead of defaulting to 0.
+        Signal scoring requires complete fundamental analysis; missing fundamentals
+        means signal evaluation is incomplete.
+        """
         try:
             cur.execute(
                 "SELECT eps_growth, revenue_growth, roe FROM fundamentals WHERE symbol = %s ORDER BY date DESC LIMIT 1",
@@ -358,11 +363,22 @@ class SwingComponentScorer:
             )
             row = cur.fetchone()
             if not row:
-                return 0, {"error": "No fundamentals data"}
+                raise ValueError(
+                    f"{symbol}: Fundamentals data missing. "
+                    f"Fundamentals component requires eps_growth, revenue_growth, and roe. "
+                    f"Cannot score fundamentals without growth metrics."
+                )
 
-            eps_growth = float(row[0]) if row[0] else 0
-            rev_growth = float(row[1]) if row[1] else 0
-            roe = float(row[2]) if row[2] else 0
+            if row[0] is None:
+                raise ValueError(f"{symbol}: eps_growth is NULL")
+            if row[1] is None:
+                raise ValueError(f"{symbol}: revenue_growth is NULL")
+            if row[2] is None:
+                raise ValueError(f"{symbol}: roe is NULL")
+
+            eps_growth = float(row[0])
+            rev_growth = float(row[1])
+            roe = float(row[2])
 
             eps_pts = min(4, eps_growth / 50) if eps_growth > 0 else 0
             rev_pts = min(3, rev_growth / 20) if rev_growth > 0 else 0
@@ -374,17 +390,28 @@ class SwingComponentScorer:
                 "revenue_growth": round(rev_growth, 2),
                 "roe": round(roe, 2),
             }
-        except (ValueError, ZeroDivisionError, TypeError) as e:
-            logger.debug(f"Fundamentals component failed for {symbol}: {e}")
-            return 0, {"error": str(e)[:50]}
+        except ValueError:
+            raise
+        except (ZeroDivisionError, TypeError) as e:
+            logger.error(f"Fundamentals component calculation error for {symbol}: {e}")
+            raise ValueError(f"{symbol}: Fundamentals component failed unexpectedly: {e}") from e
 
     def _sector_component(
         self, symbol: str, eval_date, sector: str | None, industry: str | None, cur
     ) -> tuple[float, dict[str, Any]]:
-        """Sector/Industry: industry rank vs sector rank."""
+        """Sector/Industry: industry rank vs sector rank.
+
+        CRITICAL: Raises on missing sector/industry data instead of defaulting to 0.
+        Signal scoring requires sector context; missing sector ranking
+        means signal evaluation is incomplete.
+        """
         try:
             if not industry:
-                return 0, {"reason": "No industry data"}
+                raise ValueError(
+                    f"{symbol}: Industry classification missing. "
+                    f"Sector component requires industry classification and rankings. "
+                    f"Cannot score sector without industry context."
+                )
 
             cur.execute(
                 "SELECT industry_rank, sector_rank FROM rankings WHERE symbol = %s AND date = %s",
@@ -392,28 +419,41 @@ class SwingComponentScorer:
             )
             row = cur.fetchone()
             if not row:
-                return 0, {"reason": "No ranking data"}
+                raise ValueError(
+                    f"{symbol}: Sector rankings missing for {eval_date}. "
+                    f"Sector component requires industry_rank and sector_rank. "
+                    f"Cannot score sector ranking without ranking data."
+                )
 
-            industry_rank = float(row[0]) if row[0] else None
-            sector_rank = float(row[1]) if row[1] else None
+            if row[0] is None:
+                raise ValueError(f"{symbol}: industry_rank is NULL")
+            if row[1] is None:
+                raise ValueError(f"{symbol}: sector_rank is NULL")
 
-            if not industry_rank:
-                return 0, {"reason": "No industry rank"}
+            industry_rank = float(row[0])
+            sector_rank = float(row[1])
 
             pts = 0.0
             if sector_rank and industry_rank < sector_rank:
                 pts = min(8.0, (sector_rank - industry_rank) / 50)
 
             return pts, {
-                "industry_rank": round(industry_rank, 1) if industry_rank else None,
-                "sector_rank": round(sector_rank, 1) if sector_rank else None,
+                "industry_rank": round(industry_rank, 1),
+                "sector_rank": round(sector_rank, 1),
             }
-        except (ValueError, ZeroDivisionError, TypeError) as e:
-            logger.debug(f"Sector component failed for {symbol}: {e}")
-            return 0, {"error": str(e)[:50]}
+        except ValueError:
+            raise
+        except (ZeroDivisionError, TypeError) as e:
+            logger.error(f"Sector component calculation error for {symbol}: {e}")
+            raise ValueError(f"{symbol}: Sector component failed unexpectedly: {e}") from e
 
     def _multi_timeframe_component(self, symbol: str, eval_date, cur) -> tuple[float, dict[str, Any]]:
-        """Multi-timeframe: weekly + monthly alignment."""
+        """Multi-timeframe: weekly + monthly alignment.
+
+        CRITICAL: Raises on missing multi-timeframe data instead of defaulting to 0.
+        Signal scoring requires multi-timeframe confirmation; missing timeframe data
+        means signal evaluation is incomplete.
+        """
         try:
             cur.execute(
                 "SELECT weekly_signal, monthly_signal, weekly_ma_50, monthly_ma_50 FROM multi_timeframe WHERE symbol = %s AND date = %s",
@@ -421,7 +461,21 @@ class SwingComponentScorer:
             )
             row = cur.fetchone()
             if not row:
-                return 0, {"error": "No MTF data"}
+                raise ValueError(
+                    f"{symbol}: Multi-timeframe data missing for {eval_date}. "
+                    f"Multi-timeframe component requires weekly_signal, monthly_signal, "
+                    f"weekly_ma_50, and monthly_ma_50. "
+                    f"Cannot score multi-timeframe alignment without weekly/monthly signals."
+                )
+
+            if row[0] is None:
+                raise ValueError(f"{symbol}: weekly_signal is NULL")
+            if row[1] is None:
+                raise ValueError(f"{symbol}: monthly_signal is NULL")
+            if row[2] is None:
+                raise ValueError(f"{symbol}: weekly_ma_50 is NULL")
+            if row[3] is None:
+                raise ValueError(f"{symbol}: monthly_ma_50 is NULL")
 
             weekly_signal = row[0]
             monthly_signal = row[1]
@@ -451,6 +505,8 @@ class SwingComponentScorer:
                 "monthly_buy_recent": monthly_up,
                 "monthly_above_ma": monthly_above,
             }
+        except ValueError:
+            raise
         except (psycopg2.DatabaseError, psycopg2.OperationalError) as e:
-            logger.debug(f"Multi-timeframe component failed for {symbol}: {e}")
-            return 0, {"error": str(e)[:50]}
+            logger.error(f"Multi-timeframe component database error for {symbol}: {e}")
+            raise ValueError(f"{symbol}: Multi-timeframe component failed: {e}") from e

@@ -128,11 +128,13 @@ class AdvancedFilters:
                 (eval_date,),
             )
             industries = cur.fetchall()
-            if industries:
-                cutoff_idx = max(1, len(industries) // 4)
-                self._strong_industries = {row[0]: float(row[1]) for row in industries[:cutoff_idx]}
-            else:
-                self._strong_industries = {}
+            if not industries:
+                raise ValueError(
+                    f"No industry ranking data available for {eval_date} — "
+                    f"cannot proceed without industry ranking for signal evaluation"
+                )
+            cutoff_idx = max(1, len(industries) // 4)
+            self._strong_industries = {row[0]: float(row[1]) for row in industries[:cutoff_idx]}
 
             cur.execute(
                 "SELECT bullish, bearish, neutral FROM aaii_sentiment WHERE date <= %s ORDER BY date DESC LIMIT 1",
