@@ -546,6 +546,20 @@ DASHBOARD_ENDPOINTS = {
         "strict_fields": [],
         "critical": False,
     },
+    "scores": {
+        "path": "/api/scores",
+        "method": "GET",
+        "description": "Stock composite scores with multi-factor ranking",
+        "response_schema": ResponseSchema(
+            required_fields=[],
+            optional_fields=["statusCode", "data", "data_freshness"],
+            field_types={"statusCode": int},
+            description="Paginated stock scores list",
+        ),
+        "freshness_max_age_seconds": 86400,
+        "strict_fields": [],
+        "critical": False,
+    },
     "irank": {
         "path": "/api/industries",
         "method": "GET",
