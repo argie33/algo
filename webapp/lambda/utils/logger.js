@@ -3,7 +3,7 @@
  * Provides domain-specific logging methods and output formatting
  */
 
-const crypto = require('crypto');
+const crypto = require("crypto");
 
 const LOG_LEVELS = {
   ERROR: 0,
@@ -13,22 +13,22 @@ const LOG_LEVELS = {
 };
 
 const LEVEL_NAMES = {
-  0: 'ERROR',
-  1: 'WARN',
-  2: 'INFO',
-  3: 'DEBUG',
+  0: "ERROR",
+  1: "WARN",
+  2: "INFO",
+  3: "DEBUG",
 };
 
 class Logger {
   constructor() {
-    this.serviceName = process.env.SERVICE_NAME || 'financial-platform-api';
-    this.version = process.env.APP_VERSION || '1.0.0';
-    this.environment = process.env.NODE_ENV || 'development';
-    this.currentLevel = this.parseLogLevel(process.env.LOG_LEVEL || 'INFO');
+    this.serviceName = process.env.SERVICE_NAME || "financial-platform-api";
+    this.version = process.env.APP_VERSION || "1.0.0";
+    this.environment = process.env.NODE_ENV || "development";
+    this.currentLevel = this.parseLogLevel(process.env.LOG_LEVEL || "INFO");
   }
 
   parseLogLevel(level) {
-    if (typeof level === 'number') return level;
+    if (typeof level === "number") return level;
     return LOG_LEVELS[level.toUpperCase()] || LOG_LEVELS.INFO;
   }
 
@@ -37,13 +37,13 @@ class Logger {
   }
 
   generateCorrelationId() {
-    return crypto.randomUUID().split('-')[0];
+    return crypto.randomUUID().split("-")[0];
   }
 
   createBaseEntry(level, message, context = {}) {
     return {
       timestamp: new Date().toISOString(),
-      level: LEVEL_NAMES[level] || 'INFO',
+      level: LEVEL_NAMES[level] || "INFO",
       service: this.serviceName,
       version: this.version,
       environment: this.environment,
@@ -54,14 +54,23 @@ class Logger {
   }
 
   output(logEntry) {
-    if (this.environment === 'production') {
+    if (this.environment === "production") {
       // Lambda → CloudWatch: emit structured JSON so logs are queryable
       console.log(JSON.stringify(logEntry));
     } else {
       const { timestamp, level, message, service } = logEntry;
       console.log(`[${timestamp}] [${level}] [${service}] ${message}`);
       const contextKeys = Object.keys(logEntry).filter(
-        (k) => !['timestamp', 'level', 'message', 'service', 'version', 'environment', 'correlationId'].includes(k)
+        (k) =>
+          ![
+            "timestamp",
+            "level",
+            "message",
+            "service",
+            "version",
+            "environment",
+            "correlationId",
+          ].includes(k)
       );
       if (contextKeys.length > 0) {
         const context = {};
@@ -96,30 +105,34 @@ class Logger {
   }
 
   auth(event, context = {}) {
-    this.info(event, { type: 'auth', ...context });
+    this.info(event, { type: "auth", ...context });
   }
 
   security(event, context = {}) {
-    this.warn(event, { type: 'security', ...context });
+    this.warn(event, { type: "security", ...context });
   }
 
   userAction(userId, action, context = {}) {
-    this.info(action, { type: 'user_action', userId: userId || 'anonymous', ...context });
+    this.info(action, {
+      type: "user_action",
+      userId: userId || "anonymous",
+      ...context,
+    });
   }
 
   database(query, context = {}) {
-    this.debug(query, { type: 'database', ...context });
+    this.debug(query, { type: "database", ...context });
   }
 
   apiCall(method, path, context = {}) {
-    this.info(`${method} ${path}`, { type: 'api_call', ...context });
+    this.info(`${method} ${path}`, { type: "api_call", ...context });
   }
 
   performance(operation, durationMs, context = {}) {
     const level = durationMs > 5000 ? LOG_LEVELS.WARN : LOG_LEVELS.INFO;
     if (this.shouldLog(level)) {
       this.log(level, `${operation} completed in ${durationMs}ms`, {
-        type: 'performance',
+        type: "performance",
         operation,
         duration_ms: durationMs,
         ...context,
@@ -128,23 +141,31 @@ class Logger {
   }
 
   startup(context = {}) {
-    this.info('Application starting', { type: 'lifecycle', event: 'startup', ...context });
+    this.info("Application starting", {
+      type: "lifecycle",
+      event: "startup",
+      ...context,
+    });
   }
 
   shutdown(context = {}) {
-    this.info('Application shutting down', { type: 'lifecycle', event: 'shutdown', ...context });
+    this.info("Application shutting down", {
+      type: "lifecycle",
+      event: "shutdown",
+      ...context,
+    });
   }
 
   configLoaded(config) {
-    this.info('Configuration loaded', {
-      type: 'lifecycle',
+    this.info("Configuration loaded", {
+      type: "lifecycle",
       config: this.sanitizeConfig(config),
     });
   }
 
   sanitizeConfig(obj) {
     if (!obj) return obj;
-    if (typeof obj !== 'object') return obj;
+    if (typeof obj !== "object") return obj;
 
     if (Array.isArray(obj)) {
       return obj.map((item) => this.sanitizeConfig(item));
@@ -155,8 +176,8 @@ class Logger {
 
     for (const [key, value] of Object.entries(obj)) {
       if (sensitiveKeyPattern.test(key)) {
-        sanitized[key] = '[REDACTED]';
-      } else if (typeof value === 'object' && value !== null) {
+        sanitized[key] = "[REDACTED]";
+      } else if (typeof value === "object" && value !== null) {
         sanitized[key] = this.sanitizeConfig(value);
       } else {
         sanitized[key] = value;
@@ -168,7 +189,8 @@ class Logger {
 
   requestMiddleware() {
     return (req, res, next) => {
-      req.correlationId = req.headers['x-correlation-id'] || this.generateCorrelationId();
+      req.correlationId =
+        req.headers["x-correlation-id"] || this.generateCorrelationId();
       req.logger = this;
 
       // Log request
@@ -184,7 +206,7 @@ class Logger {
         const duration = Date.now() - req.startTime;
         if (res.statusCode >= 400) {
           req.logger.warn(`${req.method} ${req.path} - ${res.statusCode}`, {
-            type: 'api_call',
+            type: "api_call",
             correlationId: req.correlationId,
             status: res.statusCode,
             duration_ms: duration,

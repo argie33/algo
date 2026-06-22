@@ -25,6 +25,8 @@ import time
 from datetime import datetime, timedelta, timezone
 from typing import Any
 
+import psycopg2
+
 from utils.db.context import DatabaseContext
 from utils.loaders.helpers import get_active_symbols
 
@@ -110,7 +112,19 @@ def check_and_retry_incomplete_loaders(dry_run: bool = False) -> dict[str, Any]:
                 _exec_started,
                 _last_updated,
             ) in incomplete_rows:
-                symbols_missing = (symbol_count or 0) - (symbols_loaded or 0)
+                # Fail-fast if symbol counts are invalid. These must be precise for diagnostics.
+                if symbol_count is None:
+                    raise ValueError(
+                        f"[PHASE 1 FAILSAFE] Loader {table_name}: symbol_count is NULL in data_loader_status. "
+                        "Cannot determine coverage without valid symbol counts. Data integrity issue."
+                    )
+                if symbols_loaded is None:
+                    raise ValueError(
+                        f"[PHASE 1 FAILSAFE] Loader {table_name}: symbols_loaded is NULL in data_loader_status. "
+                        "Cannot calculate missing symbols without valid counts. Data integrity issue."
+                    )
+
+                symbols_missing = symbol_count - symbols_loaded
                 is_critical = table_name in CRITICAL_INCOMPLETE_LOADERS
 
                 if completion_pct is None:
@@ -166,9 +180,21 @@ def check_and_retry_incomplete_loaders(dry_run: bool = False) -> dict[str, Any]:
                             if is_critical:
                                 results["halt_required"] = True
 
+    except (psycopg2.DatabaseError, psycopg2.OperationalError) as e:
+        # Database errors indicate infrastructure problems. Must halt trading.
+        # Cannot safely proceed without being able to check loader status.
+        logger.critical(
+            f"[PHASE 1 FAILSAFE] CRITICAL: Cannot check loader status due to database error: {e}. "
+            "Cannot determine if critical loaders are incomplete. Trading halted."
+        )
+        raise RuntimeError(
+            f"Phase 1 Failsafe: Cannot check loader status due to database error: {e}. "
+            "Halting to prevent trading with potentially incomplete data."
+        ) from e
     except (OSError, RuntimeError, ValueError) as e:
         logger.error(f"[PHASE 1 FAILSAFE] Error checking incomplete loaders: {e}", exc_info=True)
-        # Don't halt on error checking, just log and proceed
+        # Don't halt on transient OS/parse errors, just log and proceed
+        # But database errors are re-raised above
 
     return results
 

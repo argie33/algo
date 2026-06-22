@@ -29,14 +29,16 @@ async function checkExistingOrder(symbol, side, quantity) {
 
     // Look for matching order created today with same symbol/side/qty
     const today = new Date().toISOString().split("T")[0];
-    return orders.find(
-      (o) =>
-        o.symbol === symbol &&
-        o.side === side &&
-        o.qty === quantity &&
-        o.created_at.includes(today) &&
-        o.status !== "cancelled"
-    ) || null;
+    return (
+      orders.find(
+        (o) =>
+          o.symbol === symbol &&
+          o.side === side &&
+          o.qty === quantity &&
+          o.created_at.includes(today) &&
+          o.status !== "cancelled"
+      ) || null
+    );
   } catch (error) {
     console.error(`Error checking existing order: ${error.message}`);
     return null; // If check fails, allow new order (safer than blocking)
@@ -51,9 +53,13 @@ async function checkExistingOrder(symbol, side, quantity) {
  * @param {Boolean} isPaper - Whether to use paper trading (default: true)
  * @returns {Promise<Object>} Execution results with status and trade details
  */
-async function executeOptimizationTrades(userId, optimizationId, trades, isPaper = true) {
+async function executeOptimizationTrades(
+  userId,
+  optimizationId,
+  trades,
+  isPaper = true
+) {
   try {
-
     const alpacaTrader = initializeAlpacaTrader(isPaper);
 
     if (!alpacaTrader) {
@@ -64,8 +70,10 @@ async function executeOptimizationTrades(userId, optimizationId, trades, isPaper
         trades_executed: [],
         trades_failed: [],
         recommendations: {
-          action: "Configure Alpaca API credentials (APCA_API_KEY_ID, APCA_API_SECRET_KEY)",
-          fallback: "Trades were recorded in database but not executed via Alpaca",
+          action:
+            "Configure Alpaca API credentials (APCA_API_KEY_ID, APCA_API_SECRET_KEY)",
+          fallback:
+            "Trades were recorded in database but not executed via Alpaca",
         },
       };
     }
@@ -86,10 +94,11 @@ async function executeOptimizationTrades(userId, optimizationId, trades, isPaper
       };
     }
 
-
     // Separate trades by action type
     const buyTrades = trades.filter((t) => t.action === "BUY");
-    const sellTrades = trades.filter((t) => t.action === "SELL" || t.action === "REDUCE");
+    const sellTrades = trades.filter(
+      (t) => t.action === "SELL" || t.action === "REDUCE"
+    );
 
     // Execute SELL/REDUCE first (generates cash), then BUY
     const executedTrades = [];
@@ -99,7 +108,11 @@ async function executeOptimizationTrades(userId, optimizationId, trades, isPaper
     for (const trade of sellTrades) {
       try {
         // IDEMPOTENCY: Check if order for this symbol was already executed today
-        const existingOrder = await checkExistingOrder(trade.symbol, "sell", trade.quantity);
+        const existingOrder = await checkExistingOrder(
+          trade.symbol,
+          "sell",
+          trade.quantity
+        );
         if (existingOrder) {
           executedTrades.push({
             symbol: trade.symbol,
@@ -189,7 +202,11 @@ async function executeOptimizationTrades(userId, optimizationId, trades, isPaper
     for (const trade of buyTrades) {
       try {
         // IDEMPOTENCY: Check if order for this symbol was already executed today
-        const existingOrder = await checkExistingOrder(trade.symbol, "buy", trade.quantity);
+        const existingOrder = await checkExistingOrder(
+          trade.symbol,
+          "buy",
+          trade.quantity
+        );
         if (existingOrder) {
           executedTrades.push({
             symbol: trade.symbol,
@@ -217,7 +234,11 @@ async function executeOptimizationTrades(userId, optimizationId, trades, isPaper
           continue;
         }
 
-        const validateResult = await alpacaTrader.validateTrade(trade.symbol, trade.quantity, "buy");
+        const validateResult = await alpacaTrader.validateTrade(
+          trade.symbol,
+          trade.quantity,
+          "buy"
+        );
 
         if (!validateResult.valid) {
           failedTrades.push({
@@ -278,8 +299,8 @@ async function executeOptimizationTrades(userId, optimizationId, trades, isPaper
     }
 
     // Summary
-      // Log execution summary (using console for now as this is a handler function)
-      // Note: Should be replaced with structured logging in production
+    // Log execution summary (using console for now as this is a handler function)
+    // Note: Should be replaced with structured logging in production
 
     return {
       success: executedTrades.length > 0,
@@ -332,7 +353,10 @@ async function recordExecutedTrade(userId, optimizationId, trade) {
       ]
     );
   } catch (error) {
-    console.warn(`Could not record trade execution for ${trade.symbol}:`, error.message);
+    console.warn(
+      `Could not record trade execution for ${trade.symbol}:`,
+      error.message
+    );
     // Don't fail the whole operation if logging fails
   }
 }
@@ -404,9 +428,12 @@ async function checkPendingOrders(orderIds = []) {
 
     // Summarize by status
     const statusSummary = {
-      pending: orders.filter((o) => o.status === "pending_new" || o.status === "accepted").length,
+      pending: orders.filter(
+        (o) => o.status === "pending_new" || o.status === "accepted"
+      ).length,
       filled: orders.filter((o) => o.status === "filled").length,
-      partially_filled: orders.filter((o) => o.status === "partially_filled").length,
+      partially_filled: orders.filter((o) => o.status === "partially_filled")
+        .length,
       canceled: orders.filter((o) => o.status === "canceled").length,
       rejected: orders.filter((o) => o.status === "rejected").length,
     };

@@ -3,14 +3,15 @@
 
 const requestLogger = (req, res, next) => {
   const start = Date.now();
-  const requestId = req.get('X-Request-ID') || req.id || `${Date.now()}-${Math.random()}`;
+  const requestId =
+    req.get("X-Request-ID") || req.id || `${Date.now()}-${Math.random()}`;
 
   // Store on request for use in error handlers
   req.requestId = requestId;
 
   // Override res.json to log responses
   const originalJson = res.json.bind(res);
-  res.json = function(data) {
+  res.json = function (data) {
     const duration = Date.now() - start;
     const statusCode = res.statusCode;
 
@@ -25,18 +26,18 @@ const requestLogger = (req, res, next) => {
         statusCode,
         duration: `${duration}ms`,
         query: req.query,
-        body: req.body?.length ? '[body present]' : '[no body]'
+        body: req.body?.length ? "[body present]" : "[no body]",
       };
 
       if (statusCode >= 500) {
         console.error(` SERVER ERROR [${statusCode}]:`, {
           ...errorContext,
-          response: data
+          response: data,
         });
       } else if (statusCode >= 400) {
         console.warn(` CLIENT ERROR [${statusCode}]:`, {
           ...errorContext,
-          error: data?.error || data?.message || data
+          error: data?.error || data?.message || data,
         });
       }
     } else if (duration > 5000) {
@@ -44,16 +45,12 @@ const requestLogger = (req, res, next) => {
         requestId,
         method: req.method,
         path: req.path,
-        duration: `${duration}ms`
+        duration: `${duration}ms`,
       });
     }
 
     return originalJson(data);
   };
-
-  // Log the incoming request
-  if (process.env.NODE_ENV !== 'test') {
-  }
 
   next();
 };

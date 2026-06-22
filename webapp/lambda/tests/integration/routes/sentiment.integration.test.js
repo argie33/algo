@@ -333,7 +333,9 @@ describe("Sentiment Routes", () => {
       );
 
       // May work without auth or require it - allow 404 for missing endpoints
-      expect([200, 400, 401, 403, 404, 500].includes(response.status)).toBe(true);
+      expect([200, 400, 401, 403, 404, 500].includes(response.status)).toBe(
+        true
+      );
     });
   });
 

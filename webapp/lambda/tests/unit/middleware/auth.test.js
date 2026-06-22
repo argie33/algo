@@ -14,7 +14,14 @@ jest.mock("../../../utils/apiKeyService", () => ({
 jest.mock("../../../utils/database");
 const jwt = require("jsonwebtoken");
 const apiKeyService = require("../../../utils/apiKeyService");
-const { query, closeDatabase, initializeDatabase, getPool, transaction, healthCheck } = require("../../../utils/database");
+const {
+  query,
+  closeDatabase,
+  initializeDatabase,
+  getPool,
+  transaction,
+  healthCheck,
+} = require("../../../utils/database");
 const {
   authenticateToken,
   requireRole,
@@ -22,7 +29,7 @@ const {
   requireApiKey,
   validateSession,
   rateLimitByUser,
-  logApiAccess
+  logApiAccess,
 } = require("../../../middleware/auth");
 
 describe("Authentication Middleware", () => {
@@ -62,7 +69,7 @@ describe("Authentication Middleware", () => {
       expect(res.json).toHaveBeenCalledWith({
         success: false,
         error: "Authentication required",
-        code: "MISSING_TOKEN"
+        code: "MISSING_TOKEN",
       });
       expect(next).not.toHaveBeenCalled();
     });
@@ -73,7 +80,7 @@ describe("Authentication Middleware", () => {
       expect(res.json).toHaveBeenCalledWith({
         success: false,
         error: "Invalid token format",
-        code: "INVALID_TOKEN_FORMAT"
+        code: "INVALID_TOKEN_FORMAT",
       });
       expect(next).not.toHaveBeenCalled();
     });
@@ -89,7 +96,7 @@ describe("Authentication Middleware", () => {
       expect(res.json).toHaveBeenCalledWith({
         success: false,
         error: "Token expired",
-        code: "TOKEN_EXPIRED"
+        code: "TOKEN_EXPIRED",
       });
       expect(next).not.toHaveBeenCalled();
     });
@@ -105,7 +112,7 @@ describe("Authentication Middleware", () => {
       expect(res.json).toHaveBeenCalledWith({
         success: false,
         error: "Invalid token",
-        code: "INVALID_TOKEN"
+        code: "INVALID_TOKEN",
       });
       expect(next).not.toHaveBeenCalled();
     });
@@ -155,7 +162,7 @@ describe("Authentication Middleware", () => {
       expect(res.json).toHaveBeenCalledWith({
         success: false,
         error: "Authentication required",
-        code: "MISSING_TOKEN"
+        code: "MISSING_TOKEN",
       });
     });
     test("should handle authorization header with extra data", () => {
@@ -205,7 +212,7 @@ describe("Authentication Middleware", () => {
       expect(res.json).toHaveBeenCalledWith({
         success: false,
         error: "Authentication failed",
-        code: "AUTH_FAILED"
+        code: "AUTH_FAILED",
       });
     });
     test("should handle missing JWT library", () => {
@@ -460,7 +467,10 @@ describe("RequireApiKey Middleware", () => {
     expect(req.apiKey).toBe(mockApiKey);
     expect(req.provider).toBe("alpaca");
     expect(next).toHaveBeenCalled();
-    expect(apiKeyService.getApiKey).toHaveBeenCalledWith("valid-token", "alpaca");
+    expect(apiKeyService.getApiKey).toHaveBeenCalledWith(
+      "valid-token",
+      "alpaca"
+    );
   });
   test("should handle API key service errors", async () => {
     req.user = { sub: "user123" };

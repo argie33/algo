@@ -1,5 +1,5 @@
 // Load environment variables first
-require('dotenv').config();
+require("dotenv").config();
 
 // Configure real database connection for tests
 process.env.NODE_ENV = "test";
@@ -14,14 +14,13 @@ process.env.DB_NAME = "stocks";
 process.env.DB_PORT = "5432";
 process.env.DB_SSL = "false";
 
-
 // Database setup for individual test files
-const { query, initializeDatabase } = require('../../utils/database');
+const { query, initializeDatabase } = require("../../utils/database");
 
 // Helper to check if database is available for tests
 async function isDatabaseAvailable() {
   try {
-    const result = await query('SELECT 1 as test');
+    const result = await query("SELECT 1 as test");
     return result !== null && result.rows && result.rows.length > 0;
   } catch (error) {
     return false;
@@ -42,33 +41,39 @@ async function getTestData(tableName, limit = 10) {
 // Helper to create all tables using the main setup_database.sql file
 async function ensureTestData() {
   try {
-
     // Use the webapp-specific database setup SQL file
-    const fs = require('fs');
-    const path = require('path');
+    const fs = require("fs");
+    const path = require("path");
 
     try {
-      const setupSqlPath = path.join(__dirname, '../../setup_test_database.sql');
-      const setupSql = fs.readFileSync(setupSqlPath, 'utf8');
+      const setupSqlPath = path.join(
+        __dirname,
+        "../../setup_test_database.sql"
+      );
+      const setupSql = fs.readFileSync(setupSqlPath, "utf8");
 
       // Split SQL into individual statements and execute them
-      const statements = setupSql.split(';').filter(stmt => stmt.trim().length > 0);
+      const statements = setupSql
+        .split(";")
+        .filter((stmt) => stmt.trim().length > 0);
 
       for (const statement of statements) {
         if (statement.trim()) {
           try {
-            await query(statement.trim() + ';');
+            await query(statement.trim() + ";");
           } catch (error) {
             // Log error but continue with other statements
-            if (!error.message.includes('already exists')) {
+            if (!error.message.includes("already exists")) {
               console.warn(`Warning executing SQL statement: ${error.message}`);
             }
           }
         }
       }
-
     } catch (error) {
-      console.warn('⚠️  Could not load setup_database.sql, using fallback:', error.message);
+      console.warn(
+        "⚠️  Could not load setup_database.sql, using fallback:",
+        error.message
+      );
 
       // Fallback: Create essential webapp tables only
       await query(`
@@ -81,7 +86,7 @@ async function ensureTestData() {
       )
     `);
 
-    await query(`
+      await query(`
       CREATE TABLE IF NOT EXISTS watchlist_items (
         id SERIAL PRIMARY KEY,
         watchlist_id INTEGER REFERENCES watchlists(id) ON DELETE CASCADE,
@@ -91,7 +96,7 @@ async function ensureTestData() {
       )
     `);
 
-    await query(`
+      await query(`
       CREATE TABLE IF NOT EXISTS portfolio_holdings (
         id SERIAL PRIMARY KEY,
         user_id VARCHAR(255) NOT NULL,
@@ -104,7 +109,7 @@ async function ensureTestData() {
       )
     `);
 
-    await query(`
+      await query(`
       CREATE TABLE IF NOT EXISTS portfolio_performance (
         id SERIAL PRIMARY KEY,
         user_id VARCHAR(255) NOT NULL,
@@ -118,8 +123,8 @@ async function ensureTestData() {
       )
     `);
 
-    // Create orders table for trading functionality
-    await query(`
+      // Create orders table for trading functionality
+      await query(`
       CREATE TABLE IF NOT EXISTS orders_paper (
         id SERIAL PRIMARY KEY,
         user_id VARCHAR(255) NOT NULL,
@@ -135,18 +140,16 @@ async function ensureTestData() {
       )
     `);
 
-    // Insert minimal test data for webapp tables
-    await query(`
+      // Insert minimal test data for webapp tables
+      await query(`
       INSERT INTO watchlists (user_id, name) VALUES
       ('test-user-123', 'My Watchlist'),
       ('test-user-456', 'Tech Stocks')
       ON CONFLICT DO NOTHING
     `);
-
     }
-
   } catch (error) {
-    console.error(' Error creating webapp tables:', error);
+    console.error(" Error creating webapp tables:", error);
     throw error;
   }
 }
@@ -157,38 +160,38 @@ async function createLoaderTables() {
     // Tables are now created by setup_test_database.sql with proper schemas
     // Just create any additional tables not in that file
 
-
     // Check and fix stock_scores table schema - add all missing columns
     try {
       // Add all missing columns that are needed for the test data
       const missingColumns = [
-        'sma_20 DECIMAL(10,2)',
-        'sma_50 DECIMAL(10,2)',
-        'volume_avg_30d BIGINT',
-        'current_price DECIMAL(10,2)',
-        'price_change_1d DECIMAL(5,2)',
-        'price_change_5d DECIMAL(5,2)',
-        'price_change_30d DECIMAL(5,2)',
-        'volatility_30d DECIMAL(5,2)',
-        'market_cap BIGINT',
-        'pe_ratio DECIMAL(8,2)',
-        'score_date DATE',
-        'last_updated TIMESTAMP'
+        "sma_20 DECIMAL(10,2)",
+        "sma_50 DECIMAL(10,2)",
+        "volume_avg_30d BIGINT",
+        "current_price DECIMAL(10,2)",
+        "price_change_1d DECIMAL(5,2)",
+        "price_change_5d DECIMAL(5,2)",
+        "price_change_30d DECIMAL(5,2)",
+        "volatility_30d DECIMAL(5,2)",
+        "market_cap BIGINT",
+        "pe_ratio DECIMAL(8,2)",
+        "score_date DATE",
+        "last_updated TIMESTAMP",
       ];
 
       for (const column of missingColumns) {
         try {
-          await query(`ALTER TABLE stock_scores ADD COLUMN IF NOT EXISTS ${column}`);
+          await query(
+            `ALTER TABLE stock_scores ADD COLUMN IF NOT EXISTS ${column}`
+          );
         } catch (error) {
           // Column probably already exists
         }
       }
     } catch (error) {
-      console.warn('Could not add stock_scores columns:', error.message);
+      console.warn("Could not add stock_scores columns:", error.message);
     }
-
   } catch (error) {
-    console.error(' Error creating Python loader tables:', error);
+    console.error(" Error creating Python loader tables:", error);
     throw error;
   }
 }
@@ -259,7 +262,6 @@ async function populateLoaderTestData() {
       ('FEDFUNDS', '2024-09-01', 4.75)
       ON CONFLICT (series_id, date) DO NOTHING
     `);
-
 
     // Insert stock symbols (for JOIN operations)
     await query(`
@@ -390,9 +392,11 @@ async function populateLoaderTestData() {
       ('MSFT', 'weekly', CURRENT_DATE, 415.0, 430.0, 414.0, 428.0, 140000000, 'BUY', 415.0, 400.0, true)
       ON CONFLICT (symbol, timeframe, date) DO NOTHING
     `);
-
   } catch (error) {
-    console.warn('⚠️  Could not populate test data for loader tables:', error.message);
+    console.warn(
+      "⚠️  Could not populate test data for loader tables:",
+      error.message
+    );
     // Non-fatal error - tests can still run
   }
 }
@@ -411,9 +415,8 @@ async function setupTestDatabase() {
 
     // Try to populate test data for Python loader tables if they exist
     await populateLoaderTestData();
-
   } catch (error) {
-    console.error(' Failed to setup test database:', error);
+    console.error(" Failed to setup test database:", error);
     throw error;
   }
 }
@@ -447,5 +450,5 @@ module.exports = {
   ensureTestData,
   createLoaderTables,
   populateLoaderTestData,
-  setupTestDatabase
+  setupTestDatabase,
 };

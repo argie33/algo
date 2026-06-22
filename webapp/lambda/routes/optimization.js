@@ -1,9 +1,13 @@
 const express = require("express");
+
 const { query } = require("../utils/database");
 const { sendSuccess, sendError } = require("../utils/apiResponse");
 const { authenticateToken } = require("../middleware/auth");
-const logger = require('../utils/logger');
-const { validateQueryResult, validateAndCoerceRows } = require('../utils/responseValidation');
+const logger = require("../utils/logger");
+const {
+  validateQueryResult,
+  validateAndCoerceRows,
+} = require("../utils/responseValidation");
 const router = express.Router();
 router.use(authenticateToken);
 
@@ -12,13 +16,15 @@ router.get("/analysis", async (req, res) => {
   try {
     const symbolsParam = req.query.symbols;
     const symbols = symbolsParam
-      ? symbolsParam.split(",").map(s => s.trim().toUpperCase()).filter(Boolean)
+      ? symbolsParam
+          .split(",")
+          .map((s) => s.trim().toUpperCase())
+          .filter(Boolean)
       : [];
 
     // Fetch real metrics for requested symbols (or top SP500 by composite score)
-    const symbolFilter = symbols.length > 0
-      ? `AND ss.symbol = ANY($1)`
-      : `AND st.is_sp500 = true`;
+    const symbolFilter =
+      symbols.length > 0 ? `AND ss.symbol = ANY($1)` : `AND st.is_sp500 = true`;
     const queryArgs = symbols.length > 0 ? [symbols] : [];
 
     const result = await query(
@@ -67,7 +73,11 @@ router.get("/analysis", async (req, res) => {
     validateQueryResult(result, { requireRows: false });
 
     if (!result.rows || result.rows.length === 0) {
-      return sendError(res, "No optimization data available — run loadstockscores.py and loadfactormetrics.py first", 404);
+      return sendError(
+        res,
+        "No optimization data available — run loadstockscores.py and loadfactormetrics.py first",
+        404
+      );
     }
 
     const stocks = result.rows;
@@ -75,37 +85,57 @@ router.get("/analysis", async (req, res) => {
     const equalWeight = parseFloat((100 / n).toFixed(1));
 
     // Build allocations from real composite scores (score-weighted)
-    const validScores = stocks.filter(r => r.composite_score != null).map(r => parseFloat(r.composite_score));
-    const totalScore = validScores.length > 0 ? validScores.reduce((a, b) => a + b, 0) : null;
-    const allocations = stocks.map(r => ({
+    const validScores = stocks
+      .filter((r) => r.composite_score != null)
+      .map((r) => parseFloat(r.composite_score));
+    const totalScore =
+      validScores.length > 0 ? validScores.reduce((a, b) => a + b, 0) : null;
+    const allocations = stocks.map((r) => ({
       symbol: r.symbol,
       company_name: r.company_name || r.symbol,
       sector: r.sector || "Unknown",
-      allocation: totalScore != null && totalScore > 0
-        ? parseFloat(((parseFloat(r.composite_score) / totalScore) * 100).toFixed(1))
-        : equalWeight,
+      allocation:
+        totalScore != null && totalScore > 0
+          ? parseFloat(
+              ((parseFloat(r.composite_score) / totalScore) * 100).toFixed(1)
+            )
+          : equalWeight,
       composite_score: parseFloat(r.composite_score) || null,
       momentum_score: parseFloat(r.momentum_score) || null,
       quality_score: parseFloat(r.quality_score) || null,
       beta: r.beta != null ? parseFloat(r.beta) : null,
       return_12m: r.return_12m != null ? parseFloat(r.return_12m) : null,
-      dividend_yield: r.dividend_yield != null ? parseFloat(r.dividend_yield) : null,
+      dividend_yield:
+        r.dividend_yield != null ? parseFloat(r.dividend_yield) : null,
     }));
 
     // Portfolio-level aggregates from real data
-    const validBetas = stocks.filter(r => r.beta != null).map(r => parseFloat(r.beta));
-    const validReturns = stocks.filter(r => r.return_12m != null).map(r => parseFloat(r.return_12m));
-    const validVols = stocks.filter(r => r.volatility_90d != null).map(r => parseFloat(r.volatility_90d));
-    const avgBeta = validBetas.length ? (validBetas.reduce((a, b) => a + b, 0) / validBetas.length) : null;
-    const avgReturn = validReturns.length ? (validReturns.reduce((a, b) => a + b, 0) / validReturns.length) : null;
-    const avgVol = validVols.length ? (validVols.reduce((a, b) => a + b, 0) / validVols.length) : null;
+    const validBetas = stocks
+      .filter((r) => r.beta != null)
+      .map((r) => parseFloat(r.beta));
+    const validReturns = stocks
+      .filter((r) => r.return_12m != null)
+      .map((r) => parseFloat(r.return_12m));
+    const validVols = stocks
+      .filter((r) => r.volatility_90d != null)
+      .map((r) => parseFloat(r.volatility_90d));
+    const avgBeta = validBetas.length
+      ? validBetas.reduce((a, b) => a + b, 0) / validBetas.length
+      : null;
+    const avgReturn = validReturns.length
+      ? validReturns.reduce((a, b) => a + b, 0) / validReturns.length
+      : null;
+    const avgVol = validVols.length
+      ? validVols.reduce((a, b) => a + b, 0) / validVols.length
+      : null;
 
     return sendSuccess(res, {
       allocations,
       portfolioMetrics: {
         symbolCount: n,
         avgBeta: avgBeta != null ? parseFloat(avgBeta.toFixed(2)) : null,
-        avgReturn12m: avgReturn != null ? parseFloat(avgReturn.toFixed(2)) : null,
+        avgReturn12m:
+          avgReturn != null ? parseFloat(avgReturn.toFixed(2)) : null,
         avgVolatility: avgVol != null ? parseFloat(avgVol.toFixed(2)) : null,
         weightingMethod: "composite_score_weighted",
       },

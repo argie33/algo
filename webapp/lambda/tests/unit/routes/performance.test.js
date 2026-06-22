@@ -9,7 +9,14 @@ jest.mock("../../../utils/database", () => ({
   query: jest.fn().mockResolvedValue({ rows: [], rowCount: 0 }),
 }));
 
-const { query, closeDatabase, initializeDatabase, getPool, transaction, healthCheck } = require("../../../utils/database");
+const {
+  query,
+  closeDatabase,
+  initializeDatabase,
+  getPool,
+  transaction,
+  healthCheck,
+} = require("../../../utils/database");
 // Mock the auth middleware
 jest.mock("../../../middleware/auth", () => ({
   authenticateToken: jest.fn((req, res, next) => {
@@ -42,23 +49,22 @@ describe("Performance Routes Unit Tests", () => {
     mockQuery = query;
     // Add default mock implementation with fallback
     mockQuery.mockImplementation((sql, params) => {
-      if (sql && typeof sql === 'string') {
+      if (sql && typeof sql === "string") {
         // Handle information_schema queries for table/column introspection
         if (sql.includes("information_schema")) {
           if (sql.includes("columns")) {
             // Return mock columns for any table being checked
             return Promise.resolve({
               rows: [
-                { column_name: 'id', ordinal_position: 1 },
-                { column_name: 'user_id', ordinal_position: 2 },
-                { column_name: 'date', ordinal_position: 3 },
-                { column_name: 'value', ordinal_position: 4 },
-                { column_name: 'return_pct', ordinal_position: 5 },
-                { column_name: 'created_at', ordinal_position: 6 },
-                { column_name: 'updated_at', ordinal_position: 7 }
-              ]
+                { column_name: "id", ordinal_position: 1 },
+                { column_name: "user_id", ordinal_position: 2 },
+                { column_name: "date", ordinal_position: 3 },
+                { column_name: "value", ordinal_position: 4 },
+                { column_name: "return_pct", ordinal_position: 5 },
+                { column_name: "created_at", ordinal_position: 6 },
+                { column_name: "updated_at", ordinal_position: 7 },
+              ],
             });
-
           }
           if (sql.includes("tables")) {
             return Promise.resolve({ rows: [{ exists: true }] });
@@ -272,7 +278,9 @@ describe("Performance Routes Unit Tests", () => {
       const response = await request(app).get("/performance/benchmark");
       expect(response.status).toBe(500);
       expect(response.body).toHaveProperty("success", false);
-      expect(response.body.error).toContain("Failed to fetch performance benchmark data");
+      expect(response.body.error).toContain(
+        "Failed to fetch performance benchmark data"
+      );
     });
   });
   describe("GET /performance/analytics (authenticated)", () => {
@@ -306,7 +314,9 @@ describe("Performance Routes Unit Tests", () => {
       const response = await request(app).get("/performance/analytics");
       expect(response.status).toBe(500);
       expect(response.body).toHaveProperty("success", false);
-      expect(response.body.error).toContain("Failed to fetch performance analytics");
+      expect(response.body.error).toContain(
+        "Failed to fetch performance analytics"
+      );
     });
   });
   describe("GET /performance/metrics (authenticated)", () => {
@@ -337,7 +347,9 @@ describe("Performance Routes Unit Tests", () => {
       const response = await request(app).get("/performance/metrics");
       expect(response.status).toBe(500);
       expect(response.body).toHaveProperty("success", false);
-      expect(response.body.error).toContain("Failed to retrieve performance metrics");
+      expect(response.body.error).toContain(
+        "Failed to retrieve performance metrics"
+      );
     });
   });
   describe("GET /performance/attribution (authenticated)", () => {

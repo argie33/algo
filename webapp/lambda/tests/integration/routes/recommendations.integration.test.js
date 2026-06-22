@@ -410,7 +410,7 @@ describe("Recommendations Routes - Real Data Validation", () => {
 
       responses.forEach((response) => {
         expect(response.status).toBe(200);
-      expect(response.body).toHaveProperty("success", true);
+        expect(response.body).toHaveProperty("success", true);
       });
     });
   });

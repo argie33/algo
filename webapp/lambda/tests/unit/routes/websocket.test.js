@@ -68,7 +68,14 @@ describe("WebSocket API Routes - API Key Dependencies", () => {
     // (e.g., to simulate errors) and if not reset, subsequent tests fail
     mockAlpacaService.mockImplementation(() => mockAlpacaInstance);
   });
-const { query, closeDatabase, initializeDatabase, getPool, transaction, healthCheck } = require("../../../utils/database");
+  const {
+    query,
+    closeDatabase,
+    initializeDatabase,
+    getPool,
+    transaction,
+    healthCheck,
+  } = require("../../../utils/database");
 
   afterAll(() => {
     // No timer cleanup needed since we're not using fake timers

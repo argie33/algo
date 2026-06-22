@@ -1,79 +1,79 @@
-const { sendError } = require('../utils/apiResponse');
+const { sendError } = require("../utils/apiResponse");
 
 const errorHandler = (err, req, res, _next) => {
   // Enhanced logging for AWS CloudWatch
   const errorDetails = {
     message: err.message,
-    stack: process.env.NODE_ENV === 'development' ? err.stack : undefined,
+    stack: process.env.NODE_ENV === "development" ? err.stack : undefined,
     url: req.url,
     method: req.method,
     timestamp: new Date().toISOString(),
-    userAgent: req.get('User-Agent'),
-    requestId: req.get('X-Request-ID') || req.id,
+    userAgent: req.get("User-Agent"),
+    requestId: req.get("X-Request-ID") || req.id,
     // AWS-specific context
     awsRequestId: req.context?.awsRequestId,
     functionName: process.env.AWS_LAMBDA_FUNCTION_NAME,
     functionVersion: process.env.AWS_LAMBDA_FUNCTION_VERSION,
     environment: process.env.NODE_ENV,
     memoryLimitInMB: process.env.AWS_LAMBDA_FUNCTION_MEMORY_SIZE,
-    remainingTimeInMillis: req.context?.getRemainingTimeInMillis?.()
+    remainingTimeInMillis: req.context?.getRemainingTimeInMillis?.(),
   };
 
-  console.error(' API ERROR:', JSON.stringify(errorDetails, null, 2));
+  console.error(" API ERROR:", JSON.stringify(errorDetails, null, 2));
 
   // Default error response
   let status = 500;
   let message = "Internal Server Error";
   let details = null;
-  let code = 'INTERNAL_ERROR';
+  let code = "INTERNAL_ERROR";
 
   // Handle AWS Lambda specific errors first
-  if (err.message?.includes('Task timed out')) {
+  if (err.message?.includes("Task timed out")) {
     status = 504;
     message = "Gateway Timeout";
     details = "Request processing timed out";
-    code = 'LAMBDA_TIMEOUT';
-  } else if (err.message?.includes('Runtime.ImportModuleError')) {
+    code = "LAMBDA_TIMEOUT";
+  } else if (err.message?.includes("Runtime.ImportModuleError")) {
     status = 500;
     message = "Module Import Error";
     details = "Failed to import required modules";
-    code = 'MODULE_IMPORT_ERROR';
-  } else if (err.message?.includes('Cannot resolve module')) {
+    code = "MODULE_IMPORT_ERROR";
+  } else if (err.message?.includes("Cannot resolve module")) {
     status = 500;
     message = "Dependency Error";
     details = "Missing required dependencies";
-    code = 'DEPENDENCY_ERROR';
-  } else if (err.code === 'DB_CONNECTION_FAILED') {
+    code = "DEPENDENCY_ERROR";
+  } else if (err.code === "DB_CONNECTION_FAILED") {
     // Database connection explicitly failed (ensureConnection() thrown error)
     status = 503;
     message = "Database service unavailable";
     details = "Cannot connect to database. Please try again later.";
-    code = 'DB_CONNECTION_FAILED';
-  } else if (err.code === 'ECONNREFUSED' && err.address) {
+    code = "DB_CONNECTION_FAILED";
+  } else if (err.code === "ECONNREFUSED" && err.address) {
     status = 503;
     message = "Database Connection Error";
     // FIXED: Don't expose database host/port information in error messages
     details = "Cannot connect to database";
-    code = 'DB_CONNECTION_ERROR';
+    code = "DB_CONNECTION_ERROR";
     // Log the actual error details server-side (not sent to client)
-    if (process.env.NODE_ENV === 'development') {
+    if (process.env.NODE_ENV === "development") {
       console.error(`DB Connection error: ${err.address}:${err.port}`);
     }
-  } else if (err.code === 'ENOTFOUND' || err.code === 'ECONNREFUSED') {
+  } else if (err.code === "ENOTFOUND" || err.code === "ECONNREFUSED") {
     status = 503;
     message = "Service Unavailable";
     details = "External service connection failed";
-    code = 'CONNECTION_ERROR';
-  } else if (err.code === 'ECONNRESET' || err.code === 'ETIMEDOUT') {
+    code = "CONNECTION_ERROR";
+  } else if (err.code === "ECONNRESET" || err.code === "ETIMEDOUT") {
     status = 504;
     message = "Connection Timeout";
     details = "Connection to external service timed out";
-    code = 'CONNECTION_TIMEOUT';
-  } else if (err.name === 'SecretsManagerServiceException') {
+    code = "CONNECTION_TIMEOUT";
+  } else if (err.name === "SecretsManagerServiceException") {
     status = 503;
     message = "Configuration Service Error";
     details = "Failed to retrieve configuration";
-    code = 'SECRETS_MANAGER_ERROR';
+    code = "SECRETS_MANAGER_ERROR";
   } else if (err.code === "23505") {
     // PostgreSQL unique violation - always use PostgreSQL status, ignore custom status
     status = 409;
@@ -84,7 +84,11 @@ const errorHandler = (err, req, res, _next) => {
     status = 400;
     message = "Invalid reference";
     details = "Referenced record does not exist";
-  } else if (err.code === "42P01" || err.message?.includes('relation') && err.message?.includes('does not exist')) {
+  } else if (
+    err.code === "42P01" ||
+    (err.message?.includes("relation") &&
+      err.message?.includes("does not exist"))
+  ) {
     // PostgreSQL table does not exist - return 503 Service Unavailable (feature not ready)
     status = 503;
     message = "Feature not yet available";
@@ -105,7 +109,7 @@ const errorHandler = (err, req, res, _next) => {
     error: message,
     statusCode: status,
     success: false,
-    timestamp: new Date().toISOString()
+    timestamp: new Date().toISOString(),
   };
 
   // Add development details only in dev mode
@@ -113,8 +117,11 @@ const errorHandler = (err, req, res, _next) => {
     response.details = {
       code,
       path: req.url,
-      requestId: errorDetails.requestId || errorDetails.awsRequestId || req.headers['x-amzn-requestid'],
-      timestamp: new Date().toISOString()
+      requestId:
+        errorDetails.requestId ||
+        errorDetails.awsRequestId ||
+        req.headers["x-amzn-requestid"],
+      timestamp: new Date().toISOString(),
     };
     if (details) response.details.message = details;
     if (err.stack) response.details.stack = err.stack;

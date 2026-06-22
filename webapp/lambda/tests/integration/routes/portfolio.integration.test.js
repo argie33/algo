@@ -16,9 +16,7 @@ describe("Portfolio Integration Tests - Real Data", () => {
   // Core Portfolio Endpoints
   describe("Core Portfolio APIs", () => {
     test("GET /api/portfolio - should return portfolio API info", async () => {
-      const response = await request(app)
-        .get("/api/portfolio")
-        .set(auth);
+      const response = await request(app).get("/api/portfolio").set(auth);
 
       expect([200, 401]).toContain(response.status);
 
@@ -79,9 +77,7 @@ describe("Portfolio Integration Tests - Real Data", () => {
     });
 
     test("GET /api/portfolio/value - should return real portfolio value", async () => {
-      const response = await request(app)
-        .get("/api/portfolio/value")
-        .set(auth);
+      const response = await request(app).get("/api/portfolio/value").set(auth);
 
       expect([200, 401, 500, 503]).toContain(response.status);
 
@@ -166,9 +162,7 @@ describe("Portfolio Integration Tests - Real Data", () => {
   // Risk Management
   describe("Risk Management APIs", () => {
     test("GET /api/portfolio/risk - should return real risk assessment", async () => {
-      const response = await request(app)
-        .get("/api/portfolio/risk")
-        .set(auth);
+      const response = await request(app).get("/api/portfolio/risk").set(auth);
 
       expect([200, 401, 500, 503]).toContain(response.status);
 
@@ -297,7 +291,10 @@ describe("Portfolio Integration Tests - Real Data", () => {
         expect(response.body).toHaveProperty("data");
       } else if (response.status === 503) {
         expect(response.body).toHaveProperty("success", false);
-        expect(response.body).toHaveProperty("error", "Database connection error");
+        expect(response.body).toHaveProperty(
+          "error",
+          "Database connection error"
+        );
       }
     });
   });
@@ -396,9 +393,7 @@ describe("Portfolio Integration Tests - Real Data", () => {
     });
 
     test("GET /api/portfolio/data - should redirect to holdings endpoint", async () => {
-      const response = await request(app)
-        .get("/api/portfolio/data")
-        .set(auth);
+      const response = await request(app).get("/api/portfolio/data").set(auth);
 
       expect([302, 404]).toContain(response.status);
 

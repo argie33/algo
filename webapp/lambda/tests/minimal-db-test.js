@@ -10,7 +10,6 @@ const db = require("../utils/database");
 
 async function testDatabase() {
   try {
-
     const pool = await db.initializeDatabase();
     if (!pool) {
       console.error(" Database pool is null");

@@ -2,7 +2,6 @@ const request = require("supertest");
 const { app } = require("../../../index");
 const { initializeDatabase } = require("../../../utils/database");
 
-
 describe("Screener Routes", () => {
   beforeAll(async () => {
     await initializeDatabase();
@@ -17,7 +16,6 @@ describe("Screener Routes", () => {
       expect(response.body).toHaveProperty("data");
       expect(response.body.data).toHaveProperty("available_endpoints");
     });
-
   });
 
   describe("GET /api/screener/screen", () => {
@@ -34,7 +32,9 @@ describe("Screener Routes", () => {
 
     test("should handle multiple criteria", async () => {
       const response = await request(app)
-        .get("/api/screener/screen?market_cap_min=1000000000&pe_max=25&volume_min=1000000")
+        .get(
+          "/api/screener/screen?market_cap_min=1000000000&pe_max=25&volume_min=1000000"
+        )
         .set("Authorization", "Bearer dev-bypass-token");
 
       expect(response.status).toBe(200);
@@ -50,7 +50,6 @@ describe("Screener Routes", () => {
       expect(response.status).toBe(200);
       expect(response.body.success).toBe(true);
     });
-
   });
 
   describe("GET /api/screener/presets", () => {
@@ -69,7 +68,6 @@ describe("Screener Routes", () => {
         expect(preset).toHaveProperty("filters");
       }
     });
-
   });
 
   describe("GET /api/screener/presets/:presetName", () => {
@@ -87,7 +85,6 @@ describe("Screener Routes", () => {
         expect(response.body.data).toHaveProperty("filters");
       }
     });
-
   });
 
   describe("GET /api/screener/growth", () => {
@@ -109,7 +106,6 @@ describe("Screener Routes", () => {
       expect(response.status).toBe(200);
       expect(response.body.success).toBe(true);
     });
-
   });
 
   describe("GET /api/screener/value", () => {
@@ -122,7 +118,6 @@ describe("Screener Routes", () => {
       expect(response.body.success).toBe(true);
       expect(Array.isArray(response.body.data)).toBe(true);
     });
-
   });
 
   describe("GET /api/screener/growth", () => {
@@ -135,7 +130,6 @@ describe("Screener Routes", () => {
       expect(response.body.success).toBe(true);
       expect(Array.isArray(response.body.data)).toBe(true);
     });
-
   });
 
   describe("GET /api/screener/dividend", () => {
@@ -155,7 +149,6 @@ describe("Screener Routes", () => {
       expect(response.status).toBe(200);
       expect(response.body.success).toBe(true);
     });
-
   });
 
   describe("GET /api/screener/technical", () => {
@@ -167,7 +160,6 @@ describe("Screener Routes", () => {
       expect(response.status).toBe(404);
       expect(response.body.success).toBe(false);
     });
-
   });
 
   describe("POST /api/screener/custom", () => {
@@ -199,7 +191,6 @@ describe("Screener Routes", () => {
 
       expect([400, 401, 422]).toContain(response.status);
     });
-
   });
 
   describe("GET /api/screener/backtest", () => {
@@ -220,7 +211,6 @@ describe("Screener Routes", () => {
       expect(response.status).toBe(404);
       expect(response.body.success).toBe(false);
     });
-
   });
 
   describe("GET /api/screener/export", () => {
@@ -233,5 +223,4 @@ describe("Screener Routes", () => {
       expect(response.body.success).toBe(false);
     });
   });
-
 });

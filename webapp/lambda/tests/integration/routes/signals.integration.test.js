@@ -122,10 +122,24 @@ describe("Signals - Routes - Real Data Validation", () => {
 
         // Swing metrics validation
         if (signal.market_stage) {
-          expect(["Stage 1 - Basing", "Stage 2 - Advancing", "Stage 3 - Topping", "Stage 4 - Declining"].includes(signal.market_stage)).toBe(true);
+          expect(
+            [
+              "Stage 1 - Basing",
+              "Stage 2 - Advancing",
+              "Stage 3 - Topping",
+              "Stage 4 - Declining",
+            ].includes(signal.market_stage)
+          ).toBe(true);
         }
         if (signal.volume_analysis) {
-          expect(["Pocket Pivot", "Volume Surge", "Volume Dry-up", "Normal Volume"].includes(signal.volume_analysis)).toBe(true);
+          expect(
+            [
+              "Pocket Pivot",
+              "Volume Surge",
+              "Volume Dry-up",
+              "Normal Volume",
+            ].includes(signal.volume_analysis)
+          ).toBe(true);
         }
       }
     });
@@ -223,7 +237,9 @@ describe("Signals - Routes - Real Data Validation", () => {
     });
 
     test("should handle timeframe filters with database schema", async () => {
-      const response = await request(app).get("/api/signals/buy?timeframe=weekly");
+      const response = await request(app).get(
+        "/api/signals/buy?timeframe=weekly"
+      );
 
       if (response.status === 200) {
         expect(response.body.success).toBe(true);
@@ -235,11 +251,15 @@ describe("Signals - Routes - Real Data Validation", () => {
     });
 
     test("should validate timeframe parameter strictly", async () => {
-      const response = await request(app).get("/api/signals/buy?timeframe=invalid");
+      const response = await request(app).get(
+        "/api/signals/buy?timeframe=invalid"
+      );
 
       expect(response.status).toBe(400);
       expect(response.body.success).toBe(false);
-      expect(response.body.error).toBe("Invalid timeframe. Must be daily, weekly, or monthly");
+      expect(response.body.error).toBe(
+        "Invalid timeframe. Must be daily, weekly, or monthly"
+      );
     });
   });
 
@@ -367,7 +387,6 @@ describe("Signals - Routes - Real Data Validation", () => {
     });
   });
 
-
   describe("DELETE /api/signals/alerts/:alertId - Database Integration", () => {
     test("should delete alert with database persistence", async () => {
       // First create an alert to delete
@@ -382,7 +401,8 @@ describe("Signals - Routes - Real Data Validation", () => {
         });
 
       if (createResponse.status === 201) {
-        const alertId = createResponse.body.data.id || createResponse.body.data.alert_id;
+        const alertId =
+          createResponse.body.data.id || createResponse.body.data.alert_id;
         expect(alertId).toBeDefined();
 
         // Now delete the created alert
@@ -468,7 +488,9 @@ describe("Signals - Routes - Real Data Validation", () => {
     });
 
     test("should handle pagination parameters", async () => {
-      const response = await request(app).get("/api/signals/history?page=1&limit=5");
+      const response = await request(app).get(
+        "/api/signals/history?page=1&limit=5"
+      );
 
       expect(response.status).toBe(200);
       expect(response.body.success).toBe(true);
@@ -502,7 +524,9 @@ describe("Signals - Routes - Real Data Validation", () => {
     });
 
     test("should handle timeframe parameter", async () => {
-      const response = await request(app).get("/api/signals/list?timeframe=weekly");
+      const response = await request(app).get(
+        "/api/signals/list?timeframe=weekly"
+      );
 
       expect(response.status).toBe(200);
       expect(response.body.success).toBe(true);
@@ -510,7 +534,9 @@ describe("Signals - Routes - Real Data Validation", () => {
     });
 
     test("should handle pagination parameters", async () => {
-      const response = await request(app).get("/api/signals/list?page=1&limit=10");
+      const response = await request(app).get(
+        "/api/signals/list?page=1&limit=10"
+      );
 
       expect(response.status).toBe(200);
       expect(response.body.success).toBe(true);
@@ -529,10 +555,10 @@ describe("Signals - Routes - Real Data Validation", () => {
         description: "Test custom signal for integration testing",
         criteria: {
           rsi: { min: 30, max: 70 },
-          volume: { min: 1000000 }
+          volume: { min: 1000000 },
         },
         symbols: ["AAPL", "TSLA"],
-        alert_threshold: 8.5
+        alert_threshold: 8.5,
       };
 
       const response = await request(app)
@@ -564,7 +590,7 @@ describe("Signals - Routes - Real Data Validation", () => {
       const invalidData = {
         name: "Invalid Signal",
         criteria: "invalid_criteria_format", // Should be object
-        symbols: ["AAPL"]
+        symbols: ["AAPL"],
       };
 
       const response = await request(app)
@@ -580,7 +606,9 @@ describe("Signals - Routes - Real Data Validation", () => {
 
   describe("GET /api/signals/technical - Advanced", () => {
     test("should support symbol filtering", async () => {
-      const response = await request(app).get("/api/signals/technical?symbols=AAPL,TSLA");
+      const response = await request(app).get(
+        "/api/signals/technical?symbols=AAPL,TSLA"
+      );
 
       if (response.status === 200) {
         expect(response.body.success).toBe(true);
@@ -589,8 +617,8 @@ describe("Signals - Routes - Real Data Validation", () => {
 
         // Check that returned data only contains requested symbols
         if (response.body.data.length > 0) {
-          const symbols = response.body.data.map(signal => signal.symbol);
-          symbols.forEach(symbol => {
+          const symbols = response.body.data.map((signal) => signal.symbol);
+          symbols.forEach((symbol) => {
             expect(["AAPL", "TSLA"].includes(symbol)).toBe(true);
           });
         }
@@ -623,7 +651,9 @@ describe("Signals - Routes - Real Data Validation", () => {
       const invalidSymbols = ["", "INVALID_SYMBOL_123456", "!@#$%"];
 
       for (const symbol of invalidSymbols) {
-        const response = await request(app).get(`/api/signals/${encodeURIComponent(symbol)}`);
+        const response = await request(app).get(
+          `/api/signals/${encodeURIComponent(symbol)}`
+        );
         expect([200, 400, 404]).toContain(response.status);
         expect(response.body).toHaveProperty("success");
       }
@@ -634,11 +664,13 @@ describe("Signals - Routes - Real Data Validation", () => {
         { page: -1, limit: 10 },
         { page: 0, limit: -5 },
         { page: 1, limit: 1000 },
-        { page: 9999, limit: 1 }
+        { page: 9999, limit: 1 },
       ];
 
       for (const params of extremeValues) {
-        const response = await request(app).get(`/api/signals?page=${params.page}&limit=${params.limit}`);
+        const response = await request(app).get(
+          `/api/signals?page=${params.page}&limit=${params.limit}`
+        );
         expect([200, 400, 500]).toContain(response.status);
         expect(response.body).toHaveProperty("success");
       }
@@ -648,19 +680,21 @@ describe("Signals - Routes - Real Data Validation", () => {
       const specialTimeframes = ["daily!", "week@ly", "month#ly", ""];
 
       for (const timeframe of specialTimeframes) {
-        const response = await request(app).get(`/api/signals?timeframe=${encodeURIComponent(timeframe)}`);
+        const response = await request(app).get(
+          `/api/signals?timeframe=${encodeURIComponent(timeframe)}`
+        );
         expect([200, 400]).toContain(response.status);
         expect(response.body).toHaveProperty("success");
       }
     });
 
     test("should handle concurrent requests gracefully", async () => {
-      const concurrentRequests = Array(5).fill(null).map(() =>
-        request(app).get("/api/signals")
-      );
+      const concurrentRequests = Array(5)
+        .fill(null)
+        .map(() => request(app).get("/api/signals"));
 
       const responses = await Promise.all(concurrentRequests);
-      responses.forEach(response => {
+      responses.forEach((response) => {
         expect(response.status).toBe(200);
         expect(response.body.success).toBe(true);
       });
@@ -676,7 +710,7 @@ describe("Signals - Routes - Real Data Validation", () => {
         "/api/signals/sell",
         "/api/signals/technical",
         "/api/signals/momentum",
-        "/api/signals/alerts"
+        "/api/signals/alerts",
       ];
 
       for (const endpoint of endpoints) {

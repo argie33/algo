@@ -583,17 +583,19 @@ class CircuitBreaker:
                 min_acceptable_date -= timedelta(days=1)
 
         if data_date < min_acceptable_date:
-            # OPTION_B FIX: Fail-open on stale market_health_daily to allow trading with 91% fresh data.
-            # Market stage is advisory (only stage 4 halts); older data is less critical than price/technical freshness.
-            # Log the staleness issue for ops monitoring while allowing orchestrator to proceed with default caution (stage 2).
-            logger.warning(
-                f"[OPTION_B] Market stage data stale ({days_stale}d old, expected {expected_date}) — "
-                "using default caution stage 2 to allow trading with available price/technical data"
+            # Fail-closed: Market stage is required to determine trading conditions.
+            # Even though stage is advisory (stage 4 = halt, 1-3 = allow), we cannot
+            # proceed when market classification data is stale. Stale market data may not
+            # reflect current regime changes (e.g., market recovered to Stage 2 but we don't know).
+            # Risk: Entering positions based on outdated market regime classification.
+            logger.critical(
+                f"Market stage data stale ({days_stale}d old, expected {expected_date}). "
+                "Cannot determine current market regime. Trading halted until market health data refreshes."
             )
             return {
-                "halted": False,
-                "reason": f"Market stage stale ({days_stale}d) — using default stage 2",
-                "value": 2,
+                "halted": True,
+                "reason": f"Market stage data stale ({days_stale}d old) — cannot determine regime. Fail-closed halt.",
+                "value": None,
             }
 
         if row[1] is None:

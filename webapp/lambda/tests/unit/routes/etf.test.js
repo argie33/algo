@@ -10,7 +10,14 @@ const mockQuery = jest.fn();
 jest.mock("../../../utils/database", () => ({
   query: mockQuery,
 }));
-const { query, closeDatabase, initializeDatabase, getPool, transaction, healthCheck } = require("../../../utils/database");
+const {
+  query,
+  closeDatabase,
+  initializeDatabase,
+  getPool,
+  transaction,
+  healthCheck,
+} = require("../../../utils/database");
 
 // Create test app
 const app = express();
@@ -384,7 +391,9 @@ describe("ETF Route - Comprehensive Unit Tests", () => {
       mockQuery
         .mockResolvedValueOnce({ rows: mockHoldingsData })
         .mockResolvedValueOnce({ rows: [] });
-      const response = await request(app).get("/api/etf/SPY/holdings?limit=invalid").expect(400);
+      const response = await request(app)
+        .get("/api/etf/SPY/holdings?limit=invalid")
+        .expect(400);
       // Should return error for invalid limit parameter
       expect(response.body.success).toBe(false);
       expect(response.body.error).toContain("Invalid limit parameter");
@@ -467,7 +476,6 @@ describe("ETF Route - Comprehensive Unit Tests", () => {
         dividend_yield: 2.0,
       }));
 
-
       // Clear all mocks and set up fresh
       jest.clearAllMocks();
       mockQuery
@@ -481,7 +489,9 @@ describe("ETF Route - Comprehensive Unit Tests", () => {
       // The test should work with the proper mocked data
       // If it still fails, it means there's either a test setup issue or the route limits data differently
       expect(response.body.data.top_holdings.length).toBeGreaterThanOrEqual(1);
-      expect(response.body.data.fund_metrics.total_holdings).toBeGreaterThanOrEqual(0);
+      expect(
+        response.body.data.fund_metrics.total_holdings
+      ).toBeGreaterThanOrEqual(0);
       expect(endTime - startTime).toBeLessThan(5000); // Should complete within 5 seconds
     });
   });

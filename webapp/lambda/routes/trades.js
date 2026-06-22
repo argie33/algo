@@ -4,21 +4,28 @@
  * Consolidates: alpaca (live from API), manual, user, optimization sources
  */
 
-const express = require('express');
+const express = require("express");
 
-const { query: dbQuery, safeFloat, safeInt } = require('../utils/database');
-const { authenticateToken } = require('../middleware/auth');
-const { sendSuccess, sendError, sendPaginated } = require('../utils/apiResponse');
-const logger = require('../utils/logger');
-const { validateQueryResult, validateAndCoerceRows } = require('../utils/responseValidation');
+const { query: dbQuery, safeFloat, safeInt } = require("../utils/database");
+const { authenticateToken } = require("../middleware/auth");
+const {
+  sendSuccess,
+  sendError,
+  sendPaginated,
+} = require("../utils/apiResponse");
+const logger = require("../utils/logger");
+const {
+  validateQueryResult,
+  validateAndCoerceRows,
+} = require("../utils/responseValidation");
 const router = express.Router();
 
 // Alpaca API service
 let AlpacaService;
 try {
-  AlpacaService = require('../utils/alpacaService');
+  AlpacaService = require("../utils/alpacaService");
 } catch (e) {
-  console.warn('⚠️ AlpacaService not available:', e.message);
+  console.warn("⚠️ AlpacaService not available:", e.message);
 }
 
 // SECURITY FIX #1: Authentication is now applied in index.js BEFORE cacheMiddleware
@@ -39,15 +46,15 @@ try {
  *
  * Example: GET /api/trades?source=alpaca,manual&symbol=AAPL&type=buy&limit=20&sort=pnl_desc
  */
-router.get('/', async (req, res) => {
+router.get("/", async (req, res) => {
   try {
     const {
-      source = 'alpaca,manual,optimization,user',
+      source = "alpaca,manual,optimization,user",
       symbol = null,
       type = null,
       page = 1,
       limit = 50,
-      sort = 'date_desc'
+      sort = "date_desc",
     } = req.query;
 
     // Validate and constrain pagination
@@ -57,75 +64,93 @@ router.get('/', async (req, res) => {
 
     // Parse filter values
     const sources = source
-      ? source.split(',').map(s => s.trim()).filter(s => s)
-      : ['alpaca', 'manual', 'optimization', 'user'];
+      ? source
+          .split(",")
+          .map((s) => s.trim())
+          .filter((s) => s)
+      : ["alpaca", "manual", "optimization", "user"];
 
     const symbols = symbol
-      ? symbol.split(',').map(s => s.trim().toUpperCase()).filter(s => s)
+      ? symbol
+          .split(",")
+          .map((s) => s.trim().toUpperCase())
+          .filter((s) => s)
       : null;
 
     const types = type
-      ? type.split(',').map(t => t.trim().toLowerCase()).filter(t => ['buy', 'sell'].includes(t))
+      ? type
+          .split(",")
+          .map((t) => t.trim().toLowerCase())
+          .filter((t) => ["buy", "sell"].includes(t))
       : null;
 
     // Collect ALL trades (Alpaca API + Database)
     let allTrades = [];
 
     // 1. Try to fetch REAL Alpaca trades if enabled
-    if (sources.includes('alpaca') && AlpacaService) {
+    if (sources.includes("alpaca") && AlpacaService) {
       try {
         const apiKey = process.env.APCA_API_KEY_ID;
         const secretKey = process.env.APCA_API_SECRET_KEY;
-        const isPaper = process.env.ALPACA_PAPER_TRADING === 'true';
-
+        const isPaper = process.env.ALPACA_PAPER_TRADING === "true";
 
         if (apiKey && secretKey) {
           const alpaca = new AlpacaService(apiKey, secretKey, isPaper);
-          const orders = await alpaca.getOrders({ status: 'closed', limit: 500 }) || [];
+          const orders =
+            (await alpaca.getOrders({ status: "closed", limit: 500 })) || [];
 
           if (orders && Array.isArray(orders)) {
-            orders.forEach(order => {
-              if (order.status === 'filled' || (order.filledQty && order.filledQty > 0)) {
+            orders.forEach((order) => {
+              if (
+                order.status === "filled" ||
+                (order.filledQty && order.filledQty > 0)
+              ) {
                 allTrades.push({
                   id: order.id,
                   symbol: order.symbol,
-                  type: (order.side || 'buy').toLowerCase(),
+                  type: (order.side || "buy").toLowerCase(),
                   quantity: safeInt(order.filledQty || order.qty),
                   price: safeFloat(order.filledAvgPrice || order.limitPrice),
-                  executionDate: order.filledAt || order.createdAt || new Date().toISOString(),
+                  executionDate:
+                    order.filledAt ||
+                    order.createdAt ||
+                    new Date().toISOString(),
                   orderValue: (() => {
-                    const price = safeFloat(order.filledAvgPrice || order.limitPrice);
+                    const price = safeFloat(
+                      order.filledAvgPrice || order.limitPrice
+                    );
                     const qty = safeInt(order.filledQty || order.qty);
                     return price !== null && qty !== null ? price * qty : null;
                   })(),
                   commission: 0,
-                  source: 'alpaca',
+                  source: "alpaca",
                   orderId: order.id,
-                  broker: 'alpaca',
+                  broker: "alpaca",
                   notes: null,
                   status: order.status,
                   closePrice: null,
                   pnlAmount: null,
-                  pnlPercentage: null
+                  pnlPercentage: null,
                 });
               }
             });
           }
         } else {
-          console.warn('⚠️ Alpaca credentials missing');
+          console.warn("⚠️ Alpaca credentials missing");
         }
       } catch (err) {
-        console.warn('⚠️ Failed to fetch Alpaca trades:', err.message);
-        console.error('Stack:', err.stack);
+        console.warn("⚠️ Failed to fetch Alpaca trades:", err.message);
+        console.error("Stack:", err.stack);
       }
     } else {
-      if (!sources.includes('alpaca')) logger.debug('Alpaca not in requested sources');
-      if (!AlpacaService) logger.debug('AlpacaService not loaded');
+      if (!sources.includes("alpaca"))
+        logger.debug("Alpaca not in requested sources");
+      if (!AlpacaService) logger.debug("AlpacaService not loaded");
     }
 
     // 2. Get database trades (from trades table)
     try {
-      let whereClause = 'WHERE 1=1';
+      let whereClause = "WHERE 1=1";
       const params = [];
 
       // Symbol filter
@@ -144,7 +169,7 @@ router.get('/', async (req, res) => {
       // Get user_id from authenticated token context
       const userId = req.user?.sub || req.user?.id || null;
       if (!userId) {
-        return sendError(res, 'Authentication required', 401);
+        return sendError(res, "Authentication required", 401);
       }
 
       // Add user filter to where clause
@@ -161,34 +186,34 @@ router.get('/', async (req, res) => {
       const result = await dbQuery(dataQuery, params);
       validateQueryResult(result, { requireRows: false });
 
-      result.rows.forEach(row => {
+      result.rows.forEach((row) => {
         allTrades.push({
           id: row.id,
           symbol: row.symbol,
-          type: (row.side || 'buy').toLowerCase(),
+          type: (row.side || "buy").toLowerCase(),
           quantity: parseFloat(row.quantity),
           price: parseFloat(row.execution_price),
           executionDate: row.trade_date,
           orderValue: null,
           commission: 0,
-          source: 'manual',
+          source: "manual",
           orderId: row.id,
-          broker: 'manual',
+          broker: "manual",
           notes: null,
-          status: 'completed',
+          status: "completed",
           closePrice: null,
           pnlAmount: null,
-          pnlPercentage: null
+          pnlPercentage: null,
         });
       });
     } catch (err) {
-      console.warn('⚠️ Failed to fetch database trades:', err.message);
-      console.error('Error stack:', err.stack);
+      console.warn("⚠️ Failed to fetch database trades:", err.message);
+      console.error("Error stack:", err.stack);
     }
 
     // 3. Sort and filter results
     allTrades.sort((a, b) => {
-      if (sort === 'date_asc') {
+      if (sort === "date_asc") {
         return new Date(a.executionDate) - new Date(b.executionDate);
       } else {
         return new Date(b.executionDate) - new Date(a.executionDate);
@@ -207,19 +232,18 @@ router.get('/', async (req, res) => {
         total,
         totalPages: Math.ceil(total / pageSize),
         hasNext: pageNum < Math.ceil(total / pageSize),
-        hasPrev: pageNum > 1
+        hasPrev: pageNum > 1,
       },
       filters: {
         sources,
         symbols,
         types,
-        sort
-      }
+        sort,
+      },
     });
-
   } catch (error) {
-    console.error('Error fetching trades:', error.message || error);
-    return sendError(res, 'Failed to fetch trades', 500);
+    console.error("Error fetching trades:", error.message || error);
+    return sendError(res, "Failed to fetch trades", 500);
   }
 });
 
@@ -229,7 +253,7 @@ router.get('/', async (req, res) => {
  */
 // Get trade history with pagination
 
-router.get('/summary', async (req, res) => {
+router.get("/summary", async (req, res) => {
   try {
     let allTrades = [];
 
@@ -238,35 +262,44 @@ router.get('/summary', async (req, res) => {
       try {
         const apiKey = process.env.APCA_API_KEY_ID;
         const secretKey = process.env.APCA_API_SECRET_KEY;
-        const isPaper = process.env.ALPACA_PAPER_TRADING === 'true';
+        const isPaper = process.env.ALPACA_PAPER_TRADING === "true";
 
         if (apiKey && secretKey) {
           const alpaca = new AlpacaService(apiKey, secretKey, isPaper);
-          const orders = await alpaca.getOrders({ status: 'closed', limit: 500 }) || [];
+          const orders =
+            (await alpaca.getOrders({ status: "closed", limit: 500 })) || [];
 
           if (orders && Array.isArray(orders)) {
-            orders.forEach(order => {
-              if (order.status === 'filled' || (order.filledQty && order.filledQty > 0)) {
+            orders.forEach((order) => {
+              if (
+                order.status === "filled" ||
+                (order.filledQty && order.filledQty > 0)
+              ) {
                 allTrades.push({
                   symbol: order.symbol,
-                  type: (order.side || 'buy').toLowerCase(),
+                  type: (order.side || "buy").toLowerCase(),
                   quantity: safeInt(order.filledQty || order.qty),
                   price: safeFloat(order.filledAvgPrice || order.limitPrice),
                   orderValue: (() => {
-                    const price = safeFloat(order.filledAvgPrice || order.limitPrice);
+                    const price = safeFloat(
+                      order.filledAvgPrice || order.limitPrice
+                    );
                     const qty = safeInt(order.filledQty || order.qty);
                     return price !== null && qty !== null ? price * qty : null;
                   })(),
                   commission: 0,
                   pnlAmount: null,
-                  source: 'alpaca'
+                  source: "alpaca",
                 });
               }
             });
           }
         }
       } catch (err) {
-        console.warn('⚠️ Failed to fetch Alpaca trades for summary:', err.message);
+        console.warn(
+          "⚠️ Failed to fetch Alpaca trades for summary:",
+          err.message
+        );
       }
     }
 
@@ -275,52 +308,68 @@ router.get('/summary', async (req, res) => {
       // Get user_id from authenticated token context
       const userId = req.user?.sub || req.user?.id || null;
       if (!userId) {
-        return sendError(res, 'Authentication required', 401);
+        return sendError(res, "Authentication required", 401);
       }
 
-      const result = await dbQuery(`
+      const result = await dbQuery(
+        `
         SELECT
           symbol, side, quantity, execution_price, order_value, commission
         FROM trades
         WHERE user_id = $1
         ORDER BY trade_date DESC
-      `, [userId]);
+      `,
+        [userId]
+      );
       validateQueryResult(result, { requireRows: false });
 
-      result.rows.forEach(row => {
+      result.rows.forEach((row) => {
         allTrades.push({
           symbol: row.symbol,
-          type: (row.side || 'buy').toLowerCase(),
+          type: (row.side || "buy").toLowerCase(),
           quantity: parseFloat(row.quantity),
           price: parseFloat(row.execution_price),
           orderValue: row.order_value ? parseFloat(row.order_value) : 0,
           commission: row.commission ? parseFloat(row.commission) : 0,
           pnlAmount: null,
-          source: 'manual'
+          source: "manual",
         });
       });
     } catch (err) {
-      console.warn('⚠️ Failed to fetch database trades for summary:', err.message);
-      console.error('Error stack:', err.stack);
+      console.warn(
+        "⚠️ Failed to fetch database trades for summary:",
+        err.message
+      );
+      console.error("Error stack:", err.stack);
     }
 
     // 3. Calculate summary statistics from combined trades
     const totalTrades = allTrades.length;
-    const buys = allTrades.filter(t => t.type === 'buy').length;
-    const sells = allTrades.filter(t => t.type === 'sell').length;
-    const tradesWithValue = allTrades.filter(t => t.orderValue !== null);
-    const totalValue = tradesWithValue.reduce((sum, t) => sum + t.orderValue, 0);
-    const tradesWithCommission = allTrades.filter(t => t.commission !== null);
-    const totalCommission = tradesWithCommission.reduce((sum, t) => sum + t.commission, 0);
-    const symbols = new Set(allTrades.map(t => t.symbol));
-    const sources = new Set(allTrades.map(t => t.source));
+    const buys = allTrades.filter((t) => t.type === "buy").length;
+    const sells = allTrades.filter((t) => t.type === "sell").length;
+    const tradesWithValue = allTrades.filter((t) => t.orderValue !== null);
+    const totalValue = tradesWithValue.reduce(
+      (sum, t) => sum + t.orderValue,
+      0
+    );
+    const tradesWithCommission = allTrades.filter((t) => t.commission !== null);
+    const totalCommission = tradesWithCommission.reduce(
+      (sum, t) => sum + t.commission,
+      0
+    );
+    const symbols = new Set(allTrades.map((t) => t.symbol));
+    const sources = new Set(allTrades.map((t) => t.source));
 
-    const tradesWithPnL = allTrades.filter(t => t.pnlAmount !== null);
-    const winningTrades = tradesWithPnL.filter(t => t.pnlAmount > 0).length;
-    const losingTrades = tradesWithPnL.filter(t => t.pnlAmount < 0).length;
+    const tradesWithPnL = allTrades.filter((t) => t.pnlAmount !== null);
+    const winningTrades = tradesWithPnL.filter((t) => t.pnlAmount > 0).length;
+    const losingTrades = tradesWithPnL.filter((t) => t.pnlAmount < 0).length;
     const totalPnL = tradesWithPnL.reduce((sum, t) => sum + t.pnlAmount, 0);
-    const avgPnL = tradesWithPnL.length > 0 ? totalPnL / tradesWithPnL.length : 0;
-    const winRate = tradesWithPnL.length > 0 ? (winningTrades / tradesWithPnL.length) * 100 : 0;
+    const avgPnL =
+      tradesWithPnL.length > 0 ? totalPnL / tradesWithPnL.length : 0;
+    const winRate =
+      tradesWithPnL.length > 0
+        ? (winningTrades / tradesWithPnL.length) * 100
+        : 0;
 
     return sendSuccess(res, {
       totalTrades,
@@ -334,12 +383,14 @@ router.get('/summary', async (req, res) => {
       losingTrades,
       totalPnL: Math.round(totalPnL * 100) / 100,
       avgPnL: Math.round(avgPnL * 100) / 100,
-      winRate: Math.round(winRate * 100) / 100
+      winRate: Math.round(winRate * 100) / 100,
     });
-
   } catch (error) {
-    logger.error('Error fetching trade summary:', { error: error.message, stack: error.stack });
-    return sendError(res, 'Failed to fetch trade summary', 500);
+    logger.error("Error fetching trade summary:", {
+      error: error.message,
+      stack: error.stack,
+    });
+    return sendError(res, "Failed to fetch trade summary", 500);
   }
 });
 

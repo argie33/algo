@@ -109,6 +109,7 @@ describe("API Load Testing and Performance", () => {
       const successCount = responses.filter((r) => r.status < 400).length;
       expect(successCount).toBeGreaterThan(concurrentRequests * 0.8); // At least 80% success
 
+      console.log(
         `${successCount}/${concurrentRequests} concurrent authenticated requests succeeded in ${totalTime}ms`
       );
     });
@@ -137,6 +138,7 @@ describe("API Load Testing and Performance", () => {
       const avgResponseTime = totalTime / concurrentRequests;
       expect(avgResponseTime).toBeLessThan(200); // Average < 200ms per request
 
+      console.log(
         `Database load test: ${avgResponseTime.toFixed(2)}ms average response time`
       );
     });
@@ -163,6 +165,7 @@ describe("API Load Testing and Performance", () => {
       expect(avgResponseTime).toBeLessThan(100); // Average < 100ms
       expect(maxResponseTime).toBeLessThan(200); // Max < 200ms
 
+      console.log(
         `Health endpoint: ${avgResponseTime.toFixed(2)}ms avg, ${maxResponseTime}ms max`
       );
     });
@@ -194,6 +197,7 @@ describe("API Load Testing and Performance", () => {
           responseTimes.reduce((sum, time) => sum + time, 0) / iterations;
         expect(avgResponseTime).toBeLessThan(endpoint.target);
 
+        console.log(
           `${endpoint.path}: ${avgResponseTime.toFixed(2)}ms avg (target: ${endpoint.target}ms)`
         );
       }
@@ -216,6 +220,7 @@ describe("API Load Testing and Performance", () => {
       expect(responseTime).toBeLessThan(500); // Should handle large payloads quickly
       expect(throughput).toBeGreaterThan(1); // Reasonable throughput
 
+      console.log(
         `Large payload: ${payloadSize} bytes in ${responseTime}ms (${throughput.toFixed(2)} bytes/ms)`
       );
     });
@@ -245,6 +250,7 @@ describe("API Load Testing and Performance", () => {
       // Should handle most requests successfully
       expect(successResponses.length).toBeGreaterThan(rapidRequests * 0.7);
 
+      console.log(
         `Rapid requests: ${successResponses.length} success, ${rateLimitedResponses.length} rate-limited in ${totalTime}ms`
       );
     });
@@ -299,6 +305,7 @@ describe("API Load Testing and Performance", () => {
       // Memory increase should be reasonable (less than 50MB for this load)
       expect(heapIncrease).toBeLessThan(50 * 1024 * 1024);
 
+      console.log(
         `Memory usage - Initial: ${(initialMemory.heapUsed / 1024 / 1024).toFixed(2)}MB, Final: ${(finalMemory.heapUsed / 1024 / 1024).toFixed(2)}MB`
       );
     });
@@ -333,6 +340,7 @@ describe("API Load Testing and Performance", () => {
       // Memory increase should be less than 50MB from this specific test
       expect(memoryIncrease).toBeLessThan(50 * 1024 * 1024);
 
+      console.log(
         `Connection cleanup test - Memory increase: ${(memoryIncrease / 1024 / 1024).toFixed(2)}MB`
       );
     });
@@ -359,6 +367,7 @@ describe("API Load Testing and Performance", () => {
       const avgQueryTime = totalTime / concurrentQueries;
       expect(avgQueryTime).toBeLessThan(300); // Average query time under 300ms
 
+      console.log(
         `Database concurrent queries: ${avgQueryTime.toFixed(2)}ms average`
       );
     });

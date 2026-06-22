@@ -12,7 +12,14 @@ jest.mock("../../../utils/database", () => ({
   tableExists: mockTableExists,
 }));
 
-const { query, closeDatabase, initializeDatabase, getPool, transaction, healthCheck } = require('../../../utils/database');
+const {
+  query,
+  closeDatabase,
+  initializeDatabase,
+  getPool,
+  transaction,
+  healthCheck,
+} = require("../../../utils/database");
 
 // Create test app
 const app = express();
@@ -31,14 +38,17 @@ describe("Price Route - Unit Tests", () => {
       // Mock table existence checks for information_schema.tables
       if (sql.includes("information_schema.tables") && params && params[0]) {
         const tableName = params[0];
-        if (tableName === "price_daily" || tableName === "intraday_data" || tableName === "futures_pricing") {
+        if (
+          tableName === "price_daily" ||
+          tableName === "intraday_data" ||
+          tableName === "futures_pricing"
+        ) {
           return Promise.resolve({
-            rows: [{ exists: true }]
+            rows: [{ exists: true }],
           });
-
         }
         return Promise.resolve({
-          rows: [{ exists: false }]
+          rows: [{ exists: false }],
         });
       }
       // Mock price_daily queries
@@ -58,8 +68,8 @@ describe("Price Route - Unit Tests", () => {
               close: 153.5,
               adj_close: 153.5,
               volume: 1000000,
-            }
-          ]
+            },
+          ],
         });
       }
       // Mock intraday data queries
@@ -75,8 +85,8 @@ describe("Price Route - Unit Tests", () => {
               timestamp: "2024-01-15T09:35:00.000Z",
               price: 150.75,
               volume: 45000,
-            }
-          ]
+            },
+          ],
         });
       }
       // Mock futures data queries
@@ -97,12 +107,16 @@ describe("Price Route - Unit Tests", () => {
               carry_cost: 0.25,
               convenience_yield: 0.05,
               days_to_expiry: 45,
-            }
-          ]
+            },
+          ],
         });
       }
       // Mock prediction/analysis queries
-      if (sql.includes("technical") || sql.includes("prediction") || sql.includes("analysis")) {
+      if (
+        sql.includes("technical") ||
+        sql.includes("prediction") ||
+        sql.includes("analysis")
+      ) {
         const symbol = params && params[0] ? params[0] : "AAPL";
         return Promise.resolve({
           rows: [
@@ -113,8 +127,8 @@ describe("Price Route - Unit Tests", () => {
               volatility: 0.25,
               support_level: 145.0,
               resistance_level: 155.0,
-            }
-          ]
+            },
+          ],
         });
       }
       // Mock batch price queries
@@ -123,8 +137,8 @@ describe("Price Route - Unit Tests", () => {
           rows: [
             { symbol: "AAPL", close_price: 150.0 },
             { symbol: "MSFT", close_price: 375.0 },
-            { symbol: "GOOGL", close_price: 140.0 }
-          ]
+            { symbol: "GOOGL", close_price: 140.0 },
+          ],
         });
       }
       // Default empty response

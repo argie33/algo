@@ -158,8 +158,9 @@ describe("Trading Routes Unit Tests", () => {
     });
 
     test("should validate symbol format", async () => {
-      const response = await request(app)
-        .get("/trading/quotes/invalid-symbol-format-123!");
+      const response = await request(app).get(
+        "/trading/quotes/invalid-symbol-format-123!"
+      );
 
       expect(response.body).toBeDefined();
     });

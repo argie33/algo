@@ -1,8 +1,17 @@
 const express = require("express");
+
 const { query } = require("../utils/database");
-const { sendSuccess, sendError, sendPaginated } = require("../utils/apiResponse");
-const { validateQueryResult, validateAndCoerceRows, extractCount } = require('../utils/responseValidation');
-const logger = require('../utils/logger');
+const {
+  sendSuccess,
+  sendError,
+  sendPaginated,
+} = require("../utils/apiResponse");
+const {
+  validateQueryResult,
+  validateAndCoerceRows,
+  extractCount,
+} = require("../utils/responseValidation");
+const logger = require("../utils/logger");
 const router = express.Router();
 
 // GET / - Get all sectors with full performance rankings, scores, and price performance
@@ -15,7 +24,8 @@ router.get("/", async (req, res) => {
 
     // Parallelize data and count queries
     const [dataResult, countResult] = await Promise.all([
-      query(`
+      query(
+        `
       WITH recent_prices AS (
         SELECT symbol, date, close,
           ROW_NUMBER() OVER (PARTITION BY symbol ORDER BY date DESC) as rn
@@ -81,21 +91,37 @@ router.get("/", async (req, res) => {
       LEFT JOIN sector_ranking_12w sr12 ON sr12.sector_name = r.sector_name
       ORDER BY r.current_rank, r.stock_count DESC
       LIMIT $1 OFFSET $2
-    `, [limitNum, offset]),
-      query(`SELECT COUNT(DISTINCT sector) as count FROM company_profile WHERE sector IS NOT NULL`)
+    `,
+        [limitNum, offset]
+      ),
+      query(
+        `SELECT COUNT(DISTINCT sector) as count FROM company_profile WHERE sector IS NOT NULL`
+      ),
     ]);
     validateQueryResult(dataResult, { requireRows: false });
     validateQueryResult(countResult, { requireRows: false });
 
     const total = parseInt(countResult?.rows[0]?.count || 0);
 
-    const sf = v => (v !== null && v !== undefined) ? parseFloat(v) : null;
+    const sf = (v) => (v !== null && v !== undefined ? parseFloat(v) : null);
 
     const sectors = (dataResult?.rows || []).map((row, idx) => {
       const composite = sf(row.composite_score);
       const perf20d = sf(row.perf_20d);
-      const momentumLabel = composite !== null && composite >= 60 ? 'Strong' : composite !== null && composite >= 45 ? 'Moderate' : 'Weak';
-      const trendLabel = perf20d !== null ? (perf20d > 2 ? 'Uptrend' : perf20d < -2 ? 'Downtrend' : 'Sideways') : 'Sideways';
+      const momentumLabel =
+        composite !== null && composite >= 60
+          ? "Strong"
+          : composite !== null && composite >= 45
+            ? "Moderate"
+            : "Weak";
+      const trendLabel =
+        perf20d !== null
+          ? perf20d > 2
+            ? "Uptrend"
+            : perf20d < -2
+              ? "Downtrend"
+              : "Sideways"
+          : "Sideways";
 
       return {
         sector_name: row.sector_name,
@@ -123,10 +149,21 @@ router.get("/", async (req, res) => {
     });
 
     const totalPages = Math.ceil(total / limitNum);
-    return sendPaginated(res, sectors, {page: pageNum, limit: limitNum, total, totalPages, hasNext: pageNum < totalPages, hasPrev: pageNum > 1});
+    return sendPaginated(res, sectors, {
+      page: pageNum,
+      limit: limitNum,
+      total,
+      totalPages,
+      hasNext: pageNum < totalPages,
+      hasPrev: pageNum > 1,
+    });
   } catch (error) {
     console.error("Error fetching sectors:", error.message);
-    return sendError(res, `Failed to fetch sectors: ${error.message.substring(0, 100)}`, 500);
+    return sendError(
+      res,
+      `Failed to fetch sectors: ${error.message.substring(0, 100)}`,
+      500
+    );
   }
 });
 
@@ -135,11 +172,18 @@ router.get("/trends-batch", async (req, res) => {
   try {
     const { sectors: sectorsList, days = 90 } = req.query;
     if (!sectorsList) {
-      return sendError(res, 'sectors parameter required (comma-separated)', 400);
+      return sendError(
+        res,
+        "sectors parameter required (comma-separated)",
+        400
+      );
     }
 
     // Parse sector names (preserve case, don't uppercase)
-    const sectors = sectorsList.split(',').map(s => s.trim()).filter(s => s.length > 0);
+    const sectors = sectorsList
+      .split(",")
+      .map((s) => s.trim())
+      .filter((s) => s.length > 0);
     const daysNum = Math.min(parseInt(days) || 90, 365);
 
     if (sectors.length === 0) {
@@ -147,8 +191,9 @@ router.get("/trends-batch", async (req, res) => {
     }
 
     // Query daily returns per sector from sector_performance table
-    const placeholders = sectors.map((_, i) => `$${i + 1}`).join(',');
-    const resultObj = await query(`
+    const placeholders = sectors.map((_, i) => `$${i + 1}`).join(",");
+    const resultObj = await query(
+      `
       SELECT
         sector,
         date,
@@ -157,14 +202,16 @@ router.get("/trends-batch", async (req, res) => {
       WHERE sector IN (${placeholders})
         AND date >= CURRENT_DATE - INTERVAL '${daysNum} days'
       ORDER BY sector, date ASC
-    `, sectors);
+    `,
+      sectors
+    );
     validateQueryResult(resultObj, { requireRows: false });
 
-    const result = Array.isArray(resultObj) ? resultObj : (resultObj?.rows || []);
+    const result = Array.isArray(resultObj) ? resultObj : resultObj?.rows || [];
 
     // Group by sector and compute cumulative index
     const grouped = {};
-    result.forEach(row => {
+    result.forEach((row) => {
       if (!grouped[row.sector]) {
         grouped[row.sector] = [];
       }
@@ -175,9 +222,9 @@ router.get("/trends-batch", async (req, res) => {
     });
 
     // Compute price index (100 at start, then compound daily returns)
-    Object.keys(grouped).forEach(sector => {
+    Object.keys(grouped).forEach((sector) => {
       let index = 100;
-      grouped[sector] = grouped[sector].map(point => {
+      grouped[sector] = grouped[sector].map((point) => {
         index = index * (1 + (point.return_pct || 0) / 100);
         return {
           date: point.date,
@@ -189,7 +236,11 @@ router.get("/trends-batch", async (req, res) => {
     return sendSuccess(res, grouped, 200);
   } catch (error) {
     console.error("Error fetching sector trends batch:", error);
-    return sendError(res, "Failed to fetch sector trends: " + error.message, 500);
+    return sendError(
+      res,
+      "Failed to fetch sector trends: " + error.message,
+      500
+    );
   }
 });
 
@@ -200,7 +251,8 @@ router.get("/:sector/trend", async (req, res) => {
     const days = Math.min(parseInt(req.query.days) || 90, 365);
 
     // Query daily average price for the sector
-    const resultObj = await query(`
+    const resultObj = await query(
+      `
       SELECT
         pd.date,
         AVG(pd.close) AS avgPrice,
@@ -212,26 +264,32 @@ router.get("/:sector/trend", async (req, res) => {
         AND pd.close > 0
       GROUP BY pd.date
       ORDER BY pd.date ASC
-    `, [sector]);
+    `,
+      [sector]
+    );
     validateQueryResult(resultObj, { requireRows: false });
 
-    const result = Array.isArray(resultObj) ? resultObj : (resultObj?.rows || []);
+    const result = Array.isArray(resultObj) ? resultObj : resultObj?.rows || [];
 
     if (result.length === 0) {
       return sendError(res, `No price data for sector: ${sector}`, 404);
     }
 
     // Convert to required format with trendData wrapper
-    const trendData = result.map(row => ({
+    const trendData = result.map((row) => ({
       date: row.date,
       avgPrice: parseFloat(row.avgprice),
-      dailyStrengthScore: 0,  // Placeholder; can compute from price momentum if needed
+      dailyStrengthScore: 0, // Placeholder; can compute from price momentum if needed
     }));
 
     return sendSuccess(res, { sector, trendData }, 200);
   } catch (error) {
     console.error("Error fetching sector trend:", error);
-    return sendError(res, "Failed to fetch sector trend: " + error.message, 500);
+    return sendError(
+      res,
+      "Failed to fetch sector trend: " + error.message,
+      500
+    );
   }
 });
 
@@ -248,7 +306,8 @@ router.get("/:sector/trend", async (req, res) => {
     }
 
     // Query using LOWER to allow case-insensitive lookup
-    const result = await query(`
+    const result = await query(
+      `
       SELECT
         sector,
         date,
@@ -257,7 +316,9 @@ router.get("/:sector/trend", async (req, res) => {
       WHERE LOWER(sector) = LOWER($1)
       ORDER BY date DESC
       LIMIT 100
-    `, [sector]);
+    `,
+      [sector]
+    );
     validateQueryResult(result, { requireRows: false });
 
     if (result.length === 0) {
@@ -265,16 +326,20 @@ router.get("/:sector/trend", async (req, res) => {
     }
 
     // Convert to required format with trendData wrapper
-    const trendData = result.map(row => ({
+    const trendData = result.map((row) => ({
       date: row.date,
       avgPrice: parseFloat(row.avgprice),
-      dailyStrengthScore: 0,  // Placeholder; can compute from price momentum if needed
+      dailyStrengthScore: 0, // Placeholder; can compute from price momentum if needed
     }));
 
     return sendSuccess(res, { sector, trendData }, 200);
   } catch (error) {
     console.error("Error fetching sector trend:", error);
-    return sendError(res, "Failed to fetch sector trend: " + error.message, 500);
+    return sendError(
+      res,
+      "Failed to fetch sector trend: " + error.message,
+      500
+    );
   }
 });
 
@@ -288,7 +353,8 @@ router.get("/:sector", async (req, res) => {
     }
 
     // Query sector details with performance metrics
-    const result = await query(`
+    const result = await query(
+      `
       SELECT
         cp.sector as sector_name,
         COUNT(DISTINCT cp.ticker) as stock_count,
@@ -302,7 +368,9 @@ router.get("/:sector", async (req, res) => {
       LEFT JOIN stock_scores ss ON cp.ticker = ss.symbol
       WHERE cp.sector = $1
       GROUP BY cp.sector
-    `, [sector]);
+    `,
+      [sector]
+    );
     validateQueryResult(result, { requireRows: false });
 
     if (result.rows.length === 0) {
@@ -313,18 +381,28 @@ router.get("/:sector", async (req, res) => {
     const sectorData = {
       sector_name: row.sector_name,
       stock_count: parseInt(row.stock_count || 0),
-      composite_score: row.composite_score ? parseFloat(row.composite_score) : null,
-      momentum_score: row.momentum_score ? parseFloat(row.momentum_score) : null,
+      composite_score: row.composite_score
+        ? parseFloat(row.composite_score)
+        : null,
+      momentum_score: row.momentum_score
+        ? parseFloat(row.momentum_score)
+        : null,
       value_score: row.value_score ? parseFloat(row.value_score) : null,
       quality_score: row.quality_score ? parseFloat(row.quality_score) : null,
       growth_score: row.growth_score ? parseFloat(row.growth_score) : null,
-      stability_score: row.stability_score ? parseFloat(row.stability_score) : null,
+      stability_score: row.stability_score
+        ? parseFloat(row.stability_score)
+        : null,
     };
 
     return sendSuccess(res, sectorData);
   } catch (error) {
     console.error("Error fetching sector:", error);
-    return sendError(res, `Failed to fetch sector: ${error.message.substring(0, 100)}`, 500);
+    return sendError(
+      res,
+      `Failed to fetch sector: ${error.message.substring(0, 100)}`,
+      500
+    );
   }
 });
 

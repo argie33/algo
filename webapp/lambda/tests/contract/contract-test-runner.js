@@ -354,7 +354,13 @@ const API_CONTRACTS = {
   "GET /api/positioning/stocks": {
     expectedStatus: [200, 404],
     conditionalFields: {
-      200: ["positioning_metrics", "positioning_score", "institutional_holders", "retail_sentiment", "metadata"],
+      200: [
+        "positioning_metrics",
+        "positioning_score",
+        "institutional_holders",
+        "retail_sentiment",
+        "metadata",
+      ],
       404: ["success", "error", "message"],
     },
     responseSchema: {
@@ -464,7 +470,6 @@ async function runContractTest(endpoint, baseURL) {
   const url = `${baseURL}${path}`;
 
   try {
-
     const response = await axios({
       method: method.toLowerCase(),
       url,
@@ -516,7 +521,6 @@ async function runContractTest(endpoint, baseURL) {
 
 // Site functionality tests
 async function runSiteFunctionalityTests(baseURL) {
-
   // Test critical user workflows
   const workflows = [
     {
@@ -559,14 +563,12 @@ async function runSiteFunctionalityTests(baseURL) {
 
 // Small batch tests for verification
 async function runSmallBatchTests(baseURL) {
-
   const criticalEndpoints = [
     "GET /api/health",
     "GET /api/portfolio",
     "GET /api/market/overview",
     "GET /api/diagnostics/database-connectivity",
   ];
-
 
   for (const endpoint of criticalEndpoints) {
     await runContractTest(endpoint, baseURL);
@@ -576,7 +578,6 @@ async function runSmallBatchTests(baseURL) {
 
 // Full contract test suite
 async function runFullContractTests(baseURL) {
-
   for (const endpoint of Object.keys(API_CONTRACTS)) {
     await runContractTest(endpoint, baseURL);
     testResults.total++;
@@ -600,7 +601,6 @@ function generateReport() {
     timestamp: new Date().toISOString(),
   };
 
-
   if (testResults.errors.length > 0) {
     testResults.errors.forEach((error, index) => {
       console.log(`${index + 1}. ${error.endpoint}`);
@@ -621,7 +621,6 @@ function generateReport() {
 
 // Main execution
 async function main() {
-
   const args = process.argv.slice(2);
   const envFlag = args.find((arg) => arg.startsWith("--env"));
   const noReportFlag = args.includes("--no-report");
@@ -680,7 +679,6 @@ async function main() {
       process.exit(1);
     }
   }
-
 }
 
 // Handle unhandled rejections

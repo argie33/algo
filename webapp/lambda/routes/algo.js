@@ -10,15 +10,25 @@
  * - POST /api/algo/config/:key - Update configuration (admin only)
  */
 
-const express = require('express');
-const { getPool, ensureConnection } = require('../utils/database');
-const { authenticateToken, requireAdmin } = require('../middleware/auth');
-const { sendSuccess, sendError, sendDatabaseError } = require('../utils/apiResponse');
-const paginationConfig = require('../config/pagination');
-const logger = require('../utils/logger');
-const { validateQueryResult, validateAndCoerceRow, validateAndCoerceRows, extractCount } = require('../utils/responseValidation');
-const { getActiveTiers, getActiveTier } = require('../utils/tiers');
-const { getSwingGrades, getGradeForScore } = require('../utils/grades');
+const express = require("express");
+
+const { getPool, ensureConnection } = require("../utils/database");
+const { authenticateToken, requireAdmin } = require("../middleware/auth");
+const {
+  sendSuccess,
+  sendError,
+  sendDatabaseError,
+} = require("../utils/apiResponse");
+const paginationConfig = require("../config/pagination");
+const logger = require("../utils/logger");
+const {
+  validateQueryResult,
+  validateAndCoerceRow,
+  validateAndCoerceRows,
+  extractCount,
+} = require("../utils/responseValidation");
+const { getActiveTiers, getActiveTier } = require("../utils/tiers");
+const { getSwingGrades, getGradeForScore } = require("../utils/grades");
 
 const router = express.Router();
 
@@ -30,35 +40,39 @@ const requireAuth = authenticateToken;
  */
 function computeStageLabel(stage, score, stageConfig = {}) {
   if (stage === 1) {
-    return 'Stage 1 (base)';
+    return "Stage 1 (base)";
   } else if (stage === 2) {
     if (score != null) {
-      if (score >= (stageConfig.stage_2_late_min_score ?? 8)) return 'Late Stage-2';
-      if (score >= (stageConfig.stage_2_mid_min_score ?? 6)) return 'Mid Stage-2';
-      if (score >= (stageConfig.stage_2_early_min_score ?? 0)) return 'Early Stage-2';
-      return 'Early Stage-2';
+      if (score >= (stageConfig.stage_2_late_min_score ?? 8))
+        return "Late Stage-2";
+      if (score >= (stageConfig.stage_2_mid_min_score ?? 6))
+        return "Mid Stage-2";
+      if (score >= (stageConfig.stage_2_early_min_score ?? 0))
+        return "Early Stage-2";
+      return "Early Stage-2";
     }
-    return 'Stage 2';
+    return "Stage 2";
   } else if (stage === 3) {
-    return 'Stage 3 (top)';
+    return "Stage 3 (top)";
   } else if (stage === 4) {
-    return 'Stage 4 (down)';
+    return "Stage 4 (down)";
   }
-  return 'Unknown';
+  return "Unknown";
 }
 
 /**
  * GET /api/algo/status
  * Current algo system status
  */
-router.get('/status', async (req, res) => {
+router.get("/status", async (req, res) => {
   try {
     ensureConnection();
     const pool = getPool();
 
     // Parallelize all 4 independent queries
-    const [snapshotResult, posResult, healthResult, configResult] = await Promise.all([
-      pool.query(`
+    const [snapshotResult, posResult, healthResult, configResult] =
+      await Promise.all([
+        pool.query(`
         SELECT
           snapshot_date,
           total_portfolio_value,
@@ -69,22 +83,22 @@ router.get('/status', async (req, res) => {
         ORDER BY snapshot_date DESC
         LIMIT 1
       `),
-      pool.query(`
+        pool.query(`
         SELECT COUNT(*) as open_count, SUM(position_value) as total_value
         FROM algo_positions
         WHERE status = 'open'
       `),
-      pool.query(`
+        pool.query(`
         SELECT market_trend, market_stage, distribution_days_4w, vix_level
         FROM market_health_daily
         ORDER BY date DESC
         LIMIT 1
       `),
-      pool.query(`
+        pool.query(`
         SELECT key, value FROM algo_config
         WHERE key IN ('enable_algo', 'execution_mode')
-      `)
-    ]);
+      `),
+      ]);
 
     // Validate result structures
     validateQueryResult(snapshotResult, { requireRows: false });
@@ -94,69 +108,103 @@ router.get('/status', async (req, res) => {
 
     const snapshot = snapshotResult.rows[0]
       ? validateAndCoerceRow(snapshotResult.rows[0], {
-          position_count: { type: 'int', required: false, defaultValue: 0 },
-          unrealized_pnl_pct: { type: 'float', required: false, defaultValue: 0 },
-          daily_return_pct: { type: 'float', required: false, defaultValue: 0 },
-          total_portfolio_value: { type: 'float', required: false, defaultValue: 0 }
+          position_count: { type: "int", required: false, defaultValue: 0 },
+          unrealized_pnl_pct: {
+            type: "float",
+            required: false,
+            defaultValue: 0,
+          },
+          daily_return_pct: { type: "float", required: false, defaultValue: 0 },
+          total_portfolio_value: {
+            type: "float",
+            required: false,
+            defaultValue: 0,
+          },
         })
-      : { position_count: 0, unrealized_pnl_pct: 0, daily_return_pct: 0, total_portfolio_value: 0 };
+      : {
+          position_count: 0,
+          unrealized_pnl_pct: 0,
+          daily_return_pct: 0,
+          total_portfolio_value: 0,
+        };
 
     const positions = posResult.rows[0]
       ? validateAndCoerceRow(posResult.rows[0], {
-          open_count: { type: 'int', required: false, defaultValue: 0 },
-          total_value: { type: 'float', required: false, defaultValue: 0 }
+          open_count: { type: "int", required: false, defaultValue: 0 },
+          total_value: { type: "float", required: false, defaultValue: 0 },
         })
       : { open_count: 0, total_value: 0 };
 
     const health = healthResult.rows[0]
       ? validateAndCoerceRow(healthResult.rows[0], {
-          market_trend: { type: 'string', required: false, defaultValue: 'unknown' },
-          market_stage: { type: 'int', required: false, defaultValue: 1 },
-          distribution_days_4w: { type: 'int', required: false, defaultValue: 0 },
-          vix_level: { type: 'float', required: false, defaultValue: 0 }
+          market_trend: {
+            type: "string",
+            required: false,
+            defaultValue: "unknown",
+          },
+          market_stage: { type: "int", required: false, defaultValue: 1 },
+          distribution_days_4w: {
+            type: "int",
+            required: false,
+            defaultValue: 0,
+          },
+          vix_level: { type: "float", required: false, defaultValue: 0 },
         })
-      : { market_trend: 'unknown', market_stage: 1, distribution_days_4w: 0, vix_level: 0 };
+      : {
+          market_trend: "unknown",
+          market_stage: 1,
+          distribution_days_4w: 0,
+          vix_level: 0,
+        };
 
     let algo_enabled = true;
-    let execution_mode = 'paper';
+    let execution_mode = "paper";
 
     validateAndCoerceRows(configResult, {
-      key: { type: 'string', required: true },
-      value: { type: 'string', required: true }
-    }).forEach(row => {
-      if (row.key === 'enable_algo') {
-        algo_enabled = row.value.toLowerCase() === 'true';
-      } else if (row.key === 'execution_mode') {
+      key: { type: "string", required: true },
+      value: { type: "string", required: true },
+    }).forEach((row) => {
+      if (row.key === "enable_algo") {
+        algo_enabled = row.value.toLowerCase() === "true";
+      } else if (row.key === "execution_mode") {
         execution_mode = row.value;
       }
     });
 
     const totalValue = snapshot.total_portfolio_value || 0;
     const unrealizedPnlPct = snapshot.unrealized_pnl_pct || 0;
-    const unrealizedPnlDollars = totalValue > 0 ? (totalValue * unrealizedPnlPct / 100) : 0;
+    const unrealizedPnlDollars =
+      totalValue > 0 ? (totalValue * unrealizedPnlPct) / 100 : 0;
 
     return sendSuccess(res, {
       algo_enabled: algo_enabled,
       execution_mode: execution_mode,
-      status: 'operational',
+      status: "operational",
       portfolio: {
         total_value: totalValue,
         position_count: positions.open_count,
         total_position_value: positions.total_value || 0,
         unrealized_pnl_pct: unrealizedPnlPct,
         unrealized_pnl_dollars: Number(unrealizedPnlDollars.toFixed(2)),
-        daily_return_pct: snapshot.daily_return_pct || 0
+        daily_return_pct: snapshot.daily_return_pct || 0,
       },
       market: {
         trend: health.market_trend,
         stage: health.market_stage,
         distribution_days: health.distribution_days_4w || 0,
-        vix: health.vix_level || 0
-      }
+        vix: health.vix_level || 0,
+      },
     });
   } catch (error) {
-    logger.error('Error in /algo/status:', { error: error.message, stack: error.stack });
-    return sendDatabaseError(res, error, 'An error occurred while fetching algorithm status');
+    logger.error("Error in /algo/status:", {
+      error: error.message,
+      stack: error.stack,
+    });
+    return sendDatabaseError(
+      res,
+      error,
+      "An error occurred while fetching algorithm status"
+    );
   }
 });
 
@@ -164,7 +212,7 @@ router.get('/status', async (req, res) => {
  * GET /api/algo/evaluate
  * Run signal evaluation (latest date with buy signals)
  */
-router.get('/evaluate', async (req, res) => {
+router.get("/evaluate", async (req, res) => {
   try {
     ensureConnection();
     const pool = getPool();
@@ -228,13 +276,13 @@ router.get('/evaluate', async (req, res) => {
     validateQueryResult(filterConfigResult, { requireRows: false });
 
     let filterConfig = {
-      completeness_pct_min: 45,      // Fallback defaults (same as hardcoded values)
+      completeness_pct_min: 45, // Fallback defaults (same as hardcoded values)
       trend_score_min: 8,
       sqs_min: 40,
       require_all_tiers: true,
       max_qualified_signals: 12,
-      sort_by: 'sqs',
-      sort_order: 'DESC'
+      sort_by: "sqs",
+      sort_order: "DESC",
     };
 
     if (filterConfigResult.rows && filterConfigResult.rows.length > 0) {
@@ -245,27 +293,27 @@ router.get('/evaluate', async (req, res) => {
         sqs_min: parseInt(cfg.sqs_min) || 40,
         require_all_tiers: cfg.require_all_tiers !== false,
         max_qualified_signals: parseInt(cfg.max_qualified_signals) || 12,
-        sort_by: cfg.sort_by || 'sqs',
-        sort_order: (cfg.sort_order || 'DESC').toUpperCase()
+        sort_by: cfg.sort_by || "sqs",
+        sort_order: (cfg.sort_order || "DESC").toUpperCase(),
       };
     }
 
     // Transform into evaluation objects with database-driven thresholds
     const evaluated = validateAndCoerceRows(result, {
-      symbol: { type: 'string', required: true },
-      date: { type: 'date', required: true },
-      trend_score: { type: 'int', required: false, defaultValue: 0 },
-      pct_from_52w_low: { type: 'float', required: false, defaultValue: 0 },
-      completeness_pct: { type: 'float', required: false, defaultValue: 0 },
-      sqs: { type: 'int', required: false, defaultValue: 0 }
-    }).map(row => {
+      symbol: { type: "string", required: true },
+      date: { type: "date", required: true },
+      trend_score: { type: "int", required: false, defaultValue: 0 },
+      pct_from_52w_low: { type: "float", required: false, defaultValue: 0 },
+      completeness_pct: { type: "float", required: false, defaultValue: 0 },
+      sqs: { type: "int", required: false, defaultValue: 0 },
+    }).map((row) => {
       const tier1 = row.completeness_pct >= filterConfig.completeness_pct_min;
       const tier3 = row.trend_score >= filterConfig.trend_score_min;
       const tier4 = row.sqs >= filterConfig.sqs_min;
 
       const all_tiers_pass = filterConfig.require_all_tiers
-        ? (tier1 && tier3 && tier4)
-        : (tier1 || tier3 || tier4);
+        ? tier1 && tier3 && tier4
+        : tier1 || tier3 || tier4;
 
       return {
         symbol: row.symbol,
@@ -277,7 +325,7 @@ router.get('/evaluate', async (req, res) => {
         tier1_pass: tier1,
         tier3_pass: tier3,
         tier4_pass: tier4,
-        all_tiers_pass: all_tiers_pass
+        all_tiers_pass: all_tiers_pass,
       };
     });
 
@@ -286,11 +334,11 @@ router.get('/evaluate', async (req, res) => {
       const aVal = a[filterConfig.sort_by] || 0;
       const bVal = b[filterConfig.sort_by] || 0;
       const diff = parseFloat(bVal) - parseFloat(aVal);
-      return filterConfig.sort_order === 'ASC' ? -diff : diff;
+      return filterConfig.sort_order === "ASC" ? -diff : diff;
     };
 
     const qualified = evaluated
-      .filter(e => e.all_tiers_pass)
+      .filter((e) => e.all_tiers_pass)
       .sort(sortComparator)
       .slice(0, filterConfig.max_qualified_signals);
 
@@ -298,11 +346,18 @@ router.get('/evaluate', async (req, res) => {
       total_buy_signals: evaluated.length,
       qualified_for_trading: qualified.length,
       signals: evaluated,
-      top_qualified: qualified
+      top_qualified: qualified,
     });
   } catch (error) {
-    logger.error('Error in /algo/evaluate:', { error: error.message, stack: error.stack });
-    return sendDatabaseError(res, error, 'An error occurred while evaluating signals');
+    logger.error("Error in /algo/evaluate:", {
+      error: error.message,
+      stack: error.stack,
+    });
+    return sendDatabaseError(
+      res,
+      error,
+      "An error occurred while evaluating signals"
+    );
   }
 });
 
@@ -310,7 +365,7 @@ router.get('/evaluate', async (req, res) => {
  * GET /api/algo/last-run
  * Get the last orchestrator run status and phase information
  */
-router.get('/last-run', async (req, res) => {
+router.get("/last-run", async (req, res) => {
   try {
     ensureConnection();
     const pool = getPool();
@@ -341,7 +396,7 @@ router.get('/last-run', async (req, res) => {
         success: null,
         halted: null,
         error_message: null,
-        phases: []
+        phases: [],
       });
     }
 
@@ -352,17 +407,20 @@ router.get('/last-run', async (req, res) => {
       success: run.success,
       halted: run.halted,
       error_message: run.error_message,
-      phases: run.phases || []
+      phases: run.phases || [],
     });
   } catch (error) {
-    logger.error('Error in /algo/last-run:', { error: error.message, stack: error.stack });
+    logger.error("Error in /algo/last-run:", {
+      error: error.message,
+      stack: error.stack,
+    });
     return sendSuccess(res, {
       run_id: null,
       run_at: null,
       success: null,
       halted: null,
       error_message: null,
-      phases: []
+      phases: [],
     });
   }
 });
@@ -372,7 +430,7 @@ router.get('/last-run', async (req, res) => {
  * Get active positions enriched with stop/target levels (from latest open trade),
  * sector (from company_profile), and Minervini stage / RS (from trend_template_data).
  */
-router.get('/positions', async (req, res) => {
+router.get("/positions", async (req, res) => {
   try {
     ensureConnection();
     const pool = getPool();
@@ -403,7 +461,7 @@ router.get('/positions', async (req, res) => {
       pool.query(`
         SELECT key, value FROM algo_config
         WHERE key IN ('stage_2_early_min_score', 'stage_2_mid_min_score', 'stage_2_late_min_score')
-      `)
+      `),
     ]);
 
     // Validate result structures
@@ -423,52 +481,52 @@ router.get('/positions', async (req, res) => {
       }
     }
 
-    const sf = (v) => v == null ? null : parseFloat(v);
+    const sf = (v) => (v == null ? null : parseFloat(v));
 
     // Transform positions (pre-computed metrics from view, ISSUE #6, #7, #8)
     const items = validateAndCoerceRows(posResult, {
-      position_id: { type: 'int', required: true },
-      symbol: { type: 'string', required: true },
-      quantity: { type: 'float', required: true },
-      avg_entry_price: { type: 'float', required: false },
-      current_price: { type: 'float', required: false },
-      position_value: { type: 'float', required: false },
-      unrealized_pnl: { type: 'float', required: false },
-      unrealized_pnl_pct: { type: 'float', required: false },
-      status: { type: 'string', required: false },
-      stage_in_exit_plan: { type: 'string', required: false },
-      days_since_entry: { type: 'int', required: false },
-      stop_loss_price: { type: 'float', required: false },
-      target_1_price: { type: 'float', required: false },
-      target_2_price: { type: 'float', required: false },
-      target_3_price: { type: 'float', required: false },
-      target_1_r_multiple: { type: 'float', required: false },
-      target_2_r_multiple: { type: 'float', required: false },
-      target_3_r_multiple: { type: 'float', required: false },
-      sector: { type: 'string', required: false },
-      industry: { type: 'string', required: false },
-      weinstein_stage: { type: 'int', required: false },
-      minervini_trend_score: { type: 'int', required: false },
-      percent_from_52w_low: { type: 'float', required: false },
-      percent_from_52w_high: { type: 'float', required: false },
-      r_multiple: { type: 'float', required: false },
-      initial_risk_per_share: { type: 'float', required: false },
-      open_risk_dollars: { type: 'float', required: false },
-      distance_to_stop_pct: { type: 'float', required: false },
-      distance_to_t1_pct: { type: 'float', required: false },
-      distance_to_t2_pct: { type: 'float', required: false },
-      distance_to_t3_pct: { type: 'float', required: false },
-      risk_pct: { type: 'float', required: false },
-      risk_rank: { type: 'int', required: false },
-      ladder_pct_stop: { type: 'float', required: false },
-      ladder_pct_entry: { type: 'float', required: false },
-      ladder_pct_current: { type: 'float', required: false },
-      ladder_pct_t1: { type: 'float', required: false },
-      ladder_pct_t2: { type: 'float', required: false },
-      ladder_pct_t3: { type: 'float', required: false },
-      ladder_scale_min: { type: 'float', required: false },
-      ladder_scale_max: { type: 'float', required: false }
-    }).map(row => ({
+      position_id: { type: "int", required: true },
+      symbol: { type: "string", required: true },
+      quantity: { type: "float", required: true },
+      avg_entry_price: { type: "float", required: false },
+      current_price: { type: "float", required: false },
+      position_value: { type: "float", required: false },
+      unrealized_pnl: { type: "float", required: false },
+      unrealized_pnl_pct: { type: "float", required: false },
+      status: { type: "string", required: false },
+      stage_in_exit_plan: { type: "string", required: false },
+      days_since_entry: { type: "int", required: false },
+      stop_loss_price: { type: "float", required: false },
+      target_1_price: { type: "float", required: false },
+      target_2_price: { type: "float", required: false },
+      target_3_price: { type: "float", required: false },
+      target_1_r_multiple: { type: "float", required: false },
+      target_2_r_multiple: { type: "float", required: false },
+      target_3_r_multiple: { type: "float", required: false },
+      sector: { type: "string", required: false },
+      industry: { type: "string", required: false },
+      weinstein_stage: { type: "int", required: false },
+      minervini_trend_score: { type: "int", required: false },
+      percent_from_52w_low: { type: "float", required: false },
+      percent_from_52w_high: { type: "float", required: false },
+      r_multiple: { type: "float", required: false },
+      initial_risk_per_share: { type: "float", required: false },
+      open_risk_dollars: { type: "float", required: false },
+      distance_to_stop_pct: { type: "float", required: false },
+      distance_to_t1_pct: { type: "float", required: false },
+      distance_to_t2_pct: { type: "float", required: false },
+      distance_to_t3_pct: { type: "float", required: false },
+      risk_pct: { type: "float", required: false },
+      risk_rank: { type: "int", required: false },
+      ladder_pct_stop: { type: "float", required: false },
+      ladder_pct_entry: { type: "float", required: false },
+      ladder_pct_current: { type: "float", required: false },
+      ladder_pct_t1: { type: "float", required: false },
+      ladder_pct_t2: { type: "float", required: false },
+      ladder_pct_t3: { type: "float", required: false },
+      ladder_scale_min: { type: "float", required: false },
+      ladder_scale_max: { type: "float", required: false },
+    }).map((row) => ({
       position_id: row.position_id,
       symbol: row.symbol,
       quantity: row.quantity,
@@ -498,7 +556,11 @@ router.get('/positions', async (req, res) => {
       industry: row.industry,
       weinstein_stage: row.weinstein_stage,
       minervini_trend_score: row.minervini_trend_score,
-      stage_label: computeStageLabel(row.weinstein_stage, row.minervini_trend_score, stageConfig),
+      stage_label: computeStageLabel(
+        row.weinstein_stage,
+        row.minervini_trend_score,
+        stageConfig
+      ),
       pct_from_52w_low: sf(row.percent_from_52w_low),
       pct_from_52w_high: sf(row.percent_from_52w_high),
       risk_pct: sf(row.risk_pct),
@@ -510,15 +572,17 @@ router.get('/positions', async (req, res) => {
       ladder_pct_t2: sf(row.ladder_pct_t2),
       ladder_pct_t3: sf(row.ladder_pct_t3),
       ladder_scale_min: sf(row.ladder_scale_min),
-      ladder_scale_max: sf(row.ladder_scale_max)
+      ladder_scale_max: sf(row.ladder_scale_max),
     }));
 
     // Compute sector allocation from positions
     const sectorMap = {};
-    const totalValue = items.reduce((sum, p) => sum + (p.position_value || 0), 0) || 1;
+    const totalValue =
+      items.reduce((sum, p) => sum + (p.position_value || 0), 0) || 1;
     for (const p of items) {
-      const sec = p.sector || 'Unknown';
-      if (!sectorMap[sec]) sectorMap[sec] = { position_count: 0, total_value_dollars: 0 };
+      const sec = p.sector || "Unknown";
+      if (!sectorMap[sec])
+        sectorMap[sec] = { position_count: 0, total_value_dollars: 0 };
       sectorMap[sec].position_count += 1;
       sectorMap[sec].total_value_dollars += p.position_value || 0;
     }
@@ -527,8 +591,10 @@ router.get('/positions', async (req, res) => {
         sector,
         position_count: d.position_count,
         total_value_dollars: parseFloat(d.total_value_dollars.toFixed(2)),
-        allocation_pct: parseFloat(((d.total_value_dollars / totalValue) * 100).toFixed(2)),
-        is_overweight: (d.total_value_dollars / totalValue) > 0.3,
+        allocation_pct: parseFloat(
+          ((d.total_value_dollars / totalValue) * 100).toFixed(2)
+        ),
+        is_overweight: d.total_value_dollars / totalValue > 0.3,
       }))
       .sort((a, b) => b.total_value_dollars - a.total_value_dollars);
 
@@ -537,12 +603,19 @@ router.get('/positions', async (req, res) => {
       sector_allocation,
       pagination: {
         total: items.length,
-        count: items.length
-      }
+        count: items.length,
+      },
     });
   } catch (error) {
-    logger.error('Error in /algo/positions:', { error: error.message, stack: error.stack });
-    return sendDatabaseError(res, error, 'An error occurred while fetching positions');
+    logger.error("Error in /algo/positions:", {
+      error: error.message,
+      stack: error.stack,
+    });
+    return sendDatabaseError(
+      res,
+      error,
+      "An error occurred while fetching positions"
+    );
   }
 });
 
@@ -550,7 +623,7 @@ router.get('/positions', async (req, res) => {
  * GET /api/algo/portfolio
  * Get current portfolio metrics including cumulative return, max drawdown, largest position.
  */
-router.get('/portfolio', async (req, res) => {
+router.get("/portfolio", async (req, res) => {
   try {
     ensureConnection();
     const pool = getPool();
@@ -573,29 +646,54 @@ router.get('/portfolio', async (req, res) => {
 
     validateQueryResult(result, { requireRows: false });
 
-    const snapshot = result.rows.length > 0
-      ? validateAndCoerceRow(result.rows[0], {
-          snapshot_date: { type: 'date', required: false },
-          total_portfolio_value: { type: 'float', required: false, defaultValue: 0 },
-          total_cash: { type: 'float', required: false, defaultValue: 0 },
-          position_count: { type: 'int', required: false, defaultValue: 0 },
-          daily_return_pct: { type: 'float', required: false, defaultValue: 0 },
-          unrealized_pnl_pct: { type: 'float', required: false, defaultValue: 0 },
-          cumulative_return_pct: { type: 'float', required: false, defaultValue: null },
-          max_drawdown_pct: { type: 'float', required: false, defaultValue: null },
-          largest_position_pct: { type: 'float', required: false, defaultValue: null }
-        })
-      : {
-          snapshot_date: null,
-          total_portfolio_value: 0,
-          total_cash: 0,
-          position_count: 0,
-          daily_return_pct: 0,
-          unrealized_pnl_pct: 0,
-          cumulative_return_pct: null,
-          max_drawdown_pct: null,
-          largest_position_pct: null
-        };
+    const snapshot =
+      result.rows.length > 0
+        ? validateAndCoerceRow(result.rows[0], {
+            snapshot_date: { type: "date", required: false },
+            total_portfolio_value: {
+              type: "float",
+              required: false,
+              defaultValue: 0,
+            },
+            total_cash: { type: "float", required: false, defaultValue: 0 },
+            position_count: { type: "int", required: false, defaultValue: 0 },
+            daily_return_pct: {
+              type: "float",
+              required: false,
+              defaultValue: 0,
+            },
+            unrealized_pnl_pct: {
+              type: "float",
+              required: false,
+              defaultValue: 0,
+            },
+            cumulative_return_pct: {
+              type: "float",
+              required: false,
+              defaultValue: null,
+            },
+            max_drawdown_pct: {
+              type: "float",
+              required: false,
+              defaultValue: null,
+            },
+            largest_position_pct: {
+              type: "float",
+              required: false,
+              defaultValue: null,
+            },
+          })
+        : {
+            snapshot_date: null,
+            total_portfolio_value: 0,
+            total_cash: 0,
+            position_count: 0,
+            daily_return_pct: 0,
+            unrealized_pnl_pct: 0,
+            cumulative_return_pct: null,
+            max_drawdown_pct: null,
+            largest_position_pct: null,
+          };
 
     return sendSuccess(res, {
       data: {
@@ -607,12 +705,19 @@ router.get('/portfolio', async (req, res) => {
         unrealized_pnl_pct: snapshot.unrealized_pnl_pct,
         cumulative_return_pct: snapshot.cumulative_return_pct,
         max_drawdown_pct: snapshot.max_drawdown_pct,
-        largest_position_pct: snapshot.largest_position_pct
-      }
+        largest_position_pct: snapshot.largest_position_pct,
+      },
     });
   } catch (error) {
-    logger.error('Error in /algo/portfolio:', { error: error.message, stack: error.stack });
-    return sendDatabaseError(res, error, 'An error occurred while fetching portfolio');
+    logger.error("Error in /algo/portfolio:", {
+      error: error.message,
+      stack: error.stack,
+    });
+    return sendDatabaseError(
+      res,
+      error,
+      "An error occurred while fetching portfolio"
+    );
   }
 });
 
@@ -621,7 +726,7 @@ router.get('/portfolio', async (req, res) => {
  * Get aggregated portfolio metrics without individual positions.
  * ISSUE #9a: Replaces frontend aggregation logic.
  */
-router.get('/portfolio-summary', authenticateToken, async (req, res) => {
+router.get("/portfolio-summary", authenticateToken, async (req, res) => {
   try {
     ensureConnection();
     const pool = getPool();
@@ -651,7 +756,7 @@ router.get('/portfolio-summary', authenticateToken, async (req, res) => {
         FROM sector_allocation_summary
         WHERE snapshot_date = CURRENT_DATE
         ORDER BY allocation_pct DESC
-      `)
+      `),
     ]);
 
     validateQueryResult(snapshotResult, { requireRows: false });
@@ -659,18 +764,46 @@ router.get('/portfolio-summary', authenticateToken, async (req, res) => {
 
     const snapshot = snapshotResult.rows[0]
       ? validateAndCoerceRow(snapshotResult.rows[0], {
-          snapshot_date: { type: 'date', required: false },
-          total_portfolio_value: { type: 'float', required: false, defaultValue: 0 },
-          position_count: { type: 'int', required: false, defaultValue: 0 },
-          unrealized_pnl_pct: { type: 'float', required: false, defaultValue: 0 },
-          daily_return_pct: { type: 'float', required: false, defaultValue: 0 },
-          largest_position_pct: { type: 'float', required: false, defaultValue: 0 },
-          average_position_size_pct: { type: 'float', required: false, defaultValue: 0 },
-          concentration_risk_pct: { type: 'float', required: false, defaultValue: 0 },
-          realized_pnl_today: { type: 'float', required: false, defaultValue: 0 },
-          unrealized_pnl_total: { type: 'float', required: false, defaultValue: 0 },
-          max_drawdown_pct: { type: 'float', required: false, defaultValue: 0 },
-          sharpe_ratio: { type: 'float', required: false, defaultValue: 0 }
+          snapshot_date: { type: "date", required: false },
+          total_portfolio_value: {
+            type: "float",
+            required: false,
+            defaultValue: 0,
+          },
+          position_count: { type: "int", required: false, defaultValue: 0 },
+          unrealized_pnl_pct: {
+            type: "float",
+            required: false,
+            defaultValue: 0,
+          },
+          daily_return_pct: { type: "float", required: false, defaultValue: 0 },
+          largest_position_pct: {
+            type: "float",
+            required: false,
+            defaultValue: 0,
+          },
+          average_position_size_pct: {
+            type: "float",
+            required: false,
+            defaultValue: 0,
+          },
+          concentration_risk_pct: {
+            type: "float",
+            required: false,
+            defaultValue: 0,
+          },
+          realized_pnl_today: {
+            type: "float",
+            required: false,
+            defaultValue: 0,
+          },
+          unrealized_pnl_total: {
+            type: "float",
+            required: false,
+            defaultValue: 0,
+          },
+          max_drawdown_pct: { type: "float", required: false, defaultValue: 0 },
+          sharpe_ratio: { type: "float", required: false, defaultValue: 0 },
         })
       : {
           snapshot_date: null,
@@ -684,15 +817,15 @@ router.get('/portfolio-summary', authenticateToken, async (req, res) => {
           realized_pnl_today: 0,
           unrealized_pnl_total: 0,
           max_drawdown_pct: 0,
-          sharpe_ratio: 0
+          sharpe_ratio: 0,
         };
 
     const sector_allocation = validateAndCoerceRows(sectorResult, {
-      sector: { type: 'string', required: true },
-      position_count: { type: 'int', required: false, defaultValue: 0 },
-      total_value_dollars: { type: 'float', required: false, defaultValue: 0 },
-      allocation_pct: { type: 'float', required: false, defaultValue: 0 },
-      is_overweight: { type: 'bool', required: false, defaultValue: false }
+      sector: { type: "string", required: true },
+      position_count: { type: "int", required: false, defaultValue: 0 },
+      total_value_dollars: { type: "float", required: false, defaultValue: 0 },
+      allocation_pct: { type: "float", required: false, defaultValue: 0 },
+      is_overweight: { type: "bool", required: false, defaultValue: false },
     });
 
     return sendSuccess(res, {
@@ -708,13 +841,20 @@ router.get('/portfolio-summary', authenticateToken, async (req, res) => {
         average_position_size_pct: snapshot.average_position_size_pct,
         concentration_risk_pct: snapshot.concentration_risk_pct,
         max_drawdown_pct: snapshot.max_drawdown_pct,
-        sharpe_ratio: snapshot.sharpe_ratio
+        sharpe_ratio: snapshot.sharpe_ratio,
       },
-      sector_allocation
+      sector_allocation,
     });
   } catch (error) {
-    logger.error('Error in /algo/portfolio-summary:', { error: error.message, stack: error.stack });
-    return sendDatabaseError(res, error, 'An error occurred while fetching portfolio summary');
+    logger.error("Error in /algo/portfolio-summary:", {
+      error: error.message,
+      stack: error.stack,
+    });
+    return sendDatabaseError(
+      res,
+      error,
+      "An error occurred while fetching portfolio summary"
+    );
   }
 });
 
@@ -722,15 +862,20 @@ router.get('/portfolio-summary', authenticateToken, async (req, res) => {
  * GET /api/algo/trades
  * Get trade history
  */
-router.get('/trades', async (req, res) => {
+router.get("/trades", async (req, res) => {
   try {
     ensureConnection();
     const pool = getPool();
-    const { limit, offset } = paginationConfig.sanitize(req.query.limit, req.query.offset, 'trades');
+    const { limit, offset } = paginationConfig.sanitize(
+      req.query.limit,
+      req.query.offset,
+      "trades"
+    );
 
     // Parallelize data fetch and count query
     const [result, countResult] = await Promise.all([
-      pool.query(`
+      pool.query(
+        `
         SELECT
           trade_id,
           symbol,
@@ -748,30 +893,32 @@ router.get('/trades', async (req, res) => {
         FROM algo_trades
         ORDER BY trade_date DESC
         LIMIT $1 OFFSET $2
-      `, [limit, offset]),
-      pool.query('SELECT COUNT(*) as total FROM algo_trades')
+      `,
+        [limit, offset]
+      ),
+      pool.query("SELECT COUNT(*) as total FROM algo_trades"),
     ]);
 
     // Validate result structures
     validateQueryResult(result, { requireRows: false });
     validateQueryResult(countResult, { minRows: 1, maxRows: 1 });
-    const total = extractCount(countResult, 'total');
+    const total = extractCount(countResult, "total");
 
     // Validate and coerce row types
     const validated = validateAndCoerceRows(result, {
-      trade_id: { type: 'int', required: true },
-      symbol: { type: 'string', required: true },
-      signal_date: { type: 'date', required: false },
-      trade_date: { type: 'date', required: true },
-      entry_price: { type: 'float', required: false },
-      entry_quantity: { type: 'float', required: false },
-      status: { type: 'string', required: false },
-      exit_date: { type: 'date', required: false },
-      exit_price: { type: 'float', required: false },
-      exit_r_multiple: { type: 'float', required: false },
-      profit_loss_pct: { type: 'float', required: false, defaultValue: 0 },
-      profit_loss_dollars: { type: 'float', required: false, defaultValue: 0 },
-      trade_duration_days: { type: 'int', required: false }
+      trade_id: { type: "int", required: true },
+      symbol: { type: "string", required: true },
+      signal_date: { type: "date", required: false },
+      trade_date: { type: "date", required: true },
+      entry_price: { type: "float", required: false },
+      entry_quantity: { type: "float", required: false },
+      status: { type: "string", required: false },
+      exit_date: { type: "date", required: false },
+      exit_price: { type: "float", required: false },
+      exit_r_multiple: { type: "float", required: false },
+      profit_loss_pct: { type: "float", required: false, defaultValue: 0 },
+      profit_loss_dollars: { type: "float", required: false, defaultValue: 0 },
+      trade_duration_days: { type: "int", required: false },
     });
 
     return sendSuccess(res, {
@@ -781,12 +928,19 @@ router.get('/trades', async (req, res) => {
         limit,
         offset,
         page: Math.floor(offset / limit) + 1,
-        totalPages: Math.ceil(total / limit)
-      }
+        totalPages: Math.ceil(total / limit),
+      },
     });
   } catch (error) {
-    logger.error('Error in /algo/trades:', { error: error.message, stack: error.stack });
-    return sendDatabaseError(res, error, 'An error occurred while fetching trade history');
+    logger.error("Error in /algo/trades:", {
+      error: error.message,
+      stack: error.stack,
+    });
+    return sendDatabaseError(
+      res,
+      error,
+      "An error occurred while fetching trade history"
+    );
   }
 });
 
@@ -794,121 +948,121 @@ router.get('/trades', async (req, res) => {
  * Configuration category mapping (for frontend grouping)
  */
 const CONFIG_CATEGORIES = {
-  'base_risk_pct': 'Risk Management',
-  'max_position_size_pct': 'Risk Management',
-  'max_positions': 'Risk Management',
-  'max_concentration_pct': 'Risk Management',
-  'max_total_invested_pct': 'Risk Management',
-  'max_consecutive_losses': 'Risk Management',
-  'max_daily_loss_pct': 'Risk Management',
-  'max_weekly_loss_pct': 'Risk Management',
-  'min_win_rate_pct': 'Risk Management',
-  'halt_drawdown_pct': 'Drawdown Defense',
-  'risk_reduction_at_minus_5': 'Drawdown Defense',
-  'risk_reduction_at_minus_10': 'Drawdown Defense',
-  'risk_reduction_at_minus_15': 'Drawdown Defense',
-  'risk_reduction_at_minus_20': 'Drawdown Defense',
-  'sector_drawdown_halt_pct': 'Drawdown Defense',
-  'halt_entries_before_major_release_minutes': 'Circuit Breakers',
-  're_engage_min_days': 'Circuit Breakers',
-  're_engage_recovery_pct': 'Circuit Breakers',
-  'position_halt_flag_count': 'Circuit Breakers',
-  'max_distribution_days': 'Market Conditions',
-  'require_stage_2_market': 'Market Conditions',
-  'vix_max_threshold': 'Market Conditions',
-  'vix_caution_threshold': 'Market Conditions',
-  'vix_caution_risk_reduction': 'Market Conditions',
-  'min_completeness_score': 'Filter Thresholds',
-  'min_stock_price': 'Filter Thresholds',
-  'min_signal_quality_score': 'Filter Thresholds',
-  'min_volume_ma_50d': 'Filter Thresholds',
-  'min_avg_daily_dollar_volume': 'Filter Thresholds',
-  'min_market_cap_millions': 'Filter Thresholds',
-  'min_float_millions': 'Filter Thresholds',
-  'min_price_history_days': 'Filter Thresholds',
-  'min_daily_volume_shares': 'Filter Thresholds',
-  'max_spread_pct': 'Filter Thresholds',
-  'max_short_interest_pct': 'Filter Thresholds',
-  'max_data_staleness_days': 'Filter Thresholds',
-  'require_sma50_above_sma200': 'Entry Rules (Minervini)',
-  'min_percent_from_52w_low': 'Entry Rules (Minervini)',
-  'max_percent_from_52w_high': 'Entry Rules (Minervini)',
-  'eight_week_rule_threshold_pct': 'Entry Rules (Minervini)',
-  'eight_week_rule_window_days': 'Entry Rules (Minervini)',
-  'max_signal_age_days': 'Entry Quality Gates',
-  'min_close_quality_pct': 'Entry Quality Gates',
-  'min_breakout_volume_ratio': 'Entry Quality Gates',
-  'require_weekly_stage_2': 'Entry Quality Gates',
-  'min_rs_line_slope_days': 'Entry Quality Gates',
-  'max_rs_pct_from_60d_high': 'Entry Quality Gates',
-  'rs_slope_gate_enabled': 'Entry Quality Gates',
-  'volume_decay_gate_enabled': 'Entry Quality Gates',
-  'require_target_pullback': 'Entry Quality Gates',
-  'exit_on_distribution_day': 'Exit Rules',
-  'exit_on_rs_line_break_50dma': 'Exit Rules',
-  'exit_on_td_sequential': 'Exit Rules',
-  'max_hold_days': 'Exit Rules',
-  'min_hold_days': 'Exit Rules',
-  'chandelier_atr_mult': 'Exit Rules',
-  'use_chandelier_trail': 'Exit Rules',
-  'switch_to_21ema_after_days': 'Exit Rules',
-  'move_be_at_r': 'Exit Rules',
-  'pyramid_enabled': 'Pyramid & Re-engagement',
-  'pyramid_add_1_gain_pct': 'Pyramid & Re-engagement',
-  'pyramid_add_2_gain_pct': 'Pyramid & Re-engagement',
-  'pyramid_split_pct': 'Pyramid & Re-engagement',
-  'require_ftd_to_re_engage': 'Pyramid & Re-engagement',
-  'max_trades_per_day': 'Position Monitoring',
-  'max_reentries_per_name': 'Position Monitoring',
-  'min_days_before_reentry_same_symbol': 'Position Monitoring',
-  'max_positions_per_sector': 'Position Monitoring',
-  'max_positions_per_industry': 'Position Monitoring',
-  'min_swing_score': 'Swing Trader Scoring',
-  'min_swing_grade': 'Swing Trader Scoring',
-  'swing_min_trend_score': 'Swing Trader Scoring',
-  'swing_min_industry_rank': 'Swing Trader Scoring',
-  'swing_days_to_earnings_block': 'Swing Trader Scoring',
-  'swing_score_good_threshold': 'Swing Trader Scoring',
-  'swing_score_excellent_threshold': 'Swing Trader Scoring',
-  'swing_weight_setup': 'Swing Trader Scoring',
-  'swing_weight_trend': 'Swing Trader Scoring',
-  'swing_weight_momentum': 'Swing Trader Scoring',
-  'swing_weight_volume': 'Swing Trader Scoring',
-  'swing_weight_fundamentals': 'Swing Trader Scoring',
-  'swing_weight_sector': 'Swing Trader Scoring',
-  'swing_weight_multi_timeframe': 'Swing Trader Scoring',
-  'block_days_before_earnings': 'Economic & Earnings',
-  'earnings_blackout_days_before': 'Economic & Earnings',
-  'earnings_blackout_days_after': 'Economic & Earnings',
-  'require_stock_stage_2': 'Economic & Earnings',
-  'min_trend_template_score': 'Fundamental Filters',
-  'strong_sector_top_n': 'Fundamental Filters',
-  'enable_advanced_filters': 'Advanced Filters',
-  'max_total_risk_pct': 'Risk Metrics',
-  't1_target_r_multiple': 'Risk Metrics',
-  't2_target_r_multiple': 'Risk Metrics',
-  't3_target_r_multiple': 'Risk Metrics',
-  'execution_mode': 'Execution Mode',
-  'enable_algo': 'Execution Mode',
-  'enable_backtesting': 'Execution Mode',
-  'alpaca_paper_trading': 'Execution Mode',
-  'verbose_logging': 'Feature Flags',
-  'api_request_timeout_seconds': 'Network Configuration',
-  'db_connection_timeout_seconds': 'Network Configuration',
-  'default_portfolio_value': 'Failsafe Configuration',
-  'imported_position_default_stop_loss_pct': 'Failsafe Configuration',
-  'imported_position_default_target_1_pct': 'Failsafe Configuration',
-  'imported_position_default_target_2_pct': 'Failsafe Configuration',
-  'imported_position_default_target_3_pct': 'Failsafe Configuration',
-  'daily_profit_cap_pct': 'Failsafe Configuration',
-  'stale_loader_threshold_minutes': 'Failsafe Configuration',
+  base_risk_pct: "Risk Management",
+  max_position_size_pct: "Risk Management",
+  max_positions: "Risk Management",
+  max_concentration_pct: "Risk Management",
+  max_total_invested_pct: "Risk Management",
+  max_consecutive_losses: "Risk Management",
+  max_daily_loss_pct: "Risk Management",
+  max_weekly_loss_pct: "Risk Management",
+  min_win_rate_pct: "Risk Management",
+  halt_drawdown_pct: "Drawdown Defense",
+  risk_reduction_at_minus_5: "Drawdown Defense",
+  risk_reduction_at_minus_10: "Drawdown Defense",
+  risk_reduction_at_minus_15: "Drawdown Defense",
+  risk_reduction_at_minus_20: "Drawdown Defense",
+  sector_drawdown_halt_pct: "Drawdown Defense",
+  halt_entries_before_major_release_minutes: "Circuit Breakers",
+  re_engage_min_days: "Circuit Breakers",
+  re_engage_recovery_pct: "Circuit Breakers",
+  position_halt_flag_count: "Circuit Breakers",
+  max_distribution_days: "Market Conditions",
+  require_stage_2_market: "Market Conditions",
+  vix_max_threshold: "Market Conditions",
+  vix_caution_threshold: "Market Conditions",
+  vix_caution_risk_reduction: "Market Conditions",
+  min_completeness_score: "Filter Thresholds",
+  min_stock_price: "Filter Thresholds",
+  min_signal_quality_score: "Filter Thresholds",
+  min_volume_ma_50d: "Filter Thresholds",
+  min_avg_daily_dollar_volume: "Filter Thresholds",
+  min_market_cap_millions: "Filter Thresholds",
+  min_float_millions: "Filter Thresholds",
+  min_price_history_days: "Filter Thresholds",
+  min_daily_volume_shares: "Filter Thresholds",
+  max_spread_pct: "Filter Thresholds",
+  max_short_interest_pct: "Filter Thresholds",
+  max_data_staleness_days: "Filter Thresholds",
+  require_sma50_above_sma200: "Entry Rules (Minervini)",
+  min_percent_from_52w_low: "Entry Rules (Minervini)",
+  max_percent_from_52w_high: "Entry Rules (Minervini)",
+  eight_week_rule_threshold_pct: "Entry Rules (Minervini)",
+  eight_week_rule_window_days: "Entry Rules (Minervini)",
+  max_signal_age_days: "Entry Quality Gates",
+  min_close_quality_pct: "Entry Quality Gates",
+  min_breakout_volume_ratio: "Entry Quality Gates",
+  require_weekly_stage_2: "Entry Quality Gates",
+  min_rs_line_slope_days: "Entry Quality Gates",
+  max_rs_pct_from_60d_high: "Entry Quality Gates",
+  rs_slope_gate_enabled: "Entry Quality Gates",
+  volume_decay_gate_enabled: "Entry Quality Gates",
+  require_target_pullback: "Entry Quality Gates",
+  exit_on_distribution_day: "Exit Rules",
+  exit_on_rs_line_break_50dma: "Exit Rules",
+  exit_on_td_sequential: "Exit Rules",
+  max_hold_days: "Exit Rules",
+  min_hold_days: "Exit Rules",
+  chandelier_atr_mult: "Exit Rules",
+  use_chandelier_trail: "Exit Rules",
+  switch_to_21ema_after_days: "Exit Rules",
+  move_be_at_r: "Exit Rules",
+  pyramid_enabled: "Pyramid & Re-engagement",
+  pyramid_add_1_gain_pct: "Pyramid & Re-engagement",
+  pyramid_add_2_gain_pct: "Pyramid & Re-engagement",
+  pyramid_split_pct: "Pyramid & Re-engagement",
+  require_ftd_to_re_engage: "Pyramid & Re-engagement",
+  max_trades_per_day: "Position Monitoring",
+  max_reentries_per_name: "Position Monitoring",
+  min_days_before_reentry_same_symbol: "Position Monitoring",
+  max_positions_per_sector: "Position Monitoring",
+  max_positions_per_industry: "Position Monitoring",
+  min_swing_score: "Swing Trader Scoring",
+  min_swing_grade: "Swing Trader Scoring",
+  swing_min_trend_score: "Swing Trader Scoring",
+  swing_min_industry_rank: "Swing Trader Scoring",
+  swing_days_to_earnings_block: "Swing Trader Scoring",
+  swing_score_good_threshold: "Swing Trader Scoring",
+  swing_score_excellent_threshold: "Swing Trader Scoring",
+  swing_weight_setup: "Swing Trader Scoring",
+  swing_weight_trend: "Swing Trader Scoring",
+  swing_weight_momentum: "Swing Trader Scoring",
+  swing_weight_volume: "Swing Trader Scoring",
+  swing_weight_fundamentals: "Swing Trader Scoring",
+  swing_weight_sector: "Swing Trader Scoring",
+  swing_weight_multi_timeframe: "Swing Trader Scoring",
+  block_days_before_earnings: "Economic & Earnings",
+  earnings_blackout_days_before: "Economic & Earnings",
+  earnings_blackout_days_after: "Economic & Earnings",
+  require_stock_stage_2: "Economic & Earnings",
+  min_trend_template_score: "Fundamental Filters",
+  strong_sector_top_n: "Fundamental Filters",
+  enable_advanced_filters: "Advanced Filters",
+  max_total_risk_pct: "Risk Metrics",
+  t1_target_r_multiple: "Risk Metrics",
+  t2_target_r_multiple: "Risk Metrics",
+  t3_target_r_multiple: "Risk Metrics",
+  execution_mode: "Execution Mode",
+  enable_algo: "Execution Mode",
+  enable_backtesting: "Execution Mode",
+  alpaca_paper_trading: "Execution Mode",
+  verbose_logging: "Feature Flags",
+  api_request_timeout_seconds: "Network Configuration",
+  db_connection_timeout_seconds: "Network Configuration",
+  default_portfolio_value: "Failsafe Configuration",
+  imported_position_default_stop_loss_pct: "Failsafe Configuration",
+  imported_position_default_target_1_pct: "Failsafe Configuration",
+  imported_position_default_target_2_pct: "Failsafe Configuration",
+  imported_position_default_target_3_pct: "Failsafe Configuration",
+  daily_profit_cap_pct: "Failsafe Configuration",
+  stale_loader_threshold_minutes: "Failsafe Configuration",
 };
 
 /**
  * GET /api/algo/config (admin only)
  * Get current configuration as array with categories
  */
-router.get('/config', async (req, res) => {
+router.get("/config", async (req, res) => {
   try {
     ensureConnection();
     const pool = getPool();
@@ -919,30 +1073,39 @@ router.get('/config', async (req, res) => {
       ORDER BY key
     `);
 
-    const configArray = result.rows.map(row => {
+    const configArray = result.rows.map((row) => {
       let parsedValue = row.value;
-      if (row.value_type === 'int') {
+      if (row.value_type === "int") {
         parsedValue = parseInt(row.value, 10);
-      } else if (row.value_type === 'float') {
+      } else if (row.value_type === "float") {
         parsedValue = parseFloat(row.value);
-      } else if (row.value_type === 'bool') {
-        parsedValue = ['true', '1', 'yes'].includes(String(row.value).toLowerCase());
+      } else if (row.value_type === "bool") {
+        parsedValue = ["true", "1", "yes"].includes(
+          String(row.value).toLowerCase()
+        );
       }
       return {
         key: row.key,
         value: parsedValue,
         value_type: row.value_type,
         description: row.description,
-        category: CONFIG_CATEGORIES[row.key] || 'Other',
+        category: CONFIG_CATEGORIES[row.key] || "Other",
         updated_at: row.updated_at,
-        is_custom: false
+        is_custom: false,
       };
     });
 
     return sendSuccess(res, configArray);
   } catch (error) {
-    logger.error('Error in /algo/config:', { error: error.message, stack: error.stack });
-    return sendDatabaseError(res, error, 'An error occurred while fetching configuration');
+    logger.error("Error in /algo/config:", {
+      error: error.message,
+      stack: error.stack,
+    });
+    return sendDatabaseError(
+      res,
+      error,
+      "An error occurred while fetching configuration"
+    );
   }
 });
 
@@ -950,7 +1113,7 @@ router.get('/config', async (req, res) => {
  * PUT /api/algo/config/:key (admin only)
  * Update a single configuration value
  */
-router.put('/config/:key', requireAuth, requireAdmin, async (req, res) => {
+router.put("/config/:key", requireAuth, requireAdmin, async (req, res) => {
   try {
     ensureConnection();
     const pool = getPool();
@@ -958,16 +1121,16 @@ router.put('/config/:key', requireAuth, requireAdmin, async (req, res) => {
     const { value } = req.body;
 
     if (!key || !key.match(/^[a-z0-9_]+$/i)) {
-      return sendError(res, 'Invalid configuration key', 400);
+      return sendError(res, "Invalid configuration key", 400);
     }
 
     if (value === undefined || value === null) {
-      return sendError(res, 'Value is required', 400);
+      return sendError(res, "Value is required", 400);
     }
 
     // Get the current config to know the value_type for proper conversion
     const configResult = await pool.query(
-      'SELECT key, value, value_type, description FROM algo_config WHERE key = $1',
+      "SELECT key, value, value_type, description FROM algo_config WHERE key = $1",
       [key]
     );
 
@@ -979,21 +1142,27 @@ router.put('/config/:key', requireAuth, requireAdmin, async (req, res) => {
     let storedValue = String(value);
 
     // Validate and convert value based on type
-    if (config.value_type === 'int') {
+    if (config.value_type === "int") {
       const intVal = parseInt(value, 10);
       if (isNaN(intVal)) {
-        return sendError(res, `Invalid integer value for ${key}: ${value}`, 400);
+        return sendError(
+          res,
+          `Invalid integer value for ${key}: ${value}`,
+          400
+        );
       }
       storedValue = String(intVal);
-    } else if (config.value_type === 'float') {
+    } else if (config.value_type === "float") {
       const floatVal = parseFloat(value);
       if (isNaN(floatVal)) {
         return sendError(res, `Invalid float value for ${key}: ${value}`, 400);
       }
       storedValue = String(floatVal);
-    } else if (config.value_type === 'bool') {
-      const boolVal = ['true', '1', 'yes'].includes(String(value).toLowerCase());
-      storedValue = boolVal ? 'true' : 'false';
+    } else if (config.value_type === "bool") {
+      const boolVal = ["true", "1", "yes"].includes(
+        String(value).toLowerCase()
+      );
+      storedValue = boolVal ? "true" : "false";
     }
 
     // Update the configuration
@@ -1006,19 +1175,21 @@ router.put('/config/:key', requireAuth, requireAdmin, async (req, res) => {
     );
 
     if (updateResult.rows.length === 0) {
-      return sendError(res, 'Failed to update configuration', 500);
+      return sendError(res, "Failed to update configuration", 500);
     }
 
     const updatedRow = updateResult.rows[0];
 
     // Parse the updated value to match frontend expectations
     let parsedValue = updatedRow.value;
-    if (updatedRow.value_type === 'int') {
+    if (updatedRow.value_type === "int") {
       parsedValue = parseInt(updatedRow.value, 10);
-    } else if (updatedRow.value_type === 'float') {
+    } else if (updatedRow.value_type === "float") {
       parsedValue = parseFloat(updatedRow.value);
-    } else if (updatedRow.value_type === 'bool') {
-      parsedValue = ['true', '1', 'yes'].includes(updatedRow.value.toLowerCase());
+    } else if (updatedRow.value_type === "bool") {
+      parsedValue = ["true", "1", "yes"].includes(
+        updatedRow.value.toLowerCase()
+      );
     }
 
     return sendSuccess(res, {
@@ -1026,27 +1197,39 @@ router.put('/config/:key', requireAuth, requireAdmin, async (req, res) => {
       value: parsedValue,
       value_type: updatedRow.value_type,
       description: updatedRow.description,
-      category: CONFIG_CATEGORIES[updatedRow.key] || 'Other',
+      category: CONFIG_CATEGORIES[updatedRow.key] || "Other",
       updated_at: updatedRow.updated_at,
-      is_custom: true
+      is_custom: true,
     });
-
   } catch (error) {
-    logger.error('Error in PUT /algo/config/:key:', { error: error.message, stack: error.stack });
-    return sendDatabaseError(res, error, 'An error occurred while updating configuration');
+    logger.error("Error in PUT /algo/config/:key:", {
+      error: error.message,
+      stack: error.stack,
+    });
+    return sendDatabaseError(
+      res,
+      error,
+      "An error occurred while updating configuration"
+    );
   }
 });
 
 // ============================================================
 // MARKET EXPOSURE â€” for the Markets page
 // ============================================================
-router.get('/markets', async (req, res) => {
+router.get("/markets", async (req, res) => {
   try {
     ensureConnection();
     const pool = getPool();
 
     // Parallelize all 5 independent queries
-    const [latestResult, historyResult, healthResult, sectorsResult, sentimentResult] = await Promise.all([
+    const [
+      latestResult,
+      historyResult,
+      healthResult,
+      sectorsResult,
+      sentimentResult,
+    ] = await Promise.all([
       pool.query(`
         SELECT date, exposure_pct, raw_score, regime, distribution_days,
                factors, halt_reasons, created_at
@@ -1073,7 +1256,7 @@ router.get('/markets', async (req, res) => {
       pool.query(`
         SELECT date, bullish, bearish, neutral
         FROM aaii_sentiment ORDER BY date DESC LIMIT 8
-      `)
+      `),
     ]);
 
     // Validate all result structures
@@ -1085,24 +1268,24 @@ router.get('/markets', async (req, res) => {
 
     const latest = latestResult.rows[0]
       ? validateAndCoerceRow(latestResult.rows[0], {
-          date: { type: 'date', required: false },
-          exposure_pct: { type: 'float', required: false },
-          raw_score: { type: 'float', required: false },
-          regime: { type: 'string', required: false },
-          distribution_days: { type: 'int', required: false },
-          factors: { type: 'raw', required: false },
-          halt_reasons: { type: 'raw', required: false },
-          created_at: { type: 'date', required: false }
+          date: { type: "date", required: false },
+          exposure_pct: { type: "float", required: false },
+          raw_score: { type: "float", required: false },
+          regime: { type: "string", required: false },
+          distribution_days: { type: "int", required: false },
+          factors: { type: "raw", required: false },
+          halt_reasons: { type: "raw", required: false },
+          created_at: { type: "date", required: false },
         })
       : null;
 
     const health = healthResult.rows[0]
       ? validateAndCoerceRow(healthResult.rows[0], {
-          date: { type: 'date', required: false },
-          market_trend: { type: 'string', required: false },
-          market_stage: { type: 'int', required: false },
-          distribution_days_4w: { type: 'int', required: false },
-          vix_level: { type: 'float', required: false }
+          date: { type: "date", required: false },
+          market_trend: { type: "string", required: false },
+          market_stage: { type: "int", required: false },
+          distribution_days_4w: { type: "int", required: false },
+          vix_level: { type: "float", required: false },
         })
       : null;
 
@@ -1116,65 +1299,73 @@ router.get('/markets', async (req, res) => {
 
     // Validate and coerce all rows
     const historyRows = validateAndCoerceRows(historyResult, {
-      date: { type: 'date', required: false },
-      exposure_pct: { type: 'float', required: false },
-      regime: { type: 'string', required: false },
-      distribution_days: { type: 'int', required: false }
+      date: { type: "date", required: false },
+      exposure_pct: { type: "float", required: false },
+      regime: { type: "string", required: false },
+      distribution_days: { type: "int", required: false },
     });
 
     const sectorsRows = validateAndCoerceRows(sectorsResult, {
-      sector_name: { type: 'string', required: false },
-      current_rank: { type: 'int', required: false },
-      momentum_score: { type: 'float', required: false, defaultValue: 0 }
+      sector_name: { type: "string", required: false },
+      current_rank: { type: "int", required: false },
+      momentum_score: { type: "float", required: false, defaultValue: 0 },
     });
 
     const sentimentRows = validateAndCoerceRows(sentimentResult, {
-      date: { type: 'date', required: false },
-      bullish: { type: 'float', required: false, defaultValue: 0 },
-      bearish: { type: 'float', required: false, defaultValue: 0 },
-      neutral: { type: 'float', required: false, defaultValue: 0 }
+      date: { type: "date", required: false },
+      bullish: { type: "float", required: false, defaultValue: 0 },
+      bearish: { type: "float", required: false, defaultValue: 0 },
+      neutral: { type: "float", required: false, defaultValue: 0 },
     });
 
     // Parse halt_reasons: stored as VARCHAR containing JSON array string (e.g. "[]")
     let parsedHaltReasons = [];
     if (latest && latest.halt_reasons != null) {
-      if (typeof latest.halt_reasons === 'string') {
-        try { parsedHaltReasons = JSON.parse(latest.halt_reasons); } catch (_) { parsedHaltReasons = []; }
+      if (typeof latest.halt_reasons === "string") {
+        try {
+          parsedHaltReasons = JSON.parse(latest.halt_reasons);
+        } catch (_) {
+          parsedHaltReasons = [];
+        }
       } else if (Array.isArray(latest.halt_reasons)) {
         parsedHaltReasons = latest.halt_reasons;
       }
     }
 
     return sendSuccess(res, {
-      current: latest ? {
-        date: latest.date,
-        exposure_pct: latest.exposure_pct || 0,
-        raw_score: latest.raw_score || 0,
-        regime: latest.regime,
-        distribution_days: latest.distribution_days,
-        factors: latest.factors || {},
-        halt_reasons: parsedHaltReasons,
-      } : null,
+      current: latest
+        ? {
+            date: latest.date,
+            exposure_pct: latest.exposure_pct || 0,
+            raw_score: latest.raw_score || 0,
+            regime: latest.regime,
+            distribution_days: latest.distribution_days,
+            factors: latest.factors || {},
+            halt_reasons: parsedHaltReasons,
+          }
+        : null,
       active_tier: policy,
-      history: historyRows.map(r => ({
+      history: historyRows.map((r) => ({
         date: r.date,
         exposure_pct: r.exposure_pct || 0,
         regime: r.regime,
         distribution_days: r.distribution_days,
       })),
-      market_health: health ? {
-        date: health.date,
-        trend: health.market_trend,
-        stage: health.market_stage,
-        distribution_days_4w: health.distribution_days_4w,
-        vix_level: health.vix_level || 0,
-      } : null,
-      sectors: sectorsRows.map(r => ({
+      market_health: health
+        ? {
+            date: health.date,
+            trend: health.market_trend,
+            stage: health.market_stage,
+            distribution_days_4w: health.distribution_days_4w,
+            vix_level: health.vix_level || 0,
+          }
+        : null,
+      sectors: sectorsRows.map((r) => ({
         name: r.sector_name,
         rank: r.current_rank,
         momentum: r.momentum_score || 0,
       })),
-      sentiment: sentimentRows.map(r => ({
+      sentiment: sentimentRows.map((r) => ({
         date: r.date,
         bullish: r.bullish || 0,
         bearish: r.bearish || 0,
@@ -1182,25 +1373,32 @@ router.get('/markets', async (req, res) => {
       })),
     });
   } catch (error) {
-    logger.error('Error in /algo/markets:', { error: error.message, stack: error.stack });
-    return sendDatabaseError(res, error, 'An error occurred while fetching market data');
+    logger.error("Error in /algo/markets:", {
+      error: error.message,
+      stack: error.stack,
+    });
+    return sendDatabaseError(
+      res,
+      error,
+      "An error occurred while fetching market data"
+    );
   }
 });
 
 // ============================================================
 // SWING TRADER SCORES â€” for ranking display
 // ============================================================
-router.get('/swing-scores', async (req, res) => {
+router.get("/swing-scores", async (req, res) => {
   try {
     ensureConnection();
     const pool = getPool();
-    const { limit } = paginationConfig.sanitize(req.query.limit, 0, 'signals');
+    const { limit } = paginationConfig.sanitize(req.query.limit, 0, "signals");
     const minScore = parseFloat(req.query.min_score) || 0;
     const symbol = req.query.symbol ? req.query.symbol.toUpperCase() : null;
 
     let whereClauses = [
       `s.date = (SELECT MAX(date) FROM swing_trader_scores)`,
-      `s.score >= $1`
+      `s.score >= $1`,
     ];
     const params = [minScore];
 
@@ -1217,7 +1415,7 @@ router.get('/swing-scores', async (req, res) => {
               cp.short_name, cp.sector, cp.industry
        FROM swing_trader_scores s
        LEFT JOIN company_profile cp ON cp.ticker = s.symbol
-       WHERE ${whereClauses.join(' AND ')}
+       WHERE ${whereClauses.join(" AND ")}
        ORDER BY s.score DESC
        LIMIT $${limitParamNum}`,
       params
@@ -1231,26 +1429,29 @@ router.get('/swing-scores', async (req, res) => {
 
     const parseComponentsJSON = (components) => {
       if (!components) return {};
-      if (typeof components === 'object') return components;
-      if (typeof components !== 'string') return {};
+      if (typeof components === "object") return components;
+      if (typeof components !== "string") return {};
       try {
         return JSON.parse(components);
       } catch (e) {
-        logger.warn(`Failed to parse swing_trader_scores components: ${components.substring(0, 100)}`, { error: e.message });
+        logger.warn(
+          `Failed to parse swing_trader_scores components: ${components.substring(0, 100)}`,
+          { error: e.message }
+        );
         return {};
       }
     };
 
     return sendSuccess(res, {
       items: validateAndCoerceRows(result, {
-        symbol: { type: 'string', required: true },
-        date: { type: 'date', required: true },
-        score: { type: 'float', required: true },
-        components: { type: 'string', required: false },
-        short_name: { type: 'string', required: false },
-        sector: { type: 'string', required: false },
-        industry: { type: 'string', required: false }
-      }).map(r => {
+        symbol: { type: "string", required: true },
+        date: { type: "date", required: true },
+        score: { type: "float", required: true },
+        components: { type: "string", required: false },
+        short_name: { type: "string", required: false },
+        sector: { type: "string", required: false },
+        industry: { type: "string", required: false },
+      }).map((r) => {
         const score = r.score;
         const gradeInfo = getGradeForScore(score, grades);
 
@@ -1267,18 +1468,25 @@ router.get('/swing-scores', async (req, res) => {
           sector: r.sector,
           industry: r.industry,
         };
-      })
+      }),
     });
   } catch (error) {
-    logger.error('Error in /algo/swing-scores:', { error: error.message, stack: error.stack });
-    return sendDatabaseError(res, error, 'An error occurred while fetching swing scores');
+    logger.error("Error in /algo/swing-scores:", {
+      error: error.message,
+      stack: error.stack,
+    });
+    return sendDatabaseError(
+      res,
+      error,
+      "An error occurred while fetching swing scores"
+    );
   }
 });
 
 // ============================================================
 // SWING SCORES HISTORY â€” score counts over time
 // ============================================================
-router.get('/swing-scores-history', async (req, res) => {
+router.get("/swing-scores-history", async (req, res) => {
   try {
     ensureConnection();
     const pool = getPool();
@@ -1304,14 +1512,14 @@ router.get('/swing-scores-history', async (req, res) => {
 
     return sendSuccess(res, {
       items: validateAndCoerceRows(result, {
-        eval_date: { type: 'date', required: true },
-        total: { type: 'int', required: false, defaultValue: 0 },
-        score_high: { type: 'int', required: false, defaultValue: 0 },
-        score_medium: { type: 'int', required: false, defaultValue: 0 },
-        score_low: { type: 'int', required: false, defaultValue: 0 },
-        avg_score: { type: 'float', required: false, defaultValue: 0 },
-        pass_count: { type: 'int', required: false, defaultValue: 0 }
-      }).map(r => ({
+        eval_date: { type: "date", required: true },
+        total: { type: "int", required: false, defaultValue: 0 },
+        score_high: { type: "int", required: false, defaultValue: 0 },
+        score_medium: { type: "int", required: false, defaultValue: 0 },
+        score_low: { type: "int", required: false, defaultValue: 0 },
+        avg_score: { type: "float", required: false, defaultValue: 0 },
+        pass_count: { type: "int", required: false, defaultValue: 0 },
+      }).map((r) => ({
         eval_date: r.eval_date,
         date: r.eval_date,
         total: r.total || 0,
@@ -1322,18 +1530,25 @@ router.get('/swing-scores-history', async (req, res) => {
         high_scores: r.score_high || 0,
         medium_scores: r.score_medium || 0,
         avg_score: r.avg_score || 0,
-      }))
+      })),
     });
   } catch (error) {
-    logger.error('Error in /algo/swing-scores-history:', { error: error.message, stack: error.stack });
-    return sendDatabaseError(res, error, 'An error occurred while fetching score history');
+    logger.error("Error in /algo/swing-scores-history:", {
+      error: error.message,
+      stack: error.stack,
+    });
+    return sendDatabaseError(
+      res,
+      error,
+      "An error occurred while fetching score history"
+    );
   }
 });
 
 // ============================================================
 // DATA FRESHNESS â€” for monitoring (computed dynamically from source tables)
 // ============================================================
-router.get('/data-status', async (req, res) => {
+router.get("/data-status", async (req, res) => {
   try {
     ensureConnection();
     const pool = getPool();
@@ -1388,20 +1603,22 @@ router.get('/data-status', async (req, res) => {
 
     // Validate and coerce row types
     const validated = validateAndCoerceRows(result, {
-      table_name: { type: 'string', required: true },
-      frequency: { type: 'string', required: false },
-      role: { type: 'string', required: false },
-      latest_date: { type: 'date', required: false },
-      age_days: { type: 'int', required: false },
-      row_count: { type: 'int', required: false, defaultValue: 0 },
-      status: { type: 'string', required: false }
+      table_name: { type: "string", required: true },
+      frequency: { type: "string", required: false },
+      role: { type: "string", required: false },
+      latest_date: { type: "date", required: false },
+      age_days: { type: "int", required: false },
+      row_count: { type: "int", required: false, defaultValue: 0 },
+      status: { type: "string", required: false },
     });
 
     const counts = { ok: 0, stale: 0, empty: 0, error: 0 };
-    validated.forEach(r => { counts[r.status] = (counts[r.status] || 0) + 1; });
+    validated.forEach((r) => {
+      counts[r.status] = (counts[r.status] || 0) + 1;
+    });
 
     const criticalStale = validated.filter(
-      r => r.status !== 'ok' && (r.role || '') === 'CRITICAL'
+      (r) => r.status !== "ok" && (r.role || "") === "CRITICAL"
     );
 
     // Only mark ready_to_trade true if we actually have data rows to check
@@ -1409,9 +1626,9 @@ router.get('/data-status', async (req, res) => {
 
     return sendSuccess(res, {
       summary: counts,
-      critical_stale: criticalStale.map(r => r.table_name),
+      critical_stale: criticalStale.map((r) => r.table_name),
       ready_to_trade,
-      sources: validated.map(r => ({
+      sources: validated.map((r) => ({
         table: r.table_name,
         frequency: r.frequency,
         role: r.role,
@@ -1424,8 +1641,15 @@ router.get('/data-status', async (req, res) => {
       })),
     });
   } catch (error) {
-    logger.error('Error in /algo/data-status:', { error: error.message, stack: error.stack });
-    return sendDatabaseError(res, error, 'An error occurred while checking data status');
+    logger.error("Error in /algo/data-status:", {
+      error: error.message,
+      stack: error.stack,
+    });
+    return sendDatabaseError(
+      res,
+      error,
+      "An error occurred while checking data status"
+    );
   }
 });
 
@@ -1434,34 +1658,34 @@ router.get('/data-status', async (req, res) => {
 // ============================================================
 // RUN ORCHESTRATOR â€” trigger the daily algo workflow from UI (admin only)
 // ============================================================
-router.post('/run', requireAuth, requireAdmin, async (req, res) => {
-  const { spawn } = require('child_process');
-  const path = require('path');
+router.post("/run", requireAuth, requireAdmin, async (req, res) => {
+  const { spawn } = require("child_process");
+  const path = require("path");
 
   try {
-    const dryRun = req.body?.dry_run !== false;  // default to dry-run for safety
+    const dryRun = req.body?.dry_run !== false; // default to dry-run for safety
     const date = req.body?.date || null;
 
     // Validate date format (YYYY-MM-DD) to prevent command injection
     if (date && !/^\d{4}-\d{2}-\d{2}$/.test(date)) {
-      return sendError(res, 'Invalid date format. Expected YYYY-MM-DD', 400);
+      return sendError(res, "Invalid date format. Expected YYYY-MM-DD", 400);
     }
 
-    const args = ['algo_orchestrator.py'];
-    if (date) args.push('--date', date);
-    if (dryRun) args.push('--dry-run');
+    const args = ["algo_orchestrator.py"];
+    if (date) args.push("--date", date);
+    if (dryRun) args.push("--dry-run");
 
-    const repoRoot = path.resolve(__dirname, '../../..');
-    const child = spawn('python3', args, { cwd: repoRoot, env: process.env });
+    const repoRoot = path.resolve(__dirname, "../../..");
+    const child = spawn("python3", args, { cwd: repoRoot, env: process.env });
 
-    const runId = `RUN-${new Date().toISOString().replace(/[:.]/g, '-').slice(0, 19)}`;
+    const runId = `RUN-${new Date().toISOString().replace(/[:.]/g, "-").slice(0, 19)}`;
     const output = [];
     let exitCode = null;
 
-    child.stdout.on('data', (chunk) => {
+    child.stdout.on("data", (chunk) => {
       output.push(chunk.toString());
     });
-    child.stderr.on('data', (chunk) => {
+    child.stderr.on("data", (chunk) => {
       output.push(chunk.toString());
     });
 
@@ -1469,13 +1693,15 @@ router.post('/run', requireAuth, requireAdmin, async (req, res) => {
     // For simplicity we'll do synchronous version with timeout
     const result = await new Promise((resolve) => {
       const timeout = setTimeout(() => {
-        try { child.kill('SIGTERM'); } catch (_e) {
+        try {
+          child.kill("SIGTERM");
+        } catch (_e) {
           // Ignore error if process already exited
         }
         resolve({ timeout: true, exitCode: -1, output });
-      }, 180000);  // 3 minute timeout
+      }, 180000); // 3 minute timeout
 
-      child.on('exit', (code) => {
+      child.on("exit", (code) => {
         clearTimeout(timeout);
         exitCode = code;
         resolve({ timeout: false, exitCode: code, output });
@@ -1485,47 +1711,52 @@ router.post('/run', requireAuth, requireAdmin, async (req, res) => {
     return sendSuccess(res, {
       run_id: runId,
       dry_run: dryRun,
-      date: date || 'auto',
+      date: date || "auto",
       exit_code: result.exitCode,
       timeout: result.timeout || false,
-      output: result.output.join('')
+      output: result.output.join(""),
     });
   } catch (error) {
-    logger.error('Error in /algo/run:', { error: error.message, stack: error.stack });
-    return sendError(res, 'An error occurred while running the algorithm', 500);
+    logger.error("Error in /algo/run:", {
+      error: error.message,
+      stack: error.stack,
+    });
+    return sendError(res, "An error occurred while running the algorithm", 500);
   }
 });
 
 // ============================================================
 // RUN DATA PATROL â€” trigger watchdog from UI (admin only)
 // ============================================================
-router.post('/patrol', requireAuth, requireAdmin, async (req, res) => {
-  const { spawn } = require('child_process');
-  const path = require('path');
+router.post("/patrol", requireAuth, requireAdmin, async (req, res) => {
+  const { spawn } = require("child_process");
+  const path = require("path");
 
   try {
     const quick = req.body?.quick === true;
     const validateAlpaca = req.body?.validate_alpaca === true;
 
-    const args = ['algo_data_patrol.py'];
-    if (quick) args.push('--quick');
-    if (validateAlpaca) args.push('--validate-alpaca');
+    const args = ["algo_data_patrol.py"];
+    if (quick) args.push("--quick");
+    if (validateAlpaca) args.push("--validate-alpaca");
 
-    const repoRoot = path.resolve(__dirname, '../../..');
-    const child = spawn('python3', args, { cwd: repoRoot, env: process.env });
+    const repoRoot = path.resolve(__dirname, "../../..");
+    const child = spawn("python3", args, { cwd: repoRoot, env: process.env });
     const output = [];
 
     const result = await new Promise((resolve) => {
       const timeout = setTimeout(() => {
-        try { child.kill('SIGTERM'); } catch (_e) {
+        try {
+          child.kill("SIGTERM");
+        } catch (_e) {
           // Ignore error if process already exited
         }
         resolve({ timeout: true, exitCode: -1, output });
       }, 60000);
 
-      child.stdout.on('data', (c) => output.push(c.toString()));
-      child.stderr.on('data', (c) => output.push(c.toString()));
-      child.on('exit', (code) => {
+      child.stdout.on("data", (c) => output.push(c.toString()));
+      child.stderr.on("data", (c) => output.push(c.toString()));
+      child.on("exit", (code) => {
         clearTimeout(timeout);
         resolve({ timeout: false, exitCode: code, output });
       });
@@ -1534,26 +1765,35 @@ router.post('/patrol', requireAuth, requireAdmin, async (req, res) => {
     return sendSuccess(res, {
       ready_to_trade: result.exitCode === 0,
       exit_code: result.exitCode,
-      output: result.output.join('')
+      output: result.output.join(""),
     });
   } catch (error) {
-    logger.error('Error in /algo/patrol:', { error: error.message, stack: error.stack });
-    return sendError(res, 'An error occurred while running data patrol', 500);
+    logger.error("Error in /algo/patrol:", {
+      error: error.message,
+      stack: error.stack,
+    });
+    return sendError(res, "An error occurred while running data patrol", 500);
   }
 });
 
 // ============================================================
 // PATROL HISTORY â€” recent patrol log entries (admin only)
 // ============================================================
-router.get('/patrol-log', requireAuth, requireAdmin, async (req, res) => {
+router.get("/patrol-log", requireAuth, requireAdmin, async (req, res) => {
   try {
     ensureConnection();
     const pool = getPool();
-    const { limit } = paginationConfig.sanitize(req.query.limit, req.query.offset, 'logs');
-    const minSeverity = req.query.min_severity || 'warn';
+    const { limit } = paginationConfig.sanitize(
+      req.query.limit,
+      req.query.offset,
+      "logs"
+    );
+    const minSeverity = req.query.min_severity || "warn";
     const sevOrder = { info: 0, warn: 1, error: 2, critical: 3 };
     const minSev = sevOrder[minSeverity] || 1;
-    const allowedSevs = Object.keys(sevOrder).filter(k => sevOrder[k] >= minSev);
+    const allowedSevs = Object.keys(sevOrder).filter(
+      (k) => sevOrder[k] >= minSev
+    );
 
     const result = await pool.query(
       `SELECT id, patrol_run_id, check_name, severity, target_table, message,
@@ -1570,15 +1810,15 @@ router.get('/patrol-log', requireAuth, requireAdmin, async (req, res) => {
 
     return sendSuccess(res, {
       items: validateAndCoerceRows(result, {
-        id: { type: 'int', required: true },
-        patrol_run_id: { type: 'string', required: false },
-        check_name: { type: 'string', required: false },
-        severity: { type: 'string', required: false },
-        target_table: { type: 'string', required: false },
-        message: { type: 'string', required: false },
-        details: { type: 'raw', required: false },
-        created_at: { type: 'date', required: false }
-      }).map(r => ({
+        id: { type: "int", required: true },
+        patrol_run_id: { type: "string", required: false },
+        check_name: { type: "string", required: false },
+        severity: { type: "string", required: false },
+        target_table: { type: "string", required: false },
+        message: { type: "string", required: false },
+        details: { type: "raw", required: false },
+        created_at: { type: "date", required: false },
+      }).map((r) => ({
         id: r.id,
         run_id: r.patrol_run_id,
         check_name: r.check_name,
@@ -1587,25 +1827,36 @@ router.get('/patrol-log', requireAuth, requireAdmin, async (req, res) => {
         message: r.message,
         details: r.details,
         created_at: r.created_at,
-      }))
+      })),
     });
   } catch (error) {
-    logger.error('Error in /algo/patrol-log:', { error: error.message, stack: error.stack });
-    return sendDatabaseError(res, error, 'An error occurred while fetching patrol logs');
+    logger.error("Error in /algo/patrol-log:", {
+      error: error.message,
+      stack: error.stack,
+    });
+    return sendDatabaseError(
+      res,
+      error,
+      "An error occurred while fetching patrol logs"
+    );
   }
 });
 
 // ============================================================
 // NOTIFICATIONS â€” surface CRITICAL events to UI as toasts
 // ============================================================
-router.get('/notifications', async (req, res) => {
+router.get("/notifications", async (req, res) => {
   try {
     ensureConnection();
     const pool = getPool();
-    const { limit } = paginationConfig.sanitize(req.query.limit, req.query.offset, 'logs');
+    const { limit } = paginationConfig.sanitize(
+      req.query.limit,
+      req.query.offset,
+      "logs"
+    );
     const kind = req.query.kind || null;
     const severity = req.query.severity || null;
-    const unread = req.query.unread === 'true';
+    const unread = req.query.unread === "true";
 
     let sql = `SELECT id, kind, severity, title, message, symbol, details, seen, created_at
                FROM algo_notifications
@@ -1615,11 +1866,11 @@ router.get('/notifications', async (req, res) => {
     if (unread) {
       sql += ` AND seen = FALSE`;
     }
-    if (kind && kind !== 'all') {
+    if (kind && kind !== "all") {
       sql += ` AND kind = $${params.length + 1}`;
       params.push(kind);
     }
-    if (severity && severity !== 'all') {
+    if (severity && severity !== "all") {
       sql += ` AND severity = $${params.length + 1}`;
       params.push(severity);
     }
@@ -1641,56 +1892,96 @@ router.get('/notifications', async (req, res) => {
 
     return sendSuccess(res, {
       items: validateAndCoerceRows(result, {
-        id: { type: 'int', required: true },
-        kind: { type: 'string', required: false },
-        severity: { type: 'string', required: false },
-        title: { type: 'string', required: false },
-        message: { type: 'string', required: false },
-        symbol: { type: 'string', required: false },
-        details: { type: 'raw', required: false },
-        seen: { type: 'bool', required: false },
-        created_at: { type: 'date', required: false }
-      })
+        id: { type: "int", required: true },
+        kind: { type: "string", required: false },
+        severity: { type: "string", required: false },
+        title: { type: "string", required: false },
+        message: { type: "string", required: false },
+        symbol: { type: "string", required: false },
+        details: { type: "raw", required: false },
+        seen: { type: "bool", required: false },
+        created_at: { type: "date", required: false },
+      }),
     });
   } catch (error) {
-    logger.error('Error fetching notifications:', { error: error.message, stack: error.stack });
-    return sendDatabaseError(res, error, 'An error occurred while fetching notifications');
+    logger.error("Error fetching notifications:", {
+      error: error.message,
+      stack: error.stack,
+    });
+    return sendDatabaseError(
+      res,
+      error,
+      "An error occurred while fetching notifications"
+    );
   }
 });
 
 // Mark single notification as read (PATCH)
-router.patch('/notifications/:id/read', authenticateToken, requireAdmin, async (req, res) => {
-  try {
-    ensureConnection();
-    const pool = getPool();
-    const { id } = req.params;
-    const result = await pool.query(
-      `UPDATE algo_notifications SET seen = TRUE, seen_at = CURRENT_TIMESTAMP WHERE id = $1`,
-      [id]
-    );
-    return sendSuccess(res, { updated: result.rowCount, timestamp: new Date() });
-  } catch (error) {
-    logger.error('Error marking notification as read:', { error: error.message, stack: error.stack });
-    return sendDatabaseError(res, error, 'An error occurred while updating notification');
+router.patch(
+  "/notifications/:id/read",
+  authenticateToken,
+  requireAdmin,
+  async (req, res) => {
+    try {
+      ensureConnection();
+      const pool = getPool();
+      const { id } = req.params;
+      const result = await pool.query(
+        `UPDATE algo_notifications SET seen = TRUE, seen_at = CURRENT_TIMESTAMP WHERE id = $1`,
+        [id]
+      );
+      return sendSuccess(res, {
+        updated: result.rowCount,
+        timestamp: new Date(),
+      });
+    } catch (error) {
+      logger.error("Error marking notification as read:", {
+        error: error.message,
+        stack: error.stack,
+      });
+      return sendDatabaseError(
+        res,
+        error,
+        "An error occurred while updating notification"
+      );
+    }
   }
-});
+);
 
 // Delete single notification
-router.delete('/notifications/:id', authenticateToken, requireAdmin, async (req, res) => {
-  try {
-    ensureConnection();
-    const pool = getPool();
-    const { id } = req.params;
-    const result = await pool.query(`DELETE FROM algo_notifications WHERE id = $1`, [id]);
-    return sendSuccess(res, { deleted: result.rowCount, timestamp: new Date() });
-  } catch (error) {
-    logger.error('Error deleting notification:', { error: error.message, stack: error.stack });
-    return sendDatabaseError(res, error, 'An error occurred while deleting notification');
+router.delete(
+  "/notifications/:id",
+  authenticateToken,
+  requireAdmin,
+  async (req, res) => {
+    try {
+      ensureConnection();
+      const pool = getPool();
+      const { id } = req.params;
+      const result = await pool.query(
+        `DELETE FROM algo_notifications WHERE id = $1`,
+        [id]
+      );
+      return sendSuccess(res, {
+        deleted: result.rowCount,
+        timestamp: new Date(),
+      });
+    } catch (error) {
+      logger.error("Error deleting notification:", {
+        error: error.message,
+        stack: error.stack,
+      });
+      return sendDatabaseError(
+        res,
+        error,
+        "An error occurred while deleting notification"
+      );
+    }
   }
-});
+);
 
 // Batch mark as seen (legacy endpoint)
-router.post('/notifications/seen', authenticateToken, async (req, res) => {
+router.post("/notifications/seen", authenticateToken, async (req, res) => {
   try {
     ensureConnection();
     const pool = getPool();
@@ -1704,15 +1995,21 @@ router.post('/notifications/seen', authenticateToken, async (req, res) => {
     );
     return sendSuccess(res, { marked: result.rowCount, timestamp: new Date() });
   } catch (error) {
-    logger.error('Error marking notifications as seen:', { error: error.message, stack: error.stack });
-    return sendDatabaseError(res, error, 'An error occurred while updating notifications');
+    logger.error("Error marking notifications as seen:", {
+      error: error.message,
+      stack: error.stack,
+    });
+    return sendDatabaseError(
+      res,
+      error,
+      "An error occurred while updating notifications"
+    );
   }
 });
 
-
 // PERFORMANCE METRICS â€” Sharpe, Sortino, Calmar, max DD, profit factor
 // ============================================================
-router.get('/performance', async (req, res) => {
+router.get("/performance", async (req, res) => {
   try {
     ensureConnection();
     const pool = getPool();
@@ -1757,17 +2054,22 @@ router.get('/performance', async (req, res) => {
       open_count: 0,
       open_wins: 0,
       open_losses: 0,
-      total_unrealized_pnl: 0
+      total_unrealized_pnl: 0,
     };
 
     if (perfResult.rows.length === 0) {
       // Fallback: data not yet computed for today, return empty metrics
-      logger.warn('No performance data computed for today; returning default metrics');
+      logger.warn(
+        "No performance data computed for today; returning default metrics"
+      );
       return sendSuccess(res, {
         total_trades: openStats.open_count,
         winning_trades: openStats.open_wins,
         losing_trades: openStats.open_losses,
-        win_rate_pct: openStats.open_count > 0 ? (openStats.open_wins / openStats.open_count * 100).toFixed(2) : 0,
+        win_rate_pct:
+          openStats.open_count > 0
+            ? ((openStats.open_wins / openStats.open_count) * 100).toFixed(2)
+            : 0,
         avg_win_pct: 0,
         avg_loss_pct: 0,
         avg_win_r: 0,
@@ -1788,34 +2090,38 @@ router.get('/performance', async (req, res) => {
         avg_hold_days: 0,
         portfolio_snapshots: 0,
         open_positions: openStats.open_count,
-        unrealized_pnl: openStats.total_unrealized_pnl || 0
+        unrealized_pnl: openStats.total_unrealized_pnl || 0,
       });
     }
 
     const perf = validateAndCoerceRow(perfResult.rows[0], {
-      total_trades: { type: 'int', required: false, defaultValue: 0 },
-      winning_trades: { type: 'int', required: false, defaultValue: 0 },
-      losing_trades: { type: 'int', required: false, defaultValue: 0 },
-      win_rate_pct: { type: 'float', required: false, defaultValue: 0 },
-      avg_win_pct: { type: 'float', required: false, defaultValue: 0 },
-      avg_loss_pct: { type: 'float', required: false, defaultValue: 0 },
-      avg_win_r: { type: 'float', required: false, defaultValue: 0 },
-      avg_loss_r: { type: 'float', required: false, defaultValue: 0 },
-      expectancy_r: { type: 'float', required: false, defaultValue: 0 },
-      profit_factor: { type: 'float', required: false, defaultValue: null },
-      total_pnl_dollars: { type: 'float', required: false, defaultValue: 0 },
-      gross_win_dollars: { type: 'float', required: false, defaultValue: 0 },
-      gross_loss_dollars: { type: 'float', required: false, defaultValue: 0 },
-      total_return_pct: { type: 'float', required: false, defaultValue: 0 },
-      sharpe_annualized: { type: 'float', required: false, defaultValue: 0 },
-      sortino_annualized: { type: 'float', required: false, defaultValue: 0 },
-      calmar_ratio: { type: 'float', required: false, defaultValue: 0 },
-      max_drawdown_pct: { type: 'float', required: false, defaultValue: 0 },
-      current_win_streak: { type: 'int', required: false, defaultValue: 0 },
-      best_win_streak: { type: 'int', required: false, defaultValue: 0 },
-      worst_loss_streak: { type: 'int', required: false, defaultValue: 0 },
-      avg_hold_days: { type: 'float', required: false, defaultValue: 0 },
-      portfolio_snapshots_count: { type: 'int', required: false, defaultValue: 0 }
+      total_trades: { type: "int", required: false, defaultValue: 0 },
+      winning_trades: { type: "int", required: false, defaultValue: 0 },
+      losing_trades: { type: "int", required: false, defaultValue: 0 },
+      win_rate_pct: { type: "float", required: false, defaultValue: 0 },
+      avg_win_pct: { type: "float", required: false, defaultValue: 0 },
+      avg_loss_pct: { type: "float", required: false, defaultValue: 0 },
+      avg_win_r: { type: "float", required: false, defaultValue: 0 },
+      avg_loss_r: { type: "float", required: false, defaultValue: 0 },
+      expectancy_r: { type: "float", required: false, defaultValue: 0 },
+      profit_factor: { type: "float", required: false, defaultValue: null },
+      total_pnl_dollars: { type: "float", required: false, defaultValue: 0 },
+      gross_win_dollars: { type: "float", required: false, defaultValue: 0 },
+      gross_loss_dollars: { type: "float", required: false, defaultValue: 0 },
+      total_return_pct: { type: "float", required: false, defaultValue: 0 },
+      sharpe_annualized: { type: "float", required: false, defaultValue: 0 },
+      sortino_annualized: { type: "float", required: false, defaultValue: 0 },
+      calmar_ratio: { type: "float", required: false, defaultValue: 0 },
+      max_drawdown_pct: { type: "float", required: false, defaultValue: 0 },
+      current_win_streak: { type: "int", required: false, defaultValue: 0 },
+      best_win_streak: { type: "int", required: false, defaultValue: 0 },
+      worst_loss_streak: { type: "int", required: false, defaultValue: 0 },
+      avg_hold_days: { type: "float", required: false, defaultValue: 0 },
+      portfolio_snapshots_count: {
+        type: "int",
+        required: false,
+        defaultValue: 0,
+      },
     });
 
     // E10 FIX: Recalculate win_rate to include open positions
@@ -1826,7 +2132,10 @@ router.get('/performance', async (req, res) => {
 
     const totalTrades = closedWins + closedLosses + openWins + openLosses;
     const totalWins = closedWins + openWins;
-    const winRateIncludingOpen = totalTrades > 0 ? parseFloat((totalWins / totalTrades * 100).toFixed(2)) : 0;
+    const winRateIncludingOpen =
+      totalTrades > 0
+        ? parseFloat(((totalWins / totalTrades) * 100).toFixed(2))
+        : 0;
 
     return sendSuccess(res, {
       // Trade counts (closed + open)
@@ -1871,8 +2180,15 @@ router.get('/performance', async (req, res) => {
       portfolio_snapshots: perf.portfolio_snapshots_count || 0,
     });
   } catch (error) {
-    logger.error('Error in /api/algo/performance:', { error: error.message, stack: error.stack });
-    return sendDatabaseError(res, error, 'An error occurred while fetching performance metrics');
+    logger.error("Error in /api/algo/performance:", {
+      error: error.message,
+      stack: error.stack,
+    });
+    return sendDatabaseError(
+      res,
+      error,
+      "An error occurred while fetching performance metrics"
+    );
   }
 });
 
@@ -1881,52 +2197,74 @@ router.get('/performance', async (req, res) => {
  * Time-series of portfolio value from algo_portfolio_snapshots
  * Used by Portfolio Dashboard equity-curve chart.
  */
-router.get('/equity-curve', authenticateToken, async (req, res) => {
+router.get("/equity-curve", authenticateToken, async (req, res) => {
   try {
     ensureConnection();
     const pool = getPool();
-    const { limit } = paginationConfig.sanitize(req.query.limit, req.query.offset, 'portfolio');
-    const result = await pool.query(`
+    const { limit } = paginationConfig.sanitize(
+      req.query.limit,
+      req.query.offset,
+      "portfolio"
+    );
+    const result = await pool.query(
+      `
       SELECT snapshot_date, total_portfolio_value, daily_return_pct,
              unrealized_pnl_pct, position_count, max_drawdown_pct as drawdown_pct
       FROM algo_portfolio_snapshots
       ORDER BY snapshot_date DESC
       LIMIT $1
-    `, [limit]);
+    `,
+      [limit]
+    );
 
     // Validate result structure
     validateQueryResult(result, { requireRows: false });
 
     // Validate and coerce row types - drawdown_pct now comes from DB
     const validated = validateAndCoerceRows(result, {
-      snapshot_date: { type: 'date', required: true },
-      total_portfolio_value: { type: 'float', required: false, defaultValue: 0 },
-      daily_return_pct: { type: 'float', required: false, defaultValue: 0 },
-      unrealized_pnl_pct: { type: 'float', required: false, defaultValue: 0 },
-      position_count: { type: 'int', required: false, defaultValue: 0 },
-      drawdown_pct: { type: 'float', required: false, defaultValue: 0 }
+      snapshot_date: { type: "date", required: true },
+      total_portfolio_value: {
+        type: "float",
+        required: false,
+        defaultValue: 0,
+      },
+      daily_return_pct: { type: "float", required: false, defaultValue: 0 },
+      unrealized_pnl_pct: { type: "float", required: false, defaultValue: 0 },
+      position_count: { type: "int", required: false, defaultValue: 0 },
+      drawdown_pct: { type: "float", required: false, defaultValue: 0 },
     });
 
     // Reverse to chronological order (oldest first)
     const chronological = validated.reverse();
 
     return sendSuccess(res, {
-      items: chronological
+      items: chronological,
     });
   } catch (error) {
-    logger.error('Error in /algo/equity-curve:', { error: error.message, stack: error.stack });
-    return sendDatabaseError(res, error, 'An error occurred while fetching equity curve');
+    logger.error("Error in /algo/equity-curve:", {
+      error: error.message,
+      stack: error.stack,
+    });
+    return sendDatabaseError(
+      res,
+      error,
+      "An error occurred while fetching equity curve"
+    );
   }
 });
 
 // ============================================================
 // AUDIT LOG â€” every algo decision logged (admin only)
 // ============================================================
-router.get('/audit-log', async (req, res) => {
+router.get("/audit-log", async (req, res) => {
   try {
     ensureConnection();
     const pool = getPool();
-    const { limit } = paginationConfig.sanitize(req.query.limit, req.query.offset, 'audit');
+    const { limit } = paginationConfig.sanitize(
+      req.query.limit,
+      req.query.offset,
+      "audit"
+    );
     const actionFilter = req.query.action_type || null;
 
     let query_str = `
@@ -1936,7 +2274,7 @@ router.get('/audit-log', async (req, res) => {
     `;
     const params = [];
     if (actionFilter) {
-      query_str += ' WHERE action_type LIKE $1';
+      query_str += " WHERE action_type LIKE $1";
       params.push(`%${actionFilter}%`);
     }
     query_str += ` ORDER BY created_at DESC LIMIT $${params.length + 1}`;
@@ -1949,16 +2287,16 @@ router.get('/audit-log', async (req, res) => {
 
     return sendSuccess(res, {
       items: validateAndCoerceRows(result, {
-        id: { type: 'int', required: true },
-        action_type: { type: 'string', required: false },
-        symbol: { type: 'string', required: false },
-        action_date: { type: 'date', required: false },
-        details: { type: 'raw', required: false },
-        actor: { type: 'string', required: false },
-        status: { type: 'string', required: false },
-        error_message: { type: 'string', required: false },
-        created_at: { type: 'date', required: false }
-      }).map(r => ({
+        id: { type: "int", required: true },
+        action_type: { type: "string", required: false },
+        symbol: { type: "string", required: false },
+        action_date: { type: "date", required: false },
+        details: { type: "raw", required: false },
+        actor: { type: "string", required: false },
+        status: { type: "string", required: false },
+        error_message: { type: "string", required: false },
+        created_at: { type: "date", required: false },
+      }).map((r) => ({
         id: r.id,
         action_type: r.action_type,
         symbol: r.symbol,
@@ -1968,18 +2306,25 @@ router.get('/audit-log', async (req, res) => {
         status: r.status,
         error: r.error_message,
         created_at: r.created_at,
-      }))
+      })),
     });
   } catch (error) {
-    logger.error('Error in /algo/audit-log:', { error: error.message, stack: error.stack });
-    return sendDatabaseError(res, error, 'An error occurred while fetching audit logs');
+    logger.error("Error in /algo/audit-log:", {
+      error: error.message,
+      stack: error.stack,
+    });
+    return sendDatabaseError(
+      res,
+      error,
+      "An error occurred while fetching audit logs"
+    );
   }
 });
 
 // ============================================================
 // TRADE DETAIL â€” full reasoning for a single trade
 // ============================================================
-router.get('/trade/:tradeId', async (req, res) => {
+router.get("/trade/:tradeId", async (req, res) => {
   try {
     ensureConnection();
     const pool = getPool();
@@ -1998,40 +2343,46 @@ router.get('/trade/:tradeId', async (req, res) => {
     validateQueryResult(result, { requireRows: false });
 
     if (result.rows.length === 0) {
-      return sendError(res, 'Trade not found', 404);
+      return sendError(res, "Trade not found", 404);
     }
 
     // Validate and coerce the single row
     const trade = validateAndCoerceRow(result.rows[0], {
-      trade_id: { type: 'int', required: true },
-      symbol: { type: 'string', required: false },
-      entry_price: { type: 'float', required: false },
-      exit_price: { type: 'float', required: false },
-      profit_loss_dollars: { type: 'float', required: false },
-      profit_loss_pct: { type: 'float', required: false },
-      status: { type: 'string', required: false },
-      position_id: { type: 'int', required: false },
-      quantity: { type: 'float', required: false },
-      current_qty: { type: 'float', required: false },
-      current_price: { type: 'float', required: false },
-      unrealized_pnl: { type: 'float', required: false },
-      unrealized_pnl_pct: { type: 'float', required: false },
-      target_levels_hit: { type: 'string', required: false },
-      current_stop_price: { type: 'float', required: false }
+      trade_id: { type: "int", required: true },
+      symbol: { type: "string", required: false },
+      entry_price: { type: "float", required: false },
+      exit_price: { type: "float", required: false },
+      profit_loss_dollars: { type: "float", required: false },
+      profit_loss_pct: { type: "float", required: false },
+      status: { type: "string", required: false },
+      position_id: { type: "int", required: false },
+      quantity: { type: "float", required: false },
+      current_qty: { type: "float", required: false },
+      current_price: { type: "float", required: false },
+      unrealized_pnl: { type: "float", required: false },
+      unrealized_pnl_pct: { type: "float", required: false },
+      target_levels_hit: { type: "string", required: false },
+      current_stop_price: { type: "float", required: false },
     });
 
     return sendSuccess(res, trade);
   } catch (error) {
-    logger.error('Error in /algo/trade/:id:', { error: error.message, stack: error.stack });
-    return sendDatabaseError(res, error, 'An error occurred while fetching trade details');
+    logger.error("Error in /algo/trade/:id:", {
+      error: error.message,
+      stack: error.stack,
+    });
+    return sendDatabaseError(
+      res,
+      error,
+      "An error occurred while fetching trade details"
+    );
   }
 });
-
 
 // ============================================================
 // CIRCUIT BREAKERS â€” current state of all 7 kill-switches (admin only)
 // ============================================================
-router.get('/circuit-breakers', async (req, res) => {
+router.get("/circuit-breakers", async (req, res) => {
   try {
     ensureConnection();
     const pool = getPool();
@@ -2050,7 +2401,7 @@ router.get('/circuit-breakers', async (req, res) => {
       pool.query(`
         SELECT market_trend FROM market_health_daily
         ORDER BY date DESC LIMIT 1
-      `)
+      `),
     ]);
 
     // Validate results
@@ -2058,24 +2409,57 @@ router.get('/circuit-breakers', async (req, res) => {
     validateQueryResult(marketResult, { requireRows: false });
 
     // Get circuit breaker metrics (or defaults if not yet computed for today)
-    const cbRow = cbResult.rows.length > 0
-      ? validateAndCoerceRow(cbResult.rows[0], {
-          portfolio_drawdown_pct: { type: 'float', required: false, defaultValue: 0 },
-          daily_loss_pct: { type: 'float', required: false, defaultValue: 0 },
-          weekly_loss_pct: { type: 'float', required: false, defaultValue: 0 },
-          open_risk_pct: { type: 'float', required: false, defaultValue: 0 },
-          consecutive_losses: { type: 'int', required: false, defaultValue: 0 },
-          vix_level: { type: 'float', required: false, defaultValue: 0 },
-          market_stage: { type: 'int', required: false, defaultValue: 1 },
-          spy_prior_day_change_pct: { type: 'float', required: false, defaultValue: 0 },
-          win_rate_last_30_pct: { type: 'float', required: false, defaultValue: 0 }
-        })
-      : { portfolio_drawdown_pct: 0, daily_loss_pct: 0, weekly_loss_pct: 0, open_risk_pct: 0,
-          consecutive_losses: 0, vix_level: 0, market_stage: 1, spy_prior_day_change_pct: 0, win_rate_last_30_pct: 0 };
+    const cbRow =
+      cbResult.rows.length > 0
+        ? validateAndCoerceRow(cbResult.rows[0], {
+            portfolio_drawdown_pct: {
+              type: "float",
+              required: false,
+              defaultValue: 0,
+            },
+            daily_loss_pct: { type: "float", required: false, defaultValue: 0 },
+            weekly_loss_pct: {
+              type: "float",
+              required: false,
+              defaultValue: 0,
+            },
+            open_risk_pct: { type: "float", required: false, defaultValue: 0 },
+            consecutive_losses: {
+              type: "int",
+              required: false,
+              defaultValue: 0,
+            },
+            vix_level: { type: "float", required: false, defaultValue: 0 },
+            market_stage: { type: "int", required: false, defaultValue: 1 },
+            spy_prior_day_change_pct: {
+              type: "float",
+              required: false,
+              defaultValue: 0,
+            },
+            win_rate_last_30_pct: {
+              type: "float",
+              required: false,
+              defaultValue: 0,
+            },
+          })
+        : {
+            portfolio_drawdown_pct: 0,
+            daily_loss_pct: 0,
+            weekly_loss_pct: 0,
+            open_risk_pct: 0,
+            consecutive_losses: 0,
+            vix_level: 0,
+            market_stage: 1,
+            spy_prior_day_change_pct: 0,
+            win_rate_last_30_pct: 0,
+          };
 
-    const marketTrend = marketResult.rows.length > 0
-      ? validateAndCoerceRow(marketResult.rows[0], { market_trend: { type: 'string', required: false } }).market_trend || 'unknown'
-      : 'unknown';
+    const marketTrend =
+      marketResult.rows.length > 0
+        ? validateAndCoerceRow(marketResult.rows[0], {
+            market_trend: { type: "string", required: false },
+          }).market_trend || "unknown"
+        : "unknown";
 
     const metrics = {
       current_drawdown_pct: cbRow.portfolio_drawdown_pct,
@@ -2085,16 +2469,22 @@ router.get('/circuit-breakers', async (req, res) => {
       total_risk_pct: cbRow.open_risk_pct,
       vix_level: cbRow.vix_level,
       market_stage: cbRow.market_stage,
-      market_trend: marketTrend
+      market_trend: marketTrend,
     };
 
     // Pull config (with sensible defaults if rows missing)
     const cfgResult = await pool.query(
       `SELECT key, value FROM algo_config WHERE key = ANY($1)`,
-      [[
-        'halt_drawdown_pct', 'max_daily_loss_pct', 'max_consecutive_losses',
-        'max_total_risk_pct', 'vix_max_threshold', 'max_weekly_loss_pct',
-      ]]
+      [
+        [
+          "halt_drawdown_pct",
+          "max_daily_loss_pct",
+          "max_consecutive_losses",
+          "max_total_risk_pct",
+          "vix_max_threshold",
+          "max_weekly_loss_pct",
+        ],
+      ]
     );
 
     // Validate config result
@@ -2102,64 +2492,110 @@ router.get('/circuit-breakers', async (req, res) => {
 
     const cfg = {};
     validateAndCoerceRows(cfgResult, {
-      key: { type: 'string', required: true },
-      value: { type: 'string', required: true }
-    }).forEach(r => { cfg[r.key] = parseFloat(r.value); });
+      key: { type: "string", required: true },
+      value: { type: "string", required: true },
+    }).forEach((r) => {
+      cfg[r.key] = parseFloat(r.value);
+    });
     const thresh = {
-      drawdown:           cfg.halt_drawdown_pct ?? 20,
-      daily_loss:         cfg.max_daily_loss_pct ?? 2,
+      drawdown: cfg.halt_drawdown_pct ?? 20,
+      daily_loss: cfg.max_daily_loss_pct ?? 2,
       consecutive_losses: cfg.max_consecutive_losses ?? 3,
-      total_risk:         cfg.max_total_risk_pct ?? 4,
-      vix_spike:          cfg.vix_max_threshold ?? 35,
-      weekly_loss:        cfg.max_weekly_loss_pct ?? 5,
+      total_risk: cfg.max_total_risk_pct ?? 4,
+      vix_spike: cfg.vix_max_threshold ?? 35,
+      weekly_loss: cfg.max_weekly_loss_pct ?? 5,
     };
 
     const breakers = [
-      { id: 'drawdown', label: 'Portfolio Drawdown',
-        current: metrics.current_drawdown_pct, threshold: thresh.drawdown,
-        unit: '%', triggered: metrics.current_drawdown_pct >= thresh.drawdown,
-        description: 'Halts entries when total drawdown from peak exceeds threshold' },
-      { id: 'daily_loss', label: 'Daily Loss',
-        current: metrics.daily_loss_pct, threshold: thresh.daily_loss,
-        unit: '%', triggered: metrics.daily_loss_pct >= thresh.daily_loss,
-        description: 'Today\'s portfolio drop below threshold halts new entries' },
-      { id: 'consecutive_losses', label: 'Consecutive Losses',
-        current: metrics.consec_losses, threshold: thresh.consecutive_losses,
-        unit: '', triggered: metrics.consec_losses >= thresh.consecutive_losses,
-        description: 'Cool-off after streak of losing trades' },
-      { id: 'total_risk', label: 'Total Open Risk',
-        current: metrics.total_risk_pct, threshold: thresh.total_risk,
-        unit: '%', triggered: metrics.total_risk_pct >= thresh.total_risk,
-        description: 'Sum of distance-to-stop across all open positions' },
-      { id: 'vix_spike', label: 'VIX Spike',
-        current: metrics.vix_level, threshold: thresh.vix_spike,
-        unit: '', triggered: metrics.vix_level > thresh.vix_spike,
-        description: 'Volatility expansion above threshold pauses new entries' },
-      { id: 'market_stage', label: 'Market Stage',
-        current: metrics.market_stage, threshold: 4,
-        unit: '', triggered: metrics.market_stage === 4,
-        description: `Market in stage ${metrics.market_stage} (${metrics.market_trend}) â€” stage 4 = downtrend halts entries` },
-      { id: 'weekly_loss', label: 'Weekly Loss',
-        current: metrics.weekly_loss_pct, threshold: thresh.weekly_loss,
-        unit: '%', triggered: metrics.weekly_loss_pct >= thresh.weekly_loss,
-        description: 'Trailing 5-session loss above threshold halts new entries' },
+      {
+        id: "drawdown",
+        label: "Portfolio Drawdown",
+        current: metrics.current_drawdown_pct,
+        threshold: thresh.drawdown,
+        unit: "%",
+        triggered: metrics.current_drawdown_pct >= thresh.drawdown,
+        description:
+          "Halts entries when total drawdown from peak exceeds threshold",
+      },
+      {
+        id: "daily_loss",
+        label: "Daily Loss",
+        current: metrics.daily_loss_pct,
+        threshold: thresh.daily_loss,
+        unit: "%",
+        triggered: metrics.daily_loss_pct >= thresh.daily_loss,
+        description: "Today's portfolio drop below threshold halts new entries",
+      },
+      {
+        id: "consecutive_losses",
+        label: "Consecutive Losses",
+        current: metrics.consec_losses,
+        threshold: thresh.consecutive_losses,
+        unit: "",
+        triggered: metrics.consec_losses >= thresh.consecutive_losses,
+        description: "Cool-off after streak of losing trades",
+      },
+      {
+        id: "total_risk",
+        label: "Total Open Risk",
+        current: metrics.total_risk_pct,
+        threshold: thresh.total_risk,
+        unit: "%",
+        triggered: metrics.total_risk_pct >= thresh.total_risk,
+        description: "Sum of distance-to-stop across all open positions",
+      },
+      {
+        id: "vix_spike",
+        label: "VIX Spike",
+        current: metrics.vix_level,
+        threshold: thresh.vix_spike,
+        unit: "",
+        triggered: metrics.vix_level > thresh.vix_spike,
+        description: "Volatility expansion above threshold pauses new entries",
+      },
+      {
+        id: "market_stage",
+        label: "Market Stage",
+        current: metrics.market_stage,
+        threshold: 4,
+        unit: "",
+        triggered: metrics.market_stage === 4,
+        description: `Market in stage ${metrics.market_stage} (${metrics.market_trend}) â€” stage 4 = downtrend halts entries`,
+      },
+      {
+        id: "weekly_loss",
+        label: "Weekly Loss",
+        current: metrics.weekly_loss_pct,
+        threshold: thresh.weekly_loss,
+        unit: "%",
+        triggered: metrics.weekly_loss_pct >= thresh.weekly_loss,
+        description:
+          "Trailing 5-session loss above threshold halts new entries",
+      },
     ];
 
     return sendSuccess(res, {
-      any_triggered: breakers.some(b => b.triggered),
-      triggered_count: breakers.filter(b => b.triggered).length,
+      any_triggered: breakers.some((b) => b.triggered),
+      triggered_count: breakers.filter((b) => b.triggered).length,
       breakers,
     });
   } catch (error) {
-    logger.error('Error in /algo/circuit-breakers:', { error: error.message, stack: error.stack });
-    return sendDatabaseError(res, error, 'An error occurred while fetching circuit breaker status');
+    logger.error("Error in /algo/circuit-breakers:", {
+      error: error.message,
+      stack: error.stack,
+    });
+    return sendDatabaseError(
+      res,
+      error,
+      "An error occurred while fetching circuit breaker status"
+    );
   }
 });
 
 // ============================================================
 // SECTOR BREADTH â€” % of stocks above 50d / 200d MA per sector
 // ============================================================
-router.get('/sector-breadth', async (req, res) => {
+router.get("/sector-breadth", async (req, res) => {
   try {
     ensureConnection();
     const pool = getPool();
@@ -2189,31 +2625,38 @@ router.get('/sector-breadth', async (req, res) => {
 
     return sendSuccess(res, {
       items: validateAndCoerceRows(result, {
-        sector: { type: 'string', required: true },
-        total_stocks: { type: 'int', required: false, defaultValue: 0 },
-        above_50d: { type: 'int', required: false, defaultValue: 0 },
-        above_200d: { type: 'int', required: false, defaultValue: 0 },
-        pct_above_50d: { type: 'float', required: false, defaultValue: 0 },
-        pct_above_200d: { type: 'float', required: false, defaultValue: 0 }
-      }).map(r => ({
+        sector: { type: "string", required: true },
+        total_stocks: { type: "int", required: false, defaultValue: 0 },
+        above_50d: { type: "int", required: false, defaultValue: 0 },
+        above_200d: { type: "int", required: false, defaultValue: 0 },
+        pct_above_50d: { type: "float", required: false, defaultValue: 0 },
+        pct_above_200d: { type: "float", required: false, defaultValue: 0 },
+      }).map((r) => ({
         sector: r.sector,
         total_stocks: r.total_stocks || 0,
         above_50d: r.above_50d || 0,
         above_200d: r.above_200d || 0,
         pct_above_50d: r.pct_above_50d || 0,
         pct_above_200d: r.pct_above_200d || 0,
-      }))
+      })),
     });
   } catch (error) {
-    logger.error('Error in /algo/sector-breadth:', { error: error.message, stack: error.stack });
-    return sendDatabaseError(res, error, 'An error occurred while calculating sector breadth');
+    logger.error("Error in /algo/sector-breadth:", {
+      error: error.message,
+      stack: error.stack,
+    });
+    return sendDatabaseError(
+      res,
+      error,
+      "An error occurred while calculating sector breadth"
+    );
   }
 });
 
 // ============================================================
 // SECTOR STAGE-2 LEADERS â€” Stage 2 stocks per sector
 // ============================================================
-router.get('/sector-stage2', async (req, res) => {
+router.get("/sector-stage2", async (req, res) => {
   try {
     ensureConnection();
     const pool = getPool();
@@ -2245,15 +2688,15 @@ router.get('/sector-stage2', async (req, res) => {
 
     return sendSuccess(res, {
       items: validateAndCoerceRows(result, {
-        sector: { type: 'string', required: true },
-        total_stocks: { type: 'int', required: false, defaultValue: 0 },
-        stage_1: { type: 'int', required: false, defaultValue: 0 },
-        stage_2: { type: 'int', required: false, defaultValue: 0 },
-        stage_3: { type: 'int', required: false, defaultValue: 0 },
-        stage_4: { type: 'int', required: false, defaultValue: 0 },
-        avg_trend_score: { type: 'float', required: false },
-        pct_stage_2: { type: 'float', required: false, defaultValue: 0 }
-      }).map(r => ({
+        sector: { type: "string", required: true },
+        total_stocks: { type: "int", required: false, defaultValue: 0 },
+        stage_1: { type: "int", required: false, defaultValue: 0 },
+        stage_2: { type: "int", required: false, defaultValue: 0 },
+        stage_3: { type: "int", required: false, defaultValue: 0 },
+        stage_4: { type: "int", required: false, defaultValue: 0 },
+        avg_trend_score: { type: "float", required: false },
+        pct_stage_2: { type: "float", required: false, defaultValue: 0 },
+      }).map((r) => ({
         sector: r.sector,
         total: r.total_stocks || 0,
         stage_1: r.stage_1 || 0,
@@ -2262,22 +2705,33 @@ router.get('/sector-stage2', async (req, res) => {
         stage_4: r.stage_4 || 0,
         pct_stage_2: r.pct_stage_2 || 0,
         avg_trend_score: r.avg_trend_score,
-      }))
+      })),
     });
   } catch (error) {
-    logger.error('Error in /algo/sector-stage2:', { error: error.message, stack: error.stack });
-    return sendDatabaseError(res, error, 'An error occurred while analyzing sector stage 2 leaders');
+    logger.error("Error in /algo/sector-stage2:", {
+      error: error.message,
+      stack: error.stack,
+    });
+    return sendDatabaseError(
+      res,
+      error,
+      "An error occurred while analyzing sector stage 2 leaders"
+    );
   }
 });
 
 // ============================================================
 // SECTOR ROTATION SIGNAL â€” defensive vs cyclical leadership timeline
 // ============================================================
-router.get('/sector-rotation', async (req, res) => {
+router.get("/sector-rotation", async (req, res) => {
   try {
     ensureConnection();
     const pool = getPool();
-    const { limit } = paginationConfig.sanitize(req.query.limit, req.query.offset, 'security');
+    const { limit } = paginationConfig.sanitize(
+      req.query.limit,
+      req.query.offset,
+      "security"
+    );
 
     const result = await pool.query(
       `SELECT date, sector, signal, strength, rank, details
@@ -2291,36 +2745,46 @@ router.get('/sector-rotation', async (req, res) => {
 
     const parseDetailsJSON = (details) => {
       if (!details) return {};
-      if (typeof details === 'object') return details;
-      if (typeof details !== 'string') return {};
+      if (typeof details === "object") return details;
+      if (typeof details !== "string") return {};
       try {
         return JSON.parse(details);
       } catch (e) {
-        logger.warn(`Failed to parse sector_rotation_signal details: ${details.substring(0, 100)}`, { error: e.message });
+        logger.warn(
+          `Failed to parse sector_rotation_signal details: ${details.substring(0, 100)}`,
+          { error: e.message }
+        );
         return {};
       }
     };
 
     return sendSuccess(res, {
       items: validateAndCoerceRows(result, {
-        date: { type: 'date', required: false },
-        sector: { type: 'string', required: false },
-        signal: { type: 'string', required: false },
-        strength: { type: 'float', required: false, defaultValue: 0 },
-        rank: { type: 'int', required: false },
-        details: { type: 'raw', required: false }
-      }).map(r => ({
+        date: { type: "date", required: false },
+        sector: { type: "string", required: false },
+        signal: { type: "string", required: false },
+        strength: { type: "float", required: false, defaultValue: 0 },
+        rank: { type: "int", required: false },
+        details: { type: "raw", required: false },
+      }).map((r) => ({
         date: r.date,
         sector: r.sector,
         signal: r.signal,
         strength: r.strength || 0,
         rank: r.rank,
         ...parseDetailsJSON(r.details),
-      }))
+      })),
     });
   } catch (error) {
-    logger.error('Error in /algo/sector-rotation:', { error: error.message, stack: error.stack });
-    return sendDatabaseError(res, error, 'An error occurred while analyzing sector rotation');
+    logger.error("Error in /algo/sector-rotation:", {
+      error: error.message,
+      stack: error.stack,
+    });
+    return sendDatabaseError(
+      res,
+      error,
+      "An error occurred while analyzing sector rotation"
+    );
   }
 });
 
@@ -2328,7 +2792,7 @@ router.get('/sector-rotation', async (req, res) => {
  * GET /api/algo/sector-position-warnings
  * Get sector position concentration warnings (sector allocation alerts)
  */
-router.get('/sector-position-warnings', async (req, res) => {
+router.get("/sector-position-warnings", async (req, res) => {
   try {
     ensureConnection();
     const pool = getPool();
@@ -2351,7 +2815,11 @@ router.get('/sector-position-warnings', async (req, res) => {
     `);
 
     let max_per_sector = 3; // default
-    if (configResult.rows && configResult.rows.length > 0 && configResult.rows[0].value) {
+    if (
+      configResult.rows &&
+      configResult.rows.length > 0 &&
+      configResult.rows[0].value
+    ) {
       max_per_sector = parseInt(configResult.rows[0].value, 10);
     }
 
@@ -2360,7 +2828,7 @@ router.get('/sector-position-warnings', async (req, res) => {
     const at_cap = [];
 
     for (const row of sector_counts) {
-      const sector = row.sector || 'Unknown';
+      const sector = row.sector || "Unknown";
       const count = row.position_count || 0;
 
       if (count >= max_per_sector) {
@@ -2368,14 +2836,14 @@ router.get('/sector-position-warnings', async (req, res) => {
           sector: sector,
           position_count: count,
           max: max_per_sector,
-          status: 'AT_CAP'
+          status: "AT_CAP",
         });
       } else if (count >= max_per_sector - 1) {
         warnings.push({
           sector: sector,
           position_count: count,
           max: max_per_sector,
-          status: 'NEAR_CAP'
+          status: "NEAR_CAP",
         });
       }
     }
@@ -2385,12 +2853,19 @@ router.get('/sector-position-warnings', async (req, res) => {
       at_cap: at_cap,
       data: {
         warnings: warnings,
-        at_cap: at_cap
-      }
+        at_cap: at_cap,
+      },
     });
   } catch (error) {
-    logger.error('Error in /algo/sector-position-warnings:', { error: error.message, stack: error.stack });
-    return sendDatabaseError(res, error, 'An error occurred while fetching sector position warnings');
+    logger.error("Error in /algo/sector-position-warnings:", {
+      error: error.message,
+      stack: error.stack,
+    });
+    return sendDatabaseError(
+      res,
+      error,
+      "An error occurred while fetching sector position warnings"
+    );
   }
 });
 
@@ -2402,7 +2877,7 @@ router.get('/sector-position-warnings', async (req, res) => {
  * GET /api/algo/data-quality
  * Loader SLA status - check data freshness
  */
-router.get('/data-quality', async (req, res) => {
+router.get("/data-quality", async (req, res) => {
   try {
     ensureConnection();
     const pool = getPool();
@@ -2424,15 +2899,15 @@ router.get('/data-quality', async (req, res) => {
     validateQueryResult(result, { requireRows: false });
 
     const checks = validateAndCoerceRows(result, {
-      loader_name: { type: 'string', required: true },
-      table_name: { type: 'string', required: true },
-      latest_data_date: { type: 'string', required: false },
-      age_hours: { type: 'float', required: false, defaultValue: 0 },
-      max_age_hours: { type: 'int', required: false },
-      row_count_today: { type: 'int', required: false },
-      status: { type: 'string', required: false },
-      error_message: { type: 'string', required: false }
-    }).map(r => ({
+      loader_name: { type: "string", required: true },
+      table_name: { type: "string", required: true },
+      latest_data_date: { type: "string", required: false },
+      age_hours: { type: "float", required: false, defaultValue: 0 },
+      max_age_hours: { type: "int", required: false },
+      row_count_today: { type: "int", required: false },
+      status: { type: "string", required: false },
+      error_message: { type: "string", required: false },
+    }).map((r) => ({
       loader: r.loader_name,
       table: r.table_name,
       latest_date: r.latest_data_date,
@@ -2443,14 +2918,23 @@ router.get('/data-quality', async (req, res) => {
       error_message: r.error_message,
     }));
 
-    const overall_status = checks.some(c => c.status === 'CRITICAL') ? 'critical'
-                        : checks.some(c => c.status === 'WARNING') ? 'warning'
-                        : 'ok';
+    const overall_status = checks.some((c) => c.status === "CRITICAL")
+      ? "critical"
+      : checks.some((c) => c.status === "WARNING")
+        ? "warning"
+        : "ok";
 
     return sendSuccess(res, { status: overall_status, checks });
   } catch (error) {
-    logger.error('Error in /algo/data-quality:', { error: error.message, stack: error.stack });
-    return sendDatabaseError(res, error, 'An error occurred while checking data quality');
+    logger.error("Error in /algo/data-quality:", {
+      error: error.message,
+      stack: error.stack,
+    });
+    return sendDatabaseError(
+      res,
+      error,
+      "An error occurred while checking data quality"
+    );
   }
 });
 
@@ -2458,13 +2942,14 @@ router.get('/data-quality', async (req, res) => {
  * GET /api/algo/rejection-funnel?date=2026-05-06
  * Signal rejection funnel analysis
  */
-router.get('/rejection-funnel', async (req, res) => {
+router.get("/rejection-funnel", async (req, res) => {
   try {
     ensureConnection();
     const pool = getPool();
-    const eval_date = req.query.date || new Date().toISOString().split('T')[0];
+    const eval_date = req.query.date || new Date().toISOString().split("T")[0];
 
-    const result = await pool.query(`
+    const result = await pool.query(
+      `
       WITH tier_counts AS (
         SELECT
           COUNT(*) as total,
@@ -2489,51 +2974,95 @@ router.get('/rejection-funnel', async (req, res) => {
         (t3_pass - t4_pass) as t4_reject,
         (t4_pass - t5_pass) as t5_reject
       FROM tier_counts
-    `, [eval_date]);
+    `,
+      [eval_date]
+    );
 
     // Validate result structure
     validateQueryResult(result, { requireRows: false });
 
     const row = result.rows[0]
       ? validateAndCoerceRow(result.rows[0], {
-          total: { type: 'int', required: false, defaultValue: 0 },
-          t1_pass: { type: 'int', required: false, defaultValue: 0 },
-          t2_pass: { type: 'int', required: false, defaultValue: 0 },
-          t3_pass: { type: 'int', required: false, defaultValue: 0 },
-          t4_pass: { type: 'int', required: false, defaultValue: 0 },
-          t5_pass: { type: 'int', required: false, defaultValue: 0 },
-          t1_reject: { type: 'int', required: false, defaultValue: 0 },
-          t2_reject: { type: 'int', required: false, defaultValue: 0 },
-          t3_reject: { type: 'int', required: false, defaultValue: 0 },
-          t4_reject: { type: 'int', required: false, defaultValue: 0 },
-          t5_reject: { type: 'int', required: false, defaultValue: 0 }
+          total: { type: "int", required: false, defaultValue: 0 },
+          t1_pass: { type: "int", required: false, defaultValue: 0 },
+          t2_pass: { type: "int", required: false, defaultValue: 0 },
+          t3_pass: { type: "int", required: false, defaultValue: 0 },
+          t4_pass: { type: "int", required: false, defaultValue: 0 },
+          t5_pass: { type: "int", required: false, defaultValue: 0 },
+          t1_reject: { type: "int", required: false, defaultValue: 0 },
+          t2_reject: { type: "int", required: false, defaultValue: 0 },
+          t3_reject: { type: "int", required: false, defaultValue: 0 },
+          t4_reject: { type: "int", required: false, defaultValue: 0 },
+          t5_reject: { type: "int", required: false, defaultValue: 0 },
         })
-      : { total: 0, t1_pass: 0, t2_pass: 0, t3_pass: 0, t4_pass: 0, t5_pass: 0,
-          t1_reject: 0, t2_reject: 0, t3_reject: 0, t4_reject: 0, t5_reject: 0 };
+      : {
+          total: 0,
+          t1_pass: 0,
+          t2_pass: 0,
+          t3_pass: 0,
+          t4_pass: 0,
+          t5_pass: 0,
+          t1_reject: 0,
+          t2_reject: 0,
+          t3_reject: 0,
+          t4_reject: 0,
+          t5_reject: 0,
+        };
 
     return sendSuccess(res, {
       date: eval_date,
       total_signals: row.total || 0,
       tiers: [
-        { tier: 1, name: 'Data Quality', pass: row.t1_pass || 0, reject: row.t1_reject || 0 },
-        { tier: 2, name: 'Market Health', pass: row.t2_pass || 0, reject: row.t2_reject || 0 },
-        { tier: 3, name: 'Trend Confirmation', pass: row.t3_pass || 0, reject: row.t3_reject || 0 },
-        { tier: 4, name: 'Signal Quality', pass: row.t4_pass || 0, reject: row.t4_reject || 0 },
-        { tier: 5, name: 'Portfolio Health', pass: row.t5_pass || 0, reject: row.t5_reject || 0 },
+        {
+          tier: 1,
+          name: "Data Quality",
+          pass: row.t1_pass || 0,
+          reject: row.t1_reject || 0,
+        },
+        {
+          tier: 2,
+          name: "Market Health",
+          pass: row.t2_pass || 0,
+          reject: row.t2_reject || 0,
+        },
+        {
+          tier: 3,
+          name: "Trend Confirmation",
+          pass: row.t3_pass || 0,
+          reject: row.t3_reject || 0,
+        },
+        {
+          tier: 4,
+          name: "Signal Quality",
+          pass: row.t4_pass || 0,
+          reject: row.t4_reject || 0,
+        },
+        {
+          tier: 5,
+          name: "Portfolio Health",
+          pass: row.t5_pass || 0,
+          reject: row.t5_reject || 0,
+        },
       ],
     });
   } catch (error) {
-    logger.error('Error in /algo/rejection-funnel:', { error: error.message, stack: error.stack });
-    return sendDatabaseError(res, error, 'An error occurred while analyzing rejection funnel');
+    logger.error("Error in /algo/rejection-funnel:", {
+      error: error.message,
+      stack: error.stack,
+    });
+    return sendDatabaseError(
+      res,
+      error,
+      "An error occurred while analyzing rejection funnel"
+    );
   }
 });
-
 
 /**
  * GET /api/algo/orders/pending
  * Pre-execution order review
  */
-router.get('/orders/pending', authenticateToken, async (req, res) => {
+router.get("/orders/pending", authenticateToken, async (req, res) => {
   try {
     ensureConnection();
     const pool = getPool();
@@ -2553,7 +3082,7 @@ router.get('/orders/pending', authenticateToken, async (req, res) => {
           ROUND(SUM(CASE WHEN side = 'BUY' THEN requested_shares * requested_price ELSE 0 END), 2) as total_buy_value
         FROM order_execution_log
         WHERE order_status IN ('pending', 'submitted')
-      `)
+      `),
     ]);
 
     // Validate result structures
@@ -2561,15 +3090,15 @@ router.get('/orders/pending', authenticateToken, async (req, res) => {
     validateQueryResult(totalsResult, { minRows: 1, maxRows: 1 });
 
     const pending_orders = validateAndCoerceRows(ordersResult, {
-      id: { type: 'int', required: true },
-      trade_id: { type: 'int', required: false },
-      symbol: { type: 'string', required: true },
-      order_type: { type: 'string', required: false },
-      side: { type: 'string', required: false },
-      requested_shares: { type: 'float', required: false },
-      requested_price: { type: 'float', required: false, defaultValue: 0 },
-      order_timestamp: { type: 'date', required: false }
-    }).map(r => ({
+      id: { type: "int", required: true },
+      trade_id: { type: "int", required: false },
+      symbol: { type: "string", required: true },
+      order_type: { type: "string", required: false },
+      side: { type: "string", required: false },
+      requested_shares: { type: "float", required: false },
+      requested_price: { type: "float", required: false, defaultValue: 0 },
+      order_timestamp: { type: "date", required: false },
+    }).map((r) => ({
       order_id: r.id,
       trade_id: r.trade_id,
       symbol: r.symbol,
@@ -2581,18 +3110,25 @@ router.get('/orders/pending', authenticateToken, async (req, res) => {
     }));
 
     const totals = validateAndCoerceRow(totalsResult.rows[0], {
-      order_count: { type: 'int', required: false, defaultValue: 0 },
-      total_buy_value: { type: 'float', required: false, defaultValue: 0 }
+      order_count: { type: "int", required: false, defaultValue: 0 },
+      total_buy_value: { type: "float", required: false, defaultValue: 0 },
     });
 
     return sendSuccess(res, {
       pending_orders,
       total_pending_value: totals.total_buy_value || 0,
-      approval_required: totals.order_count > 0
+      approval_required: totals.order_count > 0,
     });
   } catch (error) {
-    logger.error('Error in /algo/orders/pending:', { error: error.message, stack: error.stack });
-    return sendDatabaseError(res, error, 'An error occurred while fetching pending orders');
+    logger.error("Error in /algo/orders/pending:", {
+      error: error.message,
+      stack: error.stack,
+    });
+    return sendDatabaseError(
+      res,
+      error,
+      "An error occurred while fetching pending orders"
+    );
   }
 });
 
@@ -2600,13 +3136,14 @@ router.get('/orders/pending', authenticateToken, async (req, res) => {
  * GET /api/algo/execution-quality?days=30
  * Execution metrics: fill rate, slippage, etc.
  */
-router.get('/execution-quality', authenticateToken, async (req, res) => {
+router.get("/execution-quality", authenticateToken, async (req, res) => {
   try {
     ensureConnection();
     const pool = getPool();
-    const days = Math.min(Math.max(parseInt(req.query.days) || 30, 1), 365);  // Clamp to [1, 365]
+    const days = Math.min(Math.max(parseInt(req.query.days) || 30, 1), 365); // Clamp to [1, 365]
 
-    const result = await pool.query(`
+    const result = await pool.query(
+      `
       SELECT
         COUNT(*) as total_orders,
         SUM(CASE WHEN order_status = 'filled' THEN 1 ELSE 0 END) as filled,
@@ -2618,20 +3155,22 @@ router.get('/execution-quality', authenticateToken, async (req, res) => {
         ROUND(AVG(ABS(slippage_bps))::numeric, 2) > 100 as slippage_alert
       FROM order_execution_log
       WHERE order_timestamp >= NOW() - MAKE_INTERVAL(days => $1)
-    `, [days]);
+    `,
+      [days]
+    );
 
     // Validate result structure
     validateQueryResult(result, { minRows: 1, maxRows: 1 });
 
     const row = validateAndCoerceRow(result.rows[0], {
-      total_orders: { type: 'int', required: false, defaultValue: 0 },
-      filled: { type: 'int', required: false, defaultValue: 0 },
-      rejected: { type: 'int', required: false, defaultValue: 0 },
-      partial: { type: 'int', required: false, defaultValue: 0 },
-      avg_fill_rate: { type: 'float', required: false, defaultValue: 0 },
-      avg_slippage_bps: { type: 'float', required: false, defaultValue: 0 },
-      max_slippage_bps: { type: 'float', required: false, defaultValue: 0 },
-      slippage_alert: { type: 'bool', required: false, defaultValue: false }
+      total_orders: { type: "int", required: false, defaultValue: 0 },
+      filled: { type: "int", required: false, defaultValue: 0 },
+      rejected: { type: "int", required: false, defaultValue: 0 },
+      partial: { type: "int", required: false, defaultValue: 0 },
+      avg_fill_rate: { type: "float", required: false, defaultValue: 0 },
+      avg_slippage_bps: { type: "float", required: false, defaultValue: 0 },
+      max_slippage_bps: { type: "float", required: false, defaultValue: 0 },
+      slippage_alert: { type: "bool", required: false, defaultValue: false },
     });
 
     const metrics = {
@@ -2648,17 +3187,23 @@ router.get('/execution-quality', authenticateToken, async (req, res) => {
 
     return sendSuccess(res, { metrics });
   } catch (error) {
-    logger.error('Error in /algo/execution-quality:', { error: error.message, stack: error.stack });
-    return sendDatabaseError(res, error, 'An error occurred while analyzing execution quality');
+    logger.error("Error in /algo/execution-quality:", {
+      error: error.message,
+      stack: error.stack,
+    });
+    return sendDatabaseError(
+      res,
+      error,
+      "An error occurred while analyzing execution quality"
+    );
   }
 });
-
 
 /**
  * GET /api/algo/signal-performance-by-pattern
  * Analyze trade performance grouped by signal pattern/type
  */
-router.get('/signal-performance-by-pattern', async (req, res) => {
+router.get("/signal-performance-by-pattern", async (req, res) => {
   try {
     ensureConnection();
     const pool = getPool();
@@ -2683,15 +3228,15 @@ router.get('/signal-performance-by-pattern', async (req, res) => {
     validateQueryResult(result, { requireRows: false });
 
     const patterns = validateAndCoerceRows(result, {
-      pattern: { type: 'string', required: false, defaultValue: 'Unknown' },
-      total_trades: { type: 'int', required: false, defaultValue: 0 },
-      winning_trades: { type: 'int', required: false, defaultValue: 0 },
-      losing_trades: { type: 'int', required: false, defaultValue: 0 },
-      closed_trades: { type: 'int', required: false, defaultValue: 0 },
-      avg_return_pct: { type: 'float', required: false, defaultValue: 0 },
-      total_pnl: { type: 'float', required: false, defaultValue: 0 },
-      win_rate_pct: { type: 'float', required: false, defaultValue: 0 }
-    }).map(r => ({
+      pattern: { type: "string", required: false, defaultValue: "Unknown" },
+      total_trades: { type: "int", required: false, defaultValue: 0 },
+      winning_trades: { type: "int", required: false, defaultValue: 0 },
+      losing_trades: { type: "int", required: false, defaultValue: 0 },
+      closed_trades: { type: "int", required: false, defaultValue: 0 },
+      avg_return_pct: { type: "float", required: false, defaultValue: 0 },
+      total_pnl: { type: "float", required: false, defaultValue: 0 },
+      win_rate_pct: { type: "float", required: false, defaultValue: 0 },
+    }).map((r) => ({
       pattern: r.pattern,
       total_trades: r.total_trades || 0,
       winning_trades: r.winning_trades || 0,
@@ -2699,13 +3244,20 @@ router.get('/signal-performance-by-pattern', async (req, res) => {
       closed_trades: r.closed_trades || 0,
       avg_return_pct: r.avg_return_pct || 0,
       total_pnl: r.total_pnl || 0,
-      win_rate_pct: r.win_rate_pct || 0
+      win_rate_pct: r.win_rate_pct || 0,
     }));
 
     return sendSuccess(res, { patterns, timestamp: new Date() }, 200);
   } catch (error) {
-    logger.error("Error in /algo/signal-performance-by-pattern:", { error: error.message, stack: error.stack });
-    return sendDatabaseError(res, error, 'An error occurred while analyzing signal performance');
+    logger.error("Error in /algo/signal-performance-by-pattern:", {
+      error: error.message,
+      stack: error.stack,
+    });
+    return sendDatabaseError(
+      res,
+      error,
+      "An error occurred while analyzing signal performance"
+    );
   }
 });
 
@@ -2713,7 +3265,7 @@ router.get('/signal-performance-by-pattern', async (req, res) => {
  * GET /api/algo/daily-return-histogram
  * Computes daily return histogram on-the-fly from algo_portfolio_snapshots.
  */
-router.get('/daily-return-histogram', authenticateToken, async (req, res) => {
+router.get("/daily-return-histogram", authenticateToken, async (req, res) => {
   try {
     ensureConnection();
     const pool = getPool();
@@ -2725,7 +3277,9 @@ router.get('/daily-return-histogram', authenticateToken, async (req, res) => {
       LIMIT 250
     `);
 
-    const returns = result.rows.map(r => parseFloat(r.daily_return_pct)).filter(v => !isNaN(v));
+    const returns = result.rows
+      .map((r) => parseFloat(r.daily_return_pct))
+      .filter((v) => !isNaN(v));
     if (returns.length === 0) {
       return sendSuccess(res, { buckets: [], stats: null });
     }
@@ -2734,23 +3288,43 @@ router.get('/daily-return-histogram', authenticateToken, async (req, res) => {
     const minB = Math.floor(Math.min(...returns) / BW) * BW;
     const maxB = Math.ceil(Math.max(...returns) / BW) * BW;
     const bucketsMap = {};
-    for (let mid = minB; mid <= maxB + 0.001; mid = Math.round((mid + BW) * 1000) / 1000) {
+    for (
+      let mid = minB;
+      mid <= maxB + 0.001;
+      mid = Math.round((mid + BW) * 1000) / 1000
+    ) {
       bucketsMap[mid] = 0;
     }
     for (const r of returns) {
       const mid = Math.round(r / BW) * BW;
       if (mid in bucketsMap) bucketsMap[mid]++;
     }
-    const buckets = Object.entries(bucketsMap).map(([mid, count]) => ({ mid: parseFloat(mid), count }));
+    const buckets = Object.entries(bucketsMap).map(([mid, count]) => ({
+      mid: parseFloat(mid),
+      count,
+    }));
     const mean = returns.reduce((s, v) => s + v, 0) / returns.length;
-    const std = Math.sqrt(returns.reduce((s, v) => s + (v - mean) ** 2, 0) / returns.length);
+    const std = Math.sqrt(
+      returns.reduce((s, v) => s + (v - mean) ** 2, 0) / returns.length
+    );
     return sendSuccess(res, {
       buckets,
-      stats: { count: returns.length, mean: parseFloat(mean.toFixed(2)), std: parseFloat(std.toFixed(2)) },
+      stats: {
+        count: returns.length,
+        mean: parseFloat(mean.toFixed(2)),
+        std: parseFloat(std.toFixed(2)),
+      },
     });
   } catch (error) {
-    logger.error('Error in /api/algo/daily-return-histogram:', { error: error.message });
-    return sendSuccess(res, { buckets: [], stats: null, _error: error.message, _is_placeholder: true });
+    logger.error("Error in /api/algo/daily-return-histogram:", {
+      error: error.message,
+    });
+    return sendSuccess(res, {
+      buckets: [],
+      stats: null,
+      _error: error.message,
+      _is_placeholder: true,
+    });
   }
 });
 
@@ -2758,7 +3332,7 @@ router.get('/daily-return-histogram', authenticateToken, async (req, res) => {
  * GET /api/algo/trade-distribution
  * Computes trade R-multiple distribution on-the-fly from algo_trades.
  */
-router.get('/trade-distribution', authenticateToken, async (req, res) => {
+router.get("/trade-distribution", authenticateToken, async (req, res) => {
   try {
     ensureConnection();
     const pool = getPool();
@@ -2769,16 +3343,21 @@ router.get('/trade-distribution', authenticateToken, async (req, res) => {
       ORDER BY exit_date DESC LIMIT 500
     `);
 
-    const rValues = result.rows.map(r => parseFloat(r.exit_r_multiple)).filter(v => !isNaN(v));
+    const rValues = result.rows
+      .map((r) => parseFloat(r.exit_r_multiple))
+      .filter((v) => !isNaN(v));
     if (rValues.length === 0) {
       return sendSuccess(res, { buckets: [], total_trades: 0 });
     }
 
     const buckets = [
-      { range: '<-2R', count: 0 }, { range: '-2R to -1R', count: 0 },
-      { range: '-1R to 0R', count: 0 }, { range: '0R to 1R', count: 0 },
-      { range: '1R to 2R', count: 0 }, { range: '2R to 3R', count: 0 },
-      { range: '>3R', count: 0 },
+      { range: "<-2R", count: 0 },
+      { range: "-2R to -1R", count: 0 },
+      { range: "-1R to 0R", count: 0 },
+      { range: "0R to 1R", count: 0 },
+      { range: "1R to 2R", count: 0 },
+      { range: "2R to 3R", count: 0 },
+      { range: ">3R", count: 0 },
     ];
     for (const r of rValues) {
       if (r < -2) buckets[0].count++;
@@ -2789,10 +3368,20 @@ router.get('/trade-distribution', authenticateToken, async (req, res) => {
       else if (r < 3) buckets[5].count++;
       else buckets[6].count++;
     }
-    return sendSuccess(res, { buckets: buckets.filter(b => b.count > 0), total_trades: rValues.length });
+    return sendSuccess(res, {
+      buckets: buckets.filter((b) => b.count > 0),
+      total_trades: rValues.length,
+    });
   } catch (error) {
-    logger.error('Error in /api/algo/trade-distribution:', { error: error.message });
-    return sendSuccess(res, { buckets: [], total_trades: 0, _error: error.message, _is_placeholder: true });
+    logger.error("Error in /api/algo/trade-distribution:", {
+      error: error.message,
+    });
+    return sendSuccess(res, {
+      buckets: [],
+      total_trades: 0,
+      _error: error.message,
+      _is_placeholder: true,
+    });
   }
 });
 
@@ -2800,50 +3389,70 @@ router.get('/trade-distribution', authenticateToken, async (req, res) => {
  * GET /api/algo/holding-period-distribution
  * Computes holding period distribution on-the-fly from algo_trades.
  */
-router.get('/holding-period-distribution', authenticateToken, async (req, res) => {
-  try {
-    ensureConnection();
-    const pool = getPool();
-    const result = await pool.query(`
+router.get(
+  "/holding-period-distribution",
+  authenticateToken,
+  async (req, res) => {
+    try {
+      ensureConnection();
+      const pool = getPool();
+      const result = await pool.query(`
       SELECT trade_duration_days
       FROM algo_trades
       WHERE trade_duration_days IS NOT NULL AND status = 'closed' AND exit_date IS NOT NULL
       ORDER BY exit_date DESC LIMIT 500
     `);
 
-    const durations = result.rows.map(r => parseInt(r.trade_duration_days)).filter(v => !isNaN(v));
-    if (durations.length === 0) {
-      return sendSuccess(res, { buckets: [], total_trades: 0 });
-    }
+      const durations = result.rows
+        .map((r) => parseInt(r.trade_duration_days))
+        .filter((v) => !isNaN(v));
+      if (durations.length === 0) {
+        return sendSuccess(res, { buckets: [], total_trades: 0 });
+      }
 
-    const buckets = [
-      { range: '1-3 days', count: 0 }, { range: '4-7 days', count: 0 },
-      { range: '8-14 days', count: 0 }, { range: '15-30 days', count: 0 },
-      { range: '31-60 days', count: 0 }, { range: '61-90 days', count: 0 },
-      { range: '91-180 days', count: 0 }, { range: '>180 days', count: 0 },
-    ];
-    for (const d of durations) {
-      if (d <= 3) buckets[0].count++;
-      else if (d <= 7) buckets[1].count++;
-      else if (d <= 14) buckets[2].count++;
-      else if (d <= 30) buckets[3].count++;
-      else if (d <= 60) buckets[4].count++;
-      else if (d <= 90) buckets[5].count++;
-      else if (d <= 180) buckets[6].count++;
-      else buckets[7].count++;
+      const buckets = [
+        { range: "1-3 days", count: 0 },
+        { range: "4-7 days", count: 0 },
+        { range: "8-14 days", count: 0 },
+        { range: "15-30 days", count: 0 },
+        { range: "31-60 days", count: 0 },
+        { range: "61-90 days", count: 0 },
+        { range: "91-180 days", count: 0 },
+        { range: ">180 days", count: 0 },
+      ];
+      for (const d of durations) {
+        if (d <= 3) buckets[0].count++;
+        else if (d <= 7) buckets[1].count++;
+        else if (d <= 14) buckets[2].count++;
+        else if (d <= 30) buckets[3].count++;
+        else if (d <= 60) buckets[4].count++;
+        else if (d <= 90) buckets[5].count++;
+        else if (d <= 180) buckets[6].count++;
+        else buckets[7].count++;
+      }
+      return sendSuccess(res, {
+        buckets: buckets.filter((b) => b.count > 0),
+        total_trades: durations.length,
+      });
+    } catch (error) {
+      logger.error("Error in /api/algo/holding-period-distribution:", {
+        error: error.message,
+      });
+      return sendSuccess(res, {
+        buckets: [],
+        total_trades: 0,
+        _error: error.message,
+        _is_placeholder: true,
+      });
     }
-    return sendSuccess(res, { buckets: buckets.filter(b => b.count > 0), total_trades: durations.length });
-  } catch (error) {
-    logger.error('Error in /api/algo/holding-period-distribution:', { error: error.message });
-    return sendSuccess(res, { buckets: [], total_trades: 0, _error: error.message, _is_placeholder: true });
   }
-});
+);
 
 /**
  * GET /api/algo/stage-distribution
  * Stage phase distribution across open positions
  */
-router.get('/stage-distribution', authenticateToken, async (req, res) => {
+router.get("/stage-distribution", authenticateToken, async (req, res) => {
   try {
     ensureConnection();
     const pool = getPool();
@@ -2873,44 +3482,61 @@ router.get('/stage-distribution', authenticateToken, async (req, res) => {
     }
 
     const counts = {};
-    const order = ['Early Stage-2', 'Mid Stage-2', 'Late Stage-2',
-                   'Stage 1 (base)', 'Stage 3 (top)', 'Stage 4 (down)', 'Unknown'];
+    const order = [
+      "Early Stage-2",
+      "Mid Stage-2",
+      "Late Stage-2",
+      "Stage 1 (base)",
+      "Stage 3 (top)",
+      "Stage 4 (down)",
+      "Unknown",
+    ];
 
     for (const row of posResult.rows) {
       const stage = row.weinstein_stage;
       const score = row.minervini_trend_score;
-      let label = 'Unknown';
+      let label = "Unknown";
       if (stage === 1) {
-        label = 'Stage 1 (base)';
+        label = "Stage 1 (base)";
       } else if (stage === 2) {
         if (score != null) {
-          if (score >= stageConfig.stage_2_late_min_score) label = 'Late Stage-2';
-          else if (score >= stageConfig.stage_2_mid_min_score) label = 'Mid Stage-2';
-          else if (score >= stageConfig.stage_2_early_min_score) label = 'Early Stage-2';
-          else label = 'Early Stage-2';
+          if (score >= stageConfig.stage_2_late_min_score)
+            label = "Late Stage-2";
+          else if (score >= stageConfig.stage_2_mid_min_score)
+            label = "Mid Stage-2";
+          else if (score >= stageConfig.stage_2_early_min_score)
+            label = "Early Stage-2";
+          else label = "Early Stage-2";
         } else {
-          label = 'Stage 2';
+          label = "Stage 2";
         }
       } else if (stage === 3) {
-        label = 'Stage 3 (top)';
+        label = "Stage 3 (top)";
       } else if (stage === 4) {
-        label = 'Stage 4 (down)';
+        label = "Stage 4 (down)";
       }
 
       counts[label] = (counts[label] || 0) + 1;
     }
 
     const distribution = order
-      .filter(k => counts[k])
-      .map(k => ({ phase: k, count: counts[k] }));
+      .filter((k) => counts[k])
+      .map((k) => ({ phase: k, count: counts[k] }));
 
     return sendSuccess(res, {
       distribution,
       total_positions: posResult.rows.length,
     });
   } catch (error) {
-    logger.error('Error in /api/algo/stage-distribution:', { error: error.message, stack: error.stack });
-    return sendDatabaseError(res, error, 'An error occurred while computing stage distribution');
+    logger.error("Error in /api/algo/stage-distribution:", {
+      error: error.message,
+      stack: error.stack,
+    });
+    return sendDatabaseError(
+      res,
+      error,
+      "An error occurred while computing stage distribution"
+    );
   }
 });
 
@@ -2918,27 +3544,35 @@ router.get('/stage-distribution', authenticateToken, async (req, res) => {
 // MISSING ENDPOINTS - Return empty data to prevent 404 errors
 // ============================================================
 
-router.get('/metrics', async (req, res) => {
+router.get("/metrics", async (req, res) => {
   try {
     ensureConnection();
     const pool = getPool();
 
     const [circuitResult, perfResult] = await Promise.all([
-      pool.query(`SELECT * FROM circuit_breaker_status ORDER BY date DESC LIMIT 1`),
-      pool.query(`SELECT * FROM algo_performance_metrics ORDER BY metric_date DESC LIMIT 1`)
+      pool.query(
+        `SELECT * FROM circuit_breaker_status ORDER BY date DESC LIMIT 1`
+      ),
+      pool.query(
+        `SELECT * FROM algo_performance_metrics ORDER BY metric_date DESC LIMIT 1`
+      ),
     ]);
 
     return sendSuccess(res, {
       circuit_breakers: circuitResult.rows[0] || {},
-      performance: perfResult.rows[0] || {}
+      performance: perfResult.rows[0] || {},
     });
   } catch (error) {
-    logger.error('Error in /algo/metrics:', { error: error.message });
-    return sendDatabaseError(res, error, 'An error occurred while fetching metrics');
+    logger.error("Error in /algo/metrics:", { error: error.message });
+    return sendDatabaseError(
+      res,
+      error,
+      "An error occurred while fetching metrics"
+    );
   }
 });
 
-router.get('/risk-metrics', async (req, res) => {
+router.get("/risk-metrics", async (req, res) => {
   try {
     ensureConnection();
     const pool = getPool();
@@ -2953,12 +3587,16 @@ router.get('/risk-metrics', async (req, res) => {
     const row = result.rows[0];
     if (!row) {
       return sendSuccess(res, {
-        report_date: null, var_pct_95: null, cvar_pct_95: null,
-        stressed_var_pct: null, portfolio_beta: null, top_5_concentration: null
+        report_date: null,
+        var_pct_95: null,
+        cvar_pct_95: null,
+        stressed_var_pct: null,
+        portfolio_beta: null,
+        top_5_concentration: null,
       });
     }
 
-    const sf = (v) => v == null ? null : parseFloat(v);
+    const sf = (v) => (v == null ? null : parseFloat(v));
     return sendSuccess(res, {
       report_date: row.report_date,
       var_pct_95: sf(row.var_pct_95),
@@ -2968,54 +3606,74 @@ router.get('/risk-metrics', async (req, res) => {
       top_5_concentration: sf(row.top_5_concentration),
     });
   } catch (error) {
-    logger.error('Error in /algo/risk-metrics:', { error: error.message });
-    return sendDatabaseError(res, error, 'An error occurred while fetching risk metrics');
+    logger.error("Error in /algo/risk-metrics:", { error: error.message });
+    return sendDatabaseError(
+      res,
+      error,
+      "An error occurred while fetching risk metrics"
+    );
   }
 });
 
-router.get('/performance-analytics', async (req, res) => {
+router.get("/performance-analytics", async (req, res) => {
   try {
     return sendSuccess(res, {
       metrics: {},
       daily_returns: [],
-      trade_analysis: {}
+      trade_analysis: {},
     });
   } catch (error) {
-    logger.error('Error in /algo/performance-analytics:', { error: error.message });
-    return sendDatabaseError(res, error, 'An error occurred while fetching performance analytics');
+    logger.error("Error in /algo/performance-analytics:", {
+      error: error.message,
+    });
+    return sendDatabaseError(
+      res,
+      error,
+      "An error occurred while fetching performance analytics"
+    );
   }
 });
 
-router.get('/sentiment', async (req, res) => {
+router.get("/sentiment", async (req, res) => {
   try {
     ensureConnection();
     const pool = getPool();
 
-    const fgiResult = await pool.query(`SELECT date, fear_greed_value, fear_greed_label FROM fear_greed_index ORDER BY date DESC LIMIT 1`);
+    const fgiResult = await pool.query(
+      `SELECT date, fear_greed_value, fear_greed_label FROM fear_greed_index ORDER BY date DESC LIMIT 1`
+    );
 
     return sendSuccess(res, {
       fear_greed_index: fgiResult.rows[0] || null,
-      current_sentiment: fgiResult.rows[0]?.fear_greed_value || null
+      current_sentiment: fgiResult.rows[0]?.fear_greed_value || null,
     });
   } catch (error) {
-    logger.error('Error in /algo/sentiment:', { error: error.message });
-    return sendDatabaseError(res, error, 'An error occurred while fetching sentiment');
+    logger.error("Error in /algo/sentiment:", { error: error.message });
+    return sendDatabaseError(
+      res,
+      error,
+      "An error occurred while fetching sentiment"
+    );
   }
 });
 
-router.get('/economic-calendar', async (req, res) => {
+router.get("/economic-calendar", async (req, res) => {
   try {
     return sendSuccess(res, {
       upcoming_events: [],
-      impact_level: null
+      impact_level: null,
     });
   } catch (error) {
-    logger.error('Error in /algo/economic-calendar:', { error: error.message });
-    return sendDatabaseError(res, error, 'An error occurred while fetching economic calendar');
+    logger.error("Error in /algo/economic-calendar:", { error: error.message });
+    return sendDatabaseError(
+      res,
+      error,
+      "An error occurred while fetching economic calendar"
+    );
   }
 });
 
-router.get('/execution/recent', async (req, res) => {
+router.get("/execution/recent", async (req, res) => {
   try {
     ensureConnection();
     const pool = getPool();
@@ -3034,15 +3692,19 @@ router.get('/execution/recent', async (req, res) => {
 
     return sendSuccess(res, {
       items: result.rows || [],
-      total: result.rows.length || 0
+      total: result.rows.length || 0,
     });
   } catch (error) {
-    logger.error('Error in /algo/execution/recent:', { error: error.message });
-    return sendDatabaseError(res, error, 'An error occurred while fetching recent executions');
+    logger.error("Error in /algo/execution/recent:", { error: error.message });
+    return sendDatabaseError(
+      res,
+      error,
+      "An error occurred while fetching recent executions"
+    );
   }
 });
 
-router.get('/execution/stats', async (req, res) => {
+router.get("/execution/stats", async (req, res) => {
   try {
     ensureConnection();
     const pool = getPool();
@@ -3069,19 +3731,26 @@ router.get('/execution/stats', async (req, res) => {
     return sendSuccess(res, {
       total_runs: total,
       by_status: byStatus,
-      success_rate: total > 0 ? `${(successCount / total * 100).toFixed(1)}%` : 'N/A',
-      halt_rate: total > 0 ? `${(haltCount / total * 100).toFixed(1)}%` : 'N/A',
-      error_rate: total > 0 ? `${(errorCount / total * 100).toFixed(1)}%` : 'N/A',
-      period_days: days
+      success_rate:
+        total > 0 ? `${((successCount / total) * 100).toFixed(1)}%` : "N/A",
+      halt_rate:
+        total > 0 ? `${((haltCount / total) * 100).toFixed(1)}%` : "N/A",
+      error_rate:
+        total > 0 ? `${((errorCount / total) * 100).toFixed(1)}%` : "N/A",
+      period_days: days,
     });
   } catch (error) {
-    logger.error('Error in /algo/execution/stats:', { error: error.message });
-    return sendDatabaseError(res, error, 'An error occurred while fetching execution stats');
+    logger.error("Error in /algo/execution/stats:", { error: error.message });
+    return sendDatabaseError(
+      res,
+      error,
+      "An error occurred while fetching execution stats"
+    );
   }
 });
 
 // Signals endpoint - required by dashboard
-router.get('/signals/stocks', async (req, res) => {
+router.get("/signals/stocks", async (req, res) => {
   try {
     ensureConnection();
     const pool = getPool();
@@ -3092,25 +3761,27 @@ router.get('/signals/stocks', async (req, res) => {
       ORDER BY signal_date DESC, final_signal_quality_score DESC LIMIT 20
     `);
 
-    const signals = (result.rows || []).map(row => ({
+    const signals = (result.rows || []).map((row) => ({
       symbol: row.symbol,
       score: row.final_signal_quality_score,
       risk: row.final_risk_score,
-      signal: row.raw_signal
+      signal: row.raw_signal,
     }));
 
     return sendSuccess(res, {
       signals: signals,
       total: signals.length,
       grades: {},
-      trend: []
+      trend: [],
     });
   } catch (error) {
-    logger.error('Error in /algo/signals/stocks:', { error: error.message });
-    return sendDatabaseError(res, error, 'An error occurred while fetching signals');
+    logger.error("Error in /algo/signals/stocks:", { error: error.message });
+    return sendDatabaseError(
+      res,
+      error,
+      "An error occurred while fetching signals"
+    );
   }
 });
 
 module.exports = router;
-
-

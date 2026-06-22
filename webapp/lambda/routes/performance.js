@@ -6,19 +6,24 @@
  * - Updated daily from algo_trades table
  */
 
-const express = require('express');
-const { sendSuccess, sendError } = require('../utils/apiResponse');
-const { authenticateToken } = require('../middleware/auth');
-const logger = require('../utils/logger');
-const { validateQueryResult, validateAndCoerceRows } = require('../utils/responseValidation');
+const express = require("express");
+
+const { sendSuccess, sendError } = require("../utils/apiResponse");
+const { authenticateToken } = require("../middleware/auth");
+const logger = require("../utils/logger");
+const {
+  validateQueryResult,
+  validateAndCoerceRow,
+  validateAndCoerceRows,
+} = require("../utils/responseValidation");
 
 const router = express.Router();
 router.use(authenticateToken);
-const { query } = require('../utils/database');
+const { query } = require("../utils/database");
 
 async function getPerformanceMetrics(req, res) {
   try {
-    const { period = 'week' } = req.query;
+    const { period = "week" } = req.query;
 
     // PHASE 1 FIX: Fetch pre-computed metrics from algo_performance_daily
     // Period-specific queries will be added as new pre-computed tables if needed
@@ -54,7 +59,7 @@ async function getPerformanceMetrics(req, res) {
     validateQueryResult(result, { requireRows: false });
 
     if (result.rows.length === 0) {
-      logger.warn('No performance data available for today');
+      logger.warn("No performance data available for today");
       return sendSuccess(res, {
         period,
         summary: {
@@ -93,29 +98,29 @@ async function getPerformanceMetrics(req, res) {
     }
 
     const metrics = validateAndCoerceRow(result.rows[0], {
-      total_trades: { type: 'int', required: false, defaultValue: 0 },
-      win_count: { type: 'int', required: false, defaultValue: 0 },
-      loss_count: { type: 'int', required: false, defaultValue: 0 },
-      win_rate_pct: { type: 'float', required: false, defaultValue: 0 },
-      gross_profit: { type: 'float', required: false, defaultValue: 0 },
-      gross_loss: { type: 'float', required: false, defaultValue: 0 },
-      profit_factor: { type: 'float', required: false, defaultValue: 0 },
-      total_pnl: { type: 'float', required: false, defaultValue: 0 },
-      avg_pnl_per_trade: { type: 'float', required: false, defaultValue: 0 },
-      avg_return_pct: { type: 'float', required: false, defaultValue: 0 },
-      avg_win: { type: 'float', required: false, defaultValue: 0 },
-      avg_loss: { type: 'float', required: false, defaultValue: 0 },
-      avg_win_pct: { type: 'float', required: false, defaultValue: 0 },
-      avg_loss_pct: { type: 'float', required: false, defaultValue: 0 },
-      avg_hold_days: { type: 'float', required: false, defaultValue: 0 },
-      avg_r_multiple: { type: 'float', required: false, defaultValue: 0 },
-      sharpe_ratio: { type: 'float', required: false, defaultValue: 0 },
-      max_drawdown: { type: 'float', required: false, defaultValue: 0 },
-      calmar_ratio: { type: 'float', required: false, defaultValue: 0 },
-      biggest_win: { type: 'float', required: false, defaultValue: 0 },
-      biggest_loss: { type: 'float', required: false, defaultValue: 0 },
-      best_trade_r: { type: 'float', required: false, defaultValue: 0 },
-      worst_trade_r: { type: 'float', required: false, defaultValue: 0 },
+      total_trades: { type: "int", required: false, defaultValue: 0 },
+      win_count: { type: "int", required: false, defaultValue: 0 },
+      loss_count: { type: "int", required: false, defaultValue: 0 },
+      win_rate_pct: { type: "float", required: false, defaultValue: 0 },
+      gross_profit: { type: "float", required: false, defaultValue: 0 },
+      gross_loss: { type: "float", required: false, defaultValue: 0 },
+      profit_factor: { type: "float", required: false, defaultValue: 0 },
+      total_pnl: { type: "float", required: false, defaultValue: 0 },
+      avg_pnl_per_trade: { type: "float", required: false, defaultValue: 0 },
+      avg_return_pct: { type: "float", required: false, defaultValue: 0 },
+      avg_win: { type: "float", required: false, defaultValue: 0 },
+      avg_loss: { type: "float", required: false, defaultValue: 0 },
+      avg_win_pct: { type: "float", required: false, defaultValue: 0 },
+      avg_loss_pct: { type: "float", required: false, defaultValue: 0 },
+      avg_hold_days: { type: "float", required: false, defaultValue: 0 },
+      avg_r_multiple: { type: "float", required: false, defaultValue: 0 },
+      sharpe_ratio: { type: "float", required: false, defaultValue: 0 },
+      max_drawdown: { type: "float", required: false, defaultValue: 0 },
+      calmar_ratio: { type: "float", required: false, defaultValue: 0 },
+      biggest_win: { type: "float", required: false, defaultValue: 0 },
+      biggest_loss: { type: "float", required: false, defaultValue: 0 },
+      best_trade_r: { type: "float", required: false, defaultValue: 0 },
+      worst_trade_r: { type: "float", required: false, defaultValue: 0 },
     });
 
     const response = {
@@ -124,7 +129,10 @@ async function getPerformanceMetrics(req, res) {
         total_trades: metrics.total_trades || 0,
         win_count: metrics.win_count || 0,
         loss_count: metrics.loss_count || 0,
-        breakeven_count: (metrics.total_trades || 0) - (metrics.win_count || 0) - (metrics.loss_count || 0),
+        breakeven_count:
+          (metrics.total_trades || 0) -
+          (metrics.win_count || 0) -
+          (metrics.loss_count || 0),
         win_rate_pct: parseFloat(metrics.win_rate_pct) || 0,
       },
       profitability: {
@@ -156,8 +164,11 @@ async function getPerformanceMetrics(req, res) {
 
     return sendSuccess(res, response);
   } catch (error) {
-    logger.error('Error fetching performance metrics:', { error: error.message, stack: error.stack });
-    return sendError(res, 'Failed to fetch performance metrics', 500);
+    logger.error("Error fetching performance metrics:", {
+      error: error.message,
+      stack: error.stack,
+    });
+    return sendError(res, "Failed to fetch performance metrics", 500);
   }
 }
 
@@ -179,7 +190,7 @@ async function getRecentTrades(req, res) {
     const result = await query(tradesQuery, [parseInt(limit)]);
     validateQueryResult(result, { requireRows: false });
 
-    const trades = result.rows.map(row => ({
+    const trades = result.rows.map((row) => ({
       trade_id: row.trade_id,
       symbol: row.symbol,
       entry_date: row.entry_date,
@@ -195,14 +206,17 @@ async function getRecentTrades(req, res) {
 
     return sendSuccess(res, trades);
   } catch (error) {
-    logger.error('Error fetching recent trades:', { error: error.message, stack: error.stack });
-    return sendError(res, 'Failed to fetch recent trades', 500);
+    logger.error("Error fetching recent trades:", {
+      error: error.message,
+      stack: error.stack,
+    });
+    return sendError(res, "Failed to fetch recent trades", 500);
   }
 }
 
 // Register routes
-router.get('/', getPerformanceMetrics);  // Root endpoint defaults to metrics
-router.get('/metrics', getPerformanceMetrics);
-router.get('/trades', getRecentTrades);
+router.get("/", getPerformanceMetrics); // Root endpoint defaults to metrics
+router.get("/metrics", getPerformanceMetrics);
+router.get("/trades", getRecentTrades);
 
 module.exports = router;

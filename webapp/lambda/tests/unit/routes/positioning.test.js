@@ -12,7 +12,14 @@ jest.mock("../../../utils/database", () => ({
   healthCheck: jest.fn(),
 }));
 
-const { query, closeDatabase, initializeDatabase, getPool, transaction, healthCheck } = require("../../../utils/database");
+const {
+  query,
+  closeDatabase,
+  initializeDatabase,
+  getPool,
+  transaction,
+  healthCheck,
+} = require("../../../utils/database");
 const mockQuery = query;
 const app = express();
 app.use(responseFormatterMiddleware);
@@ -87,12 +94,16 @@ describe("Positioning Routes", () => {
       expect(response.body).toHaveProperty("metadata");
       // Verify positioning_metrics
       expect(response.body.positioning_metrics.symbol).toBe("AAPL");
-      expect(response.body.positioning_metrics.institutional_ownership).toBe(0.6234);
+      expect(response.body.positioning_metrics.institutional_ownership).toBe(
+        0.6234
+      );
       // Verify positioning_score is calculated
       expect(response.body.positioning_score).toBeGreaterThan(0);
       expect(response.body.positioning_score).toBeLessThanOrEqual(100);
       // Verify institutional_holders
-      expect(response.body.institutional_holders).toEqual(mockInstitutionalData);
+      expect(response.body.institutional_holders).toEqual(
+        mockInstitutionalData
+      );
       // Verify retail_sentiment
       expect(response.body.retail_sentiment).toEqual(mockSentimentData);
       expect(response.body.metadata.symbol).toBe("all");
@@ -143,7 +154,9 @@ describe("Positioning Routes", () => {
         .get("/api/positioning/stocks")
         .expect(500);
       expect(response.body.success).toBe(false);
-      expect(response.body.error).toBe("Failed to fetch stock positioning data");
+      expect(response.body.error).toBe(
+        "Failed to fetch stock positioning data"
+      );
       expect(console.error).toHaveBeenCalledWith(
         "Error fetching stock positioning data:",
         expect.any(Error)
@@ -159,7 +172,9 @@ describe("Positioning Routes", () => {
         .expect(404);
       expect(response.body.success).toBe(false);
       expect(response.body.error).toBe("No positioning data found");
-      expect(response.body.message).toBe("No positioning data available for this symbol");
+      expect(response.body.message).toBe(
+        "No positioning data available for this symbol"
+      );
     });
     it("should handle database errors properly", async () => {
       mockQuery.mockRejectedValueOnce(new Error("Database failed"));
@@ -167,7 +182,9 @@ describe("Positioning Routes", () => {
         .get("/api/positioning/stocks")
         .expect(500);
       expect(response.body.success).toBe(false);
-      expect(response.body.error).toBe("Failed to fetch stock positioning data");
+      expect(response.body.error).toBe(
+        "Failed to fetch stock positioning data"
+      );
       expect(console.error).toHaveBeenCalledWith(
         "Error fetching stock positioning data:",
         expect.any(Error)
@@ -310,7 +327,9 @@ describe("Positioning Routes", () => {
       expect(response.body).toHaveProperty("market_overview");
       expect(response.body).toHaveProperty("key_metrics");
       expect(response.body).toHaveProperty("data_freshness");
-      expect(response.body.market_overview.institutional_flow).toBe("MODERATELY_BULLISH");
+      expect(response.body.market_overview.institutional_flow).toBe(
+        "MODERATELY_BULLISH"
+      );
       expect(response.body.key_metrics.avg_institutional_ownership).toBe(0.62);
       expect(response.body.key_metrics.avg_insider_ownership).toBe(0.03);
       expect(response.body.key_metrics.avg_short_interest).toBe(0.05);
@@ -319,11 +338,13 @@ describe("Positioning Routes", () => {
     });
     it("should calculate bullish overall positioning", async () => {
       const bullishInstitutional = {
-        rows: [{
-          ...mockInstitutionalSummary.rows[0],
-          avg_institutional_ownership: 0.65, // >60%
-          avg_short_change: -0.06 // <-5%
-        }],
+        rows: [
+          {
+            ...mockInstitutionalSummary.rows[0],
+            avg_institutional_ownership: 0.65, // >60%
+            avg_short_change: -0.06, // <-5%
+          },
+        ],
       };
       const bullishRetail = {
         rows: [{ ...mockRetailSummary.rows[0], avg_net_sentiment: 45.0 }],
@@ -339,11 +360,13 @@ describe("Positioning Routes", () => {
     });
     it("should calculate moderately bullish positioning", async () => {
       const modBullishInstitutional = {
-        rows: [{
-          ...mockInstitutionalSummary.rows[0],
-          avg_institutional_ownership: 0.55, // >50%
-          avg_short_change: 0.0 // neutral
-        }],
+        rows: [
+          {
+            ...mockInstitutionalSummary.rows[0],
+            avg_institutional_ownership: 0.55, // >50%
+            avg_short_change: 0.0, // neutral
+          },
+        ],
       };
       const modBullishRetail = {
         rows: [{ ...mockRetailSummary.rows[0], avg_net_sentiment: 25.0 }],
@@ -361,11 +384,13 @@ describe("Positioning Routes", () => {
     });
     it("should calculate bearish positioning", async () => {
       const bearishInstitutional = {
-        rows: [{
-          ...mockInstitutionalSummary.rows[0],
-          avg_short_interest: 0.16, // >15%
-          avg_institutional_ownership: 0.45
-        }],
+        rows: [
+          {
+            ...mockInstitutionalSummary.rows[0],
+            avg_short_interest: 0.16, // >15%
+            avg_institutional_ownership: 0.45,
+          },
+        ],
       };
       const bearishRetail = {
         rows: [{ ...mockRetailSummary.rows[0], avg_net_sentiment: -25.0 }],
@@ -381,11 +406,13 @@ describe("Positioning Routes", () => {
     });
     it("should calculate moderately bearish positioning", async () => {
       const modBearishInstitutional = {
-        rows: [{
-          ...mockInstitutionalSummary.rows[0],
-          avg_short_interest: 0.11, // >10%
-          avg_institutional_ownership: 0.45
-        }],
+        rows: [
+          {
+            ...mockInstitutionalSummary.rows[0],
+            avg_short_interest: 0.11, // >10%
+            avg_institutional_ownership: 0.45,
+          },
+        ],
       };
       const modBearishRetail = {
         rows: [{ ...mockRetailSummary.rows[0], avg_net_sentiment: -10.0 }],
@@ -403,12 +430,14 @@ describe("Positioning Routes", () => {
     });
     it("should default to neutral positioning", async () => {
       const neutralInstitutional = {
-        rows: [{
-          ...mockInstitutionalSummary.rows[0],
-          avg_institutional_ownership: 0.45,
-          avg_short_interest: 0.08,
-          avg_short_change: 0.0
-        }],
+        rows: [
+          {
+            ...mockInstitutionalSummary.rows[0],
+            avg_institutional_ownership: 0.45,
+            avg_short_interest: 0.08,
+            avg_short_change: 0.0,
+          },
+        ],
       };
       const neutralRetail = {
         rows: [{ ...mockRetailSummary.rows[0], avg_net_sentiment: 5.0 }],
@@ -520,7 +549,10 @@ describe("Positioning Routes", () => {
       mockQuery
         .mockResolvedValueOnce(mockInstitutionalSummary)
         .mockResolvedValueOnce(mockRetailSummary);
-      await request(app).get("/api/positioning/summary").set("Authorization", "Bearer test-token").expect(200);
+      await request(app)
+        .get("/api/positioning/summary")
+        .set("Authorization", "Bearer test-token")
+        .expect(200);
       expect(mockQuery).toHaveBeenCalledWith(
         expect.stringContaining("FROM positioning_metrics pm")
       );
@@ -553,9 +585,7 @@ describe("Positioning Routes", () => {
       expect(response.body.key_metrics).toHaveProperty(
         "avg_institutional_ownership"
       );
-      expect(response.body.key_metrics).toHaveProperty(
-        "avg_insider_ownership"
-      );
+      expect(response.body.key_metrics).toHaveProperty("avg_insider_ownership");
       expect(response.body.key_metrics).toHaveProperty("avg_short_interest");
       expect(response.body.key_metrics).toHaveProperty("avg_short_change");
       expect(response.body.key_metrics).toHaveProperty("retail_net_sentiment");

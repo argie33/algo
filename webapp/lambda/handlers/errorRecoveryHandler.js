@@ -14,7 +14,7 @@ const RETRY_CONFIG = {
   api_call: {
     maxRetries: 3,
     initialDelay: 1000, // 1 second
-    maxDelay: 10000,    // 10 seconds
+    maxDelay: 10000, // 10 seconds
     backoffMultiplier: 2,
     retryableErrors: ["ECONNRESET", "ETIMEDOUT", "ENOTFOUND", "429"],
   },
@@ -41,7 +41,11 @@ const RETRY_CONFIG = {
  * @param {Object} context - Additional context for logging
  * @returns {Promise<*>} Result of the operation
  */
-async function retryWithBackoff(operation, operationType = "api_call", context = {}) {
+async function retryWithBackoff(
+  operation,
+  operationType = "api_call",
+  context = {}
+) {
   const config = RETRY_CONFIG[operationType] || RETRY_CONFIG.api_call;
   let lastError;
 
@@ -55,7 +59,10 @@ async function retryWithBackoff(operation, operationType = "api_call", context =
       const isRetryable = isRetryableError(error, config.retryableErrors);
 
       if (!isRetryable || attempt === config.maxRetries) {
-        console.error(` Operation failed after ${attempt} attempts:`, error.message);
+        console.error(
+          ` Operation failed after ${attempt} attempts:`,
+          error.message
+        );
         throw error;
       }
 
@@ -65,7 +72,9 @@ async function retryWithBackoff(operation, operationType = "api_call", context =
         config.initialDelay * Math.pow(config.backoffMultiplier, attempt - 1)
       );
 
-      console.warn(`⚠️ Attempt ${attempt} failed (${error.message}). Retrying in ${delay}ms...`);
+      console.warn(
+        `⚠️ Attempt ${attempt} failed (${error.message}). Retrying in ${delay}ms...`
+      );
       await sleep(delay);
     }
   }
@@ -108,11 +117,19 @@ function isRetryableError(error, retryableErrors = []) {
  * @param {string} description - Description for logging
  * @returns {Promise<*>} Result of the operation
  */
-async function executeWithTimeout(operation, timeoutMs = 30000, description = "Operation") {
+async function executeWithTimeout(
+  operation,
+  timeoutMs = 30000,
+  description = "Operation"
+) {
   return Promise.race([
     operation(),
     new Promise((_, reject) =>
-      setTimeout(() => reject(new Error(`${description} timed out after ${timeoutMs}ms`)), timeoutMs)
+      setTimeout(
+        () =>
+          reject(new Error(`${description} timed out after ${timeoutMs}ms`)),
+        timeoutMs
+      )
     ),
   ]);
 }
@@ -172,7 +189,9 @@ function validateOperationData(data, rules = {}) {
     for (const [field, expectedType] of Object.entries(rules.types)) {
       if (data[field] !== undefined && data[field] !== null) {
         if (typeof data[field] !== expectedType) {
-          errors.push(`Field ${field} has invalid type. Expected ${expectedType}, got ${typeof data[field]}`);
+          errors.push(
+            `Field ${field} has invalid type. Expected ${expectedType}, got ${typeof data[field]}`
+          );
         }
       }
     }
@@ -184,7 +203,9 @@ function validateOperationData(data, rules = {}) {
       const value = data[field];
       if (value !== undefined && value !== null) {
         if (value < min || value > max) {
-          errors.push(`Field ${field} out of range [${min}, ${max}]. Got ${value}`);
+          errors.push(
+            `Field ${field} out of range [${min}, ${max}]. Got ${value}`
+          );
         }
       }
     }
@@ -227,7 +248,9 @@ class CircuitBreaker {
         this.state = "HALF_OPEN";
         this.successCount = 0;
       } else {
-        throw new Error(`Circuit breaker ${this.name} is OPEN - request rejected`);
+        throw new Error(
+          `Circuit breaker ${this.name} is OPEN - request rejected`
+        );
       }
     }
 

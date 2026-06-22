@@ -9,7 +9,14 @@ jest.mock("../../../utils/database", () => ({
   query: jest.fn().mockResolvedValue({ rows: [], rowCount: 0 }),
 }));
 
-const { query, closeDatabase, initializeDatabase, getPool, transaction, healthCheck } = require('../../../utils/database');
+const {
+  query,
+  closeDatabase,
+  initializeDatabase,
+  getPool,
+  transaction,
+  healthCheck,
+} = require("../../../utils/database");
 
 describe("Analyst Routes Unit Tests - Real YFinance Data", () => {
   let app;
@@ -27,15 +34,20 @@ describe("Analyst Routes Unit Tests - Real YFinance Data", () => {
   });
   describe("GET /api/analysts/", () => {
     test("should return API overview with real YFinance endpoints", async () => {
-      const response = await request(app)
-        .get("/api/analysts/")
-        .expect(200);
-      expect(response.body).toHaveProperty("message", "Analysts API - Real YFinance Data Only");
+      const response = await request(app).get("/api/analysts/").expect(200);
+      expect(response.body).toHaveProperty(
+        "message",
+        "Analysts API - Real YFinance Data Only"
+      );
       expect(response.body).toHaveProperty("status", "operational");
       expect(response.body).toHaveProperty("endpoints");
       expect(response.body).toHaveProperty("data_sources");
-      expect(response.body.endpoints).toContain("/upgrades - Get analyst upgrades/downgrades from YFinance");
-      expect(response.body.endpoints).toContain("/revenue-estimates - Get revenue estimates with analyst counts");
+      expect(response.body.endpoints).toContain(
+        "/upgrades - Get analyst upgrades/downgrades from YFinance"
+      );
+      expect(response.body.endpoints).toContain(
+        "/revenue-estimates - Get revenue estimates with analyst counts"
+      );
       expect(response.body.data_sources).toHaveProperty("upgrades");
       expect(response.body.data_sources).toHaveProperty("revenue_estimates");
     });
@@ -52,8 +64,8 @@ describe("Analyst Routes Unit Tests - Real YFinance Data", () => {
           to_grade: "Buy",
           date: "2024-01-15",
           details: "Strong iPhone sales outlook",
-          fetched_at: "2025-09-21T16:19:44.467Z"
-        }
+          fetched_at: "2025-09-21T16:19:44.467Z",
+        },
       ];
       query
         .mockResolvedValueOnce({ rows: mockUpgrades }) // main query
@@ -63,7 +75,10 @@ describe("Analyst Routes Unit Tests - Real YFinance Data", () => {
         .expect(200);
       expect(response.body).toHaveProperty("success", true);
       expect(response.body).toHaveProperty("data");
-      expect(response.body).toHaveProperty("source", "YFinance via loadanalystupgradedowngrade.py");
+      expect(response.body).toHaveProperty(
+        "source",
+        "YFinance via loadanalystupgradedowngrade.py"
+      );
       expect(response.body.data).toHaveLength(1);
       expect(response.body.data[0]).toHaveProperty("symbol", "AAPL");
       expect(response.body.data[0]).toHaveProperty("firm", "Goldman Sachs");
@@ -97,8 +112,8 @@ describe("Analyst Routes Unit Tests - Real YFinance Data", () => {
           number_of_analysts: 12,
           year_ago_revenue: 81000000000,
           growth: 0.049,
-          fetched_at: "2025-09-28T01:09:43.465Z"
-        }
+          fetched_at: "2025-09-28T01:09:43.465Z",
+        },
       ];
       query.mockResolvedValueOnce({ rows: mockEstimates });
       const response = await request(app)
@@ -106,7 +121,10 @@ describe("Analyst Routes Unit Tests - Real YFinance Data", () => {
         .expect(200);
       expect(response.body).toHaveProperty("success", true);
       expect(response.body).toHaveProperty("data");
-      expect(response.body).toHaveProperty("source", "YFinance via loadrevenueestimate.py");
+      expect(response.body).toHaveProperty(
+        "source",
+        "YFinance via loadrevenueestimate.py"
+      );
       expect(response.body.data[0]).toHaveProperty("symbol", "AAPL");
       expect(response.body.data[0]).toHaveProperty("number_of_analysts", 12);
       expect(response.body.data[0]).toHaveProperty("avg_estimate");
@@ -125,8 +143,8 @@ describe("Analyst Routes Unit Tests - Real YFinance Data", () => {
           to_grade: "Buy",
           date: "2024-01-15",
           details: "iPhone sales growth",
-          fetched_at: "2025-09-21T16:19:44.467Z"
-        }
+          fetched_at: "2025-09-21T16:19:44.467Z",
+        },
       ];
       const mockRevenueEstimates = [
         {
@@ -135,15 +153,13 @@ describe("Analyst Routes Unit Tests - Real YFinance Data", () => {
           avg_estimate: 85000000000,
           number_of_analysts: 12,
           growth: 0.049,
-          fetched_at: "2025-09-28T01:09:43.465Z"
-        }
+          fetched_at: "2025-09-28T01:09:43.465Z",
+        },
       ];
       query
-        .mockResolvedValueOnce({ rows: mockUpgrades })        // upgrades query
+        .mockResolvedValueOnce({ rows: mockUpgrades }) // upgrades query
         .mockResolvedValueOnce({ rows: mockRevenueEstimates }); // revenue estimates query
-      const response = await request(app)
-        .get("/api/analysts/AAPL")
-        .expect(200);
+      const response = await request(app).get("/api/analysts/AAPL").expect(200);
       expect(response.body).toHaveProperty("success", true);
       expect(response.body).toHaveProperty("symbol", "AAPL");
       expect(response.body).toHaveProperty("data");
@@ -152,10 +168,19 @@ describe("Analyst Routes Unit Tests - Real YFinance Data", () => {
       expect(response.body).toHaveProperty("counts");
       expect(response.body.counts).toHaveProperty("upgrades_downgrades", 1);
       expect(response.body.counts).toHaveProperty("revenue_estimates", 1);
-      expect(response.body.counts).toHaveProperty("total_analysts_covering", 12);
+      expect(response.body.counts).toHaveProperty(
+        "total_analysts_covering",
+        12
+      );
       expect(response.body).toHaveProperty("sources");
-      expect(response.body.sources).toHaveProperty("upgrades_downgrades", "YFinance via loadanalystupgradedowngrade.py");
-      expect(response.body.sources).toHaveProperty("revenue_estimates", "YFinance via loadrevenueestimate.py");
+      expect(response.body.sources).toHaveProperty(
+        "upgrades_downgrades",
+        "YFinance via loadanalystupgradedowngrade.py"
+      );
+      expect(response.body.sources).toHaveProperty(
+        "revenue_estimates",
+        "YFinance via loadrevenueestimate.py"
+      );
     });
   });
   describe("Error Handling", () => {
@@ -165,7 +190,10 @@ describe("Analyst Routes Unit Tests - Real YFinance Data", () => {
         .get("/api/analysts/upgrades")
         .expect(500);
       expect(response.body).toHaveProperty("success", false);
-      expect(response.body).toHaveProperty("error", "Failed to fetch analyst upgrades");
+      expect(response.body).toHaveProperty(
+        "error",
+        "Failed to fetch analyst upgrades"
+      );
     });
     test("should handle null database results", async () => {
       query.mockResolvedValueOnce(null);
@@ -181,7 +209,10 @@ describe("Analyst Routes Unit Tests - Real YFinance Data", () => {
         .get("/api/analysts/INVALID")
         .expect(500);
       expect(response.body).toHaveProperty("success", false);
-      expect(response.body).toHaveProperty("error", "Failed to fetch analyst data for symbol");
+      expect(response.body).toHaveProperty(
+        "error",
+        "Failed to fetch analyst data for symbol"
+      );
       expect(response.body).toHaveProperty("symbol", "INVALID");
     });
   });

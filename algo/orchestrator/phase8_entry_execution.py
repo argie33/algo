@@ -185,17 +185,17 @@ def _batch_fetch_technical_data(
 
                     lp.symbol,
 
-                    COALESCE(atr.atr, 0.0) AS atr,
+                    atr.atr,
 
-                    COALESCE(sma.sma_50, 0.0) AS sma_50,
+                    sma.sma_50,
 
                     lp.close
 
                 FROM latest_prices lp
 
-                LEFT JOIN sma_50_data sma ON sma.symbol = lp.symbol
+                INNER JOIN sma_50_data sma ON sma.symbol = lp.symbol
 
-                LEFT JOIN atr_data atr ON atr.symbol = lp.symbol
+                INNER JOIN atr_data atr ON atr.symbol = lp.symbol
 
                 """,
                 [
@@ -214,12 +214,19 @@ def _batch_fetch_technical_data(
             for row in rows:
                 symbol, atr, sma_50, close = row
 
+                if atr is None or sma_50 is None or close is None:
+                    raise ValueError(
+                        f"Symbol {symbol}: Technical data incomplete from database query. "
+                        f"ATR={atr}, SMA_50={sma_50}, close={close}. "
+                        f"INNER JOIN should have excluded incomplete rows. Check technical data loader."
+                    )
+
                 result[symbol] = cast(
                     dict[str, float | None],
                     {
-                        "atr": atr if atr else None,
-                        "sma_50": sma_50 if sma_50 else None,
-                        "close": close if close else None,
+                        "atr": float(atr),
+                        "sma_50": float(sma_50),
+                        "close": float(close),
                     },
                 )
 

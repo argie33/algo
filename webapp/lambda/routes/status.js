@@ -1,8 +1,9 @@
 const express = require("express");
+
 const { query } = require("../utils/database");
 const { sendSuccess, sendError } = require("../utils/apiResponse");
-const logger = require('../utils/logger');
-const { validateQueryResult } = require('../utils/responseValidation');
+const logger = require("../utils/logger");
+const { validateQueryResult } = require("../utils/responseValidation");
 const router = express.Router();
 
 // GET /api/status - Quick API status check
@@ -19,17 +20,24 @@ router.get("/", async (req, res) => {
       uptime: process.uptime(),
       database: {
         connected: true,
-        stocks: symbolCount
-      }
+        stocks: symbolCount,
+      },
     });
   } catch (error) {
-    const errorMsg = error && typeof error === 'object' ? (error.message || String(error)) : String(error);
-    logger.error('Error in /status:', { error: errorMsg, stack: error?.stack });
-    return sendSuccess(res, {
-      status: "error",
-      timestamp: new Date().toISOString(),
-      error: errorMsg
-    }, 503);
+    const errorMsg =
+      error && typeof error === "object"
+        ? error.message || String(error)
+        : String(error);
+    logger.error("Error in /status:", { error: errorMsg, stack: error?.stack });
+    return sendSuccess(
+      res,
+      {
+        status: "error",
+        timestamp: new Date().toISOString(),
+        error: errorMsg,
+      },
+      503
+    );
   }
 });
 

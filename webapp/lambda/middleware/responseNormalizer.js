@@ -11,10 +11,14 @@ module.exports = (req, res, next) => {
   const originalJson = res.json.bind(res);
 
   // Override res.json to normalize all responses
-  res.json = function(body) {
+  res.json = function (body) {
     // If already properly formatted by sendSuccess/sendError, just send it
     // Properly formatted = has success flag, statusCode, and timestamp
-    if (body?.success !== undefined && body?.statusCode !== undefined && body?.timestamp) {
+    if (
+      body?.success !== undefined &&
+      body?.statusCode !== undefined &&
+      body?.timestamp
+    ) {
       return originalJson.call(this, body);
     }
 
@@ -44,8 +48,8 @@ function normalizeSuccessResponse(body, httpStatusCode) {
     return {
       success: false,
       statusCode: body.statusCode || httpStatusCode || 500,
-      error: body.error || body.message || 'Request failed',
-      timestamp
+      error: body.error || body.message || "Request failed",
+      timestamp,
     };
   }
 
@@ -56,22 +60,32 @@ function normalizeSuccessResponse(body, httpStatusCode) {
       statusCode: statusCode,
       items: body.items,
       pagination: body.pagination || normalizePagination(body),
-      timestamp
+      timestamp,
     };
   }
 
   // Paginated list with custom key (signals, patterns, results, data, etc.)
   if (body?.pagination && !body?.items) {
     // Look for array data in common keys: data, results, signals, patterns, records, etc.
-    let itemsSource = body.data || body.results || body.signals || body.patterns || body.records || [];
+    let itemsSource =
+      body.data ||
+      body.results ||
+      body.signals ||
+      body.patterns ||
+      body.records ||
+      [];
 
     // Check if extracted items contain an error object (e.g., nested { success: false })
-    if (typeof itemsSource === 'object' && itemsSource !== null && itemsSource.success === false) {
+    if (
+      typeof itemsSource === "object" &&
+      itemsSource !== null &&
+      itemsSource.success === false
+    ) {
       return {
         success: false,
         statusCode: body.statusCode || 500,
-        error: itemsSource.error || itemsSource.message || 'Request failed',
-        timestamp
+        error: itemsSource.error || itemsSource.message || "Request failed",
+        timestamp,
       };
     }
 
@@ -81,8 +95,8 @@ function normalizeSuccessResponse(body, httpStatusCode) {
       return {
         success: true,
         statusCode: statusCode,
-        ...body,  // Preserve all properties
-        timestamp
+        ...body, // Preserve all properties
+        timestamp,
       };
     }
 
@@ -92,7 +106,7 @@ function normalizeSuccessResponse(body, httpStatusCode) {
       statusCode: statusCode,
       items: items,
       pagination: body.pagination,
-      timestamp
+      timestamp,
     };
   }
 
@@ -102,13 +116,19 @@ function normalizeSuccessResponse(body, httpStatusCode) {
       success: true,
       statusCode: statusCode,
       data: body.data,
-      timestamp
+      timestamp,
     };
   }
 
   // Fallback: if no data/items structure detected, check for other array keys first
   // to avoid losing data from responses with custom array keys
-  const arrayKeys = ['signals', 'patterns', 'records', 'results', 'transactions'];
+  const arrayKeys = [
+    "signals",
+    "patterns",
+    "records",
+    "results",
+    "transactions",
+  ];
   for (const key of arrayKeys) {
     if (Array.isArray(body?.[key])) {
       // Return as-is to preserve the custom key structure
@@ -116,7 +136,7 @@ function normalizeSuccessResponse(body, httpStatusCode) {
         success: true,
         statusCode: statusCode,
         ...body,
-        timestamp
+        timestamp,
       };
     }
   }
@@ -126,7 +146,7 @@ function normalizeSuccessResponse(body, httpStatusCode) {
     success: true,
     statusCode: statusCode,
     data: body,
-    timestamp
+    timestamp,
   };
 }
 
@@ -135,7 +155,11 @@ function normalizeSuccessResponse(body, httpStatusCode) {
  */
 function normalizeResponse(body, statusCode) {
   // If it's already properly formatted, return as-is
-  if (body?.success !== undefined && body?.statusCode !== undefined && body?.timestamp) {
+  if (
+    body?.success !== undefined &&
+    body?.statusCode !== undefined &&
+    body?.timestamp
+  ) {
     return body;
   }
 
@@ -149,23 +173,33 @@ function normalizeResponse(body, statusCode) {
       statusCode: statusCode,
       items: body.items || [],
       pagination: body.pagination || normalizePagination(body),
-      error: isError ? (body.error || 'Request failed') : null,
-      timestamp
+      error: isError ? body.error || "Request failed" : null,
+      timestamp,
     };
   }
 
   // If it has pagination but items under different key
   if (body?.pagination && !body?.items) {
     // Look for array data in common keys: data, results, signals, patterns, records, etc.
-    let itemsSource = body.data || body.results || body.signals || body.patterns || body.records || [];
+    let itemsSource =
+      body.data ||
+      body.results ||
+      body.signals ||
+      body.patterns ||
+      body.records ||
+      [];
 
     // Check if extracted items contain an error object (e.g., nested { success: false })
-    if (typeof itemsSource === 'object' && itemsSource !== null && itemsSource.success === false) {
+    if (
+      typeof itemsSource === "object" &&
+      itemsSource !== null &&
+      itemsSource.success === false
+    ) {
       return {
         success: false,
         statusCode: statusCode,
-        error: itemsSource.error || itemsSource.message || 'Request failed',
-        timestamp
+        error: itemsSource.error || itemsSource.message || "Request failed",
+        timestamp,
       };
     }
 
@@ -174,9 +208,9 @@ function normalizeResponse(body, statusCode) {
       return {
         success: !isError,
         statusCode: statusCode,
-        ...body,  // Preserve all properties including custom keys
-        error: isError ? (body.error || 'Request failed') : null,
-        timestamp
+        ...body, // Preserve all properties including custom keys
+        error: isError ? body.error || "Request failed" : null,
+        timestamp,
       };
     }
 
@@ -186,19 +220,19 @@ function normalizeResponse(body, statusCode) {
       statusCode: statusCode,
       items: items,
       pagination: body.pagination,
-      error: isError ? (body.error || 'Request failed') : null,
-      timestamp
+      error: isError ? body.error || "Request failed" : null,
+      timestamp,
     };
   }
 
   // Single object response (including falsy values like 0, false, "")
-  if ('data' in body && !body?.success && !Array.isArray(body.data)) {
+  if ("data" in body && !body?.success && !Array.isArray(body.data)) {
     return {
       success: !isError,
       statusCode: statusCode,
       data: body.data,
-      error: isError ? (body.error || 'Request failed') : null,
-      timestamp
+      error: isError ? body.error || "Request failed" : null,
+      timestamp,
     };
   }
 
@@ -207,14 +241,21 @@ function normalizeResponse(body, statusCode) {
     return {
       success: false,
       statusCode: statusCode,
-      error: body?.error || body?.message || 'Request failed',
-      timestamp
+      error: body?.error || body?.message || "Request failed",
+      timestamp,
     };
   }
 
   // Before wrapping in data, check for responses with custom array keys (signals, patterns, etc.)
   // to preserve their structure instead of losing them in a data wrapper
-  const customArrayKeys = ['signals', 'patterns', 'records', 'results', 'transactions', 'events'];
+  const customArrayKeys = [
+    "signals",
+    "patterns",
+    "records",
+    "results",
+    "transactions",
+    "events",
+  ];
   for (const key of customArrayKeys) {
     if (Array.isArray(body?.[key])) {
       // Return as-is to preserve the custom key structure
@@ -222,8 +263,8 @@ function normalizeResponse(body, statusCode) {
         success: !isError,
         statusCode: statusCode,
         ...body,
-        error: isError ? (body.error || 'Request failed') : null,
-        timestamp
+        error: isError ? body.error || "Request failed" : null,
+        timestamp,
       };
     }
   }
@@ -233,8 +274,8 @@ function normalizeResponse(body, statusCode) {
     success: !isError,
     statusCode: statusCode,
     data: body || null,
-    error: isError ? (body.error || 'Request failed') : null,
-    timestamp
+    error: isError ? body.error || "Request failed" : null,
+    timestamp,
   };
 }
 
@@ -252,6 +293,6 @@ function normalizePagination(body) {
     total: body?.total || 0,
     page: body?.page || 1,
     hasNext: false,
-    hasPrev: false
+    hasPrev: false,
   };
 }

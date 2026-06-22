@@ -23,8 +23,10 @@ class AlpacaService {
       keyId: apiKey,
       secretKey: apiSecret,
       paper: isPaper,
-      baseUrl: isPaper ? 'https://paper-api.alpaca.markets' : 'https://api.alpaca.markets',
-      dataBaseUrl: 'https://data.alpaca.markets',
+      baseUrl: isPaper
+        ? "https://paper-api.alpaca.markets"
+        : "https://api.alpaca.markets",
+      dataBaseUrl: "https://data.alpaca.markets",
       usePolygon: false, // Use Alpaca data instead of Polygon
     });
 
@@ -87,9 +89,17 @@ class AlpacaService {
     } catch (error) {
       console.error("Alpaca account fetch error:", error.message);
       // Check if it's a 401 (authentication failure)
-      if (error.status === 401 || error.message.includes('401') || error.message.includes('Unauthorized')) {
-        console.error("⚠️ CRITICAL: Alpaca API returned 401 Unauthorized - API credentials may be invalid or expired");
-        console.error("⚠️ Please verify ALPACA_API_KEY and ALPACA_API_SECRET in environment variables");
+      if (
+        error.status === 401 ||
+        error.message.includes("401") ||
+        error.message.includes("Unauthorized")
+      ) {
+        console.error(
+          "⚠️ CRITICAL: Alpaca API returned 401 Unauthorized - API credentials may be invalid or expired"
+        );
+        console.error(
+          "⚠️ Please verify ALPACA_API_KEY and ALPACA_API_SECRET in environment variables"
+        );
       }
       throw new Error(`Failed to fetch account information: ${error.message}`);
     }
@@ -108,12 +118,16 @@ class AlpacaService {
         // CRITICAL: If Alpaca returns incomplete position data, averageEntryPrice may be null/undefined.
         // Never default to 0 — that creates a fraudulent $0 cost basis and ruins P&L calculations.
         // Use null instead so callers can detect and handle the incomplete data.
-        const avgEntryPrice = position.avg_entry_price !== null && position.avg_entry_price !== undefined
-          ? parseFloat(position.avg_entry_price)
-          : null;
+        const avgEntryPrice =
+          position.avg_entry_price !== null &&
+          position.avg_entry_price !== undefined
+            ? parseFloat(position.avg_entry_price)
+            : null;
 
         if (avgEntryPrice === null) {
-          console.warn(`⚠️  Alpaca returned incomplete position data for ${position.symbol}: missing avg_entry_price`);
+          console.warn(
+            `⚠️  Alpaca returned incomplete position data for ${position.symbol}: missing avg_entry_price`
+          );
         }
 
         return {
@@ -142,9 +156,17 @@ class AlpacaService {
     } catch (error) {
       console.error("Alpaca positions fetch error:", error.message);
       // Check if it's a 401 (authentication failure)
-      if (error.status === 401 || error.message.includes('401') || error.message.includes('Unauthorized')) {
-        console.error("⚠️ CRITICAL: Alpaca API returned 401 Unauthorized - API credentials may be invalid or expired");
-        console.error("⚠️ Please verify ALPACA_API_KEY and ALPACA_API_SECRET in environment variables");
+      if (
+        error.status === 401 ||
+        error.message.includes("401") ||
+        error.message.includes("Unauthorized")
+      ) {
+        console.error(
+          "⚠️ CRITICAL: Alpaca API returned 401 Unauthorized - API credentials may be invalid or expired"
+        );
+        console.error(
+          "⚠️ Please verify ALPACA_API_KEY and ALPACA_API_SECRET in environment variables"
+        );
       }
       throw new Error(`Failed to fetch positions: ${error.message}`);
     }
@@ -161,7 +183,7 @@ class AlpacaService {
       // Only pass required parameters to avoid 422 errors
       const portfolio = await this.client.getPortfolioHistory({
         period: period,
-        timeframe: timeframe
+        timeframe: timeframe,
       });
 
       if (!portfolio.timestamp || !portfolio.equity) {
@@ -179,15 +201,19 @@ class AlpacaService {
               .split("T")[0],
             equity: parseFloat(portfolio.equity[i]),
             // CRITICAL: Use null for missing data, not fake 0
-            profitLoss: portfolio.profit_loss && portfolio.profit_loss[i] !== null
-              ? parseFloat(portfolio.profit_loss[i])
-              : null,
-            profitLossPercent: portfolio.profit_loss_pct && portfolio.profit_loss_pct[i] !== null
-              ? parseFloat(portfolio.profit_loss_pct[i])
-              : null,
-            baseValue: portfolio.base_value !== null && portfolio.base_value !== undefined
-              ? parseFloat(portfolio.base_value)
-              : null,
+            profitLoss:
+              portfolio.profit_loss && portfolio.profit_loss[i] !== null
+                ? parseFloat(portfolio.profit_loss[i])
+                : null,
+            profitLossPercent:
+              portfolio.profit_loss_pct && portfolio.profit_loss_pct[i] !== null
+                ? parseFloat(portfolio.profit_loss_pct[i])
+                : null,
+            baseValue:
+              portfolio.base_value !== null &&
+              portfolio.base_value !== undefined
+                ? parseFloat(portfolio.base_value)
+                : null,
           });
         }
       }
@@ -212,7 +238,6 @@ class AlpacaService {
         page_size: pageSize,
       };
 
-
       const activities = await this.client.sendRequest(
         `/v2/account/activities`,
         queryParams,
@@ -220,15 +245,15 @@ class AlpacaService {
         "GET"
       );
 
-
       return (activities || []).map((activity) => ({
         id: activity.id,
         activityType: activity.activity_type,
         date: activity.date,
         // CRITICAL: Only return real net_amount from Alpaca, never synthetic $0
-        netAmount: activity.net_amount !== null && activity.net_amount !== undefined
-          ? parseFloat(activity.net_amount)
-          : null,
+        netAmount:
+          activity.net_amount !== null && activity.net_amount !== undefined
+            ? parseFloat(activity.net_amount)
+            : null,
         symbol: activity.symbol,
         qty: activity.qty ? parseFloat(activity.qty) : null,
         price: activity.price ? parseFloat(activity.price) : null,
@@ -496,7 +521,9 @@ class AlpacaService {
         return null;
       }
 
-        console.log(` Quote fetched for ${symbol}: bid=${quote.BidPrice}, ask=${quote.AskPrice}`);
+      console.log(
+        ` Quote fetched for ${symbol}: bid=${quote.BidPrice}, ask=${quote.AskPrice}`
+      );
 
       return {
         symbol: symbol,
@@ -534,7 +561,9 @@ class AlpacaService {
         return null;
       }
 
-        console.log(` Trade fetched for ${symbol}: price=${trade.Price}, size=${trade.Size}`);
+      console.log(
+        ` Trade fetched for ${symbol}: price=${trade.Price}, size=${trade.Size}`
+      );
 
       return {
         symbol: symbol,
@@ -585,7 +614,6 @@ class AlpacaService {
         return [];
       }
 
-
       return bars.bars.map((bar) => ({
         symbol: symbol,
         timestamp: bar.Timestamp,
@@ -619,7 +647,9 @@ class AlpacaService {
 
       const clock = await this.client.getClock();
 
-      console.log(` Market clock fetched: ${clock.is_open ? "OPEN" : "CLOSED"}`);
+      console.log(
+        ` Market clock fetched: ${clock.is_open ? "OPEN" : "CLOSED"}`
+      );
 
       return {
         timestamp: clock.timestamp,
@@ -711,9 +741,15 @@ class AlpacaService {
       // Handle both object and individual parameter calling conventions
       let symbol, qty, orderSide, orderType, orderLimitPrice;
 
-      if (typeof symbolOrParams === 'object') {
+      if (typeof symbolOrParams === "object") {
         // Object-based parameters
-        ({ symbol, qty, side: orderSide, type: orderType, limit_price: orderLimitPrice } = symbolOrParams);
+        ({
+          symbol,
+          qty,
+          side: orderSide,
+          type: orderType,
+          limit_price: orderLimitPrice,
+        } = symbolOrParams);
         quantity = qty;
         side = orderSide;
         type = orderType || "market";
@@ -765,9 +801,10 @@ class AlpacaService {
         status: order.status,
         createdAt: order.submitted_at,
         // CRITICAL: Only return real filled_qty from Alpaca, never synthetic 0
-        filledQty: order.filled_qty !== null && order.filled_qty !== undefined
-          ? parseFloat(order.filled_qty)
-          : null,
+        filledQty:
+          order.filled_qty !== null && order.filled_qty !== undefined
+            ? parseFloat(order.filled_qty)
+            : null,
         filledAvgPrice: order.filled_avg_price
           ? parseFloat(order.filled_avg_price)
           : null,
@@ -788,14 +825,16 @@ class AlpacaService {
       if (options.limit) queryParams.limit = options.limit;
       if (options.nested) queryParams.nested = options.nested;
 
-
       // Try to use the SDK method first if available
       let orders = [];
       try {
-        if (this.client.getOrders && typeof this.client.getOrders === 'function') {
+        if (
+          this.client.getOrders &&
+          typeof this.client.getOrders === "function"
+        ) {
           orders = await this.client.getOrders(options);
         } else {
-          throw new Error('getOrders not available on SDK');
+          throw new Error("getOrders not available on SDK");
         }
       } catch (sdkError) {
         // Fallback to REST API call for orders
@@ -816,9 +855,10 @@ class AlpacaService {
         status: order.status,
         createdAt: order.submitted_at,
         // CRITICAL: Only return real filled_qty from Alpaca, never synthetic 0
-        filledQty: order.filled_qty !== null && order.filled_qty !== undefined
-          ? parseFloat(order.filled_qty)
-          : null,
+        filledQty:
+          order.filled_qty !== null && order.filled_qty !== undefined
+            ? parseFloat(order.filled_qty)
+            : null,
         filledAvgPrice: order.filled_avg_price
           ? parseFloat(order.filled_avg_price)
           : null,
@@ -870,17 +910,44 @@ class AlpacaService {
         symbol: position.symbol,
         qty: parseFloat(position.qty),
         side: position.side,
-        market_value: position.market_value !== null && position.market_value !== undefined ? parseFloat(position.market_value) : null,
-        cost_basis: position.cost_basis !== null && position.cost_basis !== undefined ? parseFloat(position.cost_basis) : null,
-        unrealized_pl: position.unrealized_pl !== null && position.unrealized_pl !== undefined ? parseFloat(position.unrealized_pl) : null,
-        unrealized_plpc: position.unrealized_plpc !== null && position.unrealized_plpc !== undefined ? parseFloat(position.unrealized_plpc) : null,
-        current_price: position.current_price !== null && position.current_price !== undefined ? parseFloat(position.current_price) : null,
-        lastday_price: position.lastday_price !== null && position.lastday_price !== undefined ? parseFloat(position.lastday_price) : null,
-        change_today: position.change_today !== null && position.change_today !== undefined ? parseFloat(position.change_today) : null,
+        market_value:
+          position.market_value !== null && position.market_value !== undefined
+            ? parseFloat(position.market_value)
+            : null,
+        cost_basis:
+          position.cost_basis !== null && position.cost_basis !== undefined
+            ? parseFloat(position.cost_basis)
+            : null,
+        unrealized_pl:
+          position.unrealized_pl !== null &&
+          position.unrealized_pl !== undefined
+            ? parseFloat(position.unrealized_pl)
+            : null,
+        unrealized_plpc:
+          position.unrealized_plpc !== null &&
+          position.unrealized_plpc !== undefined
+            ? parseFloat(position.unrealized_plpc)
+            : null,
+        current_price:
+          position.current_price !== null &&
+          position.current_price !== undefined
+            ? parseFloat(position.current_price)
+            : null,
+        lastday_price:
+          position.lastday_price !== null &&
+          position.lastday_price !== undefined
+            ? parseFloat(position.lastday_price)
+            : null,
+        change_today:
+          position.change_today !== null && position.change_today !== undefined
+            ? parseFloat(position.change_today)
+            : null,
       };
     } catch (error) {
       console.error("Error fetching position:", error.message);
-      throw new Error(`Failed to fetch position for ${symbol}: ${error.message}`);
+      throw new Error(
+        `Failed to fetch position for ${symbol}: ${error.message}`
+      );
     }
   }
 
@@ -931,7 +998,9 @@ class AlpacaService {
       };
     } catch (error) {
       console.error("Error fetching last trade:", error.message);
-      throw new Error(`Failed to fetch last trade for ${symbol}: ${error.message}`);
+      throw new Error(
+        `Failed to fetch last trade for ${symbol}: ${error.message}`
+      );
     }
   }
 
@@ -997,8 +1066,12 @@ class AlpacaService {
       // ⛔ CRITICAL FIX: NO FAKE MARKET DATA EVER
       // This is a production system handling real money
       // Never return mock prices or fake data
-      console.error(` PRODUCTION API CALL TO UNIMPLEMENTED ENDPOINT: ${provider}${endpoint}`);
-      console.error(` This should not happen - real API should be used in production`);
+      console.error(
+        ` PRODUCTION API CALL TO UNIMPLEMENTED ENDPOINT: ${provider}${endpoint}`
+      );
+      console.error(
+        ` This should not happen - real API should be used in production`
+      );
       console.error(` Returning error instead of fake data`);
 
       return {
@@ -1007,7 +1080,8 @@ class AlpacaService {
         provider: provider,
         endpoint: endpoint,
         rateLimited: false,
-        warning: "This request would have returned FAKE DATA - prevented for data integrity"
+        warning:
+          "This request would have returned FAKE DATA - prevented for data integrity",
       };
     } catch (error) {
       console.error(

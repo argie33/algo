@@ -177,7 +177,9 @@ describe("Authentication Security Tests", () => {
       });
 
       const concurrentRequests = Array.from({ length: 5 }, () =>
-        request(app).get("/api/health").set("Authorization", `Bearer ${validToken}`)
+        request(app)
+          .get("/api/health")
+          .set("Authorization", `Bearer ${validToken}`)
       );
 
       const responses = await Promise.all(concurrentRequests);
@@ -233,6 +235,7 @@ describe("Authentication Security Tests", () => {
           apiSecret: mockApiKey.secret,
         });
 
+      console.log(
         "Security test response body:",
         JSON.stringify(response.body, null, 2)
       );

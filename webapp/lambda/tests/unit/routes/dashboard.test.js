@@ -9,7 +9,11 @@ jest.mock("../../../utils/database", () => ({
 }));
 
 // Import mocked functions AFTER jest.mock
-const { query, closeDatabase, initializeDatabase } = require("../../../utils/database");
+const {
+  query,
+  closeDatabase,
+  initializeDatabase,
+} = require("../../../utils/database");
 
 describe("Dashboard Routes Unit Tests", () => {
   let app;
@@ -20,11 +24,15 @@ describe("Dashboard Routes Unit Tests", () => {
       if (queryText.includes("SELECT") && queryText.includes("symbol")) {
         return Promise.resolve({
           rows: [
-            { symbol: "AAPL", value: 150.00, change: 2.50, change_percent: 1.69 },
-            { symbol: "GOOGL", value: 2700.00, change: -5.25, change_percent: -0.19 }
-          ]
+            { symbol: "AAPL", value: 150.0, change: 2.5, change_percent: 1.69 },
+            {
+              symbol: "GOOGL",
+              value: 2700.0,
+              change: -5.25,
+              change_percent: -0.19,
+            },
+          ],
         });
-
       }
       // Mock other queries with empty results
       return Promise.resolve({ rows: [] });
@@ -46,9 +54,7 @@ describe("Dashboard Routes Unit Tests", () => {
   });
   describe("GET /dashboard/", () => {
     test("should return dashboard info", async () => {
-      const response = await request(app)
-        .get("/api/dashboard/")
-        .expect(200);
+      const response = await request(app).get("/api/dashboard/").expect(200);
       expect(response.body).toHaveProperty("success");
       expect(response.body).toHaveProperty("message");
       expect(response.body.message).toBe("Dashboard API - Ready");

@@ -44,8 +44,14 @@ describe("Scores Integration - Real Data Validation Routes - Real Data Validatio
       expect(response.body.data.stocks.length).toBeGreaterThan(100);
       expect(response.body).toHaveProperty("summary");
       expect(response.body).toHaveProperty("metadata");
-      expect(response.body.metadata).toHaveProperty("dataSource", "stock_scores_real_table");
-      expect(response.body.metadata).toHaveProperty("factorAnalysis", "seven_factor_scoring_system");
+      expect(response.body.metadata).toHaveProperty(
+        "dataSource",
+        "stock_scores_real_table"
+      );
+      expect(response.body.metadata).toHaveProperty(
+        "factorAnalysis",
+        "seven_factor_scoring_system"
+      );
     });
 
     test("should validate NO-FALLBACK policy - real data without fallback operators", async () => {
@@ -56,7 +62,7 @@ describe("Scores Integration - Real Data Validation Routes - Real Data Validatio
       expect(stocks.length).toBeGreaterThan(0);
 
       // Validate first 10 stocks - check for real data patterns
-      stocks.slice(0, Math.min(10, stocks.length)).forEach(stock => {
+      stocks.slice(0, Math.min(10, stocks.length)).forEach((stock) => {
         // NO-FALLBACK policy: these fields should exist
         expect(stock).toHaveProperty("symbol");
         expect(stock).toHaveProperty("composite_score");
@@ -72,15 +78,17 @@ describe("Scores Integration - Real Data Validation Routes - Real Data Validatio
           stock.momentum_score,
           stock.value_score,
           stock.quality_score,
-          stock.growth_score
+          stock.growth_score,
         ];
 
         // At least SOME scores should be real numbers (not all null)
-        const hasRealScores = scoresArray.some(s => s !== null && typeof s === "number");
+        const hasRealScores = scoresArray.some(
+          (s) => s !== null && typeof s === "number"
+        );
         expect(hasRealScores).toBe(true);
 
         // Scores that ARE numbers should be in valid range (0-100)
-        scoresArray.forEach(score => {
+        scoresArray.forEach((score) => {
           if (score !== null) {
             expect(typeof score).toBe("number");
             expect(score).toBeGreaterThanOrEqual(0);
@@ -98,7 +106,7 @@ describe("Scores Integration - Real Data Validation Routes - Real Data Validatio
       let stocksWithGrowthData = 0;
       let stocksChecked = 0;
 
-      stocks.slice(0, Math.min(50, stocks.length)).forEach(stock => {
+      stocks.slice(0, Math.min(50, stocks.length)).forEach((stock) => {
         stocksChecked++;
         if (stock.growth_inputs) {
           // Loader schema requires these fields
@@ -106,8 +114,10 @@ describe("Scores Integration - Real Data Validation Routes - Real Data Validatio
           expect(stock.growth_inputs).toHaveProperty("eps_growth_3y_cagr");
 
           // Count stocks with actual growth data
-          if (stock.growth_inputs.revenue_growth_3y_cagr !== null ||
-              stock.growth_inputs.eps_growth_3y_cagr !== null) {
+          if (
+            stock.growth_inputs.revenue_growth_3y_cagr !== null ||
+            stock.growth_inputs.eps_growth_3y_cagr !== null
+          ) {
             stocksWithGrowthData++;
           }
         }
@@ -123,15 +133,17 @@ describe("Scores Integration - Real Data Validation Routes - Real Data Validatio
 
       // Check for stocks with quality data from loaders
       let stocksWithQualityData = 0;
-      stocks.slice(0, Math.min(50, stocks.length)).forEach(stock => {
+      stocks.slice(0, Math.min(50, stocks.length)).forEach((stock) => {
         if (stock.quality_inputs) {
           // Loader schema requires these fields
           expect(stock.quality_inputs).toHaveProperty("debt_to_equity");
           expect(stock.quality_inputs).toHaveProperty("fcf_to_net_income");
 
           // Count stocks with actual quality data
-          if (stock.quality_inputs.debt_to_equity !== null ||
-              stock.quality_inputs.fcf_to_net_income !== null) {
+          if (
+            stock.quality_inputs.debt_to_equity !== null ||
+            stock.quality_inputs.fcf_to_net_income !== null
+          ) {
             stocksWithQualityData++;
           }
         }
@@ -165,7 +177,7 @@ describe("Scores Integration - Real Data Validation Routes - Real Data Validatio
 
       // If search found results, they should match search term
       if (response.body.data.stocks.length > 0) {
-        response.body.data.stocks.forEach(stock => {
+        response.body.data.stocks.forEach((stock) => {
           expect(stock.symbol).toContain("AAPL");
         });
       }
@@ -182,9 +194,13 @@ describe("Scores Integration - Real Data Validation Routes - Real Data Validatio
       if (stocks.length > 1) {
         for (let i = 1; i < stocks.length; i++) {
           // Only compare if both scores are not null
-          if (stocks[i-1].composite_score !== null && stocks[i].composite_score !== null) {
-            expect(stocks[i-1].composite_score)
-              .toBeGreaterThanOrEqual(stocks[i].composite_score);
+          if (
+            stocks[i - 1].composite_score !== null &&
+            stocks[i].composite_score !== null
+          ) {
+            expect(stocks[i - 1].composite_score).toBeGreaterThanOrEqual(
+              stocks[i].composite_score
+            );
           }
         }
       }
@@ -201,8 +217,14 @@ describe("Scores Integration - Real Data Validation Routes - Real Data Validatio
         expect(response.body.data).toHaveProperty("symbol", "AAPL");
         expect(response.body.data).toHaveProperty("composite_score");
         expect(response.body).toHaveProperty("metadata");
-        expect(response.body.metadata).toHaveProperty("dataSource", "stock_scores_real_table");
-        expect(response.body.metadata).toHaveProperty("factorAnalysis", "seven_factor_scoring_system");
+        expect(response.body.metadata).toHaveProperty(
+          "dataSource",
+          "stock_scores_real_table"
+        );
+        expect(response.body.metadata).toHaveProperty(
+          "factorAnalysis",
+          "seven_factor_scoring_system"
+        );
 
         // Validate seven factor scores
         expect(response.body.data).toHaveProperty("momentum_score");
@@ -215,12 +237,20 @@ describe("Scores Integration - Real Data Validation Routes - Real Data Validatio
 
         // Validate factor inputs are present and have real data
         if (response.body.data.growth_inputs) {
-          expect(response.body.data.growth_inputs).toHaveProperty("revenue_growth_3y_cagr");
-          expect(response.body.data.growth_inputs).toHaveProperty("eps_growth_3y_cagr");
+          expect(response.body.data.growth_inputs).toHaveProperty(
+            "revenue_growth_3y_cagr"
+          );
+          expect(response.body.data.growth_inputs).toHaveProperty(
+            "eps_growth_3y_cagr"
+          );
         }
         if (response.body.data.quality_inputs) {
-          expect(response.body.data.quality_inputs).toHaveProperty("debt_to_equity");
-          expect(response.body.data.quality_inputs).toHaveProperty("fcf_to_net_income");
+          expect(response.body.data.quality_inputs).toHaveProperty(
+            "debt_to_equity"
+          );
+          expect(response.body.data.quality_inputs).toHaveProperty(
+            "fcf_to_net_income"
+          );
         }
       } else if (response.status === 404) {
         // Stock might not be in database yet

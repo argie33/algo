@@ -90,7 +90,10 @@ describe("Risk Routes Integration Tests", () => {
       expect(response.body).toHaveProperty("data");
 
       // Since test user likely has no holdings, expect empty portfolio response
-      expect(response.body.data).toHaveProperty("message", "No holdings found for risk analysis");
+      expect(response.body.data).toHaveProperty(
+        "message",
+        "No holdings found for risk analysis"
+      );
       expect(response.body.data).toHaveProperty("holdings_count", 0);
       expect(response.body.data).toHaveProperty("risk_metrics", null);
     });
@@ -131,7 +134,6 @@ describe("Risk Routes Integration Tests", () => {
       expect(response.status).toBe(200);
       expect(response.body).toHaveProperty("success", true);
     });
-
   });
 
   describe("Authentication middleware", () => {
@@ -163,7 +165,6 @@ describe("Risk Routes Integration Tests", () => {
       );
     });
   });
-
 
   describe("Response format", () => {
     test("should return consistent JSON response", async () => {

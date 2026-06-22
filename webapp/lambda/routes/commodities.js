@@ -27,10 +27,14 @@ try {
   ({ query, safeFloat, safeInt, safeFixed } = require("../utils/database"));
 } catch (error) {
   databaseInitError = error;
-  console.error(" CRITICAL: Database service failed to load in commodities routes:", error.message);
+  console.error(
+    " CRITICAL: Database service failed to load in commodities routes:",
+    error.message
+  );
   // Provide fallback functions that return null for missing data
-  safeFloat = (val) => val !== null && val !== undefined ? parseFloat(val) : null;
-  safeInt = (val) => val !== null && val !== undefined ? parseInt(val) : null;
+  safeFloat = (val) =>
+    val !== null && val !== undefined ? parseFloat(val) : null;
+  safeInt = (val) => (val !== null && val !== undefined ? parseInt(val) : null);
   safeFixed = (val, decimals) => {
     if (val === null || val === undefined) return null;
     const num = parseFloat(val);
@@ -38,16 +42,30 @@ try {
   };
 }
 
-const { sendSuccess, sendError, sendPaginated, sendBadRequest, sendNotFound } = require('../utils/apiResponse');
-const logger = require('../utils/logger');
-const paginationConfig = require('../config/pagination');
-const { validateQueryResult, validateAndCoerceRows, extractCount } = require('../utils/responseValidation');
+const {
+  sendSuccess,
+  sendError,
+  sendPaginated,
+  sendBadRequest,
+  sendNotFound,
+} = require("../utils/apiResponse");
+const logger = require("../utils/logger");
+const paginationConfig = require("../config/pagination");
+const {
+  validateQueryResult,
+  validateAndCoerceRows,
+  extractCount,
+} = require("../utils/responseValidation");
 
 // Helper function to check database availability before making queries
 function checkDatabaseAvailable(res) {
   if (databaseInitError) {
-    console.error('⚠️ Database not available - returning error response');
-    return sendError(res, "Database service unavailable - cannot retrieve commodities data", 503);
+    console.error("⚠️ Database not available - returning error response");
+    return sendError(
+      res,
+      "Database service unavailable - cannot retrieve commodities data",
+      503
+    );
   }
   return null;
 }
@@ -62,31 +80,38 @@ router.get("/", async (req, res) => {
   if (dbError) return dbError;
 
   try {
-    const { limit, offset } = paginationConfig.sanitize(req.query.limit, req.query.offset, 'commodities');
+    const { limit, offset } = paginationConfig.sanitize(
+      req.query.limit,
+      req.query.offset,
+      "commodities"
+    );
 
     const [result, countResult] = await Promise.all([
-      query(`
+      query(
+        `
         SELECT id, category, symbols
         FROM commodity_categories
         ORDER BY category
         LIMIT $1 OFFSET $2
-      `, [limit, offset]),
-      query("SELECT COUNT(*) as total FROM commodity_categories")
+      `,
+        [limit, offset]
+      ),
+      query("SELECT COUNT(*) as total FROM commodity_categories"),
     ]);
     validateQueryResult(result, { requireRows: false });
-    const total = extractCount(countResult, 'total');
+    const total = extractCount(countResult, "total");
 
     const validated = validateAndCoerceRows(result, {
-      id: { type: 'int' },
-      category: { type: 'string' },
-      symbols: { type: 'string' }
+      id: { type: "int" },
+      category: { type: "string" },
+      symbols: { type: "string" },
     });
 
     return sendPaginated(res, validated, {
       limit,
       offset,
       total,
-      page: Math.ceil((offset / limit) + 1)
+      page: Math.ceil(offset / limit + 1),
     });
   } catch (error) {
     console.error("Error fetching commodities:", error.message);
@@ -119,19 +144,27 @@ router.get("/categories", async (req, res) => {
     `);
     validateQueryResult(result, { requireRows: false });
 
-    const categories = result.rows.map(row => ({
+    const categories = result.rows.map((row) => ({
       symbol: row.symbol,
       category: row.category,
       subcategory: row.subcategory,
       unit: row.unit,
       exchange: row.exchange,
-      name: row.category.charAt(0).toUpperCase() + row.category.slice(1)
+      name: row.category.charAt(0).toUpperCase() + row.category.slice(1),
     }));
 
-    return sendPaginated(res, categories, { limit: categories.length, offset: 0, total: categories.length });
+    return sendPaginated(res, categories, {
+      limit: categories.length,
+      offset: 0,
+      total: categories.length,
+    });
   } catch (error) {
     console.error(" Error fetching commodity categories:", error.message);
-    return sendError(res, "Commodity data not available. Requires commodity tables and data loader.", 503);
+    return sendError(
+      res,
+      "Commodity data not available. Requires commodity tables and data loader.",
+      503
+    );
   }
 });
 
@@ -147,7 +180,8 @@ router.get("/full/:symbol", async (req, res) => {
 
   try {
     // Fetch price data
-    const priceResult = await query(`
+    const priceResult = await query(
+      `
       SELECT
         cp.symbol,
         cp.name,
@@ -165,7 +199,9 @@ router.get("/full/:symbol", async (req, res) => {
       FROM commodity_prices cp
       LEFT JOIN commodity_categories cc ON cp.symbol = cc.symbol
       WHERE cp.symbol = $1
-    `, [symbol]);
+    `,
+      [symbol]
+    );
     validateQueryResult(priceResult, { requireRows: false });
 
     if (priceResult.rows.length === 0) {
@@ -175,7 +211,8 @@ router.get("/full/:symbol", async (req, res) => {
     const priceData = priceResult.rows[0];
 
     // Fetch latest COT data if available
-    const cotResult = await query(`
+    const cotResult = await query(
+      `
       SELECT
         commercial_long,
         commercial_short,
@@ -189,31 +226,39 @@ router.get("/full/:symbol", async (req, res) => {
       WHERE symbol = $1
       ORDER BY report_date DESC
       LIMIT 1
-    `, [symbol]);
+    `,
+      [symbol]
+    );
     validateQueryResult(cotResult, { requireRows: false });
 
-    const cotData = cotResult.rows.length > 0 ? {
-      reportDate: cotResult.rows[0].report_date,
-      commercial: {
-        long: safeInt(cotResult.rows[0].commercial_long),
-        short: safeInt(cotResult.rows[0].commercial_short),
-        net: safeInt(cotResult.rows[0].commercial_net)
-      },
-      nonCommercial: {
-        long: safeInt(cotResult.rows[0].non_commercial_long),
-        short: safeInt(cotResult.rows[0].non_commercial_short),
-        net: safeInt(cotResult.rows[0].non_commercial_net)
-      },
-      openInterest: safeInt(cotResult.rows[0].open_interest)
-    } : null;
+    const cotData =
+      cotResult.rows.length > 0
+        ? {
+            reportDate: cotResult.rows[0].report_date,
+            commercial: {
+              long: safeInt(cotResult.rows[0].commercial_long),
+              short: safeInt(cotResult.rows[0].commercial_short),
+              net: safeInt(cotResult.rows[0].commercial_net),
+            },
+            nonCommercial: {
+              long: safeInt(cotResult.rows[0].non_commercial_long),
+              short: safeInt(cotResult.rows[0].non_commercial_short),
+              net: safeInt(cotResult.rows[0].non_commercial_net),
+            },
+            openInterest: safeInt(cotResult.rows[0].open_interest),
+          }
+        : null;
 
     // Fetch seasonality
-    const seasonalityResult = await query(`
+    const seasonalityResult = await query(
+      `
       SELECT month, CAST(avg_return AS FLOAT) as avg_return, CAST(win_rate AS FLOAT) as win_rate
       FROM commodity_seasonality
       WHERE symbol = $1
       ORDER BY month
-    `, [symbol]);
+    `,
+      [symbol]
+    );
     validateQueryResult(seasonalityResult, { requireRows: false });
 
     return sendSuccess(res, {
@@ -231,11 +276,11 @@ router.get("/full/:symbol", async (req, res) => {
       exchange: priceData.exchange,
       updatedAt: priceData.updated_at,
       cot: cotData,
-      seasonality: seasonalityResult.rows.map(row => ({
+      seasonality: seasonalityResult.rows.map((row) => ({
         month: safeInt(row.month),
         avgReturn: safeFixed(row.avg_return, 4),
-        winRate: safeFixed(row.win_rate, 1)
-      }))
+        winRate: safeFixed(row.win_rate, 1),
+      })),
     });
   } catch (error) {
     console.error(" Error fetching full commodity data:", error.message);
@@ -275,7 +320,7 @@ router.get("/prices", async (req, res) => {
     `;
 
     const params = [];
-    if (category && category !== 'all') {
+    if (category && category !== "all") {
       sql += ` WHERE cc.category = $1`;
       params.push(category);
     }
@@ -286,7 +331,7 @@ router.get("/prices", async (req, res) => {
     const result = await query(sql, params);
     validateQueryResult(result, { requireRows: false });
 
-    const prices = result.rows.map(row => ({
+    const prices = result.rows.map((row) => ({
       symbol: row.symbol,
       name: row.name,
       price: safeFloat(row.price),
@@ -303,13 +348,21 @@ router.get("/prices", async (req, res) => {
       unit: row.unit,
       subcategory: row.subcategory,
       exchange: row.exchange,
-      updatedAt: row.updated_at
+      updatedAt: row.updated_at,
     }));
 
-    return sendPaginated(res, prices, { limit: prices.length, offset: 0, total: prices.length });
+    return sendPaginated(res, prices, {
+      limit: prices.length,
+      offset: 0,
+      total: prices.length,
+    });
   } catch (error) {
     console.error(" Error fetching commodity prices:", error.message);
-    return sendError(res, "Commodity data not available. Requires commodity tables and data loader.", 503);
+    return sendError(
+      res,
+      "Commodity data not available. Requires commodity tables and data loader.",
+      503
+    );
   }
 });
 
@@ -319,9 +372,12 @@ router.get("/prices", async (req, res) => {
  */
 router.get("/summary", async (req, res) => {
   try {
-    return res.redirect(307, './market-summary');
+    return res.redirect(307, "./market-summary");
   } catch (error) {
-    logger.error('Error in /commodities/summary:', { error: error.message, stack: error.stack });
+    logger.error("Error in /commodities/summary:", {
+      error: error.message,
+      stack: error.stack,
+    });
     return sendError(res, error.message, 500);
   }
 });
@@ -336,8 +392,9 @@ router.get("/market-summary", async (req, res) => {
 
   try {
     // Parallelize 3 independent queries
-    const [pricesResult, totalVolumeResult, categoryResult] = await Promise.all([
-      query(`
+    const [pricesResult, totalVolumeResult, categoryResult] = await Promise.all(
+      [
+        query(`
         SELECT
           cp.symbol,
           cp.name,
@@ -348,11 +405,11 @@ router.get("/market-summary", async (req, res) => {
         LEFT JOIN commodity_categories cc ON cp.symbol = cc.symbol
         ORDER BY cp.updated_at DESC
       `),
-      query(`
+        query(`
         SELECT SUM(CAST(volume AS FLOAT)) as total
         FROM commodity_prices
       `),
-      query(`
+        query(`
         SELECT
           cc.category,
           AVG(CAST(cp.change_percent AS FLOAT)) as avg_change_1d,
@@ -360,8 +417,9 @@ router.get("/market-summary", async (req, res) => {
         FROM commodity_categories cc
         LEFT JOIN commodity_prices cp ON cc.symbol = cp.symbol
         GROUP BY cc.category
-      `)
-    ]);
+      `),
+      ]
+    );
     validateQueryResult(pricesResult, { requireRows: false });
     validateQueryResult(totalVolumeResult, { requireRows: false });
     validateQueryResult(categoryResult, { requireRows: false });
@@ -371,42 +429,54 @@ router.get("/market-summary", async (req, res) => {
 
     // Get top gainers and losers
     const gainers = prices
-      .sort((a, b) => (parseFloat(b.change_percent) || 0) - (parseFloat(a.change_percent) || 0))
+      .sort(
+        (a, b) =>
+          (parseFloat(b.change_percent) || 0) -
+          (parseFloat(a.change_percent) || 0)
+      )
       .slice(0, 5);
 
     const losers = prices
-      .sort((a, b) => (parseFloat(a.change_percent) || 0) - (parseFloat(b.change_percent) || 0))
+      .sort(
+        (a, b) =>
+          (parseFloat(a.change_percent) || 0) -
+          (parseFloat(b.change_percent) || 0)
+      )
       .slice(0, 5);
 
-    const sectors = categoryResult.rows.map(row => ({
+    const sectors = categoryResult.rows.map((row) => ({
       name: row.category.charAt(0).toUpperCase() + row.category.slice(1),
       category: row.category,
       change1d: safeFixed(row.avg_change_1d, 2),
-      trend: (parseFloat(row.avg_change_1d) || 0) >= 0 ? "up" : "down"
+      trend: (parseFloat(row.avg_change_1d) || 0) >= 0 ? "up" : "down",
     }));
 
     return sendSuccess(res, {
       overview: {
         activeContracts: prices.length,
-        totalVolume: safeInt(totalVolume.rows[0]?.total)
+        totalVolume: safeInt(totalVolume.rows[0]?.total),
       },
-      topGainers: gainers.map(p => ({
+      topGainers: gainers.map((p) => ({
         symbol: p.symbol,
         name: p.name,
         change: safeFixed(p.change_percent, 2),
-        price: safeFloat(p.price)
+        price: safeFloat(p.price),
       })),
-      topLosers: losers.map(p => ({
+      topLosers: losers.map((p) => ({
         symbol: p.symbol,
         name: p.name,
         change: safeFixed(p.change_percent, 2),
-        price: safeFloat(p.price)
+        price: safeFloat(p.price),
       })),
-      sectors: sectors
+      sectors: sectors,
     });
   } catch (error) {
     console.error(" Error fetching market summary:", error.message);
-    return sendError(res, "Commodity data not available. Requires commodity tables and data loader.", 503);
+    return sendError(
+      res,
+      "Commodity data not available. Requires commodity tables and data loader.",
+      503
+    );
   }
 });
 
@@ -422,7 +492,8 @@ router.get("/cot/:symbol", async (req, res) => {
   const { symbol } = req.params;
 
   try {
-    const result = await query(`
+    const result = await query(
+      `
       SELECT
         symbol,
         report_date,
@@ -437,7 +508,9 @@ router.get("/cot/:symbol", async (req, res) => {
       WHERE symbol = $1
       ORDER BY report_date DESC
       LIMIT 52
-    `, [symbol]);
+    `,
+      [symbol]
+    );
     validateQueryResult(result, { requireRows: false });
 
     if (result.rows.length === 0) {
@@ -446,19 +519,19 @@ router.get("/cot/:symbol", async (req, res) => {
 
     const cotHistory = result.rows
       .reverse() // Oldest to newest for chart
-      .map(row => ({
+      .map((row) => ({
         reportDate: row.report_date,
         commercial: {
           long: safeInt(row.commercial_long),
           short: safeInt(row.commercial_short),
-          net: safeInt(row.commercial_net)
+          net: safeInt(row.commercial_net),
         },
         nonCommercial: {
           long: safeInt(row.non_commercial_long),
           short: safeInt(row.non_commercial_short),
-          net: safeInt(row.non_commercial_net)
+          net: safeInt(row.non_commercial_net),
         },
-        openInterest: safeInt(row.open_interest)
+        openInterest: safeInt(row.open_interest),
       }));
 
     // Calculate sentiment based on latest report
@@ -467,11 +540,18 @@ router.get("/cot/:symbol", async (req, res) => {
     const nonCommercialNet = parseFloat(latest.non_commercial_net) || 0;
 
     // Sentiment: positive net = bullish, negative = bearish
-    const commercialSentiment = commercialNet > 0 ? "bullish" : commercialNet < 0 ? "bearish" : "neutral";
-    const speculatorSentiment = nonCommercialNet > 0 ? "bullish" : nonCommercialNet < 0 ? "bearish" : "neutral";
+    const commercialSentiment =
+      commercialNet > 0 ? "bullish" : commercialNet < 0 ? "bearish" : "neutral";
+    const speculatorSentiment =
+      nonCommercialNet > 0
+        ? "bullish"
+        : nonCommercialNet < 0
+          ? "bearish"
+          : "neutral";
 
     // Divergence: when commercial and speculator sentiments differ
-    const divergence = commercialSentiment !== speculatorSentiment ? "divergent" : "aligned";
+    const divergence =
+      commercialSentiment !== speculatorSentiment ? "divergent" : "aligned";
 
     // Get commodity name
     const nameResult = await query(
@@ -490,12 +570,16 @@ router.get("/cot/:symbol", async (req, res) => {
         speculatorSentiment: speculatorSentiment,
         divergence: divergence,
         latestCommercialNet: safeInt(latest.commercial_net),
-        latestSpeculatorNet: safeInt(latest.non_commercial_net)
-      }
+        latestSpeculatorNet: safeInt(latest.non_commercial_net),
+      },
     });
   } catch (error) {
     console.error(" Error fetching COT data:", error.message);
-    return sendError(res, "COT data not available. Requires cot_data table and data loader.", 503);
+    return sendError(
+      res,
+      "COT data not available. Requires cot_data table and data loader.",
+      503
+    );
   }
 });
 
@@ -510,7 +594,8 @@ router.get("/seasonality/:symbol", async (req, res) => {
   const { symbol } = req.params;
 
   try {
-    const result = await query(`
+    const result = await query(
+      `
       SELECT
         symbol,
         month,
@@ -521,16 +606,31 @@ router.get("/seasonality/:symbol", async (req, res) => {
       FROM commodity_seasonality
       WHERE symbol = $1
       ORDER BY month ASC
-    `, [symbol]);
+    `,
+      [symbol]
+    );
     validateQueryResult(result, { requireRows: false });
 
     if (result.rows.length === 0) {
-      return sendNotFound(res, `No seasonality data available for symbol: ${symbol}`);
+      return sendNotFound(
+        res,
+        `No seasonality data available for symbol: ${symbol}`
+      );
     }
 
     const monthNames = [
-      "January", "February", "March", "April", "May", "June",
-      "July", "August", "September", "October", "November", "December"
+      "January",
+      "February",
+      "March",
+      "April",
+      "May",
+      "June",
+      "July",
+      "August",
+      "September",
+      "October",
+      "November",
+      "December",
     ];
 
     // Get commodity name
@@ -540,23 +640,27 @@ router.get("/seasonality/:symbol", async (req, res) => {
     );
     validateQueryResult(nameResult, { requireRows: false });
 
-    const seasonality = result.rows.map(row => ({
+    const seasonality = result.rows.map((row) => ({
       month: safeInt(row.month),
       monthName: monthNames[safeInt(row.month) - 1],
       avgReturn: safeFixed(row.avg_return, 4),
       winRate: safeFixed(row.win_rate, 1),
       volatility: safeFixed(row.volatility, 4),
-      yearsData: safeInt(row.years_data)
+      yearsData: safeInt(row.years_data),
     }));
 
     return sendSuccess(res, {
       symbol: symbol,
       commodityName: nameResult.rows[0]?.name || symbol,
-      seasonality: seasonality
+      seasonality: seasonality,
     });
   } catch (error) {
     console.error(" Error fetching seasonality data:", error.message);
-    return sendError(res, "Seasonality data not available. Requires commodity_seasonality table and data loader.", 503);
+    return sendError(
+      res,
+      "Seasonality data not available. Requires commodity_seasonality table and data loader.",
+      503
+    );
   }
 });
 
@@ -595,7 +699,7 @@ router.get("/correlations", async (req, res) => {
     const result = await query(sql, [minCorrValue]);
     validateQueryResult(result, { requireRows: false });
 
-    const correlations = result.rows.map(row => {
+    const correlations = result.rows.map((row) => {
       const coeff = parseFloat(row.coefficient) || 0;
       let strength = "weak";
       if (Math.abs(coeff) > 0.7) strength = "strong";
@@ -608,18 +712,22 @@ router.get("/correlations", async (req, res) => {
         name2: row.name2,
         pair: `${row.name1} vs ${row.name2}`,
         coefficient: safeFixed(row.coefficient, 2),
-        strength: strength
+        strength: strength,
       };
     });
 
     return sendSuccess(res, {
       timeframe: timeframe,
       minCorrelation: minCorrelation,
-      correlations: correlations
+      correlations: correlations,
     });
   } catch (error) {
     console.error(" Error fetching correlations:", error.message);
-    return sendError(res, "Correlation data not available. Requires commodity_correlations table and data loader.", 503);
+    return sendError(
+      res,
+      "Correlation data not available. Requires commodity_correlations table and data loader.",
+      503
+    );
   }
 });
 
@@ -634,7 +742,8 @@ router.get("/technicals/:symbol", async (req, res) => {
   const { symbol } = req.params;
 
   try {
-    const result = await query(`
+    const result = await query(
+      `
       SELECT
         date,
         rsi,
@@ -653,35 +762,38 @@ router.get("/technicals/:symbol", async (req, res) => {
       WHERE symbol = $1
       ORDER BY date DESC
       LIMIT 252
-    `, [symbol]);
+    `,
+      [symbol]
+    );
     validateQueryResult(result, { requireRows: false });
 
-    const technicals = result.rows
-      .reverse()
-      .map(row => ({
-        date: row.date,
-        rsi: safeFixed(row.rsi, 2),
-        macd: safeFixed(row.macd, 4),
-        macdSignal: safeFixed(row.macd_signal, 4),
-        macdHist: safeFixed(row.macd_hist, 4),
-        sma20: safeFixed(row.sma_20, 2),
-        sma50: safeFixed(row.sma_50, 2),
-        sma200: safeFixed(row.sma_200, 2),
-        bbUpper: safeFixed(row.bb_upper, 2),
-        bbLower: safeFixed(row.bb_lower, 2),
-        bbPct: safeFixed(row.bb_pct, 2),
-        atr: safeFixed(row.atr, 4),
-        signal: row.signal
-      }));
+    const technicals = result.rows.reverse().map((row) => ({
+      date: row.date,
+      rsi: safeFixed(row.rsi, 2),
+      macd: safeFixed(row.macd, 4),
+      macdSignal: safeFixed(row.macd_signal, 4),
+      macdHist: safeFixed(row.macd_hist, 4),
+      sma20: safeFixed(row.sma_20, 2),
+      sma50: safeFixed(row.sma_50, 2),
+      sma200: safeFixed(row.sma_200, 2),
+      bbUpper: safeFixed(row.bb_upper, 2),
+      bbLower: safeFixed(row.bb_lower, 2),
+      bbPct: safeFixed(row.bb_pct, 2),
+      atr: safeFixed(row.atr, 4),
+      signal: row.signal,
+    }));
 
     if (technicals.length === 0) {
-      return sendNotFound(res, `No technical data available for symbol: ${symbol}`);
+      return sendNotFound(
+        res,
+        `No technical data available for symbol: ${symbol}`
+      );
     }
 
     return sendSuccess(res, {
       symbol: symbol,
       technicals: technicals,
-      latest: technicals[technicals.length - 1]
+      latest: technicals[technicals.length - 1],
     });
   } catch (error) {
     console.error(" Error fetching technicals:", error.message);
@@ -711,28 +823,28 @@ router.get("/macro", async (req, res) => {
 
     const macroBySeriesAndDate = {};
 
-    result.rows.forEach(row => {
+    result.rows.forEach((row) => {
       if (!macroBySeriesAndDate[row.series_id]) {
         macroBySeriesAndDate[row.series_id] = {
           seriesId: row.series_id,
           seriesName: row.series_name,
-          history: []
+          history: [],
         };
       }
       macroBySeriesAndDate[row.series_id].history.push({
         date: row.date,
-        value: safeFixed(row.value, 4)
+        value: safeFixed(row.value, 4),
       });
     });
 
     // Reverse history so oldest first
-    Object.keys(macroBySeriesAndDate).forEach(key => {
+    Object.keys(macroBySeriesAndDate).forEach((key) => {
       macroBySeriesAndDate[key].history.reverse();
     });
 
     return sendSuccess(res, {
       lastUpdated: new Date(),
-      macroDrivers: Object.values(macroBySeriesAndDate)
+      macroDrivers: Object.values(macroBySeriesAndDate),
     });
   } catch (error) {
     console.error(" Error fetching macro data:", error.message);
@@ -763,17 +875,17 @@ router.get("/events", async (req, res) => {
     `);
     validateQueryResult(result, { requireRows: false });
 
-    const events = result.rows.map(row => ({
+    const events = result.rows.map((row) => ({
       name: row.event_name,
       date: row.event_date,
       type: row.event_type,
       description: row.description,
-      impact: row.impact
+      impact: row.impact,
     }));
 
     return sendSuccess(res, {
       events: events,
-      total: events.length
+      total: events.length,
     });
   } catch (error) {
     console.error(" Error fetching events:", error.message);

@@ -248,6 +248,28 @@ jobs:
       - name: License compliance check completed
         run: echo "License scan completed — review warnings above"
 
+  lint-js:
+    name: Lint — JavaScript (webapp/lambda)
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@692973e3d937129bcbf40652eb9f2f61becf3332  # v4.1.7
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '18'
+          cache: 'npm'
+          cache-dependency-path: webapp/lambda/package-lock.json
+      - name: Install dependencies
+        run: cd webapp/lambda && npm ci
+      - name: ESLint
+        run: cd webapp/lambda && npm run lint
+      - name: Prettier format check
+        run: cd webapp/lambda && npm run format:check
+      - name: Node.js syntax check
+        run: cd webapp/lambda && npm run typecheck
+      - name: npm audit (high severity)
+        run: cd webapp/lambda && npm audit --audit-level=high
+
   lint-and-type:
     runs-on: ubuntu-latest
     timeout-minutes: 8
@@ -512,7 +534,7 @@ jobs:
 
   summary:
     runs-on: ubuntu-latest
-    needs: [scan-secrets, scan-dependencies, scan-sast, scan-container, scan-semgrep, validate-terraform, scan-iac, scan-licenses, lint-and-type, tests, scan-dast, coverage, generate-sbom, scan-supply-chain]
+    needs: [scan-secrets, scan-dependencies, scan-sast, scan-container, scan-semgrep, validate-terraform, scan-iac, scan-licenses, lint-js, lint-and-type, tests, scan-dast, coverage, generate-sbom, scan-supply-chain]
     if: always()
     steps:
       - name: Check status
@@ -528,6 +550,12 @@ jobs:
           echo "OK: Secret scan passed"
 
           # Code quality gates (required)
+          if [[ "${{ needs.lint-js.result }}" != "success" ]]; then
+            echo "FAIL: JavaScript lint/format/audit FAILED"
+            exit 1
+          fi
+          echo "OK: JavaScript linting and audit passed"
+
           if [[ "${{ needs.lint-and-type.result }}" != "success" ]]; then
             echo "FAIL: Linting and type checks FAILED"
             exit 1

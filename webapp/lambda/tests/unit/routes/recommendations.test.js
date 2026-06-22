@@ -9,7 +9,14 @@ jest.mock("../../../utils/database", () => ({
   query: jest.fn().mockResolvedValue({ rows: [], rowCount: 0 }),
 }));
 
-const { query, closeDatabase, initializeDatabase, getPool, transaction, healthCheck } = require("../../../utils/database");
+const {
+  query,
+  closeDatabase,
+  initializeDatabase,
+  getPool,
+  transaction,
+  healthCheck,
+} = require("../../../utils/database");
 // Mock the authentication middleware
 jest.mock("../../../middleware/auth", () => ({
   authenticateToken: (req, res, next) => {
@@ -235,7 +242,10 @@ describe("Recommendations Routes Unit Tests", () => {
       });
       expect(response.status).toBe(200);
       expect(response.body).toHaveProperty("success", true);
-      expect(response.body.filters.limit == null || isNaN(response.body.filters.limit)).toBe(true); // parseInt of invalid string
+      expect(
+        response.body.filters.limit == null ||
+          isNaN(response.body.filters.limit)
+      ).toBe(true); // parseInt of invalid string
       expect(response.body.filters).toHaveProperty(
         "category",
         "invalid_category_but_still_works"

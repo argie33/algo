@@ -17,14 +17,14 @@ function validateQueryResult(result, options = {}) {
   const { requireRows = false, minRows = 0, maxRows = null } = options;
 
   // Check result object exists
-  if (!result || typeof result !== 'object') {
-    throw new Error('Database query returned invalid result structure');
+  if (!result || typeof result !== "object") {
+    throw new Error("Database query returned invalid result structure");
   }
 
   // Check rows array exists
   if (result.rows === undefined || result.rows === null) {
     if (requireRows) {
-      throw new Error('Database query returned no rows');
+      throw new Error("Database query returned no rows");
     }
     // Safe default: convert missing rows to empty array
     result.rows = [];
@@ -32,16 +32,22 @@ function validateQueryResult(result, options = {}) {
 
   // Check rows is an array
   if (!Array.isArray(result.rows)) {
-    throw new Error(`Database query returned invalid rows type: ${typeof result.rows}`);
+    throw new Error(
+      `Database query returned invalid rows type: ${typeof result.rows}`
+    );
   }
 
   // Check row count constraints
   if (result.rows.length < minRows) {
-    throw new Error(`Database query returned ${result.rows.length} rows, expected at least ${minRows}`);
+    throw new Error(
+      `Database query returned ${result.rows.length} rows, expected at least ${minRows}`
+    );
   }
 
   if (maxRows !== null && result.rows.length > maxRows) {
-    throw new Error(`Database query returned ${result.rows.length} rows, expected at most ${maxRows}`);
+    throw new Error(
+      `Database query returned ${result.rows.length} rows, expected at most ${maxRows}`
+    );
   }
 
   return result;
@@ -54,30 +60,30 @@ function validateQueryResult(result, options = {}) {
  * @param {*} defaultValue - Default if value is null/undefined
  * @returns {*} Coerced value
  */
-function coerceValue(value, type = 'string', defaultValue = null) {
+function coerceValue(value, type = "string", defaultValue = null) {
   if (value === null || value === undefined) {
     return defaultValue;
   }
 
   switch (type) {
-    case 'int':
-    case 'integer':
+    case "int":
+    case "integer":
       return isNaN(value) ? defaultValue : parseInt(value, 10);
-    case 'float':
-    case 'number':
+    case "float":
+    case "number":
       return isNaN(value) ? defaultValue : parseFloat(value);
-    case 'bool':
-    case 'boolean':
-      if (typeof value === 'boolean') return value;
-      if (typeof value === 'string') {
-        return ['true', '1', 'yes', 'on'].includes(value.toLowerCase());
+    case "bool":
+    case "boolean":
+      if (typeof value === "boolean") return value;
+      if (typeof value === "string") {
+        return ["true", "1", "yes", "on"].includes(value.toLowerCase());
       }
       return Boolean(value);
-    case 'date':
+    case "date":
       return value instanceof Date ? value : new Date(value);
-    case 'raw':
+    case "raw":
       return value;
-    case 'string':
+    case "string":
     default:
       return String(value);
   }
@@ -90,13 +96,13 @@ function coerceValue(value, type = 'string', defaultValue = null) {
  * @returns {Object} row - Pass-through for chaining
  */
 function validateRowFields(row, requiredFields = []) {
-  if (!row || typeof row !== 'object') {
-    throw new Error('Row is not an object');
+  if (!row || typeof row !== "object") {
+    throw new Error("Row is not an object");
   }
 
-  const missing = requiredFields.filter(field => !(field in row));
+  const missing = requiredFields.filter((field) => !(field in row));
   if (missing.length > 0) {
-    throw new Error(`Row missing required fields: ${missing.join(', ')}`);
+    throw new Error(`Row missing required fields: ${missing.join(", ")}`);
   }
 
   return row;
@@ -109,7 +115,7 @@ function validateRowFields(row, requiredFields = []) {
  * @returns {Object} Transformed row
  */
 function transformRowTypes(row, fieldTypes = {}) {
-  if (!row || typeof row !== 'object') {
+  if (!row || typeof row !== "object") {
     return row;
   }
 
@@ -131,14 +137,18 @@ function transformRowTypes(row, fieldTypes = {}) {
  * @returns {Object} Validated and coerced row
  */
 function validateAndCoerceRow(row, schema = {}) {
-  if (!row || typeof row !== 'object') {
-    throw new Error('Invalid row object');
+  if (!row || typeof row !== "object") {
+    throw new Error("Invalid row object");
   }
 
   const validated = {};
 
   for (const [field, fieldConfig] of Object.entries(schema)) {
-    const { type = 'string', required = false, defaultValue = null } = fieldConfig;
+    const {
+      type = "string",
+      required = false,
+      defaultValue = null,
+    } = fieldConfig;
 
     if (!(field in row)) {
       if (required) {
@@ -211,7 +221,7 @@ function extractSingleRow(result, schema = {}, defaultValue = null) {
  * @param {string} countField - Field name containing count (default: 'count')
  * @returns {number} Count value
  */
-function extractCount(result, countField = 'count') {
+function extractCount(result, countField = "count") {
   validateQueryResult(result, { minRows: 1, maxRows: 1 });
 
   const row = result.rows[0];
@@ -221,7 +231,7 @@ function extractCount(result, countField = 'count') {
     throw new Error(`Count field ${countField} not found in result`);
   }
 
-  return coerceValue(count, 'int', 0);
+  return coerceValue(count, "int", 0);
 }
 
 module.exports = {

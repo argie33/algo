@@ -38,10 +38,17 @@ describe("Scores Routes Unit Tests", () => {
     query.mockImplementation((sql, params) => {
       // Handle COUNT queries
       if (sql.includes("SELECT COUNT") || sql.includes("COUNT(*)")) {
-        return Promise.resolve({ rows: [{ count: "0", total: "0" }], rowCount: 1 });
+        return Promise.resolve({
+          rows: [{ count: "0", total: "0" }],
+          rowCount: 1,
+        });
       }
       // Handle INSERT/UPDATE/DELETE queries
-      if (sql.includes("INSERT") || sql.includes("UPDATE") || sql.includes("DELETE")) {
+      if (
+        sql.includes("INSERT") ||
+        sql.includes("UPDATE") ||
+        sql.includes("DELETE")
+      ) {
         return Promise.resolve({ rowCount: 0, rows: [] });
       }
       // Handle information_schema queries
@@ -175,9 +182,9 @@ describe("Scores Routes Unit Tests", () => {
               volatility_12m_pct: null,
               volatility_risk_component: null,
               max_drawdown_52w_pct: null,
-              beta: null
-            }
-          ]
+              beta: null,
+            },
+          ],
         });
       const response = await request(app)
         .get("/scores")
@@ -193,8 +200,14 @@ describe("Scores Routes Unit Tests", () => {
       // Note: Pagination only returned for empty results (scores.js:87-93)
       expect(response.body).toHaveProperty("summary");
       expect(response.body).toHaveProperty("metadata");
-      expect(response.body.metadata).toHaveProperty("dataSource", "stock_scores_real_table");
-      expect(response.body.metadata).toHaveProperty("factorAnalysis", "seven_factor_scoring_system");
+      expect(response.body.metadata).toHaveProperty(
+        "dataSource",
+        "stock_scores_real_table"
+      );
+      expect(response.body.metadata).toHaveProperty(
+        "factorAnalysis",
+        "seven_factor_scoring_system"
+      );
       // Check score structure matches actual route format (scores.js:104-129)
       if (response.body.data.stocks.length > 0) {
         const stock = response.body.data.stocks[0];
@@ -226,7 +239,9 @@ describe("Scores Routes Unit Tests", () => {
         if (stock.growth_inputs) {
           expect(stock.growth_inputs).toHaveProperty("revenue_growth_3y_cagr");
           expect(stock.growth_inputs).toHaveProperty("eps_growth_3y_cagr");
-          expect(stock.growth_inputs).toHaveProperty("operating_income_growth_yoy");
+          expect(stock.growth_inputs).toHaveProperty(
+            "operating_income_growth_yoy"
+          );
           expect(stock.growth_inputs).toHaveProperty("roe_trend");
           expect(stock.growth_inputs).toHaveProperty("sustainable_growth_rate");
           expect(stock.growth_inputs).toHaveProperty("fcf_growth_yoy");
@@ -260,7 +275,7 @@ describe("Scores Routes Unit Tests", () => {
       expect(response.body.metadata).toHaveProperty("searchTerm", "AAPL");
       // If results are found, they should match the search term
       if (response.body.data.stocks.length > 0) {
-        response.body.data.stocks.forEach(stock => {
+        response.body.data.stocks.forEach((stock) => {
           expect(stock.symbol).toContain("AAPL");
         });
       }
@@ -302,8 +317,9 @@ describe("Scores Routes Unit Tests", () => {
       // Check that stocks are sorted by composite score descending
       if (response.body.data.stocks.length > 1) {
         for (let i = 1; i < response.body.data.stocks.length; i++) {
-          expect(response.body.data.stocks[i-1].compositeScore)
-            .toBeGreaterThanOrEqual(response.body.data.stocks[i].compositeScore);
+          expect(
+            response.body.data.stocks[i - 1].compositeScore
+          ).toBeGreaterThanOrEqual(response.body.data.stocks[i].compositeScore);
         }
       }
     });
@@ -372,8 +388,14 @@ describe("Scores Routes Unit Tests", () => {
         expect(response.body.data).toHaveProperty("lastUpdated");
         expect(response.body.data).toHaveProperty("scoreDate");
         expect(response.body).toHaveProperty("metadata");
-        expect(response.body.metadata).toHaveProperty("dataSource", "stock_scores_real_table");
-        expect(response.body.metadata).toHaveProperty("factorAnalysis", "seven_factor_scoring_system");
+        expect(response.body.metadata).toHaveProperty(
+          "dataSource",
+          "stock_scores_real_table"
+        );
+        expect(response.body.metadata).toHaveProperty(
+          "factorAnalysis",
+          "seven_factor_scoring_system"
+        );
         // Check seven factor analysis structure (including risk as 7th factor)
         expect(response.body.data.factors).toHaveProperty("momentum");
         expect(response.body.data.factors).toHaveProperty("value");
@@ -388,11 +410,21 @@ describe("Scores Routes Unit Tests", () => {
           expect(response.body.data.factors.quality).toHaveProperty("inputs");
           if (response.body.data.factors.quality.inputs) {
             // 13 professional quality inputs from loader schema
-            expect(response.body.data.factors.quality.inputs).toHaveProperty("fcf_to_net_income");
-            expect(response.body.data.factors.quality.inputs).toHaveProperty("debt_to_equity");
-            expect(response.body.data.factors.quality.inputs).toHaveProperty("current_ratio");
-            expect(response.body.data.factors.quality.inputs).toHaveProperty("return_on_equity_pct");
-            expect(response.body.data.factors.quality.inputs).toHaveProperty("profit_margin_pct");
+            expect(response.body.data.factors.quality.inputs).toHaveProperty(
+              "fcf_to_net_income"
+            );
+            expect(response.body.data.factors.quality.inputs).toHaveProperty(
+              "debt_to_equity"
+            );
+            expect(response.body.data.factors.quality.inputs).toHaveProperty(
+              "current_ratio"
+            );
+            expect(response.body.data.factors.quality.inputs).toHaveProperty(
+              "return_on_equity_pct"
+            );
+            expect(response.body.data.factors.quality.inputs).toHaveProperty(
+              "profit_margin_pct"
+            );
           }
         }
         // Check growth factor has inputs
@@ -400,12 +432,24 @@ describe("Scores Routes Unit Tests", () => {
           expect(response.body.data.factors.growth).toHaveProperty("score");
           expect(response.body.data.factors.growth).toHaveProperty("inputs");
           if (response.body.data.factors.growth.inputs) {
-            expect(response.body.data.factors.growth.inputs).toHaveProperty("revenue_growth_3y_cagr");
-            expect(response.body.data.factors.growth.inputs).toHaveProperty("eps_growth_3y_cagr");
-            expect(response.body.data.factors.growth.inputs).toHaveProperty("operating_income_growth_yoy");
-            expect(response.body.data.factors.growth.inputs).toHaveProperty("roe_trend");
-            expect(response.body.data.factors.growth.inputs).toHaveProperty("sustainable_growth_rate");
-            expect(response.body.data.factors.growth.inputs).toHaveProperty("fcf_growth_yoy");
+            expect(response.body.data.factors.growth.inputs).toHaveProperty(
+              "revenue_growth_3y_cagr"
+            );
+            expect(response.body.data.factors.growth.inputs).toHaveProperty(
+              "eps_growth_3y_cagr"
+            );
+            expect(response.body.data.factors.growth.inputs).toHaveProperty(
+              "operating_income_growth_yoy"
+            );
+            expect(response.body.data.factors.growth.inputs).toHaveProperty(
+              "roe_trend"
+            );
+            expect(response.body.data.factors.growth.inputs).toHaveProperty(
+              "sustainable_growth_rate"
+            );
+            expect(response.body.data.factors.growth.inputs).toHaveProperty(
+              "fcf_growth_yoy"
+            );
           }
         }
         // Check performance structure
@@ -416,7 +460,9 @@ describe("Scores Routes Unit Tests", () => {
       } else if (response.status === 404) {
         expect(response.body).toHaveProperty("success", false);
         expect(response.body.error || response.body.success).toBeDefined();
-        expect(response.body.error).toContain("Symbol not found in stock_scores table");
+        expect(response.body.error).toContain(
+          "Symbol not found in stock_scores table"
+        );
       }
     });
     test("should handle lowercase symbol input", async () => {
@@ -531,9 +577,9 @@ describe("Scores Routes Unit Tests", () => {
           "operating_margin_trend",
           "net_margin_trend",
           "quarterly_growth_momentum",
-          "asset_growth_yoy"
+          "asset_growth_yoy",
         ];
-        expectedGrowthMetrics.forEach(metric => {
+        expectedGrowthMetrics.forEach((metric) => {
           expect(growthInputs).toHaveProperty(metric);
           // Each metric can be null or a number
           if (growthInputs[metric] !== null) {
@@ -563,14 +609,18 @@ describe("Scores Routes Unit Tests", () => {
         const growthInputs = response.body.data.factors.growth.inputs;
         // These metrics CAN be null due to data availability, not quality issues
         const constrainedMetrics = {
-          "operating_income_growth_yoy": "Requires 5+ quarters of quarterly_income_statement data",
-          "fcf_growth_yoy": "Requires 5+ quarters of quarterly_cash_flow data",
-          "net_income_growth_yoy": "Requires 5+ quarters of quarterly_income_statement data",
-          "gross_margin_trend": "Requires 5+ quarters of gross profit data",
-          "operating_margin_trend": "Requires 5+ quarters of operating income data",
-          "net_margin_trend": "Requires 5+ quarters of net income data",
-          "quarterly_growth_momentum": "Requires 8+ quarters of revenue data",
-          "asset_growth_yoy": "Requires 5+ quarters of quarterly_balance_sheet data"
+          operating_income_growth_yoy:
+            "Requires 5+ quarters of quarterly_income_statement data",
+          fcf_growth_yoy: "Requires 5+ quarters of quarterly_cash_flow data",
+          net_income_growth_yoy:
+            "Requires 5+ quarters of quarterly_income_statement data",
+          gross_margin_trend: "Requires 5+ quarters of gross profit data",
+          operating_margin_trend:
+            "Requires 5+ quarters of operating income data",
+          net_margin_trend: "Requires 5+ quarters of net income data",
+          quarterly_growth_momentum: "Requires 8+ quarters of revenue data",
+          asset_growth_yoy:
+            "Requires 5+ quarters of quarterly_balance_sheet data",
         };
         Object.entries(constrainedMetrics).forEach(([metric, reason]) => {
           expect(growthInputs).toHaveProperty(metric);
@@ -620,9 +670,9 @@ describe("Scores Routes Unit Tests", () => {
           "operating_margin_trend",
           "net_margin_trend",
           "quarterly_growth_momentum",
-          "asset_growth_yoy"
+          "asset_growth_yoy",
         ];
-        expectedMetrics.forEach(metric => {
+        expectedMetrics.forEach((metric) => {
           expect(growthInputs).toHaveProperty(metric);
         });
       }
@@ -631,14 +681,16 @@ describe("Scores Routes Unit Tests", () => {
       // This test documents expected behavior - many stocks may have N/A values
       // for quarterly-dependent metrics if they don't have enough historical quarterly data
       const dataConstraints = {
-        "operating_income_growth_yoy": "Need quarterly_income_statement with 5+ quarters",
-        "fcf_growth_yoy": "Need quarterly_cash_flow with 5+ quarters",
-        "net_income_growth_yoy": "Need quarterly_income_statement with 5+ quarters",
-        "gross_margin_trend": "Need 5+ quarters of Gross Profit data",
-        "operating_margin_trend": "Need 5+ quarters of Operating Income data",
-        "net_margin_trend": "Need 5+ quarters of Net Income data",
-        "quarterly_growth_momentum": "Need 8+ quarters of revenue data",
-        "asset_growth_yoy": "Need quarterly_balance_sheet with 5+ quarters"
+        operating_income_growth_yoy:
+          "Need quarterly_income_statement with 5+ quarters",
+        fcf_growth_yoy: "Need quarterly_cash_flow with 5+ quarters",
+        net_income_growth_yoy:
+          "Need quarterly_income_statement with 5+ quarters",
+        gross_margin_trend: "Need 5+ quarters of Gross Profit data",
+        operating_margin_trend: "Need 5+ quarters of Operating Income data",
+        net_margin_trend: "Need 5+ quarters of Net Income data",
+        quarterly_growth_momentum: "Need 8+ quarters of revenue data",
+        asset_growth_yoy: "Need quarterly_balance_sheet with 5+ quarters",
       };
       // This is expected - not all companies publish detailed quarterly data
       expect(Object.keys(dataConstraints).length).toBeGreaterThan(0);
@@ -673,11 +725,15 @@ describe("Scores Routes Unit Tests", () => {
         }
         expect(valueInputs).toHaveProperty("market_fcf_yield");
         if (valueInputs.market_fcf_yield !== null) {
-          expect(Number.isFinite(Number(valueInputs.market_fcf_yield))).toBe(true);
+          expect(Number.isFinite(Number(valueInputs.market_fcf_yield))).toBe(
+            true
+          );
         }
         expect(valueInputs).toHaveProperty("market_dividend_yield");
         if (valueInputs.market_dividend_yield !== null) {
-          expect(Number.isFinite(Number(valueInputs.market_dividend_yield))).toBe(true);
+          expect(
+            Number.isFinite(Number(valueInputs.market_dividend_yield))
+          ).toBe(true);
         }
         // REQUIRED: All sector benchmarks must be populated (100% from loaders)
         expect(valueInputs).toHaveProperty("sector_pe");
@@ -693,11 +749,17 @@ describe("Scores Routes Unit Tests", () => {
           expect(typeof valueInputs.sector_ps).toBe("number");
         }
         expect(valueInputs).toHaveProperty("sector_fcf_yield");
-        if (valueInputs.sector_fcf_yield !== null && valueInputs.sector_fcf_yield !== undefined) {
+        if (
+          valueInputs.sector_fcf_yield !== null &&
+          valueInputs.sector_fcf_yield !== undefined
+        ) {
           expect(typeof valueInputs.sector_fcf_yield).toBe("number");
         }
         expect(valueInputs).toHaveProperty("sector_dividend_yield");
-        if (valueInputs.sector_dividend_yield !== null && valueInputs.sector_dividend_yield !== undefined) {
+        if (
+          valueInputs.sector_dividend_yield !== null &&
+          valueInputs.sector_dividend_yield !== undefined
+        ) {
           expect(typeof valueInputs.sector_dividend_yield).toBe("number");
         }
         // Stock-level metrics: Can be null for legitimate reasons
@@ -746,16 +808,22 @@ describe("Scores Routes Unit Tests", () => {
       const stocks = response.body.data.stocks;
       expect(stocks.length).toBeGreaterThan(0);
       const benchmarks = [
-        "market_pe", "market_pb", "market_ps",
-        "market_fcf_yield", "market_dividend_yield"
+        "market_pe",
+        "market_pb",
+        "market_ps",
+        "market_fcf_yield",
+        "market_dividend_yield",
       ];
       let populatedCount = 0;
       let checkedCount = 0;
-      stocks.forEach(stock => {
+      stocks.forEach((stock) => {
         const valueInputs = stock.value_inputs || {};
-        benchmarks.forEach(benchmark => {
+        benchmarks.forEach((benchmark) => {
           checkedCount++;
-          if (valueInputs[benchmark] !== null && valueInputs[benchmark] !== undefined) {
+          if (
+            valueInputs[benchmark] !== null &&
+            valueInputs[benchmark] !== undefined
+          ) {
             populatedCount++;
             // If populated, should be numeric
             const num = Number(valueInputs[benchmark]);
@@ -775,17 +843,23 @@ describe("Scores Routes Unit Tests", () => {
       const stocks = response.body.data.stocks;
       expect(stocks.length).toBeGreaterThan(0);
       const sectorBenchmarks = [
-        "sector_pe", "sector_pb", "sector_ps",
-        "sector_fcf_yield", "sector_dividend_yield"
+        "sector_pe",
+        "sector_pb",
+        "sector_ps",
+        "sector_fcf_yield",
+        "sector_dividend_yield",
       ];
       let totalBenchmarks = 0;
       let populatedBenchmarks = 0;
       let validatedCount = 0;
-      stocks.forEach(stock => {
+      stocks.forEach((stock) => {
         const valueInputs = stock.value_inputs || {};
-        sectorBenchmarks.forEach(benchmark => {
+        sectorBenchmarks.forEach((benchmark) => {
           totalBenchmarks++;
-          if (valueInputs[benchmark] !== null && valueInputs[benchmark] !== undefined) {
+          if (
+            valueInputs[benchmark] !== null &&
+            valueInputs[benchmark] !== undefined
+          ) {
             populatedBenchmarks++;
             validatedCount++;
             // If populated, should be numeric
@@ -796,7 +870,9 @@ describe("Scores Routes Unit Tests", () => {
       });
       // Sector benchmarks may be partially populated depending on data availability
       // Just verify structure is correct and any populated values are numeric
-      expect(validatedCount + (totalBenchmarks - populatedBenchmarks)).toBe(totalBenchmarks);
+      expect(validatedCount + (totalBenchmarks - populatedBenchmarks)).toBe(
+        totalBenchmarks
+      );
     });
     test("should document legitimate null values in stock-level metrics", async () => {
       const response = await request(app)
@@ -806,14 +882,14 @@ describe("Scores Routes Unit Tests", () => {
         const valueInputs = response.body.data.factors.value.inputs;
         // These CAN be null due to data limitations, not data quality issues
         const legitNullFields = [
-          "stock_pe",           // Null for unprofitable/negative earnings
-          "stock_pb",           // May be null for complex structures
-          "stock_ps",           // May be null for no sales
-          "stock_ev_ebitda",    // May be null for negative EBITDA
-          "stock_fcf_yield",    // Null when no FCF data available
-          "stock_dividend_yield" // Null for non-dividend payers (40% of stocks)
+          "stock_pe", // Null for unprofitable/negative earnings
+          "stock_pb", // May be null for complex structures
+          "stock_ps", // May be null for no sales
+          "stock_ev_ebitda", // May be null for negative EBITDA
+          "stock_fcf_yield", // Null when no FCF data available
+          "stock_dividend_yield", // Null for non-dividend payers (40% of stocks)
         ];
-        legitNullFields.forEach(field => {
+        legitNullFields.forEach((field) => {
           expect(valueInputs).toHaveProperty(field);
           // Property can be null or a number, both valid
           if (valueInputs[field] !== null) {

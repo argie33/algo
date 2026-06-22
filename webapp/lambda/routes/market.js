@@ -7,13 +7,27 @@ let query;
 try {
   ({ query } = require("../utils/database"));
 } catch (error) {
-  console.log("Database service not available in market routes:", error.message);
+  console.log(
+    "Database service not available in market routes:",
+    error.message
+  );
   query = null;
 }
 
-const { sendSuccess, sendError, sendPaginated, sendNotFound, sendBadRequest, sendPlaceholder } = require('../utils/apiResponse');
-const { validateQueryResult, validateAndCoerceRows, extractCount } = require('../utils/responseValidation');
-const logger = require('../utils/logger');
+const {
+  sendSuccess,
+  sendError,
+  sendPaginated,
+  sendNotFound,
+  sendBadRequest,
+  sendPlaceholder,
+} = require("../utils/apiResponse");
+const {
+  validateQueryResult,
+  validateAndCoerceRows,
+  extractCount,
+} = require("../utils/responseValidation");
+const logger = require("../utils/logger");
 const paginationConfig = require("../config/pagination");
 const router = express.Router();
 
@@ -41,8 +55,14 @@ async function checkRequiredTables(tableNames) {
         [tableName]
       );
       // Add null checking for database availability
-      if (!tableExistsResult || !tableExistsResult.rows || tableExistsResult.rows.length === 0) {
-        console.warn(`Table existence query returned null result for ${tableName}, database may be unavailable`);
+      if (
+        !tableExistsResult ||
+        !tableExistsResult.rows ||
+        tableExistsResult.rows.length === 0
+      ) {
+        console.warn(
+          `Table existence query returned null result for ${tableName}, database may be unavailable`
+        );
         results[tableName] = false;
       } else {
         results[tableName] = tableExistsResult.rows[0].exists;
@@ -116,7 +136,11 @@ async function getFullSeasonalityData() {
         yearStart.toISOString().split("T")[0],
       ]);
 
-      if (yearStartResult && yearStartResult.rows && yearStartResult.rows.length > 0) {
+      if (
+        yearStartResult &&
+        yearStartResult.rows &&
+        yearStartResult.rows.length > 0
+      ) {
         const currentPrice = parseFloat(spyResult.rows[0].close);
         const yearStartPrice = parseFloat(yearStartResult.rows[0].close);
         currentYearReturn =
@@ -124,6 +148,7 @@ async function getFullSeasonalityData() {
       }
     }
   } catch (e) {
+    logger.warn("DB query failed, using default values:", e.message);
   }
 
   // 1. PRESIDENTIAL CYCLE
@@ -131,10 +156,10 @@ async function getFullSeasonalityData() {
   const currentCyclePosition = ((currentYear - electionYear) % 4) + 1;
 
   let presidentialCycleData = [
-    { year: 1, label: "Post-Election", avgReturn: 12.8 },  // Historical average
-    { year: 2, label: "Mid-Term", avgReturn: 8.5 },        // Historical average
-    { year: 3, label: "Pre-Election", avgReturn: 15.3 },   // Historical average - strongest
-    { year: 4, label: "Election Year", avgReturn: 10.2 },  // Historical average
+    { year: 1, label: "Post-Election", avgReturn: 12.8 }, // Historical average
+    { year: 2, label: "Mid-Term", avgReturn: 8.5 }, // Historical average
+    { year: 3, label: "Pre-Election", avgReturn: 15.3 }, // Historical average - strongest
+    { year: 4, label: "Election Year", avgReturn: 10.2 }, // Historical average
   ];
 
   try {
@@ -155,23 +180,26 @@ async function getFullSeasonalityData() {
       GROUP BY year, cycle_position
     `;
 
-    const cycleReturnsResult = await query(cycleReturnsQuery, [currentYear - 30]);
+    const cycleReturnsResult = await query(cycleReturnsQuery, [
+      currentYear - 30,
+    ]);
 
     if (cycleReturnsResult.rows.length > 0) {
-      cycleReturnsResult.rows.forEach(row => {
+      cycleReturnsResult.rows.forEach((row) => {
         const cyclePos = row.cycle_position;
-        const dataItem = presidentialCycleData.find(d => d.year === cyclePos);
+        const dataItem = presidentialCycleData.find((d) => d.year === cyclePos);
         if (dataItem && row.avg_return !== null) {
           dataItem.avgReturn = parseFloat(row.avg_return);
         }
       });
     }
   } catch (e) {
+    logger.warn("DB query failed, using default values:", e.message);
   }
 
   const presidentialCycle = {
     currentPosition: currentCyclePosition,
-    data: presidentialCycleData.map(d => ({
+    data: presidentialCycleData.map((d) => ({
       year: d.year,
       label: d.label,
       avgReturn: d.avgReturn,
@@ -184,7 +212,20 @@ async function getFullSeasonalityData() {
   let monthlySpPerformance = [];
 
   try {
-    const MONTH_NAMES = ['January','February','March','April','May','June','July','August','September','October','November','December'];
+    const MONTH_NAMES = [
+      "January",
+      "February",
+      "March",
+      "April",
+      "May",
+      "June",
+      "July",
+      "August",
+      "September",
+      "October",
+      "November",
+      "December",
+    ];
     const monthlyStatsQuery = `
       SELECT month, month_name, avg_return, best_return, worst_return, years_counted, winning_years, losing_years
       FROM seasonality_monthly_stats
@@ -195,10 +236,14 @@ async function getFullSeasonalityData() {
 
     if (monthlyResult && monthlyResult.rows && monthlyResult.rows.length > 0) {
       monthlySeasonality = monthlyResult.rows.map((m) => {
-        const avgReturnNum = m.avg_return != null ? parseFloat(m.avg_return) : null;
-        const winRateNum = m.winning_years != null && m.years_counted != null && m.years_counted > 0
-          ? (parseFloat(m.winning_years) / parseFloat(m.years_counted) * 100)
-          : null;
+        const avgReturnNum =
+          m.avg_return != null ? parseFloat(m.avg_return) : null;
+        const winRateNum =
+          m.winning_years != null &&
+          m.years_counted != null &&
+          m.years_counted > 0
+            ? (parseFloat(m.winning_years) / parseFloat(m.years_counted)) * 100
+            : null;
         const monthName = MONTH_NAMES[(m.month || 1) - 1] || `Month ${m.month}`;
 
         return {
@@ -212,13 +257,15 @@ async function getFullSeasonalityData() {
           losingYears: null,
           winRate: winRateNum,
           isCurrent: m.month === currentMonth,
-          description: avgReturnNum !== null
-            ? `Avg: ${avgReturnNum >= 0 ? "+" : ""}${avgReturnNum.toFixed(2)}%`
-            : "No historical data",
+          description:
+            avgReturnNum !== null
+              ? `Avg: ${avgReturnNum >= 0 ? "+" : ""}${avgReturnNum.toFixed(2)}%`
+              : "No historical data",
         };
       });
     }
   } catch (e) {
+    logger.warn("DB query failed, using default values:", e.message);
   }
 
   // Also load monthly performance for the response
@@ -240,7 +287,9 @@ async function getFullSeasonalityData() {
 
     const avgReturn =
       validReturns.length > 0
-        ? (validReturns.reduce((a, b) => a + b, 0) / validReturns.length).toFixed(2)
+        ? (
+            validReturns.reduce((a, b) => a + b, 0) / validReturns.length
+          ).toFixed(2)
         : null;
 
     const avgReturnNum = avgReturn ? parseFloat(avgReturn) : null;
@@ -250,9 +299,10 @@ async function getFullSeasonalityData() {
       months: q.months_display,
       avgReturn: avgReturnNum,
       isCurrent: Math.ceil(currentMonth / 3) === q.quarter,
-      description: avgReturnNum !== null
-        ? `${avgReturnNum >= 0 ? "+" : ""}${avgReturn}% average (current year data)`
-        : "Insufficient quarterly data",
+      description:
+        avgReturnNum !== null
+          ? `${avgReturnNum >= 0 ? "+" : ""}${avgReturn}% average (current year data)`
+          : "Insufficient quarterly data",
     };
   });
 
@@ -294,7 +344,8 @@ async function getFullSeasonalityData() {
 
     if (dowResult && dowResult.rows && dowResult.rows.length > 0) {
       dayOfWeekEffects = dowResult.rows.map((d) => {
-        const avgReturnNum = d.avg_return != null ? parseFloat(d.avg_return) : null;
+        const avgReturnNum =
+          d.avg_return != null ? parseFloat(d.avg_return) : null;
         const winRateNum = d.win_rate != null ? parseFloat(d.win_rate) : null;
         const dayName = d.day || `Day ${d.day_num}`;
 
@@ -305,13 +356,15 @@ async function getFullSeasonalityData() {
           winRate: winRateNum,
           daysCount: d.days_counted,
           isCurrent: currentDate.getDay() === d.day_num,
-          description: avgReturnNum !== null && winRateNum !== null
-            ? `Avg: ${avgReturnNum >= 0 ? "+" : ""}${avgReturnNum.toFixed(2)}% return (${winRateNum.toFixed(1)}% win rate)`
-            : "No historical data",
+          description:
+            avgReturnNum !== null && winRateNum !== null
+              ? `Avg: ${avgReturnNum >= 0 ? "+" : ""}${avgReturnNum.toFixed(2)}% return (${winRateNum.toFixed(1)}% win rate)`
+              : "No historical data",
         };
       });
     }
   } catch (e) {
+    logger.warn("DB query failed, using default values:", e.message);
   }
 
   if (!dayOfWeekEffects || dayOfWeekEffects.length === 0) {
@@ -321,10 +374,12 @@ async function getFullSeasonalityData() {
   // 6. SECTOR SEASONALITY - Fetch actual sectors from database
   let sectorSeasonality = [];
   try {
-    const sectorResult = await query(`SELECT DISTINCT sector FROM company_profile WHERE sector IS NOT NULL ORDER BY sector`);
+    const sectorResult = await query(
+      `SELECT DISTINCT sector FROM company_profile WHERE sector IS NOT NULL ORDER BY sector`
+    );
     if (sectorResult && sectorResult.rows && sectorResult.rows.length > 0) {
       sectorSeasonality = sectorResult.rows.map((r) => ({
-        sector: r.sector
+        sector: r.sector,
       }));
     } else {
       sectorSeasonality = [
@@ -335,22 +390,84 @@ async function getFullSeasonalityData() {
     }
   } catch (e) {
     sectorSeasonality = [
-      { note: "Sector seasonality data requires company profile and sector ETF data" },
+      {
+        note: "Sector seasonality data requires company profile and sector ETF data",
+      },
     ];
   }
 
   // 7. HOLIDAY EFFECTS - Based on historical trading patterns
   const holidayEffects = [
-    { name: "New Year", period: "Jan 1-2", effect: "Positive", strength: "Moderate", avgReturn: 0.8 },
-    { name: "MLK Jr Day", period: "Jan 15-18", effect: "Neutral", strength: "Weak", avgReturn: 0.2 },
-    { name: "Presidents Day", period: "Feb 17-20", effect: "Positive", strength: "Moderate", avgReturn: 0.5 },
-    { name: "St. Patrick's Day", period: "Mar 17", effect: "Neutral", strength: "Weak", avgReturn: 0.0 },
-    { name: "Easter/Spring Break", period: "Apr (variable)", effect: "Positive", strength: "Moderate", avgReturn: 0.6 },
-    { name: "Memorial Day", period: "May 24-27", effect: "Negative", strength: "Weak", avgReturn: -0.2 },
-    { name: "Independence Day", period: "Jul 3-4", effect: "Neutral", strength: "Weak", avgReturn: 0.1 },
-    { name: "Labor Day", period: "Sep 1-3", effect: "Negative", strength: "Moderate", avgReturn: -0.5 },
-    { name: "Thanksgiving", period: "Nov 22-29", effect: "Positive", strength: "Strong", avgReturn: 1.2 },
-    { name: "Christmas/New Year", period: "Dec 20-Jan 2", effect: "Positive", strength: "Strong", avgReturn: 2.5 }
+    {
+      name: "New Year",
+      period: "Jan 1-2",
+      effect: "Positive",
+      strength: "Moderate",
+      avgReturn: 0.8,
+    },
+    {
+      name: "MLK Jr Day",
+      period: "Jan 15-18",
+      effect: "Neutral",
+      strength: "Weak",
+      avgReturn: 0.2,
+    },
+    {
+      name: "Presidents Day",
+      period: "Feb 17-20",
+      effect: "Positive",
+      strength: "Moderate",
+      avgReturn: 0.5,
+    },
+    {
+      name: "St. Patrick's Day",
+      period: "Mar 17",
+      effect: "Neutral",
+      strength: "Weak",
+      avgReturn: 0.0,
+    },
+    {
+      name: "Easter/Spring Break",
+      period: "Apr (variable)",
+      effect: "Positive",
+      strength: "Moderate",
+      avgReturn: 0.6,
+    },
+    {
+      name: "Memorial Day",
+      period: "May 24-27",
+      effect: "Negative",
+      strength: "Weak",
+      avgReturn: -0.2,
+    },
+    {
+      name: "Independence Day",
+      period: "Jul 3-4",
+      effect: "Neutral",
+      strength: "Weak",
+      avgReturn: 0.1,
+    },
+    {
+      name: "Labor Day",
+      period: "Sep 1-3",
+      effect: "Negative",
+      strength: "Moderate",
+      avgReturn: -0.5,
+    },
+    {
+      name: "Thanksgiving",
+      period: "Nov 22-29",
+      effect: "Positive",
+      strength: "Strong",
+      avgReturn: 1.2,
+    },
+    {
+      name: "Christmas/New Year",
+      period: "Dec 20-Jan 2",
+      effect: "Positive",
+      strength: "Strong",
+      avgReturn: 2.5,
+    },
   ];
 
   // 8. SEASONAL ANOMALIES
@@ -414,13 +531,16 @@ async function getFullSeasonalityData() {
   ];
 
   // 9. CURRENT SEASONAL POSITION
-  const currentMonthData = monthlySeasonality.find(m => m.month === currentMonth);
-  const currentQuarterData = quarterlySeasonality.find(q => q.isCurrent);
+  const currentMonthData = monthlySeasonality.find(
+    (m) => m.month === currentMonth
+  );
+  const currentQuarterData = quarterlySeasonality.find((q) => q.isCurrent);
 
   const currentPosition = {
     presidentialCycle: `Year ${currentCyclePosition} of 4`,
     monthlyTrend: currentMonthData?.description || "Monthly data unavailable",
-    quarterlyTrend: currentQuarterData?.description || "Quarterly data unavailable",
+    quarterlyTrend:
+      currentQuarterData?.description || "Quarterly data unavailable",
     activePeriods: getActiveSeasonalPeriods(currentDate),
     nextMajorEvent: getNextSeasonalEvent(currentDate),
     seasonalScore: calculateSeasonalScore(currentDate),
@@ -445,8 +565,8 @@ async function getFullSeasonalityData() {
       unfavorableFactors: getUnfavorableFactors(currentDate),
       overallSeasonalBias: getOverallBias(currentDate),
       confidence: "Moderate",
-      recommendation: getSeasonalRecommendation(currentDate)
-    }
+      recommendation: getSeasonalRecommendation(currentDate),
+    },
   };
 }
 
@@ -456,11 +576,11 @@ router.get("/status", (req, res) => {
     const status = getMarketStatus();
     return sendSuccess(res, {
       status: status,
-      timestamp: new Date().toISOString()
+      timestamp: new Date().toISOString(),
     });
   } catch (err) {
-    console.error('Error getting market status:', err.message);
-    return sendError(res, 'Failed to fetch market status', 500);
+    console.error("Error getting market status:", err.message);
+    return sendError(res, "Failed to fetch market status", 500);
   }
 });
 
@@ -509,12 +629,15 @@ function getMarketStatus() {
 router.get("/breadth", async (req, res) => {
   // Fail fast if database is unavailable
   if (!query) {
-    return sendError(res, 'Database service unavailable', 503);
+    return sendError(res, "Database service unavailable", 503);
   }
 
   try {
     // Get latest market date from cache (5 min TTL)
-    const latestDate = await getLatestMarketDate('price_daily', 'WHERE close IS NOT NULL');
+    const latestDate = await getLatestMarketDate(
+      "price_daily",
+      "WHERE close IS NOT NULL"
+    );
     if (!latestDate) {
       return sendNotFound(res, "No market breadth data found");
     }
@@ -552,7 +675,7 @@ router.get("/breadth", async (req, res) => {
 
     let breadth;
     if (!result || !result.rows || result.rows.length === 0) {
-      console.warn('Query returned invalid result for breadth:', result);
+      console.warn("Query returned invalid result for breadth:", result);
       breadth = null;
     } else {
       breadth = result.rows[0];
@@ -574,7 +697,7 @@ router.get("/breadth", async (req, res) => {
           ? (breadth.advancing / breadth.declining).toFixed(2)
           : null,
       avg_change: parseFloat(breadth.avg_change).toFixed(2),
-      avg_volume: parseInt(breadth.avg_volume)
+      avg_volume: parseInt(breadth.avg_volume),
     });
   } catch (error) {
     console.error("Error fetching market breadth:", error);
@@ -586,7 +709,7 @@ router.get("/breadth", async (req, res) => {
 router.get("/mcclellan-oscillator", async (req, res) => {
   // Fail fast if database is unavailable
   if (!query) {
-    return sendError(res, 'Database service unavailable', 503);
+    return sendError(res, "Database service unavailable", 503);
   }
 
   try {
@@ -616,7 +739,8 @@ router.get("/mcclellan-oscillator", async (req, res) => {
       for (let i = 0; i < data.length; i++) {
         if (i === period - 1) {
           // Calculate initial SMA
-          ema = data.slice(0, period).reduce((sum, val) => sum + val, 0) / period;
+          ema =
+            data.slice(0, period).reduce((sum, val) => sum + val, 0) / period;
         } else if (i >= period - 1) {
           // Calculate EMA
           ema = (data[i] - ema) * multiplier + ema;
@@ -650,40 +774,52 @@ router.get("/mcclellan-oscillator", async (req, res) => {
     const result = await query(advanceDeclineQuery);
 
     if (!result || !Array.isArray(result.rows) || result.rows.length === 0) {
-      console.warn('⚠️ No price_daily data found for McClellan calculation');
-      return sendNotFound(res, "No price data available for McClellan Oscillator");
+      console.warn("⚠️ No price_daily data found for McClellan calculation");
+      return sendNotFound(
+        res,
+        "No price data available for McClellan Oscillator"
+      );
     }
 
     // Ensure we have minimum data points for EMA calculation
     if (result.rows.length < 50) {
-      console.warn(`⚠️ Only ${result.rows.length} data points available for McClellan (need 50+ for reliable calculation)`);
+      console.warn(
+        `⚠️ Only ${result.rows.length} data points available for McClellan (need 50+ for reliable calculation)`
+      );
     }
 
     // Extract advance-decline line values
-    const adLineData = result.rows.map(row => safeFloat(row.advance_decline_line));
+    const adLineData = result.rows.map((row) =>
+      safeFloat(row.advance_decline_line)
+    );
 
     // Calculate 19-day and 39-day EMAs
     const ema19 = calculateEMA(adLineData, 19);
     const ema39 = calculateEMA(adLineData, 39);
 
     // Calculate McClellan Oscillator (EMA19 - EMA39)
-    const mcOscillator = ema19 !== null && ema39 !== null ? ema19 - ema39 : null;
+    const mcOscillator =
+      ema19 !== null && ema39 !== null ? ema19 - ema39 : null;
 
     // Get recent values for context
-    const recentData = result.rows.slice(-30).map(row => ({
+    const recentData = result.rows.slice(-30).map((row) => ({
       date: row.date,
-      advance_decline_line: parseFloat(row.advance_decline_line)
+      advance_decline_line: parseFloat(row.advance_decline_line),
     }));
 
     return sendSuccess(res, {
-      current_value: mcOscillator !== null ? parseFloat(mcOscillator.toFixed(2)) : null,
+      current_value:
+        mcOscillator !== null ? parseFloat(mcOscillator.toFixed(2)) : null,
       ema_19: ema19 !== null ? parseFloat(ema19.toFixed(2)) : null,
       ema_39: ema39 !== null ? parseFloat(ema39.toFixed(2)) : null,
-      interpretation: mcOscillator !== null ? (
-        mcOscillator > 0 ? "Bullish breadth" : "Bearish breadth"
-      ) : "Insufficient data",
+      interpretation:
+        mcOscillator !== null
+          ? mcOscillator > 0
+            ? "Bullish breadth"
+            : "Bearish breadth"
+          : "Insufficient data",
       recent_data: recentData,
-      data_points: adLineData.length
+      data_points: adLineData.length,
     });
   } catch (error) {
     console.error("Error calculating McClellan Oscillator:", error);
@@ -695,7 +831,7 @@ router.get("/mcclellan-oscillator", async (req, res) => {
 router.get("/distribution-days", async (req, res) => {
   // Fail fast if database is unavailable
   if (!query) {
-    return sendError(res, 'Database service unavailable', 503);
+    return sendError(res, "Database service unavailable", 503);
   }
 
   try {
@@ -746,11 +882,11 @@ router.get("/distribution-days", async (req, res) => {
     // Determine signal based on RUNNING count of distribution days
     // This is the IBD methodology - count resets on follow-through days
     const getSignalFromCount = (count) => {
-      if (count <= 2) return "NORMAL";        // 0-2 days: Normal market
-      if (count <= 4) return "WATCH";         // 3-4 days: Watch for weakness
-      if (count <= 7) return "CAUTION";       // 5-7 days: Cautious
-      if (count <= 10) return "WARNING";      // 8-10 days: Market warning
-      return "URGENT";                        // 11+ days: Critical alert
+      if (count <= 2) return "NORMAL"; // 0-2 days: Normal market
+      if (count <= 4) return "WATCH"; // 3-4 days: Watch for weakness
+      if (count <= 7) return "CAUTION"; // 5-7 days: Cautious
+      if (count <= 10) return "WARNING"; // 8-10 days: Market warning
+      return "URGENT"; // 11+ days: Critical alert
     };
 
     const distributionData = {};
@@ -786,7 +922,7 @@ router.get("/distribution-days", async (req, res) => {
 router.get("/volatility", async (req, res) => {
   // Fail fast if database is unavailable
   if (!query) {
-    return sendError(res, 'Database service unavailable', 503);
+    return sendError(res, "Database service unavailable", 503);
   }
 
   try {
@@ -818,7 +954,7 @@ router.get("/volatility", async (req, res) => {
 
     const [result, marketVolatilityResult] = await Promise.all([
       query(volatilityQuery),
-      query(marketVolatilityQuery)
+      query(marketVolatilityQuery),
     ]);
 
     validateQueryResult(result, { requireRows: false });
@@ -826,12 +962,16 @@ router.get("/volatility", async (req, res) => {
 
     // Use market volatility data if available, fallback to VIX data if available
     let responseData = null;
-    if (marketVolatilityResult && marketVolatilityResult.rows && marketVolatilityResult.rows.length > 0) {
+    if (
+      marketVolatilityResult &&
+      marketVolatilityResult.rows &&
+      marketVolatilityResult.rows.length > 0
+    ) {
       responseData = marketVolatilityResult.rows[0];
     } else if (result && result.rows && result.rows.length > 0) {
       responseData = result.rows[0];
     } else {
-      console.warn('No volatility data found');
+      console.warn("No volatility data found");
       responseData = {};
     }
 
@@ -846,7 +986,7 @@ router.get("/volatility", async (req, res) => {
 router.get("/indicators", async (req, res) => {
   // Fail fast if database is unavailable
   if (!query) {
-    return sendError(res, 'Database service unavailable', 503);
+    return sendError(res, "Database service unavailable", 503);
   }
 
   try {
@@ -900,13 +1040,17 @@ router.get("/indicators", async (req, res) => {
     const results = await Promise.allSettled([
       query(indicatorsQuery),
       query(breadthQuery),
-      query(sentimentQuery)
+      query(sentimentQuery),
     ]);
 
-    const result = results[0].status === 'fulfilled' ? results[0].value : null;
-    const breadthResult = results[1].status === 'fulfilled' ? results[1].value : null;
+    const result = results[0].status === "fulfilled" ? results[0].value : null;
+    const breadthResult =
+      results[1].status === "fulfilled" ? results[1].value : null;
     const breadth = breadthResult?.rows?.[0] || {};
-    const sentiment = results[2].status === 'fulfilled' ? (results[2].value.rows[0] || null) : null;
+    const sentiment =
+      results[2].status === "fulfilled"
+        ? results[2].value.rows[0] || null
+        : null;
 
     if (!result || !Array.isArray(result.rows) || result.rows.length === 0) {
       return sendNotFound(res, "No data found for this query");
@@ -926,7 +1070,7 @@ router.get("/indicators", async (req, res) => {
             : null,
         avg_change: safeFixed(breadth.avg_change, 2),
       },
-      sentiment: sentiment
+      sentiment: sentiment,
     });
   } catch (error) {
     console.error("Error fetching market indicators:", error);
@@ -941,7 +1085,7 @@ router.get("/indicators", async (req, res) => {
 router.get("/seasonality", async (req, res) => {
   // Fail fast if database is unavailable
   if (!query) {
-    return sendError(res, 'Database service unavailable', 503);
+    return sendError(res, "Database service unavailable", 503);
   }
 
   try {
@@ -985,6 +1129,7 @@ router.get("/seasonality", async (req, res) => {
         }
       }
     } catch (e) {
+      logger.warn("DB query failed, using default values:", e.message);
     }
 
     // 1. PRESIDENTIAL CYCLE (4-Year Pattern)
@@ -994,10 +1139,10 @@ router.get("/seasonality", async (req, res) => {
 
     // Fetch historical returns for each presidential cycle year
     let presidentialCycleData = [
-      { year: 1, label: "Post-Election", avgReturn: 12.8 },  // Historical average
-      { year: 2, label: "Mid-Term", avgReturn: 8.5 },        // Historical average
-      { year: 3, label: "Pre-Election", avgReturn: 15.3 },   // Historical average - strongest
-      { year: 4, label: "Election Year", avgReturn: 10.2 },  // Historical average
+      { year: 1, label: "Post-Election", avgReturn: 12.8 }, // Historical average
+      { year: 2, label: "Mid-Term", avgReturn: 8.5 }, // Historical average
+      { year: 3, label: "Pre-Election", avgReturn: 15.3 }, // Historical average - strongest
+      { year: 4, label: "Election Year", avgReturn: 10.2 }, // Historical average
     ];
 
     try {
@@ -1020,14 +1165,18 @@ router.get("/seasonality", async (req, res) => {
         GROUP BY year, cycle_position
       `;
 
-      const cycleReturnsResult = await query(cycleReturnsQuery, [currentYear - 30]);
+      const cycleReturnsResult = await query(cycleReturnsQuery, [
+        currentYear - 30,
+      ]);
       validateQueryResult(cycleReturnsResult, { requireRows: false });
 
       // Map results to presidential cycle positions
       if (cycleReturnsResult.rows.length > 0) {
-        cycleReturnsResult.rows.forEach(row => {
+        cycleReturnsResult.rows.forEach((row) => {
           const cyclePos = row.cycle_position;
-          const dataItem = presidentialCycleData.find(d => d.year === cyclePos);
+          const dataItem = presidentialCycleData.find(
+            (d) => d.year === cyclePos
+          );
           if (dataItem && row.avg_return !== null) {
             dataItem.avgReturn = parseFloat(row.avg_return);
           }
@@ -1039,7 +1188,7 @@ router.get("/seasonality", async (req, res) => {
 
     const presidentialCycle = {
       currentPosition: currentCyclePosition,
-      data: presidentialCycleData.map(d => ({
+      data: presidentialCycleData.map((d) => ({
         year: d.year,
         label: d.label,
         avgReturn: d.avgReturn, // null if real data unavailable
@@ -1053,7 +1202,20 @@ router.get("/seasonality", async (req, res) => {
     let monthlySpPerformance = [];
 
     try {
-      const MONTH_NAMES_2 = ['January','February','March','April','May','June','July','August','September','October','November','December'];
+      const MONTH_NAMES_2 = [
+        "January",
+        "February",
+        "March",
+        "April",
+        "May",
+        "June",
+        "July",
+        "August",
+        "September",
+        "October",
+        "November",
+        "December",
+      ];
       const monthlyStatsQuery = `
         SELECT month, month_name, avg_return, best_return, worst_return, years_counted, winning_years, losing_years
         FROM seasonality_monthly_stats
@@ -1063,13 +1225,23 @@ router.get("/seasonality", async (req, res) => {
       const monthlyResult = await query(monthlyStatsQuery);
       validateQueryResult(monthlyResult, { requireRows: false });
 
-      if (monthlyResult && monthlyResult.rows && monthlyResult.rows.length > 0) {
+      if (
+        monthlyResult &&
+        monthlyResult.rows &&
+        monthlyResult.rows.length > 0
+      ) {
         monthlySeasonality = monthlyResult.rows.map((m) => {
-          const avgReturnNum = m.avg_return != null ? parseFloat(m.avg_return) : null;
-          const winRateNum = m.winning_years != null && m.years_counted != null && m.years_counted > 0
-            ? (parseFloat(m.winning_years) / parseFloat(m.years_counted) * 100)
-            : null;
-          const monthName = MONTH_NAMES_2[(m.month || 1) - 1] || `Month ${m.month}`;
+          const avgReturnNum =
+            m.avg_return != null ? parseFloat(m.avg_return) : null;
+          const winRateNum =
+            m.winning_years != null &&
+            m.years_counted != null &&
+            m.years_counted > 0
+              ? (parseFloat(m.winning_years) / parseFloat(m.years_counted)) *
+                100
+              : null;
+          const monthName =
+            MONTH_NAMES_2[(m.month || 1) - 1] || `Month ${m.month}`;
 
           return {
             month: m.month,
@@ -1082,14 +1254,15 @@ router.get("/seasonality", async (req, res) => {
             losingYears: null,
             winRate: winRateNum,
             isCurrent: m.month === currentMonth,
-            description: avgReturnNum !== null
-              ? `Avg: ${avgReturnNum >= 0 ? "+" : ""}${avgReturnNum.toFixed(2)}%`
-              : "No historical data",
+            description:
+              avgReturnNum !== null
+                ? `Avg: ${avgReturnNum >= 0 ? "+" : ""}${avgReturnNum.toFixed(2)}%`
+                : "No historical data",
           };
         });
-
       }
     } catch (e) {
+      logger.warn("DB query failed, using default values:", e.message);
     }
 
     // Also load monthly performance for the response
@@ -1100,7 +1273,12 @@ router.get("/seasonality", async (req, res) => {
       { quarter: 1, months: [1, 2, 3], name: "Q1", months_display: "Jan-Mar" },
       { quarter: 2, months: [4, 5, 6], name: "Q2", months_display: "Apr-Jun" },
       { quarter: 3, months: [7, 8, 9], name: "Q3", months_display: "Jul-Sep" },
-      { quarter: 4, months: [10, 11, 12], name: "Q4", months_display: "Oct-Dec" },
+      {
+        quarter: 4,
+        months: [10, 11, 12],
+        name: "Q4",
+        months_display: "Oct-Dec",
+      },
     ].map((q) => {
       const quarterMonths = monthlySeasonality.filter((m) =>
         q.months.includes(m.month)
@@ -1111,7 +1289,9 @@ router.get("/seasonality", async (req, res) => {
 
       const avgReturn =
         validReturns.length > 0
-          ? (validReturns.reduce((a, b) => a + b, 0) / validReturns.length).toFixed(2)
+          ? (
+              validReturns.reduce((a, b) => a + b, 0) / validReturns.length
+            ).toFixed(2)
           : null;
 
       const avgReturnNum = avgReturn ? parseFloat(avgReturn) : null;
@@ -1121,9 +1301,10 @@ router.get("/seasonality", async (req, res) => {
         months: q.months_display,
         avgReturn: avgReturnNum,
         isCurrent: Math.ceil(currentMonth / 3) === q.quarter,
-        description: avgReturnNum !== null
-          ? `${avgReturnNum >= 0 ? "+" : ""}${avgReturn}% average (current year data)`
-          : "Insufficient quarterly data",
+        description:
+          avgReturnNum !== null
+            ? `${avgReturnNum >= 0 ? "+" : ""}${avgReturn}% average (current year data)`
+            : "Insufficient quarterly data",
       };
     });
 
@@ -1168,7 +1349,8 @@ router.get("/seasonality", async (req, res) => {
 
       if (dowResult && dowResult.rows && dowResult.rows.length > 0) {
         dowEffects = dowResult.rows.map((d) => {
-          const avgReturnNum = d.avg_return != null ? parseFloat(d.avg_return) : null;
+          const avgReturnNum =
+            d.avg_return != null ? parseFloat(d.avg_return) : null;
           const winRateNum = d.win_rate != null ? parseFloat(d.win_rate) : null;
           const dayName = d.day || `Day ${d.day_num}`;
 
@@ -1179,14 +1361,15 @@ router.get("/seasonality", async (req, res) => {
             winRate: winRateNum,
             daysCount: d.days_counted,
             isCurrent: currentDate.getDay() === d.day_num,
-            description: avgReturnNum !== null && winRateNum !== null
-              ? `Avg: ${avgReturnNum >= 0 ? "+" : ""}${avgReturnNum.toFixed(2)}% return (${winRateNum.toFixed(1)}% win rate)`
-              : "No historical data",
+            description:
+              avgReturnNum !== null && winRateNum !== null
+                ? `Avg: ${avgReturnNum >= 0 ? "+" : ""}${avgReturnNum.toFixed(2)}% return (${winRateNum.toFixed(1)}% win rate)`
+                : "No historical data",
           };
         });
-
       }
     } catch (e) {
+      logger.warn("DB query failed, using default values:", e.message);
     }
 
     // Return only real data - no placeholder fake data
@@ -1202,10 +1385,12 @@ router.get("/seasonality", async (req, res) => {
     // NO hardcoded values - load from company_profile table
     let sectorSeasonality = [];
     try {
-      const sectorResult = await query(`SELECT DISTINCT sector FROM company_profile WHERE sector IS NOT NULL ORDER BY sector`);
+      const sectorResult = await query(
+        `SELECT DISTINCT sector FROM company_profile WHERE sector IS NOT NULL ORDER BY sector`
+      );
       if (sectorResult && sectorResult.rows && sectorResult.rows.length > 0) {
         sectorSeasonality = sectorResult.rows.map((r) => ({
-          sector: r.sector
+          sector: r.sector,
         }));
       } else {
         sectorSeasonality = [
@@ -1216,7 +1401,9 @@ router.get("/seasonality", async (req, res) => {
       }
     } catch (e) {
       sectorSeasonality = [
-        { note: "Sector seasonality data requires company profile and sector ETF data" },
+        {
+          note: "Sector seasonality data requires company profile and sector ETF data",
+        },
       ];
     }
 
@@ -1229,16 +1416,76 @@ router.get("/seasonality", async (req, res) => {
     // - Must include confidence intervals
     // DO NOT return hardcoded assumptions as if they were analyzed data
     const holidayEffects = [
-      { name: "New Year", period: "Jan 1-2", effect: "Positive", strength: "Moderate", avgReturn: 0.8 },
-      { name: "MLK Jr Day", period: "Jan 15-18", effect: "Neutral", strength: "Weak", avgReturn: 0.2 },
-      { name: "Presidents Day", period: "Feb 17-20", effect: "Positive", strength: "Moderate", avgReturn: 0.5 },
-      { name: "St. Patrick's Day", period: "Mar 17", effect: "Neutral", strength: "Weak", avgReturn: 0.0 },
-      { name: "Easter/Spring Break", period: "Apr (variable)", effect: "Positive", strength: "Moderate", avgReturn: 0.6 },
-      { name: "Memorial Day", period: "May 24-27", effect: "Negative", strength: "Weak", avgReturn: -0.2 },
-      { name: "Independence Day", period: "Jul 3-4", effect: "Neutral", strength: "Weak", avgReturn: 0.1 },
-      { name: "Labor Day", period: "Sep 1-3", effect: "Negative", strength: "Moderate", avgReturn: -0.5 },
-      { name: "Thanksgiving", period: "Nov 22-29", effect: "Positive", strength: "Strong", avgReturn: 1.2 },
-      { name: "Christmas/New Year", period: "Dec 20-Jan 2", effect: "Positive", strength: "Strong", avgReturn: 2.5 }
+      {
+        name: "New Year",
+        period: "Jan 1-2",
+        effect: "Positive",
+        strength: "Moderate",
+        avgReturn: 0.8,
+      },
+      {
+        name: "MLK Jr Day",
+        period: "Jan 15-18",
+        effect: "Neutral",
+        strength: "Weak",
+        avgReturn: 0.2,
+      },
+      {
+        name: "Presidents Day",
+        period: "Feb 17-20",
+        effect: "Positive",
+        strength: "Moderate",
+        avgReturn: 0.5,
+      },
+      {
+        name: "St. Patrick's Day",
+        period: "Mar 17",
+        effect: "Neutral",
+        strength: "Weak",
+        avgReturn: 0.0,
+      },
+      {
+        name: "Easter/Spring Break",
+        period: "Apr (variable)",
+        effect: "Positive",
+        strength: "Moderate",
+        avgReturn: 0.6,
+      },
+      {
+        name: "Memorial Day",
+        period: "May 24-27",
+        effect: "Negative",
+        strength: "Weak",
+        avgReturn: -0.2,
+      },
+      {
+        name: "Independence Day",
+        period: "Jul 3-4",
+        effect: "Neutral",
+        strength: "Weak",
+        avgReturn: 0.1,
+      },
+      {
+        name: "Labor Day",
+        period: "Sep 1-3",
+        effect: "Negative",
+        strength: "Moderate",
+        avgReturn: -0.5,
+      },
+      {
+        name: "Thanksgiving",
+        period: "Nov 22-29",
+        effect: "Positive",
+        strength: "Strong",
+        avgReturn: 1.2,
+      },
+      {
+        name: "Christmas/New Year",
+        period: "Dec 20-Jan 2",
+        effect: "Positive",
+        strength: "Strong",
+        avgReturn: 2.5,
+      },
     ];
 
     // 8. ANOMALY CALENDAR - Educational reference
@@ -1303,13 +1550,16 @@ router.get("/seasonality", async (req, res) => {
     ];
 
     // 9. CURRENT SEASONAL POSITION
-    const currentMonthData = monthlySeasonality.find(m => m.month === currentMonth);
-    const currentQuarterData = quarterlySeasonality.find(q => q.isCurrent);
+    const currentMonthData = monthlySeasonality.find(
+      (m) => m.month === currentMonth
+    );
+    const currentQuarterData = quarterlySeasonality.find((q) => q.isCurrent);
 
     const currentPosition = {
       presidentialCycle: `Year ${currentCyclePosition} of 4`,
       monthlyTrend: currentMonthData?.description || "Monthly data unavailable",
-      quarterlyTrend: currentQuarterData?.description || "Quarterly data unavailable",
+      quarterlyTrend:
+        currentQuarterData?.description || "Quarterly data unavailable",
       activePeriods: getActiveSeasonalPeriods(currentDate),
       nextMajorEvent: getNextSeasonalEvent(currentDate),
       seasonalScore: calculateSeasonalScore(currentDate),
@@ -1333,8 +1583,8 @@ router.get("/seasonality", async (req, res) => {
         unfavorableFactors: getUnfavorableFactors(currentDate),
         overallSeasonalBias: getOverallBias(currentDate),
         confidence: "Moderate",
-        recommendation: getSeasonalRecommendation(currentDate)
-      }
+        recommendation: getSeasonalRecommendation(currentDate),
+      },
     });
   } catch (error) {
     console.error("Error fetching seasonality data:", error);
@@ -1408,18 +1658,18 @@ function calculateSeasonalScore(date) {
 
   // Historical S&P 500 average monthly returns
   const monthlyScores = {
-    1: 75,  // January - strong (Santa rally carryover)
-    2: 60,  // February - moderate
-    3: 65,  // March - moderate-strong (spring rally)
-    4: 70,  // April - strong
-    5: 45,  // May - weak (sell in May)
-    6: 40,  // June - weak
-    7: 50,  // July - neutral
-    8: 35,  // August - weak
-    9: 20,  // September - very weak (worst month)
+    1: 75, // January - strong (Santa rally carryover)
+    2: 60, // February - moderate
+    3: 65, // March - moderate-strong (spring rally)
+    4: 70, // April - strong
+    5: 45, // May - weak (sell in May)
+    6: 40, // June - weak
+    7: 50, // July - neutral
+    8: 35, // August - weak
+    9: 20, // September - very weak (worst month)
     10: 55, // October - mixed (can be recovery month)
     11: 75, // November - strong
-    12: 80  // December - very strong (holiday rally)
+    12: 80, // December - very strong (holiday rally)
   };
 
   return monthlyScores[month] || 50;
@@ -1510,7 +1760,9 @@ router.get("/correlation", async (req, res) => {
   try {
     const { symbols, period = "1M", limit: _limit = 50 } = req.query;
 
-    console.log(` Market correlation requested - symbols: ${symbols || "all"}, period: ${period}`);
+    console.log(
+      ` Market correlation requested - symbols: ${symbols || "all"}, period: ${period}`
+    );
 
     // PHASE 2 ARCHITECTURAL FIX: Fetch pre-computed correlations from database
     // Previously: calculated O(N^2) Pearson correlations in-memory (5-15 seconds)
@@ -1534,7 +1786,7 @@ router.get("/correlation", async (req, res) => {
 
       // Map period to column name in stock_correlations table
       const periodMap = {
-        "1W": "correlation_1m",  // Use 1-month as closest to 1-week
+        "1W": "correlation_1m", // Use 1-month as closest to 1-week
         "1M": "correlation_1m",
         "3M": "correlation_3m",
         "6M": "correlation_6m",
@@ -1685,7 +1937,7 @@ router.get("/correlation", async (req, res) => {
     return sendSuccess(res, {
       correlations: correlationData.matrix,
       statistics: correlationData.statistics,
-      analysis
+      analysis,
     });
   } catch (error) {
     console.error("Market correlation analysis error:", error);
@@ -1730,26 +1982,26 @@ router.get("/indices", async (req, res) => {
     validateQueryResult(indicesResult, { requireRows: false });
 
     const indexMap = {
-      '^GSPC': 'S&P 500',
-      '^IXIC': 'NASDAQ Composite',
-      '^DJI': 'Dow Jones Industrial',
-      '^RUT': 'Russell 2000'
+      "^GSPC": "S&P 500",
+      "^IXIC": "NASDAQ Composite",
+      "^DJI": "Dow Jones Industrial",
+      "^RUT": "Russell 2000",
     };
 
-    const items = (indicesResult.rows || []).map(row => ({
+    const items = (indicesResult.rows || []).map((row) => ({
       symbol: row.symbol,
       name: indexMap[row.symbol] || row.symbol,
       price: safeFloat(row.price),
       change: safeFloat(row.change_amount),
       changePercent: safeFloat(row.changePercent),
       volume: safeInt(row.volume),
-      date: row.date
+      date: row.date,
     }));
 
     return sendSuccess(res, {
       items,
       info: "Market indices data - real-time from price feeds",
-      lastUpdate: items.length > 0 ? items[0].date : null
+      lastUpdate: items.length > 0 ? items[0].date : null,
     });
   } catch (error) {
     console.error(" Market indices error:", error.message);
@@ -1767,21 +2019,29 @@ router.get("/indices", async (req, res) => {
 router.get("/internals", async (req, res) => {
   // Fail fast if database is unavailable
   if (!query) {
-    return sendError(res, 'Database service unavailable', 503);
+    return sendError(res, "Database service unavailable", 503);
   }
 
   try {
-
     // Get latest market date from cache once (5 min TTL) - used by multiple queries
-    const latestDate = await getLatestMarketDate('price_daily', 'WHERE close IS NOT NULL');
+    const latestDate = await getLatestMarketDate(
+      "price_daily",
+      "WHERE close IS NOT NULL"
+    );
     if (!latestDate) {
       return sendError(res, "No market data available", 500);
     }
 
     // Run all queries in parallel using cached market date
-    const [breadthResult, maAnalysisResult, historicalBreadthResult, positioningResult] = await Promise.all([
+    const [
+      breadthResult,
+      maAnalysisResult,
+      historicalBreadthResult,
+      positioningResult,
+    ] = await Promise.all([
       // Current breadth data with advance/decline calculations
-      query(`
+      query(
+        `
         SELECT
           COUNT(*) as total_stocks,
           COUNT(CASE WHEN (close - open) > 0 THEN 1 END) as advancing,
@@ -1796,10 +2056,13 @@ router.get("/internals", async (req, res) => {
         WHERE date = $1
           AND close IS NOT NULL
           AND open IS NOT NULL
-      `, [latestDate]),
+      `,
+        [latestDate]
+      ),
 
       // Stocks above moving averages analysis (calculated from 20, 50, 200 day averages)
-      query(`
+      query(
+        `
         WITH price_stats AS (
           SELECT
             symbol,
@@ -1837,7 +2100,9 @@ router.get("/internals", async (req, res) => {
           total_with_sma20, total_with_sma50, total_with_sma200,
           total_stocks, avg_dist_from_sma20, avg_dist_from_sma50, avg_dist_from_sma200
         FROM ma_analysis
-      `, [latestDate]),
+      `,
+        [latestDate]
+      ),
 
       // Historical breadth percentiles (30, 60, 90 day lookback)
       query(`
@@ -1916,20 +2181,37 @@ router.get("/internals", async (req, res) => {
             ) fgi ON true
           `);
         } catch (e) {
-          return { rows: [] };  // Return empty array when data unavailable
+          return { rows: [] }; // Return empty array when data unavailable
         }
-      })()
+      })(),
     ]);
 
-    const breadth = (breadthResult && breadthResult.rows && breadthResult.rows[0]) || {};
-    const maAnalysis = (maAnalysisResult && maAnalysisResult.rows && maAnalysisResult.rows[0]) || {};
-    const historicalBreadth = (historicalBreadthResult && historicalBreadthResult.rows && historicalBreadthResult.rows[0]) || {};
-    const positioning = (positioningResult && positioningResult.rows && positioningResult.rows[0]) || {};
+    const breadth =
+      (breadthResult && breadthResult.rows && breadthResult.rows[0]) || {};
+    const maAnalysis =
+      (maAnalysisResult && maAnalysisResult.rows && maAnalysisResult.rows[0]) ||
+      {};
+    const historicalBreadth =
+      (historicalBreadthResult &&
+        historicalBreadthResult.rows &&
+        historicalBreadthResult.rows[0]) ||
+      {};
+    const positioning =
+      (positioningResult &&
+        positioningResult.rows &&
+        positioningResult.rows[0]) ||
+      {};
 
     // Calculate overextension signals - only if real data exists
-    const advancingPct = breadth.total_stocks ? (breadth.advancing / breadth.total_stocks * 100) : null;
-    const advancingPercAboveMA20 = maAnalysis.total_with_sma20 ? (maAnalysis.above_sma20 / maAnalysis.total_with_sma20 * 100) : null;
-    const advancingPercAboveMA200 = maAnalysis.total_with_sma200 ? (maAnalysis.above_sma200 / maAnalysis.total_with_sma200 * 100) : null;
+    const advancingPct = breadth.total_stocks
+      ? (breadth.advancing / breadth.total_stocks) * 100
+      : null;
+    const advancingPercAboveMA20 = maAnalysis.total_with_sma20
+      ? (maAnalysis.above_sma20 / maAnalysis.total_with_sma20) * 100
+      : null;
+    const advancingPercAboveMA200 = maAnalysis.total_with_sma200
+      ? (maAnalysis.above_sma200 / maAnalysis.total_with_sma200) * 100
+      : null;
 
     // Determine overextension level
     let overextensionLevel = "Normal";
@@ -1937,7 +2219,8 @@ router.get("/internals", async (req, res) => {
 
     if (advancingPct > 75 && advancingPercAboveMA200 > 80) {
       overextensionLevel = "Extreme";
-      overextensionSignal = "Market extremely overbought - consider taking profits";
+      overextensionSignal =
+        "Market extremely overbought - consider taking profits";
     } else if (advancingPct > 70 || advancingPercAboveMA200 > 75) {
       overextensionLevel = "Strong";
       overextensionSignal = "Market extended to upside - watch for reversal";
@@ -1951,7 +2234,10 @@ router.get("/internals", async (req, res) => {
 
     // Calculate how many std deviations from mean
     const stdDevsFromMean = historicalBreadth.stddev_advancing_pct
-      ? ((advancingPct - historicalBreadth.avg_advancing_pct) / historicalBreadth.stddev_advancing_pct).toFixed(2)
+      ? (
+          (advancingPct - historicalBreadth.avg_advancing_pct) /
+          historicalBreadth.stddev_advancing_pct
+        ).toFixed(2)
       : 0;
 
     return sendSuccess(res, {
@@ -1963,78 +2249,136 @@ router.get("/internals", async (req, res) => {
         strong_up: safeInt(breadth.strong_up),
         strong_down: safeInt(breadth.strong_down),
         advancing_percent: parseFloat(advancingPct).toFixed(2),
-        decline_advance_ratio: breadth.declining > 0 ? parseFloat(breadth.declining / breadth.advancing).toFixed(2) : null,
+        decline_advance_ratio:
+          breadth.declining > 0
+            ? parseFloat(breadth.declining / breadth.advancing).toFixed(2)
+            : null,
         avg_daily_change: safeFixed(breadth.avg_daily_change, 3),
-        total_volume: safeInt(breadth.total_volume)
+        total_volume: safeInt(breadth.total_volume),
       },
       moving_average_analysis: {
-          above_sma20: {
-            count: safeInt(maAnalysis.above_sma20),
-            total: safeInt(maAnalysis.total_with_sma20),
-            percent: maAnalysis.total_with_sma20 ? parseFloat(advancingPercAboveMA20).toFixed(2) : null,
-            avg_distance_pct: safeFixed(maAnalysis.avg_dist_from_sma20, 2)
-          },
-          above_sma50: {
-            count: safeInt(maAnalysis.above_sma50),
-            total: safeInt(maAnalysis.total_with_sma50),
-            percent: maAnalysis.total_with_sma50 ? parseFloat((maAnalysis.above_sma50 / maAnalysis.total_with_sma50 * 100)).toFixed(2) : null,
-            avg_distance_pct: safeFixed(maAnalysis.avg_dist_from_sma50, 2)
-          },
-          above_sma200: {
-            count: safeInt(maAnalysis.above_sma200),
-            total: safeInt(maAnalysis.total_with_sma200),
-            percent: maAnalysis.total_with_sma200 ? parseFloat(advancingPercAboveMA200).toFixed(2) : null,
-            avg_distance_pct: safeFixed(maAnalysis.avg_dist_from_sma200, 2)
-          }
+        above_sma20: {
+          count: safeInt(maAnalysis.above_sma20),
+          total: safeInt(maAnalysis.total_with_sma20),
+          percent: maAnalysis.total_with_sma20
+            ? parseFloat(advancingPercAboveMA20).toFixed(2)
+            : null,
+          avg_distance_pct: safeFixed(maAnalysis.avg_dist_from_sma20, 2),
         },
-        market_extremes: {
-          current_breadth_percentile: advancingPct != null ? parseFloat(advancingPct.toFixed(2)) : null,
-          percentile_25: safeFixed(historicalBreadth.percentile_25_advancing, 2),
-          percentile_50: safeFixed(historicalBreadth.percentile_50_advancing, 2),
-          percentile_75: safeFixed(historicalBreadth.percentile_75_advancing, 2),
-          percentile_90: safeFixed(historicalBreadth.percentile_90_advancing, 2),
-          avg_breadth_30d: safeFixed(historicalBreadth.avg_advancing_pct, 2),
-          stddev_breadth_30d: safeFixed(historicalBreadth.stddev_advancing_pct, 2),
-          stddev_from_mean: stdDevsFromMean,
-          breadth_rank: historicalBreadth.max_advancing_pct !== historicalBreadth.min_advancing_pct ?
-            Math.round(((advancingPct - historicalBreadth.min_advancing_pct) / (historicalBreadth.max_advancing_pct - historicalBreadth.min_advancing_pct) * 100)) :
-            null
+        above_sma50: {
+          count: safeInt(maAnalysis.above_sma50),
+          total: safeInt(maAnalysis.total_with_sma50),
+          percent: maAnalysis.total_with_sma50
+            ? parseFloat(
+                (maAnalysis.above_sma50 / maAnalysis.total_with_sma50) * 100
+              ).toFixed(2)
+            : null,
+          avg_distance_pct: safeFixed(maAnalysis.avg_dist_from_sma50, 2),
         },
-        overextension_indicator: {
-          level: overextensionLevel,
-          signal: overextensionSignal,
-          breadth_score: advancingPct != null ? parseFloat(advancingPct.toFixed(2)) : null,
-          ma200_score: advancingPercAboveMA200 != null ? parseFloat(advancingPercAboveMA200.toFixed(2)) : null,
-          composite_score: (advancingPct != null && advancingPercAboveMA200 != null)
-            ? parseFloat(((advancingPct + advancingPercAboveMA200) / 2).toFixed(2))
-            : null
+        above_sma200: {
+          count: safeInt(maAnalysis.above_sma200),
+          total: safeInt(maAnalysis.total_with_sma200),
+          percent: maAnalysis.total_with_sma200
+            ? parseFloat(advancingPercAboveMA200).toFixed(2)
+            : null,
+          avg_distance_pct: safeFixed(maAnalysis.avg_dist_from_sma200, 2),
         },
-        positioning_metrics: {
-          institutional: {
-            high_ownership_symbols: safeInt(positioning.high_inst_ownership_count),
-            avg_ownership_pct: (safeFloat(positioning.avg_inst_ownership) * 100).toFixed(2),
-            avg_short_interest: (safeFloat(positioning.avg_short_interest) * 100).toFixed(2),
-            short_change_trend: safeFixed(positioning.avg_short_change, 3)
-          },
-          retail_sentiment: {
-            aaii_bullish: positioning.aaii_bullish !== null && positioning.aaii_bullish !== undefined ? parseFloat(positioning.aaii_bullish).toFixed(2) : null,
-            aaii_bearish: positioning.aaii_bearish !== null && positioning.aaii_bearish !== undefined ? parseFloat(positioning.aaii_bearish).toFixed(2) : null,
-            aaii_neutral: positioning.aaii_neutral !== null && positioning.aaii_neutral !== undefined ? parseFloat(positioning.aaii_neutral).toFixed(2) : null
-          },
-          professional_sentiment: {
-            naaim_bullish: positioning.naaim_bullish !== null && positioning.naaim_bullish !== undefined ? parseFloat(positioning.naaim_bullish).toFixed(2) : null,
-            naaim_bearish: positioning.naaim_bearish !== null && positioning.naaim_bearish !== undefined ? parseFloat(positioning.naaim_bearish).toFixed(2) : null
-          },
-          fear_greed_index: positioning.fear_greed_value !== null && positioning.fear_greed_value !== undefined ? parseFloat(positioning.fear_greed_value).toFixed(0) : null
+      },
+      market_extremes: {
+        current_breadth_percentile:
+          advancingPct != null ? parseFloat(advancingPct.toFixed(2)) : null,
+        percentile_25: safeFixed(historicalBreadth.percentile_25_advancing, 2),
+        percentile_50: safeFixed(historicalBreadth.percentile_50_advancing, 2),
+        percentile_75: safeFixed(historicalBreadth.percentile_75_advancing, 2),
+        percentile_90: safeFixed(historicalBreadth.percentile_90_advancing, 2),
+        avg_breadth_30d: safeFixed(historicalBreadth.avg_advancing_pct, 2),
+        stddev_breadth_30d: safeFixed(
+          historicalBreadth.stddev_advancing_pct,
+          2
+        ),
+        stddev_from_mean: stdDevsFromMean,
+        breadth_rank:
+          historicalBreadth.max_advancing_pct !==
+          historicalBreadth.min_advancing_pct
+            ? Math.round(
+                ((advancingPct - historicalBreadth.min_advancing_pct) /
+                  (historicalBreadth.max_advancing_pct -
+                    historicalBreadth.min_advancing_pct)) *
+                  100
+              )
+            : null,
+      },
+      overextension_indicator: {
+        level: overextensionLevel,
+        signal: overextensionSignal,
+        breadth_score:
+          advancingPct != null ? parseFloat(advancingPct.toFixed(2)) : null,
+        ma200_score:
+          advancingPercAboveMA200 != null
+            ? parseFloat(advancingPercAboveMA200.toFixed(2))
+            : null,
+        composite_score:
+          advancingPct != null && advancingPercAboveMA200 != null
+            ? parseFloat(
+                ((advancingPct + advancingPercAboveMA200) / 2).toFixed(2)
+              )
+            : null,
+      },
+      positioning_metrics: {
+        institutional: {
+          high_ownership_symbols: safeInt(
+            positioning.high_inst_ownership_count
+          ),
+          avg_ownership_pct: (
+            safeFloat(positioning.avg_inst_ownership) * 100
+          ).toFixed(2),
+          avg_short_interest: (
+            safeFloat(positioning.avg_short_interest) * 100
+          ).toFixed(2),
+          short_change_trend: safeFixed(positioning.avg_short_change, 3),
         },
-        metadata: {
-          data_freshness: "Real-time from database",
-          breadth_lookback: "Last trading day",
-          historical_lookback: "90 days",
-          positioning_lookback: "30 days"
-        }
-      });
-
+        retail_sentiment: {
+          aaii_bullish:
+            positioning.aaii_bullish !== null &&
+            positioning.aaii_bullish !== undefined
+              ? parseFloat(positioning.aaii_bullish).toFixed(2)
+              : null,
+          aaii_bearish:
+            positioning.aaii_bearish !== null &&
+            positioning.aaii_bearish !== undefined
+              ? parseFloat(positioning.aaii_bearish).toFixed(2)
+              : null,
+          aaii_neutral:
+            positioning.aaii_neutral !== null &&
+            positioning.aaii_neutral !== undefined
+              ? parseFloat(positioning.aaii_neutral).toFixed(2)
+              : null,
+        },
+        professional_sentiment: {
+          naaim_bullish:
+            positioning.naaim_bullish !== null &&
+            positioning.naaim_bullish !== undefined
+              ? parseFloat(positioning.naaim_bullish).toFixed(2)
+              : null,
+          naaim_bearish:
+            positioning.naaim_bearish !== null &&
+            positioning.naaim_bearish !== undefined
+              ? parseFloat(positioning.naaim_bearish).toFixed(2)
+              : null,
+        },
+        fear_greed_index:
+          positioning.fear_greed_value !== null &&
+          positioning.fear_greed_value !== undefined
+            ? parseFloat(positioning.fear_greed_value).toFixed(0)
+            : null,
+      },
+      metadata: {
+        data_freshness: "Real-time from database",
+        breadth_lookback: "Last trading day",
+        historical_lookback: "90 days",
+        positioning_lookback: "30 days",
+      },
+    });
   } catch (error) {
     console.error("Error fetching market internals:", error);
     return sendError(res, "Market internals calculation failed", 500);
@@ -2057,47 +2401,68 @@ router.get("/aaii", async (req, res) => {
         return sendPaginated(res, aaii, {
           total: aaii.length,
           limit: aaii.length,
-          offset: 0
+          offset: 0,
         });
       }
     }
 
     // Fallback to database
     if (!query) {
-      return sendPlaceholder(res, 'Database connection unavailable', 503, 'items');
+      return sendPlaceholder(
+        res,
+        "Database connection unavailable",
+        503,
+        "items"
+      );
     }
 
     let days = 30;
-    switch(range) {
-      case "90d": days = 90; break;
-      case "6m": days = 180; break;
-      case "1y": days = 365; break;
-      case "all": days = 10000; break;
-      default: days = 30;
+    switch (range) {
+      case "90d":
+        days = 90;
+        break;
+      case "6m":
+        days = 180;
+        break;
+      case "1y":
+        days = 365;
+        break;
+      case "all":
+        days = 10000;
+        break;
+      default:
+        days = 30;
     }
 
-    const result = await query(`
+    const result = await query(
+      `
       SELECT date, bullish, neutral, bearish FROM aaii_sentiment
       WHERE date >= CURRENT_DATE - MAKE_INTERVAL(days => $1)
       ORDER BY date ASC LIMIT $2
-    `, [days, 1000]);
+    `,
+      [days, 1000]
+    );
 
-    const data = (result?.rows || []).map(row => ({
+    const data = (result?.rows || []).map((row) => ({
       date: row.date,
       bullish: parseFloat(row.bullish || 0),
       neutral: parseFloat(row.neutral || 0),
-      bearish: parseFloat(row.bearish || 0)
+      bearish: parseFloat(row.bearish || 0),
     }));
 
     return sendPaginated(res, data, {
       total: data.length,
       limit: data.length,
-      offset: 0
+      offset: 0,
     });
-
   } catch (error) {
     console.error("AAII sentiment error:", error);
-    return sendPlaceholder(res, `AAII sentiment data unavailable: ${error.message}`, 500, 'items');
+    return sendPlaceholder(
+      res,
+      `AAII sentiment data unavailable: ${error.message}`,
+      500,
+      "items"
+    );
   }
 });
 
@@ -2112,42 +2477,63 @@ router.get("/fear-greed", async (req, res) => {
 
     // Convert range parameter to days
     let days = 30;
-    switch(range) {
-      case "90d": days = 90; break;
-      case "6m": days = 180; break;
-      case "1y": days = 365; break;
-      case "all": days = 10000; break;
-      default: days = 30;
+    switch (range) {
+      case "90d":
+        days = 90;
+        break;
+      case "6m":
+        days = 180;
+        break;
+      case "1y":
+        days = 365;
+        break;
+      case "all":
+        days = 10000;
+        break;
+      default:
+        days = 30;
     }
 
-    const result = await query(`
+    const result = await query(
+      `
       SELECT
         date,
         fear_greed_value
       FROM fear_greed_index
       WHERE date >= CURRENT_DATE - MAKE_INTERVAL(days => $1)
       ORDER BY date ASC
-    `, [days]);
+    `,
+      [days]
+    );
 
     if (!result || !result.rows || result.rows.length === 0) {
-      return sendPlaceholder(res, 'Fear & Greed index data not available', 200, 'object');
+      return sendPlaceholder(
+        res,
+        "Fear & Greed index data not available",
+        200,
+        "object"
+      );
     }
 
-    const data = result.rows.map(row => ({
+    const data = result.rows.map((row) => ({
       date: row.date,
       value: parseInt(row.fear_greed_value),
-      fear_greed_value: parseInt(row.fear_greed_value)
+      fear_greed_value: parseInt(row.fear_greed_value),
     }));
 
     return sendSuccess(res, {
       items: data,
       range: range,
-      count: data.length
+      count: data.length,
     });
-
   } catch (error) {
     console.error("Fear & Greed index error:", error);
-    return sendPlaceholder(res, `Failed to fetch Fear & Greed index data: ${error.message}`, 500, 'object');
+    return sendPlaceholder(
+      res,
+      `Failed to fetch Fear & Greed index data: ${error.message}`,
+      500,
+      "object"
+    );
   }
 });
 
@@ -2167,7 +2553,10 @@ async function getMarketDataHandler(req, res) {
     const startTime = Date.now();
 
     // Get latest market date from cache once (5 min TTL) - used by multiple queries
-    const latestDate = await getLatestMarketDate('price_daily', 'WHERE close IS NOT NULL');
+    const latestDate = await getLatestMarketDate(
+      "price_daily",
+      "WHERE close IS NOT NULL"
+    );
     if (!latestDate) {
       return sendError(res, "No market data available", 500);
     }
@@ -2184,30 +2573,34 @@ async function getMarketDataHandler(req, res) {
       fearGreedData,
       naaimData,
       seasonalityData,
-      internalsData
+      internalsData,
     ] = await Promise.allSettled([
       // 1. Overview (quality, top stocks, breadth summary)
       (async () => {
-        const [marketCapResult, topStocksResult, breadthResult] = await Promise.all([
-          query(`SELECT COUNT(*) as total_stocks,
+        const [marketCapResult, topStocksResult, breadthResult] =
+          await Promise.all([
+            query(`SELECT COUNT(*) as total_stocks,
                  SUM(CASE WHEN composite_score >= 75 THEN 1 ELSE 0 END) as high_quality,
                  SUM(CASE WHEN composite_score >= 50 AND composite_score < 75 THEN 1 ELSE 0 END) as mid_quality
                  FROM stock_scores WHERE composite_score IS NOT NULL`),
-          query(`SELECT symbol, composite_score, momentum_score, value_score
+            query(`SELECT symbol, composite_score, momentum_score, value_score
                  FROM stock_scores WHERE composite_score IS NOT NULL
                  ORDER BY composite_score DESC LIMIT 50`),
-          query(`SELECT * FROM price_daily WHERE symbol = 'SPY' ORDER BY date DESC LIMIT 2`)
-        ]);
+            query(
+              `SELECT * FROM price_daily WHERE symbol = 'SPY' ORDER BY date DESC LIMIT 2`
+            ),
+          ]);
         return {
           quality_counts: marketCapResult.rows[0] || {},
           top_stocks: topStocksResult.rows || [],
-          breadth_summary: breadthResult.rows || []
+          breadth_summary: breadthResult.rows || [],
         };
       })(),
 
       // 2. Breadth (advancing/declining/unchanged)
       (async () => {
-        const result = await query(`
+        const result = await query(
+          `
           SELECT
             COUNT(*) as total_stocks,
             COUNT(CASE WHEN (close - open) > 0 THEN 1 END) as advancing,
@@ -2215,18 +2608,26 @@ async function getMarketDataHandler(req, res) {
             COUNT(CASE WHEN (close - open) = 0 THEN 1 END) as unchanged
           FROM price_daily
           WHERE date = $1
-        `, [latestDate]);
+        `,
+          [latestDate]
+        );
         return result.rows[0] || {};
       })(),
 
       // 3. McClellan Oscillator
       (async () => {
-        const result = await query(`
+        const result = await query(
+          `
           SELECT close FROM price_daily
           WHERE symbol = 'SPY' AND date >= $1
           ORDER BY date ASC LIMIT 1
-        `, ['2025-01-01']);
-        return { data: result.rows || [], status: result.rows.length > 0 ? 'available' : 'unavailable' };
+        `,
+          ["2025-01-01"]
+        );
+        return {
+          data: result.rows || [],
+          status: result.rows.length > 0 ? "available" : "unavailable",
+        };
       })(),
 
       // 4. Distribution Days
@@ -2277,12 +2678,20 @@ async function getMarketDataHandler(req, res) {
           `);
           const data = result.rows || [];
           if (data.length === 0) {
-            return { _is_placeholder: true, _error: 'No AAII sentiment data available', items: [] };
+            return {
+              _is_placeholder: true,
+              _error: "No AAII sentiment data available",
+              items: [],
+            };
           }
           return data;
         } catch (err) {
-          console.warn('AAII sentiment data unavailable:', err.message);
-          return { _is_placeholder: true, _error: `AAII sentiment error: ${err.message}`, items: [] };
+          console.warn("AAII sentiment data unavailable:", err.message);
+          return {
+            _is_placeholder: true,
+            _error: `AAII sentiment error: ${err.message}`,
+            items: [],
+          };
         }
       })(),
 
@@ -2297,12 +2706,20 @@ async function getMarketDataHandler(req, res) {
           `);
           const data = result.rows || [];
           if (data.length === 0) {
-            return { _is_placeholder: true, _error: 'No Fear & Greed data available', items: [] };
+            return {
+              _is_placeholder: true,
+              _error: "No Fear & Greed data available",
+              items: [],
+            };
           }
           return data;
         } catch (err) {
-          console.warn('Fear & Greed index data unavailable:', err.message);
-          return { _is_placeholder: true, _error: `Fear & Greed error: ${err.message}`, items: [] };
+          console.warn("Fear & Greed index data unavailable:", err.message);
+          return {
+            _is_placeholder: true,
+            _error: `Fear & Greed error: ${err.message}`,
+            items: [],
+          };
         }
       })(),
 
@@ -2317,12 +2734,20 @@ async function getMarketDataHandler(req, res) {
           `);
           const data = result.rows || [];
           if (data.length === 0) {
-            return { _is_placeholder: true, _error: 'No NAAIM data available', items: [] };
+            return {
+              _is_placeholder: true,
+              _error: "No NAAIM data available",
+              items: [],
+            };
           }
           return data;
         } catch (err) {
-          console.warn('NAAIM data unavailable:', err.message);
-          return { _is_placeholder: true, _error: `NAAIM error: ${err.message}`, items: [] };
+          console.warn("NAAIM data unavailable:", err.message);
+          return {
+            _is_placeholder: true,
+            _error: `NAAIM error: ${err.message}`,
+            items: [],
+          };
         }
       })(),
 
@@ -2333,41 +2758,59 @@ async function getMarketDataHandler(req, res) {
 
       // 11. Market Internals
       (async () => {
-        const result = await query(`
+        const result = await query(
+          `
           SELECT
             COUNT(*) as total_stocks,
             COUNT(CASE WHEN close > 50 THEN 1 END) as above_50_ma,
             COUNT(CASE WHEN close > 200 THEN 1 END) as above_200_ma
           FROM price_daily
           WHERE date = $1
-        `, [latestDate]);
+        `,
+          [latestDate]
+        );
         return result.rows[0] || {};
-      })()
+      })(),
     ]);
 
     // Extract results from settled promises
     const consolidated = {
       market_status: getMarketStatus(),
-      overview: overviewData.status === 'fulfilled' ? overviewData.value : null,
-      breadth: breadthData.status === 'fulfilled' ? breadthData.value : null,
-      mcclellan_oscillator: mcclellanData.status === 'fulfilled' ? mcclellanData.value : null,
-      distribution_days: distributionDaysData.status === 'fulfilled' ? distributionDaysData.value : null,
-      indices: indicesData.status === 'fulfilled' ? indicesData.value : [],
-      volatility: volatilityData.status === 'fulfilled' ? volatilityData.value : null,
-      aaii_sentiment: aaiiData.status === 'fulfilled' ? aaiiData.value : [],
-      fear_greed: fearGreedData.status === 'fulfilled' ? fearGreedData.value : [],
-      naaim_exposure: naaimData.status === 'fulfilled' ? naaimData.value : [],
-      seasonality: seasonalityData.status === 'fulfilled' ? seasonalityData.value : { currentYear: null, currentYearReturn: null },
-      internals: internalsData.status === 'fulfilled' ? internalsData.value : null,
+      overview: overviewData.status === "fulfilled" ? overviewData.value : null,
+      breadth: breadthData.status === "fulfilled" ? breadthData.value : null,
+      mcclellan_oscillator:
+        mcclellanData.status === "fulfilled" ? mcclellanData.value : null,
+      distribution_days:
+        distributionDaysData.status === "fulfilled"
+          ? distributionDaysData.value
+          : null,
+      indices: indicesData.status === "fulfilled" ? indicesData.value : [],
+      volatility:
+        volatilityData.status === "fulfilled" ? volatilityData.value : null,
+      aaii_sentiment: aaiiData.status === "fulfilled" ? aaiiData.value : [],
+      fear_greed:
+        fearGreedData.status === "fulfilled" ? fearGreedData.value : [],
+      naaim_exposure: naaimData.status === "fulfilled" ? naaimData.value : [],
+      seasonality:
+        seasonalityData.status === "fulfilled"
+          ? seasonalityData.value
+          : { currentYear: null, currentYearReturn: null },
+      internals:
+        internalsData.status === "fulfilled" ? internalsData.value : null,
       data_timestamp: new Date().toISOString(),
-      fetch_time_ms: Date.now() - startTime
+      fetch_time_ms: Date.now() - startTime,
     };
 
     return sendSuccess(res, consolidated);
-
   } catch (error) {
     console.error("Complete market data error:", error);
-    return sendError(res, error.message ? `Failed to fetch complete market data: ${error.message}` : "Failed to fetch complete market data", 500);
+    return sendError(
+      res,
+      error.message
+        ? `Failed to fetch complete market data: ${error.message}`
+        : "Failed to fetch complete market data",
+      500
+    );
   }
 }
 
@@ -2388,19 +2831,28 @@ router.get("/overview", async (req, res) => {
 router.get("/technicals", async (req, res) => {
   const startTime = Date.now();
   try {
-
     // Get latest market and technical dates from cache (5 min TTL)
-    const latestPriceDate = await getLatestMarketDate('price_daily', 'WHERE close IS NOT NULL');
-    const latestTechDate = await getLatestMarketDate('technical_data_daily');
+    const latestPriceDate = await getLatestMarketDate(
+      "price_daily",
+      "WHERE close IS NOT NULL"
+    );
+    const latestTechDate = await getLatestMarketDate("technical_data_daily");
 
     if (!latestPriceDate) {
       return sendError(res, "No market data available", 500);
     }
 
-    const [breadthData, mcclellanData, distributionDaysData, volatilityData, internalsData] = await Promise.allSettled([
+    const [
+      breadthData,
+      mcclellanData,
+      distributionDaysData,
+      volatilityData,
+      internalsData,
+    ] = await Promise.allSettled([
       // 1. Breadth (Latest day only)
       (async () => {
-        const result = await query(`
+        const result = await query(
+          `
           SELECT
             COUNT(*) as total_stocks,
             COUNT(CASE WHEN (close - open) > 0 THEN 1 END) as advancing,
@@ -2409,7 +2861,9 @@ router.get("/technicals", async (req, res) => {
             AVG(ABS(CASE WHEN open > 0 THEN ((close - open) / open * 100) ELSE 0 END)) as avg_abs_change
           FROM price_daily
           WHERE date = $1 AND close IS NOT NULL
-        `, [latestPriceDate]);
+        `,
+          [latestPriceDate]
+        );
         return result.rows[0] || {};
       })(),
 
@@ -2439,7 +2893,11 @@ router.get("/technicals", async (req, res) => {
         `);
         const data = result.rows || [];
         if (data.length === 0) {
-          return { _is_placeholder: true, _error: 'No McClellan Oscillator data available', items: [] };
+          return {
+            _is_placeholder: true,
+            _error: "No McClellan Oscillator data available",
+            items: [],
+          };
         }
         return data;
       })(),
@@ -2462,7 +2920,11 @@ router.get("/technicals", async (req, res) => {
           `);
 
           if (!result || !result.rows || result.rows.length === 0) {
-            return { _is_placeholder: true, _error: 'Distribution days data not available', items: [] };
+            return {
+              _is_placeholder: true,
+              _error: "Distribution days data not available",
+              items: [],
+            };
           }
 
           // Format response with index names
@@ -2495,7 +2957,10 @@ router.get("/technicals", async (req, res) => {
           return distributionData;
         } catch (error) {
           console.error("Error fetching distribution days:", error);
-          return { _is_placeholder: true, _error: 'Distribution days fetch failed' };
+          return {
+            _is_placeholder: true,
+            _error: "Distribution days fetch failed",
+          };
         }
       })(),
 
@@ -2512,7 +2977,10 @@ router.get("/technicals", async (req, res) => {
             AND close IS NOT NULL AND open IS NOT NULL
         `);
         if (!result.rows || result.rows.length === 0) {
-          return { _is_placeholder: true, _error: 'Volatility data not available' };
+          return {
+            _is_placeholder: true,
+            _error: "Volatility data not available",
+          };
         }
         return result.rows[0];
       })(),
@@ -2520,7 +2988,8 @@ router.get("/technicals", async (req, res) => {
       // 5. Internals - stocks above SMA20/50/200 from technical_data_daily latest date
       (async () => {
         try {
-          const result = await query(`
+          const result = await query(
+            `
             WITH latest_tech AS (
               SELECT t.symbol, t.sma_20, t.sma_50, t.sma_200
               FROM technical_data_daily t
@@ -2538,32 +3007,52 @@ router.get("/technicals", async (req, res) => {
               COUNT(CASE WHEN lt.sma_200 IS NOT NULL AND lp.close > lt.sma_200 THEN 1 END) as above_200_ma
             FROM latest_tech lt
             JOIN latest_price lp ON lt.symbol = lp.symbol
-          `, [latestTechDate || latestPriceDate, latestPriceDate]);
+          `,
+            [latestTechDate || latestPriceDate, latestPriceDate]
+          );
           if (!result.rows || result.rows.length === 0) {
-            return { _is_placeholder: true, _error: 'Internals data not available' };
+            return {
+              _is_placeholder: true,
+              _error: "Internals data not available",
+            };
           }
           return result.rows[0];
         } catch (e) {
           console.warn("Internals SMA query failed:", e.message);
-          return { _is_placeholder: true, _error: 'Internals data query failed' };
+          return {
+            _is_placeholder: true,
+            _error: "Internals data query failed",
+          };
         }
-      })()
+      })(),
     ]);
 
     const technicals = {
-      breadth: breadthData.status === 'fulfilled' ? breadthData.value : [],
-      mcclellan_oscillator: mcclellanData.status === 'fulfilled' ? mcclellanData.value : null,
-      distribution_days: distributionDaysData.status === 'fulfilled' ? distributionDaysData.value : null,
-      volatility: volatilityData.status === 'fulfilled' ? volatilityData.value : null,
-      internals: internalsData.status === 'fulfilled' ? internalsData.value : null,
+      breadth: breadthData.status === "fulfilled" ? breadthData.value : [],
+      mcclellan_oscillator:
+        mcclellanData.status === "fulfilled" ? mcclellanData.value : null,
+      distribution_days:
+        distributionDaysData.status === "fulfilled"
+          ? distributionDaysData.value
+          : null,
+      volatility:
+        volatilityData.status === "fulfilled" ? volatilityData.value : null,
+      internals:
+        internalsData.status === "fulfilled" ? internalsData.value : null,
       timestamp: new Date().toISOString(),
-      fetch_time_ms: Date.now() - startTime
+      fetch_time_ms: Date.now() - startTime,
     };
 
     return sendSuccess(res, technicals);
   } catch (error) {
     console.error(" [Market API] Technicals error:", error);
-    return sendError(res, error.message ? `Failed to fetch technicals: ${error.message}` : "Failed to fetch technicals", 500);
+    return sendError(
+      res,
+      error.message
+        ? `Failed to fetch technicals: ${error.message}`
+        : "Failed to fetch technicals",
+      500
+    );
   }
 });
 
@@ -2575,20 +3064,29 @@ router.get("/sentiment", async (req, res) => {
   // Convert range parameter to days
   let days = 30;
   let orderDirection = "ASC"; // Default to ascending (oldest first) for charts
-  switch(range) {
-    case "90d": days = 90; break;
-    case "6m": days = 180; break;
-    case "1y": days = 365; break;
-    case "all": days = 10000; break;
-    default: days = 30;
+  switch (range) {
+    case "90d":
+      days = 90;
+      break;
+    case "6m":
+      days = 180;
+      break;
+    case "1y":
+      days = 365;
+      break;
+    case "all":
+      days = 10000;
+      break;
+    default:
+      days = 30;
   }
 
   try {
-
     const [aaiiData, fearGreedData, naaimData] = await Promise.allSettled([
       // 1. AAII
       (async () => {
-        const result = await query(`
+        const result = await query(
+          `
           SELECT
             bullish,
             bearish,
@@ -2598,17 +3096,24 @@ router.get("/sentiment", async (req, res) => {
           FROM aaii_sentiment
           WHERE date >= CURRENT_DATE - MAKE_INTERVAL(days => $1)
           ORDER BY date ${orderDirection}
-        `, [days]);
+        `,
+          [days]
+        );
         const data = result.rows || [];
         if (data.length === 0) {
-          return { _is_placeholder: true, _error: 'No AAII sentiment data available', items: [] };
+          return {
+            _is_placeholder: true,
+            _error: "No AAII sentiment data available",
+            items: [],
+          };
         }
         return data;
       })(),
 
       // 2. Fear & Greed
       (async () => {
-        const result = await query(`
+        const result = await query(
+          `
           SELECT
             fear_greed_value as value,
             fear_greed_label as rating,
@@ -2617,17 +3122,24 @@ router.get("/sentiment", async (req, res) => {
           FROM fear_greed_index
           WHERE date >= CURRENT_DATE - MAKE_INTERVAL(days => $1)
           ORDER BY date ${orderDirection}
-        `, [days]);
+        `,
+          [days]
+        );
         const data = result.rows || [];
         if (data.length === 0) {
-          return { _is_placeholder: true, _error: 'No Fear & Greed data available', items: [] };
+          return {
+            _is_placeholder: true,
+            _error: "No Fear & Greed data available",
+            items: [],
+          };
         }
         return data;
       })(),
 
       // 3. NAAIM
       (async () => {
-        const result = await query(`
+        const result = await query(
+          `
           SELECT
             naaim_number_mean as mean,
             bullish,
@@ -2637,43 +3149,60 @@ router.get("/sentiment", async (req, res) => {
           FROM naaim
           WHERE date >= CURRENT_DATE - MAKE_INTERVAL(days => $1)
           ORDER BY date ${orderDirection}
-        `, [days]);
+        `,
+          [days]
+        );
         const data = result.rows || [];
         if (data.length === 0) {
-          return { _is_placeholder: true, _error: 'No NAAIM data available', items: [] };
+          return {
+            _is_placeholder: true,
+            _error: "No NAAIM data available",
+            items: [],
+          };
         }
         return data;
-      })()
+      })(),
     ]);
 
     const sentiment = {
-      aaii: aaiiData.status === 'fulfilled' ? aaiiData.value : [],
-      fear_greed: fearGreedData.status === 'fulfilled' ? fearGreedData.value : [],
-      naaim: naaimData.status === 'fulfilled' ? naaimData.value : [],
+      aaii: aaiiData.status === "fulfilled" ? aaiiData.value : [],
+      fear_greed:
+        fearGreedData.status === "fulfilled" ? fearGreedData.value : [],
+      naaim: naaimData.status === "fulfilled" ? naaimData.value : [],
       range,
       timestamp: new Date().toISOString(),
-      fetch_time_ms: Date.now() - startTime
+      fetch_time_ms: Date.now() - startTime,
     };
 
     return sendSuccess(res, sentiment);
   } catch (error) {
     console.error(" [Market API] Sentiment error:", error);
-    return sendError(res, error.message ? `Failed to fetch sentiment: ${error.message}` : "Failed to fetch sentiment", 500);
+    return sendError(
+      res,
+      error.message
+        ? `Failed to fetch sentiment: ${error.message}`
+        : "Failed to fetch sentiment",
+      500
+    );
   }
 });
 
 // GET /api/market/top-movers - Top gainers and losers
 router.get("/top-movers", async (req, res) => {
   try {
-    const { limit } = paginationConfig.sanitize(req.query.limit, 0, 'market');
+    const { limit } = paginationConfig.sanitize(req.query.limit, 0, "market");
 
     // Get latest market date from cache (5 min TTL) instead of subquery
-    const latestDate = await getLatestMarketDate('price_daily', 'WHERE close IS NOT NULL');
+    const latestDate = await getLatestMarketDate(
+      "price_daily",
+      "WHERE close IS NOT NULL"
+    );
     if (!latestDate) {
       return sendNotFound(res, "No market data available");
     }
 
-    const result = await query(`
+    const result = await query(
+      `
       SELECT
         symbol,
         open,
@@ -2690,25 +3219,31 @@ router.get("/top-movers", async (req, res) => {
         AND open IS NOT NULL
       ORDER BY ABS((close - open) / NULLIF(open, 0) * 100) DESC
       LIMIT $2
-    `, [latestDate, limit * 2]);
+    `,
+      [latestDate, limit * 2]
+    );
 
-    const gainers = (result.rows || []).filter(r => r.type === 'gainer').slice(0, limit);
-    const losers = (result.rows || []).filter(r => r.type === 'loser').slice(0, limit);
+    const gainers = (result.rows || [])
+      .filter((r) => r.type === "gainer")
+      .slice(0, limit);
+    const losers = (result.rows || [])
+      .filter((r) => r.type === "loser")
+      .slice(0, limit);
 
     return sendSuccess(res, {
-      gainers: gainers.map(r => ({
+      gainers: gainers.map((r) => ({
         symbol: r.symbol,
         open: parseFloat(r.open),
         close: parseFloat(r.close),
-        change_pct: parseFloat(r.change_pct)
+        change_pct: parseFloat(r.change_pct),
       })),
-      losers: losers.map(r => ({
+      losers: losers.map((r) => ({
         symbol: r.symbol,
         open: parseFloat(r.open),
         close: parseFloat(r.close),
-        change_pct: parseFloat(r.change_pct)
+        change_pct: parseFloat(r.change_pct),
       })),
-      timestamp: new Date().toISOString()
+      timestamp: new Date().toISOString(),
     });
   } catch (error) {
     console.error("Error fetching top movers:", error);
@@ -2736,16 +3271,25 @@ router.get("/fresh-data", async (req, res) => {
         sp500Metrics: freshData.sp500_metrics,
         timestamp: freshData.timestamp,
         source: "fresh-data",
-        message: "Real-time data from yfinance"
+        message: "Real-time data from yfinance",
       };
 
       return sendSuccess(res, formattedData);
     }
 
-    return sendNotFound(res, "Fresh data not available - Run get_latest_comprehensive_data.py to generate fresh data");
+    return sendNotFound(
+      res,
+      "Fresh data not available - Run get_latest_comprehensive_data.py to generate fresh data"
+    );
   } catch (error) {
     console.error("Fresh data endpoint error:", error.message);
-    return sendError(res, error.message ? `Failed to fetch fresh data: ${error.message}` : "Failed to fetch fresh data", 500);
+    return sendError(
+      res,
+      error.message
+        ? `Failed to fetch fresh data: ${error.message}`
+        : "Failed to fetch fresh data",
+      500
+    );
   }
 });
 
@@ -2757,7 +3301,9 @@ router.get("/comprehensive-fresh", async (req, res) => {
     const comprehensivePath = getMarketDataPath();
 
     if (fs.existsSync(comprehensivePath)) {
-      const comprehensiveData = JSON.parse(fs.readFileSync(comprehensivePath, "utf-8"));
+      const comprehensiveData = JSON.parse(
+        fs.readFileSync(comprehensivePath, "utf-8")
+      );
 
       return sendSuccess(res, {
         indices: Object.values(comprehensiveData.indices || {}),
@@ -2765,36 +3311,53 @@ router.get("/comprehensive-fresh", async (req, res) => {
         industries: Object.values(comprehensiveData.industries || {}),
         vix: comprehensiveData.vix,
         majorStocks: Object.values(comprehensiveData.major_stocks || {}),
-        economicIndicators: Object.values(comprehensiveData.economic_indicators || {}),
+        economicIndicators: Object.values(
+          comprehensiveData.economic_indicators || {}
+        ),
         marketBreadth: comprehensiveData.market_breadth,
         timestamp: comprehensiveData.timestamp,
         source: "comprehensive-fresh",
-        message: "Complete fresh market data from yfinance"
+        message: "Complete fresh market data from yfinance",
       });
     }
 
     return sendNotFound(res, "Comprehensive data not available");
   } catch (error) {
     console.error("Comprehensive fresh data error:", error.message);
-    return sendError(res, error.message ? `Failed to fetch comprehensive data: ${error.message}` : "Failed to fetch comprehensive data", 500);
+    return sendError(
+      res,
+      error.message
+        ? `Failed to fetch comprehensive data: ${error.message}`
+        : "Failed to fetch comprehensive data",
+      500
+    );
   }
 });
 
 // Market Technicals Fresh Data - Query database directly for real McClellan, Breadth, Distribution Days, etc
 router.get("/technicals-fresh", async (req, res) => {
   try {
-
     // Get latest market date from cache (5 min TTL)
-    const latestDate = await getLatestMarketDate('price_daily', 'WHERE close IS NOT NULL');
+    const latestDate = await getLatestMarketDate(
+      "price_daily",
+      "WHERE close IS NOT NULL"
+    );
     if (!latestDate) {
       return sendError(res, "No market data available", 500);
     }
 
     // Fetch all technical data from database
-    const [breadthData, mcclellanData, distributionDaysData, volatilityData, internalsData] = await Promise.allSettled([
+    const [
+      breadthData,
+      mcclellanData,
+      distributionDaysData,
+      volatilityData,
+      internalsData,
+    ] = await Promise.allSettled([
       // 1. Breadth (Latest day only)
       (async () => {
-        const result = await query(`
+        const result = await query(
+          `
           SELECT
             COUNT(*) as total_stocks,
             COUNT(CASE WHEN (close - open) > 0 THEN 1 END) as advancing,
@@ -2803,7 +3366,9 @@ router.get("/technicals-fresh", async (req, res) => {
             AVG(ABS(CASE WHEN open > 0 THEN ((close - open) / open * 100) ELSE 0 END)) as avg_abs_change
           FROM price_daily
           WHERE date = $1 AND close IS NOT NULL
-        `, [latestDate]);
+        `,
+          [latestDate]
+        );
         return result.rows[0] || {};
       })(),
 
@@ -2852,7 +3417,10 @@ router.get("/technicals-fresh", async (req, res) => {
           `);
 
           if (!result || !result.rows || result.rows.length === 0) {
-            return { _is_placeholder: true, _error: 'Distribution days data not available' };
+            return {
+              _is_placeholder: true,
+              _error: "Distribution days data not available",
+            };
           }
 
           // Format response with index names
@@ -2885,7 +3453,10 @@ router.get("/technicals-fresh", async (req, res) => {
           return distributionData;
         } catch (error) {
           console.error("Error fetching distribution days:", error);
-          return { _is_placeholder: true, _error: 'Distribution days fetch failed' };
+          return {
+            _is_placeholder: true,
+            _error: "Distribution days fetch failed",
+          };
         }
       })(),
 
@@ -2906,7 +3477,8 @@ router.get("/technicals-fresh", async (req, res) => {
 
       // 5. Internals (real data from database with SMA20/50 percentages)
       (async () => {
-        const result = await query(`
+        const result = await query(
+          `
           WITH price_history AS (
             SELECT
               symbol,
@@ -2945,7 +3517,9 @@ router.get("/technicals-fresh", async (req, res) => {
             ROUND(100.0 * COUNT(CASE WHEN current_price > sma_50 THEN 1 END) / NULLIF(COUNT(*), 0), 1) as pct_above_50_ma,
             ROUND(100.0 * COUNT(CASE WHEN current_price > sma_200 THEN 1 END) / NULLIF(COUNT(*), 0), 1) as pct_above_200_ma
           FROM latest_smas
-        `, [latestDate]);
+        `,
+          [latestDate]
+        );
         return result.rows[0] || {};
       })(),
     ]);
@@ -2958,29 +3532,37 @@ router.get("/technicals-fresh", async (req, res) => {
     const internals = internalsData.value || {};
 
     // Format breadth data
-    const advance_decline_ratio = breadth.declining && breadth.declining > 0
-      ? (breadth.advancing / breadth.declining).toFixed(2)
-      : "N/A";
+    const advance_decline_ratio =
+      breadth.declining && breadth.declining > 0
+        ? (breadth.advancing / breadth.declining).toFixed(2)
+        : "N/A";
 
     // Return comprehensive market technicals
     return sendSuccess(res, {
-      mcclellan_oscillator: mcclellan.map(m => ({
-        date: m.date,
-        advance_decline_line: m.advance_decline_line
-      })) || [],
+      mcclellan_oscillator:
+        mcclellan.map((m) => ({
+          date: m.date,
+          advance_decline_line: m.advance_decline_line,
+        })) || [],
       breadth: {
         total_stocks: parseInt(breadth.total_stocks) || 0,
         advancing: parseInt(breadth.advancing) || 0,
         declining: parseInt(breadth.declining) || 0,
         unchanged: parseInt(breadth.unchanged) || 0,
         advance_decline_ratio: advance_decline_ratio,
-        average_change_percent: parseFloat(breadth.avg_abs_change) || 0
+        average_change_percent: parseFloat(breadth.avg_abs_change) || 0,
       },
       distribution_days: distributionDays,
       volatility: {
-        market_volatility: volatility.market_volatility ? parseFloat(volatility.market_volatility) : 0,
-        avg_daily_move: volatility.avg_daily_move ? parseFloat(volatility.avg_daily_move) : 0,
-        max_daily_move: volatility.max_daily_move ? parseFloat(volatility.max_daily_move) : 0
+        market_volatility: volatility.market_volatility
+          ? parseFloat(volatility.market_volatility)
+          : 0,
+        avg_daily_move: volatility.avg_daily_move
+          ? parseFloat(volatility.avg_daily_move)
+          : 0,
+        max_daily_move: volatility.max_daily_move
+          ? parseFloat(volatility.max_daily_move)
+          : 0,
       },
       internals: {
         total_stocks: parseInt(internals.total_stocks) || 0,
@@ -2989,14 +3571,20 @@ router.get("/technicals-fresh", async (req, res) => {
         above_200_ma: parseInt(internals.above_200_ma) || 0,
         pct_above_20_ma: parseFloat(internals.pct_above_20_ma) || 0,
         pct_above_50_ma: parseFloat(internals.pct_above_50_ma) || 0,
-        pct_above_200_ma: parseFloat(internals.pct_above_200_ma) || 0
+        pct_above_200_ma: parseFloat(internals.pct_above_200_ma) || 0,
       },
       timestamp: new Date().toISOString(),
-      source: "database-fresh"
+      source: "database-fresh",
     });
   } catch (error) {
     console.error("Market technicals fresh error:", error.message);
-    return sendError(res, error.message ? `Failed to fetch market technicals: ${error.message}` : "Failed to fetch market technicals", 500);
+    return sendError(
+      res,
+      error.message
+        ? `Failed to fetch market technicals: ${error.message}`
+        : "Failed to fetch market technicals",
+      500
+    );
   }
 });
 
@@ -3023,12 +3611,25 @@ router.get("/cap-distribution", async (req, res) => {
     `);
 
     if (!result.rows || result.rows.length === 0) {
-      return sendPlaceholder(res, 'Market distribution data not available', 200, 'items');
+      return sendPlaceholder(
+        res,
+        "Market distribution data not available",
+        200,
+        "items"
+      );
     }
     return sendSuccess(res, result.rows);
   } catch (error) {
-    logger.error('Error in /market/distribution:', { error: error.message, stack: error.stack });
-    return sendPlaceholder(res, `Failed to fetch market distribution: ${error.message}`, 500, 'items');
+    logger.error("Error in /market/distribution:", {
+      error: error.message,
+      stack: error.stack,
+    });
+    return sendPlaceholder(
+      res,
+      `Failed to fetch market distribution: ${error.message}`,
+      500,
+      "items"
+    );
   }
 });
 
@@ -3036,7 +3637,13 @@ router.get("/cap-distribution", async (req, res) => {
 // GET /api/market/naaim — NAAIM Exposure Index, current + history
 router.get("/naaim", async (req, res) => {
   try {
-    if (!query) return sendPlaceholder(res, 'Database connection unavailable', 503, 'data');
+    if (!query)
+      return sendPlaceholder(
+        res,
+        "Database connection unavailable",
+        503,
+        "data"
+      );
 
     const result = await query(`
       SELECT date, naaim_number_mean, bearish, bullish
@@ -3045,15 +3652,19 @@ router.get("/naaim", async (req, res) => {
       LIMIT 52
     `);
 
-    if (!result.rows.length) return sendPlaceholder(res, 'NAAIM data not available', 200, 'data');
+    if (!result.rows.length)
+      return sendPlaceholder(res, "NAAIM data not available", 200, "data");
 
     const latest = result.rows[0];
-    const history = result.rows.slice().reverse().map(r => ({
-      date: r.date,
-      naaim_number_mean: parseFloat(r.naaim_number_mean),
-      bearish: r.bearish != null ? parseFloat(r.bearish) : null,
-      bullish: r.bullish != null ? parseFloat(r.bullish) : null,
-    }));
+    const history = result.rows
+      .slice()
+      .reverse()
+      .map((r) => ({
+        date: r.date,
+        naaim_number_mean: parseFloat(r.naaim_number_mean),
+        bearish: r.bearish != null ? parseFloat(r.bearish) : null,
+        bullish: r.bullish != null ? parseFloat(r.bullish) : null,
+      }));
 
     return sendSuccess(res, {
       current: parseFloat(latest.naaim_number_mean),
@@ -3063,15 +3674,25 @@ router.get("/naaim", async (req, res) => {
       history,
     });
   } catch (error) {
-    logger.error('Error in /market/naaim:', { error: error.message, stack: error.stack });
-    return sendPlaceholder(res, `Failed to fetch NAAIM data: ${error.message}`, 500, 'data');
+    logger.error("Error in /market/naaim:", {
+      error: error.message,
+      stack: error.stack,
+    });
+    return sendPlaceholder(
+      res,
+      `Failed to fetch NAAIM data: ${error.message}`,
+      500,
+      "data"
+    );
   }
 });
 
 router.get("/", async (req, res) => {
   try {
     if (!query) {
-      return sendSuccess(res, { message: "Market data available - use /status or other sub-endpoints" });
+      return sendSuccess(res, {
+        message: "Market data available - use /status or other sub-endpoints",
+      });
     }
 
     // Get latest market health data (from populated market_health_daily table)
@@ -3096,10 +3717,14 @@ router.get("/", async (req, res) => {
         breadth_momentum: latestHealth.breadth_momentum_10d,
         vix_level: latestHealth.vix_level,
       },
-      message: "Market overview - use /status, /technicals, /sentiment for detailed data"
+      message:
+        "Market overview - use /status, /technicals, /sentiment for detailed data",
     });
   } catch (error) {
-    logger.error('Error in /market:', { error: error.message, stack: error.stack });
+    logger.error("Error in /market:", {
+      error: error.message,
+      stack: error.stack,
+    });
     return sendSuccess(res, { message: "Market data not available" });
   }
 });

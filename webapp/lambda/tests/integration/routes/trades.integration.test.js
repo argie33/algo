@@ -2,7 +2,6 @@ const request = require("supertest");
 const { app } = require("../../../index");
 const { initializeDatabase } = require("../../../utils/database");
 
-
 describe("Trades Routes", () => {
   beforeAll(async () => {
     await initializeDatabase();
@@ -25,7 +24,6 @@ describe("Trades Routes", () => {
       expect(timestamp).toBeInstanceOf(Date);
       expect(timestamp.getTime()).not.toBeNaN();
     });
-
   });
 
   describe("GET /api/trades/health", () => {
@@ -41,7 +39,6 @@ describe("Trades Routes", () => {
       );
       expect(response.body).toHaveProperty("timestamp");
     });
-
   });
 
   describe("GET /api/trades/recent", () => {
@@ -96,7 +93,6 @@ describe("Trades Routes", () => {
 
       expect([401].includes(response.status)).toBe(true);
     });
-
   });
 
   describe("GET /api/trades/import/status", () => {
@@ -123,7 +119,6 @@ describe("Trades Routes", () => {
 
       expect([401].includes(response.status)).toBe(true);
     });
-
   });
 
   describe("POST /api/trades/import/alpaca", () => {
@@ -156,7 +151,6 @@ describe("Trades Routes", () => {
 
       expect([401].includes(response.status)).toBe(true);
     });
-
   });
 
   describe("GET /api/trades/summary", () => {
@@ -179,7 +173,6 @@ describe("Trades Routes", () => {
 
       expect([401].includes(response.status)).toBe(true);
     });
-
   });
 
   describe("GET /api/trades/positions", () => {
@@ -217,7 +210,6 @@ describe("Trades Routes", () => {
 
       expect([401].includes(response.status)).toBe(true);
     });
-
   });
 
   describe("GET /api/trades/analytics", () => {
@@ -272,7 +264,6 @@ describe("Trades Routes", () => {
 
       expect([401].includes(response.status)).toBe(true);
     });
-
   });
 
   describe("GET /api/trades/analytics/overview", () => {
@@ -302,7 +293,6 @@ describe("Trades Routes", () => {
 
       expect([401].includes(response.status)).toBe(true);
     });
-
   });
 
   describe("GET /api/trades/history", () => {
@@ -345,7 +335,6 @@ describe("Trades Routes", () => {
 
       expect([401].includes(response.status)).toBe(true);
     });
-
   });
 
   describe("GET /api/trades/performance", () => {
@@ -378,7 +367,6 @@ describe("Trades Routes", () => {
 
       expect([401].includes(response.status)).toBe(true);
     });
-
   });
 
   describe("GET /api/trades/insights", () => {
@@ -412,7 +400,6 @@ describe("Trades Routes", () => {
 
       expect([401].includes(response.status)).toBe(true);
     });
-
   });
 
   describe("GET /api/trades/export", () => {
@@ -479,7 +466,6 @@ describe("Trades Routes", () => {
 
       expect([401].includes(response.status)).toBe(true);
     });
-
   });
 
   describe("DELETE /api/trades/data", () => {
@@ -517,7 +503,6 @@ describe("Trades Routes", () => {
 
       expect([401].includes(response.status)).toBe(true);
     });
-
   });
 
   describe("Error Handling", () => {
@@ -536,7 +521,6 @@ describe("Trades Routes", () => {
 
       expect([200, 400, 404, 500].includes(response.status)).toBe(true);
     });
-
   });
 
   describe("Performance", () => {
@@ -577,5 +561,4 @@ describe("Trades Routes", () => {
       });
     });
   });
-
 });

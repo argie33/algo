@@ -10,7 +10,14 @@ jest.mock("../../../utils/database", () => ({
   healthCheck: jest.fn(),
 }));
 
-const { query, closeDatabase, initializeDatabase, getPool, transaction, healthCheck } = require("../../../utils/database");
+const {
+  query,
+  closeDatabase,
+  initializeDatabase,
+  getPool,
+  transaction,
+  healthCheck,
+} = require("../../../utils/database");
 describe("Market Routes Unit Tests", () => {
   let app;
   beforeAll(() => {
@@ -42,55 +49,61 @@ describe("Market Routes Unit Tests", () => {
           return Promise.resolve({
             rows: [
               {
-                sector_performance_exists: true
-              }
-            ]
+                sector_performance_exists: true,
+              },
+            ],
           });
         }
         // Default for generic exists checks
         return Promise.resolve({
           rows: [
             {
-              exists: true
-            }
-          ]
+              exists: true,
+            },
+          ],
         });
       }
       // Mock market overview queries
-      if (sql.includes("SELECT") && (sql.includes("market_data") || sql.includes("price_daily"))) {
+      if (
+        sql.includes("SELECT") &&
+        (sql.includes("market_data") || sql.includes("price_daily"))
+      ) {
         return Promise.resolve({
           rows: [
             {
               symbol: "SPY",
-              current_price: 435.50,
+              current_price: 435.5,
               change: 2.45,
               change_percent: 0.56,
               volume: 45000000,
               market_cap: 15000000000000,
               sector: "Index",
-              date: "2025-09-28"
+              date: "2025-09-28",
             },
             {
               symbol: "QQQ",
-              current_price: 385.20,
+              current_price: 385.2,
               change: -1.23,
               change_percent: -0.32,
               volume: 32000000,
               market_cap: 12000000000000,
               sector: "Technology",
-              date: "2025-09-28"
-            }
-          ]
+              date: "2025-09-28",
+            },
+          ],
         });
       }
       // Mock sector_performance queries (both DISTINCT ON and ORDER BY variants)
-      if (sql.includes("sector_performance") && (sql.includes("DISTINCT ON") || sql.includes("ORDER BY performance_1d"))) {
+      if (
+        sql.includes("sector_performance") &&
+        (sql.includes("DISTINCT ON") || sql.includes("ORDER BY performance_1d"))
+      ) {
         return Promise.resolve({
           rows: [
             {
               etf_symbol: "XLK",
               sector: "Technology",
-              price: 228.50,
+              price: 228.5,
               change_percent: 1.25,
               change: 2.82,
               volume: 45000000,
@@ -102,12 +115,12 @@ describe("Market Routes Unit Tests", () => {
               performance_5d: 3.45,
               performance_20d: 8.72,
               overall_rank: 1,
-              fetched_at: "2025-09-28"
+              fetched_at: "2025-09-28",
             },
             {
               etf_symbol: "XLV",
               sector: "Healthcare",
-              price: 159.30,
+              price: 159.3,
               change_percent: -0.45,
               change: -0.72,
               volume: 32000000,
@@ -119,7 +132,7 @@ describe("Market Routes Unit Tests", () => {
               performance_5d: 1.23,
               performance_20d: 2.15,
               overall_rank: 8,
-              fetched_at: "2025-09-28"
+              fetched_at: "2025-09-28",
             },
             {
               etf_symbol: "XLF",
@@ -136,9 +149,9 @@ describe("Market Routes Unit Tests", () => {
               performance_5d: 2.34,
               performance_20d: 5.67,
               overall_rank: 3,
-              fetched_at: "2025-09-28"
-            }
-          ]
+              fetched_at: "2025-09-28",
+            },
+          ],
         });
       }
       // Mock sector performance queries
@@ -150,23 +163,23 @@ describe("Market Routes Unit Tests", () => {
               avg_change: 1.25,
               avg_volume: 25000000,
               stock_count: 150,
-              total_market_cap: 8500000000000
+              total_market_cap: 8500000000000,
             },
             {
               sector: "Healthcare",
               avg_change: -0.45,
               avg_volume: 18000000,
               stock_count: 120,
-              total_market_cap: 3200000000000
+              total_market_cap: 3200000000000,
             },
             {
               sector: "Finance",
               avg_change: 0.78,
               avg_volume: 22000000,
               stock_count: 110,
-              total_market_cap: 4100000000000
-            }
-          ]
+              total_market_cap: 4100000000000,
+            },
+          ],
         });
       }
       // Mock economic indicators
@@ -183,7 +196,7 @@ describe("Market Routes Unit Tests", () => {
               change_previous: 0.2,
               change_percent: 0.09,
               trend: "positive",
-              next_release: "2025-12-28"
+              next_release: "2025-12-28",
             },
             {
               name: "Unemployment Rate",
@@ -195,9 +208,9 @@ describe("Market Routes Unit Tests", () => {
               change_previous: -0.1,
               change_percent: -0.02,
               trend: "positive",
-              next_release: "2025-10-31"
-            }
-          ]
+              next_release: "2025-10-31",
+            },
+          ],
         });
       }
       // Mock sentiment data
@@ -209,20 +222,24 @@ describe("Market Routes Unit Tests", () => {
               bullish: 35.5,
               bearish: 28.2,
               neutral: 36.3,
-              sentiment_score: 0.62
+              sentiment_score: 0.62,
             },
             {
               date: "2025-09-21",
               bullish: 32.1,
               bearish: 31.5,
               neutral: 36.4,
-              sentiment_score: 0.58
-            }
-          ]
+              sentiment_score: 0.58,
+            },
+          ],
         });
       }
       // Mock breadth data - handle CTE queries for breadth data
-      if (sql.includes("daily_changes") || (sql.includes("WITH") && sql.includes("calculated_change_percent")) || sql.includes("strong_advancing")) {
+      if (
+        sql.includes("daily_changes") ||
+        (sql.includes("WITH") && sql.includes("calculated_change_percent")) ||
+        sql.includes("strong_advancing")
+      ) {
         // Return comprehensive breadth data for CTE queries - includes all required fields
         return Promise.resolve({
           rows: [
@@ -234,19 +251,23 @@ describe("Market Routes Unit Tests", () => {
               strong_advancing: 89,
               strong_declining: 34,
               strong_unchanged: 0,
-              ad_ratio: 1.2520,
+              ad_ratio: 1.252,
               breadth_percent: 55.54,
               internal_strength: "Strong",
               fetched_at: "2025-09-28",
               // Fields required by response formatting
               avg_change: 0.45,
-              avg_volume: 25000000
-            }
-          ]
+              avg_volume: 25000000,
+            },
+          ],
         });
       }
       // Mock breadth data
-      if (sql.includes("breadth") || sql.includes("advance") || sql.includes("decline")) {
+      if (
+        sql.includes("breadth") ||
+        sql.includes("advance") ||
+        sql.includes("decline")
+      ) {
         return Promise.resolve({
           rows: [
             {
@@ -256,9 +277,9 @@ describe("Market Routes Unit Tests", () => {
               unchanged: 321,
               new_highs: 89,
               new_lows: 34,
-              ad_ratio: 1.25
-            }
-          ]
+              ad_ratio: 1.25,
+            },
+          ],
         });
       }
       // Mock distribution days data
@@ -276,7 +297,7 @@ describe("Market Routes Unit Tests", () => {
                   change_pct: -0.45,
                   volume: 3500000000,
                   volume_ratio: 1.15,
-                  days_ago: 3
+                  days_ago: 3,
                 },
                 {
                   date: "2025-09-20",
@@ -284,9 +305,9 @@ describe("Market Routes Unit Tests", () => {
                   change_pct: -0.35,
                   volume: 3450000000,
                   volume_ratio: 1.12,
-                  days_ago: 8
-                }
-              ]
+                  days_ago: 8,
+                },
+              ],
             },
             {
               symbol: "^IXIC",
@@ -295,37 +316,37 @@ describe("Market Routes Unit Tests", () => {
               days: [
                 {
                   date: "2025-09-26",
-                  close_price: 13520.50,
+                  close_price: 13520.5,
                   change_pct: -0.55,
                   volume: 4200000000,
                   volume_ratio: 1.22,
-                  days_ago: 2
+                  days_ago: 2,
                 },
                 {
                   date: "2025-09-25",
                   close_price: 13580.25,
-                  change_pct: -0.40,
+                  change_pct: -0.4,
                   volume: 4150000000,
                   volume_ratio: 1.18,
-                  days_ago: 3
+                  days_ago: 3,
                 },
                 {
                   date: "2025-09-22",
                   close_price: 13650.75,
-                  change_pct: -0.30,
+                  change_pct: -0.3,
                   volume: 4100000000,
-                  volume_ratio: 1.10,
-                  days_ago: 6
+                  volume_ratio: 1.1,
+                  days_ago: 6,
                 },
                 {
                   date: "2025-09-18",
-                  close_price: 13720.00,
+                  close_price: 13720.0,
                   change_pct: -0.25,
                   volume: 4050000000,
                   volume_ratio: 1.08,
-                  days_ago: 10
-                }
-              ]
+                  days_ago: 10,
+                },
+              ],
             },
             {
               symbol: "^DJI",
@@ -334,19 +355,19 @@ describe("Market Routes Unit Tests", () => {
               days: [
                 {
                   date: "2025-09-27",
-                  close_price: 34250.50,
-                  change_pct: -0.60,
+                  close_price: 34250.5,
+                  change_pct: -0.6,
                   volume: 350000000,
                   volume_ratio: 1.25,
-                  days_ago: 1
+                  days_ago: 1,
                 },
                 {
                   date: "2025-09-26",
                   close_price: 34380.75,
                   change_pct: -0.45,
                   volume: 345000000,
-                  volume_ratio: 1.20,
-                  days_ago: 2
+                  volume_ratio: 1.2,
+                  days_ago: 2,
                 },
                 {
                   date: "2025-09-24",
@@ -354,38 +375,42 @@ describe("Market Routes Unit Tests", () => {
                   change_pct: -0.35,
                   volume: 340000000,
                   volume_ratio: 1.15,
-                  days_ago: 4
+                  days_ago: 4,
                 },
                 {
                   date: "2025-09-21",
-                  close_price: 34650.00,
-                  change_pct: -0.30,
+                  close_price: 34650.0,
+                  change_pct: -0.3,
                   volume: 335000000,
                   volume_ratio: 1.12,
-                  days_ago: 7
+                  days_ago: 7,
                 },
                 {
                   date: "2025-09-19",
-                  close_price: 34780.50,
+                  close_price: 34780.5,
                   change_pct: -0.28,
                   volume: 330000000,
-                  volume_ratio: 1.10,
-                  days_ago: 9
-                }
-              ]
-            }
-          ]
+                  volume_ratio: 1.1,
+                  days_ago: 9,
+                },
+              ],
+            },
+          ],
         });
       }
       // Mock table existence checks
       if (sql.includes("information_schema.tables") || sql.includes("EXISTS")) {
         return Promise.resolve({
-          rows: [{ exists: true }]
+          rows: [{ exists: true }],
         });
       }
       // Default responses for unmatched queries - provide smart defaults
       // If it's a query with price_daily joins, return breadth-like data
-      if (sql.includes("price_daily") || sql.toUpperCase().includes("COUNT") || sql.toUpperCase().includes("WITH")) {
+      if (
+        sql.includes("price_daily") ||
+        sql.toUpperCase().includes("COUNT") ||
+        sql.toUpperCase().includes("WITH")
+      ) {
         // Return breadth data structure for any aggregation query
         return Promise.resolve({
           rows: [
@@ -397,17 +422,17 @@ describe("Market Routes Unit Tests", () => {
               strong_advancing: 89,
               strong_declining: 34,
               strong_unchanged: 0,
-              ad_ratio: 1.2520,
+              ad_ratio: 1.252,
               breadth_percent: 55.54,
               avg_change: 0.45,
-              avg_volume: 25000000
-            }
-          ]
+              avg_volume: 25000000,
+            },
+          ],
         });
       }
       // Default empty response for truly unmatched queries
       return Promise.resolve({
-        rows: []
+        rows: [],
       });
     });
   });
@@ -453,8 +478,7 @@ describe("Market Routes Unit Tests", () => {
   });
   describe("GET /market/sentiment", () => {
     test("should return sentiment history with AAII data", async () => {
-      const response = await request(app)
-        .get("/market/sentiment?days=30");
+      const response = await request(app).get("/market/sentiment?days=30");
       expect([200, 404]).toContain(response.status);
       expect(response.body).toBeDefined();
       expect(typeof response.body).toBe("object");
@@ -473,8 +497,9 @@ describe("Market Routes Unit Tests", () => {
       }
     });
     test("should handle sentiment with custom parameters", async () => {
-      const response = await request(app)
-        .get("/market/sentiment?days=7&limit=10");
+      const response = await request(app).get(
+        "/market/sentiment?days=7&limit=10"
+      );
       expect([200, 404]).toContain(response.status);
       expect(response.body).toBeDefined();
       expect(typeof response.body).toBe("object");
@@ -534,8 +559,7 @@ describe("Market Routes Unit Tests", () => {
   });
   describe("GET /market/sectors/performance", () => {
     test("should return sector performance data", async () => {
-      const response = await request(app)
-        .get("/market/sectors/performance");
+      const response = await request(app).get("/market/sectors/performance");
       expect([200, 503]).toContain(response.status);
       expect(response.body).toBeDefined();
       expect(typeof response.body).toBe("object");
@@ -544,8 +568,9 @@ describe("Market Routes Unit Tests", () => {
       }
     });
     test("should handle sector performance with timeframe", async () => {
-      const response = await request(app)
-        .get("/market/sectors/performance?timeframe=1d");
+      const response = await request(app).get(
+        "/market/sectors/performance?timeframe=1d"
+      );
       expect([200, 503]).toContain(response.status);
       expect(response.body).toBeDefined();
       expect(typeof response.body).toBe("object");
@@ -598,8 +623,7 @@ describe("Market Routes Unit Tests", () => {
       }
     });
     test("should handle breadth with parameters", async () => {
-      const response = await request(app)
-        .get("/market/breadth?period=5d");
+      const response = await request(app).get("/market/breadth?period=5d");
       expect([200, 503]).toContain(response.status);
       expect(response.body).toBeDefined();
       expect(typeof response.body).toBe("object");
@@ -625,7 +649,9 @@ describe("Market Routes Unit Tests", () => {
           expect(data["^GSPC"]).toHaveProperty("days");
           expect(Array.isArray(data["^GSPC"].days)).toBe(true);
           // Verify signal is one of the expected values
-          expect(["NORMAL", "ELEVATED", "CAUTION", "UNDER_PRESSURE"]).toContain(data["^GSPC"].signal);
+          expect(["NORMAL", "ELEVATED", "CAUTION", "UNDER_PRESSURE"]).toContain(
+            data["^GSPC"].signal
+          );
         }
         // Check NASDAQ data
         if (data["^IXIC"]) {
@@ -673,9 +699,12 @@ describe("Market Routes Unit Tests", () => {
     test("should handle missing distribution_days table gracefully", async () => {
       // Mock table doesn't exist
       query.mockImplementation((sql) => {
-        if (sql.includes("information_schema.tables") || sql.includes("EXISTS")) {
+        if (
+          sql.includes("information_schema.tables") ||
+          sql.includes("EXISTS")
+        ) {
           return Promise.resolve({
-            rows: [{ exists: false }]
+            rows: [{ exists: false }],
           });
         }
         return Promise.resolve({ rows: [] });
@@ -684,14 +713,19 @@ describe("Market Routes Unit Tests", () => {
       expect(response.status).toBe(503);
       expect(response.body).toHaveProperty("success", false);
       expect(response.body).toHaveProperty("error");
-      expect(response.body.error).toContain("Distribution days service unavailable");
+      expect(response.body.error).toContain(
+        "Distribution days service unavailable"
+      );
     });
     test("should handle database query errors", async () => {
       // Mock database error
       query.mockImplementation((sql) => {
-        if (sql.includes("information_schema.tables") || sql.includes("EXISTS")) {
+        if (
+          sql.includes("information_schema.tables") ||
+          sql.includes("EXISTS")
+        ) {
           return Promise.resolve({
-            rows: [{ exists: true }]
+            rows: [{ exists: true }],
           });
         }
         if (sql.includes("distribution_days")) {
@@ -707,9 +741,12 @@ describe("Market Routes Unit Tests", () => {
     test("should return 404 when no distribution days data exists", async () => {
       // Mock empty result
       query.mockImplementation((sql) => {
-        if (sql.includes("information_schema.tables") || sql.includes("EXISTS")) {
+        if (
+          sql.includes("information_schema.tables") ||
+          sql.includes("EXISTS")
+        ) {
           return Promise.resolve({
-            rows: [{ exists: true }]
+            rows: [{ exists: true }],
           });
         }
         if (sql.includes("distribution_days")) {
@@ -761,15 +798,16 @@ describe("Market Routes Unit Tests", () => {
   // AWS Failing Endpoints Tests (Previously failing due to mock responses)
   describe("AWS Failing Endpoints - Database-Driven", () => {
     test("GET /market/recession-forecast should return database-driven recession analysis (or 503 if missing data)", async () => {
-      const response = await request(app)
-        .get("/market/recession-forecast");
+      const response = await request(app).get("/market/recession-forecast");
       // Expect either 200 (data loaded) or 503 (data missing) - NO mock fallbacks
       expect([200, 503]).toContain(response.status);
       expect(response.body).toBeDefined();
       expect(typeof response.body).toBe("object");
       if (response.status === 200) {
         expect(response.body).toHaveProperty("data");
-        expect(response.body.data).toHaveProperty("compositeRecessionProbability");
+        expect(response.body.data).toHaveProperty(
+          "compositeRecessionProbability"
+        );
         expect(response.body.data).toHaveProperty("keyIndicators");
         expect(response.body.data).toHaveProperty("analysis");
       } else if (response.status === 503) {
@@ -779,8 +817,7 @@ describe("Market Routes Unit Tests", () => {
       }
     });
     test("GET /market/leading-indicators should return database-driven leading indicators (or 503 if missing data)", async () => {
-      const response = await request(app)
-        .get("/market/leading-indicators");
+      const response = await request(app).get("/market/leading-indicators");
       // Expect either 200 (data loaded) or 503 (data missing) - NO mock fallbacks
       expect([200, 503]).toContain(response.status);
       expect(response.body).toBeDefined();
@@ -827,8 +864,7 @@ describe("Market Routes Unit Tests", () => {
       }
     });
     test("GET /market/economic-scenarios should return database-driven economic scenarios (or 503 if missing data)", async () => {
-      const response = await request(app)
-        .get("/market/economic-scenarios");
+      const response = await request(app).get("/market/economic-scenarios");
       // Expect either 200 (data loaded) or 503 (data missing) - NO mock fallbacks
       expect([200, 503]).toContain(response.status);
       expect(response.body).toBeDefined();

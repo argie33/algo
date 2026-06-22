@@ -52,7 +52,9 @@ describe("Analysts API Integration", () => {
 
   describe("Price Targets", () => {
     test("should retrieve price targets for stock", async () => {
-      const response = await request(app).get("/api/analysts/price-targets/AAPL");
+      const response = await request(app).get(
+        "/api/analysts/price-targets/AAPL"
+      );
 
       expect(response.status).toBe(200);
       expect(response.body).toHaveProperty("success", true);
@@ -91,13 +93,17 @@ describe("Analysts API Integration", () => {
       expect(typeof consensus.target_low_price).toBe("number");
       expect(typeof consensus.target_mean_price).toBe("number");
       expect(typeof consensus.analyst_opinion_count).toBe("number");
-      expect(consensus.target_high_price).toBeGreaterThan(consensus.target_low_price);
+      expect(consensus.target_high_price).toBeGreaterThan(
+        consensus.target_low_price
+      );
     });
   });
 
   describe("Analyst Research", () => {
     test("should retrieve research reports", async () => {
-      const response = await request(app).get("/api/analysts/research?symbol=AAPL&limit=10");
+      const response = await request(app).get(
+        "/api/analysts/research?symbol=AAPL&limit=10"
+      );
 
       expect(response.status).toBe(200);
       expect(response.body).toHaveProperty("success", true);
@@ -116,7 +122,9 @@ describe("Analysts API Integration", () => {
     });
 
     test("should filter research by analyst firm", async () => {
-      const response = await request(app).get("/api/analysts/research?firm=Goldman&limit=5");
+      const response = await request(app).get(
+        "/api/analysts/research?firm=Goldman&limit=5"
+      );
 
       expect(response.status).toBe(200);
       expect(response.body).toHaveProperty("success", true);

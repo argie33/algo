@@ -15,6 +15,12 @@ module.exports = {
     ecmaVersion: "latest",
     sourceType: "module",
   },
+  settings: {
+    node: {
+      version: ">=18.0.0",
+      packagePath: require("path").resolve(__dirname, "package.json"),
+    },
+  },
   plugins: ["node", "import"],
   rules: {
     "no-unused-vars": [
@@ -37,11 +43,13 @@ module.exports = {
     // Node.js best practices
     "node/no-deprecated-api": "error",
     "node/no-extraneous-import": "error",
-    "node/no-extraneous-require": "error",
+    "node/no-extraneous-require": "warn", // Warn instead of error; false positives with some AWS packages
     "node/no-missing-import": "off", // Sometimes false positives with AWS SDK
     "node/no-missing-require": "error",
     "node/no-unpublished-import": "off", // Allow devDependencies in tests
     "node/no-unsupported-features/es-syntax": "off", // Allow modern ES syntax
+    "node/no-unsupported-features/es-builtins": "off", // Node 18+ supports all ES builtins
+    "node/no-unsupported-features/node-builtins": "off", // Node 18+ supports all node builtins
 
     // Import/Export rules
     "import/no-unresolved": "off", // AWS SDK modules sometimes unresolved
@@ -70,6 +78,7 @@ module.exports = {
       rules: {
         "node/no-unpublished-import": "off",
         "node/no-unpublished-require": "off",
+        "node/no-missing-require": "off", // Allow complex mocking in tests
         "import/order": "off", // Disable import order for test files
         // Test-specific rule adjustments
       },

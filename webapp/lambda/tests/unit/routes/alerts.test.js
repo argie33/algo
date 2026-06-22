@@ -3,13 +3,17 @@ const request = require("supertest");
 
 // Mock database for unit tests
 jest.mock("../../../utils/database", () => ({
-
   query: jest.fn(),
 }));
 
-
-
-const { query, closeDatabase, initializeDatabase, getPool, transaction, healthCheck } = require('../../../utils/database');
+const {
+  query,
+  closeDatabase,
+  initializeDatabase,
+  getPool,
+  transaction,
+  healthCheck,
+} = require("../../../utils/database");
 
 describe("Alerts Routes Unit Tests", () => {
   let app;
@@ -34,102 +38,120 @@ describe("Alerts Routes Unit Tests", () => {
     // Default mock implementation for database queries
     query.mockImplementation((sql, params) => {
       // Handle table existence checks
-      if (sql.includes('information_schema.tables') || sql.includes('table_name')) {
+      if (
+        sql.includes("information_schema.tables") ||
+        sql.includes("table_name")
+      ) {
         return Promise.resolve({
-          rows: [{ exists: true }]
+          rows: [{ exists: true }],
         });
       }
 
       // Mock responses based on SQL patterns and parameters
-      if (sql.includes('active_price_alerts') || sql.includes('active_risk_alerts')) {
+      if (
+        sql.includes("active_price_alerts") ||
+        sql.includes("active_risk_alerts")
+      ) {
         // Check if filtering by status = "triggered" - look in both SQL and params
-        const statusFilter = (sql.includes("status = $") && params && params.includes('triggered')) ||
-                           sql.includes("'triggered'");
-        const status = statusFilter ? 'triggered' : 'active';
+        const statusFilter =
+          (sql.includes("status = $") &&
+            params &&
+            params.includes("triggered")) ||
+          sql.includes("'triggered'");
+        const status = statusFilter ? "triggered" : "active";
 
         return Promise.resolve({
           rows: [
             {
               id: 1,
-              symbol: 'AAPL',
-              alert_type: 'price',
-              condition: 'above',
-              target_price: 150.00,
-              current_price: 148.50,
+              symbol: "AAPL",
+              alert_type: "price",
+              condition: "above",
+              target_price: 150.0,
+              current_price: 148.5,
               status: status,
               created_at: new Date().toISOString(),
-              triggered_at: status === 'triggered' ? new Date().toISOString() : null
-            }
-          ]
+              triggered_at:
+                status === "triggered" ? new Date().toISOString() : null,
+            },
+          ],
         });
       }
 
-      if (sql.includes('volume_analysis') || sql.includes('price_daily')) {
+      if (sql.includes("volume_analysis") || sql.includes("price_daily")) {
         return Promise.resolve({
           rows: [
             {
-              symbol: 'TSLA',
+              symbol: "TSLA",
               current_volume: 25000000,
               average_volume: 20000000,
               volume_ratio: 1.25,
-              alerts_triggered: 2
-            }
-          ]
+              alerts_triggered: 2,
+            },
+          ],
         });
       }
 
-      if (sql.includes('technical_alerts') || sql.includes('rsi') || sql.includes('macd')) {
+      if (
+        sql.includes("technical_alerts") ||
+        sql.includes("rsi") ||
+        sql.includes("macd")
+      ) {
         return Promise.resolve({
           rows: [
             {
               id: 1,
-              symbol: 'AAPL',
-              indicator: 'RSI',
+              symbol: "AAPL",
+              indicator: "RSI",
               threshold: 70,
               current_value: 68.5,
-              status: 'active'
-            }
-          ]
+              status: "active",
+            },
+          ],
         });
       }
 
-      if (sql.includes('news_alerts') || sql.includes('sentiment')) {
+      if (sql.includes("news_alerts") || sql.includes("sentiment")) {
         return Promise.resolve({
           rows: [
             {
               id: 1,
-              symbol: 'AAPL',
+              symbol: "AAPL",
               sentiment_threshold: 0.7,
               current_sentiment: 0.65,
-              status: 'active'
-            }
-          ]
+              status: "active",
+            },
+          ],
         });
       }
 
-      if (sql.includes('portfolio_alerts') || sql.includes('portfolio')) {
+      if (sql.includes("portfolio_alerts") || sql.includes("portfolio")) {
         return Promise.resolve({
           rows: [
             {
               id: 1,
-              alert_type: 'portfolio_value',
+              alert_type: "portfolio_value",
               threshold: 100000,
               current_value: 95000,
-              status: 'active'
-            }
-          ]
+              status: "active",
+            },
+          ],
         });
       }
 
-      if (sql.includes('INSERT') || sql.includes('UPDATE') || sql.includes('DELETE')) {
+      if (
+        sql.includes("INSERT") ||
+        sql.includes("UPDATE") ||
+        sql.includes("DELETE")
+      ) {
         // For INSERT operations, return the inserted data based on params
-        if (sql.includes('INSERT') && params) {
+        if (sql.includes("INSERT") && params) {
           // Extract symbol from params - look for stock ticker patterns
-          let symbol = 'AAPL'; // default
+          let symbol = "AAPL"; // default
           if (params) {
             // Look for valid stock symbols in params (1-5 uppercase letters)
-            const symbolMatch = params.find(p =>
-              typeof p === 'string' && /^[A-Z]{1,5}$/.test(p)
+            const symbolMatch = params.find(
+              (p) => typeof p === "string" && /^[A-Z]{1,5}$/.test(p)
             );
             if (symbolMatch) {
               symbol = symbolMatch;
@@ -138,9 +160,9 @@ describe("Alerts Routes Unit Tests", () => {
 
           // Extract sentiment threshold for news alerts
           let sentimentThreshold = 0.7;
-          if (params && sql.includes('news')) {
-            const sentimentMatch = params.find(p =>
-              typeof p === 'number' && p >= -1 && p <= 1
+          if (params && sql.includes("news")) {
+            const sentimentMatch = params.find(
+              (p) => typeof p === "number" && p >= -1 && p <= 1
             );
             if (sentimentMatch !== undefined) {
               sentimentThreshold = sentimentMatch;
@@ -148,29 +170,38 @@ describe("Alerts Routes Unit Tests", () => {
           }
 
           return Promise.resolve({
-            rows: [{
-              id: 1,
-              symbol: symbol,
-              alert_type: sql.includes('volume') ? 'volume' : sql.includes('news') ? 'news' : 'price',
-              threshold_multiplier: params.find(p => typeof p === 'string' && p.includes('.')) || '2.50',
-              sentiment_threshold: sentimentThreshold,
-              status: 'active',
-              created_at: new Date().toISOString()
-            }],
-            rowCount: 1
+            rows: [
+              {
+                id: 1,
+                symbol: symbol,
+                alert_type: sql.includes("volume")
+                  ? "volume"
+                  : sql.includes("news")
+                    ? "news"
+                    : "price",
+                threshold_multiplier:
+                  params.find(
+                    (p) => typeof p === "string" && p.includes(".")
+                  ) || "2.50",
+                sentiment_threshold: sentimentThreshold,
+                status: "active",
+                created_at: new Date().toISOString(),
+              },
+            ],
+            rowCount: 1,
           });
         }
 
         return Promise.resolve({
           rows: [],
-          rowCount: 1
+          rowCount: 1,
         });
       }
 
       // Default empty response
       return Promise.resolve({
         rows: [],
-        rowCount: 0
+        rowCount: 0,
       });
     });
   });
@@ -484,7 +515,10 @@ describe("Alerts Routes Unit Tests", () => {
       if (response.status === 201) {
         expect(response.body.success).toBe(true);
         expect(response.body.data.alert).toHaveProperty("symbol", "TSLA");
-        expect(response.body.data.alert).toHaveProperty("threshold_multiplier", "2.50");
+        expect(response.body.data.alert).toHaveProperty(
+          "threshold_multiplier",
+          "2.50"
+        );
       } else {
         expect([400, 401, 500]).toContain(response.status);
       }
@@ -655,17 +689,19 @@ describe("Alerts Routes Unit Tests", () => {
     test("should create news sentiment alert", async () => {
       // Override mock for this specific test to return the exact data sent
       query.mockImplementation((sql, params) => {
-        if (sql.includes('INSERT') && sql.includes('news')) {
+        if (sql.includes("INSERT") && sql.includes("news")) {
           return Promise.resolve({
-            rows: [{
-              id: 1,
-              symbol: 'NFLX',
-              alert_type: 'news',
-              sentiment_threshold: -0.5,
-              status: 'active',
-              created_at: new Date().toISOString()
-            }],
-            rowCount: 1
+            rows: [
+              {
+                id: 1,
+                symbol: "NFLX",
+                alert_type: "news",
+                sentiment_threshold: -0.5,
+                status: "active",
+                created_at: new Date().toISOString(),
+              },
+            ],
+            rowCount: 1,
           });
         }
         return Promise.resolve({ rows: [], rowCount: 0 });
@@ -1072,7 +1108,9 @@ describe("Alerts Routes Unit Tests", () => {
 
       expect(response.body.success).toBe(false);
       // Error message may contain 'validation' or specific validation error
-      expect(response.body.error || response.body.message).toMatch(/(validation|Invalid settings|must be|negative)/i);
+      expect(response.body.error || response.body.message).toMatch(
+        /(validation|Invalid settings|must be|negative)/i
+      );
     });
   });
 
@@ -1086,9 +1124,9 @@ describe("Alerts Routes Unit Tests", () => {
       const originalQuery = query;
       jest.doMock("../../../utils/database", () => ({
         query: jest.fn().mockRejectedValue(new Error("Connection timeout")),
-      }))
+      }));
 
-// Import mocked functions
+      // Import mocked functions
 
       const response = await request(app)
         .get("/alerts/active")
@@ -1144,13 +1182,14 @@ describe("Alerts Routes Unit Tests", () => {
       const responses = await Promise.all(promises);
 
       // Rate limiting test - check for variety of responses
-      const statusCodes = responses.map(r => r.status);
+      const statusCodes = responses.map((r) => r.status);
       const uniqueStatusCodes = [...new Set(statusCodes)];
 
       // Should have at least some non-200 responses due to rate limiting
       // Accept either 201 (created) or 429 (rate limited) or 400 (validation)
-      const hasVariety = uniqueStatusCodes.length > 1 ||
-                        statusCodes.some(code => [201, 400, 429].includes(code));
+      const hasVariety =
+        uniqueStatusCodes.length > 1 ||
+        statusCodes.some((code) => [201, 400, 429].includes(code));
       expect(hasVariety || statusCodes[0] === 201).toBe(true);
     });
   });

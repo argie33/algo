@@ -8,7 +8,14 @@ const request = require("supertest");
 jest.mock("../../../utils/database", () => ({
   query: jest.fn(),
 }));
-const { query, closeDatabase, initializeDatabase, getPool, transaction, healthCheck } = require("../../../utils/database");
+const {
+  query,
+  closeDatabase,
+  initializeDatabase,
+  getPool,
+  transaction,
+  healthCheck,
+} = require("../../../utils/database");
 
 // Mock the factor scoring engine
 const mockCalculateCompositeScore = jest.fn();
@@ -46,12 +53,15 @@ describe("Screener Routes Unit Tests", () => {
     mockQuery = query;
     // Add default mock implementation with fallback
     mockQuery.mockImplementation((sql, params) => {
-      if (sql && typeof sql === 'string') {
+      if (sql && typeof sql === "string") {
         if (sql.includes("information_schema.tables")) {
           return Promise.resolve({ rows: [{ exists: true }] });
-
         }
-        if (sql.includes("stock_symbols") || sql.includes("price_daily") || sql.includes("stock_scores")) {
+        if (
+          sql.includes("stock_symbols") ||
+          sql.includes("price_daily") ||
+          sql.includes("stock_scores")
+        ) {
           return Promise.resolve({ rows: [] });
         }
       }

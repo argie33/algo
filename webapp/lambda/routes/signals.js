@@ -1,8 +1,17 @@
 const express = require("express");
+
 const { query } = require("../utils/database");
-const { sendSuccess, sendError, sendPaginated } = require('../utils/apiResponse');
-const { validateQueryResult, validateAndCoerceRows, extractCount } = require('../utils/responseValidation');
-const logger = require('../utils/logger');
+const {
+  sendSuccess,
+  sendError,
+  sendPaginated,
+} = require("../utils/apiResponse");
+const {
+  validateQueryResult,
+  validateAndCoerceRows,
+  extractCount,
+} = require("../utils/responseValidation");
+const logger = require("../utils/logger");
 const paginationConfig = require("../config/pagination");
 const router = express.Router();
 
@@ -12,17 +21,25 @@ router.get("/", async (req, res) => {
     const timeframe = req.query.timeframe || "daily";
     const symbol = req.query.symbol?.toUpperCase();
     const signal = req.query.signal?.toUpperCase();
-    const { limit, offset } = paginationConfig.sanitize(req.query.limit, req.query.offset, 'signals');
+    const { limit, offset } = paginationConfig.sanitize(
+      req.query.limit,
+      req.query.offset,
+      "signals"
+    );
 
     // Validate timeframe
     const timeframeMap = {
       daily: "buy_sell_daily",
       weekly: "buy_sell_weekly",
-      monthly: "buy_sell_monthly"
+      monthly: "buy_sell_monthly",
     };
     const tableName = timeframeMap[timeframe];
     if (!tableName) {
-      return sendError(res, "Invalid timeframe. Must be daily, weekly, or monthly", 400);
+      return sendError(
+        res,
+        "Invalid timeframe. Must be daily, weekly, or monthly",
+        400
+      );
     }
 
     // Build WHERE clause (signals are lowercase: buy, sell, hold)
@@ -48,11 +65,14 @@ router.get("/", async (req, res) => {
       params
     );
     validateQueryResult(countResultObj, { requireRows: false });
-    const countRows = Array.isArray(countResultObj) ? countResultObj : (countResultObj?.rows || []);
+    const countRows = Array.isArray(countResultObj)
+      ? countResultObj
+      : countResultObj?.rows || [];
     const total = countRows && countRows[0] ? parseInt(countRows[0].total) : 0;
 
     // Get paginated results with technical enrichment
-    const resultObj = await query(`
+    const resultObj = await query(
+      `
       SELECT
         bsd.id,
         bsd.symbol,
@@ -76,22 +96,28 @@ router.get("/", async (req, res) => {
       ${whereClause}
       ORDER BY bsd.date DESC
       LIMIT $${paramIndex} OFFSET $${paramIndex + 1}
-    `, [...params, limit, offset]);
+    `,
+      [...params, limit, offset]
+    );
     validateQueryResult(resultObj, { requireRows: false });
 
-    const result = Array.isArray(resultObj) ? resultObj : (resultObj?.rows || []);
+    const result = Array.isArray(resultObj) ? resultObj : resultObj?.rows || [];
 
     const page = Math.floor(offset / limit) + 1;
 
-    return sendSuccess(res, {
-      signals: result,
-      pagination: {
-        total: total,
-        limit: limit,
-        page: page,
-        totalPages: Math.ceil(total / limit)
-      }
-    }, 200);
+    return sendSuccess(
+      res,
+      {
+        signals: result,
+        pagination: {
+          total: total,
+          limit: limit,
+          page: page,
+          totalPages: Math.ceil(total / limit),
+        },
+      },
+      200
+    );
   } catch (error) {
     console.error("Error fetching signals:", error);
     return sendError(res, "Failed to fetch signals: " + error.message, 500);
@@ -103,17 +129,25 @@ router.get("/stocks", async (req, res) => {
   try {
     const timeframe = req.query.timeframe || "daily";
     const symbol = req.query.symbol?.toUpperCase();
-    const { limit, offset } = paginationConfig.sanitize(req.query.limit, req.query.offset, 'signals');
+    const { limit, offset } = paginationConfig.sanitize(
+      req.query.limit,
+      req.query.offset,
+      "signals"
+    );
 
     // Validate timeframe
     const timeframeMap = {
       daily: "buy_sell_daily",
       weekly: "buy_sell_weekly",
-      monthly: "buy_sell_monthly"
+      monthly: "buy_sell_monthly",
     };
     const tableName = timeframeMap[timeframe];
     if (!tableName) {
-      return sendError(res, "Invalid timeframe. Must be daily, weekly, or monthly", 400);
+      return sendError(
+        res,
+        "Invalid timeframe. Must be daily, weekly, or monthly",
+        400
+      );
     }
 
     // Build WHERE clause (signals are lowercase)
@@ -135,7 +169,8 @@ router.get("/stocks", async (req, res) => {
     );
     validateQueryResult(countResultObj, { requireRows: false });
 
-    const resultObj = await query(`
+    const resultObj = await query(
+      `
       SELECT
         bsd.id,
         bsd.symbol,
@@ -187,14 +222,20 @@ router.get("/stocks", async (req, res) => {
         AND bsd.symbol NOT IN ('SPY', 'QQQ', 'IWM', 'DIA', 'EEM', 'EFA')
       ORDER BY bsd.date DESC, bsd.symbol ASC
       LIMIT $${paramIndex} OFFSET $${paramIndex + 1}
-    `, [...params, limit, offset]);
+    `,
+      [...params, limit, offset]
+    );
     validateQueryResult(resultObj, { requireRows: false });
 
-    const result = Array.isArray(resultObj) ? resultObj : (resultObj?.rows || []);
+    const result = Array.isArray(resultObj) ? resultObj : resultObj?.rows || [];
     return sendSuccess(res, { items: result }, 200);
   } catch (error) {
     console.error("Error fetching stock signals:", error);
-    return sendError(res, "Failed to fetch stock signals: " + error.message, 500);
+    return sendError(
+      res,
+      "Failed to fetch stock signals: " + error.message,
+      500
+    );
   }
 });
 
@@ -202,17 +243,25 @@ router.get("/stocks", async (req, res) => {
 router.get("/etf", async (req, res) => {
   try {
     const timeframe = req.query.timeframe || "daily";
-    const { limit, offset } = paginationConfig.sanitize(req.query.limit, req.query.offset, 'signals');
+    const { limit, offset } = paginationConfig.sanitize(
+      req.query.limit,
+      req.query.offset,
+      "signals"
+    );
 
     // Validate timeframe
     const timeframeMap = {
       daily: "buy_sell_daily_etf",
       weekly: "buy_sell_weekly_etf",
-      monthly: "buy_sell_monthly_etf"
+      monthly: "buy_sell_monthly_etf",
     };
     const tableName = timeframeMap[timeframe];
     if (!tableName) {
-      return sendError(res, "Invalid timeframe. Must be daily, weekly, or monthly", 400);
+      return sendError(
+        res,
+        "Invalid timeframe. Must be daily, weekly, or monthly",
+        400
+      );
     }
 
     // Get signals for major indices/ETFs with basic enrichment
@@ -221,7 +270,8 @@ router.get("/etf", async (req, res) => {
     );
     validateQueryResult(countResultObj, { requireRows: false });
 
-    const resultObj = await query(`
+    const resultObj = await query(
+      `
       SELECT
         bsd.id,
         bsd.symbol,
@@ -238,10 +288,12 @@ router.get("/etf", async (req, res) => {
       WHERE LOWER(bsd.signal) IN ('buy', 'sell')
       ORDER BY bsd.date DESC
       LIMIT $1 OFFSET $2
-    `, [limit, offset]);
+    `,
+      [limit, offset]
+    );
     validateQueryResult(resultObj, { requireRows: false });
 
-    const result = Array.isArray(resultObj) ? resultObj : (resultObj?.rows || []);
+    const result = Array.isArray(resultObj) ? resultObj : resultObj?.rows || [];
     return sendSuccess(res, { items: result }, 200);
   } catch (error) {
     console.error("Error fetching ETF signals:", error);

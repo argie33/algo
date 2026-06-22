@@ -1,14 +1,29 @@
 const express = require("express");
+
 const { query } = require("../utils/database");
-const { sendSuccess, sendError, sendPaginated } = require("../utils/apiResponse");
-const { validateQueryResult, validateAndCoerceRows, extractCount } = require('../utils/responseValidation');
-const logger = require('../utils/logger');
+const {
+  sendSuccess,
+  sendError,
+  sendPaginated,
+} = require("../utils/apiResponse");
+const {
+  validateQueryResult,
+  validateAndCoerceRows,
+  extractCount,
+} = require("../utils/responseValidation");
+const logger = require("../utils/logger");
 const router = express.Router();
 
 // GET / - Get stock scores with optional filters
 router.get("/", async (req, res) => {
   try {
-    const { limit = 50, page = 1, symbol, sort = "composite_score", sort_order = "DESC" } = req.query;
+    const {
+      limit = 50,
+      page = 1,
+      symbol,
+      sort = "composite_score",
+      sort_order = "DESC",
+    } = req.query;
     const limitNum = Math.min(parseInt(limit) || 50, 1000);
     const pageNum = Math.max(parseInt(page) || 1, 1);
     const offset = (pageNum - 1) * limitNum;
@@ -23,9 +38,21 @@ router.get("/", async (req, res) => {
     }
 
     // Validate sort field
-    const validSortFields = ["composite_score", "momentum_score", "value_score", "quality_score", "growth_score", "stability_score", "symbol"];
+    const validSortFields = [
+      "composite_score",
+      "momentum_score",
+      "value_score",
+      "quality_score",
+      "growth_score",
+      "stability_score",
+      "symbol",
+    ];
     const sortField = validSortFields.includes(sort) ? sort : "composite_score";
-    const sortDir = ["ASC", "DESC"].includes((sort_order || "DESC").toUpperCase()) ? sort_order.toUpperCase() : "DESC";
+    const sortDir = ["ASC", "DESC"].includes(
+      (sort_order || "DESC").toUpperCase()
+    )
+      ? sort_order.toUpperCase()
+      : "DESC";
 
     // Get total count
     const countResult = await query(
@@ -37,7 +64,8 @@ router.get("/", async (req, res) => {
 
     // Get paginated results
     const paramIndex = params.length + 1;
-    const resultObj = await query(`
+    const resultObj = await query(
+      `
       SELECT
         ss.symbol,
         ss.composite_score,
@@ -51,7 +79,9 @@ router.get("/", async (req, res) => {
       ${whereClause}
       ORDER BY ss.${sortField} ${sortDir}
       LIMIT $${paramIndex} OFFSET $${paramIndex + 1}
-    `, [...params, limitNum, offset]);
+    `,
+      [...params, limitNum, offset]
+    );
     validateQueryResult(resultObj, { requireRows: false });
 
     const scores = resultObj?.rows || [];
@@ -63,11 +93,15 @@ router.get("/", async (req, res) => {
       total,
       totalPages,
       hasNext: pageNum < totalPages,
-      hasPrev: pageNum > 1
+      hasPrev: pageNum > 1,
     });
   } catch (error) {
     console.error("Error fetching scores:", error.message);
-    return sendError(res, `Failed to fetch scores: ${error.message.substring(0, 100)}`, 500);
+    return sendError(
+      res,
+      `Failed to fetch scores: ${error.message.substring(0, 100)}`,
+      500
+    );
   }
 });
 
@@ -81,15 +115,20 @@ router.get("/stockscores", async (req, res) => {
       symbol,
       sortBy = "composite_score",
       sortOrder = "DESC",
-      sp500Only = false
+      sp500Only = false,
     } = req.query;
 
     const limitNum = Math.min(parseInt(limit) || 50, 5000);
-    const pageNum = offset ? Math.max(parseInt(offset) / limitNum + 1, 1) : Math.max(parseInt(page) || 1, 1);
-    const offsetNum = offset ? Math.max(parseInt(offset), 0) : (pageNum - 1) * limitNum;
+    const pageNum = offset
+      ? Math.max(parseInt(offset) / limitNum + 1, 1)
+      : Math.max(parseInt(page) || 1, 1);
+    const offsetNum = offset
+      ? Math.max(parseInt(offset), 0)
+      : (pageNum - 1) * limitNum;
 
     // Build WHERE clause - only show stocks with good data coverage, exclude ETFs
-    let whereClause = "WHERE sc.composite_score > 0 AND (ss.etf IS NULL OR ss.etf != 'Y')";
+    let whereClause =
+      "WHERE sc.composite_score > 0 AND (ss.etf IS NULL OR ss.etf != 'Y')";
     const params = [];
 
     if (symbol) {
@@ -98,9 +137,24 @@ router.get("/stockscores", async (req, res) => {
     }
 
     // Validate sort field
-    const validSortFields = ["composite_score", "momentum_score", "quality_score", "value_score", "growth_score", "positioning_score", "stability_score", "symbol"];
-    const sortField = validSortFields.includes(sortBy) ? sortBy : "composite_score";
-    const sortDir = ["ASC", "DESC"].includes((sortOrder || "DESC").toUpperCase()) ? sortOrder.toUpperCase() : "DESC";
+    const validSortFields = [
+      "composite_score",
+      "momentum_score",
+      "quality_score",
+      "value_score",
+      "growth_score",
+      "positioning_score",
+      "stability_score",
+      "symbol",
+    ];
+    const sortField = validSortFields.includes(sortBy)
+      ? sortBy
+      : "composite_score";
+    const sortDir = ["ASC", "DESC"].includes(
+      (sortOrder || "DESC").toUpperCase()
+    )
+      ? sortOrder.toUpperCase()
+      : "DESC";
 
     // Get total count
     const countResult = await query(
@@ -112,7 +166,8 @@ router.get("/stockscores", async (req, res) => {
 
     // Get paginated results - Optimized: removed slow price_daily join with window function
     const paramIndex = params.length + 1;
-    const resultObj = await query(`
+    const resultObj = await query(
+      `
       SELECT
         sc.symbol,
         ss.security_name as company_name,
@@ -141,17 +196,19 @@ router.get("/stockscores", async (req, res) => {
       ${whereClause}
       ORDER BY sc.${sortField} ${sortDir}
       LIMIT $${paramIndex} OFFSET $${paramIndex + 1}
-    `, [...params, limitNum, offsetNum]);
+    `,
+      [...params, limitNum, offsetNum]
+    );
     validateQueryResult(resultObj, { requireRows: false });
 
-    const scores = (resultObj?.rows || []).map(row => {
+    const scores = (resultObj?.rows || []).map((row) => {
       const compositeScore = parseFloat(row.composite_score || 0);
-      let grade = 'F';
-      if (compositeScore >= 90) grade = 'A+';
-      else if (compositeScore >= 80) grade = 'A';
-      else if (compositeScore >= 70) grade = 'B';
-      else if (compositeScore >= 60) grade = 'C';
-      else if (compositeScore >= 50) grade = 'D';
+      let grade = "F";
+      if (compositeScore >= 90) grade = "A+";
+      else if (compositeScore >= 80) grade = "A";
+      else if (compositeScore >= 70) grade = "B";
+      else if (compositeScore >= 60) grade = "C";
+      else if (compositeScore >= 50) grade = "D";
 
       return {
         symbol: row.symbol,
@@ -172,7 +229,7 @@ router.get("/stockscores", async (req, res) => {
         pe_ratio: row.pe_ratio,
         pb_ratio: row.pb_ratio,
         roe: row.roe,
-        debt_to_equity: row.debt_to_equity
+        debt_to_equity: row.debt_to_equity,
       };
     });
 
@@ -185,11 +242,15 @@ router.get("/stockscores", async (req, res) => {
       totalPages,
       offset: offsetNum,
       hasNext: pageNum < totalPages,
-      hasPrev: pageNum > 1
+      hasPrev: pageNum > 1,
     });
   } catch (error) {
     console.error("Error fetching stockscores:", error.message);
-    return sendError(res, `Failed to fetch scores: ${error.message.substring(0, 100)}`, 500);
+    return sendError(
+      res,
+      `Failed to fetch scores: ${error.message.substring(0, 100)}`,
+      500
+    );
   }
 });
 
@@ -198,10 +259,9 @@ router.get("/:symbol", async (req, res) => {
   try {
     const { symbol } = req.params;
 
-    const result = await query(
-      `SELECT * FROM stock_scores WHERE symbol = $1`,
-      [symbol.toUpperCase()]
-    );
+    const result = await query(`SELECT * FROM stock_scores WHERE symbol = $1`, [
+      symbol.toUpperCase(),
+    ]);
     validateQueryResult(result, { requireRows: false });
 
     if (!result?.rows || result.rows.length === 0) {

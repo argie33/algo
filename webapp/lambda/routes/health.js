@@ -1,7 +1,8 @@
 const express = require("express");
+
 const { query } = require("../utils/database");
 const { sendSuccess, sendError } = require("../utils/apiResponse");
-const logger = require('../utils/logger');
+const logger = require("../utils/logger");
 
 const router = express.Router();
 
@@ -10,7 +11,7 @@ router.get("/", (req, res) => {
   return sendSuccess(res, {
     status: "healthy",
     healthy: true,
-    service: "Financial Dashboard API"
+    service: "Financial Dashboard API",
   });
 });
 
@@ -22,14 +23,20 @@ router.get("/detailed", async (req, res) => {
 
     try {
       // Test database connection with a simple query
-      const result = await query("SELECT COUNT(*) as count FROM information_schema.tables WHERE table_schema = 'public'");
+      const result = await query(
+        "SELECT COUNT(*) as count FROM information_schema.tables WHERE table_schema = 'public'"
+      );
       dbStatus = "connected";
 
       // Get table counts for key tables
       // FIXED: Use identifier quoting to prevent SQL injection
       const keyTables = [
-        "price_daily", "stock_scores", "buy_sell_daily",
-        "sector_ranking", "company_profile", "technical_data_daily"
+        "price_daily",
+        "stock_scores",
+        "buy_sell_daily",
+        "sector_ranking",
+        "company_profile",
+        "technical_data_daily",
       ];
 
       for (const table of keyTables) {
@@ -47,14 +54,14 @@ router.get("/detailed", async (req, res) => {
     }
 
     // FIXED: Do not expose detailed schema information in production
-    const isProduction = (process.env.NODE_ENV || '').includes('prod');
+    const isProduction = (process.env.NODE_ENV || "").includes("prod");
     const response = {
       status: "healthy",
       healthy: true,
       service: "Financial Dashboard API",
       uptime: process.uptime(),
       version: "1.0.0",
-      timestamp: new Date().toISOString()
+      timestamp: new Date().toISOString(),
     };
 
     // Only expose schema details to authenticated admins or in development
@@ -62,18 +69,25 @@ router.get("/detailed", async (req, res) => {
       response.environment = process.env.NODE_ENV || "development";
       response.database = {
         status: dbStatus,
-        tables: tables
+        tables: tables,
       };
     } else {
       response.database = {
-        status: dbStatus
+        status: dbStatus,
       };
     }
 
     return sendSuccess(res, response);
   } catch (error) {
-    logger.error('Error in /health/detailed:', { error: error.message, stack: error.stack });
-    return sendError(res, "Detailed health check failed: " + error.message, 503);
+    logger.error("Error in /health/detailed:", {
+      error: error.message,
+      stack: error.stack,
+    });
+    return sendError(
+      res,
+      "Detailed health check failed: " + error.message,
+      503
+    );
   }
 });
 
@@ -98,26 +112,41 @@ router.get("/pipeline", async (req, res) => {
       return sendSuccess(res, {
         status: "unknown",
         message: "No pipeline health data available yet",
-        timestamp: new Date().toISOString()
+        timestamp: new Date().toISOString(),
       });
     }
 
     const tables = result.rows;
-    const healthyCount = tables.filter(t => t.status === 'HEALTHY').length;
+    const healthyCount = tables.filter((t) => t.status === "HEALTHY").length;
     const totalCount = tables.length;
-    const coveragePct = (healthyCount / totalCount * 100).toFixed(1);
+    const coveragePct = ((healthyCount / totalCount) * 100).toFixed(1);
 
     const criticalAlerts = [];
     const warnings = [];
 
     for (const table of tables) {
-      if (['stock_symbols', 'price_daily', 'buy_sell_daily', 'stock_scores', 'economic_data', 'market_health_daily'].includes(table.table_name)) {
-        if (table.status === 'MISSING') {
-          criticalAlerts.push(`${table.table_name} is empty - no trades can execute`);
-        } else if (table.status === 'VERY_STALE') {
-          criticalAlerts.push(`${table.table_name} is very stale (${table.age_days} days old)`);
-        } else if (table.status === 'STALE') {
-          warnings.push(`${table.table_name} is stale (${table.age_days} days old)`);
+      if (
+        [
+          "stock_symbols",
+          "price_daily",
+          "buy_sell_daily",
+          "stock_scores",
+          "economic_data",
+          "market_health_daily",
+        ].includes(table.table_name)
+      ) {
+        if (table.status === "MISSING") {
+          criticalAlerts.push(
+            `${table.table_name} is empty - no trades can execute`
+          );
+        } else if (table.status === "VERY_STALE") {
+          criticalAlerts.push(
+            `${table.table_name} is very stale (${table.age_days} days old)`
+          );
+        } else if (table.status === "STALE") {
+          warnings.push(
+            `${table.table_name} is stale (${table.age_days} days old)`
+          );
         }
       }
     }
@@ -133,14 +162,18 @@ router.get("/pipeline", async (req, res) => {
       critical_alerts: criticalAlerts,
       warnings: warnings,
       tables: tables,
-      timestamp: tables[0]?.checked_at || new Date().toISOString()
+      timestamp: tables[0]?.checked_at || new Date().toISOString(),
     });
   } catch (error) {
-    return sendSuccess(res, {
-      status: "error",
-      message: "Pipeline health check failed: " + error.message,
-      timestamp: new Date().toISOString()
-    }, 200);
+    return sendSuccess(
+      res,
+      {
+        status: "error",
+        message: "Pipeline health check failed: " + error.message,
+        timestamp: new Date().toISOString(),
+      },
+      200
+    );
   }
 });
 
@@ -154,13 +187,16 @@ router.get("/diagnostics", async (req, res) => {
       environment: process.env.NODE_ENV || "development",
       timestamp: new Date().toISOString(),
       database: {
-        status: "connected"
-      }
+        status: "connected",
+      },
     };
 
     return sendSuccess(res, diagnostics);
   } catch (error) {
-    logger.error('Error in /health/diagnostics:', { error: error.message, stack: error.stack });
+    logger.error("Error in /health/diagnostics:", {
+      error: error.message,
+      stack: error.stack,
+    });
     return sendError(res, "Diagnostics check failed: " + error.message, 503);
   }
 });

@@ -2,8 +2,6 @@ const request = require("supertest");
 const { app } = require("../../../index");
 const { initializeDatabase } = require("../../../utils/database");
 
-
-
 describe("Market Routes Unit Tests", () => {
   beforeAll(async () => {
     await initializeDatabase();
@@ -26,7 +24,6 @@ describe("Market Routes Unit Tests", () => {
         expect(response.body).toHaveProperty("success", false);
       }
     });
-
   });
 
   describe("GET /api/market/overview", () => {
@@ -69,7 +66,6 @@ describe("Market Routes Unit Tests", () => {
         expect(response.body).toHaveProperty("success", false);
       }
     });
-
   });
 
   describe("GET /api/market/data", () => {
@@ -116,7 +112,6 @@ describe("Market Routes Unit Tests", () => {
         }
       }
     });
-
   });
 
   describe("GET /api/market/sentiment", () => {
@@ -143,7 +138,6 @@ describe("Market Routes Unit Tests", () => {
         expect(response.body).toHaveProperty("success", false);
       }
     });
-
   });
 
   describe("GET /api/market/sentiment/history", () => {
@@ -180,7 +174,6 @@ describe("Market Routes Unit Tests", () => {
         expect(response.body).toHaveProperty("success", true);
       }
     });
-
   });
 
   describe("GET /api/market/movers", () => {
@@ -222,7 +215,6 @@ describe("Market Routes Unit Tests", () => {
         expect(response.body).toHaveProperty("success", true);
       }
     });
-
   });
 
   describe("GET /api/market/indices", () => {
@@ -249,7 +241,6 @@ describe("Market Routes Unit Tests", () => {
         expect(response.body).toHaveProperty("success", false);
       }
     });
-
   });
 
   describe("GET /api/market/status", () => {
@@ -279,12 +270,13 @@ describe("Market Routes Unit Tests", () => {
         expect(response.body).toHaveProperty("success", false);
       }
     });
-
   });
 
   describe("GET /api/sectors/sectors-with-history", () => {
     test("should return sector performance or handle missing data", async () => {
-      const response = await request(app).get("/api/sectors/sectors-with-history");
+      const response = await request(app).get(
+        "/api/sectors/sectors-with-history"
+      );
 
       expect([200, 500]).toContain(response.status);
 
@@ -305,7 +297,6 @@ describe("Market Routes Unit Tests", () => {
         expect(response.body).toHaveProperty("success", false);
       }
     });
-
   });
 
   describe("GET /api/market/distribution-days", () => {
@@ -417,7 +408,6 @@ describe("Market Routes Unit Tests", () => {
         );
       }
     });
-
   });
 
   describe("GET /api/market/seasonality", () => {
@@ -504,7 +494,12 @@ describe("Market Routes Unit Tests", () => {
         expect(presidentialCycle.data.length).toBe(4);
 
         // Verify cycle years
-        const expectedLabels = ["Post-Election", "Mid-Term", "Pre-Election", "Election Year"];
+        const expectedLabels = [
+          "Post-Election",
+          "Mid-Term",
+          "Pre-Election",
+          "Election Year",
+        ];
         presidentialCycle.data.forEach((cycle, index) => {
           expect(cycle).toHaveProperty("year", index + 1);
           expect(cycle).toHaveProperty("label", expectedLabels[index]);
@@ -542,7 +537,13 @@ describe("Market Routes Unit Tests", () => {
         expect(Array.isArray(dowEffects)).toBe(true);
         expect(dowEffects.length).toBe(5); // Mon-Fri
 
-        const expectedDays = ["Monday", "Tuesday", "Wednesday", "Thursday", "Friday"];
+        const expectedDays = [
+          "Monday",
+          "Tuesday",
+          "Wednesday",
+          "Thursday",
+          "Friday",
+        ];
         dowEffects.forEach((effect, index) => {
           expect(effect).toHaveProperty("day", expectedDays[index]);
           expect(effect).toHaveProperty("avgReturn");
@@ -603,7 +604,6 @@ describe("Market Routes Unit Tests", () => {
 
       expect([200, 404, 503]).toContain(response.status);
     });
-
   });
 
   describe("Performance Tests", () => {
@@ -636,5 +636,4 @@ describe("Market Routes Unit Tests", () => {
       ).toBe(true);
     });
   });
-
 });

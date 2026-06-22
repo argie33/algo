@@ -5,11 +5,15 @@
  * - GET /api/earnings - Earnings calendar
  */
 
-const express = require('express');
-const { getPool } = require('../utils/database');
-const { sendSuccess, sendError } = require('../utils/apiResponse');
-const logger = require('../utils/logger');
-const { validateQueryResult, validateAndCoerceRows } = require('../utils/responseValidation');
+const express = require("express");
+
+const { getPool } = require("../utils/database");
+const { sendSuccess, sendError } = require("../utils/apiResponse");
+const logger = require("../utils/logger");
+const {
+  validateQueryResult,
+  validateAndCoerceRows,
+} = require("../utils/responseValidation");
 
 const router = express.Router();
 
@@ -22,14 +26,15 @@ const router = express.Router();
  * - days: Look ahead N days (default: 30)
  * - limit: Max results (default: 1000)
  */
-router.get('/', async (req, res) => {
+router.get("/", async (req, res) => {
   try {
     const symbol = req.query.symbol;
     const days = parseInt(req.query.days) || 30;
     const limit = Math.min(parseInt(req.query.limit) || 1000, 10000);
 
     const pool = getPool();
-    let whereClause = "earnings_date >= CURRENT_DATE - INTERVAL '90 days' AND earnings_date <= CURRENT_DATE + INTERVAL '180 days'";
+    let whereClause =
+      "earnings_date >= CURRENT_DATE - INTERVAL '90 days' AND earnings_date <= CURRENT_DATE + INTERVAL '180 days'";
     let params = [];
 
     if (symbol) {
@@ -37,7 +42,8 @@ router.get('/', async (req, res) => {
       params.push(symbol.toUpperCase());
     }
 
-    const result = await pool.query(`
+    const result = await pool.query(
+      `
       SELECT
         symbol,
         company_name,
@@ -52,35 +58,43 @@ router.get('/', async (req, res) => {
       WHERE ${whereClause}
       ORDER BY earnings_date ASC
       LIMIT $${params.length + 1}
-    `, [...params, limit]);
+    `,
+      [...params, limit]
+    );
 
     // Validate query result structure
     validateQueryResult(result, { requireRows: false });
 
     // Validate and coerce field types
     const validated = validateAndCoerceRows(result, {
-      symbol: { type: 'string', required: true },
-      company_name: { type: 'string', required: false },
-      earnings_date: { type: 'date', required: true },
-      fiscal_quarter: { type: 'string', required: false },
-      fiscal_year: { type: 'int', required: false },
-      estimated_eps: { type: 'float', required: false, defaultValue: null },
-      reported_eps: { type: 'float', required: false, defaultValue: null },
-      surprise_pct: { type: 'float', required: false, defaultValue: null },
-      status: { type: 'string', required: false }
+      symbol: { type: "string", required: true },
+      company_name: { type: "string", required: false },
+      earnings_date: { type: "date", required: true },
+      fiscal_quarter: { type: "string", required: false },
+      fiscal_year: { type: "int", required: false },
+      estimated_eps: { type: "float", required: false, defaultValue: null },
+      reported_eps: { type: "float", required: false, defaultValue: null },
+      surprise_pct: { type: "float", required: false, defaultValue: null },
+      status: { type: "string", required: false },
     });
 
     return sendSuccess(res, {
       items: validated,
       pagination: {
         total: validated.length,
-        limit: limit
-      }
+        limit: limit,
+      },
     });
-
   } catch (error) {
-    logger.error('Error fetching earnings calendar:', { error: error.message, stack: error.stack });
-    return sendError(res, `Failed to fetch earnings calendar: ${error.message}`, 500);
+    logger.error("Error fetching earnings calendar:", {
+      error: error.message,
+      stack: error.stack,
+    });
+    return sendError(
+      res,
+      `Failed to fetch earnings calendar: ${error.message}`,
+      500
+    );
   }
 });
 

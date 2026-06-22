@@ -13,23 +13,21 @@ class PortfolioAutoInit {
    */
   static async ensurePortfolioData(userId) {
     try {
-
       // Check what data we have
       const holdings = await query(
         `SELECT COUNT(*) as count FROM portfolio_holdings WHERE user_id = $1 AND quantity > 0`,
         [userId]
-      ).then(r => r.rows[0]?.count || 0);
+      ).then((r) => r.rows[0]?.count || 0);
 
       const perfRecords = await query(
         `SELECT COUNT(*) as count FROM portfolio_performance WHERE user_id = $1`,
         [userId]
-      ).then(r => r.rows[0]?.count || 0);
+      ).then((r) => r.rows[0]?.count || 0);
 
       const withSectors = await query(
         `SELECT COUNT(*) as count FROM portfolio_holdings WHERE user_id = $1 AND sector IS NOT NULL`,
         [userId]
-      ).then(r => r.rows[0]?.count || 0);
-
+      ).then((r) => r.rows[0]?.count || 0);
 
       // Step 1: If we have holdings but no performance history, generate it
       if (holdings > 0 && perfRecords < 252) {
@@ -47,7 +45,6 @@ class PortfolioAutoInit {
       }
 
       return true;
-
     } catch (error) {
       console.error(` Portfolio auto-init failed: ${error.message}`);
       return false;
@@ -72,12 +69,16 @@ class PortfolioAutoInit {
       const recordCount = parseInt(result.rows[0]?.count || 0);
 
       if (recordCount === 0) {
-        console.warn(`⚠️ No real historical performance data - metrics requiring history will return NULL`);
-        console.warn(`⚠️ Run loadalpacaportfolio.py to fetch real trading history from Alpaca`);
-        return false;  // Return false - no synthetic data generated
+        console.warn(
+          `⚠️ No real historical performance data - metrics requiring history will return NULL`
+        );
+        console.warn(
+          `⚠️ Run loadalpacaportfolio.py to fetch real trading history from Alpaca`
+        );
+        return false; // Return false - no synthetic data generated
       }
 
-      return true;  // Real data exists
+      return true; // Real data exists
     } catch (error) {
       console.error(` History check failed: ${error.message}`);
       return false;
@@ -95,7 +96,7 @@ class PortfolioAutoInit {
         [userId]
       );
 
-      const symbols = (holdingsResult.rows || []).map(r => r.symbol);
+      const symbols = (holdingsResult.rows || []).map((r) => r.symbol);
       let updated = 0;
       const updateErrors = [];
 
@@ -118,7 +119,9 @@ class PortfolioAutoInit {
         } catch (e) {
           updateErrors.push(`${symbol}: ${e.message}`);
           if (updateErrors.length <= 3) {
-            console.warn(`   ⚠️ Sector update error for ${symbol}: ${e.message}`);
+            console.warn(
+              `   ⚠️ Sector update error for ${symbol}: ${e.message}`
+            );
           }
         }
       }
@@ -128,7 +131,6 @@ class PortfolioAutoInit {
       }
 
       return true;
-
     } catch (error) {
       console.error(` Sector population failed: ${error.message}`);
       return false;
@@ -182,7 +184,9 @@ class PortfolioAutoInit {
         } catch (e) {
           calcErrors.push(`${holding.symbol}: ${e.message}`);
           if (calcErrors.length <= 3) {
-            console.warn(`   ⚠️ P&L calculation error for ${holding.symbol}: ${e.message}`);
+            console.warn(
+              `   ⚠️ P&L calculation error for ${holding.symbol}: ${e.message}`
+            );
           }
         }
       }
@@ -194,7 +198,8 @@ class PortfolioAutoInit {
       // Record portfolio snapshot
       if (totalMarketValue > 0) {
         try {
-          const returnPercent = totalUnrealized > 0 ? (totalUnrealized / totalCost) * 100 : null;
+          const returnPercent =
+            totalUnrealized > 0 ? (totalUnrealized / totalCost) * 100 : null;
           await query(
             `INSERT INTO portfolio_performance (
               user_id, total_value, total_cost, total_return_percent, created_at
@@ -202,12 +207,13 @@ class PortfolioAutoInit {
             [userId, totalMarketValue, totalCost, returnPercent]
           );
         } catch (e) {
-          console.warn(`   ⚠️ Failed to record portfolio snapshot: ${e.message}`);
+          console.warn(
+            `   ⚠️ Failed to record portfolio snapshot: ${e.message}`
+          );
         }
       }
 
       return true;
-
     } catch (error) {
       console.error(` Metric recalculation failed: ${error.message}`);
       return false;

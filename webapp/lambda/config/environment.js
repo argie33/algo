@@ -48,8 +48,10 @@ function validateEnvironment() {
     }
 
     if (missing.length > 0) {
-      console.error(" CRITICAL: Missing required environment variables in production:");
-      missing.forEach(v => console.error(`   - ${v}`));
+      console.error(
+        " CRITICAL: Missing required environment variables in production:"
+      );
+      missing.forEach((v) => console.error(`   - ${v}`));
       throw new Error("Missing required environment variables");
     }
   }
@@ -67,7 +69,7 @@ const config = {
     host: process.env.DB_HOST || "localhost",
     port: process.env.DB_PORT ? parseInt(process.env.DB_PORT) : undefined,
     user: process.env.DB_USER || "stocks",
-    password: process.env.DB_PASSWORD,  // SECURITY FIX S-13: Require explicit password (no empty default)
+    password: process.env.DB_PASSWORD, // SECURITY FIX S-13: Require explicit password (no empty default)
     database: process.env.DB_NAME || "stocks",
     secretArn: process.env.DB_SECRET_ARN,
     queryTimeout: parseInt(process.env.DB_QUERY_TIMEOUT || 30000),
@@ -75,7 +77,8 @@ const config = {
   },
 
   aws: {
-    region: process.env.AWS_REGION || process.env.WEBAPP_AWS_REGION || "us-east-1",
+    region:
+      process.env.AWS_REGION || process.env.WEBAPP_AWS_REGION || "us-east-1",
   },
 
   auth: {
@@ -100,7 +103,8 @@ const config = {
     alpaca: {
       // Use Alpaca's standard naming: APCA_API_KEY_ID and APCA_API_SECRET_KEY
       apiKey: process.env.APCA_API_KEY_ID || process.env.ALPACA_API_KEY,
-      apiSecret: process.env.APCA_API_SECRET_KEY || process.env.ALPACA_API_SECRET,
+      apiSecret:
+        process.env.APCA_API_SECRET_KEY || process.env.ALPACA_API_SECRET,
       paperTrading: process.env.ALPACA_PAPER_TRADING === "true",
     },
   },

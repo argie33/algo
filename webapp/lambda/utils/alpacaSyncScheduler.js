@@ -28,11 +28,16 @@ const activeSyncs = new Map();
 function getAlpacaService() {
   // Use Alpaca's official naming convention (APCA_*), fall back to alternate names
   const apiKey = process.env.APCA_API_KEY_ID || process.env.ALPACA_API_KEY;
-  const secretKey = process.env.APCA_API_SECRET_KEY || process.env.ALPACA_API_SECRET || process.env.ALPACA_SECRET_KEY;
+  const secretKey =
+    process.env.APCA_API_SECRET_KEY ||
+    process.env.ALPACA_API_SECRET ||
+    process.env.ALPACA_SECRET_KEY;
   const isPaper = process.env.ALPACA_PAPER_TRADING === "true";
 
   if (!apiKey || !secretKey) {
-    console.error(" Alpaca credentials not configured. Set APCA_API_KEY_ID and APCA_API_SECRET_KEY");
+    console.error(
+      " Alpaca credentials not configured. Set APCA_API_KEY_ID and APCA_API_SECRET_KEY"
+    );
     return null;
   }
 
@@ -43,7 +48,10 @@ function getAlpacaService() {
 async function performAlpacaSync(userId = null) {
   // Set 30 second timeout to prevent blocking the scheduler
   const syncTimeout = new Promise((_, reject) =>
-    setTimeout(() => reject(new Error("Sync timeout: exceeded 30 seconds")), 30000)
+    setTimeout(
+      () => reject(new Error("Sync timeout: exceeded 30 seconds")),
+      30000
+    )
   );
 
   const syncOperation = (async () => {
@@ -52,10 +60,11 @@ async function performAlpacaSync(userId = null) {
 
       // Rate limit: don't sync more frequently than MIN_SYNC_INTERVAL
       if (lastSyncTime && now - lastSyncTime < MIN_SYNC_INTERVAL) {
-          console.log(`⏳ Skipping sync (too recent, last: ${Math.round((now - lastSyncTime) / 1000)}s ago)`);
+        console.log(
+          `⏳ Skipping sync (too recent, last: ${Math.round((now - lastSyncTime) / 1000)}s ago)`
+        );
         return { status: "skipped", reason: "rate_limit" };
       }
-
 
       const alpaca = getAlpacaService();
       if (!alpaca) {
@@ -73,7 +82,11 @@ async function performAlpacaSync(userId = null) {
         ]);
       } catch (err) {
         console.error(" Alpaca API fetch error:", err.message);
-        return { status: "error", reason: "fetch_failed", details: err.message };
+        return {
+          status: "error",
+          reason: "fetch_failed",
+          details: err.message,
+        };
       }
 
       if (!account || !positions) {
@@ -88,18 +101,26 @@ async function performAlpacaSync(userId = null) {
           const usersResult = await query(
             "SELECT DISTINCT user_id FROM user_dashboard_settings WHERE user_id IS NOT NULL"
           );
-          usersToSync.push(...(usersResult.rows || []).map(row => row.user_id));
+          usersToSync.push(
+            ...(usersResult.rows || []).map((row) => row.user_id)
+          );
           if (usersToSync.length === 0) {
             console.log(` No users to sync`);
             return { status: "skipped", reason: "no_users" };
           }
         } catch (err) {
           console.error(" Failed to fetch users for sync:", err.message);
-          return { status: "error", reason: "user_fetch_failed", details: err.message };
+          return {
+            status: "error",
+            reason: "user_fetch_failed",
+            details: err.message,
+          };
         }
       }
 
-      console.log(` [CRON] Retrieved ${positions.length} positions from Alpaca, syncing for ${usersToSync.length} user(s)`);
+      console.log(
+        ` [CRON] Retrieved ${positions.length} positions from Alpaca, syncing for ${usersToSync.length} user(s)`
+      );
 
       // Sync for each user
       const syncResults = [];
@@ -108,7 +129,9 @@ async function performAlpacaSync(userId = null) {
           // Batch database operations for better performance
           await Promise.all([
             // Clear existing holdings
-            query("DELETE FROM portfolio_holdings WHERE user_id = $1", [currentUserId]),
+            query("DELETE FROM portfolio_holdings WHERE user_id = $1", [
+              currentUserId,
+            ]),
             // Batch insert holdings (use transaction-like approach)
             (async () => {
               // Insert holdings in batches of 10 to avoid massive queries
@@ -128,7 +151,10 @@ async function performAlpacaSync(userId = null) {
                         position.averageEntryPrice,
                       ]
                     ).catch((err) =>
-                      console.warn(`⚠️  Failed to insert ${position.symbol} for user ${currentUserId}:`, err.message)
+                      console.warn(
+                        `⚠️  Failed to insert ${position.symbol} for user ${currentUserId}:`,
+                        err.message
+                      )
                     )
                   )
                 );
@@ -140,7 +166,8 @@ async function performAlpacaSync(userId = null) {
           const portfolioValue = account.portfolioValue || 0;
           const lastEquity = account.lastEquity || portfolioValue;
           const dayChange = portfolioValue - lastEquity;
-          const dayChangePercent = lastEquity > 0 ? (dayChange / lastEquity) * 100 : 0;
+          const dayChangePercent =
+            lastEquity > 0 ? (dayChange / lastEquity) * 100 : 0;
 
           await query(
             `INSERT INTO portfolio_performance
@@ -148,10 +175,15 @@ async function performAlpacaSync(userId = null) {
             VALUES ($1, CURRENT_DATE, $2, $3, $4, CURRENT_TIMESTAMP)`,
             [currentUserId, portfolioValue, dayChange, dayChangePercent]
           ).catch((err) => {
-            if (err.code === '23505') {
-              console.warn(` Portfolio performance for user ${currentUserId} for today already recorded, skipping update`);
+            if (err.code === "23505") {
+              console.warn(
+                ` Portfolio performance for user ${currentUserId} for today already recorded, skipping update`
+              );
             } else {
-              console.error(` Database error during sync for user ${currentUserId}:`, err.message);
+              console.error(
+                ` Database error during sync for user ${currentUserId}:`,
+                err.message
+              );
             }
           });
 
@@ -159,17 +191,23 @@ async function performAlpacaSync(userId = null) {
             user_id: currentUserId,
             status: "success",
             holdings_synced: positions.length,
-            portfolio_value: portfolioValue
+            portfolio_value: portfolioValue,
           });
 
-          console.log(` [CRON] Portfolio sync complete for user ${currentUserId}: $${portfolioValue?.toFixed(2)} portfolio value`);
+          console.log(
+            ` [CRON] Portfolio sync complete for user ${currentUserId}: $${portfolioValue?.toFixed(2)} portfolio value`
+          );
         } catch (dbErr) {
-          console.error(" Database error during sync for user:", currentUserId, dbErr.message);
+          console.error(
+            " Database error during sync for user:",
+            currentUserId,
+            dbErr.message
+          );
           syncResults.push({
             user_id: currentUserId,
             status: "error",
             reason: "database_error",
-            details: dbErr.message
+            details: dbErr.message,
           });
         }
       }
@@ -195,7 +233,11 @@ async function performAlpacaSync(userId = null) {
     return await Promise.race([syncOperation, syncTimeout]);
   } catch (error) {
     console.error(" [CRON] Sync operation failed:", error.message);
-    return { status: "error", reason: "timeout_or_error", details: error.message };
+    return {
+      status: "error",
+      reason: "timeout_or_error",
+      details: error.message,
+    };
   }
 }
 
@@ -204,7 +246,10 @@ function initializeAlpacaSync() {
   try {
     // Check if credentials are configured
     const apiKey = process.env.APCA_API_KEY_ID || process.env.ALPACA_API_KEY;
-    const secretKey = process.env.APCA_API_SECRET_KEY || process.env.ALPACA_API_SECRET || process.env.ALPACA_SECRET_KEY;
+    const secretKey =
+      process.env.APCA_API_SECRET_KEY ||
+      process.env.ALPACA_API_SECRET ||
+      process.env.ALPACA_SECRET_KEY;
 
     if (!apiKey || !secretKey) {
       console.warn("⚠️  Alpaca credentials not configured - scheduler skipped");

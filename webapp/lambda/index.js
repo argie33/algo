@@ -23,14 +23,12 @@ if (!process.env.AWS_LAMBDA_FUNCTION_NAME && !process.env.CI) {
 // No custom JWT signing/verification is performed in this Lambda
 // The Cognito JWT token is validated at the API Gateway level before reaching this function
 
-const cors = require("cors");
-const express = require("express");
-
 const { createServer } = require("http");
 
+const cors = require("cors");
+const express = require("express");
 const helmet = require("helmet");
 const morgan = require("morgan");
-
 const serverlessHttp = require('serverless-http');
 
 const errorHandler = require("./middleware/errorHandler");

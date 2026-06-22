@@ -61,16 +61,21 @@ async function getDbConfig() {
           try {
             secret = JSON.parse(result.SecretString);
             // SECURITY FIX S-10: Validate secret structure to ensure it has required fields
-            if (!secret || typeof secret !== 'object') {
+            if (!secret || typeof secret !== "object") {
               throw new Error("Secret must be a JSON object");
             }
-            if (!secret.username || !secret.password || !secret.host || !secret.dbname) {
-              throw new Error("Secret missing required fields: username, password, host, dbname");
+            if (
+              !secret.username ||
+              !secret.password ||
+              !secret.host ||
+              !secret.dbname
+            ) {
+              throw new Error(
+                "Secret missing required fields: username, password, host, dbname"
+              );
             }
           } catch (parseError) {
-            throw new Error(
-              `Secret parsing failed: ${parseError.message}`
-            );
+            throw new Error(`Secret parsing failed: ${parseError.message}`);
           }
         } else if (result.SecretString === undefined && result.SecretBinary) {
           try {
@@ -79,10 +84,14 @@ async function getDbConfig() {
             );
             secret = JSON.parse(decoded);
           } catch (decodeError) {
-            throw new Error(`Secret binary decoding failed: ${decodeError.message}`);
+            throw new Error(
+              `Secret binary decoding failed: ${decodeError.message}`
+            );
           }
         } else {
-          throw new Error(`Unexpected SecretString type: ${typeof result.SecretString}`);
+          throw new Error(
+            `Unexpected SecretString type: ${typeof result.SecretString}`
+          );
         }
 
         dbConfig = {
@@ -113,8 +122,12 @@ async function getDbConfig() {
                 },
         };
 
-        console.log(`Database config loaded from Secrets Manager: ${dbConfig.host}:${dbConfig.port}/${dbConfig.database}`);
-        console.log(`SSL Config: DB_SSL env var = "${process.env.DB_SSL}", using SSL: ${JSON.stringify(dbConfig.ssl)}`);
+        console.log(
+          `Database config loaded from Secrets Manager: ${dbConfig.host}:${dbConfig.port}/${dbConfig.database}`
+        );
+        console.log(
+          `SSL Config: DB_SSL env var = "${process.env.DB_SSL}", using SSL: ${JSON.stringify(dbConfig.ssl)}`
+        );
         return dbConfig;
       } catch (secretError) {
         console.warn(
@@ -126,7 +139,6 @@ async function getDbConfig() {
 
     // Fallback to environment variables if available
     if (process.env.DB_HOST || process.env.DB_ENDPOINT) {
-
       const host = process.env.DB_HOST || process.env.DB_ENDPOINT;
       const user = process.env.DB_USER || process.env.DB_USERNAME || "postgres";
       const password = process.env.DB_PASSWORD;
@@ -173,8 +185,12 @@ async function getDbConfig() {
               },
       };
 
-      console.log(`Database config loaded from environment: ${dbConfig.host}:${dbConfig.port}/${dbConfig.database}`);
-      console.log(`SSL Config: DB_SSL env var = "${process.env.DB_SSL}", using SSL: ${JSON.stringify(dbConfig.ssl)}`);
+      console.log(
+        `Database config loaded from environment: ${dbConfig.host}:${dbConfig.port}/${dbConfig.database}`
+      );
+      console.log(
+        `SSL Config: DB_SSL env var = "${process.env.DB_SSL}", using SSL: ${JSON.stringify(dbConfig.ssl)}`
+      );
       return dbConfig;
     }
 
@@ -217,7 +233,7 @@ function validateDbConfig(config) {
   if (!config.port) {
     throw new Error(
       "Database port (DB_PORT) must be explicitly configured. " +
-      "No default port is applied. Set DB_PORT in environment variables or Secrets Manager."
+        "No default port is applied. Set DB_PORT in environment variables or Secrets Manager."
     );
   }
 
@@ -274,8 +290,6 @@ async function initializeDatabase() {
   initPromise = (async () => {
     let config = null;
     try {
-      if (process.env.NODE_ENV !== "test") {
-      }
       config = await getDbConfig();
 
       if (!config) {
@@ -308,14 +322,34 @@ async function initializeDatabase() {
             const existingResult = await indexClient.query(
               "SELECT indexname FROM pg_indexes WHERE schemaname = 'public' AND tablename IN ('buy_sell_daily','buy_sell_weekly','buy_sell_monthly')"
             );
-            const existingIndexes = new Set(existingResult.rows.map(r => r.indexname));
+            const existingIndexes = new Set(
+              existingResult.rows.map((r) => r.indexname)
+            );
             const indexDefs = [
-              ["idx_buy_sell_daily_date_signal",   "CREATE INDEX CONCURRENTLY idx_buy_sell_daily_date_signal   ON buy_sell_daily   (date DESC, UPPER(signal))"],
-              ["idx_buy_sell_daily_symbol_date",   "CREATE INDEX CONCURRENTLY idx_buy_sell_daily_symbol_date   ON buy_sell_daily   (symbol, date DESC)"],
-              ["idx_buy_sell_weekly_date_signal",  "CREATE INDEX CONCURRENTLY idx_buy_sell_weekly_date_signal  ON buy_sell_weekly  (date DESC, UPPER(signal))"],
-              ["idx_buy_sell_weekly_symbol_date",  "CREATE INDEX CONCURRENTLY idx_buy_sell_weekly_symbol_date  ON buy_sell_weekly  (symbol, date DESC)"],
-              ["idx_buy_sell_monthly_date_signal", "CREATE INDEX CONCURRENTLY idx_buy_sell_monthly_date_signal ON buy_sell_monthly (date DESC, UPPER(signal))"],
-              ["idx_buy_sell_monthly_symbol_date", "CREATE INDEX CONCURRENTLY idx_buy_sell_monthly_symbol_date ON buy_sell_monthly (symbol, date DESC)"],
+              [
+                "idx_buy_sell_daily_date_signal",
+                "CREATE INDEX CONCURRENTLY idx_buy_sell_daily_date_signal   ON buy_sell_daily   (date DESC, UPPER(signal))",
+              ],
+              [
+                "idx_buy_sell_daily_symbol_date",
+                "CREATE INDEX CONCURRENTLY idx_buy_sell_daily_symbol_date   ON buy_sell_daily   (symbol, date DESC)",
+              ],
+              [
+                "idx_buy_sell_weekly_date_signal",
+                "CREATE INDEX CONCURRENTLY idx_buy_sell_weekly_date_signal  ON buy_sell_weekly  (date DESC, UPPER(signal))",
+              ],
+              [
+                "idx_buy_sell_weekly_symbol_date",
+                "CREATE INDEX CONCURRENTLY idx_buy_sell_weekly_symbol_date  ON buy_sell_weekly  (symbol, date DESC)",
+              ],
+              [
+                "idx_buy_sell_monthly_date_signal",
+                "CREATE INDEX CONCURRENTLY idx_buy_sell_monthly_date_signal ON buy_sell_monthly (date DESC, UPPER(signal))",
+              ],
+              [
+                "idx_buy_sell_monthly_symbol_date",
+                "CREATE INDEX CONCURRENTLY idx_buy_sell_monthly_symbol_date ON buy_sell_monthly (symbol, date DESC)",
+              ],
             ];
             for (const [name, sql] of indexDefs) {
               if (!existingIndexes.has(name)) {
@@ -328,7 +362,10 @@ async function initializeDatabase() {
             }
             indexClient.release();
           } catch (err) {
-            console.warn("Warning: Background index creation failed:", err.message);
+            console.warn(
+              "Warning: Background index creation failed:",
+              err.message
+            );
           }
         });
       }
@@ -388,10 +425,10 @@ async function initializeMaterializedViews() {
         SELECT matviewname FROM pg_matviews
         WHERE schemaname = 'public' AND matviewname IN ('mv_latest_prices', 'mv_stock_scores_full')
       `);
-      const existingNames = new Set(existing.rows.map(r => r.matviewname));
+      const existingNames = new Set(existing.rows.map((r) => r.matviewname));
 
       // --- mv_latest_prices ---
-      if (!existingNames.has('mv_latest_prices')) {
+      if (!existingNames.has("mv_latest_prices")) {
         await client.query(`
           CREATE MATERIALIZED VIEW mv_latest_prices AS
           SELECT DISTINCT ON (symbol)
@@ -405,11 +442,15 @@ async function initializeMaterializedViews() {
           FROM price_daily
           ORDER BY symbol, date DESC;
         `);
-        await client.query("CREATE UNIQUE INDEX idx_mv_latest_prices_symbol ON mv_latest_prices (symbol);");
+        await client.query(
+          "CREATE UNIQUE INDEX idx_mv_latest_prices_symbol ON mv_latest_prices (symbol);"
+        );
       } else {
         // CONCURRENTLY requires a unique index; safe to call on warm containers
         try {
-          await client.query("REFRESH MATERIALIZED VIEW CONCURRENTLY mv_latest_prices");
+          await client.query(
+            "REFRESH MATERIALIZED VIEW CONCURRENTLY mv_latest_prices"
+          );
         } catch (e) {
           // Fallback to non-concurrent refresh if unique index not ready
           await client.query("REFRESH MATERIALIZED VIEW mv_latest_prices");
@@ -417,7 +458,7 @@ async function initializeMaterializedViews() {
       }
 
       // --- mv_stock_scores_full ---
-      if (!existingNames.has('mv_stock_scores_full')) {
+      if (!existingNames.has("mv_stock_scores_full")) {
         await client.query(`
           CREATE MATERIALIZED VIEW mv_stock_scores_full AS
           SELECT
@@ -434,22 +475,28 @@ async function initializeMaterializedViews() {
           LEFT JOIN stock_symbols st ON ss.symbol = st.symbol
           WHERE ss.composite_score IS NOT NULL;
         `);
-        await client.query("CREATE UNIQUE INDEX idx_mv_stock_scores_full_symbol ON mv_stock_scores_full (symbol);");
+        await client.query(
+          "CREATE UNIQUE INDEX idx_mv_stock_scores_full_symbol ON mv_stock_scores_full (symbol);"
+        );
       } else {
         try {
-          await client.query("REFRESH MATERIALIZED VIEW CONCURRENTLY mv_stock_scores_full");
+          await client.query(
+            "REFRESH MATERIALIZED VIEW CONCURRENTLY mv_stock_scores_full"
+          );
         } catch (e) {
           await client.query("REFRESH MATERIALIZED VIEW mv_stock_scores_full");
         }
       }
 
       return true;
-
     } finally {
       client.release();
     }
   } catch (error) {
-    console.warn("Materialized views initialization warning (non-critical):", error.message);
+    console.warn(
+      "Materialized views initialization warning (non-critical):",
+      error.message
+    );
     // Don't throw - views might already exist, application can continue
     return false;
   }
@@ -462,7 +509,6 @@ async function initializeMaterializedViews() {
  */
 async function initializeSchema() {
   try {
-
     // Create materialized views for performance
     await initializeMaterializedViews();
 
@@ -475,10 +521,14 @@ async function initializeSchema() {
 
     // Import and run webapp table initialization if available
     try {
-      const { initializeWebappTables } = require('../webapp-db-init');
+      // eslint-disable-next-line node/no-missing-require
+      const { initializeWebappTables } = require("../webapp-db-init");
       await initializeWebappTables();
     } catch (err) {
-      console.warn("Webapp table initialization skipped (not critical):", err.message);
+      console.warn(
+        "Webapp table initialization skipped (not critical):",
+        err.message
+      );
     }
 
     return true;
@@ -507,41 +557,58 @@ async function fixPortfolioHoldingsSchema() {
       WHERE table_name = 'portfolio_holdings' AND table_schema = 'public'
     `);
 
-    const columns = new Map(columnsResult.rows.map(r => [r.column_name, r.data_type]));
+    const columns = new Map(
+      columnsResult.rows.map((r) => [r.column_name, r.data_type])
+    );
 
     // Fix user_id type if it's wrong
-    if (columns.has('user_id') && columns.get('user_id') !== 'character varying') {
-      console.log('Fixing portfolio_holdings.user_id type from INTEGER to VARCHAR(255)...');
+    if (
+      columns.has("user_id") &&
+      columns.get("user_id") !== "character varying"
+    ) {
+      console.log(
+        "Fixing portfolio_holdings.user_id type from INTEGER to VARCHAR(255)..."
+      );
       // Create temp column with correct type
-      await client.query('ALTER TABLE portfolio_holdings ADD COLUMN user_id_new VARCHAR(255)');
+      await client.query(
+        "ALTER TABLE portfolio_holdings ADD COLUMN user_id_new VARCHAR(255)"
+      );
       // Copy and convert data
-      await client.query('UPDATE portfolio_holdings SET user_id_new = CAST(user_id AS VARCHAR(255))');
+      await client.query(
+        "UPDATE portfolio_holdings SET user_id_new = CAST(user_id AS VARCHAR(255))"
+      );
       // Drop old column and rename
-      await client.query('ALTER TABLE portfolio_holdings DROP COLUMN user_id');
-      await client.query('ALTER TABLE portfolio_holdings RENAME COLUMN user_id_new TO user_id');
+      await client.query("ALTER TABLE portfolio_holdings DROP COLUMN user_id");
+      await client.query(
+        "ALTER TABLE portfolio_holdings RENAME COLUMN user_id_new TO user_id"
+      );
       // Restore NOT NULL constraint
-      await client.query('ALTER TABLE portfolio_holdings ALTER COLUMN user_id SET NOT NULL');
-      console.log('Fixed portfolio_holdings.user_id type');
+      await client.query(
+        "ALTER TABLE portfolio_holdings ALTER COLUMN user_id SET NOT NULL"
+      );
+      console.log("Fixed portfolio_holdings.user_id type");
     }
 
     // Add missing columns
     const columnsToAdd = {
-      market_value: 'DECIMAL(15,2)',
-      sector: 'VARCHAR(100)',
-      unrealized_pl: 'DECIMAL(15,2)',
-      unrealized_pl_percent: 'DECIMAL(8,4)',
-      created_at: 'TIMESTAMP DEFAULT CURRENT_TIMESTAMP',
-      updated_at: 'TIMESTAMP DEFAULT CURRENT_TIMESTAMP'
+      market_value: "DECIMAL(15,2)",
+      sector: "VARCHAR(100)",
+      unrealized_pl: "DECIMAL(15,2)",
+      unrealized_pl_percent: "DECIMAL(8,4)",
+      created_at: "TIMESTAMP DEFAULT CURRENT_TIMESTAMP",
+      updated_at: "TIMESTAMP DEFAULT CURRENT_TIMESTAMP",
     };
 
     for (const [colName, colType] of Object.entries(columnsToAdd)) {
       if (!columns.has(colName)) {
         console.log(`Adding missing column portfolio_holdings.${colName}...`);
-        await client.query(`ALTER TABLE portfolio_holdings ADD COLUMN ${colName} ${colType}`);
+        await client.query(
+          `ALTER TABLE portfolio_holdings ADD COLUMN ${colName} ${colType}`
+        );
       }
     }
 
-    console.log('Portfolio holdings schema fixed');
+    console.log("Portfolio holdings schema fixed");
   } finally {
     client.release();
   }
@@ -588,8 +655,6 @@ async function query(text, params = []) {
   try {
     // Ensure database is initialized
     if (!dbInitialized || !pool) {
-      if (process.env.NODE_ENV !== "test") {
-      }
       const result = await initializeDatabase();
       if (!result || !pool) {
         // Database is not available - throw error instead of fallback
@@ -616,7 +681,7 @@ async function query(text, params = []) {
       setTimeout(() => {
         reject(
           new Error(
-            `Query timeout after ${queryTimeout}ms: ${typeof text === 'string' ? text.slice(0, 100) : JSON.stringify(text).slice(0, 100)}...`
+            `Query timeout after ${queryTimeout}ms: ${typeof text === "string" ? text.slice(0, 100) : JSON.stringify(text).slice(0, 100)}...`
           )
         );
       }, queryTimeout);
@@ -638,7 +703,10 @@ async function query(text, params = []) {
       });
     } else if (queryDuration > 1000) {
       console.warn(`⏱️ Slow query (${queryDuration}ms):`, {
-        query: typeof text === 'string' ? text.slice(0, 100) + (text.length > 100 ? "..." : "") : JSON.stringify(text).slice(0, 100) + "...",
+        query:
+          typeof text === "string"
+            ? text.slice(0, 100) + (text.length > 100 ? "..." : "")
+            : JSON.stringify(text).slice(0, 100) + "...",
         rows: result.rowCount,
         duration: `${queryDuration}ms`,
       });
@@ -653,13 +721,16 @@ async function query(text, params = []) {
   } catch (error) {
     console.error("Database query error:", {
       error: error.message,
-      query: typeof text === 'string' ? text.slice(0, 100) + (text.length > 100 ? "..." : "") : JSON.stringify(text).slice(0, 100) + "...",
+      query:
+        typeof text === "string"
+          ? text.slice(0, 100) + (text.length > 100 ? "..." : "")
+          : JSON.stringify(text).slice(0, 100) + "...",
       params: params?.length ? `${params.length} parameters` : "no parameters",
       code: error.code,
     });
 
     // Categorize connection-level errors (503 - Service Unavailable)
-    const isConnectionError = (
+    const isConnectionError =
       error.message.includes("connect") ||
       error.message.includes("ENOTFOUND") ||
       error.message.includes("ECONNREFUSED") ||
@@ -672,8 +743,7 @@ async function query(text, params = []) {
       error.code === "ECONNRESET" ||
       error.code === "ECONNABORTED" ||
       error.code === "DB_CONNECTION_FAILED" ||
-      error.code === "DB_POOL_NOT_AVAILABLE"
-    );
+      error.code === "DB_POOL_NOT_AVAILABLE";
 
     if (isConnectionError) {
       console.error("Database connection error - should return 503");
@@ -687,12 +757,12 @@ async function query(text, params = []) {
     console.error("Database query error:", {
       code: error.code,
       message: error.message,
-      query: typeof text === 'string' ? text.substring(0, 200) : "non-string query"
+      query:
+        typeof text === "string" ? text.substring(0, 200) : "non-string query",
     });
     throw error;
   }
 }
-
 
 /**
  * Execute a transaction

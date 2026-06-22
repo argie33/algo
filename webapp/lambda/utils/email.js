@@ -1,4 +1,4 @@
-const { SESClient, SendEmailCommand } = require('@aws-sdk/client-ses');
+const { SESClient, SendEmailCommand } = require("@aws-sdk/client-ses");
 
 let sesClient = null;
 let emailConfigured = false;
@@ -8,17 +8,16 @@ const initEmailService = () => {
     if (process.env.AWS_REGION) {
       sesClient = new SESClient({ region: process.env.AWS_REGION });
       emailConfigured = true;
-    } else {
     }
   } catch (error) {
-    console.warn('⚠️  Failed to initialize email service:', error.message);
+    console.warn("⚠️  Failed to initialize email service:", error.message);
   }
 };
 
 const getEmailConfig = async () => {
   return {
     contactEmail: process.env.CONTACT_EMAIL,
-    isConfigured: emailConfigured
+    isConfigured: emailConfigured,
   };
 };
 
@@ -29,8 +28,8 @@ const sendEmail = async ({ to, subject, html, text }) => {
 
   const emailFrom = process.env.EMAIL_FROM;
   if (!emailFrom) {
-    console.warn('⚠️  EMAIL_FROM not configured, email sending will fail');
-    return { success: false, error: 'EMAIL_FROM not configured' };
+    console.warn("⚠️  EMAIL_FROM not configured, email sending will fail");
+    return { success: false, error: "EMAIL_FROM not configured" };
   }
 
   try {
@@ -40,17 +39,17 @@ const sendEmail = async ({ to, subject, html, text }) => {
       Source: emailFrom,
       Destination: { ToAddresses: toAddresses },
       Message: {
-        Subject: { Data: subject, Charset: 'UTF-8' },
+        Subject: { Data: subject, Charset: "UTF-8" },
         Body: html
-          ? { Html: { Data: html, Charset: 'UTF-8' } }
-          : { Text: { Data: text || subject, Charset: 'UTF-8' } }
-      }
+          ? { Html: { Data: html, Charset: "UTF-8" } }
+          : { Text: { Data: text || subject, Charset: "UTF-8" } },
+      },
     });
 
     const result = await sesClient.send(command);
     return { success: true, messageId: result.MessageId };
   } catch (error) {
-    console.error(' Failed to send email:', error.message);
+    console.error(" Failed to send email:", error.message);
     throw error;
   }
 };
@@ -61,5 +60,5 @@ initEmailService();
 module.exports = {
   sendEmail,
   getEmailConfig,
-  initEmailService
+  initEmailService,
 };

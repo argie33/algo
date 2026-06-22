@@ -2,7 +2,6 @@ const request = require("supertest");
 const { app } = require("../../../index");
 const { initializeDatabase } = require("../../../utils/database");
 
-
 describe("Orders Routes Integration Tests", () => {
   beforeAll(async () => {
     await initializeDatabase();
@@ -64,7 +63,6 @@ describe("Orders Routes Integration Tests", () => {
 
       expect([200, 401, 403].includes(response.status)).toBe(true);
     });
-
   });
 
   describe("GET /api/orders/:orderId (Get Specific Order)", () => {
@@ -94,7 +92,6 @@ describe("Orders Routes Integration Tests", () => {
 
       expect([200, 401, 403, 404].includes(response.status)).toBe(true);
     });
-
   });
 
   describe("POST /api/orders (Create Order)", () => {
@@ -179,7 +176,6 @@ describe("Orders Routes Integration Tests", () => {
 
       expect([200, 400, 401, 403].includes(response.status)).toBe(true);
     });
-
   });
 
   describe("PUT /api/orders/:orderId (Update Order)", () => {
@@ -220,7 +216,6 @@ describe("Orders Routes Integration Tests", () => {
 
       expect([200, 401, 403, 404].includes(response.status)).toBe(true);
     });
-
   });
 
   describe("DELETE /api/orders/:orderId (Cancel Order)", () => {
@@ -249,7 +244,6 @@ describe("Orders Routes Integration Tests", () => {
 
       expect([200, 401, 403, 404].includes(response.status)).toBe(true);
     });
-
   });
 
   describe("GET /api/orders/history (Order History)", () => {
@@ -296,7 +290,6 @@ describe("Orders Routes Integration Tests", () => {
 
       expect([200, 401, 403].includes(response.status)).toBe(true);
     });
-
   });
 
   describe("Performance and Edge Cases", () => {
@@ -401,7 +394,6 @@ describe("Orders Routes Integration Tests", () => {
         expect(response.body).toHaveProperty("error");
       }
     });
-
   });
 
   describe("Authentication and Trading Mode", () => {
@@ -432,7 +424,6 @@ describe("Orders Routes Integration Tests", () => {
 
       expect([200, 401, 403].includes(response.status)).toBe(true);
     });
-
   });
 
   describe("GET /api/orders/recent (Recent Orders)", () => {
@@ -476,5 +467,4 @@ describe("Orders Routes Integration Tests", () => {
       expect(response.body.metadata).toHaveProperty("status", "filled");
     });
   });
-
 });

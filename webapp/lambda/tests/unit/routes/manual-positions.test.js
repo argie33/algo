@@ -30,7 +30,9 @@ describe("Manual Positions Routes Unit Tests", () => {
     app.use(responseFormatter);
 
     // Load manual positions routes
-    const manualPositionsRouter = require("../../../routes/manual-positions")(query);
+    const manualPositionsRouter = require("../../../routes/manual-positions")(
+      query
+    );
     app.use("/manual-positions", manualPositionsRouter);
   });
 
@@ -42,9 +44,7 @@ describe("Manual Positions Routes Unit Tests", () => {
     it("should return empty list when no positions exist", async () => {
       query.mockResolvedValueOnce({ rows: [], rowCount: 0 });
 
-      const response = await request(app)
-        .get("/manual-positions")
-        .expect(200);
+      const response = await request(app).get("/manual-positions").expect(200);
 
       expect(response.body.success).toBe(true);
       expect(response.body.data).toEqual([]);
@@ -57,8 +57,8 @@ describe("Manual Positions Routes Unit Tests", () => {
           id: 1,
           symbol: "AAPL",
           quantity: 50,
-          average_cost: 150.00,
-          current_price: 175.00,
+          average_cost: 150.0,
+          current_price: 175.0,
           market_value: 8750,
           cost_basis: 7500,
           unrealized_gain: 1250,
@@ -71,9 +71,7 @@ describe("Manual Positions Routes Unit Tests", () => {
 
       query.mockResolvedValueOnce({ rows: mockPositions, rowCount: 1 });
 
-      const response = await request(app)
-        .get("/manual-positions")
-        .expect(200);
+      const response = await request(app).get("/manual-positions").expect(200);
 
       expect(response.body.success).toBe(true);
       expect(response.body.data).toHaveLength(1);
@@ -88,7 +86,9 @@ describe("Manual Positions Routes Unit Tests", () => {
       const responseFormatter = require("../../../middleware/responseFormatter");
       appNoAuth.use(responseFormatter);
 
-      const manualPositionsRouter = require("../../../routes/manual-positions")(query);
+      const manualPositionsRouter = require("../../../routes/manual-positions")(
+        query
+      );
       appNoAuth.use("/manual-positions", manualPositionsRouter);
 
       const response = await request(appNoAuth)
@@ -105,8 +105,8 @@ describe("Manual Positions Routes Unit Tests", () => {
         id: 1,
         symbol: "TSLA",
         quantity: 25,
-        average_cost: 250.00,
-        current_price: 280.00,
+        average_cost: 250.0,
+        current_price: 280.0,
         market_value: 7000,
         cost_basis: 6250,
         broker: "Fidelity",
@@ -138,8 +138,8 @@ describe("Manual Positions Routes Unit Tests", () => {
       const newPosition = {
         symbol: "GOOGL",
         quantity: 30,
-        average_cost: 120.00,
-        current_price: 140.00,
+        average_cost: 120.0,
+        current_price: 140.0,
         broker: "Charles Schwab",
       };
 
@@ -160,7 +160,7 @@ describe("Manual Positions Routes Unit Tests", () => {
     it("should reject position without symbol", async () => {
       const invalidPosition = {
         quantity: 30,
-        average_cost: 120.00,
+        average_cost: 120.0,
       };
 
       const response = await request(app)
@@ -176,7 +176,7 @@ describe("Manual Positions Routes Unit Tests", () => {
       const invalidPosition = {
         symbol: "MSFT",
         quantity: -10,
-        average_cost: 380.00,
+        average_cost: 380.0,
       };
 
       const response = await request(app)
@@ -201,7 +201,9 @@ describe("Manual Positions Routes Unit Tests", () => {
         .expect(400);
 
       expect(response.body.error).toBe("Validation failed");
-      expect(response.body.errors).toContain("Average cost must be greater than 0");
+      expect(response.body.errors).toContain(
+        "Average cost must be greater than 0"
+      );
     });
   });
 
@@ -213,7 +215,9 @@ describe("Manual Positions Routes Unit Tests", () => {
           rowCount: 1,
         })
         .mockResolvedValueOnce({
-          rows: [{ id: 1, symbol: "AAPL", quantity: 60, user_id: "test-user-123" }],
+          rows: [
+            { id: 1, symbol: "AAPL", quantity: 60, user_id: "test-user-123" },
+          ],
           rowCount: 1,
         });
 
@@ -263,8 +267,7 @@ describe("Manual Positions Routes Unit Tests", () => {
         })
         .mockResolvedValueOnce({ rowCount: 1 });
 
-      const response = await request(app)
-        .delete("/manual-positions/1");
+      const response = await request(app).delete("/manual-positions/1");
 
       if (response.status === 200) {
         expect(response.body.success).toBe(true);
@@ -275,8 +278,7 @@ describe("Manual Positions Routes Unit Tests", () => {
     it("should return 404 when deleting non-existent position", async () => {
       query.mockResolvedValueOnce({ rows: [], rowCount: 0 });
 
-      const response = await request(app)
-        .delete("/manual-positions/999");
+      const response = await request(app).delete("/manual-positions/999");
 
       if (response.status === 404) {
         expect(response.body.error).toBe("Position not found");
@@ -289,8 +291,7 @@ describe("Manual Positions Routes Unit Tests", () => {
         rowCount: 1,
       });
 
-      const response = await request(app)
-        .delete("/manual-positions/1");
+      const response = await request(app).delete("/manual-positions/1");
 
       if (response.status === 403) {
         expect(response.body.error).toBe("Unauthorized");

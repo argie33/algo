@@ -64,7 +64,14 @@ describe("API Key Service", () => {
       setAAD: jest.fn(),
       getAuthTag: jest.fn().mockReturnValue(Buffer.from("auth-tag")),
     });
-const { query, closeDatabase, initializeDatabase, getPool, transaction, healthCheck } = require("../../../utils/database");
+    const {
+      query,
+      closeDatabase,
+      initializeDatabase,
+      getPool,
+      transaction,
+      healthCheck,
+    } = require("../../../utils/database");
 
     crypto.createDecipheriv = jest.fn().mockReturnValue({
       update: jest.fn().mockReturnValue("decrypted"),
@@ -121,11 +128,7 @@ const { query, closeDatabase, initializeDatabase, getPool, transaction, healthCh
       };
       mockQuery.mockResolvedValue(mockResult);
       const apiKeyData = { keyId: "test-key", secret: "test-secret" };
-      const result = await storeApiKey(
-        "test-token",
-        "alpaca",
-        apiKeyData
-      );
+      const result = await storeApiKey("test-token", "alpaca", apiKeyData);
       expect(result.success).toBe(true);
       expect(result.provider).toBe("alpaca");
       expect(mockQuery).toHaveBeenCalledWith(
@@ -150,11 +153,7 @@ const { query, closeDatabase, initializeDatabase, getPool, transaction, healthCh
     });
     test("should validate required fields", async () => {
       const apiKeyData = { keyId: "test-key" }; // Missing secret
-      const result = await storeApiKey(
-        "test-token",
-        "alpaca",
-        apiKeyData
-      );
+      const result = await storeApiKey("test-token", "alpaca", apiKeyData);
       expect(result.success).toBe(false);
       expect(result.error).toContain(
         "API key data must include keyId and secret"
@@ -165,11 +164,7 @@ const { query, closeDatabase, initializeDatabase, getPool, transaction, healthCh
         keyId: "x".repeat(501), // Too long
         secret: "test-secret",
       };
-      const result = await storeApiKey(
-        "test-token",
-        "alpaca",
-        apiKeyData
-      );
+      const result = await storeApiKey("test-token", "alpaca", apiKeyData);
       expect(result.success).toBe(false);
       expect(result.error).toContain(
         "API key data exceeds maximum length limits"
@@ -192,11 +187,7 @@ const { query, closeDatabase, initializeDatabase, getPool, transaction, healthCh
       const dbError = new Error("Database connection failed");
       mockQuery.mockRejectedValue(dbError);
       const apiKeyData = { keyId: "test-key", secret: "test-secret" };
-      const result = await storeApiKey(
-        "test-token",
-        "alpaca",
-        apiKeyData
-      );
+      const result = await storeApiKey("test-token", "alpaca", apiKeyData);
       expect(result.success).toBe(false);
       expect(result.error).toContain("Failed to store API key");
     });
@@ -495,11 +486,7 @@ const { query, closeDatabase, initializeDatabase, getPool, transaction, healthCh
       mockQuery.mockRejectedValue(dbError);
       const apiKeyData = { keyId: "test-key", secret: "test-secret" };
       // First few failures should return error responses (before circuit breaker opens)
-      const result = await storeApiKey(
-        "test-token",
-        "alpaca",
-        apiKeyData
-      );
+      const result = await storeApiKey("test-token", "alpaca", apiKeyData);
       expect(result.success).toBe(false);
       expect(result.error).toContain("Failed to store API key");
     });
@@ -558,11 +545,7 @@ const { query, closeDatabase, initializeDatabase, getPool, transaction, healthCh
         keyId: "x".repeat(501), // Exceeds max length
         secret: "test-secret",
       };
-      const result = await storeApiKey(
-        "test-token",
-        "alpaca",
-        apiKeyData
-      );
+      const result = await storeApiKey("test-token", "alpaca", apiKeyData);
       expect(result.success).toBe(false);
       expect(result.error).toContain("exceeds maximum length limits");
     });
@@ -575,8 +558,16 @@ const { query, closeDatabase, initializeDatabase, getPool, transaction, healthCh
       service.encryptionKey = null;
       service.secretsManager = mockSecretsManager;
       // Reset circuit breaker state
-      service.circuitBreaker = { failures: 0, lastFailure: null, isOpen: false };
-      service.jwtCircuitBreaker = { failures: 0, lastFailure: null, isOpen: false };
+      service.circuitBreaker = {
+        failures: 0,
+        lastFailure: null,
+        isOpen: false,
+      };
+      service.jwtCircuitBreaker = {
+        failures: 0,
+        lastFailure: null,
+        isOpen: false,
+      };
       // Clear all caches
       clearCaches();
     });
@@ -605,11 +596,7 @@ const { query, closeDatabase, initializeDatabase, getPool, transaction, healthCh
       };
       mockQuery.mockResolvedValue(mockResult);
       const apiKeyData = { keyId: "test-key", secret: "test-secret" };
-      const result = await storeApiKey(
-        "test-token",
-        "alpaca",
-        apiKeyData
-      );
+      const result = await storeApiKey("test-token", "alpaca", apiKeyData);
       expect(result.success).toBe(true);
       expect(crypto.createCipheriv).toHaveBeenCalled();
     });
@@ -629,11 +616,7 @@ const { query, closeDatabase, initializeDatabase, getPool, transaction, healthCh
       };
       mockQuery.mockResolvedValue(mockResult);
       const apiKeyData = { keyId: "test-key", secret: "test-secret" };
-      const result = await storeApiKey(
-        "test-token",
-        "alpaca",
-        apiKeyData
-      );
+      const result = await storeApiKey("test-token", "alpaca", apiKeyData);
       expect(result.success).toBe(true);
     });
     test("should handle secrets manager errors", async () => {
@@ -653,11 +636,7 @@ const { query, closeDatabase, initializeDatabase, getPool, transaction, healthCh
       };
       mockQuery.mockResolvedValue(mockResult);
       const apiKeyData = { keyId: "test-key", secret: "test-secret" };
-      const result = await storeApiKey(
-        "test-token",
-        "alpaca",
-        apiKeyData
-      );
+      const result = await storeApiKey("test-token", "alpaca", apiKeyData);
       expect(result.success).toBe(true); // Should fallback to dev key
     });
   });
@@ -801,11 +780,7 @@ const { query, closeDatabase, initializeDatabase, getPool, transaction, healthCh
         .mockResolvedValueOnce(mockResult)
         .mockRejectedValueOnce(new Error("Audit log failed"));
       const apiKeyData = { keyId: "test-key", secret: "test-secret" };
-      const result = await storeApiKey(
-        "test-token",
-        "alpaca",
-        apiKeyData
-      );
+      const result = await storeApiKey("test-token", "alpaca", apiKeyData);
       // Should still succeed even if audit logging fails
       expect(result.success).toBe(true);
     });
@@ -832,11 +807,7 @@ const { query, closeDatabase, initializeDatabase, getPool, transaction, healthCh
         rowCount: 1,
       };
       mockQuery.mockResolvedValue(mockResult);
-      const result = await storeApiKey(
-        "test-token",
-        "alpaca",
-        apiKeyData
-      );
+      const result = await storeApiKey("test-token", "alpaca", apiKeyData);
       expect(result.success).toBe(true);
     });
   });

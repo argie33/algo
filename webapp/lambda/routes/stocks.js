@@ -6,11 +6,17 @@
  * - GET /api/stocks/deep-value - List stocks with value metrics
  */
 
-const express = require('express');
-const { getPool } = require('../utils/database');
-const { sendSuccess, sendError } = require('../utils/apiResponse');
-const logger = require('../utils/logger');
-const { validateQueryResult, validateAndCoerceRows, extractSingleRow, extractCount } = require('../utils/responseValidation');
+const express = require("express");
+
+const { getPool } = require("../utils/database");
+const { sendSuccess, sendError } = require("../utils/apiResponse");
+const logger = require("../utils/logger");
+const {
+  validateQueryResult,
+  validateAndCoerceRows,
+  extractSingleRow,
+  extractCount,
+} = require("../utils/responseValidation");
 
 const router = express.Router();
 
@@ -24,7 +30,7 @@ const router = express.Router();
  * - search: Filter by symbol or name
  * - sector: Filter by sector
  */
-router.get('/', async (req, res) => {
+router.get("/", async (req, res) => {
   try {
     const limit = Math.min(parseInt(req.query.limit) || 500, 50000);
     const offset = parseInt(req.query.offset) || 0;
@@ -46,7 +52,8 @@ router.get('/', async (req, res) => {
     }
 
     // Get stocks
-    const result = await pool.query(`
+    const result = await pool.query(
+      `
       SELECT
         ss.symbol,
         ss.security_name as company_name,
@@ -60,28 +67,33 @@ router.get('/', async (req, res) => {
       WHERE ${whereClause}
       ORDER BY ss.symbol
       LIMIT $${params.length + 1} OFFSET $${params.length + 2}
-    `, [...params, limit, offset]);
+    `,
+      [...params, limit, offset]
+    );
 
     // Get total count
-    const countResult = await pool.query(`
+    const countResult = await pool.query(
+      `
       SELECT COUNT(*) as total
       FROM stock_symbols ss
       LEFT JOIN company_profile cp ON ss.symbol = cp.ticker
       WHERE ${whereClause}
-    `, params);
+    `,
+      params
+    );
 
     // Validate query results
     validateQueryResult(result, { requireRows: false });
-    const total = extractCount(countResult, 'total');
+    const total = extractCount(countResult, "total");
 
     // Validate and coerce field types
     const validated = validateAndCoerceRows(result, {
-      symbol: { type: 'string', required: true },
-      company_name: { type: 'string', required: false },
-      sector: { type: 'string', required: false },
-      industry: { type: 'string', required: false },
-      market_cap: { type: 'float', required: false, defaultValue: null },
-      is_sp500: { type: 'bool', required: false, defaultValue: false }
+      symbol: { type: "string", required: true },
+      company_name: { type: "string", required: false },
+      sector: { type: "string", required: false },
+      industry: { type: "string", required: false },
+      market_cap: { type: "float", required: false, defaultValue: null },
+      is_sp500: { type: "bool", required: false, defaultValue: false },
     });
 
     return sendSuccess(res, {
@@ -89,12 +101,14 @@ router.get('/', async (req, res) => {
       pagination: {
         total: total,
         limit: limit,
-        offset: offset
-      }
+        offset: offset,
+      },
     });
-
   } catch (error) {
-    logger.error('Error fetching stocks:', { error: error.message, stack: error.stack });
+    logger.error("Error fetching stocks:", {
+      error: error.message,
+      stack: error.stack,
+    });
     return sendError(res, `Failed to fetch stocks: ${error.message}`, 500);
   }
 });
@@ -103,12 +117,13 @@ router.get('/', async (req, res) => {
  * GET /api/stocks/deep-value
  * List stocks with value metrics
  */
-router.get('/deep-value', async (req, res) => {
+router.get("/deep-value", async (req, res) => {
   try {
     const limit = Math.min(parseInt(req.query.limit) || 600, 1000);
     const pool = getPool();
 
-    const result = await pool.query(`
+    const result = await pool.query(
+      `
       SELECT DISTINCT
         ss.symbol,
         ss.security_name as company_name,
@@ -156,17 +171,22 @@ router.get('/deep-value', async (req, res) => {
       WHERE ss.symbol NOT LIKE '^%%'
       ORDER BY ss.symbol
       LIMIT $1
-    `, [limit]);
+    `,
+      [limit]
+    );
 
     // Validate query result - for this large numeric query, keep flexible coercion
     validateQueryResult(result, { requireRows: false });
 
-    const validated = result.rows.map(row => {
+    const validated = result.rows.map((row) => {
       const coerced = {};
       for (const [key, value] of Object.entries(row)) {
         // Coerce all numeric-looking fields
-        if (typeof value === 'number' || (typeof value === 'string' && !isNaN(value) && value !== '')) {
-          coerced[key] = typeof value === 'number' ? value : parseFloat(value);
+        if (
+          typeof value === "number" ||
+          (typeof value === "string" && !isNaN(value) && value !== "")
+        ) {
+          coerced[key] = typeof value === "number" ? value : parseFloat(value);
         } else {
           coerced[key] = value;
         }
@@ -175,12 +195,18 @@ router.get('/deep-value', async (req, res) => {
     });
 
     return sendSuccess(res, {
-      items: validated
+      items: validated,
     });
-
   } catch (error) {
-    logger.error('Error fetching deep-value stocks:', { error: error.message, stack: error.stack });
-    return sendError(res, `Failed to fetch deep-value stocks: ${error.message}`, 500);
+    logger.error("Error fetching deep-value stocks:", {
+      error: error.message,
+      stack: error.stack,
+    });
+    return sendError(
+      res,
+      `Failed to fetch deep-value stocks: ${error.message}`,
+      500
+    );
   }
 });
 
@@ -188,12 +214,13 @@ router.get('/deep-value', async (req, res) => {
  * GET /api/stocks/:ticker
  * Get individual stock details
  */
-router.get('/:ticker', async (req, res) => {
+router.get("/:ticker", async (req, res) => {
   try {
     const { ticker } = req.params;
     const pool = getPool();
 
-    const result = await pool.query(`
+    const result = await pool.query(
+      `
       SELECT
         ss.symbol,
         ss.security_name as company_name,
@@ -211,7 +238,9 @@ router.get('/:ticker', async (req, res) => {
       LEFT JOIN key_metrics km ON ss.symbol = km.symbol
       LEFT JOIN value_metrics vm ON ss.symbol = vm.symbol
       WHERE ss.symbol = $1
-    `, [ticker.toUpperCase()]);
+    `,
+      [ticker.toUpperCase()]
+    );
 
     // Validate query result
     validateQueryResult(result, { requireRows: false });
@@ -222,23 +251,30 @@ router.get('/:ticker', async (req, res) => {
 
     // Validate and coerce field types
     const validated = extractSingleRow(result, {
-      symbol: { type: 'string', required: true },
-      company_name: { type: 'string', required: false },
-      sector: { type: 'string', required: false },
-      industry: { type: 'string', required: false },
-      website: { type: 'string', required: false },
-      exchange: { type: 'string', required: false },
-      market_cap: { type: 'float', required: false, defaultValue: null },
-      pe_ratio: { type: 'float', required: false, defaultValue: null },
-      pb_ratio: { type: 'float', required: false, defaultValue: null },
-      ps_ratio: { type: 'float', required: false, defaultValue: null },
-      dividend_yield: { type: 'float', required: false, defaultValue: null }
+      symbol: { type: "string", required: true },
+      company_name: { type: "string", required: false },
+      sector: { type: "string", required: false },
+      industry: { type: "string", required: false },
+      website: { type: "string", required: false },
+      exchange: { type: "string", required: false },
+      market_cap: { type: "float", required: false, defaultValue: null },
+      pe_ratio: { type: "float", required: false, defaultValue: null },
+      pb_ratio: { type: "float", required: false, defaultValue: null },
+      ps_ratio: { type: "float", required: false, defaultValue: null },
+      dividend_yield: { type: "float", required: false, defaultValue: null },
     });
 
     return sendSuccess(res, validated);
   } catch (error) {
-    logger.error('Error fetching stock detail:', { error: error.message, stack: error.stack });
-    return sendError(res, `Failed to fetch stock details: ${error.message}`, 500);
+    logger.error("Error fetching stock detail:", {
+      error: error.message,
+      stack: error.stack,
+    });
+    return sendError(
+      res,
+      `Failed to fetch stock details: ${error.message}`,
+      500
+    );
   }
 });
 

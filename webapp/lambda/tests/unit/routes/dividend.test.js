@@ -11,7 +11,15 @@ jest.mock("../../../utils/database", () => ({
   tableExists: jest.fn().mockResolvedValue(true), // Mock tableExists to return true
 }));
 
-const { query, closeDatabase, initializeDatabase, getPool, transaction, healthCheck, tableExists } = require('../../../utils/database');
+const {
+  query,
+  closeDatabase,
+  initializeDatabase,
+  getPool,
+  transaction,
+  healthCheck,
+  tableExists,
+} = require("../../../utils/database");
 
 const mockQuery = query;
 const mockTableExists = tableExists;
@@ -37,7 +45,7 @@ describe("Dividend Route - Comprehensive Unit Tests", () => {
               amount: 0.24,
               currency: "USD",
               type: "Regular",
-              frequency: "Quarterly"
+              frequency: "Quarterly",
             },
             {
               ex_date: "2023-11-15",
@@ -45,11 +53,10 @@ describe("Dividend Route - Comprehensive Unit Tests", () => {
               amount: 0.23,
               currency: "USD",
               type: "Regular",
-              frequency: "Quarterly"
-            }
-          ]
+              frequency: "Quarterly",
+            },
+          ],
         });
-
       }
       // Mock dividend calendar query
       if (sql.includes("dividend_calendar")) {
@@ -66,8 +73,8 @@ describe("Dividend Route - Comprehensive Unit Tests", () => {
               frequency: "Quarterly",
               dividend_type: "Regular",
               announcement_date: "2024-02-01",
-            }
-          ]
+            },
+          ],
         });
       }
       // Default empty response
@@ -144,12 +151,12 @@ describe("Dividend Route - Comprehensive Unit Tests", () => {
       expect(response.body.timestamp).toBeDefined();
       if (response.body.data.upcoming_dividends.length > 0) {
         const firstDividend = response.body.data.upcoming_dividends[0];
-        expect(firstDividend).toHaveProperty('symbol');
-        expect(firstDividend).toHaveProperty('ex_date');
-        expect(firstDividend).toHaveProperty('payment_date');
-        expect(firstDividend).toHaveProperty('amount');
-        expect(firstDividend).toHaveProperty('yield');
-        expect(firstDividend).toHaveProperty('frequency');
+        expect(firstDividend).toHaveProperty("symbol");
+        expect(firstDividend).toHaveProperty("ex_date");
+        expect(firstDividend).toHaveProperty("payment_date");
+        expect(firstDividend).toHaveProperty("amount");
+        expect(firstDividend).toHaveProperty("yield");
+        expect(firstDividend).toHaveProperty("frequency");
       }
     });
     test("should handle empty database results and generate sample data", async () => {
@@ -292,7 +299,9 @@ describe("Dividend Route - Comprehensive Unit Tests", () => {
         .expect(400);
       expect(response.body.success).toBe(false);
       expect(response.body.error).toBe("Invalid days_ahead parameter");
-      expect(response.body.message).toBe("days_ahead must be a valid positive number");
+      expect(response.body.message).toBe(
+        "days_ahead must be a valid positive number"
+      );
       expect(response.body.timestamp).toBeDefined();
     });
   });

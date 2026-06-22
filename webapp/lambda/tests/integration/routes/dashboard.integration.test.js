@@ -508,10 +508,18 @@ describe("Dashboard Routes Integration Tests", () => {
     test("should handle concurrent requests to dashboard endpoints", async () => {
       const requests = [
         request(app).get("/api/dashboard"),
-        request(app).get("/api/dashboard/summary").set("Authorization", `Bearer ${authToken}`),
-        request(app).get("/api/dashboard/market-data").set("Authorization", `Bearer ${authToken}`),
-        request(app).get("/api/dashboard/overview").set("Authorization", `Bearer ${authToken}`),
-        request(app).get("/api/dashboard/debug").set("Authorization", `Bearer ${authToken}`),
+        request(app)
+          .get("/api/dashboard/summary")
+          .set("Authorization", `Bearer ${authToken}`),
+        request(app)
+          .get("/api/dashboard/market-data")
+          .set("Authorization", `Bearer ${authToken}`),
+        request(app)
+          .get("/api/dashboard/overview")
+          .set("Authorization", `Bearer ${authToken}`),
+        request(app)
+          .get("/api/dashboard/debug")
+          .set("Authorization", `Bearer ${authToken}`),
       ];
 
       const responses = await Promise.all(requests);

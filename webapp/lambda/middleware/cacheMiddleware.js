@@ -39,7 +39,7 @@ class CacheManager {
     return {
       cached_items: this.cache.size,
       cache_size_bytes: JSON.stringify(Array.from(this.cache.values())).length,
-      timestamp: new Date().toISOString()
+      timestamp: new Date().toISOString(),
     };
   }
 
@@ -55,8 +55,6 @@ class CacheManager {
           cleaned++;
         }
       }
-      if (cleaned > 0) {
-      }
     }, intervalSeconds * 1000);
   }
 }
@@ -68,13 +66,13 @@ globalCache.startCleanupInterval(300); // Cleanup every 5 minutes
 function cacheMiddleware(ttlSeconds = 300, keyGenerator = null) {
   return (req, res, next) => {
     // Only cache GET requests
-    if (req.method !== 'GET') {
+    if (req.method !== "GET") {
       return next();
     }
 
     // Generate cache key from request URL and important query params
     const defaultKeyGenerator = () => {
-      const baseUrl = req.originalUrl.split('?')[0];
+      const baseUrl = req.originalUrl.split("?")[0];
       const params = new URLSearchParams(req.query);
       // Sort params for consistent key generation
       params.sort();
@@ -86,16 +84,16 @@ function cacheMiddleware(ttlSeconds = 300, keyGenerator = null) {
     // Try to get from cache
     const cachedResult = globalCache.get(cacheKey);
     if (cachedResult) {
-      res.set('X-Cache', 'HIT');
+      res.set("X-Cache", "HIT");
       return res.json(cachedResult);
     }
 
     // Store original res.json to intercept response
     const originalJson = res.json.bind(res);
-    res.json = function(data) {
+    res.json = function (data) {
       if (res.statusCode === 200 && data && data.success !== false) {
         globalCache.set(cacheKey, data, ttlSeconds);
-        res.set('X-Cache', 'MISS');
+        res.set("X-Cache", "MISS");
       }
       return originalJson(data);
     };
@@ -106,10 +104,10 @@ function cacheMiddleware(ttlSeconds = 300, keyGenerator = null) {
 
 // Decorator pattern: wrap async functions with caching
 function cached(ttlSeconds = 300) {
-  return function(target, propertyKey, descriptor) {
+  return function (target, propertyKey, descriptor) {
     const originalMethod = descriptor.value;
 
-    descriptor.value = async function(...args) {
+    descriptor.value = async function (...args) {
       const req = args[0]; // Express request object
       const cacheKey = `${propertyKey}:${JSON.stringify(req.query || {})}`;
 
@@ -131,5 +129,5 @@ module.exports = {
   cacheMiddleware,
   globalCache,
   cached,
-  CacheManager
+  CacheManager,
 };

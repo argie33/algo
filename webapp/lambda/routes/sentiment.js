@@ -1,17 +1,32 @@
 const express = require("express");
 
 const { query } = require("../utils/database");
-const { sendSuccess, sendError, sendPaginated, sendPlaceholder } = require('../utils/apiResponse');
-const { validateQueryResult, validateAndCoerceRows, extractCount } = require('../utils/responseValidation');
-const logger = require('../utils/logger');
+const {
+  sendSuccess,
+  sendError,
+  sendPaginated,
+  sendPlaceholder,
+} = require("../utils/apiResponse");
+const {
+  validateQueryResult,
+  validateAndCoerceRows,
+  extractCount,
+} = require("../utils/responseValidation");
+const logger = require("../utils/logger");
 const router = express.Router();
 
 // GET /api/sentiment - Root endpoint
 router.get("/", async (req, res) => {
   try {
-    return sendSuccess(res, { message: "Sentiment API - use /summary, /data, /analyst for specific endpoints" });
+    return sendSuccess(res, {
+      message:
+        "Sentiment API - use /summary, /data, /analyst for specific endpoints",
+    });
   } catch (error) {
-    logger.error('Error in /sentiment:', { error: error.message, stack: error.stack });
+    logger.error("Error in /sentiment:", {
+      error: error.message,
+      stack: error.stack,
+    });
     return sendError(res, error.message, 500);
   }
 });
@@ -66,14 +81,14 @@ router.get("/data", async (req, res) => {
 
     const [countResult, result] = await Promise.all([
       query(countQueryStr, countParams),
-      query(queryStr, params)
+      query(queryStr, params),
     ]);
     validateQueryResult(countResult, { requireRows: false });
     validateQueryResult(result, { requireRows: false });
     const total = parseInt(countResult.rows[0]?.total || 0);
 
     if (!result.rows || result.rows.length === 0) {
-      return sendPlaceholder(res, 'No sentiment data available', 200, 'items');
+      return sendPlaceholder(res, "No sentiment data available", 200, "items");
     }
 
     return sendPaginated(res, result.rows || [], {
@@ -81,11 +96,19 @@ router.get("/data", async (req, res) => {
       offset,
       total,
       page: pageNum,
-      totalPages: Math.ceil(total / limitNum)
+      totalPages: Math.ceil(total / limitNum),
     });
   } catch (error) {
-    logger.error('Error in /sentiment/data:', { error: error.message, stack: error.stack });
-    return sendPlaceholder(res, `Failed to fetch sentiment data: ${error.message}`, 500, 'items');
+    logger.error("Error in /sentiment/data:", {
+      error: error.message,
+      stack: error.stack,
+    });
+    return sendPlaceholder(
+      res,
+      `Failed to fetch sentiment data: ${error.message}`,
+      500,
+      "items"
+    );
   }
 });
 
@@ -94,29 +117,55 @@ router.get("/summary", async (req, res) => {
   try {
     // Parallelize 4 sentiment data sources
     const results = await Promise.allSettled([
-      query(`SELECT fear_greed_value as value, date FROM fear_greed_index ORDER BY date DESC LIMIT 1`),
-      query(`SELECT naaim_number_mean, bullish, bearish, date FROM naaim ORDER BY date DESC LIMIT 1`),
-      query(`SELECT bullish, neutral, bearish, date FROM aaii_sentiment ORDER BY date DESC LIMIT 1`),
-      query(`SELECT analyst_count as analyst_count, bullish_count, bearish_count, neutral_count, date as date FROM analyst_sentiment_analysis ORDER BY date DESC LIMIT 1`)
+      query(
+        `SELECT fear_greed_value as value, date FROM fear_greed_index ORDER BY date DESC LIMIT 1`
+      ),
+      query(
+        `SELECT naaim_number_mean, bullish, bearish, date FROM naaim ORDER BY date DESC LIMIT 1`
+      ),
+      query(
+        `SELECT bullish, neutral, bearish, date FROM aaii_sentiment ORDER BY date DESC LIMIT 1`
+      ),
+      query(
+        `SELECT analyst_count as analyst_count, bullish_count, bearish_count, neutral_count, date as date FROM analyst_sentiment_analysis ORDER BY date DESC LIMIT 1`
+      ),
     ]);
 
     const [fearGreedRes, naaImRes, aaiiRes, analystRes] = results;
 
-    const fearGreed = fearGreedRes.status === 'fulfilled' ? (fearGreedRes.value.rows[0] || null) : null;
-    const naaim = naaImRes.status === 'fulfilled' ? (naaImRes.value.rows[0] || null) : null;
-    const aaii = aaiiRes.status === 'fulfilled' ? (aaiiRes.value.rows[0] || null) : null;
-    const analyst = analystRes.status === 'fulfilled' ? (analystRes.value.rows[0] || null) : null;
+    const fearGreed =
+      fearGreedRes.status === "fulfilled"
+        ? fearGreedRes.value.rows[0] || null
+        : null;
+    const naaim =
+      naaImRes.status === "fulfilled" ? naaImRes.value.rows[0] || null : null;
+    const aaii =
+      aaiiRes.status === "fulfilled" ? aaiiRes.value.rows[0] || null : null;
+    const analyst =
+      analystRes.status === "fulfilled"
+        ? analystRes.value.rows[0] || null
+        : null;
 
-    if (fearGreedRes.status === 'rejected') console.warn("fear_greed_index not available:", fearGreedRes.reason?.message);
-    if (naaImRes.status === 'rejected') console.warn("naaim not available:", naaImRes.reason?.message);
-    if (aaiiRes.status === 'rejected') console.warn("aaii_sentiment not available:", aaiiRes.reason?.message);
-    if (analystRes.status === 'rejected') console.warn("analyst_sentiment_analysis not available:", analystRes.reason?.message);
+    if (fearGreedRes.status === "rejected")
+      console.warn(
+        "fear_greed_index not available:",
+        fearGreedRes.reason?.message
+      );
+    if (naaImRes.status === "rejected")
+      console.warn("naaim not available:", naaImRes.reason?.message);
+    if (aaiiRes.status === "rejected")
+      console.warn("aaii_sentiment not available:", aaiiRes.reason?.message);
+    if (analystRes.status === "rejected")
+      console.warn(
+        "analyst_sentiment_analysis not available:",
+        analystRes.reason?.message
+      );
 
     const summary = {
       fear_greed: fearGreed,
       naaim: naaim,
       aaii: aaii,
-      analyst: analyst
+      analyst: analyst,
     };
     return sendSuccess(res, summary);
   } catch (error) {
@@ -166,7 +215,12 @@ router.get("/analyst", async (req, res) => {
     validateQueryResult(result, { requireRows: false });
 
     if (!result.rows || result.rows.length === 0) {
-      return sendPlaceholder(res, 'No analyst sentiment data available', 200, 'items');
+      return sendPlaceholder(
+        res,
+        "No analyst sentiment data available",
+        200,
+        "items"
+      );
     }
 
     return sendPaginated(res, result.rows || [], {
@@ -174,11 +228,16 @@ router.get("/analyst", async (req, res) => {
       limit: limitNum,
       total,
       totalPages,
-      offset: offset
+      offset: offset,
     });
   } catch (error) {
     console.error("Analyst sentiment error:", error);
-    return sendPlaceholder(res, `Failed to fetch analyst sentiment data: ${error.message}`, 500, 'items');
+    return sendPlaceholder(
+      res,
+      `Failed to fetch analyst sentiment data: ${error.message}`,
+      500,
+      "items"
+    );
   }
 });
 
@@ -204,13 +263,26 @@ router.get("/history", async (req, res) => {
     try {
       const result = await query(queryStr, [daysNum]);
       if (!result.rows || result.rows.length === 0) {
-        return sendPlaceholder(res, 'No sentiment history available', 200, 'items');
+        return sendPlaceholder(
+          res,
+          "No sentiment history available",
+          200,
+          "items"
+        );
       }
       return sendSuccess(res, result.rows);
     } catch (tableError) {
       // If analyst table doesn't exist, return placeholder
-      console.warn("Analyst sentiment table not available:", tableError.message);
-      return sendPlaceholder(res, 'Sentiment history table not available', 503, 'items');
+      console.warn(
+        "Analyst sentiment table not available:",
+        tableError.message
+      );
+      return sendPlaceholder(
+        res,
+        "Sentiment history table not available",
+        503,
+        "items"
+      );
     }
   } catch (error) {
     console.error("Sentiment history error:", error);
@@ -223,25 +295,45 @@ router.get("/current", async (req, res) => {
   try {
     // Parallelize 3 sentiment data sources
     const results = await Promise.allSettled([
-      query(`SELECT fear_greed_value as value, date FROM fear_greed_index ORDER BY date DESC LIMIT 1`),
-      query(`SELECT naaim_number_mean, bullish, bearish, date FROM naaim ORDER BY date DESC LIMIT 1`),
-      query(`SELECT bullish, neutral, bearish, date FROM aaii_sentiment ORDER BY date DESC LIMIT 1`)
+      query(
+        `SELECT fear_greed_value as value, date FROM fear_greed_index ORDER BY date DESC LIMIT 1`
+      ),
+      query(
+        `SELECT naaim_number_mean, bullish, bearish, date FROM naaim ORDER BY date DESC LIMIT 1`
+      ),
+      query(
+        `SELECT bullish, neutral, bearish, date FROM aaii_sentiment ORDER BY date DESC LIMIT 1`
+      ),
     ]);
 
     const [fearGreedRes, naaImRes, aaiiRes] = results;
 
-    const fearGreed = fearGreedRes.status === 'fulfilled' ? (fearGreedRes.value.rows[0] || null) : null;
-    const naaim = naaImRes.status === 'fulfilled' ? (naaImRes.value.rows[0] || null) : null;
-    const aaii = aaiiRes.status === 'fulfilled' ? (aaiiRes.value.rows[0] || null) : null;
+    const fearGreed =
+      fearGreedRes.status === "fulfilled"
+        ? fearGreedRes.value.rows[0] || null
+        : null;
+    const naaim =
+      naaImRes.status === "fulfilled" ? naaImRes.value.rows[0] || null : null;
+    const aaii =
+      aaiiRes.status === "fulfilled" ? aaiiRes.value.rows[0] || null : null;
 
-    if (fearGreedRes.status === 'rejected') console.warn("fear_greed_index table not available:", fearGreedRes.reason?.message);
-    if (naaImRes.status === 'rejected') console.warn("naaim table not available:", naaImRes.reason?.message);
-    if (aaiiRes.status === 'rejected') console.warn("aaii_sentiment table not available:", aaiiRes.reason?.message);
+    if (fearGreedRes.status === "rejected")
+      console.warn(
+        "fear_greed_index table not available:",
+        fearGreedRes.reason?.message
+      );
+    if (naaImRes.status === "rejected")
+      console.warn("naaim table not available:", naaImRes.reason?.message);
+    if (aaiiRes.status === "rejected")
+      console.warn(
+        "aaii_sentiment table not available:",
+        aaiiRes.reason?.message
+      );
 
     const current = {
       fear_greed: fearGreed,
       naaim: naaim,
-      aaii: aaii
+      aaii: aaii,
     };
     return sendSuccess(res, current);
   } catch (error) {
@@ -249,7 +341,7 @@ router.get("/current", async (req, res) => {
     return sendSuccess(res, {
       fear_greed: null,
       naaim: null,
-      aaii: null
+      aaii: null,
     });
   }
 });
@@ -286,12 +378,22 @@ router.get("/divergence", async (req, res) => {
     const result = await query(queryStr, params);
 
     if (!result.rows || result.rows.length === 0) {
-      return sendPlaceholder(res, 'Sentiment divergence data not available', 200, 'items');
+      return sendPlaceholder(
+        res,
+        "Sentiment divergence data not available",
+        200,
+        "items"
+      );
     }
     return sendSuccess(res, result.rows);
   } catch (error) {
     console.error("Sentiment divergence error:", error);
-    return sendPlaceholder(res, `Failed to fetch sentiment divergence: ${error.message}`, 500, 'items');
+    return sendPlaceholder(
+      res,
+      `Failed to fetch sentiment divergence: ${error.message}`,
+      500,
+      "items"
+    );
   }
 });
 
@@ -307,19 +409,31 @@ router.get("/aaii", async (req, res) => {
     let aaii = null;
 
     try {
-      const aaiiResult = await query(`SELECT bullish, neutral, bearish, date FROM aaii_sentiment ORDER BY date DESC LIMIT 1`);
+      const aaiiResult = await query(
+        `SELECT bullish, neutral, bearish, date FROM aaii_sentiment ORDER BY date DESC LIMIT 1`
+      );
       aaii = aaiiResult.rows[0] || null;
     } catch (e) {
       console.warn("aaii_sentiment table not available:", e.message);
     }
 
     if (!aaii) {
-      return sendPlaceholder(res, 'AAII sentiment data not available', 200, 'data');
+      return sendPlaceholder(
+        res,
+        "AAII sentiment data not available",
+        200,
+        "data"
+      );
     }
     return sendSuccess(res, aaii);
   } catch (error) {
     console.error("AAII sentiment error:", error);
-    return sendPlaceholder(res, `Failed to fetch AAII sentiment: ${error.message}`, 500, 'data');
+    return sendPlaceholder(
+      res,
+      `Failed to fetch AAII sentiment: ${error.message}`,
+      500,
+      "data"
+    );
   }
 });
 
@@ -349,40 +463,42 @@ router.get("/analyst/insights/:symbol", async (req, res) => {
          FROM analyst_upgrade_downgrade
          WHERE symbol = $1`,
         [symbol]
-      )
+      ),
     ]);
     validateQueryResult(sentimentResult, { requireRows: false });
     validateQueryResult(upgradeResult, { requireRows: false });
     validateQueryResult(momentumResult, { requireRows: false });
 
     const row = sentimentResult.rows[0] || null;
-    const total = row ? (parseInt(row.analyst_count) || 0) : 0;
-    const bullish = row ? (parseInt(row.bullish_count) || 0) : 0;
-    const bearish = row ? (parseInt(row.bearish_count) || 0) : 0;
-    const neutral = row ? (parseInt(row.neutral_count) || 0) : 0;
-    const pct = (n) => total > 0 ? Math.round((n / total) * 100) : 0;
+    const total = row ? parseInt(row.analyst_count) || 0 : 0;
+    const bullish = row ? parseInt(row.bullish_count) || 0 : 0;
+    const bearish = row ? parseInt(row.bearish_count) || 0 : 0;
+    const neutral = row ? parseInt(row.neutral_count) || 0 : 0;
+    const pct = (n) => (total > 0 ? Math.round((n / total) * 100) : 0);
 
     const momentumRow = momentumResult.rows[0] || {};
 
     return sendSuccess(res, {
-      metrics: row ? {
-        bullish,
-        neutral,
-        bearish,
-        bullishPercent: pct(bullish),
-        neutralPercent: pct(neutral),
-        bearishPercent: pct(bearish),
-        totalAnalysts: total,
-        avgPriceTarget: null,
-        priceTargetVsCurrent: null
-      } : null,
+      metrics: row
+        ? {
+            bullish,
+            neutral,
+            bearish,
+            bullishPercent: pct(bullish),
+            neutralPercent: pct(neutral),
+            bearishPercent: pct(bearish),
+            totalAnalysts: total,
+            avgPriceTarget: null,
+            priceTargetVsCurrent: null,
+          }
+        : null,
       momentum: {
         upgrades30d: parseInt(momentumRow.upgrades30d) || 0,
-        downgrades30d: parseInt(momentumRow.downgrades30d) || 0
+        downgrades30d: parseInt(momentumRow.downgrades30d) || 0,
       },
       priceTargets: [],
       coverage: null,
-      recentUpgrades: upgradeResult.rows || []
+      recentUpgrades: upgradeResult.rows || [],
     });
   } catch (error) {
     console.error("Analyst insights error:", error);

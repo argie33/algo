@@ -9,7 +9,7 @@ jest.mock("../../../utils/database", () => ({
   getPool: jest.fn(),
   closeDatabase: jest.fn(),
   transaction: jest.fn(),
-}))
+}));
 // Import mocked functions
 jest.mock("../../../middleware/auth", () => ({
   authenticateToken: (req, res, next) => {
@@ -75,13 +75,21 @@ describe("News Routes", () => {
   describe("GET /news/health", () => {
     test("should return health status", async () => {
       const response = await request(app).get("/news/health");
-      if (response.body.success !== undefined) { expect([true, false]).toContain(response.body.success); } else { expect(response.body).toBeDefined(); }
+      if (response.body.success !== undefined) {
+        expect([true, false]).toContain(response.body.success);
+      } else {
+        expect(response.body).toBeDefined();
+      }
     });
   });
   describe("GET /news/", () => {
     test("should return API status", async () => {
       const response = await request(app).get("/news/");
-      if (response.body.success !== undefined) { expect([true, false]).toContain(response.body.success); } else { expect(response.body).toBeDefined(); }
+      if (response.body.success !== undefined) {
+        expect([true, false]).toContain(response.body.success);
+      } else {
+        expect(response.body).toBeDefined();
+      }
     });
   });
   describe("GET /news/articles", () => {
@@ -116,9 +124,12 @@ describe("News Routes", () => {
         .mockResolvedValueOnce(mockCount);
       const response = await request(app)
         .get("/news/articles")
-        .query({ symbol: "AAPL", limit: 10, timeframe: "24h" })
-        ;
-      if (response.body.success !== undefined) { expect([true, false]).toContain(response.body.success); } else { expect(response.body).toBeDefined(); }
+        .query({ symbol: "AAPL", limit: 10, timeframe: "24h" });
+      if (response.body.success !== undefined) {
+        expect([true, false]).toContain(response.body.success);
+      } else {
+        expect(response.body).toBeDefined();
+      }
       // Using real database - no mock call count checks
     });
     test("should handle filtering by category and sentiment", async () => {
@@ -127,14 +138,11 @@ describe("News Routes", () => {
       query
         .mockResolvedValueOnce(mockArticles)
         .mockResolvedValueOnce(mockCount);
-      const response = await request(app)
-        .get("/news/articles")
-        .query({
-          category: "technology",
-          sentiment: "positive",
-          timeframe: "1w",
-        })
-        ;
+      const response = await request(app).get("/news/articles").query({
+        category: "technology",
+        sentiment: "positive",
+        timeframe: "1w",
+      });
       expect(response.body.data.filters).toEqual({
         symbol: undefined,
         category: "technology",
@@ -145,7 +153,11 @@ describe("News Routes", () => {
     test("should handle database errors", async () => {
       query.mockRejectedValue(new Error("Database connection failed"));
       const response = await request(app).get("/news/articles");
-      if (response.body.success !== undefined) { expect([true, false]).toContain(response.body.success); } else { expect(response.body).toBeDefined(); }
+      if (response.body.success !== undefined) {
+        expect([true, false]).toContain(response.body.success);
+      } else {
+        expect(response.body).toBeDefined();
+      }
     });
   });
   describe("GET /news/sentiment/:symbol", () => {
@@ -184,18 +196,23 @@ describe("News Routes", () => {
         .mockResolvedValueOnce(mockKeywordData);
       const response = await request(app)
         .get("/news/sentiment/AAPL")
-        .query({ timeframe: "24h" })
-        ;
-      if (response.body.success !== undefined) { expect([true, false]).toContain(response.body.success); } else { expect(response.body).toBeDefined(); }
+        .query({ timeframe: "24h" });
+      if (response.body.success !== undefined) {
+        expect([true, false]).toContain(response.body.success);
+      } else {
+        expect(response.body).toBeDefined();
+      }
       // Using real database - no mock call count checks
       // Mock call disabled for real database testing
     });
     test("should handle database errors", async () => {
       query.mockRejectedValue(new Error("Database query failed"));
-      const response = await request(app)
-        .get("/news/sentiment/AAPL")
-        ;
-      if (response.body.success !== undefined) { expect([true, false]).toContain(response.body.success); } else { expect(response.body).toBeDefined(); }
+      const response = await request(app).get("/news/sentiment/AAPL");
+      if (response.body.success !== undefined) {
+        expect([true, false]).toContain(response.body.success);
+      } else {
+        expect(response.body).toBeDefined();
+      }
     });
   });
   describe("GET /news/market-sentiment", () => {
@@ -251,22 +268,26 @@ describe("News Routes", () => {
         .mockResolvedValueOnce(mockTrendData);
       const response = await request(app)
         .get("/news/market-sentiment")
-        .query({ timeframe: "24h" })
-        ;
-      if (response.body.success !== undefined) { expect([true, false]).toContain(response.body.success); } else { expect(response.body).toBeDefined(); }
+        .query({ timeframe: "24h" });
+      if (response.body.success !== undefined) {
+        expect([true, false]).toContain(response.body.success);
+      } else {
+        expect(response.body).toBeDefined();
+      }
       // Using real database - no mock call count checks
     });
   });
   describe("POST /news/analyze-sentiment", () => {
     test("should analyze sentiment for custom text", async () => {
-      const response = await request(app)
-        .post("/news/analyze-sentiment")
-        .send({
-          text: "The company reported excellent quarterly results with strong growth",
-          symbol: "AAPL",
-        })
-        ;
-      if (response.body.success !== undefined) { expect([true, false]).toContain(response.body.success); } else { expect(response.body).toBeDefined(); }
+      const response = await request(app).post("/news/analyze-sentiment").send({
+        text: "The company reported excellent quarterly results with strong growth",
+        symbol: "AAPL",
+      });
+      if (response.body.success !== undefined) {
+        expect([true, false]).toContain(response.body.success);
+      } else {
+        expect(response.body).toBeDefined();
+      }
       expect(sentimentEngine.analyzeSentiment).toHaveBeenCalledWith(
         "The company reported excellent quarterly results with strong growth",
         "AAPL"
@@ -275,9 +296,12 @@ describe("News Routes", () => {
     test("should require text parameter", async () => {
       const response = await request(app)
         .post("/news/analyze-sentiment")
-        .send({ symbol: "AAPL" })
-        ;
-      if (response.body.success !== undefined) { expect([true, false]).toContain(response.body.success); } else { expect(response.body).toBeDefined(); }
+        .send({ symbol: "AAPL" });
+      if (response.body.success !== undefined) {
+        expect([true, false]).toContain(response.body.success);
+      } else {
+        expect(response.body).toBeDefined();
+      }
     });
     test("should handle sentiment analysis errors", async () => {
       sentimentEngine.analyzeSentiment.mockRejectedValue(
@@ -285,9 +309,12 @@ describe("News Routes", () => {
       );
       const response = await request(app)
         .post("/news/analyze-sentiment")
-        .send({ text: "Test text", symbol: "AAPL" })
-        ;
-      if (response.body.success !== undefined) { expect([true, false]).toContain(response.body.success); } else { expect(response.body).toBeDefined(); }
+        .send({ text: "Test text", symbol: "AAPL" });
+      if (response.body.success !== undefined) {
+        expect([true, false]).toContain(response.body.success);
+      } else {
+        expect(response.body).toBeDefined();
+      }
     });
   });
   describe("GET /news/sources", () => {
@@ -316,7 +343,11 @@ describe("News Routes", () => {
       };
       query.mockResolvedValue(mockSourcesData);
       const response = await request(app).get("/news/sources");
-      if (response.body.success !== undefined) { expect([true, false]).toContain(response.body.success); } else { expect(response.body).toBeDefined(); }
+      if (response.body.success !== undefined) {
+        expect([true, false]).toContain(response.body.success);
+      } else {
+        expect(response.body).toBeDefined();
+      }
       // Mock call disabled for real database testing
       // Mock call disabled for real database testing
     });
@@ -341,7 +372,11 @@ describe("News Routes", () => {
       };
       query.mockResolvedValue(mockCategoriesData);
       const response = await request(app).get("/news/categories");
-      if (response.body.success !== undefined) { expect([true, false]).toContain(response.body.success); } else { expect(response.body).toBeDefined(); }
+      if (response.body.success !== undefined) {
+        expect([true, false]).toContain(response.body.success);
+      } else {
+        expect(response.body).toBeDefined();
+      }
     });
   });
   describe("GET /news/trending", () => {
@@ -383,9 +418,12 @@ describe("News Routes", () => {
         .mockResolvedValueOnce(mockSymbolData);
       const response = await request(app)
         .get("/news/trending")
-        .query({ timeframe: "24h", limit: 10 })
-        ;
-      if (response.body.success !== undefined) { expect([true, false]).toContain(response.body.success); } else { expect(response.body).toBeDefined(); }
+        .query({ timeframe: "24h", limit: 10 });
+      if (response.body.success !== undefined) {
+        expect([true, false]).toContain(response.body.success);
+      } else {
+        expect(response.body).toBeDefined();
+      }
       // Using real database - no mock call count checks
     });
   });
@@ -393,9 +431,12 @@ describe("News Routes", () => {
     test("should return enhanced news feed", async () => {
       const response = await request(app)
         .get("/news/feed")
-        .query({ category: "technology", limit: 5, time_range: "24h" })
-        ;
-      if (response.body.success !== undefined) { expect([true, false]).toContain(response.body.success); } else { expect(response.body).toBeDefined(); }
+        .query({ category: "technology", limit: 5, time_range: "24h" });
+      if (response.body.success !== undefined) {
+        expect([true, false]).toContain(response.body.success);
+      } else {
+        expect(response.body).toBeDefined();
+      }
       if (response.body.data && response.body.data.articles) {
         expect(response.body.data.articles.length).toBeLessThanOrEqual(5);
       }
@@ -413,8 +454,7 @@ describe("News Routes", () => {
       };
       const response = await request(app)
         .get("/news/feed")
-        .query({ category: "technology" })
-        ;
+        .query({ category: "technology" });
       // Should return error status instead of fake data
       expect([400, 500, 503]).toContain(response.status);
       if (response.body.success !== undefined) {
@@ -429,9 +469,12 @@ describe("News Routes", () => {
     test("should return economic calendar data", async () => {
       const response = await request(app)
         .get("/news/economic-calendar")
-        .query({ importance: "high", country: "US", limit: 10 })
-        ;
-      if (response.body.success !== undefined) { expect([true, false]).toContain(response.body.success); } else { expect(response.body).toBeDefined(); }
+        .query({ importance: "high", country: "US", limit: 10 });
+      if (response.body.success !== undefined) {
+        expect([true, false]).toContain(response.body.success);
+      } else {
+        expect(response.body).toBeDefined();
+      }
       if (response.body.data && response.body.data.events) {
         expect(response.body.data.events.length).toBeLessThanOrEqual(10);
       }
@@ -446,9 +489,17 @@ describe("News Routes", () => {
       // or 200 when they do exist with data
       expect([200, 500, 501, 503]).toContain(response.status);
       if (response.status === 200) {
-        if (response.body.success !== undefined) { expect([true, false]).toContain(response.body.success); } else { expect(response.body).toBeDefined(); }
+        if (response.body.success !== undefined) {
+          expect([true, false]).toContain(response.body.success);
+        } else {
+          expect(response.body).toBeDefined();
+        }
       } else if (response.status === 503) {
-        if (response.body.success !== undefined) { expect([true, false]).toContain(response.body.success); } else { expect(response.body).toBeDefined(); }
+        if (response.body.success !== undefined) {
+          expect([true, false]).toContain(response.body.success);
+        } else {
+          expect(response.body).toBeDefined();
+        }
       }
     });
   });
@@ -483,30 +534,42 @@ describe("News Routes", () => {
       query
         .mockResolvedValueOnce({ rows: mockSearchResults })
         .mockResolvedValueOnce({ rows: [mockStats] });
-      const response = await request(app)
-        .get("/news/search?query=Apple earnings")
-        ;
-      if (response.body.success !== undefined) { expect([true, false]).toContain(response.body.success); } else { expect(response.body).toBeDefined(); }
+      const response = await request(app).get(
+        "/news/search?query=Apple earnings"
+      );
+      if (response.body.success !== undefined) {
+        expect([true, false]).toContain(response.body.success);
+      } else {
+        expect(response.body).toBeDefined();
+      }
     });
     test("should require search query parameter", async () => {
       const response = await request(app).get("/news/search");
-      if (response.body.success !== undefined) { expect([true, false]).toContain(response.body.success); } else { expect(response.body).toBeDefined(); }
+      if (response.body.success !== undefined) {
+        expect([true, false]).toContain(response.body.success);
+      } else {
+        expect(response.body).toBeDefined();
+      }
     });
     test("should handle empty search results", async () => {
       query
         .mockResolvedValueOnce({ rows: [] })
         .mockResolvedValueOnce({ rows: [{ total_matches: 0 }] });
-      const response = await request(app)
-        .get("/news/search?query=nonexistent")
-        ;
-      if (response.body.success !== undefined) { expect([true, false]).toContain(response.body.success); } else { expect(response.body).toBeDefined(); }
+      const response = await request(app).get("/news/search?query=nonexistent");
+      if (response.body.success !== undefined) {
+        expect([true, false]).toContain(response.body.success);
+      } else {
+        expect(response.body).toBeDefined();
+      }
     });
     test("should handle database errors gracefully", async () => {
       query.mockRejectedValueOnce(new Error("Database connection failed"));
-      const response = await request(app)
-        .get("/news/search?query=test")
-        ;
-      if (response.body.success !== undefined) { expect([true, false]).toContain(response.body.success); } else { expect(response.body).toBeDefined(); }
+      const response = await request(app).get("/news/search?query=test");
+      if (response.body.success !== undefined) {
+        expect([true, false]).toContain(response.body.success);
+      } else {
+        expect(response.body).toBeDefined();
+      }
     });
     test("should support filtering parameters", async () => {
       const mockResults = [
@@ -535,11 +598,9 @@ describe("News Routes", () => {
           },
         ],
       });
-      const response = await request(app)
-        .get(
-          "/news/search?query=AAPL&category=earnings&sentiment=positive&symbol=AAPL&timeframe=7d&limit=10"
-        )
-        ;
+      const response = await request(app).get(
+        "/news/search?query=AAPL&category=earnings&sentiment=positive&symbol=AAPL&timeframe=7d&limit=10"
+      );
       expect(response.body.filters).toMatchObject({
         query: "AAPL",
         category: "earnings",

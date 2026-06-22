@@ -6,10 +6,14 @@ const mockQuery = jest.fn();
 jest.mock("../../../utils/database", () => ({
   query: mockQuery,
 }));
-const { query, closeDatabase, initializeDatabase, getPool, transaction, healthCheck } = require('../../../utils/database');
-
-
-
+const {
+  query,
+  closeDatabase,
+  initializeDatabase,
+  getPool,
+  transaction,
+  healthCheck,
+} = require("../../../utils/database");
 
 // Mock logger
 const mockLogger = {
@@ -824,7 +828,8 @@ describe("Schema Validator", () => {
     test("should handle database errors", async () => {
       const dbError = new Error("Index query failed");
       mockQuery.mockRejectedValueOnce(dbError);
-      await expect(validateIndexes("price_daily")).rejects.toThrow( // Use actual table name from loaders
+      await expect(validateIndexes("price_daily")).rejects.toThrow(
+        // Use actual table name from loaders
         "Index query failed"
       );
       expect(mockLogger.error).toHaveBeenCalled();

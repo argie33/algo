@@ -87,7 +87,9 @@ describe("Economic Endpoints - REAL DATA Integration Tests", () => {
 
         // Unemployment should rarely be exactly 4.0 (mock default)
         if (indicators.unemployment === 4.0) {
-          console.warn("Warning: Unemployment is exactly 4.0 (potential mock default)");
+          console.warn(
+            "Warning: Unemployment is exactly 4.0 (potential mock default)"
+          );
         }
 
         // VIX should rarely be exactly 20 (mock default)
@@ -133,7 +135,9 @@ describe("Economic Endpoints - REAL DATA Integration Tests", () => {
         expect(data.financialConditionsIndex).toHaveProperty("value");
       } else {
         expect(response.body).toHaveProperty("error");
-        expect(response.body.error).toContain("Missing required credit spread data");
+        expect(response.body.error).toContain(
+          "Missing required credit spread data"
+        );
       }
     });
   });
@@ -158,7 +162,9 @@ describe("Economic Endpoints - REAL DATA Integration Tests", () => {
           expect(indicator).toHaveProperty("name");
           expect(indicator).toHaveProperty("value");
           expect(indicator).toHaveProperty("signal");
-          expect(["Positive", "Negative", "Neutral"]).toContain(indicator.signal);
+          expect(["Positive", "Negative", "Neutral"]).toContain(
+            indicator.signal
+          );
           // Value should not be empty string or null
           expect(indicator.value).not.toBe("");
           expect(indicator.value).not.toBeNull();
@@ -183,7 +189,9 @@ describe("Economic Endpoints - REAL DATA Integration Tests", () => {
         // May be empty if no events, but should be an array
       } else {
         expect(response.body).toHaveProperty("error");
-        expect(response.body.error).toContain("Missing required economic indicators");
+        expect(response.body.error).toContain(
+          "Missing required economic indicators"
+        );
       }
     });
   });
@@ -240,9 +248,9 @@ describe("Economic Endpoints - REAL DATA Integration Tests", () => {
         const credData = creditRes.body.data;
 
         // Unemployment should be the same
-        expect(Math.abs(recData.keyIndicators.unemployment - leadData.unemployment)).toBeLessThan(
-          0.1
-        );
+        expect(
+          Math.abs(recData.keyIndicators.unemployment - leadData.unemployment)
+        ).toBeLessThan(0.1);
 
         // Yield curve should have same data
         expect(recData.keyIndicators.yieldCurveSpread2y10y).toBeDefined();

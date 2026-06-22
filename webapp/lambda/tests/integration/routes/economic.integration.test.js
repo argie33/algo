@@ -48,11 +48,11 @@ describe("Economic Routes - Real Data Validation", () => {
     test("should filter by economic series", async () => {
       // Use actual FRED series IDs from loadecondata.py
       const economicSeries = [
-        "GDPC1",        // Real GDP
-        "UNRATE",       // Unemployment Rate
-        "VIXCLS",       // VIX Volatility Index
-        "FEDFUNDS",     // Federal Funds Rate
-        "CPIAUCSL",     // CPI (Consumer Price Index)
+        "GDPC1", // Real GDP
+        "UNRATE", // Unemployment Rate
+        "VIXCLS", // VIX Volatility Index
+        "FEDFUNDS", // Federal Funds Rate
+        "CPIAUCSL", // CPI (Consumer Price Index)
       ];
 
       for (const series of economicSeries) {

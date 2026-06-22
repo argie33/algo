@@ -10,7 +10,14 @@ jest.mock("../../../utils/database", () => ({
   query: mockQuery,
 }));
 
-const { query, closeDatabase, initializeDatabase, getPool, transaction, healthCheck } = require('../../../utils/database');
+const {
+  query,
+  closeDatabase,
+  initializeDatabase,
+  getPool,
+  transaction,
+  healthCheck,
+} = require("../../../utils/database");
 
 // Create test app
 const app = express();
@@ -24,18 +31,22 @@ describe("Commodities Routes", () => {
     // Setup default mock responses for database queries
     mockQuery.mockImplementation((sql, params) => {
       // Mock news queries
-      if (sql.includes("SELECT") && (sql.includes("news") || sql.includes("title"))) {
+      if (
+        sql.includes("SELECT") &&
+        (sql.includes("news") || sql.includes("title"))
+      ) {
         return Promise.resolve({
           rows: [
             {
               id: 1,
               title: "Gold Prices Rise on Market Uncertainty",
-              summary: "Gold futures climbed as investors sought safe-haven assets",
+              summary:
+                "Gold futures climbed as investors sought safe-haven assets",
               source: "Commodity News Network",
               publish_date: new Date().toISOString(),
               category: "precious_metals",
               sentiment_score: 0.2,
-              impact_score: 7.5
+              impact_score: 7.5,
             },
             {
               id: 2,
@@ -45,11 +56,10 @@ describe("Commodities Routes", () => {
               publish_date: new Date().toISOString(),
               category: "energy",
               sentiment_score: 0.5,
-              impact_score: 8.2
-            }
-          ]
+              impact_score: 8.2,
+            },
+          ],
         });
-
       }
       // Default empty response
       return Promise.resolve({ rows: [] });

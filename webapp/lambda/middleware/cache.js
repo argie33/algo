@@ -12,7 +12,7 @@ const getCacheKey = (req) => {
 const cacheMiddleware = (duration = 5 * 60 * 1000) => {
   return (req, res, next) => {
     // Only cache GET requests
-    if (req.method !== 'GET') {
+    if (req.method !== "GET") {
       return next();
     }
 
@@ -21,7 +21,7 @@ const cacheMiddleware = (duration = 5 * 60 * 1000) => {
 
     // Return cached response if available and not expired
     if (cached && Date.now() - cached.timestamp < duration) {
-      res.set('X-Cache', 'HIT');
+      res.set("X-Cache", "HIT");
       return res.status(cached.status).json(cached.data);
     }
 
@@ -35,11 +35,11 @@ const cacheMiddleware = (duration = 5 * 60 * 1000) => {
         cache.set(key, {
           data,
           status: res.statusCode,
-          timestamp: Date.now()
+          timestamp: Date.now(),
         });
       }
 
-      res.set('X-Cache', 'MISS');
+      res.set("X-Cache", "MISS");
       return originalJson(data);
     };
 
@@ -68,5 +68,5 @@ module.exports = {
   cacheMiddleware,
   clearCache,
   clearAllCache,
-  cache
+  cache,
 };

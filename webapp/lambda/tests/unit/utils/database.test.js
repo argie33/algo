@@ -134,7 +134,9 @@ describe("Database Utilities - Unit Tests", () => {
       delete process.env.DB_SECRET_ARN;
       // Close any existing connections to ensure uninitialized state
       await closeDatabase();
-      await expect(query("SELECT 1")).rejects.toThrow("Database connection failed");
+      await expect(query("SELECT 1")).rejects.toThrow(
+        "Database connection failed"
+      );
     });
     test("should handle connection errors gracefully", async () => {
       mockPool.query.mockRejectedValue(new Error("ECONNREFUSED"));
@@ -296,21 +298,28 @@ describe("Database Utilities - Unit Tests", () => {
         setTimeout(() => resolve({ rows: [], rowCount: 0 }), 100)
       );
       mockPool.query.mockImplementation((sql, params) => {
-      // Handle COUNT queries
-      if (sql.includes("SELECT COUNT") || sql.includes("COUNT(*)")) {
-        return Promise.resolve({ rows: [{ count: "0", total: "0" }], rowCount: 1 });
-      }
-      // Handle INSERT/UPDATE/DELETE queries
-      if (sql.includes("INSERT") || sql.includes("UPDATE") || sql.includes("DELETE")) {
-        return Promise.resolve({ rowCount: 0, rows: [] });
-      }
-      // Handle information_schema queries
-      if (sql.includes("information_schema.tables")) {
-        return Promise.resolve({ rows: [{ exists: true }] });
-      }
-      // Default: return empty rows
-      return Promise.resolve({ rows: [], rowCount: 0 });
-    });
+        // Handle COUNT queries
+        if (sql.includes("SELECT COUNT") || sql.includes("COUNT(*)")) {
+          return Promise.resolve({
+            rows: [{ count: "0", total: "0" }],
+            rowCount: 1,
+          });
+        }
+        // Handle INSERT/UPDATE/DELETE queries
+        if (
+          sql.includes("INSERT") ||
+          sql.includes("UPDATE") ||
+          sql.includes("DELETE")
+        ) {
+          return Promise.resolve({ rowCount: 0, rows: [] });
+        }
+        // Handle information_schema queries
+        if (sql.includes("information_schema.tables")) {
+          return Promise.resolve({ rows: [{ exists: true }] });
+        }
+        // Default: return empty rows
+        return Promise.resolve({ rows: [], rowCount: 0 });
+      });
       const result = await query("SELECT * FROM slow_table");
       expect(result).toEqual({ rows: [], rowCount: 0 });
     });

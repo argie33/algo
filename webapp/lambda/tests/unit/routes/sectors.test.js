@@ -41,9 +41,25 @@ describe("Sectors Routes", () => {
       // Mock the query to return real sector data
       query.mockResolvedValueOnce({
         rows: [
-          { sector: "Technology", performance_pct: 5.5, stock_count: 50, avg_price: 150, total_volume: 1000000, gaining_stocks: 40, losing_stocks: 10 },
-          { sector: "Healthcare", performance_pct: 3.2, stock_count: 40, avg_price: 100, total_volume: 800000, gaining_stocks: 30, losing_stocks: 10 }
-        ]
+          {
+            sector: "Technology",
+            performance_pct: 5.5,
+            stock_count: 50,
+            avg_price: 150,
+            total_volume: 1000000,
+            gaining_stocks: 40,
+            losing_stocks: 10,
+          },
+          {
+            sector: "Healthcare",
+            performance_pct: 3.2,
+            stock_count: 40,
+            avg_price: 100,
+            total_volume: 800000,
+            gaining_stocks: 30,
+            losing_stocks: 10,
+          },
+        ],
       });
 
       const response = await request(app).get("/sectors/").expect(200);
@@ -157,7 +173,9 @@ describe("Sectors Routes", () => {
       expect(response.body.success).toBe(true);
       expect(response.body.data.timeframe).toBe("daily");
       expect(response.body.data.summary).toHaveProperty("total_sectors");
-      expect(response.body.data.summary).toHaveProperty("total_stocks_analyzed");
+      expect(response.body.data.summary).toHaveProperty(
+        "total_stocks_analyzed"
+      );
       expect(response.body.data.sectors).toBeInstanceOf(Array);
       expect(response.body.data.sectors.length).toBeGreaterThan(0);
       // Verify first sector has required structure
@@ -618,7 +636,9 @@ describe("Sectors Routes", () => {
       };
       query.mockResolvedValueOnce(mockRankingData);
       const response = await request(app)
-        .get("/sectors/industries/ranking-history?industry=Software%20Infrastructure")
+        .get(
+          "/sectors/industries/ranking-history?industry=Software%20Infrastructure"
+        )
         .expect(200);
       expect(response.body).toMatchObject({
         success: true,

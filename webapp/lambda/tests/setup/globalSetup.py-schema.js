@@ -11,8 +11,7 @@ module.exports = async () => {
   process.env.DB_SSL = "false";
 
   try {
-    const { query } = require('../../utils/database');
-
+    const { query } = require("../../utils/database");
 
     // Create stock_symbols table exactly matching Python setup_database_with_real_data.py
     await query(`DROP TABLE IF EXISTS stock_symbols CASCADE`);
@@ -267,9 +266,8 @@ module.exports = async () => {
     `);
 
     return true;
-
   } catch (error) {
-    console.error(' Error setting up database tables:', error);
+    console.error(" Error setting up database tables:", error);
     throw error;
   }
 };

@@ -431,6 +431,12 @@ def run(
 
             if row_data:
                 total_actions, entries, exits, avg_score = row_data
+                # Explicitly handle None values from aggregate functions (when no matching rows exist)
+                # Using None -> 0 conversion is valid only for COUNT aggregates with no matching rows
+                total_actions = total_actions if total_actions is not None else 0
+                entries = entries if entries is not None else 0
+                exits = exits if exits is not None else 0
+
                 # Single write context for UPSERT (no nested contexts)
                 with DatabaseContext("write") as write_cur:
                     acquire_advisory_lock(write_cur, ALGO_METRICS_DAILY_LOCK_ID, "algo_metrics_daily")
@@ -447,16 +453,16 @@ def run(
                         """,
                             (
                                 run_date,
-                                total_actions or 0,
-                                entries or 0,
-                                exits or 0,
+                                total_actions,
+                                entries,
+                                exits,
                                 avg_score,
                             ),
                         )
                     finally:
                         release_advisory_lock(write_cur, ALGO_METRICS_DAILY_LOCK_ID, "algo_metrics_daily")
                 metrics_status = "success"
-                metrics_summary = f"{total_actions or 0} actions, {entries or 0} entries, {exits or 0} exits"
+                metrics_summary = f"{total_actions} actions, {entries} entries, {exits} exits"
                 logger.info(f"Updated algo_metrics_daily: {metrics_summary}")
             else:
                 logger.info("No trades recorded today (metrics not updated)")

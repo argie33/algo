@@ -7,8 +7,7 @@ const {
 describe("API Contract Tests", () => {
   const baseURL = process.env.API_BASE_URL || "http://localhost:3001";
 
-  beforeAll(() => {
-  });
+  beforeAll(() => {});
 
   // Test critical endpoints individually
   describe("Critical Endpoints", () => {
@@ -51,7 +50,6 @@ describe("API Contract Tests", () => {
   // Test site functionality workflows
   describe("Site Functionality", () => {
     test("Complete site functionality validation", async () => {
-
       // This will test critical user workflows
       await runSiteFunctionalityTests(baseURL);
 

@@ -10,7 +10,14 @@ jest.mock("../../../utils/database", () => ({
   healthCheck: jest.fn(),
 }));
 // Import mocked functions
-const { query, closeDatabase, initializeDatabase, getPool, transaction, healthCheck } = require("../../../utils/database");
+const {
+  query,
+  closeDatabase,
+  initializeDatabase,
+  getPool,
+  transaction,
+  healthCheck,
+} = require("../../../utils/database");
 
 describe("Calendar Routes Unit Tests", () => {
   let app;
@@ -55,7 +62,7 @@ describe("Calendar Routes Unit Tests", () => {
             eps_estimate: 2.25,
             eps_difference: null,
             surprise_percent: null,
-            year: 2025
+            year: 2025,
           },
           {
             symbol: "MSFT",
@@ -65,9 +72,9 @@ describe("Calendar Routes Unit Tests", () => {
             eps_estimate: 2.95,
             eps_difference: null,
             surprise_percent: null,
-            year: 2025
-          }
-        ]
+            year: 2025,
+          },
+        ],
       });
       const response = await request(app).get("/calendar/earnings").expect(200);
       expect(response.body).toHaveProperty("success", true);
@@ -76,7 +83,10 @@ describe("Calendar Routes Unit Tests", () => {
       expect(Array.isArray(response.body.data.earnings)).toBe(true);
       expect(response.body.data.earnings.length).toBe(2);
       expect(response.body.data.earnings[0]).toHaveProperty("symbol", "AAPL");
-      expect(response.body.data.earnings[0]).toHaveProperty("date", "2025-01-30");
+      expect(response.body.data.earnings[0]).toHaveProperty(
+        "date",
+        "2025-01-30"
+      );
       expect(response.body.data).toHaveProperty("summary");
       expect(response.body.data.summary).toHaveProperty("total_earnings", 2);
     });
@@ -167,49 +177,54 @@ describe("Calendar Routes Unit Tests", () => {
   describe("GET /calendar/earnings-metrics", () => {
     test("should return earnings metrics with quality scores", async () => {
       // Mock successful database response for earnings metrics
-      query.mockResolvedValueOnce({
-        rows: [
-          {
-            symbol: "AAPL",
-            company_name: "AAPL",
-            report_date: "2024-12-31",
-            eps_qoq_growth: 12.5,
-            eps_yoy_growth: 18.3,
-            revenue_yoy_growth: 15.2,
-            earnings_surprise_pct: 5.8,
-            earnings_quality_score: 78.5,
-            fetched_at: "2025-01-01T00:00:00.000Z"
-          },
-          {
-            symbol: "MSFT",
-            company_name: "MSFT",
-            report_date: "2024-12-31",
-            eps_qoq_growth: 8.2,
-            eps_yoy_growth: 22.1,
-            revenue_yoy_growth: 12.5,
-            earnings_surprise_pct: 3.2,
-            earnings_quality_score: 82.1,
-            fetched_at: "2025-01-01T00:00:00.000Z"
-          }
-        ]
-      }).mockResolvedValueOnce({
-        rows: [{ total: 2 }]
-      }).mockResolvedValueOnce({
-        rows: [
-          {
-            symbol: "AAPL",
-            count: 8,
-            avg_surprise: 4.5,
-            avg_eps_qoq_growth: 10.2,
-            avg_eps_yoy_growth: 15.8,
-            avg_revenue_yoy_growth: 14.1,
-            max_eps_yoy_growth: 22.5,
-            min_eps_yoy_growth: 8.2,
-            quality_score: 78.5
-          }
-        ]
-      });
-      const response = await request(app).get("/calendar/earnings-metrics").expect(200);
+      query
+        .mockResolvedValueOnce({
+          rows: [
+            {
+              symbol: "AAPL",
+              company_name: "AAPL",
+              report_date: "2024-12-31",
+              eps_qoq_growth: 12.5,
+              eps_yoy_growth: 18.3,
+              revenue_yoy_growth: 15.2,
+              earnings_surprise_pct: 5.8,
+              earnings_quality_score: 78.5,
+              fetched_at: "2025-01-01T00:00:00.000Z",
+            },
+            {
+              symbol: "MSFT",
+              company_name: "MSFT",
+              report_date: "2024-12-31",
+              eps_qoq_growth: 8.2,
+              eps_yoy_growth: 22.1,
+              revenue_yoy_growth: 12.5,
+              earnings_surprise_pct: 3.2,
+              earnings_quality_score: 82.1,
+              fetched_at: "2025-01-01T00:00:00.000Z",
+            },
+          ],
+        })
+        .mockResolvedValueOnce({
+          rows: [{ total: 2 }],
+        })
+        .mockResolvedValueOnce({
+          rows: [
+            {
+              symbol: "AAPL",
+              count: 8,
+              avg_surprise: 4.5,
+              avg_eps_qoq_growth: 10.2,
+              avg_eps_yoy_growth: 15.8,
+              avg_revenue_yoy_growth: 14.1,
+              max_eps_yoy_growth: 22.5,
+              min_eps_yoy_growth: 8.2,
+              quality_score: 78.5,
+            },
+          ],
+        });
+      const response = await request(app)
+        .get("/calendar/earnings-metrics")
+        .expect(200);
       expect(response.body).toHaveProperty("success", true);
       expect(response.body).toHaveProperty("data");
       expect(response.body.data).toHaveProperty("AAPL");
@@ -218,24 +233,33 @@ describe("Calendar Routes Unit Tests", () => {
       const aaplData = response.body.data.AAPL;
       expect(aaplData).toHaveProperty("metrics");
       expect(Array.isArray(aaplData.metrics)).toBe(true);
-      expect(aaplData.metrics[0]).toHaveProperty("earnings_quality_score", 78.5);
+      expect(aaplData.metrics[0]).toHaveProperty(
+        "earnings_quality_score",
+        78.5
+      );
       expect(aaplData.metrics[0]).toHaveProperty("eps_yoy_growth", 18.3);
       expect(aaplData.metrics[0]).toHaveProperty("revenue_yoy_growth", 15.2);
       // Verify metrics array
       expect(aaplData.metrics).toBeDefined();
       expect(Array.isArray(aaplData.metrics)).toBe(true);
       expect(aaplData.metrics.length).toBeGreaterThan(0);
-      expect(aaplData.metrics[0]).toHaveProperty("earnings_quality_score", 78.5);
+      expect(aaplData.metrics[0]).toHaveProperty(
+        "earnings_quality_score",
+        78.5
+      );
       expect(aaplData.metrics[0]).toHaveProperty("eps_yoy_growth", 18.3);
     });
     test("should handle pagination parameters", async () => {
-      query.mockResolvedValueOnce({
-        rows: []
-      }).mockResolvedValueOnce({
-        rows: [{ total: 100 }]
-      }).mockResolvedValueOnce({
-        rows: []
-      });
+      query
+        .mockResolvedValueOnce({
+          rows: [],
+        })
+        .mockResolvedValueOnce({
+          rows: [{ total: 100 }],
+        })
+        .mockResolvedValueOnce({
+          rows: [],
+        });
       const response = await request(app)
         .get("/calendar/earnings-metrics?page=2&limit=50")
         .expect(200);
@@ -247,11 +271,16 @@ describe("Calendar Routes Unit Tests", () => {
     });
     test("should handle database errors gracefully", async () => {
       query.mockRejectedValue(new Error("Database connection failed"));
-      const response = await request(app).get("/calendar/earnings-metrics").expect(200);
+      const response = await request(app)
+        .get("/calendar/earnings-metrics")
+        .expect(200);
       // Route returns gracefully with empty data when database fails
       expect(response.body.success).toBe(true);
       expect(response.body).toHaveProperty("data");
-      expect(response.body).toHaveProperty("message", "Earnings metrics data not yet loaded");
+      expect(response.body).toHaveProperty(
+        "message",
+        "Earnings metrics data not yet loaded"
+      );
     });
   });
 });

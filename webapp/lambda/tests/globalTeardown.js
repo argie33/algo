@@ -20,5 +20,4 @@ module.exports = async () => {
   if (global.gc) {
     global.gc();
   }
-
 };

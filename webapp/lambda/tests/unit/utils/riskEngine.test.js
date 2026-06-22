@@ -105,7 +105,9 @@ describe("Risk Engine", () => {
     test("should calculate historical volatility", async () => {
       const mockPrices = [100, 102, 98, 105, 103, 107, 104, 109];
 
-      query.mockResolvedValue({ rows: mockPrices.map((price) => ({ price, date: '2023-01-01' })) });
+      query.mockResolvedValue({
+        rows: mockPrices.map((price) => ({ price, date: "2023-01-01" })),
+      });
 
       const volatility = await riskEngine.calculateVolatility("AAPL", 30);
 
@@ -378,17 +380,24 @@ describe("Risk Engine", () => {
   describe("error handling and edge cases", () => {
     test("should handle missing price data", async () => {
       query.mockImplementation((sql, params) => {
-      // Handle COUNT queries
-      if (sql.includes("SELECT COUNT") || sql.includes("COUNT(*)")) {
-        return Promise.resolve({ rows: [{ count: "0", total: "0" }], rowCount: 1 });
-      }
-      // Handle INSERT/UPDATE/DELETE queries
-      if (sql.includes("INSERT") || sql.includes("UPDATE") || sql.includes("DELETE")) {
-        return Promise.resolve({ rowCount: 0, rows: [] });
-      }
-      // Default: return empty rows
-      return Promise.resolve({ rows: [], rowCount: 0 });
-    });
+        // Handle COUNT queries
+        if (sql.includes("SELECT COUNT") || sql.includes("COUNT(*)")) {
+          return Promise.resolve({
+            rows: [{ count: "0", total: "0" }],
+            rowCount: 1,
+          });
+        }
+        // Handle INSERT/UPDATE/DELETE queries
+        if (
+          sql.includes("INSERT") ||
+          sql.includes("UPDATE") ||
+          sql.includes("DELETE")
+        ) {
+          return Promise.resolve({ rowCount: 0, rows: [] });
+        }
+        // Default: return empty rows
+        return Promise.resolve({ rows: [], rowCount: 0 });
+      });
 
       const volatility = await riskEngine.calculateVolatility("INVALID", 30);
 

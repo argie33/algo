@@ -35,8 +35,9 @@ describe("Sectors Routes - Real Data Validation", () => {
 
       // Verify sectors are sorted by performance (descending)
       for (let i = 1; i < response.body.data.length; i++) {
-        expect(response.body.data[i-1].performance)
-          .toBeGreaterThanOrEqual(response.body.data[i].performance);
+        expect(response.body.data[i - 1].performance).toBeGreaterThanOrEqual(
+          response.body.data[i].performance
+        );
       }
     });
   });
@@ -84,8 +85,9 @@ describe("Sectors Routes - Real Data Validation", () => {
 
   describe("GET /api/sectors/:sector/details", () => {
     test("should return specific sector data", async () => {
-      const response = await request(app)
-        .get("/api/sectors/Technology/details");
+      const response = await request(app).get(
+        "/api/sectors/Technology/details"
+      );
 
       expect(response.status).toBe(200);
       expect(response.body.success).toBe(true);

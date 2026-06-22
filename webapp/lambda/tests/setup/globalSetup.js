@@ -12,14 +12,13 @@ module.exports = async () => {
   process.env.DB_SSL = "false";
 
   try {
-    const { query } = require('../../utils/database');
+    const { query } = require("../../utils/database");
 
+    const fs = require("fs");
+    const path = require("path");
 
-    const fs = require('fs');
-    const path = require('path');
-
-    const setupSqlPath = path.join(__dirname, '../../setup_test_database.sql');
-    const setupSql = fs.readFileSync(setupSqlPath, 'utf8');
+    const setupSqlPath = path.join(__dirname, "../../setup_test_database.sql");
+    const setupSql = fs.readFileSync(setupSqlPath, "utf8");
 
     // Execute entire SQL as one statement for faster setup
     try {
@@ -28,11 +27,13 @@ module.exports = async () => {
       // If batch fails, try individual statements with proper dollar-quoted string handling
 
       // Simpler approach: Split on semicolons but rejoin dollar-quoted blocks
-      let statements = setupSql.split(';').filter(stmt => stmt.trim().length > 0);
+      let statements = setupSql
+        .split(";")
+        .filter((stmt) => stmt.trim().length > 0);
 
       // Rejoin statements that are part of dollar-quoted blocks
       const finalStatements = [];
-      let currentBlock = '';
+      let currentBlock = "";
       let inDollarQuote = false;
 
       for (const stmt of statements) {
@@ -41,18 +42,18 @@ module.exports = async () => {
         // Count dollar signs to determine if we're in a dollar-quoted string
         const dollarMatches = stmt.match(/\$\$?/g) || [];
         for (const match of dollarMatches) {
-          if (match === '$$') {
+          if (match === "$$") {
             inDollarQuote = !inDollarQuote;
           }
         }
 
         if (!inDollarQuote) {
           // Complete statement
-          finalStatements.push(currentBlock.trim() + ';');
-          currentBlock = '';
+          finalStatements.push(currentBlock.trim() + ";");
+          currentBlock = "";
         } else {
           // Continue building the statement
-          currentBlock += ';';
+          currentBlock += ";";
         }
       }
 
@@ -64,15 +65,17 @@ module.exports = async () => {
       statements = finalStatements;
 
       for (const statement of statements) {
-        if (statement && !statement.startsWith('--')) {
+        if (statement && !statement.startsWith("--")) {
           try {
             await query(statement);
           } catch (err) {
             // Ignore table exists errors and column reference errors (which happen during setup)
-            if (!err.message.includes('already exists') &&
-                !err.message.includes('duplicate key') &&
-                !err.message.includes('does not exist') &&
-                !err.code === '42703') {
+            if (
+              !err.message.includes("already exists") &&
+              !err.message.includes("duplicate key") &&
+              !err.message.includes("does not exist") &&
+              !err.code === "42703"
+            ) {
               console.warn(`SQL Warning: ${err.message.substring(0, 100)}`);
             }
           }
@@ -80,12 +83,10 @@ module.exports = async () => {
       }
     }
 
-
     // Now populate test data
     await populateLoaderTestData();
-
   } catch (error) {
-    console.error(' Global setup failed:', error);
+    console.error(" Global setup failed:", error);
     // Tests should fail if real database schema cannot be loaded - no fallbacks
     throw error;
   }

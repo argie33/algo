@@ -4,7 +4,7 @@
  * TTL: 5 minutes (markets update daily, so 5 min cache is safe)
  */
 
-const { query } = require('./database');
+const { query } = require("./database");
 
 class MarketCache {
   constructor() {
@@ -15,7 +15,7 @@ class MarketCache {
 
   get(key) {
     if (!this.cache.has(key)) return null;
-    
+
     const expiry = this.ttl.get(key);
     if (expiry && Date.now() > expiry) {
       this.cache.delete(key);
@@ -31,10 +31,13 @@ class MarketCache {
     this.ttl.set(key, Date.now() + this.CACHE_TTL);
   }
 
-  async getLatestMarketDate(table = 'price_daily', conditions = 'WHERE close IS NOT NULL') {
+  async getLatestMarketDate(
+    table = "price_daily",
+    conditions = "WHERE close IS NOT NULL"
+  ) {
     const cacheKey = `maxDate_${table}`;
     const cached = this.get(cacheKey);
-    
+
     if (cached) {
       return cached;
     }
@@ -43,7 +46,7 @@ class MarketCache {
       const result = await query(`
         SELECT MAX(date) as max_date FROM ${table} ${conditions}
       `);
-      
+
       const maxDate = result.rows[0]?.max_date;
       if (maxDate) {
         this.set(cacheKey, maxDate);
@@ -59,11 +62,11 @@ class MarketCache {
   // Preload common date values at startup
   async preload() {
     try {
-      await this.getLatestMarketDate('price_daily', 'WHERE close IS NOT NULL');
+      await this.getLatestMarketDate("price_daily", "WHERE close IS NOT NULL");
       // technical_data_daily doesn't have 'close' column, use empty WHERE for latest date
-      await this.getLatestMarketDate('technical_data_daily', 'WHERE TRUE');
+      await this.getLatestMarketDate("technical_data_daily", "WHERE TRUE");
     } catch (err) {
-      console.warn('Could not preload market cache:', err.message);
+      console.warn("Could not preload market cache:", err.message);
     }
   }
 
@@ -77,5 +80,6 @@ const marketCache = new MarketCache();
 
 module.exports = {
   marketCache,
-  getLatestMarketDate: (table, conditions) => marketCache.getLatestMarketDate(table, conditions)
+  getLatestMarketDate: (table, conditions) =>
+    marketCache.getLatestMarketDate(table, conditions),
 };

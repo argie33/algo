@@ -6,10 +6,10 @@
 const express = require("express");
 
 const { query } = require("../utils/database");
-const { sendSuccess, sendError } = require('../utils/apiResponse');
-const logger = require('../utils/logger');
-const { authenticateToken, requireAdmin } = require('../middleware/auth');
-const { validateQueryResult } = require('../utils/responseValidation');
+const { sendSuccess, sendError } = require("../utils/apiResponse");
+const logger = require("../utils/logger");
+const { authenticateToken, requireAdmin } = require("../middleware/auth");
+const { validateQueryResult } = require("../utils/responseValidation");
 const router = express.Router();
 
 // Protect all diagnostics endpoints with auth + admin role
@@ -24,7 +24,7 @@ const DIAGNOSTICS_CACHE_TTL = 5 * 60 * 1000; // 5 minutes
 router.get("/", async (req, res) => {
   // Return cached result if available and fresh
   const now = Date.now();
-  if (diagnosticsCache && (now - diagnosticsCacheTime) < DIAGNOSTICS_CACHE_TTL) {
+  if (diagnosticsCache && now - diagnosticsCacheTime < DIAGNOSTICS_CACHE_TTL) {
     return sendSuccess(res, diagnosticsCache);
   }
 
@@ -35,7 +35,7 @@ router.get("/", async (req, res) => {
     data_availability: {},
     database_indexes: {},
     endpoints_status: {},
-    recommendations: []
+    recommendations: [],
   };
 
   try {
@@ -44,7 +44,7 @@ router.get("/", async (req, res) => {
     validateQueryResult(dbTest, { requireRows: false });
     diagnostics.database_status = "connected";
     diagnostics.database_tables = {
-      stock_symbols: parseInt(dbTest.rows[0]?.count || 0)
+      stock_symbols: parseInt(dbTest.rows[0]?.count || 0),
     };
   } catch (err) {
     diagnostics.database_status = "error";
@@ -57,9 +57,17 @@ router.get("/", async (req, res) => {
 
   // WHITELIST of allowed tables - prevents SQL injection via table names
   const ALLOWED_TABLES = new Set([
-    'stock_symbols', 'stock_scores', 'company_profile', 'growth_metrics',
-    'value_metrics', 'quality_metrics', 'earnings_history', 'earnings_estimates',
-    'buy_sell_daily', 'price_daily', 'technical_data_daily'
+    "stock_symbols",
+    "stock_scores",
+    "company_profile",
+    "growth_metrics",
+    "value_metrics",
+    "quality_metrics",
+    "earnings_history",
+    "earnings_estimates",
+    "buy_sell_daily",
+    "price_daily",
+    "technical_data_daily",
   ]);
 
   // Run table counts in parallel instead of sequentially
@@ -74,18 +82,18 @@ router.get("/", async (req, res) => {
     { name: "earnings_estimates", small: true },
     { name: "buy_sell_daily", medium: true },
     { name: "price_daily", large: true },
-    { name: "technical_data_daily", large: true }
+    { name: "technical_data_daily", large: true },
   ];
 
   // For large tables, use n_live_tup estimate instead of COUNT(*)
-  const countQueries = tables.map(table => {
+  const countQueries = tables.map((table) => {
     // SECURITY: Validate table name against whitelist before interpolating
     if (!ALLOWED_TABLES.has(table.name)) {
       return Promise.resolve({
         name: table.name,
         count: 0,
         success: false,
-        error: 'Invalid table name'
+        error: "Invalid table name",
       });
     }
 
@@ -100,43 +108,47 @@ router.get("/", async (req, res) => {
       // SECURITY: Table name validated against whitelist above, safe to interpolate
       q = `SELECT $1::text as name, COUNT(*) as count FROM "${table.name}"`;
     }
-    return query(q, [table.name]).then(result => ({
-      name: table.name,
-      count: parseInt(result.rows[0]?.count || 0),
-      success: true
-    })).catch(err => {
-      logger.warn(`Failed to count table ${table.name}:`, { error: err.message });
-      return {
+    return query(q, [table.name])
+      .then((result) => ({
         name: table.name,
-        count: 0,
-        success: false,
-        error: err.message
-      };
-    });
+        count: parseInt(result.rows[0]?.count || 0),
+        success: true,
+      }))
+      .catch((err) => {
+        logger.warn(`Failed to count table ${table.name}:`, {
+          error: err.message,
+        });
+        return {
+          name: table.name,
+          count: 0,
+          success: false,
+          error: err.message,
+        };
+      });
   });
 
   // Execute all count queries in parallel
   const results = await Promise.all(countQueries);
 
   // Validate results where applicable
-  results.forEach(result => {
+  results.forEach((result) => {
     if (result.success) {
       // Results already validated in the Promise handler
     }
   });
 
-  results.forEach(result => {
+  results.forEach((result) => {
     if (result.success) {
       diagnostics.data_availability[result.name] = {
         count: result.count,
-        status: result.count > 0 ? "Data available" : "Empty"
+        status: result.count > 0 ? "Data available" : "Empty",
       };
       if (result.count === 0) {
         diagnostics.recommendations.push(`Table ${result.name} is empty`);
       }
     } else {
       diagnostics.data_availability[result.name] = {
-        status: "Query error"
+        status: "Query error",
       };
       diagnostics.recommendations.push(`Cannot query ${result.name}`);
     }
@@ -151,7 +163,7 @@ router.get("/", async (req, res) => {
     const indexCount = parseInt(indexResult.rows[0]?.index_count || 0);
     diagnostics.database_indexes = {
       count: indexCount,
-      status: indexCount > 20 ? "Indexes present" : "Few indexes"
+      status: indexCount > 20 ? "Indexes present" : "Few indexes",
     };
   } catch (err) {
     diagnostics.database_indexes = { count: 0, status: "Cannot check" };
@@ -162,7 +174,8 @@ router.get("/", async (req, res) => {
     diagnostics.recommendations.push("All systems operational");
     diagnostics.api_status = "healthy";
   } else {
-    diagnostics.api_status = diagnostics.database_status === "connected" ? "degraded" : "error";
+    diagnostics.api_status =
+      diagnostics.database_status === "connected" ? "degraded" : "error";
   }
 
   // Cache the result
@@ -182,19 +195,21 @@ router.get("/slow-queries", async (req, res) => {
       ORDER BY mean_exec_time DESC
       LIMIT 20
     `).catch((err) => {
-      logger.warn('Failed to fetch performance statistics:', { error: err.message });
+      logger.warn("Failed to fetch performance statistics:", {
+        error: err.message,
+      });
       return { rows: [] };
     });
     validateQueryResult(result, { requireRows: false });
 
     return sendSuccess(res, {
       slow_queries: result.rows || [],
-      message: "Queries taking >100ms. Run EXPLAIN ANALYZE on slow queries."
+      message: "Queries taking >100ms. Run EXPLAIN ANALYZE on slow queries.",
     });
   } catch (err) {
     return sendSuccess(res, {
       slow_queries: [],
-      message: "pg_stat_statements extension may not be installed"
+      message: "pg_stat_statements extension may not be installed",
     });
   }
 });
@@ -206,7 +221,8 @@ router.get("/cache-stats", (req, res) => {
     return sendSuccess(res, {
       cache_status: "Cache middleware active",
       ttl_seconds: 300,
-      message: "Enable debug logging in queryOptimization.js for detailed cache stats"
+      message:
+        "Enable debug logging in queryOptimization.js for detailed cache stats",
     });
   } catch (err) {
     return sendError(res, err.message, 500);
@@ -239,7 +255,7 @@ router.get("/database-size", async (req, res) => {
 
     return sendSuccess(res, {
       database_size: dbSize.rows[0],
-      largest_tables: tableSize.rows || []
+      largest_tables: tableSize.rows || [],
     });
   } catch (err) {
     return sendError(res, err.message, 500);

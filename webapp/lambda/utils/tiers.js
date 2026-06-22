@@ -1,5 +1,5 @@
-const { getPool } = require('./database');
-const logger = require('./logger');
+const { getPool } = require("./database");
+const logger = require("./logger");
 
 // In-memory cache with expiration (5 minutes)
 let tiersCache = null;
@@ -42,12 +42,12 @@ async function getActiveTiers() {
     `);
 
     if (!result || !result.rows) {
-      logger.error('Invalid tier query result structure');
+      logger.error("Invalid tier query result structure");
       return [];
     }
 
     // Normalize field names for backward compatibility
-    const tiers = result.rows.map(tier => ({
+    const tiers = result.rows.map((tier) => ({
       tier_id: tier.tier_id,
       name: tier.name,
       min_pct: parseFloat(tier.min_pct),
@@ -67,7 +67,7 @@ async function getActiveTiers() {
       halt_new_entries: tier.halt_new_entries,
       force_exit_negative_r: tier.force_exit_negative_r,
       color: tier.color,
-      description: tier.description
+      description: tier.description,
     }));
 
     // Cache the result
@@ -76,9 +76,9 @@ async function getActiveTiers() {
 
     return tiers;
   } catch (error) {
-    logger.error('Error fetching tiers from database', {
+    logger.error("Error fetching tiers from database", {
       error: error.message,
-      stack: error.stack
+      stack: error.stack,
     });
     return [];
   }
@@ -99,7 +99,7 @@ function getActiveTier(exposurePct, tiers) {
 
   // Find tier where: min <= exposure <= max
   // Use min_pct/max_pct fields (database field names)
-  const activeTier = tiers.find(t => {
+  const activeTier = tiers.find((t) => {
     const minVal = t.min_pct !== undefined ? t.min_pct : t.min;
     const maxVal = t.max_pct !== undefined ? t.max_pct : t.max;
     return exposure >= minVal && exposure <= maxVal;
@@ -119,5 +119,5 @@ function clearTierCache() {
 module.exports = {
   getActiveTiers,
   getActiveTier,
-  clearTierCache
+  clearTierCache,
 };

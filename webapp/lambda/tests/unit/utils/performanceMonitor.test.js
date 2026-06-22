@@ -7,7 +7,14 @@ describe("Performance Monitor", () => {
     // Clear monitor state
     monitor.reset();
   });
-const { query, closeDatabase, initializeDatabase, getPool, transaction, healthCheck } = require("../../../utils/database");
+  const {
+    query,
+    closeDatabase,
+    initializeDatabase,
+    getPool,
+    transaction,
+    healthCheck,
+  } = require("../../../utils/database");
 
   describe("operation tracking", () => {
     test("should start and end operations", () => {

@@ -39,7 +39,9 @@ describe("Logger", () => {
     jest.clearAllMocks();
 
     // Ensure mock is reset for each test
-    mockCrypto.randomUUID.mockReturnValue("12345678-1234-1234-1234-123456789012");
+    mockCrypto.randomUUID.mockReturnValue(
+      "12345678-1234-1234-1234-123456789012"
+    );
 
     // Clear the logger module cache so it re-reads environment variables
     delete require.cache[require.resolve("../../../utils/logger")];
@@ -253,10 +255,12 @@ describe("Logger", () => {
         timestamp: "test",
         level: "WARN",
         message: "Direct test",
-        correlationId: "123"
+        correlationId: "123",
       });
 
-      expect(consoleSpy).toHaveBeenCalledWith("[test] [WARN] [123] Direct test");
+      expect(consoleSpy).toHaveBeenCalledWith(
+        "[test] [WARN] [123] Direct test"
+      );
 
       // Clear spy for the actual test
       consoleSpy.mockClear();

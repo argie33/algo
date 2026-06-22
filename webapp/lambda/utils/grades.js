@@ -1,5 +1,5 @@
-const { getPool } = require('./database');
-const logger = require('./logger');
+const { getPool } = require("./database");
+const logger = require("./logger");
 
 // In-memory cache with expiration (5 minutes)
 let gradesCache = null;
@@ -35,18 +35,18 @@ async function getSwingGrades() {
     `);
 
     if (!result || !result.rows) {
-      logger.error('Invalid grade query result structure');
+      logger.error("Invalid grade query result structure");
       return [];
     }
 
-    const grades = result.rows.map(g => ({
+    const grades = result.rows.map((g) => ({
       grade_id: g.grade_id,
       letter: g.grade_letter,
       min_score: g.min_score,
       max_score: g.max_score,
       description: g.description,
       pass_gates: g.pass_gates,
-      fail_reason: g.fail_reason
+      fail_reason: g.fail_reason,
     }));
 
     // Cache the result
@@ -55,9 +55,9 @@ async function getSwingGrades() {
 
     return grades;
   } catch (error) {
-    logger.error('Error fetching swing grades from database', {
+    logger.error("Error fetching swing grades from database", {
       error: error.message,
-      stack: error.stack
+      stack: error.stack,
     });
     return [];
   }
@@ -71,13 +71,19 @@ async function getSwingGrades() {
  */
 function getGradeForScore(score, grades) {
   if (!grades || grades.length === 0) {
-    return { letter: 'D', pass_gates: false, fail_reason: 'Grade configuration unavailable' };
+    return {
+      letter: "D",
+      pass_gates: false,
+      fail_reason: "Grade configuration unavailable",
+    };
   }
 
   const scoreVal = parseFloat(score) || 0;
 
   // Find grade where: min_score <= score < max_score
-  const gradeInfo = grades.find(g => scoreVal >= g.min_score && scoreVal < g.max_score);
+  const gradeInfo = grades.find(
+    (g) => scoreVal >= g.min_score && scoreVal < g.max_score
+  );
 
   if (!gradeInfo) {
     // Fallback: return lowest grade if score is out of range
@@ -87,14 +93,14 @@ function getGradeForScore(score, grades) {
     return {
       letter: lowestGrade.letter,
       pass_gates: lowestGrade.pass_gates,
-      fail_reason: lowestGrade.fail_reason
+      fail_reason: lowestGrade.fail_reason,
     };
   }
 
   return {
     letter: gradeInfo.letter,
     pass_gates: gradeInfo.pass_gates,
-    fail_reason: gradeInfo.fail_reason || null
+    fail_reason: gradeInfo.fail_reason || null,
   };
 }
 
@@ -109,5 +115,5 @@ function clearGradeCache() {
 module.exports = {
   getSwingGrades,
   getGradeForScore,
-  clearGradeCache
+  clearGradeCache,
 };

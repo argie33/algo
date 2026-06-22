@@ -36,6 +36,33 @@ repos:
         exclude: ^(tests/|migrations/|\.github/|scripts/.*)
         stages: [commit]
 
+  # JavaScript linting and formatting for webapp/lambda
+  - repo: local
+    hooks:
+      - id: eslint-webapp-lambda
+        name: ESLint — webapp/lambda JS
+        entry: bash -c 'cd webapp/lambda && npm run lint'
+        language: system
+        pass_filenames: false
+        files: ^webapp/lambda/.*\.js$
+        exclude: ^webapp/lambda/node_modules/
+        stages: [commit]
+      - id: prettier-webapp-lambda
+        name: Prettier — webapp/lambda format check
+        entry: bash -c 'cd webapp/lambda && npm run format:check'
+        language: system
+        pass_filenames: false
+        files: ^webapp/lambda/.*\.(js|json|md)$
+        exclude: ^webapp/lambda/node_modules/
+        stages: [commit]
+      - id: npm-audit-webapp-lambda
+        name: npm audit — webapp/lambda high-severity CVEs
+        entry: bash -c 'cd webapp/lambda && npm audit --audit-level=high'
+        language: system
+        pass_filenames: false
+        files: ^webapp/lambda/package(-lock)?\.json$
+        stages: [commit]
+
   # Security scanning moved to CI (too slow for pre-commit)
   # Bandit runs async in GitHub Actions instead
 

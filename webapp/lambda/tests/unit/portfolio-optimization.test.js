@@ -3,9 +3,9 @@
  * Tests core algorithms for portfolio recommendations and risk metrics
  */
 
-describe('Portfolio Optimization Algorithms', () => {
-  describe('Correlation Analysis', () => {
-    test('calculateSimpleCorrelation - returns valid correlation in [-1, 1]', () => {
+describe("Portfolio Optimization Algorithms", () => {
+  describe("Correlation Analysis", () => {
+    test("calculateSimpleCorrelation - returns valid correlation in [-1, 1]", () => {
       const returns1 = [0.01, -0.005, 0.015, -0.002, 0.008];
       const returns2 = [0.012, -0.003, 0.018, -0.001, 0.009];
 
@@ -37,7 +37,7 @@ describe('Portfolio Optimization Algorithms', () => {
       expect(correlation).toBeLessThanOrEqual(1);
     });
 
-    test('calculateSimpleCorrelation - returns null for insufficient data', () => {
+    test("calculateSimpleCorrelation - returns null for insufficient data", () => {
       const returns1 = [0.01];
       const returns2 = [0.012];
 
@@ -46,7 +46,7 @@ describe('Portfolio Optimization Algorithms', () => {
       expect(isValid).toBe(false);
     });
 
-    test('calculateSimpleCorrelation - returns 1 for identical returns', () => {
+    test("calculateSimpleCorrelation - returns 1 for identical returns", () => {
       const returns = [0.01, 0.02, 0.015, -0.005, 0.008];
 
       const n = returns.length;
@@ -69,21 +69,24 @@ describe('Portfolio Optimization Algorithms', () => {
       expect(correlation).toBeCloseTo(1, 5);
     });
 
-    test('calculateDiversificationScore - returns 0-100', () => {
+    test("calculateDiversificationScore - returns 0-100", () => {
       const correlations = [0.5, 0.3, 0.2, 0.4];
-      const avgCorrelation = correlations.reduce((a, b) => a + b) / correlations.length;
+      const avgCorrelation =
+        correlations.reduce((a, b) => a + b) / correlations.length;
       const score = (1 - avgCorrelation) * 100;
 
       expect(score).toBeGreaterThanOrEqual(0);
       expect(score).toBeLessThanOrEqual(100);
     });
 
-    test('calculateDiversificationScore - higher when correlations are lower', () => {
+    test("calculateDiversificationScore - higher when correlations are lower", () => {
       const lowCorrelations = [0.1, 0.2, 0.15];
       const highCorrelations = [0.8, 0.9, 0.85];
 
-      const avgLow = lowCorrelations.reduce((a, b) => a + b) / lowCorrelations.length;
-      const avgHigh = highCorrelations.reduce((a, b) => a + b) / highCorrelations.length;
+      const avgLow =
+        lowCorrelations.reduce((a, b) => a + b) / lowCorrelations.length;
+      const avgHigh =
+        highCorrelations.reduce((a, b) => a + b) / highCorrelations.length;
 
       const lowScore = (1 - avgLow) * 100;
       const highScore = (1 - avgHigh) * 100;
@@ -92,27 +95,27 @@ describe('Portfolio Optimization Algorithms', () => {
     });
   });
 
-  describe('Recommendation Generation', () => {
-    test('calculateFitScore - returns 0-100 range', () => {
+  describe("Recommendation Generation", () => {
+    test("calculateFitScore - returns 0-100 range", () => {
       const components = {
-        composite: 35,  // 50% of 70/100
-        marketFit: 12,  // 15% of 80/100
+        composite: 35, // 50% of 70/100
+        marketFit: 12, // 15% of 80/100
         correlation: 14, // 20% of 70/100
-        sector: 12,  // 15% of 80/100
+        sector: 12, // 15% of 80/100
       };
 
-      const fitScore = (
-        components.composite +
-        components.marketFit +
-        components.correlation +
-        components.sector
-      ) / 100;
+      const fitScore =
+        (components.composite +
+          components.marketFit +
+          components.correlation +
+          components.sector) /
+        100;
 
       expect(fitScore).toBeGreaterThanOrEqual(0);
       expect(fitScore).toBeLessThanOrEqual(1);
     });
 
-    test('fit score properly weights components', () => {
+    test("fit score properly weights components", () => {
       const testStock = {
         composite_score: 75,
         current_price: 150.25,
@@ -121,18 +124,18 @@ describe('Portfolio Optimization Algorithms', () => {
       const marketExposure = 60; // Moderate market conditions
 
       // Market fit calculation
-      const marketFit = (
-        testStock.composite_score * 0.4 +
-        (marketExposure > 70 ? 20 : marketExposure > 40 ? 50 : 30)
-      ) / 2;
+      const marketFit =
+        (testStock.composite_score * 0.4 +
+          (marketExposure > 70 ? 20 : marketExposure > 40 ? 50 : 30)) /
+        2;
 
       expect(marketFit).toBeGreaterThan(0);
       expect(marketFit).toBeLessThan(100);
     });
   });
 
-  describe('Quantity Calculation', () => {
-    test('calculates correct shares from suggested amount', () => {
+  describe("Quantity Calculation", () => {
+    test("calculates correct shares from suggested amount", () => {
       const suggestedAmount = 10000;
       const currentPrice = 150.25;
 
@@ -142,25 +145,26 @@ describe('Portfolio Optimization Algorithms', () => {
       expect(quantity * currentPrice).toBeLessThanOrEqual(suggestedAmount);
     });
 
-    test('REDUCE calculates 25% of position', () => {
+    test("REDUCE calculates 25% of position", () => {
       const totalQuantity = 100;
       const reduceQuantity = Math.floor(totalQuantity * 0.25);
 
       expect(reduceQuantity).toEqual(25);
     });
 
-    test('handles zero price gracefully', () => {
+    test("handles zero price gracefully", () => {
       const suggestedAmount = 10000;
       const currentPrice = 0;
 
-      const quantity = currentPrice > 0 ? Math.floor(suggestedAmount / currentPrice) : 0;
+      const quantity =
+        currentPrice > 0 ? Math.floor(suggestedAmount / currentPrice) : 0;
 
       expect(quantity).toEqual(0);
     });
   });
 
-  describe('Risk Metrics', () => {
-    test('calculateVolatility - skips null values', () => {
+  describe("Risk Metrics", () => {
+    test("calculateVolatility - skips null values", () => {
       const holdings = [
         { market_value: 5000, volatility: 0.18 },
         { market_value: 3000, volatility: null },
@@ -171,7 +175,7 @@ describe('Portfolio Optimization Algorithms', () => {
       let volatilitySum = 0;
       let validHoldingsValue = 0;
 
-      holdings.forEach(h => {
+      holdings.forEach((h) => {
         const volatility = parseFloat(h.volatility);
         if (volatility && isFinite(volatility)) {
           const weight = h.market_value / totalValue;
@@ -180,13 +184,14 @@ describe('Portfolio Optimization Algorithms', () => {
         }
       });
 
-      const portfolioVolatility = volatilitySum / (validHoldingsValue / totalValue);
+      const portfolioVolatility =
+        volatilitySum / (validHoldingsValue / totalValue);
 
       expect(validHoldingsValue).toEqual(7000); // Should skip 3000 from null volatility
       expect(portfolioVolatility).toBeCloseTo(0.19, 2); // (5000*0.18 + 2000*0.22) / 7000
     });
 
-    test('calculateBeta - renormalizes weights without invalid data', () => {
+    test("calculateBeta - renormalizes weights without invalid data", () => {
       const holdings = [
         { market_value: 5000, beta: 1.2 },
         { market_value: 3000, beta: null },
@@ -197,7 +202,7 @@ describe('Portfolio Optimization Algorithms', () => {
       let betaSum = 0;
       let betaHoldingsValue = 0;
 
-      holdings.forEach(h => {
+      holdings.forEach((h) => {
         const beta = parseFloat(h.beta);
         if (beta && isFinite(beta)) {
           const weight = h.market_value / totalValue;
@@ -214,10 +219,10 @@ describe('Portfolio Optimization Algorithms', () => {
     });
   });
 
-  describe('Data Validation', () => {
-    test('rejects zero entry prices', () => {
+  describe("Data Validation", () => {
+    test("rejects zero entry prices", () => {
       const trade = {
-        symbol: 'TEST',
+        symbol: "TEST",
         entry_price: 0,
         current_price: 150.25,
       };
@@ -228,9 +233,9 @@ describe('Portfolio Optimization Algorithms', () => {
       expect(isValid).toBe(false);
     });
 
-    test('rejects null entry prices', () => {
+    test("rejects null entry prices", () => {
       const trade = {
-        symbol: 'TEST',
+        symbol: "TEST",
         entry_price: null,
         current_price: null,
       };
@@ -241,11 +246,11 @@ describe('Portfolio Optimization Algorithms', () => {
       expect(isValid).toBe(false);
     });
 
-    test('accepts valid entry prices', () => {
+    test("accepts valid entry prices", () => {
       const trade = {
-        symbol: 'TEST',
+        symbol: "TEST",
         entry_price: 150.25,
-        current_price: 155.00,
+        current_price: 155.0,
       };
 
       const entryPrice = parseFloat(trade.entry_price || trade.current_price);
@@ -255,44 +260,45 @@ describe('Portfolio Optimization Algorithms', () => {
       expect(entryPrice).toEqual(150.25);
     });
 
-    test('skips holdings with invalid market_value', () => {
+    test("skips holdings with invalid market_value", () => {
       const holdings = [
-        { symbol: 'AAPL', market_value: 5000 },
-        { symbol: 'MSFT', market_value: null },
-        { symbol: 'GOOGL', market_value: 3000 },
+        { symbol: "AAPL", market_value: 5000 },
+        { symbol: "MSFT", market_value: null },
+        { symbol: "GOOGL", market_value: 3000 },
       ];
 
-      const validHoldings = holdings.filter(h => {
+      const validHoldings = holdings.filter((h) => {
         const mv = parseFloat(h.market_value);
         return mv && isFinite(mv) && mv > 0;
       });
 
       expect(validHoldings).toHaveLength(2);
-      expect(validHoldings[0].symbol).toEqual('AAPL');
-      expect(validHoldings[1].symbol).toEqual('GOOGL');
+      expect(validHoldings[0].symbol).toEqual("AAPL");
+      expect(validHoldings[1].symbol).toEqual("GOOGL");
     });
   });
 
-  describe('Sector Allocation', () => {
-    test('correctly aggregates sector weights', () => {
+  describe("Sector Allocation", () => {
+    test("correctly aggregates sector weights", () => {
       const holdings = [
-        { symbol: 'AAPL', sector: 'Technology', market_value: 5000 },
-        { symbol: 'MSFT', sector: 'Technology', market_value: 3000 },
-        { symbol: 'JPM', sector: 'Financials', market_value: 2000 },
+        { symbol: "AAPL", sector: "Technology", market_value: 5000 },
+        { symbol: "MSFT", sector: "Technology", market_value: 3000 },
+        { symbol: "JPM", sector: "Financials", market_value: 2000 },
       ];
       const totalValue = 10000;
 
       const sectorAllocation = {};
-      holdings.forEach(h => {
-        const sector = h.sector || 'Other';
+      holdings.forEach((h) => {
+        const sector = h.sector || "Other";
         if (!sectorAllocation[sector]) {
           sectorAllocation[sector] = { value: 0, weight: 0 };
         }
         sectorAllocation[sector].value += h.market_value;
       });
 
-      Object.keys(sectorAllocation).forEach(sector => {
-        sectorAllocation[sector].weight = (sectorAllocation[sector].value / totalValue) * 100;
+      Object.keys(sectorAllocation).forEach((sector) => {
+        sectorAllocation[sector].weight =
+          (sectorAllocation[sector].value / totalValue) * 100;
       });
 
       expect(sectorAllocation.Technology.value).toEqual(8000);

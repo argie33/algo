@@ -12,17 +12,17 @@ module.exports = {
 
   // Limits for specific endpoint types
   LIMITS: {
-    'default': { default: 50, max: 5000 },
-    'audit': { default: 100, max: 10000 },    // audit logs can be large
-    'trades': { default: 100, max: 5000 },
-    'signals': { default: 50, max: 1000 },
-    'prices': { default: 100, max: 5000 },
-    'performance': { default: 30, max: 1000 },
-    'equity_curve': { default: 100, max: 1000 },
-    'rejection_funnel': { default: 50, max: 10000 },  // can be very large
-    'market': { default: 50, max: 1000 },
-    'economic': { default: 50, max: 500 },
-    'commodities': { default: 25, max: 500 },
+    default: { default: 50, max: 5000 },
+    audit: { default: 100, max: 10000 }, // audit logs can be large
+    trades: { default: 100, max: 5000 },
+    signals: { default: 50, max: 1000 },
+    prices: { default: 100, max: 5000 },
+    performance: { default: 30, max: 1000 },
+    equity_curve: { default: 100, max: 1000 },
+    rejection_funnel: { default: 50, max: 10000 }, // can be very large
+    market: { default: 50, max: 1000 },
+    economic: { default: 50, max: 500 },
+    commodities: { default: 25, max: 500 },
   },
 
   /**
@@ -32,7 +32,7 @@ module.exports = {
    * @param {string} type - Endpoint type (for type-specific limits)
    * @returns {Object} {limit, offset} - Sanitized values
    */
-  sanitize(limit, offset, type = 'default') {
+  sanitize(limit, offset, type = "default") {
     const config = this.LIMITS[type] || this.LIMITS.default;
 
     // Parse and validate limit

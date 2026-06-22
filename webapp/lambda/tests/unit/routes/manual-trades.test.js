@@ -42,9 +42,7 @@ describe("Manual Trades Routes Unit Tests", () => {
     it("should return empty list when no trades exist", async () => {
       query.mockResolvedValueOnce({ rows: [], rowCount: 0 });
 
-      const response = await request(app)
-        .get("/manual-trades")
-        .expect(200);
+      const response = await request(app).get("/manual-trades").expect(200);
 
       expect(response.body.success).toBe(true);
       expect(response.body.data).toEqual([]);
@@ -58,10 +56,10 @@ describe("Manual Trades Routes Unit Tests", () => {
           symbol: "TSLA",
           trade_type: "buy",
           quantity: 10,
-          price: 250.00,
+          price: 250.0,
           order_value: 2500,
-          commission: 10.00,
-          total_cost: 2510.00,
+          commission: 10.0,
+          total_cost: 2510.0,
           execution_date: "2025-01-15",
           status: "filled",
           broker: "Fidelity",
@@ -70,9 +68,7 @@ describe("Manual Trades Routes Unit Tests", () => {
 
       query.mockResolvedValueOnce({ rows: mockTrades, rowCount: 1 });
 
-      const response = await request(app)
-        .get("/manual-trades")
-        .expect(200);
+      const response = await request(app).get("/manual-trades").expect(200);
 
       expect(response.body.success).toBe(true);
       expect(response.body.data).toHaveLength(1);
@@ -87,7 +83,9 @@ describe("Manual Trades Routes Unit Tests", () => {
       const responseFormatter = require("../../../middleware/responseFormatter");
       appNoAuth.use(responseFormatter);
 
-      const manualTradesRouter = require("../../../routes/manual-trades")(query);
+      const manualTradesRouter = require("../../../routes/manual-trades")(
+        query
+      );
       appNoAuth.use("/manual-trades", manualTradesRouter);
 
       const response = await request(appNoAuth)
@@ -105,16 +103,14 @@ describe("Manual Trades Routes Unit Tests", () => {
         symbol: "AAPL",
         trade_type: "buy",
         quantity: 50,
-        price: 150.00,
-        commission: 10.00,
+        price: 150.0,
+        commission: 10.0,
         execution_date: "2025-01-10",
       };
 
       query.mockResolvedValueOnce({ rows: [mockTrade], rowCount: 1 });
 
-      const response = await request(app)
-        .get("/manual-trades/1")
-        .expect(200);
+      const response = await request(app).get("/manual-trades/1").expect(200);
 
       expect(response.body.success).toBe(true);
       expect(response.body.data.symbol).toBe("AAPL");
@@ -123,9 +119,7 @@ describe("Manual Trades Routes Unit Tests", () => {
     it("should return 404 when trade not found", async () => {
       query.mockResolvedValueOnce({ rows: [], rowCount: 0 });
 
-      const response = await request(app)
-        .get("/manual-trades/999")
-        .expect(404);
+      const response = await request(app).get("/manual-trades/999").expect(404);
 
       expect(response.body.error).toBe("Trade not found");
     });
@@ -137,9 +131,9 @@ describe("Manual Trades Routes Unit Tests", () => {
         symbol: "MSFT",
         trade_type: "buy",
         quantity: 25,
-        price: 380.00,
+        price: 380.0,
         execution_date: "2025-01-15",
-        commission: 15.00,
+        commission: 15.0,
         broker: "Charles Schwab",
       };
 
@@ -163,7 +157,7 @@ describe("Manual Trades Routes Unit Tests", () => {
         symbol: "GOOGL",
         trade_type: "sell",
         quantity: 30,
-        price: 140.00,
+        price: 140.0,
         execution_date: "2025-01-20",
         broker: "Interactive Brokers",
       };
@@ -187,7 +181,7 @@ describe("Manual Trades Routes Unit Tests", () => {
         symbol: "JNJ",
         trade_type: "dividend",
         quantity: 100,
-        price: 1.50,
+        price: 1.5,
         execution_date: "2025-01-18",
       };
 
@@ -209,7 +203,7 @@ describe("Manual Trades Routes Unit Tests", () => {
       const invalidTrade = {
         trade_type: "buy",
         quantity: 50,
-        price: 150.00,
+        price: 150.0,
         execution_date: "2025-01-15",
       };
 
@@ -227,7 +221,7 @@ describe("Manual Trades Routes Unit Tests", () => {
         symbol: "AAPL",
         trade_type: "invalid_type",
         quantity: 50,
-        price: 150.00,
+        price: 150.0,
         execution_date: "2025-01-15",
       };
 
@@ -237,7 +231,9 @@ describe("Manual Trades Routes Unit Tests", () => {
         .expect(400);
 
       expect(response.body.error).toBe("Validation failed");
-      expect(response.body.errors).toContain("Trade type must be: buy, sell, dividend, or split");
+      expect(response.body.errors).toContain(
+        "Trade type must be: buy, sell, dividend, or split"
+      );
     });
 
     it("should reject trade with invalid quantity", async () => {
@@ -245,7 +241,7 @@ describe("Manual Trades Routes Unit Tests", () => {
         symbol: "TSLA",
         trade_type: "buy",
         quantity: -10,
-        price: 250.00,
+        price: 250.0,
         execution_date: "2025-01-15",
       };
 
@@ -284,8 +280,8 @@ describe("Manual Trades Routes Unit Tests", () => {
         symbol: "AAPL",
         trade_type: "buy",
         quantity: 50,
-        price: 150.00,
-        execution_date: tomorrow.toISOString().split('T')[0],
+        price: 150.0,
+        execution_date: tomorrow.toISOString().split("T")[0],
       };
 
       const response = await request(app)
@@ -294,7 +290,9 @@ describe("Manual Trades Routes Unit Tests", () => {
         .expect(400);
 
       expect(response.body.error).toBe("Validation failed");
-      expect(response.body.errors).toContain("Execution date cannot be in the future");
+      expect(response.body.errors).toContain(
+        "Execution date cannot be in the future"
+      );
     });
   });
 
@@ -306,7 +304,9 @@ describe("Manual Trades Routes Unit Tests", () => {
           rowCount: 1,
         })
         .mockResolvedValueOnce({
-          rows: [{ id: 1, symbol: "AAPL", quantity: 100, user_id: "test-user-123" }],
+          rows: [
+            { id: 1, symbol: "AAPL", quantity: 100, user_id: "test-user-123" },
+          ],
           rowCount: 1,
         });
 
@@ -351,13 +351,19 @@ describe("Manual Trades Routes Unit Tests", () => {
     it("should delete a trade (hard delete)", async () => {
       query
         .mockResolvedValueOnce({
-          rows: [{ id: 1, symbol: "AAPL", trade_type: "buy", user_id: "test-user-123" }],
+          rows: [
+            {
+              id: 1,
+              symbol: "AAPL",
+              trade_type: "buy",
+              user_id: "test-user-123",
+            },
+          ],
           rowCount: 1,
         })
         .mockResolvedValueOnce({ rowCount: 1 });
 
-      const response = await request(app)
-        .delete("/manual-trades/1");
+      const response = await request(app).delete("/manual-trades/1");
 
       if (response.status === 200) {
         expect(response.body.success).toBe(true);
@@ -368,8 +374,7 @@ describe("Manual Trades Routes Unit Tests", () => {
     it("should return 404 when deleting non-existent trade", async () => {
       query.mockResolvedValueOnce({ rows: [], rowCount: 0 });
 
-      const response = await request(app)
-        .delete("/manual-trades/999");
+      const response = await request(app).delete("/manual-trades/999");
 
       if (response.status === 404) {
         expect(response.body.error).toBe("Trade not found");
@@ -382,8 +387,7 @@ describe("Manual Trades Routes Unit Tests", () => {
         rowCount: 1,
       });
 
-      const response = await request(app)
-        .delete("/manual-trades/1");
+      const response = await request(app).delete("/manual-trades/1");
 
       if (response.status === 403) {
         expect(response.body.error).toBe("Unauthorized");

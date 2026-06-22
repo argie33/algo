@@ -26,7 +26,7 @@ describe("Stocks Routes Integration - Real Data Validation", () => {
         // If successful, validate structure
         if (response.body.data && Array.isArray(response.body.data)) {
           // Real data should have proper fields
-          response.body.data.forEach(stock => {
+          response.body.data.forEach((stock) => {
             expect(stock).toHaveProperty("symbol");
             // Symbol should be a real stock code (3-4 chars typically)
             expect(typeof stock.symbol).toBe("string");
@@ -47,7 +47,7 @@ describe("Stocks Routes Integration - Real Data Validation", () => {
       if (response.body.success && response.body.data) {
         // Validate REAL data structure
         if (Array.isArray(response.body.data)) {
-          response.body.data.forEach(stock => {
+          response.body.data.forEach((stock) => {
             expect(stock.symbol).toBe("AAPL");
           });
         }
@@ -78,7 +78,7 @@ describe("Stocks Routes Integration - Real Data Validation", () => {
 
       if (response.body.success && Array.isArray(response.body.data)) {
         // For each stock, validate that fields are REAL or NULL, not defaulted
-        response.body.data.forEach(stock => {
+        response.body.data.forEach((stock) => {
           // These must exist
           expect(stock).toHaveProperty("symbol");
 
@@ -94,7 +94,10 @@ describe("Stocks Routes Integration - Real Data Validation", () => {
 
           if (stock.volume !== null && stock.volume !== undefined) {
             // Allow volume to be number or string (different response structures)
-            const volumeNum = typeof stock.volume === "string" ? parseFloat(stock.volume) : stock.volume;
+            const volumeNum =
+              typeof stock.volume === "string"
+                ? parseFloat(stock.volume)
+                : stock.volume;
             if (!isNaN(volumeNum)) {
               expect(volumeNum).toBeGreaterThanOrEqual(0);
             }
@@ -147,7 +150,7 @@ describe("Stocks Routes Integration - Real Data Validation", () => {
       if (response.body.success && Array.isArray(response.body.data)) {
         // Some fields may be NULL from database - that's OK!
         // The important thing is they're NOT artificially filled with defaults
-        response.body.data.forEach(stock => {
+        response.body.data.forEach((stock) => {
           // If dividend yield is null, it should stay null
           // NOT become 0 or "N/A"
           if (stock.dividend_yield !== undefined) {

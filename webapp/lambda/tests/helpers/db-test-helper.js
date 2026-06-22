@@ -3,7 +3,7 @@
  * Provides utilities for setting up and tearing down test data
  */
 
-const { Pool } = require('pg');
+const { Pool } = require("pg");
 
 let testPool = null;
 
@@ -11,8 +11,8 @@ let testPool = null;
  * Initialize test database pool (use existing connection from database.js)
  */
 async function initTestDb() {
-  const db = require('../../utils/database');
-  return db.pool || await db.initializeDatabase();
+  const db = require("../../utils/database");
+  return db.pool || (await db.initializeDatabase());
 }
 
 /**
@@ -20,11 +20,11 @@ async function initTestDb() {
  */
 async function clearDatabase() {
   try {
-    const db = require('../../utils/database');
+    const db = require("../../utils/database");
     const pool = db.pool;
 
     if (!pool) {
-      throw new Error('Database pool not initialized');
+      throw new Error("Database pool not initialized");
     }
 
     const client = await pool.connect();
@@ -36,10 +36,10 @@ async function clearDatabase() {
         WHERE schemaname = 'public'
       `);
 
-      const tables = result.rows.map(r => r.tablename);
+      const tables = result.rows.map((r) => r.tablename);
 
       // Disable foreign key checks
-      await client.query('SET session_replication_role = replica');
+      await client.query("SET session_replication_role = replica");
 
       // Truncate all tables
       for (const table of tables) {
@@ -47,20 +47,19 @@ async function clearDatabase() {
           await client.query(`TRUNCATE TABLE ${table} CASCADE`);
         } catch (e) {
           // Skip system tables that can't be truncated
-          if (!e.message.includes('cannot truncate')) {
+          if (!e.message.includes("cannot truncate")) {
             console.warn(`Warning truncating ${table}:`, e.message);
           }
         }
       }
 
       // Re-enable foreign key checks
-      await client.query('SET session_replication_role = DEFAULT');
-
+      await client.query("SET session_replication_role = DEFAULT");
     } finally {
       client.release();
     }
   } catch (error) {
-    console.error('Error clearing database:', error.message);
+    console.error("Error clearing database:", error.message);
     throw error;
   }
 }
@@ -70,11 +69,11 @@ async function clearDatabase() {
  */
 async function insertTestData() {
   try {
-    const db = require('../../utils/database');
+    const db = require("../../utils/database");
     const pool = db.pool;
 
     if (!pool) {
-      throw new Error('Database pool not initialized');
+      throw new Error("Database pool not initialized");
     }
 
     const client = await pool.connect();
@@ -121,12 +120,11 @@ async function insertTestData() {
           ('TEST2', CURRENT_DATE - INTERVAL '180 days', 0.9)
         ON CONFLICT DO NOTHING
       `);
-
     } finally {
       client.release();
     }
   } catch (error) {
-    console.error('Error inserting test data:', error.message);
+    console.error("Error inserting test data:", error.message);
     throw error;
   }
 }

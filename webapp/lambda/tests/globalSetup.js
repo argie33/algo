@@ -9,5 +9,4 @@ module.exports = async () => {
   process.env.DISABLE_LIVE_DATA_MANAGER = "true";
   process.env.DISABLE_ALERT_SYSTEM = "true";
   process.env.DISABLE_REAL_TIME_SERVICE = "true";
-
 };

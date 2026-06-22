@@ -8,7 +8,14 @@ describe("Alert System", () => {
     alertSystem.alertHistory = [];
     alertSystem.lastNotificationTime.clear();
   });
-const { query, closeDatabase, initializeDatabase, getPool, transaction, healthCheck } = require("../../../utils/database");
+  const {
+    query,
+    closeDatabase,
+    initializeDatabase,
+    getPool,
+    transaction,
+    healthCheck,
+  } = require("../../../utils/database");
 
   afterEach(() => {
     // Stop monitoring to prevent hanging tests

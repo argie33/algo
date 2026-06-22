@@ -1,8 +1,18 @@
 const express = require("express");
+
 const { query } = require("../utils/database");
-const { sendSuccess, sendError, sendPaginated, sendPlaceholder } = require("../utils/apiResponse");
-const logger = require('../utils/logger');
-const { validateQueryResult, validateAndCoerceRows, extractCount } = require('../utils/responseValidation');
+const {
+  sendSuccess,
+  sendError,
+  sendPaginated,
+  sendPlaceholder,
+} = require("../utils/apiResponse");
+const logger = require("../utils/logger");
+const {
+  validateQueryResult,
+  validateAndCoerceRows,
+  extractCount,
+} = require("../utils/responseValidation");
 const router = express.Router();
 
 // Helper function to get industries ranked by composite score with performance metrics
@@ -15,7 +25,8 @@ async function fetchIndustries(req, res) {
 
     // Parallelize data and count queries
     const [result, countResult] = await Promise.all([
-      query(`
+      query(
+        `
       WITH recent_prices AS (
         SELECT symbol, date, close,
           ROW_NUMBER() OVER (PARTITION BY symbol ORDER BY date DESC) as rn
@@ -77,19 +88,35 @@ async function fetchIndustries(req, res) {
       LEFT JOIN industry_pe_ranked ipe ON ipe.industry = r.industry
       ORDER BY r.current_rank, r.stock_count DESC
       LIMIT $1 OFFSET $2
-    `, [limitNum, offset]),
-      query(`SELECT COUNT(DISTINCT industry) as count FROM company_profile WHERE industry IS NOT NULL`)
+    `,
+        [limitNum, offset]
+      ),
+      query(
+        `SELECT COUNT(DISTINCT industry) as count FROM company_profile WHERE industry IS NOT NULL`
+      ),
     ]);
     validateQueryResult(result, { requireRows: false });
-    const total = extractCount(countResult, 'count');
+    const total = extractCount(countResult, "count");
 
-    const sf = v => (v !== null && v !== undefined) ? parseFloat(v) : null;
+    const sf = (v) => (v !== null && v !== undefined ? parseFloat(v) : null);
 
     const industries = (result?.rows || []).map((row, idx) => {
       const composite = sf(row.composite_score);
       const perf20d = sf(row.perf_20d);
-      const momentumLabel = composite !== null && composite >= 60 ? 'Strong' : composite !== null && composite >= 45 ? 'Moderate' : 'Weak';
-      const trendLabel = perf20d !== null ? (perf20d > 2 ? 'Uptrend' : perf20d < -2 ? 'Downtrend' : 'Sideways') : 'Sideways';
+      const momentumLabel =
+        composite !== null && composite >= 60
+          ? "Strong"
+          : composite !== null && composite >= 45
+            ? "Moderate"
+            : "Weak";
+      const trendLabel =
+        perf20d !== null
+          ? perf20d > 2
+            ? "Uptrend"
+            : perf20d < -2
+              ? "Downtrend"
+              : "Sideways"
+          : "Sideways";
 
       return {
         industry: row.industry,
@@ -118,10 +145,21 @@ async function fetchIndustries(req, res) {
     });
 
     const totalPages = Math.ceil(total / limitNum);
-    return sendPaginated(res, industries, {page: pageNum, limit: limitNum, total, totalPages, hasNext: pageNum < totalPages, hasPrev: pageNum > 1});
+    return sendPaginated(res, industries, {
+      page: pageNum,
+      limit: limitNum,
+      total,
+      totalPages,
+      hasNext: pageNum < totalPages,
+      hasPrev: pageNum > 1,
+    });
   } catch (error) {
     console.error("Error fetching industries:", error.message);
-    return sendError(res, `Failed to fetch industries: ${error.message.substring(0, 100)}`, 500);
+    return sendError(
+      res,
+      `Failed to fetch industries: ${error.message.substring(0, 100)}`,
+      500
+    );
   }
 }
 
@@ -136,18 +174,28 @@ router.get("/trends-batch", async (req, res) => {
   try {
     const { industries: industriesList, days = 90 } = req.query;
     if (!industriesList) {
-      return sendError(res, 'industries parameter required (comma-separated)', 400);
+      return sendError(
+        res,
+        "industries parameter required (comma-separated)",
+        400
+      );
     }
 
-    const industries = industriesList.split(',').map(i => i.trim()).filter(i => i.length > 0);
+    const industries = industriesList
+      .split(",")
+      .map((i) => i.trim())
+      .filter((i) => i.length > 0);
     const daysNum = Math.min(parseInt(days) || 90, 365);
 
     if (industries.length === 0) {
       return sendSuccess(res, {});
     }
 
-    const placeholders = industries.map((_, i) => `LOWER(TRIM(cp.industry)) = LOWER(TRIM($${i + 1}))`).join(' OR ');
-    const result = await query(`
+    const placeholders = industries
+      .map((_, i) => `LOWER(TRIM(cp.industry)) = LOWER(TRIM($${i + 1}))`)
+      .join(" OR ");
+    const result = await query(
+      `
       WITH prices AS (
         SELECT
           cp.industry,
@@ -165,11 +213,13 @@ router.get("/trends-batch", async (req, res) => {
         ((avg_price / NULLIF(FIRST_VALUE(avg_price) OVER (PARTITION BY industry ORDER BY date), 0)) - 1) * 100 AS daily_strength_score
       FROM prices
       ORDER BY industry, date ASC
-    `, industries);
+    `,
+      industries
+    );
     validateQueryResult(result, { requireRows: false });
 
     const grouped = {};
-    (result?.rows || []).forEach(row => {
+    (result?.rows || []).forEach((row) => {
       if (!grouped[row.industry]) {
         grouped[row.industry] = [];
       }
@@ -177,14 +227,18 @@ router.get("/trends-batch", async (req, res) => {
         date: row.date,
         avgPrice: parseFloat(row.avg_price) || 0,
         stockCount: parseInt(row.stock_count) || 0,
-        dailyStrengthScore: parseFloat(row.daily_strength_score) || 0
+        dailyStrengthScore: parseFloat(row.daily_strength_score) || 0,
       });
     });
 
     return sendSuccess(res, grouped, 200);
   } catch (error) {
     console.error("Error fetching industry trends batch:", error);
-    return sendError(res, "Failed to fetch industry trends: " + error.message, 500);
+    return sendError(
+      res,
+      "Failed to fetch industry trends: " + error.message,
+      500
+    );
   }
 });
 
@@ -197,7 +251,8 @@ router.get("/:industry", async (req, res) => {
     }
 
     // Query industry details with performance metrics
-    const result = await query(`
+    const result = await query(
+      `
       SELECT
         cp.industry as industry_name,
         COUNT(DISTINCT cp.ticker) as stock_count,
@@ -211,7 +266,9 @@ router.get("/:industry", async (req, res) => {
       LEFT JOIN stock_scores ss ON cp.ticker = ss.symbol
       WHERE LOWER(TRIM(cp.industry)) = LOWER(TRIM($1))
       GROUP BY cp.industry
-    `, [industry]);
+    `,
+      [industry]
+    );
     validateQueryResult(result, { requireRows: false });
 
     if (result.rows.length === 0) {
@@ -222,18 +279,28 @@ router.get("/:industry", async (req, res) => {
     const industryData = {
       industry_name: row.industry_name,
       stock_count: parseInt(row.stock_count || 0),
-      composite_score: row.composite_score ? parseFloat(row.composite_score) : null,
-      momentum_score: row.momentum_score ? parseFloat(row.momentum_score) : null,
+      composite_score: row.composite_score
+        ? parseFloat(row.composite_score)
+        : null,
+      momentum_score: row.momentum_score
+        ? parseFloat(row.momentum_score)
+        : null,
       value_score: row.value_score ? parseFloat(row.value_score) : null,
       quality_score: row.quality_score ? parseFloat(row.quality_score) : null,
       growth_score: row.growth_score ? parseFloat(row.growth_score) : null,
-      stability_score: row.stability_score ? parseFloat(row.stability_score) : null,
+      stability_score: row.stability_score
+        ? parseFloat(row.stability_score)
+        : null,
     };
 
     return sendSuccess(res, industryData);
   } catch (error) {
     console.error("Error fetching industry:", error);
-    return sendError(res, `Failed to fetch industry: ${error.message.substring(0, 100)}`, 500);
+    return sendError(
+      res,
+      `Failed to fetch industry: ${error.message.substring(0, 100)}`,
+      500
+    );
   }
 });
 
@@ -244,7 +311,8 @@ router.get("/:industry/trend", async (req, res) => {
     const { days = 90 } = req.query;
     const daysNum = Math.min(parseInt(days) || 90, 365);
 
-    const result = await query(`
+    const result = await query(
+      `
       WITH prices AS (
         SELECT
           DATE(pd.date) as date,
@@ -261,25 +329,36 @@ router.get("/:industry/trend", async (req, res) => {
         ((avg_price / NULLIF(FIRST_VALUE(avg_price) OVER (ORDER BY date), 0)) - 1) * 100 AS daily_strength_score
       FROM prices
       ORDER BY date ASC
-    `, [industry]);
+    `,
+      [industry]
+    );
     validateQueryResult(result, { requireRows: false });
 
     if (!result?.rows || result.rows.length === 0) {
-      return sendPlaceholder(res, `No trend data available for industry: ${industry}`, 200, 'object');
+      return sendPlaceholder(
+        res,
+        `No trend data available for industry: ${industry}`,
+        200,
+        "object"
+      );
     }
 
     return sendSuccess(res, {
       industry,
-      trendData: result.rows.map(row => ({
+      trendData: result.rows.map((row) => ({
         date: row.date,
         avgPrice: parseFloat(row.avg_price) || 0,
         stockCount: parseInt(row.stock_count) || 0,
-        dailyStrengthScore: parseFloat(row.daily_strength_score) || 0
-      }))
+        dailyStrengthScore: parseFloat(row.daily_strength_score) || 0,
+      })),
     });
   } catch (error) {
     console.error("Error fetching industry trend:", error.message);
-    return sendError(res, `Failed to fetch industry trend: ${error.message.substring(0, 100)}`, 500);
+    return sendError(
+      res,
+      `Failed to fetch industry trend: ${error.message.substring(0, 100)}`,
+      500
+    );
   }
 });
 
@@ -290,7 +369,8 @@ router.get("/trend/industry/:industryName", async (req, res) => {
     const { days = 90 } = req.query;
     const daysNum = Math.min(parseInt(days) || 90, 365);
 
-    const result = await query(`
+    const result = await query(
+      `
       WITH prices AS (
         SELECT
           DATE(pd.date) as date,
@@ -307,24 +387,34 @@ router.get("/trend/industry/:industryName", async (req, res) => {
         ((avg_price / NULLIF(FIRST_VALUE(avg_price) OVER (ORDER BY date), 0)) - 1) * 100 AS daily_strength_score
       FROM prices
       ORDER BY date ASC
-    `, [industryName]);
+    `,
+      [industryName]
+    );
     validateQueryResult(result, { requireRows: false });
 
     if (!result?.rows || result.rows.length === 0) {
-      return sendError(res, `No trend data found for industry: ${industryName}`, 404);
+      return sendError(
+        res,
+        `No trend data found for industry: ${industryName}`,
+        404
+      );
     }
 
-    const trendData = result.rows.map(row => ({
+    const trendData = result.rows.map((row) => ({
       date: row.date,
       avgPrice: parseFloat(row.avg_price) || 0,
       stockCount: parseInt(row.stock_count) || 0,
-      dailyStrengthScore: parseFloat(row.daily_strength_score) || 0
+      dailyStrengthScore: parseFloat(row.daily_strength_score) || 0,
     }));
 
     return sendSuccess(res, { industry: industryName, trendData });
   } catch (error) {
     console.error("Error fetching industry trend:", error.message);
-    return sendError(res, `Failed to fetch industry trend: ${error.message.substring(0, 100)}`, 500);
+    return sendError(
+      res,
+      `Failed to fetch industry trend: ${error.message.substring(0, 100)}`,
+      500
+    );
   }
 });
 

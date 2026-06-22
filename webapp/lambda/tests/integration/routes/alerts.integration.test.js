@@ -199,7 +199,11 @@ describe("Alerts Routes - Real Data Validation", () => {
       expect([200, 201]).toContain(response.status);
       expect(response.body.success).toBe(true);
       expect(response.body.data.user_id).toBe("dev-user-bypass");
-      if (response.body.data && response.body.data.symbol) { expect(response.body.data.symbol).toBe("AAPL"); } else { expect(response.body.data).toBeDefined(); }
+      if (response.body.data && response.body.data.symbol) {
+        expect(response.body.data.symbol).toBe("AAPL");
+      } else {
+        expect(response.body.data).toBeDefined();
+      }
       expect(response.body.data.category).toBe("price");
       expect(response.body.data.condition).toBe("above");
       expect(response.body.data.threshold).toBe(175.0);
@@ -329,7 +333,11 @@ describe("Alerts Routes - Real Data Validation", () => {
       expect(response.body.data).toHaveProperty("settings");
       expect(response.body.data).toHaveProperty("summary");
       expect(response.body.data).toHaveProperty("quick_actions");
-      if (response.body.data && response.body.data.metadata) { expect(response.body.data).toHaveProperty("metadata"); } else { expect(response.body.data).toBeDefined(); }
+      if (response.body.data && response.body.data.metadata) {
+        expect(response.body.data).toHaveProperty("metadata");
+      } else {
+        expect(response.body.data).toBeDefined();
+      }
 
       const settings = response.body.data.settings;
       expect(settings.user_id).toBe("dev-user-bypass");
@@ -395,9 +403,15 @@ describe("Alerts Routes - Real Data Validation", () => {
       } else {
         expect(response.body.success).toBe(false);
       }
-      if (response.body.error) { expect(response.body.error).toBeDefined(); }
-      if (response.body.troubleshooting) { expect(response.body).toHaveProperty("troubleshooting"); }
-      if (response.body.user_id) { expect(response.body.user_id).toBe("dev-user-bypass"); }
+      if (response.body.error) {
+        expect(response.body.error).toBeDefined();
+      }
+      if (response.body.troubleshooting) {
+        expect(response.body).toHaveProperty("troubleshooting");
+      }
+      if (response.body.user_id) {
+        expect(response.body.user_id).toBe("dev-user-bypass");
+      }
     });
 
     test("should handle query parameters", async () => {
@@ -461,9 +475,15 @@ describe("Alerts Routes - Real Data Validation", () => {
       } else {
         expect(response.body.success).toBe(false);
       }
-      if (response.body.error) { expect(response.body.error).toBeDefined(); }
-      if (response.body.troubleshooting) { expect(response.body).toHaveProperty("troubleshooting"); }
-      if (response.body.user_id) { expect(response.body.user_id).toBe("dev-user-bypass"); }
+      if (response.body.error) {
+        expect(response.body.error).toBeDefined();
+      }
+      if (response.body.troubleshooting) {
+        expect(response.body).toHaveProperty("troubleshooting");
+      }
+      if (response.body.user_id) {
+        expect(response.body.user_id).toBe("dev-user-bypass");
+      }
     });
 
     test("should handle webhook parameters", async () => {
@@ -559,7 +579,9 @@ describe("Alerts Routes - Real Data Validation", () => {
         expect(response.body.success).toBe(true);
         expect(response.body.data.deleted_alert.alert_id).toBe(alertId);
         if (response.body.data && response.body.data.deleted_alert) {
-          expect(response.body.data.deleted_alert.user_id).toBe("dev-user-bypass");
+          expect(response.body.data.deleted_alert.user_id).toBe(
+            "dev-user-bypass"
+          );
           expect(response.body.data.deleted_alert.status).toBe("deleted");
           expect(response.body.data.deleted_alert.deletion_reason).toBe(
             "no_longer_needed"
@@ -607,9 +629,15 @@ describe("Alerts Routes - Real Data Validation", () => {
       } else {
         expect(response.body.success).toBe(false);
       }
-      if (response.body.error) { expect(response.body.error).toBeDefined(); }
-      if (response.body.troubleshooting) { expect(response.body).toHaveProperty("troubleshooting"); }
-      if (response.body.user_id) { expect(response.body.user_id).toBe("dev-user-bypass"); }
+      if (response.body.error) {
+        expect(response.body.error).toBeDefined();
+      }
+      if (response.body.troubleshooting) {
+        expect(response.body).toHaveProperty("troubleshooting");
+      }
+      if (response.body.user_id) {
+        expect(response.body.user_id).toBe("dev-user-bypass");
+      }
     });
 
     test("should handle symbol filter", async () => {

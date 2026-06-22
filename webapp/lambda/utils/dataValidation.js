@@ -6,48 +6,49 @@
 const validationRules = {
   // Stock/ETF data validation
   stock: {
-    symbol: v => typeof v === 'string' && v.length > 0,
-    price: v => v === null || (typeof v === 'number' && v >= 0),
-    change: v => v === null || typeof v === 'number',
-    change_percent: v => v === null || typeof v === 'number',
+    symbol: (v) => typeof v === "string" && v.length > 0,
+    price: (v) => v === null || (typeof v === "number" && v >= 0),
+    change: (v) => v === null || typeof v === "number",
+    change_percent: (v) => v === null || typeof v === "number",
   },
 
   // Trading signal validation
   signal: {
-    symbol: v => typeof v === 'string' && v.length > 0,
-    signal: v => ['BUY', 'SELL', 'HOLD', 'None'].includes(v),
-    date: v => !isNaN(Date.parse(v)),
-    entry_price: v => v === null || (typeof v === 'number' && v > 0),
-    exit_price: v => v === null || (typeof v === 'number' && v >= 0),
-    signal_quality_score: v => v === null || (typeof v === 'number' && v >= 0 && v <= 100),
+    symbol: (v) => typeof v === "string" && v.length > 0,
+    signal: (v) => ["BUY", "SELL", "HOLD", "None"].includes(v),
+    date: (v) => !isNaN(Date.parse(v)),
+    entry_price: (v) => v === null || (typeof v === "number" && v > 0),
+    exit_price: (v) => v === null || (typeof v === "number" && v >= 0),
+    signal_quality_score: (v) =>
+      v === null || (typeof v === "number" && v >= 0 && v <= 100),
   },
 
   // Position validation
   position: {
-    symbol: v => typeof v === 'string' && v.length > 0,
-    quantity: v => typeof v === 'number' && v > 0,
-    entry_price: v => typeof v === 'number' && v > 0,
-    current_price: v => typeof v === 'number' && v > 0,
-    stop_loss: v => v === null || (typeof v === 'number' && v > 0),
-    target_price: v => v === null || (typeof v === 'number' && v > 0),
+    symbol: (v) => typeof v === "string" && v.length > 0,
+    quantity: (v) => typeof v === "number" && v > 0,
+    entry_price: (v) => typeof v === "number" && v > 0,
+    current_price: (v) => typeof v === "number" && v > 0,
+    stop_loss: (v) => v === null || (typeof v === "number" && v > 0),
+    target_price: (v) => v === null || (typeof v === "number" && v > 0),
   },
 
   // Financial metrics validation
   financial: {
-    symbol: v => typeof v === 'string' && v.length > 0,
-    pe_ratio: v => v === null || (typeof v === 'number' && v > 0),
-    pb_ratio: v => v === null || (typeof v === 'number' && v > 0),
-    debt_to_equity: v => v === null || (typeof v === 'number' && v >= 0),
-    current_ratio: v => v === null || (typeof v === 'number' && v > 0),
-    roa: v => v === null || typeof v === 'number',
-    roe: v => v === null || typeof v === 'number',
+    symbol: (v) => typeof v === "string" && v.length > 0,
+    pe_ratio: (v) => v === null || (typeof v === "number" && v > 0),
+    pb_ratio: (v) => v === null || (typeof v === "number" && v > 0),
+    debt_to_equity: (v) => v === null || (typeof v === "number" && v >= 0),
+    current_ratio: (v) => v === null || (typeof v === "number" && v > 0),
+    roa: (v) => v === null || typeof v === "number",
+    roe: (v) => v === null || typeof v === "number",
   },
 
   // Market data validation
   market: {
-    vix: v => v === null || (typeof v === 'number' && v >= 0),
-    breadth: v => v === null || (typeof v === 'number' && v >= 0 && v <= 100),
-    market_cap: v => v === null || (typeof v === 'number' && v > 0),
+    vix: (v) => v === null || (typeof v === "number" && v >= 0),
+    breadth: (v) => v === null || (typeof v === "number" && v >= 0 && v <= 100),
+    market_cap: (v) => v === null || (typeof v === "number" && v > 0),
   },
 };
 
@@ -64,12 +65,12 @@ function validateField(value, rule) {
     const isValid = rule(value);
     return {
       valid: isValid,
-      errors: isValid ? [] : [`Invalid value: ${JSON.stringify(value)}`]
+      errors: isValid ? [] : [`Invalid value: ${JSON.stringify(value)}`],
     };
   } catch (e) {
     return {
       valid: false,
-      errors: [`Validation error: ${e.message}`]
+      errors: [`Validation error: ${e.message}`],
     };
   }
 }
@@ -101,7 +102,7 @@ function validateArray(arr, schema) {
   if (!Array.isArray(arr)) {
     return {
       valid: false,
-      errors: ['Expected array']
+      errors: ["Expected array"],
     };
   }
 
@@ -142,7 +143,7 @@ function sanitizeObject(obj, schema) {
   const sanitized = {};
 
   for (const [field, rule] of Object.entries(schema)) {
-    if (obj.hasOwnProperty(field)) {
+    if (Object.prototype.hasOwnProperty.call(obj, field)) {
       sanitized[field] = sanitizeValue(obj[field], rule);
     }
   }
@@ -158,10 +159,12 @@ function sanitizeArray(arr, schema) {
     return [];
   }
 
-  return arr.map(obj => sanitizeObject(obj, schema)).filter(obj => {
-    // Remove objects where all fields are null
-    return Object.values(obj).some(v => v !== null);
-  });
+  return arr
+    .map((obj) => sanitizeObject(obj, schema))
+    .filter((obj) => {
+      // Remove objects where all fields are null
+      return Object.values(obj).some((v) => v !== null);
+    });
 }
 
 /**

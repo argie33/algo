@@ -16,7 +16,11 @@ describe("Analytics Routes Unit Tests", () => {
     // This replaces the real auth middleware so we don't hit security checks
     app.use((req, res, next) => {
       // Always set authenticated user, ignore Authorization header for unit tests
-      req.user = { sub: "test-user-123", email: "test@example.com", role: "user" };
+      req.user = {
+        sub: "test-user-123",
+        email: "test@example.com",
+        role: "user",
+      };
       next();
     });
 
@@ -40,8 +44,7 @@ describe("Analytics Routes Unit Tests", () => {
 
   describe("GET /analytics/performance", () => {
     test("should handle performance analytics", async () => {
-      const response = await request(app)
-        .get("/analytics/performance");
+      const response = await request(app).get("/analytics/performance");
 
       // API may return 200 for success or 401 for auth or 500/503 for database issues
       expect([200, 401, 500, 503]).toContain(response.status);
@@ -51,8 +54,7 @@ describe("Analytics Routes Unit Tests", () => {
 
   describe("GET /analytics/risk", () => {
     test("should handle risk analytics", async () => {
-      const response = await request(app)
-        .get("/analytics/risk");
+      const response = await request(app).get("/analytics/risk");
 
       // API may return 200 for success or 401 for auth or 500 for database issues
       expect([200, 401, 500]).toContain(response.status);
@@ -71,8 +73,7 @@ describe("Analytics Routes Unit Tests", () => {
 
   describe("GET /analytics/allocation", () => {
     test("should handle allocation analytics", async () => {
-      const response = await request(app)
-        .get("/analytics/allocation")
+      const response = await request(app).get("/analytics/allocation");
 
       expect([200, 401, 500]).toContain(response.status);
       expect(response.body).toHaveProperty("success");
@@ -81,8 +82,7 @@ describe("Analytics Routes Unit Tests", () => {
 
   describe("GET /analytics/returns", () => {
     test("should handle returns analytics", async () => {
-      const response = await request(app)
-        .get("/analytics/returns")
+      const response = await request(app).get("/analytics/returns");
 
       expect([200, 401, 500]).toContain(response.status);
       expect(response.body).toHaveProperty("success");
@@ -91,8 +91,7 @@ describe("Analytics Routes Unit Tests", () => {
 
   describe("GET /analytics/sectors", () => {
     test("should handle sectors analytics", async () => {
-      const response = await request(app)
-        .get("/analytics/sectors")
+      const response = await request(app).get("/analytics/sectors");
 
       expect([200, 401, 500]).toContain(response.status);
       expect(response.body).toHaveProperty("success");
@@ -101,8 +100,7 @@ describe("Analytics Routes Unit Tests", () => {
 
   describe("GET /analytics/volatility", () => {
     test("should handle volatility analytics", async () => {
-      const response = await request(app)
-        .get("/analytics/volatility")
+      const response = await request(app).get("/analytics/volatility");
 
       expect([200, 401, 500]).toContain(response.status);
       expect(response.body).toHaveProperty("success");
@@ -111,8 +109,7 @@ describe("Analytics Routes Unit Tests", () => {
 
   describe("GET /analytics/trends", () => {
     test("should handle trends analytics", async () => {
-      const response = await request(app)
-        .get("/analytics/trends")
+      const response = await request(app).get("/analytics/trends");
 
       expect([200, 401, 500]).toContain(response.status);
       expect(response.body).toHaveProperty("success");

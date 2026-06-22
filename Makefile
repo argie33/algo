@@ -1,4 +1,4 @@
-.PHONY: help install-hooks lint format type-check security test coverage clean ci-local
+.PHONY: help install-hooks lint format type-check security test coverage clean ci-local lint-js format-js audit-js license-check
 
 help:
 	@echo "Algo Trading System — Local Development Commands"
@@ -8,10 +8,14 @@ help:
 	@echo "  make install-hooks     Install git pre-commit hooks (run once)"
 	@echo ""
 	@echo "Code Quality (matching CI):"
-	@echo "  make lint              Run ruff linter"
-	@echo "  make format            Format code with ruff"
-	@echo "  make type-check        Run mypy type checking"
+	@echo "  make lint              Run ruff linter (Python)"
+	@echo "  make format            Format code with ruff (Python)"
+	@echo "  make type-check        Run mypy type checking (Python)"
 	@echo "  make security          Run bandit security scan + TruffleHog"
+	@echo "  make lint-js           Run ESLint + Prettier check (webapp/lambda)"
+	@echo "  make format-js         Auto-format JS/JSON/MD with Prettier"
+	@echo "  make audit-js          Run npm audit for high-severity CVEs"
+	@echo "  make license-check     Check Python + JS dependency licenses"
 	@echo ""
 	@echo "Testing:"
 	@echo "  make test              Run all unit/edge/integration tests"
@@ -86,6 +90,27 @@ clean:
 	find . -name "*.pyc" -delete
 	@echo "✅ Cleaned up build artifacts"
 
-ci-local: lint type-check security test
+lint-js:
+	cd webapp/lambda && npm run lint
+	cd webapp/lambda && npm run format:check
+	cd webapp/lambda && npm run typecheck
+
+format-js:
+	cd webapp/lambda && npm run format
+
+audit-js:
+	cd webapp/lambda && npm audit --audit-level=high
+
+license-check:
+	@echo "Checking Python dependency licenses..."
+	pip install -q licensecheck
+	licensecheck --zero --format json > /tmp/license-report.json || true
+	@if grep -iE '(GPL|SSPL)' /tmp/license-report.json > /dev/null 2>&1; then echo "WARNING: GPL/SSPL licenses detected in Python dependencies"; cat /tmp/license-report.json; else echo "✅ No GPL/SSPL licenses in Python dependencies"; fi
+	@echo "Checking Node.js dependency licenses..."
+	@which license-checker > /dev/null 2>&1 || npm install -g license-checker
+	license-checker --json --prefix webapp/lambda > /tmp/npm-licenses.json || true
+	@if grep -iE '(GPL|SSPL)' /tmp/npm-licenses.json > /dev/null 2>&1; then echo "WARNING: GPL/SSPL licenses in Node.js dependencies"; else echo "✅ No GPL/SSPL licenses in Node.js dependencies"; fi
+
+ci-local: lint type-check security test lint-js
 	@echo ""
 	@echo "✅ All CI checks passed locally!"

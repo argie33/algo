@@ -5,7 +5,14 @@ describe("News Analyzer", () => {
   beforeEach(() => {
     jest.clearAllMocks();
   });
-const { query, closeDatabase, initializeDatabase, getPool, transaction, healthCheck } = require("../../../utils/database");
+  const {
+    query,
+    closeDatabase,
+    initializeDatabase,
+    getPool,
+    transaction,
+    healthCheck,
+  } = require("../../../utils/database");
 
   describe("sentiment analysis", () => {
     test("should analyze positive sentiment", () => {

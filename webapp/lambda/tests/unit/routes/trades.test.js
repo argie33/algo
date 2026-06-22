@@ -35,7 +35,7 @@ jest.mock(
     getUserApiKey: jest.fn().mockResolvedValue({
       key: "mock-alpaca-key",
       secret: "mock-alpaca-secret",
-      broker: "alpaca"
+      broker: "alpaca",
     }),
     validateUserAuthentication: jest.fn().mockReturnValue("test-user-123"),
     sendApiKeyError: jest.fn(),
@@ -46,8 +46,10 @@ jest.mock(
   "../../../utils/alpacaService",
   () => {
     return jest.fn().mockImplementation(() => ({
-      getTradeHistory: jest.fn().mockRejectedValue(new Error("API credentials not configured")),
-      isConfigured: jest.fn().mockReturnValue(false)
+      getTradeHistory: jest
+        .fn()
+        .mockRejectedValue(new Error("API credentials not configured")),
+      isConfigured: jest.fn().mockReturnValue(false),
     }));
   },
   { virtual: true }
@@ -75,26 +77,26 @@ describe("Trades Routes - Testing Your Actual Site", () => {
     query.mockImplementation((sql, params) => {
       // Default: return empty rows for all queries
       // Tests can override with mockResolvedValueOnce/mockResolvedValue
-      if (sql && typeof sql === 'string') {
+      if (sql && typeof sql === "string") {
         // Handle information_schema queries for table/column introspection
         if (sql.includes("information_schema")) {
           if (sql.includes("columns")) {
             // Return mock columns for any table being checked
             return Promise.resolve({
               rows: [
-                { column_name: 'id', ordinal_position: 1 },
-                { column_name: 'user_id', ordinal_position: 2 },
-                { column_name: 'symbol', ordinal_position: 3 },
-                { column_name: 'quantity', ordinal_position: 4 },
-                { column_name: 'side', ordinal_position: 5 },
-                { column_name: 'status', ordinal_position: 6 },
-                { column_name: 'type', ordinal_position: 7 },
-                { column_name: 'executed_at', ordinal_position: 8 },
-                { column_name: 'average_fill_price', ordinal_position: 9 },
-                { column_name: 'filled_quantity', ordinal_position: 10 },
-                { column_name: 'created_at', ordinal_position: 11 },
-                { column_name: 'updated_at', ordinal_position: 12 }
-              ]
+                { column_name: "id", ordinal_position: 1 },
+                { column_name: "user_id", ordinal_position: 2 },
+                { column_name: "symbol", ordinal_position: 3 },
+                { column_name: "quantity", ordinal_position: 4 },
+                { column_name: "side", ordinal_position: 5 },
+                { column_name: "status", ordinal_position: 6 },
+                { column_name: "type", ordinal_position: 7 },
+                { column_name: "executed_at", ordinal_position: 8 },
+                { column_name: "average_fill_price", ordinal_position: 9 },
+                { column_name: "filled_quantity", ordinal_position: 10 },
+                { column_name: "created_at", ordinal_position: 11 },
+                { column_name: "updated_at", ordinal_position: 12 },
+              ],
             });
           }
           if (sql.includes("tables")) {
@@ -174,8 +176,9 @@ describe("Trades Routes - Testing Your Actual Site", () => {
           source: "database",
         },
       ];
-      query.mockResolvedValueOnce({ rows: mockTrades })
-           .mockResolvedValueOnce({ rows: [{ total: "2" }] });
+      query
+        .mockResolvedValueOnce({ rows: mockTrades })
+        .mockResolvedValueOnce({ rows: [{ total: "2" }] });
       const response = await request(app).get("/trades/history").expect(200);
       expect(response.body).toHaveProperty("success", true);
       expect(response.body).toHaveProperty("data");
@@ -191,8 +194,9 @@ describe("Trades Routes - Testing Your Actual Site", () => {
       }
     });
     test("should handle date range filtering", async () => {
-      query.mockResolvedValueOnce({ rows: [] })
-           .mockResolvedValueOnce({ rows: [{ total: "0" }] });
+      query
+        .mockResolvedValueOnce({ rows: [] })
+        .mockResolvedValueOnce({ rows: [{ total: "0" }] });
       const response = await request(app)
         .get("/trades/history?start_date=2024-01-01&end_date=2024-01-31")
         .expect(200);
@@ -200,8 +204,9 @@ describe("Trades Routes - Testing Your Actual Site", () => {
       expect(query).toHaveBeenCalled();
     });
     test("should filter by symbol", async () => {
-      query.mockResolvedValueOnce({ rows: [] })
-           .mockResolvedValueOnce({ rows: [{ total: "0" }] });
+      query
+        .mockResolvedValueOnce({ rows: [] })
+        .mockResolvedValueOnce({ rows: [{ total: "0" }] });
       const response = await request(app)
         .get("/trades/history?symbol=AAPL")
         .expect(200);
@@ -209,8 +214,9 @@ describe("Trades Routes - Testing Your Actual Site", () => {
       expect(query).toHaveBeenCalled();
     });
     test("should support pagination parameters", async () => {
-      query.mockResolvedValueOnce({ rows: [] })
-           .mockResolvedValueOnce({ rows: [{ total: "0" }] });
+      query
+        .mockResolvedValueOnce({ rows: [] })
+        .mockResolvedValueOnce({ rows: [{ total: "0" }] });
       const response = await request(app)
         .get("/trades/history?page=2&limit=25")
         .expect(200);
@@ -277,7 +283,7 @@ MSFT,sell,50,300.00,2024-01-16`;
         .post("/trades/import")
         .send({
           format: "csv",
-          data: csvData
+          data: csvData,
         })
         .expect(200);
       expect(response.body).toHaveProperty("success", true);

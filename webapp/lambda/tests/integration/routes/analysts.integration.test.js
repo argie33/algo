@@ -15,11 +15,12 @@ describe("Analysts Routes - Real Data Validation", () => {
   });
   describe("GET /api/analysts", () => {
     test("should return simplified analyst API overview", async () => {
-      const response = await request(app)
-        .get("/api/analysts")
-        .expect(200);
+      const response = await request(app).get("/api/analysts").expect(200);
 
-      expect(response.body).toHaveProperty("message", "Analysts API - Real YFinance Data Only");
+      expect(response.body).toHaveProperty(
+        "message",
+        "Analysts API - Real YFinance Data Only"
+      );
       expect(response.body).toHaveProperty("status", "operational");
       expect(response.body).toHaveProperty("endpoints");
       expect(Array.isArray(response.body.endpoints)).toBe(true);
@@ -132,9 +133,7 @@ describe("Analysts Routes - Real Data Validation", () => {
 
   describe("GET /api/analysts/:symbol", () => {
     test("should return all analyst data for AAPL", async () => {
-      const response = await request(app)
-        .get("/api/analysts/AAPL")
-        .expect(200);
+      const response = await request(app).get("/api/analysts/AAPL").expect(200);
 
       expect(response.body).toHaveProperty("success", true);
       expect(response.body).toHaveProperty("symbol", "AAPL");
@@ -146,9 +145,7 @@ describe("Analysts Routes - Real Data Validation", () => {
     });
 
     test("should handle lowercase symbol", async () => {
-      const response = await request(app)
-        .get("/api/analysts/aapl")
-        .expect(200);
+      const response = await request(app).get("/api/analysts/aapl").expect(200);
 
       expect(response.body).toHaveProperty("success", true);
       expect(response.body).toHaveProperty("symbol", "AAPL");
@@ -167,8 +164,7 @@ describe("Analysts Routes - Real Data Validation", () => {
 
   describe("Error Handling", () => {
     test("should handle invalid routes gracefully", async () => {
-      const response = await request(app)
-        .get("/api/analysts/INVALID-SYMBOL");
+      const response = await request(app).get("/api/analysts/INVALID-SYMBOL");
 
       // Invalid endpoint returns 200 with data structure (symbol treated as ticker)
       expect([200, 404]).toContain(response.status);
@@ -201,9 +197,7 @@ describe("Analysts Routes - Real Data Validation", () => {
     test("should respond within reasonable time", async () => {
       const startTime = Date.now();
 
-      await request(app)
-        .get("/api/analysts/upgrades?limit=10")
-        .expect(200);
+      await request(app).get("/api/analysts/upgrades?limit=10").expect(200);
 
       const responseTime = Date.now() - startTime;
       expect(responseTime).toBeLessThan(5000); // 5 second timeout

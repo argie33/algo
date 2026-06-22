@@ -1,10 +1,19 @@
-const express = require('express');
-const { query } = require('../utils/database');
-const { sendSuccess, sendError, sendPaginated } = require('../utils/apiResponse');
-const { authenticateToken } = require('../middleware/auth');
-const logger = require('../utils/logger');
-const paginationConfig = require('../config/pagination');
-const { validateQueryResult, validateAndCoerceRows, extractCount } = require('../utils/responseValidation');
+const express = require("express");
+
+const { query } = require("../utils/database");
+const {
+  sendSuccess,
+  sendError,
+  sendPaginated,
+} = require("../utils/apiResponse");
+const { authenticateToken } = require("../middleware/auth");
+const logger = require("../utils/logger");
+const paginationConfig = require("../config/pagination");
+const {
+  validateQueryResult,
+  validateAndCoerceRows,
+  extractCount,
+} = require("../utils/responseValidation");
 
 const router = express.Router();
 const requireAuth = authenticateToken;
@@ -13,19 +22,27 @@ const requireAuth = authenticateToken;
  * GET /api/research/backtests
  * List all backtest runs with pagination
  */
-router.get('/', requireAuth, async (req, res, next) => {
+router.get("/", requireAuth, async (req, res, next) => {
   try {
     const {
       strategy_name,
       limit = 50,
       offset = 0,
-      sort_by = 'run_timestamp',
-      order = 'DESC'
+      sort_by = "run_timestamp",
+      order = "DESC",
     } = req.query;
 
-    const allowed_sorts = ['run_timestamp', 'total_signals', 'win_rate', 'expectancy_per_trade', 'sharpe_annualized'];
-    const sort_col = allowed_sorts.includes(sort_by) ? sort_by : 'run_timestamp';
-    const sort_order = order.toUpperCase() === 'ASC' ? 'ASC' : 'DESC';
+    const allowed_sorts = [
+      "run_timestamp",
+      "total_signals",
+      "win_rate",
+      "expectancy_per_trade",
+      "sharpe_annualized",
+    ];
+    const sort_col = allowed_sorts.includes(sort_by)
+      ? sort_by
+      : "run_timestamp";
+    const sort_order = order.toUpperCase() === "ASC" ? "ASC" : "DESC";
 
     let q = `
       SELECT
@@ -51,36 +68,36 @@ router.get('/', requireAuth, async (req, res, next) => {
     q += ` LIMIT $${paramCount + 1} OFFSET $${paramCount + 2}`;
 
     // Parallelize data and count queries
-    let countQ = 'SELECT COUNT(*) as total FROM backtest_runs br';
+    let countQ = "SELECT COUNT(*) as total FROM backtest_runs br";
     if (strategy_name) {
       countQ += ` WHERE br.strategy_name = $1`;
     }
 
     const [result, countResult] = await Promise.all([
       query(q, [...params, parseInt(limit), parseInt(offset)]),
-      query(countQ, strategy_name ? [strategy_name] : [])
+      query(countQ, strategy_name ? [strategy_name] : []),
     ]);
     validateQueryResult(result, { requireRows: false });
-    const total = extractCount(countResult, 'total');
+    const total = extractCount(countResult, "total");
 
     const validated = validateAndCoerceRows(result, {
-      run_id: { type: 'int', required: true },
-      run_name: { type: 'string', required: true },
-      run_timestamp: { type: 'date' },
-      strategy_name: { type: 'string', required: true },
-      start_date: { type: 'date' },
-      end_date: { type: 'date' },
-      num_trades: { type: 'int' },
-      num_winning_trades: { type: 'int' },
-      num_losing_trades: { type: 'int' },
-      win_rate: { type: 'float' },
-      avg_win: { type: 'float' },
-      avg_loss: { type: 'float' },
-      total_return: { type: 'float' },
-      max_drawdown: { type: 'float' },
-      sharpe: { type: 'float' },
-      sortino_ratio: { type: 'float' },
-      profit_factor: { type: 'float' }
+      run_id: { type: "int", required: true },
+      run_name: { type: "string", required: true },
+      run_timestamp: { type: "date" },
+      strategy_name: { type: "string", required: true },
+      start_date: { type: "date" },
+      end_date: { type: "date" },
+      num_trades: { type: "int" },
+      num_winning_trades: { type: "int" },
+      num_losing_trades: { type: "int" },
+      win_rate: { type: "float" },
+      avg_win: { type: "float" },
+      avg_loss: { type: "float" },
+      total_return: { type: "float" },
+      max_drawdown: { type: "float" },
+      sharpe: { type: "float" },
+      sortino_ratio: { type: "float" },
+      profit_factor: { type: "float" },
     });
 
     return sendPaginated(res, validated, {
@@ -90,7 +107,7 @@ router.get('/', requireAuth, async (req, res, next) => {
       page: Math.floor(parseInt(offset) / parseInt(limit)) + 1,
       totalPages: Math.ceil(total / parseInt(limit)),
       hasNext: parseInt(offset) + parseInt(limit) < total,
-      hasPrev: parseInt(offset) > 0
+      hasPrev: parseInt(offset) > 0,
     });
   } catch (error) {
     console.error("Error fetching backtests", error);
@@ -102,10 +119,14 @@ router.get('/', requireAuth, async (req, res, next) => {
  * GET /api/research/backtests/:run_id
  * Get detailed backtest run with trades
  */
-router.get('/:run_id', requireAuth, async (req, res, next) => {
+router.get("/:run_id", requireAuth, async (req, res, next) => {
   try {
     const { run_id } = req.params;
-    const { limit, offset } = paginationConfig.sanitize(req.query.limit, req.query.offset, 'trades');
+    const { limit, offset } = paginationConfig.sanitize(
+      req.query.limit,
+      req.query.offset,
+      "trades"
+    );
 
     // Get run details
     const runQ = `
@@ -114,7 +135,7 @@ router.get('/:run_id', requireAuth, async (req, res, next) => {
     const runResult = await query(runQ, [run_id]);
 
     if (runResult.rows.length === 0) {
-      return sendError(res, 'Backtest run not found', 404);
+      return sendError(res, "Backtest run not found", 404);
     }
 
     const run = runResult.rows[0];
@@ -139,25 +160,25 @@ router.get('/:run_id', requireAuth, async (req, res, next) => {
 
     const [tradesResult, tradeCountResult] = await Promise.all([
       query(tradesQ, [run_id, parseInt(limit), parseInt(offset)]),
-      query(tradeCountQ, [run_id])
+      query(tradeCountQ, [run_id]),
     ]);
     validateQueryResult(tradesResult, { requireRows: false });
-    const tradeTotal = extractCount(tradeCountResult, 'total');
+    const tradeTotal = extractCount(tradeCountResult, "total");
 
     const validatedTrades = validateAndCoerceRows(tradesResult, {
-      trade_id: { type: 'int', required: true },
-      run_id: { type: 'int', required: true },
-      symbol: { type: 'string', required: true },
-      entry_date: { type: 'date' },
-      exit_date: { type: 'date' },
-      entry_price: { type: 'float' },
-      exit_price: { type: 'float' },
-      return_pct: { type: 'float' },
-      outcome: { type: 'string' },
-      exit_reason: { type: 'string' },
-      days_held: { type: 'int' },
-      quantity: { type: 'float' },
-      profit_loss: { type: 'float' }
+      trade_id: { type: "int", required: true },
+      run_id: { type: "int", required: true },
+      symbol: { type: "string", required: true },
+      entry_date: { type: "date" },
+      exit_date: { type: "date" },
+      entry_price: { type: "float" },
+      exit_price: { type: "float" },
+      return_pct: { type: "float" },
+      outcome: { type: "string" },
+      exit_reason: { type: "string" },
+      days_held: { type: "int" },
+      quantity: { type: "float" },
+      profit_loss: { type: "float" },
     });
 
     return sendSuccess(res, {
@@ -170,12 +191,16 @@ router.get('/:run_id', requireAuth, async (req, res, next) => {
         page: Math.floor(parseInt(offset) / parseInt(limit)) + 1,
         totalPages: Math.ceil(tradeTotal / parseInt(limit)),
         hasNext: parseInt(offset) + parseInt(limit) < tradeTotal,
-        hasPrev: parseInt(offset) > 0
-      }
+        hasPrev: parseInt(offset) > 0,
+      },
     });
   } catch (error) {
     console.error("Error fetching backtest run", error);
-    return sendError(res, "Failed to fetch backtest run: " + error.message, 500);
+    return sendError(
+      res,
+      "Failed to fetch backtest run: " + error.message,
+      500
+    );
   }
 });
 
@@ -183,7 +208,7 @@ router.get('/:run_id', requireAuth, async (req, res, next) => {
  * POST /api/research/backtests
  * Create a new backtest run record (used by backtest.py)
  */
-router.post('/', requireAuth, async (req, res, next) => {
+router.post("/", requireAuth, async (req, res, next) => {
   try {
     const {
       run_name,
@@ -205,7 +230,7 @@ router.post('/', requireAuth, async (req, res, next) => {
       sortino,
       calmar_ratio,
       profit_factor,
-      notes
+      notes,
     } = req.body;
 
     // INPUT VALIDATION
@@ -226,7 +251,11 @@ router.post('/', requireAuth, async (req, res, next) => {
       const start = new Date(date_start);
       const end = new Date(date_end);
       if (isNaN(start.getTime()) || isNaN(end.getTime())) {
-        return sendError(res, "date_start and date_end must be valid dates", 400);
+        return sendError(
+          res,
+          "date_start and date_end must be valid dates",
+          400
+        );
       }
       if (start > end) {
         return sendError(res, "date_start must be before date_end", 400);
@@ -249,14 +278,18 @@ router.post('/', requireAuth, async (req, res, next) => {
       sharpe: [sharpe, -100, 100],
       sortino: [sortino, -100, 100],
       calmar_ratio: [calmar_ratio, -100, 100],
-      profit_factor: [profit_factor, 0, 100]
+      profit_factor: [profit_factor, 0, 100],
     };
 
     for (const [field, [value, min, max]] of Object.entries(numericFields)) {
-      if (value !== null && value !== undefined && value !== '') {
+      if (value !== null && value !== undefined && value !== "") {
         const num = parseFloat(value);
         if (isNaN(num) || num < min || num > max) {
-          return sendError(res, `${field} must be a number between ${min} and ${max}`, 400);
+          return sendError(
+            res,
+            `${field} must be a number between ${min} and ${max}`,
+            400
+          );
         }
       }
     }
@@ -279,17 +312,36 @@ router.post('/', requireAuth, async (req, res, next) => {
     `;
 
     const result = await query(insertQ, [
-      run_name, strategy_name,
-      date_start, date_end,
-      total_signals, total_trades, winning_trades, losing_trades,
-      win_rate, avg_win_pct, avg_loss_pct, avg_hold_days,
-      expectancy_per_trade, total_return_pct, max_drawdown_pct,
-      sharpe, sortino, calmar_ratio, profit_factor, notes
+      run_name,
+      strategy_name,
+      date_start,
+      date_end,
+      total_signals,
+      total_trades,
+      winning_trades,
+      losing_trades,
+      win_rate,
+      avg_win_pct,
+      avg_loss_pct,
+      avg_hold_days,
+      expectancy_per_trade,
+      total_return_pct,
+      max_drawdown_pct,
+      sharpe,
+      sortino,
+      calmar_ratio,
+      profit_factor,
+      notes,
     ]);
 
-    return sendSuccess(res, {
-      run_id: result.rows[0].run_id
-    }, "Backtest created successfully", 201);
+    return sendSuccess(
+      res,
+      {
+        run_id: result.rows[0].run_id,
+      },
+      "Backtest created successfully",
+      201
+    );
   } catch (error) {
     logger.error("Error creating backtest", error);
     return sendError(res, "Failed to create backtest: " + error.message, 500);

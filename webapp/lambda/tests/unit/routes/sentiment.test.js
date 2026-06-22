@@ -10,7 +10,14 @@ jest.mock("../../../utils/database", () => ({
   query: jest.fn().mockResolvedValue({ rows: [], rowCount: 0 }),
 }));
 
-const { query, closeDatabase, initializeDatabase, getPool, transaction, healthCheck } = require("../../../utils/database");
+const {
+  query,
+  closeDatabase,
+  initializeDatabase,
+  getPool,
+  transaction,
+  healthCheck,
+} = require("../../../utils/database");
 // Import sentiment route
 const sentimentRoutes = require("../../../routes/sentiment");
 describe("Sentiment Routes - Unit Tests", () => {
@@ -42,10 +49,17 @@ describe("Sentiment Routes - Unit Tests", () => {
     query.mockImplementation((sql, params) => {
       // Handle COUNT queries
       if (sql.includes("SELECT COUNT") || sql.includes("COUNT(*)")) {
-        return Promise.resolve({ rows: [{ count: "0", total: "0" }], rowCount: 1 });
+        return Promise.resolve({
+          rows: [{ count: "0", total: "0" }],
+          rowCount: 1,
+        });
       }
       // Handle INSERT/UPDATE/DELETE queries
-      if (sql.includes("INSERT") || sql.includes("UPDATE") || sql.includes("DELETE")) {
+      if (
+        sql.includes("INSERT") ||
+        sql.includes("UPDATE") ||
+        sql.includes("DELETE")
+      ) {
         return Promise.resolve({ rowCount: 0, rows: [] });
       }
       // Handle information_schema queries
@@ -77,12 +91,15 @@ describe("Sentiment Routes - Unit Tests", () => {
       const response = await request(app).get("/sentiment/analysis");
       expect(response.status).toBe(400);
       expect(response.body).toHaveProperty("success", false);
-      expect(response.body).toHaveProperty("error", "Symbol parameter required");
+      expect(response.body).toHaveProperty(
+        "error",
+        "Symbol parameter required"
+      );
     });
     test("should handle missing analyst sentiment data gracefully", async () => {
       // Mock empty response - analyst_sentiment_analysis table doesn't exist or has no data
       query.mockResolvedValueOnce({
-        rows: []
+        rows: [],
       });
       const response = await request(app)
         .get("/sentiment/analysis")
@@ -142,9 +159,9 @@ describe("Sentiment Routes - Unit Tests", () => {
             bullish: 45.2,
             neutral: 28.1,
             bearish: 26.7,
-            created_at: "2025-01-27T10:00:00Z"
-          }
-        ]
+            created_at: "2025-01-27T10:00:00Z",
+          },
+        ],
       });
       const response = await request(app).get("/sentiment/market");
       expect(response.status).toBe(200);
@@ -162,7 +179,7 @@ describe("Sentiment Routes - Unit Tests", () => {
     test("should handle empty market sentiment data gracefully", async () => {
       // Mock empty response
       query.mockResolvedValueOnce({
-        rows: []
+        rows: [],
       });
       const response = await request(app).get("/sentiment/market");
       // Should return success with empty array, not fallback to fake data
@@ -188,9 +205,9 @@ describe("Sentiment Routes - Unit Tests", () => {
             date: "2025-01-27",
             bullish: 45.2,
             neutral: 28.1,
-            bearish: 26.7
-          }
-        ]
+            bearish: 26.7,
+          },
+        ],
       });
       const response = await request(app)
         .get("/sentiment/market")
@@ -253,9 +270,9 @@ describe("Sentiment Routes - Unit Tests", () => {
             date: "2025-01-27",
             bullish: 45.2,
             neutral: 28.1,
-            bearish: 26.7
-          }
-        ]
+            bearish: 26.7,
+          },
+        ],
       });
       const response = await request(app).get("/sentiment/market");
       expect(response.status).toBe(200);

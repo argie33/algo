@@ -29,8 +29,7 @@ describe("Insider Routes", () => {
 
   describe("GET /api/insider/trades/:symbol", () => {
     it("should return insider trades data for valid symbol", async () => {
-      const response = await request(app)
-        .get("/api/insider/trades/AAPL");
+      const response = await request(app).get("/api/insider/trades/AAPL");
 
       expect([200, 404, 500]).toContain(response.status);
 
@@ -49,8 +48,7 @@ describe("Insider Routes", () => {
     });
 
     it("should convert symbol to uppercase", async () => {
-      const response = await request(app)
-        .get("/api/insider/trades/aapl");
+      const response = await request(app).get("/api/insider/trades/aapl");
 
       expect([200, 404, 500]).toContain(response.status);
 
@@ -68,8 +66,7 @@ describe("Insider Routes", () => {
     });
 
     it("should handle symbols with special characters", async () => {
-      const response = await request(app)
-        .get("/api/insider/trades/BRK.A");
+      const response = await request(app).get("/api/insider/trades/BRK.A");
 
       expect([200, 404, 500]).toContain(response.status);
 
@@ -81,8 +78,9 @@ describe("Insider Routes", () => {
 
     it("should handle long symbol names", async () => {
       const longSymbol = "VERYLONGSYMBOLNAME";
-      const response = await request(app)
-        .get(`/api/insider/trades/${longSymbol}`);
+      const response = await request(app).get(
+        `/api/insider/trades/${longSymbol}`
+      );
 
       expect([200, 404, 500]).toContain(response.status);
 
@@ -95,15 +93,13 @@ describe("Insider Routes", () => {
     });
 
     it("should handle empty symbol gracefully", async () => {
-      const response = await request(app)
-        .get("/api/insider/trades/");
+      const response = await request(app).get("/api/insider/trades/");
 
       expect([404, 500]).toContain(response.status); // Express router may return 404 or 500 for missing route parameter
     });
 
     it("should handle route errors gracefully", async () => {
-      const response = await request(app)
-        .get("/api/insider/trades/TEST");
+      const response = await request(app).get("/api/insider/trades/TEST");
 
       expect([200, 404, 500]).toContain(response.status);
       expect(response.body).toHaveProperty("success");
@@ -113,8 +109,9 @@ describe("Insider Routes", () => {
       const symbols = ["AAPL", "GOOGL", "MSFT"];
 
       for (const symbol of symbols) {
-        const response = await request(app)
-          .get(`/api/insider/trades/${symbol}`);
+        const response = await request(app).get(
+          `/api/insider/trades/${symbol}`
+        );
 
         expect([200, 404, 500]).toContain(response.status);
         expect(response.body).toHaveProperty("success");
@@ -127,16 +124,14 @@ describe("Insider Routes", () => {
     });
 
     it("should handle database errors gracefully", async () => {
-      const response = await request(app)
-        .get("/api/insider/trades/TEST");
+      const response = await request(app).get("/api/insider/trades/TEST");
 
       expect([200, 404, 500]).toContain(response.status);
       expect(response.body).toHaveProperty("success");
     });
 
     it("should handle numeric symbol inputs", async () => {
-      const response = await request(app)
-        .get("/api/insider/trades/123");
+      const response = await request(app).get("/api/insider/trades/123");
 
       expect([200, 404, 500]).toContain(response.status);
 

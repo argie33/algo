@@ -15,10 +15,7 @@ module.exports = {
   ],
   testMatch: ["**/tests/unit/**/*.test.js", "**/tests/**/*.spec.js"],
   // Skip integration tests - they require full infrastructure
-  testPathIgnorePatterns: [
-    "/node_modules/",
-    "/tests/integration/",
-  ],
+  testPathIgnorePatterns: ["/node_modules/", "/tests/integration/"],
   setupFilesAfterEnv: ["<rootDir>/jest.setup.js"],
   testTimeout: 60000, // 60s timeout for integration tests (real database)
   maxWorkers: 1, // Single worker for database consistency
