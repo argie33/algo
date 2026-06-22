@@ -114,8 +114,13 @@ def _aggregate_concepts(
     # Fetch all facts for this company in a single API call
     all_facts = client.get_company_facts(cik)
 
-    # Extract concepts from all_facts (us-gaap taxonomy)
-    us_gaap_facts = all_facts.get("facts").get("us-gaap")
+    # Extract concepts from all_facts (us-gaap taxonomy).
+    # Some entities (ETFs, foreign filers, special-purpose vehicles) have SEC CIKs
+    # but report under IFRS or non-US-GAAP taxonomies — return empty for those.
+    facts = all_facts.get("facts") or {}
+    us_gaap_facts = facts.get("us-gaap")
+    if not us_gaap_facts:
+        return []
     rows: dict[Any, dict[str, Any]] = {}
     fp_filter = "FY" if period == "annual" else ("Q1", "Q2", "Q3", "Q4")
 
