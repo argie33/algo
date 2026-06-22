@@ -139,11 +139,12 @@ def _dispatch(
     jwt_claims: dict | None = None,
     idempotency_key: str | None = None,
 ) -> Any:
-    if not jwt_claims:
-        raise_api_error(401, "missing_jwt_claims", "JWT claims required for request attribution")
-    if "sub" not in jwt_claims or not jwt_claims["sub"]:
-        raise_api_error(401, "missing_user_id", "JWT missing 'sub' (user ID) — cannot audit request")
-    user_id = jwt_claims["sub"]
+    if jwt_claims:
+        if "sub" not in jwt_claims or not jwt_claims["sub"]:
+            raise_api_error(401, "missing_user_id", "JWT missing 'sub' (user ID) — cannot audit request")
+        user_id = jwt_claims["sub"]
+    else:
+        user_id = None
 
     # SECURITY: Rate limit public endpoints to prevent DoS attacks
     if path in PUBLIC_RATE_LIMITS:

@@ -869,6 +869,7 @@ def require_auth(event: dict, path: str) -> tuple:
         # /api/research intentionally NOT public: exposes backtest strategy names, returns, trade history
         "/api/data-coverage",  # Data freshness status (public metadata)
         "/api/contact",  # Public contact form (no auth required)
+        "/api/logs",  # Frontend error log ingest (intentionally unauthenticated — called by error boundaries)
     }
 
     # Protected endpoints requiring authentication (strategy/trading data)
