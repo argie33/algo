@@ -121,4 +121,4 @@ jobs:
           echo "- **RDS Database**: Connected and responding" >> $GITHUB_STEP_SUMMARY
           echo "- **Data Freshness**: See logs for table status" >> $GITHUB_STEP_SUMMARY
           echo "" >> $GITHUB_STEP_SUMMARY
-          echo "Run dashboard locally: \`python -m tools.dashboard.dashboard\`" >> $GITHUB_STEP_SUMMARY
+          echo "Run dashboard locally: \`python -m dashboard.dashboard\`" >> $GITHUB_STEP_SUMMARY

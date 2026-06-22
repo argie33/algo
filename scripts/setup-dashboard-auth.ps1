@@ -48,4 +48,4 @@ $env:COGNITO_USER_POOL_ID = $PoolId
 $env:COGNITO_CLIENT_ID = $ClientId
 
 Write-Host "Dashboard authentication configured:" -ForegroundColor Green
-Write-Host "You can now run: python -m tools.dashboard" -ForegroundColor Green
+Write-Host "You can now run: python -m dashboard" -ForegroundColor Green

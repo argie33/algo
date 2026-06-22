@@ -66,7 +66,7 @@ def fetch_portfolio(c):
     STRICT MODE: Uses direct conversion for critical financial fields (no defaults to 0).
     Missing data triggers error, not silent 0 values which are catastrophically misleading.
     """
-    from tools.dashboard.fetcher_validator import FetcherValidator
+    from dashboard.fetcher_validator import FetcherValidator
 
     try:
         data = api_call("/api/algo/portfolio")
@@ -125,7 +125,7 @@ def fetch_portfolio(c):
 
 def fetch_positions(c):
     """Fetch positions via AWS API only (fail-fast: error if unavailable)."""
-    from tools.dashboard.fetcher_validator import FetcherValidator
+    from dashboard.fetcher_validator import FetcherValidator
 
     try:
         data = api_call(_get_endpoint_path("pos"))
@@ -165,7 +165,7 @@ def fetch_recent_trades(c):
     Returns closed trades only - open positions are in the positions panel.
     Note: 503 means no closed trades yet (algo just started) - treat as no data.
     """
-    from tools.dashboard.fetcher_validator import FetcherValidator
+    from dashboard.fetcher_validator import FetcherValidator
 
     try:
         data = api_call(
@@ -208,7 +208,7 @@ def fetch_perf(c):
     STRICT MODE: Trade counts (total, winning, losing) are critical finance metrics.
     Returns 0 for missing counts is catastrophically misleading.
     """
-    from tools.dashboard.fetcher_validator import FetcherValidator
+    from dashboard.fetcher_validator import FetcherValidator
 
     try:
         data = api_call("/api/algo/performance")
@@ -272,7 +272,7 @@ def fetch_perf(c):
 
 def fetch_perf_analytics(c):
     """API-only performance analytics. Fail-fast: error only on failure."""
-    from tools.dashboard.fetcher_validator import FetcherValidator
+    from dashboard.fetcher_validator import FetcherValidator
 
     try:
         data = api_call(_get_endpoint_path("perf_anl"))

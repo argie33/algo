@@ -36,7 +36,7 @@ make ci-local       # All checks (simulates full CI)
 
 ## Dashboard Diagnostics
 
-Run: `python -m tools.dashboard.diagnose_dashboard`
+Run: `python -m dashboard.diagnose_dashboard`
 
 Shows:
 - ✓ SUCCESS: Data loaded (field count)

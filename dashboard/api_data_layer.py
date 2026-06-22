@@ -41,18 +41,17 @@ import requests.exceptions
 try:
     from .response_validators import ResponseValidationError, validate_response
 except ImportError:
-    # Fallback for test imports that don't support relative imports
     try:
         from response_validators import (  # type: ignore
             ResponseValidationError,
             validate_response,
         )
-    except ImportError:
-        ResponseValidationError = Exception  # type: ignore
-
-        def validate_response(endpoint: str, data: dict) -> dict:  # type: ignore
-            """Fallback validator that does no validation."""
-            return data
+    except ImportError as e:
+        raise ImportError(
+            "Cannot import response_validators module. "
+            "API response validation is critical for data integrity. "
+            "This indicates a deployment/installation issue."
+        ) from e
 
 
 try:

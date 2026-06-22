@@ -66,27 +66,27 @@ from rich.panel import Panel
 from rich.rule import Rule
 from rich.text import Text
 
-from tools.dashboard.api_data_layer import (
+from dashboard.api_data_layer import (
     get_cognito_auth,
     set_api_url,
     set_cognito_auth,
 )
-from tools.dashboard.cognito_auth import (
+from dashboard.cognito_auth import (
     get_cognito_auth as get_cognito_auth_instance,
 )
-from tools.dashboard.cognito_auth import (
+from dashboard.cognito_auth import (
     save_tokens,
 )
-from tools.dashboard.error_boundary import (
+from dashboard.error_boundary import (
     error_summary_panel,
     error_summary_panel_expanded,
     has_error,
 )
-from tools.dashboard.error_recovery import RenderRecovery
-from tools.dashboard.fetchers import load_all
-from tools.dashboard.formatters import mkt_hours_str
-from tools.dashboard.panel_registry import get_panel_registry as _get_panel_registry
-from tools.dashboard.panels import (
+from dashboard.error_recovery import RenderRecovery
+from dashboard.fetchers import load_all
+from dashboard.formatters import mkt_hours_str
+from dashboard.panel_registry import get_panel_registry as _get_panel_registry
+from dashboard.panels import (
     _expanded_layout,
     _extract_items,
     loading_layout,
@@ -112,7 +112,7 @@ from tools.dashboard.panels import (
     panel_signals_expanded,
     panel_trades_expanded,
 )
-from tools.dashboard.utilities import (
+from dashboard.utilities import (
     CONSOLE,
     ET,
     MASCOT_W,

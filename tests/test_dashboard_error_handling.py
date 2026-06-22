@@ -44,7 +44,7 @@ def _minimal_good_data():
 
 def test_dashboard_handles_api_error_in_portfolio():
     """FAIL if portfolio has error but dashboard still renders without error handling."""
-    from tools.dashboard.dashboard import render_dashboard
+    from dashboard.dashboard import render_dashboard
 
     broken_data = _minimal_good_data()
     broken_data["port"] = {"_error": "Portfolio API failed"}  # Override with error
@@ -61,7 +61,7 @@ def test_dashboard_handles_api_error_in_portfolio():
 
 def test_dashboard_handles_all_api_errors():
     """FAIL if dashboard crashes when ANY critical API returns error."""
-    from tools.dashboard.dashboard import render_dashboard
+    from dashboard.dashboard import render_dashboard
 
     critical_fields = [
         "run",
@@ -89,7 +89,7 @@ def test_dashboard_handles_all_api_errors():
 
 def test_dashboard_shows_error_panel_when_data_broken():
     """FAIL if error panel doesn't display broken data errors."""
-    from tools.dashboard.error_boundary import error_summary_panel
+    from dashboard.error_boundary import error_summary_panel
 
     data_with_errors = _minimal_good_data()
     data_with_errors["run"] = {"_error": "API timeout"}
@@ -104,7 +104,7 @@ def test_dashboard_shows_error_panel_when_data_broken():
 
 def test_error_panel_handles_bracket_chars_in_error_message():
     """Error messages containing Rich markup chars ([Errno 111]) must not crash panels."""
-    from tools.dashboard.error_boundary import (
+    from dashboard.error_boundary import (
         error_summary_panel,
         error_summary_panel_expanded,
     )
@@ -131,7 +131,7 @@ def test_error_panel_handles_bracket_chars_in_error_message():
 
 def test_errors_view_mode_renders_with_bracket_error_messages():
     """Pressing D (errors view mode) must not crash when error messages have brackets."""
-    from tools.dashboard.dashboard import render_dashboard
+    from dashboard.dashboard import render_dashboard
 
     data = _minimal_good_data()
     data["cb"] = {"_error": "ConnectionError: [Errno 111] Connection refused"}
@@ -147,7 +147,7 @@ def test_errors_view_mode_renders_with_bracket_error_messages():
 
 def test_circuit_breaker_cascade_collapsed_in_error_panel():
     """When many fetchers fail due to open circuit breaker, panel shows ONE entry not many."""
-    from tools.dashboard.error_boundary import (
+    from dashboard.error_boundary import (
         error_summary_panel,
         error_summary_panel_expanded,
     )
@@ -171,7 +171,7 @@ def test_fetch_perf_analytics_none_fields_do_not_crash():
     """fetch_perf_analytics must not crash when API returns None for numeric fields."""
     from unittest.mock import patch
 
-    from tools.dashboard.fetchers_portfolio import fetch_perf_analytics
+    from dashboard.fetchers_portfolio import fetch_perf_analytics
 
     none_response = {
         "rolling_sharpe_252d": None,
@@ -183,7 +183,7 @@ def test_fetch_perf_analytics_none_fields_do_not_crash():
         "expectancy": None,
         "max_drawdown_pct": None,
     }
-    with patch("tools.dashboard.fetchers_portfolio.api_call", return_value=none_response):
+    with patch("dashboard.fetchers_portfolio.api_call", return_value=none_response):
         result = fetch_perf_analytics(None)
     assert "_error" not in result, f"Should not error on None fields, got: {result}"
     assert result.get("sharpe252") is None
@@ -194,7 +194,7 @@ def test_fetch_risk_metrics_none_fields_do_not_crash():
     """fetch_risk_metrics must not crash when API returns None for numeric fields."""
     from unittest.mock import patch
 
-    from tools.dashboard.fetchers_market import fetch_risk_metrics
+    from dashboard.fetchers_market import fetch_risk_metrics
 
     none_response = {
         "report_date": "2026-06-22",
@@ -204,7 +204,7 @@ def test_fetch_risk_metrics_none_fields_do_not_crash():
         "portfolio_beta": None,
         "top_5_concentration": None,
     }
-    with patch("tools.dashboard.fetchers_market.api_call", return_value=none_response):
+    with patch("dashboard.fetchers_market.api_call", return_value=none_response):
         result = fetch_risk_metrics(None)
     assert "_error" not in result, f"Should not error on None fields, got: {result}"
     assert result.get("var95") is None
@@ -215,7 +215,7 @@ def test_fetch_signal_eval_none_fields_do_not_crash():
     """fetch_signal_eval must not crash when API returns None for int/float fields."""
     from unittest.mock import patch
 
-    from tools.dashboard.fetchers_signals import fetch_signal_eval
+    from dashboard.fetchers_signals import fetch_signal_eval
 
     none_response = {
         "total": None,
@@ -228,7 +228,7 @@ def test_fetch_signal_eval_none_fields_do_not_crash():
         "signal_date": None,
         "rejected": None,
     }
-    with patch("tools.dashboard.fetchers_signals.api_call", return_value=none_response):
+    with patch("dashboard.fetchers_signals.api_call", return_value=none_response):
         result = fetch_signal_eval(None)
     assert "_error" not in result, f"Should not error on None fields, got: {result}"
     assert result.get("total") is None
@@ -237,7 +237,7 @@ def test_fetch_signal_eval_none_fields_do_not_crash():
 
 def test_empty_optional_data_not_treated_as_error():
     """Empty notifications/audit/exec_hist/econ_cal should not appear in error panel."""
-    from tools.dashboard.error_boundary import error_summary_panel
+    from dashboard.error_boundary import error_summary_panel
 
     data = _minimal_good_data()
     # Simulate empty but valid optional data

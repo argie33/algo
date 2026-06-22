@@ -2,7 +2,7 @@
 
 import pytest
 
-from tools.dashboard.response_validators import (
+from dashboard.response_validators import (
     ResponseValidationError,
     validate_config_response,
     validate_portfolio_response,
@@ -240,7 +240,7 @@ class TestNewEndpointValidators:
 
     def test_last_run_response_valid(self):
         """Valid last-run response passes validation."""
-        from tools.dashboard.response_validators import validate_last_run_response
+        from dashboard.response_validators import validate_last_run_response
 
         data = {
             "run_id": "run_123",
@@ -253,7 +253,7 @@ class TestNewEndpointValidators:
 
     def test_last_run_missing_run_id(self):
         """Last-run response missing run_id raises error."""
-        from tools.dashboard.response_validators import validate_last_run_response
+        from dashboard.response_validators import validate_last_run_response
 
         data = {
             "success": True,
@@ -265,7 +265,7 @@ class TestNewEndpointValidators:
 
     def test_trades_response_valid(self):
         """Valid trades response with items array passes."""
-        from tools.dashboard.response_validators import validate_trades_response
+        from dashboard.response_validators import validate_trades_response
 
         data = {
             "items": [
@@ -278,7 +278,7 @@ class TestNewEndpointValidators:
 
     def test_trades_response_empty_items(self):
         """Trades response with empty items array is valid."""
-        from tools.dashboard.response_validators import validate_trades_response
+        from dashboard.response_validators import validate_trades_response
 
         data = {"items": []}
         result = validate_trades_response(data)
@@ -286,7 +286,7 @@ class TestNewEndpointValidators:
 
     def test_trades_items_not_list(self):
         """Trades response with non-list items raises error."""
-        from tools.dashboard.response_validators import validate_trades_response
+        from dashboard.response_validators import validate_trades_response
 
         data = {"items": "not_a_list"}
         with pytest.raises(ResponseValidationError) as exc_info:
@@ -295,7 +295,7 @@ class TestNewEndpointValidators:
 
     def test_markets_response_valid(self):
         """Valid markets response passes validation."""
-        from tools.dashboard.response_validators import validate_markets_response
+        from dashboard.response_validators import validate_markets_response
 
         data = {
             "current": {"spy_close": 450.25, "exposure_pct": 85.0},
@@ -306,7 +306,7 @@ class TestNewEndpointValidators:
 
     def test_markets_response_empty(self):
         """Markets response that is empty or metadata-only raises error."""
-        from tools.dashboard.response_validators import validate_markets_response
+        from dashboard.response_validators import validate_markets_response
 
         data = {}
         with pytest.raises(ResponseValidationError) as exc_info:
@@ -315,7 +315,7 @@ class TestNewEndpointValidators:
 
     def test_dashboard_signals_valid(self):
         """Valid dashboard signals response passes."""
-        from tools.dashboard.response_validators import (
+        from dashboard.response_validators import (
             validate_dashboard_signals_response,
         )
 
@@ -330,7 +330,7 @@ class TestNewEndpointValidators:
 
     def test_dashboard_signals_no_items(self):
         """Signals response without items key is valid (no signals yet)."""
-        from tools.dashboard.response_validators import (
+        from dashboard.response_validators import (
             validate_dashboard_signals_response,
         )
 
@@ -340,7 +340,7 @@ class TestNewEndpointValidators:
 
     def test_circuit_breakers_valid(self):
         """Valid circuit breakers response passes."""
-        from tools.dashboard.response_validators import (
+        from dashboard.response_validators import (
             validate_circuit_breakers_response,
         )
 
@@ -356,7 +356,7 @@ class TestNewEndpointValidators:
 
     def test_circuit_breakers_invalid_type(self):
         """Circuit breakers with non-list breakers raises error."""
-        from tools.dashboard.response_validators import (
+        from dashboard.response_validators import (
             validate_circuit_breakers_response,
         )
 
@@ -367,7 +367,7 @@ class TestNewEndpointValidators:
 
     def test_sector_rotation_valid(self):
         """Valid sector rotation response passes."""
-        from tools.dashboard.response_validators import (
+        from dashboard.response_validators import (
             validate_sector_rotation_response,
         )
 
@@ -383,7 +383,7 @@ class TestNewEndpointValidators:
 
     def test_validation_with_error_flag_passes(self):
         """Any response with _error flag passes through without validation."""
-        from tools.dashboard.response_validators import (
+        from dashboard.response_validators import (
             validate_last_run_response,
             validate_markets_response,
             validate_trades_response,

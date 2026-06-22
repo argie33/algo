@@ -61,7 +61,7 @@ def _get_endpoint_path(fetcher_key: str, params: dict | None = None) -> str:
 
 def fetch_signals(c):
     """Fetch dashboard signals from API. Fail-fast: error only on failure."""
-    from tools.dashboard.fetcher_validator import FetcherValidator
+    from dashboard.fetcher_validator import FetcherValidator
 
     try:
         data = api_call(_get_endpoint_path("sig"))
@@ -143,7 +143,7 @@ def fetch_signals(c):
 
 def fetch_signal_eval(c):
     """Fetch signal evaluation stats from API."""
-    from tools.dashboard.fetcher_validator import FetcherValidator
+    from dashboard.fetcher_validator import FetcherValidator
 
     try:
         data = api_call(_get_endpoint_path("sig_eval"))
@@ -175,7 +175,7 @@ def fetch_signal_eval(c):
 
 def fetch_scores(c):
     """Fetch top stock scores from /api/scores. Used by signals panel for composite score display."""
-    from tools.dashboard.fetcher_validator import FetcherValidator
+    from dashboard.fetcher_validator import FetcherValidator
 
     try:
         top_data = api_call("/api/scores", params={"limit": 50, "sortOrder": "desc"})

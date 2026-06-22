@@ -15,9 +15,9 @@ import json
 from datetime import datetime
 from zoneinfo import ZoneInfo
 
-from tools.dashboard.api_data_layer import set_api_url
-from tools.dashboard.error_boundary import get_error_message, has_error
-from tools.dashboard.fetchers import FETCHER_METADATA, load_all
+from dashboard.api_data_layer import set_api_url
+from dashboard.error_boundary import get_error_message, has_error
+from dashboard.fetchers import FETCHER_METADATA, load_all
 
 ET = ZoneInfo("America/New_York")
 

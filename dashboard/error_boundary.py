@@ -148,8 +148,7 @@ def error_summary_panel(data_dict: dict[str, Any]) -> Panel | None:
     if circuit_open_keys:
         keys_str = escape(", ".join(sorted(circuit_open_keys)))
         failed_lines.append(
-            f"[{R}]✗ circuit breaker OPEN[/]: API unavailable — "
-            f"{len(circuit_open_keys)} fetchers blocked ({keys_str})"
+            f"[{R}]✗ circuit breaker OPEN[/]: API unavailable — {len(circuit_open_keys)} fetchers blocked ({keys_str})"
         )
 
     for key, plain_msg in hard_errors:

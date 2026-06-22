@@ -101,7 +101,7 @@ jobs:
         run: pip install -q bandit[toml]
       - name: Scan Python code for security issues
         run: |
-          bandit -r algo loaders config lambda tools --severity-level medium --confidence-level high
+          bandit -r algo loaders config lambda dashboard --severity-level medium --confidence-level high
           echo "OK: No high-confidence security issues detected"
 
   validate-terraform:
@@ -288,14 +288,14 @@ jobs:
           python -m py_compile $(find . -name "*.py" -type f ! -path "./.git/*" ! -path "./__pycache__/*" ! -path "./.pytest_cache/*" ! -path "./node_modules/*" ! -path "./.venv/*" ! -path "./venv/*")
           echo "OK: All Python files have correct syntax"
       - name: Ruff format check
-        run: ruff format --check algo/ tests/ tools/ loaders/ utils/ config/ lambda/
+        run: ruff format --check algo/ tests/ dashboard/ loaders/ utils/ config/ lambda/
       - name: Ruff lint check
-        run: ruff check algo/ tests/ tools/ loaders/ utils/ config/ lambda/
+        run: ruff check algo/ tests/ dashboard/ loaders/ utils/ config/ lambda/
       - name: MyPy type check — core packages
         run: |
-          echo "Type checking algo/ loaders/ utils/ config/ tools/ and standalone lambda files..."
+          echo "Type checking algo/ loaders/ utils/ config/ dashboard/ and standalone lambda files..."
           mypy algo/ loaders/ utils/ config/ --ignore-missing-imports --show-error-codes
-          mypy tools/ --ignore-missing-imports --show-error-codes
+          mypy dashboard/ --ignore-missing-imports --show-error-codes
           mypy lambda/base_handler.py lambda/algo_orchestrator/lambda_function.py \
             lambda/monitoring/health_monitor.py \
             lambda/monitoring/loader_failure_handler.py \
@@ -445,7 +445,7 @@ jobs:
             --cov=algo \
             --cov=loaders \
             --cov=lambda \
-            --cov=tools \
+            --cov=dashboard \
             --cov-report=term-missing:skip-covered \
             --cov-report=html \
             --cov-report=xml \

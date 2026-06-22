@@ -31,7 +31,7 @@ packages = [
     "migrations",
     "loaders",
     "monitoring",
-    "tools",
+    "dashboard",
     "config",
 ]
 
@@ -41,7 +41,7 @@ utils = ["*.py"]
 loaders = ["*.py"]
 monitoring = ["*.py"]
 migrations = ["*.py", "versions/*.py"]
-tools = ["*.py", "**/*.py"]
+dashboard = ["*.py", "**/*.py"]
 
 [tool.mypy]
 python_version = "3.11"
@@ -69,7 +69,7 @@ ignore_errors = true  # Has SIGALRM (Unix-only signal) and legacy type issues â€
 
 [[tool.mypy.overrides]]
 module = [
-    "tools.dashboard.dashboard",
+    "dashboard.dashboard",
 ]
 warn_unused_ignores = false  # msvcrt is Windows-only; try/except ImportError block makes ignores platform-dependent
 
@@ -94,7 +94,7 @@ ignore = ["E203", "E501", "C901", "B904", "UP031", "RUF012"]
 "dev_server.py" = ["E402"]
 "api_proxy_server.py" = ["E402"]
 "panels.py" = ["E402"]
-"tools/dashboard/*.py" = ["E402", "C901"]
+"dashboard/*.py" = ["E402", "C901"]
 "*config*.py" = ["E402"]
 "enrich_*.py" = ["E402"]
 "orchestrator*.py" = ["E402"]
@@ -109,7 +109,7 @@ ignore = ["E203", "E501", "C901", "B904", "UP031", "RUF012"]
 max-complexity = 12
 
 [tool.ruff.lint.isort]
-known-first-party = ["algo", "utils", "loaders", "lambda", "config", "tools", "monitoring"]
+known-first-party = ["algo", "utils", "loaders", "lambda", "config", "dashboard", "monitoring"]
 known-third-party = ["numpy", "pandas", "scipy", "boto3", "flask", "requests", "psycopg2"]
 
 [tool.ruff.format]
@@ -160,7 +160,7 @@ markers = [
 ]
 
 [tool.coverage.run]
-source = ["algo", "utils", "loaders", "lambda", "tools"]
+source = ["algo", "utils", "loaders", "lambda", "dashboard"]
 branch = true
 omit = [
     "*/migrations/*",

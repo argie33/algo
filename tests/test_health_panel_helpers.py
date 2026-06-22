@@ -2,7 +2,7 @@
 
 from datetime import datetime
 
-from tools.dashboard.panels.health import (
+from dashboard.panels.health import (
     ERROR_STATES,
     HALTED_STATES,
     SUCCESS_STATES,
@@ -15,7 +15,7 @@ from tools.dashboard.panels.health import (
     _format_phase_badge,
     _format_recent_trade_events,
 )
-from tools.dashboard.utilities import G, R, Y
+from dashboard.utilities import G, R, Y
 
 
 class TestFormatPhaseBadge:

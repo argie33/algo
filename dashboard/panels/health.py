@@ -24,7 +24,7 @@ from rich.rule import Rule
 from rich.table import Table
 from rich.text import Text
 
-from tools.dashboard.data_validation import safe_float
+from dashboard.data_validation import safe_float
 
 from ..error_boundary import has_error
 from ..formatters import (
@@ -276,9 +276,7 @@ def panel_orch(run, cfg, risk=None):
             beta_c = R if beta_val >= 1.2 else (Y if beta_val >= 0.8 else G)
             var_c = _var_color(var95_val)
             svar_f = safe_float(svar_val, default=0.0)
-            svar_s = (
-                f"\n[dim]Stressed VaR:[/][{R}]{svar_f:.2f}%[/]" if svar_val is not None and svar_f > 0 else ""
-            )
+            svar_s = f"\n[dim]Stressed VaR:[/][{R}]{svar_f:.2f}%[/]" if svar_val is not None and svar_f > 0 else ""
             var_line = (
                 f"\n[dim]VaR 95%:[/][{var_c}]{var95_val:.2f}%[/]"
                 f"  [dim]CVaR 95%:[/][{var_c}]{cvar95_val:.2f}%[/]"

@@ -48,9 +48,18 @@ def run(
 
         try:
             meh = MarketEventHandler(config)
-            open_positions = monitor.get_open_positions()
-            if open_positions is None:
-                open_positions = []
+            try:
+                open_positions = monitor.get_open_positions()
+            except RuntimeError as pos_e:
+                error = PhaseError(
+                    category=ErrorCategory.DEPENDENCY_FAILED,
+                    message="Cannot fetch open positions for halt checking",
+                    root_cause=str(pos_e)[:150],
+                    recoverable=False,
+                    log_level="critical",
+                )
+                log_phase_error(3, error, log_phase_result_fn)
+                raise
             halts_found = []
             for pos in open_positions:
                 if "symbol" not in pos and "name" not in pos:

@@ -28,7 +28,7 @@ class PriceTransformer:
         self.timezone: str | None = None
         self.asset_class = asset_class
 
-    def transform_row(self, row: dict, symbol: str, date_val: Any) -> dict | None:
+    def transform_row(self, row: dict, symbol: str, date_val: Any) -> dict:
         """Transform raw yfinance row to canonical format.
 
         Args:
@@ -37,7 +37,10 @@ class PriceTransformer:
             date_val: Date for the price point
 
         Returns:
-            Transformed row or None if transformation fails
+            Transformed row
+
+        Raises:
+            ValueError: If transformation fails (fail-fast for price data corruption)
         """
         try:
             transformed = {
@@ -52,8 +55,10 @@ class PriceTransformer:
             }
             return transformed
         except Exception as e:
-            logger.warning(f"Failed to transform row for {symbol}: {e}")
-            return None
+            raise ValueError(
+                f"Price data transformation failed for {symbol} on {date_val}: {e}. "
+                f"Cannot proceed with corrupted price data."
+            ) from e
 
     def _normalize_numeric(self, value: Any) -> float | None:
         """Normalize numeric value."""
@@ -82,9 +87,12 @@ class PriceTransformer:
 
         Returns:
             List of transformed rows
+
+        Raises:
+            ValueError: If any row transformation fails (fail-fast for data integrity)
         """
         transformed = []
-        for row in rows:
+        for row_idx, row in enumerate(rows):
             # Extract date from row or index
             if hasattr(row, "name"):
                 date_val = row.name
@@ -93,12 +101,13 @@ class PriceTransformer:
             elif "Date" in row:
                 date_val = row["Date"]
             else:
-                logger.warning(f"Could not extract date from row for {symbol}")
-                continue
+                raise ValueError(
+                    f"Cannot extract date from row {row_idx} for {symbol}. "
+                    f"Row missing 'date', 'Date', or index.name. Cannot proceed with price data missing timestamps."
+                )
 
             transformed_row = self.transform_row(row, symbol, date_val)
-            if transformed_row:
-                transformed.append(transformed_row)
+            transformed.append(transformed_row)
 
         return transformed
 
@@ -106,8 +115,12 @@ class PriceTransformer:
         """Set timezone for date handling."""
         self.timezone = tz
 
-    def _extract_date_range(self, rows: list[dict]) -> tuple[Any | None, Any | None]:
-        """Extract min/max dates from rows."""
+    def _extract_date_range(self, rows: list[dict]) -> tuple[Any, Any]:
+        """Extract min/max dates from rows.
+
+        Raises:
+            ValueError: If date range cannot be determined (fail-fast for data integrity)
+        """
         min_row_date = None
         max_row_date = None
         try:
@@ -120,14 +133,27 @@ class PriceTransformer:
                     if max_row_date is None or row_date > max_row_date:
                         max_row_date = row_date
         except Exception as e:
-            logger.warning(f"Could not determine trading day range from rows: {e}. Falling back to per-row checks.")
-            return None, None
+            raise ValueError(
+                f"Could not determine trading day range from {len(rows)} rows: {e}. "
+                f"Date parsing failed—cannot proceed with price data missing valid dates."
+            ) from e
+        if min_row_date is None or max_row_date is None:
+            raise ValueError(
+                f"Could not extract date range from {len(rows)} rows. "
+                f"All rows missing or had empty date fields. Cannot proceed."
+            )
         return min_row_date, max_row_date
 
     def _precompute_trading_days(self, min_row_date, max_row_date):
-        """Precompute trading days for O(1) lookups."""
+        """Precompute trading days for O(1) lookups.
+
+        Raises:
+            ValueError: If trading day set cannot be created (fail-fast for data integrity)
+        """
         if not min_row_date or not max_row_date:
-            return None
+            raise ValueError(
+                f"Cannot precompute trading days: min_date={min_row_date}, max_date={max_row_date}. Date range invalid."
+            )
         try:
             from algo.infrastructure import MarketCalendar
 
@@ -138,8 +164,10 @@ class PriceTransformer:
             )
             return trading_day_set
         except Exception as e:
-            logger.warning(f"Could not precompute trading days: {e}. Falling back to per-row checks.")
-            return None
+            raise ValueError(
+                f"Could not precompute trading days for range [{min_row_date}, {max_row_date}]: {e}. "
+                f"MarketCalendar failed—cannot proceed without trading day validation."
+            ) from e
 
     def _validate_row_trading_day(self, row_date_str, row_date, trading_day_set, symbol, tracker) -> bool:
         """Validate if row is from a trading day."""
@@ -159,7 +187,9 @@ class PriceTransformer:
                     resolution="rejected",
                 )
             except Exception as e:
-                logger.warning(f"Could not record error for {symbol}: {e}")
+                raise ValueError(
+                    f"Could not record error for {symbol}: {e}. Audit trail broken, cannot proceed."
+                ) from e
         return is_trading_day
 
     def _validate_row_prices(self, row, symbol, prior_close_by_symbol, tracker) -> tuple[bool, str | None]:
@@ -196,7 +226,9 @@ class PriceTransformer:
                     resolution="skipped",
                 )
             except Exception as e:
-                logger.warning(f"Could not record error for {symbol}: {e}")
+                raise ValueError(
+                    f"Could not record error for {symbol}: {e}. Audit trail broken, cannot proceed."
+                ) from e
         return is_valid, errors[0] if errors else None
 
     def _process_row(
@@ -244,12 +276,26 @@ class PriceTransformer:
         Args:
             rows: Raw price data rows
             tracker: Optional DataProvenanceTracker for recording errors
+
+        Raises:
+            ValueError: If date range extraction or trading day precomputation fails
         """
         if not rows:
             return []
 
         min_row_date, max_row_date = self._extract_date_range(rows)
+        if min_row_date is None or max_row_date is None:
+            raise ValueError(
+                f"Cannot extract date range from {len(rows)} rows. "
+                f"All rows missing valid date fields. Cannot proceed with price data missing timestamps."
+            )
+
         trading_day_set = self._precompute_trading_days(min_row_date, max_row_date)
+        if trading_day_set is None:
+            raise ValueError(
+                f"Cannot precompute trading days for date range [{min_row_date}, {max_row_date}]. "
+                f"MarketCalendar failed. Cannot proceed without trading day validation."
+            )
 
         final_validated = []
         prior_close_by_symbol: dict[str, float | None] = {}

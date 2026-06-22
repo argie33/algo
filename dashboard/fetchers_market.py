@@ -98,7 +98,7 @@ def fetch_market(c):
     Issue 14 FIX: Uses cached markets endpoint to avoid duplicate API calls
     when fetch_exp_factors also needs the same data.
     """
-    from tools.dashboard.fetcher_validator import FetcherValidator
+    from dashboard.fetcher_validator import FetcherValidator
 
     try:
         mkt = _get_markets_cached()
@@ -213,7 +213,7 @@ def fetch_exp_factors(c):
     Issue 14 FIX: Uses cached markets endpoint to avoid duplicate API calls
     when fetch_market also needs the same data.
     """
-    from tools.dashboard.fetcher_validator import FetcherValidator
+    from dashboard.fetcher_validator import FetcherValidator
 
     try:
         data = _get_markets_cached()
@@ -254,7 +254,7 @@ def fetch_exp_factors(c):
 
 def fetch_risk_metrics(c):
     """API-only risk metrics. Fail-fast: error only on failure."""
-    from tools.dashboard.fetcher_validator import FetcherValidator
+    from dashboard.fetcher_validator import FetcherValidator
 
     try:
         data = api_call(_get_endpoint_path("risk"))
@@ -283,7 +283,7 @@ def fetch_risk_metrics(c):
 
 def fetch_sector_ranking(c):
     """Fetch per-sector rankings from /api/sectors (fail-fast: error if unavailable)."""
-    from tools.dashboard.fetcher_validator import FetcherValidator
+    from dashboard.fetcher_validator import FetcherValidator
 
     try:
         data = api_call("/api/sectors")
@@ -327,7 +327,7 @@ def fetch_sector_ranking(c):
 
 def fetch_sector_rotation(c):
     """Fetch sector rotation signal from API. Fail-fast: error only on failure."""
-    from tools.dashboard.fetcher_validator import FetcherValidator
+    from dashboard.fetcher_validator import FetcherValidator
 
     try:
         data = api_call("/api/algo/sector-rotation")

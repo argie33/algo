@@ -61,27 +61,31 @@ def extract_items_list(data: dict[str, Any]) -> list:
     return items if isinstance(items, list) else []
 
 
-def extract_data_or_empty(data: Any, default_type: type = dict) -> Any:
+def extract_data_or_empty(data: Any, default_type: type = dict, allow_empty: bool = False) -> Any:
     """Extract data or return empty default if missing, raise on error.
 
-    Raises DataExtractionError if data is a dict with _error field.
-    Returns empty instance of default_type if data is missing/None/wrong type.
+    Raises DataExtractionError if data is a dict with _error field, or if data
+    is missing/None and allow_empty=False (fail-fast for critical finance data).
 
     Args:
         data: Data to extract (could be dict, list, or None)
         default_type: Type to return if missing (dict, list, etc.)
+        allow_empty: If False (default), raise on missing data. If True, return empty.
 
     Returns:
-        data if valid type (and no error), else empty instance of default_type
+        data if valid type (and no error), else empty instance of default_type (if allow_empty=True)
 
     Raises:
-        DataExtractionError: If data is dict with _error field
+        DataExtractionError: If data is dict with _error field, or if data is missing and allow_empty=False
     """
     if has_error(data):
         raise DataExtractionError(f"Error in response: {data.get('_error')}")
 
     if isinstance(data, default_type):
         return data
+
+    if not allow_empty and data is None:
+        raise DataExtractionError("Required data is missing (None). Cannot proceed without this information.")
 
     if default_type is dict:
         return {}
@@ -117,20 +121,20 @@ class DashboardDataExtractor:
         return cast(dict[str, Any], extract_data_or_empty(self.data.get("mkt"), dict))
 
     def portfolio(self) -> dict[str, Any]:
-        """Extract portfolio (validated at API boundary)."""
-        return cast(dict[str, Any], extract_data_or_empty(self.data.get("port"), dict))
+        """Extract portfolio (critical financial data—fail if missing)."""
+        return cast(dict[str, Any], extract_data_or_empty(self.data.get("port"), dict, allow_empty=False))
 
     def performance(self) -> dict[str, Any]:
-        """Extract performance metrics (validated at API boundary)."""
-        return cast(dict[str, Any], extract_data_or_empty(self.data.get("perf"), dict))
+        """Extract performance metrics (critical financial data—fail if missing)."""
+        return cast(dict[str, Any], extract_data_or_empty(self.data.get("perf"), dict, allow_empty=False))
 
     def positions(self) -> dict[str, Any]:
-        """Extract positions (validated at API boundary)."""
-        return cast(dict[str, Any], extract_data_or_empty(self.data.get("pos"), dict))
+        """Extract positions (critical financial data—fail if missing)."""
+        return cast(dict[str, Any], extract_data_or_empty(self.data.get("pos"), dict, allow_empty=False))
 
     def signals(self) -> dict[str, Any]:
-        """Extract active signals (validated at API boundary)."""
-        return cast(dict[str, Any], extract_data_or_empty(self.data.get("sig"), dict))
+        """Extract active signals (critical for trading—fail if missing)."""
+        return cast(dict[str, Any], extract_data_or_empty(self.data.get("sig"), dict, allow_empty=False))
 
     def health(self) -> dict[str, Any]:
         """Extract health/readiness status."""

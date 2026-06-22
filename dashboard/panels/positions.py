@@ -21,7 +21,7 @@ from rich.panel import Panel
 from rich.table import Table
 from rich.text import Text
 
-from tools.dashboard.data_validation import safe_float
+from dashboard.data_validation import safe_float
 
 from ..formatters import (
     fmt_age,

@@ -6,8 +6,8 @@ Run: python -m tools.dashboard.diagnose_metrics
 
 import logging
 
-from tools.dashboard.api_data_layer import api_call
-from tools.dashboard.error_boundary import has_error
+from dashboard.api_data_layer import api_call
+from dashboard.error_boundary import has_error
 
 logging.basicConfig(level=logging.DEBUG)
 

@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """Diagnostic script to check database state for VIX and concentration data.
 
-Run: python tools/diagnose_data.py
+Run: python scripts/diagnose_data.py
 """
 
 import logging

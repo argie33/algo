@@ -2,7 +2,7 @@
 
 import pytest
 
-from tools.dashboard.data_extraction import (
+from dashboard.data_extraction import (
     DataExtractionError,
     extract_data_or_empty,
     extract_field,

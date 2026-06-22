@@ -25,9 +25,9 @@ test_modules = [
     "utils.optimal_loader",
     "utils.data.source_router",
     "algo.algo_orchestrator",
-    "tools.dashboard.dashboard",
-    "tools.dashboard.fetchers",
-    "tools.dashboard.panels",
+    "dashboard.dashboard",
+    "dashboard.fetchers",
+    "dashboard.panels",
 ]
 
 for module in test_modules:

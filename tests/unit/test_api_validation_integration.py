@@ -9,13 +9,13 @@ from unittest.mock import MagicMock, patch
 
 import pytest
 
-from tools.dashboard.api_data_layer import api_call
+from dashboard.api_data_layer import api_call
 
 
 def test_api_call_validates_portfolio_response():
     """Verify that api_call validates portfolio responses."""
-    with patch("tools.dashboard.api_data_layer.API_BASE_URL", "http://localhost:8000"):
-        with patch("tools.dashboard.api_data_layer._http_session.get") as mock_get:
+    with patch("dashboard.api_data_layer.API_BASE_URL", "http://localhost:8000"):
+        with patch("dashboard.api_data_layer._http_session.get") as mock_get:
             # Mock a valid portfolio response
             mock_resp = MagicMock()
             mock_resp.status_code = 200
@@ -39,8 +39,8 @@ def test_api_call_validates_portfolio_response():
 
 def test_api_call_catches_missing_portfolio_field():
     """Verify that api_call catches missing required fields in portfolio response."""
-    with patch("tools.dashboard.api_data_layer.API_BASE_URL", "http://localhost:8000"):
-        with patch("tools.dashboard.api_data_layer._http_session.get") as mock_get:
+    with patch("dashboard.api_data_layer.API_BASE_URL", "http://localhost:8000"):
+        with patch("dashboard.api_data_layer._http_session.get") as mock_get:
             # Mock a portfolio response missing position_count (required field)
             mock_resp = MagicMock()
             mock_resp.status_code = 200
@@ -62,8 +62,8 @@ def test_api_call_catches_missing_portfolio_field():
 
 def test_api_call_validates_trades_response():
     """Verify that api_call validates trades endpoint responses."""
-    with patch("tools.dashboard.api_data_layer.API_BASE_URL", "http://localhost:8000"):
-        with patch("tools.dashboard.api_data_layer._http_session.get") as mock_get:
+    with patch("dashboard.api_data_layer.API_BASE_URL", "http://localhost:8000"):
+        with patch("dashboard.api_data_layer._http_session.get") as mock_get:
             # Mock a valid trades response
             mock_resp = MagicMock()
             mock_resp.status_code = 200
@@ -85,8 +85,8 @@ def test_api_call_validates_trades_response():
 
 def test_api_call_catches_invalid_trades_items():
     """Verify that api_call catches invalid items in trades response."""
-    with patch("tools.dashboard.api_data_layer.API_BASE_URL", "http://localhost:8000"):
-        with patch("tools.dashboard.api_data_layer._http_session.get") as mock_get:
+    with patch("dashboard.api_data_layer.API_BASE_URL", "http://localhost:8000"):
+        with patch("dashboard.api_data_layer._http_session.get") as mock_get:
             # Mock a trades response with non-list items
             mock_resp = MagicMock()
             mock_resp.status_code = 200
@@ -104,8 +104,8 @@ def test_api_call_catches_invalid_trades_items():
 
 def test_api_call_generic_validation_for_unknown_endpoint():
     """Verify that unknown endpoints still get basic validation."""
-    with patch("tools.dashboard.api_data_layer.API_BASE_URL", "http://localhost:8000"):
-        with patch("tools.dashboard.api_data_layer._http_session.get") as mock_get:
+    with patch("dashboard.api_data_layer.API_BASE_URL", "http://localhost:8000"):
+        with patch("dashboard.api_data_layer._http_session.get") as mock_get:
             # Mock a response for an endpoint without specific validator
             mock_resp = MagicMock()
             mock_resp.status_code = 200
@@ -122,8 +122,8 @@ def test_api_call_generic_validation_for_unknown_endpoint():
 
 def test_api_call_generic_validation_rejects_non_dict():
     """Verify that generic validator rejects non-dict responses."""
-    with patch("tools.dashboard.api_data_layer.API_BASE_URL", "http://localhost:8000"):
-        with patch("tools.dashboard.api_data_layer._http_session.get") as mock_get:
+    with patch("dashboard.api_data_layer.API_BASE_URL", "http://localhost:8000"):
+        with patch("dashboard.api_data_layer._http_session.get") as mock_get:
             # Mock a response that returns non-dict
             mock_resp = MagicMock()
             mock_resp.status_code = 200

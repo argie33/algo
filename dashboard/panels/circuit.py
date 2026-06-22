@@ -22,7 +22,7 @@ from rich.rule import Rule
 from rich.table import Table
 from rich.text import Text
 
-from tools.dashboard.data_validation import safe_float
+from dashboard.data_validation import safe_float
 
 from ..formatters import (
     hbar,
@@ -206,7 +206,11 @@ def panel_circuit_expanded(cb):
                         if fired
                         else (
                             "white"
-                            if (cur is not None and thr is not None and safe_float(cur, default=0.0) / safe_float(thr, default=1.0) >= 0.75)
+                            if (
+                                cur is not None
+                                and thr is not None
+                                and safe_float(cur, default=0.0) / safe_float(thr, default=1.0) >= 0.75
+                            )
                             else "dim"
                         )
                     ),

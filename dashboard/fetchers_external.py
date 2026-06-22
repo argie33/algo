@@ -64,7 +64,7 @@ def fetch_economic_pulse(c):
     Both endpoints must succeed; partial data is not accepted (can't distinguish
     None from "API error" vs "field missing in successful response").
     """
-    from tools.dashboard.fetcher_validator import FetcherValidator
+    from dashboard.fetcher_validator import FetcherValidator
 
     try:
         # Fetch yield curve (treasury yields + credit spreads + breakevens)
@@ -179,7 +179,7 @@ def fetch_economic_pulse(c):
             "umcsent": umcsent,
         }
     except Exception as e:
-        from tools.dashboard.fetcher_validator import FetcherValidator
+        from dashboard.fetcher_validator import FetcherValidator
 
         error_msg = _format_fetcher_error("eco", e)
         logger.error(error_msg)
@@ -190,7 +190,7 @@ def fetch_economic_pulse(c):
 def fetch_economic_calendar(c):
     """Fetch economic calendar events. API returns {items: [{event_date,
     event_name, country, importance, category, ...}], total: N}."""
-    from tools.dashboard.fetcher_validator import FetcherValidator
+    from dashboard.fetcher_validator import FetcherValidator
 
     try:
         data = api_call(_get_endpoint_path("econ_cal"))
@@ -229,7 +229,7 @@ def fetch_economic_calendar(c):
 def fetch_exec_history(c):
     """Fetch recent execution history. Panel expects a flat list (not wrapped
     in a dict) so it can do valid_hist[:7] directly."""
-    from tools.dashboard.fetcher_validator import FetcherValidator
+    from dashboard.fetcher_validator import FetcherValidator
 
     try:
         data = api_call(
@@ -267,7 +267,7 @@ def fetch_exec_history(c):
 
 def fetch_sentiment(c):
     """API-only sentiment data. Fail-fast: error only on failure."""
-    from tools.dashboard.fetcher_validator import FetcherValidator
+    from dashboard.fetcher_validator import FetcherValidator
 
     try:
         data = api_call(_get_endpoint_path("sentiment"))
@@ -306,7 +306,7 @@ def fetch_sentiment(c):
 def fetch_industry_ranking(c):
     """Fetch industry rankings. API returns {items: [{industry, sector,
     current_rank, overall_rank, rank_1w_ago, rank_4w_ago}], total: N}."""
-    from tools.dashboard.fetcher_validator import FetcherValidator
+    from dashboard.fetcher_validator import FetcherValidator
 
     try:
         data = api_call(_get_endpoint_path("irank"))
@@ -350,7 +350,7 @@ def fetch_industry_ranking(c):
 
 def fetch_activity(c):
     """Fetch activity from audit log API (fail-fast: error if unavailable)."""
-    from tools.dashboard.fetcher_validator import FetcherValidator
+    from dashboard.fetcher_validator import FetcherValidator
 
     try:
         data = api_call(_get_endpoint_path("activity"))
@@ -396,7 +396,7 @@ def fetch_activity(c):
 def fetch_audit_log(c):
     """Fetch audit log entries. Panel expects a flat list (not wrapped in a
     dict) for direct iteration. API returns {items: [...], total, limit, offset}."""
-    from tools.dashboard.fetcher_validator import FetcherValidator
+    from dashboard.fetcher_validator import FetcherValidator
 
     try:
         data = api_call(_get_endpoint_path("audit"))
@@ -430,7 +430,7 @@ def fetch_audit_log(c):
 
 
 def fetch_notifications(c):
-    from tools.dashboard.fetcher_validator import FetcherValidator
+    from dashboard.fetcher_validator import FetcherValidator
 
     try:
         data = api_call(_get_endpoint_path("notifs"))

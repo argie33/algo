@@ -191,7 +191,7 @@ Best approach: Run failing check locally first with `make ci-local` or specific 
 
 ### Quick Start: Diagnose Data Issues
 
-Tool: `python -m tools.dashboard.diagnose_dashboard`
+Tool: `python -m dashboard.diagnose_dashboard`
 
 Options:
 - `--verbose` — Full responses
@@ -322,12 +322,12 @@ python -m loaders.load_stock_signals
 
 After fixing issues, verify:
 
-1. Run diagnostic: `python -m tools.dashboard.diagnose_dashboard`
+1. Run diagnostic: `python -m dashboard.diagnose_dashboard`
    - All critical fetchers show "Success" ✓
    - No red "ERRORS" section
    - No yellow "STALE" section (or acceptable age)
 
-2. Run dashboard: `python -m tools.dashboard.dashboard`
+2. Run dashboard: `python -m dashboard.dashboard`
    - No error panel at top
    - All data visible (no placeholder dashes)
    - Portfolio values, positions count, performance metrics all show
@@ -340,7 +340,7 @@ After fixing issues, verify:
 
 ## Debug Mode: Run Dashboard with Verbose Logging
 
-`LOGLEVEL=DEBUG python -m tools.dashboard.dashboard -w 30`
+`LOGLEVEL=DEBUG python -m dashboard.dashboard -w 30`
 
 Look for lines like:
 ```

@@ -19,7 +19,7 @@ import pytest
 
 sys.path.insert(0, str(Path(__file__).parent.parent.parent))
 
-from tools.dashboard.cognito_auth import CognitoAuth
+from dashboard.cognito_auth import CognitoAuth
 
 
 def create_jwt(exp: int, sub: str = "user-123") -> str:

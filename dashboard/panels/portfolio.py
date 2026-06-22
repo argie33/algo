@@ -21,7 +21,7 @@ from rich.rule import Rule
 from rich.table import Table
 from rich.text import Text
 
-from tools.dashboard.data_validation import safe_float, safe_int
+from dashboard.data_validation import safe_float, safe_int
 
 from ..formatters import (
     fmt_age,

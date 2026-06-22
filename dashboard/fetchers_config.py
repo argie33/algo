@@ -86,7 +86,7 @@ def _get_data_status_cached():
 
 
 def fetch_run(c):
-    from tools.dashboard.fetcher_validator import FetcherValidator
+    from dashboard.fetcher_validator import FetcherValidator
 
     try:
         data = api_call("/api/algo/last-run")
@@ -152,7 +152,7 @@ def fetch_run(c):
 
 def fetch_algo_config(c):
     """AWS-only algo configuration (fail-fast: error if unavailable)."""
-    from tools.dashboard.fetcher_validator import FetcherValidator
+    from dashboard.fetcher_validator import FetcherValidator
 
     try:
         data = api_call("/api/algo/config")
@@ -232,7 +232,7 @@ def fetch_algo_config(c):
 
 def fetch_health(c):
     """Fetch data loader health status from API. Uses cached data-status (fail-fast: error if unavailable)."""
-    from tools.dashboard.fetcher_validator import FetcherValidator
+    from dashboard.fetcher_validator import FetcherValidator
 
     try:
         data = _get_data_status_cached()
@@ -300,7 +300,7 @@ def fetch_health(c):
 
 def fetch_circuit(c):
     """Fetch circuit breakers from API."""
-    from tools.dashboard.fetcher_validator import FetcherValidator
+    from dashboard.fetcher_validator import FetcherValidator
 
     try:
         data = api_call("/api/algo/circuit-breakers")
@@ -374,7 +374,7 @@ def fetch_algo_metrics(c):
     """Fetch algo metrics. API returns a single dict {date, total_actions,
     entries, exits, avg_signal_score}; panel expects a flat list so it can
     do valid_metrics[0] and iterate over multiple days."""
-    from tools.dashboard.fetcher_validator import FetcherValidator
+    from dashboard.fetcher_validator import FetcherValidator
 
     try:
         data = api_call(_get_endpoint_path("algo_metrics"))

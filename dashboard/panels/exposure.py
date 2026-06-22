@@ -22,7 +22,7 @@ from rich.rule import Rule
 from rich.table import Table
 from rich.text import Text
 
-from tools.dashboard.data_validation import safe_float
+from dashboard.data_validation import safe_float
 
 from ..formatter_strategies import TierFormatter
 from ..formatters import mini_bar

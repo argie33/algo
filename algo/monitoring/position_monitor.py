@@ -222,6 +222,9 @@ class PositionMonitor:
         """Check if portfolio is overly concentrated in one sector.
 
         Alert if >3 positions in same sector (concentration risk).
+
+        Raises:
+            RuntimeError: If concentration check fails (fail-fast for risk management)
         """
         if not current_date:
             current_date = _date.today()
@@ -245,7 +248,10 @@ class PositionMonitor:
                     return {"status": "HIGH_CONCENTRATION", "sectors": concentrated}
                 return {"status": "OK", "sectors": []}
             except (psycopg2.DatabaseError, psycopg2.OperationalError) as e:
-                return {"status": "ERROR", "error": str(e)}
+                raise RuntimeError(
+                    f"Sector concentration check failed: {e}. "
+                    f"Cannot proceed with position monitoring without valid concentration metrics."
+                ) from e
 
     def review_positions(self, current_date: Any | None = None) -> list[dict[str, Any]]:
         """Review every open position. Returns list of recommendations."""
@@ -311,9 +317,14 @@ class PositionMonitor:
                     f"Margin validation failed: {margin_e}. Cannot proceed without valid margin check."
                 ) from margin_e
 
-            conc = self.check_sector_concentration(current_date)
-            if conc["status"] == "HIGH_CONCENTRATION":
-                logger.info("  [WARNING]  Portfolio concentration risk detected")
+            try:
+                conc = self.check_sector_concentration(current_date)
+                if conc["status"] == "HIGH_CONCENTRATION":
+                    logger.info("  [WARNING]  Portfolio concentration risk detected")
+            except RuntimeError as conc_e:
+                raise PositionValidationError(
+                    f"Sector concentration check failed: {conc_e}. Cannot proceed without valid concentration metrics."
+                ) from conc_e
 
             cur.execute("""
                 SELECT t.trade_id, t.symbol, t.entry_price, t.stop_loss_price,
@@ -568,36 +579,48 @@ class PositionMonitor:
     # ---------- Helpers ----------
 
     def _cancel_on_alpaca(self, trade_id: str) -> None:
-        """Cancel a stale pending order on Alpaca API only (idempotent)."""
+        """Cancel a stale pending order on Alpaca API only.
+
+        Raises:
+            RuntimeError: If cancellation cannot be verified (fail-fast to prevent state divergence)
+        """
+        creds = get_alpaca_credentials()
+        base_url = get_alpaca_base_url()
+        alpaca_key = creds.get("key")
+        alpaca_secret = creds.get("secret")
+
+        if not alpaca_key or not alpaca_secret:
+            raise RuntimeError(
+                f"Cannot cancel stale order {trade_id}: Alpaca credentials unavailable. "
+                f"Cannot proceed without ability to verify cancellation at broker."
+            )
+
+        url = f"{base_url}/v2/orders/{trade_id}"
+        headers = {
+            "APCA-API-KEY-ID": alpaca_key,
+            "APCA-API-SECRET-KEY": alpaca_secret,
+        }
         try:
-            creds = get_alpaca_credentials()
-            base_url = get_alpaca_base_url()
-            alpaca_key = creds.get("key")
-            alpaca_secret = creds.get("secret")
-
-            if not alpaca_key or not alpaca_secret:
-                logger.warning(f"Alpaca credentials unavailable for {trade_id}")
-                return None
-
-            url = f"{base_url}/v2/orders/{trade_id}"
-            headers = {
-                "APCA-API-KEY-ID": alpaca_key,
-                "APCA-API-SECRET-KEY": alpaca_secret,
-            }
-            try:
-                timeout = int(self.config["api_request_timeout_seconds"])
-            except KeyError as e:
-                raise KeyError(f"[CONFIG] Missing required field: {e}. Check algo_config table.") from e
+            timeout = int(self.config["api_request_timeout_seconds"])
+        except KeyError as e:
+            raise KeyError(f"[CONFIG] Missing required field: {e}. Check algo_config table.") from e
+        try:
             resp = requests.delete(url, headers=headers, timeout=timeout)
-
-            if resp.status_code == 204 or resp.status_code == 200:
-                logger.info(f"Successfully cancelled order {trade_id} on Alpaca")
-            elif resp.status_code == 404:
-                logger.info(f"Order {trade_id} not found on Alpaca (already closed/cancelled)")
-            else:
-                logger.warning(f"Alpaca cancel returned {resp.status_code} for {trade_id}: {resp.text}")
         except (requests.RequestException, requests.Timeout) as e:
-            logger.warning(f"Could not cancel {trade_id} on Alpaca: {e}")
+            raise RuntimeError(
+                f"Failed to cancel stale order {trade_id} on Alpaca: {e}. "
+                f"Cannot proceed without confirmation of cancellation (DB/broker state would diverge)."
+            ) from e
+
+        if resp.status_code == 204 or resp.status_code == 200:
+            logger.info(f"Successfully cancelled order {trade_id} on Alpaca")
+        elif resp.status_code == 404:
+            logger.info(f"Order {trade_id} not found on Alpaca (already closed/cancelled)")
+        else:
+            raise RuntimeError(
+                f"Alpaca cancel failed for {trade_id} (unexpected status {resp.status_code}): {resp.text}. "
+                f"Cannot mark order as cancelled in DB without broker confirmation."
+            )
 
     def _auto_cancel_stale_order(self, trade_id, symbol, qty, price, age_minutes, cur):
         """Cancel a stale pending order on Alpaca and mark as cancelled in DB.
@@ -1093,7 +1116,11 @@ class PositionMonitor:
         return alpaca_base_url, alpaca_key, alpaca_secret
 
     def _fetch_alpaca_qty(self, alpaca_base_url: str, alpaca_key: str, alpaca_secret: str, symbol: str) -> int:
-        """Fetch position quantity from Alpaca API."""
+        """Fetch position quantity from Alpaca API.
+
+        Raises:
+            RuntimeError: If qty field is missing from Alpaca response (fail-fast for data integrity)
+        """
         url = f"{alpaca_base_url}/v2/positions/{symbol}"
         headers = {
             "APCA-API-KEY-ID": alpaca_key,
@@ -1113,7 +1140,12 @@ class PositionMonitor:
         except (ValueError, Exception) as e:
             raise RuntimeError(f"Invalid JSON response from Alpaca: {e}") from e
 
-        return int(alpaca_pos.get("qty", 0))
+        if "qty" not in alpaca_pos or alpaca_pos["qty"] is None:
+            raise RuntimeError(
+                f"Alpaca response for {symbol} missing qty field (malformed response). "
+                f"Response: {alpaca_pos}. Cannot verify position quantity — halting corporate action check."
+            )
+        return int(alpaca_pos["qty"])
 
     def _handle_qty_variance(
         self,
@@ -1213,6 +1245,9 @@ class PositionMonitor:
 
         Returns a list of dicts with at least 'symbol' and optionally 'name'.
         Used by orchestrator for single-stock halt detection.
+
+        Raises:
+            RuntimeError: If position data cannot be retrieved from database (fail-fast for visibility)
         """
         with DatabaseContext("read") as cur:
             try:
@@ -1224,8 +1259,10 @@ class PositionMonitor:
                 positions = cur.fetchall()
                 return [{"symbol": row[0], "name": row[0]} for row in positions] if positions else []
             except (psycopg2.DatabaseError, psycopg2.OperationalError) as e:
-                logger.warning(f"Failed to fetch open positions: {e}")
-                return []
+                raise RuntimeError(
+                    f"Failed to fetch open positions from database: {e}. "
+                    f"Cannot proceed with halt checking and position monitoring without access to position data."
+                ) from e
 
 
 if __name__ == "__main__":
