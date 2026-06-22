@@ -240,11 +240,18 @@ class TDSequentialStrategy(ExitStrategy):
         _should_exit, decision = engine._check_td_sequential(cur, ctx)
 
         if _should_exit and decision:
+            required_fields = ["stage", "reason", "fraction"]
+            missing = [f for f in required_fields if f not in decision or decision[f] is None]
+            if missing:
+                raise ValueError(
+                    f"TD Sequential exit decision incomplete: missing {missing}. "
+                    f"Cannot process exit without all required fields."
+                )
             return ExitSignal(
                 triggered=True,
-                stage=decision.get("stage", "td_sequential"),
-                reason=decision.get("reason", ""),
-                fraction=decision.get("fraction", 0.5),
+                stage=decision["stage"],
+                reason=decision["reason"],
+                fraction=decision["fraction"],
             )
         return ExitSignal(triggered=False, stage="hold", reason="", fraction=0.0)
 
@@ -259,11 +266,18 @@ class FirstRedDayStrategy(ExitStrategy):
         _should_exit, decision = engine._check_first_red_day(cur, ctx)
 
         if _should_exit and decision:
+            required_fields = ["stage", "reason", "fraction"]
+            missing = [f for f in required_fields if f not in decision or decision[f] is None]
+            if missing:
+                raise ValueError(
+                    f"First red day exit decision incomplete: missing {missing}. "
+                    f"Cannot process exit without all required fields."
+                )
             return ExitSignal(
                 triggered=True,
-                stage=decision.get("stage", "first_red_day"),
-                reason=decision.get("reason", ""),
-                fraction=decision.get("fraction", 0.5),
+                stage=decision["stage"],
+                reason=decision["reason"],
+                fraction=decision["fraction"],
             )
         return ExitSignal(triggered=False, stage="hold", reason="", fraction=0.0)
 
@@ -278,11 +292,18 @@ class ClimaxExhaustionStrategy(ExitStrategy):
         _should_exit, decision = engine._check_climax_exhaustion(cur, ctx)
 
         if _should_exit and decision:
+            required_fields = ["stage", "reason", "fraction"]
+            missing = [f for f in required_fields if f not in decision or decision[f] is None]
+            if missing:
+                raise ValueError(
+                    f"Climax exhaustion exit decision incomplete: missing {missing}. "
+                    f"Cannot process exit without all required fields."
+                )
             return ExitSignal(
                 triggered=True,
-                stage=decision.get("stage", "climax_exhaustion"),
-                reason=decision.get("reason", ""),
-                fraction=decision.get("fraction", 0.5),
+                stage=decision["stage"],
+                reason=decision["reason"],
+                fraction=decision["fraction"],
             )
         return ExitSignal(triggered=False, stage="hold", reason="", fraction=0.0)
 

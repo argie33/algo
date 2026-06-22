@@ -198,9 +198,13 @@ class SwingComponentScorer:
                 "breakout_proximity_pct": round(breakout_proximity, 1),
                 "pivot_count": pivot_count,
             }
-        except Exception as e:
-            logger.debug(f"Setup component failed for {symbol}: {e}")
-            return 0, {"error": str(e)[:50]}
+        except ValueError:
+            # ValueError = validation error (missing data, bad quality, etc.)
+            # Propagate to caller for proper handling, don't silently degrade to 0 pts
+            raise
+        except (TypeError, AttributeError, KeyError) as e:
+            # Unexpected data structure error — convert to ValueError for consistency
+            raise ValueError(f"{symbol}: Setup component data structure error: {e}") from e
 
     def _trend_component(self, symbol: str, eval_date, cur) -> tuple[float, dict[str, Any]]:
         """Trend quality: Minervini score, Weinstein stage, 30wk MA slope.
@@ -248,7 +252,12 @@ class SwingComponentScorer:
             return 0, {"error": str(e)[:50]}
 
     def _momentum_component(self, symbol: str, eval_date, cur) -> tuple[float, dict[str, Any]]:
-        """Momentum: RS percentile, 1m/3m/6m returns."""
+        """Momentum: RS percentile, 1m/3m/6m returns.
+
+        CRITICAL: Raises on missing momentum data instead of defaulting to 0.
+        Signal scoring requires complete price history; missing momentum data
+        means signal evaluation is incomplete.
+        """
         try:
             cur.execute(
                 "SELECT rs_percentile, return_1m, return_3m, return_6m FROM momentum WHERE symbol = %s AND date = %s",
@@ -256,12 +265,25 @@ class SwingComponentScorer:
             )
             row = cur.fetchone()
             if not row or not row[0]:
-                return 0, {"error": "No momentum data"}
+                raise ValueError(
+                    f"{symbol}: Momentum data missing for {eval_date}. "
+                    f"Momentum component requires rs_percentile, return_1m, return_3m, return_6m. "
+                    f"Cannot score momentum without price return history."
+                )
 
-            rs_pct = float(row[0]) if row[0] else 0
-            r1m = float(row[1]) if row[1] else 0
-            r3m = float(row[2]) if row[2] else 0
-            r6m = float(row[3]) if row[3] else 0
+            if row[0] is None:
+                raise ValueError(f"{symbol}: rs_percentile is NULL")
+            if row[1] is None:
+                raise ValueError(f"{symbol}: return_1m is NULL")
+            if row[2] is None:
+                raise ValueError(f"{symbol}: return_3m is NULL")
+            if row[3] is None:
+                raise ValueError(f"{symbol}: return_6m is NULL")
+
+            rs_pct = float(row[0])
+            r1m = float(row[1])
+            r3m = float(row[2])
+            r6m = float(row[3])
 
             rs_pts = min(10, rs_pct / 10)
             return_blend = (r1m * 0.5 + r3m * 0.3 + r6m * 0.2) / 100
@@ -279,7 +301,12 @@ class SwingComponentScorer:
             return 0, {"error": str(e)[:50]}
 
     def _volume_component(self, symbol: str, eval_date, cur) -> tuple[float, dict[str, Any]]:
-        """Volume: breakout confirmation, accumulation days."""
+        """Volume: breakout confirmation, accumulation days.
+
+        CRITICAL: Raises on missing volume data instead of defaulting to 0.
+        Signal scoring requires complete volume analysis; missing volume data
+        means signal evaluation is incomplete.
+        """
         try:
             cur.execute(
                 "SELECT breakout_vol_ratio, accumulation_days FROM volume_analysis WHERE symbol = %s AND date = %s",
@@ -287,10 +314,19 @@ class SwingComponentScorer:
             )
             row = cur.fetchone()
             if not row:
-                return 0, {"error": "No volume data"}
+                raise ValueError(
+                    f"{symbol}: Volume analysis missing for {eval_date}. "
+                    f"Volume component requires breakout_vol_ratio and accumulation_days. "
+                    f"Cannot score volume without volume analysis."
+                )
 
-            vol_ratio = float(row[0]) if row[0] else 1.0
-            accum_days = int(row[1]) if row[1] else 0
+            if row[0] is None:
+                raise ValueError(f"{symbol}: breakout_vol_ratio is NULL")
+            if row[1] is None:
+                raise ValueError(f"{symbol}: accumulation_days is NULL")
+
+            vol_ratio = float(row[0])
+            accum_days = int(row[1])
 
             vol_pts = min(8, (vol_ratio - 1) * 4) if vol_ratio > 1 else 0
             accum_pts = min(4, accum_days / 10)

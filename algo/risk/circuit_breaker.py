@@ -59,31 +59,39 @@ CHECK_LABELS = {
 }
 
 
-def _float(value, context=""):
-    """Convert to float safely, rejecting NaN/Infinity and missing data.
+def _float(value, default=None, context=""):
+    """Convert to float safely, rejecting NaN/Infinity.
 
-    CRITICAL: Raises on missing or invalid data instead of defaulting.
-    Circuit breaker checks require exact data — silent defaults mask missing
-    critical values and lead to incorrect trading halts/permissions.
+    CRITICAL: When default is NOT provided (None), raises on missing data.
+    Circuit breaker checks require exact data — missing critical values must
+    cause failures, not silent defaults.
 
     Args:
-        value: Value to convert (must not be None)
+        value: Value to convert
+        default: Default value if conversion fails (None = fail-fast on missing)
         context: Description for error messages
 
     Raises:
-        ValueError: If value is None, NaN, Infinity, or not convertible to float
+        ValueError: If value is None and no default provided, or if value is NaN/Infinity
+
+    Returns:
+        Converted float value, or default if conversion fails and default provided
     """
     if value is None:
-        raise ValueError(f"Circuit breaker metric is missing (required, not optional) {context}")
+        if default is None:
+            raise ValueError(f"Circuit breaker metric is missing (required, not optional) {context}")
+        return default
     try:
         f = float(value)
         if math.isnan(f) or math.isinf(f):
-            raise ValueError(f"Invalid float {value!r} (NaN/Inf) {context}")
+            if default is None:
+                raise ValueError(f"Invalid float {value!r} (NaN/Inf) {context}")
+            return default
         return f
-    except (ValueError, TypeError) as e:
-        if isinstance(e, ValueError) and "Circuit breaker metric is missing" in str(e):
-            raise
-        raise ValueError(f"Failed to convert {value!r} to float {context}") from e
+    except (ValueError, TypeError):
+        if default is None:
+            raise ValueError(f"Failed to convert {value!r} to float {context}")
+        return default
 
 
 class CircuitBreaker:
