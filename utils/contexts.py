@@ -3,9 +3,9 @@
 Provides:
 - DatabaseErrorContext: Catch database errors with automatic classification
 - LoaderErrorContext: Catch loader errors with correlation tracking
-- ExternalAPIContext: Catch API errors with retry logic
-- TimeoutContext: Enforce operation timeout
-- TransactionContext: Explicit transaction with rollback on any error
+- external_api_context: Catch API errors with retry logic
+- timeout_context: Enforce operation timeout
+- transaction_context: Explicit transaction with rollback on any error
 """
 
 import logging
@@ -134,7 +134,7 @@ class LoaderErrorContext:
 
 
 @contextmanager
-def ExternalAPIContext(
+def external_api_context(
     api_name: str,
     operation: str,
     timeout_sec: int = 10,
@@ -145,7 +145,7 @@ def ExternalAPIContext(
     """Context manager for external API calls with retry and timeout.
 
     Usage:
-        with ExternalAPIContext('yfinance', 'fetch AAPL prices', timeout_sec=10) as api_ctx:
+        with external_api_context('yfinance', 'fetch AAPL prices', timeout_sec=10) as api_ctx:
             response = requests.get(url, timeout=10)
             return response.json()
     """
@@ -184,14 +184,14 @@ def ExternalAPIContext(
 
 
 @contextmanager
-def TimeoutContext(
+def timeout_context(
     operation: str,
     timeout_sec: int = 25,
 ):
     """Context manager that enforces operation timeout.
 
     Usage:
-        with TimeoutContext('fetch market data', timeout_sec=15):
+        with timeout_context('fetch market data', timeout_sec=15):
             # If this takes >15 seconds, raises TimeoutError
             data = expensive_fetch()
     """
@@ -231,7 +231,7 @@ def TimeoutContext(
 
 
 @contextmanager
-def TransactionContext(
+def transaction_context(
     cur,
     operation: str = "transaction",
     should_rollback: bool = True,
@@ -241,7 +241,7 @@ def TransactionContext(
     Auto-commits on success, rolls back on any exception.
 
     Usage:
-        with TransactionContext(cur, 'reconcile positions') as txn:
+        with transaction_context(cur, 'reconcile positions') as txn:
             cur.execute("INSERT INTO positions ...")
             cur.execute("UPDATE portfolio ...")
             # Auto-commits on exit

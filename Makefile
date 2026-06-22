@@ -33,14 +33,16 @@ install-hooks:
 	@echo "✅ Pre-commit hooks installed. Hooks will run on every commit."
 
 lint:
-	ruff check algo/ tests/ tools/
+	ruff check algo/ tests/ tools/ loaders/ utils/ config/ lambda/
 
 format:
-	ruff format algo/ tests/ tools/
+	ruff format algo/ tests/ tools/ loaders/ utils/ config/ lambda/
 
 type-check:
-	mypy algo/ --ignore-missing-imports --show-error-codes
+	mypy algo/ loaders/ utils/ config/ --ignore-missing-imports --show-error-codes
 	mypy tools/ --ignore-missing-imports --show-error-codes
+	mypy lambda/base_handler.py lambda/algo_orchestrator/ lambda/monitoring/ --ignore-missing-imports --show-error-codes
+	cd lambda/api && mypy . --ignore-missing-imports --show-error-codes --explicit-package-bases
 
 security:
 	@echo "Running Bandit security scan..."

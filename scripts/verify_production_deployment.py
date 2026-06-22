@@ -192,7 +192,7 @@ def check_no_errors():
                     logger.info(f"  ✅ {log_group}: No errors in last hour")
 
             except logs.exceptions.ResourceNotFoundException:
-                logger.info(f"  ℹ {log_group}: Log group not found (loader may not have run yet)")
+                logger.info(f"  i {log_group}: Log group not found (loader may not have run yet)")
 
         return True
     except Exception as e:

@@ -9,22 +9,21 @@ repos:
       - id: ruff-format
         name: Ruff format code
 
-  # Type checking
-  - repo: https://github.com/pre-commit/mirrors-mypy
-    rev: v1.14.1
+  # Type checking — run on full directories for accurate cross-module analysis
+  - repo: local
     hooks:
-      - id: mypy
-        args: [--ignore-missing-imports, --show-error-codes]
-        name: MyPy type check
-        additional_dependencies:
-          - psycopg2-binary
-          - yfinance
-          - requests
-          - pandas
-          - scipy
-          - boto3
-          - Flask
-          - pydantic
+      - id: mypy-core
+        name: MyPy — algo loaders utils config tools lambda-standalone
+        entry: mypy algo/ loaders/ utils/ config/ tools/ lambda/base_handler.py lambda/algo_orchestrator/ lambda/monitoring/ --ignore-missing-imports --show-error-codes
+        language: system
+        pass_filenames: false
+        types: [python]
+      - id: mypy-lambda-api
+        name: MyPy — lambda/api
+        entry: bash -c 'cd lambda/api && mypy . --ignore-missing-imports --show-error-codes --explicit-package-bases'
+        language: system
+        pass_filenames: false
+        types: [python]
 
   # Comprehensive CI validation (ruff + basic syntax checks)
   - repo: local

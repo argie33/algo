@@ -265,15 +265,21 @@ jobs:
           python -m py_compile $(find . -name "*.py" -type f ! -path "./.git/*" ! -path "./__pycache__/*" ! -path "./.pytest_cache/*" ! -path "./node_modules/*" ! -path "./.venv/*" ! -path "./venv/*")
           echo "OK: All Python files have correct syntax"
       - name: Ruff format check
-        run: ruff format --check algo/ tests/ tools/
+        run: ruff format --check algo/ tests/ tools/ loaders/ utils/ config/ lambda/
       - name: Ruff lint check
-        run: ruff check algo/ tests/ tools/
-      - name: MyPy type check
+        run: ruff check algo/ tests/ tools/ loaders/ utils/ config/ lambda/
+      - name: MyPy type check — core packages
         run: |
-          echo "Type checking algo/ and tools/..."
-          mypy algo/ --ignore-missing-imports --show-error-codes
+          echo "Type checking algo/ loaders/ utils/ config/ tools/ and standalone lambda files..."
+          mypy algo/ loaders/ utils/ config/ --ignore-missing-imports --show-error-codes
           mypy tools/ --ignore-missing-imports --show-error-codes
-          echo "OK: Type checks passed"
+          mypy lambda/base_handler.py lambda/algo_orchestrator/ lambda/monitoring/ --ignore-missing-imports --show-error-codes
+          echo "OK: Core package type checks passed"
+      - name: MyPy type check — lambda/api
+        run: |
+          echo "Type checking lambda/api/ (run from within dir to resolve internal imports)..."
+          cd lambda/api && mypy . --ignore-missing-imports --show-error-codes --explicit-package-bases
+          echo "OK: lambda/api type checks passed"
       - name: Validate Python imports across critical modules
         run: |
           echo "Validating imports in critical modules..."

@@ -286,7 +286,7 @@ class MetricsCalculator:
     ) -> float | None:
         """Calculate expectancy (expected profit per trade in R-multiples).
 
-        Formula: E[profit] = (win_rate × avg_win_R) - (1 - win_rate) × abs(avg_loss_R)
+        Formula: E[profit] = (win_rate x avg_win_R) - (1 - win_rate) x abs(avg_loss_R)
 
         Args:
             win_rate_pct: Win rate as percentage (0-100)

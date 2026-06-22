@@ -10,7 +10,7 @@ Provides:
 
 import logging
 from datetime import date, timedelta
-from typing import Any, Dict, Optional, Tuple
+from typing import Any
 
 import psycopg2
 

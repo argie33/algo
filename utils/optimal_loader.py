@@ -4,7 +4,7 @@ import signal
 import threading
 import time
 import uuid
-from abc import ABC
+from abc import ABC, abstractmethod
 from collections.abc import Iterable, Sequence
 from datetime import date, datetime, timedelta, timezone
 from typing import Any, cast
@@ -1333,6 +1333,7 @@ class OptimalLoader(ABC):
                 except (psycopg2.DatabaseError, psycopg2.OperationalError) as e:
                     logger.warning(f"Failed to release DynamoDB lock: {e}")
 
+    @abstractmethod
     def close(self) -> None:
         """No-op. DatabaseContext handles connection cleanup automatically."""
 

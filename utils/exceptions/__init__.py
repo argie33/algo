@@ -26,9 +26,7 @@ from .core import (
     UnexpectedError,
     ValidationError,
 )
-from .core import (
-    TimeoutError as APITimeoutError,
-)
+from .core import TimeoutError as APITimeoutError
 
 
 __all__ = [

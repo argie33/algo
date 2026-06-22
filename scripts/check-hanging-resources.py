@@ -39,10 +39,10 @@ def check_step_functions():
 
                 if executions:
                     print(f"  RUNNING executions: {len(executions)}")
-                    for exec in executions:
-                        start_time = exec["startDate"]
+                    for execution in executions:
+                        start_time = execution["startDate"]
                         duration = datetime.now(start_time.tzinfo) - start_time
-                        print(f"    - {exec['name']}: {duration}")
+                        print(f"    - {execution['name']}: {duration}")
 
                         if duration > timedelta(hours=8):
                             print(f"      [WARNING] Running for {duration} - HUNG?")

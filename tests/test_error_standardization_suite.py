@@ -240,12 +240,12 @@ class TestImportAvailability:
         from utils.contexts import (
             DatabaseErrorContext,
             LoaderErrorContext,
-            TransactionContext,
+            transaction_context,
         )
 
         assert DatabaseErrorContext is not None
         assert LoaderErrorContext is not None
-        assert TransactionContext is not None
+        assert transaction_context is not None
 
 
 # ============================================================================

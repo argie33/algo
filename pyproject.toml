@@ -79,6 +79,8 @@ ignore = ["E203", "E501", "C901", "B904", "UP031", "RUF012"]
 
 [tool.ruff.lint.per-file-ignores]
 "__init__.py" = ["F401"]
+"utils/exceptions/core.py" = ["N818", "A001"]
+"utils/exceptions/__init__.py" = ["A001"]
 "migrations/*" = ["E402", "F401"]
 "tests/*" = ["E402", "F401", "S101"]
 "scripts/*" = ["E402"]
