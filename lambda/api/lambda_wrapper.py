@@ -25,12 +25,12 @@ logger = logging.getLogger(__name__)
 class LambdaAPIClient:
     """Client for invoking algo-api-dev Lambda function directly."""
 
-    def __init__(self):
+    def __init__(self) -> None:
         self.function_name = os.getenv("LAMBDA_API_FUNCTION", "algo-api-dev")
         self.region = os.getenv("AWS_REGION", "us-east-1")
         self.client = None
 
-    def _get_client(self):
+    def _get_client(self) -> Any:
         """Get or create Lambda client."""
         if self.client is None:
             try:

@@ -135,7 +135,7 @@ def _get_data_quality(cur: cursor) -> dict[str, Any]:
 
 
 @db_route_handler("fetch data status")
-def _get_data_status(cur) -> dict[str, Any]:
+def _get_data_status(cur: cursor) -> dict[str, Any]:
     """Get data freshness status with summary for ServiceHealth/AlgoTradingDashboard.
 
     Uses same trading-day-aware freshness logic as Phase 1 orchestrator to avoid
@@ -363,7 +363,7 @@ def _normalize_exposure(exp: dict) -> dict[str, Any]:
 
 
 @db_route_handler("get market")
-def _get_market(cur) -> dict[str, Any]:
+def _get_market(cur: cursor) -> dict[str, Any]:
     """Get simplified market data for dashboard. Returns market_health_daily + exposure data."""
     try:
         cur.execute("SET LOCAL statement_timeout = '8000ms'")
@@ -452,7 +452,7 @@ def _get_market(cur) -> dict[str, Any]:
 
 
 @db_route_handler("get market factors")
-def _get_market_factors(cur) -> dict[str, Any]:
+def _get_market_factors(cur: cursor) -> dict[str, Any]:
     """Get market exposure factors for dashboard display."""
     try:
         cur.execute("SET LOCAL statement_timeout = '8000ms'")
@@ -513,7 +513,7 @@ def _get_market_factors(cur) -> dict[str, Any]:
 
 
 @db_route_handler("get market sentiment")
-def _get_market_sentiment(cur) -> dict[str, Any]:
+def _get_market_sentiment(cur: cursor) -> dict[str, Any]:
     """Return latest market sentiment score and trend."""
     # market_sentiment view provides: date, fear_greed_index, label, put_call_ratio, vix, sentiment_score
     cur.execute("""
@@ -561,7 +561,7 @@ def _get_market_sentiment(cur) -> dict[str, Any]:
 
 
 @db_route_handler("get markets")
-def _get_markets(cur) -> dict[str, Any]:
+def _get_markets(cur: cursor) -> dict[str, Any]:
     """Get market regime, exposure, and 12-factor data for the Markets Health dashboard."""
     try:
         # Latest exposure row
@@ -771,7 +771,7 @@ def _get_markets(cur) -> dict[str, Any]:
 
 
 @db_route_handler("get trend criteria")
-def _get_trend_criteria(cur) -> dict[str, Any]:
+def _get_trend_criteria(cur: cursor) -> dict[str, Any]:
     """Return trend criteria analysis with passing count from actual data."""
     cur.execute("""
         SELECT

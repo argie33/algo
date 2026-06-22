@@ -7,6 +7,7 @@ import psycopg2
 import psycopg2.errors
 import psycopg2.extras
 import psycopg2.sql
+from psycopg2.extensions import cursor
 from routes.utils import (
     check_data_freshness,
     error_response,
@@ -38,12 +39,12 @@ _ETF_TABLE_MAP = {
 
 
 def handle(
-    cur,
+    cur: cursor,
     path: str,
     method: str,
-    params: dict,
-    body: dict | None = None,
-    jwt_claims: dict | None = None,
+    params: dict[str, Any],
+    body: dict[str, Any] | None = None,
+    jwt_claims: dict[str, Any] | None = None,
 ) -> dict[str, Any]:
     try:
         parts = path.split("/")

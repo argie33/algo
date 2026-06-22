@@ -2,10 +2,12 @@
 
 import logging
 import re
+from typing import Any
 
 import psycopg2
 import psycopg2.errors
 import psycopg2.extras
+from psycopg2.extensions import cursor
 from routes.utils import (
     check_data_freshness,
     error_response,
@@ -24,13 +26,13 @@ logger = logging.getLogger(__name__)
 
 
 def handle(
-    cur,
+    cur: cursor,
     path: str,
     method: str,
-    params: dict,
-    body: dict | None = None,
-    jwt_claims: dict | None = None,
-) -> "dict":
+    params: dict[str, Any],
+    body: dict[str, Any] | None = None,
+    jwt_claims: dict[str, Any] | None = None,
+) -> dict[str, Any]:
     try:
         parts = path.split("/")
         known_non_symbol_paths = (

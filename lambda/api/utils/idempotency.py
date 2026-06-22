@@ -19,6 +19,7 @@ Usage:
 
 import json
 import logging
+from typing import Any
 
 import psycopg2
 import psycopg2.errors
@@ -26,7 +27,7 @@ import psycopg2.errors
 logger = logging.getLogger(__name__)
 
 
-def check_idempotency_key(cur, idempotency_key: str, endpoint: str, timeout_sec: int = 5) -> dict | None:
+def check_idempotency_key(cur: Any, idempotency_key: str, endpoint: str, timeout_sec: int = 5) -> dict[str, Any] | None:
     """Check if request was already processed using idempotency key.
 
     Args:
@@ -80,7 +81,7 @@ def check_idempotency_key(cur, idempotency_key: str, endpoint: str, timeout_sec:
         return None
 
 
-def store_idempotency_key(cur, idempotency_key: str, endpoint: str, response_data: dict, timeout_sec: int = 5) -> bool:
+def store_idempotency_key(cur: Any, idempotency_key: str, endpoint: str, response_data: dict[str, Any], timeout_sec: int = 5) -> bool:
     """Store idempotency key with response for future replays.
 
     Args:
@@ -122,7 +123,7 @@ def store_idempotency_key(cur, idempotency_key: str, endpoint: str, response_dat
         return False
 
 
-def cleanup_expired_keys(cur, days_old: int = 7, timeout_sec: int = 10) -> int:
+def cleanup_expired_keys(cur: Any, days_old: int = 7, timeout_sec: int = 10) -> int:
     """Clean up expired idempotency keys older than specified days.
 
     Typically called by background job to prevent unbounded table growth.

@@ -7,6 +7,7 @@ import psycopg2
 import psycopg2.errors
 import psycopg2.extras
 import psycopg2.sql
+from psycopg2.extensions import cursor
 
 # Ensure imports work - setup_imports is imported by parent module (lambda_function or api_router)
 from routes.utils import (
@@ -24,7 +25,7 @@ logger = logging.getLogger(__name__)
 
 
 @db_route_handler("get economic calendar")
-def _get_economic_calendar(cur) -> dict[str, Any]:
+def _get_economic_calendar(cur: cursor) -> dict[str, Any]:
     """Get economic calendar data with freshness validation.
 
     Returns list of upcoming economic events. Includes data_freshness metadata
@@ -63,7 +64,7 @@ def _get_economic_calendar(cur) -> dict[str, Any]:
 
 
 @db_route_handler("get sentiment")
-def _get_sentiment(cur) -> dict[str, Any]:
+def _get_sentiment(cur: cursor) -> dict[str, Any]:
     """Get market sentiment data.
 
     Returns current market sentiment (fear/greed index). Returns 503 error

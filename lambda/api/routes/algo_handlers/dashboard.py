@@ -8,6 +8,7 @@ import psycopg2
 import psycopg2.errors
 import psycopg2.extras
 import psycopg2.sql
+from psycopg2.extensions import cursor
 
 # Ensure imports work - setup_imports is imported by parent module (lambda_function or api_router)
 from routes.utils import (
@@ -31,7 +32,7 @@ logger = logging.getLogger(__name__)
 
 
 @db_route_handler("fetch algo positions")
-def _get_algo_positions(cur, user_id: str | None = None) -> dict[str, Any]:
+def _get_algo_positions(cur: cursor, user_id: str | None = None) -> dict[str, Any]:
     """Get current open positions with computed fields.
 
     Provides comprehensive position data with:
@@ -131,7 +132,7 @@ def _get_algo_positions(cur, user_id: str | None = None) -> dict[str, Any]:
             hi = max(t3 or t2 or t1 or entry, cur_price)
             span = max(0.0001, hi - lo)
 
-            def pos(price, _lo=lo, _span=span):
+            def pos(price: float | None, _lo: float = lo, _span: float = span) -> float | None:
                 return ((price - _lo) / _span) * 100 if price is not None else None
 
             d["ladder_pct_stop"] = pos(stop)
@@ -232,7 +233,7 @@ def _get_algo_positions(cur, user_id: str | None = None) -> dict[str, Any]:
 
 
 @db_route_handler("fetch algo status")
-def _get_algo_status(cur) -> dict[str, Any]:
+def _get_algo_status(cur: cursor) -> dict[str, Any]:
     """Get latest algo execution status plus latest portfolio snapshot."""
     cur.execute("""
             SELECT
@@ -305,7 +306,7 @@ def _get_algo_status(cur) -> dict[str, Any]:
 
 
 @db_route_handler("fetch algo trades")
-def _get_algo_trades(cur, limit: int = 200, user_id: str | None = None, status: str | None = None) -> dict[str, Any]:
+def _get_algo_trades(cur: cursor, limit: int = 200, user_id: str | None = None, status: str | None = None) -> dict[str, Any]:
     """Get recent trades with all fields for frontend (scoped to user if user_id provided, filtered by status if provided)."""
     where_parts: list[str] = []
     params: list[Any] = []
@@ -358,7 +359,7 @@ def _get_algo_trades(cur, limit: int = 200, user_id: str | None = None, status: 
 
 
 @db_route_handler("fetch circuit breakers")
-def _get_circuit_breakers(cur) -> dict[str, Any]:
+def _get_circuit_breakers(cur: cursor) -> dict[str, Any]:
     """Get real-time circuit breaker state with current values vs thresholds."""
     try:
         today = date.today()
@@ -838,7 +839,7 @@ def _get_circuit_breakers(cur) -> dict[str, Any]:
 
 
 @db_route_handler("fetch dashboard signals")
-def _get_dashboard_signals(cur) -> dict[str, Any]:
+def _get_dashboard_signals(cur: cursor) -> dict[str, Any]:
     """Get dashboard-specific signal data with aggregations for the Ops Terminal.
 
     Returns: BUY signals with quality scores, grade distribution (A-D by score),
@@ -947,7 +948,7 @@ def _get_dashboard_signals(cur) -> dict[str, Any]:
 
 
 @db_route_handler("fetch equity curve")
-def _get_equity_curve(cur, days: int = 180) -> dict[str, Any]:
+def _get_equity_curve(cur: cursor, days: int = 180) -> dict[str, Any]:
     """Get equity curve for last N days."""
     try:
         cutoff_date = (datetime.now(timezone.utc) - timedelta(days=days)).date()

@@ -6,6 +6,7 @@ from typing import Any
 import psycopg2
 import psycopg2.errors
 from models.requests import PositionUpdateRequest
+from psycopg2.extensions import cursor
 from pydantic import ValidationError
 from routes.utils import (
     error_response,
@@ -28,12 +29,12 @@ def _check_admin_access(jwt_claims: dict | None) -> bool:
 
 
 def handle(
-    cur,
+    cur: cursor,
     path: str,
     method: str,
-    params: dict,
-    body: dict | None = None,
-    jwt_claims: dict | None = None,
+    params: dict[str, Any],
+    body: dict[str, Any] | None = None,
+    jwt_claims: dict[str, Any] | None = None,
 ) -> dict[str, Any]:
     """Handle /api/position/* endpoints."""
     try:

@@ -8,10 +8,12 @@ Provides complete OpenAPI 3.0 spec for:
 - Data freshness metadata
 """
 
+from typing import Any
+
 from api_utils.config import API_VERSION
 
 
-def generate_openapi_spec():
+def generate_openapi_spec() -> dict[str, Any]:
     """Generate complete OpenAPI 3.0 specification.
 
     Returns:
@@ -784,7 +786,7 @@ def _build_path_api_docs() -> dict:
     }
 
 
-def _get_paths():
+def _get_paths() -> dict[str, Any]:
     """Generate API paths for all endpoints by dispatching to builder functions."""
     paths = {}
     paths.update(_build_path_health())
@@ -807,7 +809,7 @@ def _get_paths():
     return paths
 
 
-def _get_schemas():
+def _get_schemas() -> dict[str, Any]:
     """Generate JSON schemas for all response types."""
     return {
         "DataFreshness": {
@@ -940,7 +942,7 @@ def _get_schemas():
     }
 
 
-def _get_common_responses():
+def _get_common_responses() -> dict[str, Any]:
     """Generate common response definitions."""
     return {
         "BadRequest": {

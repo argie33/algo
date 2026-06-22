@@ -16,7 +16,6 @@ from datetime import datetime, timezone
 from typing import Any
 
 from psycopg2.extensions import cursor
-
 from routes.utils import (
     check_data_freshness,
     error_response,

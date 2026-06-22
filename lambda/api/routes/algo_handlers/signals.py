@@ -9,6 +9,7 @@ import psycopg2.errors
 import psycopg2.extras
 import psycopg2.sql
 from models.requests import PreTradeImpactRequest, TradePreviewRequest
+from psycopg2.extensions import cursor
 from pydantic import ValidationError
 
 # Ensure imports work - setup_imports is imported by parent module (lambda_function or api_router)
@@ -30,7 +31,7 @@ from utils.validation import (
 logger = logging.getLogger(__name__)
 
 
-def _calculate_pre_trade_impact(cur, body: dict) -> dict[str, Any]:
+def _calculate_pre_trade_impact(cur: cursor, body: dict[str, Any]) -> dict[str, Any]:
     """Estimate portfolio impact before entering a trade.
 
     Input: { symbol, entry_price?, position_dollars?, position_pct? }
@@ -156,7 +157,7 @@ def _calculate_pre_trade_impact(cur, body: dict) -> dict[str, Any]:
 
 
 @db_route_handler("calculate trade preview")
-def _calculate_trade_preview(cur, body: dict) -> dict[str, Any]:
+def _calculate_trade_preview(cur: cursor, body: dict[str, Any]) -> dict[str, Any]:
     """Calculate position preview before trade entry.
 
     Input: { symbol, entry_price, stop_loss_price }
@@ -245,7 +246,7 @@ def _calculate_trade_preview(cur, body: dict) -> dict[str, Any]:
 
 
 @db_route_handler("fetch rejection funnel")
-def _get_rejection_funnel(cur) -> dict[str, Any]:
+def _get_rejection_funnel(cur: cursor) -> dict[str, Any]:
     """Get signal rejection funnel with detailed breakdown by filter."""
     try:
         today = date.today()
@@ -479,7 +480,7 @@ def _get_rejection_reason_description(reason: str) -> str:
 
 @db_route_handler("fetch swing scores")
 def _get_swing_scores(
-    cur, limit: int = 100, min_score: float | None = None, symbol: str | None = None
+    cur: cursor, limit: int = 100, min_score: float | None = None, symbol: str | None = None
 ) -> dict[str, Any]:
     """Get swing trade candidates with scoring."""
     try:
@@ -526,7 +527,7 @@ def _get_swing_scores(
 
 
 @db_route_handler("fetch swing scores history")
-def _get_swing_scores_history(cur, days: int = 30) -> dict[str, Any]:
+def _get_swing_scores_history(cur: cursor, days: int = 30) -> dict[str, Any]:
     """Get swing scores historical data."""
     try:
         cutoff_date = (datetime.now(timezone.utc) - timedelta(days=days)).date()

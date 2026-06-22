@@ -5,6 +5,7 @@ import logging
 from typing import Any
 
 import psycopg2
+from psycopg2.extensions import cursor
 
 # Ensure imports work - setup_imports is imported by parent module (lambda_function or api_router)
 from routes.utils import (
@@ -20,7 +21,7 @@ logger = logging.getLogger(__name__)
 
 
 @db_route_handler("fetch orchestrator execution details")
-def _get_orchestrator_execution_details(cur, run_id: str) -> dict[str, Any]:
+def _get_orchestrator_execution_details(cur: cursor, run_id: str) -> dict[str, Any]:
     """Return full details of a specific orchestrator run."""
     cur.execute(
         """
@@ -48,7 +49,7 @@ def _get_orchestrator_execution_details(cur, run_id: str) -> dict[str, Any]:
 
 
 @db_route_handler("fetch orchestrator execution failed")
-def _get_orchestrator_execution_failed(cur, days: int = 30) -> dict[str, Any]:
+def _get_orchestrator_execution_failed(cur: cursor, days: int = 30) -> dict[str, Any]:
     """Return failed/halted orchestrator runs."""
     cur.execute(
         """
@@ -65,7 +66,7 @@ def _get_orchestrator_execution_failed(cur, days: int = 30) -> dict[str, Any]:
 
 
 @db_route_handler("fetch orchestrator execution patterns")
-def _get_orchestrator_execution_patterns(cur, days: int = 30) -> dict[str, Any]:
+def _get_orchestrator_execution_patterns(cur: cursor, days: int = 30) -> dict[str, Any]:
     """Analyze halt patterns - which phases halt most often."""
     cur.execute(
         """
@@ -95,7 +96,7 @@ def _get_orchestrator_execution_patterns(cur, days: int = 30) -> dict[str, Any]:
 
 
 @db_route_handler("fetch orchestrator execution recent")
-def _get_orchestrator_execution_recent(cur, days: int = 7, limit: int = 50) -> dict[str, Any]:
+def _get_orchestrator_execution_recent(cur: cursor, days: int = 7, limit: int = 50) -> dict[str, Any]:
     """Return recent orchestrator execution runs."""
     try:
         cur.execute(
@@ -138,7 +139,7 @@ def _get_orchestrator_execution_recent(cur, days: int = 7, limit: int = 50) -> d
 
 
 @db_route_handler("fetch orchestrator execution stats")
-def _get_orchestrator_execution_stats(cur, days: int = 7) -> dict[str, Any]:
+def _get_orchestrator_execution_stats(cur: cursor, days: int = 7) -> dict[str, Any]:
     """Return execution statistics."""
     cur.execute(
         """

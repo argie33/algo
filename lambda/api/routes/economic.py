@@ -7,6 +7,7 @@ import psycopg2
 import psycopg2.errors
 import psycopg2.extras
 import psycopg2.sql
+from psycopg2.extensions import cursor
 from routes.utils import (
     check_data_freshness,
     error_response,
@@ -46,12 +47,12 @@ _ROUTE_REGISTRY = {
 
 
 def handle(
-    cur,
+    cur: cursor,
     path: str,
     method: str,
-    params: dict,
-    body: dict | None = None,
-    jwt_claims: dict | None = None,
+    params: dict[str, Any],
+    body: dict[str, Any] | None = None,
+    jwt_claims: dict[str, Any] | None = None,
 ) -> Any:
     """Handle /api/economic and /api/economic/* endpoints using registry dispatch."""
     try:
@@ -92,7 +93,7 @@ def handle(
         return error_response(code, error_type, message)
 
 
-def _get_vix(cur) -> dict[str, Any]:
+def _get_vix(cur: cursor) -> dict[str, Any]:
     """Get VIX historical data."""
     try:
         rows = execute_with_timeout(
@@ -126,7 +127,7 @@ def _get_vix(cur) -> dict[str, Any]:
         return error_response(code, error_type, message)
 
 
-def _get_calendar(cur, params: dict) -> dict[str, Any]:
+def _get_calendar(cur: cursor, params: dict[str, Any]) -> dict[str, Any]:
     """Get economic calendar data with optional date filtering."""
     try:
         cur.execute("SET LOCAL statement_timeout = '5000ms'")
@@ -179,7 +180,7 @@ def _get_calendar(cur, params: dict) -> dict[str, Any]:
         return error_response(code, error_type, message)
 
 
-def _get_leading_indicators(cur) -> dict[str, Any]:
+def _get_leading_indicators(cur: cursor) -> dict[str, Any]:
     """Get leading economic indicators formatted for EconomicDashboard."""
     # Maps FRED series IDs to indicator names
     indicator_map = {
@@ -402,7 +403,7 @@ def _get_leading_indicators(cur) -> dict[str, Any]:
         return error_response(code, error_type, message)
 
 
-def _get_yield_curve_full(cur) -> dict[str, Any]:
+def _get_yield_curve_full(cur: cursor) -> dict[str, Any]:
     """Get yield curve and credit spread data formatted for EconomicDashboard."""
     try:
         cur.execute("""

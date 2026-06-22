@@ -7,6 +7,7 @@ from typing import Any
 import psycopg2
 import psycopg2.errors
 import psycopg2.extras
+from psycopg2.extensions import cursor
 from routes.utils import (
     error_response,
     execute_with_timeout,
@@ -28,12 +29,12 @@ _DEFAULTS = {
 
 
 def handle(
-    cur,
+    cur: cursor,
     path: str,
     method: str,
-    params: dict,
-    body: dict | None = None,
-    jwt_claims: dict | None = None,
+    params: dict[str, Any],
+    body: dict[str, Any] | None = None,
+    jwt_claims: dict[str, Any] | None = None,
 ) -> dict[str, Any]:
     """Handle /api/settings endpoints."""
     if jwt_claims is None:
@@ -51,7 +52,7 @@ def handle(
     return error_response(405, "method_not_allowed", f"{method} not supported")
 
 
-def _get_settings(cur, jwt_claims: dict) -> dict[str, Any]:
+def _get_settings(cur: cursor, jwt_claims: dict[str, Any]) -> dict[str, Any]:
     """Return user settings, falling back to defaults."""
     user_id = jwt_claims.get("sub")
     if not user_id:
@@ -87,7 +88,7 @@ def _get_settings(cur, jwt_claims: dict) -> dict[str, Any]:
         return error_response(code, error_type, message)
 
 
-def _save_settings(cur, body: dict, jwt_claims: dict) -> dict[str, Any]:
+def _save_settings(cur: cursor, body: dict[str, Any], jwt_claims: dict[str, Any]) -> dict[str, Any]:
     """Persist user settings (theme, notifications, other preferences)."""
     user_id = jwt_claims.get("sub")
     if not user_id:

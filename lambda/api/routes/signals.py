@@ -8,6 +8,7 @@ import psycopg2
 import psycopg2.errors
 import psycopg2.extras
 import psycopg2.sql
+from psycopg2.extensions import cursor
 from routes.utils import (
     check_data_freshness,
     db_route_handler,
@@ -24,12 +25,12 @@ logger = logging.getLogger(__name__)
 
 
 def handle(
-    cur,
+    cur: cursor,
     path: str,
     method: str,
-    params: dict,
-    body: dict | None = None,
-    jwt_claims: dict | None = None,
+    params: dict[str, Any],
+    body: dict[str, Any] | None = None,
+    jwt_claims: dict[str, Any] | None = None,
 ) -> Any:
     """Handle /api/signals/* endpoints."""
     try:
@@ -74,7 +75,7 @@ def handle(
 
 @db_route_handler("fetch stock signals")
 def _get_signals_stocks(
-    cur, limit: int = 500, timeframe: str = "daily", symbol_filter: str | None = None
+    cur: cursor, limit: int = 500, timeframe: str = "daily", symbol_filter: str | None = None
 ) -> dict[str, Any]:
     """Get stock trading signals from buy_sell_daily (primary signal source).
 
@@ -188,7 +189,7 @@ def _get_signals_stocks(
 
 
 @db_route_handler("fetch ETF signals")
-def _get_signals_etf(cur, limit: int = 500) -> dict[str, Any]:
+def _get_signals_etf(cur: cursor, limit: int = 500) -> dict[str, Any]:
     """Get ETF market-regime signals from price_daily + trend_template_data.
 
     buy_sell_daily_etf and technical_data_daily were removed from the pipeline.

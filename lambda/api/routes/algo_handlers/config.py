@@ -60,7 +60,7 @@ def _get_algo_config(cur: cursor) -> dict[str, Any]:
 
 
 @db_route_handler("fetch algo config key")
-def _get_algo_config_key(cur, key: str) -> dict[str, Any]:
+def _get_algo_config_key(cur: cursor, key: str) -> dict[str, Any]:
     """Return a single algo config key."""
     cur.execute(
         "SELECT key, value, value_type, description, updated_at FROM algo_config WHERE key = %s",
@@ -71,7 +71,7 @@ def _get_algo_config_key(cur, key: str) -> dict[str, Any]:
 
 
 @db_route_handler("reset algo config key")
-def _reset_algo_config_key(cur, key: str, actor: str) -> dict[str, Any]:
+def _reset_algo_config_key(cur: cursor, key: str, actor: str) -> dict[str, Any]:
     """Reset a configuration key to its default value (TIER 5: Reset capability)."""
     # Validate the key exists
     if key not in AlgoConfig.DEFAULTS:
@@ -120,7 +120,7 @@ def _reset_algo_config_key(cur, key: str, actor: str) -> dict[str, Any]:
 
 
 @db_route_handler("update algo config key")
-def _update_algo_config_key(cur, key: str, body: dict, actor: str) -> dict[str, Any]:
+def _update_algo_config_key(cur: cursor, key: str, body: dict[str, Any], actor: str) -> dict[str, Any]:
     """Update a configuration key (TIER 4: Configuration Editing)."""
     if not body or "value" not in body:
         return error_response(400, "bad_request", "value required in request body")

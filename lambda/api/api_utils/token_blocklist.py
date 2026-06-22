@@ -16,7 +16,7 @@ def is_revoked(jti: str) -> bool:
         raise RuntimeError(f"Operation failed: {e}") from e
 
 
-def revoke_token(jti: str, exp: int):
+def revoke_token(jti: str, exp: int) -> None:
     token_blocklist_table.put_item(
         Item={
             "jti": jti,

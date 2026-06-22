@@ -26,6 +26,7 @@ This file re-exports utils.DatabaseContext with API-appropriate defaults.
 
 # Import the unified implementation from utils
 import sys
+from typing import Any
 
 from psycopg2.extras import DictCursor
 
@@ -52,8 +53,8 @@ class DatabaseContext(_DatabaseContext):
         self,
         role: str = "read",
         timeout: int = 20,
-        cursor_factory=DictCursor,
-    ):
+        cursor_factory: type[Any] = DictCursor,
+    ) -> None:
         """Initialize REST API context with disabled correlation tracking.
 
         Args:

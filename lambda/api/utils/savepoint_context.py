@@ -1,7 +1,9 @@
 """Context manager for PostgreSQL SAVEPOINT handling with automatic rollback on error."""
 
 import logging
+from collections.abc import Generator
 from contextlib import contextmanager
+from typing import Any
 
 import psycopg2
 
@@ -9,7 +11,7 @@ logger = logging.getLogger(__name__)
 
 
 @contextmanager
-def savepoint_context(cur, savepoint_name: str, fallback_value=None, log_errors=True):
+def savepoint_context(cur: Any, savepoint_name: str, fallback_value: Any = None, log_errors: bool = True) -> Generator[None, None, None]:
     """Context manager for SAVEPOINT blocks with automatic rollback on error.
 
     Usage:

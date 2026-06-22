@@ -30,6 +30,7 @@ import logging
 from typing import Any
 
 import boto3
+from psycopg2.extensions import cursor
 from routes.utils import error_response, success_response
 
 logger = logging.getLogger(__name__)
@@ -39,14 +40,14 @@ _logs_client = None
 LOG_GROUP = "/aws/frontend/algo-trading-dashboard"
 
 
-def _get_logs_client():
+def _get_logs_client() -> Any:
     global _logs_client
     if _logs_client is None:
         _logs_client = boto3.client("logs")
     return _logs_client
 
 
-def ensure_log_stream(stream_name: str):
+def ensure_log_stream(stream_name: str) -> None:
     """Ensure CloudWatch log stream exists."""
     try:
         client = _get_logs_client()
@@ -58,12 +59,12 @@ def ensure_log_stream(stream_name: str):
 
 
 def handle(
-    cur,
+    cur: cursor,
     path: str,
     method: str,
-    params: dict,
-    body: dict | None = None,
-    jwt_claims: dict | None = None,
+    params: dict[str, Any],
+    body: dict[str, Any] | None = None,
+    jwt_claims: dict[str, Any] | None = None,
 ) -> dict[str, Any]:
     """Handle frontend error logging.
 

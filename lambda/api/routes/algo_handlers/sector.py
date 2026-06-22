@@ -8,6 +8,7 @@ import psycopg2
 import psycopg2.errors
 import psycopg2.extras
 import psycopg2.sql
+from psycopg2.extensions import cursor
 
 # Ensure imports work - setup_imports is imported by parent module (lambda_function or api_router)
 from routes.utils import (
@@ -28,7 +29,7 @@ logger = logging.getLogger(__name__)
 
 
 @db_route_handler("get algo evaluate")
-def _get_algo_evaluate(cur) -> dict[str, Any]:
+def _get_algo_evaluate(cur: cursor) -> dict[str, Any]:
     """Get comprehensive signal evaluation with candidate analysis and constraints."""
     try:
         # Signal candidate metrics
@@ -232,7 +233,7 @@ def _get_algo_evaluate(cur) -> dict[str, Any]:
 
 
 @db_route_handler("get sector breadth")
-def _get_sector_breadth(cur) -> dict[str, Any]:
+def _get_sector_breadth(cur: cursor) -> dict[str, Any]:
     """Get sector breadth indicators: % of stocks above 50-day and 200-day moving averages.
 
     Uses pre-computed sma_50/sma_200 from technical_data_daily (populated daily by vectorized loader).
@@ -304,7 +305,7 @@ def _get_sector_breadth(cur) -> dict[str, Any]:
 
 
 @db_route_handler("get sector position warnings")
-def _get_sector_position_warnings(cur) -> dict[str, Any]:
+def _get_sector_position_warnings(cur: cursor) -> dict[str, Any]:
     """Get sector position concentration warnings (FIX: missing endpoint for dashboard fallback).
 
     Returns list of sectors with position counts and concentration warnings.
@@ -371,7 +372,7 @@ def _get_sector_position_warnings(cur) -> dict[str, Any]:
 
 
 @db_route_handler("get sector rotation")
-def _get_sector_rotation(cur, days: int = 180) -> dict[str, Any]:
+def _get_sector_rotation(cur: cursor, days: int = 180) -> dict[str, Any]:
     """Get sector rotation data: defensive vs cyclical relative strength."""
     cutoff_date = (datetime.now(timezone.utc) - timedelta(days=days)).date()
     cur.execute(
@@ -466,7 +467,7 @@ def _get_sector_rotation(cur, days: int = 180) -> dict[str, Any]:
 
 
 @db_route_handler("get sector stage2")
-def _get_sector_stage2(cur) -> dict[str, Any]:
+def _get_sector_stage2(cur: cursor) -> dict[str, Any]:
     """Get percentage of stocks in Stage 2 by sector."""
     try:
         cur.execute("""

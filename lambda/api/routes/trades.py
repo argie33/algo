@@ -13,6 +13,7 @@ import psycopg2.errors
 import psycopg2.extras
 import psycopg2.sql
 from models.requests import ManualTradeRequest
+from psycopg2.extensions import cursor
 from pydantic import ValidationError
 from routes.utils import (
     check_data_freshness,
@@ -37,7 +38,7 @@ def _check_admin_access(jwt_claims: dict | None) -> bool:
     return bool(CognitoValidator.validate_admin_access(jwt_claims))
 
 
-def _compute_request_signature(idempotency_key: str, body: dict) -> str:
+def _compute_request_signature(idempotency_key: str, body: dict[str, Any]) -> str:
     """Compute a hash of the idempotency key and request body.
 
     Returns a deterministic signature to detect duplicate requests.
@@ -46,7 +47,7 @@ def _compute_request_signature(idempotency_key: str, body: dict) -> str:
     return hashlib.sha256(content.encode()).hexdigest()
 
 
-def _check_idempotency(cur, signature: str) -> dict | None:
+def _check_idempotency(cur: cursor, signature: str) -> dict[str, Any] | None:
     """Check if this request signature has been processed before.
 
     Returns the cached response if found, None otherwise.
@@ -69,7 +70,7 @@ def _check_idempotency(cur, signature: str) -> dict | None:
         return None
 
 
-def _store_idempotent_response(cur, signature: str, response: dict) -> None:
+def _store_idempotent_response(cur: cursor, signature: str, response: dict[str, Any]) -> None:
     """Cache the response for this idempotent request signature."""
     try:
         cur.execute(
@@ -85,13 +86,13 @@ def _store_idempotent_response(cur, signature: str, response: dict) -> None:
 
 
 def handle(
-    cur,
+    cur: cursor,
     path: str,
     method: str,
-    params: dict,
-    body: dict | None = None,
-    jwt_claims: dict | None = None,
-    headers: dict | None = None,
+    params: dict[str, Any],
+    body: dict[str, Any] | None = None,
+    jwt_claims: dict[str, Any] | None = None,
+    headers: dict[str, Any] | None = None,
 ) -> dict[str, Any]:
     """Handle /api/trades and /api/trades/* endpoints."""
     try:
@@ -191,7 +192,7 @@ def handle(
         raise_db_error(e, "handle trades")
 
 
-def _create_manual_trade(cur, body: dict, idempotency_key: str | None = None) -> dict[str, Any]:
+def _create_manual_trade(cur: cursor, body: dict[str, Any], idempotency_key: str | None = None) -> dict[str, Any]:
     """POST /api/trades/manual — manually log a trade entry.
 
     If idempotency_key is provided, uses it to prevent duplicate requests.

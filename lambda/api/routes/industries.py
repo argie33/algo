@@ -7,6 +7,7 @@ import psycopg2
 import psycopg2.errors
 import psycopg2.extras
 import psycopg2.sql
+from psycopg2.extensions import cursor
 from routes.utils import (
     check_data_freshness,
     error_response,
@@ -24,7 +25,7 @@ from shared_contracts.response_validator import ResponseValidator
 logger = logging.getLogger(__name__)
 
 
-def _sf(v):
+def _sf(v: Any) -> float | None:
     """Safe float conversion — returns None for null/missing values."""
     if v is None:
         return None
@@ -36,12 +37,12 @@ def _sf(v):
 
 
 def handle(
-    cur,
+    cur: cursor,
     path: str,
     method: str,
-    params: dict,
-    body: dict | None = None,
-    jwt_claims: dict | None = None,
+    params: dict[str, Any],
+    body: dict[str, Any] | None = None,
+    jwt_claims: dict[str, Any] | None = None,
 ) -> Any:
     """Handle /api/industries, /api/industries/{name}, /api/industries/{name}/trend."""
     try:
@@ -76,7 +77,7 @@ def handle(
         return error_response(code, error_type, message)
 
 
-def _industry_list(cur, params):
+def _industry_list(cur: cursor, params: dict[str, Any]) -> Any:
     """Return all industries ranked by composite score with price-based performance."""
     limit_str = params.get("limit", [None])[0] if params else None
     limit = safe_limit(limit_str or "500", max_val=50000)
@@ -263,7 +264,7 @@ def _industry_list(cur, params):
     return json_response(200, result)
 
 
-def _industry_detail(cur, industry_name):
+def _industry_detail(cur: cursor, industry_name: str) -> Any:
     """Return detail for a single industry."""
     cur.execute(
         """
@@ -309,7 +310,7 @@ def _industry_detail(cur, industry_name):
     return json_response(200, result)
 
 
-def _industry_trend(cur, industry_name, params):
+def _industry_trend(cur: cursor, industry_name: str, params: dict[str, Any]) -> Any:
     """Return daily price series for an industry (from price_daily, indexed to 100)."""
     days_str = params.get("days", [None])[0] if params else None
     days = safe_days(days_str or "90", max_val=365)

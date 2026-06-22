@@ -35,7 +35,7 @@ class HealthCheckConfig:
             Default: 7. Data older than this gets CRITICAL status.
     """
 
-    def __init__(self):
+    def __init__(self) -> None:
         # Data freshness maximum age (hours)
         # This is used by Phase 1 and health endpoints to determine if data is stale
         # For trading systems: normally 24 hours (1 trading day)

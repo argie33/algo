@@ -7,6 +7,7 @@ from typing import Any
 import psycopg2
 import psycopg2.errors
 from database_query_service import DatabaseQueryService
+from psycopg2.extensions import cursor
 from routes.utils import (
     json_response,
     raise_api_error,
@@ -107,12 +108,12 @@ def _check_admin_access(jwt_claims: dict | None) -> bool:
 
 
 def handle(
-    cur,
+    cur: cursor,
     path: str,
     method: str,
-    params: dict,
-    body: dict | None = None,
-    jwt_claims: dict | None = None,
+    params: dict[str, Any],
+    body: dict[str, Any] | None = None,
+    jwt_claims: dict[str, Any] | None = None,
     idempotency_key: str | None = None,
 ) -> Any:
     """Handle /api/algo/* endpoints."""
@@ -134,12 +135,12 @@ def handle(
 
 
 def _dispatch(
-    cur,
+    cur: Any,
     path: str,
     method: str,
-    params: dict,
-    body: dict | None = None,
-    jwt_claims: dict | None = None,
+    params: dict[str, Any],
+    body: dict[str, Any] | None = None,
+    jwt_claims: dict[str, Any] | None = None,
     idempotency_key: str | None = None,
 ) -> Any:
     if jwt_claims:
