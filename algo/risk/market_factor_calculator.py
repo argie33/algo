@@ -229,14 +229,12 @@ class MarketFactorCalculator:
         """VIX level + term structure."""
         try:
             cur.execute(
-                "SELECT vix FROM vix_daily WHERE date = %s ORDER BY date DESC LIMIT 1",
+                "SELECT vix_level FROM market_health_daily WHERE date <= %s ORDER BY date DESC LIMIT 1",
                 (eval_date,),
             )
             row = cur.fetchone()
             if row and row[0] is not None:
                 vix = float(row[0])
-                if vix is None:
-                    raise ValueError(f"VIX value not numeric: {row[0]}")
                 # Simplified: no term structure data
                 score, detail = self._vix_score(vix, vix > 20)
                 return {"vix": round(vix, 1), "score": score, **detail}
