@@ -3,6 +3,7 @@
 import logging
 import math
 from datetime import datetime, timedelta, timezone
+from typing import Any
 
 import psycopg2
 import psycopg2.errors
@@ -263,7 +264,7 @@ def _get_algo_performance(cur) -> dict:
         # Compute expectancy_r from win_rate and average R multiples
         expectancy_r = None
         try:
-            wr = float(metrics.get("win_rate_pct"))  # type: ignore[arg-type]
+            wr = float(metrics.get("win_rate_pct"))  # type: ignore[arg-type,unused-ignore]
             avg_wr = float(trade_stats.get("avg_win_r"))  # type: ignore[arg-type]
             avg_lr = float(trade_stats.get("avg_loss_r"))  # type: ignore[arg-type]
             if wr is not None and avg_wr is not None and avg_lr is not None:
@@ -793,7 +794,7 @@ def _get_trade_distribution(cur) -> dict:
     if not r_multiples:
         return list_response([], total=0, limit=None, offset=None)
 
-    buckets = [
+    buckets: list[dict[str, Any]] = [
         {"range": "<-2R", "count": 0, "min": -999},
         {"range": "-2R to -1R", "count": 0, "min": -2},
         {"range": "-1R to 0R", "count": 0, "min": -1},

@@ -2,6 +2,7 @@
 
 import logging
 from datetime import date, datetime, timedelta, timezone
+from typing import Any
 
 import psycopg2
 import psycopg2.errors
@@ -82,7 +83,7 @@ def _get_algo_positions(cur, user_id: str | None = None) -> dict:
     positions = cur.fetchall()
 
     items = []
-    sector_risk = {}  # For aggregating sector allocation
+    sector_risk: dict[str, float] = {}  # For aggregating sector allocation
     invalid_positions: list[str] = []
 
     for p in positions:
@@ -307,8 +308,8 @@ def _get_algo_status(cur) -> dict:
 @db_route_handler("fetch algo trades")
 def _get_algo_trades(cur, limit: int = 200, user_id: str | None = None, status: str | None = None) -> dict:
     """Get recent trades with all fields for frontend (scoped to user if user_id provided, filtered by status if provided)."""
-    where_parts = []
-    params = []
+    where_parts: list[str] = []
+    params: list[Any] = []
 
     if user_id:
         where_parts.append("cognito_sub = %s")
