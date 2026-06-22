@@ -228,11 +228,9 @@ def test_db_connection():
     Validates that the database is reachable and responsive.
     Tolerates transient RDS Proxy timing issues with exponential backoff.
 
-    Uses adaptive timeouts:
-    - Pool timeout: 10s per attempt (3 attempts = 30s max, but usually succeeds on first)
+    Uses a fast probe to stay within Lambda INIT budget:
+    - 1 attempt x 3s connect timeout = 3s max (DB failures surface on first real request)
     - Statement timeout: 3s per query execution
-    - Total overhead stays well within API Gateway 29s limit
-    - Retries tolerate transient RDS Proxy cold-start delays and connection spikes
 
     Returns: (success: bool, error_msg: Optional[str])
     """
@@ -243,9 +241,11 @@ def test_db_connection():
     try:
         from utils.db.connection import get_db_connection
 
-        # Tolerates transient RDS Proxy issues: 3 attempts, 10s timeout per attempt
-        # Exponential backoff: attempt 1 (0s), attempt 2 (1-2s wait), attempt 3 (2-4s wait)
-        conn = get_db_connection(max_retries=2, timeout=10)
+        # Short timeout for INIT probe: 1 attempt x 3s = 3s max.
+        # The Lambda timeout is 25s and imports alone take ~5s, so we cannot
+        # afford the original 3 attempts x 10s = 30s+ that was causing INIT timeouts.
+        # First-request DB failures are handled gracefully by DatabaseContext anyway.
+        conn = get_db_connection(max_retries=0, timeout=3)
         connect_time = time.time() - start_time
 
         cur = conn.cursor()
