@@ -116,44 +116,8 @@ class PriceLoader(OptimalLoader):
         self.validator = PriceValidator(table_name=self.table_name, asset_class=asset_class)
         self.transformer = PriceTransformer(asset_class=asset_class)
 
-        # Batch tracking for rate limit detection
-        self._batch_success_count = 0
-        self._batch_total_count = 0
-        self._batch_failure_ratio = 0.0
-        self._market_close_detected = False
-        self._market_close_timeout_count = 0
-        self._last_market_close_timeout_time: float | None = None
-
-        # ISSUE #14-15 FIX: Differentiate failure causes for targeted remediation
-        # Track root cause of failures to apply appropriate fixes:
-        # - Market close unavailability: wait and retry (data will become available)
-        # - Rate limiting (429): reduce batch size, apply backoff
-        # - API lag/timeout: increase timeout, reduce parallelism
-        # - Other errors: log and fail
-        self._failure_cause = None  # 'market_close', 'rate_limit_429', 'api_lag', 'other'
-        self._api_lag_timeouts = 0  # Count of timeout errors (not rate limiting)
-        self._api_lag_error_start_time = None  # When API lag started
-
-        # CREATIVE FIX #2: Track batch size performance for smart batch sizing
-        self._batch_size_performance: dict[int, list[int]] = {}
-
-        # Rate limit tracking
-        self._rate_limit_errors = 0
-        self._rate_limit_error_start_time: float | None = None
-
-        # CREATIVE FIX #1: Adaptive request pacing to stay under rate limits
-        self._request_latency_samples: list[tuple[float, float]] = []
-        self._latency_window_sec = 60
-        self._adaptive_request_interval = 0.375
-        self._min_request_interval = 0.375
-        self._last_request_time: float | None = None
-
-        # Rate limit token bucket (thread-safe fairness)
-        self._rate_limit_event = threading.Condition()
-        self._rate_limit_tokens = 160.0
-        self._rate_limit_max_tokens = 160.0
-        self._rate_limit_refill_rate = 160.0 / 60.0
-        self._rate_limit_last_refill = time.time()
+        # All rate limiting, batch optimization, and request pacing is now managed by PriceFetcher
+        # PriceLoader delegates all fetch concerns to self.fetcher specialist
 
     def _detect_eod_pipeline_context(self) -> bool:
         """Detect if running during EOD pipeline (4:05-5:30 PM ET) for timing-aware rate limiting.

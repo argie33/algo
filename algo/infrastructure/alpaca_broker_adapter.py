@@ -133,7 +133,7 @@ class AlpacaBrokerAdapter(BrokerAdapter):
 
         try:
             url = f"{self.alpaca_sync.alpaca_base_url}/v2/orders"
-            params = {"status": ["filled", "partially_filled"]}
+            params: dict[str, list[str] | str] = {"status": ["filled", "partially_filled"]}
             if since:
                 params["after"] = since.isoformat() if hasattr(since, "isoformat") else str(since)
 

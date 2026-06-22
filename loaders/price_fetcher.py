@@ -154,7 +154,7 @@ class PriceFetcher:
         """
         from utils.infrastructure.timezone import EASTERN_TZ
 
-        now_utc = datetime.now().astimezone()  # type: ignore
+        now_utc = datetime.now().astimezone()
         now_et = now_utc.astimezone(EASTERN_TZ)
         end = now_et.date() + timedelta(days=1)
 
@@ -178,7 +178,7 @@ class PriceFetcher:
         """
         from utils.infrastructure.timezone import EASTERN_TZ
 
-        now_utc = datetime.now().astimezone()  # type: ignore
+        now_utc = datetime.now().astimezone()
         now_et = now_utc.astimezone(EASTERN_TZ)
 
         if is_eod_pipeline:
@@ -267,7 +267,7 @@ class PriceFetcher:
 
         request_latency = time.time() - request_start
         self._record_request_latency(request_latency)
-        return result
+        return cast(dict | None, result)
 
     def _fetch_with_fallback(self, symbols: list[str], start: date, end: date, batch_size: int = 500, attempt: int = 0, max_attempts: int = 3, elapsed_sec: float = 0) -> dict:
         """Fetch batch with fallback to smaller batch size on rate limiting."""
@@ -438,7 +438,7 @@ class PriceFetcher:
         logger.warning(
             f"[BATCH FETCH] Transient {error_type} error (attempt {attempt + 1}/{max_attempts}, elapsed {elapsed_sec:.0f}s): {error}. "
             f"Retrying {len(symbols)} symbols with same batch_size={batch_size} in {wait_time:.1f}s... "
-            "(Note: batch size not reduced for timeouts – if API fundamentally slow, increasing wait time not batch reduction)"
+            "(Note: batch size not reduced for timeouts - if API fundamentally slow, increasing wait time not batch reduction)"
         )
         time.sleep(wait_time)
 

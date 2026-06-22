@@ -14,7 +14,7 @@ import logging
 import os
 from abc import ABC, abstractmethod
 from datetime import datetime, timezone
-from typing import Any, Optional
+from typing import Any
 
 import boto3
 import psycopg2
@@ -38,7 +38,7 @@ class LambdaResponse:
         }
 
     @staticmethod
-    def success(data: Optional[dict[str, Any]] = None, message: str = "Success") -> "LambdaResponse":
+    def success(data: dict[str, Any] | None = None, message: str = "Success") -> "LambdaResponse":
         """Create a successful response."""
         return LambdaResponse(
             200,
@@ -46,7 +46,7 @@ class LambdaResponse:
         )
 
     @staticmethod
-    def error(error_msg: str, status_code: int = 500, error_type: Optional[str] = None) -> "LambdaResponse":
+    def error(error_msg: str, status_code: int = 500, error_type: str | None = None) -> "LambdaResponse":
         """Create an error response."""
         return LambdaResponse(
             status_code,
@@ -94,7 +94,6 @@ class LambdaHandler(ABC):
     @abstractmethod
     def handle(self, event: dict[str, Any], context: Any) -> LambdaResponse:
         """Handle the Lambda event. Must be implemented by subclass."""
-        pass
 
     def invoke(self, event: dict[str, Any], context: Any) -> dict[str, Any]:
         """Public entry point for Lambda. Wraps handle() with error handling."""
@@ -122,11 +121,11 @@ class LambdaHandler(ABC):
 
     @staticmethod
     def get_db_connection(
-        host: Optional[str] = None,
-        port: Optional[int] = None,
-        database: Optional[str] = None,
-        user: Optional[str] = None,
-        password: Optional[str] = None,
+        host: str | None = None,
+        port: int | None = None,
+        database: str | None = None,
+        user: str | None = None,
+        password: str | None = None,
         ssl_mode: str = "require",
         timeout: int = 10,
     ) -> psycopg2.extensions.connection:

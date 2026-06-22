@@ -13,6 +13,7 @@ import requests
 from algo.infrastructure import get_api_timeout
 from algo.infrastructure.config import AlgoConfig
 from algo.reporting import TradeNotificationService, notify
+from algo.trading.check_handler_strategies import CheckHandlerRegistry
 from algo.trading.exceptions import (
     DatabaseError,
     DataUnavailableError,
@@ -25,7 +26,6 @@ from algo.trading.exceptions import (
     PretradeCheckFailedError,
     TradingError,
 )
-from algo.trading.check_handler_strategies import CheckHandlerRegistry
 from algo.trading.executor_entry_handler import EntryHandler
 from algo.trading.executor_exit_handler import ExitHandler
 from algo.trading.notification_dispatcher import NotificationDispatcher
@@ -129,6 +129,9 @@ class TradeExecutor:
 
         # Initialize exit handler for focused exit execution logic
         self.exit_handler = ExitHandler(self)
+
+        # Initialize order manager specialist for order submission and validation
+        self.order_manager = OrderManager(self.alpaca_key, self.alpaca_secret, self.alpaca_base_url)
 
         # Get execution mode from config (supports both dict and AlgoConfig objects)
         if "execution_mode" not in config or not config["execution_mode"]:
@@ -346,9 +349,8 @@ class TradeExecutor:
         self._order_send_time = time.time()
 
         try:
-            # Use OrderManager to submit bracket order
-            order_manager = OrderManager(self.alpaca_key, self.alpaca_secret, self.alpaca_base_url)
-            order_result = order_manager.send_bracket_order(
+            # Use OrderManager specialist to submit bracket order
+            order_result = self.order_manager.send_bracket_order(
                 symbol=symbol,
                 shares=float(shares),
                 entry_price=float(entry_price),

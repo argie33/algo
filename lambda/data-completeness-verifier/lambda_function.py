@@ -10,9 +10,12 @@ Uses LambdaHandler base class for standardized pattern.
 import json
 import logging
 import os
+import sys
 from datetime import date, timedelta
 from typing import Any
 
+
+sys.path.insert(0, os.path.dirname(os.path.dirname(__file__)))
 from base_handler import LambdaHandler, create_lambda_handler
 
 
@@ -25,7 +28,6 @@ class DataCompletenessHandler(LambdaHandler):
     def handle(self, event: dict[str, Any], context: Any) -> dict[str, Any]:
         """Handle data completeness verification."""
         import boto3
-        import psycopg2
 
         from algo.infrastructure import MarketCalendar
 
@@ -129,7 +131,9 @@ class DataCompletenessHandler(LambdaHandler):
             return {"statusCode": 500, "result": "ERROR", "error": str(e)}
 
 
+lambda_handler = create_lambda_handler(DataCompletenessHandler)
+
+
 if __name__ == "__main__":
-    # Local testing
     result = lambda_handler({}, {})
     print(json.dumps(result, indent=2))

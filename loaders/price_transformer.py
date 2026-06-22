@@ -26,7 +26,7 @@ class PriceTransformer:
 
     def __init__(self, asset_class: str = "stock"):
         """Initialize PriceTransformer."""
-        self.timezone = None
+        self.timezone: str | None = None
         self.asset_class = asset_class
 
     def transform_row(self, row: dict, symbol: str, date_val: Any) -> dict | None:
@@ -125,9 +125,9 @@ class PriceTransformer:
         max_row_date = None
         try:
             for row in rows:
-                row_date_str = row.get("date")
-                if row_date_str:
-                    row_date = datetime.fromisoformat(row_date_str).date()
+                date_str = row.get("date")
+                if date_str:
+                    row_date = datetime.fromisoformat(date_str).date()
                     if min_row_date is None or row_date < min_row_date:
                         min_row_date = row_date
                     if max_row_date is None or row_date > max_row_date:
@@ -151,15 +151,19 @@ class PriceTransformer:
 
         # PHASE 1: Validation via tick validator for provenance tracking
         final_validated = []
-        prior_close_by_symbol = {}
+        prior_close_by_symbol: dict[str, float | None] = {}
         non_trading_filtered = 0
         parse_errors = 0
 
         for row in rows:
             # CRITICAL: Filter out weekend/holiday data before any other validation
-            row_date_str = row.get("date")
-            symbol = row.get("symbol")
+            row_date_str: str | None = row.get("date")
+            symbol: str | None = row.get("symbol")
             try:
+                if not row_date_str or not isinstance(row_date_str, str):
+                    parse_errors += 1
+                    logger.warning(f"[{symbol}] No date in row, skipping")
+                    continue
                 row_date = datetime.fromisoformat(row_date_str).date()
                 # CLUSTER 4 FIX: Use precomputed trading day set for O(1) lookup
                 if trading_day_set is not None:
@@ -171,7 +175,7 @@ class PriceTransformer:
                     if tracker:
                         try:
                             tracker.record_error(
-                                symbol=symbol,
+                                symbol=symbol or "unknown",
                                 error_type="NON_TRADING_DAY",
                                 error_message="Data for non-trading day (weekend/holiday)",
                                 resolution="rejected",
@@ -186,15 +190,31 @@ class PriceTransformer:
                 logger.warning(f"[{symbol}] Could not parse date {row_date_str}: {e}")
                 continue
 
-            # Validate price tick
+            # Validate price tick with proper None checks
+            if not symbol or not isinstance(symbol, str):
+                parse_errors += 1
+                logger.warning("[unknown] Missing symbol, skipping row")
+                continue
+
+            open_val: float | None = row.get("open")
+            high_val: float | None = row.get("high")
+            low_val: float | None = row.get("low")
+            close_val: float | None = row.get("close")
+            volume_val: int | None = row.get("volume")
+
+            if open_val is None or high_val is None or low_val is None or close_val is None or volume_val is None:
+                parse_errors += 1
+                logger.warning(f"[{symbol}] Missing required price fields, skipping")
+                continue
+
             symbol_prior_close = prior_close_by_symbol.get(symbol)
             is_valid, errors = validate_price_tick(
                 symbol=symbol,
-                open_price=row.get("open"),
-                high=row.get("high"),
-                low=row.get("low"),
-                close=row.get("close"),
-                volume=row.get("volume"),
+                open_price=open_val,
+                high=high_val,
+                low=low_val,
+                close=close_val,
+                volume=volume_val,
                 prior_close=symbol_prior_close,
                 is_etf=(self.asset_class == "etf"),
             )
