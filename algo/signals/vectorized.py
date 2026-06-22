@@ -219,12 +219,13 @@ class VectorizedSignalGenerator:
                     "pct_from_52w_low": pct_from_low,
                 }
             except Exception as e:
-                logger.debug(f"[VECTORIZED] {symbol}: Minervini computation failed: {e}")
+                logger.warning(f"[VECTORIZED] {symbol}: Minervini computation failed: {e}")
                 results[symbol] = {
                     "score": 0,
                     "pass": False,
                     "criteria": {},
                     "reason": str(e)[:50],
+                    "failed": True,
                 }
 
         return results
@@ -267,8 +268,8 @@ class VectorizedSignalGenerator:
 
                 results[symbol] = {"stage": stage, "confidence": 0.75}
             except (ValueError, ZeroDivisionError, TypeError) as e:
-                logger.debug(f"[VECTORIZED] {symbol}: Weinstein computation failed: {e}")
-                results[symbol] = {"stage": 0, "confidence": 0.0}
+                logger.warning(f"[VECTORIZED] {symbol}: Weinstein computation failed: {e}")
+                results[symbol] = {"stage": 0, "confidence": 0.0, "failed": True}
 
         return results
 
@@ -296,8 +297,8 @@ class VectorizedSignalGenerator:
                     "return_21d": ret_21d,
                 }
             except (ValueError, ZeroDivisionError, TypeError) as e:
-                logger.debug(f"[VECTORIZED] {symbol}: Power trend computation failed: {e}")
-                results[symbol] = {"power_trend": False, "return_21d": None}
+                logger.warning(f"[VECTORIZED] {symbol}: Power trend computation failed: {e}")
+                results[symbol] = {"power_trend": False, "return_21d": None, "failed": True}
 
         return results
 
