@@ -373,83 +373,23 @@ class SignalPatternsMixin:
             candidate = floor_stop
             reasoning = "8% hard floor (no specific base detected)"
 
-            if base_type == "cup_with_handle":
-                cur.execute(
-                    "SELECT MIN(low) FROM price_daily WHERE symbol = %s AND date <= %s "
-                    "AND date >= %s::date - INTERVAL '7 days'",
-                    (symbol, eval_date, eval_date),
-                )
-                r = cur.fetchone()
-                if r and r[0]:
-                    handle_low = float(r[0])
-                    candidate = handle_low * 0.99
-                    method = "handle_low"
-                    reasoning = f"Cup-handle: 1% below handle low ${handle_low:.2f}"
+            # Use strategy pattern for base type stop calculations
+            from algo.signals.base_type_strategy import get_strategy
 
-            elif base_type == "flat_base":
+            strategy = get_strategy(base_type)
+            if strategy:
                 cur.execute(
                     "SELECT MIN(low) FROM price_daily WHERE symbol = %s AND date <= %s "
-                    "AND date >= %s::date - INTERVAL '35 days'",
-                    (symbol, eval_date, eval_date),
+                    "AND date >= %s::date - INTERVAL %s",
+                    (symbol, eval_date, eval_date, f"{strategy.lookback_days} days"),
                 )
                 r = cur.fetchone()
                 if r and r[0]:
-                    base_low = float(r[0])
-                    candidate = base_low * 0.995
-                    method = "flat_base_low"
-                    reasoning = f"Flat base: 0.5% below base low ${base_low:.2f}"
-
-            elif base_type == "vcp":
-                cur.execute(
-                    "SELECT MIN(low) FROM price_daily WHERE symbol = %s AND date <= %s "
-                    "AND date >= %s::date - INTERVAL '10 days'",
-                    (symbol, eval_date, eval_date),
-                )
-                r = cur.fetchone()
-                if r and r[0]:
-                    vcp_low = float(r[0])
-                    candidate = vcp_low * 0.99
-                    method = "vcp_last_contraction"
-                    reasoning = f"VCP: 1% below last contraction low ${vcp_low:.2f}"
-
-            elif base_type == "double_bottom":
-                cur.execute(
-                    "SELECT MIN(low) FROM price_daily WHERE symbol = %s AND date <= %s "
-                    "AND date >= %s::date - INTERVAL '20 days'",
-                    (symbol, eval_date, eval_date),
-                )
-                r = cur.fetchone()
-                if r and r[0]:
-                    second_low = float(r[0])
-                    candidate = second_low - (0.5 * atr)
-                    method = "double_bottom_low_minus_half_atr"
-                    reasoning = f"Double-bottom: 2nd low ${second_low:.2f} - 0.5x ATR (${atr:.2f})"
-
-            elif base_type == "ascending_base":
-                cur.execute(
-                    "SELECT MIN(low) FROM price_daily WHERE symbol = %s AND date <= %s "
-                    "AND date >= %s::date - INTERVAL '14 days'",
-                    (symbol, eval_date, eval_date),
-                )
-                r = cur.fetchone()
-                if r and r[0]:
-                    last_hl = float(r[0])
-                    candidate = last_hl * 0.985
-                    method = "ascending_base_last_higher_low"
-                    reasoning = f"Ascending base: 1.5% below last higher low ${last_hl:.2f}"
-
-            elif base_type == "saucer":
-                cur.execute(
-                    "SELECT MIN(low) FROM price_daily WHERE symbol = %s AND date <= %s "
-                    "AND date >= %s::date - INTERVAL '60 days'",
-                    (symbol, eval_date, eval_date),
-                )
-                r = cur.fetchone()
-                if r and r[0]:
-                    saucer_low = float(r[0])
-                    candidate = saucer_low * 0.99
-                    method = "saucer_base_low"
-                    reasoning = f"Saucer: 1% below saucer low ${saucer_low:.2f}"
+                    low_price = float(r[0])
+                    calc_stop, calc_reasoning = strategy.calculate(low_price, atr, entry_price)
+                    candidate = calc_stop
+                    method = strategy.name
+                    reasoning = calc_reasoning
 
             if twt.get("is_3wt") and method == "fallback_8pct":
                 cur.execute(
