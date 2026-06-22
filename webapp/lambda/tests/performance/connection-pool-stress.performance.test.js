@@ -408,8 +408,9 @@ describe("Connection Pool Stress Integration", () => {
 
       const transactionPromises = Array.from(
         { length: concurrentTransactions },
-        (_Id) =>
-          transaction(async (client) => {
+        (_Id, index) => {
+          const transactionId = `tx-${Date.now()}-${index}`;
+          return transaction(async (client) => {
             const operations = [];
 
             for (let opId = 0; opId < operationsPerTransaction; opId++) {
@@ -437,7 +438,8 @@ describe("Connection Pool Stress Integration", () => {
             transactionId,
             error: error.message,
             success: false,
-          }))
+          }));
+        }
       );
 
       const results = await Promise.all(transactionPromises);
