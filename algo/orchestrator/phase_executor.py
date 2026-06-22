@@ -259,7 +259,25 @@ class OrchestratorPhaseExecutor:
         error_phase = None
         error_message = None
 
-        for phase_num in self.execution_order:
+        # Whether any non-always_run phase has failed (signals downstream to skip or check deps)
+        halted = False
+        remaining = list(self.execution_order)
+
+        for phase_num in remaining:
+            phase_def = self.phases[phase_num]
+
+            # Skip non-always_run phases after a halt (they will fail dep checks anyway)
+            if halted and not phase_def.always_run:
+                logger.info(f"Phase {phase_num} ({phase_def.phase_name}) skipped due to earlier phase halt")
+                result = PhaseResult(
+                    phase_num=phase_num,
+                    phase_name=phase_def.phase_name,
+                    status="skipped",
+                    halted=True,
+                )
+                self.phase_results[phase_num] = result
+                continue
+
             success, error = self.execute_phase(phase_num)
 
             if success:
@@ -267,12 +285,9 @@ class OrchestratorPhaseExecutor:
             else:
                 error_phase = phase_num
                 error_message = error
-                # Continue to always_run phases (e.g., exits, reconciliation)
-                # Stop at first dependency-blocking error
-                phase_def = self.phases[phase_num]
                 if not phase_def.always_run:
-                    logger.critical(f"[EXECUTOR] Halting phase sequence at Phase {phase_num}: {error}")
-                    break
+                    halted = True
+                    logger.critical(f"[EXECUTOR] Phase {phase_num} halted — continuing to always_run phases")
 
         logger.info(f"\n{'#' * 70}")
         logger.info("#   ORCHESTRATOR EXECUTOR COMPLETE")

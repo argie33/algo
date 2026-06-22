@@ -187,7 +187,7 @@ class Phase9Result(PhaseResult):
             phase_num=9,
             phase_name="RECONCILIATION & SNAPSHOT",
             status=status,
-            dependencies=[8],
+            dependencies=[],
             data={"positions": positions},
             **kwargs,
         )
