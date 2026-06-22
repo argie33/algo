@@ -15,7 +15,7 @@ import psycopg2
 logger = logging.getLogger(__name__)
 import os
 from datetime import date
-from typing import Optional, cast
+from typing import Any, Optional, cast
 
 from loaders.runner import run_loader
 from utils.external.sec_edgar import SecEdgarClient
@@ -114,7 +114,7 @@ class IncomeStatementLoader(OptimalLoader):
         super().__init__()
         self._sec_client = SecEdgarClient()
 
-    def _get_null_revenue_years(self, symbol: str) -> set:
+    def _get_null_revenue_years(self, symbol: str) -> set[Any]:
         """Return fiscal years in the DB where revenue is NULL (need backfill)."""
         try:
             from utils.db.context import DatabaseContext
@@ -129,14 +129,16 @@ class IncomeStatementLoader(OptimalLoader):
             raise RuntimeError(
                 f"[INCOME_STATEMENT] Failed to query {self.table_name} for {symbol} (revenue=NULL check): {e}. "
                 "Database error prevents incremental loading. Cannot proceed."
-            )
+            ) from e
 
     def fetch_incremental(self, symbol: str, since: date | None):
         try:
             cik = self._sec_client.symbol_to_cik(symbol)
-        except ValueError:
-            logger.debug("%s: not in SEC ticker cache, skipping", symbol)
-            return None
+        except ValueError as e:
+            raise RuntimeError(
+                f"[INCOME_STATEMENT] {symbol}: CIK not found in SEC ticker cache. "
+                "Cannot fetch income statement without SEC EDGAR CIK."
+            ) from e
         if not cik:
             raise RuntimeError(
                 f"[INCOME_STATEMENT] CIK resolution failed for {symbol}. "
@@ -146,12 +148,10 @@ class IncomeStatementLoader(OptimalLoader):
         try:
             rows = self._sec_client.get_income_statement(symbol, period=self._edgar_period)
             if not rows:
-                logger.debug(
-                    "%s: no %s income statement data in SEC EDGAR, skipping",
-                    symbol,
-                    self._edgar_period,
+                raise RuntimeError(
+                    f"[INCOME_STATEMENT] {symbol}: No {self._edgar_period} income statement data in SEC EDGAR. "
+                    "Cannot proceed without fundamental data."
                 )
-                return None
             logger.info(
                 "%s: Fetched %d %s income statement row(s)",
                 symbol,
@@ -185,10 +185,11 @@ class IncomeStatementLoader(OptimalLoader):
     def transform(self, rows):
         transformed = []
         for r in rows:
-            row = {}
+            row: dict[str, Any] = {}
+            field_mapping = self._field_mapping or {}
             for sec_field, value in r.items():
                 # Apply field mapping first
-                db_field = self._field_mapping.get(sec_field, sec_field)
+                db_field = field_mapping.get(sec_field, sec_field)
                 # Only keep fields in schema
                 if db_field in self._schema_cols:
                     # Prefer non-None: set if not yet set, or replace None with a real value.
@@ -202,6 +203,7 @@ class IncomeStatementLoader(OptimalLoader):
 
         seen = {}
         for row in transformed:
+            key: tuple[Any, ...]
             if self.period == "annual":
                 key = (row.get("symbol"), row.get("fiscal_year"))
             else:
@@ -214,7 +216,7 @@ class IncomeStatementLoader(OptimalLoader):
                 seen[key] = row
         return list(seen.values())
 
-    def _validate_row(self, row: dict) -> bool:
+    def _validate_row(self, row: dict[str, Any]) -> bool:
         if not super()._validate_row(row):
             return False
         fy = row.get("fiscal_year")

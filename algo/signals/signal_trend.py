@@ -37,12 +37,10 @@ class SignalTrendMixin:
         )
         rows = cur.fetchall()
         if not rows or len(rows) < 200:
-            return {
-                "score": 0,
-                "pass": False,
-                "criteria": {},
-                "reason": "Insufficient price history (need 200+ days for SMA200)",
-            }
+            raise ValueError(
+                f"Minervini trend calculation failed for {symbol}: "
+                f"insufficient price history ({len(rows) if rows else 0} days, need 200+ for SMA200)"
+            )
 
         import numpy as np
 
@@ -60,12 +58,10 @@ class SignalTrendMixin:
 
         close = close[np.isfinite(close)]
         if len(close) < 200:
-            return {
-                "score": 0,
-                "pass": False,
-                "criteria": {},
-                "reason": "Insufficient price history (need 200+ days for SMA200)",
-            }
+            raise ValueError(
+                f"Minervini trend calculation failed for {symbol}: "
+                f"insufficient non-NaN price data ({len(close)} valid points after filtering, need 200+ for SMA200)"
+            )
 
         def _sma(arr, n):
             if len(arr) < n:
@@ -181,12 +177,10 @@ class SignalTrendMixin:
             )
             row = cur.fetchone()
             if not row or not row[0]:
-                return {
-                    "stage": 1,
-                    "confidence": 0,
-                    "price_vs_ma_pct": None,
-                    "slope_pct": None,
-                }
+                raise ValueError(
+                    f"Weinstein stage classification unavailable for {symbol} on {eval_date} — "
+                    f"technical analysis required to determine market stage"
+                )
 
             stage = int(row[0])
             # consolidation_flag=True means stock is building a base (early phase, higher confidence)
@@ -219,18 +213,16 @@ class SignalTrendMixin:
 
         def _compute_rs(cur):
             try:
-                stock_ret = self._period_return(cur, symbol, eval_date, lookback)
+                stock_ret = self._period_return(cur, symbol, eval_date, lookback)  # type: ignore[attr-defined]
             except (ValueError, RuntimeError) as e:
                 raise ValueError(
                     f"Mansfield RS calculation failed for {symbol}: could not compute stock return: {e}"
                 ) from e
 
             try:
-                spy_ret = self._period_return(cur, "SPY", eval_date, lookback)
+                spy_ret = self._period_return(cur, "SPY", eval_date, lookback)  # type: ignore[attr-defined]
             except (ValueError, RuntimeError) as e:
-                raise ValueError(
-                    f"Mansfield RS calculation failed: could not compute SPY return: {e}"
-                ) from e
+                raise ValueError(f"Mansfield RS calculation failed: could not compute SPY return: {e}") from e
 
             if spy_ret == 0:
                 raise ValueError(

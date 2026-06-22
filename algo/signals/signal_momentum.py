@@ -168,14 +168,7 @@ class SignalMomentumMixin:
         """
 
         def _compute(cur):
-            try:
-                ret_21 = self._period_return(cur, symbol, eval_date, 21)
-            except (ValueError, RuntimeError) as e:
-                logger.debug(f"Power trend calculation failed for {symbol}: {e}")
-                return {
-                    "power_trend": False,
-                    "return_21d": None,
-                }
+            ret_21 = self._period_return(cur, symbol, eval_date, 21)  # type: ignore[attr-defined]
             return {
                 "power_trend": ret_21 is not None and ret_21 >= 0.20,
                 "return_21d": round(ret_21 * 100, 2) if ret_21 is not None else None,
@@ -258,7 +251,7 @@ class SignalMomentumMixin:
                 return {"pocket_pivot": False}
 
             # Find max down-day volume in lookback window
-            max_down_vol = 0
+            max_down_vol: float = 0
             for row in rows[1:]:  # Skip today initially
                 _date, close, prev_close, vol, rn = row
                 if prev_close is not None and close < prev_close:

@@ -14,6 +14,7 @@ import json
 import logging
 import time
 import uuid
+from dataclasses import dataclass
 from decimal import ROUND_HALF_UP, Decimal
 from typing import Any
 
@@ -28,6 +29,45 @@ from algo.trading.exceptions import (
 from algo.trading.trade_context import TradeContext
 
 logger = logging.getLogger(__name__)
+
+
+@dataclass
+class TradeInsertionRequest:
+    """Value object encapsulating all parameters for trade record insertion."""
+
+    trade_id: str
+    idempotency_key: str
+    symbol: str
+    signal_date: Any
+    entry_date: Any
+    executed_price: Decimal | None
+    shares: Decimal
+    entry_reason: str
+    stop_loss_price: Decimal
+    stop_method: str | None
+    target_1_price: Decimal | None
+    target_2_price: Decimal | None
+    target_3_price: Decimal | None
+    order_status: str
+    execution_mode: str
+    alpaca_order_id: str
+    position_size_pct: Decimal | None
+    sqs: Any
+    trend_score: float | None
+    swing_score: float | None
+    swing_grade: str | None
+    base_type: str | None
+    base_quality: str | None
+    stage_phase: str | None
+    sector: str | None
+    industry: str | None
+    rs_percentile: float | None
+    market_exposure_at_entry: float | None
+    exposure_tier_at_entry: str | None
+    stop_reasoning: str | None
+    swing_components: dict[str, Any] | None
+    advanced_components: dict[str, Any] | None
+    rejection_reason: str | None
 
 # Map stage phase names to integer IDs for database storage
 STAGE_PHASE_MAPPING = {
@@ -264,42 +304,42 @@ class EntryHandler:
                 context.market.exposure_tier_at_entry,
             )
 
-            self._insert_trade_record(
-                cur,
-                trade_id,
-                idempotency_key,
-                symbol,
-                signal_date,
-                entry_date,
-                executed_price,
-                shares,
-                entry_reason,
-                stop_loss_price,
-                context.execution.stop_method,
-                tgt_1_price,
-                tgt_2_price,
-                tgt_3_price,
-                order_status,
-                execution_mode,
-                alpaca_order_id,
-                position_size_pct,
-                context.sqs,
-                context.signals.trend_score,
-                context.signals.swing_score,
-                context.signals.swing_grade,
-                context.signals.base_type,
-                context.signals.base_quality,
-                context.signals.stage_phase,
-                context.market.sector,
-                context.market.industry,
-                context.signals.rs_percentile,
-                context.market.market_exposure_at_entry,
-                context.market.exposure_tier_at_entry,
-                context.execution.stop_reasoning,
-                context.signals.swing_components,
-                context.signals.advanced_components,
-                rejection_reason,
+            trade_request = TradeInsertionRequest(
+                trade_id=trade_id,
+                idempotency_key=idempotency_key,
+                symbol=symbol,
+                signal_date=signal_date,
+                entry_date=entry_date,
+                executed_price=executed_price,
+                shares=shares,
+                entry_reason=entry_reason,
+                stop_loss_price=stop_loss_price,
+                stop_method=context.execution.stop_method,
+                target_1_price=tgt_1_price,
+                target_2_price=tgt_2_price,
+                target_3_price=tgt_3_price,
+                order_status=order_status,
+                execution_mode=execution_mode,
+                alpaca_order_id=alpaca_order_id,
+                position_size_pct=position_size_pct,
+                sqs=context.sqs,
+                trend_score=context.signals.trend_score,
+                swing_score=context.signals.swing_score,
+                swing_grade=context.signals.swing_grade,
+                base_type=context.signals.base_type,
+                base_quality=context.signals.base_quality,
+                stage_phase=context.signals.stage_phase,
+                sector=context.market.sector,
+                industry=context.market.industry,
+                rs_percentile=context.signals.rs_percentile,
+                market_exposure_at_entry=context.market.market_exposure_at_entry,
+                exposure_tier_at_entry=context.market.exposure_tier_at_entry,
+                stop_reasoning=context.execution.stop_reasoning,
+                swing_components=context.signals.swing_components,
+                advanced_components=context.signals.advanced_components,
+                rejection_reason=rejection_reason,
             )
+            self._insert_trade_record(cur, trade_request)
 
             # Insert position record if order was filled
             if order_status in ("filled", "partially_filled"):
@@ -475,39 +515,7 @@ class EntryHandler:
     def _insert_trade_record(
         self,
         cur: Any,
-        trade_id: str,
-        idempotency_key: str,
-        symbol: str,
-        signal_date: Any,
-        entry_date: Any,
-        executed_price: Decimal | None,
-        shares: Decimal,
-        entry_reason: str,
-        stop_loss_price: Decimal,
-        stop_method: str | None,
-        target_1_price: Decimal | None,
-        target_2_price: Decimal | None,
-        target_3_price: Decimal | None,
-        order_status: str,
-        execution_mode: str,
-        alpaca_order_id: str,
-        position_size_pct: Decimal | None,
-        sqs: Any,
-        trend_score: float | None,
-        swing_score: float | None,
-        swing_grade: str | None,
-        base_type: str | None,
-        base_quality: str | None,
-        stage_phase: str | None,
-        sector: str | None,
-        industry: str | None,
-        rs_percentile: float | None,
-        market_exposure_at_entry: float | None,
-        exposure_tier_at_entry: str | None,
-        stop_reasoning: str | None,
-        swing_components: dict | None,
-        advanced_components: dict | None,
-        rejection_reason: str | None,
+        request: TradeInsertionRequest,
     ) -> None:
         """Insert trade record into database."""
         cur.execute(
@@ -545,47 +553,47 @@ class EntryHandler:
             )
             """,
             (
-                trade_id,
-                idempotency_key,
-                symbol,
-                signal_date,
-                entry_date,
-                executed_price,
-                shares,
-                entry_reason,
-                stop_loss_price,
-                stop_method or "minervini_break_or_swing_low",
-                target_1_price,
+                request.trade_id,
+                request.idempotency_key,
+                request.symbol,
+                request.signal_date,
+                request.entry_date,
+                request.executed_price,
+                request.shares,
+                request.entry_reason,
+                request.stop_loss_price,
+                request.stop_method or "minervini_break_or_swing_low",
+                request.target_1_price,
                 self.t1_target_r_multiple,
-                target_2_price,
+                request.target_2_price,
                 self.t2_target_r_multiple,
-                target_3_price,
+                request.target_3_price,
                 self.t3_target_r_multiple,
-                order_status,
-                execution_mode,
-                alpaca_order_id,
-                position_size_pct,
-                float(sqs) if sqs is not None else None,
-                float(trend_score) if trend_score is not None else None,
-                swing_score,
-                swing_grade,
-                base_type,
-                base_quality,
-                STAGE_PHASE_MAPPING.get(stage_phase) if stage_phase else None,
-                stage_phase,
-                sector,
-                industry,
-                rs_percentile,
-                market_exposure_at_entry,
-                exposure_tier_at_entry,
-                stop_method,
-                stop_reasoning,
-                json.dumps(swing_components) if swing_components else None,
-                json.dumps(advanced_components) if advanced_components else None,
-                execution_mode == "auto",
+                request.order_status,
+                request.execution_mode,
+                request.alpaca_order_id,
+                request.position_size_pct,
+                float(request.sqs) if request.sqs is not None else None,
+                float(request.trend_score) if request.trend_score is not None else None,
+                request.swing_score,
+                request.swing_grade,
+                request.base_type,
+                request.base_quality,
+                STAGE_PHASE_MAPPING.get(request.stage_phase) if request.stage_phase else None,
+                request.stage_phase,
+                request.sector,
+                request.industry,
+                request.rs_percentile,
+                request.market_exposure_at_entry,
+                request.exposure_tier_at_entry,
+                request.stop_method,
+                request.stop_reasoning,
+                json.dumps(request.swing_components) if request.swing_components else None,
+                json.dumps(request.advanced_components) if request.advanced_components else None,
+                request.execution_mode == "auto",
                 0,
                 None,
-                rejection_reason,
+                request.rejection_reason,
             ),
         )
 

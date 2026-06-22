@@ -14,7 +14,7 @@ setup_imports()
 import argparse
 import logging
 from datetime import date, datetime, timedelta
-from typing import Optional
+from typing import Any, Optional
 
 import psycopg2.sql
 
@@ -147,7 +147,7 @@ class SignalsDailyLoader(OptimalLoader):
             raise RuntimeError(
                 f"[BATCH_CONTEXT] Failed to prepare batch context for buy_sell_daily: {e}. "
                 "Cannot proceed without shared batch data (end_date, price/tech coverage, symbol watermarks) from None."
-            )
+            ) from e
 
     def fetch_incremental(self, symbol: str, since: date | None):
         """Generate signals from technical data."""
@@ -234,12 +234,11 @@ class SignalsDailyLoader(OptimalLoader):
                 tech_count = row[0]
 
                 if tech_count == 0:
-                    logger.warning(
-                        "[buy_sell_daily] %s: No technical data for %s; skipping (delisted or not traded that day)",
-                        symbol,
-                        end,
+                    raise RuntimeError(
+                        f"[BUY_SELL_DAILY] {symbol}: No technical data for {end} — "
+                        "technical indicators are required to generate buy/sell signals. "
+                        "Symbol may be delisted or data loading failed."
                     )
-                    return None
 
                 # Validate upstream loader completeness before generating signals.
                 # buy_sell_daily depends on price_daily and technical_data_daily.
@@ -375,7 +374,7 @@ class SignalsDailyLoader(OptimalLoader):
         except (psycopg2.DatabaseError, psycopg2.OperationalError) as e:
             logger.debug(f"[SIGNAL_REJECTION_LOG] Could not log rejection for {symbol}: {e}")
 
-    def _fetch_signal_data(self, symbol: str, start: date, end: date) -> list[dict]:
+    def _fetch_signal_data(self, symbol: str, start: date, end: date) -> list[dict[str, Any]]:
         """Fetch technical and price data needed for signal generation."""
         try:
             with DatabaseContext("read") as cur:
@@ -428,7 +427,7 @@ class SignalsDailyLoader(OptimalLoader):
                 "Cannot generate signals without complete technical data."
             ) from None
 
-    def _generate_signals(self, symbol: str, rows: list[dict]) -> list[dict]:
+    def _generate_signals(self, symbol: str, rows: list[dict[str, Any]]) -> list[dict[str, Any]]:
         """Generate buy/sell signals matching Pine Script pivot-breakout logic.
 
         BUY: High > recent_swing_high AND close > SMA50 (breakout above pivot with trend filter)

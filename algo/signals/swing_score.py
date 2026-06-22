@@ -272,8 +272,16 @@ class SwingTraderScore:
             if row:
                 trend_score = int(row[0]) if row[0] is not None else 0
                 stage = int(row[1]) if row[1] is not None else 1
+            else:
+                raise ValueError(
+                    f"Trend template data missing for {symbol} on {eval_date} — "
+                    f"cannot validate trend score and Weinstein stage"
+                )
         except (psycopg2.DatabaseError, psycopg2.OperationalError) as e:
-            logger.debug(f"Could not fetch trend data for {symbol}: {e}")
+            raise RuntimeError(
+                f"CRITICAL: Trend data fetch failed for {symbol}: {e}. "
+                f"Cannot evaluate trend score (Gate 2) without trend_template_data."
+            ) from e
 
         min_trend_score = self._load_config_val("swing_min_trend_score", 5)
         if trend_score < min_trend_score:
@@ -299,18 +307,25 @@ class SwingTraderScore:
                 (symbol, eval_date),
             )
             row = cur.fetchone()
-            if row and row[0] is not None:
-                pct_from_high = float(row[0])
-                # pct_from_high is (close - high52w) / high52w * 100, always ≤ 0.
-                # -30 means 30% below the 52w high. Reject if too far below the high.
-                if pct_from_high < -max_extension_pct:
-                    return {
-                        "pass": False,
-                        "reason": f"{abs(pct_from_high):.1f}% below 52w high (max {max_extension_pct}% allowed)",
-                        "percent_from_52w_high": pct_from_high,
-                    }
+            if not row or row[0] is None:
+                raise ValueError(
+                    f"52-week high extension data missing for {symbol} on {eval_date} — "
+                    f"cannot validate extension limit"
+                )
+            pct_from_high = float(row[0])
+            # pct_from_high is (close - high52w) / high52w * 100, always ≤ 0.
+            # -30 means 30% below the 52w high. Reject if too far below the high.
+            if pct_from_high < -max_extension_pct:
+                return {
+                    "pass": False,
+                    "reason": f"{abs(pct_from_high):.1f}% below 52w high (max {max_extension_pct}% allowed)",
+                    "percent_from_52w_high": pct_from_high,
+                }
         except (psycopg2.DatabaseError, psycopg2.OperationalError) as e:
-            logger.debug(f"52w high extension check failed: {e}")
+            raise RuntimeError(
+                f"CRITICAL: 52-week extension check failed for {symbol}: {e}. "
+                f"Cannot validate extension from 52w high (Gate 3) without trend_template_data."
+            ) from e
 
         # Gate 4: Base type quality check
         base_type = self._signals.classify_base_type(symbol, eval_date)
@@ -333,16 +348,23 @@ class SwingTraderScore:
                     (industry, eval_date),
                 )
                 r = cur.fetchone()
-                if r and r[0]:
-                    industry_rank = int(r[0])
-                    if industry_rank > max_industry_rank:
-                        return {
-                            "pass": False,
-                            "reason": f"Industry rank {industry_rank} > {max_industry_rank} (bottom half)",
-                            "industry_rank": industry_rank,
-                        }
+                if not r or r[0] is None:
+                    raise ValueError(
+                        f"Industry rank missing for {industry} on {eval_date} — "
+                        f"cannot validate industry strength"
+                    )
+                industry_rank = int(r[0])
+                if industry_rank > max_industry_rank:
+                    return {
+                        "pass": False,
+                        "reason": f"Industry rank {industry_rank} > {max_industry_rank} (bottom half)",
+                        "industry_rank": industry_rank,
+                    }
             except (psycopg2.DatabaseError, psycopg2.OperationalError) as e:
-                logger.debug(f"Industry rank check failed: {e}")
+                raise RuntimeError(
+                    f"CRITICAL: Industry rank check failed for {symbol} ({industry}): {e}. "
+                    f"Cannot validate industry strength (Gate 6) without industry_ranking data."
+                ) from e
 
         # Gate 7: Earnings proximity
         days_to_earn = None

@@ -12,7 +12,7 @@ import logging
 import os
 import sys
 from datetime import date
-from typing import cast
+from typing import Any, cast
 
 from loaders.runner import run_loader
 from utils.external.sec_edgar import SecEdgarClient
@@ -114,9 +114,11 @@ class BalanceSheetLoader(OptimalLoader):
     def fetch_incremental(self, symbol: str, since: date | None):
         try:
             cik = self._sec_client.symbol_to_cik(symbol)
-        except ValueError:
-            logger.debug("%s: not in SEC ticker cache, skipping", symbol)
-            return None
+        except ValueError as e:
+            raise RuntimeError(
+                f"[BALANCE_SHEET] {symbol}: CIK not found in SEC ticker cache. "
+                "Cannot fetch balance sheet without SEC EDGAR CIK."
+            ) from e
         if not cik:
             raise RuntimeError(
                 f"[BALANCE_SHEET] CIK resolution failed for {symbol}. "
@@ -126,12 +128,10 @@ class BalanceSheetLoader(OptimalLoader):
         try:
             rows = self._sec_client.get_balance_sheet(symbol, period=self.period)
             if not rows:
-                logger.debug(
-                    "%s: no %s balance sheet data in SEC EDGAR, skipping",
-                    symbol,
-                    self.period,
+                raise RuntimeError(
+                    f"[BALANCE_SHEET] {symbol}: No {self.period} balance sheet data in SEC EDGAR. "
+                    "Cannot proceed without fundamental data."
                 )
-                return None
             logger.info("%s: Fetched %d %s balance sheet row(s)", symbol, len(rows), self.period)
 
             since_year = int(since.year) if since else 2000
@@ -151,10 +151,11 @@ class BalanceSheetLoader(OptimalLoader):
     def transform(self, rows):
         transformed = []
         for r in rows:
-            row = {}
+            row: dict[str, Any] = {}
+            field_mapping = self._field_mapping or {}
             for sec_field, value in r.items():
                 # Apply field mapping first
-                db_field = self._field_mapping.get(sec_field, sec_field)
+                db_field = field_mapping.get(sec_field, sec_field)
                 # Only keep fields in schema
                 if db_field in self._schema_cols:
                     row[db_field] = value
@@ -164,6 +165,7 @@ class BalanceSheetLoader(OptimalLoader):
 
         seen = {}
         for row in transformed:
+            key: tuple[Any, ...]
             if self.period == "annual":
                 key = (row.get("symbol"), row.get("fiscal_year"))
             else:
@@ -176,7 +178,7 @@ class BalanceSheetLoader(OptimalLoader):
                 seen[key] = row
         return list(seen.values())
 
-    def _validate_row(self, row: dict) -> bool:
+    def _validate_row(self, row: dict[str, Any]) -> bool:
         if not super()._validate_row(row):
             return False
         fy = row.get("fiscal_year")

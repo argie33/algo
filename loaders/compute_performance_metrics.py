@@ -181,13 +181,13 @@ def _compute_advanced_metrics(cur, metric_date: date):
                 ret = (vals[i] - vals[i - 1]) / vals[i - 1]
                 returns.append(ret)
 
-        # Validate return scale: if max return > 1 (>100%), likely percentage scale not decimal
+        # Validate return scale: returns should be decimal (0.05 = 5%), not percentage (5.0 = 5%)
         if returns and max(abs(r) for r in returns) > 1:
-            logger.warning(
-                f"Returns detected in percentage scale (max={max(abs(r) for r in returns):.2f}), "
-                "normalizing to decimal (dividing by 100)"
+            raise ValueError(
+                f"Return scale error: detected returns > 100% (max={max(abs(r) for r in returns):.2f}). "
+                "Returns should be decimal scale (0.05 = 5%), not percentage scale (5.0 = 5%). "
+                "Data quality issue in portfolio snapshots — check snapshot calculation."
             )
-            returns = [r / 100 for r in returns]
 
         if not returns:
             raise ValueError(
@@ -236,7 +236,7 @@ def _compute_advanced_metrics(cur, metric_date: date):
     except Exception as e:
         raise RuntimeError(
             f"[PERFORMANCE_METRICS] Failed to compute metrics: {e}. Cannot report zeros—requires authoritative data."
-        )
+        ) from e
 
 
 def _compute_streaks(pnl_dollars):
@@ -283,7 +283,7 @@ def _insert_default_metrics(cur, metric_date: date):
     )
 
 
-def _insert_performance_metrics(cur, metric_date: date, metrics: dict):
+def _insert_performance_metrics(cur, metric_date: date, metrics: dict[str, Any]):
     """Insert or update performance metrics in database."""
     try:
         cur.execute(

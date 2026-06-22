@@ -11,7 +11,7 @@ import argparse
 import logging
 import sys
 from datetime import date, datetime, timedelta
-from typing import Optional
+from typing import Any, Optional
 
 import pandas as pd
 import psycopg2
@@ -60,7 +60,7 @@ class MarketHealthDailyLoader(OptimalLoader):
             importance=DataImportance.OPTIONAL,
         )
 
-    def fetch_vix_with_breaker(self, start: date, end: date) -> dict:
+    def fetch_vix_with_breaker(self, start: date, end: date) -> dict[str, Any]:
         """Fetch VIX data with circuit breaker protection (OPTIONAL enrichment)."""
         result = self._vix_breaker.execute(
             fetch_func=lambda: self._fetch_vix_data(start, end),
@@ -78,7 +78,7 @@ class MarketHealthDailyLoader(OptimalLoader):
         )
         return result if isinstance(result, (float, type(None))) else None
 
-    def fetch_yield_curve_with_breaker(self, start: date, end: date) -> dict:
+    def fetch_yield_curve_with_breaker(self, start: date, end: date) -> dict[str, Any]:
         """Fetch yield curve data with circuit breaker protection (OPTIONAL enrichment)."""
         result = self._yield_curve_breaker.execute(
             fetch_func=lambda: self._fetch_yield_curve_data(start, end),
@@ -172,10 +172,11 @@ class MarketHealthDailyLoader(OptimalLoader):
             importance=DataImportance.OPTIONAL,
             fallback_value={},
         )
+        vix_data = vix or {}
         matched_count = 0
         for m in health_metrics:
-            if m["date"] in vix:
-                m["vix_level"] = vix[m["date"]]
+            if m["date"] in vix_data:
+                m["vix_level"] = vix_data[m["date"]]
                 matched_count += 1
             else:
                 m["vix_level"] = None
@@ -215,9 +216,10 @@ class MarketHealthDailyLoader(OptimalLoader):
             importance=DataImportance.OPTIONAL,
             fallback_value={},
         )
+        yield_curve_data = yield_curve or {}
         matched_count = 0
         for m in health_metrics:
-            m["yield_curve_slope"] = yield_curve.get(m["date"])
+            m["yield_curve_slope"] = yield_curve_data.get(m["date"])
             if m["yield_curve_slope"] is not None:
                 matched_count += 1
         if matched_count > 0:
@@ -236,7 +238,7 @@ class MarketHealthDailyLoader(OptimalLoader):
 
         return health_metrics
 
-    def _fetch_vix_data(self, start: date, end: date) -> dict:
+    def _fetch_vix_data(self, start: date, end: date) -> dict[str, Any]:
         """Fetch VIX close prices via wrapper. Returns {date_str: vix_close}.
 
         CRITICAL: If yfinance returns data but ALL values are < 5.0, this is a
@@ -248,18 +250,16 @@ class MarketHealthDailyLoader(OptimalLoader):
 
             ticker = YFinanceWrapper.get_ticker("^VIX")
             if not ticker:
-                logger.warning(
+                raise RuntimeError(
                     f"[VIX] Ticker ^VIX not available from yfinance for {start} to {end}. "
-                    "Continuing with missing VIX data."
+                    "VIX is CRITICAL market data required for risk monitoring."
                 )
-                return {"_error": "VIX ticker unavailable from yfinance"}
             df = ticker.history(start=start, end=end, interval="1d", auto_adjust=True)
             if df is None or df.empty:
-                logger.debug(
-                    f"[VIX] yfinance returned no data for {start} to {end}. "
-                    "This is expected for non-trading date ranges."
+                raise RuntimeError(
+                    f"[VIX] No data available from yfinance for {start} to {end}. "
+                    "VIX is CRITICAL market data required for circuit breaker logic."
                 )
-                return {"_error": "No VIX data available for date range"}
 
             result = {}
             low_value_count = 0  # Track but don't reject low values
@@ -389,7 +389,7 @@ class MarketHealthDailyLoader(OptimalLoader):
                 f"[PUT_CALL] Failed to compute put/call ratio: {e}. This metric is authoritative for market health."
             ) from None
 
-    def _fetch_yield_curve_data(self, start: date, end: date) -> dict:
+    def _fetch_yield_curve_data(self, start: date, end: date) -> dict[str, Any]:
         """Read 10Y-2Y yield spread from economic_metrics_daily. Returns {date_str: slope}."""
         try:
             with DatabaseContext("read") as cur:
@@ -410,7 +410,7 @@ class MarketHealthDailyLoader(OptimalLoader):
                 "Cannot compute market health without yield curve slope data."
             ) from None
 
-    def _fetch_breadth_data(self, start: date, end: date) -> dict:
+    def _fetch_breadth_data(self, start: date, end: date) -> dict[str, Any]:
         """Compute advance/decline ratio and new 52-week highs/lows from full stock universe."""
         try:
             with DatabaseContext("read") as cur:
@@ -508,7 +508,7 @@ class MarketHealthDailyLoader(OptimalLoader):
                 "Advance/decline ratio and new highs/lows are authoritative for market health."
             ) from None
 
-    def _fetch_price_daily(self, symbol: str, start: date, end: date) -> list[dict]:
+    def _fetch_price_daily(self, symbol: str, start: date, end: date) -> list[dict[str, Any]]:
         try:
             with DatabaseContext("read") as cur:
                 cur.execute(
@@ -533,7 +533,7 @@ class MarketHealthDailyLoader(OptimalLoader):
                 "Cannot compute market health without SPY price data."
             ) from None
 
-    def _compute_market_health(self, rows: list[dict]) -> list[dict]:
+    def _compute_market_health(self, rows: list[dict[str, Any]]) -> list[dict[str, Any]]:
         if not rows:
             return []
         # Warn if we have fewer than 20 rows but still process them (can happen at startup)

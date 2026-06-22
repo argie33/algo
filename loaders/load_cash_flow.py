@@ -13,7 +13,7 @@ import logging
 logger = logging.getLogger(__name__)
 import os
 from datetime import date
-from typing import Optional, cast
+from typing import Any, Optional, cast
 
 from loaders.runner import run_loader
 from utils.external.sec_edgar import SecEdgarClient
@@ -102,9 +102,11 @@ class CashFlowLoader(OptimalLoader):
     def fetch_incremental(self, symbol: str, since: date | None):
         try:
             cik = self._sec_client.symbol_to_cik(symbol)
-        except ValueError:
-            logger.debug("%s: not in SEC ticker cache, skipping", symbol)
-            return None
+        except ValueError as e:
+            raise RuntimeError(
+                f"[CASH_FLOW] {symbol}: CIK not found in SEC ticker cache. "
+                "Cannot fetch cash flow without SEC EDGAR CIK."
+            ) from e
         if not cik:
             raise RuntimeError(
                 f"[CASH_FLOW] CIK resolution failed for {symbol}. Cannot fetch cash flow data without SEC EDGAR CIK."
@@ -113,12 +115,10 @@ class CashFlowLoader(OptimalLoader):
         try:
             rows = self._sec_client.get_cash_flow(symbol, period=self.period)
             if not rows:
-                logger.debug(
-                    "%s: no %s cash flow data in SEC EDGAR, skipping",
-                    symbol,
-                    self.period,
+                raise RuntimeError(
+                    f"[CASH_FLOW] {symbol}: No {self.period} cash flow data in SEC EDGAR. "
+                    "Cannot proceed without fundamental data."
                 )
-                return None
             logger.info("%s: Fetched %d %s cash flow row(s)", symbol, len(rows), self.period)
 
             since_year = int(since.year) if since else 2000
@@ -132,16 +132,17 @@ class CashFlowLoader(OptimalLoader):
         except (ValueError, ZeroDivisionError, TypeError) as e:
             raise RuntimeError(
                 f"[CASH_FLOW] Failed to fetch cash flow for {symbol}: {e}. Cannot proceed without fundamental data."
-            )
+            ) from e
 
     def transform(self, rows):
         transformed = []
         for r in rows:
-            row = {}
+            row: dict[str, Any] = {}
             capex = None
+            field_mapping = self._field_mapping or {}
             for sec_field, value in r.items():
                 # Apply field mapping first
-                db_field = self._field_mapping.get(sec_field, sec_field)
+                db_field = field_mapping.get(sec_field, sec_field)
                 if db_field == "capex":
                     capex = value
                 elif db_field in self._schema_cols:
@@ -164,6 +165,7 @@ class CashFlowLoader(OptimalLoader):
 
         seen = {}
         for row in transformed:
+            key: tuple[Any, ...]
             if self.period == "annual":
                 key = (row.get("symbol"), row.get("fiscal_year"))
             else:
@@ -176,7 +178,7 @@ class CashFlowLoader(OptimalLoader):
                 seen[key] = row
         return list(seen.values())
 
-    def _validate_row(self, row: dict) -> bool:
+    def _validate_row(self, row: dict[str, Any]) -> bool:
         if not super()._validate_row(row):
             return False
         fy = row.get("fiscal_year")

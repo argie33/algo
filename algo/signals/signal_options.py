@@ -33,8 +33,10 @@ class SignalOptionsMixin:
 
             # Validate all three IV values are present (fail-fast on incomplete data)
             if row[1] is None or row[2] is None:
-                logger.warning(f"IV data incomplete for {symbol}: iv_high or iv_low is NULL")
-                return {"iv_rank": None, "signal": "neutral", "bonus_pts": 0.0}
+                raise ValueError(
+                    f"IV data incomplete for {symbol}: iv_high or iv_low is NULL — "
+                    "cannot compute IV rank without complete historical range"
+                )
 
             try:
                 current_iv, iv_high, iv_low = (
@@ -43,12 +45,14 @@ class SignalOptionsMixin:
                     float(row[2]),
                 )
             except (ValueError, TypeError) as e:
-                logger.error(f"IV conversion failed for {symbol}: {e}")
-                return {"iv_rank": None, "signal": "neutral", "bonus_pts": 0.0}
+                raise ValueError(f"IV conversion failed for {symbol}: {e}") from e
 
             # Avoid division by zero
             if iv_high == iv_low:
-                return {"iv_rank": None, "signal": "neutral", "bonus_pts": 0.0}
+                raise ValueError(
+                    f"IV range invalid for {symbol}: iv_high == iv_low ({iv_high}) — "
+                    "cannot compute IV rank without volatility range"
+                )
 
             iv_rank = (current_iv - iv_low) / (iv_high - iv_low) * 100
 
@@ -174,7 +178,7 @@ class SignalOptionsMixin:
 
             # Get base depth from technical analysis — required if we have IV data
             try:
-                base_type = self.classify_base_type(symbol, eval_date)
+                base_type = self.classify_base_type(symbol, eval_date)  # type: ignore[attr-defined]
                 if base_type is None:
                     raise ValueError(
                         f"{symbol}: Base type classification unavailable — "
