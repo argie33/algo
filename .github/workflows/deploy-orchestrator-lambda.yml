@@ -1,0 +1,51 @@
+name: Deploy Orchestrator Lambda
+
+# Deploys only the orchestrator Lambda handler code (lambda/algo_orchestrator/).
+# Use when you need to push a handler change without a full Terraform apply.
+# Does NOT rebuild the layer — only updates the function code package.
+# The layer (config/, algo/, utils/, monitoring/ + pip deps) stays as-is.
+
+on:
+  workflow_dispatch:
+
+env:
+  FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true
+
+jobs:
+  deploy:
+    name: Package & Deploy Orchestrator Lambda
+    runs-on: ubuntu-latest
+    permissions:
+      id-token: write
+      contents: read
+
+    steps:
+      - uses: actions/checkout@692973e3d937129bcbf40652eb9f2f61becf3332  # v4.1.7
+
+      - name: Configure AWS credentials
+        uses: aws-actions/configure-aws-credentials@7474bc4690e29a8392af63c5b98e7449536d5c3a  # v4
+        with:
+          role-to-assume: ${{ secrets.GITHUB_ACTIONS_ROLE_ARN || format('arn:aws:iam::{0}:role/{1}', secrets.AWS_ACCOUNT_ID, secrets.GITHUB_ACTIONS_ROLE_NAME || 'algo-svc-github-actions-dev') }}
+          aws-region: us-east-1
+
+      - name: Package orchestrator Lambda handler
+        run: |
+          set -e
+          # Handler-only ZIP — dependencies come from the algo-orchestrator layer
+          mkdir -p orch-pkg
+          cp lambda/algo_orchestrator/lambda_function.py orch-pkg/lambda_function.py
+          cd orch-pkg && zip -r ../orchestrator_lambda.zip lambda_function.py && cd ..
+          if [ ! -f orchestrator_lambda.zip ]; then
+            echo "ERROR: Failed to create orchestrator_lambda.zip!"
+            exit 1
+          fi
+          echo "[OK] Orchestrator Lambda ZIP: $(du -sh orchestrator_lambda.zip | cut -f1)"
+
+      - name: Deploy to Lambda
+        run: |
+          aws lambda update-function-code \
+            --function-name algo-algo-dev \
+            --zip-file fileb://orchestrator_lambda.zip \
+            --region us-east-1 \
+            --query '{FunctionName:FunctionName,LastModified:LastModified,CodeSize:CodeSize}' \
+            --output json
