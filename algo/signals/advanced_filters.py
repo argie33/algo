@@ -63,10 +63,14 @@ class AdvancedFilters:
         }
 
     def _load_config_val(self, key: str, default: Any) -> Any:
-        """Load a config value from AlgoConfig, with fallback to default.
+        """Load a config value from AlgoConfig (fail-fast).
 
-        Raises on database/connection errors — those indicate system failure.
-        Returns default only if config value is missing.
+        CRITICAL: Raises on any database/connection errors — those indicate system
+        failure and must not be masked by silent defaults. Returns default only if
+        config key is missing (not found), never for errors accessing the database.
+
+        For signal evaluation, using default config values when database is down
+        could silently produce wrong signals and incorrect trades.
         """
         try:
             val = self.config.get(key)
@@ -74,8 +78,10 @@ class AdvancedFilters:
         except (RuntimeError, OSError) as e:
             raise RuntimeError(f"CRITICAL: Database/connection error loading config[{key}]: {e}") from e
         except (psycopg2.DatabaseError, psycopg2.OperationalError) as e:
-            logger.debug(f"Config value {key} unavailable, using default: {e}")
-            return default
+            raise RuntimeError(
+                f"CRITICAL: Database error loading config[{key}]: {e}. "
+                f"Signal evaluation requires valid config — cannot proceed with default values."
+            ) from e
 
     # ---------- Pre-load: market context ----------
 

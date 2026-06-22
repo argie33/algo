@@ -59,23 +59,31 @@ CHECK_LABELS = {
 }
 
 
-def _float(value, default=None, context=""):
-    """Convert to float safely, rejecting NaN/Infinity.
+def _float(value, context=""):
+    """Convert to float safely, rejecting NaN/Infinity and missing data.
 
-    Uses None as default to distinguish between "missing" and "zero".
-    Callers can explicitly pass default=0.0 if zero is appropriate for their context.
+    CRITICAL: Raises on missing or invalid data instead of defaulting.
+    Circuit breaker checks require exact data — silent defaults mask missing
+    critical values and lead to incorrect trading halts/permissions.
+
+    Args:
+        value: Value to convert (must not be None)
+        context: Description for error messages
+
+    Raises:
+        ValueError: If value is None, NaN, Infinity, or not convertible to float
     """
     if value is None:
-        return default
+        raise ValueError(f"Circuit breaker metric is missing (required, not optional) {context}")
     try:
         f = float(value)
         if math.isnan(f) or math.isinf(f):
-            logger.warning(f"Invalid float {value!r} (NaN/Inf) {context}")
-            return default
+            raise ValueError(f"Invalid float {value!r} (NaN/Inf) {context}")
         return f
-    except (ValueError, TypeError):
-        logger.warning(f"Failed to convert {value!r} to float {context}")
-        return default
+    except (ValueError, TypeError) as e:
+        if isinstance(e, ValueError) and "Circuit breaker metric is missing" in str(e):
+            raise
+        raise ValueError(f"Failed to convert {value!r} to float {context}") from e
 
 
 class CircuitBreaker:

@@ -21,8 +21,18 @@ class VolatilityFactor(ExposureFactorStrategy):
     """VIX-based volatility exposure factor."""
 
     def calculate(self, market_data: dict[str, Any]) -> float:
-        """Calculate volatility exposure."""
-        vix = float(market_data.get("vix_level", 20.0))
+        """Calculate volatility exposure.
+
+        Raises ValueError if VIX data is missing — exposure calculations
+        require accurate volatility; defaulting to 20 would mask data issues.
+        """
+        if "vix_level" not in market_data or market_data["vix_level"] is None:
+            raise ValueError(
+                "CRITICAL: VIX level missing from market data. "
+                "Volatility exposure calculation requires live VIX data. "
+                "Cannot proceed with default VIX value (would hide market risk)."
+            )
+        vix = float(market_data["vix_level"])
         return min(1.0, vix / 30.0)  # Normalized to [0,1]
 
 
@@ -30,8 +40,18 @@ class BetaFactor(ExposureFactorStrategy):
     """Market beta exposure factor."""
 
     def calculate(self, market_data: dict[str, Any]) -> float:
-        """Calculate beta exposure."""
-        correlation = float(market_data.get("correlation_to_market", 0.7))
+        """Calculate beta exposure.
+
+        Raises ValueError if correlation data is missing — exposure calculations
+        require accurate beta; defaulting to 0.7 would mask missing market data.
+        """
+        if "correlation_to_market" not in market_data or market_data["correlation_to_market"] is None:
+            raise ValueError(
+                "CRITICAL: Market correlation missing from market data. "
+                "Beta exposure calculation requires correlation metrics. "
+                "Cannot proceed with default correlation value (would hide market risk)."
+            )
+        correlation = float(market_data["correlation_to_market"])
         return correlation
 
 
@@ -39,8 +59,18 @@ class LiquidityFactor(ExposureFactorStrategy):
     """Market liquidity exposure factor."""
 
     def calculate(self, market_data: dict[str, Any]) -> float:
-        """Calculate liquidity exposure."""
-        spread_basis_points = float(market_data.get("spread_bps", 5))
+        """Calculate liquidity exposure.
+
+        Raises ValueError if spread data is missing — exposure calculations
+        require accurate liquidity metrics; defaulting to 5 bps would mask stale data.
+        """
+        if "spread_bps" not in market_data or market_data["spread_bps"] is None:
+            raise ValueError(
+                "CRITICAL: Bid-ask spread data missing from market data. "
+                "Liquidity exposure calculation requires current spread metrics. "
+                "Cannot proceed with default spread value (would hide liquidity risk)."
+            )
+        spread_basis_points = float(market_data["spread_bps"])
         return 1.0 / (1.0 + spread_basis_points / 100.0)  # Inverse function
 
 
@@ -48,8 +78,18 @@ class DrawdownFactor(ExposureFactorStrategy):
     """Current drawdown exposure factor."""
 
     def calculate(self, market_data: dict[str, Any]) -> float:
-        """Calculate drawdown exposure."""
-        max_dd = float(market_data.get("max_drawdown_pct", 0))
+        """Calculate drawdown exposure.
+
+        Raises ValueError if drawdown data is missing — exposure calculations
+        require accurate risk metrics; defaulting to 0% would hide portfolio losses.
+        """
+        if "max_drawdown_pct" not in market_data or market_data["max_drawdown_pct"] is None:
+            raise ValueError(
+                "CRITICAL: Portfolio drawdown data missing from market data. "
+                "Drawdown exposure calculation requires drawdown metrics. "
+                "Cannot proceed with default value (would hide portfolio losses)."
+            )
+        max_dd = float(market_data["max_drawdown_pct"])
         return max(0.0, 1.0 - (abs(max_dd) / 100.0))  # Penalize drawdowns
 
 

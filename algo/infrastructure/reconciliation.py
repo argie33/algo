@@ -1097,11 +1097,14 @@ class DailyReconciliation:
         return self.broker.fetch_account()
 
     def _fetch_initial_capital(self, cur):
-        """Get the actual initial capital from broker account history.
+        """Get the actual initial capital from broker account history (fail-fast).
 
-        Returns the oldest portfolio value from broker history.
-        Falls back to the oldest algo_portfolio_snapshots entry if broker history unavailable.
-        Raises ValueError if initial capital cannot be determined.
+        CRITICAL: Does NOT fall back to stale database snapshots. Initial capital is
+        required for accurate cumulative return calculation. Stale data (days/months old)
+        would severely distort P&L metrics and mask performance issues.
+
+        Raises ValueError if broker history unavailable — reconciliation must fail fast
+        rather than use potentially months-old snapshot data.
         """
         try:
             initial_val = self.broker.fetch_initial_capital()
@@ -1109,28 +1112,19 @@ class DailyReconciliation:
                 logger.info(f"Initial capital from broker history: ${initial_val:,.2f}")
                 return initial_val
         except Exception as e:
-            logger.warning(f"Could not fetch broker initial capital: {e}; checking database")
+            raise ValueError(
+                f"CRITICAL: Cannot fetch initial capital from Alpaca broker history: {e}. "
+                "Initial capital is required for accurate cumulative return calculation. "
+                "Check: (1) Is Alpaca API reachable? (2) Does account have portfolio history? "
+                "(3) Are credentials valid? Reconciliation halts without live broker data "
+                "(stale database snapshots would corrupt P&L metrics)."
+            ) from e
 
-        try:
-            cur.execute("""
-                SELECT total_portfolio_value FROM algo_portfolio_snapshots
-                ORDER BY snapshot_date ASC LIMIT 1
-            """)
-            row = cur.fetchone()
-            if row is not None and row[0] is not None:
-                val = float(row[0])
-                if val > 0:
-                    logger.info(f"Using oldest database snapshot as initial capital: ${val:,.2f}")
-                    return val
-        except (
-            psycopg2.DatabaseError,
-            psycopg2.OperationalError,
-            ValueError,
-            TypeError,
-        ) as e:
-            logger.warning(f"Could not query database for initial capital: {e}")
-
-        raise ValueError("Cannot determine initial capital: Alpaca history unavailable and no database snapshots found")
+        raise ValueError(
+            "CRITICAL: Broker returned no portfolio history. "
+            "Initial capital cannot be determined from Alpaca. "
+            "Reconciliation requires live broker history for accurate P&L — cannot proceed."
+        )
 
     def validate_pnl(self, broker_equity: float, local_equity: float) -> dict:
         """Validate that local P&L matches Alpaca P&L within tolerance.

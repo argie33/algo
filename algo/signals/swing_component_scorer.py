@@ -142,7 +142,7 @@ class SwingComponentScorer:
             base_type = setup["base_type"]
             base_quality = setup.get("quality", "D")
 
-            base_type_pts = {
+            base_type_mapping = {
                 "high_tight": 25,
                 "tight_consolidation": 23,
                 "low_and_tight": 21,
@@ -150,28 +150,46 @@ class SwingComponentScorer:
                 "descending_channel": 18,
                 "ascending_channel": 15,
                 "wide_and_loose": 5,
-            }.get(base_type, 10)
+            }
+            if base_type not in base_type_mapping:
+                raise ValueError(
+                    f"{symbol}: Unknown base_type '{base_type}'. "
+                    f"Must be one of {list(base_type_mapping.keys())}. "
+                    f"Setup component scoring cannot proceed with unknown base type."
+                )
+            base_type_pts = base_type_mapping[base_type]
 
-            quality_multiplier = {
+            quality_multipliers = {
                 "A": 1.0,
                 "B": 0.9,
                 "C": 0.75,
                 "D": 0.5,
-            }.get(base_quality, 0.5)
+            }
+            if base_quality not in quality_multipliers:
+                raise ValueError(
+                    f"{symbol}: Unknown quality grade '{base_quality}'. "
+                    f"Must be one of {list(quality_multipliers.keys())}. "
+                    f"Cannot compute setup quality without valid grade."
+                )
+            quality_multiplier = quality_multipliers[base_quality]
 
             breakout_proximity = setup.get("breakout_proximity_pct")
             if breakout_proximity is None:
-                logger.warning(f"breakout_proximity_pct missing from setup data for {symbol}")
-                breakout_pts = 0
-            else:
-                breakout_pts = max(0, 5 * (1 - breakout_proximity / 10))
+                raise ValueError(
+                    f"{symbol}: breakout_proximity_pct missing from setup data. "
+                    f"Cannot compute breakout quality without proximity metric. "
+                    f"Setup component scoring incomplete."
+                )
+            breakout_pts = max(0, 5 * (1 - breakout_proximity / 10))
 
             pivot_count = setup.get("pivot_count")
             if pivot_count is None:
-                logger.warning(f"pivot_count missing from setup data for {symbol}")
-                pivot_pts = 0
-            else:
-                pivot_pts = min(5, pivot_count * 1.5)
+                raise ValueError(
+                    f"{symbol}: pivot_count missing from setup data. "
+                    f"Cannot compute pivot strength without pivot count. "
+                    f"Setup component scoring incomplete."
+                )
+            pivot_pts = min(5, pivot_count * 1.5)
 
             pts = (base_type_pts * quality_multiplier + breakout_pts + pivot_pts) * 0.5
             return min(pts, self.W_SETUP), {
@@ -185,7 +203,12 @@ class SwingComponentScorer:
             return 0, {"error": str(e)[:50]}
 
     def _trend_component(self, symbol: str, eval_date, cur) -> tuple[float, dict[str, Any]]:
-        """Trend quality: Minervini score, Weinstein stage, 30wk MA slope."""
+        """Trend quality: Minervini score, Weinstein stage, 30wk MA slope.
+
+        CRITICAL: Raises on missing trend data instead of defaulting to 0.
+        Signal scoring requires complete technical data; missing trend data
+        means signal evaluation is incomplete.
+        """
         try:
             cur.execute(
                 "SELECT minervini_score, weinstein_stage, ma_30wk_slope FROM technical_signals WHERE symbol = %s AND date = %s",
@@ -193,11 +216,22 @@ class SwingComponentScorer:
             )
             row = cur.fetchone()
             if not row or not row[0]:
-                return 0, {"error": "No trend data"}
+                raise ValueError(
+                    f"{symbol}: Technical signals missing for {eval_date}. "
+                    f"Trend component requires minervini_score, weinstein_stage, and ma_30wk_slope. "
+                    f"Cannot score trend without technical indicators."
+                )
 
-            minervini_score = float(row[0]) if row[0] else 0
-            weinstein_stage = int(row[1]) if row[1] else 0
-            ma_slope = float(row[2]) if row[2] else 0
+            if row[0] is None:
+                raise ValueError(f"{symbol}: minervini_score is NULL")
+            if row[1] is None:
+                raise ValueError(f"{symbol}: weinstein_stage is NULL")
+            if row[2] is None:
+                raise ValueError(f"{symbol}: ma_30wk_slope is NULL")
+
+            minervini_score = float(row[0])
+            weinstein_stage = int(row[1])
+            ma_slope = float(row[2])
 
             minervini_pts = min(10, minervini_score * 1.25)
             stage_pts = 7 if weinstein_stage == 2 else (5 if weinstein_stage == 1 else 0)
