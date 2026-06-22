@@ -104,17 +104,25 @@ class DataPatrol:
 
         for check_name, checker in checks:
             start = time.time()
+            savepoint_name = f"sp_{check_name}"
             try:
-                results = checker.run(cur)
-                self.results.extend(results)
-                elapsed = time.time() - start
-                self.check_timings[check_name] = elapsed
-                if elapsed > 10:
-                    logger.warning(f"[patrol_perf] {check_name} took {elapsed:.1f}s (slow)")
+                cur.execute(f"SAVEPOINT {savepoint_name}")
+                try:
+                    results = checker.run(cur)
+                    self.results.extend(results)
+                except (psycopg2.DatabaseError, psycopg2.OperationalError) as e:
+                    logger.error(f"Check {check_name} failed: {e}", exc_info=True)
+                finally:
+                    try:
+                        cur.execute(f"ROLLBACK TO SAVEPOINT {savepoint_name}")
+                    except (psycopg2.DatabaseError, psycopg2.OperationalError):
+                        pass
             except (psycopg2.DatabaseError, psycopg2.OperationalError) as e:
-                elapsed = time.time() - start
-                self.check_timings[check_name] = elapsed
-                logger.error(f"Check {check_name} failed: {e}", exc_info=True)
+                logger.error(f"Failed to create savepoint for {check_name}: {e}")
+            elapsed = time.time() - start
+            self.check_timings[check_name] = elapsed
+            if elapsed > 10:
+                logger.warning(f"[patrol_perf] {check_name} took {elapsed:.1f}s (slow)")
 
     def summarize(self, cur, elapsed_seconds: float | None = None) -> dict[str, Any]:
         """Summarize patrol results."""

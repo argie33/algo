@@ -57,7 +57,7 @@ class PatrolLogger:
                             result.severity,
                             result.target_table,
                             result.message,
-                            json.dumps(result.details) if result.details else None,
+                            json.dumps(result.details, default=str) if result.details else None,
                         )
                         for result in results
                     ],
