@@ -266,7 +266,7 @@ def _get_data_status(cur) -> dict[str, Any]:
                 age_h = 999
 
             # Determine role based on criticality and freshness requirement
-            if rule.get("critical"):
+            if rule is not None and rule.get("critical"):
                 role = "CRIT"
             elif max_age <= 7:
                 role = "IMP"
