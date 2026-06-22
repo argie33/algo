@@ -23,7 +23,7 @@ router.get("/detailed", async (req, res) => {
 
     try {
       // Test database connection with a simple query
-      const result = await query(
+      await query(
         "SELECT COUNT(*) as count FROM information_schema.tables WHERE table_schema = 'public'"
       );
       dbStatus = "connected";

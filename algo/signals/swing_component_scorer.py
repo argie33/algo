@@ -127,8 +127,18 @@ class SwingComponentScorer:
         """Setup quality component: base type, breakout proximity, consolidation quality."""
         try:
             setup = self._signals.classify_base_type(symbol, eval_date)
-            if not setup or not setup.get("base_type"):
-                return 0, {"error": "No setup found"}
+            if not setup:
+                logger.critical(
+                    f"CRITICAL: Base type classification returned None for {symbol}. "
+                    f"Cannot evaluate setup quality component. Signal validation incomplete."
+                )
+                raise ValueError(f"{symbol}: Base type classification failed. Setup component unavailable.")
+            if not setup.get("base_type"):
+                logger.critical(
+                    f"CRITICAL: Base type missing from classification result for {symbol}. "
+                    f"Classification returned data but without base_type field. Data corruption or schema mismatch."
+                )
+                raise ValueError(f"{symbol}: base_type field missing from classification. Setup validation failed.")
 
             base_type = setup["base_type"]
             base_quality = setup.get("quality", "D")

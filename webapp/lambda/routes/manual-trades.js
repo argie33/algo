@@ -7,13 +7,11 @@ const { authenticateToken } = require("../middleware/auth");
 const {
   sendSuccess,
   sendError,
-  sendPaginated,
 } = require("../utils/apiResponse");
 const {
   createInputValidationMiddleware,
   inputSchemas,
 } = require("../middleware/dataValidationMiddleware");
-const logger = require("../utils/logger");
 const {
   validateQueryResult,
   validateAndCoerceRows,
@@ -125,13 +123,7 @@ router.post(
       const tradeType = trade_type.toLowerCase() === "buy" ? "BUY" : "SELL";
       const qty = parseFloat(quantity);
       const prc = parseFloat(price);
-      const comm =
-        commission !== undefined && commission !== null
-          ? parseFloat(commission)
-          : null;
       const tradeDate = new Date(execution_date);
-
-      const orderValue = qty * prc;
 
       // Insert trade with user_id
       const result = await dbQuery(

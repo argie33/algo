@@ -15,7 +15,6 @@ const { sendSuccess, sendError } = require("../utils/apiResponse");
 const logger = require("../utils/logger");
 const {
   validateQueryResult,
-  validateAndCoerceRows,
   extractSingleRow,
 } = require("../utils/responseValidation");
 

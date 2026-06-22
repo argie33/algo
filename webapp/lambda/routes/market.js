@@ -18,13 +18,10 @@ const {
   sendError,
   sendPaginated,
   sendNotFound,
-  sendBadRequest,
   sendPlaceholder,
 } = require("../utils/apiResponse");
 const {
   validateQueryResult,
-  validateAndCoerceRows,
-  extractCount,
 } = require("../utils/responseValidation");
 const logger = require("../utils/logger");
 const paginationConfig = require("../config/pagination");
@@ -1376,10 +1373,6 @@ router.get("/seasonality", async (req, res) => {
       dowEffects = [];
     }
 
-    const dowNote = {
-      note: "Day of week effects are calculated from historical daily returns analysis.",
-    };
-
     // 6. SECTOR ROTATION CALENDAR - Fetch actual sectors from database
     // NO hardcoded values - load from company_profile table
     let sectorSeasonality = [];
@@ -1961,8 +1954,6 @@ router.get("/correlation", async (req, res) => {
 // Market indices endpoint - FIXED VERSION
 router.get("/indices", async (req, res) => {
   try {
-    const now = new Date().toISOString();
-
     // Load real index data from price_daily table
     const indicesQuery = `
       SELECT DISTINCT ON (symbol)

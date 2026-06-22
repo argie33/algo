@@ -7,10 +7,8 @@ const {
   sendPaginated,
   sendPlaceholder,
 } = require("../utils/apiResponse");
-const logger = require("../utils/logger");
 const {
   validateQueryResult,
-  validateAndCoerceRows,
   extractCount,
 } = require("../utils/responseValidation");
 const router = express.Router();
