@@ -27,9 +27,8 @@ import psycopg2
 import yfinance as yf
 
 from utils.db.context import DatabaseContext
-from utils.infrastructure.circuit_breaker import CircuitBreaker, DataImportance
 from utils.infrastructure.timezone import EASTERN_TZ
-from utils.loaders.helpers import get_active_symbols
+from utils.loaders import create_circuit_breaker, get_active_symbols
 from utils.validation.data_freshness import FreshnessValidator, StaleDataError
 
 logger = logging.getLogger(__name__)
@@ -40,7 +39,7 @@ class OptionsLoader:
 
     def __init__(self):
         self.batch_size = 50
-        self._circuit_breaker = CircuitBreaker(name="yfinance_options", importance=DataImportance.OPTIONAL)
+        self._circuit_breaker = create_circuit_breaker("yfinance_options", importance_name="OPTIONAL")
         self._freshness_validator = FreshnessValidator(
             max_age_hours={
                 "options_data": 24.0,

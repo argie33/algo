@@ -9,7 +9,7 @@ from typing import Optional
 import psycopg2
 
 from loaders.runner import run_loader
-from utils.db.context import DatabaseContext
+from utils.loaders import execute_query, fetch_latest
 from utils.optimal_loader import OptimalLoader
 
 logger = logging.getLogger(__name__)
@@ -25,19 +25,17 @@ class SectorRankingLoader(OptimalLoader):
     def fetch_global(self, since: date | None) -> list[dict] | None:
         """Compute sector rankings from stock scores and company profile data."""
         try:
-            with DatabaseContext("read") as cur:
-                cur.execute("SELECT date FROM price_daily ORDER BY date DESC LIMIT 1")
-                row = cur.fetchone()
-                latest_date = row["date"] if row else None
+            row = fetch_latest("price_daily", "date")
+            latest_date = row["date"] if row else None
 
-                if not latest_date:
-                    raise ValueError(
-                        "No price data found in price_daily table. Required for sector ranking computation."
-                    )
+            if not latest_date:
+                raise ValueError(
+                    "No price data found in price_daily table. Required for sector ranking computation."
+                )
 
-                # Rank sectors by average composite score; pull historical ranks for comparison
-                cur.execute("""
-                    WITH current_ranks AS (
+            # Rank sectors by average composite score; pull historical ranks for comparison
+            rows = execute_query("""
+                WITH current_ranks AS (
                         SELECT
                             cp.sector AS sector_name,
                             COUNT(DISTINCT cp.ticker) AS stock_count,
@@ -87,36 +85,35 @@ class SectorRankingLoader(OptimalLoader):
                     LEFT JOIN rank_4w  r4  ON r4.sector_name  = cr.sector_name
                     LEFT JOIN rank_12w r12 ON r12.sector_name = cr.sector_name
                     ORDER BY cr.sector_rank
-                """)
+            """)
 
-                rows = cur.fetchall()
-                if not rows:
-                    logger.warning("No sector ranking data computed — check company_profile and stock_scores tables")
-                    return None
+            if not rows:
+                logger.warning("No sector ranking data computed — check company_profile and stock_scores tables")
+                return None
 
-                valid_rows = []
-                for r in rows:
-                    current_rank = r["current_rank"]
-                    if current_rank is None:
-                        logger.warning(f"Sector ranking for {r['sector_name']}: missing current_rank - skipping")
-                        continue
-                    valid_rows.append(
-                        {
-                            "sector_name": r["sector_name"],
-                            "date": latest_date,
-                            "current_rank": current_rank,
-                            "momentum_score": (float(r["momentum_score"]) if r["momentum_score"] is not None else 0.0),
-                            "rank_1w_ago": (r["rank_1w_ago"] if r["rank_1w_ago"] is not None else -1),
-                            "rank_4w_ago": (r["rank_4w_ago"] if r["rank_4w_ago"] is not None else -1),
-                            "rank_12w_ago": (r["rank_12w_ago"] if r["rank_12w_ago"] is not None else -1),
-                        }
-                    )
+            valid_rows = []
+            for r in rows:
+                current_rank = r["current_rank"]
+                if current_rank is None:
+                    logger.warning(f"Sector ranking for {r['sector_name']}: missing current_rank - skipping")
+                    continue
+                valid_rows.append(
+                    {
+                        "sector_name": r["sector_name"],
+                        "date": latest_date,
+                        "current_rank": current_rank,
+                        "momentum_score": (float(r["momentum_score"]) if r["momentum_score"] is not None else 0.0),
+                        "rank_1w_ago": (r["rank_1w_ago"] if r["rank_1w_ago"] is not None else -1),
+                        "rank_4w_ago": (r["rank_4w_ago"] if r["rank_4w_ago"] is not None else -1),
+                        "rank_12w_ago": (r["rank_12w_ago"] if r["rank_12w_ago"] is not None else -1),
+                    }
+                )
 
-                if not valid_rows:
-                    logger.warning("No valid sector ranking entries after validation")
-                    return None
+            if not valid_rows:
+                logger.warning("No valid sector ranking entries after validation")
+                return None
 
-                return valid_rows
+            return valid_rows
 
         except (psycopg2.DatabaseError, psycopg2.OperationalError) as e:
             raise RuntimeError(f"Operation failed: {e}") from e
