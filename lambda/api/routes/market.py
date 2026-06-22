@@ -8,6 +8,7 @@ import psycopg2
 import psycopg2.errors
 import psycopg2.extras
 import psycopg2.sql
+from psycopg2.extensions import cursor
 from routes.utils import (
     check_data_freshness,
     db_route_handler,
@@ -24,7 +25,7 @@ from shared_contracts.response_validator import ResponseValidator
 logger = logging.getLogger(__name__)
 
 
-def _rollback_savepoint(cur, name: str) -> None:
+def _rollback_savepoint(cur: cursor, name: str) -> None:
     """Consolidate savepoint rollback error handling."""
     try:
         cur.execute(f"ROLLBACK TO SAVEPOINT {name}")
@@ -33,7 +34,7 @@ def _rollback_savepoint(cur, name: str) -> None:
         logger.debug(f"[SAVEPOINT_ROLLBACK] Error rolling back {name}: {type(sp_err).__name__}")
 
 
-def _handle_market_status(cur) -> dict[str, Any]:
+def _handle_market_status(cur: cursor) -> dict[str, Any]:
     """Handle /api/market and /api/market/status endpoints."""
     cur.execute("SET LOCAL statement_timeout = '5000ms'")
     cur.execute("""
@@ -60,7 +61,7 @@ def _handle_market_status(cur) -> dict[str, Any]:
     return json_response(200, result, data_freshness=freshness)
 
 
-def _handle_breadth(cur) -> dict[str, Any]:
+def _handle_breadth(cur: cursor) -> dict[str, Any]:
     """Handle /api/market/breadth endpoint."""
     # Compute A/D per day using a self-join on consecutive trading dates.
     # Self-join is faster than LAG window over 35 days x 9000 symbols.
@@ -133,7 +134,7 @@ def _handle_breadth(cur) -> dict[str, Any]:
     )
 
 
-def _handle_technicals(cur) -> dict[str, Any]:
+def _handle_technicals(cur: cursor) -> dict[str, Any]:
     """Handle /api/market/technicals endpoint."""
     try:
         cur.execute("SET LOCAL statement_timeout = '3000ms'")
@@ -239,7 +240,7 @@ def _handle_technicals(cur) -> dict[str, Any]:
     return json_response(200, base, data_freshness=freshness)
 
 
-def _handle_top_movers(cur) -> dict[str, Any]:
+def _handle_top_movers(cur: cursor) -> dict[str, Any]:
     """Handle /api/market/top-movers endpoint."""
     movers = []
     gainers = []
@@ -311,7 +312,7 @@ def _handle_top_movers(cur) -> dict[str, Any]:
     return json_response(200, {"gainers": gainers or [], "losers": losers or [], "items": items})
 
 
-def _handle_distribution_days(cur) -> dict[str, Any]:
+def _handle_distribution_days(cur: cursor) -> dict[str, Any]:
     """Handle /api/market/distribution-days endpoint."""
     dist_index_names = {
         "^GSPC": "S&P 500",
@@ -385,7 +386,7 @@ def _handle_distribution_days(cur) -> dict[str, Any]:
         raise_db_error(e, "distribution days query")
 
 
-def _handle_seasonality(cur) -> dict[str, Any]:
+def _handle_seasonality(cur: cursor) -> dict[str, Any]:
     """Handle /api/market/seasonality endpoint."""
     # Seasonality tables are market-wide aggregates (SPY-based)
     monthly_data = []
@@ -541,7 +542,7 @@ def _handle_seasonality(cur) -> dict[str, Any]:
     )
 
 
-def _handle_sentiment(cur, params: dict) -> dict[str, Any]:
+def _handle_sentiment(cur: cursor, params: dict[str, Any] | None) -> dict[str, Any]:
     """Handle /api/market/sentiment endpoint."""
     range_days = _parse_range_param(params) if params else 30
     sentiment_data = {}
@@ -693,7 +694,7 @@ def _handle_sentiment(cur, params: dict) -> dict[str, Any]:
     return json_response(200, sentiment_data, data_freshness=freshness)
 
 
-def _handle_naaim(cur) -> dict[str, Any]:
+def _handle_naaim(cur: cursor) -> dict[str, Any]:
     """Handle /api/market/naaim endpoint."""
     try:
         cur.execute("SET LOCAL statement_timeout = '5000ms'")
