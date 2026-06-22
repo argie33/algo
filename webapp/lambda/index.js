@@ -1,6 +1,13 @@
 ﻿// Load environment variables ONCE at startup from .env.local (LOCAL DEVELOPMENT ONLY)
 // Production (Lambda/CI): NEVER load from .env files - uses AWS environment variables or Secrets Manager
 const path = require("path");
+const { createServer } = require("http");
+
+const cors = require("cors");
+const express = require("express");
+const helmet = require("helmet");
+const morgan = require("morgan");
+const serverlessHttp = require('serverless-http');
 
 // Only load .env.local in local development (never in Lambda/CI)
 if (!process.env.AWS_LAMBDA_FUNCTION_NAME && !process.env.CI) {
@@ -21,14 +28,6 @@ if (!process.env.AWS_LAMBDA_FUNCTION_NAME && !process.env.CI) {
 // Note: Authentication is handled by API Gateway (Cognito JWT authorizer)
 // No custom JWT signing/verification is performed in this Lambda
 // The Cognito JWT token is validated at the API Gateway level before reaching this function
-
-const { createServer } = require("http");
-
-const cors = require("cors");
-const express = require("express");
-const helmet = require("helmet");
-const morgan = require("morgan");
-const serverlessHttp = require('serverless-http');
 
 const errorHandler = require("./middleware/errorHandler");
 const requestLogger = require("./middleware/requestLogger");

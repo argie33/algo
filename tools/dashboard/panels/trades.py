@@ -149,7 +149,7 @@ def panel_recent_trades(trades):
         has_pnl = pnl_p is not None
         pc = G if (pnl_d or pnl_p or 0) > 0 else R
         si = f"[{G}]▲[/]" if (pnl_p or 0) > 0 else f"[{R}]▼[/]"
-        grade = safe_get_field(tr, "swing_grade", "--")
+        grade = safe_get_field(tr, "swing_grade") or "--"
         grade_c = (
             G
             if grade in ("A", "A+", "A-")
@@ -296,7 +296,7 @@ def panel_trades_expanded(trades):
         exit_p = float(exit_raw) if exit_raw is not None else None
         dur_raw = safe_get_field(tr, "trade_duration_days")
         dur = int(dur_raw) if dur_raw is not None else None
-        grade = safe_get_field(tr, "swing_grade", "--")
+        grade = safe_get_field(tr, "swing_grade") or "--"
         mfe_raw = safe_get_field(tr, "mfe_pct")
         mae_raw = safe_get_field(tr, "mae_pct")
         mfe = float(mfe_raw) if mfe_raw is not None else None

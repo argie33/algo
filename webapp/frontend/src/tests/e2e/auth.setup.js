@@ -6,7 +6,6 @@
 import { test as setup } from "@playwright/test";
 
 setup("authenticate", async ({ page }) => {
-
   await page.goto("/");
 
   // Set up authentication state
@@ -23,10 +22,11 @@ setup("authenticate", async ({ page }) => {
   try {
     await page.waitForSelector("#root", { timeout: 5000 });
   } catch (err) {
-    console.warn('[E2E Auth] Root element not found within timeout:', err?.message);
+    console.warn(
+      "[E2E Auth] Root element not found within timeout:",
+      err?.message
+    );
   }
 
   await page.waitForTimeout(1000); // Brief pause for hydration
-
 });
-

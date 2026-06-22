@@ -134,8 +134,7 @@ def _execute_fetcher_batch(
     with ThreadPoolExecutor(max_workers=max_workers) as pool:
         items = {k: v for k, v in FETCHERS.items() if k in fetcher_set}
         futures: dict[Future, Any] = {
-            pool.submit(one_func, k, v, fetcher_timeout_dict.get(k, 8.0)): k
-            for k, v in items.items()
+            pool.submit(one_func, k, v, fetcher_timeout_dict.get(k, 8.0)): k for k, v in items.items()
         }
         pending_futures = set(futures.keys())
 

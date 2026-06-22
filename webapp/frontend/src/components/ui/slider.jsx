@@ -15,4 +15,3 @@ export const Slider = React.forwardRef(
   }
 );
 Slider.displayName = "Slider";
-

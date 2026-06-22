@@ -8,30 +8,30 @@
 export const chartContainerStyles = {
   // Default chart container with guaranteed height
   default: {
-    width: '100%',
+    width: "100%",
     minWidth: 0,
-    height: '300px',
-    display: 'flex',
-    flexDirection: 'column',
-    position: 'relative',
+    height: "300px",
+    display: "flex",
+    flexDirection: "column",
+    position: "relative",
   },
   // Tall chart for detailed data (e.g., historical prices)
   tall: {
-    width: '100%',
+    width: "100%",
     minWidth: 0,
-    height: '500px',
-    display: 'flex',
-    flexDirection: 'column',
-    position: 'relative',
+    height: "500px",
+    display: "flex",
+    flexDirection: "column",
+    position: "relative",
   },
   // Compact chart for secondary data (e.g., breadth)
   compact: {
-    width: '100%',
+    width: "100%",
     minWidth: 0,
-    height: '250px',
-    display: 'flex',
-    flexDirection: 'column',
-    position: 'relative',
+    height: "250px",
+    display: "flex",
+    flexDirection: "column",
+    position: "relative",
   },
 };
 
@@ -41,8 +41,9 @@ export const chartContainerStyles = {
  * @param {object} overrides - Additional style overrides
  * @returns {object} Style object safe for inline style prop
  */
-export const getChartContainerStyle = (variant = 'default', overrides = {}) => {
-  const baseStyle = chartContainerStyles[variant] || chartContainerStyles.default;
+export const getChartContainerStyle = (variant = "default", overrides = {}) => {
+  const baseStyle =
+    chartContainerStyles[variant] || chartContainerStyles.default;
   return { ...baseStyle, ...overrides };
 };
 
@@ -59,20 +60,20 @@ export const getChartContainerStyle = (variant = 'default', overrides = {}) => {
 export const chartSizeProps = {
   // Full-size responsive
   responsive: {
-    width: '100%',
-    height: '100%',
+    width: "100%",
+    height: "100%",
   },
   // Fixed sizes for specific use cases
   small: {
-    width: '100%',
+    width: "100%",
     height: 250,
   },
   medium: {
-    width: '100%',
+    width: "100%",
     height: 350,
   },
   large: {
-    width: '100%',
+    width: "100%",
     height: 500,
   },
 };
@@ -82,6 +83,6 @@ export const chartSizeProps = {
  * @param {string} size - 'responsive', 'small', 'medium', or 'large'
  * @returns {object} Props object for ResponsiveContainer
  */
-export const getChartSizeProps = (size = 'responsive') => {
+export const getChartSizeProps = (size = "responsive") => {
   return chartSizeProps[size] || chartSizeProps.responsive;
 };

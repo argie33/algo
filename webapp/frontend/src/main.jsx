@@ -37,10 +37,13 @@ const _originalConsoleWarn = console.warn;
 // These occur when ResponsiveContainer renders before parent dimensions are calculated.
 // The charts render fine once layout is complete, so this warning is not actionable for users.
 console.warn = function (...args) {
-  const msg = String(args[0] || '');
+  const msg = String(args[0] || "");
 
   // Suppress Recharts dimension warnings (width/height = -1 during mount)
-  if (msg.includes('The width') && msg.includes('of chart should be greater than 0')) {
+  if (
+    msg.includes("The width") &&
+    msg.includes("of chart should be greater than 0")
+  ) {
     return;
   }
 
@@ -51,11 +54,11 @@ console.warn = function (...args) {
 // Suppress only non-actionable browser warnings that come from third-party libraries.
 // All application errors and CORS/network issues pass through for debugging.
 console.error = function (...args) {
-  const msg = String(args[0] || '');
+  const msg = String(args[0] || "");
 
   // Suppress ResizeObserver warnings from third-party libraries (not caused by our code)
   // These are known benign warnings from resize observation in external libs
-  if (msg.includes('ResizeObserver') && msg.includes('loop limit exceeded')) {
+  if (msg.includes("ResizeObserver") && msg.includes("loop limit exceeded")) {
     return;
   }
 
@@ -80,7 +83,10 @@ window.addEventListener(
     };
 
     // Log detailed error for .type access issues
-    if (e.message && e.message.includes("Cannot read properties of undefined (reading 'type')")) {
+    if (
+      e.message &&
+      e.message.includes("Cannot read properties of undefined (reading 'type')")
+    ) {
       console.group("🔴 CRITICAL: .type access on undefined detected!");
       console.error("Message:", e.message);
       console.error("Location:", `${e.filename}:${e.lineno}:${e.colno}`);
@@ -92,7 +98,12 @@ window.addEventListener(
     logger.error("WindowError", e.error || new Error(e.message), errorContext);
 
     // Also log to CloudWatch for production monitoring
-    cloudWatchLogger.logError("WindowError", "uncaught_exception", e.error || new Error(e.message), errorContext);
+    cloudWatchLogger.logError(
+      "WindowError",
+      "uncaught_exception",
+      e.error || new Error(e.message),
+      errorContext
+    );
 
     // Let all errors through for debugging
     return false;
@@ -113,19 +124,29 @@ window.addEventListener("unhandledrejection", function (e) {
   // Always log unhandled rejections
   if (e.reason instanceof Error) {
     logger.error("UnhandledPromiseRejection", e.reason, errorContext);
-    cloudWatchLogger.logError("PromiseRejection", "unhandled_rejection", e.reason, errorContext);
+    cloudWatchLogger.logError(
+      "PromiseRejection",
+      "unhandled_rejection",
+      e.reason,
+      errorContext
+    );
     console.error("[UnhandledRejection]", {
       message: e.reason.message,
       stack: e.reason.stack,
-      context: errorContext
+      context: errorContext,
     });
   } else {
     const error = new Error(String(e.reason));
     logger.error("UnhandledPromiseRejection", error, errorContext);
-    cloudWatchLogger.logError("PromiseRejection", "unhandled_rejection", error, errorContext);
+    cloudWatchLogger.logError(
+      "PromiseRejection",
+      "unhandled_rejection",
+      error,
+      errorContext
+    );
     console.error("[UnhandledRejection]", {
       reason: e.reason,
-      context: errorContext
+      context: errorContext,
     });
   }
 
@@ -135,13 +156,12 @@ window.addEventListener("unhandledrejection", function (e) {
   return false;
 });
 
-
 // Application initialization
 
 // Fetch config.js explicitly to bypass service worker cache
 // This ensures config.js is always fresh from the network, preventing stale API_URL issues
 const fetchConfigExplicitly = async () => {
-  const CONFIG_HASH_KEY = 'app-config-hash';
+  const CONFIG_HASH_KEY = "app-config-hash";
 
   try {
     // Build cache-bust parameter (same as in index.html script tag)
@@ -150,11 +170,11 @@ const fetchConfigExplicitly = async () => {
 
     // Fetch with explicit no-cache directive to bypass all caches (service worker, browser, CDN)
     const response = await fetch(configUrl, {
-      cache: 'no-store',  // Bypass all caches - force network fetch
+      cache: "no-store", // Bypass all caches - force network fetch
       headers: {
-        'Pragma': 'no-cache',
-        'Cache-Control': 'no-cache, no-store, must-revalidate'
-      }
+        Pragma: "no-cache",
+        "Cache-Control": "no-cache, no-store, must-revalidate",
+      },
     });
 
     if (!response.ok) {
@@ -162,7 +182,7 @@ const fetchConfigExplicitly = async () => {
       logger.warn(`Explicit config.js fetch returned ${response.status}`, {
         status: response.status,
         statusText: response.statusText,
-        url: configUrl
+        url: configUrl,
       });
       return; // Fall back to window.__CONFIG__ from script tag
     }
@@ -175,16 +195,25 @@ const fetchConfigExplicitly = async () => {
       new Function(configText)();
 
       // Verify config was loaded
-      if (window.__CONFIG__ && typeof window.__CONFIG__ === 'object' && 'ENVIRONMENT' in window.__CONFIG__) {
+      if (
+        window.__CONFIG__ &&
+        typeof window.__CONFIG__ === "object" &&
+        "ENVIRONMENT" in window.__CONFIG__
+      ) {
         logger.info("Explicit config.js fetch succeeded, using fresh config", {
-          apiUrl: window.__CONFIG__.API_URL || '(empty - using Vite proxy)',
-          buildTime: window.__CONFIG__.BUILD_TIME
+          apiUrl: window.__CONFIG__.API_URL || "(empty - using Vite proxy)",
+          buildTime: window.__CONFIG__.BUILD_TIME,
         });
 
         // Store the BUILD_TIME to detect future deploys (simpler than hashing URLs)
-        localStorage.setItem(CONFIG_HASH_KEY, window.__CONFIG__.BUILD_TIME || 'unknown');
+        localStorage.setItem(
+          CONFIG_HASH_KEY,
+          window.__CONFIG__.BUILD_TIME || "unknown"
+        );
       } else {
-        logger.warn("Fetched config.js but window.__CONFIG__ not properly set after evaluation");
+        logger.warn(
+          "Fetched config.js but window.__CONFIG__ not properly set after evaluation"
+        );
       }
     } catch (evalError) {
       logger.warn("Failed to evaluate fetched config.js", evalError);
@@ -192,7 +221,7 @@ const fetchConfigExplicitly = async () => {
   } catch (error) {
     // Network error or timeout - this is ok, we'll use script-tag loaded config
     logger.info("Explicit config.js fetch failed (expected in offline mode)", {
-      error: error.message
+      error: error.message,
     });
   }
 };
@@ -200,9 +229,8 @@ const fetchConfigExplicitly = async () => {
 // Fetch config explicitly to bypass service worker cache
 // Run before app initialization to ensure fresh config
 const configFetchPromise = fetchConfigExplicitly().catch((err) => {
-  logger.warn('[Config] Explicit fetch failed (non-critical)', err.message);
+  logger.warn("[Config] Explicit fetch failed (non-critical)", err.message);
 });
-
 
 // Wait for config.js to load before configuring Amplify and rendering app.
 // Ensures window.__CONFIG__ is available when AuthContext initializes.
@@ -211,9 +239,13 @@ const waitForConfig = async () => {
   // If config already loaded (synchronously from script tag), proceed immediately
   // In dev mode, API_URL is intentionally empty (Vite proxy handles /api/*)
   // So check for the object existence, not the URL value
-  if (window.__CONFIG__ && typeof window.__CONFIG__ === 'object' && 'ENVIRONMENT' in window.__CONFIG__) {
+  if (
+    window.__CONFIG__ &&
+    typeof window.__CONFIG__ === "object" &&
+    "ENVIRONMENT" in window.__CONFIG__
+  ) {
     logger.info("Config already loaded", {
-      apiUrl: window.__CONFIG__.API_URL || '(empty - using Vite proxy)',
+      apiUrl: window.__CONFIG__.API_URL || "(empty - using Vite proxy)",
       environment: window.__CONFIG__.ENVIRONMENT,
     });
     configureAmplify();
@@ -223,9 +255,9 @@ const waitForConfig = async () => {
   // Check if config.js script tag failed to load
   if (window.__CONFIG_ERROR__) {
     const error = new Error(
-      'Configuration file (config.js) failed to load. ' +
-      'This usually means: (1) 404 - config.js not deployed, (2) syntax error in config.js, or (3) server returned error. ' +
-      'Check browser DevTools → Network tab for config.js load status and error details.'
+      "Configuration file (config.js) failed to load. " +
+        "This usually means: (1) 404 - config.js not deployed, (2) syntax error in config.js, or (3) server returned error. " +
+        "Check browser DevTools → Network tab for config.js load status and error details."
     );
     logger.error("ConfigLoadFailed", error, {
       errorFlag: window.__CONFIG_ERROR__,
@@ -250,9 +282,9 @@ const waitForConfig = async () => {
           timeoutMs: CONFIG_TIMEOUT,
         };
         const error = new Error(
-          'Configuration failed to load within 5 seconds. ' +
-          'Actions: (1) Check browser DevTools Network tab for config.js request status, ' +
-          '(2) Verify config.js is deployed to S3, (3) Check S3 bucket permissions, (4) Verify CloudFront distribution is active.'
+          "Configuration failed to load within 5 seconds. " +
+            "Actions: (1) Check browser DevTools Network tab for config.js request status, " +
+            "(2) Verify config.js is deployed to S3, (3) Check S3 bucket permissions, (4) Verify CloudFront distribution is active."
         );
         logger.error("ConfigLoadTimeout", error, debugInfo);
         reject(error);
@@ -261,7 +293,11 @@ const waitForConfig = async () => {
 
     // Poll for config loading (check every 100ms since we're now fetching explicitly)
     const pollInterval = setInterval(() => {
-      if (window.__CONFIG__ && typeof window.__CONFIG__ === 'object' && 'ENVIRONMENT' in window.__CONFIG__) {
+      if (
+        window.__CONFIG__ &&
+        typeof window.__CONFIG__ === "object" &&
+        "ENVIRONMENT" in window.__CONFIG__
+      ) {
         configLoaded = true;
         clearTimeout(timeout);
         clearInterval(pollInterval);
@@ -280,7 +316,10 @@ const configPromise = configFetchPromise.then(() => waitForConfig());
 const APP_INIT_TIMEOUT = 30000;
 const initTimeoutPromise = new Promise((_, reject) =>
   setTimeout(
-    () => reject(new Error('Application initialization timeout - API server may be down')),
+    () =>
+      reject(
+        new Error("Application initialization timeout - API server may be down")
+      ),
     APP_INIT_TIMEOUT
   )
 );
@@ -316,7 +355,7 @@ try {
     .then(async () => {
       // Initialize API config after main config loads
       // This ensures window.__CONFIG__.API_URL is injected into axios baseURL
-      const { initializeApiConfig } = await import('./services/api');
+      const { initializeApiConfig } = await import("./services/api");
       initializeApiConfig();
 
       root.render(
@@ -368,11 +407,11 @@ try {
       logger.error("ConfigLoadFailed", error);
       const rootElement = document.getElementById("root");
       if (rootElement) {
-        const isTimeout = error.message && error.message.includes('timeout');
-        const title = isTimeout ? 'Loading Timeout' : 'Configuration Error';
+        const isTimeout = error.message && error.message.includes("timeout");
+        const title = isTimeout ? "Loading Timeout" : "Configuration Error";
         const message = isTimeout
-          ? 'The application took too long to start. This usually means the API server is down or unreachable.'
-          : (error.message || 'Failed to load application configuration');
+          ? "The application took too long to start. This usually means the API server is down or unreachable."
+          : error.message || "Failed to load application configuration";
 
         rootElement.innerHTML = `
           <div style="display: flex; align-items: center; justify-content: center; height: 100vh; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; color: #f87171; background: #1f2937;">
@@ -385,7 +424,7 @@ try {
                 Retry
               </button>
               <p style="margin: 20px 0 0 0; font-size: 12px; color: #9ca3af;">
-                ${isTimeout ? 'Please try refreshing the page.' : 'If the problem persists, contact support.'}
+                ${isTimeout ? "Please try refreshing the page." : "If the problem persists, contact support."}
               </p>
             </div>
           </div>
@@ -404,4 +443,3 @@ try {
     "Application failed to start. Please refresh the page or contact support."
   );
 }
-

@@ -6,28 +6,31 @@
 
 const STORAGE_KEYS = {
   // Auth
-  TOKEN: 'authToken',
-  ID_TOKEN: 'idToken',
-  REFRESH_TOKEN: 'refreshToken',
-  DEV_SESSION: 'dev_session',
+  TOKEN: "authToken",
+  ID_TOKEN: "idToken",
+  REFRESH_TOKEN: "refreshToken",
+  DEV_SESSION: "dev_session",
 
   // Theme
-  THEME: 'theme',
+  THEME: "theme",
 
   // Session
-  SESSION_TIMEOUT: 'sessionTimeout',
-  LAST_ACTIVITY: 'lastActivity',
+  SESSION_TIMEOUT: "sessionTimeout",
+  LAST_ACTIVITY: "lastActivity",
 
   // Preferences
-  REMEMBER_ME: 'rememberMe',
+  REMEMBER_ME: "rememberMe",
 };
 
 /**
  * Token storage
  */
 export const storageToken = {
-  set(token, type = 'access') {
-    const key = type === 'access' ? STORAGE_KEYS.TOKEN : STORAGE_KEYS[`${type.toUpperCase()}_TOKEN`];
+  set(token, type = "access") {
+    const key =
+      type === "access"
+        ? STORAGE_KEYS.TOKEN
+        : STORAGE_KEYS[`${type.toUpperCase()}_TOKEN`];
     try {
       localStorage.setItem(key, token);
     } catch (error) {
@@ -35,12 +38,18 @@ export const storageToken = {
     }
   },
 
-  get(type = 'access') {
-    const key = type === 'access' ? STORAGE_KEYS.TOKEN : STORAGE_KEYS[`${type.toUpperCase()}_TOKEN`];
+  get(type = "access") {
+    const key =
+      type === "access"
+        ? STORAGE_KEYS.TOKEN
+        : STORAGE_KEYS[`${type.toUpperCase()}_TOKEN`];
     try {
       return localStorage.getItem(key) || null;
     } catch (err) {
-      console.error(`[Storage] Failed to get ${type} token:`, err?.message || err);
+      console.error(
+        `[Storage] Failed to get ${type} token:`,
+        err?.message || err
+      );
       return null;
     }
   },
@@ -48,7 +57,10 @@ export const storageToken = {
   clear(type) {
     try {
       if (type) {
-        const key = type === 'access' ? STORAGE_KEYS.TOKEN : STORAGE_KEYS[`${type.toUpperCase()}_TOKEN`];
+        const key =
+          type === "access"
+            ? STORAGE_KEYS.TOKEN
+            : STORAGE_KEYS[`${type.toUpperCase()}_TOKEN`];
         localStorage.removeItem(key);
       } else {
         localStorage.removeItem(STORAGE_KEYS.TOKEN);
@@ -57,11 +69,11 @@ export const storageToken = {
         localStorage.removeItem(STORAGE_KEYS.DEV_SESSION);
       }
     } catch (error) {
-      console.error('Failed to clear tokens:', error);
+      console.error("Failed to clear tokens:", error);
     }
   },
 
-  has(type = 'access') {
+  has(type = "access") {
     return !!this.get(type);
   },
 };
@@ -74,16 +86,16 @@ export const storageTheme = {
     try {
       localStorage.setItem(STORAGE_KEYS.THEME, theme);
     } catch (error) {
-      console.error('Failed to set theme:', error);
+      console.error("Failed to set theme:", error);
     }
   },
 
   get() {
     try {
-      return localStorage.getItem(STORAGE_KEYS.THEME) || 'dark';
+      return localStorage.getItem(STORAGE_KEYS.THEME) || "dark";
     } catch (err) {
-      console.error('[Storage] Failed to get theme:', err?.message || err);
-      return 'dark';
+      console.error("[Storage] Failed to get theme:", err?.message || err);
+      return "dark";
     }
   },
 
@@ -91,7 +103,7 @@ export const storageTheme = {
     try {
       localStorage.removeItem(STORAGE_KEYS.THEME);
     } catch (error) {
-      console.error('Failed to clear theme:', error);
+      console.error("Failed to clear theme:", error);
     }
   },
 };
@@ -113,7 +125,10 @@ export const storageSession = {
       const value = sessionStorage.getItem(key);
       return value ? JSON.parse(value) : null;
     } catch (err) {
-      console.error(`[Storage] Failed to get session ${key}:`, err?.message || err);
+      console.error(
+        `[Storage] Failed to get session ${key}:`,
+        err?.message || err
+      );
       return null;
     }
   },
@@ -126,7 +141,7 @@ export const storageSession = {
         sessionStorage.clear();
       }
     } catch (error) {
-      console.error('Failed to clear session:', error);
+      console.error("Failed to clear session:", error);
     }
   },
 };
@@ -139,15 +154,20 @@ export const storagePreferences = {
     try {
       localStorage.setItem(STORAGE_KEYS.REMEMBER_ME, JSON.stringify(value));
     } catch (error) {
-      console.error('Failed to set remember me:', error);
+      console.error("Failed to set remember me:", error);
     }
   },
 
   getRememberMe() {
     try {
-      return JSON.parse(localStorage.getItem(STORAGE_KEYS.REMEMBER_ME) || 'false');
+      return JSON.parse(
+        localStorage.getItem(STORAGE_KEYS.REMEMBER_ME) || "false"
+      );
     } catch (err) {
-      console.error('[Storage] Failed to get remember me preference:', err?.message || err);
+      console.error(
+        "[Storage] Failed to get remember me preference:",
+        err?.message || err
+      );
       return false;
     }
   },
@@ -156,7 +176,7 @@ export const storagePreferences = {
     try {
       localStorage.removeItem(STORAGE_KEYS.REMEMBER_ME);
     } catch (error) {
-      console.error('Failed to clear remember me:', error);
+      console.error("Failed to clear remember me:", error);
     }
   },
 };
@@ -171,7 +191,7 @@ export const clearAllStorage = () => {
     storageSession.clear();
     storagePreferences.clearRememberMe();
   } catch (error) {
-    console.error('Failed to clear all storage:', error);
+    console.error("Failed to clear all storage:", error);
   }
 };
 
@@ -182,4 +202,3 @@ export default {
   preferences: storagePreferences,
   clearAll: clearAllStorage,
 };
-

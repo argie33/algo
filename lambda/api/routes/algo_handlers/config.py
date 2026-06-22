@@ -36,7 +36,7 @@ def _get_algo_config(cur) -> dict[str, Any]:
 
         # Get default value and metadata from AlgoConfig.DEFAULTS
         if key in AlgoConfig.DEFAULTS:
-            default_val, _, _ = AlgoConfig.DEFAULTS[key]
+            default_val = AlgoConfig.DEFAULTS[key][0]
             config_dict["default_value"] = default_val
             config_dict["is_custom"] = str(config_dict["value"]).strip() != str(default_val).strip()
         else:
@@ -76,7 +76,7 @@ def _reset_algo_config_key(cur, key: str, actor: str) -> dict[str, Any]:
     if key not in AlgoConfig.DEFAULTS:
         return error_response(404, "not_found", f"Config key not found: {key}")
 
-    default_val, _, _ = AlgoConfig.DEFAULTS[key]
+    default_val = AlgoConfig.DEFAULTS[key][0]
 
     # Get current value for audit
     cur.execute("SELECT value FROM algo_config WHERE key = %s", (key,))

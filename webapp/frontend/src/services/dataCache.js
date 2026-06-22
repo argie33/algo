@@ -20,18 +20,22 @@ const MAX_STALE_AGE = 2 * 60 * 60 * 1000; // 2 hours - age at which data is cons
  */
 function validateSchema(data, expectedSchema) {
   if (!expectedSchema) return true; // No schema validation if not specified
-  if (typeof data !== 'object' || data === null) return false;
+  if (typeof data !== "object" || data === null) return false;
 
   // Check that all required fields exist and have correct type
   for (const [field, expectedType] of Object.entries(expectedSchema)) {
     if (!(field in data)) {
-      console.warn(`[Cache] Schema validation failed: missing field "${field}"`);
+      console.warn(
+        `[Cache] Schema validation failed: missing field "${field}"`
+      );
       return false;
     }
     const actualType = typeof data[field];
     // Skip type check for null values (they may be intentional)
     if (data[field] !== null && actualType !== expectedType) {
-      console.warn(`[Cache] Schema validation failed: field "${field}" is ${actualType}, expected ${expectedType}`);
+      console.warn(
+        `[Cache] Schema validation failed: field "${field}" is ${actualType}, expected ${expectedType}`
+      );
       return false;
     }
   }
@@ -50,7 +54,7 @@ async function get(key, params = {}, options = {}) {
   const {
     ttl = DEFAULT_TTL,
     fetchFunction = null,
-    cacheType = 'default',
+    cacheType = "default",
     forceRefresh = false,
     expectedSchema = null,
     onError = null,
@@ -64,7 +68,9 @@ async function get(key, params = {}, options = {}) {
     if (Date.now() < cached.expiresAt) {
       // Validate schema before returning
       if (expectedSchema && !validateSchema(cached.data, expectedSchema)) {
-        console.warn(`[Cache] Schema mismatch for "${key}", treating as cache miss`);
+        console.warn(
+          `[Cache] Schema mismatch for "${key}", treating as cache miss`
+        );
         cacheStore.delete(cacheKey);
       } else {
         return cached.data;
@@ -103,7 +109,11 @@ async function get(key, params = {}, options = {}) {
  * @param {object} options - Options including ttl, cacheType, expectedSchema
  */
 function set(key, data, options = {}) {
-  const { ttl = DEFAULT_TTL, cacheType = 'default', expectedSchema = null } = options;
+  const {
+    ttl = DEFAULT_TTL,
+    cacheType = "default",
+    expectedSchema = null,
+  } = options;
   const cacheKey = `${cacheType}:${key}`;
 
   // Validate schema before caching
@@ -145,7 +155,7 @@ function clear(pattern = null) {
  * @param {object} options - Options including cacheType
  */
 function invalidateOnError(key, options = {}) {
-  const { cacheType = 'default' } = options;
+  const { cacheType = "default" } = options;
   const pattern = `^${cacheType}:${key}`;
   clear(pattern);
   console.debug(`[Cache] Invalidated "${key}" on API error`);
@@ -166,7 +176,7 @@ function size() {
  * @returns {object|null} Metadata with fetchedAt, age (ms), isStale
  */
 function getMetadata(key, options = {}) {
-  const { cacheType = 'default' } = options;
+  const { cacheType = "default" } = options;
   const cacheKey = `${cacheType}:${key}`;
 
   if (!cacheStore.has(cacheKey)) {
@@ -195,4 +205,3 @@ export default {
   size,
   getMetadata,
 };
-

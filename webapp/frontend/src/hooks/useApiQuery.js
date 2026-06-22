@@ -1,11 +1,16 @@
-import { useQuery } from '@tanstack/react-query';
-import { extractData, extractPaginatedData } from '../utils/responseNormalizer';
-import { validateResponse, validateArrayItems } from '../utils/responseValidator';
+import { useQuery } from "@tanstack/react-query";
+import { extractData, extractPaginatedData } from "../utils/responseNormalizer";
 import {
-  getEndpointSchema, getItemRequiredFields, getDecimalFields,
-} from '../utils/endpointSchemas';
-import dataCache from '../services/dataCache';
-import { toFixed } from '../utils/decimalMath';
+  validateResponse,
+  validateArrayItems,
+} from "../utils/responseValidator";
+import {
+  getEndpointSchema,
+  getItemRequiredFields,
+  getDecimalFields,
+} from "../utils/endpointSchemas";
+import dataCache from "../services/dataCache";
+import { toFixed } from "../utils/decimalMath";
 
 /**
  * React Query wrapper with standardized error/loading/data handling.
@@ -40,19 +45,21 @@ export const useApiQuery = (
     ...restOptions
   } = {}
 ) => {
-  const actualCacheKey = cacheKey || (Array.isArray(queryKey) ? queryKey[0] : queryKey);
+  const actualCacheKey =
+    cacheKey || (Array.isArray(queryKey) ? queryKey[0] : queryKey);
 
   // User-friendly error message
   const _getErrorMessage = (err) => {
     if (!err) return null;
     const status = err?.response?.status;
-    if (status === 401 || status === 403) return 'Authentication failed. Please log in.';
-    if (status === 404) return 'Resource not found';
-    if (status >= 500) return 'Server error. Please try again later.';
-    if (err.message?.includes('Network') || err.message?.includes('timeout')) {
-      return 'Network error. Please check your connection.';
+    if (status === 401 || status === 403)
+      return "Authentication failed. Please log in.";
+    if (status === 404) return "Resource not found";
+    if (status >= 500) return "Server error. Please try again later.";
+    if (err.message?.includes("Network") || err.message?.includes("timeout")) {
+      return "Network error. Please check your connection.";
     }
-    return err.message || 'Failed to load data';
+    return err.message || "Failed to load data";
   };
 
   // Helper to add timeout to a promise
@@ -65,7 +72,7 @@ export const useApiQuery = (
 
   // Helper to format decimal fields for financial precision
   const formatDecimalFields = (data, endpoint) => {
-    if (!data || typeof data !== 'object') return data;
+    if (!data || typeof data !== "object") return data;
 
     const decimalFields = getDecimalFields(endpoint);
     if (decimalFields.length === 0) return data;
@@ -76,8 +83,8 @@ export const useApiQuery = (
     };
 
     if (Array.isArray(data)) {
-      return data.map(item => {
-        if (!item || typeof item !== 'object') return item;
+      return data.map((item) => {
+        if (!item || typeof item !== "object") return item;
         const formatted = { ...item };
         for (const field of decimalFields) {
           if (field in formatted) {
@@ -99,14 +106,14 @@ export const useApiQuery = (
 
   // Helper to add fetch metadata to data
   const addMetadata = (data, fetchedAt = Date.now(), isFromCache = false) => {
-    if (!data || typeof data !== 'object') return data;
+    if (!data || typeof data !== "object") return data;
 
     const now = Date.now();
     const age = now - fetchedAt;
-    const isStale = age > (2 * 60 * 60 * 1000); // 2 hours
+    const isStale = age > 2 * 60 * 60 * 1000; // 2 hours
 
     if (Array.isArray(data)) {
-      return data.map(item => ({
+      return data.map((item) => ({
         ...item,
         _fetchedAt: fetchedAt,
         _age: age,
@@ -124,7 +131,12 @@ export const useApiQuery = (
     };
   };
 
-  const { data: rawData, isLoading, error, ...rest } = useQuery({
+  const {
+    data: rawData,
+    isLoading,
+    error,
+    ...rest
+  } = useQuery({
     queryKey: Array.isArray(queryKey) ? queryKey : [queryKey],
     queryFn: async () => {
       const fetchStartTime = Date.now();
@@ -137,11 +149,15 @@ export const useApiQuery = (
 
         // Validate response based on schema
         let result;
-        if (freshData && typeof freshData === 'object' && !Array.isArray(freshData)) {
+        if (
+          freshData &&
+          typeof freshData === "object" &&
+          !Array.isArray(freshData)
+        ) {
           if (freshData.data !== undefined && !freshData.items) {
             // Single-object response structure - only validate if schema is for object type
             let requiredFields = [];
-            if (endpointSchema?.type === 'object') {
+            if (endpointSchema?.type === "object") {
               requiredFields = endpointSchema.requiredFields || [];
             }
 
@@ -153,16 +169,22 @@ export const useApiQuery = (
 
             // Log warnings even if validation passed
             if (validation.warnings && validation.warnings.length > 0) {
-              validation.warnings.forEach(w => console.warn(w, { endpoint: actualCacheKey }));
+              validation.warnings.forEach((w) =>
+                console.warn(w, { endpoint: actualCacheKey })
+              );
             }
 
             if (!validation.valid) {
-              throw new Error(`Invalid response envelope: ${validation.errors.join('; ')}`);
+              throw new Error(
+                `Invalid response envelope: ${validation.errors.join("; ")}`
+              );
             }
 
             result = validation.data;
             if (result === null) {
-              throw new Error(`Response validation failed: ${actualCacheKey} returned null data`);
+              throw new Error(
+                `Response validation failed: ${actualCacheKey} returned null data`
+              );
             }
           } else if (freshData.items !== undefined) {
             // Paginated structure detected (shouldn't happen in useApiQuery, but handle it)
@@ -181,25 +203,34 @@ export const useApiQuery = (
 
         // Cache the validated result
         try {
-          await dataCache.set(actualCacheKey, formattedResult, { ttl: 30 * 60 * 1000 });
+          await dataCache.set(actualCacheKey, formattedResult, {
+            ttl: 30 * 60 * 1000,
+          });
         } catch (cacheErr) {
-          console.warn('[useApiQuery] Failed to cache data:', cacheErr.message);
+          console.warn("[useApiQuery] Failed to cache data:", cacheErr.message);
           // Continue anyway - cache failure shouldn't break the query
         }
         return addMetadata(formattedResult, fetchStartTime, false);
       } catch (err) {
-        console.warn('[useApiQuery] Query failed', err);
+        console.warn("[useApiQuery] Query failed", err);
         // Try to return cached data as fallback when all retries exhausted
         try {
           const cachedData = await dataCache.get(actualCacheKey);
           const metadata = await dataCache.getMetadata(actualCacheKey);
           if (cachedData) {
-            console.info('[useApiQuery] Returning cached fallback for:', actualCacheKey, metadata);
+            console.info(
+              "[useApiQuery] Returning cached fallback for:",
+              actualCacheKey,
+              metadata
+            );
             const cachedFetchTime = metadata?.fetchedAt || fetchStartTime;
             return addMetadata(cachedData, cachedFetchTime, true);
           }
         } catch (cacheErr) {
-          console.warn('[useApiQuery] Failed to retrieve cached fallback:', cacheErr.message);
+          console.warn(
+            "[useApiQuery] Failed to retrieve cached fallback:",
+            cacheErr.message
+          );
           // Continue to throw original error
         }
         throw err;
@@ -210,49 +241,71 @@ export const useApiQuery = (
     refetchOnWindowFocus: false,
     refetchOnMount: false,
     refetchOnReconnect: false,
-    retry: retry === false ? false : (failureCount, err) => {
-      const status = err?.response?.status ?? err?.status;
-      const errorMsg = err?.message || '';
+    retry:
+      retry === false
+        ? false
+        : (failureCount, err) => {
+            const status = err?.response?.status ?? err?.status;
+            const errorMsg = err?.message || "";
 
-      // Never retry on explicit auth failures (user not logged in)
-      if (status === 401 || status === 403) {
-        // EXCEPTION: If auth token is being refreshed, allow ONE retry
-        // (token refresh happens in background, request might succeed on next attempt)
-        if (errorMsg.includes('token') || errorMsg.includes('auth') || errorMsg.includes('refresh')) {
-          if (failureCount < 1) {
-            console.warn('[useApiQuery] Auth token refresh in progress, retrying once:', err.message);
-            return true;
-          }
-        }
-        return false;
-      }
+            // Never retry on explicit auth failures (user not logged in)
+            if (status === 401 || status === 403) {
+              // EXCEPTION: If auth token is being refreshed, allow ONE retry
+              // (token refresh happens in background, request might succeed on next attempt)
+              if (
+                errorMsg.includes("token") ||
+                errorMsg.includes("auth") ||
+                errorMsg.includes("refresh")
+              ) {
+                if (failureCount < 1) {
+                  console.warn(
+                    "[useApiQuery] Auth token refresh in progress, retrying once:",
+                    err.message
+                  );
+                  return true;
+                }
+              }
+              return false;
+            }
 
-      // Never retry on not found (resource doesn't exist)
-      if (status === 404) return false;
+            // Never retry on not found (resource doesn't exist)
+            if (status === 404) return false;
 
-      // Retry on 5xx errors with BALANCED retries (fail fast if API is down)
-      // Allow up to 3 retries (4 total attempts) for backend recovery
-      if (status >= 500) {
-        if (failureCount < 3) {
-          console.warn(`[useApiQuery] Server error (${status}), retrying (attempt ${failureCount + 1}/3)`, errorMsg);
-          return true;
-        }
-        return false;
-      }
+            // Retry on 5xx errors with BALANCED retries (fail fast if API is down)
+            // Allow up to 3 retries (4 total attempts) for backend recovery
+            if (status >= 500) {
+              if (failureCount < 3) {
+                console.warn(
+                  `[useApiQuery] Server error (${status}), retrying (attempt ${failureCount + 1}/3)`,
+                  errorMsg
+                );
+                return true;
+              }
+              return false;
+            }
 
-      // Retry on network errors and timeouts with LIMITED attempts
-      // Aggressive retry strategy: fail fast if API is truly down
-      if (errorMsg.includes('timeout') || errorMsg.includes('Network') || errorMsg.includes('ECONNREFUSED') || errorMsg.includes('502') || errorMsg.includes('503')) {
-        if (failureCount < 3) {
-          console.warn(`[useApiQuery] Network error, retrying (attempt ${failureCount + 1}/3):`, errorMsg);
-          return true;
-        }
-        return false;
-      }
+            // Retry on network errors and timeouts with LIMITED attempts
+            // Aggressive retry strategy: fail fast if API is truly down
+            if (
+              errorMsg.includes("timeout") ||
+              errorMsg.includes("Network") ||
+              errorMsg.includes("ECONNREFUSED") ||
+              errorMsg.includes("502") ||
+              errorMsg.includes("503")
+            ) {
+              if (failureCount < 3) {
+                console.warn(
+                  `[useApiQuery] Network error, retrying (attempt ${failureCount + 1}/3):`,
+                  errorMsg
+                );
+                return true;
+              }
+              return false;
+            }
 
-      // Default: no retry for unknown errors
-      return false;
-    },
+            // Default: no retry for unknown errors
+            return false;
+          },
     retryDelay: (attemptIndex) => {
       // Aggressive backoff: 200ms, 500ms, 1s (capped at 5s)
       // Total wait time: 0.2+0.5+1 = 1.7s for 3 retries (fail fast if API is down)
@@ -264,15 +317,19 @@ export const useApiQuery = (
     ...restOptions,
   });
 
-  const enrichedError = error ? {
-    message: error?.message || 'Unknown error',
-    status: error?.response?.status ?? error?.status ?? 0,
-    code: error?.code,
-    url: error?.config?.url,
-    responseData: error?.response?.data,
-    isNetworkError: !error?.response,
-    httpStatus: error?.response?.status || (error?.message?.includes('timeout') ? 504 : 0),
-  } : null;
+  const enrichedError = error
+    ? {
+        message: error?.message || "Unknown error",
+        status: error?.response?.status ?? error?.status ?? 0,
+        code: error?.code,
+        url: error?.config?.url,
+        responseData: error?.response?.data,
+        isNetworkError: !error?.response,
+        httpStatus:
+          error?.response?.status ||
+          (error?.message?.includes("timeout") ? 504 : 0),
+      }
+    : null;
 
   return {
     data: rawData,
@@ -307,9 +364,15 @@ export const useApiPaginatedQuery = (
     ...restOptions
   } = {}
 ) => {
-  const actualCacheKey = cacheKey || (Array.isArray(queryKey) ? queryKey[0] : queryKey);
+  const actualCacheKey =
+    cacheKey || (Array.isArray(queryKey) ? queryKey[0] : queryKey);
 
-  const { data: rawData, isLoading, error, ...rest } = useQuery({
+  const {
+    data: rawData,
+    isLoading,
+    error,
+    ...rest
+  } = useQuery({
     queryKey: Array.isArray(queryKey) ? queryKey : [queryKey],
     queryFn: async () => {
       try {
@@ -319,7 +382,8 @@ export const useApiPaginatedQuery = (
         // Validate items array structure
         const endpointSchema = getEndpointSchema(actualCacheKey);
         const itemRequiredFields = getItemRequiredFields(actualCacheKey);
-        const requireNonEmptyList = endpointSchema?.requireNonEmptyList || false;
+        const requireNonEmptyList =
+          endpointSchema?.requireNonEmptyList || false;
 
         const itemValidation = validateArrayItems(
           freshData.items || [],
@@ -331,45 +395,67 @@ export const useApiPaginatedQuery = (
         if (!itemValidation.valid) {
           // If array is non-empty and has malformed items, filter them out
           // If array must be non-empty but is empty, that's an error that should propagate
-          if ((freshData.items?.length || 0) > 0 && itemValidation.invalidItems.length > 0) {
+          if (
+            (freshData.items?.length || 0) > 0 &&
+            itemValidation.invalidItems.length > 0
+          ) {
             console.warn(`[useApiPaginatedQuery] ${itemValidation.errors[0]}`, {
               endpoint: actualCacheKey,
-              invalidItemIndices: itemValidation.invalidItems.map(iv => iv.index),
+              invalidItemIndices: itemValidation.invalidItems.map(
+                (iv) => iv.index
+              ),
               totalItems: freshData.items.length,
             });
             // Filter out invalid items
-            const validItems = freshData.items.filter((_, idx) =>
-              !itemValidation.invalidItems.some(iv => iv.index === idx)
+            const validItems = freshData.items.filter(
+              (_, idx) =>
+                !itemValidation.invalidItems.some((iv) => iv.index === idx)
             );
             freshData.items = validItems;
-            freshData.pagination.total = Math.max(0, freshData.pagination.total - itemValidation.invalidItems.length);
+            freshData.pagination.total = Math.max(
+              0,
+              freshData.pagination.total - itemValidation.invalidItems.length
+            );
           } else if (requireNonEmptyList && freshData.items?.length === 0) {
-            throw new Error(`Invalid response: ${itemValidation.errors.join('; ')}`);
+            throw new Error(
+              `Invalid response: ${itemValidation.errors.join("; ")}`
+            );
           }
         }
 
         // Cache successful result for fallback
         try {
-          await dataCache.set(actualCacheKey, freshData, { ttl: 30 * 60 * 1000 });
+          await dataCache.set(actualCacheKey, freshData, {
+            ttl: 30 * 60 * 1000,
+          });
         } catch (cacheErr) {
-          console.warn('[useApiPaginatedQuery] Failed to cache data:', cacheErr.message);
+          console.warn(
+            "[useApiPaginatedQuery] Failed to cache data:",
+            cacheErr.message
+          );
           // Continue anyway - cache failure shouldn't break the query
         }
         return freshData;
       } catch (err) {
-        console.warn('[useApiPaginatedQuery] Query failed', err);
+        console.warn("[useApiPaginatedQuery] Query failed", err);
         // Try to return cached data as fallback when all retries exhausted
         try {
           const cachedData = await dataCache.get(actualCacheKey);
           if (cachedData) {
-            console.info('[useApiPaginatedQuery] Returning cached fallback for:', actualCacheKey);
+            console.info(
+              "[useApiPaginatedQuery] Returning cached fallback for:",
+              actualCacheKey
+            );
             if (Array.isArray(cachedData)) {
               return cachedData;
             }
             return { ...cachedData, fromCache: true };
           }
         } catch (cacheErr) {
-          console.warn('[useApiPaginatedQuery] Failed to retrieve cached fallback:', cacheErr.message);
+          console.warn(
+            "[useApiPaginatedQuery] Failed to retrieve cached fallback:",
+            cacheErr.message
+          );
           // Continue to throw original error
         }
         throw err;
@@ -380,49 +466,71 @@ export const useApiPaginatedQuery = (
     refetchOnWindowFocus: false,
     refetchOnMount: false,
     refetchOnReconnect: false,
-    retry: retry === false ? false : (failureCount, err) => {
-      const status = err?.response?.status ?? err?.status;
-      const errorMsg = err?.message || '';
+    retry:
+      retry === false
+        ? false
+        : (failureCount, err) => {
+            const status = err?.response?.status ?? err?.status;
+            const errorMsg = err?.message || "";
 
-      // Never retry on explicit auth failures (user not logged in)
-      if (status === 401 || status === 403) {
-        // EXCEPTION: If auth token is being refreshed, allow ONE retry
-        // (token refresh happens in background, request might succeed on next attempt)
-        if (errorMsg.includes('token') || errorMsg.includes('auth') || errorMsg.includes('refresh')) {
-          if (failureCount < 1) {
-            console.warn('[useApiQuery] Auth token refresh in progress, retrying once:', err.message);
-            return true;
-          }
-        }
-        return false;
-      }
+            // Never retry on explicit auth failures (user not logged in)
+            if (status === 401 || status === 403) {
+              // EXCEPTION: If auth token is being refreshed, allow ONE retry
+              // (token refresh happens in background, request might succeed on next attempt)
+              if (
+                errorMsg.includes("token") ||
+                errorMsg.includes("auth") ||
+                errorMsg.includes("refresh")
+              ) {
+                if (failureCount < 1) {
+                  console.warn(
+                    "[useApiQuery] Auth token refresh in progress, retrying once:",
+                    err.message
+                  );
+                  return true;
+                }
+              }
+              return false;
+            }
 
-      // Never retry on not found (resource doesn't exist)
-      if (status === 404) return false;
+            // Never retry on not found (resource doesn't exist)
+            if (status === 404) return false;
 
-      // Retry on 5xx errors with BALANCED retries (fail fast if API is down)
-      // Allow up to 3 retries (4 total attempts) for backend recovery
-      if (status >= 500) {
-        if (failureCount < 3) {
-          console.warn(`[useApiPaginatedQuery] Server error (${status}), retrying (attempt ${failureCount + 1}/3)`, errorMsg);
-          return true;
-        }
-        return false;
-      }
+            // Retry on 5xx errors with BALANCED retries (fail fast if API is down)
+            // Allow up to 3 retries (4 total attempts) for backend recovery
+            if (status >= 500) {
+              if (failureCount < 3) {
+                console.warn(
+                  `[useApiPaginatedQuery] Server error (${status}), retrying (attempt ${failureCount + 1}/3)`,
+                  errorMsg
+                );
+                return true;
+              }
+              return false;
+            }
 
-      // Retry on network errors and timeouts with LIMITED attempts
-      // Aggressive retry strategy: fail fast if API is truly down
-      if (errorMsg.includes('timeout') || errorMsg.includes('Network') || errorMsg.includes('ECONNREFUSED') || errorMsg.includes('502') || errorMsg.includes('503')) {
-        if (failureCount < 3) {
-          console.warn(`[useApiPaginatedQuery] Network error, retrying (attempt ${failureCount + 1}/3):`, errorMsg);
-          return true;
-        }
-        return false;
-      }
+            // Retry on network errors and timeouts with LIMITED attempts
+            // Aggressive retry strategy: fail fast if API is truly down
+            if (
+              errorMsg.includes("timeout") ||
+              errorMsg.includes("Network") ||
+              errorMsg.includes("ECONNREFUSED") ||
+              errorMsg.includes("502") ||
+              errorMsg.includes("503")
+            ) {
+              if (failureCount < 3) {
+                console.warn(
+                  `[useApiPaginatedQuery] Network error, retrying (attempt ${failureCount + 1}/3):`,
+                  errorMsg
+                );
+                return true;
+              }
+              return false;
+            }
 
-      // Default: no retry for unknown errors
-      return false;
-    },
+            // Default: no retry for unknown errors
+            return false;
+          },
     retryDelay: (attemptIndex) => {
       // Aggressive backoff: 200ms, 500ms, 1s (capped at 5s)
       // Total wait time: 0.2+0.5+1 = 1.7s for 3 retries (fail fast if API is down)
@@ -434,21 +542,34 @@ export const useApiPaginatedQuery = (
     ...restOptions,
   });
 
-  const enrichedError = error ? {
-    message: error?.message || 'Unknown error',
-    status: error?.response?.status ?? error?.status ?? 0,
-    code: error?.code,
-    url: error?.config?.url,
-    responseData: error?.response?.data,
-    isNetworkError: !error?.response,
-    httpStatus: error?.response?.status || (error?.message?.includes('timeout') ? 504 : 0),
-  } : null;
+  const enrichedError = error
+    ? {
+        message: error?.message || "Unknown error",
+        status: error?.response?.status ?? error?.status ?? 0,
+        code: error?.code,
+        url: error?.config?.url,
+        responseData: error?.response?.data,
+        isNetworkError: !error?.response,
+        httpStatus:
+          error?.response?.status ||
+          (error?.message?.includes("timeout") ? 504 : 0),
+      }
+    : null;
 
   return {
     items: Array.isArray(rawData?.items) ? rawData.items : [],
-    pagination: (rawData?.pagination && typeof rawData.pagination === 'object') ? rawData.pagination : {
-      total: 0, limit: 50, offset: 0, page: 1, totalPages: 1, hasNext: false, hasPrev: false,
-    },
+    pagination:
+      rawData?.pagination && typeof rawData.pagination === "object"
+        ? rawData.pagination
+        : {
+            total: 0,
+            limit: 50,
+            offset: 0,
+            page: 1,
+            totalPages: 1,
+            hasNext: false,
+            hasPrev: false,
+          },
     loading: isLoading,
     error: enrichedError,
     isFetching: rest.isFetching,
@@ -458,4 +579,3 @@ export const useApiPaginatedQuery = (
 };
 
 export default { useApiQuery, useApiPaginatedQuery };
-

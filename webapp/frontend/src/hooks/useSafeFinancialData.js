@@ -15,18 +15,23 @@
  *   );
  */
 
-import { useMemo } from 'react';
-import { useApiQuery } from './useApiQuery';
+import { useMemo } from "react";
+import { useApiQuery } from "./useApiQuery";
 import {
-  toSafeNumber, safeGet, safeGetArray, safeAccumulate, isValidCalculation,
-  buildSafeObject, validatePosition,
-} from '../utils/safeCalculations';
+  toSafeNumber,
+  safeGet,
+  safeGetArray,
+  safeAccumulate,
+  isValidCalculation,
+  buildSafeObject,
+  validatePosition,
+} from "../utils/safeCalculations";
 
 /**
  * Validate and normalize API response with schema
  */
 export const applySchema = (data, schema) => {
-  if (!data || typeof data !== 'object') {
+  if (!data || typeof data !== "object") {
     return buildSafeObject({}, schema);
   }
 
@@ -36,8 +41,11 @@ export const applySchema = (data, schema) => {
 
     if (value === null) {
       result[key] = defaultValue;
-    } else if (typeof defaultValue === 'object' && !Array.isArray(defaultValue)) {
-      result[key] = typeof value === 'object' ? value : defaultValue;
+    } else if (
+      typeof defaultValue === "object" &&
+      !Array.isArray(defaultValue)
+    ) {
+      result[key] = typeof value === "object" ? value : defaultValue;
     } else if (Array.isArray(defaultValue)) {
       result[key] = Array.isArray(value) ? value : defaultValue;
     } else {
@@ -54,11 +62,12 @@ export const applySchema = (data, schema) => {
 export const useSafeFinancialData = (queryKey, queryFn, options = {}) => {
   const { schema = {}, ...queryOptions } = options;
 
-  const { data: rawData, loading, error, refetch } = useApiQuery(
-    queryKey,
-    queryFn,
-    queryOptions
-  );
+  const {
+    data: rawData,
+    loading,
+    error,
+    refetch,
+  } = useApiQuery(queryKey, queryFn, queryOptions);
 
   // Apply schema and validate data
   const normalizedData = useMemo(() => {
@@ -83,29 +92,40 @@ export const useSafeFinancialData = (queryKey, queryFn, options = {}) => {
  */
 export const useSafePortfolioCalculations = (positions, portfolio = {}) => {
   return useMemo(() => {
-    const posArray = safeGetArray(positions, '', []);
+    const posArray = safeGetArray(positions, "", []);
 
     // Validate all positions
     const validPositions = posArray
-      .map(p => validatePosition(p))
-      .filter(p => p !== null);
+      .map((p) => validatePosition(p))
+      .filter((p) => p !== null);
 
     // Calculate totals
-    const totalValue = safeAccumulate(validPositions, 'position_value', 0);
-    const totalPnl = safeAccumulate(validPositions, 'unrealized_pnl_dollars', 0);
-    const totalRisk = safeAccumulate(validPositions, p => {
-      const qty = toSafeNumber(safeGet(p, 'quantity'), null);
-      const entry = toSafeNumber(safeGet(p, 'avg_entry_price'), null);
-      const stop = toSafeNumber(safeGet(p, 'stop_loss_price'), null);
+    const totalValue = safeAccumulate(validPositions, "position_value", 0);
+    const totalPnl = safeAccumulate(
+      validPositions,
+      "unrealized_pnl_dollars",
+      0
+    );
+    const totalRisk = safeAccumulate(
+      validPositions,
+      (p) => {
+        const qty = toSafeNumber(safeGet(p, "quantity"), null);
+        const entry = toSafeNumber(safeGet(p, "avg_entry_price"), null);
+        const stop = toSafeNumber(safeGet(p, "stop_loss_price"), null);
 
-      if (qty === null || entry === null || stop === null) return 0;
-      if (stop >= entry) return 0;
+        if (qty === null || entry === null || stop === null) return 0;
+        if (stop >= entry) return 0;
 
-      return (entry - stop) * qty;
-    }, 0);
+        return (entry - stop) * qty;
+      },
+      0
+    );
 
     // Verify portfolio total if provided
-    const portfolioTotal = toSafeNumber(safeGet(portfolio, 'total_value'), null);
+    const portfolioTotal = toSafeNumber(
+      safeGet(portfolio, "total_value"),
+      null
+    );
     const finalTotal = portfolioTotal !== null ? portfolioTotal : totalValue;
 
     // Calculate risk percentage
@@ -131,29 +151,32 @@ export const useSafePortfolioCalculations = (positions, portfolio = {}) => {
  * Safe number formatting for financial displays
  */
 export const useSafeFormatting = () => {
-  return useMemo(() => ({
-    formatPrice: (value, decimals = 2) => {
-      const num = toSafeNumber(value, null);
-      return num === null ? '—' : `$${num.toFixed(decimals)}`;
-    },
+  return useMemo(
+    () => ({
+      formatPrice: (value, decimals = 2) => {
+        const num = toSafeNumber(value, null);
+        return num === null ? "—" : `$${num.toFixed(decimals)}`;
+      },
 
-    formatPercent: (value, decimals = 1) => {
-      const num = toSafeNumber(value, null);
-      return num === null ? '—' : `${num.toFixed(decimals)}%`;
-    },
+      formatPercent: (value, decimals = 1) => {
+        const num = toSafeNumber(value, null);
+        return num === null ? "—" : `${num.toFixed(decimals)}%`;
+      },
 
-    formatNumber: (value, decimals = 0) => {
-      const num = toSafeNumber(value, null);
-      return num === null ? '—' : num.toFixed(decimals);
-    },
+      formatNumber: (value, decimals = 0) => {
+        const num = toSafeNumber(value, null);
+        return num === null ? "—" : num.toFixed(decimals);
+      },
 
-    formatRMultiple: (value) => {
-      const num = toSafeNumber(value, null);
-      return num === null ? '—' : `${num > 0 ? '+' : ''}${num.toFixed(2)}R`;
-    },
+      formatRMultiple: (value) => {
+        const num = toSafeNumber(value, null);
+        return num === null ? "—" : `${num > 0 ? "+" : ""}${num.toFixed(2)}R`;
+      },
 
-    isValid: isValidCalculation,
-  }), []);
+      isValid: isValidCalculation,
+    }),
+    []
+  );
 };
 
 /**
@@ -161,32 +184,37 @@ export const useSafeFormatting = () => {
  */
 export const useSafePerformanceMetrics = (trades = [], performance = {}) => {
   return useMemo(() => {
-    const tradeArray = safeGetArray(trades, '', []);
-    const closedTrades = tradeArray.filter(t => safeGet(t, 'status') === 'closed');
+    const tradeArray = safeGetArray(trades, "", []);
+    const closedTrades = tradeArray.filter(
+      (t) => safeGet(t, "status") === "closed"
+    );
 
     const metrics = {
       totalTrades: closedTrades.length,
-      totalReturn: toSafeNumber(safeGet(performance, 'total_return_pct'), null),
-      winRate: toSafeNumber(safeGet(performance, 'win_rate_pct'), null),
-      sharpe: toSafeNumber(safeGet(performance, 'sharpe_annualized'), null),
-      sortino: toSafeNumber(safeGet(performance, 'sortino_annualized'), null),
-      calmar: toSafeNumber(safeGet(performance, 'calmar_ratio'), null),
-      maxDrawdown: toSafeNumber(safeGet(performance, 'max_drawdown_pct'), null),
-      profitFactor: toSafeNumber(safeGet(performance, 'profit_factor'), null),
-      expectancy: toSafeNumber(safeGet(performance, 'expectancy_r'), null),
-      avgWin: toSafeNumber(safeGet(performance, 'avg_win_pct'), null),
-      avgLoss: toSafeNumber(safeGet(performance, 'avg_loss_pct'), null),
-      avgWinR: toSafeNumber(safeGet(performance, 'avg_win_r'), null),
-      avgLossR: toSafeNumber(safeGet(performance, 'avg_loss_r'), null),
-      grossWins: toSafeNumber(safeGet(performance, 'gross_win_dollars'), null),
-      grossLosses: toSafeNumber(safeGet(performance, 'gross_loss_dollars'), null),
-      totalPnl: toSafeNumber(safeGet(performance, 'total_pnl_dollars'), null),
+      totalReturn: toSafeNumber(safeGet(performance, "total_return_pct"), null),
+      winRate: toSafeNumber(safeGet(performance, "win_rate_pct"), null),
+      sharpe: toSafeNumber(safeGet(performance, "sharpe_annualized"), null),
+      sortino: toSafeNumber(safeGet(performance, "sortino_annualized"), null),
+      calmar: toSafeNumber(safeGet(performance, "calmar_ratio"), null),
+      maxDrawdown: toSafeNumber(safeGet(performance, "max_drawdown_pct"), null),
+      profitFactor: toSafeNumber(safeGet(performance, "profit_factor"), null),
+      expectancy: toSafeNumber(safeGet(performance, "expectancy_r"), null),
+      avgWin: toSafeNumber(safeGet(performance, "avg_win_pct"), null),
+      avgLoss: toSafeNumber(safeGet(performance, "avg_loss_pct"), null),
+      avgWinR: toSafeNumber(safeGet(performance, "avg_win_r"), null),
+      avgLossR: toSafeNumber(safeGet(performance, "avg_loss_r"), null),
+      grossWins: toSafeNumber(safeGet(performance, "gross_win_dollars"), null),
+      grossLosses: toSafeNumber(
+        safeGet(performance, "gross_loss_dollars"),
+        null
+      ),
+      totalPnl: toSafeNumber(safeGet(performance, "total_pnl_dollars"), null),
     };
 
     // Add validation flags
-    metrics.hasValidMetrics = Object.values(metrics)
-      .filter(v => v !== null && typeof v === 'number')
-      .length > 0;
+    metrics.hasValidMetrics =
+      Object.values(metrics).filter((v) => v !== null && typeof v === "number")
+        .length > 0;
 
     return metrics;
   }, [trades, performance]);

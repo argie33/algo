@@ -24,11 +24,12 @@ export function useDevelopmentMode() {
           // Get API URL from configuration or environment
           const apiUrl = (() => {
             if (window.__CONFIG__?.API_URL) return window.__CONFIG__.API_URL;
-            if (import.meta.env?.VITE_API_URL) return import.meta.env.VITE_API_URL;
+            if (import.meta.env?.VITE_API_URL)
+              return import.meta.env.VITE_API_URL;
             // Only use localhost as last resort during local development
-            return window.location.hostname === 'localhost'
-              ? 'http://localhost:3002'
-              : window.location.origin.replace(/:\d+$/, ':3002');
+            return window.location.hostname === "localhost"
+              ? "http://localhost:3002"
+              : window.location.origin.replace(/:\d+$/, ":3002");
           })();
           const response = await fetch(`${apiUrl}/api/health?quick=true`, {
             signal: controller.signal,
@@ -66,4 +67,3 @@ export function useDevelopmentMode() {
 }
 
 export default useDevelopmentMode;
-

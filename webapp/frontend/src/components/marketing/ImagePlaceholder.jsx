@@ -1,5 +1,5 @@
-﻿import React, { useState } from 'react';
-import { Box, useTheme, alpha } from '@mui/material';
+﻿import React, { useState } from "react";
+import { Box, useTheme, alpha } from "@mui/material";
 
 /**
  * ImagePlaceholder Component
@@ -9,13 +9,13 @@ import { Box, useTheme, alpha } from '@mui/material';
  */
 const ImagePlaceholder = ({
   src,
-  alt = 'Image',
-  height = { xs: '300px', md: '450px' },
+  alt = "Image",
+  height = { xs: "300px", md: "450px" },
   onError = null,
 }) => {
   const theme = useTheme();
   // Use gradient for placeholder src or if src is empty
-  const isPlaceholder = !src || src === 'gradient';
+  const isPlaceholder = !src || src === "gradient";
   const [imageLoaded, setImageLoaded] = useState(!isPlaceholder);
 
   const handleImageError = (e) => {
@@ -35,15 +35,15 @@ const ImagePlaceholder = ({
       sx={{
         height,
         background: imageLoaded
-          ? 'transparent'
+          ? "transparent"
           : `linear-gradient(135deg, ${theme.palette.primary.main}20 0%, ${theme.palette.secondary.main}10 100%)`,
         border: `2px solid ${alpha(theme.palette.primary.main, 0.3)}`,
-        borderRadius: '2px',
-        display: 'flex',
-        alignItems: 'center',
-        justifyContent: 'center',
-        overflow: 'hidden',
-        position: 'relative',
+        borderRadius: "2px",
+        display: "flex",
+        alignItems: "center",
+        justifyContent: "center",
+        overflow: "hidden",
+        position: "relative",
       }}
     >
       {!isPlaceholder && (
@@ -54,22 +54,24 @@ const ImagePlaceholder = ({
           onError={handleImageError}
           onLoad={handleImageLoad}
           sx={{
-            width: '100%',
-            height: '100%',
-            objectFit: 'cover',
-            objectPosition: 'center',
-            display: imageLoaded ? 'block' : 'none',
+            width: "100%",
+            height: "100%",
+            objectFit: "cover",
+            objectPosition: "center",
+            display: imageLoaded ? "block" : "none",
           }}
         />
       )}
       {!imageLoaded && !isPlaceholder && (
-        <Box sx={{
-          textAlign: 'center',
-          color: theme.palette.text.secondary,
-          fontSize: '1rem',
-          fontWeight: 500,
-          padding: '20px',
-        }}>
+        <Box
+          sx={{
+            textAlign: "center",
+            color: theme.palette.text.secondary,
+            fontSize: "1rem",
+            fontWeight: 500,
+            padding: "20px",
+          }}
+        >
           {alt}
         </Box>
       )}
@@ -78,4 +80,3 @@ const ImagePlaceholder = ({
 };
 
 export default ImagePlaceholder;
-

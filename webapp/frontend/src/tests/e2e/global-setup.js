@@ -6,7 +6,6 @@
 import { chromium } from "@playwright/test";
 
 async function globalSetup() {
-
   try {
     const browser = await chromium.launch({
       args: [
@@ -33,18 +32,20 @@ async function globalSetup() {
         try {
           await page.goto("http://localhost:5173", { timeout: 10000 });
           // Check if page loads with React content
-          await page.waitForSelector('#root', { timeout: 5000 });
+          await page.waitForSelector("#root", { timeout: 5000 });
           break;
         } catch (error) {
           retries--;
           if (retries === 0) {
-            console.error("Dev server not ready after 2.5 minutes:", error.message);
+            console.error(
+              "Dev server not ready after 2.5 minutes:",
+              error.message
+            );
             // Continue without failing - tests might still work
           }
           await new Promise((resolve) => setTimeout(resolve, 5000));
         }
       }
-
 
       // Set up test authentication
       await page.goto("http://localhost:5173");
@@ -77,7 +78,6 @@ async function globalSetup() {
         );
       });
 
-
       await browser.close();
     } catch (setupError) {
       console.error("❌ Test setup failed:", setupError);
@@ -93,4 +93,3 @@ async function globalSetup() {
 }
 
 export default globalSetup;
-

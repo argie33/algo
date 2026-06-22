@@ -27,15 +27,15 @@ export const apiMockFactory = {
   }),
 
   marketData: () => ({
-    symbols: ['SPY', 'QQQ', 'IWM'],
-    lastPrice: 450.00,
+    symbols: ["SPY", "QQQ", "IWM"],
+    lastPrice: 450.0,
     change: 2.5,
     changePercent: 0.56,
   }),
 
   portfolioPositions: () => [
     {
-      symbol: 'AAPL',
+      symbol: "AAPL",
       quantity: 10,
       entryPrice: 150,
       currentPrice: 160,
@@ -46,17 +46,17 @@ export const apiMockFactory = {
 
   tradingSignals: () => [
     {
-      symbol: 'AAPL',
-      signal: 'BUY',
+      symbol: "AAPL",
+      signal: "BUY",
       strength: 0.85,
       technicals: { rsi: 35, macd: 0.5 },
     },
   ],
 
   marketHealth: () => ({
-    status: 'healthy',
+    status: "healthy",
     volatility: 0.18,
-    trends: ['uptrend', 'bullish'],
+    trends: ["uptrend", "bullish"],
   }),
 };
 

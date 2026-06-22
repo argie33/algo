@@ -65,7 +65,6 @@ describe("Portfolio Data Contract Tests", () => {
     // Validate analytics contract
     expect(apiResponse).toHaveProperty("success", true);
     expect(apiResponse).toHaveProperty("data");
-
   });
 
   it("should validate market overview endpoint contract", async () => {
@@ -88,7 +87,5 @@ describe("Portfolio Data Contract Tests", () => {
     // Validate market overview contract
     expect(apiResponse).toHaveProperty("success", true);
     expect(apiResponse).toHaveProperty("data");
-
   });
 });
-

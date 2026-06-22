@@ -1,11 +1,11 @@
-import React from 'react';
-import './DataAgeBadge.css';
+import React from "react";
+import "./DataAgeBadge.css";
 
 /**
  * DataAgeBadge - Shows how old the API response data is
  * Uses data_freshness metadata from API responses
  */
-const DataAgeBadge = ({ dataFreshness, label = 'Updated' }) => {
+const DataAgeBadge = ({ dataFreshness, label = "Updated" }) => {
   if (!dataFreshness) {
     return null;
   }
@@ -28,30 +28,30 @@ const DataAgeBadge = ({ dataFreshness, label = 'Updated' }) => {
 
   // Color coding based on age
   if (data_age_days === 0) {
-    color = 'success';
-    icon = '✓';
+    color = "success";
+    icon = "✓";
   } else if (data_age_days === 1) {
-    color = 'info';
-    icon = '✓';
+    color = "info";
+    icon = "✓";
   } else if (data_age_days <= 3) {
-    color = 'warning';
-    icon = '⚠️';
+    color = "warning";
+    icon = "⚠️";
   } else {
-    color = 'danger';
-    icon = '❌';
+    color = "danger";
+    icon = "❌";
   }
 
   const ageText =
     data_age_days === 0
-      ? 'Just now'
+      ? "Just now"
       : data_age_days === 1
-        ? '1 day ago'
+        ? "1 day ago"
         : `${data_age_days}d ago`;
 
   return (
     <span
       className={`badge badge-${color} data-age-badge`}
-      title={`Last updated: ${max_date}${warning ? ` - ${warning}` : ''}`}
+      title={`Last updated: ${max_date}${warning ? ` - ${warning}` : ""}`}
     >
       {icon} {label} {ageText}
     </span>

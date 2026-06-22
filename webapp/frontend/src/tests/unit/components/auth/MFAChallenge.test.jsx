@@ -7,13 +7,19 @@ vi.mock("../../../../services/api.js", () => ({
   default: {
     get: vi.fn().mockResolvedValue({ data: {} }),
     post: vi.fn().mockResolvedValue({ data: {} }),
-    login: vi.fn().mockResolvedValue({ success: true, data: { token: "mock-token" } }),
+    login: vi
+      .fn()
+      .mockResolvedValue({ success: true, data: { token: "mock-token" } }),
     register: vi.fn().mockResolvedValue({ success: true, data: {} }),
     logout: vi.fn().mockResolvedValue({ success: true }),
     resetPassword: vi.fn().mockResolvedValue({ success: true }),
     verifyMFA: vi.fn().mockResolvedValue({ success: true }),
-    getTradingSignalsDaily: vi.fn().mockResolvedValue({ success: true, data: [] }),
-    getPortfolioAnalytics: vi.fn().mockResolvedValue({ success: true, data: {} }),
+    getTradingSignalsDaily: vi
+      .fn()
+      .mockResolvedValue({ success: true, data: [] }),
+    getPortfolioAnalytics: vi
+      .fn()
+      .mockResolvedValue({ success: true, data: {} }),
     getStockMetrics: vi.fn().mockResolvedValue({ success: true, data: {} }),
   },
   getApiConfig: vi.fn(() => ({
@@ -28,7 +34,9 @@ describe("MFAChallenge", () => {
     message: "Please enter the verification code sent to your device.",
     onSuccess: vi.fn(),
     onCancel: vi.fn(),
-    onVerify: vi.fn().mockResolvedValue({ success: true, username: "testuser" }),
+    onVerify: vi
+      .fn()
+      .mockResolvedValue({ success: true, username: "testuser" }),
   };
 
   beforeEach(() => {
@@ -111,7 +119,9 @@ describe("MFAChallenge", () => {
   });
 
   test("displays different challenge types", () => {
-    render(<MFAChallenge {...defaultProps} challengeType="SOFTWARE_TOKEN_MFA" />);
+    render(
+      <MFAChallenge {...defaultProps} challengeType="SOFTWARE_TOKEN_MFA" />
+    );
 
     expect(screen.getByText("Authenticator App")).toBeInTheDocument();
   });
@@ -128,4 +138,3 @@ describe("MFAChallenge", () => {
     expect(submitButton).toHaveTextContent("Verify");
   });
 });
-

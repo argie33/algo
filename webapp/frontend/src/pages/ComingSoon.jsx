@@ -1,15 +1,18 @@
-import React from 'react';
-import { Container, Paper, _Box, Typography, Button } from '@mui/material';
-import { Construction } from '@mui/icons-material';
-import { useNavigate } from 'react-router-dom';
+import React from "react";
+import { Container, Paper, _Box, Typography, Button } from "@mui/material";
+import { Construction } from "@mui/icons-material";
+import { useNavigate } from "react-router-dom";
 
-function ComingSoon({ pageName = 'This Page', description = 'This feature is currently under development.' }) {
+function ComingSoon({
+  pageName = "This Page",
+  description = "This feature is currently under development.",
+}) {
   const navigate = useNavigate();
 
   return (
     <Container maxWidth="sm">
-      <Paper elevation={3} sx={{ p: 4, mt: 8, textAlign: 'center' }}>
-        <Construction sx={{ fontSize: 64, color: 'primary.main', mb: 2 }} />
+      <Paper elevation={3} sx={{ p: 4, mt: 8, textAlign: "center" }}>
+        <Construction sx={{ fontSize: 64, color: "primary.main", mb: 2 }} />
         <Typography variant="h3" component="h3" gutterBottom>
           {pageName} Coming Soon
         </Typography>
@@ -22,7 +25,7 @@ function ComingSoon({ pageName = 'This Page', description = 'This feature is cur
         <Button
           variant="contained"
           color="primary"
-          onClick={() => navigate('/')}
+          onClick={() => navigate("/")}
         >
           Return to Dashboard
         </Button>

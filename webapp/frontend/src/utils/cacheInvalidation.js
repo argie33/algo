@@ -6,8 +6,8 @@
  * the actual state. This prevents users from seeing stale data until the 5-min TTL expires.
  */
 
-import dataCache from '../services/dataCache';
-import { useQueryClient } from '@tanstack/react-query';
+import dataCache from "../services/dataCache";
+import { useQueryClient } from "@tanstack/react-query";
 
 /**
  * Invalidate all position-related cache entries after mutations
@@ -15,9 +15,9 @@ import { useQueryClient } from '@tanstack/react-query';
  */
 export function invalidatePositionCache(symbol = null) {
   const patterns = [
-    'algo-positions', // all positions
-    'portfolio-summary', // portfolio totals
-    'trade-history', // trade list
+    "algo-positions", // all positions
+    "portfolio-summary", // portfolio totals
+    "trade-history", // trade list
   ];
 
   if (symbol) {
@@ -25,11 +25,13 @@ export function invalidatePositionCache(symbol = null) {
     patterns.push(`.*${symbol}.*`);
   }
 
-  patterns.forEach(pattern => {
+  patterns.forEach((pattern) => {
     dataCache.clear(pattern);
   });
 
-  console.debug(`[Cache] Invalidated position cache${symbol ? ` for ${symbol}` : ' (all)'}`);
+  console.debug(
+    `[Cache] Invalidated position cache${symbol ? ` for ${symbol}` : " (all)"}`
+  );
 }
 
 /**
@@ -38,15 +40,15 @@ export function invalidatePositionCache(symbol = null) {
  */
 export function invalidateTradeCache(symbol) {
   const patterns = [
-    'algo-positions',
-    'portfolio-summary',
-    'trade-history',
-    'algo-trades',
-    'active-trades',
+    "algo-positions",
+    "portfolio-summary",
+    "trade-history",
+    "algo-trades",
+    "active-trades",
     `.*${symbol}.*`,
   ];
 
-  patterns.forEach(pattern => {
+  patterns.forEach((pattern) => {
     dataCache.clear(pattern);
   });
 
@@ -78,7 +80,7 @@ export function useInvalidateCache() {
         await queryClient.invalidateQueries({ queryKey: [key] });
       }
       // Also clear from dataCache as fallback
-      keyArray.forEach(key => {
+      keyArray.forEach((key) => {
         dataCache.clear(key);
       });
     },
@@ -118,16 +120,20 @@ export function withCacheInvalidation(mutationFn, invalidateCacheKeys = []) {
       const result = await mutationFn(...args);
 
       // On success, invalidate cache
-      const keys = Array.isArray(invalidateCacheKeys) ? invalidateCacheKeys : [invalidateCacheKeys];
-      keys.forEach(key => {
+      const keys = Array.isArray(invalidateCacheKeys)
+        ? invalidateCacheKeys
+        : [invalidateCacheKeys];
+      keys.forEach((key) => {
         dataCache.clear(key);
       });
 
       return result;
     } catch (error) {
       // On error, still invalidate cache to force refresh on retry
-      const keys = Array.isArray(invalidateCacheKeys) ? invalidateCacheKeys : [invalidateCacheKeys];
-      keys.forEach(key => {
+      const keys = Array.isArray(invalidateCacheKeys)
+        ? invalidateCacheKeys
+        : [invalidateCacheKeys];
+      keys.forEach((key) => {
         dataCache.clear(key);
       });
       throw error;

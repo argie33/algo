@@ -2,7 +2,12 @@ import numeral from "numeral";
 
 // Format null/undefined values as "-" (for clean UI display)
 export const formatValue = (value) => {
-  if (value === null || value === undefined || value === "null" || value === "undefined") {
+  if (
+    value === null ||
+    value === undefined ||
+    value === "null" ||
+    value === "undefined"
+  ) {
     return "-";
   }
   return value;
@@ -280,68 +285,87 @@ export const getFinancialHealthScore = (metrics) => {
  */
 export const formatFactorInput = (fieldName, value) => {
   // Handle null/undefined values
-  if (value === null || value === undefined || value === 'null') {
-    return 'N/A';
+  if (value === null || value === undefined || value === "null") {
+    return "N/A";
   }
 
   const numValue = parseFloat(value);
   if (isNaN(numValue)) {
-    return 'N/A';
+    return "N/A";
   }
 
   const fieldNameLower = fieldName.toLowerCase();
 
   // ========== PERCENTAGE FIELDS (Display with %) ==========
   // Fields explicitly marked as _pct (percentage fields)
-  if (fieldNameLower.endsWith('_pct') || fieldNameLower.includes('_percent')) {
+  if (fieldNameLower.endsWith("_pct") || fieldNameLower.includes("_percent")) {
     return `${numValue.toFixed(2)}%`;
   }
 
   // Growth metrics (CAGR, YoY growth)
-  if (fieldNameLower.includes('growth') || fieldNameLower.includes('cagr')) {
+  if (fieldNameLower.includes("growth") || fieldNameLower.includes("cagr")) {
     return `${numValue.toFixed(2)}%`;
   }
 
   // Momentum and return metrics
-  if (fieldNameLower.includes('momentum') || fieldNameLower.includes('return')) {
+  if (
+    fieldNameLower.includes("momentum") ||
+    fieldNameLower.includes("return")
+  ) {
     return `${numValue.toFixed(2)}%`;
   }
 
   // Price vs SMA/range metrics
-  if (fieldNameLower.includes('price_vs') || fieldNameLower.includes('vs_sma') || fieldNameLower.includes('vs_52w')) {
+  if (
+    fieldNameLower.includes("price_vs") ||
+    fieldNameLower.includes("vs_sma") ||
+    fieldNameLower.includes("vs_52w")
+  ) {
     return `${numValue.toFixed(2)}%`;
   }
 
   // Trend metrics (displayed as percentage point changes)
-  if (fieldNameLower.includes('trend')) {
-    if (fieldNameLower.includes('margin') || fieldNameLower.includes('roe') || fieldNameLower.includes('roa')) {
+  if (fieldNameLower.includes("trend")) {
+    if (
+      fieldNameLower.includes("margin") ||
+      fieldNameLower.includes("roe") ||
+      fieldNameLower.includes("roa")
+    ) {
       return `${numValue.toFixed(2)} pp`;
     }
     return `${numValue.toFixed(2)}%`;
   }
 
   // Volatility, drawdown, and risk metrics
-  if (fieldNameLower.includes('volatility') || fieldNameLower.includes('drawdown') || fieldNameLower.includes('spread') || fieldNameLower.includes('range')) {
+  if (
+    fieldNameLower.includes("volatility") ||
+    fieldNameLower.includes("drawdown") ||
+    fieldNameLower.includes("spread") ||
+    fieldNameLower.includes("range")
+  ) {
     return `${numValue.toFixed(2)}%`;
   }
 
   // Surprise metrics (earnings surprise) - are percentages
-  if (fieldNameLower.includes('surprise')) {
+  if (fieldNameLower.includes("surprise")) {
     return `${numValue.toFixed(2)}%`;
   }
 
   // ========== DECIMAL/RATIO FIELDS (Display without %) ==========
   // Ratios (current_ratio, quick_ratio, debt_to_equity)
-  if (fieldNameLower.includes('ratio') || fieldNameLower.includes('_to_')) {
+  if (fieldNameLower.includes("ratio") || fieldNameLower.includes("_to_")) {
     // Special cases: payout_ratio and dividend_yield should be percentages
-    if (fieldNameLower.includes('payout') || fieldNameLower.includes('dividend_yield')) {
+    if (
+      fieldNameLower.includes("payout") ||
+      fieldNameLower.includes("dividend_yield")
+    ) {
       return `${(numValue * 100).toFixed(2)}%`;
     }
     return numValue.toFixed(2);
   }
 
   // Margin fields (gross_margin, operating_margin, profit_margin)
-  if (fieldNameLower.includes('margin')) {
+  if (fieldNameLower.includes("margin")) {
     if (numValue < 10) {
       return `${(numValue * 100).toFixed(2)}%`;
     }
@@ -349,17 +373,21 @@ export const formatFactorInput = (fieldName, value) => {
   }
 
   // Beta and other market metrics
-  if (fieldNameLower === 'beta' || fieldNameLower.includes('beta')) {
+  if (fieldNameLower === "beta" || fieldNameLower.includes("beta")) {
     return numValue.toFixed(2);
   }
 
   // Liquidity/Volume consistency metrics (0-100 scale)
-  if (fieldNameLower.includes('consistency') || fieldNameLower.includes('velocity') || fieldNameLower.includes('rating')) {
+  if (
+    fieldNameLower.includes("consistency") ||
+    fieldNameLower.includes("velocity") ||
+    fieldNameLower.includes("rating")
+  ) {
     return numValue.toFixed(1);
   }
 
   // ROE, ROA, and other profitability metrics
-  if (fieldNameLower.includes('return_on')) {
+  if (fieldNameLower.includes("return_on")) {
     if (numValue < 10) {
       return `${(numValue * 100).toFixed(2)}%`;
     }
@@ -367,7 +395,11 @@ export const formatFactorInput = (fieldName, value) => {
   }
 
   // Ownership percentages
-  if (fieldNameLower.includes('ownership') || fieldNameLower.includes('insider') || fieldNameLower.includes('short_percent')) {
+  if (
+    fieldNameLower.includes("ownership") ||
+    fieldNameLower.includes("insider") ||
+    fieldNameLower.includes("short_percent")
+  ) {
     if (numValue < 10) {
       return `${(numValue * 100).toFixed(2)}%`;
     }
@@ -375,21 +407,31 @@ export const formatFactorInput = (fieldName, value) => {
   }
 
   // EPS and earnings metrics
-  if (fieldNameLower.includes('eps') || fieldNameLower.includes('earnings')) {
-    if (fieldNameLower.includes('stability')) {
+  if (fieldNameLower.includes("eps") || fieldNameLower.includes("earnings")) {
+    if (fieldNameLower.includes("stability")) {
       return numValue.toFixed(2);
     }
     return `${numValue.toFixed(2)}%`;
   }
 
   // Price metrics and valuations (P/E, P/B, P/S, EV metrics)
-  if (fieldNameLower.includes('stock_') || fieldNameLower.includes('_pe') || fieldNameLower.includes('_pb') ||
-      fieldNameLower.includes('_ps') || fieldNameLower.includes('peg') || fieldNameLower.includes('_ev_')) {
+  if (
+    fieldNameLower.includes("stock_") ||
+    fieldNameLower.includes("_pe") ||
+    fieldNameLower.includes("_pb") ||
+    fieldNameLower.includes("_ps") ||
+    fieldNameLower.includes("peg") ||
+    fieldNameLower.includes("_ev_")
+  ) {
     return numValue.toFixed(2);
   }
 
   // FCF and cash flow metrics
-  if (fieldNameLower.includes('fcf') || fieldNameLower.includes('_cf_') || fieldNameLower.includes('cash_flow')) {
+  if (
+    fieldNameLower.includes("fcf") ||
+    fieldNameLower.includes("_cf_") ||
+    fieldNameLower.includes("cash_flow")
+  ) {
     if (numValue < 10) {
       return numValue.toFixed(2);
     }
@@ -408,73 +450,80 @@ export const formatFactorInput = (fieldName, value) => {
 export const getFactorFieldLabel = (fieldName) => {
   const labelMap = {
     // Momentum
-    momentum_3m: 'Momentum (3M)',
-    momentum_6m: 'Momentum (6M)',
-    momentum_12m: 'Momentum (12M)',
-    momentum_12_3: 'Momentum Spread (12M-3M)',
-    price_vs_sma_50: 'Price vs SMA 50',
-    price_vs_sma_200: 'Price vs SMA 200',
-    price_vs_52w_high: 'Price vs 52W High',
+    momentum_3m: "Momentum (3M)",
+    momentum_6m: "Momentum (6M)",
+    momentum_12m: "Momentum (12M)",
+    momentum_12_3: "Momentum Spread (12M-3M)",
+    price_vs_sma_50: "Price vs SMA 50",
+    price_vs_sma_200: "Price vs SMA 200",
+    price_vs_52w_high: "Price vs 52W High",
 
     // Growth
-    revenue_growth_3y_cagr: 'Revenue Growth (3Y CAGR)',
-    eps_growth_3y_cagr: 'EPS Growth (3Y CAGR)',
-    operating_income_growth_yoy: 'Operating Income Growth (YoY)',
-    roe_trend: 'ROE Trend',
-    sustainable_growth_rate: 'Sustainable Growth Rate',
-    fcf_growth_yoy: 'FCF Growth (YoY)',
-    net_income_growth_yoy: 'Net Income Growth (YoY)',
-    gross_margin_trend: 'Gross Margin Trend',
-    operating_margin_trend: 'Operating Margin Trend',
-    net_margin_trend: 'Net Margin Trend',
-    quarterly_growth_momentum: 'Quarterly Growth Momentum',
+    revenue_growth_3y_cagr: "Revenue Growth (3Y CAGR)",
+    eps_growth_3y_cagr: "EPS Growth (3Y CAGR)",
+    operating_income_growth_yoy: "Operating Income Growth (YoY)",
+    roe_trend: "ROE Trend",
+    sustainable_growth_rate: "Sustainable Growth Rate",
+    fcf_growth_yoy: "FCF Growth (YoY)",
+    net_income_growth_yoy: "Net Income Growth (YoY)",
+    gross_margin_trend: "Gross Margin Trend",
+    operating_margin_trend: "Operating Margin Trend",
+    net_margin_trend: "Net Margin Trend",
+    quarterly_growth_momentum: "Quarterly Growth Momentum",
 
     // Quality
-    return_on_equity_pct: 'Return on Equity (ROE)',
-    return_on_assets_pct: 'Return on Assets (ROA)',
-    gross_margin_pct: 'Gross Margin',
-    operating_margin_pct: 'Operating Margin',
-    profit_margin_pct: 'Profit Margin',
-    fcf_to_net_income: 'FCF to Net Income',
-    operating_cf_to_net_income: 'Operating CF to Net Income',
-    debt_to_equity: 'Debt to Equity',
-    current_ratio: 'Current Ratio',
-    quick_ratio: 'Quick Ratio',
-    earnings_surprise_avg: 'Earnings Surprise (Avg)',
-    eps_growth_stability: 'EPS Growth Stability',
-    payout_ratio: 'Payout Ratio',
+    return_on_equity_pct: "Return on Equity (ROE)",
+    return_on_assets_pct: "Return on Assets (ROA)",
+    gross_margin_pct: "Gross Margin",
+    operating_margin_pct: "Operating Margin",
+    profit_margin_pct: "Profit Margin",
+    fcf_to_net_income: "FCF to Net Income",
+    operating_cf_to_net_income: "Operating CF to Net Income",
+    debt_to_equity: "Debt to Equity",
+    current_ratio: "Current Ratio",
+    quick_ratio: "Quick Ratio",
+    earnings_surprise_avg: "Earnings Surprise (Avg)",
+    eps_growth_stability: "EPS Growth Stability",
+    payout_ratio: "Payout Ratio",
 
     // Stability
-    volatility_12m_pct: 'Volatility (12M)',
-    max_drawdown_52w_pct: 'Max Drawdown (52W)',
-    beta: 'Beta',
-    volume_consistency: 'Volume Consistency',
-    turnover_velocity: 'Turnover Velocity',
-    volatility_volume_ratio: 'Volatility/Volume Ratio',
-    daily_spread: 'Daily Spread',
-    range_52w_pct: '52W Range',
+    volatility_12m_pct: "Volatility (12M)",
+    max_drawdown_52w_pct: "Max Drawdown (52W)",
+    beta: "Beta",
+    volume_consistency: "Volume Consistency",
+    turnover_velocity: "Turnover Velocity",
+    volatility_volume_ratio: "Volatility/Volume Ratio",
+    daily_spread: "Daily Spread",
+    range_52w_pct: "52W Range",
 
     // Value
-    stock_pb: 'Price to Book (P/B)',
-    stock_pe: 'Price to Earnings (P/E)',
-    stock_ps: 'Price to Sales (P/S)',
-    peg_ratio: 'PEG Ratio',
-    stock_ev_ebitda: 'EV to EBITDA',
-    stock_ev_revenue: 'EV to Revenue',
-    stock_dividend_yield: 'Dividend Yield',
+    stock_pb: "Price to Book (P/B)",
+    stock_pe: "Price to Earnings (P/E)",
+    stock_ps: "Price to Sales (P/S)",
+    peg_ratio: "PEG Ratio",
+    stock_ev_ebitda: "EV to EBITDA",
+    stock_ev_revenue: "EV to Revenue",
+    stock_dividend_yield: "Dividend Yield",
 
     // Positioning
-    institution_count: 'Institutional Holders',
-    insider_ownership_pct: 'Insider Ownership',
-    short_percent_of_float: 'Short % of Float',
-    institutional_ownership_pct: 'Institutional Ownership',
-    institutional_ownership: 'Institutional Ownership',
-    insider_ownership: 'Insider Ownership',
-    short_ratio: 'Short Ratio',
-    acc_dist_rating: 'Accumulation/Distribution',
+    institution_count: "Institutional Holders",
+    insider_ownership_pct: "Insider Ownership",
+    short_percent_of_float: "Short % of Float",
+    institutional_ownership_pct: "Institutional Ownership",
+    institutional_ownership: "Institutional Ownership",
+    insider_ownership: "Insider Ownership",
+    short_ratio: "Short Ratio",
+    acc_dist_rating: "Accumulation/Distribution",
   };
 
-  return labelMap[fieldName] || fieldName.replace(/_/g, ' ').split(' ').map(word => word.charAt(0).toUpperCase() + word.slice(1)).join(' ');
+  return (
+    labelMap[fieldName] ||
+    fieldName
+      .replace(/_/g, " ")
+      .split(" ")
+      .map((word) => word.charAt(0).toUpperCase() + word.slice(1))
+      .join(" ")
+  );
 };
 
 // Consistent technical indicator status helper
@@ -541,4 +590,3 @@ export const getTechStatus = (indicator, value) => {
       return { icon: "info", color: "text.secondary", label: "" };
   }
 };
-

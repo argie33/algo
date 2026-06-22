@@ -3,7 +3,7 @@
  * Wraps axios responses and ensures consistent error handling
  */
 
-import { extractData, extractPaginatedData } from './responseNormalizer';
+import { extractData, extractPaginatedData } from "./responseNormalizer";
 
 /**
  * Safe wrapper for API calls that handles both success and error cases
@@ -16,12 +16,15 @@ export const safeExtractData = (response, fallback = null) => {
     }
     return extractData(response) || fallback;
   } catch (error) {
-    console.warn('[API_HANDLER] Data extraction failed:', error.message);
+    console.warn("[API_HANDLER] Data extraction failed:", error.message);
     return fallback;
   }
 };
 
-export const safeExtractPaginatedData = (response, fallback = { items: [], pagination: {} }) => {
+export const safeExtractPaginatedData = (
+  response,
+  fallback = { items: [], pagination: {} }
+) => {
   try {
     if (!response) {
       return fallback;
@@ -32,7 +35,10 @@ export const safeExtractPaginatedData = (response, fallback = { items: [], pagin
       pagination: extracted?.pagination || fallback.pagination,
     };
   } catch (error) {
-    console.warn('[API_HANDLER] Paginated data extraction failed:', error.message);
+    console.warn(
+      "[API_HANDLER] Paginated data extraction failed:",
+      error.message
+    );
     return fallback;
   }
 };
@@ -51,7 +57,7 @@ export const ensureArray = (data) => {
  * Ensure object data is never undefined
  */
 export const ensureObject = (data, defaults = {}) => {
-  if (!data || typeof data !== 'object') return defaults;
+  if (!data || typeof data !== "object") return defaults;
   return { ...defaults, ...data };
 };
 

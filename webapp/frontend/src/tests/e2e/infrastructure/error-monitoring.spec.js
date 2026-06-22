@@ -310,8 +310,7 @@ test.describe("Console Error Detection", () => {
       }
 
       if (report.recommendations.length > 0) {
-        report.recommendations.forEach((rec, i) => {
-        });
+        report.recommendations.forEach((rec, i) => {});
       }
 
       // Test assertions
@@ -346,7 +345,6 @@ test.describe("Console Error Detection", () => {
       "/settings",
     ];
 
-
     for (const pagePath of journeyPages) {
       await page.goto(pagePath, {
         waitUntil: "domcontentloaded",
@@ -370,4 +368,3 @@ test.describe("Console Error Detection", () => {
 
 // Export the detector class for use in other tests
 export { ConsoleErrorDetector, ERROR_PATTERNS };
-

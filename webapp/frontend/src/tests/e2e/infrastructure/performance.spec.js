@@ -163,8 +163,12 @@ test.describe("Performance Tests", () => {
 
     const totalSize = totalJsSize + totalCssSize;
 
-      console.log(`Bundle Analysis - JS: ${Math.round(totalJsSize / 1024)}KB, CSS: ${Math.round(totalCssSize / 1024)}KB, Total: ${Math.round(totalSize / 1024)}KB`);
-      console.log(`Resources detected: ${resources.length} (${resources.filter((r) => r.type === "js").length} JS, ${resources.filter((r) => r.type === "css").length} CSS)`);
+    console.log(
+      `Bundle Analysis - JS: ${Math.round(totalJsSize / 1024)}KB, CSS: ${Math.round(totalCssSize / 1024)}KB, Total: ${Math.round(totalSize / 1024)}KB`
+    );
+    console.log(
+      `Resources detected: ${resources.length} (${resources.filter((r) => r.type === "js").length} JS, ${resources.filter((r) => r.type === "css").length} CSS)`
+    );
 
     // Only validate if we detected resources
     if (resources.length > 0) {
@@ -330,4 +334,3 @@ test.describe("Performance Tests", () => {
     }
   });
 });
-

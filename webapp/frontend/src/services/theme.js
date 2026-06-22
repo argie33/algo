@@ -3,8 +3,8 @@
  * Single source of truth for theme state and persistence
  */
 
-const THEME_KEY = 'theme';
-const DEFAULT_THEME = 'dark';
+const THEME_KEY = "theme";
+const DEFAULT_THEME = "dark";
 
 // Subscribers for theme changes
 let subscribers = [];
@@ -18,7 +18,7 @@ export const theme = {
     try {
       return localStorage.getItem(THEME_KEY) || DEFAULT_THEME;
     } catch (err) {
-      console.error('[Theme] Failed to get theme:', err?.message || err);
+      console.error("[Theme] Failed to get theme:", err?.message || err);
       return DEFAULT_THEME;
     }
   },
@@ -29,12 +29,14 @@ export const theme = {
    */
   setTheme(newTheme) {
     try {
-      const validTheme = ['dark', 'light'].includes(newTheme) ? newTheme : DEFAULT_THEME;
+      const validTheme = ["dark", "light"].includes(newTheme)
+        ? newTheme
+        : DEFAULT_THEME;
       localStorage.setItem(THEME_KEY, validTheme);
       this._applyTheme(validTheme);
       this._notifySubscribers(validTheme);
     } catch (error) {
-      console.error('Failed to set theme:', error);
+      console.error("Failed to set theme:", error);
     }
   },
 
@@ -44,7 +46,7 @@ export const theme = {
    */
   toggleTheme() {
     const current = this.getTheme();
-    const newTheme = current === 'dark' ? 'light' : 'dark';
+    const newTheme = current === "dark" ? "light" : "dark";
     this.setTheme(newTheme);
     return newTheme;
   },
@@ -57,7 +59,7 @@ export const theme = {
   subscribe(callback) {
     subscribers.push(callback);
     return () => {
-      subscribers = subscribers.filter(cb => cb !== callback);
+      subscribers = subscribers.filter((cb) => cb !== callback);
     };
   },
 
@@ -66,8 +68,8 @@ export const theme = {
    * @private
    */
   _applyTheme(themeName) {
-    if (typeof document === 'undefined') return;
-    document.documentElement.classList.toggle('light', themeName === 'light');
+    if (typeof document === "undefined") return;
+    document.documentElement.classList.toggle("light", themeName === "light");
   },
 
   /**
@@ -75,11 +77,11 @@ export const theme = {
    * @private
    */
   _notifySubscribers(themeName) {
-    subscribers.forEach(callback => {
+    subscribers.forEach((callback) => {
       try {
         callback(themeName);
       } catch (error) {
-        console.error('Theme subscriber error:', error);
+        console.error("Theme subscriber error:", error);
       }
     });
   },
@@ -90,8 +92,7 @@ export const theme = {
   initialize() {
     const currentTheme = this.getTheme();
     this._applyTheme(currentTheme);
-  }
+  },
 };
 
 export default theme;
-

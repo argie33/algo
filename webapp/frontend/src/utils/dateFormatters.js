@@ -15,7 +15,10 @@ export const formatXAxisDate = (dateString) => {
   try {
     return format(new Date(dateString), "MMM dd");
   } catch (err) {
-    console.error('[DateFormatters] Failed to format X-axis date:', err?.message || err);
+    console.error(
+      "[DateFormatters] Failed to format X-axis date:",
+      err?.message || err
+    );
     return dateString;
   }
 };
@@ -23,4 +26,3 @@ export const formatXAxisDate = (dateString) => {
 export default {
   formatXAxisDate,
 };
-

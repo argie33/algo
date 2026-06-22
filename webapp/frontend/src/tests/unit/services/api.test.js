@@ -59,12 +59,12 @@ describe("API Service", () => {
 
       // Verify config has required properties
       expect(config).toBeDefined();
-      expect(config).toHaveProperty('baseURL');
-      expect(config).toHaveProperty('apiUrl');
-      expect(config).toHaveProperty('isServerless');
-      expect(config).toHaveProperty('isDev');
-      expect(config).toHaveProperty('isDevelopment');
-      expect(config).toHaveProperty('isProduction');
+      expect(config).toHaveProperty("baseURL");
+      expect(config).toHaveProperty("apiUrl");
+      expect(config).toHaveProperty("isServerless");
+      expect(config).toHaveProperty("isDev");
+      expect(config).toHaveProperty("isDevelopment");
+      expect(config).toHaveProperty("isProduction");
     });
 
     test("uses window.__CONFIG__ when available", () => {
@@ -93,8 +93,8 @@ describe("API Service", () => {
 
       // getApiConfig returns minimal properties - verify they exist
       expect(config).toBeDefined();
-      expect(config).toHaveProperty('baseURL');
-      expect(config).toHaveProperty('isDevelopment');
+      expect(config).toHaveProperty("baseURL");
+      expect(config).toHaveProperty("isDevelopment");
     });
   });
 
@@ -163,13 +163,13 @@ describe("API Service", () => {
       const config = getApiConfig();
 
       // Verify environment detection works regardless of specific values
-      expect(config).toHaveProperty('isDev');
-      expect(config).toHaveProperty('isDevelopment');
-      expect(config).toHaveProperty('isProduction');
+      expect(config).toHaveProperty("isDev");
+      expect(config).toHaveProperty("isDevelopment");
+      expect(config).toHaveProperty("isProduction");
       // These should be mutually consistent
-      expect(typeof config.isDev).toBe('boolean');
-      expect(typeof config.isDevelopment).toBe('boolean');
-      expect(typeof config.isProduction).toBe('boolean');
+      expect(typeof config.isDev).toBe("boolean");
+      expect(typeof config.isDevelopment).toBe("boolean");
+      expect(typeof config.isProduction).toBe("boolean");
     });
 
     test("detects serverless vs local", () => {
@@ -195,7 +195,7 @@ describe("API Service", () => {
         delete global.window;
       }
       // Always restore __CONFIG__ to empty object
-      if (typeof window !== 'undefined') {
+      if (typeof window !== "undefined") {
         window.__CONFIG__ = {};
       }
     });
@@ -207,15 +207,15 @@ describe("API Service", () => {
       const config = getApiConfig();
       // Without window, should still return valid config
       expect(config).toBeDefined();
-      expect(config).toHaveProperty('baseURL');
-      expect(config).toHaveProperty('isDev');
+      expect(config).toHaveProperty("baseURL");
+      expect(config).toHaveProperty("isDev");
     });
 
     test("handles missing import.meta.env", () => {
       // getApiConfig handles missing env gracefully
       const config = getApiConfig();
       expect(config).toBeDefined();
-      expect(config).toHaveProperty('baseURL');
+      expect(config).toHaveProperty("baseURL");
     });
 
     test("handles undefined config values", () => {
@@ -224,9 +224,8 @@ describe("API Service", () => {
       const config = getApiConfig();
       // Should return valid config even with undefined __CONFIG__
       expect(config).toBeDefined();
-      expect(config).toHaveProperty('baseURL');
-      expect(config).toHaveProperty('isServerless');
+      expect(config).toHaveProperty("baseURL");
+      expect(config).toHaveProperty("isServerless");
     });
   });
 });
-

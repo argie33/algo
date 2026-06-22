@@ -24,7 +24,10 @@ vi.mock("../../../services/api.js", () => ({
     getStockPrices: vi.fn().mockResolvedValue({ data: mockChartData }),
     getHistoricalData: vi.fn().mockResolvedValue({ data: [] }),
   },
-  getApiConfig: vi.fn(() => ({ apiUrl: "http://localhost:3001", environment: "test" })),
+  getApiConfig: vi.fn(() => ({
+    apiUrl: "http://localhost:3001",
+    environment: "test",
+  })),
 }));
 
 describe("HistoricalPriceChart", () => {
@@ -90,21 +93,27 @@ describe("HistoricalPriceChart", () => {
         const xAxes = screen.getAllByTestId("x-axis");
         expect(xAxes.length).toBeGreaterThanOrEqual(1);
         expect(xAxes[0]).toHaveAttribute("data-key", "date");
-        expect(screen.getAllByTestId("y-axis").length).toBeGreaterThanOrEqual(1);
+        expect(screen.getAllByTestId("y-axis").length).toBeGreaterThanOrEqual(
+          1
+        );
       });
     });
 
     it("renders cartesian grid", async () => {
       renderWithProviders(<HistoricalPriceChart symbol="AAPL" />);
       await waitFor(() => {
-        expect(screen.getAllByTestId("cartesian-grid").length).toBeGreaterThanOrEqual(1);
+        expect(
+          screen.getAllByTestId("cartesian-grid").length
+        ).toBeGreaterThanOrEqual(1);
       });
     });
 
     it("renders tooltip", async () => {
       renderWithProviders(<HistoricalPriceChart symbol="AAPL" />);
       await waitFor(() => {
-        expect(screen.getAllByTestId("chart-tooltip").length).toBeGreaterThanOrEqual(1);
+        expect(
+          screen.getAllByTestId("chart-tooltip").length
+        ).toBeGreaterThanOrEqual(1);
       });
     });
 
@@ -142,7 +151,9 @@ describe("HistoricalPriceChart", () => {
       renderWithProviders(<HistoricalPriceChart symbol="AAPL" />);
 
       await waitFor(() => {
-        expect(screen.getByText(/No data available for AAPL/i)).toBeInTheDocument();
+        expect(
+          screen.getByText(/No data available for AAPL/i)
+        ).toBeInTheDocument();
       });
     });
   });
@@ -150,8 +161,12 @@ describe("HistoricalPriceChart", () => {
   describe("Error State", () => {
     it("shows error message when API throws", async () => {
       const { default: api } = await import("../../../services/api.js");
-      vi.mocked(api.getChartData).mockRejectedValueOnce(new Error("Network error"));
-      vi.mocked(api.getStockPrices).mockRejectedValueOnce(new Error("Network error"));
+      vi.mocked(api.getChartData).mockRejectedValueOnce(
+        new Error("Network error")
+      );
+      vi.mocked(api.getStockPrices).mockRejectedValueOnce(
+        new Error("Network error")
+      );
 
       renderWithProviders(<HistoricalPriceChart symbol="AAPL" />);
 
@@ -189,7 +204,10 @@ describe("HistoricalPriceChart", () => {
       rerender(<HistoricalPriceChart symbol="TSLA" />);
 
       await waitFor(() => {
-        expect(api.getChartData).toHaveBeenCalledWith("TSLA", expect.any(Number));
+        expect(api.getChartData).toHaveBeenCalledWith(
+          "TSLA",
+          expect.any(Number)
+        );
       });
     });
   });

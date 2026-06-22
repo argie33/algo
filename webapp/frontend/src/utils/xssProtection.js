@@ -9,16 +9,16 @@
  * @returns {string} Sanitized text safe for display
  */
 export function sanitizeText(text) {
-  if (!text || typeof text !== 'string') {
-    return '';
+  if (!text || typeof text !== "string") {
+    return "";
   }
 
   const map = {
-    '&': '&amp;',
-    '<': '&lt;',
-    '>': '&gt;',
-    '"': '&quot;',
-    "'": '&#039;',
+    "&": "&amp;",
+    "<": "&lt;",
+    ">": "&gt;",
+    '"': "&quot;",
+    "'": "&#039;",
   };
 
   return text.replace(/[&<>"']/g, (char) => map[char]);
@@ -30,7 +30,7 @@ export function sanitizeText(text) {
  * @returns {string|null} Sanitized URL or null if invalid
  */
 export function sanitizeUrl(url) {
-  if (!url || typeof url !== 'string') {
+  if (!url || typeof url !== "string") {
     return null;
   }
 
@@ -38,12 +38,19 @@ export function sanitizeUrl(url) {
   url = url.trim();
 
   // Reject javascript: and data: protocols
-  if (url.toLowerCase().startsWith('javascript:') || url.toLowerCase().startsWith('data:')) {
+  if (
+    url.toLowerCase().startsWith("javascript:") ||
+    url.toLowerCase().startsWith("data:")
+  ) {
     return null;
   }
 
   // Only allow http, https, and relative URLs
-  if (!url.startsWith('http://') && !url.startsWith('https://') && !url.startsWith('/')) {
+  if (
+    !url.startsWith("http://") &&
+    !url.startsWith("https://") &&
+    !url.startsWith("/")
+  ) {
     return null;
   }
 
@@ -56,7 +63,7 @@ export function sanitizeUrl(url) {
  * @returns {object} Sanitized object
  */
 export function sanitizeObject(obj) {
-  if (!obj || typeof obj !== 'object') {
+  if (!obj || typeof obj !== "object") {
     return obj;
   }
 
@@ -66,9 +73,9 @@ export function sanitizeObject(obj) {
 
   const sanitized = {};
   for (const [key, value] of Object.entries(obj)) {
-    if (typeof value === 'string') {
+    if (typeof value === "string") {
       sanitized[key] = sanitizeText(value);
-    } else if (typeof value === 'object' && value !== null) {
+    } else if (typeof value === "object" && value !== null) {
       sanitized[key] = sanitizeObject(value);
     } else {
       sanitized[key] = value;
@@ -102,4 +109,3 @@ export default {
   sanitizeObject,
   sanitizeNumber,
 };
-

@@ -52,7 +52,6 @@ test.describe("Safari Routing Compatibility", () => {
   test("Safari should navigate to all critical routes successfully", async ({
     page,
   }) => {
-
     let successfulRoutes = 0;
     let routeTimings = [];
 
@@ -88,7 +87,9 @@ test.describe("Safari Routing Compatibility", () => {
       }
     }
 
-    console.log(`Safari routing results: ${successfulRoutes}/${routes.length} routes successful`);
+    console.log(
+      `Safari routing results: ${successfulRoutes}/${routes.length} routes successful`
+    );
     console.log(
       `â±ï¸ Average navigation time: ${Math.round(routeTimings.reduce((sum, r) => sum + r.time, 0) / routeTimings.length)}ms`
     );
@@ -100,7 +101,6 @@ test.describe("Safari Routing Compatibility", () => {
   test("Safari should handle SPA route transitions smoothly", async ({
     page,
   }) => {
-
     // Start at dashboard
     await page.goto("/", { waitUntil: "domcontentloaded", timeout: 30000 });
     await page.waitForLoadState("networkidle", { timeout: 15000 });
@@ -117,7 +117,6 @@ test.describe("Safari Routing Compatibility", () => {
 
     for (const { from: _from, to, name } of transitions) {
       try {
-
         // Navigate to the new route
         await page.goto(to, { waitUntil: "domcontentloaded", timeout: 25000 });
         await page.waitForLoadState("networkidle", { timeout: 10000 });
@@ -133,7 +132,9 @@ test.describe("Safari Routing Compatibility", () => {
       }
     }
 
-    console.log(`Safari transitions: ${successfulTransitions}/${transitions.length} successful`);
+    console.log(
+      `Safari transitions: ${successfulTransitions}/${transitions.length} successful`
+    );
 
     // Safari should handle at least 2/4 transitions successfully
     expect(successfulTransitions).toBeGreaterThanOrEqual(2);
@@ -142,7 +143,6 @@ test.describe("Safari Routing Compatibility", () => {
   test("Safari should handle browser back/forward navigation", async ({
     page,
   }) => {
-
     try {
       // Navigate through several pages
       await page.goto("/", { waitUntil: "domcontentloaded", timeout: 30000 });
@@ -192,7 +192,6 @@ test.describe("Safari Routing Compatibility", () => {
   test("Safari should load page content within reasonable timeframes", async ({
     page,
   }) => {
-
     const performanceRoutes = ["/", "/portfolio", "/market"];
     const loadTimes = [];
     let performantRoutes = 0;
@@ -236,7 +235,6 @@ test.describe("Safari Routing Compatibility", () => {
   test("Safari should maintain application state during navigation", async ({
     page,
   }) => {
-
     try {
       // Navigate to dashboard and verify initial state
       await page.goto("/", { waitUntil: "domcontentloaded", timeout: 30000 });
@@ -276,7 +274,6 @@ test.describe("Safari Routing Compatibility", () => {
       expect(initialAuth).toBeTruthy();
       expect(portfolioAuth).toBeTruthy();
       expect(finalAuth).toBeTruthy();
-
     } catch (error) {
       console.log(
         `⚠️ Safari state persistence issue: ${error.message.slice(0, 60)}`
@@ -286,4 +283,3 @@ test.describe("Safari Routing Compatibility", () => {
     }
   });
 });
-

@@ -97,7 +97,6 @@ class PortfolioAutoInit {
       );
 
       const symbols = (holdingsResult.rows || []).map((r) => r.symbol);
-      let updated = 0;
       const updateErrors = [];
 
       for (const symbol of symbols) {
@@ -149,7 +148,6 @@ class PortfolioAutoInit {
       );
 
       const holdings = holdingsResult.rows || [];
-      let calculatedCount = 0;
       let totalCost = 0;
       let totalUnrealized = 0;
       let totalMarketValue = 0;

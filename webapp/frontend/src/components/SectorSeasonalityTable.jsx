@@ -105,7 +105,8 @@ const SectorSeasonalityTable = ({ data }) => {
             Sector Monthly Seasonality Patterns
           </Typography>
           <Typography variant="caption" color="text.secondary">
-            Green = Best performing months | Red = Worst performing months | Gray = Neutral
+            Green = Best performing months | Red = Worst performing months |
+            Gray = Neutral
           </Typography>
         </Box>
 
@@ -171,48 +172,55 @@ const SectorSeasonalityTable = ({ data }) => {
                       color: theme.palette.text.primary,
                     }}
                   >
-                    {sector.sector || '—'}
+                    {sector.sector || "—"}
                   </TableCell>
 
                   {/* Monthly Cells */}
-                  {Array.from({ length: 12 }, (_, i) => i + 1).map((monthNum) => {
-                    const monthlyReturn = sector.monthlyReturns?.[monthNum - 1];
-                    const colors = getMonthColor(monthlyReturn);
-                    const status = getMonthStatus(sector, monthNum);
+                  {Array.from({ length: 12 }, (_, i) => i + 1).map(
+                    (monthNum) => {
+                      const monthlyReturn =
+                        sector.monthlyReturns?.[monthNum - 1];
+                      const colors = getMonthColor(monthlyReturn);
+                      const status = getMonthStatus(sector, monthNum);
 
-                    return (
-                      <Tooltip
-                        key={monthNum}
-                        title={`${sector.sector || 'Unknown'} in ${MONTH_FULL_NAMES[monthNum - 1]}: ${formatReturn(monthlyReturn)} avg return${
-                          status === "best" ? " (Best month)" : status === "worst" ? " (Worst month)" : ""
-                        }`}
-                        arrow
-                      >
-                        <TableCell
-                          align="center"
-                          sx={{
-                            backgroundColor: colors.bg,
-                            border: `1px solid ${colors.border}`,
-                            padding: "10px 4px",
-                            cursor: "pointer",
-                            transition: "all 0.2s ease",
-                            fontSize: "0.85rem",
-                            fontWeight: 600,
-                            color: colors.text,
-                            "&:hover": {
-                              transform: "scale(1.12)",
-                              boxShadow: `0 0 0 2px ${colors.text}`,
-                              zIndex: 1,
-                              backgroundColor: alpha(colors.text, 0.15),
-                            },
-                            userSelect: "none",
-                          }}
+                      return (
+                        <Tooltip
+                          key={monthNum}
+                          title={`${sector.sector || "Unknown"} in ${MONTH_FULL_NAMES[monthNum - 1]}: ${formatReturn(monthlyReturn)} avg return${
+                            status === "best"
+                              ? " (Best month)"
+                              : status === "worst"
+                                ? " (Worst month)"
+                                : ""
+                          }`}
+                          arrow
                         >
-                          {formatReturn(monthlyReturn)}
-                        </TableCell>
-                      </Tooltip>
-                    );
-                  })}
+                          <TableCell
+                            align="center"
+                            sx={{
+                              backgroundColor: colors.bg,
+                              border: `1px solid ${colors.border}`,
+                              padding: "10px 4px",
+                              cursor: "pointer",
+                              transition: "all 0.2s ease",
+                              fontSize: "0.85rem",
+                              fontWeight: 600,
+                              color: colors.text,
+                              "&:hover": {
+                                transform: "scale(1.12)",
+                                boxShadow: `0 0 0 2px ${colors.text}`,
+                                zIndex: 1,
+                                backgroundColor: alpha(colors.text, 0.15),
+                              },
+                              userSelect: "none",
+                            }}
+                          >
+                            {formatReturn(monthlyReturn)}
+                          </TableCell>
+                        </Tooltip>
+                      );
+                    }
+                  )}
                 </TableRow>
               ))}
             </TableBody>
@@ -221,11 +229,23 @@ const SectorSeasonalityTable = ({ data }) => {
 
         {/* Summary Statistics */}
         {seasonalityData.length > 0 && (
-          <Box sx={{ mt: 3, pt: 2, borderTop: `1px solid ${theme.palette.divider}` }}>
+          <Box
+            sx={{
+              mt: 3,
+              pt: 2,
+              borderTop: `1px solid ${theme.palette.divider}`,
+            }}
+          >
             <Typography variant="subtitle2" sx={{ mb: 2, fontWeight: 600 }}>
               Summary by Sector
             </Typography>
-            <Box sx={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(250px, 1fr))", gap: 2 }}>
+            <Box
+              sx={{
+                display: "grid",
+                gridTemplateColumns: "repeat(auto-fit, minmax(250px, 1fr))",
+                gap: 2,
+              }}
+            >
               {seasonalityData.map((sector, idx) => (
                 <Box
                   key={idx}
@@ -237,24 +257,44 @@ const SectorSeasonalityTable = ({ data }) => {
                   }}
                 >
                   <Typography variant="body2" sx={{ fontWeight: 600, mb: 1 }}>
-                    {sector.sector || '—'}
+                    {sector.sector || "—"}
                   </Typography>
-                  <Box sx={{ display: "flex", gap: 1, flexWrap: "wrap", mb: 1 }}>
-                    <Box sx={{ display: "flex", alignItems: "center", gap: 0.5 }}>
-                      <TrendingUp sx={{ fontSize: "1rem", color: theme.palette.success.main }} />
+                  <Box
+                    sx={{ display: "flex", gap: 1, flexWrap: "wrap", mb: 1 }}
+                  >
+                    <Box
+                      sx={{ display: "flex", alignItems: "center", gap: 0.5 }}
+                    >
+                      <TrendingUp
+                        sx={{
+                          fontSize: "1rem",
+                          color: theme.palette.success.main,
+                        }}
+                      />
                       <Typography variant="caption" sx={{ fontWeight: 500 }}>
                         {sector.bestMonths?.length || 0} best
                       </Typography>
                     </Box>
-                    <Box sx={{ display: "flex", alignItems: "center", gap: 0.5 }}>
-                      <TrendingDown sx={{ fontSize: "1rem", color: theme.palette.error.main }} />
+                    <Box
+                      sx={{ display: "flex", alignItems: "center", gap: 0.5 }}
+                    >
+                      <TrendingDown
+                        sx={{
+                          fontSize: "1rem",
+                          color: theme.palette.error.main,
+                        }}
+                      />
                       <Typography variant="caption" sx={{ fontWeight: 500 }}>
                         {sector.worstMonths?.length || 0} worst
                       </Typography>
                     </Box>
                   </Box>
                   {sector.rationale && (
-                    <Typography variant="caption" color="text.secondary" sx={{ display: "block", fontSize: "0.75rem" }}>
+                    <Typography
+                      variant="caption"
+                      color="text.secondary"
+                      sx={{ display: "block", fontSize: "0.75rem" }}
+                    >
                       {sector.rationale}
                     </Typography>
                   )}
@@ -269,4 +309,3 @@ const SectorSeasonalityTable = ({ data }) => {
 };
 
 export default SectorSeasonalityTable;
-

@@ -1,15 +1,15 @@
-import React, { useEffect, useState } from 'react';
-import { apiCall } from '../utils/apiService';
-import './DataQualityBadge.css'; // We'll create this CSS
+import React, { useEffect, useState } from "react";
+import { apiCall } from "../utils/apiService";
+import "./DataQualityBadge.css"; // We'll create this CSS
 
 /**
  * DataQualityBadge - Shows data completeness percentage
  * Fetches data from an API endpoint and calculates what % has all required fields
  */
 const DataQualityBadge = ({
-  apiEndpoint = '/api/scores?limit=500',
+  apiEndpoint = "/api/scores?limit=500",
   requiredFields = [],
-  componentName = 'DataQualityBadge'
+  componentName = "DataQualityBadge",
 }) => {
   const [completeness, setCompleteness] = useState(null);
   const [loading, setLoading] = useState(true);
@@ -37,7 +37,7 @@ const DataQualityBadge = ({
           setCompleteness(pct);
         }
       } catch (err) {
-        console.error('Failed to check data completeness:', err);
+        console.error("Failed to check data completeness:", err);
         setError(err.message);
       } finally {
         setLoading(false);
@@ -59,16 +59,16 @@ const DataQualityBadge = ({
     return null;
   }
 
-  let colorClass = 'badge-success';
-  let icon = '✓';
+  let colorClass = "badge-success";
+  let icon = "✓";
 
   if (completeness < 80) {
-    colorClass = 'badge-warning';
-    icon = '⚠️';
+    colorClass = "badge-warning";
+    icon = "⚠️";
   }
   if (completeness < 50) {
-    colorClass = 'badge-danger';
-    icon = '❌';
+    colorClass = "badge-danger";
+    icon = "❌";
   }
 
   return (

@@ -75,4 +75,3 @@ describe("Test Infrastructure Check", () => {
     expect(screen.getByText("MUI Button Test")).toBeInTheDocument();
   });
 });
-

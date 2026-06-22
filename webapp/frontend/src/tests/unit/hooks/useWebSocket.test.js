@@ -40,7 +40,7 @@ describe.skip("useWebSocket Hook API Contract", () => {
     await act(async () => {
       result.current.connect();
       // Wait for mock WebSocket onopen callback
-      await new Promise(resolve => setTimeout(resolve, 10));
+      await new Promise((resolve) => setTimeout(resolve, 10));
     });
 
     expect(result.current.isConnected).toBe(true);
@@ -53,7 +53,7 @@ describe.skip("useWebSocket Hook API Contract", () => {
     await act(async () => {
       result.current.connect();
       // Wait for mock WebSocket onopen callback
-      await new Promise(resolve => setTimeout(resolve, 10));
+      await new Promise((resolve) => setTimeout(resolve, 10));
     });
 
     // Should handle any connection issues gracefully
@@ -260,4 +260,3 @@ describe.skip("useWebSocket Hook API Contract", () => {
     expect(result.current.error).toBe(null);
   });
 });
-

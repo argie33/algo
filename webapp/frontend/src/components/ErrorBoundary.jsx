@@ -54,16 +54,21 @@ class ErrorBoundary extends React.Component {
     console.error("Full error:", error);
 
     // Enhanced logging for null reference errors
-    if (error && error.message &&
-        (error.message.includes("Cannot read properties of undefined") ||
-         error.message.includes("Cannot read property") ||
-         error.message.includes("is not a function") ||
-         error.message.includes("is not defined"))) {
+    if (
+      error &&
+      error.message &&
+      (error.message.includes("Cannot read properties of undefined") ||
+        error.message.includes("Cannot read property") ||
+        error.message.includes("is not a function") ||
+        error.message.includes("is not defined"))
+    ) {
       console.error("🔴 CRITICAL: Property access on undefined/null");
-      console.error("This usually means a component tried to render data that doesn't exist.");
+      console.error(
+        "This usually means a component tried to render data that doesn't exist."
+      );
       console.error("Check that API responses have the expected structure.");
       if (errorInfo?.componentStack) {
-        const firstComponent = errorInfo.componentStack.split('\n')[0];
+        const firstComponent = errorInfo.componentStack.split("\n")[0];
         console.error("Component that failed:", firstComponent);
       }
     }
@@ -118,21 +123,21 @@ class ErrorBoundary extends React.Component {
 
   getErrorSummary = () => {
     const error = this.state.error;
-    if (!error) return 'An unexpected error occurred';
+    if (!error) return "An unexpected error occurred";
 
-    const msg = error?.message || '';
-    if (msg.includes('Cannot read') || msg.includes('Cannot access')) {
-      return 'Data structure error - the application received unexpected data format. This may indicate incomplete data from the server.';
-    } else if (msg.includes('is not a function')) {
-      return 'Function error - the application tried to call a non-existent function';
-    } else if (msg.includes('Network') || msg.includes('ECONNREFUSED')) {
-      return 'Network error - unable to communicate with the server';
-    } else if (msg.includes('timeout')) {
-      return 'Request timeout - the server took too long to respond';
-    } else if (msg.includes('null')) {
-      return 'Missing data error - the application tried to process null or undefined data';
+    const msg = error?.message || "";
+    if (msg.includes("Cannot read") || msg.includes("Cannot access")) {
+      return "Data structure error - the application received unexpected data format. This may indicate incomplete data from the server.";
+    } else if (msg.includes("is not a function")) {
+      return "Function error - the application tried to call a non-existent function";
+    } else if (msg.includes("Network") || msg.includes("ECONNREFUSED")) {
+      return "Network error - unable to communicate with the server";
+    } else if (msg.includes("timeout")) {
+      return "Request timeout - the server took too long to respond";
+    } else if (msg.includes("null")) {
+      return "Missing data error - the application tried to process null or undefined data";
     }
-    return msg || 'An unexpected error occurred';
+    return msg || "An unexpected error occurred";
   };
 
   static reportApiError = (errorInfo) => {
@@ -142,10 +147,12 @@ class ErrorBoundary extends React.Component {
     console.error(`[API Error ${errorId}]`, errorInfo);
 
     // Optionally: Create a global error event that a parent ErrorBoundary could catch
-    if (typeof window !== 'undefined') {
-      window.dispatchEvent(new CustomEvent('apiError', {
-        detail: { ...errorInfo, errorId }
-      }));
+    if (typeof window !== "undefined") {
+      window.dispatchEvent(
+        new CustomEvent("apiError", {
+          detail: { ...errorInfo, errorId },
+        })
+      );
     }
 
     return errorId;
@@ -246,7 +253,13 @@ class ErrorBoundary extends React.Component {
                             Error ID: <code>{this.state.errorId}</code>
                           </Typography>
                         </Box>
-                        <Tooltip title={this.state.copiedToClipboard ? "Copied!" : "Copy error ID"}>
+                        <Tooltip
+                          title={
+                            this.state.copiedToClipboard
+                              ? "Copied!"
+                              : "Copy error ID"
+                          }
+                        >
                           <Button
                             size="small"
                             onClick={this.handleCopyErrorId}
@@ -264,7 +277,8 @@ class ErrorBoundary extends React.Component {
                         </Tooltip>
                       </Stack>
                       <Typography variant="caption" color="text.secondary">
-                        Please provide the error ID above when contacting support for faster assistance.
+                        Please provide the error ID above when contacting
+                        support for faster assistance.
                       </Typography>
                     </Stack>
                   </Alert>
@@ -344,4 +358,3 @@ class ErrorBoundary extends React.Component {
 }
 
 export default ErrorBoundary;
-

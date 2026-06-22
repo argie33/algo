@@ -16,7 +16,7 @@
  *   </DataSection>
  */
 
-import { useApiQuery, useApiPaginatedQuery } from './useApiQuery';
+import { useApiQuery, useApiPaginatedQuery } from "./useApiQuery";
 
 export function useApiWithState(key, queryFn, options = {}, paginated = false) {
   const hookFn = paginated ? useApiPaginatedQuery : useApiQuery;
@@ -32,7 +32,13 @@ export function useApiWithState(key, queryFn, options = {}, paginated = false) {
     error,
     isLoading,
     refetch: result.refetch,
-    status: isLoading ? 'loading' : error ? 'error' : !data ? 'empty' : 'success',
+    status: isLoading
+      ? "loading"
+      : error
+        ? "error"
+        : !data
+          ? "empty"
+          : "success",
   };
 }
 
@@ -53,7 +59,7 @@ export function useApiWithState(key, queryFn, options = {}, paginated = false) {
  *   {apis.anyLoading && <Spinner />}
  *   {apis.anyError && <ErrorBanner errors={apis.errors} />}
  */
-import { useMemo } from 'react';
+import { useMemo } from "react";
 
 export function useBatchApiState(apiMap, options = {}) {
   // Sort keys to ensure deterministic hook call order (prevent Rules of Hooks violation)
@@ -69,10 +75,12 @@ export function useBatchApiState(apiMap, options = {}) {
   });
 
   // Compute aggregate state
-  const anyLoading = Object.values(results).some(s => s.isLoading);
-  const anyError = Object.values(results).some(s => s.error);
+  const anyLoading = Object.values(results).some((s) => s.isLoading);
+  const anyError = Object.values(results).some((s) => s.error);
   const errors = Object.fromEntries(
-    Object.entries(results).filter(([_, s]) => s.error).map(([name, s]) => [name, s.error])
+    Object.entries(results)
+      .filter(([_, s]) => s.error)
+      .map(([name, s]) => [name, s.error])
   );
 
   return {
@@ -83,4 +91,3 @@ export function useBatchApiState(apiMap, options = {}) {
     allReady: !anyLoading && !anyError,
   };
 }
-

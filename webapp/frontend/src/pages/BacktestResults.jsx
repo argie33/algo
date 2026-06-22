@@ -3,53 +3,70 @@
  * Pure JSX + theme.css classes.
  */
 
-import React, { useState } from 'react';
-import { useNavigate } from 'react-router-dom';
+import React, { useState } from "react";
+import { useNavigate } from "react-router-dom";
 import {
-  RefreshCw, ChevronLeft, ChevronRight, ArrowLeft, Inbox, AlertCircle,
-} from 'lucide-react';
+  RefreshCw,
+  ChevronLeft,
+  ChevronRight,
+  ArrowLeft,
+  Inbox,
+  AlertCircle,
+} from "lucide-react";
 import {
-  AreaChart, Area, XAxis, YAxis, Tooltip,
-  ResponsiveContainer, CartesianGrid,
-} from 'recharts';
-import { useApiQuery, useApiPaginatedQuery } from '../hooks/useApiQuery';
-import { api } from '../services/api';
-import { num, pct, fmtDate } from '../components/dashboard/shared/utils/dashboardFormatters';
-import ErrorBoundary from '../components/ErrorBoundary';
+  AreaChart,
+  Area,
+  XAxis,
+  YAxis,
+  Tooltip,
+  ResponsiveContainer,
+  CartesianGrid,
+} from "recharts";
+import { useApiQuery, useApiPaginatedQuery } from "../hooks/useApiQuery";
+import { api } from "../services/api";
+import {
+  num,
+  pct,
+  fmtDate,
+} from "../components/dashboard/shared/utils/dashboardFormatters";
+import ErrorBoundary from "../components/ErrorBoundary";
 
 const TOOLTIP_STYLE = {
-  background: 'var(--surface)',
-  border: '1px solid var(--border)',
-  borderRadius: 'var(--r-sm)',
-  fontSize: 'var(--t-xs)',
-  padding: 'var(--space-2) var(--space-3)',
+  background: "var(--surface)",
+  border: "1px solid var(--border)",
+  borderRadius: "var(--r-sm)",
+  fontSize: "var(--t-xs)",
+  padding: "var(--space-2) var(--space-3)",
 };
 
 function BacktestResultsContent() {
   const [filters, setFilters] = useState({
-    strategy_name: '',
-    sort_by: 'run_timestamp',
-    order: 'desc',
+    strategy_name: "",
+    sort_by: "run_timestamp",
+    order: "desc",
     limit: 20,
     offset: 0,
   });
   const [selectedRun, setSelectedRun] = useState(null);
 
-  const { items: runs, pagination, loading: isLoading, error: listErr, refetch } = useApiPaginatedQuery(
-    ['backtest-runs', filters],
-    () => {
-      const p = new URLSearchParams();
-      if (filters.strategy_name) p.set('strategy_name', filters.strategy_name);
-      p.set('limit', filters.limit);
-      p.set('offset', filters.offset);
-      p.set('sort_by', filters.sort_by);
-      p.set('order', filters.order);
-      return api.get(`/api/research/backtests?${p.toString()}`);
-    }
-  );
+  const {
+    items: runs,
+    pagination,
+    loading: isLoading,
+    error: listErr,
+    refetch,
+  } = useApiPaginatedQuery(["backtest-runs", filters], () => {
+    const p = new URLSearchParams();
+    if (filters.strategy_name) p.set("strategy_name", filters.strategy_name);
+    p.set("limit", filters.limit);
+    p.set("offset", filters.offset);
+    p.set("sort_by", filters.sort_by);
+    p.set("order", filters.order);
+    return api.get(`/api/research/backtests?${p.toString()}`);
+  });
 
   const { data: detail, loading: detailLoading } = useApiQuery(
-    ['backtest-detail', selectedRun],
+    ["backtest-detail", selectedRun],
     () => api.get(`/api/research/backtests/${selectedRun}`),
     { enabled: !!selectedRun }
   );
@@ -58,8 +75,12 @@ function BacktestResultsContent() {
     if (detailLoading) {
       return (
         <div className="main-content">
-          <div style={{ padding: '40px', textAlign: 'center' }}>
-            <RefreshCw size={24} className="animate-spin" style={{ marginBottom: '16px' }} />
+          <div style={{ padding: "40px", textAlign: "center" }}>
+            <RefreshCw
+              size={24}
+              className="animate-spin"
+              style={{ marginBottom: "16px" }}
+            />
             <div className="muted">Loading backtest details…</div>
           </div>
         </div>
@@ -89,11 +110,17 @@ function BacktestResultsContent() {
       {/* Filters */}
       <div className="card">
         <div className="card-body">
-          <div className="flex items-center gap-3" style={{ flexWrap: 'wrap' }}>
+          <div className="flex items-center gap-3" style={{ flexWrap: "wrap" }}>
             <select
               className="select"
               value={filters.strategy_name}
-              onChange={(e) => setFilters({ ...filters, strategy_name: e.target.value, offset: 0 })}
+              onChange={(e) =>
+                setFilters({
+                  ...filters,
+                  strategy_name: e.target.value,
+                  offset: 0,
+                })
+              }
             >
               <option value="">All strategies</option>
               <option value="swing">Swing breakout</option>
@@ -103,7 +130,9 @@ function BacktestResultsContent() {
             <select
               className="select"
               value={filters.sort_by}
-              onChange={(e) => setFilters({ ...filters, sort_by: e.target.value })}
+              onChange={(e) =>
+                setFilters({ ...filters, sort_by: e.target.value })
+              }
             >
               <option value="run_timestamp">Date</option>
               <option value="win_rate">Win rate</option>
@@ -114,12 +143,14 @@ function BacktestResultsContent() {
             <select
               className="select"
               value={filters.order}
-              onChange={(e) => setFilters({ ...filters, order: e.target.value })}
+              onChange={(e) =>
+                setFilters({ ...filters, order: e.target.value })
+              }
             >
               <option value="desc">Desc</option>
               <option value="asc">Asc</option>
             </select>
-            <span className="t-xs muted" style={{ marginLeft: 'auto' }}>
+            <span className="t-xs muted" style={{ marginLeft: "auto" }}>
               {pagination.total ?? 0} runs total
             </span>
           </div>
@@ -127,19 +158,25 @@ function BacktestResultsContent() {
       </div>
 
       {/* List */}
-      <div className="card" style={{ marginTop: 'var(--space-4)' }}>
+      <div className="card" style={{ marginTop: "var(--space-4)" }}>
         <div className="card-body" style={{ padding: 0 }}>
           {listErr ? (
-            <div className="alert alert-danger" style={{ margin: 'var(--space-4)' }}>
+            <div
+              className="alert alert-danger"
+              style={{ margin: "var(--space-4)" }}
+            >
               <AlertCircle size={16} />
-              <div>{listErr.message || 'Failed to load runs'}</div>
+              <div>{listErr.message || "Failed to load runs"}</div>
             </div>
           ) : isLoading ? (
             <Empty title="Loading…" />
           ) : runs.length === 0 ? (
-            <Empty title="No backtest runs" desc="Trigger a walk-forward run to populate this list." />
+            <Empty
+              title="No backtest runs"
+              desc="Trigger a walk-forward run to populate this list."
+            />
           ) : (
-            <div style={{ overflow: 'auto' }}>
+            <div style={{ overflow: "auto" }}>
               <table className="data-table">
                 <thead>
                   <tr>
@@ -158,25 +195,42 @@ function BacktestResultsContent() {
                 <tbody>
                   {runs.map((r) => (
                     <tr key={r.run_id}>
-                      <td><span className="strong">{r.run_name}</span></td>
+                      <td>
+                        <span className="strong">{r.run_name}</span>
+                      </td>
                       <td className="muted t-xs">{r.strategy_name}</td>
-                      <td className="t-xs muted">{fmtDate(r.date_start)} → {fmtDate(r.date_end)}</td>
-                      <td className="num mono tnum">{r.total_signals ?? '—'}</td>
+                      <td className="t-xs muted">
+                        {fmtDate(r.date_start)} → {fmtDate(r.date_end)}
+                      </td>
+                      <td className="num mono tnum">
+                        {r.total_signals ?? "—"}
+                      </td>
                       <td className="num">
-                        <span className={`badge ${(r.win_rate >= 50) ? 'badge-success' : 'badge-amber'}`}>
+                        <span
+                          className={`badge ${r.win_rate >= 50 ? "badge-success" : "badge-amber"}`}
+                        >
                           {pct(r.win_rate)}
                         </span>
                       </td>
-                      <td className="num mono tnum">{num(r.expectancy_per_trade, 3)}</td>
-                      <td className="num mono tnum down">{pct(r.max_drawdown_pct)}</td>
+                      <td className="num mono tnum">
+                        {num(r.expectancy_per_trade, 3)}
+                      </td>
+                      <td className="num mono tnum down">
+                        {pct(r.max_drawdown_pct)}
+                      </td>
                       <td className="num mono tnum">{num(r.sharpe)}</td>
                       <td className="num">
-                        <span className={`badge ${(r.total_return_pct >= 0) ? 'badge-success' : 'badge-danger'}`}>
+                        <span
+                          className={`badge ${r.total_return_pct >= 0 ? "badge-success" : "badge-danger"}`}
+                        >
                           {pct(r.total_return_pct)}
                         </span>
                       </td>
                       <td>
-                        <button className="btn btn-outline btn-sm" onClick={() => setSelectedRun(r.run_id)}>
+                        <button
+                          className="btn btn-outline btn-sm"
+                          onClick={() => setSelectedRun(r.run_id)}
+                        >
                           View
                         </button>
                       </td>
@@ -191,19 +245,37 @@ function BacktestResultsContent() {
 
       {/* Pagination */}
       {runs.length > 0 && (
-        <div className="flex items-center justify-between" style={{ marginTop: 'var(--space-4)' }}>
+        <div
+          className="flex items-center justify-between"
+          style={{ marginTop: "var(--space-4)" }}
+        >
           <span className="t-xs muted">
-            Page {pagination.page ?? 1} of {pagination.totalPages ?? 1} · {pagination.total ?? 0} runs
+            Page {pagination.page ?? 1} of {pagination.totalPages ?? 1} ·{" "}
+            {pagination.total ?? 0} runs
           </span>
           <div className="flex items-center gap-2">
-            <button className="btn btn-outline btn-sm"
-                    disabled={!pagination.hasPrev}
-                    onClick={() => setFilters({ ...filters, offset: Math.max(0, filters.offset - filters.limit) })}>
+            <button
+              className="btn btn-outline btn-sm"
+              disabled={!pagination.hasPrev}
+              onClick={() =>
+                setFilters({
+                  ...filters,
+                  offset: Math.max(0, filters.offset - filters.limit),
+                })
+              }
+            >
               <ChevronLeft size={14} /> Prev
             </button>
-            <button className="btn btn-outline btn-sm"
-                    disabled={!pagination.hasNext}
-                    onClick={() => setFilters({ ...filters, offset: filters.offset + filters.limit })}>
+            <button
+              className="btn btn-outline btn-sm"
+              disabled={!pagination.hasNext}
+              onClick={() =>
+                setFilters({
+                  ...filters,
+                  offset: filters.offset + filters.limit,
+                })
+              }
+            >
               Next <ChevronRight size={14} />
             </button>
           </div>
@@ -232,10 +304,14 @@ function RunDetail({ detail, onBack }) {
     <div className="main-content">
       <div className="page-head">
         <div>
-          <button className="btn btn-ghost btn-sm" onClick={onBack} style={{ marginBottom: 'var(--space-2)' }}>
+          <button
+            className="btn btn-ghost btn-sm"
+            onClick={onBack}
+            style={{ marginBottom: "var(--space-2)" }}
+          >
             <ArrowLeft size={14} /> Back to runs
           </button>
-          <div className="page-head-title">{r.run_name || 'Run'}</div>
+          <div className="page-head-title">{r.run_name || "Run"}</div>
           <div className="page-head-sub">
             {r.strategy_name} · {fmtDate(r.date_start)} → {fmtDate(r.date_end)}
           </div>
@@ -244,56 +320,110 @@ function RunDetail({ detail, onBack }) {
 
       {/* KPIs */}
       <div className="grid grid-4">
-        <Kpi label="Total Signals" value={<span className="mono tnum">{r.total_signals ?? '—'}</span>} />
-        <Kpi label="Win Rate" value={<span className="mono tnum">{pct(r.win_rate)}</span>}
-             tone={r.win_rate >= 50 ? 'up' : 'down'} />
-        <Kpi label="Expectancy" value={<span className="mono tnum">{num(r.expectancy_per_trade, 3)}</span>}
-             tone={r.expectancy_per_trade > 0 ? 'up' : 'down'} />
-        <Kpi label="Sharpe" value={<span className="mono tnum">{num(r.sharpe)}</span>}
-             tone={r.sharpe > 1 ? 'up' : ''} />
+        <Kpi
+          label="Total Signals"
+          value={<span className="mono tnum">{r.total_signals ?? "—"}</span>}
+        />
+        <Kpi
+          label="Win Rate"
+          value={<span className="mono tnum">{pct(r.win_rate)}</span>}
+          tone={r.win_rate >= 50 ? "up" : "down"}
+        />
+        <Kpi
+          label="Expectancy"
+          value={
+            <span className="mono tnum">{num(r.expectancy_per_trade, 3)}</span>
+          }
+          tone={r.expectancy_per_trade > 0 ? "up" : "down"}
+        />
+        <Kpi
+          label="Sharpe"
+          value={<span className="mono tnum">{num(r.sharpe)}</span>}
+          tone={r.sharpe > 1 ? "up" : ""}
+        />
       </div>
-      <div className="grid grid-4" style={{ marginTop: 'var(--space-4)' }}>
-        <Kpi label="Profit Factor" value={<span className="mono tnum">{num(r.profit_factor)}</span>}
-             tone={r.profit_factor > 1.5 ? 'up' : ''} />
-        <Kpi label="Max Drawdown" value={<span className="mono tnum down">{pct(r.max_drawdown_pct)}</span>} />
-        <Kpi label="Avg Win" value={<span className="mono tnum up">{pct(r.avg_win_pct, 2)}</span>} />
-        <Kpi label="Avg Loss" value={<span className="mono tnum down">{pct(r.avg_loss_pct, 2)}</span>} />
+      <div className="grid grid-4" style={{ marginTop: "var(--space-4)" }}>
+        <Kpi
+          label="Profit Factor"
+          value={<span className="mono tnum">{num(r.profit_factor)}</span>}
+          tone={r.profit_factor > 1.5 ? "up" : ""}
+        />
+        <Kpi
+          label="Max Drawdown"
+          value={
+            <span className="mono tnum down">{pct(r.max_drawdown_pct)}</span>
+          }
+        />
+        <Kpi
+          label="Avg Win"
+          value={<span className="mono tnum up">{pct(r.avg_win_pct, 2)}</span>}
+        />
+        <Kpi
+          label="Avg Loss"
+          value={
+            <span className="mono tnum down">{pct(r.avg_loss_pct, 2)}</span>
+          }
+        />
       </div>
 
       {r.notes && (
-        <div className="card" style={{ marginTop: 'var(--space-4)' }}>
+        <div className="card" style={{ marginTop: "var(--space-4)" }}>
           <div className="card-body">
             <div className="eyebrow">Notes</div>
-            <div className="t-sm" style={{ marginTop: 'var(--space-2)' }}>{r.notes}</div>
+            <div className="t-sm" style={{ marginTop: "var(--space-2)" }}>
+              {r.notes}
+            </div>
           </div>
         </div>
       )}
 
       {/* Equity curve */}
       {Array.isArray(r.equity_curve) && r.equity_curve.length > 0 && (
-        <div className="card" style={{ marginTop: 'var(--space-4)' }}>
+        <div className="card" style={{ marginTop: "var(--space-4)" }}>
           <div className="card-head">
             <div>
               <div className="card-title">Equity Curve</div>
-              <div className="card-sub">Portfolio value over backtest window</div>
+              <div className="card-sub">
+                Portfolio value over backtest window
+              </div>
             </div>
           </div>
           <div className="card-body">
             <div className="chart-container" style={{ height: 300 }}>
               <ResponsiveContainer width="100%" height="100%">
-                <AreaChart data={r.equity_curve} margin={{ top: 8, right: 8, left: 0, bottom: 0 }}>
+                <AreaChart
+                  data={r.equity_curve}
+                  margin={{ top: 8, right: 8, left: 0, bottom: 0 }}
+                >
                   <defs>
                     <linearGradient id="bkEq" x1="0" y1="0" x2="0" y2="1">
-                      <stop offset="0%" stopColor="var(--brand)" stopOpacity={0.4} />
-                      <stop offset="100%" stopColor="var(--brand)" stopOpacity={0} />
+                      <stop
+                        offset="0%"
+                        stopColor="var(--brand)"
+                        stopOpacity={0.4}
+                      />
+                      <stop
+                        offset="100%"
+                        stopColor="var(--brand)"
+                        stopOpacity={0}
+                      />
                     </linearGradient>
                   </defs>
-                  <CartesianGrid stroke="var(--border-soft)" strokeDasharray="2 4" />
+                  <CartesianGrid
+                    stroke="var(--border-soft)"
+                    strokeDasharray="2 4"
+                  />
                   <XAxis dataKey="date" stroke="var(--text-3)" fontSize={11} />
                   <YAxis stroke="var(--text-3)" fontSize={11} />
                   <Tooltip contentStyle={TOOLTIP_STYLE} />
-                  <Area type="monotone" dataKey="equity" stroke="var(--brand)" strokeWidth={2} connectNulls={true}
-                        fill="url(#bkEq)" />
+                  <Area
+                    type="monotone"
+                    dataKey="equity"
+                    stroke="var(--brand)"
+                    strokeWidth={2}
+                    connectNulls={true}
+                    fill="url(#bkEq)"
+                  />
                 </AreaChart>
               </ResponsiveContainer>
             </div>
@@ -302,7 +432,7 @@ function RunDetail({ detail, onBack }) {
       )}
 
       {/* Trades */}
-      <div className="card" style={{ marginTop: 'var(--space-4)' }}>
+      <div className="card" style={{ marginTop: "var(--space-4)" }}>
         <div className="card-head">
           <div>
             <div className="card-title">Trades ({tp.total})</div>
@@ -313,7 +443,7 @@ function RunDetail({ detail, onBack }) {
           {trades.length === 0 ? (
             <Empty title="No trades on this run" />
           ) : (
-            <div style={{ maxHeight: '60vh', overflow: 'auto' }}>
+            <div style={{ maxHeight: "60vh", overflow: "auto" }}>
               <table className="data-table">
                 <thead>
                   <tr>
@@ -335,7 +465,7 @@ function RunDetail({ detail, onBack }) {
                       <td>
                         <span
                           className="strong"
-                          style={{ cursor: 'pointer' }}
+                          style={{ cursor: "pointer" }}
                           onClick={() => navigate(`/app/stock/${t.symbol}`)}
                         >
                           {t.symbol}
@@ -346,12 +476,21 @@ function RunDetail({ detail, onBack }) {
                       <td className="num mono tnum">${num(t.entry_price)}</td>
                       <td className="num mono tnum">${num(t.exit_price)}</td>
                       <td className="num">
-                        <span className={`mono tnum ${t.return_pct >= 0 ? 'up' : 'down'}`}>
+                        <span
+                          className={`mono tnum ${t.return_pct >= 0 ? "up" : "down"}`}
+                        >
                           {pct(t.return_pct, 2)}
                         </span>
                       </td>
-                      <td className="t-xs muted" style={{ textTransform: 'uppercase' }}>{t.outcome}</td>
-                      <td className="num mono tnum muted">{t.days_held ?? '—'}</td>
+                      <td
+                        className="t-xs muted"
+                        style={{ textTransform: "uppercase" }}
+                      >
+                        {t.outcome}
+                      </td>
+                      <td className="num mono tnum muted">
+                        {t.days_held ?? "—"}
+                      </td>
                       <td className="num mono tnum up">{pct(t.mfe_pct)}</td>
                       <td className="num mono tnum down">{pct(t.mae_pct)}</td>
                     </tr>
@@ -368,10 +507,16 @@ function RunDetail({ detail, onBack }) {
 
 function Kpi({ label, value, tone }) {
   return (
-    <div className="card" style={{ padding: 'var(--space-5) var(--space-6)' }}>
+    <div className="card" style={{ padding: "var(--space-5) var(--space-6)" }}>
       <div className="eyebrow">{label}</div>
-      <div className={`mono ${tone || ''}`}
-           style={{ fontSize: 'var(--t-xl)', fontWeight: 'var(--w-bold)', marginTop: 'var(--space-2)' }}>
+      <div
+        className={`mono ${tone || ""}`}
+        style={{
+          fontSize: "var(--t-xl)",
+          fontWeight: "var(--w-bold)",
+          marginTop: "var(--space-2)",
+        }}
+      >
         {value}
       </div>
     </div>
@@ -387,4 +532,3 @@ function Empty({ title, desc }) {
     </div>
   );
 }
-

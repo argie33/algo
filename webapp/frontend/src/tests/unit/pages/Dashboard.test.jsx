@@ -39,11 +39,17 @@ vi.mock("../../../contexts/AuthContext.jsx", () => ({
 // api.get is the key method. Named export "api" is also used in the component.
 vi.mock("../../../services/api.js", () => {
   const mockGet = vi.fn().mockResolvedValue({ data: {} });
-  const mockApi = { get: mockGet, post: vi.fn().mockResolvedValue({ data: {} }) };
+  const mockApi = {
+    get: mockGet,
+    post: vi.fn().mockResolvedValue({ data: {} }),
+  };
   return {
     default: mockApi,
     api: mockApi,
-    getApiConfig: vi.fn(() => ({ apiUrl: "http://localhost:3001", environment: "test" })),
+    getApiConfig: vi.fn(() => ({
+      apiUrl: "http://localhost:3001",
+      environment: "test",
+    })),
     getPortfolioData: vi.fn().mockResolvedValue({ success: true, data: {} }),
     getStockPrices: vi.fn().mockResolvedValue({ success: true, data: {} }),
     getStockMetrics: vi.fn().mockResolvedValue({ success: true, data: {} }),
@@ -51,7 +57,9 @@ vi.mock("../../../services/api.js", () => {
     getMarketOverview: vi.fn().mockResolvedValue({ success: true, data: {} }),
     getApiKeys: vi.fn().mockResolvedValue({ success: true, data: [] }),
     testApiConnection: vi.fn().mockResolvedValue({ success: true }),
-    importPortfolioFromBroker: vi.fn().mockResolvedValue({ success: true, data: [] }),
+    importPortfolioFromBroker: vi
+      .fn()
+      .mockResolvedValue({ success: true, data: [] }),
     healthCheck: vi.fn().mockResolvedValue({ success: true }),
   };
 });
@@ -64,12 +72,30 @@ vi.mock("../../../services/dataCache.js", () => ({
 }));
 
 vi.mock("recharts", () => ({
-  ResponsiveContainer: ({ children }) => <div data-testid="chart-container">{children}</div>,
-  LineChart: ({ data }) => <div data-testid="line-chart">Line Chart with {data?.length || 0} points</div>,
-  AreaChart: ({ data }) => <div data-testid="area-chart">Area Chart with {data?.length || 0} points</div>,
-  BarChart: ({ data }) => <div data-testid="bar-chart">Bar Chart with {data?.length || 0} bars</div>,
-  PieChart: ({ data }) => <div data-testid="pie-chart">Pie Chart with {data?.length || 0} segments</div>,
-  Pie: ({ data }) => <div data-testid="pie">Pie with {data?.length || 0} segments</div>,
+  ResponsiveContainer: ({ children }) => (
+    <div data-testid="chart-container">{children}</div>
+  ),
+  LineChart: ({ data }) => (
+    <div data-testid="line-chart">
+      Line Chart with {data?.length || 0} points
+    </div>
+  ),
+  AreaChart: ({ data }) => (
+    <div data-testid="area-chart">
+      Area Chart with {data?.length || 0} points
+    </div>
+  ),
+  BarChart: ({ data }) => (
+    <div data-testid="bar-chart">Bar Chart with {data?.length || 0} bars</div>
+  ),
+  PieChart: ({ data }) => (
+    <div data-testid="pie-chart">
+      Pie Chart with {data?.length || 0} segments
+    </div>
+  ),
+  Pie: ({ data }) => (
+    <div data-testid="pie">Pie with {data?.length || 0} segments</div>
+  ),
   Line: () => <div>Line</div>,
   Area: () => <div>Area</div>,
   Bar: () => <div>Bar</div>,
@@ -123,14 +149,18 @@ describe("Dashboard Page", () => {
     it("should have a Refresh button", async () => {
       renderWithProviders(<Dashboard />);
       await waitFor(() => {
-        expect(screen.getByRole("button", { name: /Refresh/i })).toBeInTheDocument();
+        expect(
+          screen.getByRole("button", { name: /Refresh/i })
+        ).toBeInTheDocument();
       });
     });
 
     it("should have a Terminal Dashboard button", async () => {
       renderWithProviders(<Dashboard />);
       await waitFor(() => {
-        expect(screen.getByRole("button", { name: /Terminal Dashboard/i })).toBeInTheDocument();
+        expect(
+          screen.getByRole("button", { name: /Terminal Dashboard/i })
+        ).toBeInTheDocument();
       });
     });
 
@@ -207,9 +237,14 @@ describe("Dashboard Page", () => {
 
       try {
         renderWithProviders(<Dashboard />);
-        await waitFor(() => { expect(document.body).toBeTruthy(); });
+        await waitFor(() => {
+          expect(document.body).toBeTruthy();
+        });
       } catch (error) {
-        if (error.message?.includes("Should not already be working") || error.message?.includes("act")) {
+        if (
+          error.message?.includes("Should not already be working") ||
+          error.message?.includes("act")
+        ) {
           expect(true).toBeTruthy();
         } else {
           throw error;

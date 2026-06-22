@@ -29,10 +29,15 @@ const MarketCorrelation = ({ data, isLoading, error }) => {
   const { correlations, statistics, analysis } = data;
 
   // Handle case where correlations might be undefined or empty
-  if (!correlations || !Array.isArray(correlations) || correlations.length === 0) {
+  if (
+    !correlations ||
+    !Array.isArray(correlations) ||
+    correlations.length === 0
+  ) {
     return (
       <Alert severity="info">
-        Correlation data not yet available. Historical price data for analysis is loading.
+        Correlation data not yet available. Historical price data for analysis
+        is loading.
       </Alert>
     );
   }
@@ -52,7 +57,8 @@ const MarketCorrelation = ({ data, isLoading, error }) => {
   };
 
   const getTextColor = (value) => {
-    if (value === null || value === undefined) return theme.palette.text.secondary;
+    if (value === null || value === undefined)
+      return theme.palette.text.secondary;
     if (value >= 0.5 || value <= -0.5) return theme.palette.common.white;
     return theme.palette.text.primary;
   };
@@ -143,13 +149,19 @@ const MarketCorrelation = ({ data, isLoading, error }) => {
               </Box>
 
               <Box sx={{ mt: 3, p: 2, bgcolor: "grey.50", borderRadius: 1 }}>
-                <Typography variant="body2" color="text.secondary" sx={{ mb: 2 }}>
-                  <strong>Color Scale:</strong> Green = Highly Correlated | Blue = Moderately
-                  Correlated | Gray = No Correlation | Red = Negatively Correlated
+                <Typography
+                  variant="body2"
+                  color="text.secondary"
+                  sx={{ mb: 2 }}
+                >
+                  <strong>Color Scale:</strong> Green = Highly Correlated | Blue
+                  = Moderately Correlated | Gray = No Correlation | Red =
+                  Negatively Correlated
                 </Typography>
                 <Typography variant="body2" color="text.secondary">
-                  <strong>Note:</strong> Diagonal is always 1.0 (perfect correlation with itself).
-                  Null values indicate insufficient data.
+                  <strong>Note:</strong> Diagonal is always 1.0 (perfect
+                  correlation with itself). Null values indicate insufficient
+                  data.
                 </Typography>
               </Box>
             </CardContent>
@@ -166,13 +178,20 @@ const MarketCorrelation = ({ data, isLoading, error }) => {
 
               <Box sx={{ display: "flex", flexDirection: "column", gap: 2 }}>
                 <Box sx={{ p: 2, bgcolor: "grey.50", borderRadius: 1 }}>
-                  <Typography variant="body2" color="text.secondary" sx={{ mb: 0.5 }}>
+                  <Typography
+                    variant="body2"
+                    color="text.secondary"
+                    sx={{ mb: 0.5 }}
+                  >
                     Average Correlation
                   </Typography>
                   <Typography variant="h6" sx={{ fontWeight: 600 }}>
                     {statistics.avg_correlation !== null
                       ? (() => {
-                          const num = typeof statistics.avg_correlation === 'number' ? statistics.avg_correlation : parseFloat(statistics.avg_correlation) || 0;
+                          const num =
+                            typeof statistics.avg_correlation === "number"
+                              ? statistics.avg_correlation
+                              : parseFloat(statistics.avg_correlation) || 0;
                           return isNaN(num) ? "N/A" : num.toFixed(2);
                         })()
                       : "N/A"}
@@ -180,18 +199,30 @@ const MarketCorrelation = ({ data, isLoading, error }) => {
                 </Box>
 
                 <Box sx={{ p: 2, bgcolor: "grey.50", borderRadius: 1 }}>
-                  <Typography variant="body2" color="text.secondary" sx={{ mb: 0.5 }}>
+                  <Typography
+                    variant="body2"
+                    color="text.secondary"
+                    sx={{ mb: 0.5 }}
+                  >
                     Maximum Correlation
                   </Typography>
                   <Typography variant="h6" sx={{ fontWeight: 600 }}>
                     {statistics.max_correlation?.value !== null
                       ? (() => {
-                          const num = typeof statistics.max_correlation.value === 'number' ? statistics.max_correlation.value : parseFloat(statistics.max_correlation.value) || 0;
+                          const num =
+                            typeof statistics.max_correlation.value === "number"
+                              ? statistics.max_correlation.value
+                              : parseFloat(statistics.max_correlation.value) ||
+                                0;
                           return isNaN(num) ? "N/A" : num.toFixed(2);
                         })()
                       : "N/A"}
                     {statistics.max_correlation?.pair?.length === 2 && (
-                      <Typography variant="caption" color="text.secondary" sx={{ ml: 1 }}>
+                      <Typography
+                        variant="caption"
+                        color="text.secondary"
+                        sx={{ ml: 1 }}
+                      >
                         ({statistics.max_correlation.pair.join(" & ")})
                       </Typography>
                     )}
@@ -199,18 +230,30 @@ const MarketCorrelation = ({ data, isLoading, error }) => {
                 </Box>
 
                 <Box sx={{ p: 2, bgcolor: "grey.50", borderRadius: 1 }}>
-                  <Typography variant="body2" color="text.secondary" sx={{ mb: 0.5 }}>
+                  <Typography
+                    variant="body2"
+                    color="text.secondary"
+                    sx={{ mb: 0.5 }}
+                  >
                     Minimum Correlation
                   </Typography>
                   <Typography variant="h6" sx={{ fontWeight: 600 }}>
                     {statistics.min_correlation?.value !== null
                       ? (() => {
-                          const num = typeof statistics.min_correlation.value === 'number' ? statistics.min_correlation.value : parseFloat(statistics.min_correlation.value) || 0;
+                          const num =
+                            typeof statistics.min_correlation.value === "number"
+                              ? statistics.min_correlation.value
+                              : parseFloat(statistics.min_correlation.value) ||
+                                0;
                           return isNaN(num) ? "N/A" : num.toFixed(2);
                         })()
                       : "N/A"}
                     {statistics.min_correlation?.pair?.length === 2 && (
-                      <Typography variant="caption" color="text.secondary" sx={{ ml: 1 }}>
+                      <Typography
+                        variant="caption"
+                        color="text.secondary"
+                        sx={{ ml: 1 }}
+                      >
                         ({statistics.min_correlation.pair.join(" & ")})
                       </Typography>
                     )}
@@ -231,7 +274,11 @@ const MarketCorrelation = ({ data, isLoading, error }) => {
 
               <Box sx={{ display: "flex", flexDirection: "column", gap: 2 }}>
                 <Box sx={{ p: 2, bgcolor: "grey.50", borderRadius: 1 }}>
-                  <Typography variant="body2" color="text.secondary" sx={{ mb: 0.5 }}>
+                  <Typography
+                    variant="body2"
+                    color="text.secondary"
+                    sx={{ mb: 0.5 }}
+                  >
                     Market Regime
                   </Typography>
                   <Typography variant="h6" sx={{ fontWeight: 600 }}>
@@ -240,13 +287,20 @@ const MarketCorrelation = ({ data, isLoading, error }) => {
                 </Box>
 
                 <Box sx={{ p: 2, bgcolor: "grey.50", borderRadius: 1 }}>
-                  <Typography variant="body2" color="text.secondary" sx={{ mb: 0.5 }}>
+                  <Typography
+                    variant="body2"
+                    color="text.secondary"
+                    sx={{ mb: 0.5 }}
+                  >
                     Diversification Score
                   </Typography>
                   <Typography variant="h6" sx={{ fontWeight: 600 }}>
                     {analysis?.diversification_score !== null
                       ? (() => {
-                          const num = typeof analysis.diversification_score === 'number' ? analysis.diversification_score : parseFloat(analysis.diversification_score) || 0;
+                          const num =
+                            typeof analysis.diversification_score === "number"
+                              ? analysis.diversification_score
+                              : parseFloat(analysis.diversification_score) || 0;
                           return isNaN(num) ? "N/A" : num.toFixed(1);
                         })()
                       : "N/A"}
@@ -254,11 +308,17 @@ const MarketCorrelation = ({ data, isLoading, error }) => {
                 </Box>
 
                 <Box sx={{ p: 2, bgcolor: "grey.50", borderRadius: 1 }}>
-                  <Typography variant="body2" color="text.secondary" sx={{ mb: 1 }}>
+                  <Typography
+                    variant="body2"
+                    color="text.secondary"
+                    sx={{ mb: 1 }}
+                  >
                     Risk Assessment:
                   </Typography>
                   {analysis?.risk_assessment && (
-                    <Box sx={{ display: "flex", flexDirection: "column", gap: 1 }}>
+                    <Box
+                      sx={{ display: "flex", flexDirection: "column", gap: 1 }}
+                    >
                       <Typography variant="caption">
                         • <strong>Concentration:</strong>{" "}
                         {analysis.risk_assessment.concentration_risk}
@@ -284,4 +344,3 @@ const MarketCorrelation = ({ data, isLoading, error }) => {
 };
 
 export default MarketCorrelation;
-

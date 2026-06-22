@@ -12,17 +12,17 @@
  * Log stream: {environment}/{userId}
  */
 
-import { v4 as uuidv4 } from 'uuid';
+import { v4 as uuidv4 } from "uuid";
 
 class CloudWatchLogger {
   constructor() {
     this.sessionId = uuidv4();
     this.userId = null;
-    this.environment = process.env.NODE_ENV || 'unknown';
+    this.environment = process.env.NODE_ENV || "unknown";
     this.logBuffer = [];
     this.flushInterval = 5000; // Flush every 5 seconds
     this.isInitialized = false;
-    this.apiEndpoint = process.env.REACT_APP_API_URL || '';
+    this.apiEndpoint = process.env.REACT_APP_API_URL || "";
 
     this.startFlushTimer();
   }
@@ -42,15 +42,15 @@ class CloudWatchLogger {
 
     const errorEntry = {
       timestamp: new Date().toISOString(),
-      level: 'ERROR',
+      level: "ERROR",
       sessionId: this.sessionId,
-      userId: this.userId || 'anonymous',
+      userId: this.userId || "anonymous",
       component,
       operation,
       environment: this.environment,
       errorType: error.name || typeof error,
       errorMessage: error.message || String(error),
-      errorStack: error.stack || '',
+      errorStack: error.stack || "",
       url: window.location.href,
       userAgent: navigator.userAgent,
       context,
@@ -60,7 +60,7 @@ class CloudWatchLogger {
     this.logBuffer.push(errorEntry);
 
     // Also log to browser console in development
-    if (this.environment === 'development') {
+    if (this.environment === "development") {
       console.error(`[CloudWatch] ${component}/${operation}:`, errorEntry);
     }
 
@@ -76,9 +76,9 @@ class CloudWatchLogger {
   logWarn(component, message, context = {}) {
     const warnEntry = {
       timestamp: new Date().toISOString(),
-      level: 'WARN',
+      level: "WARN",
       sessionId: this.sessionId,
-      userId: this.userId || 'anonymous',
+      userId: this.userId || "anonymous",
       component,
       message,
       environment: this.environment,
@@ -95,10 +95,10 @@ class CloudWatchLogger {
   logApiError(component, operation, response, requestContext = {}) {
     const apiError = {
       timestamp: new Date().toISOString(),
-      level: 'ERROR',
-      type: 'API_ERROR',
+      level: "ERROR",
+      type: "API_ERROR",
       sessionId: this.sessionId,
-      userId: this.userId || 'anonymous',
+      userId: this.userId || "anonymous",
       component,
       operation,
       environment: this.environment,
@@ -106,7 +106,8 @@ class CloudWatchLogger {
       statusText: response?.statusText,
       endpoint: response?.config?.url,
       method: response?.config?.method,
-      errorMessage: response?.data?.message || response?.statusText || 'Unknown error',
+      errorMessage:
+        response?.data?.message || response?.statusText || "Unknown error",
       url: window.location.href,
       context: requestContext,
     };
@@ -124,16 +125,16 @@ class CloudWatchLogger {
    */
   isCriticalError(error) {
     const criticalPatterns = [
-      'Cannot read properties of undefined',
-      'is not a function',
-      'is not defined',
-      'null reference',
-      'ReferenceError',
-      'TypeError: Cannot',
+      "Cannot read properties of undefined",
+      "is not a function",
+      "is not defined",
+      "null reference",
+      "ReferenceError",
+      "TypeError: Cannot",
     ];
 
     const errorStr = String(error);
-    return criticalPatterns.some(pattern => errorStr.includes(pattern));
+    return criticalPatterns.some((pattern) => errorStr.includes(pattern));
   }
 
   /**
@@ -147,25 +148,28 @@ class CloudWatchLogger {
 
     try {
       const response = await fetch(`${this.apiEndpoint}/api/logs`, {
-        method: 'POST',
+        method: "POST",
         headers: {
-          'Content-Type': 'application/json',
+          "Content-Type": "application/json",
         },
         body: JSON.stringify({
           logs: logsToSend,
           sessionId: this.sessionId,
-          userId: this.userId || 'anonymous',
+          userId: this.userId || "anonymous",
           environment: this.environment,
         }),
       });
 
       if (!response.ok) {
-        console.warn('[CloudWatchLogger] Failed to send logs:', response.status);
+        console.warn(
+          "[CloudWatchLogger] Failed to send logs:",
+          response.status
+        );
         // Re-queue logs for next attempt (don't lose them)
         this.logBuffer.unshift(...logsToSend);
       }
     } catch (err) {
-      console.warn('[CloudWatchLogger] Network error sending logs:', err);
+      console.warn("[CloudWatchLogger] Network error sending logs:", err);
       // Re-queue for retry
       this.logBuffer.unshift(...logsToSend);
     }
@@ -180,7 +184,7 @@ class CloudWatchLogger {
     }, this.flushInterval);
 
     // Also flush on page unload
-    window.addEventListener('beforeunload', () => {
+    window.addEventListener("beforeunload", () => {
       this.flush();
     });
   }

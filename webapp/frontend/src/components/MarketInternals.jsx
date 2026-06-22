@@ -25,10 +25,7 @@ import {
   ResponsiveContainer,
   Cell,
 } from "recharts";
-import {
-  WarningAmber,
-  CheckCircle,
-} from "@mui/icons-material";
+import { WarningAmber, CheckCircle } from "@mui/icons-material";
 import { getChartContainerStyle } from "../utils/chartContainer";
 
 const MarketInternals = ({ data, isLoading, error }) => {
@@ -193,9 +190,12 @@ const MarketInternals = ({ data, isLoading, error }) => {
               </Grid>
 
               {/* Breadth Chart */}
-              <div style={getChartContainerStyle('default')}>
+              <div style={getChartContainerStyle("default")}>
                 <ResponsiveContainer width="100%" height="100%">
-                  <BarChart data={breadthChartData} margin={{ top: 8, right: 16, left: 0, bottom: 20 }}>
+                  <BarChart
+                    data={breadthChartData}
+                    margin={{ top: 8, right: 16, left: 0, bottom: 20 }}
+                  >
                     <CartesianGrid strokeDasharray="3 3" />
                     <XAxis dataKey="name" height={40} tick={{ fontSize: 12 }} />
                     <YAxis />
@@ -260,11 +260,18 @@ const MarketInternals = ({ data, isLoading, error }) => {
 
               <Box sx={{ height: 300, width: "100%", mb: 2, minWidth: 0 }}>
                 <ResponsiveContainer width="100%" height="100%">
-                  <BarChart data={maChartData} margin={{ top: 8, right: 16, left: 0, bottom: 20 }}>
+                  <BarChart
+                    data={maChartData}
+                    margin={{ top: 8, right: 16, left: 0, bottom: 20 }}
+                  >
                     <CartesianGrid strokeDasharray="3 3" />
                     <XAxis dataKey="name" height={40} tick={{ fontSize: 12 }} />
                     <YAxis domain={[0, 100]} />
-                    <Tooltip formatter={(value) => value != null ? `${Number(value).toFixed(1)}%` : "N/A"} />
+                    <Tooltip
+                      formatter={(value) =>
+                        value != null ? `${Number(value).toFixed(1)}%` : "N/A"
+                      }
+                    />
                     <Bar dataKey="value" fill="#3b82f6" />
                   </BarChart>
                 </ResponsiveContainer>
@@ -306,13 +313,23 @@ const MarketInternals = ({ data, isLoading, error }) => {
                     ].map((row) => (
                       <TableRow key={row.name} hover>
                         <TableCell>{row.name}</TableCell>
-                        <TableCell align="right">{row.data.count || 0}</TableCell>
-                        <TableCell align="right">{row.data.total || 0}</TableCell>
                         <TableCell align="right">
-                          {row.data.percent !== null && row.data.percent !== undefined ? `${row.data.percent}%` : "—"}
+                          {row.data.count || 0}
                         </TableCell>
                         <TableCell align="right">
-                          {row.data.avg_distance_pct !== null && row.data.avg_distance_pct !== undefined ? `${row.data.avg_distance_pct}%` : "—"}
+                          {row.data.total || 0}
+                        </TableCell>
+                        <TableCell align="right">
+                          {row.data.percent !== null &&
+                          row.data.percent !== undefined
+                            ? `${row.data.percent}%`
+                            : "—"}
+                        </TableCell>
+                        <TableCell align="right">
+                          {row.data.avg_distance_pct !== null &&
+                          row.data.avg_distance_pct !== undefined
+                            ? `${row.data.avg_distance_pct}%`
+                            : "—"}
                         </TableCell>
                       </TableRow>
                     ))}
@@ -399,13 +416,16 @@ const MarketInternals = ({ data, isLoading, error }) => {
 
               <Box sx={{ mt: 2 }}>
                 <Typography variant="body2" sx={{ mb: 1 }}>
-                  <strong>25th Percentile:</strong> {market_extremes.percentile_25}%
+                  <strong>25th Percentile:</strong>{" "}
+                  {market_extremes.percentile_25}%
                 </Typography>
                 <Typography variant="body2" sx={{ mb: 1 }}>
-                  <strong>75th Percentile:</strong> {market_extremes.percentile_75}%
+                  <strong>75th Percentile:</strong>{" "}
+                  {market_extremes.percentile_75}%
                 </Typography>
                 <Typography variant="body2" sx={{ mb: 1 }}>
-                  <strong>Average (30d):</strong> {market_extremes.avg_breadth_30d}%
+                  <strong>Average (30d):</strong>{" "}
+                  {market_extremes.avg_breadth_30d}%
                 </Typography>
                 <Typography variant="body2" sx={{ mb: 1 }}>
                   <strong>Std Dev:</strong> {market_extremes.stddev_breadth_30d}
@@ -424,11 +444,9 @@ const MarketInternals = ({ data, isLoading, error }) => {
             </CardContent>
           </Card>
         </Grid>
-
       </Grid>
     </Box>
   );
 };
 
 export default MarketInternals;
-

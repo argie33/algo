@@ -163,4 +163,3 @@ describe("ComingSoon Component", () => {
     expect(screen.getByText(longDescription)).toBeInTheDocument();
   });
 });
-

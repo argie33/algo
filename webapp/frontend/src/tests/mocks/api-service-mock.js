@@ -22,16 +22,36 @@ export const createApiServiceMock = () => {
     })),
     initializeApiConfig: vi.fn(),
     setRefreshCallback: vi.fn(),
-    getPortfolioData: vi.fn().mockResolvedValue({ data: { statusCode: 200, data: {} } }),
-    getPortfolioHoldings: vi.fn().mockResolvedValue({ data: { statusCode: 200, items: [], total: 0 } }),
-    getPortfolioAnalytics: vi.fn().mockResolvedValue({ data: { statusCode: 200, data: {} } }),
-    getMarketOverview: vi.fn().mockResolvedValue({ data: { statusCode: 200, data: {} } }),
-    getMarketStatus: vi.fn().mockResolvedValue({ data: { statusCode: 200, data: { status: "open" } } }),
-    getTradingSignalsDaily: vi.fn().mockResolvedValue({ data: { statusCode: 200, items: [], total: 0 } }),
-    getTradingPositions: vi.fn().mockResolvedValue({ data: { statusCode: 200, items: [], total: 0 } }),
-    getTopStocks: vi.fn().mockResolvedValue({ data: { statusCode: 200, items: [], total: 0 } }),
-    getCurrentUser: vi.fn().mockResolvedValue({ data: { statusCode: 200, data: {} } }),
-    getStockNews: vi.fn().mockResolvedValue({ data: { statusCode: 200, items: [], total: 0 } }),
+    getPortfolioData: vi
+      .fn()
+      .mockResolvedValue({ data: { statusCode: 200, data: {} } }),
+    getPortfolioHoldings: vi
+      .fn()
+      .mockResolvedValue({ data: { statusCode: 200, items: [], total: 0 } }),
+    getPortfolioAnalytics: vi
+      .fn()
+      .mockResolvedValue({ data: { statusCode: 200, data: {} } }),
+    getMarketOverview: vi
+      .fn()
+      .mockResolvedValue({ data: { statusCode: 200, data: {} } }),
+    getMarketStatus: vi.fn().mockResolvedValue({
+      data: { statusCode: 200, data: { status: "open" } },
+    }),
+    getTradingSignalsDaily: vi
+      .fn()
+      .mockResolvedValue({ data: { statusCode: 200, items: [], total: 0 } }),
+    getTradingPositions: vi
+      .fn()
+      .mockResolvedValue({ data: { statusCode: 200, items: [], total: 0 } }),
+    getTopStocks: vi
+      .fn()
+      .mockResolvedValue({ data: { statusCode: 200, items: [], total: 0 } }),
+    getCurrentUser: vi
+      .fn()
+      .mockResolvedValue({ data: { statusCode: 200, data: {} } }),
+    getStockNews: vi
+      .fn()
+      .mockResolvedValue({ data: { statusCode: 200, items: [], total: 0 } }),
     healthCheck: vi.fn().mockResolvedValue({ data: { statusCode: 200 } }),
     testApiConnection: vi.fn().mockResolvedValue({ data: { statusCode: 200 } }),
   };

@@ -13,12 +13,18 @@ vi.mock("../../../../services/api.js", () => ({
   default: {
     get: vi.fn().mockResolvedValue({ data: {} }),
     post: vi.fn().mockResolvedValue({ data: {} }),
-    login: vi.fn().mockResolvedValue({ success: true, data: { token: "mock-token" } }),
+    login: vi
+      .fn()
+      .mockResolvedValue({ success: true, data: { token: "mock-token" } }),
     register: vi.fn().mockResolvedValue({ success: true, data: {} }),
     logout: vi.fn().mockResolvedValue({ success: true }),
     resetPassword: vi.fn().mockResolvedValue({ success: true }),
-    getTradingSignalsDaily: vi.fn().mockResolvedValue({ success: true, data: [] }),
-    getPortfolioAnalytics: vi.fn().mockResolvedValue({ success: true, data: {} }),
+    getTradingSignalsDaily: vi
+      .fn()
+      .mockResolvedValue({ success: true, data: [] }),
+    getPortfolioAnalytics: vi
+      .fn()
+      .mockResolvedValue({ success: true, data: {} }),
     getStockMetrics: vi.fn().mockResolvedValue({ success: true, data: {} }),
   },
   getApiConfig: vi.fn(() => ({
@@ -207,9 +213,7 @@ describe("AuthModal", () => {
         "testuser"
       );
       expect(
-        screen.getByText(
-          "Check your email for a verification code."
-        )
+        screen.getByText("Check your email for a verification code.")
       ).toBeInTheDocument();
     });
 
@@ -253,9 +257,7 @@ describe("AuthModal", () => {
       expect(screen.getByText("Sign In")).toBeInTheDocument();
       expect(screen.getByTestId("login-form")).toBeInTheDocument();
       expect(
-        screen.getByText(
-          "Password reset! Sign in with your new password."
-        )
+        screen.getByText("Password reset! Sign in with your new password.")
       ).toBeInTheDocument();
     });
   });
@@ -264,9 +266,7 @@ describe("AuthModal", () => {
     test("renders MFA challenge correctly", () => {
       render(<AuthModal {...defaultProps} initialMode="mfa_challenge" />);
 
-      expect(
-        screen.getByText("Two-Factor Auth")
-      ).toBeInTheDocument();
+      expect(screen.getByText("Two-Factor Auth")).toBeInTheDocument();
       expect(screen.getByTestId("mfa-challenge")).toBeInTheDocument();
       expect(screen.getByTestId("mfa-type")).toHaveTextContent("SMS_MFA");
       expect(screen.getByTestId("mfa-message")).toHaveTextContent(
@@ -276,7 +276,13 @@ describe("AuthModal", () => {
 
     test("handles MFA success", async () => {
       const onClose = vi.fn();
-      render(<AuthModal {...defaultProps} onClose={onClose} initialMode="mfa_challenge" />);
+      render(
+        <AuthModal
+          {...defaultProps}
+          onClose={onClose}
+          initialMode="mfa_challenge"
+        />
+      );
 
       const mfaButton = screen.getByTestId("mfa-success");
       fireEvent.click(mfaButton);
@@ -306,9 +312,7 @@ describe("AuthModal", () => {
       const successButton = screen.getByTestId("register-success");
       fireEvent.click(successButton);
       expect(
-        screen.getByText(
-          "Check your email for a verification code."
-        )
+        screen.getByText("Check your email for a verification code.")
       ).toBeInTheDocument();
 
       // Switch modes
@@ -317,9 +321,7 @@ describe("AuthModal", () => {
 
       // Success message should be cleared
       expect(
-        screen.queryByText(
-          "Check your email for a verification code."
-        )
+        screen.queryByText("Check your email for a verification code.")
       ).not.toBeInTheDocument();
     });
   });
@@ -361,4 +363,3 @@ describe("AuthModal", () => {
     });
   });
 });
-

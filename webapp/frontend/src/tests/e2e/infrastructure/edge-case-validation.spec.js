@@ -37,8 +37,8 @@ test.describe("Edge Case Validation - Comprehensive Scenarios", () => {
         tokens: {
           accessToken: "edge-case-token",
           idToken: "test-id-token",
-          refreshToken: "test-refresh-token"
-        }
+          refreshToken: "test-refresh-token",
+        },
       };
 
       // Enable dev auth for E2E tests
@@ -49,7 +49,6 @@ test.describe("Edge Case Validation - Comprehensive Scenarios", () => {
   test("Should handle extremely large financial data sets", async ({
     page,
   }) => {
-
     // Mock massive data response
     await page.route("**/api/portfolio/**", (route) => {
       const massiveHoldings = Array.from({ length: 1000 }, (_, i) => ({
@@ -94,7 +93,6 @@ test.describe("Edge Case Validation - Comprehensive Scenarios", () => {
       )
       .count();
 
-
     // Should handle large datasets without crashing
     expect(
       renderTime,
@@ -106,7 +104,6 @@ test.describe("Edge Case Validation - Comprehensive Scenarios", () => {
   test("Should handle extreme financial values and precision", async ({
     page,
   }) => {
-
     // Mock extreme financial values
     await page.route("**/api/**", (route) => {
       const url = route.request().url();
@@ -169,7 +166,6 @@ test.describe("Edge Case Validation - Comprehensive Scenarios", () => {
     const extremeResults = [];
 
     for (const testPage of extremeValuePages) {
-
       await page.goto(testPage);
       await page.waitForLoadState("domcontentloaded");
       await page.waitForTimeout(2000);
@@ -191,7 +187,9 @@ test.describe("Edge Case Validation - Comprehensive Scenarios", () => {
         contentLength: pageContent.length,
       });
 
-        console.log(`Page check: Large numbers: ${hasLargeNumbers}, Scientific: ${hasScientificNotation}, Invalid: ${hasInfinityOrNaN}`);
+      console.log(
+        `Page check: Large numbers: ${hasLargeNumbers}, Scientific: ${hasScientificNotation}, Invalid: ${hasInfinityOrNaN}`
+      );
     }
 
     // Should handle extreme values without displaying invalid numbers
@@ -216,7 +214,6 @@ test.describe("Edge Case Validation - Comprehensive Scenarios", () => {
   test("Should handle special characters and internationalization", async ({
     page,
   }) => {
-
     // Mock data with special characters and international content
     await page.route("**/api/**", (route) => {
       route.fulfill({
@@ -269,7 +266,6 @@ test.describe("Edge Case Validation - Comprehensive Scenarios", () => {
     const hasInjectionAttempts =
       pageContent.includes("DROP TABLE") || pageContent.includes("<script>");
 
-
     // Should handle international content safely
     expect(hasUnicodeCharacters, "Should support Unicode characters").toBe(
       true
@@ -282,7 +278,6 @@ test.describe("Edge Case Validation - Comprehensive Scenarios", () => {
   test("Should handle rapid user input and interaction edge cases", async ({
     page,
   }) => {
-
     await page.goto("/settings");
     await page.waitForLoadState("domcontentloaded");
     await page.waitForTimeout(2000);
@@ -295,7 +290,6 @@ test.describe("Edge Case Validation - Comprehensive Scenarios", () => {
       .count();
 
     if (inputs > 0) {
-
       const testInputs = [
         "", // Empty
         "a", // Single character
@@ -318,7 +312,6 @@ test.describe("Edge Case Validation - Comprehensive Scenarios", () => {
         const inputField = page.locator("input, textarea").nth(i);
 
         if ((await inputField.isVisible()) && (await inputField.isEnabled())) {
-
           for (const testInput of testInputs.slice(0, 8)) {
             // Limit for speed
             try {
@@ -378,7 +371,6 @@ test.describe("Edge Case Validation - Comprehensive Scenarios", () => {
   });
 
   test("Should handle browser limitation edge cases", async ({ page }) => {
-
     // Test various browser limitations
     const browserTests = [];
 
@@ -512,7 +504,6 @@ test.describe("Edge Case Validation - Comprehensive Scenarios", () => {
   test("Should handle concurrent operations and race conditions", async ({
     page,
   }) => {
-
     let apiCallCount = 0;
     const apiCallTimes = [];
 
@@ -569,7 +560,6 @@ test.describe("Edge Case Validation - Comprehensive Scenarios", () => {
       const pageContent = await page.locator("#root").textContent();
       const hasContent = pageContent.length > 200;
 
-
       if (apiCallTimes.length > 0) {
         const avgApiTime =
           apiCallTimes.reduce((a, b) => a + b) / apiCallTimes.length;
@@ -594,7 +584,6 @@ test.describe("Edge Case Validation - Comprehensive Scenarios", () => {
   });
 
   test("Should handle accessibility edge cases", async ({ page }) => {
-
     await page.goto("/portfolio");
     await page.waitForLoadState("domcontentloaded");
     await page.waitForTimeout(2000);
@@ -682,11 +671,9 @@ test.describe("Edge Case Validation - Comprehensive Scenarios", () => {
           }
         `,
       });
-
     } catch (error) {
       accessibilityIssues.push(`Animation disable: ${error.message}`);
     }
-
 
     if (accessibilityIssues.length > 0) {
     }
@@ -701,7 +688,6 @@ test.describe("Edge Case Validation - Comprehensive Scenarios", () => {
   test("Should handle data corruption and validation edge cases", async ({
     page,
   }) => {
-
     // Mock corrupted and edge case data
     await page.route("**/api/**", (route) => {
       const corruptedData = {
@@ -764,8 +750,7 @@ test.describe("Edge Case Validation - Comprehensive Scenarios", () => {
         pageContent.toLowerCase().includes("empty"),
     };
 
-    Object.entries(validationResults).forEach(([key, value]) => {
-    });
+    Object.entries(validationResults).forEach(([key, value]) => {});
 
     // Should handle corrupted data gracefully without showing raw invalid values
     expect(validationResults.hasContent, "Should display some content").toBe(
@@ -787,4 +772,3 @@ test.describe("Edge Case Validation - Comprehensive Scenarios", () => {
     ).toBe(false);
   });
 });
-

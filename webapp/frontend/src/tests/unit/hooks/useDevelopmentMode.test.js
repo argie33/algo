@@ -229,4 +229,3 @@ describe("useDevelopmentMode Hook", () => {
     expect(typeof result.current.shouldEnableQueries).toBe("boolean");
   });
 });
-

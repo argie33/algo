@@ -37,8 +37,8 @@ test.describe("API Error Handling - Network Failure Scenarios", () => {
         tokens: {
           accessToken: "error-test-token",
           idToken: "test-id-token",
-          refreshToken: "test-refresh-token"
-        }
+          refreshToken: "test-refresh-token",
+        },
       };
 
       // Enable dev auth for E2E tests
@@ -59,7 +59,6 @@ test.describe("API Error Handling - Network Failure Scenarios", () => {
     page,
     browserName,
   }) => {
-
     let _errorCount = 0;
     const timeout = browserName === "firefox" ? 8000 : 5000;
 
@@ -119,7 +118,9 @@ test.describe("API Error Handling - Network Failure Scenarios", () => {
           hasGracefulDegradation: hasContent || errorElements > 0,
         });
 
-          console.log(`Page: Loaded with ${errorElements} error elements, content: ${hasContent}`);
+        console.log(
+          `Page: Loaded with ${errorElements} error elements, content: ${hasContent}`
+        );
       } catch (error) {
         pageResults.push({
           page: testPage,
@@ -264,7 +265,6 @@ test.describe("API Error Handling - Network Failure Scenarios", () => {
   });
 
   test("Should handle network timeout scenarios", async ({ page }) => {
-
     let timeoutRequests = 0;
 
     // Mock timeout scenarios with extreme delays
@@ -313,7 +313,6 @@ test.describe("API Error Handling - Network Failure Scenarios", () => {
   });
 
   test("Should handle intermittent network failures", async ({ page }) => {
-
     let requestCount = 0;
     let successCount = 0;
     let errorCount = 0;
@@ -352,7 +351,6 @@ test.describe("API Error Handling - Network Failure Scenarios", () => {
     const pages = ["/portfolio", "/market", "/stocks"];
 
     for (const testPage of pages) {
-
       try {
         await page.goto(testPage);
         await page.waitForLoadState("domcontentloaded");
@@ -387,7 +385,6 @@ test.describe("API Error Handling - Network Failure Scenarios", () => {
   });
 
   test("Should handle malformed JSON responses", async ({ page }) => {
-
     let jsonErrors = 0;
 
     page.on("console", (msg) => {
@@ -559,7 +556,6 @@ test.describe("API Error Handling - Network Failure Scenarios", () => {
   test("Should maintain functionality during partial service outage", async ({
     page,
   }) => {
-
     let portfolioRequests = 0;
     let marketRequests = 0;
 
@@ -600,7 +596,6 @@ test.describe("API Error Handling - Network Failure Scenarios", () => {
     const outageResults = [];
 
     for (const testPage of testPages) {
-
       await page.goto(testPage);
       await page.waitForLoadState("domcontentloaded");
       await page.waitForTimeout(2000);
@@ -641,4 +636,3 @@ test.describe("API Error Handling - Network Failure Scenarios", () => {
     ).toBeGreaterThanOrEqual(1); // At least one service working
   });
 });
-

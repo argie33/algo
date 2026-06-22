@@ -3,8 +3,8 @@
  * Placeholder for economic data and modeling
  */
 
-import React from 'react';
-import ErrorBoundary from '../components/ErrorBoundary';
+import React from "react";
+import ErrorBoundary from "../components/ErrorBoundary";
 
 function EconomicModelingPage() {
   return (

@@ -1,6 +1,6 @@
-import { Navigate } from 'react-router-dom';
-import { useAuth } from '../../contexts/AuthContext';
-import { isCognitoConfigured } from '../../config/amplify';
+import { Navigate } from "react-router-dom";
+import { useAuth } from "../../contexts/AuthContext";
+import { isCognitoConfigured } from "../../config/amplify";
 
 function ProtectedRoute({ children, requireAuth = false, requireRole = null }) {
   const { isAuthenticated, isLoading, user } = useAuth();
@@ -10,7 +10,14 @@ function ProtectedRoute({ children, requireAuth = false, requireRole = null }) {
   // Show loading state while checking auth
   if (isLoading) {
     return (
-      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', height: '100vh' }}>
+      <div
+        style={{
+          display: "flex",
+          alignItems: "center",
+          justifyContent: "center",
+          height: "100vh",
+        }}
+      >
         <div>Loading...</div>
       </div>
     );
@@ -42,4 +49,3 @@ function ProtectedRoute({ children, requireAuth = false, requireRole = null }) {
 }
 
 export default ProtectedRoute;
-

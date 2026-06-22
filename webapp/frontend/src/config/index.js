@@ -6,15 +6,19 @@
 // this build-time value — see services/api.js getApiConfig().
 const API_BASE_URL = (() => {
   if (import.meta.env.DEV) {
-    return '';
+    return "";
   }
   // Allow empty string: when VITE_API_URL is unset/empty, relative paths are used
   // and CloudFront routes /api/* to the API Gateway (same-origin, no CORS needed).
-  return import.meta.env.VITE_API_URL || '';
+  return import.meta.env.VITE_API_URL || "";
 })();
 
 export { API_BASE_URL };
 
 // Default configuration export
-export { CONFIG, PRODUCTION_CONFIG, getEnvironmentConfig, validateConfig } from './production.js';
-
+export {
+  CONFIG,
+  PRODUCTION_CONFIG,
+  getEnvironmentConfig,
+  validateConfig,
+} from "./production.js";

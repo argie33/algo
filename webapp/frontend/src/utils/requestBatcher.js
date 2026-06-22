@@ -55,5 +55,5 @@ export async function batchRequests(items, fn, concurrency = 5) {
  * @returns {Promise<Array>} Array of results in original order
  */
 export async function batchPromises(promiseFunctions, concurrency = 5) {
-  return batchRequests(promiseFunctions, fn => fn(), concurrency);
+  return batchRequests(promiseFunctions, (fn) => fn(), concurrency);
 }

@@ -7,7 +7,6 @@
 const cron = require("node-cron");
 
 const { query } = require("./database");
-
 // Import Alpaca service
 const AlpacaService = require("./alpacaService");
 
@@ -22,7 +21,7 @@ let lastSyncTime = null;
 const MIN_SYNC_INTERVAL = 5 * 60 * 1000; // 5 minutes minimum
 
 // Store all active user syncs
-const activeSyncs = new Map();
+const _activeSyncs = new Map();
 
 // Get Alpaca service instance
 function getAlpacaService() {

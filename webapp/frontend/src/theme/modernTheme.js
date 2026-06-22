@@ -1,4 +1,4 @@
-import { createTheme, alpha } from '@mui/material/styles';
+import { createTheme, alpha } from "@mui/material/styles";
 
 /**
  * REFINED PROFESSIONAL FINANCIAL PLATFORM THEME
@@ -18,77 +18,77 @@ import { createTheme, alpha } from '@mui/material/styles';
 const colors = {
   // Primary - Refined Professional Blue (less saturated)
   primary: {
-    50: '#F0F4F8',
-    100: '#D9E2EC',
-    200: '#BCCCDC',
-    300: '#9FB3C8',
-    400: '#829AB1',
-    500: '#627D98',  // Main - muted professional blue
-    600: '#486581',
-    700: '#334E68',
-    800: '#243B53',
-    900: '#102A43',
+    50: "#F0F4F8",
+    100: "#D9E2EC",
+    200: "#BCCCDC",
+    300: "#9FB3C8",
+    400: "#829AB1",
+    500: "#627D98", // Main - muted professional blue
+    600: "#486581",
+    700: "#334E68",
+    800: "#243B53",
+    900: "#102A43",
   },
 
   // Secondary - Subtle Slate (neutral, professional)
   secondary: {
-    50: '#F8F9FA',
-    100: '#E9ECEF',
-    200: '#DEE2E6',
-    300: '#CED4DA',
-    400: '#ADB5BD',
-    500: '#6C757D',  // Main - professional gray
-    600: '#495057',
-    700: '#343A40',
-    800: '#212529',
-    900: '#1A1D20',
+    50: "#F8F9FA",
+    100: "#E9ECEF",
+    200: "#DEE2E6",
+    300: "#CED4DA",
+    400: "#ADB5BD",
+    500: "#6C757D", // Main - professional gray
+    600: "#495057",
+    700: "#343A40",
+    800: "#212529",
+    900: "#1A1D20",
   },
 
   // Success - Subtle Green
   success: {
-    main: '#10B981',
-    light: '#34D399',
-    dark: '#059669',
+    main: "#10B981",
+    light: "#34D399",
+    dark: "#059669",
   },
 
   // Error - Subtle Red
   error: {
-    main: '#EF4444',
-    light: '#F87171',
-    dark: '#DC2626',
+    main: "#EF4444",
+    light: "#F87171",
+    dark: "#DC2626",
   },
 
   // Warning - Subtle Amber
   warning: {
-    main: '#F59E0B',
-    light: '#FBBF24',
-    dark: '#D97706',
+    main: "#F59E0B",
+    light: "#FBBF24",
+    dark: "#D97706",
   },
 
   // Info - Subtle Blue
   info: {
-    main: '#3B82F6',
-    light: '#60A5FA',
-    dark: '#2563EB',
+    main: "#3B82F6",
+    light: "#60A5FA",
+    dark: "#2563EB",
   },
 
   // Backgrounds - Dark, matching CSS tokens
   background: {
-    default: '#0a0c12',      // Deep dark page background (matches --bg)
-    paper: '#141720',        // Dark card surface (matches --surface)
-    elevated: '#1a1e2d',     // Slightly lifted (matches --surface-2)
+    default: "#0a0c12", // Deep dark page background (matches --bg)
+    paper: "#141720", // Dark card surface (matches --surface)
+    elevated: "#1a1e2d", // Slightly lifted (matches --surface-2)
   },
 
   // Text - Light text on dark backgrounds (matches CSS tokens)
   text: {
-    primary: '#e8eaf4',      // Primary text (matches --text)
-    secondary: '#8891b0',    // Secondary text (matches --text-muted)
-    disabled: '#6b7a99',     // Disabled text (matches --text-faint)
+    primary: "#e8eaf4", // Primary text (matches --text)
+    secondary: "#8891b0", // Secondary text (matches --text-muted)
+    disabled: "#6b7a99", // Disabled text (matches --text-faint)
   },
 
   // Borders & Dividers - Dark mode borders
-  divider: '#232838',
-  border: '#2a2f42',
+  divider: "#232838",
+  border: "#2a2f42",
 };
 
 // ============================================================
@@ -97,42 +97,42 @@ const colors = {
 
 export const modernTheme = createTheme({
   palette: {
-    mode: 'dark',
+    mode: "dark",
     primary: {
-      main: '#6366f1',        // Brand indigo (matches --brand)
-      light: '#818cf8',       // Lighter indigo (matches --brand-2)
-      dark: '#4f46e5',        // Darker indigo
-      contrastText: '#FFFFFF',
+      main: "#6366f1", // Brand indigo (matches --brand)
+      light: "#818cf8", // Lighter indigo (matches --brand-2)
+      dark: "#4f46e5", // Darker indigo
+      contrastText: "#FFFFFF",
     },
     secondary: {
-      main: '#6b7a99',        // Muted slate (matches --text-faint area)
-      light: '#8891b0',       // Lighter
-      dark: '#4a5568',        // Darker
-      contrastText: '#FFFFFF',
+      main: "#6b7a99", // Muted slate (matches --text-faint area)
+      light: "#8891b0", // Lighter
+      dark: "#4a5568", // Darker
+      contrastText: "#FFFFFF",
     },
     success: {
       main: colors.success.main,
       light: colors.success.light,
       dark: colors.success.dark,
-      contrastText: '#FFFFFF',
+      contrastText: "#FFFFFF",
     },
     error: {
       main: colors.error.main,
       light: colors.error.light,
       dark: colors.error.dark,
-      contrastText: '#FFFFFF',
+      contrastText: "#FFFFFF",
     },
     warning: {
       main: colors.warning.main,
       light: colors.warning.light,
       dark: colors.warning.dark,
-      contrastText: '#000000',
+      contrastText: "#000000",
     },
     info: {
       main: colors.info.main,
       light: colors.info.light,
       dark: colors.info.dark,
-      contrastText: '#FFFFFF',
+      contrastText: "#FFFFFF",
     },
     background: {
       default: colors.background.default,
@@ -157,94 +157,95 @@ export const modernTheme = createTheme({
   // TYPOGRAPHY - Sharp and Professional
   // ============================================================
   typography: {
-    fontFamily: 'Inter, -apple-system, BlinkMacSystemFont, "Segoe UI", "Roboto", "Oxygen", "Ubuntu", "Cantarell", "Fira Sans", "Droid Sans", "Helvetica Neue", sans-serif',
+    fontFamily:
+      'Inter, -apple-system, BlinkMacSystemFont, "Segoe UI", "Roboto", "Oxygen", "Ubuntu", "Cantarell", "Fira Sans", "Droid Sans", "Helvetica Neue", sans-serif',
 
     h1: {
       fontWeight: 700,
-      fontSize: '2.5rem',
+      fontSize: "2.5rem",
       lineHeight: 1.2,
-      letterSpacing: '-0.02em',
-      color: 'inherit',
+      letterSpacing: "-0.02em",
+      color: "inherit",
     },
     h2: {
       fontWeight: 700,
-      fontSize: '2rem',
+      fontSize: "2rem",
       lineHeight: 1.3,
-      letterSpacing: '-0.01em',
-      color: 'inherit',
+      letterSpacing: "-0.01em",
+      color: "inherit",
     },
     h3: {
       fontWeight: 600,
-      fontSize: '1.75rem',
+      fontSize: "1.75rem",
       lineHeight: 1.3,
-      letterSpacing: '-0.01em',
-      color: 'inherit',
+      letterSpacing: "-0.01em",
+      color: "inherit",
     },
     h4: {
       fontWeight: 600,
-      fontSize: '1.5rem',
+      fontSize: "1.5rem",
       lineHeight: 1.4,
-      letterSpacing: '0em',
-      color: 'inherit',
+      letterSpacing: "0em",
+      color: "inherit",
     },
     h5: {
       fontWeight: 600,
-      fontSize: '1.25rem',
+      fontSize: "1.25rem",
       lineHeight: 1.4,
-      letterSpacing: '0em',
-      color: 'inherit',
+      letterSpacing: "0em",
+      color: "inherit",
     },
     h6: {
       fontWeight: 600,
-      fontSize: '1rem',
+      fontSize: "1rem",
       lineHeight: 1.5,
-      letterSpacing: '0em',
-      color: 'inherit',
+      letterSpacing: "0em",
+      color: "inherit",
     },
     subtitle1: {
       fontWeight: 500,
-      fontSize: '1rem',
+      fontSize: "1rem",
       lineHeight: 1.5,
-      color: 'inherit',
+      color: "inherit",
     },
     subtitle2: {
       fontWeight: 500,
-      fontSize: '0.875rem',
+      fontSize: "0.875rem",
       lineHeight: 1.5,
-      color: 'inherit',
+      color: "inherit",
     },
     body1: {
       fontWeight: 400,
-      fontSize: '1rem',
+      fontSize: "1rem",
       lineHeight: 1.6,
-      color: 'inherit',
+      color: "inherit",
     },
     body2: {
       fontWeight: 400,
-      fontSize: '0.875rem',
+      fontSize: "0.875rem",
       lineHeight: 1.6,
-      color: 'inherit',
+      color: "inherit",
     },
     button: {
       fontWeight: 600,
-      fontSize: '0.875rem',
+      fontSize: "0.875rem",
       lineHeight: 1.75,
-      letterSpacing: '0.01em',
-      textTransform: 'none',
+      letterSpacing: "0.01em",
+      textTransform: "none",
     },
     caption: {
       fontWeight: 400,
-      fontSize: '0.75rem',
+      fontSize: "0.75rem",
       lineHeight: 1.6,
-      color: 'inherit',
+      color: "inherit",
     },
     overline: {
       fontWeight: 600,
-      fontSize: '0.75rem',
+      fontSize: "0.75rem",
       lineHeight: 2,
-      letterSpacing: '0.08em',
-      textTransform: 'uppercase',
-      color: 'inherit',
+      letterSpacing: "0.08em",
+      textTransform: "uppercase",
+      color: "inherit",
     },
   },
 
@@ -252,7 +253,7 @@ export const modernTheme = createTheme({
   // SHAPE & SPACING
   // ============================================================
   shape: {
-    borderRadius: 12,  // Rounded but not too much
+    borderRadius: 12, // Rounded but not too much
   },
 
   spacing: 8,
@@ -261,31 +262,31 @@ export const modernTheme = createTheme({
   // SHADOWS - Enhanced but subtle depth
   // ============================================================
   shadows: [
-    'none',
-    '0px 1px 2px rgba(0, 0, 0, 0.04), 0px 1px 3px rgba(0, 0, 0, 0.06)',
-    '0px 2px 4px rgba(0, 0, 0, 0.04), 0px 3px 6px rgba(0, 0, 0, 0.08)',
-    '0px 3px 6px rgba(0, 0, 0, 0.04), 0px 4px 8px rgba(0, 0, 0, 0.08)',
-    '0px 4px 8px rgba(0, 0, 0, 0.04), 0px 6px 12px rgba(0, 0, 0, 0.08)',
-    '0px 6px 12px rgba(0, 0, 0, 0.06), 0px 8px 16px rgba(0, 0, 0, 0.1)',
-    '0px 8px 16px rgba(0, 0, 0, 0.06), 0px 12px 24px rgba(0, 0, 0, 0.1)',
-    '0px 10px 20px rgba(0, 0, 0, 0.08), 0px 16px 32px rgba(0, 0, 0, 0.12)',
-    '0px 12px 24px rgba(0, 0, 0, 0.08), 0px 20px 40px rgba(0, 0, 0, 0.12)',
-    '0px 16px 32px rgba(0, 0, 0, 0.1), 0px 24px 48px rgba(0, 0, 0, 0.14)',
-    '0px 20px 40px rgba(0, 0, 0, 0.1), 0px 28px 56px rgba(0, 0, 0, 0.14)',
-    '0px 24px 48px rgba(0, 0, 0, 0.12), 0px 32px 64px rgba(0, 0, 0, 0.16)',
-    '0px 28px 56px rgba(0, 0, 0, 0.12), 0px 36px 72px rgba(0, 0, 0, 0.16)',
-    '0px 32px 64px rgba(0, 0, 0, 0.14), 0px 40px 80px rgba(0, 0, 0, 0.18)',
-    '0px 36px 72px rgba(0, 0, 0, 0.14), 0px 44px 88px rgba(0, 0, 0, 0.18)',
-    '0px 40px 80px rgba(0, 0, 0, 0.16), 0px 48px 96px rgba(0, 0, 0, 0.2)',
-    '0px 44px 88px rgba(0, 0, 0, 0.16), 0px 52px 104px rgba(0, 0, 0, 0.2)',
-    '0px 48px 96px rgba(0, 0, 0, 0.18), 0px 56px 112px rgba(0, 0, 0, 0.22)',
-    '0px 52px 104px rgba(0, 0, 0, 0.18), 0px 60px 120px rgba(0, 0, 0, 0.22)',
-    '0px 56px 112px rgba(0, 0, 0, 0.2), 0px 64px 128px rgba(0, 0, 0, 0.24)',
-    '0px 60px 120px rgba(0, 0, 0, 0.2), 0px 68px 136px rgba(0, 0, 0, 0.24)',
-    '0px 64px 128px rgba(0, 0, 0, 0.22), 0px 72px 144px rgba(0, 0, 0, 0.26)',
-    '0px 68px 136px rgba(0, 0, 0, 0.22), 0px 76px 152px rgba(0, 0, 0, 0.26)',
-    '0px 72px 144px rgba(0, 0, 0, 0.24), 0px 80px 160px rgba(0, 0, 0, 0.28)',
-    '0px 76px 152px rgba(0, 0, 0, 0.24), 0px 84px 168px rgba(0, 0, 0, 0.28)',
+    "none",
+    "0px 1px 2px rgba(0, 0, 0, 0.04), 0px 1px 3px rgba(0, 0, 0, 0.06)",
+    "0px 2px 4px rgba(0, 0, 0, 0.04), 0px 3px 6px rgba(0, 0, 0, 0.08)",
+    "0px 3px 6px rgba(0, 0, 0, 0.04), 0px 4px 8px rgba(0, 0, 0, 0.08)",
+    "0px 4px 8px rgba(0, 0, 0, 0.04), 0px 6px 12px rgba(0, 0, 0, 0.08)",
+    "0px 6px 12px rgba(0, 0, 0, 0.06), 0px 8px 16px rgba(0, 0, 0, 0.1)",
+    "0px 8px 16px rgba(0, 0, 0, 0.06), 0px 12px 24px rgba(0, 0, 0, 0.1)",
+    "0px 10px 20px rgba(0, 0, 0, 0.08), 0px 16px 32px rgba(0, 0, 0, 0.12)",
+    "0px 12px 24px rgba(0, 0, 0, 0.08), 0px 20px 40px rgba(0, 0, 0, 0.12)",
+    "0px 16px 32px rgba(0, 0, 0, 0.1), 0px 24px 48px rgba(0, 0, 0, 0.14)",
+    "0px 20px 40px rgba(0, 0, 0, 0.1), 0px 28px 56px rgba(0, 0, 0, 0.14)",
+    "0px 24px 48px rgba(0, 0, 0, 0.12), 0px 32px 64px rgba(0, 0, 0, 0.16)",
+    "0px 28px 56px rgba(0, 0, 0, 0.12), 0px 36px 72px rgba(0, 0, 0, 0.16)",
+    "0px 32px 64px rgba(0, 0, 0, 0.14), 0px 40px 80px rgba(0, 0, 0, 0.18)",
+    "0px 36px 72px rgba(0, 0, 0, 0.14), 0px 44px 88px rgba(0, 0, 0, 0.18)",
+    "0px 40px 80px rgba(0, 0, 0, 0.16), 0px 48px 96px rgba(0, 0, 0, 0.2)",
+    "0px 44px 88px rgba(0, 0, 0, 0.16), 0px 52px 104px rgba(0, 0, 0, 0.2)",
+    "0px 48px 96px rgba(0, 0, 0, 0.18), 0px 56px 112px rgba(0, 0, 0, 0.22)",
+    "0px 52px 104px rgba(0, 0, 0, 0.18), 0px 60px 120px rgba(0, 0, 0, 0.22)",
+    "0px 56px 112px rgba(0, 0, 0, 0.2), 0px 64px 128px rgba(0, 0, 0, 0.24)",
+    "0px 60px 120px rgba(0, 0, 0, 0.2), 0px 68px 136px rgba(0, 0, 0, 0.24)",
+    "0px 64px 128px rgba(0, 0, 0, 0.22), 0px 72px 144px rgba(0, 0, 0, 0.26)",
+    "0px 68px 136px rgba(0, 0, 0, 0.22), 0px 76px 152px rgba(0, 0, 0, 0.26)",
+    "0px 72px 144px rgba(0, 0, 0, 0.24), 0px 80px 160px rgba(0, 0, 0, 0.28)",
+    "0px 76px 152px rgba(0, 0, 0, 0.24), 0px 84px 168px rgba(0, 0, 0, 0.28)",
   ],
 
   // ============================================================
@@ -296,18 +297,18 @@ export const modernTheme = createTheme({
       styleOverrides: {
         body: {
           scrollbarColor: `${colors.primary[300]} ${colors.background.default}`,
-          '&::-webkit-scrollbar': {
-            width: '10px',
-            height: '10px',
+          "&::-webkit-scrollbar": {
+            width: "10px",
+            height: "10px",
           },
-          '&::-webkit-scrollbar-track': {
+          "&::-webkit-scrollbar-track": {
             background: colors.background.default,
           },
-          '&::-webkit-scrollbar-thumb': {
+          "&::-webkit-scrollbar-thumb": {
             backgroundColor: colors.primary[300],
-            borderRadius: '5px',
+            borderRadius: "5px",
             border: `2px solid ${colors.background.default}`,
-            '&:hover': {
+            "&:hover": {
               backgroundColor: colors.primary[400],
             },
           },
@@ -319,30 +320,30 @@ export const modernTheme = createTheme({
       styleOverrides: {
         root: {
           borderRadius: 10,
-          padding: '10px 24px',
+          padding: "10px 24px",
           fontWeight: 600,
-          textTransform: 'none',
+          textTransform: "none",
           minHeight: 44,
           minWidth: 44,
-          boxShadow: 'none',
-          transition: 'all 0.2s ease',
-          '&:hover': {
-            boxShadow: '0px 4px 12px rgba(0, 0, 0, 0.12)',
-            transform: 'translateY(-1px)',
+          boxShadow: "none",
+          transition: "all 0.2s ease",
+          "&:hover": {
+            boxShadow: "0px 4px 12px rgba(0, 0, 0, 0.12)",
+            transform: "translateY(-1px)",
           },
-          '&:active': {
-            transform: 'translateY(0)',
+          "&:active": {
+            transform: "translateY(0)",
           },
         },
         contained: {
-          '&:hover': {
-            boxShadow: '0px 6px 16px rgba(0, 0, 0, 0.16)',
+          "&:hover": {
+            boxShadow: "0px 6px 16px rgba(0, 0, 0, 0.16)",
           },
         },
         outlined: {
-          borderWidth: '1.5px',
-          '&:hover': {
-            borderWidth: '1.5px',
+          borderWidth: "1.5px",
+          "&:hover": {
+            borderWidth: "1.5px",
             backgroundColor: alpha(colors.primary[500], 0.04),
           },
         },
@@ -355,11 +356,13 @@ export const modernTheme = createTheme({
           borderRadius: 16,
           backgroundColor: colors.background.paper,
           border: `1px solid ${colors.divider}`,
-          boxShadow: '0px 2px 8px rgba(0, 0, 0, 0.04), 0px 4px 16px rgba(0, 0, 0, 0.06)',
-          transition: 'all 0.3s ease',
-          '&:hover': {
-            boxShadow: '0px 4px 12px rgba(0, 0, 0, 0.08), 0px 8px 24px rgba(0, 0, 0, 0.1)',
-            transform: 'translateY(-2px)',
+          boxShadow:
+            "0px 2px 8px rgba(0, 0, 0, 0.04), 0px 4px 16px rgba(0, 0, 0, 0.06)",
+          transition: "all 0.3s ease",
+          "&:hover": {
+            boxShadow:
+              "0px 4px 12px rgba(0, 0, 0, 0.08), 0px 8px 24px rgba(0, 0, 0, 0.1)",
+            transform: "translateY(-2px)",
             borderColor: alpha(colors.primary[500], 0.2),
           },
         },
@@ -374,13 +377,16 @@ export const modernTheme = createTheme({
           border: `1px solid ${colors.divider}`,
         },
         elevation1: {
-          boxShadow: '0px 2px 4px rgba(0, 0, 0, 0.04), 0px 3px 6px rgba(0, 0, 0, 0.06)',
+          boxShadow:
+            "0px 2px 4px rgba(0, 0, 0, 0.04), 0px 3px 6px rgba(0, 0, 0, 0.06)",
         },
         elevation2: {
-          boxShadow: '0px 3px 6px rgba(0, 0, 0, 0.04), 0px 4px 8px rgba(0, 0, 0, 0.08)',
+          boxShadow:
+            "0px 3px 6px rgba(0, 0, 0, 0.04), 0px 4px 8px rgba(0, 0, 0, 0.08)",
         },
         elevation3: {
-          boxShadow: '0px 4px 8px rgba(0, 0, 0, 0.06), 0px 6px 12px rgba(0, 0, 0, 0.08)',
+          boxShadow:
+            "0px 4px 8px rgba(0, 0, 0, 0.06), 0px 6px 12px rgba(0, 0, 0, 0.08)",
         },
       },
     },
@@ -389,9 +395,10 @@ export const modernTheme = createTheme({
       styleOverrides: {
         root: {
           backgroundColor: colors.background.paper,
-          color: 'inherit',
+          color: "inherit",
           borderBottom: `1px solid ${colors.divider}`,
-          boxShadow: '0px 1px 3px rgba(0, 0, 0, 0.04), 0px 2px 6px rgba(0, 0, 0, 0.06)',
+          boxShadow:
+            "0px 1px 3px rgba(0, 0, 0, 0.04), 0px 2px 6px rgba(0, 0, 0, 0.06)",
         },
       },
     },
@@ -416,7 +423,7 @@ export const modernTheme = createTheme({
           backgroundColor: alpha(colors.primary[500], 0.1),
           color: colors.primary[700],
           border: `1px solid ${alpha(colors.primary[500], 0.2)}`,
-          '&:hover': {
+          "&:hover": {
             backgroundColor: alpha(colors.primary[500], 0.15),
           },
         },
@@ -426,22 +433,22 @@ export const modernTheme = createTheme({
     MuiTextField: {
       styleOverrides: {
         root: {
-          '& .MuiOutlinedInput-root': {
+          "& .MuiOutlinedInput-root": {
             borderRadius: 10,
             backgroundColor: colors.background.default,
-            transition: 'all 0.2s ease',
-            '& fieldset': {
+            transition: "all 0.2s ease",
+            "& fieldset": {
               borderColor: colors.border,
-              borderWidth: '1.5px',
+              borderWidth: "1.5px",
             },
-            '&:hover fieldset': {
+            "&:hover fieldset": {
               borderColor: colors.primary[400],
             },
-            '&.Mui-focused': {
+            "&.Mui-focused": {
               backgroundColor: colors.background.paper,
-              '& fieldset': {
+              "& fieldset": {
                 borderColor: colors.primary[500],
-                borderWidth: '2px',
+                borderWidth: "2px",
               },
             },
           },
@@ -452,25 +459,25 @@ export const modernTheme = createTheme({
     MuiTable: {
       styleOverrides: {
         root: {
-          '& .MuiTableCell-head': {
+          "& .MuiTableCell-head": {
             fontWeight: 700,
             backgroundColor: colors.background.default,
             borderBottom: `2px solid ${colors.divider}`,
-            textTransform: 'uppercase',
-            fontSize: '0.75rem',
-            letterSpacing: '0.05em',
-            color: 'inherit',
-            padding: '16px',
+            textTransform: "uppercase",
+            fontSize: "0.75rem",
+            letterSpacing: "0.05em",
+            color: "inherit",
+            padding: "16px",
           },
-          '& .MuiTableRow-root': {
-            transition: 'background-color 0.2s ease',
-            '&:hover': {
+          "& .MuiTableRow-root": {
+            transition: "background-color 0.2s ease",
+            "&:hover": {
               backgroundColor: alpha(colors.primary[500], 0.02),
             },
           },
-          '& .MuiTableCell-body': {
+          "& .MuiTableCell-body": {
             borderBottom: `1px solid ${colors.divider}`,
-            padding: '16px',
+            padding: "16px",
           },
         },
       },
@@ -494,10 +501,10 @@ export const modernTheme = createTheme({
         tooltip: {
           backgroundColor: colors.secondary[800],
           borderRadius: 8,
-          padding: '8px 12px',
-          fontSize: '0.875rem',
+          padding: "8px 12px",
+          fontSize: "0.875rem",
           fontWeight: 500,
-          boxShadow: '0px 4px 12px rgba(0, 0, 0, 0.15)',
+          boxShadow: "0px 4px 12px rgba(0, 0, 0, 0.15)",
         },
         arrow: {
           color: colors.secondary[800],
@@ -509,7 +516,7 @@ export const modernTheme = createTheme({
       styleOverrides: {
         root: {
           borderRadius: 12,
-          border: '1px solid',
+          border: "1px solid",
           fontWeight: 500,
         },
         standardSuccess: {
@@ -543,7 +550,7 @@ export const modernTheme = createTheme({
         },
         indicator: {
           height: 3,
-          borderRadius: '3px 3px 0 0',
+          borderRadius: "3px 3px 0 0",
           backgroundColor: colors.primary[600],
         },
       },
@@ -552,17 +559,17 @@ export const modernTheme = createTheme({
     MuiTab: {
       styleOverrides: {
         root: {
-          textTransform: 'none',
+          textTransform: "none",
           fontWeight: 600,
-          fontSize: '0.9375rem',
+          fontSize: "0.9375rem",
           minHeight: 48,
-          color: 'inherit',
-          transition: 'all 0.2s ease',
-          '&:hover': {
+          color: "inherit",
+          transition: "all 0.2s ease",
+          "&:hover": {
             color: colors.primary[600],
             backgroundColor: alpha(colors.primary[500], 0.04),
           },
-          '&.Mui-selected': {
+          "&.Mui-selected": {
             color: colors.primary[600],
           },
         },
@@ -573,8 +580,8 @@ export const modernTheme = createTheme({
       styleOverrides: {
         root: {
           borderRadius: 10,
-          transition: 'all 0.2s ease',
-          '&:hover': {
+          transition: "all 0.2s ease",
+          "&:hover": {
             backgroundColor: alpha(colors.primary[500], 0.06),
           },
         },
@@ -586,20 +593,20 @@ export const modernTheme = createTheme({
         root: {
           borderRadius: 10,
           marginBottom: 2,
-          transition: 'all 0.2s ease',
-          '&:hover': {
+          transition: "all 0.2s ease",
+          "&:hover": {
             backgroundColor: alpha(colors.primary[500], 0.06),
           },
-          '&.Mui-selected': {
+          "&.Mui-selected": {
             backgroundColor: alpha(colors.primary[500], 0.1),
             borderLeft: `3px solid ${colors.primary[600]}`,
-            '&:hover': {
+            "&:hover": {
               backgroundColor: alpha(colors.primary[500], 0.14),
             },
-            '& .MuiListItemIcon-root': {
+            "& .MuiListItemIcon-root": {
               color: colors.primary[600],
             },
-            '& .MuiListItemText-primary': {
+            "& .MuiListItemText-primary": {
               color: colors.primary[700],
               fontWeight: 600,
             },
@@ -622,4 +629,3 @@ export const modernTheme = createTheme({
 export { colors };
 
 export default modernTheme;
-

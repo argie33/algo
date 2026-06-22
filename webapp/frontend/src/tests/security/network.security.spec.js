@@ -3,9 +3,9 @@
  * Comprehensive validation for network-level security measures
  */
 
-import { test, expect } from '@playwright/test';
+import { test, expect } from "@playwright/test";
 
-test.describe('Network Security', () => {
+test.describe("Network Security", () => {
   test.beforeEach(async ({ page }) => {
     // Set up network monitoring
     await page.addInitScript(() => {
@@ -14,34 +14,41 @@ test.describe('Network Security', () => {
 
       // Monitor network events
       const originalFetch = window.fetch;
-      window.fetch = function(...args) {
+      window.fetch = function (...args) {
         const url = args[0];
         const options = args[1] || {};
 
         window.__NETWORK_REQUESTS__.push({
           url,
-          method: options.method || 'GET',
+          method: options.method || "GET",
           headers: options.headers || {},
-          timestamp: Date.now()
+          timestamp: Date.now(),
         });
 
-        return originalFetch.apply(this, args).then(response => {
+        return originalFetch.apply(this, args).then((response) => {
           // Store security headers
-          window.__SECURITY_HEADERS__[url] = Object.fromEntries(response.headers);
+          window.__SECURITY_HEADERS__[url] = Object.fromEntries(
+            response.headers
+          );
           return response;
         });
       };
     });
   });
 
-  test('should enforce HTTPS for all requests', async ({ page }) => {
-    await page.goto('/');
+  test("should enforce HTTPS for all requests", async ({ page }) => {
+    await page.goto("/");
     await page.waitForTimeout(3000);
 
-    const networkRequests = await page.evaluate(() => window.__NETWORK_REQUESTS__);
+    const networkRequests = await page.evaluate(
+      () => window.__NETWORK_REQUESTS__
+    );
 
     for (const request of networkRequests) {
-      if (request.url.startsWith('http://') && !request.url.includes('localhost')) {
+      if (
+        request.url.startsWith("http://") &&
+        !request.url.includes("localhost")
+      ) {
         // External HTTP requests should be blocked or redirected to HTTPS
         expect(request.url).toMatch(/^https:/);
       }
@@ -49,8 +56,8 @@ test.describe('Network Security', () => {
 
     // Check for mixed content warnings
     const consoleLogs = [];
-    page.on('console', msg => {
-      if (msg.type() === 'warning' && msg.text().includes('mixed content')) {
+    page.on("console", (msg) => {
+      if (msg.type() === "warning" && msg.text().includes("mixed content")) {
         consoleLogs.push(msg.text());
       }
     });
@@ -61,8 +68,8 @@ test.describe('Network Security', () => {
     expect(consoleLogs.length).toBe(0);
   });
 
-  test('should implement proper TLS configuration', async ({ page }) => {
-    const response = await page.goto('/');
+  test("should implement proper TLS configuration", async ({ page }) => {
+    const response = await page.goto("/");
     const securityDetails = await response.securityDetails();
 
     if (securityDetails) {
@@ -80,42 +87,47 @@ test.describe('Network Security', () => {
     }
   });
 
-  test('should validate HTTP security headers', async ({ page }) => {
-    const response = await page.goto('/');
+  test("should validate HTTP security headers", async ({ page }) => {
+    const response = await page.goto("/");
     const headers = response.headers();
 
     // Strict-Transport-Security
-    expect(headers['strict-transport-security']).toBeTruthy();
-    expect(headers['strict-transport-security']).toMatch(/max-age=\d+/);
+    expect(headers["strict-transport-security"]).toBeTruthy();
+    expect(headers["strict-transport-security"]).toMatch(/max-age=\d+/);
 
     // X-Content-Type-Options
-    expect(headers['x-content-type-options']).toBe('nosniff');
+    expect(headers["x-content-type-options"]).toBe("nosniff");
 
     // X-Frame-Options or Content-Security-Policy frame-ancestors
     expect(
-      headers['x-frame-options'] === 'DENY' ||
-      headers['x-frame-options'] === 'SAMEORIGIN' ||
-      (headers['content-security-policy'] && headers['content-security-policy'].includes('frame-ancestors'))
+      headers["x-frame-options"] === "DENY" ||
+        headers["x-frame-options"] === "SAMEORIGIN" ||
+        (headers["content-security-policy"] &&
+          headers["content-security-policy"].includes("frame-ancestors"))
     ).toBe(true);
 
     // X-XSS-Protection (if present, should be properly configured)
-    if (headers['x-xss-protection']) {
-      expect(headers['x-xss-protection']).toMatch(/1; mode=block/);
+    if (headers["x-xss-protection"]) {
+      expect(headers["x-xss-protection"]).toMatch(/1; mode=block/);
     }
 
     // Referrer-Policy
-    expect(headers['referrer-policy']).toBeTruthy();
-    expect(['no-referrer', 'same-origin', 'strict-origin', 'strict-origin-when-cross-origin'])
-      .toContain(headers['referrer-policy']);
+    expect(headers["referrer-policy"]).toBeTruthy();
+    expect([
+      "no-referrer",
+      "same-origin",
+      "strict-origin",
+      "strict-origin-when-cross-origin",
+    ]).toContain(headers["referrer-policy"]);
 
     // Content-Security-Policy
-    expect(headers['content-security-policy']).toBeTruthy();
+    expect(headers["content-security-policy"]).toBeTruthy();
   });
 
-  test('should implement robust Content Security Policy', async ({ page }) => {
-    const response = await page.goto('/');
+  test("should implement robust Content Security Policy", async ({ page }) => {
+    const response = await page.goto("/");
     const headers = response.headers();
-    const csp = headers['content-security-policy'];
+    const csp = headers["content-security-policy"];
 
     expect(csp).toBeTruthy();
 
@@ -134,8 +146,8 @@ test.describe('Network Security', () => {
 
     // Monitor for CSP violations
     const cspViolations = [];
-    page.on('console', msg => {
-      if (msg.text().includes('Content Security Policy')) {
+    page.on("console", (msg) => {
+      if (msg.text().includes("Content Security Policy")) {
         cspViolations.push(msg.text());
       }
     });
@@ -144,23 +156,23 @@ test.describe('Network Security', () => {
     expect(cspViolations.length).toBe(0);
   });
 
-  test('should prevent DNS rebinding attacks', async ({ page }) => {
-    await page.goto('/');
+  test("should prevent DNS rebinding attacks", async ({ page }) => {
+    await page.goto("/");
 
     // Test Host header validation
     const hostTests = [
-      'localhost:3000',
-      'app.yourfinancialplatform.com',
-      'evil.com',
-      '192.168.1.1',
-      'internal.network'
+      "localhost:3000",
+      "app.yourfinancialplatform.com",
+      "evil.com",
+      "192.168.1.1",
+      "internal.network",
     ];
 
     for (const host of hostTests) {
       const response = await page.evaluate(async (testHost) => {
         try {
-          const res = await fetch('/api/health', {
-            headers: { 'Host': testHost }
+          const res = await fetch("/api/health", {
+            headers: { Host: testHost },
           });
           return { status: res.status };
         } catch (e) {
@@ -169,51 +181,53 @@ test.describe('Network Security', () => {
       }, host);
 
       // Should validate Host header and reject suspicious hosts
-      if (host.includes('evil.com') || host.includes('internal.network')) {
+      if (host.includes("evil.com") || host.includes("internal.network")) {
         expect([400, 403, 404]).toContain(response.status);
       }
     }
   });
 
-  test('should implement proper CORS policies', async ({ page }) => {
-    await page.goto('/');
+  test("should implement proper CORS policies", async ({ page }) => {
+    await page.goto("/");
 
     const corsTests = [
       {
-        origin: 'https://evil.com',
-        method: 'GET',
-        headers: { 'Content-Type': 'application/json' },
-        shouldAllow: false
+        origin: "https://evil.com",
+        method: "GET",
+        headers: { "Content-Type": "application/json" },
+        shouldAllow: false,
       },
       {
-        origin: 'https://app.yourfinancialplatform.com',
-        method: 'GET',
-        headers: { 'Content-Type': 'application/json' },
-        shouldAllow: true
+        origin: "https://app.yourfinancialplatform.com",
+        method: "GET",
+        headers: { "Content-Type": "application/json" },
+        shouldAllow: true,
       },
       {
-        origin: 'https://evil.com',
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        shouldAllow: false
-      }
+        origin: "https://evil.com",
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        shouldAllow: false,
+      },
     ];
 
     for (const test of corsTests) {
       // Test preflight request
       const preflightResponse = await page.evaluate(async (corsTest) => {
         try {
-          const res = await fetch('/api/portfolio', {
-            method: 'OPTIONS',
+          const res = await fetch("/api/portfolio", {
+            method: "OPTIONS",
             headers: {
-              'Origin': corsTest.origin,
-              'Access-Control-Request-Method': corsTest.method,
-              'Access-Control-Request-Headers': Object.keys(corsTest.headers).join(',')
-            }
+              Origin: corsTest.origin,
+              "Access-Control-Request-Method": corsTest.method,
+              "Access-Control-Request-Headers": Object.keys(
+                corsTest.headers
+              ).join(","),
+            },
           });
           return {
             status: res.status,
-            headers: Object.fromEntries(res.headers)
+            headers: Object.fromEntries(res.headers),
           };
         } catch (e) {
           return { error: e.message };
@@ -222,24 +236,27 @@ test.describe('Network Security', () => {
 
       if (test.shouldAllow) {
         expect(preflightResponse.status).toBe(200);
-        expect(preflightResponse.headers['access-control-allow-origin']).toBeTruthy();
+        expect(
+          preflightResponse.headers["access-control-allow-origin"]
+        ).toBeTruthy();
       } else {
         expect(
           preflightResponse.status !== 200 ||
-          !preflightResponse.headers['access-control-allow-origin']
+            !preflightResponse.headers["access-control-allow-origin"]
         ).toBe(true);
       }
     }
   });
 
-  test('should protect against clickjacking', async ({ page }) => {
-    const response = await page.goto('/');
+  test("should protect against clickjacking", async ({ page }) => {
+    const response = await page.goto("/");
     const headers = response.headers();
 
     // Check for frame protection
     const hasFrameProtection =
-      headers['x-frame-options'] ||
-      (headers['content-security-policy'] && headers['content-security-policy'].includes('frame-ancestors'));
+      headers["x-frame-options"] ||
+      (headers["content-security-policy"] &&
+        headers["content-security-policy"].includes("frame-ancestors"));
 
     expect(hasFrameProtection).toBeTruthy();
 
@@ -253,8 +270,8 @@ test.describe('Network Security', () => {
     `);
 
     const frameLoaded = await page.evaluate(() => {
-      const frame = document.getElementById('test-frame');
-      return new Promise(resolve => {
+      const frame = document.getElementById("test-frame");
+      return new Promise((resolve) => {
         frame.onload = () => resolve(true);
         frame.onerror = () => resolve(false);
         setTimeout(() => resolve(false), 5000);
@@ -265,14 +282,15 @@ test.describe('Network Security', () => {
     expect(frameLoaded).toBe(false);
   });
 
-  test('should implement secure cookie policies', async ({ page }) => {
-    await page.goto('/');
+  test("should implement secure cookie policies", async ({ page }) => {
+    await page.goto("/");
 
     const cookies = await page.context().cookies();
-    const securityCookies = cookies.filter(c =>
-      c.name.includes('session') ||
-      c.name.includes('auth') ||
-      c.name.includes('token')
+    const securityCookies = cookies.filter(
+      (c) =>
+        c.name.includes("session") ||
+        c.name.includes("auth") ||
+        c.name.includes("token")
     );
 
     for (const cookie of securityCookies) {
@@ -283,7 +301,7 @@ test.describe('Network Security', () => {
       expect(cookie.httpOnly).toBe(true);
 
       // Should have appropriate SameSite policy
-      expect(['Strict', 'Lax']).toContain(cookie.sameSite);
+      expect(["Strict", "Lax"]).toContain(cookie.sameSite);
 
       // Should have reasonable expiration
       if (cookie.expires && cookie.expires !== -1) {
@@ -294,19 +312,22 @@ test.describe('Network Security', () => {
     }
   });
 
-  test('should prevent information disclosure through headers', async ({ page }) => {
-    const response = await page.goto('/');
+  test("should prevent information disclosure through headers", async ({
+    page,
+  }) => {
+    const response = await page.goto("/");
     const headers = response.headers();
 
     // Should not expose server information
-    expect(headers['server']).toBeFalsy();
-    expect(headers['x-powered-by']).toBeFalsy();
+    expect(headers["server"]).toBeFalsy();
+    expect(headers["x-powered-by"]).toBeFalsy();
 
     // Should not expose version information
-    const serverHeaders = Object.keys(headers).filter(h =>
-      h.toLowerCase().includes('server') ||
-      h.toLowerCase().includes('version') ||
-      h.toLowerCase().includes('powered')
+    const serverHeaders = Object.keys(headers).filter(
+      (h) =>
+        h.toLowerCase().includes("server") ||
+        h.toLowerCase().includes("version") ||
+        h.toLowerCase().includes("powered")
     );
 
     for (const header of serverHeaders) {
@@ -316,11 +337,11 @@ test.describe('Network Security', () => {
     }
   });
 
-  test('should implement proper timeout configurations', async ({ page }) => {
-    await page.goto('/');
+  test("should implement proper timeout configurations", async ({ page }) => {
+    await page.goto("/");
 
     // Test connection timeout
-    const slowEndpoint = '/api/analytics/complex-calculation';
+    const slowEndpoint = "/api/analytics/complex-calculation";
     const startTime = Date.now();
 
     const response = await page.evaluate(async (endpoint) => {
@@ -330,15 +351,15 @@ test.describe('Network Security', () => {
 
         const res = await fetch(endpoint, {
           signal: controller.signal,
-          headers: { 'Authorization': 'Bearer test-token' }
+          headers: { Authorization: "Bearer test-token" },
         });
 
         clearTimeout(timeoutId);
         return { status: res.status, timedOut: false };
       } catch (e) {
         return {
-          timedOut: e.name === 'AbortError',
-          error: e.message
+          timedOut: e.name === "AbortError",
+          error: e.message,
         };
       }
     }, slowEndpoint);
@@ -351,15 +372,15 @@ test.describe('Network Security', () => {
     }
   });
 
-  test('should validate WebSocket security', async ({ page }) => {
-    await page.goto('/');
+  test("should validate WebSocket security", async ({ page }) => {
+    await page.goto("/");
 
     // Monitor WebSocket connections
     const wsConnections = [];
-    page.on('websocket', ws => {
+    page.on("websocket", (ws) => {
       wsConnections.push({
         url: ws.url(),
-        isClosed: ws.isClosed()
+        isClosed: ws.isClosed(),
       });
     });
 
@@ -374,16 +395,19 @@ test.describe('Network Security', () => {
     }
   });
 
-  test('should protect against subdomain takeover', async ({ page }) => {
-    await page.goto('/');
+  test("should protect against subdomain takeover", async ({ page }) => {
+    await page.goto("/");
 
     // Check for external subdomain references
     const _content = await page.content();
-    const links = await page.locator('a[href], link[href], script[src], img[src]').all();
+    const links = await page
+      .locator("a[href], link[href], script[src], img[src]")
+      .all();
 
     for (const link of links) {
-      const href = await link.getAttribute('href') || await link.getAttribute('src');
-      if (href && href.includes('.')) {
+      const href =
+        (await link.getAttribute("href")) || (await link.getAttribute("src"));
+      if (href && href.includes(".")) {
         // External references should be to trusted domains
         const domain = new URL(href, page.url()).hostname;
 
@@ -395,12 +419,12 @@ test.describe('Network Security', () => {
     }
   });
 
-  test('should implement network-level DDoS protection', async ({ page }) => {
-    await page.goto('/');
+  test("should implement network-level DDoS protection", async ({ page }) => {
+    await page.goto("/");
 
     // Test rate limiting at network level
     const requests = [];
-    const endpoint = '/api/health';
+    const endpoint = "/api/health";
 
     for (let i = 0; i < 50; i++) {
       const request = page.evaluate(async (url) => {
@@ -410,7 +434,7 @@ test.describe('Network Security', () => {
           return {
             status: res.status,
             time: Date.now() - startTime,
-            headers: Object.fromEntries(res.headers)
+            headers: Object.fromEntries(res.headers),
           };
         } catch (e) {
           return { error: e.message, time: Date.now() - startTime };
@@ -422,15 +446,15 @@ test.describe('Network Security', () => {
     const responses = await Promise.all(requests);
 
     // Should implement rate limiting
-    const rateLimited = responses.filter(r => r.status === 429);
+    const rateLimited = responses.filter((r) => r.status === 429);
     expect(rateLimited.length).toBeGreaterThan(0);
 
     // Should have rate limiting headers
     const rateLimitResponse = rateLimited[0];
     if (rateLimitResponse && rateLimitResponse.headers) {
       expect(
-        rateLimitResponse.headers['x-ratelimit-limit'] ||
-        rateLimitResponse.headers['retry-after']
+        rateLimitResponse.headers["x-ratelimit-limit"] ||
+          rateLimitResponse.headers["retry-after"]
       ).toBeTruthy();
     }
   });

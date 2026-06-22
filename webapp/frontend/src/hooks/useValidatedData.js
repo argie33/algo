@@ -3,17 +3,21 @@
  * Returns validated items with filtering for null/undefined
  * Usage: const validatedItems = useValidatedData(items, ['symbol', 'price'])
  */
-import { validateItems } from '../utils/responseNormalizer';
+import { validateItems } from "../utils/responseNormalizer";
 
-export const useValidatedData = (items, requiredFields = [], defaultValue = []) => {
+export const useValidatedData = (
+  items,
+  requiredFields = [],
+  defaultValue = []
+) => {
   // Handle null/undefined/non-array
   if (!Array.isArray(items)) {
-    console.warn('[useValidatedData] Expected array but got', typeof items);
+    console.warn("[useValidatedData] Expected array but got", typeof items);
     return defaultValue;
   }
 
   // Filter out null/undefined items
-  const filtered = items.filter(item => item !== null && item !== undefined);
+  const filtered = items.filter((item) => item !== null && item !== undefined);
 
   // If no required fields specified, just return filtered array
   if (requiredFields.length === 0) {
@@ -21,11 +25,14 @@ export const useValidatedData = (items, requiredFields = [], defaultValue = []) 
   }
 
   // Validate that items have required fields
-  const { valid, invalidItems, missingFields } = validateItems(filtered, requiredFields);
+  const { valid, invalidItems, missingFields } = validateItems(
+    filtered,
+    requiredFields
+  );
 
   if (!valid) {
     console.warn(
-      `[useValidatedData] ${invalidItems.length} of ${filtered.length} items invalid. Missing: ${[...missingFields].join(', ')}`
+      `[useValidatedData] ${invalidItems.length} of ${filtered.length} items invalid. Missing: ${[...missingFields].join(", ")}`
     );
   }
 

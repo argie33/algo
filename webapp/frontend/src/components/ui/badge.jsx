@@ -23,4 +23,3 @@ export const Badge = React.forwardRef(
   }
 );
 Badge.displayName = "Badge";
-

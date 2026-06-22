@@ -27,7 +27,6 @@ test.describe("Market Overview Page E2E Tests", () => {
       }
     });
 
-
     // Navigate to Market Overview page
     try {
       await page.goto("/market", {
@@ -70,10 +69,9 @@ test.describe("Market Overview Page E2E Tests", () => {
       // Check for market-specific content
       const hasMarketContent = await page.locator("#root *").count();
       expect(hasMarketContent).toBeGreaterThan(0);
-
     } catch (error) {
       console.log("⚠️ Market Overview failed to load:", error.message);
-      await page.screenshot({ path: 'debug-market-overview.png' });
+      await page.screenshot({ path: "debug-market-overview.png" });
       throw error;
     }
   });
@@ -90,13 +88,13 @@ test.describe("Market Overview Page E2E Tests", () => {
       '[data-testid*="market"]',
       '[class*="market"]',
       '[class*="overview"]',
-      'table', // Market data tables
-      'chart', // Charts
-      '.MuiCard-root', // Card components
-      '.MuiContainer-root', // Any MUI container
-      'main', // Main content area
-      'nav', // Navigation
-      'h1, h2, h3, h4, h5, h6', // Any headings
+      "table", // Market data tables
+      "chart", // Charts
+      ".MuiCard-root", // Card components
+      ".MuiContainer-root", // Any MUI container
+      "main", // Main content area
+      "nav", // Navigation
+      "h1, h2, h3, h4, h5, h6", // Any headings
     ];
 
     let hasMarketElements = false;

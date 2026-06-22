@@ -2,19 +2,39 @@ import { useState } from "react";
 import { useAuth } from "../../contexts/AuthContext";
 
 const EyeIcon = () => (
-  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round">
-    <path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/>
-    <circle cx="12" cy="12" r="3"/>
+  <svg
+    width="14"
+    height="14"
+    viewBox="0 0 24 24"
+    fill="none"
+    stroke="currentColor"
+    strokeWidth="2"
+    strokeLinecap="round"
+  >
+    <path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z" />
+    <circle cx="12" cy="12" r="3" />
   </svg>
 );
 
 const EyeOffIcon = () => (
-  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round">
-    <path d="M17.94 17.94A10.07 10.07 0 0 1 12 20c-7 0-11-8-11-8a18.45 18.45 0 0 1 5.06-5.94M9.9 4.24A9.12 9.12 0 0 1 12 4c7 0 11 8 11 8a18.5 18.5 0 0 1-2.16 3.19m-6.72-1.07a3 3 0 1 1-4.24-4.24M1 1l22 22"/>
+  <svg
+    width="14"
+    height="14"
+    viewBox="0 0 24 24"
+    fill="none"
+    stroke="currentColor"
+    strokeWidth="2"
+    strokeLinecap="round"
+  >
+    <path d="M17.94 17.94A10.07 10.07 0 0 1 12 20c-7 0-11-8-11-8a18.45 18.45 0 0 1 5.06-5.94M9.9 4.24A9.12 9.12 0 0 1 12 4c7 0 11 8 11 8a18.5 18.5 0 0 1-2.16 3.19m-6.72-1.07a3 3 0 1 1-4.24-4.24M1 1l22 22" />
   </svg>
 );
 
-function ResetPasswordForm({ username, onPasswordResetSuccess, onSwitchToLogin }) {
+function ResetPasswordForm({
+  username,
+  onPasswordResetSuccess,
+  onSwitchToLogin,
+}) {
   const [formData, setFormData] = useState({
     confirmationCode: "",
     newPassword: "",
@@ -34,7 +54,11 @@ function ResetPasswordForm({ username, onPasswordResetSuccess, onSwitchToLogin }
   };
 
   const validateForm = () => {
-    if (!formData.confirmationCode || !formData.newPassword || !formData.confirmPassword) {
+    if (
+      !formData.confirmationCode ||
+      !formData.newPassword ||
+      !formData.confirmPassword
+    ) {
       setLocalError("Please fill in all fields");
       return false;
     }
@@ -55,7 +79,11 @@ function ResetPasswordForm({ username, onPasswordResetSuccess, onSwitchToLogin }
 
     if (!validateForm()) return;
 
-    const result = await confirmForgotPassword(username, formData.confirmationCode, formData.newPassword);
+    const result = await confirmForgotPassword(
+      username,
+      formData.confirmationCode,
+      formData.newPassword
+    );
 
     if (result.success) {
       onPasswordResetSuccess?.();
@@ -69,22 +97,43 @@ function ResetPasswordForm({ username, onPasswordResetSuccess, onSwitchToLogin }
   return (
     <form onSubmit={handleSubmit} noValidate>
       <div style={{ marginBottom: "var(--space-5)" }}>
-        <p style={{ fontSize: "var(--t-sm)", color: "var(--text-muted)", margin: 0 }}>
+        <p
+          style={{
+            fontSize: "var(--t-sm)",
+            color: "var(--text-muted)",
+            margin: 0,
+          }}
+        >
           Enter the code from your email and choose a new password.
         </p>
       </div>
 
       {displayError && (
-        <div className="alert alert-danger" style={{ marginBottom: "var(--space-4)" }}>
-          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round">
-            <circle cx="12" cy="12" r="10"/><line x1="15" y1="9" x2="9" y2="15"/><line x1="9" y1="9" x2="15" y2="15"/>
+        <div
+          className="alert alert-danger"
+          style={{ marginBottom: "var(--space-4)" }}
+        >
+          <svg
+            width="14"
+            height="14"
+            viewBox="0 0 24 24"
+            fill="none"
+            stroke="currentColor"
+            strokeWidth="2"
+            strokeLinecap="round"
+          >
+            <circle cx="12" cy="12" r="10" />
+            <line x1="15" y1="9" x2="9" y2="15" />
+            <line x1="9" y1="9" x2="15" y2="15" />
           </svg>
           <span style={{ fontSize: "var(--t-sm)" }}>{displayError}</span>
         </div>
       )}
 
       <div className="field-group" style={{ marginBottom: "var(--space-4)" }}>
-        <label className="field-label" htmlFor="confirmationCode">Reset Code</label>
+        <label className="field-label" htmlFor="confirmationCode">
+          Reset Code
+        </label>
         <input
           className="input"
           id="confirmationCode"
@@ -107,9 +156,21 @@ function ResetPasswordForm({ username, onPasswordResetSuccess, onSwitchToLogin }
       </div>
 
       <div className="field-group" style={{ marginBottom: "var(--space-4)" }}>
-        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "baseline" }}>
-          <label className="field-label" htmlFor="newPassword">New Password</label>
-          <span style={{ fontSize: "var(--t-2xs)", color: "var(--text-faint)" }}>8+ chars</span>
+        <div
+          style={{
+            display: "flex",
+            justifyContent: "space-between",
+            alignItems: "baseline",
+          }}
+        >
+          <label className="field-label" htmlFor="newPassword">
+            New Password
+          </label>
+          <span
+            style={{ fontSize: "var(--t-2xs)", color: "var(--text-faint)" }}
+          >
+            8+ chars
+          </span>
         </div>
         <div style={{ position: "relative" }}>
           <input
@@ -130,7 +191,14 @@ function ResetPasswordForm({ username, onPasswordResetSuccess, onSwitchToLogin }
             onClick={() => setShowPassword(!showPassword)}
             disabled={isLoading}
             aria-label="Toggle password visibility"
-            style={{ position: "absolute", right: "6px", top: "50%", transform: "translateY(-50%)", width: "28px", height: "28px" }}
+            style={{
+              position: "absolute",
+              right: "6px",
+              top: "50%",
+              transform: "translateY(-50%)",
+              width: "28px",
+              height: "28px",
+            }}
           >
             {showPassword ? <EyeOffIcon /> : <EyeIcon />}
           </button>
@@ -138,7 +206,9 @@ function ResetPasswordForm({ username, onPasswordResetSuccess, onSwitchToLogin }
       </div>
 
       <div className="field-group" style={{ marginBottom: "var(--space-5)" }}>
-        <label className="field-label" htmlFor="confirmPassword">Confirm New Password</label>
+        <label className="field-label" htmlFor="confirmPassword">
+          Confirm New Password
+        </label>
         <div style={{ position: "relative" }}>
           <input
             className="input"
@@ -158,7 +228,14 @@ function ResetPasswordForm({ username, onPasswordResetSuccess, onSwitchToLogin }
             onClick={() => setShowConfirmPassword(!showConfirmPassword)}
             disabled={isLoading}
             aria-label="Toggle password visibility"
-            style={{ position: "absolute", right: "6px", top: "50%", transform: "translateY(-50%)", width: "28px", height: "28px" }}
+            style={{
+              position: "absolute",
+              right: "6px",
+              top: "50%",
+              transform: "translateY(-50%)",
+              width: "28px",
+              height: "28px",
+            }}
           >
             {showConfirmPassword ? <EyeOffIcon /> : <EyeIcon />}
           </button>
@@ -174,12 +251,25 @@ function ResetPasswordForm({ username, onPasswordResetSuccess, onSwitchToLogin }
         {isLoading ? "Resetting…" : "Reset Password"}
       </button>
 
-      <div style={{ textAlign: "center", paddingTop: "var(--space-4)", borderTop: "1px solid var(--border)" }}>
+      <div
+        style={{
+          textAlign: "center",
+          paddingTop: "var(--space-4)",
+          borderTop: "1px solid var(--border)",
+        }}
+      >
         <button
           type="button"
           onClick={onSwitchToLogin}
           disabled={isLoading}
-          style={{ background: "none", border: "none", padding: 0, cursor: "pointer", fontSize: "var(--t-sm)", color: "var(--text-muted)" }}
+          style={{
+            background: "none",
+            border: "none",
+            padding: 0,
+            cursor: "pointer",
+            fontSize: "var(--t-sm)",
+            color: "var(--text-muted)",
+          }}
         >
           Back to Sign In
         </button>

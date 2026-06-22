@@ -94,7 +94,6 @@ test.describe("Mobile-Specific Testing", () => {
   test("Mobile dashboard should load and display key metrics", async ({
     page,
   }) => {
-
     await page.goto("/", { waitUntil: "domcontentloaded" });
     await page.waitForSelector("#root", { state: "attached" });
     await page.waitForTimeout(3000);
@@ -125,12 +124,13 @@ test.describe("Mobile-Specific Testing", () => {
       }
     }
 
-      console.log(`Touch-friendly targets: ${touchFriendlyCount}/${Math.min(touchTargets.length, 10)}`);
+    console.log(
+      `Touch-friendly targets: ${touchFriendlyCount}/${Math.min(touchTargets.length, 10)}`
+    );
     expect(touchFriendlyCount).toBeGreaterThan(0);
   });
 
   test("Mobile portfolio page should be touch-optimized", async ({ page }) => {
-
     await page.goto("/portfolio", { waitUntil: "domcontentloaded" });
     await page.waitForSelector("#root", { state: "attached" });
     await page.waitForTimeout(2000);
@@ -152,8 +152,7 @@ test.describe("Mobile-Specific Testing", () => {
         // Test tap gesture
         await tapTargets[0].tap();
         await page.waitForTimeout(500);
-      } catch (e) {
-      }
+      } catch (e) {}
     }
 
     // Verify mobile viewport usage
@@ -164,7 +163,6 @@ test.describe("Mobile-Specific Testing", () => {
   test("Mobile market data should be readable and accessible", async ({
     page,
   }) => {
-
     await page.goto("/market", { waitUntil: "domcontentloaded" });
     await page.waitForSelector("#root", { state: "attached" });
     await page.waitForTimeout(2000);
@@ -202,7 +200,6 @@ test.describe("Mobile-Specific Testing", () => {
     // Test mobile data table responsiveness
     const tables = await page.locator("table, .data-table, .grid").count();
     if (tables > 0) {
-
       // Check for horizontal scroll on tables
       const tableOverflow = await page
         .locator("table")
@@ -216,7 +213,6 @@ test.describe("Mobile-Specific Testing", () => {
   test("Mobile navigation should work with touch gestures", async ({
     page,
   }) => {
-
     await page.goto("/", { waitUntil: "domcontentloaded" });
     await page.waitForSelector("#root", { state: "attached" });
     await page.waitForTimeout(1500);
@@ -226,7 +222,6 @@ test.describe("Mobile-Specific Testing", () => {
 
     for (const route of mobileRoutes) {
       try {
-
         await page.goto(route, {
           waitUntil: "domcontentloaded",
           timeout: 8000,
@@ -254,7 +249,6 @@ test.describe("Mobile-Specific Testing", () => {
   });
 
   test("Mobile performance should meet Core Web Vitals", async ({ page }) => {
-
     const performanceMetrics = [];
 
     // Test mobile-specific performance
@@ -310,7 +304,6 @@ test.describe("Mobile-Specific Testing", () => {
   test("Mobile accessibility should support assistive technologies", async ({
     page,
   }) => {
-
     await page.goto("/", { waitUntil: "domcontentloaded" });
     await page.waitForSelector("#root", { state: "attached" });
     await page.waitForTimeout(2000);
@@ -346,4 +339,3 @@ test.describe("Mobile-Specific Testing", () => {
     expect(headings).toBeGreaterThan(1);
   });
 });
-

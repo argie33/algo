@@ -30,7 +30,10 @@ vi.mock("../../../services/api.js", () => ({
   default: { get: vi.fn(), post: vi.fn() },
   getSettings: vi.fn(),
   updateSettings: vi.fn(),
-  getApiConfig: vi.fn(() => ({ apiUrl: "http://localhost:3001", environment: "test" })),
+  getApiConfig: vi.fn(() => ({
+    apiUrl: "http://localhost:3001",
+    environment: "test",
+  })),
 }));
 
 describe("Settings Page", () => {
@@ -46,7 +49,11 @@ describe("Settings Page", () => {
     getSettings.mockResolvedValue({
       data: {
         notifications: { email: true, push: false, alerts: false },
-        profile: { firstName: "Test", lastName: "User", email: "test@example.com" },
+        profile: {
+          firstName: "Test",
+          lastName: "User",
+          email: "test@example.com",
+        },
         theme: "dark",
         defaultView: "market",
       },
@@ -57,21 +64,31 @@ describe("Settings Page", () => {
   describe("Settings Page Layout", () => {
     it("should render the Settings heading", async () => {
       renderWithProviders(<Settings />);
-      await waitFor(() => { expect(screen.getByText("Settings")).toBeInTheDocument(); });
+      await waitFor(() => {
+        expect(screen.getByText("Settings")).toBeInTheDocument();
+      });
     });
 
     it("should display three tab buttons", async () => {
       renderWithProviders(<Settings />);
       await waitFor(() => {
-        expect(screen.getByRole("button", { name: "General Settings" })).toBeInTheDocument();
-        expect(screen.getByRole("button", { name: "Preferences" })).toBeInTheDocument();
-        expect(screen.getByRole("button", { name: "Account" })).toBeInTheDocument();
+        expect(
+          screen.getByRole("button", { name: "General Settings" })
+        ).toBeInTheDocument();
+        expect(
+          screen.getByRole("button", { name: "Preferences" })
+        ).toBeInTheDocument();
+        expect(
+          screen.getByRole("button", { name: "Account" })
+        ).toBeInTheDocument();
       });
     });
 
     it("should call getSettings on mount", async () => {
       renderWithProviders(<Settings />);
-      await waitFor(() => { expect(getSettings).toHaveBeenCalled(); });
+      await waitFor(() => {
+        expect(getSettings).toHaveBeenCalled();
+      });
     });
 
     it("should show loading state before settings resolve", () => {
@@ -84,33 +101,55 @@ describe("Settings Page", () => {
   describe("General Settings Tab (default)", () => {
     it("should display Theme label on default tab", async () => {
       renderWithProviders(<Settings />);
-      await waitFor(() => { expect(screen.getByText("Theme")).toBeInTheDocument(); });
+      await waitFor(() => {
+        expect(screen.getByText("Theme")).toBeInTheDocument();
+      });
     });
 
     it("should display Default View label", async () => {
       renderWithProviders(<Settings />);
-      await waitFor(() => { expect(screen.getByText("Default View")).toBeInTheDocument(); });
+      await waitFor(() => {
+        expect(screen.getByText("Default View")).toBeInTheDocument();
+      });
     });
 
     it("should have Save Settings button", async () => {
       renderWithProviders(<Settings />);
-      await waitFor(() => { expect(screen.getByRole("button", { name: /Save Settings/i })).toBeInTheDocument(); });
+      await waitFor(() => {
+        expect(
+          screen.getByRole("button", { name: /Save Settings/i })
+        ).toBeInTheDocument();
+      });
     });
 
     it("should call updateSettings on Save Settings click", async () => {
       const user = userEvent.setup();
       renderWithProviders(<Settings />);
-      await waitFor(() => { expect(screen.getByRole("button", { name: /Save Settings/i })).toBeInTheDocument(); });
+      await waitFor(() => {
+        expect(
+          screen.getByRole("button", { name: /Save Settings/i })
+        ).toBeInTheDocument();
+      });
       await user.click(screen.getByRole("button", { name: /Save Settings/i }));
-      await waitFor(() => { expect(updateSettings).toHaveBeenCalled(); });
+      await waitFor(() => {
+        expect(updateSettings).toHaveBeenCalled();
+      });
     });
 
     it("should show success message after saving", async () => {
       const user = userEvent.setup();
       renderWithProviders(<Settings />);
-      await waitFor(() => { expect(screen.getByRole("button", { name: /Save Settings/i })).toBeInTheDocument(); });
+      await waitFor(() => {
+        expect(
+          screen.getByRole("button", { name: /Save Settings/i })
+        ).toBeInTheDocument();
+      });
       await user.click(screen.getByRole("button", { name: /Save Settings/i }));
-      await waitFor(() => { expect(screen.getByText(/Settings saved successfully/i)).toBeInTheDocument(); });
+      await waitFor(() => {
+        expect(
+          screen.getByText(/Settings saved successfully/i)
+        ).toBeInTheDocument();
+      });
     });
   });
 
@@ -118,34 +157,60 @@ describe("Settings Page", () => {
     it("should show Email Notifications label", async () => {
       const user = userEvent.setup();
       renderWithProviders(<Settings />);
-      await waitFor(() => { expect(screen.getByRole("button", { name: "Preferences" })).toBeInTheDocument(); });
+      await waitFor(() => {
+        expect(
+          screen.getByRole("button", { name: "Preferences" })
+        ).toBeInTheDocument();
+      });
       await user.click(screen.getByRole("button", { name: "Preferences" }));
-      await waitFor(() => { expect(screen.getByText(/Email Notifications/i)).toBeInTheDocument(); });
+      await waitFor(() => {
+        expect(screen.getByText(/Email Notifications/i)).toBeInTheDocument();
+      });
     });
 
     it("should show Push Notifications label", async () => {
       const user = userEvent.setup();
       renderWithProviders(<Settings />);
-      await waitFor(() => { expect(screen.getByRole("button", { name: "Preferences" })).toBeInTheDocument(); });
+      await waitFor(() => {
+        expect(
+          screen.getByRole("button", { name: "Preferences" })
+        ).toBeInTheDocument();
+      });
       await user.click(screen.getByRole("button", { name: "Preferences" }));
       // Use getAllByText since "push" appears in both the label and subtitle text
-      await waitFor(() => { expect(screen.getAllByText(/Push Notifications/i).length).toBeGreaterThan(0); });
+      await waitFor(() => {
+        expect(
+          screen.getAllByText(/Push Notifications/i).length
+        ).toBeGreaterThan(0);
+      });
     });
 
     it("should show Trading Alerts label", async () => {
       const user = userEvent.setup();
       renderWithProviders(<Settings />);
-      await waitFor(() => { expect(screen.getByRole("button", { name: "Preferences" })).toBeInTheDocument(); });
+      await waitFor(() => {
+        expect(
+          screen.getByRole("button", { name: "Preferences" })
+        ).toBeInTheDocument();
+      });
       await user.click(screen.getByRole("button", { name: "Preferences" }));
-      await waitFor(() => { expect(screen.getByText(/Trading Alerts/i)).toBeInTheDocument(); });
+      await waitFor(() => {
+        expect(screen.getByText(/Trading Alerts/i)).toBeInTheDocument();
+      });
     });
 
     it("should show auto-save note", async () => {
       const user = userEvent.setup();
       renderWithProviders(<Settings />);
-      await waitFor(() => { expect(screen.getByRole("button", { name: "Preferences" })).toBeInTheDocument(); });
+      await waitFor(() => {
+        expect(
+          screen.getByRole("button", { name: "Preferences" })
+        ).toBeInTheDocument();
+      });
       await user.click(screen.getByRole("button", { name: "Preferences" }));
-      await waitFor(() => { expect(screen.getByText(/automatically saved/i)).toBeInTheDocument(); });
+      await waitFor(() => {
+        expect(screen.getByText(/automatically saved/i)).toBeInTheDocument();
+      });
     });
   });
 
@@ -153,41 +218,75 @@ describe("Settings Page", () => {
     it("should show First Name field", async () => {
       const user = userEvent.setup();
       renderWithProviders(<Settings />);
-      await waitFor(() => { expect(screen.getByRole("button", { name: "Account" })).toBeInTheDocument(); });
+      await waitFor(() => {
+        expect(
+          screen.getByRole("button", { name: "Account" })
+        ).toBeInTheDocument();
+      });
       await user.click(screen.getByRole("button", { name: "Account" }));
-      await waitFor(() => { expect(screen.getByText("First Name")).toBeInTheDocument(); });
+      await waitFor(() => {
+        expect(screen.getByText("First Name")).toBeInTheDocument();
+      });
     });
 
     it("should show Last Name field", async () => {
       const user = userEvent.setup();
       renderWithProviders(<Settings />);
-      await waitFor(() => { expect(screen.getByRole("button", { name: "Account" })).toBeInTheDocument(); });
+      await waitFor(() => {
+        expect(
+          screen.getByRole("button", { name: "Account" })
+        ).toBeInTheDocument();
+      });
       await user.click(screen.getByRole("button", { name: "Account" }));
-      await waitFor(() => { expect(screen.getByText("Last Name")).toBeInTheDocument(); });
+      await waitFor(() => {
+        expect(screen.getByText("Last Name")).toBeInTheDocument();
+      });
     });
 
     it("should show Email field", async () => {
       const user = userEvent.setup();
       renderWithProviders(<Settings />);
-      await waitFor(() => { expect(screen.getByRole("button", { name: "Account" })).toBeInTheDocument(); });
+      await waitFor(() => {
+        expect(
+          screen.getByRole("button", { name: "Account" })
+        ).toBeInTheDocument();
+      });
       await user.click(screen.getByRole("button", { name: "Account" }));
-      await waitFor(() => { expect(screen.getByText("Email")).toBeInTheDocument(); });
+      await waitFor(() => {
+        expect(screen.getByText("Email")).toBeInTheDocument();
+      });
     });
 
     it("should show Save Profile button", async () => {
       const user = userEvent.setup();
       renderWithProviders(<Settings />);
-      await waitFor(() => { expect(screen.getByRole("button", { name: "Account" })).toBeInTheDocument(); });
+      await waitFor(() => {
+        expect(
+          screen.getByRole("button", { name: "Account" })
+        ).toBeInTheDocument();
+      });
       await user.click(screen.getByRole("button", { name: "Account" }));
-      await waitFor(() => { expect(screen.getByRole("button", { name: /Save Profile/i })).toBeInTheDocument(); });
+      await waitFor(() => {
+        expect(
+          screen.getByRole("button", { name: /Save Profile/i })
+        ).toBeInTheDocument();
+      });
     });
 
     it("should show email cannot be changed note", async () => {
       const user = userEvent.setup();
       renderWithProviders(<Settings />);
-      await waitFor(() => { expect(screen.getByRole("button", { name: "Account" })).toBeInTheDocument(); });
+      await waitFor(() => {
+        expect(
+          screen.getByRole("button", { name: "Account" })
+        ).toBeInTheDocument();
+      });
       await user.click(screen.getByRole("button", { name: "Account" }));
-      await waitFor(() => { expect(screen.getByText(/Email cannot be changed/i)).toBeInTheDocument(); });
+      await waitFor(() => {
+        expect(
+          screen.getByText(/Email cannot be changed/i)
+        ).toBeInTheDocument();
+      });
     });
   });
 
@@ -195,22 +294,36 @@ describe("Settings Page", () => {
     it("should show error when settings fail to load", async () => {
       getSettings.mockRejectedValue(new Error("Settings unavailable"));
       renderWithProviders(<Settings />);
-      await waitFor(() => { expect(screen.getByText(/Failed to load settings/i)).toBeInTheDocument(); });
+      await waitFor(() => {
+        expect(
+          screen.getByText(/Failed to load settings/i)
+        ).toBeInTheDocument();
+      });
     });
 
     it("should show error when save fails", async () => {
       const user = userEvent.setup();
       updateSettings.mockRejectedValue(new Error("Save failed"));
       renderWithProviders(<Settings />);
-      await waitFor(() => { expect(screen.getByRole("button", { name: /Save Settings/i })).toBeInTheDocument(); });
+      await waitFor(() => {
+        expect(
+          screen.getByRole("button", { name: /Save Settings/i })
+        ).toBeInTheDocument();
+      });
       await user.click(screen.getByRole("button", { name: /Save Settings/i }));
-      await waitFor(() => { expect(screen.getByText(/Failed to save settings/i)).toBeInTheDocument(); });
+      await waitFor(() => {
+        expect(
+          screen.getByText(/Failed to save settings/i)
+        ).toBeInTheDocument();
+      });
     });
 
     it("should not crash on settings error", async () => {
       getSettings.mockRejectedValue(new Error("error"));
       renderWithProviders(<Settings />);
-      await waitFor(() => { expect(document.body).toBeTruthy(); });
+      await waitFor(() => {
+        expect(document.body).toBeTruthy();
+      });
     });
   });
 
@@ -226,7 +339,9 @@ describe("Settings Page", () => {
     it("should be keyboard navigable", async () => {
       const user = userEvent.setup();
       renderWithProviders(<Settings />);
-      await waitFor(() => { expect(screen.getByText("Settings")).toBeInTheDocument(); });
+      await waitFor(() => {
+        expect(screen.getByText("Settings")).toBeInTheDocument();
+      });
       await user.tab();
       const focused = document.activeElement;
       expect(focused).toBeTruthy();
@@ -236,9 +351,15 @@ describe("Settings Page", () => {
 
   describe("Responsive Design", () => {
     it("should render on mobile viewport", async () => {
-      Object.defineProperty(window, "innerWidth", { writable: true, configurable: true, value: 375 });
+      Object.defineProperty(window, "innerWidth", {
+        writable: true,
+        configurable: true,
+        value: 375,
+      });
       renderWithProviders(<Settings />);
-      await waitFor(() => { expect(document.body).toBeTruthy(); });
+      await waitFor(() => {
+        expect(document.body).toBeTruthy();
+      });
     });
   });
 });

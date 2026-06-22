@@ -153,7 +153,8 @@ describe("SectorAnalysis - Momentum Score and Industries Feature Tests", () => {
 
       // Verify industries are loaded from API (useIndustries hook calls /api/industries)
       expect(api.default.get).toHaveBeenCalledWith(
-        "/api/industries", expect.anything()
+        "/api/industries",
+        expect.anything()
       );
     });
 
@@ -189,9 +190,7 @@ describe("SectorAnalysis - Momentum Score and Industries Feature Tests", () => {
           return Promise.resolve({
             data: {
               data: {
-                sectors: [
-                  { sector_name: "Technology", current_rank: 1 },
-                ],
+                sectors: [{ sector_name: "Technology", current_rank: 1 }],
               },
             },
           });
@@ -210,7 +209,8 @@ describe("SectorAnalysis - Momentum Score and Industries Feature Tests", () => {
 
       // Verify industries are loaded from API (companies are fetched on expand via lazy loading)
       expect(api.default.get).toHaveBeenCalledWith(
-        "/api/industries", expect.anything()
+        "/api/industries",
+        expect.anything()
       );
     });
 
@@ -247,9 +247,7 @@ describe("SectorAnalysis - Momentum Score and Industries Feature Tests", () => {
     });
 
     test("should handle real API errors gracefully", async () => {
-      vi.mocked(api.default.get).mockRejectedValue(
-        new Error("API Error")
-      );
+      vi.mocked(api.default.get).mockRejectedValue(new Error("API Error"));
 
       renderWithAuth(<SectorAnalysis />);
 
@@ -321,7 +319,8 @@ describe("SectorAnalysis - Momentum Score and Industries Feature Tests", () => {
       // Industries should be filtered by sectors correctly
       // Software should show under Consumer Discretionary (after normalization)
       expect(api.default.get).toHaveBeenCalledWith(
-        "/api/industries", expect.anything()
+        "/api/industries",
+        expect.anything()
       );
     });
   });
@@ -409,11 +408,13 @@ describe("SectorAnalysis - Momentum Score and Industries Feature Tests", () => {
       // Verify key features are loaded
       // 1. Sectors (useSectors hook calls /api/sectors)
       expect(api.default.get).toHaveBeenCalledWith(
-        "/api/sectors", expect.anything()
+        "/api/sectors",
+        expect.anything()
       );
       // 3. Industries list (useIndustries hook calls /api/industries)
       expect(api.default.get).toHaveBeenCalledWith(
-        "/api/industries", expect.anything()
+        "/api/industries",
+        expect.anything()
       );
       // Note: Trend data (2) and top companies (4) are fetched on user interaction (lazy loading)
     });
@@ -484,4 +485,3 @@ describe("SectorAnalysis - Momentum Score and Industries Feature Tests", () => {
     });
   });
 });
-

@@ -41,276 +41,317 @@
  */
 export const ENDPOINT_SCHEMAS = {
   // Algo orchestrator - status and execution
-  '/api/algo/status': {
-    type: 'object',
-    requiredFields: ['status', 'last_run'],
+  "/api/algo/status": {
+    type: "object",
+    requiredFields: ["status", "last_run"],
     requireNonEmpty: true,
   },
-  '/api/algo/execution/stats': {
-    type: 'object',
+  "/api/algo/execution/stats": {
+    type: "object",
     requiredFields: [],
     requireNonEmpty: false,
   },
-  '/api/algo/execution/recent': {
-    type: 'paginated',
-    itemFields: ['id', 'status'],
-    paginationFields: ['page', 'limit', 'total'],
+  "/api/algo/execution/recent": {
+    type: "paginated",
+    itemFields: ["id", "status"],
+    paginationFields: ["page", "limit", "total"],
   },
-  '/api/algo/circuit-breakers': {
-    type: 'object',
+  "/api/algo/circuit-breakers": {
+    type: "object",
     requiredFields: [],
     requireNonEmpty: false,
-    decimalFields: [
-      'breakers.*.current', 'breakers.*.threshold',
-    ],
+    decimalFields: ["breakers.*.current", "breakers.*.threshold"],
   },
 
   // Trading positions and trades
-  '/api/algo/positions': {
-    type: 'paginated',
-    itemFields: ['id', 'ticker'],
-    paginationFields: ['page', 'limit', 'total'],
+  "/api/algo/positions": {
+    type: "paginated",
+    itemFields: ["id", "ticker"],
+    paginationFields: ["page", "limit", "total"],
     requireNonEmptyList: false, // Can be empty if no open positions
     decimalFields: [
-      'avg_entry_price', 'current_price', 'stop_loss_price',
-      'target_1_price', 'target_2_price', 'target_3_price',
-      'position_value', 'open_risk_dollars', 'unrealized_pnl_dollars',
-      'unrealized_pnl_pct', 'risk_pct', 'quantity',
-      'r_multiple', 'distance_to_stop_pct', 'distance_to_t1_pct',
-      'distance_to_t2_pct', 'distance_to_t3_pct', 'pct_from_52w_low',
+      "avg_entry_price",
+      "current_price",
+      "stop_loss_price",
+      "target_1_price",
+      "target_2_price",
+      "target_3_price",
+      "position_value",
+      "open_risk_dollars",
+      "unrealized_pnl_dollars",
+      "unrealized_pnl_pct",
+      "risk_pct",
+      "quantity",
+      "r_multiple",
+      "distance_to_stop_pct",
+      "distance_to_t1_pct",
+      "distance_to_t2_pct",
+      "distance_to_t3_pct",
+      "pct_from_52w_low",
     ],
   },
-  '/api/algo/trades': {
-    type: 'paginated',
-    itemFields: ['id', 'ticker', 'side'],
-    paginationFields: ['page', 'limit', 'total'],
+  "/api/algo/trades": {
+    type: "paginated",
+    itemFields: ["id", "ticker", "side"],
+    paginationFields: ["page", "limit", "total"],
     requireNonEmptyList: false, // Can be empty if no trade history
     decimalFields: [
-      'entry_price', 'exit_price', 'quantity', 'position_value',
-      'profit_loss_pct', 'profit_loss_dollars', 'exit_r_multiple',
-      'trade_duration_days',
+      "entry_price",
+      "exit_price",
+      "quantity",
+      "position_value",
+      "profit_loss_pct",
+      "profit_loss_dollars",
+      "exit_r_multiple",
+      "trade_duration_days",
     ],
   },
-  '/api/algo/performance': {
-    type: 'object',
-    requiredFields: ['total_return', 'win_rate'],
+  "/api/algo/performance": {
+    type: "object",
+    requiredFields: ["total_return", "win_rate"],
     requireNonEmpty: true,
     decimalFields: [
-      'total_return_pct', 'sharpe_annualized', 'sortino_annualized', 'calmar_ratio',
-      'profit_factor', 'win_rate_pct', 'win_rate_pct_adjusted', 'avg_win_pct', 'avg_loss_pct',
-      'expectancy_r', 'avg_win_r', 'avg_loss_r', 'avg_hold_days', 'max_drawdown_pct',
-      'total_pnl_dollars', 'gross_win_dollars', 'gross_loss_dollars',
-      'total_open_losses_dollars', 'total_pnl_pct', 'avg_trade_pct', 'best_trade_pct',
-      'worst_trade_pct', 'sharpe_ratio', 'sortino_ratio', 'win_rate',
+      "total_return_pct",
+      "sharpe_annualized",
+      "sortino_annualized",
+      "calmar_ratio",
+      "profit_factor",
+      "win_rate_pct",
+      "win_rate_pct_adjusted",
+      "avg_win_pct",
+      "avg_loss_pct",
+      "expectancy_r",
+      "avg_win_r",
+      "avg_loss_r",
+      "avg_hold_days",
+      "max_drawdown_pct",
+      "total_pnl_dollars",
+      "gross_win_dollars",
+      "gross_loss_dollars",
+      "total_open_losses_dollars",
+      "total_pnl_pct",
+      "avg_trade_pct",
+      "best_trade_pct",
+      "worst_trade_pct",
+      "sharpe_ratio",
+      "sortino_ratio",
+      "win_rate",
     ],
   },
-  '/api/algo/portfolio': {
-    type: 'object',
+  "/api/algo/portfolio": {
+    type: "object",
     requiredFields: [],
     requireNonEmpty: false,
     decimalFields: [
-      'total_portfolio_value', 'total_cash', 'daily_return_pct',
-      'unrealized_pnl.total_dollars', 'unrealized_pnl.total_pct',
-      'cumulative_return_pct', 'max_drawdown_pct', 'largest_position_pct',
+      "total_portfolio_value",
+      "total_cash",
+      "daily_return_pct",
+      "unrealized_pnl.total_dollars",
+      "unrealized_pnl.total_pct",
+      "cumulative_return_pct",
+      "max_drawdown_pct",
+      "largest_position_pct",
     ],
   },
 
   // Swing scores and signals
-  '/api/algo/swing-scores': {
-    type: 'paginated',
-    itemFields: ['ticker', 'score'],
-    paginationFields: ['page', 'limit', 'total'],
+  "/api/algo/swing-scores": {
+    type: "paginated",
+    itemFields: ["ticker", "score"],
+    paginationFields: ["page", "limit", "total"],
     requireNonEmptyList: false, // Can have zero scores
   },
-  '/api/algo/swing-scores-history': {
-    type: 'paginated',
-    itemFields: ['date', 'score'],
-    paginationFields: ['page', 'limit', 'total'],
+  "/api/algo/swing-scores-history": {
+    type: "paginated",
+    itemFields: ["date", "score"],
+    paginationFields: ["page", "limit", "total"],
     requireNonEmptyList: false, // Can have no history
   },
 
   // Audit and notifications
-  '/api/algo/audit-log': {
-    type: 'paginated',
-    itemFields: ['id', 'action_type', 'timestamp'],
-    paginationFields: ['page', 'limit', 'total'],
+  "/api/algo/audit-log": {
+    type: "paginated",
+    itemFields: ["id", "action_type", "timestamp"],
+    paginationFields: ["page", "limit", "total"],
   },
-  '/api/algo/notifications': {
-    type: 'paginated',
-    itemFields: ['id', 'type'],
-    paginationFields: ['page', 'limit', 'total'],
+  "/api/algo/notifications": {
+    type: "paginated",
+    itemFields: ["id", "type"],
+    paginationFields: ["page", "limit", "total"],
   },
 
   // Portfolio metrics
-  '/api/algo/markets': {
-    type: 'object',
+  "/api/algo/markets": {
+    type: "object",
     requiredFields: [],
     requireNonEmpty: false,
     decimalFields: [
-      'current.exposure_pct', 'current.raw_score',
-      'market_health.vix_level',
+      "current.exposure_pct",
+      "current.raw_score",
+      "market_health.vix_level",
     ],
   },
-  '/api/algo/market-factors': {
-    type: 'object',
+  "/api/algo/market-factors": {
+    type: "object",
+    requiredFields: [],
+    requireNonEmpty: false,
+    decimalFields: ["exposure_pct", "raw_score"],
+  },
+  "/api/algo/evaluate": {
+    type: "object",
     requiredFields: [],
     requireNonEmpty: false,
     decimalFields: [
-      'exposure_pct', 'raw_score',
+      "portfolio_health.today_return_pct",
+      "portfolio_health.unrealized_pnl.total_dollars",
+      "portfolio_health.unrealized_pnl.total_pct",
     ],
   },
-  '/api/algo/evaluate': {
-    type: 'object',
-    requiredFields: [],
-    requireNonEmpty: false,
+  "/api/algo/equity-curve": {
+    type: "paginated",
+    itemFields: ["date", "value"],
+    paginationFields: ["page", "limit", "total"],
     decimalFields: [
-      'portfolio_health.today_return_pct',
-      'portfolio_health.unrealized_pnl.total_dollars',
-      'portfolio_health.unrealized_pnl.total_pct',
+      "total_portfolio_value",
+      "cash_balance",
+      "position_value",
+      "unrealized_pnl_dollars",
+      "drawdown_pct",
     ],
   },
-  '/api/algo/equity-curve': {
-    type: 'paginated',
-    itemFields: ['date', 'value'],
-    paginationFields: ['page', 'limit', 'total'],
-    decimalFields: [
-      'total_portfolio_value', 'cash_balance', 'position_value',
-      'unrealized_pnl_dollars', 'drawdown_pct',
-    ],
-  },
-  '/api/algo/daily-return-histogram': {
-    type: 'object',
+  "/api/algo/daily-return-histogram": {
+    type: "object",
     requiredFields: [],
     requireNonEmpty: false,
   },
-  '/api/algo/trade-distribution': {
-    type: 'object',
+  "/api/algo/trade-distribution": {
+    type: "object",
     requiredFields: [],
     requireNonEmpty: false,
   },
-  '/api/algo/holding-period-distribution': {
-    type: 'object',
+  "/api/algo/holding-period-distribution": {
+    type: "object",
     requiredFields: [],
     requireNonEmpty: false,
   },
-  '/api/algo/stage-distribution': {
-    type: 'object',
+  "/api/algo/stage-distribution": {
+    type: "object",
     requiredFields: [],
     requireNonEmpty: false,
   },
 
   // Backtests
-  '/api/research/backtests': {
-    type: 'paginated',
-    itemFields: ['id', 'status'],
-    paginationFields: ['page', 'limit', 'total'],
+  "/api/research/backtests": {
+    type: "paginated",
+    itemFields: ["id", "status"],
+    paginationFields: ["page", "limit", "total"],
   },
-  '/api/research/backtests/*': {
-    type: 'object',
-    requiredFields: ['id', 'status'],
+  "/api/research/backtests/*": {
+    type: "object",
+    requiredFields: ["id", "status"],
     requireNonEmpty: true,
   },
 
   // Economic indicators
-  '/api/economic/leading-indicators': {
-    type: 'object',
+  "/api/economic/leading-indicators": {
+    type: "object",
     requiredFields: [],
     requireNonEmpty: false,
   },
-  '/api/economic/yield-curve-full': {
-    type: 'object',
+  "/api/economic/yield-curve-full": {
+    type: "object",
     requiredFields: [],
     requireNonEmpty: false,
   },
-  '/api/economic/calendar': {
-    type: 'paginated',
-    itemFields: ['date', 'name'],
-    paginationFields: ['page', 'limit', 'total'],
+  "/api/economic/calendar": {
+    type: "paginated",
+    itemFields: ["date", "name"],
+    paginationFields: ["page", "limit", "total"],
   },
 
   // Market data
-  '/api/market/naaim': {
-    type: 'object',
+  "/api/market/naaim": {
+    type: "object",
     requiredFields: [],
     requireNonEmpty: false,
   },
-  '/api/stocks/deep-value': {
-    type: 'paginated',
-    itemFields: ['symbol', 'price'],
-    paginationFields: ['page', 'limit', 'total'],
+  "/api/stocks/deep-value": {
+    type: "paginated",
+    itemFields: ["symbol", "price"],
+    paginationFields: ["page", "limit", "total"],
   },
-  '/api/stocks/*': {
-    type: 'object',
-    requiredFields: ['symbol'],
+  "/api/stocks/*": {
+    type: "object",
+    requiredFields: ["symbol"],
     requireNonEmpty: true,
   },
 
   // Prices and historical data
-  '/api/prices/history/*': {
-    type: 'paginated',
-    itemFields: ['date', 'close'],
-    paginationFields: ['page', 'limit', 'total'],
+  "/api/prices/history/*": {
+    type: "paginated",
+    itemFields: ["date", "close"],
+    paginationFields: ["page", "limit", "total"],
   },
-  '/api/prices/batch-history': {
-    type: 'object',
+  "/api/prices/batch-history": {
+    type: "object",
     requiredFields: [],
     requireNonEmpty: false,
   },
 
   // Signals
-  '/api/signals/stocks': {
-    type: 'paginated',
-    itemFields: ['id', 'symbol'],
-    paginationFields: ['page', 'limit', 'total'],
+  "/api/signals/stocks": {
+    type: "paginated",
+    itemFields: ["id", "symbol"],
+    paginationFields: ["page", "limit", "total"],
   },
 
   // Scores
-  '/api/scores/stockscores': {
-    type: 'paginated',
-    itemFields: ['symbol', 'composite_score'],
-    paginationFields: ['page', 'limit', 'total'],
+  "/api/scores/stockscores": {
+    type: "paginated",
+    itemFields: ["symbol", "composite_score"],
+    paginationFields: ["page", "limit", "total"],
   },
 
   // Financial statements
-  '/api/financials/*/key-metrics': {
-    type: 'object',
-    requiredFields: ['symbol'],
+  "/api/financials/*/key-metrics": {
+    type: "object",
+    requiredFields: ["symbol"],
     requireNonEmpty: true,
   },
-  '/api/financials/*/income-statement': {
-    type: 'paginated',
+  "/api/financials/*/income-statement": {
+    type: "paginated",
     itemFields: [],
-    paginationFields: ['page', 'limit', 'total'],
+    paginationFields: ["page", "limit", "total"],
   },
-  '/api/financials/*/balance-sheet': {
-    type: 'paginated',
+  "/api/financials/*/balance-sheet": {
+    type: "paginated",
     itemFields: [],
-    paginationFields: ['page', 'limit', 'total'],
+    paginationFields: ["page", "limit", "total"],
   },
-  '/api/financials/*/cash-flow': {
-    type: 'paginated',
+  "/api/financials/*/cash-flow": {
+    type: "paginated",
     itemFields: [],
-    paginationFields: ['page', 'limit', 'total'],
+    paginationFields: ["page", "limit", "total"],
   },
 
   // Sentiment
-  '/api/sentiment/data': {
-    type: 'paginated',
-    itemFields: ['symbol', 'sentiment'],
-    paginationFields: ['page', 'limit', 'total'],
+  "/api/sentiment/data": {
+    type: "paginated",
+    itemFields: ["symbol", "sentiment"],
+    paginationFields: ["page", "limit", "total"],
   },
-  '/api/sentiment/summary': {
-    type: 'object',
+  "/api/sentiment/summary": {
+    type: "object",
     requiredFields: [],
     requireNonEmpty: false,
   },
-  '/api/sentiment/divergence': {
-    type: 'object',
+  "/api/sentiment/divergence": {
+    type: "object",
     requiredFields: [],
     requireNonEmpty: false,
   },
-  '/api/sentiment/analyst/insights/*': {
-    type: 'object',
+  "/api/sentiment/analyst/insights/*": {
+    type: "object",
     requiredFields: [],
     requireNonEmpty: false,
   },
@@ -326,7 +367,7 @@ export function getEndpointSchema(endpoint) {
   if (!endpoint) return null;
 
   // Remove query parameters
-  const basePath = endpoint.split('?')[0];
+  const basePath = endpoint.split("?")[0];
 
   // Exact match
   if (ENDPOINT_SCHEMAS[basePath]) {
@@ -334,7 +375,7 @@ export function getEndpointSchema(endpoint) {
   }
 
   // If not an API path, try to match as cache key by converting to API path
-  if (!basePath.startsWith('/')) {
+  if (!basePath.startsWith("/")) {
     // Cache key format: try matching against endpoint paths
     // e.g., 'algo-positions' should match '/api/algo/positions'
     // e.g., 'swing-scores' should match '/api/algo/swing-scores'
@@ -342,18 +383,18 @@ export function getEndpointSchema(endpoint) {
 
     for (const [pattern, schema] of Object.entries(ENDPOINT_SCHEMAS)) {
       // Remove /api/ prefix and * wildcards for comparison
-      let patternPath = pattern.replace(/^\/api\//, '').replace(/\*$/, '');
+      let patternPath = pattern.replace(/^\/api\//, "").replace(/\*$/, "");
 
       // Normalize: replace '/' with '-' to match hyphenated cache keys
-      const patternNormalized = patternPath.replace(/\//g, '-').toLowerCase();
+      const patternNormalized = patternPath.replace(/\//g, "-").toLowerCase();
 
       if (patternNormalized === cacheKeyNormalized) {
         return schema;
       }
 
       // Also try single-segment matching for simple keys like 'positions' -> '/api/algo/positions'
-      if (patternPath.includes('/')) {
-        const lastSegment = patternPath.split('/').pop();
+      if (patternPath.includes("/")) {
+        const lastSegment = patternPath.split("/").pop();
         if (lastSegment && lastSegment.toLowerCase() === cacheKeyNormalized) {
           return schema;
         }
@@ -363,8 +404,8 @@ export function getEndpointSchema(endpoint) {
 
   // Wildcard match (simple pattern matching)
   for (const [pattern, schema] of Object.entries(ENDPOINT_SCHEMAS)) {
-    if (pattern.includes('*')) {
-      const regex = new RegExp(`^${pattern.replace('*', '.*')}$`);
+    if (pattern.includes("*")) {
+      const regex = new RegExp(`^${pattern.replace("*", ".*")}$`);
       if (regex.test(basePath)) {
         return schema;
       }
@@ -384,16 +425,16 @@ export function isNonEmptyRequired(endpoint) {
   const schema = getEndpointSchema(endpoint);
   if (!schema) return false;
 
-  if (schema.type === 'object') {
+  if (schema.type === "object") {
     return schema.requireNonEmpty || false;
   }
 
-  if (schema.type === 'paginated') {
+  if (schema.type === "paginated") {
     // Paginated endpoints can have empty items by default
     return schema.requireNonEmptyList || false;
   }
 
-  if (schema.type === 'array') {
+  if (schema.type === "array") {
     return schema.requireNonEmptyList || false;
   }
 
@@ -409,15 +450,15 @@ export function getRequiredFields(endpoint) {
   const schema = getEndpointSchema(endpoint);
   if (!schema) return [];
 
-  if (schema.type === 'object') {
+  if (schema.type === "object") {
     return schema.requiredFields || [];
   }
 
-  if (schema.type === 'paginated') {
+  if (schema.type === "paginated") {
     return schema.itemFields || [];
   }
 
-  if (schema.type === 'array') {
+  if (schema.type === "array") {
     return schema.itemFields || [];
   }
 
@@ -431,10 +472,10 @@ export function getRequiredFields(endpoint) {
  */
 export function getItemRequiredFields(endpoint) {
   const schema = getEndpointSchema(endpoint);
-  if (schema?.type === 'paginated') {
+  if (schema?.type === "paginated") {
     return schema.itemFields || [];
   }
-  if (schema?.type === 'array') {
+  if (schema?.type === "array") {
     return schema.itemFields || [];
   }
   return [];
@@ -447,7 +488,7 @@ export function getItemRequiredFields(endpoint) {
  */
 export function getPaginationFields(endpoint) {
   const schema = getEndpointSchema(endpoint);
-  if (schema?.type === 'paginated') {
+  if (schema?.type === "paginated") {
     return schema.paginationFields || [];
   }
   return [];

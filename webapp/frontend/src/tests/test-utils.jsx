@@ -41,11 +41,20 @@ export const testTheme = createTheme({
 // Complete useAuth mock factory - provides all methods that components expect
 export const createMockUseAuth = (overrides = {}) => {
   return {
-    user: { id: "test-user", email: "test@example.com", role: "user", ...overrides.user },
+    user: {
+      id: "test-user",
+      email: "test@example.com",
+      role: "user",
+      ...overrides.user,
+    },
     isAuthenticated: true,
     isLoading: false,
     error: null,
-    tokens: { accessToken: "mock-token", idToken: "mock-id-token", refreshToken: "mock-refresh-token" },
+    tokens: {
+      accessToken: "mock-token",
+      idToken: "mock-id-token",
+      refreshToken: "mock-refresh-token",
+    },
     checkAuthState: vi.fn(async () => ({ success: true })),
     login: vi.fn(async () => ({ success: true })),
     logout: vi.fn(async () => ({ success: true })),
@@ -83,7 +92,9 @@ export const TestWrapper = ({ children, initialUser = null }) => {
     >
       <ThemeProvider theme={testTheme}>
         <QueryClientProvider client={testQueryClient}>
-          <TestAuthProvider initialUser={initialUser}>{children}</TestAuthProvider>
+          <TestAuthProvider initialUser={initialUser}>
+            {children}
+          </TestAuthProvider>
         </QueryClientProvider>
       </ThemeProvider>
     </MemoryRouter>
@@ -125,8 +136,7 @@ export const TestAuthProvider = ({ children, initialUser = null }) => {
     clearError: () => {
       console.log("error cleared");
     },
-    updateTokens: (tokens) => {
-    },
+    updateTokens: (tokens) => {},
   };
 
   return (
@@ -167,7 +177,9 @@ export const TestWrapperNoRouter = ({ children, initialUser = null }) => {
   return (
     <ThemeProvider theme={testTheme}>
       <QueryClientProvider client={testQueryClient}>
-        <TestAuthProvider initialUser={initialUser}>{children}</TestAuthProvider>
+        <TestAuthProvider initialUser={initialUser}>
+          {children}
+        </TestAuthProvider>
       </QueryClientProvider>
     </ThemeProvider>
   );
@@ -199,14 +211,16 @@ export const renderWithAuth = (ui, options = {}) => {
   };
 
   return render(ui, {
-    wrapper: ({ children }) => <TestWrapper initialUser={mockUser}>{children}</TestWrapper>,
+    wrapper: ({ children }) => (
+      <TestWrapper initialUser={mockUser}>{children}</TestWrapper>
+    ),
     ...options,
   });
 };
 
 // Mock DOM methods that don't exist in jsdom
 // Mock scrollIntoView for components that use it
-if (typeof Element !== 'undefined' && Element.prototype) {
+if (typeof Element !== "undefined" && Element.prototype) {
   Object.defineProperty(Element.prototype, "scrollIntoView", {
     value: function () {
       // Mock implementation - do nothing in tests
@@ -216,7 +230,7 @@ if (typeof Element !== 'undefined' && Element.prototype) {
 }
 
 // Mock matchMedia for MUI components
-Object.defineProperty(window, 'matchMedia', {
+Object.defineProperty(window, "matchMedia", {
   writable: true,
   value: (query) => ({
     matches: false,
@@ -240,4 +254,3 @@ export const renderSync = (ui, options = {}) => {
     ...options,
   });
 };
-

@@ -310,4 +310,3 @@ describe("AuthFixer Utility", () => {
     });
   });
 });
-

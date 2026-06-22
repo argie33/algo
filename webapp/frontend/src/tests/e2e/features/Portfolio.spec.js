@@ -27,7 +27,6 @@ test.describe("Portfolio Page E2E Tests", () => {
       }
     });
 
-
     // Navigate to Portfolio page
     try {
       await page.goto("/portfolio", {
@@ -70,10 +69,9 @@ test.describe("Portfolio Page E2E Tests", () => {
       // Check for portfolio content
       const hasPortfolioContent = await page.locator("#root *").count();
       expect(hasPortfolioContent).toBeGreaterThan(0);
-
     } catch (error) {
       console.log("⚠️ Portfolio failed to load:", error.message);
-      await page.screenshot({ path: 'debug-portfolio.png' });
+      await page.screenshot({ path: "debug-portfolio.png" });
       throw error;
     }
   });
@@ -91,10 +89,10 @@ test.describe("Portfolio Page E2E Tests", () => {
       '[class*="portfolio"]',
       '[class*="holding"]',
       '[class*="position"]',
-      'table', // Holdings table
-      'canvas', // Charts
-      'svg', // SVG charts
-      '.MuiCard-root', // Card components
+      "table", // Holdings table
+      "canvas", // Charts
+      "svg", // SVG charts
+      ".MuiCard-root", // Card components
     ];
 
     let hasPortfolioElements = false;

@@ -1,15 +1,19 @@
-import React, { useState } from 'react';
-import { X } from 'lucide-react';
-import { api } from '../services/api';
-import { extractData } from '../utils/responseNormalizer';
-import { formatNumber, formatCurrency, formatPercentageChange } from '../utils/formatters';
+import React, { useState } from "react";
+import { X } from "lucide-react";
+import { api } from "../services/api";
+import { extractData } from "../utils/responseNormalizer";
+import {
+  formatNumber,
+  formatCurrency,
+  formatPercentageChange,
+} from "../utils/formatters";
 
 export default function PreviewModal({ isOpen, onClose, onConfirm }) {
-  const [symbol, setSymbol] = useState('');
-  const [entryPrice, setEntryPrice] = useState('');
-  const [stopPrice, setStopPrice] = useState('');
-  const [tradeType, setTradeType] = useState('buy');
-  const [shares, setShares] = useState('');
+  const [symbol, setSymbol] = useState("");
+  const [entryPrice, setEntryPrice] = useState("");
+  const [stopPrice, setStopPrice] = useState("");
+  const [tradeType, setTradeType] = useState("buy");
+  const [shares, setShares] = useState("");
   const [loading, setLoading] = useState(false);
   const [preview, setPreview] = useState(null);
   const [error, setError] = useState(null);
@@ -21,38 +25,38 @@ export default function PreviewModal({ isOpen, onClose, onConfirm }) {
     try {
       // Validate inputs before parsing
       if (!symbol) {
-        setError('Symbol is required');
+        setError("Symbol is required");
         setLoading(false);
         return;
       }
       if (!entryPrice || isNaN(parseFloat(entryPrice))) {
-        console.error('[PreviewModal] Invalid entry price:', entryPrice);
-        setError('Entry price must be a valid number');
+        console.error("[PreviewModal] Invalid entry price:", entryPrice);
+        setError("Entry price must be a valid number");
         setLoading(false);
         return;
       }
       if (!stopPrice || isNaN(parseFloat(stopPrice))) {
-        console.error('[PreviewModal] Invalid stop price:', stopPrice);
-        setError('Stop price must be a valid number');
+        console.error("[PreviewModal] Invalid stop price:", stopPrice);
+        setError("Stop price must be a valid number");
         setLoading(false);
         return;
       }
 
-      const response = await api.post('/api/algo/preview', {
+      const response = await api.post("/api/algo/preview", {
         symbol: symbol.toUpperCase(),
         entry_price: parseFloat(entryPrice),
-        stop_loss_price: parseFloat(stopPrice)
+        stop_loss_price: parseFloat(stopPrice),
       });
       const data = extractData(response);
       setPreview(data?.preview || data);
     } catch (err) {
-      console.error('[PreviewModal] Preview request failed:', {
+      console.error("[PreviewModal] Preview request failed:", {
         message: err?.message,
         code: err?.code,
         status: err?.response?.status,
-        endpoint: '/api/algo/preview'
+        endpoint: "/api/algo/preview",
       });
-      setError(err.message || 'Failed');
+      setError(err.message || "Failed");
     } finally {
       setLoading(false);
     }
@@ -68,8 +72,11 @@ export default function PreviewModal({ isOpen, onClose, onConfirm }) {
       // Validate quantity before parsing
       const quantity = shares ? parseFloat(shares) : parseFloat(preview.shares);
       if (!quantity || isNaN(quantity) || quantity <= 0) {
-        console.error('[PreviewModal] Invalid quantity:', shares || preview.shares);
-        setError('Quantity must be a positive number');
+        console.error(
+          "[PreviewModal] Invalid quantity:",
+          shares || preview.shares
+        );
+        setError("Quantity must be a positive number");
         setLoading(false);
         return;
       }
@@ -79,10 +86,10 @@ export default function PreviewModal({ isOpen, onClose, onConfirm }) {
         trade_type: tradeType,
         quantity: quantity,
         price: parseFloat(entryPrice),
-        execution_date: new Date().toISOString().split('T')[0],
+        execution_date: new Date().toISOString().split("T")[0],
       };
 
-      const response = await api.post('/api/trades/manual', tradeData);
+      const response = await api.post("/api/trades/manual", tradeData);
       const data = extractData(response);
 
       if (data?.id || data?.trade_id) {
@@ -93,32 +100,32 @@ export default function PreviewModal({ isOpen, onClose, onConfirm }) {
             entry_price: parseFloat(entryPrice),
             stop_loss_price: parseFloat(stopPrice),
             shares: quantity,
-            trade_id: data?.id || data?.trade_id
+            trade_id: data?.id || data?.trade_id,
           });
         }
         setTimeout(handleClose, 2000);
       } else {
-        setError(data?.error || 'Failed to create trade');
+        setError(data?.error || "Failed to create trade");
       }
     } catch (err) {
-      console.error('[PreviewModal] Trade creation failed:', {
+      console.error("[PreviewModal] Trade creation failed:", {
         message: err?.message,
         code: err?.code,
         status: err?.response?.status,
-        endpoint: '/api/trades/manual'
+        endpoint: "/api/trades/manual",
       });
-      setError(err.message || 'Failed to create trade');
+      setError(err.message || "Failed to create trade");
     } finally {
       setLoading(false);
     }
   };
 
   const handleClose = () => {
-    setSymbol('');
-    setEntryPrice('');
-    setStopPrice('');
-    setTradeType('buy');
-    setShares('');
+    setSymbol("");
+    setEntryPrice("");
+    setStopPrice("");
+    setTradeType("buy");
+    setShares("");
     setLoading(false);
     setPreview(null);
     setError(null);
@@ -133,7 +140,10 @@ export default function PreviewModal({ isOpen, onClose, onConfirm }) {
       <div className="modal" onClick={(e) => e.stopPropagation()}>
         <div className="modal-header">
           <h2>Trade Preview</h2>
-          <button onClick={handleClose} style={{ background: 'none', border: 'none', cursor: 'pointer' }}>
+          <button
+            onClick={handleClose}
+            style={{ background: "none", border: "none", cursor: "pointer" }}
+          >
             <X size={20} />
           </button>
         </div>
@@ -200,17 +210,27 @@ export default function PreviewModal({ isOpen, onClose, onConfirm }) {
               disabled={!symbol || !entryPrice || !shares || loading}
               className="btn btn-primary"
             >
-              {loading ? 'Calculating...' : 'Calculate Preview'}
+              {loading ? "Calculating..." : "Calculate Preview"}
             </button>
           </div>
         ) : success ? (
-          <div className="modal-body" style={{ textAlign: 'center', padding: '40px 20px' }}>
-            <div style={{ fontSize: '48px', marginBottom: '16px' }}>✓</div>
+          <div
+            className="modal-body"
+            style={{ textAlign: "center", padding: "40px 20px" }}
+          >
+            <div style={{ fontSize: "48px", marginBottom: "16px" }}>✓</div>
             <h3>Trade Created Successfully</h3>
-            <p style={{ color: 'var(--text-muted)', marginTop: '8px' }}>
-              {tradeType.toUpperCase()} {shares} shares of {symbol} @ ${entryPrice}
+            <p style={{ color: "var(--text-muted)", marginTop: "8px" }}>
+              {tradeType.toUpperCase()} {shares} shares of {symbol} @ $
+              {entryPrice}
             </p>
-            <p style={{ color: 'var(--text-muted)', fontSize: '12px', marginTop: '8px' }}>
+            <p
+              style={{
+                color: "var(--text-muted)",
+                fontSize: "12px",
+                marginTop: "8px",
+              }}
+            >
               Closing in 2 seconds...
             </p>
           </div>
@@ -219,10 +239,34 @@ export default function PreviewModal({ isOpen, onClose, onConfirm }) {
             <div className="preview-section">
               <h3>Position Summary</h3>
               <div className="grid-2">
-                <div><span className="label">Shares</span><div className="value">{formatNumber(shares || preview.shares)} sh</div></div>
-                <div><span className="label">Position Value</span><div className="value">{formatCurrency((shares || preview.shares) * entryPrice)}</div></div>
-                {preview.pct_of_portfolio && <div><span className="label">% of Portfolio</span><div className="value">{formatPercentageChange(preview.pct_of_portfolio)}</div></div>}
-                {preview.risk_amount && <div><span className="label">Risk Amount</span><div className="value" style={{color: 'var(--red-400)'}}>{formatCurrency(preview.risk_amount)}</div></div>}
+                <div>
+                  <span className="label">Shares</span>
+                  <div className="value">
+                    {formatNumber(shares || preview.shares)} sh
+                  </div>
+                </div>
+                <div>
+                  <span className="label">Position Value</span>
+                  <div className="value">
+                    {formatCurrency((shares || preview.shares) * entryPrice)}
+                  </div>
+                </div>
+                {preview.pct_of_portfolio && (
+                  <div>
+                    <span className="label">% of Portfolio</span>
+                    <div className="value">
+                      {formatPercentageChange(preview.pct_of_portfolio)}
+                    </div>
+                  </div>
+                )}
+                {preview.risk_amount && (
+                  <div>
+                    <span className="label">Risk Amount</span>
+                    <div className="value" style={{ color: "var(--red-400)" }}>
+                      {formatCurrency(preview.risk_amount)}
+                    </div>
+                  </div>
+                )}
               </div>
             </div>
             {preview.targets && (
@@ -230,16 +274,37 @@ export default function PreviewModal({ isOpen, onClose, onConfirm }) {
                 <h3>Targets</h3>
                 {Object.entries(preview.targets).map(([k, v]) => (
                   <div key={k} className="target-item">
-                    <div><strong>{v.r_multiple}R @ {formatCurrency(v.price, 3)}</strong></div>
-                    <div>Sell {formatNumber(v.shares_to_sell)} sh = +{formatCurrency(v.profit_at_target)}</div>
+                    <div>
+                      <strong>
+                        {v.r_multiple}R @ {formatCurrency(v.price, 3)}
+                      </strong>
+                    </div>
+                    <div>
+                      Sell {formatNumber(v.shares_to_sell)} sh = +
+                      {formatCurrency(v.profit_at_target)}
+                    </div>
                   </div>
                 ))}
               </div>
             )}
-            {error && <div className="error-message" style={{ marginTop: '16px' }}>{error}</div>}
-            <button onClick={() => setPreview(null)} className="btn" disabled={loading}>Back</button>
-            <button onClick={handleConfirm} className="btn btn-primary" disabled={loading}>
-              {loading ? 'Creating Trade...' : 'Confirm & Enter'}
+            {error && (
+              <div className="error-message" style={{ marginTop: "16px" }}>
+                {error}
+              </div>
+            )}
+            <button
+              onClick={() => setPreview(null)}
+              className="btn"
+              disabled={loading}
+            >
+              Back
+            </button>
+            <button
+              onClick={handleConfirm}
+              className="btn btn-primary"
+              disabled={loading}
+            >
+              {loading ? "Creating Trade..." : "Confirm & Enter"}
             </button>
           </div>
         )}
@@ -247,4 +312,3 @@ export default function PreviewModal({ isOpen, onClose, onConfirm }) {
     </div>
   );
 }
-

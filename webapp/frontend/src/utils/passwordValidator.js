@@ -19,39 +19,50 @@ export function validatePassword(password) {
   const errors = [];
 
   if (!password) {
-    errors.push('Password is required');
+    errors.push("Password is required");
     return { isValid: false, errors };
   }
 
   if (password.length < 12) {
-    errors.push('Password must be at least 12 characters long');
+    errors.push("Password must be at least 12 characters long");
   }
 
   if (!/[A-Z]/.test(password)) {
-    errors.push('Password must contain at least one uppercase letter (A-Z)');
+    errors.push("Password must contain at least one uppercase letter (A-Z)");
   }
 
   if (!/[a-z]/.test(password)) {
-    errors.push('Password must contain at least one lowercase letter (a-z)');
+    errors.push("Password must contain at least one lowercase letter (a-z)");
   }
 
   if (!/[0-9]/.test(password)) {
-    errors.push('Password must contain at least one number (0-9)');
+    errors.push("Password must contain at least one number (0-9)");
   }
 
   if (!/[!@#$%^&*]/.test(password)) {
-    errors.push('Password must contain at least one special character (!@#$%^&*)');
+    errors.push(
+      "Password must contain at least one special character (!@#$%^&*)"
+    );
   }
 
   // Check for common weak patterns
   if (/(.)\1{2,}/.test(password)) {
-    errors.push('Password should not contain 3+ repeated characters');
+    errors.push("Password should not contain 3+ repeated characters");
   }
 
   // Check against common passwords
-  const commonPasswords = ['password', '12345678', 'qwerty', 'admin', 'letmein', 'welcome'];
-  if (commonPasswords.some((common) => password.toLowerCase().includes(common))) {
-    errors.push('Password is too common. Please choose a more unique password');
+  const commonPasswords = [
+    "password",
+    "12345678",
+    "qwerty",
+    "admin",
+    "letmein",
+    "welcome",
+  ];
+  if (
+    commonPasswords.some((common) => password.toLowerCase().includes(common))
+  ) {
+    errors.push("Password is too common. Please choose a more unique password");
   }
 
   return {
@@ -90,11 +101,11 @@ export function getPasswordStrength(password) {
  * @returns {string} Human-readable strength label
  */
 export function getPasswordStrengthLabel(score) {
-  if (score < 20) return 'Very Weak';
-  if (score < 40) return 'Weak';
-  if (score < 60) return 'Fair';
-  if (score < 80) return 'Good';
-  return 'Strong';
+  if (score < 20) return "Very Weak";
+  if (score < 40) return "Weak";
+  if (score < 60) return "Fair";
+  if (score < 80) return "Good";
+  return "Strong";
 }
 
 export default {
@@ -102,4 +113,3 @@ export default {
   getPasswordStrength,
   getPasswordStrengthLabel,
 };
-

@@ -19,7 +19,7 @@ const mockDataCache = {
   getMarketData: vi.fn().mockResolvedValue({
     success: false,
     data: null,
-    cached: false
+    cached: false,
   }),
 
   setMarketData: vi.fn().mockResolvedValue(true),
@@ -29,8 +29,8 @@ const mockDataCache = {
   stats: vi.fn().mockResolvedValue({
     hits: 0,
     misses: 0,
-    size: 0
-  })
+    size: 0,
+  }),
 };
 
 export default mockDataCache;

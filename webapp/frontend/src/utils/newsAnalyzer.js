@@ -77,14 +77,14 @@ class NewsAnalyzer {
     try {
       // Handle both string input and article object
       let text;
-      if (typeof article === 'string') {
+      if (typeof article === "string") {
         text = article.toLowerCase();
       } else if (article && (article.title || article.headline)) {
         text =
           `${article.title || article.headline || ""} ${article.summary || article.description || ""}`.toLowerCase();
       } else {
         return {
-          sentiment: 'neutral',
+          sentiment: "neutral",
           score: 0,
           confidence: 0,
           keywords: [],
@@ -94,7 +94,7 @@ class NewsAnalyzer {
       // Handle empty text
       if (!text || text.trim().length === 0) {
         return {
-          sentiment: 'neutral',
+          sentiment: "neutral",
           score: 0,
           confidence: 0,
           keywords: [],
@@ -134,7 +134,7 @@ class NewsAnalyzer {
 
       // Calculate sentiment
       const totalSentimentWords = positiveScore + negativeScore;
-      let sentiment = 'neutral';
+      let sentiment = "neutral";
       let score = 0;
 
       if (totalSentimentWords > 0) {
@@ -163,7 +163,7 @@ class NewsAnalyzer {
     } catch (error) {
       console.error("NewsAnalyzer: Sentiment analysis failed:", error);
       return {
-        sentiment: 'neutral',
+        sentiment: "neutral",
         score: 0,
         confidence: 0,
         error: error.message,
@@ -176,46 +176,153 @@ class NewsAnalyzer {
    * @param {string} text - Text to extract keywords from
    * @returns {Array} Array of keywords
    */
-  extractKeywords(text = '') {
+  extractKeywords(text = "") {
     try {
-      if (!text || typeof text !== 'string') {
+      if (!text || typeof text !== "string") {
         return [];
       }
 
       const commonStopwords = new Set([
-        'the', 'a', 'an', 'and', 'or', 'but', 'in', 'on', 'at', 'to', 'for',
-        'of', 'with', 'by', 'from', 'is', 'are', 'was', 'were', 'be', 'been',
-        'have', 'has', 'had', 'do', 'does', 'did', 'will', 'would', 'could',
-        'should', 'may', 'might', 'must', 'can', 'this', 'that', 'these',
-        'those', 'i', 'you', 'he', 'she', 'it', 'we', 'they', 'what', 'which',
-        'who', 'when', 'where', 'why', 'how', 'as', 'if', 'because', 'while',
-        'after', 'before', 'during', 'between', 'through', 'about', 'over',
-        'under', 'above', 'below', 'up', 'down', 'out', 'in', 'off', 'into',
-        'onto', 'etc', 'am', 'pm'
+        "the",
+        "a",
+        "an",
+        "and",
+        "or",
+        "but",
+        "in",
+        "on",
+        "at",
+        "to",
+        "for",
+        "of",
+        "with",
+        "by",
+        "from",
+        "is",
+        "are",
+        "was",
+        "were",
+        "be",
+        "been",
+        "have",
+        "has",
+        "had",
+        "do",
+        "does",
+        "did",
+        "will",
+        "would",
+        "could",
+        "should",
+        "may",
+        "might",
+        "must",
+        "can",
+        "this",
+        "that",
+        "these",
+        "those",
+        "i",
+        "you",
+        "he",
+        "she",
+        "it",
+        "we",
+        "they",
+        "what",
+        "which",
+        "who",
+        "when",
+        "where",
+        "why",
+        "how",
+        "as",
+        "if",
+        "because",
+        "while",
+        "after",
+        "before",
+        "during",
+        "between",
+        "through",
+        "about",
+        "over",
+        "under",
+        "above",
+        "below",
+        "up",
+        "down",
+        "out",
+        "in",
+        "off",
+        "into",
+        "onto",
+        "etc",
+        "am",
+        "pm",
       ]);
 
       const financialKeywords = new Set([
-        'earnings', 'revenue', 'profit', 'loss', 'margin', 'growth', 'decline',
-        'beat', 'miss', 'guidance', 'forecast', 'analyst', 'upgrade', 'downgrade',
-        'buyback', 'dividend', 'acquisition', 'merger', 'ipo', 'stock', 'shares',
-        'trading', 'sector', 'market', 'price', 'volume', 'volatility', 'bullish',
-        'bearish', 'support', 'resistance', 'breakout', 'momentum', 'technical',
-        'fundamental', 'valuation', 'pe', 'eps', 'roe', 'fcf', 'cash', 'debt'
+        "earnings",
+        "revenue",
+        "profit",
+        "loss",
+        "margin",
+        "growth",
+        "decline",
+        "beat",
+        "miss",
+        "guidance",
+        "forecast",
+        "analyst",
+        "upgrade",
+        "downgrade",
+        "buyback",
+        "dividend",
+        "acquisition",
+        "merger",
+        "ipo",
+        "stock",
+        "shares",
+        "trading",
+        "sector",
+        "market",
+        "price",
+        "volume",
+        "volatility",
+        "bullish",
+        "bearish",
+        "support",
+        "resistance",
+        "breakout",
+        "momentum",
+        "technical",
+        "fundamental",
+        "valuation",
+        "pe",
+        "eps",
+        "roe",
+        "fcf",
+        "cash",
+        "debt",
       ]);
 
-      const words = text.toLowerCase()
-        .replace(/[^\w\s]/g, ' ')
+      const words = text
+        .toLowerCase()
+        .replace(/[^\w\s]/g, " ")
         .split(/\s+/)
-        .filter(word => word.length > 0);
+        .filter((word) => word.length > 0);
 
       const keywords = [];
       const seen = new Set();
 
-      words.forEach(word => {
-        if (!seen.has(word) &&
-            !commonStopwords.has(word) &&
-            word.length > 2 &&
-            financialKeywords.has(word)) {
+      words.forEach((word) => {
+        if (
+          !seen.has(word) &&
+          !commonStopwords.has(word) &&
+          word.length > 2 &&
+          financialKeywords.has(word)
+        ) {
           keywords.push(word);
           seen.add(word);
         }
@@ -233,19 +340,76 @@ class NewsAnalyzer {
    * @param {string} text - Text to extract symbols from
    * @returns {Array} Array of stock symbols
    */
-  extractSymbols(text = '') {
+  extractSymbols(text = "") {
     try {
-      if (!text || typeof text !== 'string') {
+      if (!text || typeof text !== "string") {
         return [];
       }
 
       const commonWords = new Set([
-        'the', 'and', 'for', 'are', 'but', 'not', 'you', 'all', 'can', 'her',
-        'was', 'one', 'our', 'out', 'day', 'get', 'has', 'him', 'his', 'how',
-        'its', 'may', 'new', 'now', 'old', 'see', 'two', 'way', 'who', 'boy',
-        'did', 'let', 'put', 'say', 'she', 'too', 'use', 'own', 'ate', 'yes',
-        'got', 'in', 'on', 'to', 'is', 'by', 'at', 'it', 'or', 'an', 'be',
-        'we', 'as', 'up', 'so', 'do', 'go', 'no', 'if', 'of', 'a', 'be', 'me'
+        "the",
+        "and",
+        "for",
+        "are",
+        "but",
+        "not",
+        "you",
+        "all",
+        "can",
+        "her",
+        "was",
+        "one",
+        "our",
+        "out",
+        "day",
+        "get",
+        "has",
+        "him",
+        "his",
+        "how",
+        "its",
+        "may",
+        "new",
+        "now",
+        "old",
+        "see",
+        "two",
+        "way",
+        "who",
+        "boy",
+        "did",
+        "let",
+        "put",
+        "say",
+        "she",
+        "too",
+        "use",
+        "own",
+        "ate",
+        "yes",
+        "got",
+        "in",
+        "on",
+        "to",
+        "is",
+        "by",
+        "at",
+        "it",
+        "or",
+        "an",
+        "be",
+        "we",
+        "as",
+        "up",
+        "so",
+        "do",
+        "go",
+        "no",
+        "if",
+        "of",
+        "a",
+        "be",
+        "me",
       ]);
 
       const symbolPattern = /\b([a-zA-Z]{1,5})\b/g;
@@ -256,10 +420,12 @@ class NewsAnalyzer {
       while ((match = symbolPattern.exec(text)) !== null) {
         const symbol = match[1].toUpperCase();
         const symbolLower = match[1].toLowerCase();
-        if (!seen.has(symbol) &&
-            symbol.length >= 2 &&
-            symbol.length <= 5 &&
-            !commonWords.has(symbolLower)) {
+        if (
+          !seen.has(symbol) &&
+          symbol.length >= 2 &&
+          symbol.length <= 5 &&
+          !commonWords.has(symbolLower)
+        ) {
           symbols.push(symbol);
           seen.add(symbol);
         }
@@ -277,26 +443,47 @@ class NewsAnalyzer {
    * @param {string} text - Article text
    * @returns {string} Category: 'earnings', 'analysis', 'general'
    */
-  categorizeArticle(text = '') {
+  categorizeArticle(text = "") {
     try {
-      if (!text || typeof text !== 'string') {
-        return 'general';
+      if (!text || typeof text !== "string") {
+        return "general";
       }
 
       const textLower = text.toLowerCase();
 
-      const earningsKeywords = ['earnings', 'earnings report', 'earnings beat', 'earnings call', 'quarterly earnings', 'revenue beat', 'profit margin'];
-      const analysisKeywords = ['technical analysis', 'breakout', 'support level', 'resistance level', 'moving average', 'rsi', 'macd', 'chart pattern'];
+      const earningsKeywords = [
+        "earnings",
+        "earnings report",
+        "earnings beat",
+        "earnings call",
+        "quarterly earnings",
+        "revenue beat",
+        "profit margin",
+      ];
+      const analysisKeywords = [
+        "technical analysis",
+        "breakout",
+        "support level",
+        "resistance level",
+        "moving average",
+        "rsi",
+        "macd",
+        "chart pattern",
+      ];
 
-      const hasEarnings = earningsKeywords.some(keyword => textLower.includes(keyword));
-      const hasAnalysis = analysisKeywords.some(keyword => textLower.includes(keyword));
+      const hasEarnings = earningsKeywords.some((keyword) =>
+        textLower.includes(keyword)
+      );
+      const hasAnalysis = analysisKeywords.some((keyword) =>
+        textLower.includes(keyword)
+      );
 
-      if (hasEarnings) return 'earnings';
-      if (hasAnalysis) return 'analysis';
-      return 'general';
+      if (hasEarnings) return "earnings";
+      if (hasAnalysis) return "analysis";
+      return "general";
     } catch (error) {
       console.error("NewsAnalyzer: Article categorization failed:", error);
-      return 'general';
+      return "general";
     }
   }
 
@@ -312,13 +499,25 @@ class NewsAnalyzer {
       }
 
       // Handle string input - use text length as impact
-      if (typeof article === 'string') {
+      if (typeof article === "string") {
         const text = article.trim();
         const length = text.length;
 
         // Calculate impact based on text length and keywords
-        const majorEventKeywords = ['announces', 'breakthrough', 'record', 'surge', 'crash', 'plunge', 'stock split', 'beats', 'misses'];
-        const hasMajorEvent = majorEventKeywords.some(keyword => text.toLowerCase().includes(keyword));
+        const majorEventKeywords = [
+          "announces",
+          "breakthrough",
+          "record",
+          "surge",
+          "crash",
+          "plunge",
+          "stock split",
+          "beats",
+          "misses",
+        ];
+        const hasMajorEvent = majorEventKeywords.some((keyword) =>
+          text.toLowerCase().includes(keyword)
+        );
 
         let score = 0;
         if (length > 500) score = 0.8;
@@ -639,4 +838,3 @@ export default NewsAnalyzer;
 
 // Create and export singleton instance for use in the app
 export const newsAnalyzer = new NewsAnalyzer();
-

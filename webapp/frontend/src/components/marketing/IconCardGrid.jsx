@@ -1,5 +1,12 @@
-import React from 'react';
-import { Box, Card, CardContent, Grid, Typography, useTheme } from '@mui/material';
+import React from "react";
+import {
+  Box,
+  Card,
+  CardContent,
+  Grid,
+  Typography,
+  useTheme,
+} from "@mui/material";
 
 /**
  * IconCardGrid Component
@@ -21,18 +28,25 @@ const IconCardGrid = ({
   return (
     <Grid container spacing={gap}>
       {items.map((item, idx) => (
-        <Grid item xs={columns.xs} sm={columns.sm} md={columns.md} lg={columns.lg} key={idx}>
+        <Grid
+          item
+          xs={columns.xs}
+          sm={columns.sm}
+          md={columns.md}
+          lg={columns.lg}
+          key={idx}
+        >
           <Card
             sx={{
-              height: '100%',
+              height: "100%",
               border: `1px solid ${theme.palette.divider}`,
               backgroundColor: theme.palette.background.paper,
-              borderRadius: '0px',
-              transition: 'all 0.3s ease',
+              borderRadius: "0px",
+              transition: "all 0.3s ease",
               ...(withHover && {
-                '&:hover': {
+                "&:hover": {
                   boxShadow: theme.shadows[4],
-                  transform: 'translateY(-4px)',
+                  transform: "translateY(-4px)",
                 },
               }),
             }}
@@ -42,7 +56,7 @@ const IconCardGrid = ({
               {item.icon && (
                 <Box
                   sx={{
-                    fontSize: item.iconSize || '2.5rem',
+                    fontSize: item.iconSize || "2.5rem",
                     mb: 2,
                     color: theme.palette.primary.main,
                   }}
@@ -75,7 +89,9 @@ const IconCardGrid = ({
               </Typography>
 
               {/* Optional content after description */}
-              {item.additionalContent && <Box sx={{ mt: 2 }}>{item.additionalContent}</Box>}
+              {item.additionalContent && (
+                <Box sx={{ mt: 2 }}>{item.additionalContent}</Box>
+              )}
             </CardContent>
           </Card>
         </Grid>
@@ -85,4 +101,3 @@ const IconCardGrid = ({
 };
 
 export default IconCardGrid;
-

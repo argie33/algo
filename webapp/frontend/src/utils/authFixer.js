@@ -6,19 +6,19 @@
 export class DevAuthHelper {
   static createTestUser() {
     const user = {
-      username: 'testuser',
-      email: 'test@example.com',
-      firstName: 'Test',
-      lastName: 'User',
-      password: 'password123',
+      username: "testuser",
+      email: "test@example.com",
+      firstName: "Test",
+      lastName: "User",
+      password: "password123",
       confirmed: true,
       createdAt: Date.now(),
     };
 
-    const stored = localStorage.getItem('dev_users');
+    const stored = localStorage.getItem("dev_users");
     const users = stored ? JSON.parse(stored) : {};
     users.testuser = user;
-    localStorage.setItem('dev_users', JSON.stringify(users));
+    localStorage.setItem("dev_users", JSON.stringify(users));
 
     return user;
   }
@@ -40,20 +40,21 @@ export class DevAuthHelper {
       expiresAt: Date.now() + 3600000, // 1 hour from now
     };
 
-    localStorage.setItem('dev_session', JSON.stringify(session));
+    localStorage.setItem("dev_session", JSON.stringify(session));
     return session;
   }
 
   static setupDevAuth() {
-    const hostname = typeof window !== 'undefined' ? window.location.hostname : 'unknown';
-    const isLocalhost = hostname === 'localhost' || hostname === '127.0.0.1';
+    const hostname =
+      typeof window !== "undefined" ? window.location.hostname : "unknown";
+    const isLocalhost = hostname === "localhost" || hostname === "127.0.0.1";
 
     if (!isLocalhost) {
       return false;
     }
 
     try {
-      const sessionStr = localStorage.getItem('dev_session');
+      const sessionStr = localStorage.getItem("dev_session");
       if (sessionStr) {
         const session = JSON.parse(sessionStr);
         if (session.expiresAt && session.expiresAt > Date.now()) {
@@ -62,7 +63,10 @@ export class DevAuthHelper {
         }
       }
     } catch (error) {
-      console.warn('[DevAuthHelper] Failed to parse dev session:', error?.message || error);
+      console.warn(
+        "[DevAuthHelper] Failed to parse dev session:",
+        error?.message || error
+      );
       // Invalid JSON, create new session
     }
 
@@ -74,7 +78,7 @@ export class DevAuthHelper {
 
   static getDevUser() {
     try {
-      const sessionStr = localStorage.getItem('dev_session');
+      const sessionStr = localStorage.getItem("dev_session");
       if (!sessionStr) {
         return null;
       }
@@ -87,7 +91,10 @@ export class DevAuthHelper {
 
       return session.user || null;
     } catch (error) {
-      console.warn('[DevAuthHelper] Failed to retrieve dev user:', error?.message || error);
+      console.warn(
+        "[DevAuthHelper] Failed to retrieve dev user:",
+        error?.message || error
+      );
       return null;
     }
   }
@@ -97,8 +104,8 @@ export class DevAuthHelper {
   }
 
   static clearDevAuth() {
-    localStorage.removeItem('dev_session');
-    localStorage.removeItem('dev_users');
+    localStorage.removeItem("dev_session");
+    localStorage.removeItem("dev_users");
   }
 }
 

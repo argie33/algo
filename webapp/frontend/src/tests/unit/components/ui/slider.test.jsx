@@ -230,4 +230,3 @@ describe("Slider Component", () => {
     });
   });
 });
-

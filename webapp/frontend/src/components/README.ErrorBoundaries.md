@@ -5,18 +5,21 @@ This document outlines the error boundary strategy for the Algo Trading Dashboar
 ## Architecture
 
 ### 1. Global ErrorBoundary (App.jsx wrapper)
+
 - **Location:** Wraps entire app in `main.jsx`
 - **Catches:** React rendering errors, unhandled promise rejections, window errors
 - **Display:** Full-page error UI with error ID for support
 - **Recovery:** Page reload or navigation to home
 
 ### 2. Route-Level ErrorBoundaries
+
 - **Location:** Each route in `App.jsx`
 - **Catches:** Errors during page render, lazy-loaded component failures
 - **Display:** Page-level error UI
 - **Recovery:** Try again, go home, or retry from error
 
 ### 3. Data Section ErrorBoundary
+
 - **Component:** `DataSectionErrorBoundary.jsx`
 - **Use:** Wrap individual data panels/sections that fetch or render data
 - **Catches:** Errors in charts, tables, specific data visualizations
@@ -24,12 +27,14 @@ This document outlines the error boundary strategy for the Algo Trading Dashboar
 - **Recovery:** Retry just that section without full page reload
 
 ### 4. API Error Banner
+
 - **Location:** Top of layout in `AppLayout.jsx`
 - **Catches:** Global API errors from auth, config, or major endpoints
 - **Display:** Alert banner with error context
 - **Recovery:** Retry/dismiss
 
 ### 5. Query Error Boundary
+
 - **Component:** `QueryErrorBoundary.jsx` / `QuerySection`
 - **Use:** Wrap individual `useApiQuery` hooks
 - **Catches:** Individual query failures
@@ -38,14 +43,14 @@ This document outlines the error boundary strategy for the Algo Trading Dashboar
 
 ## When to Use Each
 
-| Situation | Boundary | Example |
-|-----------|----------|---------|
-| Page component fails | Route-level + Global | `MarketsHealth` page error → shows error page |
-| Chart fails to render | DataSectionErrorBoundary | Chart with malformed data → shows inline error |
-| API query fails | QuerySection | Fetching market data → shows "failed to load" message |
-| Auth/config fails | APIErrorBanner | Cognito token expired → shows auth error |
-| Promise rejection | Window handler | Async operation fails silently → logs to console |
-| Synchronous JS error | ErrorBoundary | Accessing undefined property → shows error UI |
+| Situation             | Boundary                 | Example                                               |
+| --------------------- | ------------------------ | ----------------------------------------------------- |
+| Page component fails  | Route-level + Global     | `MarketsHealth` page error → shows error page         |
+| Chart fails to render | DataSectionErrorBoundary | Chart with malformed data → shows inline error        |
+| API query fails       | QuerySection             | Fetching market data → shows "failed to load" message |
+| Auth/config fails     | APIErrorBanner           | Cognito token expired → shows auth error              |
+| Promise rejection     | Window handler           | Async operation fails silently → logs to console      |
+| Synchronous JS error  | ErrorBoundary            | Accessing undefined property → shows error UI         |
 
 ## Implementation Checklist
 
@@ -63,11 +68,13 @@ This document outlines the error boundary strategy for the Algo Trading Dashboar
 ## Adding Error Boundaries to New Pages
 
 1. **Import the boundary:**
+
    ```jsx
-   import DataSectionErrorBoundary from '../components/DataSectionErrorBoundary';
+   import DataSectionErrorBoundary from "../components/DataSectionErrorBoundary";
    ```
 
 2. **Wrap data sections:**
+
    ```jsx
    <DataSectionErrorBoundary section="Market Data" onRetry={() => refetch()}>
      <Chart data={data} />
@@ -76,7 +83,12 @@ This document outlines the error boundary strategy for the Algo Trading Dashboar
 
 3. **For queries:**
    ```jsx
-   <QuerySection loading={isLoading} error={error} isEmpty={!data?.length} section="Positions">
+   <QuerySection
+     loading={isLoading}
+     error={error}
+     isEmpty={!data?.length}
+     section="Positions"
+   >
      <PositionsTable data={data} />
    </QuerySection>
    ```
@@ -84,18 +96,21 @@ This document outlines the error boundary strategy for the Algo Trading Dashboar
 ## Testing Error Boundaries
 
 ### Throw an error in development:
+
 ```jsx
-if (process.env.NODE_ENV === 'development' && Math.random() < 0.1) {
-  throw new Error('Test error boundary');
+if (process.env.NODE_ENV === "development" && Math.random() < 0.1) {
+  throw new Error("Test error boundary");
 }
 ```
 
 ### Check console:
+
 - Errors should appear in browser DevTools console
 - Should see error ID and context
 - Should see component stack in dev mode
 
 ### Visual verification:
+
 - Error UI should appear instead of blank/broken component
 - Retry button should work
 - Error should be recoverable without page reload
@@ -105,7 +120,7 @@ if (process.env.NODE_ENV === 'development' && Math.random() < 0.1) {
 Once integrated with error tracking service (Sentry, LogRocket, Bugsnag):
 
 ```jsx
-import { captureException } from '@sentry/react';
+import { captureException } from "@sentry/react";
 
 // In ErrorBoundary.componentDidCatch():
 if (!isDev) {
@@ -116,7 +131,7 @@ if (!isDev) {
       },
     },
     tags: {
-      errorBoundary: 'route' | 'section' | 'query',
+      errorBoundary: "route" | "section" | "query",
     },
   });
 }
@@ -125,6 +140,7 @@ if (!isDev) {
 ## Monitoring
 
 Check error logs regularly for:
+
 1. Common error types (null reference, 404, timeout)
 2. Affected pages/sections
 3. User impact (how many times did error occur?)

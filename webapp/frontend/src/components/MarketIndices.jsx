@@ -45,37 +45,63 @@ const MarketIndices = ({ data, isLoading, error }) => {
                   variant="body2"
                   sx={{
                     mb: 2,
-                    color: index.changePercent >= 0 ? "success.main" : "error.main"
+                    color:
+                      index.changePercent >= 0 ? "success.main" : "error.main",
                   }}
                 >
-                  <strong>Change:</strong> {index.changePercent}% ({index.change >= 0 ? '+' : ''}{index.change})
+                  <strong>Change:</strong> {index.changePercent}% (
+                  {index.change >= 0 ? "+" : ""}
+                  {index.change})
                 </Typography>
 
                 {/* Valuation Metrics */}
                 {index.pe && (
                   <Box sx={{ pt: 2, borderTop: 1, borderColor: "divider" }}>
-                    <Typography variant="subtitle2" sx={{ fontWeight: 600, mb: 1 }}>
+                    <Typography
+                      variant="subtitle2"
+                      sx={{ fontWeight: 600, mb: 1 }}
+                    >
                       Valuation Metrics
                     </Typography>
-                    <Typography variant="caption" sx={{ display: "block", mb: 0.5 }}>
+                    <Typography
+                      variant="caption"
+                      sx={{ display: "block", mb: 0.5 }}
+                    >
                       <strong>Trailing P/E:</strong> {index.pe.trailing}
                     </Typography>
-                    <Typography variant="caption" sx={{ display: "block", mb: 0.5 }}>
+                    <Typography
+                      variant="caption"
+                      sx={{ display: "block", mb: 0.5 }}
+                    >
                       <strong>Forward P/E:</strong> {index.pe.forward}
                     </Typography>
                     {index.pe.priceToBook && (
-                      <Typography variant="caption" sx={{ display: "block", mb: 0.5 }}>
+                      <Typography
+                        variant="caption"
+                        sx={{ display: "block", mb: 0.5 }}
+                      >
                         <strong>P/B Ratio:</strong> {index.pe.priceToBook}
                       </Typography>
                     )}
                     {index.pe.priceToSales && (
-                      <Typography variant="caption" sx={{ display: "block", mb: 0.5 }}>
+                      <Typography
+                        variant="caption"
+                        sx={{ display: "block", mb: 0.5 }}
+                      >
                         <strong>P/S Ratio:</strong> {index.pe.priceToSales}
                       </Typography>
                     )}
                     {index.pe.dividendYield && (
-                      <Typography variant="caption" sx={{ display: "block", fontSize: "0.75rem", color: "text.secondary" }}>
-                        <strong>Dividend Yield:</strong> {index.pe.dividendYield}%
+                      <Typography
+                        variant="caption"
+                        sx={{
+                          display: "block",
+                          fontSize: "0.75rem",
+                          color: "text.secondary",
+                        }}
+                      >
+                        <strong>Dividend Yield:</strong>{" "}
+                        {index.pe.dividendYield}%
                       </Typography>
                     )}
                   </Box>
@@ -115,10 +141,17 @@ const MarketIndices = ({ data, isLoading, error }) => {
                 <Card sx={{ height: "100%" }}>
                   <CardContent>
                     <Box sx={{ mb: 2 }}>
-                      <Typography variant="subtitle2" color="text.secondary" sx={{ mb: 0.5 }}>
+                      <Typography
+                        variant="subtitle2"
+                        color="text.secondary"
+                        sx={{ mb: 0.5 }}
+                      >
                         {index.sector}
                       </Typography>
-                      <Typography variant="h6" sx={{ fontWeight: 600, mb: 0.5 }}>
+                      <Typography
+                        variant="h6"
+                        sx={{ fontWeight: 600, mb: 0.5 }}
+                      >
                         {index.name}
                       </Typography>
                       <Typography variant="caption" color="text.secondary">
@@ -134,13 +167,24 @@ const MarketIndices = ({ data, isLoading, error }) => {
                         textAlign: "center",
                       }}
                     >
-                      <Typography variant="body2" color="text.secondary" sx={{ mb: 1 }}>
+                      <Typography
+                        variant="body2"
+                        color="text.secondary"
+                        sx={{ mb: 1 }}
+                      >
                         Price
                       </Typography>
-                      <Typography variant="h5" sx={{ fontWeight: 600, color: "text.primary" }}>
+                      <Typography
+                        variant="h5"
+                        sx={{ fontWeight: 600, color: "text.primary" }}
+                      >
                         —
                       </Typography>
-                      <Typography variant="caption" color="text.secondary" sx={{ mt: 1 }}>
+                      <Typography
+                        variant="caption"
+                        color="text.secondary"
+                        sx={{ mt: 1 }}
+                      >
                         Real-time data coming soon
                       </Typography>
                     </Box>
@@ -156,4 +200,3 @@ const MarketIndices = ({ data, isLoading, error }) => {
 };
 
 export default MarketIndices;
-

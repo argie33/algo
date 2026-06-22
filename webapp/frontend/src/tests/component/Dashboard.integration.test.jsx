@@ -1,4 +1,10 @@
-import { render, screen, fireEvent, waitFor, act } from "@testing-library/react";
+import {
+  render,
+  screen,
+  fireEvent,
+  waitFor,
+  act,
+} from "@testing-library/react";
 import "@testing-library/jest-dom";
 import { vi } from "vitest";
 import Dashboard from "../../pages/Dashboard";
@@ -8,9 +14,7 @@ import { AuthProvider } from "../../contexts/AuthContext";
 // Create a wrapper that includes AuthProvider
 const DashboardTestWrapper = ({ children }) => (
   <AuthProvider>
-    <TestWrapper>
-      {children}
-    </TestWrapper>
+    <TestWrapper>{children}</TestWrapper>
   </AuthProvider>
 );
 
@@ -443,9 +447,12 @@ describe("Dashboard Integration Tests", () => {
       });
 
       // Check if refetch occurred within reasonable timeout
-      await waitFor(() => {
-        expect(api.get).toHaveBeenCalledTimes(2);
-      }, { timeout: 100 });
+      await waitFor(
+        () => {
+          expect(api.get).toHaveBeenCalledTimes(2);
+        },
+        { timeout: 100 }
+      );
 
       vi.useRealTimers();
     });
@@ -484,10 +491,13 @@ describe("Dashboard Integration Tests", () => {
       });
 
       // Wait for updated data to appear
-      await waitFor(() => {
-        expect(screen.getByText("$127,500.00")).toBeInTheDocument();
-        expect(screen.getByText("+$4,500.00")).toBeInTheDocument();
-      }, { timeout: 5000 });
+      await waitFor(
+        () => {
+          expect(screen.getByText("$127,500.00")).toBeInTheDocument();
+          expect(screen.getByText("+$4,500.00")).toBeInTheDocument();
+        },
+        { timeout: 5000 }
+      );
     });
   });
 
@@ -722,4 +732,3 @@ describe("Dashboard Integration Tests", () => {
     });
   });
 });
-

@@ -160,7 +160,10 @@ describe("Settings API Keys Contract Tests", () => {
       }
     } catch (error) {
       // For contract tests, we just want to verify the endpoint structure exists
-      console.log("Contract test completed with API unavailable:", error.message);
+      console.log(
+        "Contract test completed with API unavailable:",
+        error.message
+      );
       expect(error).toBeDefined(); // At least confirm we got some response
     }
   });
@@ -187,7 +190,7 @@ describe("Settings API Keys Contract Tests", () => {
       expect(response).toBeDefined();
       expect(response.status).toBeGreaterThan(0);
 
-      if (response && typeof response.json === 'function') {
+      if (response && typeof response.json === "function") {
         const errorResponse = await response.json();
         // Validate error contract - should still have consistent structure
         expect(errorResponse).toHaveProperty("success");
@@ -198,9 +201,11 @@ describe("Settings API Keys Contract Tests", () => {
       }
     } catch (error) {
       // For contract tests, network errors are acceptable - we're testing structure when available
-      console.log("Error handling contract test completed with network error:", error.message);
+      console.log(
+        "Error handling contract test completed with network error:",
+        error.message
+      );
       expect(error).toBeDefined(); // At least confirm we got some kind of response
     }
   });
 });
-

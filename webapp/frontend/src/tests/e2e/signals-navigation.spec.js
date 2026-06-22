@@ -10,15 +10,17 @@ test.describe("Trading Signals Navigation", () => {
     // Set up authenticated state
     await page.addInitScript(() => {
       sessionStorage.setItem("financial_auth_token", "test-auth-token");
-      sessionStorage.setItem("user_data", JSON.stringify({
-        username: "testuser",
-        authenticated: true
-      }));
+      sessionStorage.setItem(
+        "user_data",
+        JSON.stringify({
+          username: "testuser",
+          authenticated: true,
+        })
+      );
     });
   });
 
   test("should navigate to signals page via stocks menu", async ({ page }) => {
-
     // Navigate to home page
     await page.goto("/");
     await page.waitForLoadState("networkidle");
@@ -33,7 +35,10 @@ test.describe("Trading Signals Navigation", () => {
       await stocksSection.click();
       await page.waitForTimeout(500);
     } catch (err) {
-      console.debug('[E2E Navigation] Stocks section click failed, may already be expanded:', err?.message);
+      console.debug(
+        "[E2E Navigation] Stocks section click failed, may already be expanded:",
+        err?.message
+      );
     }
 
     // Look for Trading Signals menu item
@@ -63,36 +68,36 @@ test.describe("Trading Signals Navigation", () => {
 
     // Check for timeframe filter
     await expect(page.locator('text="Timeframe"').first()).toBeVisible();
-
   });
 
   test("should load signals data and display table", async ({ page }) => {
-
     // Navigate directly to signals page
     await page.goto("/trading-signals");
     await page.waitForLoadState("networkidle");
     await page.waitForTimeout(3000);
 
     // Check if signals table is present
-    const signalsTable = page.locator('table').first();
+    const signalsTable = page.locator("table").first();
     await expect(signalsTable).toBeVisible();
 
     // Check for table headers
     await expect(page.locator('text="Symbol"').first()).toBeVisible();
     await expect(page.locator('text="Signal"').first()).toBeVisible();
     await expect(page.locator('text="Current Price"').first()).toBeVisible();
-
   });
 
   test("should allow filtering signals", async ({ page }) => {
-
     // Navigate to signals page
     await page.goto("/trading-signals");
     await page.waitForLoadState("networkidle");
     await page.waitForTimeout(2000);
 
     // Test timeframe filter
-    const timeframeSelect = page.locator('text="Timeframe"').locator('..').locator('select, input[role="combobox"], [role="button"]').first();
+    const timeframeSelect = page
+      .locator('text="Timeframe"')
+      .locator("..")
+      .locator('select, input[role="combobox"], [role="button"]')
+      .first();
 
     if (await timeframeSelect.isVisible()) {
       await timeframeSelect.click();
@@ -107,7 +112,11 @@ test.describe("Trading Signals Navigation", () => {
     }
 
     // Test signal type filter
-    const signalTypeSelect = page.locator('text="Signal Type"').locator('..').locator('select, input[role="combobox"], [role="button"]').first();
+    const signalTypeSelect = page
+      .locator('text="Signal Type"')
+      .locator("..")
+      .locator('select, input[role="combobox"], [role="button"]')
+      .first();
 
     if (await signalTypeSelect.isVisible()) {
       await signalTypeSelect.click();
@@ -120,6 +129,5 @@ test.describe("Trading Signals Navigation", () => {
         await page.waitForTimeout(1000);
       }
     }
-
   });
 });

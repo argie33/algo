@@ -39,9 +39,7 @@ const MarketIndicators = ({ data, isLoading, error }) => {
   // Handle case where indices might be empty
   if (indices.length === 0) {
     return (
-      <Alert severity="info">
-        No market indicator data available yet.
-      </Alert>
+      <Alert severity="info">No market indicator data available yet.</Alert>
     );
   }
 
@@ -98,8 +96,12 @@ const MarketIndicators = ({ data, isLoading, error }) => {
         <Grid item xs={12} md={6}>
           <Card>
             <CardContent>
-              <Box sx={{ display: "flex", alignItems: "center", gap: 1, mb: 2 }}>
-                <TrendingUp sx={{ color: theme.palette.success.main, fontSize: 28 }} />
+              <Box
+                sx={{ display: "flex", alignItems: "center", gap: 1, mb: 2 }}
+              >
+                <TrendingUp
+                  sx={{ color: theme.palette.success.main, fontSize: 28 }}
+                />
                 <Typography variant="h6" sx={{ fontWeight: 600 }}>
                   Top Gainers
                 </Typography>
@@ -120,8 +122,12 @@ const MarketIndicators = ({ data, isLoading, error }) => {
                   <TableBody>
                     {topGainers.map((stock, idx) => (
                       <TableRow key={`${stock.symbol}-${idx}`} hover>
-                        <TableCell sx={{ fontWeight: 600 }}>{stock.symbol}</TableCell>
-                        <TableCell>${parseFloat(stock.close).toFixed(2)}</TableCell>
+                        <TableCell sx={{ fontWeight: 600 }}>
+                          {stock.symbol}
+                        </TableCell>
+                        <TableCell>
+                          ${parseFloat(stock.close).toFixed(2)}
+                        </TableCell>
                         <TableCell
                           align="right"
                           sx={{
@@ -132,7 +138,11 @@ const MarketIndicators = ({ data, isLoading, error }) => {
                           {formatPercentageChange(stock.change_percent)}
                         </TableCell>
                         <TableCell>
-                          <Chip label={stock.sector || '—'} size="small" variant="outlined" />
+                          <Chip
+                            label={stock.sector || "—"}
+                            size="small"
+                            variant="outlined"
+                          />
                         </TableCell>
                       </TableRow>
                     ))}
@@ -147,8 +157,12 @@ const MarketIndicators = ({ data, isLoading, error }) => {
         <Grid item xs={12} md={6}>
           <Card>
             <CardContent>
-              <Box sx={{ display: "flex", alignItems: "center", gap: 1, mb: 2 }}>
-                <TrendingDown sx={{ color: theme.palette.error.main, fontSize: 28 }} />
+              <Box
+                sx={{ display: "flex", alignItems: "center", gap: 1, mb: 2 }}
+              >
+                <TrendingDown
+                  sx={{ color: theme.palette.error.main, fontSize: 28 }}
+                />
                 <Typography variant="h6" sx={{ fontWeight: 600 }}>
                   Top Losers
                 </Typography>
@@ -169,8 +183,12 @@ const MarketIndicators = ({ data, isLoading, error }) => {
                   <TableBody>
                     {topLosers.map((stock, idx) => (
                       <TableRow key={`${stock.symbol}-${idx}`} hover>
-                        <TableCell sx={{ fontWeight: 600 }}>{stock.symbol}</TableCell>
-                        <TableCell>${parseFloat(stock.close).toFixed(2)}</TableCell>
+                        <TableCell sx={{ fontWeight: 600 }}>
+                          {stock.symbol}
+                        </TableCell>
+                        <TableCell>
+                          ${parseFloat(stock.close).toFixed(2)}
+                        </TableCell>
                         <TableCell
                           align="right"
                           sx={{
@@ -181,7 +199,11 @@ const MarketIndicators = ({ data, isLoading, error }) => {
                           {formatPercentageChange(stock.change_percent)}
                         </TableCell>
                         <TableCell>
-                          <Chip label={stock.sector || '—'} size="small" variant="outlined" />
+                          <Chip
+                            label={stock.sector || "—"}
+                            size="small"
+                            variant="outlined"
+                          />
                         </TableCell>
                       </TableRow>
                     ))}
@@ -198,7 +220,11 @@ const MarketIndicators = ({ data, isLoading, error }) => {
             <Grid item xs={12} sm={6} md={3}>
               <Card>
                 <CardContent sx={{ textAlign: "center" }}>
-                  <Typography variant="body2" color="text.secondary" sx={{ mb: 1 }}>
+                  <Typography
+                    variant="body2"
+                    color="text.secondary"
+                    sx={{ mb: 1 }}
+                  >
                     Total Stocks
                   </Typography>
                   <Typography variant="h5" sx={{ fontWeight: 600 }}>
@@ -211,14 +237,21 @@ const MarketIndicators = ({ data, isLoading, error }) => {
             <Grid item xs={12} sm={6} md={3}>
               <Card>
                 <CardContent sx={{ textAlign: "center" }}>
-                  <Typography variant="body2" color="text.secondary" sx={{ mb: 1 }}>
+                  <Typography
+                    variant="body2"
+                    color="text.secondary"
+                    sx={{ mb: 1 }}
+                  >
                     Gainers
                   </Typography>
                   <Typography
                     variant="h5"
                     sx={{ fontWeight: 600, color: theme.palette.success.main }}
                   >
-                    {latestData.filter((s) => (s.change_percent || 0) > 0).length}
+                    {
+                      latestData.filter((s) => (s.change_percent || 0) > 0)
+                        .length
+                    }
                   </Typography>
                 </CardContent>
               </Card>
@@ -227,14 +260,21 @@ const MarketIndicators = ({ data, isLoading, error }) => {
             <Grid item xs={12} sm={6} md={3}>
               <Card>
                 <CardContent sx={{ textAlign: "center" }}>
-                  <Typography variant="body2" color="text.secondary" sx={{ mb: 1 }}>
+                  <Typography
+                    variant="body2"
+                    color="text.secondary"
+                    sx={{ mb: 1 }}
+                  >
                     Losers
                   </Typography>
                   <Typography
                     variant="h5"
                     sx={{ fontWeight: 600, color: theme.palette.error.main }}
                   >
-                    {latestData.filter((s) => (s.change_percent || 0) < 0).length}
+                    {
+                      latestData.filter((s) => (s.change_percent || 0) < 0)
+                        .length
+                    }
                   </Typography>
                 </CardContent>
               </Card>
@@ -243,14 +283,21 @@ const MarketIndicators = ({ data, isLoading, error }) => {
             <Grid item xs={12} sm={6} md={3}>
               <Card>
                 <CardContent sx={{ textAlign: "center" }}>
-                  <Typography variant="body2" color="text.secondary" sx={{ mb: 1 }}>
+                  <Typography
+                    variant="body2"
+                    color="text.secondary"
+                    sx={{ mb: 1 }}
+                  >
                     Unchanged
                   </Typography>
                   <Typography
                     variant="h5"
                     sx={{ fontWeight: 600, color: theme.palette.grey[600] }}
                   >
-                    {latestData.filter((s) => (s.change_percent || 0) === 0).length}
+                    {
+                      latestData.filter((s) => (s.change_percent || 0) === 0)
+                        .length
+                    }
                   </Typography>
                 </CardContent>
               </Card>
@@ -263,4 +310,3 @@ const MarketIndicators = ({ data, isLoading, error }) => {
 };
 
 export default MarketIndicators;
-

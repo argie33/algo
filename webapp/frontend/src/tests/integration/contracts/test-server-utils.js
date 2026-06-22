@@ -20,40 +20,43 @@ export async function checkServerAvailability() {
       // Try to use node's fetch or import node-fetch
       try {
         // Use dynamic import to get real fetch
-        if (typeof globalThis !== 'undefined' && globalThis.fetch) {
+        if (typeof globalThis !== "undefined" && globalThis.fetch) {
           realFetch = globalThis.fetch;
         } else {
           // Fallback: create a minimal working fetch for health check
           realFetch = async (url, options = {}) => {
-            const http = await import('http');
-            const { URL } = await import('url');
+            const http = await import("http");
+            const { URL } = await import("url");
 
             return new Promise((resolve, reject) => {
               const parsedUrl = new URL(url);
-              const req = http.request({
-                hostname: parsedUrl.hostname,
-                port: parsedUrl.port,
-                path: parsedUrl.pathname,
-                method: options.method || 'GET',
-                headers: options.headers || {},
-              }, (res) => {
-                resolve({
-                  ok: res.statusCode >= 200 && res.statusCode < 300,
-                  status: res.statusCode,
-                  json: async () => {
-                    let data = '';
-                    res.on('data', chunk => data += chunk);
-                    return new Promise(resolve => {
-                      res.on('end', () => resolve(JSON.parse(data)));
-                    });
-                  }
-                });
-              });
+              const req = http.request(
+                {
+                  hostname: parsedUrl.hostname,
+                  port: parsedUrl.port,
+                  path: parsedUrl.pathname,
+                  method: options.method || "GET",
+                  headers: options.headers || {},
+                },
+                (res) => {
+                  resolve({
+                    ok: res.statusCode >= 200 && res.statusCode < 300,
+                    status: res.statusCode,
+                    json: async () => {
+                      let data = "";
+                      res.on("data", (chunk) => (data += chunk));
+                      return new Promise((resolve) => {
+                        res.on("end", () => resolve(JSON.parse(data)));
+                      });
+                    },
+                  });
+                }
+              );
 
-              req.on('error', reject);
+              req.on("error", reject);
               req.setTimeout(3000, () => {
                 req.destroy();
-                reject(new Error('Request timeout'));
+                reject(new Error("Request timeout"));
               });
               req.end();
             });
@@ -67,7 +70,7 @@ export async function checkServerAvailability() {
 
     const response = await realFetch(`${API_BASE_URL}/api/health`, {
       headers: {
-        'Content-Type': 'application/json',
+        "Content-Type": "application/json",
       },
     });
 
@@ -133,4 +136,3 @@ export function createMockFetch(mockResponse) {
 }
 
 export { API_BASE_URL };
-

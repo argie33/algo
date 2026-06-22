@@ -1,5 +1,5 @@
 import { screen, fireEvent, waitFor } from "@testing-library/react";
-import { renderWithProviders } from '../../setup/test-wrapper';
+import { renderWithProviders } from "../../setup/test-wrapper";
 import { vi } from "vitest";
 import ForgotPasswordForm from "../../../../components/auth/ForgotPasswordForm";
 
@@ -19,7 +19,10 @@ describe("ForgotPasswordForm", () => {
 
   beforeEach(() => {
     vi.clearAllMocks();
-    mockForgotPassword.mockResolvedValue({ success: true, message: "Reset code sent. Check your email." });
+    mockForgotPassword.mockResolvedValue({
+      success: true,
+      message: "Reset code sent. Check your email.",
+    });
   });
 
   test("renders forgot password form", () => {
@@ -59,7 +62,9 @@ describe("ForgotPasswordForm", () => {
     fireEvent.click(submitButton);
 
     await waitFor(() => {
-      expect(screen.getByText("Reset code sent. Check your email.")).toBeInTheDocument();
+      expect(
+        screen.getByText("Reset code sent. Check your email.")
+      ).toBeInTheDocument();
     });
   });
 
@@ -75,7 +80,9 @@ describe("ForgotPasswordForm", () => {
 
   test("switches back to login", () => {
     const onBack = vi.fn();
-    renderWithProviders(<ForgotPasswordForm {...defaultProps} onBack={onBack} />);
+    renderWithProviders(
+      <ForgotPasswordForm {...defaultProps} onBack={onBack} />
+    );
 
     const backButton = screen.getByText("Back to Sign In");
     fireEvent.click(backButton);

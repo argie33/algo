@@ -151,7 +151,9 @@ describe("ScoresDashboard Page", () => {
     renderScoresDashboard();
     await waitFor(() => {
       // Clear button and sort selects are present
-      expect(screen.getByRole("button", { name: /Clear/i })).toBeInTheDocument();
+      expect(
+        screen.getByRole("button", { name: /Clear/i })
+      ).toBeInTheDocument();
     });
   });
 
@@ -210,8 +212,8 @@ describe("ScoresDashboard Page", () => {
     await waitFor(() => {
       // AAPL at 88.7 => A, MSFT at 91.2 => A+
       const grades = document.querySelectorAll("td");
-      const gradeTexts = Array.from(grades).map(el => el.textContent?.trim());
-      const hasGrade = gradeTexts.some(t => /^[A-F][+-]?$/.test(t));
+      const gradeTexts = Array.from(grades).map((el) => el.textContent?.trim());
+      const hasGrade = gradeTexts.some((t) => /^[A-F][+-]?$/.test(t));
       expect(hasGrade).toBeTruthy();
     });
   });
@@ -220,14 +222,18 @@ describe("ScoresDashboard Page", () => {
     renderScoresDashboard();
     await waitFor(() => {
       // Component renders tab buttons: Rankings, Top Movers, A-Grade >= 80, etc.
-      expect(screen.getByRole("button", { name: /Rankings/i })).toBeInTheDocument();
+      expect(
+        screen.getByRole("button", { name: /Rankings/i })
+      ).toBeInTheDocument();
     });
   });
 
   it("renders Refresh button", async () => {
     renderScoresDashboard();
     await waitFor(() => {
-      expect(screen.getByRole("button", { name: /Refresh/i })).toBeInTheDocument();
+      expect(
+        screen.getByRole("button", { name: /Refresh/i })
+      ).toBeInTheDocument();
     });
   });
 

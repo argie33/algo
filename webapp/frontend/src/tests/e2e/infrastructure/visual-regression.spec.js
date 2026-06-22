@@ -67,9 +67,10 @@ test.describe("Financial Platform - Visual Regression", () => {
           path: `src/tests/screenshots/${name.toLowerCase().replace(/\s+/g, "-")}-hero.png`,
           clip: { x: 0, y: 0, width: 1280, height: 720 },
         });
-
       } catch (error) {
-        console.log(`Screenshot failed for ${name}: ${error.message.slice(0, 50)}`);
+        console.log(
+          `Screenshot failed for ${name}: ${error.message.slice(0, 50)}`
+        );
       }
     }
 
@@ -105,9 +106,10 @@ test.describe("Financial Platform - Visual Regression", () => {
           path: `src/tests/screenshots/${name.toLowerCase().replace(/\s+/g, "-")}-hero.png`,
           clip: { x: 0, y: 0, width: 1280, height: 720 },
         });
-
       } catch (error) {
-        console.log(`Screenshot failed for ${name}: ${error.message.slice(0, 50)}`);
+        console.log(
+          `Screenshot failed for ${name}: ${error.message.slice(0, 50)}`
+        );
       }
     }
 
@@ -130,9 +132,10 @@ test.describe("Financial Platform - Visual Regression", () => {
           path: `src/tests/screenshots/${name.toLowerCase().replace(/\s+/g, "-")}-hero.png`,
           clip: { x: 0, y: 0, width: 1280, height: 720 },
         });
-
       } catch (error) {
-        console.log(`Screenshot failed for ${name}: ${error.message.slice(0, 50)}`);
+        console.log(
+          `Screenshot failed for ${name}: ${error.message.slice(0, 50)}`
+        );
       }
     }
 
@@ -164,7 +167,6 @@ test.describe("Financial Platform - Visual Regression", () => {
             fullPage: false,
             clip: { x: 0, y: 0, width: 1280, height: 720 },
           });
-
         } catch (error) {
           console.log(`Responsive test failed: ${error.message.slice(0, 30)}`);
         }
@@ -197,7 +199,6 @@ test.describe("Financial Platform - Visual Regression", () => {
             fullPage: false,
             clip: { x: 0, y: 0, width: 375, height: 667 },
           });
-
         } catch (error) {
           console.log(`Responsive test failed: ${error.message.slice(0, 30)}`);
         }
@@ -297,7 +298,6 @@ test.describe("Financial Platform - Visual Regression", () => {
                 path: `src/tests/screenshots/modals/settings-modal-${Date.now()}.png`,
               });
 
-
               // Close modal
               await page.keyboard.press("Escape");
               await page.waitForTimeout(500);
@@ -365,7 +365,7 @@ test.describe("Financial Platform - Visual Regression", () => {
               },
             });
 
-              console.log(`Hover state captured for element ${hoverTestCount}`);
+            console.log(`Hover state captured for element ${hoverTestCount}`);
             hoverTestCount++;
 
             if (hoverTestCount >= 3) break; // Limit screenshots
@@ -379,4 +379,3 @@ test.describe("Financial Platform - Visual Regression", () => {
     expect(hoverTestCount).toBeGreaterThanOrEqual(0);
   });
 });
-

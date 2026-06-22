@@ -7,7 +7,7 @@
 const SAFE_DEFAULTS = {
   ZERO: 0,
   EMPTY_ARRAY: [],
-  EMPTY_STRING: '—',
+  EMPTY_STRING: "—",
   FALSE: false,
   NULL: null,
 };
@@ -24,7 +24,11 @@ export const toSafeNumber = (value, defaultValue = SAFE_DEFAULTS.ZERO) => {
 /**
  * Safe division that handles divide-by-zero
  */
-export const safeDivide = (numerator, denominator, defaultValue = SAFE_DEFAULTS.ZERO) => {
+export const safeDivide = (
+  numerator,
+  denominator,
+  defaultValue = SAFE_DEFAULTS.ZERO
+) => {
   const num = toSafeNumber(numerator, null);
   const den = toSafeNumber(denominator, null);
 
@@ -58,7 +62,11 @@ export const safeSum = (values, defaultValue = SAFE_DEFAULTS.ZERO) => {
 /**
  * Safe percentage calculation
  */
-export const safePercentage = (part, whole, defaultValue = SAFE_DEFAULTS.ZERO) => {
+export const safePercentage = (
+  part,
+  whole,
+  defaultValue = SAFE_DEFAULTS.ZERO
+) => {
   const p = toSafeNumber(part, null);
   const w = toSafeNumber(whole, null);
 
@@ -84,7 +92,11 @@ export const safeMultiply = (a, b, defaultValue = SAFE_DEFAULTS.ZERO) => {
 /**
  * Safe subtraction
  */
-export const safeSubtract = (minuend, subtrahend, defaultValue = SAFE_DEFAULTS.ZERO) => {
+export const safeSubtract = (
+  minuend,
+  subtrahend,
+  defaultValue = SAFE_DEFAULTS.ZERO
+) => {
   const a = toSafeNumber(minuend, null);
   const b = toSafeNumber(subtrahend, null);
 
@@ -111,14 +123,14 @@ export const safeAdd = (a, b, defaultValue = SAFE_DEFAULTS.ZERO) => {
  * Safe property accessor with type checking
  */
 export const safeGet = (obj, path, defaultValue = SAFE_DEFAULTS.NULL) => {
-  if (!obj || typeof obj !== 'object') return defaultValue;
-  if (typeof path !== 'string') return defaultValue;
+  if (!obj || typeof obj !== "object") return defaultValue;
+  if (typeof path !== "string") return defaultValue;
 
-  const keys = path.split('.');
+  const keys = path.split(".");
   let current = obj;
 
   for (const key of keys) {
-    if (current == null || typeof current !== 'object') {
+    if (current == null || typeof current !== "object") {
       return defaultValue;
     }
     current = current[key];
@@ -130,7 +142,11 @@ export const safeGet = (obj, path, defaultValue = SAFE_DEFAULTS.NULL) => {
 /**
  * Safe array access that validates structure
  */
-export const safeGetArray = (data, path = '', defaultValue = SAFE_DEFAULTS.EMPTY_ARRAY) => {
+export const safeGetArray = (
+  data,
+  path = "",
+  defaultValue = SAFE_DEFAULTS.EMPTY_ARRAY
+) => {
   if (!data) return defaultValue;
 
   let target = data;
@@ -139,8 +155,10 @@ export const safeGetArray = (data, path = '', defaultValue = SAFE_DEFAULTS.EMPTY
   }
 
   if (Array.isArray(target)) return target;
-  if (target && typeof target === 'object' && Array.isArray(target.items)) return target.items;
-  if (target && typeof target === 'object' && Array.isArray(target.data)) return target.data;
+  if (target && typeof target === "object" && Array.isArray(target.items))
+    return target.items;
+  if (target && typeof target === "object" && Array.isArray(target.data))
+    return target.data;
 
   return defaultValue;
 };
@@ -149,18 +167,23 @@ export const safeGetArray = (data, path = '', defaultValue = SAFE_DEFAULTS.EMPTY
  * Safe accumulation pattern for financial totals
  * Accumulates values with null-checking
  */
-export const safeAccumulate = (items, accessor, defaultValue = SAFE_DEFAULTS.ZERO) => {
+export const safeAccumulate = (
+  items,
+  accessor,
+  defaultValue = SAFE_DEFAULTS.ZERO
+) => {
   if (!Array.isArray(items)) return defaultValue;
 
   let total = 0;
   let hasValidValue = false;
 
   for (const item of items) {
-    if (!item || typeof item !== 'object') continue;
+    if (!item || typeof item !== "object") continue;
 
-    const value = typeof accessor === 'function'
-      ? accessor(item)
-      : safeGet(item, String(accessor), null);
+    const value =
+      typeof accessor === "function"
+        ? accessor(item)
+        : safeGet(item, String(accessor), null);
 
     const num = toSafeNumber(value, null);
     if (num !== null) {
@@ -176,7 +199,7 @@ export const safeAccumulate = (items, accessor, defaultValue = SAFE_DEFAULTS.ZER
  * Safe portfolio value calculation from positions
  */
 export const safePortfolioValue = (positions) => {
-  return safeAccumulate(positions, 'position_value', SAFE_DEFAULTS.ZERO);
+  return safeAccumulate(positions, "position_value", SAFE_DEFAULTS.ZERO);
 };
 
 /**
@@ -220,7 +243,7 @@ export const safeDistancePercentage = (currentPrice, targetPrice) => {
     return null;
   }
 
-  const distance = (curr - target) / Math.abs(target) * 100;
+  const distance = ((curr - target) / Math.abs(target)) * 100;
   return isNaN(distance) ? null : distance;
 };
 
@@ -228,11 +251,11 @@ export const safeDistancePercentage = (currentPrice, targetPrice) => {
  * Safe position risk calculation
  */
 export const safePositionRisk = (position) => {
-  if (!position || typeof position !== 'object') return SAFE_DEFAULTS.ZERO;
+  if (!position || typeof position !== "object") return SAFE_DEFAULTS.ZERO;
 
-  const quantity = toSafeNumber(safeGet(position, 'quantity'), null);
-  const stopLoss = toSafeNumber(safeGet(position, 'stop_loss_price'), null);
-  const entryPrice = toSafeNumber(safeGet(position, 'avg_entry_price'), null);
+  const quantity = toSafeNumber(safeGet(position, "quantity"), null);
+  const stopLoss = toSafeNumber(safeGet(position, "stop_loss_price"), null);
+  const entryPrice = toSafeNumber(safeGet(position, "avg_entry_price"), null);
 
   if (quantity === null || stopLoss === null || entryPrice === null) {
     return SAFE_DEFAULTS.ZERO;
@@ -266,14 +289,18 @@ export const safeCompositionPct = (itemValue, totalValue) => {
  */
 export const isValidCalculation = (value) => {
   if (value === null || value === undefined) return false;
-  if (typeof value === 'number' && isNaN(value)) return false;
+  if (typeof value === "number" && isNaN(value)) return false;
   return true;
 };
 
 /**
  * Render number with fallback for invalid calculations
  */
-export const renderSafeNumber = (value, fallback = SAFE_DEFAULTS.EMPTY_STRING, decimals = null) => {
+export const renderSafeNumber = (
+  value,
+  fallback = SAFE_DEFAULTS.EMPTY_STRING,
+  decimals = null
+) => {
   if (!isValidCalculation(value)) return fallback;
 
   const num = Number(value);
@@ -289,7 +316,7 @@ export const renderSafeNumber = (value, fallback = SAFE_DEFAULTS.EMPTY_STRING, d
 export const buildSafeObject = (obj, schema) => {
   const result = {};
 
-  if (!obj || typeof obj !== 'object') {
+  if (!obj || typeof obj !== "object") {
     // Fill with defaults if obj is invalid
     for (const [key, defaultValue] of Object.entries(schema)) {
       result[key] = defaultValue;
@@ -308,13 +335,19 @@ export const buildSafeObject = (obj, schema) => {
  * Validate position data before calculations
  */
 export const validatePosition = (position) => {
-  if (!position || typeof position !== 'object') return null;
+  if (!position || typeof position !== "object") return null;
 
-  const required = ['symbol', 'avg_entry_price', 'current_price', 'quantity'];
-  const missing = required.filter(field => !Object.prototype.hasOwnProperty.call(position, field));
+  const required = ["symbol", "avg_entry_price", "current_price", "quantity"];
+  const missing = required.filter(
+    (field) => !Object.prototype.hasOwnProperty.call(position, field)
+  );
 
   if (missing.length > 0) {
-    console.warn('[SafeCalculations] Position missing required fields:', missing, position);
+    console.warn(
+      "[SafeCalculations] Position missing required fields:",
+      missing,
+      position
+    );
     return null;
   }
 

@@ -61,7 +61,9 @@ const NetworkErrorComponent = () => {
 };
 
 const renderWithRouter = (component) => {
-  return renderWithProvidersNoRouter(<BrowserRouter>{component}</BrowserRouter>);
+  return renderWithProvidersNoRouter(
+    <BrowserRouter>{component}</BrowserRouter>
+  );
 };
 
 describe("ErrorBoundary Component", () => {
@@ -486,4 +488,3 @@ describe("ErrorBoundary Component", () => {
     });
   });
 });
-

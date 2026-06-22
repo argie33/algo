@@ -1,4 +1,4 @@
-import { useMemo } from 'react';
+import { useMemo } from "react";
 
 /**
  * Hook to check staleness across multiple data queries and prevent phantom data display
@@ -24,31 +24,36 @@ export const useDataStalenessCheck = (dataSources = {}) => {
       shouldBlockCritical: false,
     };
 
-    if (!dataSources || typeof dataSources !== 'object') {
+    if (!dataSources || typeof dataSources !== "object") {
       return result;
     }
 
     for (const [key, source] of Object.entries(dataSources)) {
-      if (!source || typeof source !== 'object') continue;
+      if (!source || typeof source !== "object") continue;
 
       const data = source.data;
-      if (!data || typeof data !== 'object') continue;
+      if (!data || typeof data !== "object") continue;
 
       const isStale = data._isStale === true;
       const isFromCache = data._fromCache === true;
-      const age = typeof data._age === 'number' && data._age >= 0 ? data._age : 0;
+      const age =
+        typeof data._age === "number" && data._age >= 0 ? data._age : 0;
 
       result.dataAges[key] = { isStale, isFromCache, age };
 
       if (isStale) {
         result.phantomSections.push(key);
-        if (key === 'positions' || key === 'algo-positions') {
+        if (key === "positions" || key === "algo-positions") {
           result.canShowPositions = false;
         }
-        if (key === 'trades' || key === 'algo-trades' || key === 'algo-equity-curve') {
+        if (
+          key === "trades" ||
+          key === "algo-trades" ||
+          key === "algo-equity-curve"
+        ) {
           result.canShowTradeData = false;
         }
-        if (['status', 'positions', 'markets'].includes(key)) {
+        if (["status", "positions", "markets"].includes(key)) {
           result.canShowCritical = false;
         }
       }
@@ -76,7 +81,10 @@ export const filterPhantomPositions = (positions, data) => {
   if (!data || data._isStale !== true) return positions;
 
   // Don't show positions if data is stale
-  console.warn('[Portfolio] Hiding phantom positions - data is stale:', data._age);
+  console.warn(
+    "[Portfolio] Hiding phantom positions - data is stale:",
+    data._age
+  );
   return [];
 };
 
@@ -87,7 +95,8 @@ export const filterPhantomPositions = (positions, data) => {
  */
 export const safeGetNonPhantomArray = (data, defaultValue = []) => {
   if (!data) return Array.isArray(defaultValue) ? defaultValue : [];
-  if (data._isStale === true) return Array.isArray(defaultValue) ? defaultValue : [];
+  if (data._isStale === true)
+    return Array.isArray(defaultValue) ? defaultValue : [];
   if (Array.isArray(data)) return data;
   if (data.data && Array.isArray(data.data)) return data.data;
   return Array.isArray(defaultValue) ? defaultValue : [];
@@ -99,7 +108,7 @@ export const safeGetNonPhantomArray = (data, defaultValue = []) => {
  */
 export const isArraySafe = (data) => {
   if (!data) return false;
-  if (typeof data !== 'object') return false;
+  if (typeof data !== "object") return false;
   if (data._isStale === true) return false;
   if (Array.isArray(data)) return true;
   return false;
@@ -110,13 +119,13 @@ export const isArraySafe = (data) => {
  * Handles null/undefined/wrong-type at each level
  */
 export const safeGetValue = (obj, path, defaultValue = null) => {
-  if (!obj || typeof obj !== 'object') return defaultValue;
-  if (typeof path !== 'string') return defaultValue;
+  if (!obj || typeof obj !== "object") return defaultValue;
+  if (typeof path !== "string") return defaultValue;
 
-  const keys = path.split('.');
+  const keys = path.split(".");
   let current = obj;
   for (const key of keys) {
-    if (current == null || typeof current !== 'object') return defaultValue;
+    if (current == null || typeof current !== "object") return defaultValue;
     current = current[key];
   }
   return current ?? defaultValue;

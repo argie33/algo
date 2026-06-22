@@ -9,13 +9,19 @@ vi.mock("../../../../services/api.js", () => ({
   default: {
     get: vi.fn().mockResolvedValue({ data: {} }),
     post: vi.fn().mockResolvedValue({ data: {} }),
-    login: vi.fn().mockResolvedValue({ success: true, data: { token: "mock-token" } }),
+    login: vi
+      .fn()
+      .mockResolvedValue({ success: true, data: { token: "mock-token" } }),
     register: vi.fn().mockResolvedValue({ success: true, data: {} }),
     logout: vi.fn().mockResolvedValue({ success: true }),
     resetPassword: vi.fn().mockResolvedValue({ success: true }),
     verifyEmail: vi.fn().mockResolvedValue({ success: true }),
-    getTradingSignalsDaily: vi.fn().mockResolvedValue({ success: true, data: [] }),
-    getPortfolioAnalytics: vi.fn().mockResolvedValue({ success: true, data: {} }),
+    getTradingSignalsDaily: vi
+      .fn()
+      .mockResolvedValue({ success: true, data: [] }),
+    getPortfolioAnalytics: vi
+      .fn()
+      .mockResolvedValue({ success: true, data: {} }),
     getStockMetrics: vi.fn().mockResolvedValue({ success: true, data: {} }),
   },
   getApiConfig: vi.fn(() => ({
@@ -97,9 +103,9 @@ describe("ProtectedRoute", () => {
       render(
         <MemoryRouter>
           <AuthProvider>
-          <ProtectedRoute requireAuth={true}>
-            <div data-testid="protected-content">Protected Content</div>
-          </ProtectedRoute>
+            <ProtectedRoute requireAuth={true}>
+              <div data-testid="protected-content">Protected Content</div>
+            </ProtectedRoute>
           </AuthProvider>
         </MemoryRouter>
       );
@@ -114,9 +120,9 @@ describe("ProtectedRoute", () => {
       render(
         <MemoryRouter>
           <AuthProvider>
-          <ProtectedRoute fallback={fallback}>
-            <div data-testid="protected-content">Protected Content</div>
-          </ProtectedRoute>
+            <ProtectedRoute fallback={fallback}>
+              <div data-testid="protected-content">Protected Content</div>
+            </ProtectedRoute>
           </AuthProvider>
         </MemoryRouter>
       );
@@ -138,9 +144,9 @@ describe("ProtectedRoute", () => {
       render(
         <MemoryRouter>
           <AuthProvider>
-          <ProtectedRoute>
-            <ComplexChild />
-          </ProtectedRoute>
+            <ProtectedRoute>
+              <ComplexChild />
+            </ProtectedRoute>
           </AuthProvider>
         </MemoryRouter>
       );
@@ -154,10 +160,10 @@ describe("ProtectedRoute", () => {
       render(
         <MemoryRouter>
           <AuthProvider>
-          <ProtectedRoute>
-            <div data-testid="child-1">First Child</div>
-            <div data-testid="child-2">Second Child</div>
-          </ProtectedRoute>
+            <ProtectedRoute>
+              <div data-testid="child-1">First Child</div>
+              <div data-testid="child-2">Second Child</div>
+            </ProtectedRoute>
           </AuthProvider>
         </MemoryRouter>
       );
@@ -170,7 +176,7 @@ describe("ProtectedRoute", () => {
       render(
         <MemoryRouter>
           <AuthProvider>
-          <ProtectedRoute>{null}</ProtectedRoute>
+            <ProtectedRoute>{null}</ProtectedRoute>
           </AuthProvider>
         </MemoryRouter>
       );
@@ -183,7 +189,7 @@ describe("ProtectedRoute", () => {
       render(
         <MemoryRouter>
           <AuthProvider>
-          <ProtectedRoute>{undefined}</ProtectedRoute>
+            <ProtectedRoute>{undefined}</ProtectedRoute>
           </AuthProvider>
         </MemoryRouter>
       );
@@ -198,9 +204,9 @@ describe("ProtectedRoute", () => {
       render(
         <MemoryRouter>
           <AuthProvider>
-          <ProtectedRoute requireAuth={false}>
-            <div data-testid="content">Always Visible</div>
-          </ProtectedRoute>
+            <ProtectedRoute requireAuth={false}>
+              <div data-testid="content">Always Visible</div>
+            </ProtectedRoute>
           </AuthProvider>
         </MemoryRouter>
       );
@@ -214,9 +220,9 @@ describe("ProtectedRoute", () => {
       render(
         <MemoryRouter>
           <AuthProvider>
-          <ProtectedRoute fallback={fallback}>
-            <div data-testid="content">Main Content</div>
-          </ProtectedRoute>
+            <ProtectedRoute fallback={fallback}>
+              <div data-testid="content">Main Content</div>
+            </ProtectedRoute>
           </AuthProvider>
         </MemoryRouter>
       );
@@ -231,9 +237,9 @@ describe("ProtectedRoute", () => {
       render(
         <MemoryRouter>
           <AuthProvider>
-          <ProtectedRoute requireAuth={true} fallback={fallback}>
-            <div data-testid="content">Content</div>
-          </ProtectedRoute>
+            <ProtectedRoute requireAuth={true} fallback={fallback}>
+              <div data-testid="content">Content</div>
+            </ProtectedRoute>
           </AuthProvider>
         </MemoryRouter>
       );
@@ -263,16 +269,16 @@ describe("ProtectedRoute", () => {
       render(
         <MemoryRouter>
           <AuthProvider>
-          <ProtectedRoute>
-            <button
-              data-testid="action-button"
-              className="btn-primary"
-              disabled={false}
-              onClick={() => console.log("clicked")}
-            >
-              Click Me
-            </button>
-          </ProtectedRoute>
+            <ProtectedRoute>
+              <button
+                data-testid="action-button"
+                className="btn-primary"
+                disabled={false}
+                onClick={() => console.log("clicked")}
+              >
+                Click Me
+              </button>
+            </ProtectedRoute>
           </AuthProvider>
         </MemoryRouter>
       );
@@ -287,12 +293,12 @@ describe("ProtectedRoute", () => {
       render(
         <MemoryRouter>
           <AuthProvider>
-          <ProtectedRoute>
-            <>
-              <div data-testid="fragment-child-1">First</div>
-              <div data-testid="fragment-child-2">Second</div>
-            </>
-          </ProtectedRoute>
+            <ProtectedRoute>
+              <>
+                <div data-testid="fragment-child-1">First</div>
+                <div data-testid="fragment-child-2">Second</div>
+              </>
+            </ProtectedRoute>
           </AuthProvider>
         </MemoryRouter>
       );
@@ -310,9 +316,9 @@ describe("ProtectedRoute", () => {
       render(
         <MemoryRouter>
           <AuthProvider>
-          <ProtectedRoute>
-            <div data-testid="dev-content">Development Content</div>
-          </ProtectedRoute>
+            <ProtectedRoute>
+              <div data-testid="dev-content">Development Content</div>
+            </ProtectedRoute>
           </AuthProvider>
         </MemoryRouter>
       );
@@ -329,9 +335,9 @@ describe("ProtectedRoute", () => {
       render(
         <MemoryRouter>
           <AuthProvider>
-          <ProtectedRoute>
-            <div data-testid="prod-content">Production Content</div>
-          </ProtectedRoute>
+            <ProtectedRoute>
+              <div data-testid="prod-content">Production Content</div>
+            </ProtectedRoute>
           </AuthProvider>
         </MemoryRouter>
       );
@@ -342,4 +348,3 @@ describe("ProtectedRoute", () => {
     });
   });
 });
-

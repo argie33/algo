@@ -27,7 +27,10 @@ const ForgotPasswordForm = ({ onBack, onForgotPasswordSuccess }) => {
         setError(result.error || "Failed to send reset email.");
       }
     } catch (err) {
-      console.error('[ForgotPasswordForm] Reset email send failed:', err?.message || err);
+      console.error(
+        "[ForgotPasswordForm] Reset email send failed:",
+        err?.message || err
+      );
       setError("Failed to send reset email. Please try again.");
     } finally {
       setLoading(false);
@@ -37,31 +40,64 @@ const ForgotPasswordForm = ({ onBack, onForgotPasswordSuccess }) => {
   return (
     <form onSubmit={handleSubmit} noValidate>
       <div style={{ marginBottom: "var(--space-5)" }}>
-        <p style={{ fontSize: "var(--t-sm)", color: "var(--text-muted)", margin: 0 }}>
+        <p
+          style={{
+            fontSize: "var(--t-sm)",
+            color: "var(--text-muted)",
+            margin: 0,
+          }}
+        >
           Enter your email address and we&apos;ll send you a reset code.
         </p>
       </div>
 
       {error && (
-        <div className="alert alert-danger" style={{ marginBottom: "var(--space-4)" }}>
-          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round">
-            <circle cx="12" cy="12" r="10"/><line x1="15" y1="9" x2="9" y2="15"/><line x1="9" y1="9" x2="15" y2="15"/>
+        <div
+          className="alert alert-danger"
+          style={{ marginBottom: "var(--space-4)" }}
+        >
+          <svg
+            width="14"
+            height="14"
+            viewBox="0 0 24 24"
+            fill="none"
+            stroke="currentColor"
+            strokeWidth="2"
+            strokeLinecap="round"
+          >
+            <circle cx="12" cy="12" r="10" />
+            <line x1="15" y1="9" x2="9" y2="15" />
+            <line x1="9" y1="9" x2="15" y2="15" />
           </svg>
           <span style={{ fontSize: "var(--t-sm)" }}>{error}</span>
         </div>
       )}
 
       {message && (
-        <div className="alert alert-success" style={{ marginBottom: "var(--space-4)" }}>
-          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
-            <polyline points="20 6 9 17 4 12"/>
+        <div
+          className="alert alert-success"
+          style={{ marginBottom: "var(--space-4)" }}
+        >
+          <svg
+            width="14"
+            height="14"
+            viewBox="0 0 24 24"
+            fill="none"
+            stroke="currentColor"
+            strokeWidth="2.5"
+            strokeLinecap="round"
+            strokeLinejoin="round"
+          >
+            <polyline points="20 6 9 17 4 12" />
           </svg>
           <span style={{ fontSize: "var(--t-sm)" }}>{message}</span>
         </div>
       )}
 
       <div className="field-group" style={{ marginBottom: "var(--space-5)" }}>
-        <label className="field-label" htmlFor="email">Email Address</label>
+        <label className="field-label" htmlFor="email">
+          Email Address
+        </label>
         <input
           className="input"
           id="email"

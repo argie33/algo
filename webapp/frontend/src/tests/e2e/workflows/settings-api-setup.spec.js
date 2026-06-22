@@ -10,16 +10,18 @@ test.describe("Settings API Setup Workflow", () => {
     // Set up authenticated state
     await page.addInitScript(() => {
       sessionStorage.setItem("financial_auth_token", "test-auth-token");
-      sessionStorage.setItem("user_data", JSON.stringify({
-        username: "testuser",
-        email: "test@example.com",
-        authenticated: true
-      }));
+      sessionStorage.setItem(
+        "user_data",
+        JSON.stringify({
+          username: "testuser",
+          email: "test@example.com",
+          authenticated: true,
+        })
+      );
     });
   });
 
   test("should complete API key setup workflow", async ({ page }) => {
-
     // Step 1: Navigate to Settings
     await page.goto("/settings");
     await page.waitForLoadState("networkidle");
@@ -35,13 +37,13 @@ test.describe("Settings API Setup Workflow", () => {
       'section:has-text("API")',
       'div:has-text("Alpaca")',
       'div:has-text("Polygon")',
-      'input[placeholder*="key"]'
+      'input[placeholder*="key"]',
     ];
 
     let apiSectionFound = false;
     for (const selector of apiSections) {
       const section = page.locator(selector).first();
-      if (await section.count() > 0) {
+      if ((await section.count()) > 0) {
         apiSectionFound = true;
         break;
       }
@@ -49,7 +51,6 @@ test.describe("Settings API Setup Workflow", () => {
 
     // Step 3: Test navigation to other pages after API setup
     if (apiSectionFound) {
-
       // Navigate to portfolio to verify API keys work
       await page.goto("/portfolio");
       await page.waitForTimeout(2000);
@@ -63,9 +64,7 @@ test.describe("Settings API Setup Workflow", () => {
 
       const marketLoaded = await page.locator("#root").count();
       expect(marketLoaded).toBeGreaterThan(0);
-
     }
-
   });
 
   test("should handle API key validation workflow", async ({ page }) => {
@@ -78,9 +77,9 @@ test.describe("Settings API Setup Workflow", () => {
       '[data-testid*="valid"]',
       '[class*="valid"]',
       '[class*="status"]',
-      '.MuiAlert-root',
+      ".MuiAlert-root",
       'span:has-text("Valid")',
-      'span:has-text("Invalid")'
+      'span:has-text("Invalid")',
     ];
 
     let _hasValidation = false;

@@ -21,146 +21,146 @@ test.describe("ScoresDashboard Data Verification E2E Tests", () => {
     const mockData = {
       success: true,
       data: [
-            {
-              symbol: "AAPL",
-              company_name: "Apple Inc.",
-              sector: "Technology",
-              quality_score: 79.6,
-              value_score: 45.2,
-              growth_score: 82.3,
-              momentum_score: 71.5,
-              sentiment_score: 68.9,
-              positioning_score: 75.4,
-              stability_score: 81.2,
-              momentum_inputs: {
-                momentum_6_1: 0.52,
-                momentum_9_1: 0.48,
-                momentum_3_1: 0.61,
-                momentum_12_3: 0.38,
-                momentum_1w: -0.01,
-                momentum_3m: 0.15,
-                jt_momentum_12_1: 0.42,
-              },
-              growth_inputs: {
-                revenue_growth_3y_cagr: 8.5,
-                eps_growth_3y_cagr: 15.2,
-                operating_income_growth_yoy: 6.3,
-                roe_trend: 2.1,
-                sustainable_growth_rate: 10.8,
-                fcf_growth_yoy: 4.2,
-                net_income_growth_yoy: 5.1,
-                equity_growth_yoy: 1.8,
-              },
-              quality_inputs: {
-                return_on_equity_pct: 0.96,
-                return_on_assets_pct: 0.29,
-                gross_margin_pct: 0.46,
-                operating_margin_pct: 0.31,
-                profit_margin_pct: 0.25,
-                fcf_to_net_income: 1.1,
-                operating_cf_to_net_income: 1.2,
-                debt_to_equity: 1.83,
-                current_ratio: 0.88,
-                quick_ratio: 0.83,
-                earnings_surprise_avg: 3.5,
-                eps_growth_stability: 12.4,
-                payout_ratio: 0.15,
-              },
-              stability_inputs: {
-                volatility_12m_pct: 32.45,
-                volatility_risk_component: null,
-                max_drawdown_52w_pct: 28.75,
-                beta: 1.18,
-              },
-              positioning_inputs: {
-                institutional_ownership_pct: 0.59,
-                insider_ownership_pct: 0.008,
-                short_interest_pct: 0.023,
-                short_ratio: 1.2,
-              },
-              value_inputs: {
-                stock_pe: 28.4,
-                stock_pb: 48.5,
-                stock_ps: 8.2,
-                stock_ev_ebitda: 26.1,
-                stock_dividend_yield: 0.46,
-                stock_fcf_yield: 2.1,
-                peg_ratio: 1.87,
-              },
-            },
-            {
-              symbol: "MSFT",
-              company_name: "Microsoft Corporation",
-              sector: "Technology",
-              quality_score: 85.4,
-              value_score: 52.1,
-              growth_score: 78.9,
-              momentum_score: 74.2,
-              sentiment_score: 82.3,
-              positioning_score: 79.8,
-              stability_score: 86.5,
-              momentum_inputs: {
-                momentum_6_1: 0.58,
-                momentum_9_1: 0.54,
-                momentum_3_1: 0.67,
-                momentum_12_3: 0.42,
-                momentum_1w: 0.02,
-                momentum_3m: 0.18,
-                jt_momentum_12_1: 0.46,
-              },
-              growth_inputs: {
-                revenue_growth_3y_cagr: 11.2,
-                eps_growth_3y_cagr: 13.5,
-                operating_income_growth_yoy: 9.4,
-                roe_trend: 1.5,
-                sustainable_growth_rate: 12.1,
-                fcf_growth_yoy: 6.8,
-                net_income_growth_yoy: 8.2,
-                equity_growth_yoy: 3.2,
-              },
-              quality_inputs: {
-                return_on_equity_pct: 0.91,
-                return_on_assets_pct: 0.27,
-                gross_margin_pct: 0.69,
-                operating_margin_pct: 0.42,
-                profit_margin_pct: 0.33,
-                fcf_to_net_income: 0.95,
-                operating_cf_to_net_income: 1.05,
-                debt_to_equity: 0.58,
-                current_ratio: 1.62,
-                quick_ratio: 1.54,
-                earnings_surprise_avg: 2.1,
-                eps_growth_stability: 8.3,
-                payout_ratio: 0.22,
-              },
-              stability_inputs: {
-                volatility_12m_pct: 28.12,
-                volatility_risk_component: null,
-                max_drawdown_52w_pct: 24.35,
-                beta: 0.95,
-              },
-              positioning_inputs: {
-                institutional_ownership_pct: 0.73,
-                insider_ownership_pct: 0.002,
-                short_interest_pct: 0.012,
-                short_ratio: 0.8,
-              },
-              value_inputs: {
-                stock_pe: 34.2,
-                stock_pb: 12.5,
-                stock_ps: 13.2,
-                stock_ev_ebitda: 32.1,
-                stock_dividend_yield: 0.72,
-                stock_fcf_yield: 3.2,
-                peg_ratio: 2.53,
-              },
-            },
-          ],
-          total: 2,
-          count: 2,
-          limit: 50,
-          offset: 0,
-        };
+        {
+          symbol: "AAPL",
+          company_name: "Apple Inc.",
+          sector: "Technology",
+          quality_score: 79.6,
+          value_score: 45.2,
+          growth_score: 82.3,
+          momentum_score: 71.5,
+          sentiment_score: 68.9,
+          positioning_score: 75.4,
+          stability_score: 81.2,
+          momentum_inputs: {
+            momentum_6_1: 0.52,
+            momentum_9_1: 0.48,
+            momentum_3_1: 0.61,
+            momentum_12_3: 0.38,
+            momentum_1w: -0.01,
+            momentum_3m: 0.15,
+            jt_momentum_12_1: 0.42,
+          },
+          growth_inputs: {
+            revenue_growth_3y_cagr: 8.5,
+            eps_growth_3y_cagr: 15.2,
+            operating_income_growth_yoy: 6.3,
+            roe_trend: 2.1,
+            sustainable_growth_rate: 10.8,
+            fcf_growth_yoy: 4.2,
+            net_income_growth_yoy: 5.1,
+            equity_growth_yoy: 1.8,
+          },
+          quality_inputs: {
+            return_on_equity_pct: 0.96,
+            return_on_assets_pct: 0.29,
+            gross_margin_pct: 0.46,
+            operating_margin_pct: 0.31,
+            profit_margin_pct: 0.25,
+            fcf_to_net_income: 1.1,
+            operating_cf_to_net_income: 1.2,
+            debt_to_equity: 1.83,
+            current_ratio: 0.88,
+            quick_ratio: 0.83,
+            earnings_surprise_avg: 3.5,
+            eps_growth_stability: 12.4,
+            payout_ratio: 0.15,
+          },
+          stability_inputs: {
+            volatility_12m_pct: 32.45,
+            volatility_risk_component: null,
+            max_drawdown_52w_pct: 28.75,
+            beta: 1.18,
+          },
+          positioning_inputs: {
+            institutional_ownership_pct: 0.59,
+            insider_ownership_pct: 0.008,
+            short_interest_pct: 0.023,
+            short_ratio: 1.2,
+          },
+          value_inputs: {
+            stock_pe: 28.4,
+            stock_pb: 48.5,
+            stock_ps: 8.2,
+            stock_ev_ebitda: 26.1,
+            stock_dividend_yield: 0.46,
+            stock_fcf_yield: 2.1,
+            peg_ratio: 1.87,
+          },
+        },
+        {
+          symbol: "MSFT",
+          company_name: "Microsoft Corporation",
+          sector: "Technology",
+          quality_score: 85.4,
+          value_score: 52.1,
+          growth_score: 78.9,
+          momentum_score: 74.2,
+          sentiment_score: 82.3,
+          positioning_score: 79.8,
+          stability_score: 86.5,
+          momentum_inputs: {
+            momentum_6_1: 0.58,
+            momentum_9_1: 0.54,
+            momentum_3_1: 0.67,
+            momentum_12_3: 0.42,
+            momentum_1w: 0.02,
+            momentum_3m: 0.18,
+            jt_momentum_12_1: 0.46,
+          },
+          growth_inputs: {
+            revenue_growth_3y_cagr: 11.2,
+            eps_growth_3y_cagr: 13.5,
+            operating_income_growth_yoy: 9.4,
+            roe_trend: 1.5,
+            sustainable_growth_rate: 12.1,
+            fcf_growth_yoy: 6.8,
+            net_income_growth_yoy: 8.2,
+            equity_growth_yoy: 3.2,
+          },
+          quality_inputs: {
+            return_on_equity_pct: 0.91,
+            return_on_assets_pct: 0.27,
+            gross_margin_pct: 0.69,
+            operating_margin_pct: 0.42,
+            profit_margin_pct: 0.33,
+            fcf_to_net_income: 0.95,
+            operating_cf_to_net_income: 1.05,
+            debt_to_equity: 0.58,
+            current_ratio: 1.62,
+            quick_ratio: 1.54,
+            earnings_surprise_avg: 2.1,
+            eps_growth_stability: 8.3,
+            payout_ratio: 0.22,
+          },
+          stability_inputs: {
+            volatility_12m_pct: 28.12,
+            volatility_risk_component: null,
+            max_drawdown_52w_pct: 24.35,
+            beta: 0.95,
+          },
+          positioning_inputs: {
+            institutional_ownership_pct: 0.73,
+            insider_ownership_pct: 0.002,
+            short_interest_pct: 0.012,
+            short_ratio: 0.8,
+          },
+          value_inputs: {
+            stock_pe: 34.2,
+            stock_pb: 12.5,
+            stock_ps: 13.2,
+            stock_ev_ebitda: 32.1,
+            stock_dividend_yield: 0.72,
+            stock_fcf_yield: 3.2,
+            peg_ratio: 2.53,
+          },
+        },
+      ],
+      total: 2,
+      count: 2,
+      limit: 50,
+      offset: 0,
+    };
 
     // Route API calls to mock data
     await page.route("**/api/scores/stockscores*", async (route) => {
@@ -175,7 +175,6 @@ test.describe("ScoresDashboard Data Verification E2E Tests", () => {
   test("Should load ScoresDashboard and display all factor score boxes", async ({
     page,
   }) => {
-
     // Navigate to Scores Dashboard
     await page.goto("/scores", {
       waitUntil: "networkidle",
@@ -185,9 +184,10 @@ test.describe("ScoresDashboard Data Verification E2E Tests", () => {
     await page.waitForTimeout(2000);
 
     // Verify page title - use more specific locator
-    const pageTitle = page.getByRole("heading", { name: /Bullseye.*Screener/i });
+    const pageTitle = page.getByRole("heading", {
+      name: /Bullseye.*Screener/i,
+    });
     await expect(pageTitle).toBeVisible({ timeout: 10000 });
-
 
     // Wait for data to load
     await page.waitForTimeout(3000);
@@ -211,24 +211,18 @@ test.describe("ScoresDashboard Data Verification E2E Tests", () => {
 
     // Look for Momentum score
     const momentumScore = page.locator("text=/Momentum/i");
-    if (
-      await momentumScore.isVisible({ timeout: 5000 }).catch(() => false)
-    ) {
+    if (await momentumScore.isVisible({ timeout: 5000 }).catch(() => false)) {
     }
 
     // Look for Sentiment score
     const sentimentScore = page.locator("text=/Sentiment/i");
-    if (
-      await sentimentScore.isVisible({ timeout: 5000 }).catch(() => false)
-    ) {
+    if (await sentimentScore.isVisible({ timeout: 5000 }).catch(() => false)) {
     }
 
     // Look for Positioning score
     const positioningScore = page.locator("text=/Positioning/i");
     if (
-      await positioningScore
-        .isVisible({ timeout: 5000 })
-        .catch(() => false)
+      await positioningScore.isVisible({ timeout: 5000 }).catch(() => false)
     ) {
     }
 
@@ -248,12 +242,11 @@ test.describe("ScoresDashboard Data Verification E2E Tests", () => {
 
     await page.waitForTimeout(3000);
 
-
     // Look for AAPL in the list
     const aaplOption = page.locator("text=AAPL");
-    const aaplVisible = await aaplOption.isVisible({ timeout: 5000 }).catch(
-      () => false
-    );
+    const aaplVisible = await aaplOption
+      .isVisible({ timeout: 5000 })
+      .catch(() => false);
 
     if (!aaplVisible) {
       // Try to find any stock data display
@@ -261,13 +254,11 @@ test.describe("ScoresDashboard Data Verification E2E Tests", () => {
       if (await stockData.isVisible({ timeout: 5000 }).catch(() => false)) {
       }
     } else {
-
       // Click on AAPL to expand details (if expandable)
       try {
         await aaplOption.click();
         await page.waitForTimeout(1000);
-      } catch (e) {
-      }
+      } catch (e) {}
     }
 
     // Look for Quality & Fundamentals data
@@ -279,12 +270,11 @@ test.describe("ScoresDashboard Data Verification E2E Tests", () => {
       .catch(() => false);
 
     if (hasQualityMetrics) {
-
       // Check for specific values
       const roeValue = page.locator("text=/96|ROE/i");
-      const hasROE = await roeValue.isVisible({ timeout: 3000 }).catch(
-        () => false
-      );
+      const hasROE = await roeValue
+        .isVisible({ timeout: 3000 })
+        .catch(() => false);
       if (hasROE) {
       }
     } else {
@@ -305,9 +295,9 @@ test.describe("ScoresDashboard Data Verification E2E Tests", () => {
     const scoreChart = page.locator(
       "text=/Score Comparison|vs sector|vs market/i"
     );
-    const hasChart = await scoreChart.isVisible({ timeout: 5000 }).catch(
-      () => false
-    );
+    const hasChart = await scoreChart
+      .isVisible({ timeout: 5000 })
+      .catch(() => false);
 
     if (hasChart) {
     }
@@ -316,7 +306,6 @@ test.describe("ScoresDashboard Data Verification E2E Tests", () => {
   test("Should verify all required factor breakdown data fields exist", async ({
     page,
   }) => {
-
     // This test verifies that the test data includes all required schema fields
     const requiredFields = {
       quality_inputs: [
@@ -356,8 +345,7 @@ test.describe("ScoresDashboard Data Verification E2E Tests", () => {
     };
 
     for (const [category, fields] of Object.entries(requiredFields)) {
-      fields.forEach((field) => {
-      });
+      fields.forEach((field) => {});
     }
 
     expect(Object.keys(requiredFields).length).toBeGreaterThan(0);
@@ -367,7 +355,6 @@ test.describe("ScoresDashboard Data Verification E2E Tests", () => {
     page,
     context,
   }) => {
-
     // Mock and verify the endpoint
     let apiCallMade = false;
     let apiResponse = null;
@@ -388,8 +375,8 @@ test.describe("ScoresDashboard Data Verification E2E Tests", () => {
             stability_score: 85.0,
             quality_inputs: {
               return_on_equity_pct: 0.25,
-              gross_margin_pct: 0.40,
-              operating_margin_pct: 0.20,
+              gross_margin_pct: 0.4,
+              operating_margin_pct: 0.2,
               profit_margin_pct: 0.15,
             },
           },
@@ -429,8 +416,6 @@ test.describe("ScoresDashboard Data Verification E2E Tests", () => {
       expect(stock.value_score).toBeDefined();
       expect(stock.growth_score).toBeDefined();
       expect(stock.quality_inputs).toBeDefined();
-
     }
   });
 });
-

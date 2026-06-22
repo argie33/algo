@@ -6,50 +6,50 @@
  * Or in browser: Ctrl+Shift+J to open console, then manually navigate pages
  */
 
-import { test, expect } from '@playwright/test';
+import { test, expect } from "@playwright/test";
 
-const BASE_URL = 'http://localhost:5173';
-const API_BASE = 'http://localhost:3001';
+const BASE_URL = "http://localhost:5173";
+const API_BASE = "http://localhost:3001";
 
 // List of all app pages to test
 const APP_PAGES = [
-  { path: '/app/markets', name: 'Market Overview' },
-  { path: '/app/sectors', name: 'Sectors' },
-  { path: '/app/economic', name: 'Economic Data' },
-  { path: '/app/sentiment', name: 'Sentiment' },
-  { path: '/app/trading-signals', name: 'Trading Signals' },
-  { path: '/app/portfolio', name: 'Portfolio' },
-  { path: '/app/trades', name: 'Trade History' },
-  { path: '/app/backtests', name: 'Backtest Results' },
-  { path: '/app/scores', name: 'Scores Dashboard' },
-  { path: '/app/health', name: 'System Health' },
-  { path: '/app/audit', name: 'Audit Log' },
+  { path: "/app/markets", name: "Market Overview" },
+  { path: "/app/sectors", name: "Sectors" },
+  { path: "/app/economic", name: "Economic Data" },
+  { path: "/app/sentiment", name: "Sentiment" },
+  { path: "/app/trading-signals", name: "Trading Signals" },
+  { path: "/app/portfolio", name: "Portfolio" },
+  { path: "/app/trades", name: "Trade History" },
+  { path: "/app/backtests", name: "Backtest Results" },
+  { path: "/app/scores", name: "Scores Dashboard" },
+  { path: "/app/health", name: "System Health" },
+  { path: "/app/audit", name: "Audit Log" },
 ];
 
 const MARKETING_PAGES = [
-  { path: '/', name: 'Home' },
-  { path: '/about', name: 'About' },
-  { path: '/contact', name: 'Contact' },
+  { path: "/", name: "Home" },
+  { path: "/about", name: "About" },
+  { path: "/contact", name: "Contact" },
 ];
 
 // Test all API endpoints
 const API_ENDPOINTS = [
-  '/api/health',
-  '/api/market/indices',
-  '/api/market/breadth',
-  '/api/market/technicals',
-  '/api/market/top-movers',
-  '/api/market/seasonality',
-  '/api/sectors/heat-map',
-  '/api/sectors/rotation',
-  '/api/economic/calendar',
-  '/api/signals/trading',
-  '/api/prices/summary',
+  "/api/health",
+  "/api/market/indices",
+  "/api/market/breadth",
+  "/api/market/technicals",
+  "/api/market/top-movers",
+  "/api/market/seasonality",
+  "/api/sectors/heat-map",
+  "/api/sectors/rotation",
+  "/api/economic/calendar",
+  "/api/signals/trading",
+  "/api/prices/summary",
 ];
 
-test.describe('System Audit', () => {
-  test.describe('API Health Checks', () => {
-    test('API server is accessible', async ({ page }) => {
+test.describe("System Audit", () => {
+  test.describe("API Health Checks", () => {
+    test("API server is accessible", async ({ page }) => {
       const response = await page.request.get(`${API_BASE}/health`);
       expect(response.status()).toBe(200);
     });
@@ -63,16 +63,16 @@ test.describe('System Audit', () => {
     });
   });
 
-  test.describe('Marketing Pages', () => {
+  test.describe("Marketing Pages", () => {
     MARKETING_PAGES.forEach((page_info) => {
       test(`Load ${page_info.name}`, async ({ page }) => {
         await page.goto(`${BASE_URL}${page_info.path}`);
-        await page.waitForLoadState('networkidle');
+        await page.waitForLoadState("networkidle");
 
         // Check for console errors
         const errors = [];
-        page.on('console', (msg) => {
-          if (msg.type() === 'error') {
+        page.on("console", (msg) => {
+          if (msg.type() === "error") {
             errors.push(msg.text());
           }
         });
@@ -82,12 +82,12 @@ test.describe('System Audit', () => {
     });
   });
 
-  test.describe('App Pages', () => {
+  test.describe("App Pages", () => {
     // Login first if needed
     test.beforeEach(async ({ page }) => {
       // Navigate to login page
       await page.goto(`${BASE_URL}/login`);
-      await page.waitForLoadState('networkidle');
+      await page.waitForLoadState("networkidle");
     });
 
     APP_PAGES.forEach((page_info) => {
@@ -95,16 +95,16 @@ test.describe('System Audit', () => {
         const errors = [];
         const warnings = [];
 
-        page.on('console', (msg) => {
-          if (msg.type() === 'error') {
+        page.on("console", (msg) => {
+          if (msg.type() === "error") {
             errors.push(msg.text());
-          } else if (msg.type() === 'warning') {
+          } else if (msg.type() === "warning") {
             warnings.push(msg.text());
           }
         });
 
         await page.goto(`${BASE_URL}${page_info.path}`);
-        await page.waitForLoadState('networkidle');
+        await page.waitForLoadState("networkidle");
 
         // Wait for data to load (up to 5 seconds)
         await page.waitForTimeout(2000);
@@ -112,10 +112,10 @@ test.describe('System Audit', () => {
         // Log results
         console.log(`âœ“ ${page_info.name}`);
         if (errors.length > 0) {
-          console.error(`  Errors: ${errors.join('; ')}`);
+          console.error(`  Errors: ${errors.join("; ")}`);
         }
         if (warnings.length > 0) {
-          console.warn(`  Warnings: ${warnings.join('; ')}`);
+          console.warn(`  Warnings: ${warnings.join("; ")}`);
         }
 
         // For now, we just log - don't fail on errors
@@ -124,11 +124,11 @@ test.describe('System Audit', () => {
     });
   });
 
-  test('Comprehensive Network Audit', async ({ page }) => {
+  test("Comprehensive Network Audit", async ({ page }) => {
     const requestsLog = [];
     const errorsLog = [];
 
-    page.on('request', (request) => {
+    page.on("request", (request) => {
       requestsLog.push({
         url: request.url(),
         method: request.method(),
@@ -136,7 +136,7 @@ test.describe('System Audit', () => {
       });
     });
 
-    page.on('response', (response) => {
+    page.on("response", (response) => {
       if (response.status() >= 400) {
         errorsLog.push({
           url: response.url(),
@@ -148,18 +148,17 @@ test.describe('System Audit', () => {
 
     // Visit main page
     await page.goto(`${BASE_URL}/app/markets`);
-    await page.waitForLoadState('networkidle');
+    await page.waitForLoadState("networkidle");
 
-    console.log('Network Audit Report:');
+    console.log("Network Audit Report:");
     console.log(`Total Requests: ${requestsLog.length}`);
     console.log(`Failed Requests: ${errorsLog.length}`);
 
     if (errorsLog.length > 0) {
-      console.error('Failed Requests:');
+      console.error("Failed Requests:");
       errorsLog.forEach((err) => {
         console.error(`  ${err.status} ${err.url}`);
       });
     }
   });
 });
-

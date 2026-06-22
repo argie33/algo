@@ -5,8 +5,7 @@ import { renderWithAuth } from "../test-utils";
 import EconomicModeling from "../../pages/EconomicModeling";
 
 describe("EconomicModeling Real Functionality Tests", () => {
-  beforeEach(async () => {
-  });
+  beforeEach(async () => {});
 
   describe("Component Loading and Real API Integration", () => {
     test("should render economic modeling interface and handle real API calls", async () => {
@@ -310,4 +309,3 @@ describe("EconomicModeling Real Functionality Tests", () => {
     });
   });
 });
-

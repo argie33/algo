@@ -1,51 +1,68 @@
-import React from 'react';
-import { Container, Box, Typography, Grid, Card, CardContent, useTheme, alpha } from '@mui/material';
-import MarketingLayout from '../../components/marketing/MarketingLayout';
-import PageHeader from '../../components/marketing/PageHeader';
-import ContactForm from '../../components/marketing/ContactForm';
-import ImagePlaceholder from '../../components/marketing/ImagePlaceholder';
-import CommunitySignup from '../../components/marketing/CommunitySignup';
-import { Email as EmailIcon, LocationOn as LocationOnIcon, Business as BusinessIcon, School as SchoolIcon } from '@mui/icons-material';
+import React from "react";
+import {
+  Container,
+  Box,
+  Typography,
+  Grid,
+  Card,
+  CardContent,
+  useTheme,
+  alpha,
+} from "@mui/material";
+import MarketingLayout from "../../components/marketing/MarketingLayout";
+import PageHeader from "../../components/marketing/PageHeader";
+import ContactForm from "../../components/marketing/ContactForm";
+import ImagePlaceholder from "../../components/marketing/ImagePlaceholder";
+import CommunitySignup from "../../components/marketing/CommunitySignup";
+import {
+  Email as EmailIcon,
+  LocationOn as LocationOnIcon,
+  Business as BusinessIcon,
+  School as SchoolIcon,
+} from "@mui/icons-material";
 
 const Contact = () => {
   const theme = useTheme();
 
   const contactDepartments = [
     {
-      department: 'Platform & Tools',
+      department: "Platform & Tools",
       icon: <BusinessIcon />,
-      description: 'Questions about platform features, data access, or how to get the most out of the research tools.',
-      email: 'info@bullseyefinancial.com',
-      hours: 'We respond within one business day',
+      description:
+        "Questions about platform features, data access, or how to get the most out of the research tools.",
+      email: "info@bullseyefinancial.com",
+      hours: "We respond within one business day",
     },
     {
-      department: 'Research & Methodology',
+      department: "Research & Methodology",
       icon: <SchoolIcon />,
-      description: 'Questions about our research methodology, scoring models, signal generation, or data sources.',
-      email: 'info@bullseyefinancial.com',
-      hours: 'We respond within one business day',
+      description:
+        "Questions about our research methodology, scoring models, signal generation, or data sources.",
+      email: "info@bullseyefinancial.com",
+      hours: "We respond within one business day",
     },
     {
-      department: 'General Inquiries',
+      department: "General Inquiries",
       icon: <EmailIcon />,
-      description: 'Partnerships, media requests, or anything else? Use the form below or email us directly.',
-      email: 'info@bullseyefinancial.com',
-      hours: 'We respond within one business day',
+      description:
+        "Partnerships, media requests, or anything else? Use the form below or email us directly.",
+      email: "info@bullseyefinancial.com",
+      hours: "We respond within one business day",
     },
   ];
 
   const contactInfo = [
     {
       icon: <LocationOnIcon />,
-      title: 'Headquarters',
-      content: 'United States',
-      subtitle: 'Serving investors nationwide',
+      title: "Headquarters",
+      content: "United States",
+      subtitle: "Serving investors nationwide",
     },
     {
       icon: <EmailIcon />,
-      title: 'Email',
-      content: 'info@bullseyefinancial.com',
-      subtitle: 'We respond within one business day',
+      title: "Email",
+      content: "info@bullseyefinancial.com",
+      subtitle: "We respond within one business day",
     },
   ];
 
@@ -58,12 +75,17 @@ const Contact = () => {
       />
 
       {/* Hero Image Section */}
-      <Box sx={{ py: { xs: 4, md: 6 }, backgroundColor: alpha(theme.palette.primary.main, 0.02) }}>
+      <Box
+        sx={{
+          py: { xs: 4, md: 6 },
+          backgroundColor: alpha(theme.palette.primary.main, 0.02),
+        }}
+      >
         <Container maxWidth="lg">
           <ImagePlaceholder
             src="https://images.unsplash.com/photo-1552664730-d307ca884978?w=1200&h=400&fit=crop&auto=format&q=80"
             alt="Professional team in discussion"
-            height={{ xs: '250px', md: '400px' }}
+            height={{ xs: "250px", md: "400px" }}
           />
         </Container>
       </Box>
@@ -73,10 +95,10 @@ const Contact = () => {
         <Typography
           variant="h3"
           sx={{
-            fontSize: { xs: '1.8rem', sm: '2.2rem', md: '2.5rem' },
+            fontSize: { xs: "1.8rem", sm: "2.2rem", md: "2.5rem" },
             fontWeight: 800,
             mb: 2,
-            textAlign: 'center',
+            textAlign: "center",
             color: theme.palette.text.primary,
           }}
         >
@@ -84,37 +106,38 @@ const Contact = () => {
         </Typography>
         <Typography
           sx={{
-            fontSize: '1.05rem',
+            fontSize: "1.05rem",
             color: theme.palette.text.secondary,
-            textAlign: 'center',
+            textAlign: "center",
             mb: 6,
-            maxWidth: '700px',
-            mx: 'auto',
+            maxWidth: "700px",
+            mx: "auto",
           }}
         >
-          We have specialized teams ready to help with sales inquiries, technical support, and research methodology questions.
+          We have specialized teams ready to help with sales inquiries,
+          technical support, and research methodology questions.
         </Typography>
         <Grid container spacing={4}>
           {contactDepartments.map((dept, idx) => (
             <Grid item xs={12} md={4} key={idx}>
               <Card
                 sx={{
-                  height: '100%',
+                  height: "100%",
                   border: `1px solid ${theme.palette.divider}`,
                   backgroundColor: theme.palette.background.paper,
-                  borderRadius: '0px',
-                  transition: 'all 0.3s ease',
-                  overflow: 'hidden',
-                  '&:hover': {
-                    boxShadow: '0 8px 24px rgba(0,0,0,0.1)',
-                    transform: 'translateY(-4px)',
+                  borderRadius: "0px",
+                  transition: "all 0.3s ease",
+                  overflow: "hidden",
+                  "&:hover": {
+                    boxShadow: "0 8px 24px rgba(0,0,0,0.1)",
+                    transform: "translateY(-4px)",
                   },
                 }}
               >
                 <CardContent sx={{ p: 4 }}>
                   <Box
                     sx={{
-                      fontSize: '2.5rem',
+                      fontSize: "2.5rem",
                       color: theme.palette.primary.main,
                       mb: 2,
                     }}
@@ -141,14 +164,26 @@ const Contact = () => {
                   >
                     {dept.description}
                   </Typography>
-                  <Box sx={{ borderTop: `1px solid ${theme.palette.divider}`, pt: 3 }}>
+                  <Box
+                    sx={{
+                      borderTop: `1px solid ${theme.palette.divider}`,
+                      pt: 3,
+                    }}
+                  >
                     <Typography
                       variant="body2"
-                      sx={{ color: theme.palette.primary.main, fontWeight: 600, mb: 0.75 }}
+                      sx={{
+                        color: theme.palette.primary.main,
+                        fontWeight: 600,
+                        mb: 0.75,
+                      }}
                     >
                       {dept.email}
                     </Typography>
-                    <Typography variant="caption" sx={{ color: theme.palette.text.secondary }}>
+                    <Typography
+                      variant="caption"
+                      sx={{ color: theme.palette.text.secondary }}
+                    >
                       {dept.hours}
                     </Typography>
                   </Box>
@@ -160,7 +195,12 @@ const Contact = () => {
       </Container>
 
       {/* Main Contact Section */}
-      <Box sx={{ py: { xs: 6, md: 8 }, backgroundColor: theme.palette.background.paper }}>
+      <Box
+        sx={{
+          py: { xs: 6, md: 8 },
+          backgroundColor: theme.palette.background.paper,
+        }}
+      >
         <Container maxWidth="lg">
           <Grid container spacing={6}>
             {/* Contact Form */}
@@ -171,7 +211,7 @@ const Contact = () => {
                   sx={{
                     fontWeight: 700,
                     mb: 3,
-                    fontSize: { xs: '1.5rem', md: '1.8rem' },
+                    fontSize: { xs: "1.5rem", md: "1.8rem" },
                     color: theme.palette.text.primary,
                   }}
                 >
@@ -185,28 +225,32 @@ const Contact = () => {
                     lineHeight: 1.6,
                   }}
                 >
-                  Have specific questions about our research platform, pricing, or partnership opportunities? Fill out the form below and we'll get back to you promptly.
+                  Have specific questions about our research platform, pricing,
+                  or partnership opportunities? Fill out the form below and
+                  we'll get back to you promptly.
                 </Typography>
                 <ContactForm
                   onSubmit={async (data) => {
                     try {
-                      const response = await fetch('/api/contact', {
-                        method: 'POST',
+                      const response = await fetch("/api/contact", {
+                        method: "POST",
                         headers: {
-                          'Content-Type': 'application/json',
+                          "Content-Type": "application/json",
                         },
-                        body: JSON.stringify(data)
+                        body: JSON.stringify(data),
                       });
 
                       const result = await response.json();
 
                       if (!response.ok) {
-                        throw new Error(result.error || 'Failed to submit form');
+                        throw new Error(
+                          result.error || "Failed to submit form"
+                        );
                       }
 
                       return result;
                     } catch (error) {
-                      console.error('❌ Form submission error:', error);
+                      console.error("❌ Form submission error:", error);
                       throw error;
                     }
                   }}
@@ -222,7 +266,7 @@ const Contact = () => {
                   sx={{
                     fontWeight: 700,
                     mb: 3,
-                    fontSize: { xs: '1.5rem', md: '1.8rem' },
+                    fontSize: { xs: "1.5rem", md: "1.8rem" },
                     color: theme.palette.text.primary,
                   }}
                 >
@@ -231,10 +275,16 @@ const Contact = () => {
                 <Grid container spacing={3} sx={{ mb: 6 }}>
                   {contactInfo.map((info, idx) => (
                     <Grid item xs={12} key={idx}>
-                      <Box sx={{ display: 'flex', alignItems: 'flex-start', gap: 2 }}>
+                      <Box
+                        sx={{
+                          display: "flex",
+                          alignItems: "flex-start",
+                          gap: 2,
+                        }}
+                      >
                         <Box
                           sx={{
-                            fontSize: '1.8rem',
+                            fontSize: "1.8rem",
                             color: theme.palette.primary.main,
                             mt: 0.5,
                             flexShrink: 0,
@@ -249,7 +299,7 @@ const Contact = () => {
                               fontWeight: 700,
                               mb: 0.5,
                               color: theme.palette.text.primary,
-                              fontSize: '1.05rem',
+                              fontSize: "1.05rem",
                             }}
                           >
                             {info.title}
@@ -279,7 +329,13 @@ const Contact = () => {
                 </Grid>
 
                 {/* FAQ Link Section */}
-                <Box sx={{ backgroundColor: alpha(theme.palette.primary.main, 0.05), p: 3, borderRadius: '0px' }}>
+                <Box
+                  sx={{
+                    backgroundColor: alpha(theme.palette.primary.main, 0.05),
+                    p: 3,
+                    borderRadius: "0px",
+                  }}
+                >
                   <Typography
                     variant="h6"
                     sx={{
@@ -297,22 +353,23 @@ const Contact = () => {
                       lineHeight: 1.8,
                     }}
                   >
-                    Have questions about our research methodology, platform features, or data access? Check out our{' '}
+                    Have questions about our research methodology, platform
+                    features, or data access? Check out our{" "}
                     <Typography
                       component="a"
                       href="/faq"
                       sx={{
                         color: theme.palette.primary.main,
-                        textDecoration: 'none',
+                        textDecoration: "none",
                         fontWeight: 600,
-                        '&:hover': {
-                          textDecoration: 'underline',
+                        "&:hover": {
+                          textDecoration: "underline",
                         },
                       }}
                     >
                       comprehensive FAQs page
-                    </Typography>
-                    {' '}for detailed answers.
+                    </Typography>{" "}
+                    for detailed answers.
                   </Typography>
                 </Box>
               </Box>
@@ -328,4 +385,3 @@ const Contact = () => {
 };
 
 export default Contact;
-

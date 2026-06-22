@@ -78,14 +78,8 @@ test.describe("Load Testing - High Traffic Scenarios", () => {
   });
 
   test("Dashboard should handle rapid navigation load", async ({ page }) => {
-
     const navigationTimes = [];
-    const routes = [
-      "/portfolio",
-      "/market",
-      "/settings",
-      "/stocks",
-    ];
+    const routes = ["/portfolio", "/market", "/settings", "/stocks"];
 
     // Rapid navigation test
     for (let i = 0; i < 15; i++) {
@@ -98,7 +92,6 @@ test.describe("Load Testing - High Traffic Scenarios", () => {
       const loadTime = Date.now() - startTime;
       navigationTimes.push(loadTime);
 
-
       // Quick navigation without waiting
       await page.waitForTimeout(100);
     }
@@ -109,7 +102,9 @@ test.describe("Load Testing - High Traffic Scenarios", () => {
     const maxTime = Math.max(...navigationTimes);
     const minTime = Math.min(...navigationTimes);
 
-      console.log(`Load Test Results - Avg: ${Math.round(avgTime)}ms, Max: ${maxTime}ms, Min: ${minTime}ms`);
+    console.log(
+      `Load Test Results - Avg: ${Math.round(avgTime)}ms, Max: ${maxTime}ms, Min: ${minTime}ms`
+    );
 
     // Performance thresholds for high-traffic scenarios
     expect(avgTime, `Average load time: ${avgTime}ms`).toBeLessThan(3000);
@@ -119,7 +114,6 @@ test.describe("Load Testing - High Traffic Scenarios", () => {
   test("Portfolio page should handle data-heavy scenarios", async ({
     page,
   }) => {
-
     // Navigate to portfolio with heavy data load
     const startTime = Date.now();
     await page.goto("/portfolio");
@@ -157,7 +151,6 @@ test.describe("Load Testing - High Traffic Scenarios", () => {
   });
 
   test("Market data should handle frequent updates", async ({ page }) => {
-
     await page.goto("/market");
     await page.waitForSelector("#root", { state: "attached" });
 
@@ -200,7 +193,6 @@ test.describe("Load Testing - High Traffic Scenarios", () => {
   test("Concurrent API requests should be handled efficiently", async ({
     page,
   }) => {
-
     let apiRequestCount = 0;
     let apiResponseCount = 0;
     const apiTimes = [];
@@ -224,12 +216,7 @@ test.describe("Load Testing - High Traffic Scenarios", () => {
     });
 
     // Navigate to multiple pages to trigger concurrent API requests
-    const pages = [
-      "/portfolio",
-      "/market",
-      "/sentiment",
-      "/stocks",
-    ];
+    const pages = ["/portfolio", "/market", "/sentiment", "/stocks"];
 
     await Promise.all(
       pages.map(async (route, index) => {
@@ -266,7 +253,6 @@ test.describe("Load Testing - High Traffic Scenarios", () => {
   });
 
   test("Memory usage should remain stable under load", async ({ page }) => {
-
     const memoryReadings = [];
 
     // Function to get memory metrics
@@ -292,12 +278,7 @@ test.describe("Load Testing - High Traffic Scenarios", () => {
       memoryReadings.push(initialMemory);
 
       // Load test with memory monitoring
-      const routes = [
-        "/portfolio",
-        "/market",
-        "/stocks",
-        "/settings",
-      ];
+      const routes = ["/portfolio", "/market", "/stocks", "/settings"];
 
       for (let cycle = 0; cycle < 5; cycle++) {
         for (const route of routes) {
@@ -340,7 +321,6 @@ test.describe("Load Testing - High Traffic Scenarios", () => {
   test("UI should remain responsive under heavy interaction load", async ({
     page,
   }) => {
-
     await page.goto("/stocks");
     await page.waitForSelector("#root", { state: "attached" });
     await page.waitForTimeout(2000);
@@ -435,7 +415,6 @@ test.describe("Load Testing - High Traffic Scenarios", () => {
   test("System should handle network congestion gracefully", async ({
     page,
   }) => {
-
     // Simulate network congestion with delays
     await page.route("**/api/**", async (route) => {
       // Randomly simulate network issues
@@ -476,7 +455,6 @@ test.describe("Load Testing - High Traffic Scenarios", () => {
 
         const loadTime = Date.now() - startTime;
         loadResults.push({ route, success: true, time: loadTime });
-
       } catch (error) {
         const loadTime = Date.now() - startTime;
         loadResults.push({ route, success: false, time: loadTime });
@@ -510,4 +488,3 @@ test.describe("Load Testing - High Traffic Scenarios", () => {
     expect(successful.length).toBeGreaterThan(0);
   });
 });
-

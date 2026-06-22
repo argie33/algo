@@ -1,19 +1,26 @@
-import React from 'react';
-import { useParams, useNavigate } from 'react-router-dom';
-import { Container, Box, Typography, Button, useTheme } from '@mui/material';
-import { ArrowBack } from '@mui/icons-material';
-import MarketingLayout from '../../components/marketing/MarketingLayout';
-import CTASection from '../../components/marketing/CTASection';
+import React from "react";
+import { useParams, useNavigate } from "react-router-dom";
+import { Container, Box, Typography, Button, useTheme } from "@mui/material";
+import { ArrowBack } from "@mui/icons-material";
+import MarketingLayout from "../../components/marketing/MarketingLayout";
+import CTASection from "../../components/marketing/CTASection";
 
 const articlesData = [
   {
-    id: 'great-rotation',
-    title: 'The Great Rotation: Capital Flows Signal Structural Market Shift Away From Concentration',
-    date: 'May 12, 2026',
-    author: 'Anthony Riga',
-    readTime: '12 min read',
-    excerpt: 'Market breadth expanding significantly as institutional capital rotates away from mega-cap concentration.',
-    tags: ['Macro Analysis', 'Market Rotation', 'Institutional Flows', 'Valuation Reset'],
+    id: "great-rotation",
+    title:
+      "The Great Rotation: Capital Flows Signal Structural Market Shift Away From Concentration",
+    date: "May 12, 2026",
+    author: "Anthony Riga",
+    readTime: "12 min read",
+    excerpt:
+      "Market breadth expanding significantly as institutional capital rotates away from mega-cap concentration.",
+    tags: [
+      "Macro Analysis",
+      "Market Rotation",
+      "Institutional Flows",
+      "Valuation Reset",
+    ],
     tickers: [],
     content: `The technology sector dominated market returns throughout 2024 and into early 2025, with the "Magnificent Seven" mega-cap stocks—Microsoft, Apple, Nvidia, Google, Amazon, Tesla, and Meta—driving a disproportionate share of S&P 500 returns. In 2024, these seven stocks accounted for approximately 30-33% of S&P 500 market capitalization and drove the majority of index gains, while the remaining 493 stocks in the index showed much more muted performance.
 
@@ -41,16 +48,23 @@ Rotation dynamics, when they occur, typically reflect both valuation reset and p
 
 Investors positioning for market transitions should focus on structural factors that support particular sectors. Deregulation benefits financial services and healthcare. Infrastructure investment benefits industrial and materials sectors. AI implementation in non-software contexts—logistics optimization, manufacturing automation, healthcare diagnostics—creates genuine productivity benefits in labor-intensive industries. These structural shifts support rotation scenarios independent of market sentiment.
 
-Risk management during rotation periods emphasizes diversification and discipline. Interest rate movements remain the primary macro variable affecting valuation expectations. Earnings growth—or disappointment—will determine whether relative valuations can justify performance changes. Geopolitical events create sudden reversals. Maintaining balanced positioning rather than concentrating in rotation beneficiaries protects against scenario changes.`
+Risk management during rotation periods emphasizes diversification and discipline. Interest rate movements remain the primary macro variable affecting valuation expectations. Earnings growth—or disappointment—will determine whether relative valuations can justify performance changes. Geopolitical events create sudden reversals. Maintaining balanced positioning rather than concentrating in rotation beneficiaries protects against scenario changes.`,
   },
   {
-    id: 'ai-efficiencies',
-    title: 'The AI Productivity Inflection: How AI Adoption is Creating a Multi-Year Economic Super-Cycle',
-    date: 'May 5, 2026',
-    author: 'Anthony Riga',
-    readTime: '14 min read',
-    excerpt: 'AI benefits spreading from software into manufacturing, logistics, healthcare sectors.',
-    tags: ['AI Economics', 'Productivity', 'Structural Trends', 'Labor Economics'],
+    id: "ai-efficiencies",
+    title:
+      "The AI Productivity Inflection: How AI Adoption is Creating a Multi-Year Economic Super-Cycle",
+    date: "May 5, 2026",
+    author: "Anthony Riga",
+    readTime: "14 min read",
+    excerpt:
+      "AI benefits spreading from software into manufacturing, logistics, healthcare sectors.",
+    tags: [
+      "AI Economics",
+      "Productivity",
+      "Structural Trends",
+      "Labor Economics",
+    ],
     tickers: [],
     content: `The narrative around artificial intelligence shifted fundamentally through 2024 and into early 2025. From 2023 through mid-2024, the dominant story positioned AI as a technology sector phenomenon—advanced models and software capabilities that would primarily benefit mega-cap technology companies. By late 2024, the conversation was increasingly shifting toward practical implementation of AI across industries.
 
@@ -82,8 +96,8 @@ The labor market constraint is also real. The US unemployment rate in December 2
 
 The transition from "bolt-on" AI implementation to "reorganization" around AI fundamentally shifts economic productivity potential. Historical precedent from electricity, computing, and other transformative technologies suggests a 3-5 year productivity super-cycle ahead. The risk is not that productivity gains won't materialize. The risk is execution—policy disruption, rate shock, or earnings disappointment in early validation quarters could interrupt the cycle.
 
-Structured, disciplined analysis of sector-specific productivity opportunities, combined with understanding of real constraints and real data, positions investors for participation in the emerging productivity cycle while managing downside risks appropriately.`
-  }
+Structured, disciplined analysis of sector-specific productivity opportunities, combined with understanding of real constraints and real data, positions investors for participation in the emerging productivity cycle while managing downside risks appropriately.`,
+  },
 ];
 
 const ArticleDetail = () => {
@@ -91,15 +105,17 @@ const ArticleDetail = () => {
   const navigate = useNavigate();
   const theme = useTheme();
 
-  const article = articlesData.find(a => a.id === articleId);
+  const article = articlesData.find((a) => a.id === articleId);
 
   if (!article) {
     return (
       <MarketingLayout>
         <Container maxWidth="lg" sx={{ py: 8 }}>
-          <Box sx={{ textAlign: 'center' }}>
-            <Typography variant="h4" sx={{ mb: 2 }}>Article not found</Typography>
-            <Button onClick={() => navigate('/')} startIcon={<ArrowBack />}>
+          <Box sx={{ textAlign: "center" }}>
+            <Typography variant="h4" sx={{ mb: 2 }}>
+              Article not found
+            </Typography>
+            <Button onClick={() => navigate("/")} startIcon={<ArrowBack />}>
               Back to Home
             </Button>
           </Box>
@@ -112,7 +128,7 @@ const ArticleDetail = () => {
     <MarketingLayout>
       <Container maxWidth="md" sx={{ py: 6 }}>
         <Button
-          onClick={() => navigate('/')}
+          onClick={() => navigate("/")}
           startIcon={<ArrowBack />}
           sx={{ mb: 4 }}
         >
@@ -124,7 +140,7 @@ const ArticleDetail = () => {
           <Typography
             variant="h2"
             sx={{
-              fontSize: { xs: '2rem', md: '2.8rem' },
+              fontSize: { xs: "2rem", md: "2.8rem" },
               fontWeight: 700,
               mb: 2,
               color: theme.palette.text.primary,
@@ -134,31 +150,41 @@ const ArticleDetail = () => {
             {article.title}
           </Typography>
 
-          <Box sx={{ display: 'flex', gap: 3, mb: 3, flexWrap: 'wrap' }}>
-            <Typography variant="body2" sx={{ color: theme.palette.text.secondary }}>
+          <Box sx={{ display: "flex", gap: 3, mb: 3, flexWrap: "wrap" }}>
+            <Typography
+              variant="body2"
+              sx={{ color: theme.palette.text.secondary }}
+            >
               <strong>Published:</strong> {article.date}
             </Typography>
-            <Typography variant="body2" sx={{ color: theme.palette.text.secondary }}>
+            <Typography
+              variant="body2"
+              sx={{ color: theme.palette.text.secondary }}
+            >
               <strong>By:</strong> {article.author}
             </Typography>
-            <Typography variant="body2" sx={{ color: theme.palette.text.secondary }}>
+            <Typography
+              variant="body2"
+              sx={{ color: theme.palette.text.secondary }}
+            >
               {article.readTime}
             </Typography>
           </Box>
 
           {/* Tags */}
-          <Box sx={{ display: 'flex', gap: 1, flexWrap: 'wrap' }}>
+          <Box sx={{ display: "flex", gap: 1, flexWrap: "wrap" }}>
             {article.tags.map((tag, i) => (
               <Typography
                 key={i}
                 sx={{
-                  fontSize: '0.85rem',
-                  backgroundColor: theme.palette.mode === 'dark'
-                    ? 'rgba(33, 150, 243, 0.2)'
-                    : 'rgba(33, 150, 243, 0.1)',
+                  fontSize: "0.85rem",
+                  backgroundColor:
+                    theme.palette.mode === "dark"
+                      ? "rgba(33, 150, 243, 0.2)"
+                      : "rgba(33, 150, 243, 0.1)",
                   px: 1.5,
                   py: 0.5,
-                  borderRadius: '4px',
+                  borderRadius: "4px",
                   color: theme.palette.primary.main,
                   fontWeight: 600,
                 }}
@@ -172,13 +198,13 @@ const ArticleDetail = () => {
         {/* Article Content */}
         <Box
           sx={{
-            '& p': {
-              fontSize: '1.05rem',
+            "& p": {
+              fontSize: "1.05rem",
               lineHeight: 1.9,
               color: theme.palette.text.secondary,
               mb: 2.5,
-              '&:first-of-type': {
-                fontSize: '1.15rem',
+              "&:first-of-type": {
+                fontSize: "1.15rem",
                 fontWeight: 500,
                 color: theme.palette.text.primary,
                 mb: 3,
@@ -186,16 +212,16 @@ const ArticleDetail = () => {
             },
           }}
         >
-          {article.content.split('\n\n').map((paragraph, idx) => {
+          {article.content.split("\n\n").map((paragraph, idx) => {
             // Handle section headers
-            if (paragraph.startsWith('##')) {
-              const headerText = paragraph.replace(/^##\s/, '');
+            if (paragraph.startsWith("##")) {
+              const headerText = paragraph.replace(/^##\s/, "");
               return (
                 <Typography
                   key={idx}
                   variant="h4"
                   sx={{
-                    fontSize: '1.6rem',
+                    fontSize: "1.6rem",
                     fontWeight: 700,
                     mt: 4,
                     mb: 2,
@@ -217,7 +243,7 @@ const ArticleDetail = () => {
               <Typography
                 key={idx}
                 sx={{
-                  fontSize: '1.05rem',
+                  fontSize: "1.05rem",
                   lineHeight: 1.9,
                   color: theme.palette.text.secondary,
                   mb: 2.5,
@@ -229,9 +255,16 @@ const ArticleDetail = () => {
           })}
         </Box>
 
-        <Box sx={{ mt: 6, pt: 4, borderTop: `1px solid ${theme.palette.divider}` }}>
-          <Typography variant="caption" sx={{ color: theme.palette.text.secondary }}>
-            This analysis represents comprehensive macro economic and market analysis. Suitable for institutional investors and advisors with multi-quarter to multi-year planning horizons.
+        <Box
+          sx={{ mt: 6, pt: 4, borderTop: `1px solid ${theme.palette.divider}` }}
+        >
+          <Typography
+            variant="caption"
+            sx={{ color: theme.palette.text.secondary }}
+          >
+            This analysis represents comprehensive macro economic and market
+            analysis. Suitable for institutional investors and advisors with
+            multi-quarter to multi-year planning horizons.
           </Typography>
         </Box>
       </Container>
@@ -240,11 +273,10 @@ const ArticleDetail = () => {
         variant="dark"
         title="Ready to Access Professional Research?"
         subtitle="Get institutional-grade market research and advisory insights."
-        primaryCTA={{ label: 'Launch Platform', link: '/app/markets' }}
+        primaryCTA={{ label: "Launch Platform", link: "/app/markets" }}
       />
     </MarketingLayout>
   );
 };
 
 export default ArticleDetail;
-

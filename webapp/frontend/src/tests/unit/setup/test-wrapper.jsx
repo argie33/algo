@@ -1,5 +1,5 @@
-import { MemoryRouter } from 'react-router-dom';
-import { Suspense } from 'react';
+import { MemoryRouter } from "react-router-dom";
+import { Suspense } from "react";
 
 /**
  * Test wrapper that provides Router context
@@ -9,9 +9,7 @@ import { Suspense } from 'react';
 export function TestWrapper({ children }) {
   return (
     <MemoryRouter>
-      <Suspense fallback={<div>Loading...</div>}>
-        {children}
-      </Suspense>
+      <Suspense fallback={<div>Loading...</div>}>{children}</Suspense>
     </MemoryRouter>
   );
 }
@@ -22,13 +20,8 @@ export function TestWrapper({ children }) {
  * Usage: renderWithProviders(<Component />)
  */
 export function renderWithProviders(component, options = {}) {
-  const { render } = require('@testing-library/react');
-  return render(
-    <TestWrapper>
-      {component}
-    </TestWrapper>,
-    options
-  );
+  const { render } = require("@testing-library/react");
+  return render(<TestWrapper>{component}</TestWrapper>, options);
 }
 
 /**
@@ -37,10 +30,10 @@ export function renderWithProviders(component, options = {}) {
  * Usage: renderWithAuth(<Component />)
  */
 export function renderWithAuth(component, options = {}) {
-  const { render } = require('@testing-library/react');
+  const { render } = require("@testing-library/react");
   let AuthProvider;
   try {
-    AuthProvider = require('../../../contexts/AuthContext').AuthProvider;
+    AuthProvider = require("../../../contexts/AuthContext").AuthProvider;
   } catch (e) {
     // AuthProvider not available, fall back to renderWithProviders
     return renderWithProviders(component, options);
@@ -48,9 +41,7 @@ export function renderWithAuth(component, options = {}) {
 
   return render(
     <MemoryRouter>
-      <AuthProvider>
-        {component}
-      </AuthProvider>
+      <AuthProvider>{component}</AuthProvider>
     </MemoryRouter>,
     options
   );

@@ -2,6 +2,16 @@ const express = require("express");
 
 const { getMarketDataPath } = require("../utils/market-data-path");
 const { getLatestMarketDate } = require("../utils/market-cache");
+const {
+  sendSuccess,
+  sendError,
+  sendPaginated,
+  sendNotFound,
+  sendPlaceholder,
+} = require("../utils/apiResponse");
+const { validateQueryResult } = require("../utils/responseValidation");
+const logger = require("../utils/logger");
+const paginationConfig = require("../config/pagination");
 
 let query;
 try {
@@ -14,16 +24,6 @@ try {
   query = null;
 }
 
-const {
-  sendSuccess,
-  sendError,
-  sendPaginated,
-  sendNotFound,
-  sendPlaceholder,
-} = require("../utils/apiResponse");
-const { validateQueryResult } = require("../utils/responseValidation");
-const logger = require("../utils/logger");
-const paginationConfig = require("../config/pagination");
 const router = express.Router();
 
 // Helper functions for safe numeric conversion

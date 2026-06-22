@@ -18,15 +18,19 @@ test.describe("Stock Research to Trading Workflow", () => {
           finnhub: { configured: true, valid: true },
         })
       );
-      sessionStorage.setItem("user_data", JSON.stringify({
-        username: "testuser",
-        authenticated: true
-      }));
+      sessionStorage.setItem(
+        "user_data",
+        JSON.stringify({
+          username: "testuser",
+          authenticated: true,
+        })
+      );
     });
   });
 
-  test("should complete stock research to trading workflow", async ({ page }) => {
-
+  test("should complete stock research to trading workflow", async ({
+    page,
+  }) => {
     // Step 1: Navigate to Stock Explorer/Search
     await page.goto("/stocks");
     await page.waitForLoadState("networkidle");
@@ -43,8 +47,8 @@ test.describe("Stock Research to Trading Workflow", () => {
       'input[name*="search"]',
       'input[name*="symbol"]',
       '[data-testid*="search"] input',
-      '.search-input',
-      '#search'
+      ".search-input",
+      "#search",
     ];
 
     let searchInput = null;
@@ -62,16 +66,19 @@ test.describe("Stock Research to Trading Workflow", () => {
       await page.waitForTimeout(2000);
 
       // Look for search results or stock data
-      const stockResults = await page.locator(
-        '.stock-result, .stock-item, .stock-card, tbody tr, .search-result'
-      ).count();
-
+      const stockResults = await page
+        .locator(
+          ".stock-result, .stock-item, .stock-card, tbody tr, .search-result"
+        )
+        .count();
 
       if (stockResults > 0) {
         // Click on first result if available
-        const firstResult = page.locator(
-          '.stock-result, .stock-item, .stock-card, tbody tr, .search-result'
-        ).first();
+        const firstResult = page
+          .locator(
+            ".stock-result, .stock-item, .stock-card, tbody tr, .search-result"
+          )
+          .first();
 
         if (await firstResult.isVisible()) {
           await firstResult.click();
@@ -79,14 +86,12 @@ test.describe("Stock Research to Trading Workflow", () => {
         }
       }
     } else {
-
       // Look for existing stock data or navigate to stock detail
-      const stockElements = await page.locator(
-        '.stock, .ticker, tbody tr, .stock-card'
-      ).count();
+      const stockElements = await page
+        .locator(".stock, .ticker, tbody tr, .stock-card")
+        .count();
 
       if (stockElements > 0) {
-
         // Try to navigate to AAPL directly
         await page.goto("/stocks/AAPL");
         await page.waitForLoadState("networkidle");
@@ -96,16 +101,18 @@ test.describe("Stock Research to Trading Workflow", () => {
 
     // Step 3: Analyze stock details
 
-    const stockDetailElements = await page.locator(
-      '.price, .chart, .metrics, .analysis, .financials, .technical'
-    ).count();
-
+    const stockDetailElements = await page
+      .locator(".price, .chart, .metrics, .analysis, .financials, .technical")
+      .count();
 
     // Look for key stock information
     const priceElements = await page.locator(':has-text("$")').count();
-    const infoElements = await page.locator(':has-text("Price"), :has-text("Volume"), :has-text("Market Cap"), .stock-price, .stock-info').count();
+    const infoElements = await page
+      .locator(
+        ':has-text("Price"), :has-text("Volume"), :has-text("Market Cap"), .stock-price, .stock-info'
+      )
+      .count();
     const stockInfoElements = priceElements + infoElements;
-
 
     // Step 4: Add to watchlist
 
@@ -114,8 +121,8 @@ test.describe("Stock Research to Trading Workflow", () => {
       'button:has-text("Watch")',
       'button:has-text("Add")',
       '[data-testid*="watchlist"]',
-      '.add-to-watchlist',
-      '.watchlist-button'
+      ".add-to-watchlist",
+      ".watchlist-button",
     ];
 
     let watchlistAdded = false;
@@ -130,11 +137,11 @@ test.describe("Stock Research to Trading Workflow", () => {
     }
 
     if (!watchlistAdded) {
-
-      const iconButtons = await page.locator(
-        'button[aria-label*="watchlist"], button[aria-label*="bookmark"], button[aria-label*="favorite"], .star, .bookmark'
-      ).count();
-
+      const iconButtons = await page
+        .locator(
+          'button[aria-label*="watchlist"], button[aria-label*="bookmark"], button[aria-label*="favorite"], .star, .bookmark'
+        )
+        .count();
     }
 
     // Step 5: Navigate to trading/orders
@@ -147,32 +154,33 @@ test.describe("Stock Research to Trading Workflow", () => {
 
     // Step 6: Look for order placement functionality
 
-    const orderElements = await page.locator(
-      'button:has-text("Buy"), button:has-text("Sell"), button:has-text("Place Order"), .order-form, .trading-form'
-    ).count();
-
+    const orderElements = await page
+      .locator(
+        'button:has-text("Buy"), button:has-text("Sell"), button:has-text("Place Order"), .order-form, .trading-form'
+      )
+      .count();
 
     // Look for order inputs
-    const orderInputs = await page.locator(
-      'input[placeholder*="symbol"], input[placeholder*="quantity"], input[placeholder*="price"], input[name*="symbol"], input[name*="quantity"]'
-    ).count();
-
+    const orderInputs = await page
+      .locator(
+        'input[placeholder*="symbol"], input[placeholder*="quantity"], input[placeholder*="price"], input[name*="symbol"], input[name*="quantity"]'
+      )
+      .count();
 
     // Step 7: Test order form (without actually placing order)
     if (orderElements > 0 && orderInputs > 0) {
-
       // Try to fill in order details
-      const symbolInput = page.locator(
-        'input[placeholder*="symbol"], input[name*="symbol"]'
-      ).first();
+      const symbolInput = page
+        .locator('input[placeholder*="symbol"], input[name*="symbol"]')
+        .first();
 
       if (await symbolInput.isVisible()) {
         await symbolInput.fill("AAPL");
         await page.waitForTimeout(500);
 
-        const quantityInput = page.locator(
-          'input[placeholder*="quantity"], input[name*="quantity"]'
-        ).first();
+        const quantityInput = page
+          .locator('input[placeholder*="quantity"], input[name*="quantity"]')
+          .first();
 
         if (await quantityInput.isVisible()) {
           await quantityInput.fill("1");
@@ -196,15 +204,13 @@ test.describe("Stock Research to Trading Workflow", () => {
 
     // Look for trading signals or recommendations if order form wasn't found
     if (orderElements === 0) {
-
       // Look for trading signals or recommendations
       await page.goto("/trading-signals");
       await page.waitForLoadState("networkidle");
 
-      tradingSignals = await page.locator(
-        '.signal, .recommendation, .trade-idea, tbody tr'
-      ).count();
-
+      tradingSignals = await page
+        .locator(".signal, .recommendation, .trade-idea, tbody tr")
+        .count();
     }
 
     // Step 8: Verify workflow completion
@@ -213,42 +219,47 @@ test.describe("Stock Research to Trading Workflow", () => {
     await page.goto("/portfolio");
     await page.waitForLoadState("networkidle");
 
-    const portfolioContent = await page.locator('#root').textContent();
-    const hasPortfolioContent = portfolioContent && portfolioContent.length > 200;
-
+    const portfolioContent = await page.locator("#root").textContent();
+    const hasPortfolioContent =
+      portfolioContent && portfolioContent.length > 200;
 
     // Navigate to watchlist to verify addition
     await page.goto("/watchlist");
     await page.waitForLoadState("networkidle");
 
-    const watchlistContent = await page.locator('#root').textContent();
-    const hasWatchlistContent = watchlistContent && watchlistContent.length > 100;
-
-
+    const watchlistContent = await page.locator("#root").textContent();
+    const hasWatchlistContent =
+      watchlistContent && watchlistContent.length > 100;
 
     // Test passes if core workflow elements were found or pages loaded successfully
-    const workflowWorking = stockDetailElements > 0 || stockInfoElements > 0 ||
-                           orderElements > 0 || tradingSignals > 0 ||
-                           hasPortfolioContent || hasWatchlistContent;
+    const workflowWorking =
+      stockDetailElements > 0 ||
+      stockInfoElements > 0 ||
+      orderElements > 0 ||
+      tradingSignals > 0 ||
+      hasPortfolioContent ||
+      hasWatchlistContent;
     expect(workflowWorking).toBe(true);
   });
 
-  test("should handle stock research and trading workflow", async ({ page }) => {
-
+  test("should handle stock research and trading workflow", async ({
+    page,
+  }) => {
     await page.goto("/stock-detail/AAPL");
     await page.waitForLoadState("networkidle");
     await page.waitForTimeout(2000);
 
     // Look for stock detail elements
-    const detailElements = await page.locator(
-      '.stock-detail, .price, .metrics, .analysis, canvas, svg'
-    ).count();
-
+    const detailElements = await page
+      .locator(".stock-detail, .price, .metrics, .analysis, canvas, svg")
+      .count();
 
     // Test symbol input if available
-    const symbolInput = page.locator(
-      'input[placeholder*="symbol"], input[placeholder*="stock"], input[name*="symbol"]'
-    ).first();
+    const symbolInput = page
+      .locator(
+        'input[placeholder*="symbol"], input[placeholder*="stock"], input[name*="symbol"]'
+      )
+      .first();
 
     if (await symbolInput.isVisible()) {
       await symbolInput.fill("AAPL");
@@ -256,57 +267,58 @@ test.describe("Stock Research to Trading Workflow", () => {
       await page.waitForTimeout(3000);
 
       // Check if chart or analysis updated
-      const updatedElements = await page.locator(
-        '.chart, canvas, svg, .price, .data'
-      ).count();
-
+      const updatedElements = await page
+        .locator(".chart, canvas, svg, .price, .data")
+        .count();
     }
 
     // Look for technical indicators
-    const indicators = await page.locator(
-      ':has-text("RSI"), :has-text("MACD"), :has-text("Moving Average"), :has-text("Bollinger"), .indicator'
-    ).count();
-
+    const indicators = await page
+      .locator(
+        ':has-text("RSI"), :has-text("MACD"), :has-text("Moving Average"), :has-text("Bollinger"), .indicator'
+      )
+      .count();
 
     // Test passes if page loaded successfully (technical analysis page might be basic)
-    const pageContent = await page.locator('#root').textContent();
+    const pageContent = await page.locator("#root").textContent();
     const _hasContent = pageContent && pageContent.length > 50;
 
     expect(_hasContent).toBe(true);
   });
 
   test("should handle stock screener workflow", async ({ page }) => {
-
     await page.goto("/stocks");
     await page.waitForLoadState("networkidle");
     await page.waitForTimeout(2000);
 
     // Look for screener filters
-    const filterElements = await page.locator(
-      'select, input[type="number"], input[type="range"], .filter, .criteria'
-    ).count();
-
+    const filterElements = await page
+      .locator(
+        'select, input[type="number"], input[type="range"], .filter, .criteria'
+      )
+      .count();
 
     // Look for screen/search button
-    const screenButton = page.locator(
-      'button:has-text("Screen"), button:has-text("Search"), button:has-text("Apply"), button:has-text("Filter")'
-    ).first();
+    const screenButton = page
+      .locator(
+        'button:has-text("Screen"), button:has-text("Search"), button:has-text("Apply"), button:has-text("Filter")'
+      )
+      .first();
 
     if (await screenButton.isVisible()) {
       await screenButton.click();
       await page.waitForTimeout(3000);
 
       // Check for results
-      const results = await page.locator(
-        'tbody tr, .stock-result, .screener-result, .stock-item'
-      ).count();
-
+      const results = await page
+        .locator("tbody tr, .stock-result, .screener-result, .stock-item")
+        .count();
 
       if (results > 0) {
         // Click on first result
-        const firstResult = page.locator(
-          'tbody tr, .stock-result, .screener-result, .stock-item'
-        ).first();
+        const firstResult = page
+          .locator("tbody tr, .stock-result, .screener-result, .stock-item")
+          .first();
 
         if (await firstResult.isVisible()) {
           await firstResult.click();
@@ -316,37 +328,35 @@ test.describe("Stock Research to Trading Workflow", () => {
     }
 
     // Test passes if page loaded successfully (screener might be basic)
-    const pageContent = await page.locator('#root').textContent();
+    const pageContent = await page.locator("#root").textContent();
     const _hasContent = pageContent && pageContent.length > 50;
-
 
     // More lenient check - just ensure page loaded
     expect(pageContent).toBeDefined();
   });
 
   test("should handle earnings calendar research", async ({ page }) => {
-
     await page.goto("/earnings");
     await page.waitForLoadState("networkidle");
     await page.waitForTimeout(2000);
 
     // Look for earnings data
-    const earningsElements = await page.locator(
-      'tbody tr, .earnings-item, .calendar-item, .earnings-event'
-    ).count();
-
+    const earningsElements = await page
+      .locator("tbody tr, .earnings-item, .calendar-item, .earnings-event")
+      .count();
 
     // Look for date navigation
-    const dateControls = await page.locator(
-      'button:has-text("Next"), button:has-text("Previous"), .date-picker, input[type="date"]'
-    ).count();
-
+    const dateControls = await page
+      .locator(
+        'button:has-text("Next"), button:has-text("Previous"), .date-picker, input[type="date"]'
+      )
+      .count();
 
     // Click on an earnings item if available
     if (earningsElements > 0) {
-      const firstEarning = page.locator(
-        'tbody tr, .earnings-item, .calendar-item, .earnings-event'
-      ).first();
+      const firstEarning = page
+        .locator("tbody tr, .earnings-item, .calendar-item, .earnings-event")
+        .first();
 
       if (await firstEarning.isVisible()) {
         await firstEarning.click();
@@ -358,14 +368,13 @@ test.describe("Stock Research to Trading Workflow", () => {
     }
 
     // Test passes if page loaded successfully (earnings calendar might be basic)
-    const pageContent = await page.locator('#root').textContent();
+    const pageContent = await page.locator("#root").textContent();
     const _hasContent = pageContent && pageContent.length > 50;
 
     expect(_hasContent).toBe(true);
   });
 
   test("should integrate research with portfolio", async ({ page }) => {
-
     // Start with research
     await page.goto("/stocks");
     await page.waitForLoadState("networkidle");
@@ -376,27 +385,28 @@ test.describe("Stock Research to Trading Workflow", () => {
     await page.waitForLoadState("networkidle");
     await page.waitForTimeout(2000);
 
-    const portfolioElements = await page.locator(
-      '.portfolio, .holdings, .positions, tbody tr, .position-item'
-    ).count();
-
+    const portfolioElements = await page
+      .locator(".portfolio, .holdings, .positions, tbody tr, .position-item")
+      .count();
 
     // Look for add position functionality
-    const addButtons = await page.locator(
-      'button:has-text("Add"), button:has-text("New"), button:has-text("Position"), .add-position'
-    ).count();
-
+    const addButtons = await page
+      .locator(
+        'button:has-text("Add"), button:has-text("New"), button:has-text("Position"), .add-position'
+      )
+      .count();
 
     // Test portfolio analysis features
-    const analysisElements = await page.locator(
-      '.analysis, .performance, .metrics, .chart, canvas'
-    ).count();
-
+    const analysisElements = await page
+      .locator(".analysis, .performance, .metrics, .chart, canvas")
+      .count();
 
     // Test passes if any portfolio functionality is present or page loads successfully
-    const pageContent = await page.locator('#root').textContent();
+    const pageContent = await page.locator("#root").textContent();
     const _hasContent = pageContent && pageContent.length > 50;
 
-    expect(portfolioElements + addButtons + analysisElements > 0 || _hasContent).toBe(true);
+    expect(
+      portfolioElements + addButtons + analysisElements > 0 || _hasContent
+    ).toBe(true);
   });
 });

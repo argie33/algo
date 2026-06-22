@@ -28,4 +28,3 @@ export const AlertTitle = React.forwardRef(({ className, ...props }, ref) => (
   <MuiAlertTitle ref={ref} className={className} {...props} />
 ));
 AlertTitle.displayName = "AlertTitle";
-

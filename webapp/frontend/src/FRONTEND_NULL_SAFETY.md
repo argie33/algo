@@ -26,17 +26,17 @@ Provides functions that never throw and always return valid defaults:
 
 ```javascript
 import {
-  toSafeNumber,        // Converts value to number or returns default
-  safeDivide,          // Division with zero-check
-  safePercentage,      // (part / whole) * 100 with guards
-  safeAccumulate,      // Sum array values safely
-  safePnlPercentage,   // (pnl / value) * 100
-  safeGet,             // Nested property access with defaults
-} from '../utils/safeCalculations';
+  toSafeNumber, // Converts value to number or returns default
+  safeDivide, // Division with zero-check
+  safePercentage, // (part / whole) * 100 with guards
+  safeAccumulate, // Sum array values safely
+  safePnlPercentage, // (pnl / value) * 100
+  safeGet, // Nested property access with defaults
+} from "../utils/safeCalculations";
 
 // Usage
-const unrealizedPnl = toSafeNumber(data.pnl, 0);           // → 0 if null/NaN
-const totalValue = safeAccumulate(positions, 'value', 0);  // → 0 if all null
+const unrealizedPnl = toSafeNumber(data.pnl, 0); // → 0 if null/NaN
+const totalValue = safeAccumulate(positions, "value", 0); // → 0 if all null
 const pnlPct = safePnlPercentage(unrealizedPnl, totalValue); // → null if invalid
 ```
 
@@ -46,13 +46,13 @@ Wraps `useApiQuery` with automatic schema validation and normalization:
 
 ```javascript
 const { normalizedData } = useSafeFinancialData(
-  ['positions'],
-  () => api.get('/api/positions'),
+  ["positions"],
+  () => api.get("/api/positions"),
   {
     schema: {
       positions: [],
-      portfolio: { total_value: 0, unrealized_pnl_dollars: 0 }
-    }
+      portfolio: { total_value: 0, unrealized_pnl_dollars: 0 },
+    },
   }
 );
 
@@ -64,16 +64,18 @@ const { normalizedData } = useSafeFinancialData(
 Update components to use utilities:
 
 **Before:**
+
 ```jsx
 const totalValue = positions.reduce((s, p) => s + (p.position_value || 0), 0);
-const pnlPct = totalValue > 0 ? (unrealizedPnl / totalValue * 100) : null;
+const pnlPct = totalValue > 0 ? (unrealizedPnl / totalValue) * 100 : null;
 ```
 
 **After:**
-```jsx
-import { safeAccumulate, safePnlPercentage } from '../utils/safeCalculations';
 
-const totalValue = safeAccumulate(positions, 'position_value', 0);
+```jsx
+import { safeAccumulate, safePnlPercentage } from "../utils/safeCalculations";
+
+const totalValue = safeAccumulate(positions, "position_value", 0);
 const pnlPct = safePnlPercentage(unrealizedPnl, totalValue);
 ```
 
@@ -85,11 +87,11 @@ For arithmetic operations:
 
 ```javascript
 // ❌ Before
-const pnlPercent = unrealizedPnl / totalValue * 100;  // NaN if totalValue is null
-const distance = target - current / current * 100;    // Divide by zero risk
+const pnlPercent = (unrealizedPnl / totalValue) * 100; // NaN if totalValue is null
+const distance = target - (current / current) * 100; // Divide by zero risk
 
 // ✅ After
-import { safeDivide, safePercentage } from '../utils/safeCalculations';
+import { safeDivide, safePercentage } from "../utils/safeCalculations";
 
 const pnlPercent = safePercentage(unrealizedPnl, totalValue);
 const distance = safePercentage(target - current, current);
@@ -99,24 +101,24 @@ For array accumulation:
 
 ```javascript
 // ❌ Before
-const total = items.reduce((s, i) => s + i.value, 0);  // NaN if value is null
+const total = items.reduce((s, i) => s + i.value, 0); // NaN if value is null
 
 // ✅ After
-import { safeAccumulate } from '../utils/safeCalculations';
+import { safeAccumulate } from "../utils/safeCalculations";
 
-const total = safeAccumulate(items, 'value', 0);
+const total = safeAccumulate(items, "value", 0);
 ```
 
 For property access:
 
 ```javascript
 // ❌ Before
-const price = data.position.current_price;  // Error if position is null
+const price = data.position.current_price; // Error if position is null
 
 // ✅ After
-import { safeGet } from '../utils/safeCalculations';
+import { safeGet } from "../utils/safeCalculations";
 
-const price = safeGet(data, 'position.current_price', 0);
+const price = safeGet(data, "position.current_price", 0);
 ```
 
 ### Step 2: Validate Financial Data
@@ -124,11 +126,11 @@ const price = safeGet(data, 'position.current_price', 0);
 When fetching position/portfolio data:
 
 ```javascript
-import { useSafeFinancialData } from '../hooks/useSafeFinancialData';
+import { useSafeFinancialData } from "../hooks/useSafeFinancialData";
 
 const { normalizedData } = useSafeFinancialData(
-  ['portfolio-data'],
-  () => api.get('/api/portfolio'),
+  ["portfolio-data"],
+  () => api.get("/api/portfolio"),
   {
     schema: {
       positions: [],
@@ -136,8 +138,8 @@ const { normalizedData } = useSafeFinancialData(
         total_value: 0,
         unrealized_pnl_dollars: 0,
         unrealized_pnl_pct: 0,
-      }
-    }
+      },
+    },
   }
 );
 
@@ -150,38 +152,38 @@ const { positions, portfolio } = normalizedData;
 For common calculations:
 
 ```javascript
-import { useSafePortfolioCalculations } from '../hooks/useSafeFinancialData';
+import { useSafePortfolioCalculations } from "../hooks/useSafeFinancialData";
 
 const calculations = useSafePortfolioCalculations(positions, portfolio);
 
-console.log(calculations.totalValue);      // Number, never NaN
-console.log(calculations.pnlPct);          // Number or null, never NaN
-console.log(calculations.positionCount);   // Number, never NaN
-console.log(calculations.hasValidData);    // Boolean flag
+console.log(calculations.totalValue); // Number, never NaN
+console.log(calculations.pnlPct); // Number or null, never NaN
+console.log(calculations.positionCount); // Number, never NaN
+console.log(calculations.hasValidData); // Boolean flag
 ```
 
 ## API Reference
 
 ### Safe Calculations
 
-| Function | Input | Returns | Behavior |
-|----------|-------|---------|----------|
-| `toSafeNumber(val, default)` | any | number | NaN/null → default |
-| `safeDivide(num, den, default)` | any, any, any | number | Divide by zero → default |
-| `safePercentage(part, whole, default)` | any, any, any | number | 0/null → default |
-| `safeSum(array, default)` | any[], any | number | Null values skipped |
-| `safeAccumulate(items, accessor, default)` | any[], string/fn, any | number | Filters null |
-| `safeGet(obj, path, default)` | any, string, any | any | Missing path → default |
-| `safeGetArray(data, path, default)` | any, string, any[] | any[] | Invalid → default |
+| Function                                   | Input                 | Returns | Behavior                 |
+| ------------------------------------------ | --------------------- | ------- | ------------------------ |
+| `toSafeNumber(val, default)`               | any                   | number  | NaN/null → default       |
+| `safeDivide(num, den, default)`            | any, any, any         | number  | Divide by zero → default |
+| `safePercentage(part, whole, default)`     | any, any, any         | number  | 0/null → default         |
+| `safeSum(array, default)`                  | any[], any            | number  | Null values skipped      |
+| `safeAccumulate(items, accessor, default)` | any[], string/fn, any | number  | Filters null             |
+| `safeGet(obj, path, default)`              | any, string, any      | any     | Missing path → default   |
+| `safeGetArray(data, path, default)`        | any, string, any[]    | any[]   | Invalid → default        |
 
 ### Safe Hooks
 
-| Hook | Purpose | Returns |
-|------|---------|---------|
-| `useSafeFinancialData()` | Schema-validated API data | `{ data, normalizedData, loading, error, refetch }` |
-| `useSafePortfolioCalculations()` | Portfolio metrics | `{ totalValue, pnlPct, totalRisk, positionCount, hasValidData, ... }` |
-| `useSafePerformanceMetrics()` | Performance metrics | `{ totalReturn, winRate, sharpe, sortino, ... }` |
-| `useSafeFormatting()` | Display formatting | `{ formatPrice, formatPercent, formatNumber, formatRMultiple, ... }` |
+| Hook                             | Purpose                   | Returns                                                               |
+| -------------------------------- | ------------------------- | --------------------------------------------------------------------- |
+| `useSafeFinancialData()`         | Schema-validated API data | `{ data, normalizedData, loading, error, refetch }`                   |
+| `useSafePortfolioCalculations()` | Portfolio metrics         | `{ totalValue, pnlPct, totalRisk, positionCount, hasValidData, ... }` |
+| `useSafePerformanceMetrics()`    | Performance metrics       | `{ totalReturn, winRate, sharpe, sortino, ... }`                      |
+| `useSafeFormatting()`            | Display formatting        | `{ formatPrice, formatPercent, formatNumber, formatRMultiple, ... }`  |
 
 ## Migration Checklist
 
@@ -207,6 +209,7 @@ npm test -- safeCalculations.test.js
 ```
 
 Coverage includes:
+
 - ✅ Valid number conversions
 - ✅ Null/undefined handling
 - ✅ NaN rejection
@@ -218,6 +221,7 @@ Coverage includes:
 ### Manual Testing Scenarios
 
 #### Scenario 1: Null portfolio value
+
 ```javascript
 // API returns
 { portfolio: { unrealized_pnl_dollars: 100, total_value: null } }
@@ -227,6 +231,7 @@ Coverage includes:
 ```
 
 #### Scenario 2: Missing position fields
+
 ```javascript
 // Position missing stop_loss_price
 { symbol: 'AAPL', current_price: 150, stop_loss_price: null }
@@ -236,12 +241,15 @@ safeGet(position, 'stop_loss_price', 0)  // → 0
 ```
 
 #### Scenario 3: Empty positions array
+
 ```javascript
 // API returns empty positions
-{ positions: [] }
+{
+  positions: [];
+}
 
 // Calculations should not crash
-const total = safeAccumulate([], 'position_value', 0);  // → 0
+const total = safeAccumulate([], "position_value", 0); // → 0
 ```
 
 ## Common Pitfalls
@@ -250,19 +258,19 @@ const total = safeAccumulate([], 'position_value', 0);  // → 0
 
 ```javascript
 // Direct division
-const ratio = a / b;  // NaN if b is null
+const ratio = a / b; // NaN if b is null
 
 // Chained property access
-const price = data.position.current_price;  // Error if position is null
+const price = data.position.current_price; // Error if position is null
 
 // Unsafe reduce
-const sum = items.reduce((s, i) => s + i.val, 0);  // NaN if val is null
+const sum = items.reduce((s, i) => s + i.val, 0); // NaN if val is null
 
 // Type coercion
-const num = parseInt(value);  // NaN if value is non-numeric string
+const num = parseInt(value); // NaN if value is non-numeric string
 
 // Conditional without null check
-value > 0 ? 'up' : 'down'  // Error if value is null
+value > 0 ? "up" : "down"; // Error if value is null
 ```
 
 ### ✅ Safe Patterns (Use)
@@ -272,16 +280,16 @@ value > 0 ? 'up' : 'down'  // Error if value is null
 const ratio = safeDivide(a, b, 0);
 
 // Safe property access
-const price = safeGet(data, 'position.current_price', 0);
+const price = safeGet(data, "position.current_price", 0);
 
 // Safe accumulation
-const sum = safeAccumulate(items, 'val', 0);
+const sum = safeAccumulate(items, "val", 0);
 
 // Safe conversion
 const num = toSafeNumber(value, 0);
 
 // Safe comparison
-const direction = toSafeNumber(value, 0) > 0 ? 'up' : 'down';
+const direction = toSafeNumber(value, 0) > 0 ? "up" : "down";
 ```
 
 ## Performance Considerations
@@ -308,9 +316,11 @@ None. Safe calculation functions coexist with existing code. Migration is gradua
 ## Support & Troubleshooting
 
 ### "Warning: Each child in a list should have a unique key prop"
+
 - Not related to null safety, but often appears alongside. Use `index` as fallback: `<div key={index} />`
 
 ### "NaN is not a valid number"
+
 - This means a calculation returned NaN. Check:
   1. Is the input null/undefined?
   2. Is there a divide by zero?
@@ -318,15 +328,18 @@ None. Safe calculation functions coexist with existing code. Migration is gradua
 - Use `isValidCalculation()` to check before rendering.
 
 ### "Cannot read property 'X' of null"
+
 - Missing null check. Use `safeGet(obj, 'X', default)` instead of `obj.X`.
 
 ### Test failures with incomplete mock data
+
 - Add missing fields to mocks using the schema pattern
 - Or use `buildSafeObject()` to create valid mocks
 
 ## Examples
 
 See `/pages/PortfolioDashboard.jsx` for comprehensive migration example using:
+
 - Safe portfolio calculations
 - Safe formatting
 - Safe data access patterns

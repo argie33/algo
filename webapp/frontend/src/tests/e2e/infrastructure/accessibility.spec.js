@@ -84,7 +84,9 @@ test.describe("Financial Platform - Accessibility", () => {
       }
     }
 
-    console.log(`Pages with proper titles: ${properTitles}/${criticalPages.length}`);
+    console.log(
+      `Pages with proper titles: ${properTitles}/${criticalPages.length}`
+    );
     expect(properTitles).toBeGreaterThan(2);
   });
 
@@ -128,7 +130,9 @@ test.describe("Financial Platform - Accessibility", () => {
           JSON.stringify(focused) !== JSON.stringify(currentElement)
         ) {
           focusableElements++;
-          console.log(`Tab ${i + 1}: ${focused.tagName}${focused.type ? `[${focused.type}]` : ""} - "${focused.text || focused.ariaLabel || "unlabeled"}"`);
+          console.log(
+            `Tab ${i + 1}: ${focused.tagName}${focused.type ? `[${focused.type}]` : ""} - "${focused.text || focused.ariaLabel || "unlabeled"}"`
+          );
           currentElement = focused;
         }
       } catch (error) {
@@ -171,7 +175,9 @@ test.describe("Financial Platform - Accessibility", () => {
       }
     }
 
-    console.log(`Working keyboard shortcuts: ${workingShortcuts}/${shortcuts.length}`);
+    console.log(
+      `Working keyboard shortcuts: ${workingShortcuts}/${shortcuts.length}`
+    );
     expect(workingShortcuts).toBeGreaterThanOrEqual(0); // Just log results
   });
 
@@ -209,10 +215,14 @@ test.describe("Financial Platform - Accessibility", () => {
           const firstElement = page.locator(selector).first();
           const attrValue = await firstElement.getAttribute(attribute);
 
-          console.log(`Found ${elements} elements with ${attribute}: "${attrValue}"`);
+          console.log(
+            `Found ${elements} elements with ${attribute}: "${attrValue}"`
+          );
 
           if (expected && attrValue !== expected) {
-            console.log(`Expected ${attribute}="${expected}", found "${attrValue}"`);
+            console.log(
+              `Expected ${attribute}="${expected}", found "${attrValue}"`
+            );
           }
         }
       } catch (error) {
@@ -267,8 +277,7 @@ test.describe("Financial Platform - Accessibility", () => {
             if (count > 0) {
               pageAccessibilityScore++;
             }
-          } catch (checkError) {
-          }
+          } catch (checkError) {}
         }
 
         if (pageAccessibilityScore > 2) {
@@ -411,7 +420,6 @@ test.describe("Financial Platform - Accessibility", () => {
               const text = await headings[i].textContent();
               headingLevels.push(`${tagName}: "${text?.slice(0, 30)}"`);
             }
-
           }
         }
       } catch (error) {
@@ -427,4 +435,3 @@ test.describe("Financial Platform - Accessibility", () => {
     expect(screenReaderFeatures).toBeGreaterThanOrEqual(1);
   });
 });
-

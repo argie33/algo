@@ -82,22 +82,19 @@ test.describe("Settings Page Debug Analysis", () => {
     // Console error analysis
     const errorMessages = consoleMessages.filter((msg) => msg.type === "error");
     if (errorMessages.length > 0) {
-      errorMessages.forEach((msg, index) => {
-      });
+      errorMessages.forEach((msg, index) => {});
     }
 
     // Failed request analysis
     const failedRequests = networkRequests.filter((req) =>
       req.url.includes("/api/")
     );
-    failedRequests.forEach((req) => {
-    });
+    failedRequests.forEach((req) => {});
   });
 
   test("Settings page login flow with comprehensive logging", async ({
     page,
   }) => {
-
     // Navigate to the application
     await page.goto("/", { waitUntil: "domcontentloaded" });
     await page.waitForTimeout(2000);
@@ -106,7 +103,6 @@ test.describe("Settings Page Debug Analysis", () => {
     const authModal = await page.locator('[data-testid="auth-modal"]').count();
     if (authModal === 0) {
     } else {
-
       // Try to find and interact with auth elements
       const loginTab = page.locator('button:has-text("Login")').first();
       if (await loginTab.isVisible()) {
@@ -194,13 +190,11 @@ test.describe("Settings Page Debug Analysis", () => {
 
     const pageTitle = await page.title();
 
-
     // Ensure test passes (this is a diagnostic test)
     expect(true).toBe(true);
   });
 
   test("Settings page API interactions deep dive", async ({ page }) => {
-
     // Navigate directly to settings
     await page.goto("/settings", {
       waitUntil: "domcontentloaded",
@@ -236,4 +230,3 @@ test.describe("Settings Page Debug Analysis", () => {
     await page.waitForTimeout(5000);
   });
 });
-

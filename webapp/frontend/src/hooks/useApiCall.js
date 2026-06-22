@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect } from "react";
 
 /**
  * Generic hook for async API calls with loading/error/data state
@@ -37,9 +37,9 @@ export const useApiCall = (fn, deps = [], options = {}) => {
           const validation = validateFn(result);
           if (!validation.valid) {
             throw new Error(
-              validation.errors?.join('; ') ||
-              validation.error ||
-              'Data validation failed'
+              validation.errors?.join("; ") ||
+                validation.error ||
+                "Data validation failed"
             );
           }
           result = validation.data || result;
@@ -71,4 +71,3 @@ export const useApiCall = (fn, deps = [], options = {}) => {
 };
 
 export default useApiCall;
-

@@ -785,8 +785,14 @@ def _run_once_update_frame_and_mode(key: str, frame: int, view_mode: str) -> tup
 
 
 def _run_once_update_display(
-    live: Live, done: threading.Event, state: _LoadState, frame: int, view_mode: str,
-    recovery: RenderRecovery, render_wrapper: _RenderWrapper, data_source: str
+    live: Live,
+    done: threading.Event,
+    state: _LoadState,
+    frame: int,
+    view_mode: str,
+    recovery: RenderRecovery,
+    render_wrapper: _RenderWrapper,
+    data_source: str,
 ) -> None:
     """Update display during loading or render dashboard."""
     if not done.is_set():
@@ -805,9 +811,7 @@ def _run_once_update_display(
         try:
             live.update(error_panel)
         except Exception as panel_error:
-            logger.error(
-                f"Failed to render error panel: {type(panel_error).__name__}: {panel_error}"
-            )
+            logger.error(f"Failed to render error panel: {type(panel_error).__name__}: {panel_error}")
 
 
 def run_once(compact: bool, data_source: str = "AWS") -> None:
@@ -855,6 +859,146 @@ def run_once(compact: bool, data_source: str = "AWS") -> None:
                 )
 
 
+def _run_watch_process_render(
+    current_result: Any, render_wrapper: _RenderWrapper, recovery: RenderRecovery,
+    is_loading: bool, current_last_load: float, interval: int, current_elapsed: float,
+    current_frame: int, view_mode: str
+) -> tuple[Exception | None, Layout | None, str | None, bool, bool]:
+    """Process rendering state and determine reload status.
+
+    Returns (render_error, render_layout, error_status, should_reload, should_retry).
+    """
+    render_error = None
+    render_layout = None
+    error_status = None
+    should_reload = False
+    should_retry_load = False
+
+    if current_result is None:
+        return render_error, render_layout, error_status, should_reload, should_retry_load
+
+    with render_wrapper._state_lock:
+        render_wrapper.elapsed = current_elapsed
+        render_wrapper.frame = current_frame
+        render_wrapper.last_load_time = current_last_load
+        render_wrapper.refreshing = is_loading
+        render_wrapper.view_mode = view_mode
+
+    try:
+        layout, _recovery_status = recovery.render_with_recovery(current_result, render_wrapper)
+        render_layout = layout
+    except Exception as e:
+        render_error = e
+        error_status = recovery.get_recovery_status()
+
+    should_reload = not is_loading and (time.monotonic() - current_last_load) >= interval
+    try:
+        should_retry_load = recovery.should_retry_data_load()
+    except Exception as e:
+        logger.error(f"Failed to check recovery retry status: {type(e).__name__}: {e}")
+
+    return render_error, render_layout, error_status, should_reload, should_retry_load
+
+
+def _run_watch_render_display(
+    live: Live,
+    current_result: Any,
+    current_error: str | None,
+    error_status: str | None,
+    current_frame: int,
+    render_error: Exception | None,
+    render_layout: Layout | None,
+    data_source: str,
+) -> None:
+    """Render the UI display for watch mode."""
+    if current_result is None:
+        if current_error:
+            error_panel = _handle_render_error(RuntimeError(current_error), error_status)
+            try:
+                live.update(error_panel)
+            except Exception as panel_error:
+                logger.error(f"Failed to render error panel: {type(panel_error).__name__}: {panel_error}")
+        else:
+            live.update(loading_layout(current_frame, data_source=data_source))
+    else:
+        if render_error is None and render_layout is not None:
+            live.update(render_layout)
+        elif render_error is not None:
+            error_panel = _handle_render_error(render_error, error_status)
+            try:
+                live.update(error_panel)
+            except Exception as panel_error:
+                logger.error(f"Failed to render error panel: {type(panel_error).__name__}: {panel_error}")
+
+
+def _run_watch_main_loop(
+    live: Live, state: _WatchState, state_lock: threading.Lock, render_wrapper: _RenderWrapper,
+    recovery: RenderRecovery, interval: int, data_source: str, active_threads: list,
+    active_threads_lock: threading.Lock, cleanup_dead_threads, reload, reload_thread
+) -> None:
+    """Main event loop for watch mode."""
+    view_mode = "normal"
+    try:
+        while True:
+            key = _keypress()
+            if key == "q":
+                break
+            if key in KEY_MAP:
+                target = KEY_MAP[key]
+                view_mode = "normal" if view_mode == target else target
+
+            with state_lock:
+                state.frame += 1
+                if state.frame > 1_000_000:
+                    state.frame = 0
+                current_frame = state.frame
+                current_result = state.result
+                current_error = state.error
+                is_loading = state.loading
+                current_last_load = state.last_load
+                current_elapsed = state.elapsed
+
+            render_error, render_layout, error_status, should_reload, should_retry_load = \
+                _run_watch_process_render(
+                    current_result, render_wrapper, recovery, is_loading,
+                    current_last_load, interval, current_elapsed, current_frame, view_mode
+                )
+
+            if current_error and not error_status:
+                error_status = recovery.get_recovery_status()
+
+            _run_watch_render_display(
+                live, current_result, current_error, error_status,
+                current_frame, render_error, render_layout, data_source,
+            )
+
+            if should_reload or should_retry_load:
+                cleanup_dead_threads()
+                reload_thread = threading.Thread(target=reload, daemon=False)
+                reload_thread.start()
+                with active_threads_lock:
+                    active_threads.append(reload_thread)
+            time.sleep(0.125)
+    except KeyboardInterrupt:
+        pass
+
+
+def _run_watch_shutdown_threads(
+    active_threads: list, active_threads_lock: threading.Lock, shutdown: threading.Event
+) -> None:
+    """Gracefully shutdown all active threads."""
+    shutdown.set()
+    with active_threads_lock:
+        threads_to_join = active_threads[:]
+    for thread in threads_to_join:
+        if thread:
+            thread.join(timeout=60)
+            if thread.is_alive():
+                logger.error(
+                    "Thread abandoned after 60s timeout in watch mode (data load exceeded graceful shutdown window)"
+                )
+
+
 def run_watch(interval: int, compact: bool, data_source: str = "AWS") -> None:
     """Watch mode: auto-refresh data every `interval` seconds, mascot dances continuously."""
     state = _WatchState()
@@ -898,110 +1042,104 @@ def run_watch(interval: int, compact: bool, data_source: str = "AWS") -> None:
         with active_threads_lock:
             active_threads.append(reload_thread)
 
-        view_mode = "normal"
         recovery = RenderRecovery()
-        key_map = KEY_MAP
         render_wrapper = _RenderWrapper(compact, data_source)
         render_wrapper.watch_interval = interval
         with Live(console=CONSOLE, refresh_per_second=8, screen=True) as live:
-            try:
-                while True:
-                    key = _keypress()
-                    if key == "q":
-                        break
-                    if key in key_map:
-                        target = key_map[key]
-                        view_mode = "normal" if view_mode == target else target
-                    with state_lock:
-                        state.frame += 1
-                        if state.frame > 1_000_000:
-                            state.frame = 0
-                        current_frame = state.frame
-                        is_loading = state.loading
-                        current_last_load = state.last_load
-                        current_result = state.result
-                        current_elapsed = state.elapsed
-                        current_error = state.error
-
-                        # Protect recovery operations with state_lock to ensure atomicity
-                        error_status = None
-                        render_layout = None
-                        render_error = None
-                        should_reload = False
-                        should_retry_load = False
-
-                        if current_result is None:
-                            if current_error:
-                                error_status = recovery.get_recovery_status()
-                        else:
-                            with render_wrapper._state_lock:
-                                render_wrapper.elapsed = current_elapsed
-                                render_wrapper.frame = current_frame
-                                render_wrapper.last_load_time = current_last_load
-                                render_wrapper.refreshing = is_loading
-                                render_wrapper.view_mode = view_mode
-                            try:
-                                layout, _recovery_status = recovery.render_with_recovery(current_result, render_wrapper)
-                                render_layout = layout
-                                render_error = None
-                            except Exception as e:
-                                render_layout = None
-                                render_error = e
-                                error_status = recovery.get_recovery_status()
-                            should_reload = not is_loading and (time.monotonic() - current_last_load) >= interval
-                            try:
-                                should_retry_load = recovery.should_retry_data_load()
-                            except Exception as e:
-                                logger.error(f"Failed to check recovery retry status: {type(e).__name__}: {e}")
-                                should_retry_load = False
-
-                    # Render UI outside lock (I/O operations)
-                    if current_result is None:
-                        if current_error:
-                            error_panel = _handle_render_error(
-                                RuntimeError(current_error),
-                                error_status,
-                            )
-                            try:
-                                live.update(error_panel)
-                            except Exception as panel_error:
-                                logger.error(
-                                    f"Failed to render error panel: {type(panel_error).__name__}: {panel_error}"
-                                )
-                        else:
-                            live.update(loading_layout(current_frame, data_source=data_source))
-                    else:
-                        if render_error is None and render_layout is not None:
-                            live.update(render_layout)
-                        elif render_error is not None:
-                            error_panel = _handle_render_error(render_error, error_status)
-                            try:
-                                live.update(error_panel)
-                            except Exception as panel_error:
-                                logger.error(
-                                    f"Failed to render error panel: {type(panel_error).__name__}: {panel_error}"
-                                )
-
-                        if should_reload or should_retry_load:
-                            cleanup_dead_threads()
-                            reload_thread = threading.Thread(target=reload, daemon=False)
-                            reload_thread.start()
-                            with active_threads_lock:
-                                active_threads.append(reload_thread)
-                    time.sleep(0.125)
-            except KeyboardInterrupt:
-                pass
+            _run_watch_main_loop(
+                live, state, state_lock, render_wrapper, recovery, interval, data_source,
+                active_threads, active_threads_lock, cleanup_dead_threads, reload, reload_thread
+            )
     finally:
-        shutdown.set()
-        with active_threads_lock:
-            threads_to_join = active_threads[:]
-        for thread in threads_to_join:
-            if thread:
-                thread.join(timeout=60)
-                if thread.is_alive():
-                    logger.error(
-                        "Thread abandoned after 60s timeout in watch mode (data load exceeded graceful shutdown window)"
-                    )
+        _run_watch_shutdown_threads(active_threads, active_threads_lock, shutdown)
+
+
+def _setup_local_api() -> str:
+    """Setup local API mode and return data source."""
+    local_url = "http://localhost:3001"
+    if not _validate_api_url(local_url):
+        logger.error(f"Invalid local API URL: {local_url}")
+        sys.exit(1)
+    set_api_url(local_url)
+    return "LOCAL"
+
+
+def _fetch_and_validate_aws_credentials() -> tuple[str, str, str]:
+    """Fetch AWS credentials from Secrets Manager or Terraform. Exits on failure."""
+    logger.info("AWS mode: Fetching dashboard credentials...")
+    aws_url, pool_id, client_id = _fetch_secrets_manager_credentials()
+
+    if not aws_url:
+        logger.info("Secrets Manager unavailable, trying Terraform...")
+        aws_url, pool_id, client_id = _fetch_terraform_credentials()
+
+    if not aws_url:
+        try:
+            CONSOLE.print("[bold red]ERROR:[/] Dashboard credentials not found")
+            CONSOLE.print("")
+            CONSOLE.print("[bold cyan]To automate setup:[/]")
+            CONSOLE.print("[yellow]Run this to set up local dev environment:[/]")
+            CONSOLE.print("[cyan]   scripts/setup-local-dev.ps1[/]")
+            CONSOLE.print("")
+            CONSOLE.print("[bold cyan]Or manually:[/]")
+            CONSOLE.print("[yellow]1. Fetch AWS credentials:[/]")
+            CONSOLE.print("[cyan]   scripts/refresh-aws-credentials.ps1[/]")
+            CONSOLE.print("")
+            CONSOLE.print("[yellow]2. Dashboard will auto-fetch from Secrets Manager / Terraform[/]")
+            CONSOLE.print("[dim]After GitHub Actions deploy completes, run setup-local-dev.ps1 to refresh[/]")
+        except Exception as e:
+            logger.error(
+                f"Dashboard credentials not found. "
+                f"To automate setup, run: scripts/setup-local-dev.ps1"
+                f"Or manually:\n"
+                f"  1. Run: scripts/refresh-aws-credentials.ps1\n"
+                f"  2. Dashboard will auto-fetch from Secrets Manager / Terraform\n"
+                f"  After GitHub Actions deploy completes, run setup-local-dev.ps1 to refresh\n"
+                f"\n(Failed to display full message: {type(e).__name__})\n"
+            )
+        sys.exit(1)
+
+    return cast(tuple[str, str, str], (aws_url, pool_id, client_id))
+
+
+def _configure_aws_and_auth(aws_url: str, pool_id: str, client_id: str) -> None:
+    """Configure AWS API and Cognito authentication. Exits on failure."""
+    set_api_url(aws_url)
+    os.environ["DASHBOARD_API_URL"] = aws_url
+    os.environ["COGNITO_USER_POOL_ID"] = pool_id
+    os.environ["COGNITO_CLIENT_ID"] = client_id
+    logger.info("Dashboard credentials loaded from Secrets Manager")
+
+    try:
+        auth = get_cognito_auth_instance(require_auth=True)
+    except RuntimeError as e:
+        try:
+            CONSOLE.print("[bold red]ERROR:[/] Authentication required but Cognito credentials not found")
+            CONSOLE.print("")
+            CONSOLE.print("[bold cyan]Options:[/]")
+            CONSOLE.print("[yellow]1. Set environment variables:[/]")
+            CONSOLE.print("[cyan]   $env:COGNITO_USERNAME = 'your_username'[/]")
+            CONSOLE.print("[cyan]   $env:COGNITO_PASSWORD = 'your_password'[/]")
+            CONSOLE.print("")
+            CONSOLE.print("[yellow]2. Or run setup (will prompt for credentials):[/]")
+            CONSOLE.print("[cyan]   scripts/setup-local-dev.ps1[/]")
+            CONSOLE.print("")
+            CONSOLE.print("[yellow]3. Or save credentials to ~/.algo/cognito_credentials.json[/]")
+        except Exception as print_err:
+            logger.error(
+                f"[AUTH] Authentication required but failed: {e}. "
+                f"(Failed to display full message: {type(print_err).__name__})"
+            )
+        logger.error(f"[AUTH] Authentication required but failed: {e}")
+        sys.exit(1)
+
+    auth = cast(Any, auth)
+    if auth.is_authenticated():
+        set_cognito_auth(auth)
+        save_tokens(auth)
+    else:
+        logger.warning("[AUTH] Running with limited permissions - Cognito not fully authenticated")
+        set_cognito_auth(auth)
 
 
 def main():
@@ -1046,85 +1184,11 @@ def main():
         return
 
     if args.local:
-        local_url = "http://localhost:3001"
-        if not _validate_api_url(local_url):
-            logger.error(f"Invalid local API URL: {local_url}")
-            return
-        set_api_url(local_url)
-        data_source = "LOCAL"
+        data_source = _setup_local_api()
     else:
-        # AWS mode: fetch credentials from multiple sources (Secrets Manager -> Terraform -> Error)
-
-        logger.info("AWS mode: Fetching dashboard credentials...")
-        aws_url, pool_id, client_id = _fetch_secrets_manager_credentials()
-
-        if not aws_url:
-            logger.info("Secrets Manager unavailable, trying Terraform...")
-            aws_url, pool_id, client_id = _fetch_terraform_credentials()
-
-        if not aws_url:
-            try:
-                CONSOLE.print("[bold red]ERROR:[/] Dashboard credentials not found")
-                CONSOLE.print("")
-                CONSOLE.print("[bold cyan]To automate setup:[/]")
-                CONSOLE.print("[yellow]Run this to set up local dev environment:[/]")
-                CONSOLE.print("[cyan]   scripts/setup-local-dev.ps1[/]")
-                CONSOLE.print("")
-                CONSOLE.print("[bold cyan]Or manually:[/]")
-                CONSOLE.print("[yellow]1. Fetch AWS credentials:[/]")
-                CONSOLE.print("[cyan]   scripts/refresh-aws-credentials.ps1[/]")
-                CONSOLE.print("")
-                CONSOLE.print("[yellow]2. Dashboard will auto-fetch from Secrets Manager / Terraform[/]")
-                CONSOLE.print("[dim]After GitHub Actions deploy completes, run setup-local-dev.ps1 to refresh[/]")
-            except Exception as e:
-                logger.error(
-                    f"Dashboard credentials not found. "
-                    f"To automate setup, run: scripts/setup-local-dev.ps1"
-                    f"Or manually:\n"
-                    f"  1. Run: scripts/refresh-aws-credentials.ps1\n"
-                    f"  2. Dashboard will auto-fetch from Secrets Manager / Terraform\n"
-                    f"  After GitHub Actions deploy completes, run setup-local-dev.ps1 to refresh\n"
-                    f"\n(Failed to display full message: {type(e).__name__})\n"
-                )
-            sys.exit(1)
-
-        set_api_url(aws_url)
-        os.environ["DASHBOARD_API_URL"] = aws_url
-        os.environ["COGNITO_USER_POOL_ID"] = pool_id
-        os.environ["COGNITO_CLIENT_ID"] = client_id
-        logger.info("Dashboard credentials loaded from Secrets Manager")
+        aws_url, pool_id, client_id = _fetch_and_validate_aws_credentials()
+        _configure_aws_and_auth(aws_url, pool_id, client_id)
         data_source = "AWS"
-
-        # Cognito authentication - fail-fast on auth errors
-        try:
-            auth = get_cognito_auth_instance(require_auth=True)
-        except RuntimeError as e:
-            try:
-                CONSOLE.print("[bold red]ERROR:[/] Authentication required but Cognito credentials not found")
-                CONSOLE.print("")
-                CONSOLE.print("[bold cyan]Options:[/]")
-                CONSOLE.print("[yellow]1. Set environment variables:[/]")
-                CONSOLE.print("[cyan]   $env:COGNITO_USERNAME = 'your_username'[/]")
-                CONSOLE.print("[cyan]   $env:COGNITO_PASSWORD = 'your_password'[/]")
-                CONSOLE.print("")
-                CONSOLE.print("[yellow]2. Or run setup (will prompt for credentials):[/]")
-                CONSOLE.print("[cyan]   scripts/setup-local-dev.ps1[/]")
-                CONSOLE.print("")
-                CONSOLE.print("[yellow]3. Or save credentials to ~/.algo/cognito_credentials.json[/]")
-            except Exception as print_err:
-                logger.error(
-                    f"[AUTH] Authentication required but failed: {e}. "
-                    f"(Failed to display full message: {type(print_err).__name__})"
-                )
-            logger.error(f"[AUTH] Authentication required but failed: {e}")
-            sys.exit(1)
-
-        if auth.is_authenticated():
-            set_cognito_auth(auth)
-            save_tokens(auth)
-        else:
-            logger.warning("[AUTH] Running with limited permissions - Cognito not fully authenticated")
-            set_cognito_auth(auth)  # Still set it, will fail on protected endpoints
 
     if args.watch is not None:
         run_watch(args.watch, args.compact, data_source)

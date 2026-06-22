@@ -6,7 +6,11 @@ import { vi } from "vitest";
 import { render } from "@testing-library/react";
 import { BrowserRouter } from "react-router-dom";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
-import { createApiMock, createDataCacheMock, resetApiMocks } from "./api-mocks.js";
+import {
+  createApiMock,
+  createDataCacheMock,
+  resetApiMocks,
+} from "./api-mocks.js";
 
 // Global setup for all tests
 export const setupTestEnvironment = () => {
@@ -86,9 +90,7 @@ export const TestWrapperNoRouter = ({ children }) => {
   });
 
   return (
-    <QueryClientProvider client={queryClient}>
-      {children}
-    </QueryClientProvider>
+    <QueryClientProvider client={queryClient}>{children}</QueryClientProvider>
   );
 };
 
@@ -186,4 +188,3 @@ export const testScenarios = {
     });
   },
 };
-

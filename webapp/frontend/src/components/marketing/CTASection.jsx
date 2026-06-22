@@ -1,4 +1,4 @@
-import React from 'react';
+import React from "react";
 import {
   Box,
   Container,
@@ -6,15 +6,15 @@ import {
   Button,
   useTheme,
   alpha,
-} from '@mui/material';
-import { useNavigate } from 'react-router-dom';
+} from "@mui/material";
+import { useNavigate } from "react-router-dom";
 
 const CTASection = ({
   title,
   subtitle,
-  primaryCTA = { label: 'Get Started', link: '/app/markets' },
-  secondaryCTA = { label: 'Learn More', link: '/services' },
-  variant = 'primary',
+  primaryCTA = { label: "Get Started", link: "/app/markets" },
+  secondaryCTA = { label: "Learn More", link: "/services" },
+  variant = "primary",
   centered = true,
 }) => {
   const navigate = useNavigate();
@@ -23,7 +23,7 @@ const CTASection = ({
   const bgVariants = {
     primary: {
       background: `linear-gradient(135deg, ${theme.palette.primary.main}15 0%, ${theme.palette.primary.main}05 100%)`,
-      borderColor: theme.palette.primary.main + '30',
+      borderColor: theme.palette.primary.main + "30",
     },
     secondary: {
       background: theme.palette.background.paper,
@@ -31,7 +31,7 @@ const CTASection = ({
     },
     dark: {
       background: `linear-gradient(135deg, ${theme.palette.primary.main}30 0%, ${theme.palette.primary.main}15 100%)`,
-      borderColor: theme.palette.primary.main + '50',
+      borderColor: theme.palette.primary.main + "50",
     },
   };
 
@@ -43,18 +43,18 @@ const CTASection = ({
         py: { xs: 6, md: 8 },
         background: selectedVariant.background,
         border: `1px solid ${selectedVariant.borderColor}`,
-        borderRadius: '0px',
+        borderRadius: "0px",
         my: { xs: 4, md: 6 },
       }}
     >
       <Container maxWidth="md">
-        <Box sx={{ textAlign: centered ? 'center' : 'left' }}>
+        <Box sx={{ textAlign: centered ? "center" : "left" }}>
           {title && (
             <Typography
               variant="h3"
               component="h2"
               sx={{
-                fontSize: { xs: '1.8rem', sm: '2.2rem', md: '2.5rem' },
+                fontSize: { xs: "1.8rem", sm: "2.2rem", md: "2.5rem" },
                 fontWeight: 800,
                 mb: 2,
                 color: theme.palette.text.primary,
@@ -68,7 +68,7 @@ const CTASection = ({
             <Typography
               variant="h6"
               sx={{
-                fontSize: { xs: '1rem', md: '1.1rem' },
+                fontSize: { xs: "1rem", md: "1.1rem" },
                 color: theme.palette.text.secondary,
                 fontWeight: 400,
                 mb: 4,
@@ -82,10 +82,10 @@ const CTASection = ({
           {/* Buttons */}
           <Box
             sx={{
-              display: 'flex',
+              display: "flex",
               gap: 2,
-              flexWrap: 'wrap',
-              justifyContent: centered ? 'center' : 'flex-start',
+              flexWrap: "wrap",
+              justifyContent: centered ? "center" : "flex-start",
             }}
           >
             {primaryCTA && (
@@ -94,14 +94,14 @@ const CTASection = ({
                 size="large"
                 onClick={() => navigate(primaryCTA.link)}
                 sx={{
-                  fontSize: '1rem',
+                  fontSize: "1rem",
                   fontWeight: 600,
                   py: 1.5,
                   px: 4,
-                  borderRadius: '0px',
-                  textTransform: 'none',
+                  borderRadius: "0px",
+                  textTransform: "none",
                   boxShadow: `0 4px 12px ${alpha(theme.palette.primary.main, 0.25)}`,
-                  '&:hover': {
+                  "&:hover": {
                     boxShadow: `0 6px 20px ${alpha(theme.palette.primary.main, 0.35)}`,
                   },
                 }}
@@ -116,14 +116,14 @@ const CTASection = ({
                 size="large"
                 onClick={() => navigate(secondaryCTA.link)}
                 sx={{
-                  fontSize: '1rem',
+                  fontSize: "1rem",
                   fontWeight: 600,
                   py: 1.5,
                   px: 4,
-                  borderRadius: '0px',
-                  textTransform: 'none',
+                  borderRadius: "0px",
+                  textTransform: "none",
                   borderColor: alpha(theme.palette.primary.main, 0.4),
-                  '&:hover': {
+                  "&:hover": {
                     backgroundColor: alpha(theme.palette.primary.main, 0.05),
                     borderColor: theme.palette.primary.main,
                   },
@@ -140,4 +140,3 @@ const CTASection = ({
 };
 
 export default CTASection;
-

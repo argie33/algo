@@ -13,11 +13,11 @@
  * Bottom opacity: 0.05 (fade to background)
  */
 export const PRIMARY_GRADIENT = {
-  id: 'primaryGradient',
+  id: "primaryGradient",
   stops: [
-    { offset: '0%', color: '#1976d2', opacity: 0.4 },
-    { offset: '100%', color: '#1976d2', opacity: 0.05 }
-  ]
+    { offset: "0%", color: "#1976d2", opacity: 0.4 },
+    { offset: "100%", color: "#1976d2", opacity: 0.05 },
+  ],
 };
 
 /**
@@ -25,11 +25,11 @@ export const PRIMARY_GRADIENT = {
  * Slightly more transparent than primary for visual hierarchy
  */
 export const SECONDARY_GRADIENT = {
-  id: 'secondaryGradient',
+  id: "secondaryGradient",
   stops: [
-    { offset: '0%', color: '#1976d2', opacity: 0.25 },
-    { offset: '100%', color: '#1976d2', opacity: 0.02 }
-  ]
+    { offset: "0%", color: "#1976d2", opacity: 0.25 },
+    { offset: "100%", color: "#1976d2", opacity: 0.02 },
+  ],
 };
 
 /**
@@ -37,11 +37,11 @@ export const SECONDARY_GRADIENT = {
  * More vibrant than primary for visual emphasis
  */
 export const ACCENT_GRADIENT = {
-  id: 'accentGradient',
+  id: "accentGradient",
   stops: [
-    { offset: '0%', color: '#1565c0', opacity: 0.5 },
-    { offset: '100%', color: '#1565c0', opacity: 0.08 }
-  ]
+    { offset: "0%", color: "#1565c0", opacity: 0.5 },
+    { offset: "100%", color: "#1565c0", opacity: 0.08 },
+  ],
 };
 
 /**
@@ -49,11 +49,11 @@ export const ACCENT_GRADIENT = {
  * Used for buy signals, gains, uptrends
  */
 export const BULLISH_GRADIENT = {
-  id: 'bullishGradient',
+  id: "bullishGradient",
   stops: [
-    { offset: '0%', color: '#4caf50', opacity: 0.4 },
-    { offset: '100%', color: '#4caf50', opacity: 0.05 }
-  ]
+    { offset: "0%", color: "#4caf50", opacity: 0.4 },
+    { offset: "100%", color: "#4caf50", opacity: 0.05 },
+  ],
 };
 
 /**
@@ -61,11 +61,11 @@ export const BULLISH_GRADIENT = {
  * Used for sell signals, losses, downtrends
  */
 export const BEARISH_GRADIENT = {
-  id: 'bearishGradient',
+  id: "bearishGradient",
   stops: [
-    { offset: '0%', color: '#f44336', opacity: 0.4 },
-    { offset: '100%', color: '#f44336', opacity: 0.05 }
-  ]
+    { offset: "0%", color: "#f44336", opacity: 0.4 },
+    { offset: "100%", color: "#f44336", opacity: 0.05 },
+  ],
 };
 
 /**
@@ -73,11 +73,11 @@ export const BEARISH_GRADIENT = {
  * Used for balanced signals or neutral price movement
  */
 export const NEUTRAL_GRADIENT = {
-  id: 'neutralGradient',
+  id: "neutralGradient",
   stops: [
-    { offset: '0%', color: '#9e9e9e', opacity: 0.3 },
-    { offset: '100%', color: '#9e9e9e', opacity: 0.02 }
-  ]
+    { offset: "0%", color: "#9e9e9e", opacity: 0.3 },
+    { offset: "100%", color: "#9e9e9e", opacity: 0.02 },
+  ],
 };
 
 /**
@@ -85,11 +85,11 @@ export const NEUTRAL_GRADIENT = {
  * More visible at top for clarity on economic indicators
  */
 export const YIELD_CURVE_GRADIENT = {
-  id: 'yieldGradient',
+  id: "yieldGradient",
   stops: [
-    { offset: '0%', color: '#1976d2', opacity: 0.4 },
-    { offset: '100%', color: '#1976d2', opacity: 0.08 }
-  ]
+    { offset: "0%", color: "#1976d2", opacity: 0.4 },
+    { offset: "100%", color: "#1976d2", opacity: 0.08 },
+  ],
 };
 
 /**
@@ -97,11 +97,11 @@ export const YIELD_CURVE_GRADIENT = {
  * Higher opacity for visibility of important economic data
  */
 export const LEADING_INDICATORS_GRADIENT = {
-  id: 'leadingGradient',
+  id: "leadingGradient",
   stops: [
-    { offset: '0%', color: '#1976d2', opacity: 0.4 },
-    { offset: '100%', color: '#1976d2', opacity: 0.05 }
-  ]
+    { offset: "0%", color: "#1976d2", opacity: 0.4 },
+    { offset: "100%", color: "#1976d2", opacity: 0.05 },
+  ],
 };
 
 /**
@@ -116,14 +116,14 @@ export const getGradientFill = (gradientId) => `url(#${gradientId})`;
  * Ensures visual consistency even when not using gradients
  */
 export const COLOR_PALETTE = {
-  primary: '#1976d2',
-  secondary: '#1565c0',
-  bullish: '#4caf50',
-  bearish: '#f44336',
-  neutral: '#9e9e9e',
-  accent: '#ff9800',
-  warning: '#ff5722',
-  info: '#00bcd4'
+  primary: "#1976d2",
+  secondary: "#1565c0",
+  bullish: "#4caf50",
+  bearish: "#f44336",
+  neutral: "#9e9e9e",
+  accent: "#ff9800",
+  warning: "#ff5722",
+  info: "#00bcd4",
 };
 
 /**
@@ -137,12 +137,11 @@ export const GRADIENTS = {
   BEARISH: BEARISH_GRADIENT,
   NEUTRAL: NEUTRAL_GRADIENT,
   YIELD_CURVE: YIELD_CURVE_GRADIENT,
-  LEADING_INDICATORS: LEADING_INDICATORS_GRADIENT
+  LEADING_INDICATORS: LEADING_INDICATORS_GRADIENT,
 };
 
 export default {
   getGradientFill,
   GRADIENTS,
-  COLOR_PALETTE
+  COLOR_PALETTE,
 };
-

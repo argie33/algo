@@ -12,7 +12,12 @@
  * - Has Refresh and Terminal Dashboard buttons
  */
 
-import { screen, fireEvent, waitFor, renderWithProviders } from "../../test-utils.jsx";
+import {
+  screen,
+  fireEvent,
+  waitFor,
+  renderWithProviders,
+} from "../../test-utils.jsx";
 import { vi, describe, test, expect, beforeEach } from "vitest";
 import PortfolioDashboard from "../../../pages/PortfolioDashboard";
 
@@ -39,15 +44,23 @@ vi.mock("../../../hooks/useDocumentTitle", () => ({
 // api.get is used by useApiQuery inside PortfolioDashboard
 vi.mock("../../../services/api.js", () => {
   const mockGet = vi.fn().mockResolvedValue({ data: {} });
-  const mockApi = { get: mockGet, post: vi.fn().mockResolvedValue({ data: {} }) };
+  const mockApi = {
+    get: mockGet,
+    post: vi.fn().mockResolvedValue({ data: {} }),
+  };
   return {
     default: mockApi,
     api: mockApi,
-    getApiConfig: vi.fn(() => ({ apiUrl: "http://localhost:3001", environment: "test" })),
+    getApiConfig: vi.fn(() => ({
+      apiUrl: "http://localhost:3001",
+      environment: "test",
+    })),
     getPortfolioData: vi.fn().mockResolvedValue({ success: true, data: {} }),
     getApiKeys: vi.fn().mockResolvedValue({ success: true, data: [] }),
     testApiConnection: vi.fn().mockResolvedValue({ success: true }),
-    importPortfolioFromBroker: vi.fn().mockResolvedValue({ success: true, data: [] }),
+    importPortfolioFromBroker: vi
+      .fn()
+      .mockResolvedValue({ success: true, data: [] }),
     healthCheck: vi.fn().mockResolvedValue({ success: true }),
     getMarketOverview: vi.fn().mockResolvedValue({ success: true, data: {} }),
   };
@@ -61,7 +74,9 @@ vi.mock("../../../services/dataCache.js", () => ({
 }));
 
 vi.mock("recharts", () => ({
-  ResponsiveContainer: ({ children }) => <div data-testid="chart-container">{children}</div>,
+  ResponsiveContainer: ({ children }) => (
+    <div data-testid="chart-container">{children}</div>
+  ),
   AreaChart: ({ children }) => <div data-testid="area-chart">{children}</div>,
   BarChart: ({ children }) => <div data-testid="bar-chart">{children}</div>,
   PieChart: ({ children }) => <div data-testid="pie-chart">{children}</div>,
@@ -156,7 +171,9 @@ describe("Portfolio (PortfolioDashboard)", () => {
       renderPortfolio();
 
       await waitFor(() => {
-        expect(screen.getByRole("button", { name: /Refresh/i })).toBeInTheDocument();
+        expect(
+          screen.getByRole("button", { name: /Refresh/i })
+        ).toBeInTheDocument();
       });
     });
   });
@@ -208,7 +225,9 @@ describe("Portfolio (PortfolioDashboard)", () => {
 
     test("handles malformed API response", async () => {
       const { api } = await import("../../../services/api.js");
-      api.get.mockResolvedValue({ data: { success: false, error: "Invalid data" } });
+      api.get.mockResolvedValue({
+        data: { success: false, error: "Invalid data" },
+      });
 
       renderPortfolio();
 
@@ -221,14 +240,22 @@ describe("Portfolio (PortfolioDashboard)", () => {
   describe("Responsive Behavior", () => {
     test("renders on mobile viewport", async () => {
       if (typeof window !== "undefined") {
-        Object.defineProperty(window, "innerWidth", { writable: true, configurable: true, value: 400 });
+        Object.defineProperty(window, "innerWidth", {
+          writable: true,
+          configurable: true,
+          value: 400,
+        });
       }
 
       try {
         renderPortfolio();
         expect(document.body).toBeTruthy();
       } catch (error) {
-        if (error.message && !error.message.includes("innerWidth") && !error.message.includes("viewport")) {
+        if (
+          error.message &&
+          !error.message.includes("innerWidth") &&
+          !error.message.includes("viewport")
+        ) {
           expect(document.body).toBeTruthy();
         } else {
           throw error;
@@ -238,7 +265,11 @@ describe("Portfolio (PortfolioDashboard)", () => {
 
     test("renders on desktop viewport", () => {
       if (typeof window !== "undefined") {
-        Object.defineProperty(window, "innerWidth", { writable: true, configurable: true, value: 1200 });
+        Object.defineProperty(window, "innerWidth", {
+          writable: true,
+          configurable: true,
+          value: 1200,
+        });
       }
       renderPortfolio();
       expect(document.body).toBeInTheDocument();

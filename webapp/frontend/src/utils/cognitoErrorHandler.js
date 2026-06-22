@@ -4,17 +4,18 @@
  */
 
 const errorMessageMap = {
-  'InvalidParameterException': 'Invalid parameters provided',
-  'NotAuthorizedException': 'Incorrect username or password',
-  'UsernameExistsException': 'Username already exists',
-  'InvalidPasswordException': 'Password does not meet requirements',
-  'CodeMismatchException': 'Verification code is incorrect',
-  'ExpiredCodeException': 'Verification code has expired',
-  'LimitExceededException': 'Too many attempts. Please try again later',
-  'TooManyRequestsException': 'Too many requests. Please try again later',
-  'UserNotFoundException': 'User not found',
-  'UserNotConfirmedException': 'User is not confirmed',
-  'Cannot reset password': 'Email address must be verified first. Please contact support.',
+  InvalidParameterException: "Invalid parameters provided",
+  NotAuthorizedException: "Incorrect username or password",
+  UsernameExistsException: "Username already exists",
+  InvalidPasswordException: "Password does not meet requirements",
+  CodeMismatchException: "Verification code is incorrect",
+  ExpiredCodeException: "Verification code has expired",
+  LimitExceededException: "Too many attempts. Please try again later",
+  TooManyRequestsException: "Too many requests. Please try again later",
+  UserNotFoundException: "User not found",
+  UserNotConfirmedException: "User is not confirmed",
+  "Cannot reset password":
+    "Email address must be verified first. Please contact support.",
 };
 
 /**
@@ -23,11 +24,11 @@ const errorMessageMap = {
  * @returns {string} user-friendly error message
  */
 export const getErrorMessage = (error) => {
-  if (!error) return 'An error occurred';
+  if (!error) return "An error occurred";
 
   // Check error code first
   if (error.code) {
-    return errorMessageMap[error.code] || error.message || 'An error occurred';
+    return errorMessageMap[error.code] || error.message || "An error occurred";
   }
 
   // Fall back to error message
@@ -41,8 +42,7 @@ export const getErrorMessage = (error) => {
     return error.message;
   }
 
-  return 'An error occurred';
+  return "An error occurred";
 };
 
 export default { getErrorMessage, errorMessageMap };
-

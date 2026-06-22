@@ -1,14 +1,61 @@
-import React from 'react';
-import { Box, Container, Typography, Button, Grid, useTheme, alpha } from '@mui/material';
-import { useNavigate } from 'react-router-dom';
-import { ArrowForward as ArrowForwardIcon, TrendingUp as TrendingUpIcon, TrendingDown as TrendingDownIcon } from '@mui/icons-material';
+import React from "react";
+import {
+  Box,
+  Container,
+  Typography,
+  Button,
+  Grid,
+  useTheme,
+  alpha,
+} from "@mui/material";
+import { useNavigate } from "react-router-dom";
+import {
+  ArrowForward as ArrowForwardIcon,
+  TrendingUp as TrendingUpIcon,
+  TrendingDown as TrendingDownIcon,
+} from "@mui/icons-material";
 
 const MOCK_SIGNALS = [
-  { ticker: 'NVDA', name: 'NVIDIA Corp', score: 94, change: '+4.2%', positive: true, signal: 'BUY' },
-  { ticker: 'META', name: 'Meta Platforms', score: 87, change: '+2.1%', positive: true, signal: 'BUY' },
-  { ticker: 'CRWD', name: 'CrowdStrike Hldg', score: 82, change: '+1.8%', positive: true, signal: 'BUY' },
-  { ticker: 'AAPL', name: 'Apple Inc', score: 76, change: '+0.9%', positive: true, signal: 'WATCH' },
-  { ticker: 'BA', name: 'Boeing Co', score: 28, change: '-2.4%', positive: false, signal: 'AVOID' },
+  {
+    ticker: "NVDA",
+    name: "NVIDIA Corp",
+    score: 94,
+    change: "+4.2%",
+    positive: true,
+    signal: "BUY",
+  },
+  {
+    ticker: "META",
+    name: "Meta Platforms",
+    score: 87,
+    change: "+2.1%",
+    positive: true,
+    signal: "BUY",
+  },
+  {
+    ticker: "CRWD",
+    name: "CrowdStrike Hldg",
+    score: 82,
+    change: "+1.8%",
+    positive: true,
+    signal: "BUY",
+  },
+  {
+    ticker: "AAPL",
+    name: "Apple Inc",
+    score: 76,
+    change: "+0.9%",
+    positive: true,
+    signal: "WATCH",
+  },
+  {
+    ticker: "BA",
+    name: "Boeing Co",
+    score: 28,
+    change: "-2.4%",
+    positive: false,
+    signal: "AVOID",
+  },
 ];
 
 const HeroSection = () => {
@@ -16,28 +63,32 @@ const HeroSection = () => {
   const theme = useTheme();
 
   const stats = [
-    { value: '5,300+', label: 'Stocks Covered' },
-    { value: '10+', label: 'Years of Data' },
-    { value: 'Daily', label: 'Research Updates' },
-    { value: 'Free', label: 'Platform Access' },
+    { value: "5,300+", label: "Stocks Covered" },
+    { value: "10+", label: "Years of Data" },
+    { value: "Daily", label: "Research Updates" },
+    { value: "Free", label: "Platform Access" },
   ];
 
   const signalColor = (signal) =>
-    signal === 'BUY' ? '#22c55e' : signal === 'WATCH' ? theme.palette.primary.main : '#ef4444';
+    signal === "BUY"
+      ? "#22c55e"
+      : signal === "WATCH"
+        ? theme.palette.primary.main
+        : "#ef4444";
 
   return (
     <Box
       sx={{
-        position: 'relative',
-        overflow: 'hidden',
+        position: "relative",
+        overflow: "hidden",
         py: { xs: 10, sm: 12, md: 14 },
         borderBottom: `1px solid ${theme.palette.divider}`,
         backgroundImage: `url('https://images.unsplash.com/photo-1518391846015-55a9cc003b25?w=1600&h=900&fit=crop&auto=format&q=80')`,
-        backgroundSize: 'cover',
-        backgroundPosition: 'center',
-        '&::before': {
+        backgroundSize: "cover",
+        backgroundPosition: "center",
+        "&::before": {
           content: '""',
-          position: 'absolute',
+          position: "absolute",
           inset: 0,
           background: `linear-gradient(110deg,
             ${alpha(theme.palette.background.default, 0.98)} 0%,
@@ -48,7 +99,7 @@ const HeroSection = () => {
         },
       }}
     >
-      <Container maxWidth="xl" sx={{ position: 'relative', zIndex: 2 }}>
+      <Container maxWidth="xl" sx={{ position: "relative", zIndex: 2 }}>
         <Grid container spacing={{ xs: 4, md: 6 }} alignItems="center">
           {/* Left: Copy */}
           <Grid item xs={12} md={7}>
@@ -56,11 +107,11 @@ const HeroSection = () => {
               <Typography
                 variant="overline"
                 sx={{
-                  fontSize: '0.75rem',
+                  fontSize: "0.75rem",
                   fontWeight: 700,
-                  letterSpacing: '3px',
+                  letterSpacing: "3px",
                   color: theme.palette.primary.main,
-                  display: 'block',
+                  display: "block",
                   mb: 2,
                 }}
               >
@@ -72,18 +123,18 @@ const HeroSection = () => {
                 component="h1"
                 sx={{
                   fontWeight: 900,
-                  fontSize: { xs: '2.4rem', sm: '3.4rem', md: '4.2rem' },
+                  fontSize: { xs: "2.4rem", sm: "3.4rem", md: "4.2rem" },
                   lineHeight: 1.08,
                   mb: 3,
                   color: theme.palette.text.primary,
-                  letterSpacing: '-1px',
+                  letterSpacing: "-1px",
                 }}
               >
                 Institutional Research.
                 <Box
                   component="span"
                   sx={{
-                    display: 'block',
+                    display: "block",
                     color: theme.palette.primary.main,
                   }}
                 >
@@ -94,48 +145,49 @@ const HeroSection = () => {
               <Typography
                 variant="body1"
                 sx={{
-                  fontSize: { xs: '1.05rem', md: '1.15rem' },
+                  fontSize: { xs: "1.05rem", md: "1.15rem" },
                   color: theme.palette.text.secondary,
                   mb: 2,
                   lineHeight: 1.8,
-                  maxWidth: '560px',
+                  maxWidth: "560px",
                   fontWeight: 500,
                 }}
               >
-                Wall Street runs systematic equity research on 5,300+ stocks every day.
-                Now you do too&mdash;for free.
+                Wall Street runs systematic equity research on 5,300+ stocks
+                every day. Now you do too&mdash;for free.
               </Typography>
 
               <Typography
                 variant="body1"
                 sx={{
-                  fontSize: { xs: '0.95rem', md: '1.05rem' },
+                  fontSize: { xs: "0.95rem", md: "1.05rem" },
                   color: theme.palette.text.secondary,
                   mb: 5,
                   lineHeight: 1.8,
-                  maxWidth: '540px',
+                  maxWidth: "540px",
                 }}
               >
-                Bullseye delivers quantitative scoring, Minervini trend signals, earnings
-                analysis, sector rotation, and market health monitoring&mdash;the same
-                research infrastructure institutional desks pay millions for.
+                Bullseye delivers quantitative scoring, Minervini trend signals,
+                earnings analysis, sector rotation, and market health
+                monitoring&mdash;the same research infrastructure institutional
+                desks pay millions for.
               </Typography>
 
-              <Box sx={{ display: 'flex', gap: 2, flexWrap: 'wrap', mb: 6 }}>
+              <Box sx={{ display: "flex", gap: 2, flexWrap: "wrap", mb: 6 }}>
                 <Button
                   variant="contained"
                   size="large"
                   endIcon={<ArrowForwardIcon />}
-                  onClick={() => navigate('/app/markets')}
+                  onClick={() => navigate("/app/markets")}
                   sx={{
-                    fontSize: '1rem',
+                    fontSize: "1rem",
                     fontWeight: 700,
                     py: 1.75,
                     px: 4,
-                    borderRadius: '0px',
-                    textTransform: 'none',
+                    borderRadius: "0px",
+                    textTransform: "none",
                     boxShadow: `0 4px 16px ${alpha(theme.palette.primary.main, 0.35)}`,
-                    '&:hover': {
+                    "&:hover": {
                       boxShadow: `0 6px 24px ${alpha(theme.palette.primary.main, 0.5)}`,
                     },
                   }}
@@ -145,16 +197,16 @@ const HeroSection = () => {
                 <Button
                   variant="outlined"
                   size="large"
-                  onClick={() => navigate('/research-insights')}
+                  onClick={() => navigate("/research-insights")}
                   sx={{
-                    fontSize: '1rem',
+                    fontSize: "1rem",
                     fontWeight: 600,
                     py: 1.75,
                     px: 4,
-                    borderRadius: '0px',
-                    textTransform: 'none',
+                    borderRadius: "0px",
+                    textTransform: "none",
                     borderColor: alpha(theme.palette.primary.main, 0.5),
-                    '&:hover': {
+                    "&:hover": {
                       backgroundColor: alpha(theme.palette.primary.main, 0.05),
                       borderColor: theme.palette.primary.main,
                     },
@@ -167,9 +219,9 @@ const HeroSection = () => {
               {/* Stats Row */}
               <Box
                 sx={{
-                  display: 'flex',
+                  display: "flex",
                   gap: { xs: 3, sm: 5 },
-                  flexWrap: 'wrap',
+                  flexWrap: "wrap",
                   pt: 4,
                   borderTop: `1px solid ${theme.palette.divider}`,
                 }}
@@ -178,7 +230,7 @@ const HeroSection = () => {
                   <Box key={stat.label}>
                     <Typography
                       sx={{
-                        fontSize: { xs: '1.5rem', md: '1.8rem' },
+                        fontSize: { xs: "1.5rem", md: "1.8rem" },
                         fontWeight: 800,
                         color: theme.palette.primary.main,
                         lineHeight: 1,
@@ -188,12 +240,12 @@ const HeroSection = () => {
                     </Typography>
                     <Typography
                       sx={{
-                        fontSize: '0.8rem',
+                        fontSize: "0.8rem",
                         color: theme.palette.text.secondary,
                         fontWeight: 500,
                         mt: 0.5,
-                        textTransform: 'uppercase',
-                        letterSpacing: '0.5px',
+                        textTransform: "uppercase",
+                        letterSpacing: "0.5px",
                       }}
                     >
                       {stat.label}
@@ -209,16 +261,20 @@ const HeroSection = () => {
             item
             xs={12}
             md={5}
-            sx={{ display: { xs: 'none', md: 'flex' }, justifyContent: 'flex-end', alignItems: 'center' }}
+            sx={{
+              display: { xs: "none", md: "flex" },
+              justifyContent: "flex-end",
+              alignItems: "center",
+            }}
           >
             <Box
               sx={{
-                width: '100%',
+                width: "100%",
                 maxWidth: 390,
                 backgroundColor: alpha(theme.palette.background.paper, 0.95),
                 border: `1px solid ${alpha(theme.palette.primary.main, 0.2)}`,
-                boxShadow: `0 24px 64px ${alpha('#000', 0.45)}, 0 0 0 1px ${alpha(theme.palette.primary.main, 0.08)}`,
-                overflow: 'hidden',
+                boxShadow: `0 24px 64px ${alpha("#000", 0.45)}, 0 0 0 1px ${alpha(theme.palette.primary.main, 0.08)}`,
+                overflow: "hidden",
               }}
             >
               {/* Panel header */}
@@ -228,33 +284,40 @@ const HeroSection = () => {
                   py: 1.5,
                   backgroundColor: alpha(theme.palette.primary.main, 0.07),
                   borderBottom: `1px solid ${theme.palette.divider}`,
-                  display: 'flex',
-                  justifyContent: 'space-between',
-                  alignItems: 'center',
+                  display: "flex",
+                  justifyContent: "space-between",
+                  alignItems: "center",
                 }}
               >
                 <Typography
                   sx={{
-                    fontSize: '0.68rem',
+                    fontSize: "0.68rem",
                     fontWeight: 800,
-                    letterSpacing: '2.5px',
+                    letterSpacing: "2.5px",
                     color: theme.palette.primary.main,
-                    textTransform: 'uppercase',
+                    textTransform: "uppercase",
                   }}
                 >
                   Live Signals Today
                 </Typography>
-                <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.75 }}>
+                <Box sx={{ display: "flex", alignItems: "center", gap: 0.75 }}>
                   <Box
                     sx={{
                       width: 7,
                       height: 7,
-                      borderRadius: '50%',
-                      backgroundColor: '#22c55e',
-                      boxShadow: '0 0 6px #22c55e',
+                      borderRadius: "50%",
+                      backgroundColor: "#22c55e",
+                      boxShadow: "0 0 6px #22c55e",
                     }}
                   />
-                  <Typography sx={{ fontSize: '0.62rem', color: '#22c55e', fontWeight: 700, letterSpacing: '1px' }}>
+                  <Typography
+                    sx={{
+                      fontSize: "0.62rem",
+                      color: "#22c55e",
+                      fontWeight: 700,
+                      letterSpacing: "1px",
+                    }}
+                  >
                     LIVE
                   </Typography>
                 </Box>
@@ -268,8 +331,8 @@ const HeroSection = () => {
                     px: 2.5,
                     py: 1.4,
                     borderBottom: `1px solid ${alpha(theme.palette.divider, 0.5)}`,
-                    display: 'flex',
-                    alignItems: 'center',
+                    display: "flex",
+                    alignItems: "center",
                     gap: 1.5,
                   }}
                 >
@@ -281,14 +344,14 @@ const HeroSection = () => {
                       flexShrink: 0,
                       backgroundColor: alpha(theme.palette.primary.main, 0.1),
                       border: `1px solid ${alpha(theme.palette.primary.main, 0.2)}`,
-                      display: 'flex',
-                      alignItems: 'center',
-                      justifyContent: 'center',
-                      fontSize: '0.6rem',
+                      display: "flex",
+                      alignItems: "center",
+                      justifyContent: "center",
+                      fontSize: "0.6rem",
                       fontWeight: 900,
                       color: theme.palette.primary.main,
-                      fontFamily: 'monospace',
-                      letterSpacing: '0.5px',
+                      fontFamily: "monospace",
+                      letterSpacing: "0.5px",
                     }}
                   >
                     {row.ticker}
@@ -297,17 +360,22 @@ const HeroSection = () => {
                   {/* Name */}
                   <Box sx={{ flex: 1, minWidth: 0 }}>
                     <Typography
-                      sx={{ fontSize: '0.85rem', fontWeight: 700, color: theme.palette.text.primary, lineHeight: 1.1 }}
+                      sx={{
+                        fontSize: "0.85rem",
+                        fontWeight: 700,
+                        color: theme.palette.text.primary,
+                        lineHeight: 1.1,
+                      }}
                     >
                       {row.ticker}
                     </Typography>
                     <Typography
                       sx={{
-                        fontSize: '0.68rem',
+                        fontSize: "0.68rem",
                         color: theme.palette.text.secondary,
-                        overflow: 'hidden',
-                        textOverflow: 'ellipsis',
-                        whiteSpace: 'nowrap',
+                        overflow: "hidden",
+                        textOverflow: "ellipsis",
+                        whiteSpace: "nowrap",
                       }}
                     >
                       {row.name}
@@ -315,38 +383,54 @@ const HeroSection = () => {
                   </Box>
 
                   {/* Signal + change */}
-                  <Box sx={{ textAlign: 'right', flexShrink: 0 }}>
+                  <Box sx={{ textAlign: "right", flexShrink: 0 }}>
                     <Box
                       sx={{
-                        fontSize: '0.65rem',
+                        fontSize: "0.65rem",
                         fontWeight: 800,
                         px: 0.85,
                         py: 0.25,
                         mb: 0.4,
                         backgroundColor: alpha(signalColor(row.signal), 0.12),
                         color: signalColor(row.signal),
-                        display: 'inline-block',
-                        letterSpacing: '0.5px',
+                        display: "inline-block",
+                        letterSpacing: "0.5px",
                       }}
                     >
                       {row.signal}
                     </Box>
-                    <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.4, justifyContent: 'flex-end' }}>
+                    <Box
+                      sx={{
+                        display: "flex",
+                        alignItems: "center",
+                        gap: 0.4,
+                        justifyContent: "flex-end",
+                      }}
+                    >
                       {row.positive ? (
-                        <TrendingUpIcon sx={{ fontSize: '0.75rem', color: '#22c55e' }} />
+                        <TrendingUpIcon
+                          sx={{ fontSize: "0.75rem", color: "#22c55e" }}
+                        />
                       ) : (
-                        <TrendingDownIcon sx={{ fontSize: '0.75rem', color: '#ef4444' }} />
+                        <TrendingDownIcon
+                          sx={{ fontSize: "0.75rem", color: "#ef4444" }}
+                        />
                       )}
                       <Typography
                         sx={{
-                          fontSize: '0.7rem',
-                          color: row.positive ? '#22c55e' : '#ef4444',
+                          fontSize: "0.7rem",
+                          color: row.positive ? "#22c55e" : "#ef4444",
                           fontWeight: 700,
                         }}
                       >
                         {row.change}
                       </Typography>
-                      <Typography sx={{ fontSize: '0.62rem', color: theme.palette.text.secondary }}>
+                      <Typography
+                        sx={{
+                          fontSize: "0.62rem",
+                          color: theme.palette.text.secondary,
+                        }}
+                      >
                         &bull; {row.score}
                       </Typography>
                     </Box>
@@ -359,33 +443,92 @@ const HeroSection = () => {
                 sx={{
                   px: 2.5,
                   py: 1.5,
-                  display: 'flex',
-                  justifyContent: 'space-between',
-                  alignItems: 'center',
+                  display: "flex",
+                  justifyContent: "space-between",
+                  alignItems: "center",
                   backgroundColor: alpha(theme.palette.background.default, 0.6),
                 }}
               >
-                <Box sx={{ textAlign: 'center' }}>
-                  <Typography sx={{ fontSize: '1.15rem', fontWeight: 900, color: '#22c55e', lineHeight: 1 }}>8</Typography>
-                  <Typography sx={{ fontSize: '0.58rem', color: theme.palette.text.secondary, textTransform: 'uppercase', letterSpacing: '0.5px', mt: 0.25 }}>
+                <Box sx={{ textAlign: "center" }}>
+                  <Typography
+                    sx={{
+                      fontSize: "1.15rem",
+                      fontWeight: 900,
+                      color: "#22c55e",
+                      lineHeight: 1,
+                    }}
+                  >
+                    8
+                  </Typography>
+                  <Typography
+                    sx={{
+                      fontSize: "0.58rem",
+                      color: theme.palette.text.secondary,
+                      textTransform: "uppercase",
+                      letterSpacing: "0.5px",
+                      mt: 0.25,
+                    }}
+                  >
                     Buy Signals
                   </Typography>
                 </Box>
-                <Box sx={{ width: 1, height: 28, backgroundColor: theme.palette.divider }} />
-                <Box sx={{ textAlign: 'center' }}>
-                  <Typography sx={{ fontSize: '1.15rem', fontWeight: 900, color: theme.palette.text.primary, lineHeight: 1 }}>
+                <Box
+                  sx={{
+                    width: 1,
+                    height: 28,
+                    backgroundColor: theme.palette.divider,
+                  }}
+                />
+                <Box sx={{ textAlign: "center" }}>
+                  <Typography
+                    sx={{
+                      fontSize: "1.15rem",
+                      fontWeight: 900,
+                      color: theme.palette.text.primary,
+                      lineHeight: 1,
+                    }}
+                  >
                     5,312
                   </Typography>
-                  <Typography sx={{ fontSize: '0.58rem', color: theme.palette.text.secondary, textTransform: 'uppercase', letterSpacing: '0.5px', mt: 0.25 }}>
+                  <Typography
+                    sx={{
+                      fontSize: "0.58rem",
+                      color: theme.palette.text.secondary,
+                      textTransform: "uppercase",
+                      letterSpacing: "0.5px",
+                      mt: 0.25,
+                    }}
+                  >
                     Stocks Scored
                   </Typography>
                 </Box>
-                <Box sx={{ width: 1, height: 28, backgroundColor: theme.palette.divider }} />
-                <Box sx={{ textAlign: 'center' }}>
-                  <Typography sx={{ fontSize: '0.85rem', fontWeight: 900, color: '#22c55e', lineHeight: 1 }}>
+                <Box
+                  sx={{
+                    width: 1,
+                    height: 28,
+                    backgroundColor: theme.palette.divider,
+                  }}
+                />
+                <Box sx={{ textAlign: "center" }}>
+                  <Typography
+                    sx={{
+                      fontSize: "0.85rem",
+                      fontWeight: 900,
+                      color: "#22c55e",
+                      lineHeight: 1,
+                    }}
+                  >
                     HEALTHY
                   </Typography>
-                  <Typography sx={{ fontSize: '0.58rem', color: theme.palette.text.secondary, textTransform: 'uppercase', letterSpacing: '0.5px', mt: 0.25 }}>
+                  <Typography
+                    sx={{
+                      fontSize: "0.58rem",
+                      color: theme.palette.text.secondary,
+                      textTransform: "uppercase",
+                      letterSpacing: "0.5px",
+                      mt: 0.25,
+                    }}
+                  >
                     Market Status
                   </Typography>
                 </Box>

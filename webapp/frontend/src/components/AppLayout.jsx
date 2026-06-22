@@ -10,20 +10,39 @@
  * Mobile: drawer slides over.
  */
 
-import React, { useState, useEffect } from 'react';
-import { useNavigate, useLocation } from 'react-router-dom';
+import React, { useState, useEffect } from "react";
+import { useNavigate, useLocation } from "react-router-dom";
 import {
-  Menu, Settings, LogOut, LogIn, X, Sun, Moon,
-  TrendingUp, Briefcase, Globe, Activity, Target,
-  Award, Layers, Wallet, History, GitBranch,
-  HeartPulse, Zap, Crosshair,
-  Bot, Bell, FileText, Map,
-} from 'lucide-react';
-import { useAuth } from '../contexts/AuthContext';
-import { api } from '../services/api';
-import { extractData } from '../utils/responseNormalizer';
-import { theme } from '../services/theme';
-import { SystemHealthIndicator } from './SystemHealthIndicator';
+  Menu,
+  Settings,
+  LogOut,
+  LogIn,
+  X,
+  Sun,
+  Moon,
+  TrendingUp,
+  Briefcase,
+  Globe,
+  Activity,
+  Target,
+  Award,
+  Layers,
+  Wallet,
+  History,
+  GitBranch,
+  HeartPulse,
+  Zap,
+  Crosshair,
+  Bot,
+  Bell,
+  FileText,
+  Map,
+} from "lucide-react";
+import { useAuth } from "../contexts/AuthContext";
+import { api } from "../services/api";
+import { extractData } from "../utils/responseNormalizer";
+import { theme } from "../services/theme";
+import { SystemHealthIndicator } from "./SystemHealthIndicator";
 
 // â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
 // NAVIGATION
@@ -31,53 +50,53 @@ import { SystemHealthIndicator } from './SystemHealthIndicator';
 
 const NAV_SECTIONS = [
   {
-    title: 'Markets',
+    title: "Markets",
     items: [
-      { text: 'Market Health',   icon: TrendingUp, path: '/app/markets' },
-      { text: 'Sector Analysis', icon: Briefcase,  path: '/app/sectors' },
-      { text: 'Sentiment',       icon: Activity,   path: '/app/sentiment' },
-      { text: 'Economic',        icon: Globe,      path: '/app/economic' },
+      { text: "Market Health", icon: TrendingUp, path: "/app/markets" },
+      { text: "Sector Analysis", icon: Briefcase, path: "/app/sectors" },
+      { text: "Sentiment", icon: Activity, path: "/app/sentiment" },
+      { text: "Economic", icon: Globe, path: "/app/economic" },
     ],
   },
   {
-    title: 'Stocks',
+    title: "Stocks",
     items: [
-      { text: 'Stock Scores',     icon: Award,    path: '/app/scores' },
-      { text: 'Trading Signals',  icon: Zap,      path: '/app/trading-signals' },
-      { text: 'Swing Candidates', icon: Target,   path: '/app/swing' },
-      { text: 'Deep Value Picks', icon: Layers,   path: '/app/deep-value' },
+      { text: "Stock Scores", icon: Award, path: "/app/scores" },
+      { text: "Trading Signals", icon: Zap, path: "/app/trading-signals" },
+      { text: "Swing Candidates", icon: Target, path: "/app/swing" },
+      { text: "Deep Value Picks", icon: Layers, path: "/app/deep-value" },
     ],
   },
   {
-    title: 'Portfolio',
+    title: "Portfolio",
     items: [
-      { text: 'Portfolio',           icon: Wallet,        path: '/app/portfolio' },
-      { text: 'Trade Tracker',       icon: History,       path: '/app/trades' },
+      { text: "Portfolio", icon: Wallet, path: "/app/portfolio" },
+      { text: "Trade Tracker", icon: History, path: "/app/trades" },
     ],
   },
   {
-    title: 'Algo',
+    title: "Algo",
     items: [
-      { text: 'Algo Dashboard', icon: Bot, path: '/app/algo-dashboard' },
-      { text: 'Backtests', icon: GitBranch, path: '/app/backtests' },
+      { text: "Algo Dashboard", icon: Bot, path: "/app/algo-dashboard" },
+      { text: "Backtests", icon: GitBranch, path: "/app/backtests" },
     ],
   },
   {
-    title: 'System',
+    title: "System",
     items: [
-      { text: 'Configuration',     icon: Settings,    path: '/app/configuration' },
-      { text: 'Service Health',    icon: HeartPulse, path: '/app/health' },
-      { text: 'Notifications',     icon: Bell,        path: '/app/notifications' },
-      { text: 'Audit Log',         icon: FileText,    path: '/app/audit' },
-      { text: 'System Blueprint',  icon: Map,         path: '/app/blueprint' },
+      { text: "Configuration", icon: Settings, path: "/app/configuration" },
+      { text: "Service Health", icon: HeartPulse, path: "/app/health" },
+      { text: "Notifications", icon: Bell, path: "/app/notifications" },
+      { text: "Audit Log", icon: FileText, path: "/app/audit" },
+      { text: "System Blueprint", icon: Map, path: "/app/blueprint" },
     ],
   },
   {
-    title: 'Company',
+    title: "Company",
     items: [
-      { text: 'About',             icon: Briefcase, path: '/about' },
-      { text: 'Our Team',          icon: Award,     path: '/our-team' },
-      { text: 'Contact',           icon: Globe,     path: '/contact' },
+      { text: "About", icon: Briefcase, path: "/about" },
+      { text: "Our Team", icon: Award, path: "/our-team" },
+      { text: "Contact", icon: Globe, path: "/contact" },
     ],
   },
 ];
@@ -98,7 +117,9 @@ export default function AppLayout({ children }) {
 
   // Subscribe to theme changes
   useEffect(() => {
-    const unsubscribe = theme.subscribe(newTheme => setCurrentTheme(newTheme));
+    const unsubscribe = theme.subscribe((newTheme) =>
+      setCurrentTheme(newTheme)
+    );
     return unsubscribe;
   }, []);
 
@@ -113,27 +134,27 @@ export default function AppLayout({ children }) {
       try {
         let marketResponse = null;
         try {
-          marketResponse = await api.get('/api/algo/markets');
+          marketResponse = await api.get("/api/algo/markets");
         } catch (err) {
-          console.error('[AppLayout] Market fetch failed:', {
+          console.error("[AppLayout] Market fetch failed:", {
             message: err?.message,
             code: err?.code,
             status: err?.response?.status,
-            endpoint: '/api/algo/markets'
+            endpoint: "/api/algo/markets",
           });
         }
 
         let notifResponse = null;
         try {
-          notifResponse = await api.get('/api/algo/notifications');
+          notifResponse = await api.get("/api/algo/notifications");
         } catch (err) {
           // Suppress 403 notifications errors (auth) - not critical for UI
           if (err?.response?.status !== 403) {
-            console.error('[AppLayout] Notifications fetch failed:', {
+            console.error("[AppLayout] Notifications fetch failed:", {
               message: err?.message,
               code: err?.code,
               status: err?.response?.status,
-              endpoint: '/api/algo/notifications'
+              endpoint: "/api/algo/notifications",
             });
           }
         }
@@ -149,7 +170,10 @@ export default function AppLayout({ children }) {
             marketContent = extractData(marketResponse);
           }
         } catch (err) {
-          console.debug('[AppLayout] Failed to extract market data:', err.message);
+          console.debug(
+            "[AppLayout] Failed to extract market data:",
+            err.message
+          );
         }
 
         try {
@@ -157,48 +181,62 @@ export default function AppLayout({ children }) {
             notifContent = extractData(notifResponse);
           }
         } catch (err) {
-          console.debug('[AppLayout] Failed to extract notification data:', err.message);
+          console.debug(
+            "[AppLayout] Failed to extract notification data:",
+            err.message
+          );
         }
 
         const marketExposure = marketContent?.current || null;
-        const notifItems = Array.isArray(notifContent?.items) ? notifContent.items : [];
+        const notifItems = Array.isArray(notifContent?.items)
+          ? notifContent.items
+          : [];
 
         setExposure(marketExposure);
         setNotifications(notifItems);
       } catch (err) {
-        console.error('[AppLayout] Status fetch failed:', {
+        console.error("[AppLayout] Status fetch failed:", {
           message: err?.message,
           code: err?.code,
-          status: err?.response?.status
+          status: err?.response?.status,
         });
       }
     };
     fetchStatus();
     const id = setInterval(fetchStatus, 30000);
-    return () => { cancelled = true; clearInterval(id); };
+    return () => {
+      cancelled = true;
+      clearInterval(id);
+    };
   }, [isLoading, isAuthenticated, user]);
 
   // Close drawer on route change
-  useEffect(() => { setDrawerOpen(false); setUserMenuOpen(false); }, [location.pathname]);
+  useEffect(() => {
+    setDrawerOpen(false);
+    setUserMenuOpen(false);
+  }, [location.pathname]);
 
   // Close user menu on outside click
   useEffect(() => {
     if (!userMenuOpen) return;
     const onClick = () => setUserMenuOpen(false);
-    document.addEventListener('click', onClick);
-    return () => document.removeEventListener('click', onClick);
+    document.addEventListener("click", onClick);
+    return () => document.removeEventListener("click", onClick);
   }, [userMenuOpen]);
 
-  const go = (path) => { navigate(path); setDrawerOpen(false); };
-  const userInitial = (user?.email || user?.username || '?')[0].toUpperCase();
-  const userLabel = user?.email || user?.username || 'Account';
+  const go = (path) => {
+    navigate(path);
+    setDrawerOpen(false);
+  };
+  const userInitial = (user?.email || user?.username || "?")[0].toUpperCase();
+  const userLabel = user?.email || user?.username || "Account";
 
   return (
     <div className="app-shell">
       {/* SIDEBAR */}
-      <aside className={`sidebar${drawerOpen ? ' open' : ''}`}>
+      <aside className={`sidebar${drawerOpen ? " open" : ""}`}>
         {/* Brand */}
-        <div className="sidebar-brand" onClick={() => go('/')}>
+        <div className="sidebar-brand" onClick={() => go("/")}>
           <div className="sidebar-brand-mark">
             <Crosshair size={22} strokeWidth={2.25} />
           </div>
@@ -209,8 +247,11 @@ export default function AppLayout({ children }) {
           <button
             type="button"
             className="btn-icon btn btn-ghost hidden"
-            onClick={(e) => { e.stopPropagation(); setDrawerOpen(false); }}
-            style={{ display: drawerOpen ? 'inline-flex' : 'none' }}
+            onClick={(e) => {
+              e.stopPropagation();
+              setDrawerOpen(false);
+            }}
+            style={{ display: drawerOpen ? "inline-flex" : "none" }}
             aria-label="Close menu"
           >
             <X size={16} />
@@ -219,24 +260,27 @@ export default function AppLayout({ children }) {
 
         {/* Nav */}
         <nav className="sidebar-nav">
-          {NAV_SECTIONS.filter(section => {
-            if (section.title === 'System') return user?.role === 'admin';
+          {NAV_SECTIONS.filter((section) => {
+            if (section.title === "System") return user?.role === "admin";
             return true;
-          }).map(section => (
+          }).map((section) => (
             <div className="sidebar-section" key={section.title}>
               <div className="sidebar-section-label">{section.title}</div>
-              {section.items.map(item => {
+              {section.items.map((item) => {
                 const Icon = item.icon;
-                const active = location.pathname === item.path
-                            || location.pathname.startsWith(item.path + '/');
+                const active =
+                  location.pathname === item.path ||
+                  location.pathname.startsWith(item.path + "/");
                 return (
                   <div
                     key={item.path}
-                    className={`sidebar-link${active ? ' active' : ''}`}
+                    className={`sidebar-link${active ? " active" : ""}`}
                     onClick={() => go(item.path)}
                     role="link"
                     tabIndex={0}
-                    onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') go(item.path); }}
+                    onKeyDown={(e) => {
+                      if (e.key === "Enter" || e.key === " ") go(item.path);
+                    }}
                   >
                     <Icon size={16} strokeWidth={2} />
                     <span>{item.text}</span>
@@ -250,7 +294,10 @@ export default function AppLayout({ children }) {
         {/* User box at bottom */}
         <div
           className="sidebar-user"
-          onClick={(e) => { e.stopPropagation(); isAuthenticated ? setUserMenuOpen(o => !o) : go('/login'); }}
+          onClick={(e) => {
+            e.stopPropagation();
+            isAuthenticated ? setUserMenuOpen((o) => !o) : go("/login");
+          }}
           role="button"
           tabIndex={0}
         >
@@ -259,13 +306,22 @@ export default function AppLayout({ children }) {
               <div className="sidebar-user-avatar">{userInitial}</div>
               <div className="sidebar-user-info">
                 <div className="sidebar-user-name">{userLabel}</div>
-                <div className="sidebar-user-meta">Signed in · click for menu</div>
+                <div className="sidebar-user-meta">
+                  Signed in · click for menu
+                </div>
               </div>
-              <Settings size={14} className="shrink-0" style={{ color: 'var(--text-faint)' }} />
+              <Settings
+                size={14}
+                className="shrink-0"
+                style={{ color: "var(--text-faint)" }}
+              />
             </>
           ) : (
             <>
-              <div className="sidebar-user-avatar" style={{ background: 'var(--surface-2)' }}>
+              <div
+                className="sidebar-user-avatar"
+                style={{ background: "var(--surface-2)" }}
+              >
                 <LogIn size={14} />
               </div>
               <div className="sidebar-user-info">
@@ -278,27 +334,67 @@ export default function AppLayout({ children }) {
         {userMenuOpen && (
           <div
             style={{
-              position: 'absolute', left: 12, bottom: 84,
-              width: 232, background: 'var(--surface)',
-              border: '1px solid var(--border-2)', borderRadius: 'var(--r-md)',
-              boxShadow: 'var(--shadow-md)', overflow: 'hidden', zIndex: 60,
+              position: "absolute",
+              left: 12,
+              bottom: 84,
+              width: 232,
+              background: "var(--surface)",
+              border: "1px solid var(--border-2)",
+              borderRadius: "var(--r-md)",
+              boxShadow: "var(--shadow-md)",
+              overflow: "hidden",
+              zIndex: 60,
             }}
-            onClick={e => e.stopPropagation()}
+            onClick={(e) => e.stopPropagation()}
           >
-            <button className="btn btn-ghost w-full" style={{ justifyContent: 'flex-start', borderRadius: 0, padding: '10px 14px' }}
-              onClick={() => { setUserMenuOpen(false); go('/app/settings'); }}>
+            <button
+              className="btn btn-ghost w-full"
+              style={{
+                justifyContent: "flex-start",
+                borderRadius: 0,
+                padding: "10px 14px",
+              }}
+              onClick={() => {
+                setUserMenuOpen(false);
+                go("/app/settings");
+              }}
+            >
               <Settings size={14} /> Settings
             </button>
-            <div style={{ borderTop: '1px solid var(--border-soft)' }} />
-            <button className="btn btn-ghost w-full" style={{ justifyContent: 'flex-start', borderRadius: 0, padding: '10px 14px' }}
-              onClick={() => { toggleTheme(); }}
-              title={`Switch to ${currentTheme === 'light' ? 'dark' : 'light'} theme`}>
-              {currentTheme === 'light' ? <Moon size={14} /> : <Sun size={14} />}
-              {currentTheme === 'light' ? 'Dark theme' : 'Light theme'}
+            <div style={{ borderTop: "1px solid var(--border-soft)" }} />
+            <button
+              className="btn btn-ghost w-full"
+              style={{
+                justifyContent: "flex-start",
+                borderRadius: 0,
+                padding: "10px 14px",
+              }}
+              onClick={() => {
+                toggleTheme();
+              }}
+              title={`Switch to ${currentTheme === "light" ? "dark" : "light"} theme`}
+            >
+              {currentTheme === "light" ? (
+                <Moon size={14} />
+              ) : (
+                <Sun size={14} />
+              )}
+              {currentTheme === "light" ? "Dark theme" : "Light theme"}
             </button>
-            <div style={{ borderTop: '1px solid var(--border-soft)' }} />
-            <button className="btn btn-ghost w-full" style={{ justifyContent: 'flex-start', borderRadius: 0, padding: '10px 14px', color: 'var(--danger)' }}
-              onClick={() => { setUserMenuOpen(false); logout?.(); }}>
+            <div style={{ borderTop: "1px solid var(--border-soft)" }} />
+            <button
+              className="btn btn-ghost w-full"
+              style={{
+                justifyContent: "flex-start",
+                borderRadius: 0,
+                padding: "10px 14px",
+                color: "var(--danger)",
+              }}
+              onClick={() => {
+                setUserMenuOpen(false);
+                logout?.();
+              }}
+            >
               <LogOut size={14} /> Sign out
             </button>
           </div>
@@ -310,8 +406,11 @@ export default function AppLayout({ children }) {
         <div
           onClick={() => setDrawerOpen(false)}
           style={{
-            position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.6)',
-            zIndex: 40, animation: 'fade-in var(--t-base)',
+            position: "fixed",
+            inset: 0,
+            background: "rgba(0,0,0,0.6)",
+            zIndex: 40,
+            animation: "fade-in var(--t-base)",
           }}
         />
       )}
@@ -325,7 +424,7 @@ export default function AppLayout({ children }) {
             className="btn btn-icon btn-ghost"
             onClick={() => setDrawerOpen(true)}
             aria-label="Open menu"
-            style={{ display: 'none' }}
+            style={{ display: "none" }}
             // shown on mobile via inline media query workaround:
             data-mobile-only="true"
           >
@@ -336,25 +435,66 @@ export default function AppLayout({ children }) {
             <SystemHealthIndicator />
             {exposure && <ExposurePill exposure={exposure} />}
             {notifications?.length > 0 && (
-              <span className="badge badge-danger">{notifications.length} ALERT{notifications.length === 1 ? '' : 'S'}</span>
+              <span className="badge badge-danger">
+                {notifications.length} ALERT
+                {notifications.length === 1 ? "" : "S"}
+              </span>
             )}
           </div>
         </header>
 
         {/* Page content */}
-        <main className="flex-1 animate-in" style={{ overflowY: 'auto' }}>
+        <main className="flex-1 animate-in" style={{ overflowY: "auto" }}>
           {children}
         </main>
 
         {/* Footer */}
         <footer className="app-footer">
           <div>BULLSEYE</div>
-          <div style={{ display: 'flex', gap: '1.5rem', fontSize: '0.85rem', opacity: 0.8 }}>
+          <div
+            style={{
+              display: "flex",
+              gap: "1.5rem",
+              fontSize: "0.85rem",
+              opacity: 0.8,
+            }}
+          >
             <span>Yahoo Finance · Alpaca · Computed</span>
-            <span style={{ borderLeft: '1px solid var(--border-soft)', paddingLeft: '1.5rem' }}>
-              <a href="/about" style={{ color: 'inherit', textDecoration: 'none', marginRight: '0.75rem' }} title="About the firm">About</a>
-              <a href="/our-team" style={{ color: 'inherit', textDecoration: 'none', marginRight: '0.75rem' }} title="Meet the team">Team</a>
-              <a href="/contact" style={{ color: 'inherit', textDecoration: 'none' }} title="Get in touch">Contact</a>
+            <span
+              style={{
+                borderLeft: "1px solid var(--border-soft)",
+                paddingLeft: "1.5rem",
+              }}
+            >
+              <a
+                href="/about"
+                style={{
+                  color: "inherit",
+                  textDecoration: "none",
+                  marginRight: "0.75rem",
+                }}
+                title="About the firm"
+              >
+                About
+              </a>
+              <a
+                href="/our-team"
+                style={{
+                  color: "inherit",
+                  textDecoration: "none",
+                  marginRight: "0.75rem",
+                }}
+                title="Meet the team"
+              >
+                Team
+              </a>
+              <a
+                href="/contact"
+                style={{ color: "inherit", textDecoration: "none" }}
+                title="Get in touch"
+              >
+                Contact
+              </a>
             </span>
           </div>
         </footer>
@@ -375,23 +515,21 @@ export default function AppLayout({ children }) {
 // â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
 
 const REGIME_VARIANT = {
-  confirmed_uptrend: 'badge-success',
-  healthy_uptrend:   'badge-brand',
-  pressure:          'badge-amber',
-  uptrend_under_pressure: 'badge-amber',
-  caution:           'badge-amber',
-  correction:        'badge-danger',
+  confirmed_uptrend: "badge-success",
+  healthy_uptrend: "badge-brand",
+  pressure: "badge-amber",
+  uptrend_under_pressure: "badge-amber",
+  caution: "badge-amber",
+  correction: "badge-danger",
 };
 
 function ExposurePill({ exposure }) {
   if (!exposure) return null;
-  const regime = (exposure.regime || '').replace(/uptrend_under_pressure/, 'pressure');
-  const variant = REGIME_VARIANT[regime] || '';
-  const pct = exposure.exposure_pct ?? '—';
-  return (
-    <span className={`badge ${variant} mono tnum`}>
-      EXP {pct}%
-    </span>
+  const regime = (exposure.regime || "").replace(
+    /uptrend_under_pressure/,
+    "pressure"
   );
+  const variant = REGIME_VARIANT[regime] || "";
+  const pct = exposure.exposure_pct ?? "—";
+  return <span className={`badge ${variant} mono tnum`}>EXP {pct}%</span>;
 }
-

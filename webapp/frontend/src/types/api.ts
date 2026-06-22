@@ -55,11 +55,11 @@ export interface SectorsWithHistoryResponse extends BaseAPIResponse {
  */
 export interface TradingSignal {
   symbol: string;
-  signal_type: 'Buy' | 'Sell' | 'Hold';
+  signal_type: "Buy" | "Sell" | "Hold";
   signal: string;
   date: string;
   signal_date: string;
-  timeframe: 'Daily' | 'Weekly' | 'Monthly';
+  timeframe: "Daily" | "Weekly" | "Monthly";
   current_price: number;
   buy_level?: number;
   stop_level?: number;
@@ -142,11 +142,11 @@ export interface EfficientFrontierPoint {
 
 export interface PortfolioRecommendation {
   id: number;
-  action: 'BUY' | 'SELL' | 'HOLD' | 'CONSOLIDATE' | 'REDUCE';
+  action: "BUY" | "SELL" | "HOLD" | "CONSOLIDATE" | "REDUCE";
   symbol: string;
   reason: string;
   targetWeight: string;
-  priority: 'high' | 'medium' | 'low';
+  priority: "high" | "medium" | "low";
   impact: string;
   [key: string]: any;
 }
@@ -280,37 +280,34 @@ export interface HealthCheckResponse extends BaseAPIResponse {
 export const isSector = (obj: any): obj is Sector => {
   return (
     obj &&
-    typeof obj === 'object' &&
-    'sector_name' in obj &&
-    'current_rank' in obj
+    typeof obj === "object" &&
+    "sector_name" in obj &&
+    "current_rank" in obj
   );
 };
 
 export const isSignal = (obj: any): obj is TradingSignal => {
   return (
     obj &&
-    typeof obj === 'object' &&
-    'symbol' in obj &&
-    'signal_type' in obj &&
-    'current_price' in obj
+    typeof obj === "object" &&
+    "symbol" in obj &&
+    "signal_type" in obj &&
+    "current_price" in obj
   );
 };
 
 export const isStockScore = (obj: any): obj is StockScore => {
   return (
     obj &&
-    typeof obj === 'object' &&
-    'symbol' in obj &&
-    'composite_score' in obj
+    typeof obj === "object" &&
+    "symbol" in obj &&
+    "composite_score" in obj
   );
 };
 
 export const isErrorResponse = (obj: any): obj is ErrorResponse => {
   return (
-    obj &&
-    typeof obj === 'object' &&
-    obj.success === false &&
-    'error' in obj
+    obj && typeof obj === "object" && obj.success === false && "error" in obj
   );
 };
 

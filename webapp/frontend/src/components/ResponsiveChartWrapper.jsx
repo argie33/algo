@@ -2,14 +2,14 @@
  * Wrapper for Recharts ResponsiveContainer to fix width/height -1 issue
  * Ensures parent div has proper dimensions before ResponsiveContainer measures
  */
-import React, { useRef, useEffect } from 'react';
-import { ResponsiveContainer } from 'recharts';
+import React, { useRef, useEffect } from "react";
+import { ResponsiveContainer } from "recharts";
 
 export const ResponsiveChartWrapper = ({
   height = 300,
-  width = '100%',
+  width = "100%",
   children,
-  className = '',
+  className = "",
   ...containerProps
 }) => {
   const containerRef = useRef(null);
@@ -20,7 +20,7 @@ export const ResponsiveChartWrapper = ({
     // Trigger a resize event for Recharts to remeasure
     // This helps resolve cases where dimensions are initially 0
     const timer = setTimeout(() => {
-      window.dispatchEvent(new Event('resize'));
+      window.dispatchEvent(new Event("resize"));
     }, 100);
 
     return () => clearTimeout(timer);
@@ -31,20 +31,21 @@ export const ResponsiveChartWrapper = ({
       ref={containerRef}
       className={`chart-container ${className}`.trim()}
       style={{
-        height: typeof height === 'number' ? `${height}px` : height,
-        width: width === '100%' ? '100%' : (typeof width === 'number' ? `${width}px` : width),
+        height: typeof height === "number" ? `${height}px` : height,
+        width:
+          width === "100%"
+            ? "100%"
+            : typeof width === "number"
+              ? `${width}px`
+              : width,
         minWidth: 0,
         minHeight: 0,
-        overflow: 'hidden',
-        display: 'flex',
-        alignItems: 'stretch',
+        overflow: "hidden",
+        display: "flex",
+        alignItems: "stretch",
       }}
     >
-      <ResponsiveContainer
-        width="100%"
-        height="100%"
-        {...containerProps}
-      >
+      <ResponsiveContainer width="100%" height="100%" {...containerProps}>
         {children}
       </ResponsiveContainer>
     </div>

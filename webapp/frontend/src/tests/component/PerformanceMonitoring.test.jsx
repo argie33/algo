@@ -778,4 +778,3 @@ describe("Performance Monitoring Tests", () => {
     });
   });
 });
-

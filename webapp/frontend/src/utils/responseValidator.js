@@ -9,13 +9,13 @@
  * @param {string} context - Human-readable context (e.g., "sectors API")
  * @returns {object} { valid: boolean, errors: string[], warnings: string[], unwrapped: object }
  */
-export const validateResponseEnvelope = (data, context = 'API') => {
+export const validateResponseEnvelope = (data, context = "API") => {
   const errors = [];
   const warnings = [];
   let unwrapped = data;
 
   // Check that data exists
-  if (!data || typeof data !== 'object') {
+  if (!data || typeof data !== "object") {
     errors.push(`${context}: Response is not an object (got ${typeof data})`);
     return { valid: false, errors, warnings, unwrapped: null };
   }
@@ -27,13 +27,19 @@ export const validateResponseEnvelope = (data, context = 'API') => {
       errors.push(`${context}: Response envelope has null data field`);
       unwrapped = null;
     } else if (Array.isArray(data.data)) {
-      errors.push(`${context}: Response envelope.data is an array (expected object)`);
+      errors.push(
+        `${context}: Response envelope.data is an array (expected object)`
+      );
       unwrapped = null;
-    } else if (typeof data.data !== 'object') {
-      errors.push(`${context}: Response envelope.data is not an object (got ${typeof data.data})`);
+    } else if (typeof data.data !== "object") {
+      errors.push(
+        `${context}: Response envelope.data is not an object (got ${typeof data.data})`
+      );
       unwrapped = null;
     } else if (Object.keys(data.data).length === 0) {
-      warnings.push(`${context}: Response envelope.data is empty object (no properties)`);
+      warnings.push(
+        `${context}: Response envelope.data is empty object (no properties)`
+      );
       unwrapped = data.data;
     } else {
       // Valid data object
@@ -42,7 +48,9 @@ export const validateResponseEnvelope = (data, context = 'API') => {
   } else if (data.items !== undefined) {
     // Paginated response
     if (!Array.isArray(data.items)) {
-      errors.push(`${context}: Response items field is not an array (got ${typeof data.items})`);
+      errors.push(
+        `${context}: Response items field is not an array (got ${typeof data.items})`
+      );
       unwrapped = null;
     } else if (data.items.length === 0) {
       warnings.push(`${context}: Response items array is empty`);
@@ -52,13 +60,17 @@ export const validateResponseEnvelope = (data, context = 'API') => {
     }
   } else {
     // No standard structure
-    warnings.push(`${context}: Response has no 'data' or 'items' envelope (will use as-is)`);
+    warnings.push(
+      `${context}: Response has no 'data' or 'items' envelope (will use as-is)`
+    );
     unwrapped = data;
   }
 
   // Check for statusCode/success markers
   if (data.statusCode === undefined && data.success === undefined) {
-    warnings.push(`${context}: Response missing statusCode and success markers (may not be normalized by backend)`);
+    warnings.push(
+      `${context}: Response missing statusCode and success markers (may not be normalized by backend)`
+    );
   }
 
   return {
@@ -76,7 +88,11 @@ export const validateResponseEnvelope = (data, context = 'API') => {
  * @param {string} context - Human-readable context
  * @returns {object} { valid: boolean, errors: string[], missingFields: string[] }
  */
-export const validateDataFields = (data, requiredFields = [], context = 'Data') => {
+export const validateDataFields = (
+  data,
+  requiredFields = [],
+  context = "Data"
+) => {
   const errors = [];
   const missingFields = [];
 
@@ -84,7 +100,7 @@ export const validateDataFields = (data, requiredFields = [], context = 'Data') 
     return { valid: true, errors, missingFields };
   }
 
-  if (!data || typeof data !== 'object') {
+  if (!data || typeof data !== "object") {
     errors.push(`${context}: Data is not an object (got ${typeof data})`);
     return { valid: false, errors, missingFields };
   }
@@ -96,7 +112,9 @@ export const validateDataFields = (data, requiredFields = [], context = 'Data') 
   });
 
   if (missingFields.length > 0) {
-    errors.push(`${context}: Missing required fields: ${missingFields.join(', ')}`);
+    errors.push(
+      `${context}: Missing required fields: ${missingFields.join(", ")}`
+    );
   }
 
   return {
@@ -118,7 +136,7 @@ export const validateDataFields = (data, requiredFields = [], context = 'Data') 
 export const validateArrayItems = (
   items,
   requiredFields = [],
-  context = 'Items',
+  context = "Items",
   { requireNonEmpty = false } = {}
 ) => {
   const errors = [];
@@ -140,13 +158,17 @@ export const validateArrayItems = (
   }
 
   items.forEach((item, idx) => {
-    if (!item || typeof item !== 'object') {
-      invalidItems.push({ index: idx, reason: `Item is not an object (got ${typeof item})` });
+    if (!item || typeof item !== "object") {
+      invalidItems.push({
+        index: idx,
+        reason: `Item is not an object (got ${typeof item})`,
+      });
       return;
     }
 
     const missing = requiredFields.filter(
-      (field) => !(field in item) || item[field] === null || item[field] === undefined
+      (field) =>
+        !(field in item) || item[field] === null || item[field] === undefined
     );
 
     if (missing.length > 0) {
@@ -155,7 +177,9 @@ export const validateArrayItems = (
   });
 
   if (invalidItems.length > 0) {
-    errors.push(`${context}: ${invalidItems.length} of ${items.length} items missing required fields`);
+    errors.push(
+      `${context}: ${invalidItems.length} of ${items.length} items missing required fields`
+    );
   }
 
   return {
@@ -177,11 +201,7 @@ export const validateArrayItems = (
  */
 export const validateResponse = (
   response,
-  {
-    requiredFields = [],
-    requireNonEmpty = false,
-    context = 'Response',
-  } = {}
+  { requiredFields = [], requireNonEmpty = false, context = "Response" } = {}
 ) => {
   const errors = [];
   const warnings = [];
@@ -202,7 +222,7 @@ export const validateResponse = (
   if (requireNonEmpty) {
     if (unwrapped === null) {
       errors.push(`${context}: Data is null but non-empty required`);
-    } else if (typeof unwrapped === 'object' && !Array.isArray(unwrapped)) {
+    } else if (typeof unwrapped === "object" && !Array.isArray(unwrapped)) {
       if (Object.keys(unwrapped).length === 0) {
         errors.push(`${context}: Data is empty object but non-empty required`);
       }
@@ -214,7 +234,12 @@ export const validateResponse = (
   }
 
   // Step 3: Validate required fields (only on non-array objects)
-  if (requiredFields.length > 0 && unwrapped && typeof unwrapped === 'object' && !Array.isArray(unwrapped)) {
+  if (
+    requiredFields.length > 0 &&
+    unwrapped &&
+    typeof unwrapped === "object" &&
+    !Array.isArray(unwrapped)
+  ) {
     const fieldCheck = validateDataFields(unwrapped, requiredFields, context);
     errors.push(...fieldCheck.errors);
   }
@@ -234,11 +259,18 @@ export const validateResponse = (
  * @param {object} options - Validation options
  * @returns {*} Validated data or fallback
  */
-export const validateResponseOrFallback = (response, fallback = null, options = {}) => {
+export const validateResponseOrFallback = (
+  response,
+  fallback = null,
+  options = {}
+) => {
   const validation = validateResponse(response, options);
   if (!validation.valid) {
     if (options.context) {
-      console.warn(`[validateResponse] ${options.context} validation failed:`, validation.errors);
+      console.warn(
+        `[validateResponse] ${options.context} validation failed:`,
+        validation.errors
+      );
     }
     return fallback;
   }

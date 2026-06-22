@@ -1,4 +1,4 @@
-import React, { createContext, useContext } from 'react';
+import React, { createContext, useContext } from "react";
 
 const ApiKeyContext = createContext(null);
 
@@ -10,16 +10,14 @@ export const ApiKeyProvider = ({ children }) => {
   };
 
   return (
-    <ApiKeyContext.Provider value={value}>
-      {children}
-    </ApiKeyContext.Provider>
+    <ApiKeyContext.Provider value={value}>{children}</ApiKeyContext.Provider>
   );
 };
 
 export const useApiKey = () => {
   const context = useContext(ApiKeyContext);
   if (!context) {
-    throw new Error('useApiKey must be used within ApiKeyProvider');
+    throw new Error("useApiKey must be used within ApiKeyProvider");
   }
   return context;
 };

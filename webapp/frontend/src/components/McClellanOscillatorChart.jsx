@@ -27,12 +27,21 @@ const McClellanOscillatorChart = ({ data, isLoading = false }) => {
 
   if (isLoading) {
     return (
-      <Card sx={{
-        background: theme.palette.background.paper,
-        backdropFilter: "blur(10px)",
-        border: `1px solid ${alpha(theme.palette.primary.main, 0.1)}`,
-      }}>
-        <CardContent sx={{ display: "flex", justifyContent: "center", alignItems: "center", minHeight: "300px" }}>
+      <Card
+        sx={{
+          background: theme.palette.background.paper,
+          backdropFilter: "blur(10px)",
+          border: `1px solid ${alpha(theme.palette.primary.main, 0.1)}`,
+        }}
+      >
+        <CardContent
+          sx={{
+            display: "flex",
+            justifyContent: "center",
+            alignItems: "center",
+            minHeight: "300px",
+          }}
+        >
           <CircularProgress />
         </CardContent>
       </Card>
@@ -41,25 +50,39 @@ const McClellanOscillatorChart = ({ data, isLoading = false }) => {
 
   if (!data) {
     return (
-      <Card sx={{
-        background: theme.palette.background.paper,
-        backdropFilter: "blur(10px)",
-        border: `1px solid ${alpha(theme.palette.primary.main, 0.1)}`,
-      }}>
+      <Card
+        sx={{
+          background: theme.palette.background.paper,
+          backdropFilter: "blur(10px)",
+          border: `1px solid ${alpha(theme.palette.primary.main, 0.1)}`,
+        }}
+      >
         <CardContent>
-          <Typography color="textSecondary">No McClellan Oscillator data available</Typography>
+          <Typography color="textSecondary">
+            No McClellan Oscillator data available
+          </Typography>
         </CardContent>
       </Card>
     );
   }
 
   const rawCurrentValue = data.current_value || 0;
-  const currentValue = typeof rawCurrentValue === 'number' ? rawCurrentValue : parseFloat(rawCurrentValue) || 0;
+  const currentValue =
+    typeof rawCurrentValue === "number"
+      ? rawCurrentValue
+      : parseFloat(rawCurrentValue) || 0;
   const isBullish = currentValue > 0;
-  const chartData = Array.isArray(data.recent_data) ? data.recent_data.slice(-20).map(item => ({
-    date: item.date ? new Date(item.date).toLocaleDateString("en-US", { month: "short", day: "numeric" }) : "—",
-    value: item.advance_decline_line || 0,
-  })) : [];
+  const chartData = Array.isArray(data.recent_data)
+    ? data.recent_data.slice(-20).map((item) => ({
+        date: item.date
+          ? new Date(item.date).toLocaleDateString("en-US", {
+              month: "short",
+              day: "numeric",
+            })
+          : "—",
+        value: item.advance_decline_line || 0,
+      }))
+    : [];
 
   return (
     <Card
@@ -70,13 +93,23 @@ const McClellanOscillatorChart = ({ data, isLoading = false }) => {
         transition: "all 0.3s ease",
         "&:hover": {
           boxShadow: theme.shadows[4],
-        }
+        },
       }}
     >
       <CardContent>
-        <Box sx={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", mb: 2 }}>
+        <Box
+          sx={{
+            display: "flex",
+            justifyContent: "space-between",
+            alignItems: "flex-start",
+            mb: 2,
+          }}
+        >
           <Box>
-            <Typography variant="subtitle2" sx={{ opacity: 0.8, fontWeight: 500 }}>
+            <Typography
+              variant="subtitle2"
+              sx={{ opacity: 0.8, fontWeight: 500 }}
+            >
               McClellan Oscillator (Breadth Momentum)
             </Typography>
             <Box sx={{ display: "flex", alignItems: "center", gap: 1, mt: 1 }}>
@@ -104,14 +137,19 @@ const McClellanOscillatorChart = ({ data, isLoading = false }) => {
           </Box>
         </Box>
 
-        <Box sx={{
-          p: 1.5,
-          bgcolor: alpha(theme.palette.info.main, 0.1),
-          borderRadius: 1,
-          border: `1px solid ${alpha(theme.palette.info.main, 0.2)}`,
-          mb: 2,
-        }}>
-          <Typography variant="caption" sx={{ display: "block", fontWeight: 600 }}>
+        <Box
+          sx={{
+            p: 1.5,
+            bgcolor: alpha(theme.palette.info.main, 0.1),
+            borderRadius: 1,
+            border: `1px solid ${alpha(theme.palette.info.main, 0.2)}`,
+            mb: 2,
+          }}
+        >
+          <Typography
+            variant="caption"
+            sx={{ display: "block", fontWeight: 600 }}
+          >
             Interpretation:
           </Typography>
           <Typography variant="body2" sx={{ opacity: 0.9, mt: 0.5 }}>
@@ -122,13 +160,16 @@ const McClellanOscillatorChart = ({ data, isLoading = false }) => {
         </Box>
 
         {chartData.length > 0 && (
-          <div style={{ ...getChartContainerStyle('compact'), marginTop: 16 }}>
+          <div style={{ ...getChartContainerStyle("compact"), marginTop: 16 }}>
             <ResponsiveContainer width="100%" height="100%">
               <ComposedChart
                 data={chartData}
                 margin={{ top: 20, right: 30, left: 60, bottom: 60 }}
               >
-                <CartesianGrid strokeDasharray="3 3" stroke={alpha(theme.palette.divider, 0.5)} />
+                <CartesianGrid
+                  strokeDasharray="3 3"
+                  stroke={alpha(theme.palette.divider, 0.5)}
+                />
                 <XAxis
                   dataKey="date"
                   stroke={theme.palette.text.secondary}
@@ -146,7 +187,10 @@ const McClellanOscillatorChart = ({ data, isLoading = false }) => {
                 />
                 <Tooltip
                   contentStyle={{
-                    backgroundColor: alpha(theme.palette.background.default, 0.95),
+                    backgroundColor: alpha(
+                      theme.palette.background.default,
+                      0.95
+                    ),
                     border: `1px solid ${theme.palette.divider}`,
                     borderRadius: "4px",
                   }}
@@ -161,7 +205,11 @@ const McClellanOscillatorChart = ({ data, isLoading = false }) => {
                 />
                 <Bar
                   dataKey="value"
-                  fill={isBullish ? theme.palette.success.main : theme.palette.error.main}
+                  fill={
+                    isBullish
+                      ? theme.palette.success.main
+                      : theme.palette.error.main
+                  }
                   radius={[4, 4, 0, 0]}
                   opacity={0.7}
                   isAnimationActive={true}
@@ -172,7 +220,10 @@ const McClellanOscillatorChart = ({ data, isLoading = false }) => {
         )}
 
         {data.data_points && (
-          <Typography variant="caption" sx={{ opacity: 0.6, display: "block", mt: 1 }}>
+          <Typography
+            variant="caption"
+            sx={{ opacity: 0.6, display: "block", mt: 1 }}
+          >
             Based on {data.data_points} trading days of advance/decline data
           </Typography>
         )}
@@ -182,4 +233,3 @@ const McClellanOscillatorChart = ({ data, isLoading = false }) => {
 };
 
 export default McClellanOscillatorChart;
-

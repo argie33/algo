@@ -1,40 +1,65 @@
-import React, { useState, useMemo, useEffect } from 'react';
-import { useQuery } from '@tanstack/react-query';
-import { useApiQuery } from '../hooks/useApiQuery';
+import React, { useState, useMemo, useEffect } from "react";
+import { useQuery } from "@tanstack/react-query";
+import { useApiQuery } from "../hooks/useApiQuery";
 import {
-  RefreshCw, Inbox, Search, TrendingUp, TrendingDown, Minus,
-  ArrowLeft, AlertCircle, MessageSquare, Activity,
-} from 'lucide-react';
+  RefreshCw,
+  Inbox,
+  Search,
+  TrendingUp,
+  TrendingDown,
+  Minus,
+  ArrowLeft,
+  AlertCircle,
+  MessageSquare,
+  Activity,
+} from "lucide-react";
 import {
-  Cell, ResponsiveContainer, Tooltip as RechartsTooltip,
-  LineChart, Line, XAxis, YAxis, CartesianGrid, ReferenceLine,
-  BarChart, Bar, FunnelChart, Funnel, LabelList,
-} from 'recharts';
-import { api } from '../services/api';
-import { num, pct, money } from '../components/dashboard/shared/utils/dashboardFormatters';
-import ErrorBoundary from '../components/ErrorBoundary';
+  Cell,
+  ResponsiveContainer,
+  Tooltip as RechartsTooltip,
+  LineChart,
+  Line,
+  XAxis,
+  YAxis,
+  CartesianGrid,
+  ReferenceLine,
+  BarChart,
+  Bar,
+  FunnelChart,
+  Funnel,
+  LabelList,
+} from "recharts";
+import { api } from "../services/api";
+import {
+  num,
+  pct,
+  money,
+} from "../components/dashboard/shared/utils/dashboardFormatters";
+import ErrorBoundary from "../components/ErrorBoundary";
 
 const TT_STYLE = {
-  background: 'var(--surface)',
-  border: '1px solid var(--border)',
-  borderRadius: 'var(--r-sm)',
-  fontSize: 'var(--t-xs)',
-  padding: 'var(--space-2) var(--space-3)',
+  background: "var(--surface)",
+  border: "1px solid var(--border)",
+  borderRadius: "var(--r-sm)",
+  fontSize: "var(--t-xs)",
+  padding: "var(--space-2) var(--space-3)",
 };
 
 const fmtDate = (d) => {
-  if (!d) return '—';
-  try { return new Date(d).toLocaleDateString(); } catch (err) {
-    console.debug('[Sentiment] Failed to format date:', err?.message);
+  if (!d) return "—";
+  try {
+    return new Date(d).toLocaleDateString();
+  } catch (err) {
+    console.debug("[Sentiment] Failed to format date:", err?.message);
     return String(d);
   }
 };
 
 const sentimentLabel = (score) => {
-  if (score == null) return { label: 'Unknown', cls: '' };
-  if (score > 0.3) return { label: 'Bullish', cls: 'badge-success' };
-  if (score < -0.3) return { label: 'Bearish', cls: 'badge-danger' };
-  return { label: 'Neutral', cls: 'badge-amber' };
+  if (score == null) return { label: "Unknown", cls: "" };
+  if (score > 0.3) return { label: "Bullish", cls: "badge-success" };
+  if (score < -0.3) return { label: "Bearish", cls: "badge-danger" };
+  return { label: "Neutral", cls: "badge-amber" };
 };
 
 const sentimentIcon = (score) => {
@@ -45,76 +70,94 @@ const sentimentIcon = (score) => {
 };
 
 const scoreToBadge = (score) => {
-  if (score == null) return 'badge';
-  if (score > 0.2) return 'badge badge-success';
-  if (score < -0.2) return 'badge badge-danger';
-  return 'badge badge-amber';
+  if (score == null) return "badge";
+  if (score > 0.2) return "badge badge-success";
+  if (score < -0.2) return "badge badge-danger";
+  return "badge badge-amber";
 };
 
 const calcAnalystSentiment = (bullish, bearish, neutral, total) => {
   if (!total || total === 0) return null;
-  return (bullish / total) - (bearish / total);
+  return bullish / total - bearish / total;
 };
 
 const detectDivergence = (...scores) => {
   const filtered = scores.filter((s) => s != null);
   if (filtered.length < 2) return null;
   const range = Math.max(...filtered) - Math.min(...filtered);
-  if (range > 0.6) return { isDiverged: true, severity: range > 1 ? 'critical' : 'moderate', range };
+  if (range > 0.6)
+    return {
+      isDiverged: true,
+      severity: range > 1 ? "critical" : "moderate",
+      range,
+    };
   return { isDiverged: false };
 };
 
 const TABS = [
-  { value: 'overview', label: 'Overview' },
-  { value: 'analyst', label: 'Analyst Detail' },
+  { value: "overview", label: "Overview" },
+  { value: "analyst", label: "Analyst Detail" },
 ];
 
 function SentimentContent() {
-  const [tab, setTab] = useState('overview');
-  const [searchFilter, setSearchFilter] = useState('');
-  const [filterSentiment, setFilterSentiment] = useState('all');
-  const [sortBy, setSortBy] = useState('composite');
+  const [tab, setTab] = useState("overview");
+  const [searchFilter, setSearchFilter] = useState("");
+  const [filterSentiment, setFilterSentiment] = useState("all");
+  const [sortBy, setSortBy] = useState("composite");
   const [selectedSymbol, setSelectedSymbol] = useState(null);
 
   // Trigger resize after mount to force charts to remeasure
   useEffect(() => {
     const timer = setTimeout(() => {
-      window.dispatchEvent(new Event('resize'));
+      window.dispatchEvent(new Event("resize"));
     }, 500);
     return () => clearTimeout(timer);
   }, []);
 
-  const { data, loading: dataLoading, error, refetch } = useApiQuery(
-    ['sentiment-stocks'],
-    () => api.get('/api/sentiment/data?limit=5000&page=1'),
+  const {
+    data,
+    loading: dataLoading,
+    error,
+    refetch,
+  } = useApiQuery(
+    ["sentiment-stocks"],
+    () => api.get("/api/sentiment/data?limit=5000&page=1"),
     { staleTime: 300000, refetchInterval: 300000 }
   );
 
   const summaryQ = useApiQuery(
-    ['sentiment-summary'],
-    () => api.get('/api/sentiment/summary'),
+    ["sentiment-summary"],
+    () => api.get("/api/sentiment/summary"),
     { refetchInterval: 300000 }
   );
 
   const scoresQ = useApiQuery(
-    ['sentiment-scores-overlay'],
-    () => api.get('/api/scores/stockscores?limit=5000&offset=0&sortBy=composite_score&sp500Only=true'),
+    ["sentiment-scores-overlay"],
+    () =>
+      api.get(
+        "/api/scores/stockscores?limit=5000&offset=0&sortBy=composite_score&sp500Only=true"
+      ),
     { refetchInterval: 300000 }
   );
 
   const divergenceQ = useApiQuery(
-    ['sentiment-divergence'],
-    () => api.get('/api/sentiment/divergence'),
+    ["sentiment-divergence"],
+    () => api.get("/api/sentiment/divergence"),
     { refetchInterval: 300000 }
   );
 
-  const isLoading = dataLoading || summaryQ.loading || scoresQ.loading || divergenceQ.loading;
+  const isLoading =
+    dataLoading || summaryQ.loading || scoresQ.loading || divergenceQ.loading;
 
   let rawData = [];
   if (Array.isArray(data)) {
     rawData = data;
-  } else if (data && typeof data === 'object' && (data.items || data.data)) {
-    rawData = Array.isArray(data.items) ? data.items : (Array.isArray(data.data) ? data.data : []);
+  } else if (data && typeof data === "object" && (data.items || data.data)) {
+    rawData = Array.isArray(data.items)
+      ? data.items
+      : Array.isArray(data.data)
+        ? data.data
+        : [];
   }
 
   const stocksList = useMemo(() => {
@@ -122,13 +165,20 @@ function SentimentContent() {
 
     try {
       const grouped = rawData.reduce((acc, item) => {
-        if (!item || typeof item !== 'object' || !item.symbol) return acc;
+        if (!item || typeof item !== "object" || !item.symbol) return acc;
         const sym = item.symbol;
         if (!acc[sym]) acc[sym] = { symbol: sym, analyst: [] };
         const analystScore = calcAnalystSentiment(
-          item.bullish_count, item.bearish_count, item.neutral_count, item.analyst_count
+          item.bullish_count,
+          item.bearish_count,
+          item.neutral_count,
+          item.analyst_count
         );
-        acc[sym].analyst.push({ ...item, sentiment_score: analystScore, source: 'analyst' });
+        acc[sym].analyst.push({
+          ...item,
+          sentiment_score: analystScore,
+          source: "analyst",
+        });
         return acc;
       }, {});
 
@@ -140,29 +190,37 @@ function SentimentContent() {
           compositeScore,
           analyst: stock.analyst,
           latestAnalyst,
-          allData: [...stock.analyst].sort((a, b) => new Date(b.date) - new Date(a.date)),
+          allData: [...stock.analyst].sort(
+            (a, b) => new Date(b.date) - new Date(a.date)
+          ),
           divergence: detectDivergence(latestAnalyst?.sentiment_score),
         };
       });
     } catch (err) {
-      console.error('Error processing sentiment data:', err);
+      console.error("Error processing sentiment data:", err);
       return [];
     }
   }, [rawData]);
 
   const filtered = useMemo(() => {
     let list = stocksList.filter((s) => {
-      const matchesSearch = s.symbol.toLowerCase().includes(searchFilter.toLowerCase());
-      if (filterSentiment === 'all') return matchesSearch;
-      if (filterSentiment === 'bullish') return matchesSearch && s.compositeScore > 0.3;
-      if (filterSentiment === 'bearish') return matchesSearch && s.compositeScore < -0.3;
-      if (filterSentiment === 'neutral')
-        return matchesSearch && s.compositeScore >= -0.3 && s.compositeScore <= 0.3;
+      const matchesSearch = s.symbol
+        .toLowerCase()
+        .includes(searchFilter.toLowerCase());
+      if (filterSentiment === "all") return matchesSearch;
+      if (filterSentiment === "bullish")
+        return matchesSearch && s.compositeScore > 0.3;
+      if (filterSentiment === "bearish")
+        return matchesSearch && s.compositeScore < -0.3;
+      if (filterSentiment === "neutral")
+        return (
+          matchesSearch && s.compositeScore >= -0.3 && s.compositeScore <= 0.3
+        );
       return matchesSearch;
     });
 
     list.sort((a, b) => {
-      if (sortBy === 'symbol') return a.symbol.localeCompare(b.symbol);
+      if (sortBy === "symbol") return a.symbol.localeCompare(b.symbol);
       const aScore = a.compositeScore;
       const bScore = b.compositeScore;
       if (aScore == null && bScore == null) return 0;
@@ -175,10 +233,13 @@ function SentimentContent() {
   }, [stocksList, searchFilter, filterSentiment, sortBy]);
 
   const stats = useMemo(() => {
-    let bull = 0, bear = 0, neutral = 0, unknown = 0;
+    let bull = 0,
+      bear = 0,
+      neutral = 0,
+      unknown = 0;
     const list = Array.isArray(stocksList) ? stocksList : [];
     list.forEach((s) => {
-      if (s && typeof s === 'object') {
+      if (s && typeof s === "object") {
         if (s.compositeScore == null) unknown++;
         else if (s.compositeScore > 0.3) bull++;
         else if (s.compositeScore < -0.3) bear++;
@@ -198,38 +259,54 @@ function SentimentContent() {
     const sum = summaryQ.data || {};
     const components = [];
     if (sum.fear_greed?.value != null) {
-      components.push({ name: 'Fear & Greed', value: Number(sum.fear_greed.value) });
+      components.push({
+        name: "Fear & Greed",
+        value: Number(sum.fear_greed.value),
+      });
     }
     if (sum.aaii) {
-      const tot = (Number(sum.aaii.bullish) || 0) + (Number(sum.aaii.bearish) || 0)
-                + (Number(sum.aaii.neutral) || 0);
+      const tot =
+        (Number(sum.aaii.bullish) || 0) +
+        (Number(sum.aaii.bearish) || 0) +
+        (Number(sum.aaii.neutral) || 0);
       if (tot > 0) {
-        const score = ((Number(sum.aaii.bullish) || 0) - (Number(sum.aaii.bearish) || 0)) / tot;
-        components.push({ name: 'AAII Retail', value: 50 + score * 50 });
+        const score =
+          ((Number(sum.aaii.bullish) || 0) - (Number(sum.aaii.bearish) || 0)) /
+          tot;
+        components.push({ name: "AAII Retail", value: 50 + score * 50 });
       }
     }
     if (sum.naaim?.naaim_number_mean != null) {
       // NAAIM ranges 0-100 (sometimes -100 to 200); clamp to 0-100
       const v = Number(sum.naaim.naaim_number_mean);
-      components.push({ name: 'NAAIM Pro', value: Math.min(100, Math.max(0, v)) });
+      components.push({
+        name: "NAAIM Pro",
+        value: Math.min(100, Math.max(0, v)),
+      });
     }
     if (sum.analyst) {
       const tot = Number(sum.analyst.analyst_count) || 0;
       if (tot > 0) {
         const bull = Number(sum.analyst.bullish_count) || 0;
         const bear = Number(sum.analyst.bearish_count) || 0;
-        components.push({ name: 'Analyst', value: 50 + ((bull - bear) / tot) * 50 });
+        components.push({
+          name: "Analyst",
+          value: 50 + ((bull - bear) / tot) * 50,
+        });
       }
     }
     if (components.length === 0) return null;
-    const score = components.reduce((s, c) => s + c.value, 0) / components.length;
+    const score =
+      components.reduce((s, c) => s + c.value, 0) / components.length;
     return { score: Math.round(score), components };
   }, [summaryQ.data]);
 
   // Sentiment 7d change leaders (analyst-derived, comparing latest vs 7-day-ago bull−bear %)
   const changeLeaders = useMemo(() => {
     const byDate = {};
-    const divItems = Array.isArray(divergenceQ.data) ? divergenceQ.data : (divergenceQ.data?.items || []);
+    const divItems = Array.isArray(divergenceQ.data)
+      ? divergenceQ.data
+      : divergenceQ.data?.items || [];
     const items = Array.isArray(divItems) ? divItems : [];
     items.forEach((row) => {
       if (!row || !row.symbol || !row.date) return;
@@ -243,13 +320,20 @@ function SentimentContent() {
       rows.sort((a, b) => new Date(b.date) - new Date(a.date));
       if (rows.length < 2) return;
       const cur = rows[0];
-      const prev = rows.find((r) => {
-        const days = (new Date(cur.date) - new Date(r.date)) / 86400000;
-        return days >= 5;
-      }) || rows[rows.length - 1];
-      const curScore = (Number(cur.bull_percent) || 0) - (Number(cur.bear_percent) || 0);
-      const prevScore = (Number(prev.bull_percent) || 0) - (Number(prev.bear_percent) || 0);
-      moves.push({ symbol: sym, change: curScore - prevScore, current: curScore });
+      const prev =
+        rows.find((r) => {
+          const days = (new Date(cur.date) - new Date(r.date)) / 86400000;
+          return days >= 5;
+        }) || rows[rows.length - 1];
+      const curScore =
+        (Number(cur.bull_percent) || 0) - (Number(cur.bear_percent) || 0);
+      const prevScore =
+        (Number(prev.bull_percent) || 0) - (Number(prev.bear_percent) || 0);
+      moves.push({
+        symbol: sym,
+        change: curScore - prevScore,
+        current: curScore,
+      });
     });
     moves.sort((a, b) => b.change - a.change);
     return {
@@ -262,7 +346,9 @@ function SentimentContent() {
   // and inverse (potential traps): high analyst sentiment + low algo composite.
   const contrarianSetups = useMemo(() => {
     const scoreMap = new Map();
-    const scoresList = Array.isArray(scoresQ.data) ? scoresQ.data : (scoresQ.data?.items || []);
+    const scoresList = Array.isArray(scoresQ.data)
+      ? scoresQ.data
+      : scoresQ.data?.items || [];
     const scores = Array.isArray(scoresList) ? scoresList : [];
     scores.forEach((s) => {
       if (s && s.symbol) scoreMap.set(s.symbol, s);
@@ -272,12 +358,14 @@ function SentimentContent() {
       .filter((s) => s.compositeScore != null)
       .map((s) => {
         const algo = scoreMap.get(s.symbol);
-        return algo ? {
-          symbol: s.symbol,
-          analystScore: s.compositeScore,
-          algoComposite: Number(algo.composite_score),
-          sector: algo.sector,
-        } : null;
+        return algo
+          ? {
+              symbol: s.symbol,
+              analystScore: s.compositeScore,
+              algoComposite: Number(algo.composite_score),
+              sector: algo.sector,
+            }
+          : null;
       })
       .filter((s) => s && !isNaN(s.algoComposite));
     const buys = merged
@@ -291,7 +379,11 @@ function SentimentContent() {
 
   // Analyst rating funnel across the universe
   const ratingFunnel = useMemo(() => {
-    let strongBuy = 0, buy = 0, hold = 0, sell = 0, strongSell = 0;
+    let strongBuy = 0,
+      buy = 0,
+      hold = 0,
+      sell = 0,
+      strongSell = 0;
     const list = Array.isArray(stocksList) ? stocksList : [];
     list.forEach((s) => {
       const a = s.latestAnalyst;
@@ -310,11 +402,11 @@ function SentimentContent() {
       else hold++;
     });
     return [
-      { name: 'Strong Buy',  value: strongBuy,  fill: 'var(--success)' },
-      { name: 'Buy',         value: buy,        fill: 'var(--cyan)'    },
-      { name: 'Hold',        value: hold,       fill: 'var(--amber)'   },
-      { name: 'Sell',        value: sell,       fill: 'var(--purple)'  },
-      { name: 'Strong Sell', value: strongSell, fill: 'var(--danger)'  },
+      { name: "Strong Buy", value: strongBuy, fill: "var(--success)" },
+      { name: "Buy", value: buy, fill: "var(--cyan)" },
+      { name: "Hold", value: hold, fill: "var(--amber)" },
+      { name: "Sell", value: sell, fill: "var(--purple)" },
+      { name: "Strong Sell", value: strongSell, fill: "var(--danger)" },
     ];
   }, [stocksList]);
 
@@ -324,7 +416,8 @@ function SentimentContent() {
         <div>
           <div className="page-head-title">Market Sentiment</div>
           <div className="page-head-sub">
-            Analyst ratings · price targets · social discussion · composite scoring
+            Analyst ratings · price targets · social discussion · composite
+            scoring
           </div>
         </div>
         <div className="page-head-actions">
@@ -335,29 +428,46 @@ function SentimentContent() {
       </div>
 
       <div className="grid grid-4">
-        <Kpi label="Symbols Tracked" value={<span className="mono tnum">{stats.total}</span>} />
-        <Kpi label="Bullish"
-             value={<span className="mono tnum up">{stats.bull}</span>}
-             sub={stats.total ? pct((stats.bull / stats.total) * 100, 1) : '—'} />
-        <Kpi label="Bearish"
-             value={<span className="mono tnum down">{stats.bear}</span>}
-             sub={stats.total ? pct((stats.bear / stats.total) * 100, 1) : '—'} />
-        <Kpi label="Neutral / Unknown"
-             value={<span className="mono tnum">{stats.neutral + stats.unknown}</span>}
-             sub={stats.total ? pct(((stats.neutral + stats.unknown) / stats.total) * 100, 1) : '—'} />
+        <Kpi
+          label="Symbols Tracked"
+          value={<span className="mono tnum">{stats.total}</span>}
+        />
+        <Kpi
+          label="Bullish"
+          value={<span className="mono tnum up">{stats.bull}</span>}
+          sub={stats.total ? pct((stats.bull / stats.total) * 100, 1) : "—"}
+        />
+        <Kpi
+          label="Bearish"
+          value={<span className="mono tnum down">{stats.bear}</span>}
+          sub={stats.total ? pct((stats.bear / stats.total) * 100, 1) : "—"}
+        />
+        <Kpi
+          label="Neutral / Unknown"
+          value={
+            <span className="mono tnum">{stats.neutral + stats.unknown}</span>
+          }
+          sub={
+            stats.total
+              ? pct(((stats.neutral + stats.unknown) / stats.total) * 100, 1)
+              : "—"
+          }
+        />
       </div>
 
       <Tabs tabs={TABS} value={tab} onChange={setTab} />
 
-      <div style={{ marginTop: 'var(--space-4)' }}>
+      <div style={{ marginTop: "var(--space-4)" }}>
         {error && (
           <div className="alert alert-danger">
             <AlertCircle size={16} />
-            <div>Failed to load sentiment data: {error?.message || 'Unknown error'}</div>
+            <div>
+              Failed to load sentiment data: {error?.message || "Unknown error"}
+            </div>
           </div>
         )}
 
-        {tab === 'overview' && (
+        {tab === "overview" && (
           <OverviewTab
             isLoading={isLoading}
             filtered={filtered}
@@ -374,11 +484,15 @@ function SentimentContent() {
             changeLeaders={changeLeaders}
             contrarianSetups={contrarianSetups}
             ratingFunnel={ratingFunnel}
-            divergenceData={Array.isArray(divergenceQ.data) ? divergenceQ.data : (divergenceQ.data?.items || [])}
+            divergenceData={
+              Array.isArray(divergenceQ.data)
+                ? divergenceQ.data
+                : divergenceQ.data?.items || []
+            }
           />
         )}
 
-        {tab === 'analyst' && (
+        {tab === "analyst" && (
           <AnalystTab
             stocks={filtered}
             isLoading={isLoading}
@@ -392,47 +506,81 @@ function SentimentContent() {
 }
 
 function OverviewTab({
-  isLoading, filtered, searchFilter, setSearchFilter,
-  filterSentiment, setFilterSentiment, sortBy, setSortBy,
-  selectedSymbol, setSelectedSymbol, selectedStock,
-  compositeGauge, changeLeaders, contrarianSetups, ratingFunnel,
+  isLoading,
+  filtered,
+  searchFilter,
+  setSearchFilter,
+  filterSentiment,
+  setFilterSentiment,
+  sortBy,
+  setSortBy,
+  selectedSymbol,
+  setSelectedSymbol,
+  selectedStock,
+  compositeGauge,
+  changeLeaders,
+  contrarianSetups,
+  ratingFunnel,
   divergenceData,
 }) {
   return (
     <>
       {/* Composite gauge + funnel + change leaders */}
-      <div className="grid grid-2" style={{ marginBottom: 'var(--space-4)' }}>
+      <div className="grid grid-2" style={{ marginBottom: "var(--space-4)" }}>
         <CompositeGauge gauge={compositeGauge} />
         <RatingFunnel data={ratingFunnel} />
       </div>
 
-      <div className="grid grid-2" style={{ marginBottom: 'var(--space-4)' }}>
-        <ChangeLeadersCard title="Sentiment 7-Day Gainers" rows={changeLeaders.gainers} tone="up" setSel={setSelectedSymbol} />
-        <ChangeLeadersCard title="Sentiment 7-Day Decliners" rows={changeLeaders.decliners} tone="down" setSel={setSelectedSymbol} />
+      <div className="grid grid-2" style={{ marginBottom: "var(--space-4)" }}>
+        <ChangeLeadersCard
+          title="Sentiment 7-Day Gainers"
+          rows={changeLeaders.gainers}
+          tone="up"
+          setSel={setSelectedSymbol}
+        />
+        <ChangeLeadersCard
+          title="Sentiment 7-Day Decliners"
+          rows={changeLeaders.decliners}
+          tone="down"
+          setSel={setSelectedSymbol}
+        />
       </div>
 
-      <div className="grid grid-2" style={{ marginBottom: 'var(--space-4)' }}>
-        <ContrarianCard title="Contrarian Buys (bearish sentiment, strong algo)"
-                        desc="Analyst score < 0, composite ≥ 70 — potential mispricing"
-                        rows={contrarianSetups.buys}
-                        tone="up"
-                        setSel={setSelectedSymbol} />
-        <ContrarianCard title="Potential Traps (bullish sentiment, weak algo)"
-                        desc="Analyst score > 0.3, composite < 50 — buyer-beware"
-                        rows={contrarianSetups.traps}
-                        tone="down"
-                        setSel={setSelectedSymbol} />
+      <div className="grid grid-2" style={{ marginBottom: "var(--space-4)" }}>
+        <ContrarianCard
+          title="Contrarian Buys (bearish sentiment, strong algo)"
+          desc="Analyst score < 0, composite ≥ 70 — potential mispricing"
+          rows={contrarianSetups.buys}
+          tone="up"
+          setSel={setSelectedSymbol}
+        />
+        <ContrarianCard
+          title="Potential Traps (bullish sentiment, weak algo)"
+          desc="Analyst score > 0.3, composite < 50 — buyer-beware"
+          rows={contrarianSetups.traps}
+          tone="down"
+          setSel={setSelectedSymbol}
+        />
       </div>
 
       <DivergenceTimeline rows={divergenceData} />
 
-      <div className="card" style={{ marginTop: 'var(--space-4)' }}>
+      <div className="card" style={{ marginTop: "var(--space-4)" }}>
         <div className="card-body">
-          <div className="flex items-center gap-3" style={{ flexWrap: 'wrap' }}>
-            <div style={{ position: 'relative', flex: '1 1 240px', minWidth: 240 }}>
-              <Search size={14}
-                      style={{ position: 'absolute', left: 10, top: '50%',
-                               transform: 'translateY(-50%)', color: 'var(--text-3)' }} />
+          <div className="flex items-center gap-3" style={{ flexWrap: "wrap" }}>
+            <div
+              style={{ position: "relative", flex: "1 1 240px", minWidth: 240 }}
+            >
+              <Search
+                size={14}
+                style={{
+                  position: "absolute",
+                  left: 10,
+                  top: "50%",
+                  transform: "translateY(-50%)",
+                  color: "var(--text-3)",
+                }}
+              />
               <input
                 className="input"
                 placeholder="Filter by symbol (e.g. AAPL)"
@@ -441,39 +589,54 @@ function OverviewTab({
                 style={{ paddingLeft: 32 }}
               />
             </div>
-            <select className="select" value={filterSentiment}
-                    onChange={(e) => setFilterSentiment(e.target.value)}>
+            <select
+              className="select"
+              value={filterSentiment}
+              onChange={(e) => setFilterSentiment(e.target.value)}
+            >
               <option value="all">All sentiment</option>
               <option value="bullish">Bullish</option>
               <option value="neutral">Neutral</option>
               <option value="bearish">Bearish</option>
             </select>
-            <select className="select" value={sortBy}
-                    onChange={(e) => setSortBy(e.target.value)}>
+            <select
+              className="select"
+              value={sortBy}
+              onChange={(e) => setSortBy(e.target.value)}
+            >
               <option value="composite">Sort: Composite</option>
               <option value="symbol">Sort: Symbol A-Z</option>
             </select>
-            <span className="t-xs muted" style={{ marginLeft: 'auto' }}>
-              {filtered.length} symbol{filtered.length === 1 ? '' : 's'}
+            <span className="t-xs muted" style={{ marginLeft: "auto" }}>
+              {filtered.length} symbol{filtered.length === 1 ? "" : "s"}
             </span>
           </div>
         </div>
       </div>
 
-      <div className="card" style={{ marginTop: 'var(--space-4)' }}>
+      <div className="card" style={{ marginTop: "var(--space-4)" }}>
         <div className="card-head">
           <div>
             <div className="card-title">Stock Sentiment Table</div>
-            <div className="card-sub">Click a row to drill into per-symbol details</div>
+            <div className="card-sub">
+              Click a row to drill into per-symbol details
+            </div>
           </div>
         </div>
         <div className="card-body" style={{ padding: 0 }}>
           {isLoading ? (
             <Empty title="Loading sentiment…" />
           ) : filtered.length === 0 ? (
-            <Empty title="No symbols match" desc={searchFilter ? `No data for "${searchFilter}"` : 'No sentiment data available'} />
+            <Empty
+              title="No symbols match"
+              desc={
+                searchFilter
+                  ? `No data for "${searchFilter}"`
+                  : "No sentiment data available"
+              }
+            />
           ) : (
-            <div style={{ maxHeight: '60vh', overflow: 'auto' }}>
+            <div style={{ maxHeight: "60vh", overflow: "auto" }}>
               <table className="data-table">
                 <thead>
                   <tr>
@@ -495,30 +658,53 @@ function OverviewTab({
                     const upside = parseFloat(a.upside_downside_percent);
                     const lab = sentimentLabel(s.compositeScore);
                     return (
-                      <tr key={s.symbol}
-                          onClick={() => setSelectedSymbol(s.symbol)}
-                          style={{
-                            cursor: 'pointer',
-                            background: s.symbol === selectedSymbol ? 'var(--brand-soft)' : undefined,
-                          }}>
-                        <td><span className="strong">{s.symbol}</span></td>
+                      <tr
+                        key={s.symbol}
+                        onClick={() => setSelectedSymbol(s.symbol)}
+                        style={{
+                          cursor: "pointer",
+                          background:
+                            s.symbol === selectedSymbol
+                              ? "var(--brand-soft)"
+                              : undefined,
+                        }}
+                      >
+                        <td>
+                          <span className="strong">{s.symbol}</span>
+                        </td>
                         <td className="num mono tnum">
-                          {s.compositeScore != null ? s.compositeScore.toFixed(2) : '—'}
+                          {s.compositeScore != null
+                            ? s.compositeScore.toFixed(2)
+                            : "—"}
                         </td>
                         <td>
                           <span className={`badge ${lab.cls}`}>
                             {sentimentIcon(s.compositeScore)} {lab.label}
                           </span>
                         </td>
-                        <td className="num mono tnum">{a.analyst_count ?? 0}</td>
-                        <td className="num mono tnum up">{a.bullish_count ?? 0}</td>
-                        <td className="num mono tnum muted">{a.neutral_count ?? 0}</td>
-                        <td className="num mono tnum down">{a.bearish_count ?? 0}</td>
-                        <td className="num mono tnum">{money(a.target_price)}</td>
-                        <td className="num mono tnum">{money(a.current_price)}</td>
+                        <td className="num mono tnum">
+                          {a.analyst_count ?? 0}
+                        </td>
+                        <td className="num mono tnum up">
+                          {a.bullish_count ?? 0}
+                        </td>
+                        <td className="num mono tnum muted">
+                          {a.neutral_count ?? 0}
+                        </td>
+                        <td className="num mono tnum down">
+                          {a.bearish_count ?? 0}
+                        </td>
+                        <td className="num mono tnum">
+                          {money(a.target_price)}
+                        </td>
+                        <td className="num mono tnum">
+                          {money(a.current_price)}
+                        </td>
                         <td className="num">
-                          <span className={`mono tnum ${upside > 0 ? 'up' : upside < 0 ? 'down' : 'muted'}`}>
-                            {isNaN(upside) ? '—' : pct(upside)}
+                          <span
+                            className={`mono tnum ${upside > 0 ? "up" : upside < 0 ? "down" : "muted"}`}
+                          >
+                            {isNaN(upside) ? "—" : pct(upside)}
                           </span>
                         </td>
                       </tr>
@@ -531,7 +717,12 @@ function OverviewTab({
         </div>
       </div>
 
-      {selectedStock && <StockDetail stock={selectedStock} onClose={() => setSelectedSymbol(null)} />}
+      {selectedStock && (
+        <StockDetail
+          stock={selectedStock}
+          onClose={() => setSelectedSymbol(null)}
+        />
+      )}
     </>
   );
 }
@@ -561,12 +752,15 @@ function StockDetail({ stock, onClose }) {
 
   return (
     <>
-      <div className="card" style={{ marginTop: 'var(--space-4)' }}>
+      <div className="card" style={{ marginTop: "var(--space-4)" }}>
         <div className="card-head">
           <div>
             <div className="card-title">{stock.symbol} · Sentiment Detail</div>
             <div className="card-sub">
-              Analyst-derived score · {stock.divergence?.isDiverged ? 'divergent sources' : 'aligned sources'}
+              Analyst-derived score ·{" "}
+              {stock.divergence?.isDiverged
+                ? "divergent sources"
+                : "aligned sources"}
             </div>
           </div>
           <button className="btn btn-ghost btn-sm" onClick={onClose}>
@@ -575,7 +769,7 @@ function StockDetail({ stock, onClose }) {
         </div>
       </div>
 
-      <div className="grid grid-2" style={{ marginTop: 'var(--space-4)' }}>
+      <div className="grid grid-2" style={{ marginTop: "var(--space-4)" }}>
         <div className="card">
           <div className="card-head">
             <div>
@@ -584,17 +778,28 @@ function StockDetail({ stock, onClose }) {
             </div>
           </div>
           <div className="card-body">
-            <div className="flex items-center justify-between" style={{ marginBottom: 'var(--space-3)' }}>
-              <div className="mono"
-                   style={{ fontSize: 'var(--t-2xl)', fontWeight: 'var(--w-bold)' }}>
-                {stock.compositeScore != null ? stock.compositeScore.toFixed(2) : '—'}
+            <div
+              className="flex items-center justify-between"
+              style={{ marginBottom: "var(--space-3)" }}
+            >
+              <div
+                className="mono"
+                style={{
+                  fontSize: "var(--t-2xl)",
+                  fontWeight: "var(--w-bold)",
+                }}
+              >
+                {stock.compositeScore != null
+                  ? stock.compositeScore.toFixed(2)
+                  : "—"}
               </div>
               <span className={`badge ${lab.cls} badge-lg`}>
                 {sentimentIcon(stock.compositeScore)} {lab.label}
               </span>
             </div>
             <div className="t-xs muted">
-              {a.analyst_count || 0} analysts · {bull} bullish · {neut} neutral · {bear} bearish
+              {a.analyst_count || 0} analysts · {bull} bullish · {neut} neutral
+              · {bear} bearish
             </div>
           </div>
         </div>
@@ -606,19 +811,39 @@ function StockDetail({ stock, onClose }) {
               <div className="card-sub">Daily bull-bear analyst score</div>
             </div>
           </div>
-          <div className="card-body" style={{ height: 200, width: '100%' }}>
+          <div className="card-body" style={{ height: 200, width: "100%" }}>
             {trend.length >= 2 ? (
               <ResponsiveContainer width="100%" height={200}>
-                <LineChart data={trend} margin={{ top: 8, right: 8, left: 0, bottom: 0 }}>
-                  <CartesianGrid stroke="var(--border-soft)" strokeDasharray="2 4" />
-                  <XAxis dataKey="date" tick={{ fill: 'var(--text-3)', fontSize: 10 }}
-                         tickFormatter={(d) => String(d).slice(5)} />
-                  <YAxis tick={{ fill: 'var(--text-3)', fontSize: 10 }} domain={[-1, 1]} width={36} />
+                <LineChart
+                  data={trend}
+                  margin={{ top: 8, right: 8, left: 0, bottom: 0 }}
+                >
+                  <CartesianGrid
+                    stroke="var(--border-soft)"
+                    strokeDasharray="2 4"
+                  />
+                  <XAxis
+                    dataKey="date"
+                    tick={{ fill: "var(--text-3)", fontSize: 10 }}
+                    tickFormatter={(d) => String(d).slice(5)}
+                  />
+                  <YAxis
+                    tick={{ fill: "var(--text-3)", fontSize: 10 }}
+                    domain={[-1, 1]}
+                    width={36}
+                  />
                   <ReferenceLine y={0} stroke="var(--border)" />
-                  <RechartsTooltip contentStyle={TT_STYLE}
-                                   formatter={(v) => [Number(v).toFixed(2), 'Score']} />
-                  <Line type="monotone" dataKey="score" stroke="var(--brand)"
-                        strokeWidth={2} dot={false} />
+                  <RechartsTooltip
+                    contentStyle={TT_STYLE}
+                    formatter={(v) => [Number(v).toFixed(2), "Score"]}
+                  />
+                  <Line
+                    type="monotone"
+                    dataKey="score"
+                    stroke="var(--brand)"
+                    strokeWidth={2}
+                    dot={false}
+                  />
                 </LineChart>
               </ResponsiveContainer>
             ) : (
@@ -631,7 +856,7 @@ function StockDetail({ stock, onClose }) {
         </div>
       </div>
 
-      <div className="grid grid-2" style={{ marginTop: 'var(--space-4)' }}>
+      <div className="grid grid-2" style={{ marginTop: "var(--space-4)" }}>
         <div className="card">
           <div className="card-head">
             <div>
@@ -643,17 +868,23 @@ function StockDetail({ stock, onClose }) {
             <div className="grid grid-3">
               <div className="stile">
                 <div className="stile-label">Bullish</div>
-                <div className="stile-value up">{((bull / total) * 100).toFixed(1)}%</div>
+                <div className="stile-value up">
+                  {((bull / total) * 100).toFixed(1)}%
+                </div>
                 <div className="stile-sub">{bull} analysts</div>
               </div>
               <div className="stile">
                 <div className="stile-label">Neutral</div>
-                <div className="stile-value">{((neut / total) * 100).toFixed(1)}%</div>
+                <div className="stile-value">
+                  {((neut / total) * 100).toFixed(1)}%
+                </div>
                 <div className="stile-sub">{neut} analysts</div>
               </div>
               <div className="stile">
                 <div className="stile-label">Bearish</div>
-                <div className="stile-value down">{((bear / total) * 100).toFixed(1)}%</div>
+                <div className="stile-value down">
+                  {((bear / total) * 100).toFixed(1)}%
+                </div>
                 <div className="stile-sub">{bear} analysts</div>
               </div>
             </div>
@@ -681,8 +912,10 @@ function StockDetail({ stock, onClose }) {
               </div>
               <div className="stile">
                 <div className="stile-label">Upside</div>
-                <div className={`stile-value ${upside > 0 ? 'up' : upside < 0 ? 'down' : ''}`}>
-                  {isNaN(upside) ? '—' : pct(upside)}
+                <div
+                  className={`stile-value ${upside > 0 ? "up" : upside < 0 ? "down" : ""}`}
+                >
+                  {isNaN(upside) ? "—" : pct(upside)}
                 </div>
                 <div className="stile-sub">vs current</div>
               </div>
@@ -691,7 +924,7 @@ function StockDetail({ stock, onClose }) {
         </div>
       </div>
 
-      <div className="card" style={{ marginTop: 'var(--space-4)' }}>
+      <div className="card" style={{ marginTop: "var(--space-4)" }}>
         <div className="card-head">
           <div>
             <div className="card-title">Recent Sentiment Data</div>
@@ -718,16 +951,26 @@ function StockDetail({ stock, onClose }) {
                 {stock.allData.slice(0, 10).map((row, i) => (
                   <tr key={`${stock.symbol}-${i}`}>
                     <td className="t-xs muted">{fmtDate(row.date)}</td>
-                    <td><span className="badge">{row.source || 'analyst'}</span></td>
+                    <td>
+                      <span className="badge">{row.source || "analyst"}</span>
+                    </td>
                     <td className="num">
                       <span className={scoreToBadge(row.sentiment_score)}>
                         {num(row.sentiment_score)}
                       </span>
                     </td>
-                    <td className="num mono tnum up">{row.bullish_count ?? row.positive_mentions ?? '—'}</td>
-                    <td className="num mono tnum muted">{row.neutral_count ?? row.neutral_mentions ?? '—'}</td>
-                    <td className="num mono tnum down">{row.bearish_count ?? row.negative_mentions ?? '—'}</td>
-                    <td className="num mono tnum">{row.analyst_count ?? row.total_mentions ?? '—'}</td>
+                    <td className="num mono tnum up">
+                      {row.bullish_count ?? row.positive_mentions ?? "—"}
+                    </td>
+                    <td className="num mono tnum muted">
+                      {row.neutral_count ?? row.neutral_mentions ?? "—"}
+                    </td>
+                    <td className="num mono tnum down">
+                      {row.bearish_count ?? row.negative_mentions ?? "—"}
+                    </td>
+                    <td className="num mono tnum">
+                      {row.analyst_count ?? row.total_mentions ?? "—"}
+                    </td>
                   </tr>
                 ))}
               </tbody>
@@ -746,11 +989,16 @@ function AnalystTab({ stocks, isLoading, selectedSymbol, setSelectedSymbol }) {
       <>
         <div className="alert alert-info">
           <Activity size={16} />
-          <div>Select a symbol to view comprehensive analyst metrics, price targets, and recent actions.</div>
+          <div>
+            Select a symbol to view comprehensive analyst metrics, price
+            targets, and recent actions.
+          </div>
         </div>
-        <div className="card" style={{ marginTop: 'var(--space-4)' }}>
+        <div className="card" style={{ marginTop: "var(--space-4)" }}>
           <div className="card-body" style={{ padding: 0 }}>
-            {stocks.length === 0 ? <Empty title="No symbols" /> : (
+            {stocks.length === 0 ? (
+              <Empty title="No symbols" />
+            ) : (
               <table className="data-table">
                 <thead>
                   <tr>
@@ -764,14 +1012,27 @@ function AnalystTab({ stocks, isLoading, selectedSymbol, setSelectedSymbol }) {
                   {stocks.slice(0, 50).map((s) => {
                     const lab = sentimentLabel(s.compositeScore);
                     return (
-                      <tr key={s.symbol} onClick={() => setSelectedSymbol(s.symbol)}
-                          style={{ cursor: 'pointer' }}>
-                        <td><span className="strong">{s.symbol}</span></td>
-                        <td><span className={`badge ${lab.cls}`}>{lab.label}</span></td>
-                        <td className="num mono tnum">
-                          {s.compositeScore != null ? s.compositeScore.toFixed(2) : '—'}
+                      <tr
+                        key={s.symbol}
+                        onClick={() => setSelectedSymbol(s.symbol)}
+                        style={{ cursor: "pointer" }}
+                      >
+                        <td>
+                          <span className="strong">{s.symbol}</span>
                         </td>
-                        <td className="num mono tnum">{s.latestAnalyst?.analyst_count ?? 0}</td>
+                        <td>
+                          <span className={`badge ${lab.cls}`}>
+                            {lab.label}
+                          </span>
+                        </td>
+                        <td className="num mono tnum">
+                          {s.compositeScore != null
+                            ? s.compositeScore.toFixed(2)
+                            : "—"}
+                        </td>
+                        <td className="num mono tnum">
+                          {s.latestAnalyst?.analyst_count ?? 0}
+                        </td>
                       </tr>
                     );
                   })}
@@ -783,18 +1044,28 @@ function AnalystTab({ stocks, isLoading, selectedSymbol, setSelectedSymbol }) {
       </>
     );
   }
-  return <AnalystInsights symbol={selectedSymbol} onClose={() => setSelectedSymbol(null)} />;
+  return (
+    <AnalystInsights
+      symbol={selectedSymbol}
+      onClose={() => setSelectedSymbol(null)}
+    />
+  );
 }
 
 function AnalystInsights({ symbol, onClose }) {
   const { data, isLoading, error } = useQuery({
-    queryKey: ['analyst-insights', symbol],
-    queryFn: () => api.get(`/api/sentiment/analyst/insights/${symbol}`)
-      .then((r) => r?.data?.data || r?.data || null)
-      .catch((err) => {
-        console.error('[AnalystInsights] Failed to fetch analyst insights:', err?.message || err);
-        throw err;
-      }),
+    queryKey: ["analyst-insights", symbol],
+    queryFn: () =>
+      api
+        .get(`/api/sentiment/analyst/insights/${symbol}`)
+        .then((r) => r?.data?.data || r?.data || null)
+        .catch((err) => {
+          console.error(
+            "[AnalystInsights] Failed to fetch analyst insights:",
+            err?.message || err
+          );
+          throw err;
+        }),
     enabled: !!symbol,
   });
 
@@ -810,7 +1081,9 @@ function AnalystInsights({ symbol, onClose }) {
         <div className="card-head">
           <div>
             <div className="card-title">{symbol} · Analyst Insights</div>
-            <div className="card-sub">Distribution · momentum · price targets · coverage</div>
+            <div className="card-sub">
+              Distribution · momentum · price targets · coverage
+            </div>
           </div>
           <button className="btn btn-ghost btn-sm" onClick={onClose}>
             <ArrowLeft size={14} /> Back
@@ -819,58 +1092,97 @@ function AnalystInsights({ symbol, onClose }) {
       </div>
 
       {error && (
-        <div className="alert alert-danger" style={{ marginTop: 'var(--space-4)' }}>
+        <div
+          className="alert alert-danger"
+          style={{ marginTop: "var(--space-4)" }}
+        >
           <AlertCircle size={16} />
-          <div>{error.message || 'Failed to load analyst insights'}</div>
+          <div>{error.message || "Failed to load analyst insights"}</div>
         </div>
       )}
 
-      {isLoading ? <Empty title="Loading analyst insights…" />
-       : !data ? <Empty title="No analyst data" desc={`No insights available for ${symbol}`} />
-       : (
+      {isLoading ? (
+        <Empty title="Loading analyst insights…" />
+      ) : !data ? (
+        <Empty
+          title="No analyst data"
+          desc={`No insights available for ${symbol}`}
+        />
+      ) : (
         <>
           {metrics && (
-            <div className="grid grid-4" style={{ marginTop: 'var(--space-4)' }}>
-              <Stile label="Bullish" value={<span className="up">{metrics.bullishPercent}%</span>}
-                     sub={`${metrics.bullish} analysts`} />
-              <Stile label="Neutral" value={<span>{metrics.neutralPercent}%</span>}
-                     sub={`${metrics.neutral} analysts`} />
-              <Stile label="Bearish" value={<span className="down">{metrics.bearishPercent}%</span>}
-                     sub={`${metrics.bearish} analysts`} />
-              <Stile label="Coverage" value={metrics.totalAnalysts}
-                     sub="analysts covering" />
+            <div
+              className="grid grid-4"
+              style={{ marginTop: "var(--space-4)" }}
+            >
+              <Stile
+                label="Bullish"
+                value={<span className="up">{metrics.bullishPercent}%</span>}
+                sub={`${metrics.bullish} analysts`}
+              />
+              <Stile
+                label="Neutral"
+                value={<span>{metrics.neutralPercent}%</span>}
+                sub={`${metrics.neutral} analysts`}
+              />
+              <Stile
+                label="Bearish"
+                value={<span className="down">{metrics.bearishPercent}%</span>}
+                sub={`${metrics.bearish} analysts`}
+              />
+              <Stile
+                label="Coverage"
+                value={metrics.totalAnalysts}
+                sub="analysts covering"
+              />
             </div>
           )}
 
           {metrics?.avgPriceTarget != null && (
-            <div className="grid grid-3" style={{ marginTop: 'var(--space-4)' }}>
-              <Stile label="Avg Target"
-                     value={`$${typeof metrics.avgPriceTarget === 'number'
-                       ? metrics.avgPriceTarget.toFixed(2)
-                       : parseFloat(metrics.avgPriceTarget).toFixed(2)}`}
-                     sub="consensus" />
+            <div
+              className="grid grid-3"
+              style={{ marginTop: "var(--space-4)" }}
+            >
+              <Stile
+                label="Avg Target"
+                value={`$${
+                  typeof metrics.avgPriceTarget === "number"
+                    ? metrics.avgPriceTarget.toFixed(2)
+                    : parseFloat(metrics.avgPriceTarget).toFixed(2)
+                }`}
+                sub="consensus"
+              />
               {metrics.priceTargetVsCurrent != null && (
-                <Stile label="Upside / Downside"
-                       value={
-                         <span className={metrics.priceTargetVsCurrent > 0 ? 'up' : 'down'}>
-                           {metrics.priceTargetVsCurrent > 0 ? '+' : ''}
-                           {typeof metrics.priceTargetVsCurrent === 'number'
-                             ? metrics.priceTargetVsCurrent.toFixed(1)
-                             : parseFloat(metrics.priceTargetVsCurrent).toFixed(1)}%
-                         </span>
-                       }
-                       sub="vs current price" />
+                <Stile
+                  label="Upside / Downside"
+                  value={
+                    <span
+                      className={
+                        metrics.priceTargetVsCurrent > 0 ? "up" : "down"
+                      }
+                    >
+                      {metrics.priceTargetVsCurrent > 0 ? "+" : ""}
+                      {typeof metrics.priceTargetVsCurrent === "number"
+                        ? metrics.priceTargetVsCurrent.toFixed(1)
+                        : parseFloat(metrics.priceTargetVsCurrent).toFixed(1)}
+                      %
+                    </span>
+                  }
+                  sub="vs current price"
+                />
               )}
               {coverage && (
-                <Stile label="Firms"
-                       value={coverage.totalFirms || 0}
-                       sub="firms covering" />
+                <Stile
+                  label="Firms"
+                  value={coverage.totalFirms || 0}
+                  sub="firms covering"
+                />
               )}
             </div>
           )}
 
           {momentum && (
-            <div className="card" style={{ marginTop: 'var(--space-4)' }}>
+            <div className="card" style={{ marginTop: "var(--space-4)" }}>
               <div className="card-head">
                 <div>
                   <div className="card-title">30-Day Analyst Actions</div>
@@ -879,25 +1191,47 @@ function AnalystInsights({ symbol, onClose }) {
               </div>
               <div className="card-body">
                 <div className="grid grid-3">
-                  <Stile label="Upgrades" value={<span className="up">{momentum.upgrades30d ?? 0}</span>} />
-                  <Stile label="Downgrades" value={<span className="down">{momentum.downgrades30d ?? 0}</span>} />
-                  <Stile label="Net Momentum"
-                         value={
-                           <span className={
-                             (momentum.upgrades30d - momentum.downgrades30d) > 0 ? 'up' :
-                             (momentum.upgrades30d - momentum.downgrades30d) < 0 ? 'down' : ''
-                           }>
-                             {(momentum.upgrades30d - momentum.downgrades30d) > 0 ? '+' : ''}
-                             {(momentum.upgrades30d ?? 0) - (momentum.downgrades30d ?? 0)}
-                           </span>
-                         } />
+                  <Stile
+                    label="Upgrades"
+                    value={
+                      <span className="up">{momentum.upgrades30d ?? 0}</span>
+                    }
+                  />
+                  <Stile
+                    label="Downgrades"
+                    value={
+                      <span className="down">
+                        {momentum.downgrades30d ?? 0}
+                      </span>
+                    }
+                  />
+                  <Stile
+                    label="Net Momentum"
+                    value={
+                      <span
+                        className={
+                          momentum.upgrades30d - momentum.downgrades30d > 0
+                            ? "up"
+                            : momentum.upgrades30d - momentum.downgrades30d < 0
+                              ? "down"
+                              : ""
+                        }
+                      >
+                        {momentum.upgrades30d - momentum.downgrades30d > 0
+                          ? "+"
+                          : ""}
+                        {(momentum.upgrades30d ?? 0) -
+                          (momentum.downgrades30d ?? 0)}
+                      </span>
+                    }
+                  />
                 </div>
               </div>
             </div>
           )}
 
           {priceTargets.length > 0 && (
-            <div className="card" style={{ marginTop: 'var(--space-4)' }}>
+            <div className="card" style={{ marginTop: "var(--space-4)" }}>
               <div className="card-head">
                 <div>
                   <div className="card-title">Price Targets by Firm</div>
@@ -919,19 +1253,28 @@ function AnalystInsights({ symbol, onClose }) {
                     {priceTargets.slice(0, 10).map((t, i) => {
                       const cur = parseFloat(t.target_price);
                       const prev = parseFloat(t.previous_target_price);
-                      const diff = !isNaN(cur) && !isNaN(prev) ? cur - prev : null;
+                      const diff =
+                        !isNaN(cur) && !isNaN(prev) ? cur - prev : null;
                       return (
                         <tr key={`${t.analyst_firm}-${i}`}>
                           <td>{t.analyst_firm}</td>
                           <td className="num mono tnum">{money(cur)}</td>
                           <td className="num mono tnum muted">{money(prev)}</td>
                           <td className="num">
-                            {diff == null ? <span className="muted">—</span> :
-                              <span className={`badge ${diff > 0 ? 'badge-success' : 'badge-danger'}`}>
-                                {diff > 0 ? '+' : ''}{diff.toFixed(2)}
-                              </span>}
+                            {diff == null ? (
+                              <span className="muted">—</span>
+                            ) : (
+                              <span
+                                className={`badge ${diff > 0 ? "badge-success" : "badge-danger"}`}
+                              >
+                                {diff > 0 ? "+" : ""}
+                                {diff.toFixed(2)}
+                              </span>
+                            )}
                           </td>
-                          <td className="t-xs muted">{fmtDate(t.target_date)}</td>
+                          <td className="t-xs muted">
+                            {fmtDate(t.target_date)}
+                          </td>
                         </tr>
                       );
                     })}
@@ -942,11 +1285,13 @@ function AnalystInsights({ symbol, onClose }) {
           )}
 
           {recentUpgrades.length > 0 && (
-            <div className="card" style={{ marginTop: 'var(--space-4)' }}>
+            <div className="card" style={{ marginTop: "var(--space-4)" }}>
               <div className="card-head">
                 <div>
                   <div className="card-title">Recent Analyst Actions</div>
-                  <div className="card-sub">Upgrades · downgrades · maintains</div>
+                  <div className="card-sub">
+                    Upgrades · downgrades · maintains
+                  </div>
                 </div>
               </div>
               <div className="card-body" style={{ padding: 0 }}>
@@ -963,19 +1308,34 @@ function AnalystInsights({ symbol, onClose }) {
                   </thead>
                   <tbody>
                     {recentUpgrades.slice(0, 10).map((u, i) => {
-                      const action = String(u.action || '').toLowerCase();
-                      const cls = action === 'up' ? 'badge-success' :
-                                  action === 'down' ? 'badge-danger' : '';
-                      const arrow = action === 'up' ? <TrendingUp size={12} /> :
-                                    action === 'down' ? <TrendingDown size={12} /> :
-                                    <Minus size={12} />;
+                      const action = String(u.action || "").toLowerCase();
+                      const cls =
+                        action === "up"
+                          ? "badge-success"
+                          : action === "down"
+                            ? "badge-danger"
+                            : "";
+                      const arrow =
+                        action === "up" ? (
+                          <TrendingUp size={12} />
+                        ) : action === "down" ? (
+                          <TrendingDown size={12} />
+                        ) : (
+                          <Minus size={12} />
+                        );
                       return (
                         <tr key={`${u.firm}-${i}`}>
                           <td>{u.firm}</td>
-                          <td><span className={`badge ${cls}`}>{arrow} {u.action || '—'}</span></td>
-                          <td className="t-xs muted">{u.from_grade || '—'}</td>
-                          <td><span className="badge">{u.to_grade || '—'}</span></td>
-                          <td className="t-xs">{u.details || '—'}</td>
+                          <td>
+                            <span className={`badge ${cls}`}>
+                              {arrow} {u.action || "—"}
+                            </span>
+                          </td>
+                          <td className="t-xs muted">{u.from_grade || "—"}</td>
+                          <td>
+                            <span className="badge">{u.to_grade || "—"}</span>
+                          </td>
+                          <td className="t-xs">{u.details || "—"}</td>
                           <td className="t-xs muted">{fmtDate(u.date)}</td>
                         </tr>
                       );
@@ -987,23 +1347,37 @@ function AnalystInsights({ symbol, onClose }) {
           )}
 
           {coverage?.firms?.length > 0 && (
-            <div className="card" style={{ marginTop: 'var(--space-4)' }}>
+            <div className="card" style={{ marginTop: "var(--space-4)" }}>
               <div className="card-head">
                 <div>
-                  <div className="card-title">Coverage ({coverage.totalFirms} firms)</div>
+                  <div className="card-title">
+                    Coverage ({coverage.totalFirms} firms)
+                  </div>
                   <div className="card-sub">Active analyst coverage</div>
                 </div>
               </div>
               <div className="card-body">
                 <div className="grid grid-3">
                   {coverage.firms.slice(0, 9).map((firm, i) => (
-                    <div className="stile" key={`${firm.analyst_firm || firm.name}-${i}`}>
-                      <div className="stile-label">{firm.analyst_firm || firm.name}</div>
-                      <div className="stile-value t-sm">{firm.analyst_name || '—'}</div>
+                    <div
+                      className="stile"
+                      key={`${firm.analyst_firm || firm.name}-${i}`}
+                    >
+                      <div className="stile-label">
+                        {firm.analyst_firm || firm.name}
+                      </div>
+                      <div className="stile-value t-sm">
+                        {firm.analyst_name || "—"}
+                      </div>
                       <div className="stile-sub">
-                        <span className="badge">{firm.coverage_status || 'covering'}</span>
+                        <span className="badge">
+                          {firm.coverage_status || "covering"}
+                        </span>
                         {firm.coverage_started && (
-                          <span className="muted" style={{ marginLeft: 'var(--space-2)' }}>
+                          <span
+                            className="muted"
+                            style={{ marginLeft: "var(--space-2)" }}
+                          >
                             Since {fmtDate(firm.coverage_started)}
                           </span>
                         )}
@@ -1027,11 +1401,15 @@ function _SocialTab({ stocks, isLoading, selectedSymbol, setSelectedSymbol }) {
       <>
         <div className="alert alert-info">
           <MessageSquare size={16} />
-          <div>Select a symbol to view Reddit · news · search · viral metrics.</div>
+          <div>
+            Select a symbol to view Reddit · news · search · viral metrics.
+          </div>
         </div>
-        <div className="card" style={{ marginTop: 'var(--space-4)' }}>
+        <div className="card" style={{ marginTop: "var(--space-4)" }}>
           <div className="card-body" style={{ padding: 0 }}>
-            {stocks.length === 0 ? <Empty title="No symbols" /> : (
+            {stocks.length === 0 ? (
+              <Empty title="No symbols" />
+            ) : (
               <table className="data-table">
                 <thead>
                   <tr>
@@ -1044,12 +1422,23 @@ function _SocialTab({ stocks, isLoading, selectedSymbol, setSelectedSymbol }) {
                   {stocks.slice(0, 50).map((s) => {
                     const lab = sentimentLabel(s.compositeScore);
                     return (
-                      <tr key={s.symbol} onClick={() => setSelectedSymbol(s.symbol)}
-                          style={{ cursor: 'pointer' }}>
-                        <td><span className="strong">{s.symbol}</span></td>
-                        <td><span className={`badge ${lab.cls}`}>{lab.label}</span></td>
+                      <tr
+                        key={s.symbol}
+                        onClick={() => setSelectedSymbol(s.symbol)}
+                        style={{ cursor: "pointer" }}
+                      >
+                        <td>
+                          <span className="strong">{s.symbol}</span>
+                        </td>
+                        <td>
+                          <span className={`badge ${lab.cls}`}>
+                            {lab.label}
+                          </span>
+                        </td>
                         <td className="num mono tnum">
-                          {s.compositeScore != null ? s.compositeScore.toFixed(2) : '—'}
+                          {s.compositeScore != null
+                            ? s.compositeScore.toFixed(2)
+                            : "—"}
                         </td>
                       </tr>
                     );
@@ -1062,18 +1451,28 @@ function _SocialTab({ stocks, isLoading, selectedSymbol, setSelectedSymbol }) {
       </>
     );
   }
-  return <SocialInsights symbol={selectedSymbol} onClose={() => setSelectedSymbol(null)} />;
+  return (
+    <SocialInsights
+      symbol={selectedSymbol}
+      onClose={() => setSelectedSymbol(null)}
+    />
+  );
 }
 
 function SocialInsights({ symbol, onClose }) {
   const { data, isLoading, error } = useQuery({
-    queryKey: ['social-insights', symbol],
-    queryFn: () => api.get(`/api/sentiment/social/insights/${symbol}`)
-      .then((r) => r?.data?.data || r?.data || null)
-      .catch((err) => {
-        console.error('[SocialInsights] Failed to fetch social insights:', err?.message || err);
-        throw err;
-      }),
+    queryKey: ["social-insights", symbol],
+    queryFn: () =>
+      api
+        .get(`/api/sentiment/social/insights/${symbol}`)
+        .then((r) => r?.data?.data || r?.data || null)
+        .catch((err) => {
+          console.error(
+            "[SocialInsights] Failed to fetch social insights:",
+            err?.message || err
+          );
+          throw err;
+        }),
     enabled: !!symbol,
   });
 
@@ -1087,7 +1486,9 @@ function SocialInsights({ symbol, onClose }) {
         <div className="card-head">
           <div>
             <div className="card-title">{symbol} · Social Sentiment</div>
-            <div className="card-sub">Reddit · news · search · viral score · 30-day history</div>
+            <div className="card-sub">
+              Reddit · news · search · viral score · 30-day history
+            </div>
           </div>
           <button className="btn btn-ghost btn-sm" onClick={onClose}>
             <ArrowLeft size={14} /> Back
@@ -1096,85 +1497,109 @@ function SocialInsights({ symbol, onClose }) {
       </div>
 
       {error && (
-        <div className="alert alert-danger" style={{ marginTop: 'var(--space-4)' }}>
+        <div
+          className="alert alert-danger"
+          style={{ marginTop: "var(--space-4)" }}
+        >
           <AlertCircle size={16} />
-          <div>{error.message || 'Failed to load social insights'}</div>
+          <div>{error.message || "Failed to load social insights"}</div>
         </div>
       )}
 
-      {isLoading ? <Empty title="Loading social insights…" />
-       : !metrics ? <Empty title="No social data" desc={data?.message || `No social sentiment data for ${symbol}`} />
-       : (
+      {isLoading ? (
+        <Empty title="Loading social insights…" />
+      ) : !metrics ? (
+        <Empty
+          title="No social data"
+          desc={data?.message || `No social sentiment data for ${symbol}`}
+        />
+      ) : (
         <>
-          <div className="grid grid-4" style={{ marginTop: 'var(--space-4)' }}>
-            <Stile label="Reddit Sentiment"
-                   value={
-                     metrics.reddit?.sentiment_score
-                       ? `${parseFloat(metrics.reddit.sentiment_score) > 0 ? '+' : ''}${parseFloat(metrics.reddit.sentiment_score).toFixed(3)}`
-                       : '—'
-                   }
-                   sub={`${metrics.reddit?.mention_count ?? 0} mentions`} />
-            <Stile label="News Sentiment"
-                   value={
-                     metrics.news?.sentiment_score
-                       ? `${parseFloat(metrics.news.sentiment_score) > 0 ? '+' : ''}${parseFloat(metrics.news.sentiment_score).toFixed(3)}`
-                       : '—'
-                   }
-                   sub={`${metrics.news?.article_count ?? 0} articles`} />
-            <Stile label="Search Volume"
-                   value={metrics.search?.volume_index ?? '—'}
-                   sub={`7d ${metrics.search?.trend_7d_direction ?? ''}${
-                     Math.abs(parseFloat(metrics.search?.trend_7d_percent || 0)).toFixed(1)
-                   }% · 30d ${metrics.search?.trend_30d_direction ?? ''}${
-                     Math.abs(parseFloat(metrics.search?.trend_30d_percent || 0)).toFixed(1)
-                   }%`} />
-            <Stile label="Social Volume"
-                   value={`${metrics.social?.volume ?? 0} posts`}
-                   sub={`Viral ${metrics.social?.viral_score
-                     ? parseFloat(metrics.social.viral_score).toFixed(2) : '—'}`} />
+          <div className="grid grid-4" style={{ marginTop: "var(--space-4)" }}>
+            <Stile
+              label="Reddit Sentiment"
+              value={
+                metrics.reddit?.sentiment_score
+                  ? `${parseFloat(metrics.reddit.sentiment_score) > 0 ? "+" : ""}${parseFloat(metrics.reddit.sentiment_score).toFixed(3)}`
+                  : "—"
+              }
+              sub={`${metrics.reddit?.mention_count ?? 0} mentions`}
+            />
+            <Stile
+              label="News Sentiment"
+              value={
+                metrics.news?.sentiment_score
+                  ? `${parseFloat(metrics.news.sentiment_score) > 0 ? "+" : ""}${parseFloat(metrics.news.sentiment_score).toFixed(3)}`
+                  : "—"
+              }
+              sub={`${metrics.news?.article_count ?? 0} articles`}
+            />
+            <Stile
+              label="Search Volume"
+              value={metrics.search?.volume_index ?? "—"}
+              sub={`7d ${metrics.search?.trend_7d_direction ?? ""}${Math.abs(
+                parseFloat(metrics.search?.trend_7d_percent || 0)
+              ).toFixed(
+                1
+              )}% · 30d ${metrics.search?.trend_30d_direction ?? ""}${Math.abs(
+                parseFloat(metrics.search?.trend_30d_percent || 0)
+              ).toFixed(1)}%`}
+            />
+            <Stile
+              label="Social Volume"
+              value={`${metrics.social?.volume ?? 0} posts`}
+              sub={`Viral ${
+                metrics.social?.viral_score
+                  ? parseFloat(metrics.social.viral_score).toFixed(2)
+                  : "—"
+              }`}
+            />
           </div>
 
-          {trends && (trends.news_sentiment || trends.reddit_sentiment || trends.search_volume) && (
-            <div className="card" style={{ marginTop: 'var(--space-4)' }}>
-              <div className="card-head">
-                <div>
-                  <div className="card-title">7-Day vs 30-Day Trend</div>
-                  <div className="card-sub">Average comparison</div>
+          {trends &&
+            (trends.news_sentiment ||
+              trends.reddit_sentiment ||
+              trends.search_volume) && (
+              <div className="card" style={{ marginTop: "var(--space-4)" }}>
+                <div className="card-head">
+                  <div>
+                    <div className="card-title">7-Day vs 30-Day Trend</div>
+                    <div className="card-sub">Average comparison</div>
+                  </div>
+                </div>
+                <div className="card-body">
+                  <div className="grid grid-3">
+                    {trends.reddit_sentiment && (
+                      <TrendStile
+                        label={`Reddit ${trends.reddit_sentiment.direction || ""}`}
+                        cur={trends.reddit_sentiment.current_avg}
+                        prd={trends.reddit_sentiment.period_avg}
+                        dp={3}
+                      />
+                    )}
+                    {trends.news_sentiment && (
+                      <TrendStile
+                        label={`News ${trends.news_sentiment.direction || ""}`}
+                        cur={trends.news_sentiment.current_avg}
+                        prd={trends.news_sentiment.period_avg}
+                        dp={3}
+                      />
+                    )}
+                    {trends.search_volume && (
+                      <TrendStile
+                        label={`Search ${trends.search_volume.direction || ""}`}
+                        cur={trends.search_volume.current_avg}
+                        prd={trends.search_volume.period_avg}
+                        dp={0}
+                      />
+                    )}
+                  </div>
                 </div>
               </div>
-              <div className="card-body">
-                <div className="grid grid-3">
-                  {trends.reddit_sentiment && (
-                    <TrendStile
-                      label={`Reddit ${trends.reddit_sentiment.direction || ''}`}
-                      cur={trends.reddit_sentiment.current_avg}
-                      prd={trends.reddit_sentiment.period_avg}
-                      dp={3}
-                    />
-                  )}
-                  {trends.news_sentiment && (
-                    <TrendStile
-                      label={`News ${trends.news_sentiment.direction || ''}`}
-                      cur={trends.news_sentiment.current_avg}
-                      prd={trends.news_sentiment.period_avg}
-                      dp={3}
-                    />
-                  )}
-                  {trends.search_volume && (
-                    <TrendStile
-                      label={`Search ${trends.search_volume.direction || ''}`}
-                      cur={trends.search_volume.current_avg}
-                      prd={trends.search_volume.period_avg}
-                      dp={0}
-                    />
-                  )}
-                </div>
-              </div>
-            </div>
-          )}
+            )}
 
           {historical.length > 0 && (
-            <div className="card" style={{ marginTop: 'var(--space-4)' }}>
+            <div className="card" style={{ marginTop: "var(--space-4)" }}>
               <div className="card-head">
                 <div>
                   <div className="card-title">30-Day Historical Data</div>
@@ -1182,7 +1607,7 @@ function SocialInsights({ symbol, onClose }) {
                 </div>
               </div>
               <div className="card-body" style={{ padding: 0 }}>
-                <div style={{ maxHeight: 360, overflow: 'auto' }}>
+                <div style={{ maxHeight: 360, overflow: "auto" }}>
                   <table className="data-table">
                     <thead>
                       <tr>
@@ -1199,16 +1624,21 @@ function SocialInsights({ symbol, onClose }) {
                           <td className="t-xs muted">{fmtDate(row.date)}</td>
                           <td className="num mono tnum">
                             {row.reddit_sentiment != null
-                              ? parseFloat(row.reddit_sentiment).toFixed(2) : '—'}
+                              ? parseFloat(row.reddit_sentiment).toFixed(2)
+                              : "—"}
                           </td>
                           <td className="num mono tnum">
                             {row.news_sentiment != null
-                              ? parseFloat(row.news_sentiment).toFixed(2) : '—'}
+                              ? parseFloat(row.news_sentiment).toFixed(2)
+                              : "—"}
                           </td>
-                          <td className="num mono tnum">{row.search_volume ?? '—'}</td>
+                          <td className="num mono tnum">
+                            {row.search_volume ?? "—"}
+                          </td>
                           <td className="num mono tnum">
                             {row.viral_score != null
-                              ? parseFloat(row.viral_score).toFixed(2) : '—'}
+                              ? parseFloat(row.viral_score).toFixed(2)
+                              : "—"}
                           </td>
                         </tr>
                       ))}
@@ -1230,11 +1660,10 @@ function TrendStile({ label, cur, prd, dp }) {
   return (
     <div className="stile">
       <div className="stile-label">{label}</div>
-      <div className="stile-value">
-        {isNaN(c) ? '—' : c.toFixed(dp)}
-      </div>
+      <div className="stile-value">{isNaN(c) ? "—" : c.toFixed(dp)}</div>
       <div className="stile-sub">
-        30d avg: <span className="mono tnum">{isNaN(p) ? '—' : p.toFixed(dp)}</span>
+        30d avg:{" "}
+        <span className="mono tnum">{isNaN(p) ? "—" : p.toFixed(dp)}</span>
       </div>
     </div>
   );
@@ -1251,64 +1680,112 @@ function CompositeGauge({ gauge }) {
             <div className="card-sub">Cross-source aggregate (0-100)</div>
           </div>
         </div>
-        <div className="card-body"><Empty title="No aggregate sources available" /></div>
+        <div className="card-body">
+          <Empty title="No aggregate sources available" />
+        </div>
       </div>
     );
   }
   const score = gauge.score;
-  const _tone = score >= 70 ? 'up' : score < 30 ? 'down' : '';
-  const color = score >= 70 ? 'var(--success)'
-              : score < 30 ? 'var(--danger)'
-              : 'var(--amber)';
-  const label = score >= 70 ? 'Greed / Bullish'
-              : score < 30 ? 'Fear / Bearish'
-              : 'Neutral';
+  const _tone = score >= 70 ? "up" : score < 30 ? "down" : "";
+  const color =
+    score >= 70
+      ? "var(--success)"
+      : score < 30
+        ? "var(--danger)"
+        : "var(--amber)";
+  const label =
+    score >= 70 ? "Greed / Bullish" : score < 30 ? "Fear / Bearish" : "Neutral";
 
   return (
     <div className="card">
       <div className="card-head">
         <div>
           <div className="card-title">Composite Sentiment Gauge</div>
-          <div className="card-sub">Cross-source aggregate · {gauge.components.length} sources</div>
+          <div className="card-sub">
+            Cross-source aggregate · {gauge.components.length} sources
+          </div>
         </div>
       </div>
       <div className="card-body">
-        <div className="flex items-center" style={{ justifyContent: 'space-between' }}>
+        <div
+          className="flex items-center"
+          style={{ justifyContent: "space-between" }}
+        >
           <div>
-            <div className="mono tnum" style={{
-              fontSize: 'var(--t-3xl, 32px)', fontWeight: 'var(--w-bold)', color,
-            }}>
+            <div
+              className="mono tnum"
+              style={{
+                fontSize: "var(--t-3xl, 32px)",
+                fontWeight: "var(--w-bold)",
+                color,
+              }}
+            >
               {score}
             </div>
-            <div className={`badge ${score >= 70 ? 'badge-success'
-                                  : score < 30 ? 'badge-danger'
-                                  : 'badge-amber'}`}
-                 style={{ marginTop: 'var(--space-2)' }}>
+            <div
+              className={`badge ${
+                score >= 70
+                  ? "badge-success"
+                  : score < 30
+                    ? "badge-danger"
+                    : "badge-amber"
+              }`}
+              style={{ marginTop: "var(--space-2)" }}
+            >
               {label}
             </div>
           </div>
-          <div style={{ width: '60%', height: 130 }}>
+          <div style={{ width: "60%", height: 130 }}>
             <ResponsiveContainer width="100%" height={130}>
-              <BarChart data={gauge.components} layout="vertical"
-                        margin={{ top: 4, right: 16, left: 4, bottom: 0 }}>
-                <CartesianGrid stroke="var(--border-soft)" strokeDasharray="2 4" horizontal={false} />
-                <XAxis type="number" domain={[0, 100]}
-                       tick={{ fill: 'var(--text-3)', fontSize: 10 }} />
-                <YAxis type="category" dataKey="name" width={80}
-                       tick={{ fill: 'var(--text-3)', fontSize: 10 }} />
-                <RechartsTooltip contentStyle={TT_STYLE}
-                                 formatter={(v) => [Number(v).toFixed(1), 'Score']} />
-                <Bar dataKey="value" radius={[0, 3, 3, 0]} fill="var(--brand)" />
+              <BarChart
+                data={gauge.components}
+                layout="vertical"
+                margin={{ top: 4, right: 16, left: 4, bottom: 0 }}
+              >
+                <CartesianGrid
+                  stroke="var(--border-soft)"
+                  strokeDasharray="2 4"
+                  horizontal={false}
+                />
+                <XAxis
+                  type="number"
+                  domain={[0, 100]}
+                  tick={{ fill: "var(--text-3)", fontSize: 10 }}
+                />
+                <YAxis
+                  type="category"
+                  dataKey="name"
+                  width={80}
+                  tick={{ fill: "var(--text-3)", fontSize: 10 }}
+                />
+                <RechartsTooltip
+                  contentStyle={TT_STYLE}
+                  formatter={(v) => [Number(v).toFixed(1), "Score"]}
+                />
+                <Bar
+                  dataKey="value"
+                  radius={[0, 3, 3, 0]}
+                  fill="var(--brand)"
+                />
               </BarChart>
             </ResponsiveContainer>
           </div>
         </div>
-        <div className="bar" style={{ marginTop: 'var(--space-4)' }}>
-          <div className="bar-fill" style={{ width: `${score}%`, background: color }} />
+        <div className="bar" style={{ marginTop: "var(--space-4)" }}>
+          <div
+            className="bar-fill"
+            style={{ width: `${score}%`, background: color }}
+          />
         </div>
-        <div className="flex items-center justify-between" style={{
-          marginTop: 'var(--space-2)', fontSize: 'var(--t-xs)', color: 'var(--text-3)',
-        }}>
+        <div
+          className="flex items-center justify-between"
+          style={{
+            marginTop: "var(--space-2)",
+            fontSize: "var(--t-xs)",
+            color: "var(--text-3)",
+          }}
+        >
           <span>0 · Extreme Fear</span>
           <span>50</span>
           <span>100 · Extreme Greed</span>
@@ -1330,7 +1807,9 @@ function RatingFunnel({ data }) {
             <div className="card-sub">Across the universe</div>
           </div>
         </div>
-        <div className="card-body"><Empty title="No analyst data" /></div>
+        <div className="card-body">
+          <Empty title="No analyst data" />
+        </div>
       </div>
     );
   }
@@ -1344,18 +1823,43 @@ function RatingFunnel({ data }) {
         </div>
       </div>
       <div className="card-body">
-        <div style={{ height: '240px', width: '100%', display: 'flex', flex: 1, overflow: 'hidden' }}>
+        <div
+          style={{
+            height: "240px",
+            width: "100%",
+            display: "flex",
+            flex: 1,
+            overflow: "hidden",
+          }}
+        >
           <ResponsiveContainer width="100%" height="100%">
             <FunnelChart>
-              <RechartsTooltip contentStyle={TT_STYLE}
-                               formatter={(v, n) => [`${v} symbols (${((v / total) * 100).toFixed(1)}%)`, n]} />
+              <RechartsTooltip
+                contentStyle={TT_STYLE}
+                formatter={(v, n) => [
+                  `${v} symbols (${((v / total) * 100).toFixed(1)}%)`,
+                  n,
+                ]}
+              />
               <Funnel dataKey="value" data={data} isAnimationActive={false}>
-                <LabelList position="right" fill="var(--text-2)" stroke="none"
-                           dataKey="name" style={{ fontSize: 11 }} />
-                <LabelList position="right" fill="var(--text-3)" stroke="none"
-                           dataKey="value" offset={64}
-                           style={{ fontSize: 10, fontFamily: 'var(--font-mono)' }} />
-                {data.map((d, i) => <Cell key={i} fill={d.fill} />)}
+                <LabelList
+                  position="right"
+                  fill="var(--text-2)"
+                  stroke="none"
+                  dataKey="name"
+                  style={{ fontSize: 11 }}
+                />
+                <LabelList
+                  position="right"
+                  fill="var(--text-3)"
+                  stroke="none"
+                  dataKey="value"
+                  offset={64}
+                  style={{ fontSize: 10, fontFamily: "var(--font-mono)" }}
+                />
+                {data.map((d, i) => (
+                  <Cell key={i} fill={d.fill} />
+                ))}
               </Funnel>
             </FunnelChart>
           </ResponsiveContainer>
@@ -1371,14 +1875,20 @@ function ChangeLeadersCard({ title, rows, tone, setSel }) {
     <div className="card">
       <div className="card-head">
         <div className="flex items-center gap-2">
-          {tone === 'up' ? <TrendingUp size={16} style={{ color: 'var(--success)' }} />
-                          : <TrendingDown size={16} style={{ color: 'var(--danger)' }} />}
+          {tone === "up" ? (
+            <TrendingUp size={16} style={{ color: "var(--success)" }} />
+          ) : (
+            <TrendingDown size={16} style={{ color: "var(--danger)" }} />
+          )}
           <div className="card-title">{title}</div>
         </div>
       </div>
       <div className="card-body" style={{ padding: 0 }}>
         {!rows || rows.length === 0 ? (
-          <Empty title="Insufficient history" desc="Need ≥ 7 days of analyst sentiment per symbol" />
+          <Empty
+            title="Insufficient history"
+            desc="Need ≥ 7 days of analyst sentiment per symbol"
+          />
         ) : (
           <table className="data-table">
             <thead>
@@ -1390,10 +1900,19 @@ function ChangeLeadersCard({ title, rows, tone, setSel }) {
             </thead>
             <tbody>
               {rows.map((r) => (
-                <tr key={r.symbol} onClick={() => setSel(r.symbol)} style={{ cursor: 'pointer' }}>
-                  <td><span className="strong">{r.symbol}</span></td>
-                  <td className={`num mono tnum ${r.change > 0 ? 'up' : r.change < 0 ? 'down' : 'muted'}`}>
-                    {r.change > 0 ? '+' : ''}{r.change.toFixed(1)} pp
+                <tr
+                  key={r.symbol}
+                  onClick={() => setSel(r.symbol)}
+                  style={{ cursor: "pointer" }}
+                >
+                  <td>
+                    <span className="strong">{r.symbol}</span>
+                  </td>
+                  <td
+                    className={`num mono tnum ${r.change > 0 ? "up" : r.change < 0 ? "down" : "muted"}`}
+                  >
+                    {r.change > 0 ? "+" : ""}
+                    {r.change.toFixed(1)} pp
                   </td>
                   <td className="num mono tnum">{r.current.toFixed(1)} pp</td>
                 </tr>
@@ -1431,19 +1950,42 @@ function ContrarianCard({ title, desc, rows, _tone, setSel }) {
             </thead>
             <tbody>
               {rows.map((r) => (
-                <tr key={r.symbol} onClick={() => setSel(r.symbol)} style={{ cursor: 'pointer' }}>
-                  <td><span className="strong">{r.symbol}</span></td>
-                  <td className="t-xs muted" style={{
-                    maxWidth: 130, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap',
-                  }}>{r.sector || '—'}</td>
-                  <td className={`num mono tnum ${r.analystScore > 0 ? 'up' : 'down'}`}>
+                <tr
+                  key={r.symbol}
+                  onClick={() => setSel(r.symbol)}
+                  style={{ cursor: "pointer" }}
+                >
+                  <td>
+                    <span className="strong">{r.symbol}</span>
+                  </td>
+                  <td
+                    className="t-xs muted"
+                    style={{
+                      maxWidth: 130,
+                      overflow: "hidden",
+                      textOverflow: "ellipsis",
+                      whiteSpace: "nowrap",
+                    }}
+                  >
+                    {r.sector || "—"}
+                  </td>
+                  <td
+                    className={`num mono tnum ${r.analystScore > 0 ? "up" : "down"}`}
+                  >
                     {r.analystScore.toFixed(2)}
                   </td>
                   <td className="num">
-                    <span className={`badge ${r.algoComposite >= 80 ? 'badge-success'
-                                            : r.algoComposite >= 60 ? 'badge-cyan'
-                                            : r.algoComposite >= 40 ? 'badge-amber'
-                                            : 'badge-danger'}`}>
+                    <span
+                      className={`badge ${
+                        r.algoComposite >= 80
+                          ? "badge-success"
+                          : r.algoComposite >= 60
+                            ? "badge-cyan"
+                            : r.algoComposite >= 40
+                              ? "badge-amber"
+                              : "badge-danger"
+                      }`}
+                    >
                       {r.algoComposite.toFixed(0)}
                     </span>
                   </td>
@@ -1466,7 +2008,8 @@ function DivergenceTimeline({ rows }) {
     rows.forEach((r) => {
       if (!r.date) return;
       const key = String(r.date).slice(0, 10);
-      const score = (Number(r.bull_percent) || 0) - (Number(r.bear_percent) || 0);
+      const score =
+        (Number(r.bull_percent) || 0) - (Number(r.bear_percent) || 0);
       if (!byDate.has(key)) byDate.set(key, { sum: 0, n: 0 });
       const v = byDate.get(key);
       v.sum += score;
@@ -1483,10 +2026,14 @@ function DivergenceTimeline({ rows }) {
         <div className="card-head">
           <div>
             <div className="card-title">Universe Sentiment Trend (90d)</div>
-            <div className="card-sub">Average analyst bull% − bear% across all covered symbols</div>
+            <div className="card-sub">
+              Average analyst bull% − bear% across all covered symbols
+            </div>
           </div>
         </div>
-        <div className="card-body"><Empty title="No history" /></div>
+        <div className="card-body">
+          <Empty title="No history" />
+        </div>
       </div>
     );
   }
@@ -1496,24 +2043,59 @@ function DivergenceTimeline({ rows }) {
       <div className="card-head">
         <div>
           <div className="card-title">Universe Sentiment Trend (90d)</div>
-          <div className="card-sub">Average analyst (bull% − bear%) across {rows.length} readings</div>
+          <div className="card-sub">
+            Average analyst (bull% − bear%) across {rows.length} readings
+          </div>
         </div>
       </div>
       <div className="card-body">
-        <div style={{ height: '220px', width: '100%', display: 'flex', flex: 1, overflow: 'hidden' }}>
+        <div
+          style={{
+            height: "220px",
+            width: "100%",
+            display: "flex",
+            flex: 1,
+            overflow: "hidden",
+          }}
+        >
           <ResponsiveContainer width="100%" height="100%">
-            <LineChart data={series} margin={{ top: 8, right: 16, left: 0, bottom: 0 }}>
-              <CartesianGrid stroke="var(--border-soft)" strokeDasharray="2 4" />
-              <XAxis dataKey="date" stroke="var(--text-3)" fontSize={10}
-                     tickFormatter={fmtDate} interval="preserveStartEnd" />
-              <YAxis stroke="var(--text-3)" fontSize={10}
-                     tickFormatter={(v) => `${Math.round(v)}`} />
-              <RechartsTooltip contentStyle={TT_STYLE}
-                               labelFormatter={(d) => fmtDate(d)}
-                               formatter={(v) => [`${Number(v).toFixed(2)} pp`, 'Bull − Bear']} />
-              <ReferenceLine y={0} stroke="var(--border)" strokeDasharray="4 4" />
-              <Line type="monotone" dataKey="avg" stroke="var(--brand)"
-                    strokeWidth={2} dot={false} />
+            <LineChart
+              data={series}
+              margin={{ top: 8, right: 16, left: 0, bottom: 0 }}
+            >
+              <CartesianGrid
+                stroke="var(--border-soft)"
+                strokeDasharray="2 4"
+              />
+              <XAxis
+                dataKey="date"
+                stroke="var(--text-3)"
+                fontSize={10}
+                tickFormatter={fmtDate}
+                interval="preserveStartEnd"
+              />
+              <YAxis
+                stroke="var(--text-3)"
+                fontSize={10}
+                tickFormatter={(v) => `${Math.round(v)}`}
+              />
+              <RechartsTooltip
+                contentStyle={TT_STYLE}
+                labelFormatter={(d) => fmtDate(d)}
+                formatter={(v) => [`${Number(v).toFixed(2)} pp`, "Bull − Bear"]}
+              />
+              <ReferenceLine
+                y={0}
+                stroke="var(--border)"
+                strokeDasharray="4 4"
+              />
+              <Line
+                type="monotone"
+                dataKey="avg"
+                stroke="var(--brand)"
+                strokeWidth={2}
+                dot={false}
+              />
             </LineChart>
           </ResponsiveContainer>
         </div>
@@ -1524,18 +2106,27 @@ function DivergenceTimeline({ rows }) {
 
 function Tabs({ tabs, value, onChange }) {
   return (
-    <div className="flex items-center gap-2"
-         style={{ marginTop: 'var(--space-4)', borderBottom: '1px solid var(--border-soft)' }}>
+    <div
+      className="flex items-center gap-2"
+      style={{
+        marginTop: "var(--space-4)",
+        borderBottom: "1px solid var(--border-soft)",
+      }}
+    >
       {tabs.map((t) => (
         <button
           key={t.value}
           className="btn btn-ghost btn-sm"
           onClick={() => onChange(t.value)}
           style={{
-            borderBottom: value === t.value ? '2px solid var(--brand)' : '2px solid transparent',
+            borderBottom:
+              value === t.value
+                ? "2px solid var(--brand)"
+                : "2px solid transparent",
             borderRadius: 0,
-            color: value === t.value ? 'var(--text-1)' : 'var(--text-2)',
-            fontWeight: value === t.value ? 'var(--w-semibold)' : 'var(--w-medium)',
+            color: value === t.value ? "var(--text-1)" : "var(--text-2)",
+            fontWeight:
+              value === t.value ? "var(--w-semibold)" : "var(--w-medium)",
           }}
         >
           {t.label}
@@ -1547,13 +2138,23 @@ function Tabs({ tabs, value, onChange }) {
 
 function Kpi({ label, value, sub }) {
   return (
-    <div className="card" style={{ padding: 'var(--space-5) var(--space-6)' }}>
+    <div className="card" style={{ padding: "var(--space-5) var(--space-6)" }}>
       <div className="eyebrow">{label}</div>
-      <div className="mono"
-           style={{ fontSize: 'var(--t-xl)', fontWeight: 'var(--w-bold)', marginTop: 'var(--space-2)' }}>
+      <div
+        className="mono"
+        style={{
+          fontSize: "var(--t-xl)",
+          fontWeight: "var(--w-bold)",
+          marginTop: "var(--space-2)",
+        }}
+      >
         {value}
       </div>
-      {sub && <div className="t-xs muted" style={{ marginTop: 'var(--space-1)' }}>{sub}</div>}
+      {sub && (
+        <div className="t-xs muted" style={{ marginTop: "var(--space-1)" }}>
+          {sub}
+        </div>
+      )}
     </div>
   );
 }
@@ -1585,4 +2186,3 @@ export default function Sentiment() {
     </ErrorBoundary>
   );
 }
-

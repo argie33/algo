@@ -88,7 +88,6 @@ describe("Market Data Contract Tests", () => {
     }
   });
 
-
   it("should validate WebSocket streaming contract for market data", async () => {
     if (skipIfServerUnavailable(serverAvailable, "WebSocket streaming test"))
       return;
@@ -105,7 +104,6 @@ describe("Market Data Contract Tests", () => {
     // Should not return 404 when symbols are provided
     expect(response.status).not.toBe(404);
 
-
     // Test handling of empty symbols parameter
     const emptyResponse = await fetch(
       `${API_BASE_URL}/api/websocket/stream/?symbols=`,
@@ -113,7 +111,6 @@ describe("Market Data Contract Tests", () => {
         headers: AUTH_HEADERS,
       }
     );
-
   });
 
   it("should validate market data API contract supports trading dashboard", async () => {
@@ -146,7 +143,6 @@ describe("Market Data Contract Tests", () => {
         expect(typeof sampleIndex.price === "number").toBe(true);
       }
     }
-
   });
 
   it("should validate sector data API contract supports portfolio analysis", async () => {
@@ -182,7 +178,6 @@ describe("Market Data Contract Tests", () => {
         expect(typeof sampleSector.metrics.stock_count === "number").toBe(true);
       }
     }
-
   });
 
   it("should render MarketOverview component with real backend data and handle UI interactions", async () => {
@@ -238,9 +233,12 @@ describe("Market Data Contract Tests", () => {
       return;
 
     // STEP 1: Verify backend API returns sector data
-    const sectorsResponse = await fetch(`${API_BASE_URL}/api/sectors/sectors-with-history`, {
-      headers: AUTH_HEADERS,
-    });
+    const sectorsResponse = await fetch(
+      `${API_BASE_URL}/api/sectors/sectors-with-history`,
+      {
+        headers: AUTH_HEADERS,
+      }
+    );
 
     expect(sectorsResponse.status).toBe(200);
     const sectorsData = await sectorsResponse.json();
@@ -256,11 +254,14 @@ describe("Market Data Contract Tests", () => {
     // STEP 3: Verify sector analysis page renders
     await waitFor(() => {
       // Look for specific sector analysis content that should be unique
-      const sectorContent = screen.queryByText(/sector analysis/i) ||
-                           screen.queryByText(/sector performance/i) ||
-                           screen.queryByRole('heading', { name: /sector/i }) ||
-                           screen.queryByTestId('sector-analysis-container') ||
-                           document.querySelector('[data-testid*="sector"], h1, h2, h3, h4, h5, h6');
+      const sectorContent =
+        screen.queryByText(/sector analysis/i) ||
+        screen.queryByText(/sector performance/i) ||
+        screen.queryByRole("heading", { name: /sector/i }) ||
+        screen.queryByTestId("sector-analysis-container") ||
+        document.querySelector(
+          '[data-testid*="sector"], h1, h2, h3, h4, h5, h6'
+        );
       expect(sectorContent).toBeTruthy();
     });
 
@@ -279,4 +280,3 @@ describe("Market Data Contract Tests", () => {
     );
   });
 });
-

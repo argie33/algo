@@ -46,7 +46,11 @@ describe("Trading Orders Contract Tests", () => {
     }
 
     // STEP 2: Validate order object structure if orders exist
-    if (apiResponse.data && apiResponse.data.orders && apiResponse.data.orders.length > 0) {
+    if (
+      apiResponse.data &&
+      apiResponse.data.orders &&
+      apiResponse.data.orders.length > 0
+    ) {
       const sampleOrder = apiResponse.data.orders[0];
       expect(sampleOrder).toHaveProperty("id");
       expect(sampleOrder).toHaveProperty("symbol");
@@ -93,7 +97,6 @@ describe("Trading Orders Contract Tests", () => {
 
     // Validate cancellation response contract - should have consistent structure
     expect(cancelResponse).toHaveProperty("success");
-
   });
 
   // Note: WebSocket streaming tests are covered in realtime-data.contract.test.jsx
@@ -148,7 +151,5 @@ describe("Trading Orders Contract Tests", () => {
 
     const cancelData = await cancelResponse.json();
     expect(cancelData).toHaveProperty("success");
-
   });
 });
-

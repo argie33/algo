@@ -39,23 +39,37 @@ vi.mock("react-router-dom", async () => {
 
 vi.mock("../../../services/api.js", () => {
   const mockGet = vi.fn().mockResolvedValue({ data: {} });
-  const mockApi = { get: mockGet, post: vi.fn().mockResolvedValue({ data: {} }) };
+  const mockApi = {
+    get: mockGet,
+    post: vi.fn().mockResolvedValue({ data: {} }),
+  };
   return {
     default: mockApi,
     api: mockApi,
-    getApiConfig: vi.fn(() => ({ apiUrl: "http://localhost:3001", environment: "test" })),
+    getApiConfig: vi.fn(() => ({
+      apiUrl: "http://localhost:3001",
+      environment: "test",
+    })),
     getPortfolioData: vi.fn().mockResolvedValue({ success: true, data: {} }),
     getApiKeys: vi.fn().mockResolvedValue({ success: true, data: [] }),
     testApiConnection: vi.fn().mockResolvedValue({ success: true }),
-    importPortfolioFromBroker: vi.fn().mockResolvedValue({ success: true, data: [] }),
+    importPortfolioFromBroker: vi
+      .fn()
+      .mockResolvedValue({ success: true, data: [] }),
     healthCheck: vi.fn().mockResolvedValue({ success: true }),
     getMarketOverview: vi.fn().mockResolvedValue({ success: true, data: {} }),
-    getMarketSentimentHistory: vi.fn().mockResolvedValue({ success: true, data: {} }),
+    getMarketSentimentHistory: vi
+      .fn()
+      .mockResolvedValue({ success: true, data: {} }),
     getMarketBreadth: vi.fn().mockResolvedValue({ success: true, data: {} }),
     getSeasonalityData: vi.fn().mockResolvedValue({ success: true, data: {} }),
-    getMarketResearchIndicators: vi.fn().mockResolvedValue({ success: true, data: {} }),
+    getMarketResearchIndicators: vi
+      .fn()
+      .mockResolvedValue({ success: true, data: {} }),
     getDistributionDays: vi.fn().mockResolvedValue({ success: true, data: {} }),
-    getMarketSectorPerformance: vi.fn().mockResolvedValue({ success: true, data: {} }),
+    getMarketSectorPerformance: vi
+      .fn()
+      .mockResolvedValue({ success: true, data: {} }),
   };
 });
 
@@ -88,12 +102,16 @@ if (typeof window !== "undefined") {
 }
 
 vi.mock("recharts", () => ({
-  ResponsiveContainer: ({ children }) => <div data-testid="chart-container">{children}</div>,
+  ResponsiveContainer: ({ children }) => (
+    <div data-testid="chart-container">{children}</div>
+  ),
   LineChart: ({ children }) => <div data-testid="line-chart">{children}</div>,
   BarChart: ({ children }) => <div data-testid="bar-chart">{children}</div>,
   PieChart: ({ children }) => <div data-testid="pie-chart">{children}</div>,
   AreaChart: ({ children }) => <div data-testid="area-chart">{children}</div>,
-  ScatterChart: ({ children }) => <div data-testid="scatter-chart">{children}</div>,
+  ScatterChart: ({ children }) => (
+    <div data-testid="scatter-chart">{children}</div>
+  ),
   Line: () => <div data-testid="line" />,
   Bar: () => <div data-testid="bar" />,
   Area: () => <div data-testid="area" />,
@@ -123,10 +141,13 @@ describe("MarketsHealth - Page Rendering", () => {
 
   it("displays market content after data loads", async () => {
     renderWithProviders(<MarketsHealth />);
-    await waitFor(() => {
-      const content = document.body.textContent;
-      expect(content.length).toBeGreaterThan(10);
-    }, { timeout: 5000 });
+    await waitFor(
+      () => {
+        const content = document.body.textContent;
+        expect(content.length).toBeGreaterThan(10);
+      },
+      { timeout: 5000 }
+    );
   });
 
   it("handles loading state", () => {
@@ -136,18 +157,24 @@ describe("MarketsHealth - Page Rendering", () => {
 
   it("displays Market Health title", async () => {
     renderWithProviders(<MarketsHealth />);
-    await waitFor(() => {
-      const title = document.body.textContent;
-      expect(title).toContain("Market Health");
-    }, { timeout: 5000 });
+    await waitFor(
+      () => {
+        const title = document.body.textContent;
+        expect(title).toContain("Market Health");
+      },
+      { timeout: 5000 }
+    );
   });
 
   it("has a Refresh button", async () => {
     renderWithProviders(<MarketsHealth />);
-    await waitFor(() => {
-      const text = document.body.textContent;
-      expect(text).toMatch(/Refresh/i);
-    }, { timeout: 3000 });
+    await waitFor(
+      () => {
+        const text = document.body.textContent;
+        expect(text).toMatch(/Refresh/i);
+      },
+      { timeout: 3000 }
+    );
   });
 });
 
@@ -160,17 +187,23 @@ describe("MarketsHealth - Data Sections", () => {
 
   it("renders without errors when all API calls return empty data", async () => {
     renderWithProviders(<MarketsHealth />);
-    await waitFor(() => {
-      expect(document.body).toBeInTheDocument();
-    }, { timeout: 3000 });
+    await waitFor(
+      () => {
+        expect(document.body).toBeInTheDocument();
+      },
+      { timeout: 3000 }
+    );
   });
 
   it("renders some content after mounting", async () => {
     renderWithProviders(<MarketsHealth />);
-    await waitFor(() => {
-      const content = document.body.textContent;
-      expect(content.length).toBeGreaterThan(5);
-    }, { timeout: 3000 });
+    await waitFor(
+      () => {
+        const content = document.body.textContent;
+        expect(content.length).toBeGreaterThan(5);
+      },
+      { timeout: 3000 }
+    );
   });
 });
 
@@ -185,9 +218,12 @@ describe("MarketsHealth - Error Handling", () => {
 
     renderWithProviders(<MarketsHealth />);
 
-    await waitFor(() => {
-      expect(document.body).toBeInTheDocument();
-    }, { timeout: 5000 });
+    await waitFor(
+      () => {
+        expect(document.body).toBeInTheDocument();
+      },
+      { timeout: 5000 }
+    );
   });
 
   it("handles network errors", async () => {
@@ -196,8 +232,11 @@ describe("MarketsHealth - Error Handling", () => {
 
     renderWithProviders(<MarketsHealth />);
 
-    await waitFor(() => {
-      expect(document.body).toBeInTheDocument();
-    }, { timeout: 3000 });
+    await waitFor(
+      () => {
+        expect(document.body).toBeInTheDocument();
+      },
+      { timeout: 3000 }
+    );
   });
 });

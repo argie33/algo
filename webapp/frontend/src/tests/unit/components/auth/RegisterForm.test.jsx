@@ -1,5 +1,5 @@
 import { screen, fireEvent, waitFor, render } from "@testing-library/react";
-import { renderWithProviders } from '../../setup/test-wrapper';
+import { renderWithProviders } from "../../setup/test-wrapper";
 import { describe, test, expect, beforeEach, vi } from "vitest";
 import RegisterForm from "../../../../components/auth/RegisterForm";
 
@@ -8,13 +8,19 @@ vi.mock("../../../../services/api.js", () => ({
   default: {
     get: vi.fn().mockResolvedValue({ data: {} }),
     post: vi.fn().mockResolvedValue({ data: {} }),
-    login: vi.fn().mockResolvedValue({ success: true, data: { token: "mock-token" } }),
+    login: vi
+      .fn()
+      .mockResolvedValue({ success: true, data: { token: "mock-token" } }),
     register: vi.fn().mockResolvedValue({ success: true, data: {} }),
     logout: vi.fn().mockResolvedValue({ success: true }),
     resetPassword: vi.fn().mockResolvedValue({ success: true }),
     verifyEmail: vi.fn().mockResolvedValue({ success: true }),
-    getTradingSignalsDaily: vi.fn().mockResolvedValue({ success: true, data: [] }),
-    getPortfolioAnalytics: vi.fn().mockResolvedValue({ success: true, data: {} }),
+    getTradingSignalsDaily: vi
+      .fn()
+      .mockResolvedValue({ success: true, data: [] }),
+    getPortfolioAnalytics: vi
+      .fn()
+      .mockResolvedValue({ success: true, data: {} }),
     getStockMetrics: vi.fn().mockResolvedValue({ success: true, data: {} }),
   },
   getApiConfig: vi.fn(() => ({
@@ -49,8 +55,7 @@ describe("RegisterForm", () => {
 
   describe("Basic Rendering", () => {
     test("renders register form with all elements", () => {
-      renderWithProviders(
-          <RegisterForm {...defaultProps} />);
+      renderWithProviders(<RegisterForm {...defaultProps} />);
 
       expect(screen.getByLabelText(/first name/i)).toBeInTheDocument();
       expect(screen.getByLabelText(/last name/i)).toBeInTheDocument();
@@ -64,8 +69,7 @@ describe("RegisterForm", () => {
     });
 
     test("has password visibility toggles", () => {
-      renderWithProviders(
-          <RegisterForm {...defaultProps} />);
+      renderWithProviders(<RegisterForm {...defaultProps} />);
 
       expect(
         screen.getAllByLabelText("Toggle password visibility")[0]
@@ -78,8 +82,7 @@ describe("RegisterForm", () => {
 
   describe("Form Interactions", () => {
     test("updates form fields", () => {
-      renderWithProviders(
-          <RegisterForm {...defaultProps} />);
+      renderWithProviders(<RegisterForm {...defaultProps} />);
 
       const firstNameField = screen.getByLabelText(/first name/i);
       fireEvent.change(firstNameField, { target: { value: "John" } });
@@ -88,11 +91,12 @@ describe("RegisterForm", () => {
     });
 
     test("toggles password visibility", () => {
-      renderWithProviders(
-          <RegisterForm {...defaultProps} />);
+      renderWithProviders(<RegisterForm {...defaultProps} />);
 
       const passwordField = document.getElementById("password");
-      const toggleButton = screen.getAllByLabelText("Toggle password visibility")[0];
+      const toggleButton = screen.getAllByLabelText(
+        "Toggle password visibility"
+      )[0];
 
       expect(passwordField).toHaveAttribute("type", "password");
 
@@ -103,8 +107,7 @@ describe("RegisterForm", () => {
 
   describe("Form Validation", () => {
     test("shows error for empty required fields", async () => {
-      renderWithProviders(
-          <RegisterForm {...defaultProps} />);
+      renderWithProviders(<RegisterForm {...defaultProps} />);
 
       const submitButton = screen.getByRole("button", {
         name: /create account/i,
@@ -119,8 +122,7 @@ describe("RegisterForm", () => {
     });
 
     test("shows error for password mismatch", async () => {
-      renderWithProviders(
-          <RegisterForm {...defaultProps} />);
+      renderWithProviders(<RegisterForm {...defaultProps} />);
 
       fireEvent.change(screen.getByLabelText(/first name/i), {
         target: { value: "John" },
@@ -149,8 +151,7 @@ describe("RegisterForm", () => {
     });
 
     test("shows error for invalid email", async () => {
-      renderWithProviders(
-          <RegisterForm {...defaultProps} />);
+      renderWithProviders(<RegisterForm {...defaultProps} />);
 
       fireEvent.change(screen.getByLabelText(/first name/i), {
         target: { value: "John" },
@@ -183,8 +184,7 @@ describe("RegisterForm", () => {
 
   describe("Form Submission", () => {
     test("submits form with valid data", async () => {
-      renderWithProviders(
-          <RegisterForm {...defaultProps} />);
+      renderWithProviders(<RegisterForm {...defaultProps} />);
 
       fireEvent.change(screen.getByLabelText(/first name/i), {
         target: { value: "John" },
@@ -278,4 +278,3 @@ describe("RegisterForm", () => {
 
   // Loading state test removed due to mock complexity issues - functionality tested in integration tests
 });
-

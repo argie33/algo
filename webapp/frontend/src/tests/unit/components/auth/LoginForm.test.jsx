@@ -7,13 +7,19 @@ vi.mock("../../../../services/api.js", () => ({
   default: {
     get: vi.fn().mockResolvedValue({ data: {} }),
     post: vi.fn().mockResolvedValue({ data: {} }),
-    login: vi.fn().mockResolvedValue({ success: true, data: { token: "mock-token" } }),
+    login: vi
+      .fn()
+      .mockResolvedValue({ success: true, data: { token: "mock-token" } }),
     register: vi.fn().mockResolvedValue({ success: true, data: {} }),
     logout: vi.fn().mockResolvedValue({ success: true }),
     resetPassword: vi.fn().mockResolvedValue({ success: true }),
     verifyEmail: vi.fn().mockResolvedValue({ success: true }),
-    getTradingSignalsDaily: vi.fn().mockResolvedValue({ success: true, data: [] }),
-    getPortfolioAnalytics: vi.fn().mockResolvedValue({ success: true, data: {} }),
+    getTradingSignalsDaily: vi
+      .fn()
+      .mockResolvedValue({ success: true, data: [] }),
+    getPortfolioAnalytics: vi
+      .fn()
+      .mockResolvedValue({ success: true, data: {} }),
     getStockMetrics: vi.fn().mockResolvedValue({ success: true, data: {} }),
   },
   getApiConfig: vi.fn(() => ({
@@ -100,7 +106,9 @@ describe("LoginForm", () => {
     test("updates username field", () => {
       render(<LoginForm {...defaultProps} />);
 
-      const usernameField = screen.getByRole("textbox", { name: /email address/i });
+      const usernameField = screen.getByRole("textbox", {
+        name: /email address/i,
+      });
       fireEvent.change(usernameField, { target: { value: "testuser" } });
 
       expect(usernameField.value).toBe("testuser");
@@ -149,7 +157,9 @@ describe("LoginForm", () => {
     test("submits form with valid data", async () => {
       render(<LoginForm {...defaultProps} />);
 
-      const usernameField = screen.getByRole("textbox", { name: /email address/i });
+      const usernameField = screen.getByRole("textbox", {
+        name: /email address/i,
+      });
       const passwordField = document.querySelector('input[type="password"]');
       const submitButton = screen.getByRole("button", { name: /sign in/i });
 
@@ -158,7 +168,11 @@ describe("LoginForm", () => {
       fireEvent.click(submitButton);
 
       await waitFor(() => {
-        expect(mockLogin).toHaveBeenCalledWith("testuser", "password123", false);
+        expect(mockLogin).toHaveBeenCalledWith(
+          "testuser",
+          "password123",
+          false
+        );
       });
     });
 
@@ -196,7 +210,9 @@ describe("LoginForm", () => {
     test("shows validation error for missing password", async () => {
       render(<LoginForm {...defaultProps} />);
 
-      const usernameField = screen.getByRole("textbox", { name: /email address/i });
+      const usernameField = screen.getByRole("textbox", {
+        name: /email address/i,
+      });
       const submitButton = screen.getByRole("button", { name: /sign in/i });
 
       fireEvent.change(usernameField, { target: { value: "testuser" } });
@@ -212,7 +228,9 @@ describe("LoginForm", () => {
     test("stores remember me preference in localStorage", async () => {
       render(<LoginForm {...defaultProps} />);
 
-      const usernameField = screen.getByRole("textbox", { name: /email address/i });
+      const usernameField = screen.getByRole("textbox", {
+        name: /email address/i,
+      });
       const passwordField = document.querySelector('input[type="password"]');
       const checkbox = screen.getByRole("checkbox");
       const submitButton = screen.getByRole("button", { name: /sign in/i });
@@ -223,7 +241,11 @@ describe("LoginForm", () => {
       fireEvent.click(submitButton);
 
       await waitFor(() => {
-        expect(mockLogin).toHaveBeenCalledWith(expect.any(String), expect.any(String), true);
+        expect(mockLogin).toHaveBeenCalledWith(
+          expect.any(String),
+          expect.any(String),
+          true
+        );
       });
     });
 
@@ -235,7 +257,9 @@ describe("LoginForm", () => {
 
       render(<LoginForm {...defaultProps} />);
 
-      const usernameField = screen.getByRole("textbox", { name: /email address/i });
+      const usernameField = screen.getByRole("textbox", {
+        name: /email address/i,
+      });
       const passwordField = document.querySelector('input[type="password"]');
       const submitButton = screen.getByRole("button", { name: /sign in/i });
 
@@ -277,7 +301,9 @@ describe("LoginForm", () => {
 
       render(<LoginForm {...defaultProps} />);
 
-      const usernameField = screen.getByRole("textbox", { name: /email address/i });
+      const usernameField = screen.getByRole("textbox", {
+        name: /email address/i,
+      });
       fireEvent.change(usernameField, { target: { value: "test" } });
 
       expect(mockClearError).toHaveBeenCalled();
@@ -297,7 +323,9 @@ describe("LoginForm", () => {
       });
 
       // Type in field to clear error
-      const usernameField = screen.getByRole("textbox", { name: /email address/i });
+      const usernameField = screen.getByRole("textbox", {
+        name: /email address/i,
+      });
       fireEvent.change(usernameField, { target: { value: "test" } });
 
       await waitFor(() => {
@@ -321,7 +349,9 @@ describe("LoginForm", () => {
 
       render(<LoginForm {...defaultProps} />);
 
-      expect(screen.getByRole("textbox", { name: /email address/i })).toBeDisabled();
+      expect(
+        screen.getByRole("textbox", { name: /email address/i })
+      ).toBeDisabled();
       expect(document.querySelector('input[type="password"]')).toBeDisabled();
       expect(screen.getByRole("checkbox")).toBeDisabled();
       expect(
@@ -414,7 +444,9 @@ describe("LoginForm", () => {
       const form = document.querySelector("form");
       expect(form).toBeInTheDocument();
 
-      const usernameField = screen.getByRole("textbox", { name: /email address/i });
+      const usernameField = screen.getByRole("textbox", {
+        name: /email address/i,
+      });
       const passwordField = document.querySelector('input[type="password"]');
 
       expect(usernameField).toHaveAttribute("autoComplete", "email");
@@ -431,7 +463,9 @@ describe("LoginForm", () => {
     test("has focus management", () => {
       render(<LoginForm {...defaultProps} />);
 
-      const usernameField = screen.getByRole("textbox", { name: /email address/i });
+      const usernameField = screen.getByRole("textbox", {
+        name: /email address/i,
+      });
       // MUI TextField may not always pass autoFocus to the underlying input
       // Check if the field is focused or has the autoFocus attribute
       expect(
@@ -441,4 +475,3 @@ describe("LoginForm", () => {
     });
   });
 });
-

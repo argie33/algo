@@ -55,4 +55,3 @@ export const CardFooter = React.forwardRef(({ className, ...props }, ref) => (
   <div ref={ref} className={className} style={{ padding: "16px" }} {...props} />
 ));
 CardFooter.displayName = "CardFooter";
-

@@ -66,7 +66,8 @@ describe("Amplify Configuration", () => {
       };
 
       vi.resetModules();
-      const { default: getAmplifyConfig } = await import("../../../config/amplify.js");
+      const { default: getAmplifyConfig } =
+        await import("../../../config/amplify.js");
       const config = getAmplifyConfig();
 
       expect(config.Auth.Cognito.userPoolId).toBe("runtime-pool-id");
@@ -77,7 +78,8 @@ describe("Amplify Configuration", () => {
       windowMock.__CONFIG__ = undefined;
 
       vi.resetModules();
-      const { default: getAmplifyConfig } = await import("../../../config/amplify.js");
+      const { default: getAmplifyConfig } =
+        await import("../../../config/amplify.js");
       const config = getAmplifyConfig();
 
       expect(config.Auth.Cognito.userPoolId).toBe("us-east-1_DUMMY");
@@ -90,7 +92,8 @@ describe("Amplify Configuration", () => {
 
       try {
         vi.resetModules();
-        const { default: getAmplifyConfig } = await import("../../../config/amplify.js");
+        const { default: getAmplifyConfig } =
+          await import("../../../config/amplify.js");
         const config = getAmplifyConfig();
 
         expect(config).toBeDefined();
@@ -109,7 +112,8 @@ describe("Amplify Configuration", () => {
       };
 
       vi.resetModules();
-      const { isCognitoConfigured } = await import("../../../config/amplify.js");
+      const { isCognitoConfigured } =
+        await import("../../../config/amplify.js");
 
       expect(isCognitoConfigured()).toBe(true);
     });
@@ -121,7 +125,8 @@ describe("Amplify Configuration", () => {
       };
 
       vi.resetModules();
-      const { isCognitoConfigured } = await import("../../../config/amplify.js");
+      const { isCognitoConfigured } =
+        await import("../../../config/amplify.js");
 
       expect(isCognitoConfigured()).toBe(true);
     });
@@ -133,7 +138,8 @@ describe("Amplify Configuration", () => {
       };
 
       vi.resetModules();
-      const { isCognitoConfigured } = await import("../../../config/amplify.js");
+      const { isCognitoConfigured } =
+        await import("../../../config/amplify.js");
 
       expect(isCognitoConfigured()).toBe(false);
     });
@@ -145,7 +151,8 @@ describe("Amplify Configuration", () => {
       };
 
       vi.resetModules();
-      const { isCognitoConfigured } = await import("../../../config/amplify.js");
+      const { isCognitoConfigured } =
+        await import("../../../config/amplify.js");
 
       expect(isCognitoConfigured()).toBe(false);
     });
@@ -154,7 +161,8 @@ describe("Amplify Configuration", () => {
       windowMock.__CONFIG__ = {};
 
       vi.resetModules();
-      const { isCognitoConfigured } = await import("../../../config/amplify.js");
+      const { isCognitoConfigured } =
+        await import("../../../config/amplify.js");
 
       expect(isCognitoConfigured()).toBe(false);
     });
@@ -173,7 +181,8 @@ describe("Amplify Configuration", () => {
       });
 
       vi.resetModules();
-      const { isCognitoConfigured } = await import("../../../config/amplify.js");
+      const { isCognitoConfigured } =
+        await import("../../../config/amplify.js");
 
       expect(isCognitoConfigured()).toBe(true);
     });
@@ -187,7 +196,8 @@ describe("Amplify Configuration", () => {
       };
 
       vi.resetModules();
-      const { default: getAmplifyConfig } = await import("../../../config/amplify.js");
+      const { default: getAmplifyConfig } =
+        await import("../../../config/amplify.js");
       const config = getAmplifyConfig();
 
       expect(config.Auth.Cognito.userPoolId).toBe("us-east-1_RuntimePool");
@@ -201,7 +211,8 @@ describe("Amplify Configuration", () => {
       };
 
       vi.resetModules();
-      const { default: getAmplifyConfig } = await import("../../../config/amplify.js");
+      const { default: getAmplifyConfig } =
+        await import("../../../config/amplify.js");
       const config = getAmplifyConfig();
 
       expect(config.Auth.Cognito.userPoolId).toBe("us-east-1_EnvPool");
@@ -218,7 +229,8 @@ describe("Amplify Configuration", () => {
       });
 
       vi.resetModules();
-      const { default: getAmplifyConfig } = await import("../../../config/amplify.js");
+      const { default: getAmplifyConfig } =
+        await import("../../../config/amplify.js");
       const config = getAmplifyConfig();
 
       expect(config.Auth.Cognito.userPoolId).toBe("us-east-1_DUMMY");
@@ -227,7 +239,8 @@ describe("Amplify Configuration", () => {
 
     it("should include correct Cognito Auth config structure", async () => {
       vi.resetModules();
-      const { default: getAmplifyConfig } = await import("../../../config/amplify.js");
+      const { default: getAmplifyConfig } =
+        await import("../../../config/amplify.js");
       const config = getAmplifyConfig();
 
       expect(config.Auth).toBeDefined();
@@ -244,7 +257,8 @@ describe("Amplify Configuration", () => {
       };
 
       vi.resetModules();
-      const { default: getAmplifyConfig } = await import("../../../config/amplify.js");
+      const { default: getAmplifyConfig } =
+        await import("../../../config/amplify.js");
       const config = getAmplifyConfig();
 
       expect(config.Auth.Cognito.region).toBe("eu-west-1");

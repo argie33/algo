@@ -1,12 +1,12 @@
-import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
-import { renderHook, waitFor } from '@testing-library/react';
-import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
-import { useApiQuery, useApiPaginatedQuery } from '../../../hooks/useApiQuery';
-import * as dataCache from '../../../services/dataCache';
-import React from 'react';
+import { describe, it, expect, beforeEach, afterEach, vi } from "vitest";
+import { renderHook, waitFor } from "@testing-library/react";
+import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
+import { useApiQuery, useApiPaginatedQuery } from "../../../hooks/useApiQuery";
+import * as dataCache from "../../../services/dataCache";
+import React from "react";
 
 // Mock the dataCache module
-vi.mock('../../../services/dataCache', () => ({
+vi.mock("../../../services/dataCache", () => ({
   default: {
     get: vi.fn(),
     set: vi.fn(),
@@ -21,7 +21,7 @@ vi.mock('../../../services/dataCache', () => ({
   set: vi.fn(),
 }));
 
-describe('useApiQuery - Unhandled Promise Rejections Fix', () => {
+describe("useApiQuery - Unhandled Promise Rejections Fix", () => {
   let queryClient;
   let unhandledRejections = [];
 
@@ -39,11 +39,11 @@ describe('useApiQuery - Unhandled Promise Rejections Fix', () => {
       unhandledRejections.push(e.reason || e);
     };
 
-    window.addEventListener('unhandledrejection', handleRejection);
+    window.addEventListener("unhandledrejection", handleRejection);
 
     // Cleanup after each test
     return () => {
-      window.removeEventListener('unhandledrejection', handleRejection);
+      window.removeEventListener("unhandledrejection", handleRejection);
     };
   });
 
@@ -52,18 +52,16 @@ describe('useApiQuery - Unhandled Promise Rejections Fix', () => {
     unhandledRejections = [];
   });
 
-  const wrapper = ({ children }) => (
-    React.createElement(QueryClientProvider, { client: queryClient }, children)
-  );
+  const wrapper = ({ children }) =>
+    React.createElement(QueryClientProvider, { client: queryClient }, children);
 
-  it('should catch API errors without unhandled rejections', async () => {
-    const mockError = new Error('API failed');
+  it("should catch API errors without unhandled rejections", async () => {
+    const mockError = new Error("API failed");
     const queryFn = vi.fn().mockRejectedValue(mockError);
 
-    const { result } = renderHook(
-      () => useApiQuery(['test-key'], queryFn),
-      { wrapper }
-    );
+    const { result } = renderHook(() => useApiQuery(["test-key"], queryFn), {
+      wrapper,
+    });
 
     await waitFor(() => {
       expect(result.current.error).toBeDefined();
@@ -77,23 +75,22 @@ describe('useApiQuery - Unhandled Promise Rejections Fix', () => {
       { timeout: 1000 }
     );
 
-    expect(result.current.error?.message).toContain('API failed');
+    expect(result.current.error?.message).toContain("API failed");
   });
 
-  it('should handle cache failures gracefully', async () => {
-    const mockData = { test: 'data' };
+  it("should handle cache failures gracefully", async () => {
+    const mockData = { test: "data" };
     const queryFn = vi.fn().mockResolvedValue({
       data: { success: true, data: mockData },
     });
 
     // Mock cache.set to throw
-    dataCache.set.mockRejectedValue(new Error('Cache write failed'));
+    dataCache.set.mockRejectedValue(new Error("Cache write failed"));
     dataCache.get.mockResolvedValue(null);
 
-    const { result } = renderHook(
-      () => useApiQuery(['test-key'], queryFn),
-      { wrapper }
-    );
+    const { result } = renderHook(() => useApiQuery(["test-key"], queryFn), {
+      wrapper,
+    });
 
     await waitFor(() => {
       expect(result.current.data).toBeDefined();
@@ -102,13 +99,13 @@ describe('useApiQuery - Unhandled Promise Rejections Fix', () => {
     // Cache failure should not cause unhandled rejection
     expect(unhandledRejections.length).toBe(0);
     // Data includes metadata added by addMetadata()
-    expect(result.current.data.test).toBe('data');
+    expect(result.current.data.test).toBe("data");
     expect(result.current.data._fetchedAt).toBeDefined();
     expect(result.current.data._age).toBeDefined();
   });
 
-  it('should return cached fallback without unhandled rejections', async () => {
-    const mockError = new Error('Network error');
+  it("should return cached fallback without unhandled rejections", async () => {
+    const mockError = new Error("Network error");
     const cachedData = { cached: true };
     const queryFn = vi.fn().mockRejectedValue(mockError);
 
@@ -116,57 +113,63 @@ describe('useApiQuery - Unhandled Promise Rejections Fix', () => {
     dataCache.default.get.mockResolvedValue(cachedData);
     dataCache.default.getMetadata.mockResolvedValue({ fetchedAt: Date.now() });
 
-    const { result } = renderHook(
-      () => useApiQuery(['test-key'], queryFn),
-      { wrapper }
-    );
+    const { result } = renderHook(() => useApiQuery(["test-key"], queryFn), {
+      wrapper,
+    });
 
     // Network errors trigger retries; wait long enough for all retries to complete
-    await waitFor(() => {
-      expect(result.current.data).toBeDefined();
-    }, { timeout: 5000 });
+    await waitFor(
+      () => {
+        expect(result.current.data).toBeDefined();
+      },
+      { timeout: 5000 }
+    );
 
     // Should return cached data without unhandled rejections
     expect(unhandledRejections.length).toBe(0);
     // Cached data gets metadata added too
-    expect(result.current.data).toHaveProperty('cached', true);
+    expect(result.current.data).toHaveProperty("cached", true);
     expect(result.current.data._fromCache).toBe(true);
   });
 
-  it('should handle cache retrieval failures', async () => {
-    const mockError = new Error('Network error');
+  it("should handle cache retrieval failures", async () => {
+    const mockError = new Error("Network error");
     const queryFn = vi.fn().mockRejectedValue(mockError);
 
     // Mock cache retrieval to fail (hook uses default export, not named export)
-    dataCache.default.get.mockRejectedValue(new Error('Cache read failed'));
+    dataCache.default.get.mockRejectedValue(new Error("Cache read failed"));
 
-    const { result } = renderHook(
-      () => useApiQuery(['test-key'], queryFn),
-      { wrapper }
-    );
+    const { result } = renderHook(() => useApiQuery(["test-key"], queryFn), {
+      wrapper,
+    });
 
     // 'Network error' triggers retries (200+400+800ms); wait long enough
-    await waitFor(() => {
-      expect(result.current.error).not.toBeNull();
-    }, { timeout: 5000 });
+    await waitFor(
+      () => {
+        expect(result.current.error).not.toBeNull();
+      },
+      { timeout: 5000 }
+    );
 
     // Both cache read and API call failed, but no unhandled rejections
     expect(unhandledRejections.length).toBe(0);
-    expect(result.current.error?.message).toContain('Network error');
+    expect(result.current.error?.message).toContain("Network error");
   });
 
-  it('should properly log errors without throwing', async () => {
-    const consoleWarnSpy = vi.spyOn(console, 'warn').mockImplementation(() => {});
-    const mockError = new Error('Test error');
+  it("should properly log errors without throwing", async () => {
+    const consoleWarnSpy = vi
+      .spyOn(console, "warn")
+      .mockImplementation(() => {});
+    const mockError = new Error("Test error");
     const queryFn = vi.fn().mockRejectedValue(mockError);
 
     dataCache.get.mockResolvedValue(null);
 
-    renderHook(() => useApiQuery(['test-key'], queryFn), { wrapper });
+    renderHook(() => useApiQuery(["test-key"], queryFn), { wrapper });
 
     await waitFor(() => {
       expect(consoleWarnSpy).toHaveBeenCalledWith(
-        expect.stringContaining('[useApiQuery] Query failed'),
+        expect.stringContaining("[useApiQuery] Query failed"),
         expect.anything()
       );
     });
@@ -175,7 +178,7 @@ describe('useApiQuery - Unhandled Promise Rejections Fix', () => {
     consoleWarnSpy.mockRestore();
   });
 
-  it('should format decimal fields for financial precision', async () => {
+  it("should format decimal fields for financial precision", async () => {
     const mockData = {
       position_value: 12345.6789,
       unrealized_pnl_dollars: 123.456789,
@@ -190,7 +193,7 @@ describe('useApiQuery - Unhandled Promise Rejections Fix', () => {
     dataCache.get.mockResolvedValue(null);
 
     const { result } = renderHook(
-      () => useApiQuery(['algo-positions'], queryFn),
+      () => useApiQuery(["algo-positions"], queryFn),
       { wrapper }
     );
 
@@ -201,12 +204,12 @@ describe('useApiQuery - Unhandled Promise Rejections Fix', () => {
     // All float values should be formatted to 2 decimal places for financial precision
     expect(result.current.data.position_value).toBe(12345.68);
     expect(result.current.data.unrealized_pnl_dollars).toBe(123.46);
-    expect(result.current.data.avg_entry_price).toBe(100.00);
-    expect(result.current.data.current_price).toBe(100.00);
+    expect(result.current.data.avg_entry_price).toBe(100.0);
+    expect(result.current.data.current_price).toBe(100.0);
   });
 });
 
-describe('useApiPaginatedQuery - Unhandled Promise Rejections Fix', () => {
+describe("useApiPaginatedQuery - Unhandled Promise Rejections Fix", () => {
   let queryClient;
   let unhandledRejections = [];
 
@@ -223,10 +226,10 @@ describe('useApiPaginatedQuery - Unhandled Promise Rejections Fix', () => {
       unhandledRejections.push(e.reason || e);
     };
 
-    window.addEventListener('unhandledrejection', handleRejection);
+    window.addEventListener("unhandledrejection", handleRejection);
 
     return () => {
-      window.removeEventListener('unhandledrejection', handleRejection);
+      window.removeEventListener("unhandledrejection", handleRejection);
     };
   });
 
@@ -235,18 +238,17 @@ describe('useApiPaginatedQuery - Unhandled Promise Rejections Fix', () => {
     unhandledRejections = [];
   });
 
-  const wrapper = ({ children }) => (
-    React.createElement(QueryClientProvider, { client: queryClient }, children)
-  );
+  const wrapper = ({ children }) =>
+    React.createElement(QueryClientProvider, { client: queryClient }, children);
 
-  it('should handle paginated query errors without unhandled rejections', async () => {
-    const mockError = new Error('Paginated API failed');
+  it("should handle paginated query errors without unhandled rejections", async () => {
+    const mockError = new Error("Paginated API failed");
     const queryFn = vi.fn().mockRejectedValue(mockError);
 
     dataCache.default.get.mockResolvedValue(null);
 
     const { result } = renderHook(
-      () => useApiPaginatedQuery(['test-paginated'], queryFn),
+      () => useApiPaginatedQuery(["test-paginated"], queryFn),
       { wrapper }
     );
 
@@ -256,15 +258,15 @@ describe('useApiPaginatedQuery - Unhandled Promise Rejections Fix', () => {
     });
 
     expect(unhandledRejections.length).toBe(0);
-    expect(result.current.error?.message).toContain('Paginated API failed');
+    expect(result.current.error?.message).toContain("Paginated API failed");
   });
 
-  it('should return empty items array on error', async () => {
-    const queryFn = vi.fn().mockRejectedValue(new Error('API error'));
+  it("should return empty items array on error", async () => {
+    const queryFn = vi.fn().mockRejectedValue(new Error("API error"));
     dataCache.get.mockResolvedValue(null);
 
     const { result } = renderHook(
-      () => useApiPaginatedQuery(['test-paginated'], queryFn),
+      () => useApiPaginatedQuery(["test-paginated"], queryFn),
       { wrapper }
     );
 
@@ -276,7 +278,7 @@ describe('useApiPaginatedQuery - Unhandled Promise Rejections Fix', () => {
     expect(unhandledRejections.length).toBe(0);
   });
 
-  it('should handle API response without items property (Issue #9)', async () => {
+  it("should handle API response without items property (Issue #9)", async () => {
     const queryFn = vi.fn().mockResolvedValue({
       data: { statusCode: 200, data: {} }, // No items property
     });
@@ -285,7 +287,7 @@ describe('useApiPaginatedQuery - Unhandled Promise Rejections Fix', () => {
     dataCache.get.mockResolvedValue(null);
 
     const { result } = renderHook(
-      () => useApiPaginatedQuery(['test-no-items'], queryFn),
+      () => useApiPaginatedQuery(["test-no-items"], queryFn),
       { wrapper }
     );
 
@@ -299,7 +301,7 @@ describe('useApiPaginatedQuery - Unhandled Promise Rejections Fix', () => {
     expect(unhandledRejections.length).toBe(0);
   });
 
-  it('should handle API response with undefined items property', async () => {
+  it("should handle API response with undefined items property", async () => {
     const queryFn = vi.fn().mockResolvedValue({
       data: { statusCode: 200, data: { items: undefined } },
     });
@@ -308,7 +310,7 @@ describe('useApiPaginatedQuery - Unhandled Promise Rejections Fix', () => {
     dataCache.get.mockResolvedValue(null);
 
     const { result } = renderHook(
-      () => useApiPaginatedQuery(['test-undefined-items'], queryFn),
+      () => useApiPaginatedQuery(["test-undefined-items"], queryFn),
       { wrapper }
     );
 
@@ -321,7 +323,7 @@ describe('useApiPaginatedQuery - Unhandled Promise Rejections Fix', () => {
     expect(unhandledRejections.length).toBe(0);
   });
 
-  it('should handle API response with null items property', async () => {
+  it("should handle API response with null items property", async () => {
     const queryFn = vi.fn().mockResolvedValue({
       data: { statusCode: 200, data: { items: null } },
     });
@@ -330,7 +332,7 @@ describe('useApiPaginatedQuery - Unhandled Promise Rejections Fix', () => {
     dataCache.get.mockResolvedValue(null);
 
     const { result } = renderHook(
-      () => useApiPaginatedQuery(['test-null-items'], queryFn),
+      () => useApiPaginatedQuery(["test-null-items"], queryFn),
       { wrapper }
     );
 

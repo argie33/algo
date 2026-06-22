@@ -637,4 +637,3 @@ describe("Mobile Responsiveness Tests", () => {
     });
   });
 });
-

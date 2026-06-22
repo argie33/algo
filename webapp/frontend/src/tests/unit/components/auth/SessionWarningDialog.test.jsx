@@ -1,9 +1,4 @@
-import {
-  render,
-  screen,
-  fireEvent,
-  act,
-} from "@testing-library/react";
+import { render, screen, fireEvent, act } from "@testing-library/react";
 import { vi } from "vitest";
 
 // The global setup.js mocks SessionWarningDialog to null for use in other tests.
@@ -216,9 +211,12 @@ describe("SessionWarningDialog", () => {
 
     test("shows loading state when extending session", async () => {
       let resolveExtend;
-      const onExtend = vi.fn().mockImplementation(() => new Promise((resolve) => {
-        resolveExtend = resolve;
-      }));
+      const onExtend = vi.fn().mockImplementation(
+        () =>
+          new Promise((resolve) => {
+            resolveExtend = resolve;
+          })
+      );
       render(<SessionWarningDialog {...defaultProps} onExtend={onExtend} />);
 
       const staySignedInButton = screen.getByText("Stay Signed In");
@@ -353,4 +351,3 @@ describe("SessionWarningDialog", () => {
     });
   });
 });
-

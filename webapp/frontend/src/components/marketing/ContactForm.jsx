@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState } from "react";
 import {
   Box,
   TextField,
@@ -6,15 +6,15 @@ import {
   CircularProgress,
   Alert,
   useTheme,
-} from '@mui/material';
+} from "@mui/material";
 
 const ContactForm = ({ onSubmit }) => {
   const _theme = useTheme();
   const [formData, setFormData] = useState({
-    name: '',
-    email: '',
-    subject: '',
-    message: '',
+    name: "",
+    email: "",
+    subject: "",
+    message: "",
   });
   const [loading, setLoading] = useState(false);
   const [submitted, setSubmitted] = useState(false);
@@ -35,7 +35,7 @@ const ContactForm = ({ onSubmit }) => {
 
     // Basic validation
     if (!formData.name || !formData.email || !formData.message) {
-      setError('Please fill in all required fields');
+      setError("Please fill in all required fields");
       setLoading(false);
       return;
     }
@@ -43,7 +43,7 @@ const ContactForm = ({ onSubmit }) => {
     // Email validation
     const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
     if (!emailRegex.test(formData.email)) {
-      setError('Please enter a valid email address');
+      setError("Please enter a valid email address");
       setLoading(false);
       return;
     }
@@ -56,14 +56,14 @@ const ContactForm = ({ onSubmit }) => {
       }
 
       setSubmitted(true);
-      setFormData({ name: '', email: '', subject: '', message: '' });
+      setFormData({ name: "", email: "", subject: "", message: "" });
 
       // Reset success message after 5 seconds
       setTimeout(() => {
         setSubmitted(false);
       }, 5000);
     } catch (err) {
-      setError(err.message || 'Failed to submit form. Please try again.');
+      setError(err.message || "Failed to submit form. Please try again.");
     } finally {
       setLoading(false);
     }
@@ -74,10 +74,10 @@ const ContactForm = ({ onSubmit }) => {
       component="form"
       onSubmit={handleSubmit}
       sx={{
-        display: 'flex',
-        flexDirection: 'column',
+        display: "flex",
+        flexDirection: "column",
         gap: 2.5,
-        maxWidth: '600px',
+        maxWidth: "600px",
       }}
     >
       {submitted && (
@@ -86,9 +86,7 @@ const ContactForm = ({ onSubmit }) => {
         </Alert>
       )}
 
-      {error && (
-        <Alert severity="error">{error}</Alert>
-      )}
+      {error && <Alert severity="error">{error}</Alert>}
 
       <TextField
         fullWidth
@@ -100,7 +98,7 @@ const ContactForm = ({ onSubmit }) => {
         required
         variant="outlined"
         sx={{
-          '& .MuiOutlinedInput-root': {
+          "& .MuiOutlinedInput-root": {
             borderRadius: 1,
           },
         }}
@@ -117,7 +115,7 @@ const ContactForm = ({ onSubmit }) => {
         required
         variant="outlined"
         sx={{
-          '& .MuiOutlinedInput-root': {
+          "& .MuiOutlinedInput-root": {
             borderRadius: 1,
           },
         }}
@@ -132,7 +130,7 @@ const ContactForm = ({ onSubmit }) => {
         placeholder="How can we help?"
         variant="outlined"
         sx={{
-          '& .MuiOutlinedInput-root': {
+          "& .MuiOutlinedInput-root": {
             borderRadius: 1,
           },
         }}
@@ -150,7 +148,7 @@ const ContactForm = ({ onSubmit }) => {
         rows={6}
         variant="outlined"
         sx={{
-          '& .MuiOutlinedInput-root': {
+          "& .MuiOutlinedInput-root": {
             borderRadius: 1,
           },
         }}
@@ -163,11 +161,11 @@ const ContactForm = ({ onSubmit }) => {
         disabled={loading}
         sx={{
           py: 1.5,
-          fontSize: '1rem',
+          fontSize: "1rem",
           fontWeight: 600,
           borderRadius: 1,
-          textTransform: 'none',
-          position: 'relative',
+          textTransform: "none",
+          position: "relative",
         }}
       >
         {loading ? (
@@ -176,7 +174,7 @@ const ContactForm = ({ onSubmit }) => {
             Sending...
           </>
         ) : (
-          'Send Message'
+          "Send Message"
         )}
       </Button>
     </Box>
@@ -184,4 +182,3 @@ const ContactForm = ({ onSubmit }) => {
 };
 
 export default ContactForm;
-

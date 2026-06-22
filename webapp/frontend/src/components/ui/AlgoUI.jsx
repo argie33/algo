@@ -3,24 +3,51 @@
  * Every page imports from here for consistency.
  */
 
-import React from 'react';
+import React from "react";
 import {
-  Box, Card, CardContent, Typography, Chip,
-  Table, TableBody, TableCell, TableContainer, TableHead, TableRow,
+  Box,
+  Card,
+  CardContent,
+  Typography,
+  Chip,
+  Table,
+  TableBody,
+  TableCell,
+  TableContainer,
+  TableHead,
+  TableRow,
   Stack,
-} from '@mui/material';
-import { TrendingUp, TrendingDown } from '@mui/icons-material';
-import { C, F, comp, gradeColor, severityColor, pnlColor, fmt$, fmtPct } from '../../theme/algoTheme';
+} from "@mui/material";
+import { TrendingUp, TrendingDown } from "@mui/icons-material";
+import {
+  C,
+  F,
+  comp,
+  gradeColor,
+  severityColor,
+  pnlColor,
+  fmt$,
+  fmtPct,
+} from "../../theme/algoTheme";
 
 // ============================================================================
 // SECTION CARD — primary container for grouped data
 // ============================================================================
-export const SectionCard = ({ title, action, subtitle, children, sx = {}, noPadding = false }) => (
+export const SectionCard = ({
+  title,
+  action,
+  subtitle,
+  children,
+  sx = {},
+  noPadding = false,
+}) => (
   <Card sx={{ ...comp.card, ...sx }}>
     {title && (
       <Box sx={comp.cardHeader}>
         <Box>
-          <Typography sx={{ ...F.overline, color: C.textBright }}>{title}</Typography>
+          <Typography sx={{ ...F.overline, color: C.textBright }}>
+            {title}
+          </Typography>
           {subtitle && (
             <Typography sx={{ color: C.textDim, fontSize: F.xs, mt: 0.25 }}>
               {subtitle}
@@ -30,8 +57,10 @@ export const SectionCard = ({ title, action, subtitle, children, sx = {}, noPadd
         {action}
       </Box>
     )}
-    {noPadding ? children : (
-      <CardContent sx={{ '&:last-child': { pb: 2 } }}>{children}</CardContent>
+    {noPadding ? (
+      children
+    ) : (
+      <CardContent sx={{ "&:last-child": { pb: 2 } }}>{children}</CardContent>
     )}
   </Card>
 );
@@ -39,24 +68,35 @@ export const SectionCard = ({ title, action, subtitle, children, sx = {}, noPadd
 // ============================================================================
 // STAT — labelled numeric value block
 // ============================================================================
-export const Stat = ({ label, value, sub, color, mono = true, large = false }) => (
+export const Stat = ({
+  label,
+  value,
+  sub,
+  color,
+  mono = true,
+  large = false,
+}) => (
   <Box>
     <Typography sx={{ ...F.overline, color: C.textDim }}>{label}</Typography>
-    <Typography sx={{
-      color: color || C.textBright,
-      fontFamily: mono ? F.mono : F.body,
-      fontWeight: F.weight.bold,
-      fontSize: large ? F.xxl : F.xl,
-      lineHeight: 1.2,
-    }}>
+    <Typography
+      sx={{
+        color: color || C.textBright,
+        fontFamily: mono ? F.mono : F.body,
+        fontWeight: F.weight.bold,
+        fontSize: large ? F.xxl : F.xl,
+        lineHeight: 1.2,
+      }}
+    >
       {value}
     </Typography>
     {sub && (
-      <Typography sx={{
-        color: typeof sub === 'object' ? undefined : C.textDim,
-        fontSize: F.xs,
-        fontFamily: F.mono,
-      }}>
+      <Typography
+        sx={{
+          color: typeof sub === "object" ? undefined : C.textDim,
+          fontSize: F.xs,
+          fontFamily: F.mono,
+        }}
+      >
         {sub}
       </Typography>
     )}
@@ -66,20 +106,34 @@ export const Stat = ({ label, value, sub, color, mono = true, large = false }) =
 // ============================================================================
 // KPI CARD — bordered stat with semantic accent
 // ============================================================================
-export const KpiCard = ({ label, value, sub, color, hint, accent = C.blue }) => (
-  <Box sx={{
-    p: 2, bgcolor: C.cardAlt, border: `1px solid ${C.border}`, borderRadius: 1,
-    borderLeft: `4px solid ${accent}`,
-    height: '100%',
-  }}>
+export const KpiCard = ({
+  label,
+  value,
+  sub,
+  color,
+  hint,
+  accent = C.blue,
+}) => (
+  <Box
+    sx={{
+      p: 2,
+      bgcolor: C.cardAlt,
+      border: `1px solid ${C.border}`,
+      borderRadius: 1,
+      borderLeft: `4px solid ${accent}`,
+      height: "100%",
+    }}
+  >
     <Typography sx={{ ...F.overline, color: C.textDim }}>{label}</Typography>
-    <Typography sx={{
-      color: color || C.textBright,
-      fontFamily: F.mono,
-      fontWeight: F.weight.bold,
-      fontSize: F.xl,
-      lineHeight: 1.2,
-    }}>
+    <Typography
+      sx={{
+        color: color || C.textBright,
+        fontFamily: F.mono,
+        fontWeight: F.weight.bold,
+        fontSize: F.xl,
+        lineHeight: 1.2,
+      }}
+    >
       {value}
     </Typography>
     {(sub || hint) && (
@@ -93,19 +147,35 @@ export const KpiCard = ({ label, value, sub, color, hint, accent = C.blue }) => 
 // ============================================================================
 // PNL CELL — automatic color + arrow
 // ============================================================================
-export const PnlCell = ({ value, format = 'number', decimals = 2, sx = {} }) => {
+export const PnlCell = ({
+  value,
+  format = "number",
+  decimals = 2,
+  sx = {},
+}) => {
   if (value === null || value === undefined || isNaN(value)) {
-    return <Box component="span" sx={{ color: C.textDim, fontFamily: F.mono, ...sx }}>-</Box>;
+    return (
+      <Box
+        component="span"
+        sx={{ color: C.textDim, fontFamily: F.mono, ...sx }}
+      >
+        -
+      </Box>
+    );
   }
   const color = pnlColor(value);
   let display;
-  if (format === 'currency') display = fmt$(value, decimals);
-  else if (format === 'percent') display = fmtPct(value, decimals);
-  else if (format === 'r-multiple') display = `${value > 0 ? '+' : ''}${Number(value).toFixed(decimals)}R`;
-  else display = `${value > 0 ? '+' : ''}${Number(value).toFixed(decimals)}`;
+  if (format === "currency") display = fmt$(value, decimals);
+  else if (format === "percent") display = fmtPct(value, decimals);
+  else if (format === "r-multiple")
+    display = `${value > 0 ? "+" : ""}${Number(value).toFixed(decimals)}R`;
+  else display = `${value > 0 ? "+" : ""}${Number(value).toFixed(decimals)}`;
 
   return (
-    <Box component="span" sx={{ color, fontFamily: F.mono, fontWeight: F.weight.bold, ...sx }}>
+    <Box
+      component="span"
+      sx={{ color, fontFamily: F.mono, fontWeight: F.weight.bold, ...sx }}
+    >
       {display}
     </Box>
   );
@@ -117,8 +187,8 @@ export const PnlCell = ({ value, format = 'number', decimals = 2, sx = {} }) => 
 export const SeverityChip = ({ severity, label }) => (
   <Chip
     size="small"
-    label={(label || severity || '').toUpperCase()}
-    sx={comp.chip(severityColor(severity), 'white')}
+    label={(label || severity || "").toUpperCase()}
+    sx={comp.chip(severityColor(severity), "white")}
   />
 );
 
@@ -128,7 +198,7 @@ export const SeverityChip = ({ severity, label }) => (
 export const GradeChip = ({ grade }) => (
   <Chip
     size="small"
-    label={grade || '?'}
+    label={grade || "?"}
     sx={{ ...comp.chip(gradeColor(grade)), minWidth: 32 }}
   />
 );
@@ -137,10 +207,29 @@ export const GradeChip = ({ grade }) => (
 // TREND ARROW
 // ============================================================================
 export const TrendArrow = ({ value, threshold = 0 }) => {
-  if (value === null || value === undefined) return <Box component="span" sx={{ color: C.textDim }}>·</Box>;
-  if (value > threshold) return <TrendingUp sx={{ color: C.bull, fontSize: 16, verticalAlign: 'middle' }} />;
-  if (value < -threshold) return <TrendingDown sx={{ color: C.bear, fontSize: 16, verticalAlign: 'middle' }} />;
-  return <Box component="span" sx={{ color: C.textDim }}>·</Box>;
+  if (value === null || value === undefined)
+    return (
+      <Box component="span" sx={{ color: C.textDim }}>
+        ·
+      </Box>
+    );
+  if (value > threshold)
+    return (
+      <TrendingUp
+        sx={{ color: C.bull, fontSize: 16, verticalAlign: "middle" }}
+      />
+    );
+  if (value < -threshold)
+    return (
+      <TrendingDown
+        sx={{ color: C.bear, fontSize: 16, verticalAlign: "middle" }}
+      />
+    );
+  return (
+    <Box component="span" sx={{ color: C.textDim }}>
+      ·
+    </Box>
+  );
 };
 
 // ============================================================================
@@ -150,11 +239,23 @@ export const ProgressBar = ({ value, max, height = 6 }) => {
   const pct = max > 0 ? (value / max) * 100 : 0;
   const color = pct >= 70 ? C.bull : pct >= 40 ? C.warn : C.bear;
   return (
-    <Box sx={{ width: '100%', height, bgcolor: C.bg, borderRadius: 1, overflow: 'hidden' }}>
-      <Box sx={{
-        width: `${Math.max(0, Math.min(100, pct))}%`, height: '100%',
-        bgcolor: color, transition: 'width 0.3s, background-color 0.3s',
-      }} />
+    <Box
+      sx={{
+        width: "100%",
+        height,
+        bgcolor: C.bg,
+        borderRadius: 1,
+        overflow: "hidden",
+      }}
+    >
+      <Box
+        sx={{
+          width: `${Math.max(0, Math.min(100, pct))}%`,
+          height: "100%",
+          bgcolor: color,
+          transition: "width 0.3s, background-color 0.3s",
+        }}
+      />
     </Box>
   );
 };
@@ -164,27 +265,42 @@ export const ProgressBar = ({ value, max, height = 6 }) => {
 // ============================================================================
 export const FactorBar = ({ label, pts, max, sub, _expanded, onToggle }) => (
   <Box sx={{ mb: 1.5 }}>
-    <Box sx={{
-      display: 'flex', justifyContent: 'space-between',
-      mb: 0.5, alignItems: 'center',
-      cursor: onToggle ? 'pointer' : 'default',
-    }} onClick={onToggle}>
-      <Typography sx={{ color: C.text, fontSize: F.sm, fontWeight: F.weight.semibold }}>
+    <Box
+      sx={{
+        display: "flex",
+        justifyContent: "space-between",
+        mb: 0.5,
+        alignItems: "center",
+        cursor: onToggle ? "pointer" : "default",
+      }}
+      onClick={onToggle}
+    >
+      <Typography
+        sx={{ color: C.text, fontSize: F.sm, fontWeight: F.weight.semibold }}
+      >
         {label}
       </Typography>
-      <Typography sx={{
-        color: pts / max >= 0.7 ? C.bull : pts / max >= 0.4 ? C.warn : C.bear,
-        fontFamily: F.mono, fontWeight: F.weight.bold,
-        fontSize: F.sm,
-      }}>
+      <Typography
+        sx={{
+          color: pts / max >= 0.7 ? C.bull : pts / max >= 0.4 ? C.warn : C.bear,
+          fontFamily: F.mono,
+          fontWeight: F.weight.bold,
+          fontSize: F.sm,
+        }}
+      >
         {(pts || 0).toFixed(1)} / {max}
       </Typography>
     </Box>
     <ProgressBar value={pts || 0} max={max} />
     {sub && (
-      <Typography sx={{
-        mt: 0.5, color: C.textDim, fontSize: F.xs, fontFamily: F.mono,
-      }}>
+      <Typography
+        sx={{
+          mt: 0.5,
+          color: C.textDim,
+          fontSize: F.xs,
+          fontFamily: F.mono,
+        }}
+      >
         {sub}
       </Typography>
     )}
@@ -194,7 +310,12 @@ export const FactorBar = ({ label, pts, max, sub, _expanded, onToggle }) => (
 // ============================================================================
 // DATA TABLE — pre-styled table for data rows
 // ============================================================================
-export const DataTable = ({ columns = [], rows = [], emptyMessage, maxHeight }) => (
+export const DataTable = ({
+  columns = [],
+  rows = [],
+  emptyMessage,
+  maxHeight,
+}) => (
   <TableContainer sx={maxHeight ? { maxHeight } : {}}>
     <Table size="small" stickyHeader={!!maxHeight}>
       <TableHead>
@@ -202,7 +323,7 @@ export const DataTable = ({ columns = [], rows = [], emptyMessage, maxHeight }) 
           {(Array.isArray(columns) ? columns : []).map((col) => (
             <TableCell
               key={col.key || col.label}
-              align={col.align || 'left'}
+              align={col.align || "left"}
               sx={comp.thCell}
             >
               {col.label}
@@ -213,27 +334,36 @@ export const DataTable = ({ columns = [], rows = [], emptyMessage, maxHeight }) 
       <TableBody>
         {(Array.isArray(rows) ? rows : []).length === 0 ? (
           <TableRow>
-            <TableCell colSpan={columns.length} sx={{ ...comp.tdCell, textAlign: 'center', py: 4 }}>
+            <TableCell
+              colSpan={columns.length}
+              sx={{ ...comp.tdCell, textAlign: "center", py: 4 }}
+            >
               <Typography sx={{ color: C.textDim, fontSize: F.sm }}>
-                {emptyMessage || 'No data'}
+                {emptyMessage || "No data"}
               </Typography>
             </TableCell>
           </TableRow>
-        ) : (Array.isArray(rows) ? rows : []).map((row, i) => (
-          <TableRow key={row._key || i} hover sx={{
-            '&:hover': { bgcolor: `${C.cardAlt} !important` },
-          }}>
-            {(Array.isArray(columns) ? columns : []).map((col) => (
-              <TableCell
-                key={col.key || col.label}
-                align={col.align || 'left'}
-                sx={col.sx || comp.tdCell}
-              >
-                {col.render ? col.render(row, i) : row[col.key] ?? '-'}
-              </TableCell>
-            ))}
-          </TableRow>
-        ))}
+        ) : (
+          (Array.isArray(rows) ? rows : []).map((row, i) => (
+            <TableRow
+              key={row._key || i}
+              hover
+              sx={{
+                "&:hover": { bgcolor: `${C.cardAlt} !important` },
+              }}
+            >
+              {(Array.isArray(columns) ? columns : []).map((col) => (
+                <TableCell
+                  key={col.key || col.label}
+                  align={col.align || "left"}
+                  sx={col.sx || comp.tdCell}
+                >
+                  {col.render ? col.render(row, i) : (row[col.key] ?? "-")}
+                </TableCell>
+              ))}
+            </TableRow>
+          ))
+        )}
       </TableBody>
     </Table>
   </TableContainer>
@@ -243,28 +373,46 @@ export const DataTable = ({ columns = [], rows = [], emptyMessage, maxHeight }) 
 // STATUS DOT — small colored circle for status indicators
 // ============================================================================
 export const StatusDot = ({ severity, size = 8 }) => (
-  <Box sx={{
-    display: 'inline-block', width: size, height: size, borderRadius: '50%',
-    bgcolor: severityColor(severity), mr: 0.75, verticalAlign: 'middle',
-  }} />
+  <Box
+    sx={{
+      display: "inline-block",
+      width: size,
+      height: size,
+      borderRadius: "50%",
+      bgcolor: severityColor(severity),
+      mr: 0.75,
+      verticalAlign: "middle",
+    }}
+  />
 );
 
 // ============================================================================
 // PAGE HEADER — title + breadcrumb + actions
 // ============================================================================
 export const PageHeader = ({ title, subtitle, actions }) => (
-  <Box sx={{ mb: 2, display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
+  <Box
+    sx={{
+      mb: 2,
+      display: "flex",
+      justifyContent: "space-between",
+      alignItems: "flex-start",
+    }}
+  >
     <Box>
-      <Typography sx={{
-        color: C.textBright,
-        fontWeight: F.weight.bold,
-        fontSize: F.xxl,
-        letterSpacing: '-0.02em',
-      }}>
+      <Typography
+        sx={{
+          color: C.textBright,
+          fontWeight: F.weight.bold,
+          fontSize: F.xxl,
+          letterSpacing: "-0.02em",
+        }}
+      >
         {title}
       </Typography>
       {subtitle && (
-        <Typography sx={{ color: C.textDim, fontSize: F.sm, fontFamily: F.mono, mt: 0.5 }}>
+        <Typography
+          sx={{ color: C.textDim, fontSize: F.sm, fontFamily: F.mono, mt: 0.5 }}
+        >
           {subtitle}
         </Typography>
       )}
@@ -281,7 +429,7 @@ export const PageHeader = ({ title, subtitle, actions }) => (
 // EMPTY STATE
 // ============================================================================
 export const EmptyState = ({ message, icon: Icon, action }) => (
-  <Box sx={{ textAlign: 'center', py: 6, px: 3 }}>
+  <Box sx={{ textAlign: "center", py: 6, px: 3 }}>
     {Icon && <Icon sx={{ fontSize: 48, color: C.textDim, mb: 2 }} />}
     <Typography sx={{ color: C.textDim, fontSize: F.md, mb: action ? 2 : 0 }}>
       {message}
@@ -291,8 +439,17 @@ export const EmptyState = ({ message, icon: Icon, action }) => (
 );
 
 export default {
-  SectionCard, Stat, KpiCard, PnlCell, SeverityChip, GradeChip,
-  TrendArrow, ProgressBar, FactorBar, DataTable, StatusDot,
-  PageHeader, EmptyState,
+  SectionCard,
+  Stat,
+  KpiCard,
+  PnlCell,
+  SeverityChip,
+  GradeChip,
+  TrendArrow,
+  ProgressBar,
+  FactorBar,
+  DataTable,
+  StatusDot,
+  PageHeader,
+  EmptyState,
 };
-

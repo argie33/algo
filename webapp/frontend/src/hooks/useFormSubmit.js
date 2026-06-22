@@ -1,4 +1,4 @@
-import { useState, useCallback } from 'react';
+import { useState, useCallback } from "react";
 
 /**
  * Form submission hook with proper error handling and rollback.
@@ -41,7 +41,8 @@ export const useFormSubmit = (submitFn, options = {}) => {
         const submitPromise = submitFn(data);
         const timeoutPromise = new Promise((_, reject) =>
           setTimeout(
-            () => reject(new Error(`Form submission timeout after ${timeout}ms`)),
+            () =>
+              reject(new Error(`Form submission timeout after ${timeout}ms`)),
             timeout
           )
         );
@@ -50,7 +51,7 @@ export const useFormSubmit = (submitFn, options = {}) => {
 
         // Only update state if result is valid
         if (!result) {
-          throw new Error('No response from server');
+          throw new Error("No response from server");
         }
 
         // Check for API-level error

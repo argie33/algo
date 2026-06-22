@@ -212,7 +212,7 @@ def _get_algo_positions(cur, user_id: str | None = None) -> dict[str, Any]:
         for sector, value in sorted(sector_risk.items(), key=lambda x: abs(x[1]), reverse=True)
     ]
 
-    freshness = check_data_freshness(cur, "algo_positions", "modified_at", warning_days=1)
+    freshness = check_data_freshness(cur, "algo_positions", "updated_at", warning_days=1)
     stale_alerts = []
     if freshness.get("is_stale"):
         stale_alerts.append(f"Position data {freshness.get('data_age_days', '?')}d old")

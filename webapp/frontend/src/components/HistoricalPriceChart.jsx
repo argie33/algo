@@ -51,10 +51,13 @@ const HistoricalPriceChart = ({ symbol = "AAPL", days = 90 }) => {
           responseData = response?.data || [];
         }
 
-        const data = Array.isArray(responseData) ? responseData
-          : Array.isArray(responseData?.items) ? responseData.items
-          : Array.isArray(responseData?.data) ? responseData.data
-          : [];
+        const data = Array.isArray(responseData)
+          ? responseData
+          : Array.isArray(responseData?.items)
+            ? responseData.items
+            : Array.isArray(responseData?.data)
+              ? responseData.data
+              : [];
 
         // Transform data for chart
         const transformed = data.map((row) => ({
@@ -113,7 +116,7 @@ const HistoricalPriceChart = ({ symbol = "AAPL", days = 90 }) => {
         <Typography variant="h6" gutterBottom>
           {symbol} - Price History ({days} days)
         </Typography>
-        <div style={getChartContainerStyle('tall')}>
+        <div style={getChartContainerStyle("tall")}>
           <ResponsiveContainer width="100%" height={500}>
             <LineChart
               data={chartData}
@@ -130,9 +133,13 @@ const HistoricalPriceChart = ({ symbol = "AAPL", days = 90 }) => {
               />
               <YAxis width={70} />
               <Tooltip
-                contentStyle={{ backgroundColor: "rgba(0,0,0,0.85)", border: "1px solid #666", borderRadius: 4 }}
+                contentStyle={{
+                  backgroundColor: "rgba(0,0,0,0.85)",
+                  border: "1px solid #666",
+                  borderRadius: 4,
+                }}
                 labelStyle={{ color: "#fff" }}
-                cursor={{ stroke: '#888' }}
+                cursor={{ stroke: "#888" }}
               />
               <Legend />
               <Line
@@ -168,7 +175,7 @@ const HistoricalPriceChart = ({ symbol = "AAPL", days = 90 }) => {
         <Typography variant="h6" gutterBottom>
           Trading Volume
         </Typography>
-        <div style={getChartContainerStyle('compact')}>
+        <div style={getChartContainerStyle("compact")}>
           <ResponsiveContainer width="100%" height={250}>
             <BarChart
               data={chartData}
@@ -185,9 +192,13 @@ const HistoricalPriceChart = ({ symbol = "AAPL", days = 90 }) => {
               />
               <YAxis width={70} />
               <Tooltip
-                contentStyle={{ backgroundColor: "rgba(0,0,0,0.85)", border: "1px solid #666", borderRadius: 4 }}
+                contentStyle={{
+                  backgroundColor: "rgba(0,0,0,0.85)",
+                  border: "1px solid #666",
+                  borderRadius: 4,
+                }}
                 labelStyle={{ color: "#fff" }}
-                cursor={{ fill: 'rgba(0,0,0,0.1)' }}
+                cursor={{ fill: "rgba(0,0,0,0.1)" }}
               />
               <Bar
                 dataKey="volume"
@@ -205,4 +216,3 @@ const HistoricalPriceChart = ({ symbol = "AAPL", days = 90 }) => {
 };
 
 export default HistoricalPriceChart;
-

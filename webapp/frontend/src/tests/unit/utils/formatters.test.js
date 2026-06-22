@@ -517,4 +517,3 @@ describe("Formatters Utility", () => {
     });
   });
 });
-

@@ -1,4 +1,4 @@
-import { useEffect, useState, useCallback } from 'react';
+import { useEffect, useState, useCallback } from "react";
 
 /**
  * Hook to subscribe to live price updates via WebSocket.
@@ -20,32 +20,34 @@ export function useLivePrice(symbols = []) {
       setConnected(true);
 
       // Subscribe to symbols
-      websocket.send(JSON.stringify({
-        action: 'subscribe',
-        symbols: symbols
-      }));
+      websocket.send(
+        JSON.stringify({
+          action: "subscribe",
+          symbols: symbols,
+        })
+      );
     };
 
     websocket.onmessage = (event) => {
       try {
         const data = JSON.parse(event.data);
 
-        if (data.type === 'price_update') {
-          setPrices(prev => ({
+        if (data.type === "price_update") {
+          setPrices((prev) => ({
             ...prev,
             [data.symbol]: {
               price: data.price,
               timestamp: data.timestamp,
-            }
+            },
           }));
         }
       } catch (e) {
-        console.error('[LivePrice] Parse error:', e);
+        console.error("[LivePrice] Parse error:", e);
       }
     };
 
     websocket.onerror = (error) => {
-      console.error('[LivePrice] Error:', error);
+      console.error("[LivePrice] Error:", error);
       setConnected(false);
     };
 
@@ -60,21 +62,26 @@ export function useLivePrice(symbols = []) {
         websocket.close();
       }
     };
-  }, [symbols.join(',')]);
+  }, [symbols.join(",")]);
 
-  const unsubscribe = useCallback((symbolsToRemove) => {
-    if (ws && ws.readyState === WebSocket.OPEN) {
-      ws.send(JSON.stringify({
-        action: 'unsubscribe',
-        symbols: symbolsToRemove
-      }));
-    }
-  }, [ws]);
+  const unsubscribe = useCallback(
+    (symbolsToRemove) => {
+      if (ws && ws.readyState === WebSocket.OPEN) {
+        ws.send(
+          JSON.stringify({
+            action: "unsubscribe",
+            symbols: symbolsToRemove,
+          })
+        );
+      }
+    },
+    [ws]
+  );
 
   return {
     prices,
     connected,
-    unsubscribe
+    unsubscribe,
   };
 }
 
@@ -88,34 +95,61 @@ export function LivePriceTicker({ symbol, currentPrice, entryPrice }) {
   const priceChangePercent = (priceChange / entryPrice) * 100;
 
   return (
-    <div style={{
-      padding: '12px',
-      background: 'var(--bg-secondary)',
-      borderRadius: '4px',
-      border: `1px solid ${priceChange > 0 ? '#10b981' : '#ef4444'}`
-    }}>
-      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+    <div
+      style={{
+        padding: "12px",
+        background: "var(--bg-secondary)",
+        borderRadius: "4px",
+        border: `1px solid ${priceChange > 0 ? "#10b981" : "#ef4444"}`,
+      }}
+    >
+      <div
+        style={{
+          display: "flex",
+          justifyContent: "space-between",
+          alignItems: "center",
+        }}
+      >
         <div>
-          <div style={{ fontSize: '12px', color: 'var(--text-secondary)' }}>{symbol}</div>
-          <div style={{ fontSize: '20px', fontWeight: 'bold', color: priceChange > 0 ? '#10b981' : '#ef4444' }}>
+          <div style={{ fontSize: "12px", color: "var(--text-secondary)" }}>
+            {symbol}
+          </div>
+          <div
+            style={{
+              fontSize: "20px",
+              fontWeight: "bold",
+              color: priceChange > 0 ? "#10b981" : "#ef4444",
+            }}
+          >
             ${livePrice.toFixed(2)}
           </div>
         </div>
-        <div style={{ textAlign: 'right' }}>
-          <div style={{ fontSize: '14px', color: priceChange > 0 ? '#10b981' : '#ef4444' }}>
-            {priceChange > 0 ? '+' : ''}{priceChange.toFixed(2)}
+        <div style={{ textAlign: "right" }}>
+          <div
+            style={{
+              fontSize: "14px",
+              color: priceChange > 0 ? "#10b981" : "#ef4444",
+            }}
+          >
+            {priceChange > 0 ? "+" : ""}
+            {priceChange.toFixed(2)}
           </div>
-          <div style={{ fontSize: '12px', color: priceChange > 0 ? '#10b981' : '#ef4444' }}>
-            ({priceChangePercent > 0 ? '+' : ''}{priceChangePercent.toFixed(2)}%)
+          <div
+            style={{
+              fontSize: "12px",
+              color: priceChange > 0 ? "#10b981" : "#ef4444",
+            }}
+          >
+            ({priceChangePercent > 0 ? "+" : ""}
+            {priceChangePercent.toFixed(2)}%)
           </div>
         </div>
       </div>
       {!connected && (
-        <div style={{ fontSize: '10px', color: '#f59e0b', marginTop: '6px' }}>
+        <div style={{ fontSize: "10px", color: "#f59e0b", marginTop: "6px" }}>
           ⚠ Live prices unavailable (using cached)
         </div>
       )}
     </div>
   );
 }
-

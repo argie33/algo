@@ -131,6 +131,7 @@ class PriceTransformer:
             return None
         try:
             from algo.infrastructure import MarketCalendar
+
             trading_day_set = MarketCalendar.create_trading_day_set(min_row_date, max_row_date)
             logger.debug(
                 f"[CLUSTER_4_OPT] Precomputed {len(trading_day_set)} trading days "

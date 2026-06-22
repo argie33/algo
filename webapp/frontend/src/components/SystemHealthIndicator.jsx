@@ -1,7 +1,7 @@
-import React, { useEffect, useState } from 'react';
-import { AlertCircle } from 'lucide-react';
-import { api } from '../services/api';
-import { extractData } from '../utils/responseNormalizer';
+import React, { useEffect, useState } from "react";
+import { AlertCircle } from "lucide-react";
+import { api } from "../services/api";
+import { extractData } from "../utils/responseNormalizer";
 
 /**
  * SystemHealthIndicator - Shows system degradation status and signal freshness in header
@@ -11,14 +11,14 @@ import { extractData } from '../utils/responseNormalizer';
 export function SystemHealthIndicator() {
   const [isDegraded, setIsDegraded] = useState(false);
   const [signalFreshness, setSignalFreshness] = useState(null);
-  const [statusMessage, setStatusMessage] = useState('');
+  const [statusMessage, setStatusMessage] = useState("");
 
   useEffect(() => {
     let cancelled = false;
 
     const fetchHealth = async () => {
       try {
-        const response = await api.get('/api/health', { timeout: 10000 });
+        const response = await api.get("/api/health", { timeout: 10000 });
         if (cancelled) return;
 
         const data = extractData(response);
@@ -28,15 +28,27 @@ export function SystemHealthIndicator() {
 
         // Build status message for user
         if (data?.degraded_mode_active) {
-          setStatusMessage('System in degraded mode: Position sizes reduced to 50%');
-        } else if (data?.freshness?.status === 'STALE') {
-          setStatusMessage(`Signals are stale (${data.freshness.signal_age_hours} hours old). Use with caution.`);
-        } else if (data?.freshness?.status === 'OK' && data.freshness.signal_age_hours > 12) {
-          setStatusMessage(`Signals waiting for fresh data (${data.freshness.signal_age_hours} hours old).`);
+          setStatusMessage(
+            "System in degraded mode: Position sizes reduced to 50%"
+          );
+        } else if (data?.freshness?.status === "STALE") {
+          setStatusMessage(
+            `Signals are stale (${data.freshness.signal_age_hours} hours old). Use with caution.`
+          );
+        } else if (
+          data?.freshness?.status === "OK" &&
+          data.freshness.signal_age_hours > 12
+        ) {
+          setStatusMessage(
+            `Signals waiting for fresh data (${data.freshness.signal_age_hours} hours old).`
+          );
         }
       } catch (error) {
         // Silent fail - health check is non-critical
-        console.debug('[SystemHealthIndicator] Health check error:', error?.message);
+        console.debug(
+          "[SystemHealthIndicator] Health check error:",
+          error?.message
+        );
       }
     };
 
@@ -49,18 +61,38 @@ export function SystemHealthIndicator() {
   }, []);
 
   // Show badge if degraded or signals are stale
-  const showBadge = isDegraded || signalFreshness?.status === 'STALE' || (signalFreshness?.status === 'OK' && signalFreshness?.signal_age_hours > 12);
+  const showBadge =
+    isDegraded ||
+    signalFreshness?.status === "STALE" ||
+    (signalFreshness?.status === "OK" &&
+      signalFreshness?.signal_age_hours > 12);
 
   if (!showBadge) return null;
 
-  const badgeColor = isDegraded ? 'badge-danger' : (signalFreshness?.status === 'STALE' ? 'badge-danger' : 'badge-warning');
-  const badgeLabel = isDegraded ? 'DEGRADED' : (signalFreshness?.status === 'STALE' ? 'SIGNALS STALE' : 'SIGNALS AGING');
+  const badgeColor = isDegraded
+    ? "badge-danger"
+    : signalFreshness?.status === "STALE"
+      ? "badge-danger"
+      : "badge-warning";
+  const badgeLabel = isDegraded
+    ? "DEGRADED"
+    : signalFreshness?.status === "STALE"
+      ? "SIGNALS STALE"
+      : "SIGNALS AGING";
 
   return (
     <div
       className={`badge ${badgeColor}`}
-      style={{ display: 'flex', alignItems: 'center', gap: '6px', cursor: 'help' }}
-      title={statusMessage || `Signal freshness: ${signalFreshness?.signal_age_hours || '?'} hours old`}
+      style={{
+        display: "flex",
+        alignItems: "center",
+        gap: "6px",
+        cursor: "help",
+      }}
+      title={
+        statusMessage ||
+        `Signal freshness: ${signalFreshness?.signal_age_hours || "?"} hours old`
+      }
     >
       <AlertCircle size={14} />
       <span>{badgeLabel}</span>

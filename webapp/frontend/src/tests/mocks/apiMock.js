@@ -1,8 +1,8 @@
-import { vi } from 'vitest';
+import { vi } from "vitest";
 
 export const getApiConfig = vi.fn().mockReturnValue({
-  apiUrl: 'http://localhost:3001',
-  environment: 'test',
+  apiUrl: "http://localhost:3001",
+  environment: "test",
 });
 
 export const getPortfolioData = vi.fn().mockResolvedValue({
@@ -45,7 +45,7 @@ export const getTopStocks = vi.fn().mockResolvedValue({
 
 export const getCurrentUser = vi.fn().mockResolvedValue({
   success: true,
-  data: { id: 1, name: 'Test User' },
+  data: { id: 1, name: "Test User" },
 });
 
 export const getApiKeys = vi.fn().mockResolvedValue({
@@ -64,7 +64,7 @@ export const importPortfolioFromBroker = vi.fn().mockResolvedValue({
 
 export const healthCheck = vi.fn().mockResolvedValue({
   success: true,
-  status: 'healthy',
+  status: "healthy",
 });
 
 export const getMarketOverview = vi.fn().mockResolvedValue({

@@ -3,8 +3,16 @@ import { Box, Typography } from "@mui/material";
 
 export default function SystemBlueprint() {
   return (
-    <Box sx={{ display: "flex", flexDirection: "column", height: "calc(100vh - 64px)" }}>
-      <Box sx={{ px: 2, py: 1, borderBottom: "1px solid", borderColor: "divider" }}>
+    <Box
+      sx={{
+        display: "flex",
+        flexDirection: "column",
+        height: "calc(100vh - 64px)",
+      }}
+    >
+      <Box
+        sx={{ px: 2, py: 1, borderBottom: "1px solid", borderColor: "divider" }}
+      >
         <Typography variant="subtitle2" color="text.secondary">
           Algo Trading System — Complete Solution Blueprint
         </Typography>

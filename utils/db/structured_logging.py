@@ -36,6 +36,15 @@ class StructuredDBLogger:
         if not query:
             return "<empty query>"
 
+        # Handle psycopg2.sql.Composed objects and other non-strings
+        if hasattr(query, "as_string"):
+            try:
+                query = str(query)
+            except Exception:
+                return f"<{type(query).__name__} query>"
+        elif not isinstance(query, str):
+            return f"<{type(query).__name__} query>"
+
         # Remove SQL comments (contain correlation_id)
         query = query.split("/*")[0].strip()
 

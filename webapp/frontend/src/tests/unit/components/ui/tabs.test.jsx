@@ -307,4 +307,3 @@ describe("Tabs Components", () => {
   // Deleted: Error Handling describe block
   // Tests for empty tabs, missing values, empty content are covered by accessibility tests
 });
-

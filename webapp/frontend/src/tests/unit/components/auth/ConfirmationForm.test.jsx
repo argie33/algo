@@ -1,5 +1,5 @@
 import { screen, fireEvent, waitFor, render } from "@testing-library/react";
-import { renderWithProviders } from '../../setup/test-wrapper';
+import { renderWithProviders } from "../../setup/test-wrapper";
 import { vi } from "vitest";
 import ConfirmationForm from "../../../../components/auth/ConfirmationForm";
 
@@ -110,4 +110,3 @@ describe("ConfirmationForm", () => {
     expect(onSwitchToLogin).toHaveBeenCalled();
   });
 });
-

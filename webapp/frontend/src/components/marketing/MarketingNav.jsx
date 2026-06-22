@@ -1,5 +1,5 @@
-import React, { useState } from 'react';
-import { useNavigate, useLocation } from 'react-router-dom';
+import React, { useState } from "react";
+import { useNavigate, useLocation } from "react-router-dom";
 import {
   AppBar,
   Toolbar,
@@ -18,45 +18,45 @@ import {
   Collapse,
   Divider,
   alpha,
-} from '@mui/material';
+} from "@mui/material";
 import {
   Menu as MenuIcon,
   Close as CloseIcon,
   Launch as LaunchIcon,
   ExpandLess,
   ExpandMore,
-} from '@mui/icons-material';
+} from "@mui/icons-material";
 
 const MarketingNav = () => {
   const navigate = useNavigate();
   const location = useLocation();
   const theme = useTheme();
-  const isMobile = useMediaQuery(theme.breakpoints.down('md'));
+  const isMobile = useMediaQuery(theme.breakpoints.down("md"));
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const [expandedMobileItem, setExpandedMobileItem] = useState(null);
   const [_desktopMenuAnchor, setDesktopMenuAnchor] = useState(null);
   const [activeDesktopMenu, setActiveDesktopMenu] = useState(null);
 
   const navItems = [
-    { label: 'Home', path: '/' },
+    { label: "Home", path: "/" },
     {
-      label: 'Firm',
-      path: '/firm',
+      label: "Firm",
+      path: "/firm",
       submenu: [
-        { label: 'About', path: '/about' },
-        { label: 'Our Team', path: '/our-team' },
-        { label: 'Mission & Values', path: '/mission-values' },
-      ]
+        { label: "About", path: "/about" },
+        { label: "Our Team", path: "/our-team" },
+        { label: "Mission & Values", path: "/mission-values" },
+      ],
     },
     {
-      label: 'Services',
+      label: "Services",
       submenu: [
-        { label: 'Research & Insights', path: '/research-insights' },
-        { label: 'Investment Tools', path: '/investment-tools' },
-        { label: 'Wealth Management', path: '/wealth-management' },
-      ]
+        { label: "Research & Insights", path: "/research-insights" },
+        { label: "Investment Tools", path: "/investment-tools" },
+        { label: "Wealth Management", path: "/wealth-management" },
+      ],
     },
-    { label: 'Contact', path: '/contact' },
+    { label: "Contact", path: "/contact" },
   ];
 
   const isActive = (path) => location.pathname === path;
@@ -78,7 +78,7 @@ const MarketingNav = () => {
           pt: 2,
         }}
       >
-        <Box sx={{ display: 'flex', justifyContent: 'flex-end', pr: 2, mb: 2 }}>
+        <Box sx={{ display: "flex", justifyContent: "flex-end", pr: 2, mb: 2 }}>
           <IconButton onClick={() => setMobileMenuOpen(false)}>
             <CloseIcon />
           </IconButton>
@@ -91,13 +91,18 @@ const MarketingNav = () => {
                   selected={isActive(item.path)}
                   onClick={
                     item.submenu
-                      ? () => setExpandedMobileItem(expandedMobileItem === item.label ? null : item.label)
+                      ? () =>
+                          setExpandedMobileItem(
+                            expandedMobileItem === item.label
+                              ? null
+                              : item.label
+                          )
                       : () => handleNavClick(item.path)
                   }
                   sx={{
-                    '&.Mui-selected': {
+                    "&.Mui-selected": {
                       backgroundColor: `${theme.palette.primary.main}20`,
-                      '& .MuiListItemText-primary': {
+                      "& .MuiListItemText-primary": {
                         color: theme.palette.primary.main,
                         fontWeight: 600,
                       },
@@ -105,25 +110,36 @@ const MarketingNav = () => {
                   }}
                 >
                   <ListItemText primary={item.label} />
-                  {item.submenu && (
-                    expandedMobileItem === item.label ? <ExpandLess /> : <ExpandMore />
-                  )}
+                  {item.submenu &&
+                    (expandedMobileItem === item.label ? (
+                      <ExpandLess />
+                    ) : (
+                      <ExpandMore />
+                    ))}
                 </ListItemButton>
               </ListItem>
 
               {/* Mobile Submenu */}
               {item.submenu && (
-                <Collapse in={expandedMobileItem === item.label} timeout="auto" unmountOnExit>
+                <Collapse
+                  in={expandedMobileItem === item.label}
+                  timeout="auto"
+                  unmountOnExit
+                >
                   <List component="div" disablePadding>
                     {item.submenu.map((subitem) => (
-                      <ListItem key={subitem.label} disablePadding sx={{ pl: 4 }}>
+                      <ListItem
+                        key={subitem.label}
+                        disablePadding
+                        sx={{ pl: 4 }}
+                      >
                         <ListItemButton
                           onClick={() => {
                             handleNavClick(subitem.path);
                             setExpandedMobileItem(null);
                           }}
                           sx={{
-                            fontSize: '0.9rem',
+                            fontSize: "0.9rem",
                           }}
                         >
                           <ListItemText primary={subitem.label} />
@@ -142,7 +158,7 @@ const MarketingNav = () => {
               fullWidth
               endIcon={<LaunchIcon />}
               onClick={() => {
-                navigate('/app/markets');
+                navigate("/app/markets");
                 setMobileMenuOpen(false);
               }}
             >
@@ -162,27 +178,27 @@ const MarketingNav = () => {
         sx={{
           borderBottom: `1px solid ${theme.palette.divider}`,
           backgroundColor: theme.palette.background.paper,
-          backdropFilter: 'blur(8px)',
+          backdropFilter: "blur(8px)",
         }}
       >
         <Container maxWidth="xl">
           <Toolbar
             disableGutters
             sx={{
-              display: 'flex',
-              justifyContent: 'space-between',
-              alignItems: 'center',
+              display: "flex",
+              justifyContent: "space-between",
+              alignItems: "center",
               py: 1,
             }}
           >
             {/* Logo / Brand */}
             <Box
-              onClick={() => navigate('/')}
+              onClick={() => navigate("/")}
               sx={{
-                display: 'flex',
-                alignItems: 'center',
-                cursor: 'pointer',
-                '&:hover': {
+                display: "flex",
+                alignItems: "center",
+                cursor: "pointer",
+                "&:hover": {
                   opacity: 0.8,
                 },
               }}
@@ -192,7 +208,7 @@ const MarketingNav = () => {
                 sx={{
                   fontWeight: 700,
                   color: theme.palette.primary.main,
-                  fontSize: { xs: '1.1rem', sm: '1.25rem' },
+                  fontSize: { xs: "1.1rem", sm: "1.25rem" },
                 }}
               >
                 Bullseye
@@ -203,7 +219,7 @@ const MarketingNav = () => {
                   fontWeight: 400,
                   color: theme.palette.text.secondary,
                   ml: 0.5,
-                  fontSize: { xs: '0.9rem', sm: '1rem' },
+                  fontSize: { xs: "0.9rem", sm: "1rem" },
                 }}
               >
                 Financial
@@ -214,17 +230,17 @@ const MarketingNav = () => {
             {!isMobile && (
               <Box
                 sx={{
-                  display: 'flex',
+                  display: "flex",
                   gap: 3,
-                  alignItems: 'center',
+                  alignItems: "center",
                   flex: 1,
                   ml: 4,
                 }}
               >
                 {navItems.map((item, idx) => (
-                  <Box key={item.label || idx} sx={{ position: 'relative' }}>
+                  <Box key={item.label || idx} sx={{ position: "relative" }}>
                     <Button
-                      color={isActive(item.path) ? 'primary' : 'inherit'}
+                      color={isActive(item.path) ? "primary" : "inherit"}
                       onClick={
                         item.submenu
                           ? (e) => {
@@ -243,29 +259,33 @@ const MarketingNav = () => {
                       }
                       sx={{
                         fontWeight: isActive(item.path) ? 600 : 500,
-                        fontSize: '0.95rem',
-                        position: 'relative',
-                        display: 'flex',
-                        alignItems: 'center',
+                        fontSize: "0.95rem",
+                        position: "relative",
+                        display: "flex",
+                        alignItems: "center",
                         gap: 0.5,
-                        '&:after': {
+                        "&:after": {
                           content: '""',
-                          position: 'absolute',
+                          position: "absolute",
                           bottom: 0,
                           left: 0,
-                          width: isActive(item.path) ? '100%' : '0%',
+                          width: isActive(item.path) ? "100%" : "0%",
                           height: 2,
                           backgroundColor: theme.palette.primary.main,
-                          transition: 'width 0.3s ease',
+                          transition: "width 0.3s ease",
                         },
-                        '&:hover:after': {
-                          width: item.submenu ? '0%' : '100%',
+                        "&:hover:after": {
+                          width: item.submenu ? "0%" : "100%",
                         },
                       }}
                     >
                       {item.label}
                       {item.submenu && (
-                        <Box sx={{ fontSize: '0.65rem', ml: 0.5, opacity: 0.7 }}>&#9660;</Box>
+                        <Box
+                          sx={{ fontSize: "0.65rem", ml: 0.5, opacity: 0.7 }}
+                        >
+                          &#9660;
+                        </Box>
                       )}
                     </Button>
 
@@ -277,8 +297,8 @@ const MarketingNav = () => {
                           setDesktopMenuAnchor(null);
                         }}
                         sx={{
-                          position: 'absolute',
-                          top: '100%',
+                          position: "absolute",
+                          top: "100%",
                           left: 0,
                           mt: 1,
                           minWidth: 200,
@@ -300,16 +320,19 @@ const MarketingNav = () => {
                             sx={{
                               px: 2,
                               py: 1,
-                              fontSize: '0.9rem',
-                              cursor: 'pointer',
-                              '&:hover': {
-                                backgroundColor: alpha(theme.palette.primary.main, 0.08),
+                              fontSize: "0.9rem",
+                              cursor: "pointer",
+                              "&:hover": {
+                                backgroundColor: alpha(
+                                  theme.palette.primary.main,
+                                  0.08
+                                ),
                               },
-                              '&:first-of-type': {
-                                borderRadius: '4px 4px 0 0',
+                              "&:first-of-type": {
+                                borderRadius: "4px 4px 0 0",
                               },
-                              '&:last-of-type': {
-                                borderRadius: '0 0 4px 4px',
+                              "&:last-of-type": {
+                                borderRadius: "0 0 4px 4px",
                               },
                             }}
                           >
@@ -325,19 +348,19 @@ const MarketingNav = () => {
 
             {/* Desktop CTA Buttons */}
             {!isMobile && (
-              <Box sx={{ display: 'flex', gap: 2, alignItems: 'center' }}>
+              <Box sx={{ display: "flex", gap: 2, alignItems: "center" }}>
                 <Button
                   variant="outlined"
-                  onClick={() => navigate('/contact')}
+                  onClick={() => navigate("/contact")}
                   sx={{
                     borderRadius: 1,
-                    textTransform: 'none',
-                    fontSize: '0.95rem',
+                    textTransform: "none",
+                    fontSize: "0.95rem",
                     fontWeight: 600,
-                    whiteSpace: 'nowrap',
+                    whiteSpace: "nowrap",
                     borderColor: theme.palette.primary.main,
                     color: theme.palette.primary.main,
-                    '&:hover': {
+                    "&:hover": {
                       backgroundColor: alpha(theme.palette.primary.main, 0.05),
                     },
                   }}
@@ -347,13 +370,13 @@ const MarketingNav = () => {
                 <Button
                   variant="contained"
                   endIcon={<LaunchIcon />}
-                  onClick={() => navigate('/app/markets')}
+                  onClick={() => navigate("/app/markets")}
                   sx={{
                     borderRadius: 1,
-                    textTransform: 'none',
-                    fontSize: '0.95rem',
+                    textTransform: "none",
+                    fontSize: "0.95rem",
                     fontWeight: 600,
-                    whiteSpace: 'nowrap',
+                    whiteSpace: "nowrap",
                   }}
                 >
                   Launch Platform
@@ -365,7 +388,7 @@ const MarketingNav = () => {
             {isMobile && (
               <IconButton
                 onClick={() => setMobileMenuOpen(true)}
-                sx={{ color: 'primary.main' }}
+                sx={{ color: "primary.main" }}
               >
                 <MenuIcon />
               </IconButton>
@@ -379,4 +402,3 @@ const MarketingNav = () => {
 };
 
 export default MarketingNav;
-

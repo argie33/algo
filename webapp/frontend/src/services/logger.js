@@ -3,7 +3,7 @@
  * Single place to control log levels, format, and behavior
  */
 
-let logLevel = 'info'; // 'debug' | 'info' | 'warn' | 'error'
+let logLevel = "info"; // 'debug' | 'info' | 'warn' | 'error'
 
 const LogLevels = {
   DEBUG: 0,
@@ -13,10 +13,10 @@ const LogLevels = {
 };
 
 const levelToString = {
-  0: 'DEBUG',
-  1: 'INFO',
-  2: 'WARN',
-  3: 'ERROR',
+  0: "DEBUG",
+  1: "INFO",
+  2: "WARN",
+  3: "ERROR",
 };
 
 /**
@@ -33,7 +33,10 @@ export const getLogger = (name) => {
     try {
       return JSON.stringify(obj);
     } catch (err) {
-      console.error('[Logger] Failed to stringify object:', err?.message || err);
+      console.error(
+        "[Logger] Failed to stringify object:",
+        err?.message || err
+      );
       return String(obj);
     }
   };
@@ -41,30 +44,32 @@ export const getLogger = (name) => {
   const formatMessage = (level, message, data) => {
     const timestamp = new Date().toISOString();
     const prefix = `[${timestamp}] [${name}] [${levelToString[level]}]`;
-    return data ? `${prefix} ${message} ${safeStringify(data)}` : `${prefix} ${message}`;
+    return data
+      ? `${prefix} ${message} ${safeStringify(data)}`
+      : `${prefix} ${message}`;
   };
 
   return {
     debug: (message, data) => {
-      if (shouldLog('DEBUG')) {
+      if (shouldLog("DEBUG")) {
         console.debug(formatMessage(LogLevels.DEBUG, message, data));
       }
     },
 
     info: (message, data) => {
-      if (shouldLog('INFO')) {
+      if (shouldLog("INFO")) {
         console.info(formatMessage(LogLevels.INFO, message, data));
       }
     },
 
     warn: (message, data) => {
-      if (shouldLog('WARN')) {
+      if (shouldLog("WARN")) {
         console.warn(formatMessage(LogLevels.WARN, message, data));
       }
     },
 
     error: (message, error, context) => {
-      if (shouldLog('ERROR')) {
+      if (shouldLog("ERROR")) {
         const errorData = {
           message: error?.message || String(error),
           code: error?.code,
@@ -115,4 +120,3 @@ export default {
   getLogLevel,
   captureError,
 };
-

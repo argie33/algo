@@ -9,11 +9,7 @@
  */
 
 import { describe, it, expect, vi } from "vitest";
-import {
-  renderWithProviders,
-  screen,
-  waitFor,
-} from "../../test-utils.jsx";
+import { renderWithProviders, screen, waitFor } from "../../test-utils.jsx";
 import EconomicModeling from "../../../pages/EconomicModeling.jsx";
 
 vi.mock("../../../contexts/AuthContext.jsx", () => ({
@@ -28,7 +24,10 @@ vi.mock("../../../contexts/AuthContext.jsx", () => ({
 vi.mock("../../../services/api.js", () => ({
   default: { get: vi.fn(), post: vi.fn() },
   api: { get: vi.fn(), post: vi.fn() },
-  getApiConfig: vi.fn(() => ({ apiUrl: "http://localhost:3001", environment: "test" })),
+  getApiConfig: vi.fn(() => ({
+    apiUrl: "http://localhost:3001",
+    environment: "test",
+  })),
 }));
 
 describe("EconomicModeling Component", () => {
@@ -39,7 +38,9 @@ describe("EconomicModeling Component", () => {
 
   it("renders the main heading", () => {
     renderWithProviders(<EconomicModeling />);
-    expect(screen.getByRole("heading", { name: /economic modeling/i })).toBeInTheDocument();
+    expect(
+      screen.getByRole("heading", { name: /economic modeling/i })
+    ).toBeInTheDocument();
   });
 
   it("renders descriptive text", () => {

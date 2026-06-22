@@ -32,7 +32,11 @@ export const exportToCSV = (data, filename = "export", columns = null) => {
         }
         // Quote and escape values containing quotes, commas, or newlines
         const stringValue = String(value);
-        if (stringValue.includes(",") || stringValue.includes('"') || stringValue.includes("\n")) {
+        if (
+          stringValue.includes(",") ||
+          stringValue.includes('"') ||
+          stringValue.includes("\n")
+        ) {
           return `"${stringValue.replace(/"/g, '""')}"`;
         }
         return `"${stringValue}"`;
@@ -49,7 +53,10 @@ export const exportToCSV = (data, filename = "export", columns = null) => {
   const url = URL.createObjectURL(blob);
 
   link.setAttribute("href", url);
-  link.setAttribute("download", `${filename}-${new Date().toISOString().split("T")[0]}.csv`);
+  link.setAttribute(
+    "download",
+    `${filename}-${new Date().toISOString().split("T")[0]}.csv`
+  );
   link.style.visibility = "hidden";
 
   document.body.appendChild(link);
@@ -74,7 +81,10 @@ export const exportToJSON = (data, filename = "export") => {
   const url = URL.createObjectURL(blob);
 
   link.setAttribute("href", url);
-  link.setAttribute("download", `${filename}-${new Date().toISOString().split("T")[0]}.json`);
+  link.setAttribute(
+    "download",
+    `${filename}-${new Date().toISOString().split("T")[0]}.json`
+  );
   link.style.visibility = "hidden";
 
   document.body.appendChild(link);
@@ -89,7 +99,11 @@ export const exportToJSON = (data, filename = "export") => {
  * @param {string} filename - Output filename (without extension)
  * @param {string} title - Title for the document
  */
-export const exportTableToPDF = (tableId, _filename = "export", title = "Report") => {
+export const exportTableToPDF = (
+  tableId,
+  _filename = "export",
+  title = "Report"
+) => {
   const table = document.getElementById(tableId);
   if (!table) {
     console.error(`Table with ID "${tableId}" not found`);
@@ -218,7 +232,10 @@ export const tableToCSV = (tableId, filename = "export") => {
   const url = URL.createObjectURL(blob);
 
   link.setAttribute("href", url);
-  link.setAttribute("download", `${filename}-${new Date().toISOString().split("T")[0]}.csv`);
+  link.setAttribute(
+    "download",
+    `${filename}-${new Date().toISOString().split("T")[0]}.csv`
+  );
   link.style.visibility = "hidden";
 
   document.body.appendChild(link);
@@ -242,4 +259,3 @@ export const formatDataForExport = (data, excludeFields = []) => {
     return formatted;
   });
 };
-

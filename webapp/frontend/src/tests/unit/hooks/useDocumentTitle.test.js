@@ -165,4 +165,3 @@ describe("useDocumentTitle Hook", () => {
     expect(document.title).toBe(originalTitle);
   });
 });
-

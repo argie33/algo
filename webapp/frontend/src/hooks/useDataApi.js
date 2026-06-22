@@ -4,17 +4,16 @@
  * Each hook encapsulates a logical data fetch with error handling + normalization
  */
 
-import { useApiQuery, useApiPaginatedQuery } from './useApiQuery';
-import { api } from '../services/api';
+import { useApiQuery, useApiPaginatedQuery } from "./useApiQuery";
+import { api } from "../services/api";
 
 /**
  * Get sectors list with rankings and performance
  */
 export const useSectors = (params = {}) => {
   const { limit = 20, page = 1 } = params;
-  return useApiPaginatedQuery(
-    ['sectors', limit, page],
-    () => api.get('/api/sectors', { params: { limit, page } })
+  return useApiPaginatedQuery(["sectors", limit, page], () =>
+    api.get("/api/sectors", { params: { limit, page } })
   );
 };
 
@@ -22,10 +21,19 @@ export const useSectors = (params = {}) => {
  * Get stock scores with filtering
  */
 export const useStockScores = (params = {}) => {
-  const { limit = 10, page = 1, search = '', sortBy = '', sortOrder = 'desc' } = params;
+  const {
+    limit = 10,
+    page = 1,
+    search = "",
+    sortBy = "",
+    sortOrder = "desc",
+  } = params;
   return useApiPaginatedQuery(
-    ['scores', { limit, page, search, sortBy, sortOrder }],
-    () => api.get('/api/scores/stockscores', { params: { limit, page, search, sortBy, sortOrder } })
+    ["scores", { limit, page, search, sortBy, sortOrder }],
+    () =>
+      api.get("/api/scores/stockscores", {
+        params: { limit, page, search, sortBy, sortOrder },
+      })
   );
 };
 
@@ -33,10 +41,9 @@ export const useStockScores = (params = {}) => {
  * Get trading signals with timeframe filtering
  */
 export const useSignals = (params = {}) => {
-  const { timeframe = 'daily', limit = 100, page = 1 } = params;
-  return useApiPaginatedQuery(
-    ['signals', { timeframe, limit, page }],
-    () => api.get('/api/signals/stocks', { params: { timeframe, limit, page } })
+  const { timeframe = "daily", limit = 100, page = 1 } = params;
+  return useApiPaginatedQuery(["signals", { timeframe, limit, page }], () =>
+    api.get("/api/signals/stocks", { params: { timeframe, limit, page } })
   );
 };
 
@@ -44,20 +51,18 @@ export const useSignals = (params = {}) => {
  * Get sentiment indices (NAAIM, Fear/Greed, AAII, etc.)
  */
 export const useMarketSentiment = () => {
-  return useApiQuery(
-    ['sentiment'],
-    () => api.get('/api/sentiment/data')
-  );
+  return useApiQuery(["sentiment"], () => api.get("/api/sentiment/data"));
 };
 
 /**
  * Get price history for a symbol
  */
 export const usePriceHistory = (symbol, params = {}) => {
-  const { days = 365, interval = 'daily' } = params;
+  const { days = 365, interval = "daily" } = params;
   return useApiQuery(
-    ['priceHistory', symbol, days, interval],
-    () => api.get(`/api/prices/history/${symbol}`, { params: { days, interval } }),
+    ["priceHistory", symbol, days, interval],
+    () =>
+      api.get(`/api/prices/history/${symbol}`, { params: { days, interval } }),
     { enabled: !!symbol }
   );
 };
@@ -67,9 +72,8 @@ export const usePriceHistory = (symbol, params = {}) => {
  */
 export const useIndustries = (params = {}) => {
   const { limit = 500, page = 1 } = params;
-  return useApiPaginatedQuery(
-    ['industries', limit, page],
-    () => api.get('/api/industries', { params: { limit, page } })
+  return useApiPaginatedQuery(["industries", limit, page], () =>
+    api.get("/api/industries", { params: { limit, page } })
   );
 };
 
@@ -77,9 +81,8 @@ export const useIndustries = (params = {}) => {
  * Get economic indicators
  */
 export const useEconomicData = (params = {}) => {
-  return useApiQuery(
-    ['economic', params],
-    () => api.get('/api/economic', { params })
+  return useApiQuery(["economic", params], () =>
+    api.get("/api/economic", { params })
   );
 };
 
@@ -88,8 +91,8 @@ export const useEconomicData = (params = {}) => {
  */
 export const useServiceHealth = () => {
   return useApiQuery(
-    ['health'],
-    () => api.get('/api/health'),
+    ["health"],
+    () => api.get("/api/health"),
     { staleTime: 60000 } // 60s
   );
 };
@@ -104,4 +107,3 @@ export default {
   useEconomicData,
   useServiceHealth,
 };
-

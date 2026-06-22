@@ -9,18 +9,18 @@
  * 5. User can retry without data loss
  */
 
-import React, { useState } from 'react';
-import { api } from '../services/api';
-import { useFormSubmit } from '../hooks/useFormSubmit';
-import FormErrorBoundary from './FormErrorBoundary';
+import React, { useState } from "react";
+import { api } from "../services/api";
+import { useFormSubmit } from "../hooks/useFormSubmit";
+import FormErrorBoundary from "./FormErrorBoundary";
 
 function TradeSubmitForm({ onSuccess, onCancel }) {
   // Form input state (not committed until API succeeds)
   const [formData, setFormData] = useState({
-    symbol: '',
-    quantity: '',
-    price: '',
-    stopLoss: '',
+    symbol: "",
+    quantity: "",
+    price: "",
+    stopLoss: "",
   });
 
   // Form submission state (API status)
@@ -28,7 +28,7 @@ function TradeSubmitForm({ onSuccess, onCancel }) {
     async (data) => {
       // This API call happens AFTER user submits
       // Local state is NOT updated optimistically
-      const response = await api.post('/api/trades/manual', {
+      const response = await api.post("/api/trades/manual", {
         symbol: data.symbol,
         quantity: parseInt(data.quantity, 10),
         price: parseFloat(data.price),
@@ -51,7 +51,7 @@ function TradeSubmitForm({ onSuccess, onCancel }) {
       onError: (err) => {
         // API failed — form data is STILL in the form
         // User can see what went wrong and retry
-        console.error('Trade submission failed:', err);
+        console.error("Trade submission failed:", err);
       },
       timeout: 30000,
     }
@@ -71,7 +71,7 @@ function TradeSubmitForm({ onSuccess, onCancel }) {
 
     // Validate form before submitting
     if (!formData.symbol || !formData.quantity || !formData.price) {
-      alert('Please fill in all required fields');
+      alert("Please fill in all required fields");
       return;
     }
 
@@ -85,7 +85,7 @@ function TradeSubmitForm({ onSuccess, onCancel }) {
     }
 
     // API succeeded — form can be cleared or parent can be notified
-    setFormData({ symbol: '', quantity: '', price: '', stopLoss: '' });
+    setFormData({ symbol: "", quantity: "", price: "", stopLoss: "" });
   };
 
   return (
@@ -93,22 +93,26 @@ function TradeSubmitForm({ onSuccess, onCancel }) {
       <form onSubmit={handleSubmit} className="form">
         {/* Display API errors */}
         {error && (
-          <div className="alert alert-danger" style={{ marginBottom: 'var(--space-4)' }}>
-            <strong>Failed to submit trade:</strong>
-            {' '}
-            {error}
+          <div
+            className="alert alert-danger"
+            style={{ marginBottom: "var(--space-4)" }}
+          >
+            <strong>Failed to submit trade:</strong> {error}
           </div>
         )}
 
         {/* Display success */}
         {success && (
-          <div className="alert alert-success" style={{ marginBottom: 'var(--space-4)' }}>
+          <div
+            className="alert alert-success"
+            style={{ marginBottom: "var(--space-4)" }}
+          >
             Trade submitted successfully!
           </div>
         )}
 
         {/* Form fields */}
-        <div className="field-group" style={{ marginBottom: 'var(--space-4)' }}>
+        <div className="field-group" style={{ marginBottom: "var(--space-4)" }}>
           <label className="field-label" htmlFor="symbol">
             Symbol
           </label>
@@ -125,7 +129,7 @@ function TradeSubmitForm({ onSuccess, onCancel }) {
           />
         </div>
 
-        <div className="field-group" style={{ marginBottom: 'var(--space-4)' }}>
+        <div className="field-group" style={{ marginBottom: "var(--space-4)" }}>
           <label className="field-label" htmlFor="quantity">
             Quantity
           </label>
@@ -142,7 +146,7 @@ function TradeSubmitForm({ onSuccess, onCancel }) {
           />
         </div>
 
-        <div className="field-group" style={{ marginBottom: 'var(--space-4)' }}>
+        <div className="field-group" style={{ marginBottom: "var(--space-4)" }}>
           <label className="field-label" htmlFor="price">
             Entry Price
           </label>
@@ -160,7 +164,7 @@ function TradeSubmitForm({ onSuccess, onCancel }) {
           />
         </div>
 
-        <div className="field-group" style={{ marginBottom: 'var(--space-4)' }}>
+        <div className="field-group" style={{ marginBottom: "var(--space-4)" }}>
           <label className="field-label" htmlFor="stopLoss">
             Stop Loss
           </label>
@@ -179,13 +183,13 @@ function TradeSubmitForm({ onSuccess, onCancel }) {
         </div>
 
         {/* Buttons */}
-        <div style={{ display: 'flex', gap: 'var(--space-3)' }}>
+        <div style={{ display: "flex", gap: "var(--space-3)" }}>
           <button
             type="submit"
             className="btn btn-primary"
             disabled={isSubmitting}
           >
-            {isSubmitting ? 'Submitting...' : 'Submit Trade'}
+            {isSubmitting ? "Submitting..." : "Submit Trade"}
           </button>
           <button
             type="button"

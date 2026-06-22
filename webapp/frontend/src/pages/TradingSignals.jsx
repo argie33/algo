@@ -13,45 +13,76 @@
  * Pure JSX + theme.css. Recharts only for charts.
  */
 
-import React, { useState, useMemo, useEffect } from 'react';
-import { useNavigate } from 'react-router-dom';
-import { useQuery } from '@tanstack/react-query';
-import { Search, RefreshCw, Inbox, ChevronDown, ChevronUp, Clock } from 'lucide-react';
+import React, { useState, useMemo, useEffect } from "react";
+import { useNavigate } from "react-router-dom";
+import { useQuery } from "@tanstack/react-query";
 import {
-  ResponsiveContainer, ScatterChart, Scatter, XAxis, YAxis, ZAxis,
-  Tooltip, CartesianGrid, BarChart, Bar, Cell, AreaChart, Area, ReferenceLine,
-} from 'recharts';
-import { useApiQuery } from '../hooks/useApiQuery';
-import { api } from '../services/api';
-import { fmtMoney, fmtPct, fmtInt } from '../components/dashboard/shared/utils/dashboardFormatters';
-import { batchRequests } from '../utils/requestBatcher';
-import ErrorBoundary from '../components/ErrorBoundary';
+  Search,
+  RefreshCw,
+  Inbox,
+  ChevronDown,
+  ChevronUp,
+  Clock,
+} from "lucide-react";
+import {
+  ResponsiveContainer,
+  ScatterChart,
+  Scatter,
+  XAxis,
+  YAxis,
+  ZAxis,
+  Tooltip,
+  CartesianGrid,
+  BarChart,
+  Bar,
+  Cell,
+  AreaChart,
+  Area,
+  ReferenceLine,
+} from "recharts";
+import { useApiQuery } from "../hooks/useApiQuery";
+import { api } from "../services/api";
+import {
+  fmtMoney,
+  fmtPct,
+  fmtInt,
+} from "../components/dashboard/shared/utils/dashboardFormatters";
+import { batchRequests } from "../utils/requestBatcher";
+import ErrorBoundary from "../components/ErrorBoundary";
 
 const TOOLTIP_STYLE = {
-  background: 'var(--surface)',
-  border: '1px solid var(--border)',
-  borderRadius: 'var(--r-sm)',
-  fontSize: 'var(--t-xs)',
-  padding: 'var(--space-2) var(--space-3)',
+  background: "var(--surface)",
+  border: "1px solid var(--border)",
+  borderRadius: "var(--r-sm)",
+  fontSize: "var(--t-xs)",
+  padding: "var(--space-2) var(--space-3)",
 };
 
 const STAGE_VARIANT = {
-  'Stage 1': 'badge', 'Stage 2': 'badge-success', 'Stage 2 - Markup': 'badge-success',
-  'Stage 3': 'badge-amber', 'Stage 3 - Topping': 'badge-amber', 'Stage 4': 'badge-danger',
+  "Stage 1": "badge",
+  "Stage 2": "badge-success",
+  "Stage 2 - Markup": "badge-success",
+  "Stage 3": "badge-amber",
+  "Stage 3 - Topping": "badge-amber",
+  "Stage 4": "badge-danger",
 };
-const _QUALITY_VARIANT = { STRONG: 'badge-success', MODERATE: 'badge-amber', WEAK: 'badge-danger' };
+const _QUALITY_VARIANT = {
+  STRONG: "badge-success",
+  MODERATE: "badge-amber",
+  WEAK: "badge-danger",
+};
 
 // Color-code chart base patterns by historical breakout reliability.
 // Cup w/ Handle and Cup are highest-probability; Flat Base is the workhorse;
 // Double Bottom is reliable but lower hit-rate; everything else is neutral.
 const BASE_TYPE_VARIANT = {
-  'Cup w/ Handle':  'badge-success',
-  'Cup with Handle':'badge-success',
-  'Cup':            'badge-success',
-  'Flat Base':      'badge-cyan',
-  'Base on Base':   'badge-cyan',
-  'Double Bottom':  'badge-amber',
-  'Ascending Base': 'badge-cyan',
+  "Cup w/ Handle": "badge-success",
+  "Cup with Handle": "badge-success",
+  Cup: "badge-success",
+  "Flat Base": "badge-cyan",
+  "Base on Base": "badge-cyan",
+  "Double Bottom": "badge-amber",
+  "Ascending Base": "badge-cyan",
 };
 
 const daysSince = (d) => {
@@ -62,45 +93,48 @@ const daysSince = (d) => {
 };
 
 const sqsOf = (r) =>
-  r.entry_quality_score ??
-  r.signal_strength ??
-  r.strength ??
-  null;
+  r.entry_quality_score ?? r.signal_strength ?? r.strength ?? null;
 
 // ─── main page ─────────────────────────────────────────────────────────────
 export default function TradingSignals() {
-  const [tab, setTab] = useState('stocks');
-  const [signal, setSignal] = useState('all');
-  const [timeframe, setTimeframe] = useState('daily');
-  const [search, setSearch] = useState('');
-  const [stageFilter, setStageFilter] = useState('all');
+  const [tab, setTab] = useState("stocks");
+  const [signal, setSignal] = useState("all");
+  const [timeframe, setTimeframe] = useState("daily");
+  const [search, setSearch] = useState("");
+  const [stageFilter, setStageFilter] = useState("all");
   const [sectorFilter, setSectorFilter] = useState([]); // multi-select chips
   const [scoreRange, setScoreRange] = useState([0, 100]);
   const [maxAge, setMaxAge] = useState(30);
   const [gatesOnly, setGatesOnly] = useState(false);
-  const [baseTypeFilter, setBaseTypeFilter] = useState('all');
+  const [baseTypeFilter, setBaseTypeFilter] = useState("all");
   const [expandedKey, setExpandedKey] = useState(null);
   const [lastUpdate, setLastUpdate] = useState(new Date());
-  const [freshness, setFreshness] = useState('—');
+  const [freshness, setFreshness] = useState("—");
   const [limit, setLimit] = useState(500); // Allow user to change limit
 
   // Trigger resize after mount to force charts to remeasure
   useEffect(() => {
     const timer = setTimeout(() => {
-      window.dispatchEvent(new Event('resize'));
+      window.dispatchEvent(new Event("resize"));
     }, 500);
     return () => clearTimeout(timer);
   }, []);
 
-  const endpoint = tab === 'etfs' ? '/api/signals/etf' : '/api/signals/stocks';
+  const endpoint = tab === "etfs" ? "/api/signals/etf" : "/api/signals/stocks";
 
-  const { data, loading: dataLoading, error: dataError, refetch, isFetching } = useApiQuery(
-    ['signals', tab, signal, timeframe, limit],
+  const {
+    data,
+    loading: dataLoading,
+    error: dataError,
+    refetch,
+    isFetching,
+  } = useApiQuery(
+    ["signals", tab, signal, timeframe, limit],
     () => {
       const params = new URLSearchParams();
-      params.set('timeframe', timeframe);
-      params.set('limit', String(limit));
-      if (signal !== 'all') params.set('signal', signal);
+      params.set("timeframe", timeframe);
+      params.set("limit", String(limit));
+      if (signal !== "all") params.set("signal", signal);
       return api.get(`${endpoint}?${params.toString()}`);
     },
     { refetchInterval: 60000 }
@@ -114,7 +148,7 @@ export default function TradingSignals() {
   useEffect(() => {
     const updateFreshness = () => {
       const elapsed = (Date.now() - lastUpdate.getTime()) / 1000;
-      if (elapsed < 10) setFreshness('Just now');
+      if (elapsed < 10) setFreshness("Just now");
       else if (elapsed < 60) setFreshness(`${Math.floor(elapsed)}s ago`);
       else if (elapsed < 3600) setFreshness(`${Math.floor(elapsed / 60)}m ago`);
       else setFreshness(`${Math.floor(elapsed / 3600)}h ago`);
@@ -130,105 +164,138 @@ export default function TradingSignals() {
   // - "yesterday's scores" if algo hasn't run yet (before 5:30pm ET)
   // This is normal; signals are evaluated against most recent available scores
   const { data: gatesData, loading: gatesLoading } = useApiQuery(
-    ['signals-gates'],
-    () => api.get('/api/algo/swing-scores?limit=2000&min_score=0'),
-    { refetchInterval: 300000, enabled: tab === 'stocks' }  // refresh every 5 min
+    ["signals-gates"],
+    () => api.get("/api/algo/swing-scores?limit=2000&min_score=0"),
+    { refetchInterval: 300000, enabled: tab === "stocks" } // refresh every 5 min
   );
 
-  const isLoading = dataLoading || (tab === 'stocks' ? gatesLoading : false);
+  const isLoading = dataLoading || (tab === "stocks" ? gatesLoading : false);
 
   const gateMap = useMemo(() => {
     const m = new Map();
-    const gatesArray = Array.isArray(gatesData) ? gatesData : (gatesData?.items || []);
+    const gatesArray = Array.isArray(gatesData)
+      ? gatesData
+      : gatesData?.items || [];
     // Filter out null/undefined items before mapping to avoid "Cannot read property of undefined" errors
-    gatesArray.filter(g => g && g.symbol).forEach(g => m.set(g.symbol, g));
+    gatesArray.filter((g) => g && g.symbol).forEach((g) => m.set(g.symbol, g));
     return m;
   }, [gatesData]);
 
   // Store rows before filtering for total count KPI
-  const rows = Array.isArray(data) ? data : (data?.items || []);
+  const rows = Array.isArray(data) ? data : data?.items || [];
 
   // Enrich rows with gate / sqs info
-  const enriched = useMemo(() => rows.map(r => {
-    const g = gateMap.get(r.symbol);
-    // SQS: try signal data first, then gates data, then null
-    const sqs = sqsOf(r);
-    const gateSqs = g?.swing_score;
-    const finalSqs = sqs != null ? Number(sqs) : (gateSqs != null ? Number(gateSqs) : null);
-    // Age: compute days since signal, null if no date
-    const age = daysSince(r.signal_triggered_date || r.date);
+  const enriched = useMemo(
+    () =>
+      rows.map((r) => {
+        const g = gateMap.get(r.symbol);
+        // SQS: try signal data first, then gates data, then null
+        const sqs = sqsOf(r);
+        const gateSqs = g?.swing_score;
+        const finalSqs =
+          sqs != null ? Number(sqs) : gateSqs != null ? Number(gateSqs) : null;
+        // Age: compute days since signal, null if no date
+        const age = daysSince(r.signal_triggered_date || r.date);
 
-    return {
-      ...r,
-      _age: age,
-      _sqs: isNaN(finalSqs) ? null : finalSqs,
-      _pass_gates: g?.pass_gates ?? null,
-      _grade: g?.grade ?? null,
-      _fail_reason: g?.fail_reason ?? null,
-    };
-  }), [rows, gateMap]);
+        return {
+          ...r,
+          _age: age,
+          _sqs: isNaN(finalSqs) ? null : finalSqs,
+          _pass_gates: g?.pass_gates ?? null,
+          _grade: g?.grade ?? null,
+          _fail_reason: g?.fail_reason ?? null,
+        };
+      }),
+    [rows, gateMap]
+  );
 
-  const allSectors = useMemo(() =>
-    Array.from(new Set(enriched.map(r => r.sector).filter(Boolean))).sort(),
-    [enriched]);
+  const allSectors = useMemo(
+    () =>
+      Array.from(new Set(enriched.map((r) => r.sector).filter(Boolean))).sort(),
+    [enriched]
+  );
 
-  const allBaseTypes = useMemo(() =>
-    Array.from(new Set(enriched.map(r => r.base_type).filter(Boolean))).sort(),
-    [enriched]);
+  const allBaseTypes = useMemo(
+    () =>
+      Array.from(
+        new Set(enriched.map((r) => r.base_type).filter(Boolean))
+      ).sort(),
+    [enriched]
+  );
 
   const filtered = useMemo(() => {
     let r = enriched;
     if (search) {
       const q = search.trim().toUpperCase();
-      r = r.filter(x => x.symbol?.startsWith(q));
+      r = r.filter((x) => x.symbol?.startsWith(q));
     }
-    if (stageFilter !== 'all') r = r.filter(x => (x.market_stage || '').includes(stageFilter));
-    if (sectorFilter.length > 0) r = r.filter(x => sectorFilter.includes(x.sector));
+    if (stageFilter !== "all")
+      r = r.filter((x) => (x.market_stage || "").includes(stageFilter));
+    if (sectorFilter.length > 0)
+      r = r.filter((x) => sectorFilter.includes(x.sector));
     // Only filter by score range if user explicitly set it (not default 0-100)
     if (scoreRange[0] > 0 || scoreRange[1] < 100) {
-      r = r.filter(x => {
+      r = r.filter((x) => {
         const s = x._sqs;
         // If score is null/missing, include it (don't drop rows)
         if (s == null) return true;
         return s >= scoreRange[0] && s <= scoreRange[1];
       });
     }
-    if (maxAge < 90) r = r.filter(x => x._age == null || x._age <= maxAge);
-    if (gatesOnly) r = r.filter(x => x._pass_gates === true);
-    if (baseTypeFilter !== 'all') r = r.filter(x => (x.base_type || '') === baseTypeFilter);
+    if (maxAge < 90) r = r.filter((x) => x._age == null || x._age <= maxAge);
+    if (gatesOnly) r = r.filter((x) => x._pass_gates === true);
+    if (baseTypeFilter !== "all")
+      r = r.filter((x) => (x.base_type || "") === baseTypeFilter);
     return r;
-  }, [enriched, search, stageFilter, sectorFilter, scoreRange, maxAge, gatesOnly, baseTypeFilter]);
+  }, [
+    enriched,
+    search,
+    stageFilter,
+    sectorFilter,
+    scoreRange,
+    maxAge,
+    gatesOnly,
+    baseTypeFilter,
+  ]);
 
   // KPI calculations - show both total available AND filtered stats
   const kpi = useMemo(() => {
     // Total available (all data from API, no filters)
-    const totalBuys = enriched.filter(r => (r.signal || '').toUpperCase() === 'BUY');
-    const _totalSells = enriched.filter(r => (r.signal || '').toUpperCase() === 'SELL');
+    const totalBuys = enriched.filter(
+      (r) => (r.signal || "").toUpperCase() === "BUY"
+    );
+    const _totalSells = enriched.filter(
+      (r) => (r.signal || "").toUpperCase() === "SELL"
+    );
 
     // Filtered stats (after user applies filters)
-    const buys = filtered.filter(r => (r.signal || '').toUpperCase() === 'BUY');
-    const sells = filtered.filter(r => (r.signal || '').toUpperCase() === 'SELL');
+    const buys = filtered.filter(
+      (r) => (r.signal || "").toUpperCase() === "BUY"
+    );
+    const sells = filtered.filter(
+      (r) => (r.signal || "").toUpperCase() === "SELL"
+    );
 
     // Crossing: close is near MA (within 2% above), indicating potential crossover setup
-    const cross50 = filtered.filter(r => {
+    const cross50 = filtered.filter((r) => {
       const c = Number(r.close);
       const ma = Number(r.sma_50);
       return !isNaN(c) && !isNaN(ma) && c > ma && c < ma * 1.02;
     }).length;
-    const cross200 = filtered.filter(r => {
+    const cross200 = filtered.filter((r) => {
       const c = Number(r.close);
       const ma = Number(r.sma_200);
       return !isNaN(c) && !isNaN(ma) && c > ma && c < ma * 1.02;
     }).length;
 
     // Fresh: BUYs within last 3 days
-    const fresh = buys.filter(r => {
+    const fresh = buys.filter((r) => {
       const age = Number(r._age);
       return !isNaN(age) && age != null && age >= 0 && age <= 3;
     }).length;
 
     // High quality: BUYs with SQS > 80
-    const hq = buys.filter(r => {
+    const hq = buys.filter((r) => {
       const sqs = Number(r._sqs);
       return !isNaN(sqs) && sqs != null && sqs > 80;
     }).length;
@@ -238,7 +305,7 @@ export default function TradingSignals() {
       total: filtered.length,
       buys: buys.length,
       sells: sells.length,
-      ratio: sells.length === 0 ? '∞' : (buys.length / sells.length).toFixed(2),
+      ratio: sells.length === 0 ? "∞" : (buys.length / sells.length).toFixed(2),
       // Total available (before filters) for reference
       totalAvailable: enriched.length,
       totalBuysAvailable: totalBuys.length,
@@ -257,213 +324,422 @@ export default function TradingSignals() {
           <div>
             <div className="page-head-title">Trading Signals</div>
             <div className="page-head-sub">
-              {tab === 'stocks' ? 'Algo swing-trade candidates scored by orchestrator' : 'Market ETF regime signals from Weinstein stage'}
-              {' · click any row for full detail'}
-              {' · '}
-              <span style={{ fontSize: 'var(--t-xs)', color: 'var(--text-muted)' }}>
-                <Clock size={12} style={{ display: 'inline', marginRight: 4, verticalAlign: 'middle' }} />
+              {tab === "stocks"
+                ? "Algo swing-trade candidates scored by orchestrator"
+                : "Market ETF regime signals from Weinstein stage"}
+              {" · click any row for full detail"}
+              {" · "}
+              <span
+                style={{ fontSize: "var(--t-xs)", color: "var(--text-muted)" }}
+              >
+                <Clock
+                  size={12}
+                  style={{
+                    display: "inline",
+                    marginRight: 4,
+                    verticalAlign: "middle",
+                  }}
+                />
                 Updated {freshness}
               </span>
             </div>
           </div>
-        <div className="page-head-actions" style={{ display: 'flex', gap: 'var(--space-2)', alignItems: 'center' }}>
-          <select
-            value={limit}
-            onChange={(e) => setLimit(Number(e.target.value))}
-            className="input"
-            style={{ padding: '6px 8px', fontSize: 'var(--t-xs)', minWidth: '100px' }}
+          <div
+            className="page-head-actions"
+            style={{
+              display: "flex",
+              gap: "var(--space-2)",
+              alignItems: "center",
+            }}
           >
-            <option value={100}>Show 100</option>
-            <option value={500}>Show 500</option>
-            <option value={1000}>Show 1,000</option>
-            <option value={2000}>Show 2,000</option>
-            <option value={5000}>Show 5,000</option>
-            <option value={10000}>Show All</option>
-          </select>
-          <button className="btn btn-outline btn-sm" onClick={() => refetch()} disabled={isFetching}>
-            <RefreshCw size={14} /> Refresh
-          </button>
-        </div>
-      </div>
-
-      {/* Tabs */}
-      <div style={{ display: 'flex', borderBottom: '1px solid var(--border)', marginBottom: 'var(--space-4)' }}>
-        {[['stocks','Stocks'],['etfs','ETFs']].map(([v, lbl]) => (
-          <button key={v} type="button" onClick={() => setTab(v)} style={{
-            background: 'transparent', border: 'none',
-            borderBottom: `2px solid ${tab === v ? 'var(--brand)' : 'transparent'}`,
-            color: tab === v ? 'var(--brand-2)' : 'var(--text-muted)',
-            fontWeight: tab === v ? 'var(--w-semibold)' : 'var(--w-medium)',
-            fontSize: 'var(--t-sm)', padding: '12px 16px', cursor: 'pointer', marginBottom: -1,
-          }}>{lbl} {tab === v && <span className="badge mono tnum" style={{ marginLeft: 6 }}>{rows.length}</span>}</button>
-        ))}
-      </div>
-
-      {/* Error banner when signals API fails */}
-      {dataError && (
-        <div className="card" style={{ background: 'rgba(239, 68, 68, 0.08)', borderLeft: '3px solid var(--danger)', marginBottom: 'var(--space-4)' }}>
-          <div style={{ padding: 'var(--space-3)', display: 'flex', gap: 'var(--space-2)', alignItems: 'flex-start' }}>
-            <span style={{ color: 'var(--danger)', fontWeight: 'var(--w-semibold)', fontSize: 'var(--t-sm)' }}>
-              Signals API error
-            </span>
-            <span className="muted t-sm">
-              {dataError?.responseData?.message || dataError?.message || `HTTP ${dataError?.status || 'unknown'}`}
-            </span>
-            <button className="btn btn-sm" style={{ marginLeft: 'auto' }} onClick={() => refetch()}>
-              <RefreshCw size={12} /> Retry
+            <select
+              value={limit}
+              onChange={(e) => setLimit(Number(e.target.value))}
+              className="input"
+              style={{
+                padding: "6px 8px",
+                fontSize: "var(--t-xs)",
+                minWidth: "100px",
+              }}
+            >
+              <option value={100}>Show 100</option>
+              <option value={500}>Show 500</option>
+              <option value={1000}>Show 1,000</option>
+              <option value={2000}>Show 2,000</option>
+              <option value={5000}>Show 5,000</option>
+              <option value={10000}>Show All</option>
+            </select>
+            <button
+              className="btn btn-outline btn-sm"
+              onClick={() => refetch()}
+              disabled={isFetching}
+            >
+              <RefreshCw size={14} /> Refresh
             </button>
           </div>
         </div>
-      )}
 
-      {/* Enhanced KPI strip */}
-      <div className="grid grid-4" style={{ marginBottom: 'var(--space-3)' }}>
-        <div className="kpi">
-          <div className="kpi-label">Total Signals</div>
-          <div className="kpi-value">{kpi.total}</div>
-          <div className="kpi-sub">{kpi.total !== kpi.totalAvailable ? `${kpi.totalAvailable} available` : 'no filters'}</div>
-        </div>
-        <div className="kpi"><div className="kpi-label">BUY</div><div className="kpi-value up">{kpi.buys}</div></div>
-        <div className="kpi"><div className="kpi-label">SELL</div><div className="kpi-value down">{kpi.sells}</div></div>
-        <div className="kpi">
-          <div className="kpi-label">BUY/SELL Ratio</div>
-          <div className="kpi-value">{kpi.ratio}</div>
-          <div className="kpi-sub">{kpi.buys > kpi.sells ? 'risk on' : kpi.buys < kpi.sells ? 'risk off' : 'even'}</div>
-        </div>
-      </div>
-
-      <div className="grid grid-4" style={{ marginBottom: 'var(--space-4)' }}>
-        <div className="kpi">
-          <div className="kpi-label">Near 50-day MA</div>
-          <div className="kpi-value">{kpi.cross50}</div>
-          <div className="kpi-sub">close 0-2% above SMA50</div>
-        </div>
-        <div className="kpi">
-          <div className="kpi-label">Near 200-day MA</div>
-          <div className="kpi-value">{kpi.cross200}</div>
-          <div className="kpi-sub">close 0-2% above SMA200</div>
-        </div>
-        <div className="kpi">
-          <div className="kpi-label">Fresh BUYs</div>
-          <div className="kpi-value up">{kpi.fresh}</div>
-          <div className="kpi-sub">≤ 3 days old</div>
-        </div>
-        <div className="kpi">
-          <div className="kpi-label">High Quality BUYs</div>
-          <div className="kpi-value up">{kpi.hq}</div>
-          <div className="kpi-sub">SQS &gt; 80</div>
-        </div>
-      </div>
-
-      {/* Charts row 1 — heatmap + setup breakdown */}
-      <div className="grid grid-2" style={{ marginBottom: 'var(--space-4)' }}>
-        <ErrorBoundary><SignalHeatmap rows={filtered} /></ErrorBoundary>
-        <ErrorBoundary><SetupBreakdown rows={filtered} /></ErrorBoundary>
-      </div>
-
-      {/* Charts row 2 — performance + SQS histogram */}
-      <div className="grid grid-2" style={{ marginBottom: 'var(--space-4)' }}>
-        <ErrorBoundary><RecentPerformance rows={enriched} timeframe={timeframe} /></ErrorBoundary>
-        <ErrorBoundary><SqsHistogram rows={filtered} /></ErrorBoundary>
-      </div>
-
-      {/* Filters */}
-      <div className="card card-pad-sm" style={{ marginBottom: 'var(--space-3)' }}>
-        <div className="flex gap-3" style={{ flexWrap: 'wrap', alignItems: 'center' }}>
-          <div style={{ position: 'relative', flex: 1, minWidth: 200 }}>
-            <Search size={14} style={{ position: 'absolute', left: 10, top: '50%', transform: 'translateY(-50%)', color: 'var(--text-faint)' }} />
-            <input className="input" placeholder="Symbol (starts with)" value={search}
-              onChange={e => setSearch(e.target.value)} style={{ paddingLeft: 32 }} />
-          </div>
-          <select className="select" value={signal} onChange={e => setSignal(e.target.value)} style={{ width: 130 }}>
-            <option value="all">All signals</option>
-            <option value="BUY">BUY only</option>
-            <option value="SELL">SELL only</option>
-          </select>
-          <select className="select" value={timeframe} onChange={e => setTimeframe(e.target.value)} style={{ width: 120 }}>
-            <option value="daily">Daily</option>
-          </select>
-          <select className="select" value={stageFilter} onChange={e => setStageFilter(e.target.value)} style={{ width: 170 }}>
-            <option value="all">All stages</option>
-            <option value="Stage 1">Stage 1 (Basing)</option>
-            <option value="Stage 2">Stage 2 (Markup)</option>
-            <option value="Stage 3">Stage 3 (Topping)</option>
-            <option value="Stage 4">Stage 4 (Decline)</option>
-          </select>
-          {allBaseTypes.length > 0 && (
-            <select className="select" value={baseTypeFilter} onChange={e => setBaseTypeFilter(e.target.value)} style={{ width: 170 }}
-              title="Filter by chart base pattern">
-              <option value="all">All base types</option>
-              {allBaseTypes.map(bt => (
-                <option key={bt} value={bt}>{bt}</option>
-              ))}
-            </select>
-          )}
-          {tab === 'stocks' && (
-            <label className="flex items-center gap-2" style={{ fontSize: 'var(--t-xs)', color: 'var(--text-muted)', cursor: 'pointer' }}>
-              <input type="checkbox" checked={gatesOnly} onChange={e => setGatesOnly(e.target.checked)} />
-              <span>Passes algo gates</span>
-            </label>
-          )}
+        {/* Tabs */}
+        <div
+          style={{
+            display: "flex",
+            borderBottom: "1px solid var(--border)",
+            marginBottom: "var(--space-4)",
+          }}
+        >
+          {[
+            ["stocks", "Stocks"],
+            ["etfs", "ETFs"],
+          ].map(([v, lbl]) => (
+            <button
+              key={v}
+              type="button"
+              onClick={() => setTab(v)}
+              style={{
+                background: "transparent",
+                border: "none",
+                borderBottom: `2px solid ${tab === v ? "var(--brand)" : "transparent"}`,
+                color: tab === v ? "var(--brand-2)" : "var(--text-muted)",
+                fontWeight: tab === v ? "var(--w-semibold)" : "var(--w-medium)",
+                fontSize: "var(--t-sm)",
+                padding: "12px 16px",
+                cursor: "pointer",
+                marginBottom: -1,
+              }}
+            >
+              {lbl}{" "}
+              {tab === v && (
+                <span className="badge mono tnum" style={{ marginLeft: 6 }}>
+                  {rows.length}
+                </span>
+              )}
+            </button>
+          ))}
         </div>
 
-        {/* Sliders + chips */}
-        <div className="flex gap-3" style={{ flexWrap: 'wrap', marginTop: 'var(--space-3)', alignItems: 'center' }}>
-          <SliderField label="SQS range" value={scoreRange[0]} max={100}
-            onChange={v => setScoreRange([Number(v), scoreRange[1]])} suffix={`–${scoreRange[1]}`} />
-          <SliderField label="" value={scoreRange[1]} max={100}
-            onChange={v => setScoreRange([scoreRange[0], Number(v)])} suffix="" />
-          <SliderField label="Max age (days)" value={maxAge} max={90}
-            onChange={v => setMaxAge(Number(v))} suffix={maxAge >= 90 ? 'all' : `${maxAge}d`} />
-        </div>
-
-        {allSectors.length > 0 && (
-          <div className="flex gap-2" style={{ flexWrap: 'wrap', marginTop: 'var(--space-3)' }}>
-            <span className="eyebrow" style={{ alignSelf: 'center' }}>Sectors</span>
-            {allSectors.map(s => {
-              const on = sectorFilter.includes(s);
-              return (
-                <button key={s} type="button"
-                  onClick={() => setSectorFilter(on
-                    ? sectorFilter.filter(x => x !== s)
-                    : [...sectorFilter, s])}
-                  className={`badge ${on ? 'badge-brand' : ''}`}
-                  style={{ cursor: 'pointer', border: on ? 'none' : '1px solid var(--border)' }}>
-                  {s}
-                </button>
-              );
-            })}
-            {sectorFilter.length > 0 && (
-              <button type="button" onClick={() => setSectorFilter([])}
-                className="badge" style={{ cursor: 'pointer', color: 'var(--text-muted)' }}>
-                clear
+        {/* Error banner when signals API fails */}
+        {dataError && (
+          <div
+            className="card"
+            style={{
+              background: "rgba(239, 68, 68, 0.08)",
+              borderLeft: "3px solid var(--danger)",
+              marginBottom: "var(--space-4)",
+            }}
+          >
+            <div
+              style={{
+                padding: "var(--space-3)",
+                display: "flex",
+                gap: "var(--space-2)",
+                alignItems: "flex-start",
+              }}
+            >
+              <span
+                style={{
+                  color: "var(--danger)",
+                  fontWeight: "var(--w-semibold)",
+                  fontSize: "var(--t-sm)",
+                }}
+              >
+                Signals API error
+              </span>
+              <span className="muted t-sm">
+                {dataError?.responseData?.message ||
+                  dataError?.message ||
+                  `HTTP ${dataError?.status || "unknown"}`}
+              </span>
+              <button
+                className="btn btn-sm"
+                style={{ marginLeft: "auto" }}
+                onClick={() => refetch()}
+              >
+                <RefreshCw size={12} /> Retry
               </button>
-            )}
+            </div>
           </div>
         )}
-      </div>
 
-      <ErrorBoundary>
-        <SignalsTable rows={filtered} loading={isLoading} kind={tab}
-          expandedKey={expandedKey} setExpandedKey={setExpandedKey} />
-      </ErrorBoundary>
-    </div>
-  </ErrorBoundary>
-);
+        {/* Enhanced KPI strip */}
+        <div className="grid grid-4" style={{ marginBottom: "var(--space-3)" }}>
+          <div className="kpi">
+            <div className="kpi-label">Total Signals</div>
+            <div className="kpi-value">{kpi.total}</div>
+            <div className="kpi-sub">
+              {kpi.total !== kpi.totalAvailable
+                ? `${kpi.totalAvailable} available`
+                : "no filters"}
+            </div>
+          </div>
+          <div className="kpi">
+            <div className="kpi-label">BUY</div>
+            <div className="kpi-value up">{kpi.buys}</div>
+          </div>
+          <div className="kpi">
+            <div className="kpi-label">SELL</div>
+            <div className="kpi-value down">{kpi.sells}</div>
+          </div>
+          <div className="kpi">
+            <div className="kpi-label">BUY/SELL Ratio</div>
+            <div className="kpi-value">{kpi.ratio}</div>
+            <div className="kpi-sub">
+              {kpi.buys > kpi.sells
+                ? "risk on"
+                : kpi.buys < kpi.sells
+                  ? "risk off"
+                  : "even"}
+            </div>
+          </div>
+        </div>
+
+        <div className="grid grid-4" style={{ marginBottom: "var(--space-4)" }}>
+          <div className="kpi">
+            <div className="kpi-label">Near 50-day MA</div>
+            <div className="kpi-value">{kpi.cross50}</div>
+            <div className="kpi-sub">close 0-2% above SMA50</div>
+          </div>
+          <div className="kpi">
+            <div className="kpi-label">Near 200-day MA</div>
+            <div className="kpi-value">{kpi.cross200}</div>
+            <div className="kpi-sub">close 0-2% above SMA200</div>
+          </div>
+          <div className="kpi">
+            <div className="kpi-label">Fresh BUYs</div>
+            <div className="kpi-value up">{kpi.fresh}</div>
+            <div className="kpi-sub">≤ 3 days old</div>
+          </div>
+          <div className="kpi">
+            <div className="kpi-label">High Quality BUYs</div>
+            <div className="kpi-value up">{kpi.hq}</div>
+            <div className="kpi-sub">SQS &gt; 80</div>
+          </div>
+        </div>
+
+        {/* Charts row 1 — heatmap + setup breakdown */}
+        <div className="grid grid-2" style={{ marginBottom: "var(--space-4)" }}>
+          <ErrorBoundary>
+            <SignalHeatmap rows={filtered} />
+          </ErrorBoundary>
+          <ErrorBoundary>
+            <SetupBreakdown rows={filtered} />
+          </ErrorBoundary>
+        </div>
+
+        {/* Charts row 2 — performance + SQS histogram */}
+        <div className="grid grid-2" style={{ marginBottom: "var(--space-4)" }}>
+          <ErrorBoundary>
+            <RecentPerformance rows={enriched} timeframe={timeframe} />
+          </ErrorBoundary>
+          <ErrorBoundary>
+            <SqsHistogram rows={filtered} />
+          </ErrorBoundary>
+        </div>
+
+        {/* Filters */}
+        <div
+          className="card card-pad-sm"
+          style={{ marginBottom: "var(--space-3)" }}
+        >
+          <div
+            className="flex gap-3"
+            style={{ flexWrap: "wrap", alignItems: "center" }}
+          >
+            <div style={{ position: "relative", flex: 1, minWidth: 200 }}>
+              <Search
+                size={14}
+                style={{
+                  position: "absolute",
+                  left: 10,
+                  top: "50%",
+                  transform: "translateY(-50%)",
+                  color: "var(--text-faint)",
+                }}
+              />
+              <input
+                className="input"
+                placeholder="Symbol (starts with)"
+                value={search}
+                onChange={(e) => setSearch(e.target.value)}
+                style={{ paddingLeft: 32 }}
+              />
+            </div>
+            <select
+              className="select"
+              value={signal}
+              onChange={(e) => setSignal(e.target.value)}
+              style={{ width: 130 }}
+            >
+              <option value="all">All signals</option>
+              <option value="BUY">BUY only</option>
+              <option value="SELL">SELL only</option>
+            </select>
+            <select
+              className="select"
+              value={timeframe}
+              onChange={(e) => setTimeframe(e.target.value)}
+              style={{ width: 120 }}
+            >
+              <option value="daily">Daily</option>
+            </select>
+            <select
+              className="select"
+              value={stageFilter}
+              onChange={(e) => setStageFilter(e.target.value)}
+              style={{ width: 170 }}
+            >
+              <option value="all">All stages</option>
+              <option value="Stage 1">Stage 1 (Basing)</option>
+              <option value="Stage 2">Stage 2 (Markup)</option>
+              <option value="Stage 3">Stage 3 (Topping)</option>
+              <option value="Stage 4">Stage 4 (Decline)</option>
+            </select>
+            {allBaseTypes.length > 0 && (
+              <select
+                className="select"
+                value={baseTypeFilter}
+                onChange={(e) => setBaseTypeFilter(e.target.value)}
+                style={{ width: 170 }}
+                title="Filter by chart base pattern"
+              >
+                <option value="all">All base types</option>
+                {allBaseTypes.map((bt) => (
+                  <option key={bt} value={bt}>
+                    {bt}
+                  </option>
+                ))}
+              </select>
+            )}
+            {tab === "stocks" && (
+              <label
+                className="flex items-center gap-2"
+                style={{
+                  fontSize: "var(--t-xs)",
+                  color: "var(--text-muted)",
+                  cursor: "pointer",
+                }}
+              >
+                <input
+                  type="checkbox"
+                  checked={gatesOnly}
+                  onChange={(e) => setGatesOnly(e.target.checked)}
+                />
+                <span>Passes algo gates</span>
+              </label>
+            )}
+          </div>
+
+          {/* Sliders + chips */}
+          <div
+            className="flex gap-3"
+            style={{
+              flexWrap: "wrap",
+              marginTop: "var(--space-3)",
+              alignItems: "center",
+            }}
+          >
+            <SliderField
+              label="SQS range"
+              value={scoreRange[0]}
+              max={100}
+              onChange={(v) => setScoreRange([Number(v), scoreRange[1]])}
+              suffix={`–${scoreRange[1]}`}
+            />
+            <SliderField
+              label=""
+              value={scoreRange[1]}
+              max={100}
+              onChange={(v) => setScoreRange([scoreRange[0], Number(v)])}
+              suffix=""
+            />
+            <SliderField
+              label="Max age (days)"
+              value={maxAge}
+              max={90}
+              onChange={(v) => setMaxAge(Number(v))}
+              suffix={maxAge >= 90 ? "all" : `${maxAge}d`}
+            />
+          </div>
+
+          {allSectors.length > 0 && (
+            <div
+              className="flex gap-2"
+              style={{ flexWrap: "wrap", marginTop: "var(--space-3)" }}
+            >
+              <span className="eyebrow" style={{ alignSelf: "center" }}>
+                Sectors
+              </span>
+              {allSectors.map((s) => {
+                const on = sectorFilter.includes(s);
+                return (
+                  <button
+                    key={s}
+                    type="button"
+                    onClick={() =>
+                      setSectorFilter(
+                        on
+                          ? sectorFilter.filter((x) => x !== s)
+                          : [...sectorFilter, s]
+                      )
+                    }
+                    className={`badge ${on ? "badge-brand" : ""}`}
+                    style={{
+                      cursor: "pointer",
+                      border: on ? "none" : "1px solid var(--border)",
+                    }}
+                  >
+                    {s}
+                  </button>
+                );
+              })}
+              {sectorFilter.length > 0 && (
+                <button
+                  type="button"
+                  onClick={() => setSectorFilter([])}
+                  className="badge"
+                  style={{ cursor: "pointer", color: "var(--text-muted)" }}
+                >
+                  clear
+                </button>
+              )}
+            </div>
+          )}
+        </div>
+
+        <ErrorBoundary>
+          <SignalsTable
+            rows={filtered}
+            loading={isLoading}
+            kind={tab}
+            expandedKey={expandedKey}
+            setExpandedKey={setExpandedKey}
+          />
+        </ErrorBoundary>
+      </div>
+    </ErrorBoundary>
+  );
 }
 
 // ─── slider field ──────────────────────────────────────────────────────────
 function SliderField({ label, value, max, onChange, suffix }) {
   return (
     <div className="flex items-center gap-2" style={{ minWidth: 200 }}>
-      {label && <span className="t-xs muted" style={{ minWidth: 90 }}>{label}</span>}
+      {label && (
+        <span className="t-xs muted" style={{ minWidth: 90 }}>
+          {label}
+        </span>
+      )}
       <input
         type="range"
-        min={0} max={max} value={value}
-        onChange={e => onChange(e.target.value)}
-        style={{ flex: 1, accentColor: 'var(--brand)' }}
+        min={0}
+        max={max}
+        value={value}
+        onChange={(e) => onChange(e.target.value)}
+        style={{ flex: 1, accentColor: "var(--brand)" }}
       />
-      <span className="t-xs mono tnum" style={{ minWidth: 36, textAlign: 'right', color: 'var(--text-2)' }}>
+      <span
+        className="t-xs mono tnum"
+        style={{ minWidth: 36, textAlign: "right", color: "var(--text-2)" }}
+      >
         {suffix}
       </span>
     </div>
@@ -472,20 +748,30 @@ function SliderField({ label, value, max, onChange, suffix }) {
 
 // ─── chart: signal heatmap ─────────────────────────────────────────────────
 function SignalHeatmap({ rows }) {
-  const data = useMemo(() => rows
-    .map(r => ({
-      symbol: r.symbol,
-      sqs: Number(r._sqs),
-      age: Number(r._age),
-      vol: Number(r.volume) || 1,
-      sector: r.sector || '—',
-      close: Number(r.close),
-      sig: (r.signal || '').toUpperCase(),
-    }))
-    .filter(r => !isNaN(r.sqs) && !isNaN(r.age) && !isNaN(r.close) && r.sqs != null && r.age != null),
-  [rows]);
-  const buys = data.filter(d => d.sig === 'BUY');
-  const sells = data.filter(d => d.sig === 'SELL');
+  const data = useMemo(
+    () =>
+      rows
+        .map((r) => ({
+          symbol: r.symbol,
+          sqs: Number(r._sqs),
+          age: Number(r._age),
+          vol: Number(r.volume) || 1,
+          sector: r.sector || "—",
+          close: Number(r.close),
+          sig: (r.signal || "").toUpperCase(),
+        }))
+        .filter(
+          (r) =>
+            !isNaN(r.sqs) &&
+            !isNaN(r.age) &&
+            !isNaN(r.close) &&
+            r.sqs != null &&
+            r.age != null
+        ),
+    [rows]
+  );
+  const buys = data.filter((d) => d.sig === "BUY");
+  const sells = data.filter((d) => d.sig === "SELL");
   const navigate = useNavigate();
 
   return (
@@ -493,51 +779,127 @@ function SignalHeatmap({ rows }) {
       <div className="card-head">
         <div>
           <div className="card-title">Signal Heatmap</div>
-          <div className="card-sub">SQS × Age · bubble size = volume · click to drill</div>
+          <div className="card-sub">
+            SQS × Age · bubble size = volume · click to drill
+          </div>
         </div>
       </div>
       <div className="card-body">
-        {data.length === 0
-          ? <Empty title="Not enough data for heatmap" />
-          : (
-            <div style={{ width: '100%', height: 280 }}>
-              <ResponsiveContainer width="100%" height="100%">
-                <ScatterChart margin={{ top: 8, right: 16, left: 0, bottom: 8 }}>
-                  <CartesianGrid stroke="var(--border-soft)" strokeDasharray="2 4" />
-                  <XAxis type="number" dataKey="sqs" name="SQS" domain={[0, 100]}
-                    stroke="var(--text-3)" fontSize={11} tickLine={false}
-                    label={{ value: 'Composite SQS', position: 'insideBottom', offset: -2, fill: 'var(--text-muted)', fontSize: 10 }} />
-                  <YAxis type="number" dataKey="age" name="Age (d)" reversed
-                    stroke="var(--text-3)" fontSize={11} tickLine={false} width={36}
-                    label={{ value: 'Days', angle: -90, position: 'insideLeft', fill: 'var(--text-muted)', fontSize: 10 }} />
-                  <ZAxis type="number" dataKey="vol" range={[40, 360]} />
-                  <ReferenceLine x={50} stroke="var(--border-2)" strokeDasharray="2 4" />
-                  <ReferenceLine y={7} stroke="var(--border-2)" strokeDasharray="2 4" />
-                  <Tooltip cursor={{ strokeDasharray: '2 4' }} contentStyle={TOOLTIP_STYLE}
-                    formatter={(v, k) => k === 'sqs' ? [`${Number(v).toFixed(1)}`, 'SQS']
-                      : k === 'age' ? [`${v}d`, 'Age']
-                      : k === 'vol' ? [fmtInt(v), 'Volume'] : v}
-                    labelFormatter={() => ''}
-                    content={({ active, payload }) => {
-                      if (!active || !payload || !payload.length) return null;
-                      const p = payload[0]?.payload;
-                      if (!p) return null;
-                      return (
-                        <div style={TOOLTIP_STYLE}>
-                          <div style={{ fontWeight: 'var(--w-semibold)' }}>{p.symbol} <span style={{ color: p.sig === 'BUY' ? 'var(--success)' : 'var(--danger)' }}>{p.sig}</span></div>
-                          <div className="muted t-2xs">{p.sector}</div>
-                          <div className="t-2xs">${Number(p.close).toFixed(2)} · SQS {Number(p.sqs).toFixed(1)} · {p.age}d</div>
+        {data.length === 0 ? (
+          <Empty title="Not enough data for heatmap" />
+        ) : (
+          <div style={{ width: "100%", height: 280 }}>
+            <ResponsiveContainer width="100%" height="100%">
+              <ScatterChart margin={{ top: 8, right: 16, left: 0, bottom: 8 }}>
+                <CartesianGrid
+                  stroke="var(--border-soft)"
+                  strokeDasharray="2 4"
+                />
+                <XAxis
+                  type="number"
+                  dataKey="sqs"
+                  name="SQS"
+                  domain={[0, 100]}
+                  stroke="var(--text-3)"
+                  fontSize={11}
+                  tickLine={false}
+                  label={{
+                    value: "Composite SQS",
+                    position: "insideBottom",
+                    offset: -2,
+                    fill: "var(--text-muted)",
+                    fontSize: 10,
+                  }}
+                />
+                <YAxis
+                  type="number"
+                  dataKey="age"
+                  name="Age (d)"
+                  reversed
+                  stroke="var(--text-3)"
+                  fontSize={11}
+                  tickLine={false}
+                  width={36}
+                  label={{
+                    value: "Days",
+                    angle: -90,
+                    position: "insideLeft",
+                    fill: "var(--text-muted)",
+                    fontSize: 10,
+                  }}
+                />
+                <ZAxis type="number" dataKey="vol" range={[40, 360]} />
+                <ReferenceLine
+                  x={50}
+                  stroke="var(--border-2)"
+                  strokeDasharray="2 4"
+                />
+                <ReferenceLine
+                  y={7}
+                  stroke="var(--border-2)"
+                  strokeDasharray="2 4"
+                />
+                <Tooltip
+                  cursor={{ strokeDasharray: "2 4" }}
+                  contentStyle={TOOLTIP_STYLE}
+                  formatter={(v, k) =>
+                    k === "sqs"
+                      ? [`${Number(v).toFixed(1)}`, "SQS"]
+                      : k === "age"
+                        ? [`${v}d`, "Age"]
+                        : k === "vol"
+                          ? [fmtInt(v), "Volume"]
+                          : v
+                  }
+                  labelFormatter={() => ""}
+                  content={({ active, payload }) => {
+                    if (!active || !payload || !payload.length) return null;
+                    const p = payload[0]?.payload;
+                    if (!p) return null;
+                    return (
+                      <div style={TOOLTIP_STYLE}>
+                        <div style={{ fontWeight: "var(--w-semibold)" }}>
+                          {p.symbol}{" "}
+                          <span
+                            style={{
+                              color:
+                                p.sig === "BUY"
+                                  ? "var(--success)"
+                                  : "var(--danger)",
+                            }}
+                          >
+                            {p.sig}
+                          </span>
                         </div>
-                      );
-                    }} />
-                  <Scatter data={buys} fill="var(--success)" fillOpacity={0.65}
-                    onClick={(e) => e?.symbol && navigate(`/app/stock/${e.symbol}`)} />
-                  <Scatter data={sells} fill="var(--danger)" fillOpacity={0.65}
-                    onClick={(e) => e?.symbol && navigate(`/app/stock/${e.symbol}`)} />
-                </ScatterChart>
-              </ResponsiveContainer>
-            </div>
-          )}
+                        <div className="muted t-2xs">{p.sector}</div>
+                        <div className="t-2xs">
+                          ${Number(p.close).toFixed(2)} · SQS{" "}
+                          {Number(p.sqs).toFixed(1)} · {p.age}d
+                        </div>
+                      </div>
+                    );
+                  }}
+                />
+                <Scatter
+                  data={buys}
+                  fill="var(--success)"
+                  fillOpacity={0.65}
+                  onClick={(e) =>
+                    e?.symbol && navigate(`/app/stock/${e.symbol}`)
+                  }
+                />
+                <Scatter
+                  data={sells}
+                  fill="var(--danger)"
+                  fillOpacity={0.65}
+                  onClick={(e) =>
+                    e?.symbol && navigate(`/app/stock/${e.symbol}`)
+                  }
+                />
+              </ScatterChart>
+            </ResponsiveContainer>
+          </div>
+        )}
       </div>
     </div>
   );
@@ -548,8 +910,13 @@ function SetupBreakdown({ rows }) {
   const data = useMemo(() => {
     const buckets = {};
     rows
-      .filter(r => (r.signal || '').toUpperCase() === 'BUY' && r.base_type && String(r.base_type).trim())
-      .forEach(r => {
+      .filter(
+        (r) =>
+          (r.signal || "").toUpperCase() === "BUY" &&
+          r.base_type &&
+          String(r.base_type).trim()
+      )
+      .forEach((r) => {
         const k = String(r.base_type).trim();
         buckets[k] = (buckets[k] || 0) + 1;
       });
@@ -559,8 +926,16 @@ function SetupBreakdown({ rows }) {
       .slice(0, 8);
   }, [rows]);
 
-  const COLORS = ['var(--brand)', 'var(--cyan)', 'var(--purple)', 'var(--success)',
-                  'var(--amber)', 'var(--brand-2)', 'var(--danger)', 'var(--text-3)'];
+  const COLORS = [
+    "var(--brand)",
+    "var(--cyan)",
+    "var(--purple)",
+    "var(--success)",
+    "var(--amber)",
+    "var(--brand-2)",
+    "var(--danger)",
+    "var(--text-3)",
+  ];
 
   return (
     <div className="card">
@@ -571,28 +946,56 @@ function SetupBreakdown({ rows }) {
         </div>
       </div>
       <div className="card-body">
-        {data.length === 0
-          ? <Empty title="No base-type data" desc="base_type column is empty for these signals." />
-          : (
-            <div style={{ width: '100%', height: 220 }}>
-              <ResponsiveContainer width="100%" height="100%">
-                <BarChart data={data} layout="vertical" margin={{ top: 4, right: 16, left: 8, bottom: 0 }}>
-                  <CartesianGrid stroke="var(--border-soft)" strokeDasharray="2 4" horizontal={false} />
-                  <XAxis type="number" stroke="var(--text-3)" fontSize={11} tickLine={false} allowDecimals={false} />
-                  <YAxis type="category" dataKey="type" stroke="var(--text-3)" fontSize={11}
-                    tickLine={false} width={130}
-                    tickFormatter={(v) => {
-                      const s = String(v);
-                      return s.length > 16 ? s.slice(0, 14) + '…' : s;
-                    }} />
-                  <Tooltip contentStyle={TOOLTIP_STYLE} cursor={{ fill: 'var(--surface-2)' }} />
-                  <Bar dataKey="count" radius={[0, 4, 4, 0]}>
-                    {data.map((_, i) => <Cell key={i} fill={COLORS[i % COLORS.length]} />)}
-                  </Bar>
-                </BarChart>
-              </ResponsiveContainer>
-            </div>
-          )}
+        {data.length === 0 ? (
+          <Empty
+            title="No base-type data"
+            desc="base_type column is empty for these signals."
+          />
+        ) : (
+          <div style={{ width: "100%", height: 220 }}>
+            <ResponsiveContainer width="100%" height="100%">
+              <BarChart
+                data={data}
+                layout="vertical"
+                margin={{ top: 4, right: 16, left: 8, bottom: 0 }}
+              >
+                <CartesianGrid
+                  stroke="var(--border-soft)"
+                  strokeDasharray="2 4"
+                  horizontal={false}
+                />
+                <XAxis
+                  type="number"
+                  stroke="var(--text-3)"
+                  fontSize={11}
+                  tickLine={false}
+                  allowDecimals={false}
+                />
+                <YAxis
+                  type="category"
+                  dataKey="type"
+                  stroke="var(--text-3)"
+                  fontSize={11}
+                  tickLine={false}
+                  width={130}
+                  tickFormatter={(v) => {
+                    const s = String(v);
+                    return s.length > 16 ? s.slice(0, 14) + "…" : s;
+                  }}
+                />
+                <Tooltip
+                  contentStyle={TOOLTIP_STYLE}
+                  cursor={{ fill: "var(--surface-2)" }}
+                />
+                <Bar dataKey="count" radius={[0, 4, 4, 0]}>
+                  {data.map((_, i) => (
+                    <Cell key={i} fill={COLORS[i % COLORS.length]} />
+                  ))}
+                </Bar>
+              </BarChart>
+            </ResponsiveContainer>
+          </div>
+        )}
       </div>
     </div>
   );
@@ -602,18 +1005,24 @@ function SetupBreakdown({ rows }) {
 function RecentPerformance({ rows, timeframe }) {
   // For BUY signals from last 30 days, fetch price history per symbol and
   // compute 5d / 20d forward returns. Returns aggregated stats.
-  const recentBuys = useMemo(() =>
-    rows.filter(r =>
-      (r.signal || '').toUpperCase() === 'BUY' &&
-      r._age != null && r._age >= 5 && r._age <= 30 &&
-      r.symbol && r.close != null
-    ),  // No arbitrary limit; fetch all 5-30d BUY signals
-  [rows]);
+  const recentBuys = useMemo(
+    () =>
+      rows.filter(
+        (r) =>
+          (r.signal || "").toUpperCase() === "BUY" &&
+          r._age != null &&
+          r._age >= 5 &&
+          r._age <= 30 &&
+          r.symbol &&
+          r.close != null
+      ), // No arbitrary limit; fetch all 5-30d BUY signals
+    [rows]
+  );
 
-  const symbols = recentBuys.map(r => r.symbol).join(',');
+  const symbols = recentBuys.map((r) => r.symbol).join(",");
 
   const { data: perfData, isLoading } = useQuery({
-    queryKey: ['signal-perf', symbols, timeframe],
+    queryKey: ["signal-perf", symbols, timeframe],
     queryFn: async () => {
       if (!recentBuys.length) return [];
       // Fetch price history using batch endpoint (20 symbols per request, max 5 concurrent batches)
@@ -630,18 +1039,26 @@ function RecentPerformance({ rows, timeframe }) {
         chunks,
         async (chunk) => {
           try {
-            const symbols = chunk.map(r => r.symbol).join(',');
-            const res = await api.get(`/api/prices/batch-history?symbols=${encodeURIComponent(symbols)}&timeframe=${timeframe}&limit=60`);
-            const symbolsData = res?.data?.data?.symbols || res?.data?.symbols || {};
+            const symbols = chunk.map((r) => r.symbol).join(",");
+            const res = await api.get(
+              `/api/prices/batch-history?symbols=${encodeURIComponent(symbols)}&timeframe=${timeframe}&limit=60`
+            );
+            const symbolsData =
+              res?.data?.data?.symbols || res?.data?.symbols || {};
 
             // Map results back to entry objects
-            return chunk.map(r => {
+            return chunk.map((r) => {
               const items = symbolsData[r.symbol] || [];
               return { symbol: r.symbol, items, entry: r };
             });
           } catch (err) {
             console.warn(`Failed to fetch batch price history for chunk:`, err);
-            return chunk.map(r => ({ symbol: r.symbol, items: [], entry: r, error: true }));
+            return chunk.map((r) => ({
+              symbol: r.symbol,
+              items: [],
+              entry: r,
+              error: true,
+            }));
           }
         },
         5 // Max 5 concurrent batch requests to avoid connection pool exhaustion
@@ -655,16 +1072,24 @@ function RecentPerformance({ rows, timeframe }) {
 
   const stats = useMemo(() => {
     if (!perfData || perfData.length === 0) return null;
-    const r5 = [], r20 = [], wins20 = [];
+    const r5 = [],
+      r20 = [],
+      wins20 = [];
     let successful = 0;
     perfData.forEach(({ items, entry, error }) => {
       if (error || !items || items.length < 6) return;
       successful++;
       // Sort oldest-first to look forward in time
-      const sorted = [...items].sort((a, b) => new Date(a.date) - new Date(b.date));
-      const sigDate = new Date(entry.signal_triggered_date || entry.date).getTime();
+      const sorted = [...items].sort(
+        (a, b) => new Date(a.date) - new Date(b.date)
+      );
+      const sigDate = new Date(
+        entry.signal_triggered_date || entry.date
+      ).getTime();
       // Find the signal bar or first bar at/after signal date
-      const idxSignal = sorted.findIndex(p => new Date(p.date).getTime() >= sigDate);
+      const idxSignal = sorted.findIndex(
+        (p) => new Date(p.date).getTime() >= sigDate
+      );
       if (idxSignal < 0 || idxSignal >= sorted.length - 1) return; // need future bars
       const entryPx = Number(sorted[idxSignal]?.close);
       if (!entryPx || isNaN(entryPx)) return;
@@ -673,21 +1098,26 @@ function RecentPerformance({ rows, timeframe }) {
       const px20Idx = Math.min(sorted.length - 1, idxSignal + 20);
       const px5 = Number(sorted[px5Idx]?.close);
       const px20 = Number(sorted[px20Idx]?.close);
-      if (px5 && !isNaN(px5) && px5Idx > idxSignal) r5.push(((px5 - entryPx) / entryPx) * 100);
+      if (px5 && !isNaN(px5) && px5Idx > idxSignal)
+        r5.push(((px5 - entryPx) / entryPx) * 100);
       if (px20 && !isNaN(px20) && px20Idx > idxSignal) {
         const ret20 = ((px20 - entryPx) / entryPx) * 100;
         r20.push(ret20);
         wins20.push(ret20 > 0 ? 1 : 0);
       }
     });
-    const avg = (arr) => arr.length ? arr.reduce((a, b) => a + b, 0) / arr.length : null;
+    const avg = (arr) =>
+      arr.length ? arr.reduce((a, b) => a + b, 0) / arr.length : null;
     return {
       sample: successful,
       attempted: perfData.length,
       avg5: avg(r5),
       avg20: avg(r20),
-      hit20: wins20.length ? (wins20.filter(x => x).length / wins20.length) * 100 : null,
-      n5: r5.length, n20: r20.length,
+      hit20: wins20.length
+        ? (wins20.filter((x) => x).length / wins20.length) * 100
+        : null,
+      n5: r5.length,
+      n20: r20.length,
     };
   }, [perfData]);
 
@@ -696,32 +1126,61 @@ function RecentPerformance({ rows, timeframe }) {
       <div className="card-head">
         <div>
           <div className="card-title">Recent Signal Performance</div>
-          <div className="card-sub">BUY signals 5–30d ago · forward returns</div>
+          <div className="card-sub">
+            BUY signals 5–30d ago · forward returns
+          </div>
         </div>
       </div>
       <div className="card-body">
         {recentBuys.length === 0 ? (
-          <Empty title="No mature BUYs" desc="Need BUY signals 5+ days old to compute returns." />
+          <Empty
+            title="No mature BUYs"
+            desc="Need BUY signals 5+ days old to compute returns."
+          />
         ) : isLoading ? (
           <Empty title="Computing forward returns…" />
         ) : !stats ? (
           <Empty title="No performance data available" />
         ) : (
-          <div className="grid grid-3" style={{ gap: 'var(--space-3)' }}>
-            <Stile label="Avg 5d return"
-              value={stats.avg5 != null ? `${stats.avg5 >= 0 ? '+' : ''}${stats.avg5.toFixed(2)}%` : '—'}
-              tone={stats.avg5 == null ? 'flat' : stats.avg5 >= 0 ? 'up' : 'down'}
-              sub={`n=${stats.n5}`} />
-            <Stile label="Avg 20d return"
-              value={stats.avg20 != null ? `${stats.avg20 >= 0 ? '+' : ''}${stats.avg20.toFixed(2)}%` : '—'}
-              tone={stats.avg20 == null ? 'flat' : stats.avg20 >= 0 ? 'up' : 'down'}
-              sub={`n=${stats.n20}`} />
-            <Stile label="Hit rate (20d)"
-              value={stats.hit20 != null ? `${stats.hit20.toFixed(0)}%` : '—'}
-              tone={stats.hit20 == null ? 'flat' : stats.hit20 >= 50 ? 'up' : 'down'}
-              sub={`% positive @ 20d`} />
+          <div className="grid grid-3" style={{ gap: "var(--space-3)" }}>
+            <Stile
+              label="Avg 5d return"
+              value={
+                stats.avg5 != null
+                  ? `${stats.avg5 >= 0 ? "+" : ""}${stats.avg5.toFixed(2)}%`
+                  : "—"
+              }
+              tone={
+                stats.avg5 == null ? "flat" : stats.avg5 >= 0 ? "up" : "down"
+              }
+              sub={`n=${stats.n5}`}
+            />
+            <Stile
+              label="Avg 20d return"
+              value={
+                stats.avg20 != null
+                  ? `${stats.avg20 >= 0 ? "+" : ""}${stats.avg20.toFixed(2)}%`
+                  : "—"
+              }
+              tone={
+                stats.avg20 == null ? "flat" : stats.avg20 >= 0 ? "up" : "down"
+              }
+              sub={`n=${stats.n20}`}
+            />
+            <Stile
+              label="Hit rate (20d)"
+              value={stats.hit20 != null ? `${stats.hit20.toFixed(0)}%` : "—"}
+              tone={
+                stats.hit20 == null ? "flat" : stats.hit20 >= 50 ? "up" : "down"
+              }
+              sub={`% positive @ 20d`}
+            />
             <div className="muted t-2xs col-span-3" style={{ marginTop: 4 }}>
-              Loaded: {stats.sample}/{stats.attempted} symbols · {timeframe} bars {stats.attempted > stats.sample ? `(${stats.attempted - stats.sample} price fetch failures)` : ''}
+              Loaded: {stats.sample}/{stats.attempted} symbols · {timeframe}{" "}
+              bars{" "}
+              {stats.attempted > stats.sample
+                ? `(${stats.attempted - stats.sample} price fetch failures)`
+                : ""}
             </div>
           </div>
         )}
@@ -735,67 +1194,143 @@ function SqsHistogram({ rows }) {
   const data = useMemo(() => {
     const bins = Array.from({ length: 10 }, (_, i) => ({
       range: `${i * 10}–${i * 10 + 10}`,
-      lo: i * 10, hi: i * 10 + 10, count: 0,
+      lo: i * 10,
+      hi: i * 10 + 10,
+      count: 0,
     }));
-    rows.filter(r => (r.signal || '').toUpperCase() === 'BUY' && r._sqs != null).forEach(r => {
-      const v = Number(r._sqs);
-      if (!isNaN(v)) {
-        const idx = Math.min(9, Math.max(0, Math.floor(v / 10)));
-        bins[idx].count += 1;
-      }
-    });
+    rows
+      .filter((r) => (r.signal || "").toUpperCase() === "BUY" && r._sqs != null)
+      .forEach((r) => {
+        const v = Number(r._sqs);
+        if (!isNaN(v)) {
+          const idx = Math.min(9, Math.max(0, Math.floor(v / 10)));
+          bins[idx].count += 1;
+        }
+      });
     return bins;
   }, [rows]);
 
-  const maxCount = Math.max(...data.map(d => d.count), 1);
+  const maxCount = Math.max(...data.map((d) => d.count), 1);
 
   return (
     <div className="card">
       <div className="card-head">
         <div>
           <div className="card-title">SQS Distribution</div>
-          <div className="card-sub">Composite signal quality across BUY signals</div>
+          <div className="card-sub">
+            Composite signal quality across BUY signals
+          </div>
         </div>
       </div>
-      <div className="card-body" style={{ display: 'flex', flexDirection: 'column' }}>
-        {maxCount === 1 && data.every(d => d.count === 0) ? (
-          <Empty title="No SQS data" desc="No quality scores joined to current signals." />
+      <div
+        className="card-body"
+        style={{ display: "flex", flexDirection: "column" }}
+      >
+        {maxCount === 1 && data.every((d) => d.count === 0) ? (
+          <Empty
+            title="No SQS data"
+            desc="No quality scores joined to current signals."
+          />
         ) : (
           <>
-            <div style={{ width: '100%', height: 240 }}>
+            <div style={{ width: "100%", height: 240 }}>
               <ResponsiveContainer width="100%" height="100%">
-                <BarChart data={data} margin={{ top: 4, right: 8, left: 0, bottom: 0 }}>
-                  <CartesianGrid stroke="var(--border-soft)" strokeDasharray="2 4" />
-                  <XAxis dataKey="range" stroke="var(--text-3)" fontSize={11} tickLine={false} interval={0} />
-                  <YAxis stroke="var(--text-3)" fontSize={11} tickLine={false} allowDecimals={false} width={32} />
-                  <Tooltip contentStyle={TOOLTIP_STYLE} cursor={{ fill: 'var(--surface-2)' }} />
+                <BarChart
+                  data={data}
+                  margin={{ top: 4, right: 8, left: 0, bottom: 0 }}
+                >
+                  <CartesianGrid
+                    stroke="var(--border-soft)"
+                    strokeDasharray="2 4"
+                  />
+                  <XAxis
+                    dataKey="range"
+                    stroke="var(--text-3)"
+                    fontSize={11}
+                    tickLine={false}
+                    interval={0}
+                  />
+                  <YAxis
+                    stroke="var(--text-3)"
+                    fontSize={11}
+                    tickLine={false}
+                    allowDecimals={false}
+                    width={32}
+                  />
+                  <Tooltip
+                    contentStyle={TOOLTIP_STYLE}
+                    cursor={{ fill: "var(--surface-2)" }}
+                  />
                   <Bar dataKey="count" radius={[4, 4, 0, 0]}>
                     {data.map((b, i) => (
-                      <Cell key={i}
-                        fill={b.lo >= 80 ? 'var(--success)'
-                          : b.lo >= 60 ? 'var(--brand)'
-                          : b.lo >= 40 ? 'var(--amber)' : 'var(--danger)'}
-                        fillOpacity={0.85} />
+                      <Cell
+                        key={i}
+                        fill={
+                          b.lo >= 80
+                            ? "var(--success)"
+                            : b.lo >= 60
+                              ? "var(--brand)"
+                              : b.lo >= 40
+                                ? "var(--amber)"
+                                : "var(--danger)"
+                        }
+                        fillOpacity={0.85}
+                      />
                     ))}
                   </Bar>
                 </BarChart>
               </ResponsiveContainer>
             </div>
-            <div className="flex gap-4" style={{ marginTop: 'var(--space-2)', fontSize: 'var(--t-2xs)', flexWrap: 'wrap' }}>
+            <div
+              className="flex gap-4"
+              style={{
+                marginTop: "var(--space-2)",
+                fontSize: "var(--t-2xs)",
+                flexWrap: "wrap",
+              }}
+            >
               <div className="flex items-center gap-1">
-                <div style={{ width: 12, height: 12, background: 'var(--success)', borderRadius: 2 }} />
+                <div
+                  style={{
+                    width: 12,
+                    height: 12,
+                    background: "var(--success)",
+                    borderRadius: 2,
+                  }}
+                />
                 <span className="muted">≥80 Excellent</span>
               </div>
               <div className="flex items-center gap-1">
-                <div style={{ width: 12, height: 12, background: 'var(--brand)', borderRadius: 2 }} />
+                <div
+                  style={{
+                    width: 12,
+                    height: 12,
+                    background: "var(--brand)",
+                    borderRadius: 2,
+                  }}
+                />
                 <span className="muted">60–79 Good</span>
               </div>
               <div className="flex items-center gap-1">
-                <div style={{ width: 12, height: 12, background: 'var(--amber)', borderRadius: 2 }} />
+                <div
+                  style={{
+                    width: 12,
+                    height: 12,
+                    background: "var(--amber)",
+                    borderRadius: 2,
+                  }}
+                />
                 <span className="muted">40–59 Fair</span>
               </div>
               <div className="flex items-center gap-1">
-                <div style={{ width: 12, height: 12, background: 'var(--danger)', borderRadius: 2 }} />
+                <div
+                  style={{
+                    width: 12,
+                    height: 12,
+                    background: "var(--danger)",
+                    borderRadius: 2,
+                  }}
+                />
                 <span className="muted">&lt;40 Poor</span>
               </div>
             </div>
@@ -811,7 +1346,7 @@ function Stile({ label, value, sub, tone }) {
   return (
     <div className="stile">
       <div className="stile-label">{label}</div>
-      <div className={`stile-value mono tnum ${tone || ''}`}>{value}</div>
+      <div className={`stile-value mono tnum ${tone || ""}`}>{value}</div>
       {sub && <div className="stile-sub">{sub}</div>}
     </div>
   );
@@ -821,19 +1356,42 @@ function Stile({ label, value, sub, tone }) {
 function SignalsTable({ rows, loading, kind, expandedKey, setExpandedKey }) {
   const navigate = useNavigate();
   if (loading) return <Empty title="Loading…" />;
-  if (rows.length === 0) return <Empty title="No active signals" desc={`No ${kind} signals match these filters.`} />;
+  if (rows.length === 0)
+    return (
+      <Empty
+        title="No active signals"
+        desc={`No ${kind} signals match these filters.`}
+      />
+    );
 
   return (
-    <div className="card" style={{ overflow: 'hidden' }}>
+    <div className="card" style={{ overflow: "hidden" }}>
       {/* Data legend and help text */}
-      <div style={{ padding: 'var(--space-3)', backgroundColor: 'var(--bg-2)', borderBottom: '1px solid var(--border)', fontSize: 'var(--t-2xs)', color: 'var(--text-muted)', lineHeight: 1.5 }}>
+      <div
+        style={{
+          padding: "var(--space-3)",
+          backgroundColor: "var(--bg-2)",
+          borderBottom: "1px solid var(--border)",
+          fontSize: "var(--t-2xs)",
+          color: "var(--text-muted)",
+          lineHeight: 1.5,
+        }}
+      >
         <strong>Column meanings:</strong>
-        <span> SQS = Composite signal quality (from algo evaluation, shows "—" if algo hasn't evaluated yet)</span>
-        <span> • Gates = Algo qualification (PASS/FAIL with grade, or "—" if unevaluated)</span>
+        <span>
+          {" "}
+          SQS = Composite signal quality (from algo evaluation, shows "—" if
+          algo hasn't evaluated yet)
+        </span>
+        <span>
+          {" "}
+          • Gates = Algo qualification (PASS/FAIL with grade, or "—" if
+          unevaluated)
+        </span>
         <span> • Age = Days since signal triggered</span>
         <span> • Click any row for full details</span>
       </div>
-      <div style={{ overflow: 'auto', maxHeight: '70vh' }}>
+      <div style={{ overflow: "auto", maxHeight: "70vh" }}>
         <table className="data-table">
           <thead>
             <tr>
@@ -856,68 +1414,165 @@ function SignalsTable({ rows, loading, kind, expandedKey, setExpandedKey }) {
             {rows.map((r, i) => {
               const k = `${r.symbol}-${r.date}-${i}`;
               const expanded = expandedKey === k;
-              const sig = (r.signal || '').toUpperCase();
+              const sig = (r.signal || "").toUpperCase();
               const rsi = r.rsi != null ? Number(r.rsi) : null;
               return (
                 <React.Fragment key={k}>
                   <tr onClick={() => setExpandedKey(expanded ? null : k)}>
                     <td>
                       <div className="flex items-center gap-2">
-                        <span className="strong" style={{ fontWeight: 'var(--w-bold)' }}>{r.symbol}</span>
-                        <span className={`badge ${sig === 'BUY' ? 'badge-success' : 'badge-danger'}`}>{sig}</span>
-                        {expanded ? <ChevronUp size={12} className="muted" /> : <ChevronDown size={12} className="muted" />}
+                        <span
+                          className="strong"
+                          style={{ fontWeight: "var(--w-bold)" }}
+                        >
+                          {r.symbol}
+                        </span>
+                        <span
+                          className={`badge ${sig === "BUY" ? "badge-success" : "badge-danger"}`}
+                        >
+                          {sig}
+                        </span>
+                        {expanded ? (
+                          <ChevronUp size={12} className="muted" />
+                        ) : (
+                          <ChevronDown size={12} className="muted" />
+                        )}
                       </div>
                     </td>
-                    <td className="muted t-xs">{r.sector || '—'}</td>
+                    <td className="muted t-xs">{r.sector || "—"}</td>
                     <td className="num">{fmtMoney(r.close)}</td>
                     <td className="num">
-                      <span className={r.close != null && r.buylevel != null && r.close >= r.buylevel ? 'up' : 'muted'}>{fmtMoney(r.buylevel)}</span>
+                      <span
+                        className={
+                          r.close != null &&
+                          r.buylevel != null &&
+                          r.close >= r.buylevel
+                            ? "up"
+                            : "muted"
+                        }
+                      >
+                        {fmtMoney(r.buylevel)}
+                      </span>
                     </td>
                     <td className="num">{fmtMoney(r.stoplevel)}</td>
-                    <td className="num">{r.risk_reward_ratio == null || isNaN(Number(r.risk_reward_ratio)) ? '—' : Number(r.risk_reward_ratio).toFixed(2)}</td>
                     <td className="num">
-                      {r._sqs == null ? <span className="muted t-2xs">no score</span> : (
-                        <span className={Number(r._sqs) >= 80 ? 'up' : Number(r._sqs) >= 60 ? 'brand' : Number(r._sqs) >= 40 ? 'amber' : 'down'}>
+                      {r.risk_reward_ratio == null ||
+                      isNaN(Number(r.risk_reward_ratio))
+                        ? "—"
+                        : Number(r.risk_reward_ratio).toFixed(2)}
+                    </td>
+                    <td className="num">
+                      {r._sqs == null ? (
+                        <span className="muted t-2xs">no score</span>
+                      ) : (
+                        <span
+                          className={
+                            Number(r._sqs) >= 80
+                              ? "up"
+                              : Number(r._sqs) >= 60
+                                ? "brand"
+                                : Number(r._sqs) >= 40
+                                  ? "amber"
+                                  : "down"
+                          }
+                        >
                           {Number(r._sqs).toFixed(0)}
                         </span>
                       )}
                     </td>
                     <td className="num">
-                      {rsi == null ? <span className="muted">—</span> :
-                        <span className={rsi > 70 ? 'down' : rsi < 30 ? 'up' : ''}>{Number(rsi).toFixed(1)}</span>}
+                      {rsi == null ? (
+                        <span className="muted">—</span>
+                      ) : (
+                        <span
+                          className={rsi > 70 ? "down" : rsi < 30 ? "up" : ""}
+                        >
+                          {Number(rsi).toFixed(1)}
+                        </span>
+                      )}
                     </td>
                     <td className="num">
-                      {r.volume_surge_pct == null || isNaN(Number(r.volume_surge_pct)) ? <span className="muted">—</span> : (
-                        <span className={Number(r.volume_surge_pct) >= 0 ? 'up' : 'down'}>
-                          {Number(r.volume_surge_pct) >= 0 ? '+' : ''}{Number(r.volume_surge_pct).toFixed(1)}%
+                      {r.volume_surge_pct == null ||
+                      isNaN(Number(r.volume_surge_pct)) ? (
+                        <span className="muted">—</span>
+                      ) : (
+                        <span
+                          className={
+                            Number(r.volume_surge_pct) >= 0 ? "up" : "down"
+                          }
+                        >
+                          {Number(r.volume_surge_pct) >= 0 ? "+" : ""}
+                          {Number(r.volume_surge_pct).toFixed(1)}%
                         </span>
                       )}
                     </td>
                     <td className="t-xs">
                       {r.base_type ? (
-                        <span className={`badge ${BASE_TYPE_VARIANT[r.base_type] || 'badge'}`}
-                          title={r.base_length_days ? `${r.base_length_days}d base` : 'chart pattern'}>
-                          {r.base_type}{r.base_length_days ? ` · ${r.base_length_days}d` : ''}
+                        <span
+                          className={`badge ${BASE_TYPE_VARIANT[r.base_type] || "badge"}`}
+                          title={
+                            r.base_length_days
+                              ? `${r.base_length_days}d base`
+                              : "chart pattern"
+                          }
+                        >
+                          {r.base_type}
+                          {r.base_length_days
+                            ? ` · ${r.base_length_days}d`
+                            : ""}
                         </span>
-                      ) : <span className="muted">—</span>}
+                      ) : (
+                        <span className="muted">—</span>
+                      )}
                     </td>
                     <td>
-                      {r.market_stage
-                        ? <span className={`badge ${STAGE_VARIANT[r.market_stage] || 'badge'}`}>{r.market_stage.replace('Stage ', 'S')}</span>
-                        : <span className="muted">—</span>}
+                      {r.market_stage ? (
+                        <span
+                          className={`badge ${STAGE_VARIANT[r.market_stage] || "badge"}`}
+                        >
+                          {r.market_stage.replace("Stage ", "S")}
+                        </span>
+                      ) : (
+                        <span className="muted">—</span>
+                      )}
                     </td>
                     <td>
-                      {r._pass_gates == null ? <span className="muted t-2xs">—</span>
-                        : r._pass_gates
-                          ? <span className="badge badge-success">PASS{r._grade ? ` ${r._grade}` : ''}</span>
-                          : <span className="badge badge-danger" title={r._fail_reason || ''}>FAIL</span>}
+                      {r._pass_gates == null ? (
+                        <span className="muted t-2xs">—</span>
+                      ) : r._pass_gates ? (
+                        <span className="badge badge-success">
+                          PASS{r._grade ? ` ${r._grade}` : ""}
+                        </span>
+                      ) : (
+                        <span
+                          className="badge badge-danger"
+                          title={r._fail_reason || ""}
+                        >
+                          FAIL
+                        </span>
+                      )}
                     </td>
-                    <td className="num muted t-xs">{r._age != null ? `${r._age}d` : '—'}</td>
+                    <td className="num muted t-xs">
+                      {r._age != null ? `${r._age}d` : "—"}
+                    </td>
                   </tr>
                   {expanded && (
                     <tr>
-                      <td colSpan={13} style={{ background: 'var(--bg-2)', padding: 'var(--space-4)' }}>
-                        <SignalDetail row={r} kind={kind} onSymbolClick={() => kind === 'stocks' && navigate(`/app/stock/${r.symbol}`)} />
+                      <td
+                        colSpan={13}
+                        style={{
+                          background: "var(--bg-2)",
+                          padding: "var(--space-4)",
+                        }}
+                      >
+                        <SignalDetail
+                          row={r}
+                          kind={kind}
+                          onSymbolClick={() =>
+                            kind === "stocks" &&
+                            navigate(`/app/stock/${r.symbol}`)
+                          }
+                        />
                       </td>
                     </tr>
                   )}
@@ -935,50 +1590,95 @@ function SignalsTable({ rows, loading, kind, expandedKey, setExpandedKey }) {
 function SignalDetail({ row, kind, onSymbolClick }) {
   return (
     <div>
-      <div className="flex gap-3 items-center" style={{ marginBottom: 'var(--space-3)', flexWrap: 'wrap' }}>
-        {kind === 'stocks' && (
+      <div
+        className="flex gap-3 items-center"
+        style={{ marginBottom: "var(--space-3)", flexWrap: "wrap" }}
+      >
+        {kind === "stocks" && (
           <button className="btn btn-outline btn-sm" onClick={onSymbolClick}>
             Open {row.symbol} detail →
           </button>
         )}
-        {row._grade && <span className={`badge badge-lg ${row._grade.startsWith('A') ? 'badge-success' : row._grade === 'B' ? 'badge-cyan' : row._grade === 'C' ? 'badge-amber' : 'badge'}`}>Grade {row._grade}</span>}
-        {row._pass_gates !== null && row._pass_gates !== undefined && (
-          row._pass_gates
-            ? <span className="badge badge-success">All gates pass</span>
-            : <span className="badge badge-danger">Gate fail: {row._fail_reason || 'unknown'}</span>
+        {row._grade && (
+          <span
+            className={`badge badge-lg ${row._grade.startsWith("A") ? "badge-success" : row._grade === "B" ? "badge-cyan" : row._grade === "C" ? "badge-amber" : "badge"}`}
+          >
+            Grade {row._grade}
+          </span>
         )}
+        {row._pass_gates !== null &&
+          row._pass_gates !== undefined &&
+          (row._pass_gates ? (
+            <span className="badge badge-success">All gates pass</span>
+          ) : (
+            <span className="badge badge-danger">
+              Gate fail: {row._fail_reason || "unknown"}
+            </span>
+          ))}
       </div>
 
-      {kind === 'stocks' && <PriceSparkline symbol={row.symbol} />}
+      {kind === "stocks" && <PriceSparkline symbol={row.symbol} />}
 
-      <div className="grid grid-3 gap-4" style={{ marginTop: 'var(--space-3)' }}>
-        <DetailGroup title="Entry plan" items={[
-          ['Buy zone', `${fmtMoney(row.buy_zone_start)} – ${fmtMoney(row.buy_zone_end)}`],
-          ['Pivot', fmtMoney(row.pivot_price)],
-          ['Initial stop', fmtMoney(row.initial_stop)],
-          ['Trailing stop', fmtMoney(row.trailing_stop)],
-          ['Position size', row.position_size_recommendation || '—'],
-          ['Entry quality', row.entry_quality_score ? `${row.entry_quality_score}/100` : '—'],
-        ]} />
-        <DetailGroup title="Targets & exits" items={[
-          ['Target T1 (+8%)', fmtMoney(row.profit_target_8pct)],
-          ['Target T2 (+20%)', fmtMoney(row.profit_target_20pct)],
-          ['Target T3 (+25%)', fmtMoney(row.profit_target_25pct)],
-          ['Exit trigger 1', fmtMoney(row.exit_trigger_1_price)],
-          ['Exit trigger 2', fmtMoney(row.exit_trigger_2_price)],
-          ['Sell level', fmtMoney(row.sell_level)],
-        ]} />
-        <DetailGroup title="Technicals & strength" items={[
-          ['RSI (14)', row.rsi != null ? Number(row.rsi).toFixed(1) : '—'],
-          ['ADX', row.adx != null ? Number(row.adx).toFixed(1) : '—'],
-          ['ATR', row.atr != null ? Number(row.atr).toFixed(2) : '—'],
-          ['SMA 50 / 200', `${fmtMoney(row.sma_50)} / ${fmtMoney(row.sma_200)}`],
-          ['EMA 21', fmtMoney(row.ema_21)],
-          ['RS Rating', row.rs_rating != null ? Number(row.rs_rating).toFixed(0) : '—'],
-          ['RS (vs market)', row.mansfield_rs != null ? Number(row.mansfield_rs).toFixed(2) : '—'],
-          ['Avg vol 50d', fmtInt(row.avg_volume_50d)],
-          ['Vol surge', row.volume_surge_pct != null ? fmtPct(row.volume_surge_pct) : '—'],
-        ]} />
+      <div
+        className="grid grid-3 gap-4"
+        style={{ marginTop: "var(--space-3)" }}
+      >
+        <DetailGroup
+          title="Entry plan"
+          items={[
+            [
+              "Buy zone",
+              `${fmtMoney(row.buy_zone_start)} – ${fmtMoney(row.buy_zone_end)}`,
+            ],
+            ["Pivot", fmtMoney(row.pivot_price)],
+            ["Initial stop", fmtMoney(row.initial_stop)],
+            ["Trailing stop", fmtMoney(row.trailing_stop)],
+            ["Position size", row.position_size_recommendation || "—"],
+            [
+              "Entry quality",
+              row.entry_quality_score ? `${row.entry_quality_score}/100` : "—",
+            ],
+          ]}
+        />
+        <DetailGroup
+          title="Targets & exits"
+          items={[
+            ["Target T1 (+8%)", fmtMoney(row.profit_target_8pct)],
+            ["Target T2 (+20%)", fmtMoney(row.profit_target_20pct)],
+            ["Target T3 (+25%)", fmtMoney(row.profit_target_25pct)],
+            ["Exit trigger 1", fmtMoney(row.exit_trigger_1_price)],
+            ["Exit trigger 2", fmtMoney(row.exit_trigger_2_price)],
+            ["Sell level", fmtMoney(row.sell_level)],
+          ]}
+        />
+        <DetailGroup
+          title="Technicals & strength"
+          items={[
+            ["RSI (14)", row.rsi != null ? Number(row.rsi).toFixed(1) : "—"],
+            ["ADX", row.adx != null ? Number(row.adx).toFixed(1) : "—"],
+            ["ATR", row.atr != null ? Number(row.atr).toFixed(2) : "—"],
+            [
+              "SMA 50 / 200",
+              `${fmtMoney(row.sma_50)} / ${fmtMoney(row.sma_200)}`,
+            ],
+            ["EMA 21", fmtMoney(row.ema_21)],
+            [
+              "RS Rating",
+              row.rs_rating != null ? Number(row.rs_rating).toFixed(0) : "—",
+            ],
+            [
+              "RS (vs market)",
+              row.mansfield_rs != null
+                ? Number(row.mansfield_rs).toFixed(2)
+                : "—",
+            ],
+            ["Avg vol 50d", fmtInt(row.avg_volume_50d)],
+            [
+              "Vol surge",
+              row.volume_surge_pct != null ? fmtPct(row.volume_surge_pct) : "—",
+            ],
+          ]}
+        />
       </div>
     </div>
   );
@@ -987,58 +1687,81 @@ function SignalDetail({ row, kind, onSymbolClick }) {
 // ─── inline sparkline ──────────────────────────────────────────────────────
 function PriceSparkline({ symbol }) {
   const { data, isLoading, error } = useQuery({
-    queryKey: ['sparkline', symbol],
+    queryKey: ["sparkline", symbol],
     queryFn: () =>
-      api.get(`/api/prices/history/${symbol}?timeframe=daily&limit=60`)
-         .then(r => {
-           let items = r?.data?.data || r?.data;
-           items = Array.isArray(items) ? items : (items?.items || []);
-           return items;
-         })
-         .catch(err => {
-           console.warn(`Failed to load sparkline for ${symbol}:`, err);
-           return [];
-         }),
+      api
+        .get(`/api/prices/history/${symbol}?timeframe=daily&limit=60`)
+        .then((r) => {
+          let items = r?.data?.data || r?.data;
+          items = Array.isArray(items) ? items : items?.items || [];
+          return items;
+        })
+        .catch((err) => {
+          console.warn(`Failed to load sparkline for ${symbol}:`, err);
+          return [];
+        }),
     staleTime: 300000,
   });
 
   if (isLoading) return <div className="muted t-xs">Loading chart…</div>;
-  if (error || !data || data.length < 2) return <div className="muted t-xs">No price history available.</div>;
+  if (error || !data || data.length < 2)
+    return <div className="muted t-xs">No price history available.</div>;
 
   const series = [...data]
-    .map(d => ({ date: String(d.date).slice(0, 10), close: Number(d.close) }))
-    .filter(d => !isNaN(d.close) && d.close != null)
+    .map((d) => ({ date: String(d.date).slice(0, 10), close: Number(d.close) }))
+    .filter((d) => !isNaN(d.close) && d.close != null)
     .sort((a, b) => new Date(a.date) - new Date(b.date));
 
-  if (series.length < 2) return <div className="muted t-xs">Insufficient data points.</div>;
+  if (series.length < 2)
+    return <div className="muted t-xs">Insufficient data points.</div>;
 
   const first = series[0]?.close ?? 0;
   const last = series[series.length - 1]?.close ?? 0;
   const change = first > 0 ? ((last - first) / first) * 100 : 0;
-  const tone = change >= 0 ? 'var(--success)' : 'var(--danger)';
+  const tone = change >= 0 ? "var(--success)" : "var(--danger)";
 
   return (
-    <div className="panel" style={{ padding: 'var(--space-3) var(--space-4)' }}>
-      <div className="flex items-center justify-between" style={{ marginBottom: 4 }}>
+    <div className="panel" style={{ padding: "var(--space-3) var(--space-4)" }}>
+      <div
+        className="flex items-center justify-between"
+        style={{ marginBottom: 4 }}
+      >
         <span className="eyebrow">{symbol} · last 60 days</span>
-        <span className={`mono tnum t-xs ${change >= 0 ? 'up' : 'down'}`}>
-          {change >= 0 ? '+' : ''}{change.toFixed(2)}%
+        <span className={`mono tnum t-xs ${change >= 0 ? "up" : "down"}`}>
+          {change >= 0 ? "+" : ""}
+          {change.toFixed(2)}%
         </span>
       </div>
-      <div style={{ width: '100%', height: 90 }}>
+      <div style={{ width: "100%", height: 90 }}>
         <ResponsiveContainer width="100%" height="100%">
-          <AreaChart data={series} margin={{ top: 4, right: 4, left: 0, bottom: 0 }}>
+          <AreaChart
+            data={series}
+            margin={{ top: 4, right: 4, left: 0, bottom: 0 }}
+          >
             <defs>
-              <linearGradient id={`sparkGrad-${symbol}`} x1="0" y1="0" x2="0" y2="1">
+              <linearGradient
+                id={`sparkGrad-${symbol}`}
+                x1="0"
+                y1="0"
+                x2="0"
+                y2="1"
+              >
                 <stop offset="0%" stopColor={tone} stopOpacity={0.4} />
                 <stop offset="100%" stopColor={tone} stopOpacity={0} />
               </linearGradient>
             </defs>
-            <Tooltip contentStyle={TOOLTIP_STYLE}
-              formatter={(v) => [fmtMoney(v), 'Close']}
-              labelFormatter={(d) => d} />
-            <Area dataKey="close" type="monotone" stroke={tone} strokeWidth={1.5}
-                  fill={`url(#sparkGrad-${symbol})`} />
+            <Tooltip
+              contentStyle={TOOLTIP_STYLE}
+              formatter={(v) => [fmtMoney(v), "Close"]}
+              labelFormatter={(d) => d}
+            />
+            <Area
+              dataKey="close"
+              type="monotone"
+              stroke={tone}
+              strokeWidth={1.5}
+              fill={`url(#sparkGrad-${symbol})`}
+            />
           </AreaChart>
         </ResponsiveContainer>
       </div>
@@ -1050,12 +1773,21 @@ function PriceSparkline({ symbol }) {
 function DetailGroup({ title, items }) {
   return (
     <div>
-      <div className="eyebrow" style={{ marginBottom: 8 }}>{title}</div>
+      <div className="eyebrow" style={{ marginBottom: 8 }}>
+        {title}
+      </div>
       <div className="flex flex-col" style={{ gap: 4 }}>
         {items.map(([label, value], i) => (
-          <div key={i} className="flex" style={{ fontSize: 'var(--t-xs)' }}>
-            <span className="muted" style={{ minWidth: 110 }}>{label}</span>
-            <span className="strong mono tnum" style={{ flex: 1, textAlign: 'right' }}>{value || '—'}</span>
+          <div key={i} className="flex" style={{ fontSize: "var(--t-xs)" }}>
+            <span className="muted" style={{ minWidth: 110 }}>
+              {label}
+            </span>
+            <span
+              className="strong mono tnum"
+              style={{ flex: 1, textAlign: "right" }}
+            >
+              {value || "—"}
+            </span>
           </div>
         ))}
       </div>
@@ -1073,4 +1805,3 @@ function Empty({ title, desc }) {
     </div>
   );
 }
-

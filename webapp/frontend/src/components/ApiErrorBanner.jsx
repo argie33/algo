@@ -1,5 +1,5 @@
-import React, { useState, useEffect } from 'react';
-import { AlertTriangle, X } from 'lucide-react';
+import React, { useState, useEffect } from "react";
+import { AlertTriangle, X } from "lucide-react";
 
 /**
  * Global API Error Banner
@@ -13,8 +13,12 @@ export default function ApiErrorBanner() {
 
   useEffect(() => {
     const handleConsoleError = (message) => {
-      if (message.includes('[API]') || message.includes('401') || message.includes('5xx')) {
-        setErrorCount(prev => prev + 1);
+      if (
+        message.includes("[API]") ||
+        message.includes("401") ||
+        message.includes("5xx")
+      ) {
+        setErrorCount((prev) => prev + 1);
         setLastError(message);
         setShowBanner(true);
       }
@@ -22,8 +26,8 @@ export default function ApiErrorBanner() {
 
     // Intercept console errors
     const originalError = console.error;
-    console.error = function(...args) {
-      const message = String(args[0] || '');
+    console.error = function (...args) {
+      const message = String(args[0] || "");
       handleConsoleError(message);
       originalError.apply(console, args);
     };
@@ -52,15 +56,13 @@ export default function ApiErrorBanner() {
       <div className="flex items-center gap-3 flex-1">
         <AlertTriangle size={20} className="text-red-200 flex-shrink-0" />
         <div>
-          <div className="font-semibold text-red-100">
-            API Connection Issue
-          </div>
+          <div className="font-semibold text-red-100">API Connection Issue</div>
           <div className="text-sm text-red-200 mt-1">
             {errorCount === 1
-              ? 'The API is having trouble responding. Some data may be unavailable.'
+              ? "The API is having trouble responding. Some data may be unavailable."
               : errorCount < 5
-              ? `Multiple API errors detected (${errorCount}). Trying to recover...`
-              : `Persistent API issues (${errorCount}+ errors). Please check your connection or refresh the page.`}
+                ? `Multiple API errors detected (${errorCount}). Trying to recover...`
+                : `Persistent API issues (${errorCount}+ errors). Please check your connection or refresh the page.`}
           </div>
         </div>
       </div>

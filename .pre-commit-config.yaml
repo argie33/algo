@@ -24,6 +24,13 @@ repos:
         language: system
         pass_filenames: false
         types: [python]
+      - id: pylint-core
+        name: Pylint — algo loaders utils config tools
+        entry: pylint algo/ loaders/ utils/ config/ tools/ --disable=fixme
+        language: system
+        pass_filenames: false
+        types: [python]
+        stages: [commit]
 
   # Comprehensive CI validation (ruff + basic syntax checks)
   - repo: local

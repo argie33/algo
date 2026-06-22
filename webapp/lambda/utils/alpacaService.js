@@ -875,7 +875,7 @@ class AlpacaService {
   async cancelOrder(orderId) {
     try {
       this.checkRateLimit();
-      const result = await this.client.cancelOrder(orderId);
+      await this.client.cancelOrder(orderId);
       return {
         orderId: orderId,
         status: "cancelled",

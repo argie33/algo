@@ -13,4 +13,3 @@ export const getApiUrl = () => {
   // 3. Dev: relative path, Vite proxy handles it
   return "/";
 };
-

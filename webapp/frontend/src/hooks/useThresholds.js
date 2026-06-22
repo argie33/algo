@@ -1,4 +1,3 @@
-
 const DEFAULT_THRESHOLDS = {
   // Sahm Rule (unemployment-based recession indicator)
   sahm_critical: 0.5,

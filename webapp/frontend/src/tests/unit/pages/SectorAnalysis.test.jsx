@@ -159,4 +159,3 @@ function createMockUser() {
     isAuthenticated: true,
   };
 }
-

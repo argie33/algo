@@ -42,4 +42,3 @@ describe("Simple Test Verification", () => {
     expect(mockFn).toHaveBeenCalledWith("test");
   });
 });
-

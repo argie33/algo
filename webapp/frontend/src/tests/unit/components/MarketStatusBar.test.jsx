@@ -27,9 +27,9 @@ vi.mock("../../../services/api.js", () => ({
             value: 35250.1,
             change: -125.3,
             changePercent: -0.35,
-          }
-        ]
-      }
+          },
+        ],
+      },
     }),
     getMarketData: vi.fn().mockResolvedValue({ success: true, data: {} }),
   },
@@ -94,7 +94,7 @@ describe("MarketStatusBar", () => {
     mockDataCache.get.mockResolvedValue(mockMarketData);
     mockApi.getMarketStatus.mockResolvedValue({
       success: true,
-      data: mockMarketData
+      data: mockMarketData,
     });
   });
 
@@ -149,7 +149,9 @@ describe("MarketStatusBar", () => {
       render(<MarketStatusBar />);
 
       await waitFor(() => {
-        expect(screen.getByText("Market Status: Pre-Market")).toBeInTheDocument();
+        expect(
+          screen.getByText("Market Status: Pre-Market")
+        ).toBeInTheDocument();
         expect(screen.getByText("Opens at 9:30 AM")).toBeInTheDocument();
       });
     });
@@ -166,7 +168,9 @@ describe("MarketStatusBar", () => {
       render(<MarketStatusBar />);
 
       await waitFor(() => {
-        expect(screen.getByText("Market Status: After-Hours")).toBeInTheDocument();
+        expect(
+          screen.getByText("Market Status: After-Hours")
+        ).toBeInTheDocument();
         expect(screen.getByText("Closes at 8:00 PM")).toBeInTheDocument();
       });
     });
@@ -344,4 +348,3 @@ describe("MarketStatusBar", () => {
     });
   });
 });
-

@@ -27,7 +27,6 @@ test.describe("Sector Analysis Page E2E Tests", () => {
       }
     });
 
-
     // Navigate to Sector Analysis page
     try {
       await page.goto("/sectors", {
@@ -70,10 +69,9 @@ test.describe("Sector Analysis Page E2E Tests", () => {
       // Check for sector analysis content
       const hasSectorContent = await page.locator("#root *").count();
       expect(hasSectorContent).toBeGreaterThan(0);
-
     } catch (error) {
       console.log("⚠️ Sector Analysis failed to load:", error.message);
-      await page.screenshot({ path: 'debug-sector-analysis.png' });
+      await page.screenshot({ path: "debug-sector-analysis.png" });
       throw error;
     }
   });
@@ -90,10 +88,10 @@ test.describe("Sector Analysis Page E2E Tests", () => {
       '[data-testid*="sector"]',
       '[class*="sector"]',
       '[class*="analysis"]',
-      'table', // Sector data table
-      'canvas', // Charts
-      'svg', // SVG charts
-      '.MuiCard-root', // Card components
+      "table", // Sector data table
+      "canvas", // Charts
+      "svg", // SVG charts
+      ".MuiCard-root", // Card components
     ];
 
     let hasSectorElements = false;

@@ -12,7 +12,9 @@ const ThrowError = ({ shouldThrow, error }) => {
 };
 
 const renderWithRouter = (component) => {
-  return renderWithProvidersNoRouter(<BrowserRouter>{component}</BrowserRouter>);
+  return renderWithProvidersNoRouter(
+    <BrowserRouter>{component}</BrowserRouter>
+  );
 };
 
 describe("UI ErrorBoundary", () => {
@@ -321,4 +323,3 @@ describe("UI ErrorBoundary", () => {
     });
   });
 });
-

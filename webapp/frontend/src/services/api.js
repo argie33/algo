@@ -11,7 +11,11 @@ export const getApiConfig = () => {
   let source = "fallback";
 
   // Level 1: Runtime injection (from config.js in production)
-  if (typeof window !== "undefined" && window.__CONFIG__ && 'API_URL' in window.__CONFIG__) {
+  if (
+    typeof window !== "undefined" &&
+    window.__CONFIG__ &&
+    "API_URL" in window.__CONFIG__
+  ) {
     apiUrl = window.__CONFIG__.API_URL;
     source = "window.__CONFIG__";
     if (!apiUrl && isDev) {
@@ -40,15 +44,21 @@ export const getApiConfig = () => {
   };
 
   // Log API configuration (helpful for debugging)
-  if (typeof window !== "undefined" && window.location?.hostname === "localhost") {
-    console.debug(`[API Config] Source: ${source}, baseURL: "${apiUrl || '(relative path)'}"`);
+  if (
+    typeof window !== "undefined" &&
+    window.location?.hostname === "localhost"
+  ) {
+    console.debug(
+      `[API Config] Source: ${source}, baseURL: "${apiUrl || "(relative path)"}"`
+    );
   }
 
   // Error tracking if API URL is not available in production
   if (!config.baseURL && !isDev) {
-    const errorMsg = '[API CONFIG ERROR] No API URL available. The backend API is not configured. ' +
-      'Check: (1) window.__CONFIG__.API_URL via config.js, (2) VITE_API_URL env var, or (3) network connectivity. ' +
-      'The application will not function without a valid API endpoint.';
+    const errorMsg =
+      "[API CONFIG ERROR] No API URL available. The backend API is not configured. " +
+      "Check: (1) window.__CONFIG__.API_URL via config.js, (2) VITE_API_URL env var, or (3) network connectivity. " +
+      "The application will not function without a valid API endpoint.";
     console.error(errorMsg);
     config._configError = errorMsg;
   }
@@ -63,7 +73,9 @@ let currentConfig = getApiConfig();
 export const initializeApiConfig = () => {
   const newConfig = getApiConfig();
   if (newConfig.baseURL !== currentConfig.baseURL) {
-    console.log(`[API] Config updated: baseURL changed from "${currentConfig.baseURL}" to "${newConfig.baseURL}"`);
+    console.log(
+      `[API] Config updated: baseURL changed from "${currentConfig.baseURL}" to "${newConfig.baseURL}"`
+    );
     currentConfig = newConfig;
     api.defaults.baseURL = newConfig.baseURL;
   }
@@ -74,7 +86,7 @@ export const initializeApiConfig = () => {
 
 // Circuit breaker pattern to prevent cascading failures
 const CircuitBreaker = {
-  state: 'CLOSED', // CLOSED, OPEN, HALF_OPEN
+  state: "CLOSED", // CLOSED, OPEN, HALF_OPEN
   failureCount: 0,
   successCount: 0,
   lastFailureTime: 0,
@@ -88,7 +100,7 @@ const CircuitBreaker = {
 const checkCircuitBreaker = (isHealthCheck = false) => {
   const now = Date.now();
 
-  if (CircuitBreaker.state === 'OPEN') {
+  if (CircuitBreaker.state === "OPEN") {
     // Allow health checks to bypass circuit breaker so we can probe for recovery
     if (isHealthCheck) {
       return;
@@ -96,14 +108,17 @@ const checkCircuitBreaker = (isHealthCheck = false) => {
 
     // Calculate exponential backoff: base × 2^(attempts-1), capped at max
     const backoffDelay = Math.min(
-      CircuitBreaker.RECOVERY_TIMEOUT_BASE * Math.pow(2, CircuitBreaker.openAttempts - 1),
+      CircuitBreaker.RECOVERY_TIMEOUT_BASE *
+        Math.pow(2, CircuitBreaker.openAttempts - 1),
       CircuitBreaker.RECOVERY_TIMEOUT_MAX
     );
 
     if (now - CircuitBreaker.lastFailureTime > backoffDelay) {
-      CircuitBreaker.state = 'HALF_OPEN';
+      CircuitBreaker.state = "HALF_OPEN";
       CircuitBreaker.successCount = 0;
-      console.warn(`[Circuit Breaker] Attempting recovery (HALF_OPEN state, attempt ${CircuitBreaker.openAttempts})`);
+      console.warn(
+        `[Circuit Breaker] Attempting recovery (HALF_OPEN state, attempt ${CircuitBreaker.openAttempts})`
+      );
     } else {
       // Allow 10% of requests through as canary probes to detect recovery faster
       const canaryChance = Math.random();
@@ -111,22 +126,26 @@ const checkCircuitBreaker = (isHealthCheck = false) => {
         return; // Let this request through as a canary probe
       }
 
-      const retryIn = Math.ceil((backoffDelay - (now - CircuitBreaker.lastFailureTime)) / 1000);
-      throw new Error(`API service temporarily unavailable (circuit breaker OPEN). Retrying in ${retryIn}s...`);
+      const retryIn = Math.ceil(
+        (backoffDelay - (now - CircuitBreaker.lastFailureTime)) / 1000
+      );
+      throw new Error(
+        `API service temporarily unavailable (circuit breaker OPEN). Retrying in ${retryIn}s...`
+      );
     }
   }
 };
 
 const recordCircuitBreakerSuccess = () => {
-  if (CircuitBreaker.state === 'HALF_OPEN') {
+  if (CircuitBreaker.state === "HALF_OPEN") {
     CircuitBreaker.successCount++;
     if (CircuitBreaker.successCount >= CircuitBreaker.SUCCESS_THRESHOLD) {
-      CircuitBreaker.state = 'CLOSED';
+      CircuitBreaker.state = "CLOSED";
       CircuitBreaker.failureCount = 0;
       CircuitBreaker.openAttempts = 0; // Reset backoff on successful recovery
-      console.log('[Circuit Breaker] Recovered (CLOSED state)');
+      console.log("[Circuit Breaker] Recovered (CLOSED state)");
     }
-  } else if (CircuitBreaker.state === 'CLOSED') {
+  } else if (CircuitBreaker.state === "CLOSED") {
     CircuitBreaker.failureCount = Math.max(0, CircuitBreaker.failureCount - 1);
   }
 };
@@ -136,9 +155,11 @@ const recordCircuitBreakerFailure = () => {
   CircuitBreaker.failureCount++;
 
   if (CircuitBreaker.failureCount >= CircuitBreaker.FAILURE_THRESHOLD) {
-    CircuitBreaker.state = 'OPEN';
+    CircuitBreaker.state = "OPEN";
     CircuitBreaker.openAttempts++; // Increment for exponential backoff calculation
-    console.error(`[Circuit Breaker] Too many failures (${CircuitBreaker.failureCount}). Opening circuit. Will retry in ${CircuitBreaker.RECOVERY_TIMEOUT_BASE / 1000}s...`);
+    console.error(
+      `[Circuit Breaker] Too many failures (${CircuitBreaker.failureCount}). Opening circuit. Will retry in ${CircuitBreaker.RECOVERY_TIMEOUT_BASE / 1000}s...`
+    );
   }
 };
 
@@ -157,14 +178,14 @@ const _checkApiHealth = async () => {
     const response = await fetch(`${currentConfig.baseURL}/api/health`, {
       method: "GET",
       signal: AbortSignal.timeout(3000),
-    }).catch(error => {
-      console.debug('[API] Health check failed:', error.message);
+    }).catch((error) => {
+      console.debug("[API] Health check failed:", error.message);
       throw error;
     });
     apiHealthy = response?.ok;
     lastHealthCheck = now;
   } catch (error) {
-    console.debug('[API] Health check error (non-critical):', error.message);
+    console.debug("[API] Health check error (non-critical):", error.message);
     apiHealthy = false;
     lastHealthCheck = now;
   }
@@ -173,7 +194,10 @@ const _checkApiHealth = async () => {
 };
 
 // Log config in development only (suppressed in production)
-if (typeof window !== "undefined" && window.location?.hostname === "localhost") {
+if (
+  typeof window !== "undefined" &&
+  window.location?.hostname === "localhost"
+) {
   if (!currentConfig.apiUrl || currentConfig.apiUrl === "") {
     console.debug(
       "[DEV] API using local proxy:",
@@ -212,7 +236,7 @@ const processQueue = (error, token = null) => {
     try {
       error ? prom.reject(error) : prom.resolve(token);
     } catch (e) {
-      console.error('[API] Error processing queue item:', e.message);
+      console.error("[API] Error processing queue item:", e.message);
     }
   });
   failedQueue = [];
@@ -225,7 +249,7 @@ try {
       (config) => {
         // Check circuit breaker before allowing request
         // Allow health checks to bypass circuit breaker for recovery probing
-        const isHealthCheck = config.url?.includes('/api/health');
+        const isHealthCheck = config.url?.includes("/api/health");
         try {
           checkCircuitBreaker(isHealthCheck);
         } catch (cbError) {
@@ -256,11 +280,16 @@ try {
         // Record failure for circuit breaker
         const status = error.response?.status;
         const isNetworkError = !error.response;
-        const isTimeout = error.code === 'ECONNABORTED';
+        const isTimeout = error.code === "ECONNABORTED";
 
         if (!originalRequest || !originalRequest._cbRecorded) {
           // Record failures for: 5xx errors, rate limits, network errors, and timeouts
-          if (status >= 500 || (status === 429 && CircuitBreaker.state === 'CLOSED') || isNetworkError || isTimeout) {
+          if (
+            status >= 500 ||
+            (status === 429 && CircuitBreaker.state === "CLOSED") ||
+            isNetworkError ||
+            isTimeout
+          ) {
             recordCircuitBreakerFailure();
           }
           if (originalRequest) {
@@ -274,7 +303,10 @@ try {
           const timeSinceLastRefresh = now - lastTokenRefreshTime;
 
           // Guard against infinite retry loops: only attempt refresh if within grace period
-          if (timeSinceLastRefresh > TOKEN_REFRESH_GRACE_PERIOD && originalRequest._retried) {
+          if (
+            timeSinceLastRefresh > TOKEN_REFRESH_GRACE_PERIOD &&
+            originalRequest._retried
+          ) {
             tokenManager.clearTokens();
             if (typeof window !== "undefined" && window.location) {
               window.location.href = "/login";
@@ -293,7 +325,10 @@ try {
                 return api(originalRequest);
               })
               .catch((err) => {
-                console.error('[API] Queued request failed after token refresh:', err.message);
+                console.error(
+                  "[API] Queued request failed after token refresh:",
+                  err.message
+                );
                 return Promise.reject(err);
               });
           }
@@ -306,19 +341,25 @@ try {
             try {
               const result = await _refreshCallback();
               if (result.success) {
-                const newToken = tokenManager.getToken('access');
+                const newToken = tokenManager.getToken("access");
                 processQueue(null, newToken);
                 originalRequest.headers.Authorization = `Bearer ${newToken}`;
                 isRefreshing = false;
-                return api(originalRequest).catch(apiError => {
-                  console.error('[API] Retried request after refresh failed:', apiError.message);
+                return api(originalRequest).catch((apiError) => {
+                  console.error(
+                    "[API] Retried request after refresh failed:",
+                    apiError.message
+                  );
                   return Promise.reject(apiError);
                 });
               }
             } catch (refreshError) {
               processQueue(refreshError, null);
               isRefreshing = false;
-              console.error('[API] Token refresh failed:', refreshError.message);
+              console.error(
+                "[API] Token refresh failed:",
+                refreshError.message
+              );
               // After failed refresh, if still within grace period, allow user to retry
               // Otherwise force logout
               if (now - lastTokenRefreshTime > TOKEN_REFRESH_GRACE_PERIOD) {
@@ -340,21 +381,28 @@ try {
 
         // Handle 403 — permission denied
         if (error.response?.status === 403) {
-          const forbiddenError = new Error("You do not have permission to perform this action.");
+          const forbiddenError = new Error(
+            "You do not have permission to perform this action."
+          );
           forbiddenError.code = "FORBIDDEN";
           forbiddenError.status = 403;
-          return Promise.reject(forbiddenError).catch(err => {
+          return Promise.reject(forbiddenError).catch((err) => {
             // Suppress error logging for notifications endpoint (non-critical in dev mode)
-            const url = error.config?.url || error.response?.config?.url || '';
-            if (!url.includes('/notifications')) {
-              console.error('[API] Permission denied error:', err.message);
+            const url = error.config?.url || error.response?.config?.url || "";
+            if (!url.includes("/notifications")) {
+              console.error("[API] Permission denied error:", err.message);
             }
             return Promise.reject(err);
           });
         }
 
         // For all other errors, ensure they're properly logged before rejecting
-        console.error('[API] Request failed with status', error.response?.status || 'unknown', ':', error.message);
+        console.error(
+          "[API] Request failed with status",
+          error.response?.status || "unknown",
+          ":",
+          error.message
+        );
         return Promise.reject(error);
       }
     );
@@ -374,36 +422,42 @@ try {
 // ============================================
 
 // Helper to handle API errors with graceful degradation
-const handleApiError = async (error, cacheKey, fallbackData, action = "fetch") => {
+const handleApiError = async (
+  error,
+  cacheKey,
+  fallbackData,
+  action = "fetch"
+) => {
   const status = error.response?.status;
   const isNetworkError = !error.response;
   const responseData = error.response?.data || {};
 
   let errorMessage = error.message;
-  let errorCode = responseData.error || 'unknown_error';
+  let errorCode = responseData.error || "unknown_error";
 
   if (status === 503) {
-    errorMessage = "API temporarily unavailable. Showing cached data if available.";
-    errorCode = 'service_unavailable';
+    errorMessage =
+      "API temporarily unavailable. Showing cached data if available.";
+    errorCode = "service_unavailable";
   } else if (status === 429) {
     errorMessage = "Too many requests. Please try again later.";
-    errorCode = 'rate_limited';
+    errorCode = "rate_limited";
   } else if (status === 401) {
     errorMessage = "Unauthorized. Please login again.";
-    errorCode = 'unauthorized';
+    errorCode = "unauthorized";
   } else if (status === 403) {
     errorMessage = "Permission denied.";
-    errorCode = 'forbidden';
+    errorCode = "forbidden";
   } else if (isNetworkError) {
     errorMessage = "Network error. Showing cached data if available.";
-    errorCode = 'network_error';
+    errorCode = "network_error";
   }
 
-  console.warn(`[API] Error during ${action} (${status || 'network'}):`, {
+  console.warn(`[API] Error during ${action} (${status || "network"}):`, {
     message: errorMessage,
     code: errorCode,
     status: status,
-    details: responseData.message || responseData.details
+    details: responseData.message || responseData.details,
   });
 
   // Try to return cached data if available
@@ -426,7 +480,7 @@ const handleApiError = async (error, cacheKey, fallbackData, action = "fetch") =
     ...fallbackData,
     fromCache: false,
     error: errorCode,
-    message: errorMessage
+    message: errorMessage,
   };
 };
 
@@ -445,7 +499,12 @@ export const getMarketTechnicals = async () => {
     }
     return normalized;
   } catch (error) {
-    return handleApiError(error, "market_technicals", { data: {} }, "fetch market technicals");
+    return handleApiError(
+      error,
+      "market_technicals",
+      { data: {} },
+      "fetch market technicals"
+    );
   }
 };
 
@@ -459,7 +518,12 @@ export const getMarketSentimentData = async (range = "1d") => {
     }
     return normalized;
   } catch (error) {
-    return handleApiError(error, cacheKey, { data: { sentiment: 0.5 } }, "fetch market sentiment");
+    return handleApiError(
+      error,
+      cacheKey,
+      { data: { sentiment: 0.5 } },
+      "fetch market sentiment"
+    );
   }
 };
 
@@ -474,7 +538,9 @@ export const getMarketSeasonalityData = async () => {
 };
 
 export const getMarketCorrelation = async (symbols = null) => {
-  const cacheKey = symbols ? `market_correlation_${symbols}` : "market_correlation";
+  const cacheKey = symbols
+    ? `market_correlation_${symbols}`
+    : "market_correlation";
   try {
     const params = symbols ? `?symbols=${symbols}` : "";
     const response = await api.get(`/api/market/correlation${params}`);
@@ -536,10 +602,10 @@ export const getStocks = async (params = {}) => {
     // responseNormalizer provides items array (filtered of null/undefined)
     const transformedData = {
       ...normalized,
-      items: (normalized.items || []).map(item => ({
+      items: (normalized.items || []).map((item) => ({
         ...item,
-        ticker: item.symbol || '',
-        short_name: item.company_name || item.security_name || item.name || '',
+        ticker: item.symbol || "",
+        short_name: item.company_name || item.security_name || item.name || "",
       })),
     };
 
@@ -554,7 +620,12 @@ export const getStocks = async (params = {}) => {
     const cached = await dataCache.get(cacheKey);
     if (cached) {
       console.debug("[API] Using cached stocks data due to error");
-      return { statusCode: 200, ...cached, fromCache: true, error: error.message };
+      return {
+        statusCode: 200,
+        ...cached,
+        fromCache: true,
+        error: error.message,
+      };
     }
     return handleApiError(error, null, { items: [] }, "fetch stocks");
   }
@@ -562,7 +633,9 @@ export const getStocks = async (params = {}) => {
 
 export const getBalanceSheet = async (ticker, period = "annual") => {
   try {
-    const response = await api.get(`/api/financials/${ticker}/balance-sheet?period=${period}`);
+    const response = await api.get(
+      `/api/financials/${ticker}/balance-sheet?period=${period}`
+    );
     return extractData(response);
   } catch (error) {
     console.error("Error fetching balance sheet:", error);
@@ -572,7 +645,9 @@ export const getBalanceSheet = async (ticker, period = "annual") => {
 
 export const getIncomeStatement = async (ticker, period = "annual") => {
   try {
-    const response = await api.get(`/api/financials/${ticker}/income-statement?period=${period}`);
+    const response = await api.get(
+      `/api/financials/${ticker}/income-statement?period=${period}`
+    );
     return extractData(response);
   } catch (error) {
     console.error("Error fetching income statement:", error);
@@ -582,7 +657,9 @@ export const getIncomeStatement = async (ticker, period = "annual") => {
 
 export const getCashFlowStatement = async (ticker, period = "annual") => {
   try {
-    const response = await api.get(`/api/financials/${ticker}/cash-flow?period=${period}`);
+    const response = await api.get(
+      `/api/financials/${ticker}/cash-flow?period=${period}`
+    );
     return extractData(response);
   } catch (error) {
     console.error("Error fetching cash flow statement:", error);
@@ -610,7 +687,11 @@ export const getContactSubmissions = async () => {
     return extractData(response);
   } catch (error) {
     console.error("Error fetching contact submissions:", error);
-    return { statusCode: 400, data: { submissions: [], total: 0 }, error: error.message };
+    return {
+      statusCode: 400,
+      data: { submissions: [], total: 0 },
+      error: error.message,
+    };
   }
 };
 
@@ -705,7 +786,7 @@ export const getDiagnosticInfo = () => {
       isDevelopment: currentConfig.isDevelopment,
       isProduction: currentConfig.isProduction,
       isServerless: currentConfig.isServerless,
-      configSource: currentConfig._source || 'unknown',
+      configSource: currentConfig._source || "unknown",
       configError: currentConfig._configError || null,
     };
   } catch (error) {
@@ -722,7 +803,7 @@ export const isApiConfigured = () => {
 // Get a user-friendly error message if API is not configured
 export const getApiConfigError = () => {
   if (!isApiConfigured() && !currentConfig.isDev) {
-    return 'API Backend is not configured. Please check the server configuration or contact support.';
+    return "API Backend is not configured. Please check the server configuration or contact support.";
   }
   return null;
 };
@@ -782,4 +863,3 @@ export const getFearGreedData = async (range = "30d") => {
 // Export the axios instance for direct use
 export { api };
 export default api;
-

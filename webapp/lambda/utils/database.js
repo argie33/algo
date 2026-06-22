@@ -615,14 +615,6 @@ async function fixPortfolioHoldingsSchema() {
 }
 
 /**
- * Insert initial data
- * Initial data is handled by webapp-db-init.js and loader scripts
- */
-async function insertInitialData() {
-  return true;
-}
-
-/**
  * Get the connection pool instance
  */
 function getPool() {

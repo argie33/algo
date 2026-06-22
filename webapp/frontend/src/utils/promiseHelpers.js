@@ -21,7 +21,7 @@ export const safeAsync = (asyncFn, onError = null) => {
       if (onError) {
         onError(error);
       } else {
-        console.error('[SafeAsync] Unhandled error:', error.message);
+        console.error("[SafeAsync] Unhandled error:", error.message);
       }
       // Return undefined instead of throwing to prevent unhandled rejection
       return undefined;
@@ -29,11 +29,11 @@ export const safeAsync = (asyncFn, onError = null) => {
   })();
 
   // Always attach a catch handler to prevent unhandled rejections
-  promise.catch(error => {
+  promise.catch((error) => {
     if (onError) {
       onError(error);
     } else {
-      console.error('[SafeAsync] Caught error:', error.message);
+      console.error("[SafeAsync] Caught error:", error.message);
     }
   });
 
@@ -54,11 +54,11 @@ export const fireAndForget = (promise, onError = null) => {
     return;
   }
 
-  promise.catch(error => {
+  promise.catch((error) => {
     if (onError) {
       onError(error);
     } else {
-      console.error('[FireAndForget] Unhandled rejection:', error.message);
+      console.error("[FireAndForget] Unhandled rejection:", error.message);
     }
   });
 };
@@ -74,7 +74,11 @@ export const fireAndForget = (promise, onError = null) => {
  *     'Fetch data timeout'
  *   );
  */
-export const promiseWithTimeout = (promise, ms, message = 'Promise timeout') => {
+export const promiseWithTimeout = (
+  promise,
+  ms,
+  message = "Promise timeout"
+) => {
   return Promise.race([
     promise,
     new Promise((_, reject) =>
@@ -97,11 +101,11 @@ export const promiseWithTimeout = (promise, ms, message = 'Promise timeout') => 
 export const executeAll = async (promises) => {
   const results = await Promise.allSettled(promises);
   const errors = results
-    .filter(r => r.status === 'rejected')
-    .map(r => r.reason);
+    .filter((r) => r.status === "rejected")
+    .map((r) => r.reason);
 
   if (errors.length > 0) {
-    console.warn('[ExecuteAll] Some operations failed:', errors);
+    console.warn("[ExecuteAll] Some operations failed:", errors);
   }
 
   return results;
@@ -114,5 +118,4 @@ export const executeAll = async (promises) => {
  * Usage:
  *   await delay(1000);
  */
-export const delay = (ms) =>
-  new Promise(resolve => setTimeout(resolve, ms));
+export const delay = (ms) => new Promise((resolve) => setTimeout(resolve, ms));

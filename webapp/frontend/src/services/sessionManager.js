@@ -28,12 +28,12 @@ class SessionManager {
   initialize(authContext) {
     this.authContext = authContext;
     // Initialize session from stored data if available
-    const storedSession = sessionStorage.getItem('sessionData');
+    const storedSession = sessionStorage.getItem("sessionData");
     if (storedSession) {
       try {
         this.sessionData = JSON.parse(storedSession);
       } catch (e) {
-        console.warn('Could not parse stored session data');
+        console.warn("Could not parse stored session data");
       }
     }
   }
@@ -48,21 +48,25 @@ class SessionManager {
     this.clearAllTimers();
 
     if (rememberMe) {
-      localStorage.setItem('rememberMe', 'true');
+      localStorage.setItem("rememberMe", "true");
     } else {
-      localStorage.removeItem('rememberMe');
+      localStorage.removeItem("rememberMe");
     }
 
-    const sessionTimeout = rememberMe ? this.config.rememberMeTimeout : this.config.sessionTimeout;
+    const sessionTimeout = rememberMe
+      ? this.config.rememberMeTimeout
+      : this.config.sessionTimeout;
     const sessionDays = sessionTimeout / (24 * 60 * 60 * 1000);
 
-    console.log(`✅ Session started: ${rememberMe ? '30 days' : '30 minutes'} timeout (${sessionDays.toFixed(1)} days)`);
+    console.log(
+      `✅ Session started: ${rememberMe ? "30 days" : "30 minutes"} timeout (${sessionDays.toFixed(1)} days)`
+    );
   }
 
   endSession() {
     this.clearAllTimers();
-    sessionStorage.removeItem('sessionData');
-    localStorage.removeItem('rememberMe');
+    sessionStorage.removeItem("sessionData");
+    localStorage.removeItem("rememberMe");
   }
 
   startTokenRefreshTimer(accessToken) {
@@ -78,7 +82,7 @@ class SessionManager {
     if (!accessToken) return;
 
     try {
-      const parts = accessToken.split('.');
+      const parts = accessToken.split(".");
       if (parts.length !== 3) return;
 
       const payload = JSON.parse(atob(parts[1]));
@@ -89,17 +93,19 @@ class SessionManager {
 
       if (refreshAtMs > 0) {
         const minutesUntilRefresh = Math.round(refreshAtMs / 60 / 1000);
-        console.log(`🔄 Token refresh scheduled in ~${minutesUntilRefresh} minutes (expires at ${new Date(expMs).toLocaleString()})`);
+        console.log(
+          `🔄 Token refresh scheduled in ~${minutesUntilRefresh} minutes (expires at ${new Date(expMs).toLocaleString()})`
+        );
 
         this.timers.tokenRefreshTimer = setTimeout(async () => {
-          console.log('🔄 Token refresh triggered');
+          console.log("🔄 Token refresh triggered");
           if (this.authContext?.refreshSession) {
             try {
               const result = await this.authContext.refreshSession();
               if (result.success) {
-                console.log('✅ Token refresh successful');
+                console.log("✅ Token refresh successful");
               } else {
-                console.error('❌ Token refresh failed:', result.error);
+                console.error("❌ Token refresh failed:", result.error);
                 this.scheduleWarningAfterRefreshFailure();
               }
               if (this.callbacks.onTokenRefresh) {
@@ -109,7 +115,7 @@ class SessionManager {
                 this.callbacks.onRefreshError(result.error, 1);
               }
             } catch (error) {
-              console.error('❌ Token refresh error:', error.message);
+              console.error("❌ Token refresh error:", error.message);
               this.scheduleWarningAfterRefreshFailure();
               if (this.callbacks.onRefreshError) {
                 this.callbacks.onRefreshError(error.message, 1);
@@ -118,10 +124,12 @@ class SessionManager {
           }
         }, refreshAtMs);
       } else {
-        console.warn('⚠️ Token already expired or expires too soon, skipping refresh timer');
+        console.warn(
+          "⚠️ Token already expired or expires too soon, skipping refresh timer"
+        );
       }
     } catch (e) {
-      console.warn('Could not parse token expiry for refresh timer', e);
+      console.warn("Could not parse token expiry for refresh timer", e);
     }
   }
 
@@ -129,16 +137,23 @@ class SessionManager {
     if (this.timers.warningAfterFailedRefresh) {
       clearTimeout(this.timers.warningAfterFailedRefresh);
     }
-    this.timers.warningAfterFailedRefresh = setTimeout(() => {
-      if (this.callbacks.onSessionWarning) {
-        console.log('⚠️ Session warning: Token refresh failed, session expiring soon');
-        this.callbacks.onSessionWarning({ timeRemaining: this.config.warningTime });
-      }
-    }, 1 * 60 * 1000);
+    this.timers.warningAfterFailedRefresh = setTimeout(
+      () => {
+        if (this.callbacks.onSessionWarning) {
+          console.log(
+            "⚠️ Session warning: Token refresh failed, session expiring soon"
+          );
+          this.callbacks.onSessionWarning({
+            timeRemaining: this.config.warningTime,
+          });
+        }
+      },
+      1 * 60 * 1000
+    );
   }
 
   extendSession() {
-    this.startSession(localStorage.getItem('rememberMe') === 'true');
+    this.startSession(localStorage.getItem("rememberMe") === "true");
 
     if (this.callbacks.onTokenRefresh) {
       this.callbacks.onTokenRefresh(null);
@@ -174,4 +189,3 @@ class SessionManager {
 
 // Export singleton instance
 export default new SessionManager();
-

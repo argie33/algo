@@ -23,4 +23,3 @@ export const useDocumentTitle = (title, suffix = "Financial Dashboard") => {
 };
 
 export default useDocumentTitle;
-

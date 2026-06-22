@@ -1,7 +1,7 @@
-import React from 'react';
-import { Box, Button, useTheme, alpha } from '@mui/material';
-import { useNavigate } from 'react-router-dom';
-import { ArrowForward as ArrowForwardIcon } from '@mui/icons-material';
+import React from "react";
+import { Box, Button, useTheme, alpha } from "@mui/material";
+import { useNavigate } from "react-router-dom";
+import { ArrowForward as ArrowForwardIcon } from "@mui/icons-material";
 
 /**
  * CTAButtonGroup Component
@@ -13,7 +13,7 @@ const CTAButtonGroup = ({
   secondaryCTA = null,
   centered = true,
   gap = 2,
-  flexWrap = 'wrap',
+  flexWrap = "wrap",
 }) => {
   const navigate = useNavigate();
   const theme = useTheme();
@@ -29,11 +29,11 @@ const CTAButtonGroup = ({
   return (
     <Box
       sx={{
-        display: 'flex',
+        display: "flex",
         gap,
         flexWrap,
-        justifyContent: centered ? 'center' : 'flex-start',
-        alignItems: 'center',
+        justifyContent: centered ? "center" : "flex-start",
+        alignItems: "center",
       }}
     >
       {/* Primary Button */}
@@ -43,14 +43,14 @@ const CTAButtonGroup = ({
         onClick={() => handleNavigate(primaryCTA.link)}
         endIcon={primaryCTA.icon || <ArrowForwardIcon />}
         sx={{
-          fontSize: '1rem',
+          fontSize: "1rem",
           fontWeight: 600,
           py: 1.5,
           px: 4,
-          borderRadius: '0px',
-          textTransform: 'none',
+          borderRadius: "0px",
+          textTransform: "none",
           boxShadow: `0 4px 12px ${alpha(theme.palette.primary.main, 0.3)}`,
-          '&:hover': {
+          "&:hover": {
             boxShadow: `0 6px 20px ${alpha(theme.palette.primary.main, 0.4)}`,
           },
         }}
@@ -66,15 +66,15 @@ const CTAButtonGroup = ({
           onClick={() => handleNavigate(secondaryCTA.link)}
           endIcon={secondaryCTA.icon}
           sx={{
-            fontSize: '1rem',
+            fontSize: "1rem",
             fontWeight: 600,
             py: 1.5,
             px: 4,
-            borderRadius: '0px',
-            textTransform: 'none',
+            borderRadius: "0px",
+            textTransform: "none",
             borderColor: alpha(theme.palette.primary.main, 0.5),
             color: theme.palette.primary.main,
-            '&:hover': {
+            "&:hover": {
               backgroundColor: alpha(theme.palette.primary.main, 0.05),
               borderColor: theme.palette.primary.main,
             },
@@ -88,4 +88,3 @@ const CTAButtonGroup = ({
 };
 
 export default CTAButtonGroup;
-

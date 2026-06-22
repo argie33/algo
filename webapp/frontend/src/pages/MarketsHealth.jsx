@@ -26,43 +26,74 @@
  *  19. Economic Calendar (next 7 days)
  */
 
-import React, { useEffect, useState, useMemo } from 'react';
-import PropTypes from 'prop-types';
-import { useNavigate } from 'react-router-dom';
-import { useApiQuery } from '../hooks/useApiQuery';
+import React, { useEffect, useState, useMemo } from "react";
+import PropTypes from "prop-types";
+import { useNavigate } from "react-router-dom";
+import { useApiQuery } from "../hooks/useApiQuery";
 import {
-  ResponsiveContainer, AreaChart, Area, LineChart, Line, BarChart, Bar,
-  XAxis, YAxis, CartesianGrid, Tooltip as RTooltip, ReferenceLine, Cell, Legend,
-  ScatterChart, Scatter, ZAxis,
-} from 'recharts';
+  ResponsiveContainer,
+  AreaChart,
+  Area,
+  LineChart,
+  Line,
+  BarChart,
+  Bar,
+  XAxis,
+  YAxis,
+  CartesianGrid,
+  Tooltip as RTooltip,
+  ReferenceLine,
+  Cell,
+  Legend,
+  ScatterChart,
+  Scatter,
+  ZAxis,
+} from "recharts";
 import {
-  RefreshCw, ShieldCheck, TrendingUp, TrendingDown, AlertTriangle, Inbox,
-} from 'lucide-react';
-import { api } from '../services/api';
-import { num, fmtMoney, fmtPct, fmtDate, fmtAgo } from '../components/dashboard/shared/utils/dashboardFormatters';
-import ErrorBoundary from '../components/ErrorBoundary';
-import { safeGetMarketCurrent, safeGetFactors, safeGetSentimentData, safeGetArray, safeGetObject } from '../utils/dataValidation';
+  RefreshCw,
+  ShieldCheck,
+  TrendingUp,
+  TrendingDown,
+  AlertTriangle,
+  Inbox,
+} from "lucide-react";
+import { api } from "../services/api";
+import {
+  num,
+  fmtMoney,
+  fmtPct,
+  fmtDate,
+  fmtAgo,
+} from "../components/dashboard/shared/utils/dashboardFormatters";
+import ErrorBoundary from "../components/ErrorBoundary";
+import {
+  safeGetMarketCurrent,
+  safeGetFactors,
+  safeGetSentimentData,
+  safeGetArray,
+  safeGetObject,
+} from "../utils/dataValidation";
 
 // â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
 // TOKENS (mirror tokens.css for chart colors)
 // â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
 const C = {
-  bg: '#0a0c12',
-  bg2: '#0f1219',
-  surface: '#141720',
-  surface2: '#1a1e2d',
-  border: '#232838',
-  border2: '#2a2f42',
-  text: '#e8eaf4',
-  textMuted: '#8891b0',
-  textFaint: '#6b7a99',
-  brand: '#6366f1',
-  brand2: '#818cf8',
-  cyan: '#22d3ee',
-  success: '#22c55e',
-  danger: '#ef4444',
-  amber: '#f59e0b',
-  purple: '#a78bfa',
+  bg: "#0a0c12",
+  bg2: "#0f1219",
+  surface: "#141720",
+  surface2: "#1a1e2d",
+  border: "#232838",
+  border2: "#2a2f42",
+  text: "#e8eaf4",
+  textMuted: "#8891b0",
+  textFaint: "#6b7a99",
+  brand: "#6366f1",
+  brand2: "#818cf8",
+  cyan: "#22d3ee",
+  success: "#22c55e",
+  danger: "#ef4444",
+  amber: "#f59e0b",
+  purple: "#a78bfa",
 };
 
 const REGIME_COLOR = {
@@ -78,13 +109,13 @@ const REGIME_COLOR = {
 // HELPERS
 // â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
 const TOOLTIP_STYLE = {
-  background: 'var(--surface)',
-  border: '1px solid var(--border)',
-  borderRadius: 'var(--r-sm)',
-  fontSize: 'var(--t-xs)',
-  padding: 'var(--space-2) var(--space-3)',
-  color: 'var(--text)',
-  boxShadow: 'var(--shadow-md)',
+  background: "var(--surface)",
+  border: "1px solid var(--border)",
+  borderRadius: "var(--r-sm)",
+  fontSize: "var(--t-xs)",
+  padding: "var(--space-2) var(--space-3)",
+  color: "var(--text)",
+  boxShadow: "var(--shadow-md)",
 };
 
 // â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
@@ -98,39 +129,58 @@ function MarketsHealthPage() {
   // Trigger resize after mount to force charts to remeasure
   useEffect(() => {
     const timer = setTimeout(() => {
-      window.dispatchEvent(new Event('resize'));
+      window.dispatchEvent(new Event("resize"));
     }, 500);
     return () => clearTimeout(timer);
   }, []);
 
-  const { data: marketsData, loading: marketsLoading, error: mkError, refetch: refetchMarkets } = useApiQuery(
-    ['algo-markets'],
-    () => api.get('/api/algo/markets'),
-    { refetchInterval: 30000 }
-  );
-  const { data: sentimentData, loading: sentimentLoading, error: sentError } = useApiQuery(
-    ['market-sentiment-30d'],
-    () => api.get('/api/market/sentiment?range=30d'),
+  const {
+    data: marketsData,
+    loading: marketsLoading,
+    error: mkError,
+    refetch: refetchMarkets,
+  } = useApiQuery(["algo-markets"], () => api.get("/api/algo/markets"), {
+    refetchInterval: 30000,
+  });
+  const {
+    data: sentimentData,
+    loading: sentimentLoading,
+    error: sentError,
+  } = useApiQuery(
+    ["market-sentiment-30d"],
+    () => api.get("/api/market/sentiment?range=30d"),
     { refetchInterval: 60000 }
   );
-  const { data: moversData, loading: moversLoading, error: movError } = useApiQuery(
-    ['market-top-movers'],
-    () => api.get('/api/market/top-movers'),
+  const {
+    data: moversData,
+    loading: moversLoading,
+    error: movError,
+  } = useApiQuery(
+    ["market-top-movers"],
+    () => api.get("/api/market/top-movers"),
     { refetchInterval: 60000 }
   );
-  const { data: technicalsData, loading: technicalsLoading, error: techError } = useApiQuery(
-    ['market-technicals'],
-    () => api.get('/api/market/technicals'),
+  const {
+    data: technicalsData,
+    loading: technicalsLoading,
+    error: techError,
+  } = useApiQuery(
+    ["market-technicals"],
+    () => api.get("/api/market/technicals"),
     { refetchInterval: 60000 }
   );
-  const { data: seasonalityData, loading: seasonalityLoading, error: seasError } = useApiQuery(
-    ['market-seasonality'],
-    () => api.get('/api/market/seasonality'),
+  const {
+    data: seasonalityData,
+    loading: seasonalityLoading,
+    error: seasError,
+  } = useApiQuery(
+    ["market-seasonality"],
+    () => api.get("/api/market/seasonality"),
     { refetchInterval: 1000 * 60 * 60 }
   );
   const { data: notificationsData, loading: _notifLoading } = useApiQuery(
-    ['signal-staleness-alerts'],
-    () => api.get('/api/algo/notifications?kind=signal&severity=critical'),
+    ["signal-staleness-alerts"],
+    () => api.get("/api/algo/notifications?kind=signal&severity=critical"),
     { refetchInterval: 60000 }
   );
 
@@ -139,18 +189,34 @@ function MarketsHealthPage() {
     return () => clearInterval(id);
   }, []);
 
-  const refetchAll = () => { refetchMarkets(); setTs(new Date()); };
+  const refetchAll = () => {
+    refetchMarkets();
+    setTs(new Date());
+  };
   const m = marketsData?.data || marketsData;
 
-  const isPrimaryLoading = marketsLoading || sentimentLoading || moversLoading || technicalsLoading || seasonalityLoading;
+  const isPrimaryLoading =
+    marketsLoading ||
+    sentimentLoading ||
+    moversLoading ||
+    technicalsLoading ||
+    seasonalityLoading;
   const signalStalenessAlerts = Array.isArray(notificationsData?.items)
-    ? notificationsData.items.filter(n => n.kind === 'signal' && (n.details?.alert_type === 'signal_staleness' || n.title?.includes('STALENESS')))
+    ? notificationsData.items.filter(
+        (n) =>
+          n.kind === "signal" &&
+          (n.details?.alert_type === "signal_staleness" ||
+            n.title?.includes("STALENESS"))
+      )
     : [];
 
   if (isPrimaryLoading && !m) {
     return (
       <div className="main-content">
-        <div className="empty"><Inbox /><div className="empty-title">Loading market data…</div></div>
+        <div className="empty">
+          <Inbox />
+          <div className="empty-title">Loading market data…</div>
+        </div>
       </div>
     );
   }
@@ -161,99 +227,235 @@ function MarketsHealthPage() {
       <div className="page-head">
         <div>
           <div className="page-head-title">Market Health</div>
-          <div className="page-head-sub">Data updated {fmtAgo(ts)} · Auto-refresh every 30s</div>
+          <div className="page-head-sub">
+            Data updated {fmtAgo(ts)} · Auto-refresh every 30s
+          </div>
         </div>
         <div className="page-head-actions">
-          {[mkError,sentError,movError,techError,seasError].some(Boolean) && (
-            <span className="badge badge-danger" title="One or more data sources failed">
-              ⚠ {[mkError,sentError,movError,techError,seasError].filter(Boolean).length} error(s)
+          {[mkError, sentError, movError, techError, seasError].some(
+            Boolean
+          ) && (
+            <span
+              className="badge badge-danger"
+              title="One or more data sources failed"
+            >
+              ⚠{" "}
+              {
+                [mkError, sentError, movError, techError, seasError].filter(
+                  Boolean
+                ).length
+              }{" "}
+              error(s)
             </span>
           )}
-          <button className="btn btn-outline btn-sm" onClick={refetchAll} disabled={marketsLoading}>
+          <button
+            className="btn btn-outline btn-sm"
+            onClick={refetchAll}
+            disabled={marketsLoading}
+          >
             <RefreshCw size={14} /> Refresh
           </button>
         </div>
       </div>
 
       {signalStalenessAlerts.length > 0 && (
-        <div className="alert alert-danger" style={{marginBottom: 'var(--space-4)'}}>
-          <AlertTriangle size={16} style={{marginRight: 8}} />
-          <strong>Signal Staleness Alert:</strong> Trading signals are based on stale data.
+        <div
+          className="alert alert-danger"
+          style={{ marginBottom: "var(--space-4)" }}
+        >
+          <AlertTriangle size={16} style={{ marginRight: 8 }} />
+          <strong>Signal Staleness Alert:</strong> Trading signals are based on
+          stale data.
           {signalStalenessAlerts[0]?.details?.stale_tables && (
-            <div style={{marginTop: 8, fontSize: 'var(--t-sm)'}}>
-              Affected: {signalStalenessAlerts[0].details.stale_tables.join(', ')}
+            <div style={{ marginTop: 8, fontSize: "var(--t-sm)" }}>
+              Affected:{" "}
+              {signalStalenessAlerts[0].details.stale_tables.join(", ")}
             </div>
           )}
         </div>
       )}
-      {mkError && <div className="alert alert-danger" style={{marginBottom: 'var(--space-4)'}}>Failed to load market data - some sections unavailable</div>}
-      {!mkError && <ErrorBoundary><RegimeBanner markets={m} /></ErrorBoundary>}
-      {!techError && <ErrorBoundary><IndicesStrip /></ErrorBoundary>}
-      {techError && <div className="alert alert-warn" style={{marginBottom: 'var(--space-4)'}}>Technical data unavailable</div>}
+      {mkError && (
+        <div
+          className="alert alert-danger"
+          style={{ marginBottom: "var(--space-4)" }}
+        >
+          Failed to load market data - some sections unavailable
+        </div>
+      )}
+      {!mkError && (
+        <ErrorBoundary>
+          <RegimeBanner markets={m} />
+        </ErrorBoundary>
+      )}
+      {!techError && (
+        <ErrorBoundary>
+          <IndicesStrip />
+        </ErrorBoundary>
+      )}
+      {techError && (
+        <div
+          className="alert alert-warn"
+          style={{ marginBottom: "var(--space-4)" }}
+        >
+          Technical data unavailable
+        </div>
+      )}
 
-      <div className="grid grid-2" style={{ marginTop: 'var(--space-4)' }}>
-        {!mkError ? <ErrorBoundary><ExposureFactors markets={m} /></ErrorBoundary> : <div className="card"><div className="card-body"><div className="alert alert-danger">Markets data failed</div></div></div>}
-        {!mkError ? <ErrorBoundary><MarketPulse markets={m} /></ErrorBoundary> : <div className="card"><div className="card-body"><div className="alert alert-danger">Markets data failed</div></div></div>}
+      <div className="grid grid-2" style={{ marginTop: "var(--space-4)" }}>
+        {!mkError ? (
+          <ErrorBoundary>
+            <ExposureFactors markets={m} />
+          </ErrorBoundary>
+        ) : (
+          <div className="card">
+            <div className="card-body">
+              <div className="alert alert-danger">Markets data failed</div>
+            </div>
+          </div>
+        )}
+        {!mkError ? (
+          <ErrorBoundary>
+            <MarketPulse markets={m} />
+          </ErrorBoundary>
+        ) : (
+          <div className="card">
+            <div className="card-body">
+              <div className="alert alert-danger">Markets data failed</div>
+            </div>
+          </div>
+        )}
       </div>
 
-      <div style={{ marginTop: 'var(--space-4)' }}>
-        {!mkError && <ErrorBoundary><ExposureHistory markets={m} /></ErrorBoundary>}
-        {mkError && <div className="card"><div className="card-body"><div className="alert alert-danger">Exposure history unavailable</div></div></div>}
+      <div style={{ marginTop: "var(--space-4)" }}>
+        {!mkError && (
+          <ErrorBoundary>
+            <ExposureHistory markets={m} />
+          </ErrorBoundary>
+        )}
+        {mkError && (
+          <div className="card">
+            <div className="card-body">
+              <div className="alert alert-danger">
+                Exposure history unavailable
+              </div>
+            </div>
+          </div>
+        )}
       </div>
 
-      <div className="grid grid-2" style={{ marginTop: 'var(--space-4)' }}>
-        <ErrorBoundary><BreadthCard markets={m} /></ErrorBoundary>
-        <ErrorBoundary><NewHighsLowsCard markets={m} /></ErrorBoundary>
+      <div className="grid grid-2" style={{ marginTop: "var(--space-4)" }}>
+        <ErrorBoundary>
+          <BreadthCard markets={m} />
+        </ErrorBoundary>
+        <ErrorBoundary>
+          <NewHighsLowsCard markets={m} />
+        </ErrorBoundary>
       </div>
 
-      <div className="grid grid-2" style={{ marginTop: 'var(--space-4)' }}>
-        <ErrorBoundary><SentimentCard markets={m} sentiment={sentimentData} loading={sentimentLoading} error={sentError} /></ErrorBoundary>
-        <ErrorBoundary><VixCard markets={m} /></ErrorBoundary>
+      <div className="grid grid-2" style={{ marginTop: "var(--space-4)" }}>
+        <ErrorBoundary>
+          <SentimentCard
+            markets={m}
+            sentiment={sentimentData}
+            loading={sentimentLoading}
+            error={sentError}
+          />
+        </ErrorBoundary>
+        <ErrorBoundary>
+          <VixCard markets={m} />
+        </ErrorBoundary>
       </div>
 
-      <div className="grid grid-2" style={{ marginTop: 'var(--space-4)' }}>
-        <ErrorBoundary><InternalsCard data={technicalsData} loading={technicalsLoading} error={techError} /></ErrorBoundary>
-        <ErrorBoundary><TopMoversCard data={moversData} loading={moversLoading} error={movError} /></ErrorBoundary>
+      <div className="grid grid-2" style={{ marginTop: "var(--space-4)" }}>
+        <ErrorBoundary>
+          <InternalsCard
+            data={technicalsData}
+            loading={technicalsLoading}
+            error={techError}
+          />
+        </ErrorBoundary>
+        <ErrorBoundary>
+          <TopMoversCard
+            data={moversData}
+            loading={moversLoading}
+            error={movError}
+          />
+        </ErrorBoundary>
       </div>
 
-      <div style={{ marginTop: 'var(--space-4)' }}>
-        <ErrorBoundary><SeasonalityCard data={seasonalityData} loading={seasonalityLoading} error={seasError} /></ErrorBoundary>
+      <div style={{ marginTop: "var(--space-4)" }}>
+        <ErrorBoundary>
+          <SeasonalityCard
+            data={seasonalityData}
+            loading={seasonalityLoading}
+            error={seasError}
+          />
+        </ErrorBoundary>
       </div>
 
       {/* ──────────── 13. Sector Heat Map ──────────── */}
-      <div style={{ marginTop: 'var(--space-4)' }}>
-        <ErrorBoundary><SectorHeatMap onSelect={(sec) => navigate(`/app/sectors?focus=${encodeURIComponent(sec)}`)} /></ErrorBoundary>
+      <div style={{ marginTop: "var(--space-4)" }}>
+        <ErrorBoundary>
+          <SectorHeatMap
+            onSelect={(sec) =>
+              navigate(`/app/sectors?focus=${encodeURIComponent(sec)}`)
+            }
+          />
+        </ErrorBoundary>
       </div>
 
       {/* ──────────── 14. Sector Rotation Map ──────────── */}
-      <div style={{ marginTop: 'var(--space-4)' }}>
-        <ErrorBoundary><SectorRotationMap markets={m} onSelect={(sec) => navigate(`/app/sectors?focus=${encodeURIComponent(sec)}`)} /></ErrorBoundary>
+      <div style={{ marginTop: "var(--space-4)" }}>
+        <ErrorBoundary>
+          <SectorRotationMap
+            markets={m}
+            onSelect={(sec) =>
+              navigate(`/app/sectors?focus=${encodeURIComponent(sec)}`)
+            }
+          />
+        </ErrorBoundary>
       </div>
 
       {/* ──────────── 14b. Sector Rotation Signal ──────────── */}
-      <div style={{ marginTop: 'var(--space-4)' }}>
-        <ErrorBoundary><SectorRotationSignalCard /></ErrorBoundary>
+      <div style={{ marginTop: "var(--space-4)" }}>
+        <ErrorBoundary>
+          <SectorRotationSignalCard />
+        </ErrorBoundary>
       </div>
 
       {/* ──────────── 15-16. Yield Curve + VIX Term Structure ──────────── */}
-      <div className="grid grid-2" style={{ marginTop: 'var(--space-4)' }}>
-        <ErrorBoundary><YieldCurveCard /></ErrorBoundary>
-        <ErrorBoundary><VolTermStructureCard /></ErrorBoundary>
+      <div className="grid grid-2" style={{ marginTop: "var(--space-4)" }}>
+        <ErrorBoundary>
+          <YieldCurveCard />
+        </ErrorBoundary>
+        <ErrorBoundary>
+          <VolTermStructureCard />
+        </ErrorBoundary>
       </div>
 
       {/* ──────────── 17. Distribution Days Timeline ──────────── */}
-      <div style={{ marginTop: 'var(--space-4)' }}>
-        <ErrorBoundary><DistributionDaysTimeline /></ErrorBoundary>
+      <div style={{ marginTop: "var(--space-4)" }}>
+        <ErrorBoundary>
+          <DistributionDaysTimeline />
+        </ErrorBoundary>
       </div>
 
       {/* ──────────── 18. Sentiment Composite (Fear & Greed + AAII spread) ──────────── */}
-      <div style={{ marginTop: 'var(--space-4)' }}>
-        <ErrorBoundary><SentimentCompositeCard markets={m} sentiment={sentimentData} loading={sentimentLoading} /></ErrorBoundary>
+      <div style={{ marginTop: "var(--space-4)" }}>
+        <ErrorBoundary>
+          <SentimentCompositeCard
+            markets={m}
+            sentiment={sentimentData}
+            loading={sentimentLoading}
+          />
+        </ErrorBoundary>
       </div>
 
       {/* ──────────── 19. Economic Calendar ──────────── */}
-      <div style={{ marginTop: 'var(--space-4)' }}>
-        <ErrorBoundary><EconomicCalendarCard /></ErrorBoundary>
+      <div style={{ marginTop: "var(--space-4)" }}>
+        <ErrorBoundary>
+          <EconomicCalendarCard />
+        </ErrorBoundary>
       </div>
     </div>
   );
@@ -278,73 +480,148 @@ function RegimeBanner({ markets }) {
       <div className="alert alert-warn">
         <AlertTriangle size={18} />
         <div>
-          <div style={{ fontWeight: 'var(--w-semibold)' }}>Market exposure not yet computed for today</div>
-          <div className="muted t-sm">The orchestrator computes the exposure regime at 9:30 AM and 1:00 PM ET on trading days. Check back after the next run.</div>
+          <div style={{ fontWeight: "var(--w-semibold)" }}>
+            Market exposure not yet computed for today
+          </div>
+          <div className="muted t-sm">
+            The orchestrator computes the exposure regime at 9:30 AM and 1:00 PM
+            ET on trading days. Check back after the next run.
+          </div>
         </div>
       </div>
     );
   }
-  const tier = (markets && markets.active_tier && typeof markets.active_tier === 'object') ? markets.active_tier : {};
+  const tier =
+    markets && markets.active_tier && typeof markets.active_tier === "object"
+      ? markets.active_tier
+      : {};
   const exposure = safeCurrent.exposure_pct;
-  const regime = tier.name || safeCurrent.regime || 'unknown';
+  const regime = tier.name || safeCurrent.regime || "unknown";
   const color = REGIME_COLOR[regime] || C.textMuted;
 
   return (
-    <div className="card" style={{ borderLeft: `3px solid ${color}`, padding: 'var(--space-6) var(--space-7)' }}>
-      <div className="grid" style={{ gridTemplateColumns: '1.4fr 1.2fr 0.8fr 0.8fr 1fr', gap: 'var(--space-5)', alignItems: 'center' }}>
+    <div
+      className="card"
+      style={{
+        borderLeft: `3px solid ${color}`,
+        padding: "var(--space-6) var(--space-7)",
+      }}
+    >
+      <div
+        className="grid"
+        style={{
+          gridTemplateColumns: "1.4fr 1.2fr 0.8fr 0.8fr 1fr",
+          gap: "var(--space-5)",
+          alignItems: "center",
+        }}
+      >
         <div className="flex items-center gap-3">
-          <div style={{
-            width: 56, height: 56, borderRadius: 'var(--r-md)',
-            background: `linear-gradient(135deg, ${color}30 0%, ${color}10 100%)`,
-            display: 'flex', alignItems: 'center', justifyContent: 'center',
-            border: `1px solid ${color}50`,
-          }}>
+          <div
+            style={{
+              width: 56,
+              height: 56,
+              borderRadius: "var(--r-md)",
+              background: `linear-gradient(135deg, ${color}30 0%, ${color}10 100%)`,
+              display: "flex",
+              alignItems: "center",
+              justifyContent: "center",
+              border: `1px solid ${color}50`,
+            }}
+          >
             <ShieldCheck size={28} color={color} />
           </div>
           <div>
             <div className="eyebrow">Market Exposure</div>
-            <div className="mono tnum" style={{ fontSize: 'var(--t-3xl)', fontWeight: 'var(--w-extra)', color, lineHeight: 1 }}>
-              {exposure ?? '—'}<span style={{ fontSize: 'var(--t-lg)', fontWeight: 'var(--w-semibold)' }}>%</span>
+            <div
+              className="mono tnum"
+              style={{
+                fontSize: "var(--t-3xl)",
+                fontWeight: "var(--w-extra)",
+                color,
+                lineHeight: 1,
+              }}
+            >
+              {exposure ?? "—"}
+              <span
+                style={{
+                  fontSize: "var(--t-lg)",
+                  fontWeight: "var(--w-semibold)",
+                }}
+              >
+                %
+              </span>
             </div>
           </div>
         </div>
 
         <div>
           <div className="eyebrow">Regime Tier</div>
-          <div style={{ fontSize: 'var(--t-lg)', fontWeight: 'var(--w-semibold)', color, marginTop: 4 }}>
-            {String(regime).replace(/_/g, ' ').toUpperCase()}
+          <div
+            style={{
+              fontSize: "var(--t-lg)",
+              fontWeight: "var(--w-semibold)",
+              color,
+              marginTop: 4,
+            }}
+          >
+            {String(regime).replace(/_/g, " ").toUpperCase()}
           </div>
-          {tier.description && <div className="muted t-xs" style={{ marginTop: 4 }}>{tier.description}</div>}
+          {tier.description && (
+            <div className="muted t-xs" style={{ marginTop: 4 }}>
+              {tier.description}
+            </div>
+          )}
         </div>
 
         <div>
           <div className="eyebrow">Risk ×</div>
-          <div className="mono tnum" style={{ fontSize: 'var(--t-xl)', fontWeight: 'var(--w-bold)', marginTop: 4 }}>
-            {tier?.risk_mult ?? '—'}
+          <div
+            className="mono tnum"
+            style={{
+              fontSize: "var(--t-xl)",
+              fontWeight: "var(--w-bold)",
+              marginTop: 4,
+            }}
+          >
+            {tier?.risk_mult ?? "—"}
           </div>
         </div>
 
         <div>
           <div className="eyebrow">Max New</div>
-          <div className="mono tnum" style={{ fontSize: 'var(--t-xl)', fontWeight: 'var(--w-bold)', marginTop: 4 }}>
-            {tier?.max_new ?? '—'}
+          <div
+            className="mono tnum"
+            style={{
+              fontSize: "var(--t-xl)",
+              fontWeight: "var(--w-bold)",
+              marginTop: 4,
+            }}
+          >
+            {tier?.max_new ?? "—"}
           </div>
         </div>
 
         <div>
           <div className="eyebrow">Entry</div>
           <div style={{ marginTop: 4 }}>
-            <span className={`badge badge-lg ${tier?.halt ? 'badge-danger' : 'badge-success'}`}>
-              {tier?.halt ? 'HALTED' : 'ALLOWED'}
+            <span
+              className={`badge badge-lg ${tier?.halt ? "badge-danger" : "badge-success"}`}
+            >
+              {tier?.halt ? "HALTED" : "ALLOWED"}
             </span>
           </div>
         </div>
       </div>
 
       {safeCurrent.halt_reasons && (
-        <div className="alert alert-warn" style={{ marginTop: 'var(--space-4)' }}>
+        <div
+          className="alert alert-warn"
+          style={{ marginTop: "var(--space-4)" }}
+        >
           <AlertTriangle size={16} />
-          <div><strong>Active vetoes:</strong> {safeCurrent.halt_reasons}</div>
+          <div>
+            <strong>Active vetoes:</strong> {safeCurrent.halt_reasons}
+          </div>
         </div>
       )}
     </div>
@@ -356,28 +633,37 @@ function RegimeBanner({ markets }) {
 // â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
 
 const INDEX_SEEDS = [
-  { symbol: 'SPY', name: 'S&P 500' },
-  { symbol: 'QQQ', name: 'Nasdaq 100' },
-  { symbol: 'IWM', name: 'Russell 2000' },
-  { symbol: 'DIA', name: 'Dow Jones' },
+  { symbol: "SPY", name: "S&P 500" },
+  { symbol: "QQQ", name: "Nasdaq 100" },
+  { symbol: "IWM", name: "Russell 2000" },
+  { symbol: "DIA", name: "Dow Jones" },
 ];
 
 function IndicesStrip() {
-  const symbols = INDEX_SEEDS.map(s => s.symbol).join(',');
+  const symbols = INDEX_SEEDS.map((s) => s.symbol).join(",");
   const { data: batchData } = useApiQuery(
-    ['index-batch-history'],
-    () => api.get(`/api/prices/batch-history?symbols=${symbols}&timeframe=daily&limit=30`),
+    ["index-batch-history"],
+    () =>
+      api.get(
+        `/api/prices/batch-history?symbols=${symbols}&timeframe=daily&limit=30`
+      ),
     { staleTime: 60000 }
   );
   const symbolMap = safeGetObject(batchData, {}).symbols || {};
   return (
-    <div className="card card-pad" style={{ marginTop: 'var(--space-4)' }}>
+    <div className="card card-pad" style={{ marginTop: "var(--space-4)" }}>
       <div className="sect-head">
         <div className="sect-title">Major Indices</div>
         <div className="sect-sub">Last close · Daily change · 30-day trend</div>
       </div>
       <div className="grid grid-4">
-        {INDEX_SEEDS.map(idx => <IndexCell key={idx.symbol} idx={idx} prices={symbolMap[idx.symbol] || []} />)}
+        {INDEX_SEEDS.map((idx) => (
+          <IndexCell
+            key={idx.symbol}
+            idx={idx}
+            prices={symbolMap[idx.symbol] || []}
+          />
+        ))}
       </div>
     </div>
   );
@@ -386,47 +672,88 @@ function IndicesStrip() {
 function IndexCell({ idx, prices = [] }) {
   const priceRows = Array.isArray(prices) ? prices : [];
   // prices are DESC (newest first); take latest 30 and reverse for chart display
-  const seriesDesc = priceRows.slice(0, 30).map(p => ({
-    date: p.date, close: parseFloat(p.close || p.adj_close),
+  const seriesDesc = priceRows.slice(0, 30).map((p) => ({
+    date: p.date,
+    close: parseFloat(p.close || p.adj_close),
   }));
   const series = [...seriesDesc].reverse(); // ascending for the sparkline chart
-  const last = seriesDesc[0]?.close;  // most recent entry
-  const prev = seriesDesc[1]?.close;  // previous day
+  const last = seriesDesc[0]?.close; // most recent entry
+  const prev = seriesDesc[1]?.close; // previous day
   const chg = last && prev ? last - prev : null;
   const chgPct = chg && prev ? (chg / prev) * 100 : null;
   const positive = chgPct != null && chgPct >= 0;
   const sparkColor = positive ? C.success : C.danger;
 
   return (
-    <div className="panel" style={{ padding: 'var(--space-3) var(--space-4)' }}>
-      <div className="flex items-start justify-between" style={{ marginBottom: 4 }}>
+    <div className="panel" style={{ padding: "var(--space-3) var(--space-4)" }}>
+      <div
+        className="flex items-start justify-between"
+        style={{ marginBottom: 4 }}
+      >
         <div>
-          <div style={{ fontSize: 'var(--t-md)', fontWeight: 'var(--w-bold)', color: 'var(--text)' }}>{idx.symbol}</div>
-          <div className="muted" style={{ fontSize: 'var(--t-2xs)' }}>{idx.name}</div>
+          <div
+            style={{
+              fontSize: "var(--t-md)",
+              fontWeight: "var(--w-bold)",
+              color: "var(--text)",
+            }}
+          >
+            {idx.symbol}
+          </div>
+          <div className="muted" style={{ fontSize: "var(--t-2xs)" }}>
+            {idx.name}
+          </div>
         </div>
-        {chgPct != null && (positive
-          ? <TrendingUp size={16} color={C.success} />
-          : <TrendingDown size={16} color={C.danger} />)}
+        {chgPct != null &&
+          (positive ? (
+            <TrendingUp size={16} color={C.success} />
+          ) : (
+            <TrendingDown size={16} color={C.danger} />
+          ))}
       </div>
-      <div className="mono tnum" style={{ fontSize: 'var(--t-xl)', fontWeight: 'var(--w-semibold)', color: 'var(--text)' }}>
-        {last != null ? fmtMoney(last) : '—'}
+      <div
+        className="mono tnum"
+        style={{
+          fontSize: "var(--t-xl)",
+          fontWeight: "var(--w-semibold)",
+          color: "var(--text)",
+        }}
+      >
+        {last != null ? fmtMoney(last) : "—"}
       </div>
       {chgPct != null && (
-        <div className={`mono tnum ${positive ? 'up' : 'down'}`} style={{ fontSize: 'var(--t-sm)', fontWeight: 'var(--w-semibold)' }}>
-          {chg >= 0 ? '+' : ''}{num(chg)} ({chg >= 0 ? '+' : ''}{num(chgPct)}%)
+        <div
+          className={`mono tnum ${positive ? "up" : "down"}`}
+          style={{ fontSize: "var(--t-sm)", fontWeight: "var(--w-semibold)" }}
+        >
+          {chg >= 0 ? "+" : ""}
+          {num(chg)} ({chg >= 0 ? "+" : ""}
+          {num(chgPct)}%)
         </div>
       )}
       {series.length >= 2 && (
-        <div style={{ marginTop: 8, height: 30, width: '100%', minWidth: 0 }}>
+        <div style={{ marginTop: 8, height: 30, width: "100%", minWidth: 0 }}>
           <ResponsiveContainer width="100%" height="100%">
             <AreaChart data={series}>
               <defs>
-                <linearGradient id={`ig-${idx.symbol}`} x1="0" y1="0" x2="0" y2="1">
+                <linearGradient
+                  id={`ig-${idx.symbol}`}
+                  x1="0"
+                  y1="0"
+                  x2="0"
+                  y2="1"
+                >
                   <stop offset="0%" stopColor={sparkColor} stopOpacity={0.4} />
                   <stop offset="100%" stopColor={sparkColor} stopOpacity={0} />
                 </linearGradient>
               </defs>
-              <Area type="monotone" dataKey="close" stroke={sparkColor} strokeWidth={1.5} fill={`url(#ig-${idx.symbol})`} />
+              <Area
+                type="monotone"
+                dataKey="close"
+                stroke={sparkColor}
+                strokeWidth={1.5}
+                fill={`url(#ig-${idx.symbol})`}
+              />
             </AreaChart>
           </ResponsiveContainer>
         </div>
@@ -443,62 +770,89 @@ function ExposureFactors({ markets }) {
   const safeCurrent = safeGetMarketCurrent(markets);
   const factors = safeCurrent ? safeGetFactors(safeCurrent) : {};
   const list = [
-    ['trend_30wk',         '30-WEEK MA TREND',               15],
-    ['spy_momentum',       'SPY 12-MONTH MOMENTUM',          10],
-    ['breadth_200dma',     'BREADTH (% > 200-DMA)',          10],
-    ['distribution_days',  'SELLING PRESSURE (VOLUME DAYS)', 10],
-    ['vix_regime',         'VIX REGIME + TERM STRUCTURE',    10],
-    ['credit_spread',      'HY CREDIT SPREAD',               10],
-    ['put_call_ratio',     'PUT/CALL RATIO (CONTRARIAN)',      8],
-    ['new_highs_lows',     'NEW HIGHS - LOWS',                7],
-    ['ad_line',            'A/D LINE CONFIRMATION',           6],
-    ['breadth_50dma',      'BREADTH (% > 50-DMA)',            6],
-    ['naaim',              'NAAIM PROFESSIONAL EXPOSURE',     5],
-    ['aaii_sentiment',     'AAII SENTIMENT (EXTREMES ONLY)',  3],
+    ["trend_30wk", "30-WEEK MA TREND", 15],
+    ["spy_momentum", "SPY 12-MONTH MOMENTUM", 10],
+    ["breadth_200dma", "BREADTH (% > 200-DMA)", 10],
+    ["distribution_days", "SELLING PRESSURE (VOLUME DAYS)", 10],
+    ["vix_regime", "VIX REGIME + TERM STRUCTURE", 10],
+    ["credit_spread", "HY CREDIT SPREAD", 10],
+    ["put_call_ratio", "PUT/CALL RATIO (CONTRARIAN)", 8],
+    ["new_highs_lows", "NEW HIGHS - LOWS", 7],
+    ["ad_line", "A/D LINE CONFIRMATION", 6],
+    ["breadth_50dma", "BREADTH (% > 50-DMA)", 6],
+    ["naaim", "NAAIM PROFESSIONAL EXPOSURE", 5],
+    ["aaii_sentiment", "AAII SENTIMENT (EXTREMES ONLY)", 3],
   ];
 
   const eco = factors?.economic_overlay || {};
   const macroStress = eco?.macro_stress_score;
   const macroPenalty = eco?.penalty;
   const macroSignals = eco?.signals || [];
-  const macroColor = macroStress >= 60 ? C.danger : macroStress >= 40 ? C.amber : C.success;
+  const macroColor =
+    macroStress >= 60 ? C.danger : macroStress >= 40 ? C.amber : C.success;
 
   return (
     <div className="card">
       <div className="card-head">
         <div>
-          <div className="card-title">{list.length}-Factor Exposure Composite</div>
+          <div className="card-title">
+            {list.length}-Factor Exposure Composite
+          </div>
           <div className="card-sub">
-            {safeCurrent ? `Raw ${num(safeCurrent.raw_score, 1)} → capped ${safeCurrent.exposure_pct}%`
-              : 'Each factor independently scored, summed for total exposure'}
+            {safeCurrent
+              ? `Raw ${num(safeCurrent.raw_score, 1)} → capped ${safeCurrent.exposure_pct}%`
+              : "Each factor independently scored, summed for total exposure"}
           </div>
         </div>
       </div>
       <div className="card-body">
         {list.map(([key, label, max]) => {
           const f = factors[key] || {};
-          const pct = f.max ? Math.max(0, Math.min(100, (f.pts / f.max) * 100)) : 0;
-          const fillClass = pct >= 70 ? 'success' : pct >= 40 ? '' : pct >= 20 ? 'warn' : 'danger';
+          const pct = f.max
+            ? Math.max(0, Math.min(100, (f.pts / f.max) * 100))
+            : 0;
+          const fillClass =
+            pct >= 70
+              ? "success"
+              : pct >= 40
+                ? ""
+                : pct >= 20
+                  ? "warn"
+                  : "danger";
           const sub = [];
           if (f.value != null) sub.push(`val ${num(f.value, 2)}`);
           if (f.state) sub.push(f.state);
           if (f.relation) sub.push(f.relation);
-          if (f.bull_bear_spread != null) sub.push(`spread ${num(f.bull_bear_spread, 1)}`);
-          if (f.new_highs != null) sub.push(`${f.new_highs} highs / ${f.new_lows} lows`);
-          if (f.distribution_days_25d != null) sub.push(`${f.distribution_days_25d} dist days`);
-          if (f.widening_rapidly) sub.push('⚠ rapidly widening');
-          if (f.hy_20d_ago != null) sub.push(`20d ago ${num(f.hy_20d_ago, 2)}%`);
+          if (f.bull_bear_spread != null)
+            sub.push(`spread ${num(f.bull_bear_spread, 1)}`);
+          if (f.new_highs != null)
+            sub.push(`${f.new_highs} highs / ${f.new_lows} lows`);
+          if (f.distribution_days_25d != null)
+            sub.push(`${f.distribution_days_25d} dist days`);
+          if (f.widening_rapidly) sub.push("⚠ rapidly widening");
+          if (f.hy_20d_ago != null)
+            sub.push(`20d ago ${num(f.hy_20d_ago, 2)}%`);
           return (
-            <div key={key} style={{ marginBottom: 'var(--space-3)' }}>
-              <div className="flex items-center justify-between" style={{ marginBottom: 4 }}>
+            <div key={key} style={{ marginBottom: "var(--space-3)" }}>
+              <div
+                className="flex items-center justify-between"
+                style={{ marginBottom: 4 }}
+              >
                 <span className="eyebrow">{label}</span>
-                <span className="mono tnum t-xs strong">{num(f.pts || 0, 1)} / {f.max || max}</span>
+                <span className="mono tnum t-xs strong">
+                  {num(f.pts || 0, 1)} / {f.max || max}
+                </span>
               </div>
               <div className="bar">
-                <div className={`bar-fill ${fillClass}`} style={{ width: `${pct}%` }} />
+                <div
+                  className={`bar-fill ${fillClass}`}
+                  style={{ width: `${pct}%` }}
+                />
               </div>
               {sub.length > 0 && (
-                <div className="t-2xs muted" style={{ marginTop: 4 }}>{sub.join(' · ')}</div>
+                <div className="t-2xs muted" style={{ marginTop: 4 }}>
+                  {sub.join(" · ")}
+                </div>
               )}
             </div>
           );
@@ -506,35 +860,52 @@ function ExposureFactors({ markets }) {
 
         {/* Economic Regime Overlay */}
         {(macroStress != null || macroSignals.length > 0) && (
-          <div style={{
-            marginTop: 'var(--space-4)',
-            padding: 'var(--space-3) var(--space-4)',
-            borderRadius: 'var(--r-sm)',
-            background: `${macroColor}12`,
-            border: `1px solid ${macroColor}40`,
-          }}>
-            <div className="flex items-center justify-between" style={{ marginBottom: 6 }}>
-              <span className="eyebrow" style={{ color: macroColor }}>MACRO REGIME OVERLAY</span>
+          <div
+            style={{
+              marginTop: "var(--space-4)",
+              padding: "var(--space-3) var(--space-4)",
+              borderRadius: "var(--r-sm)",
+              background: `${macroColor}12`,
+              border: `1px solid ${macroColor}40`,
+            }}
+          >
+            <div
+              className="flex items-center justify-between"
+              style={{ marginBottom: 6 }}
+            >
+              <span className="eyebrow" style={{ color: macroColor }}>
+                MACRO REGIME OVERLAY
+              </span>
               <span className="mono tnum t-xs" style={{ color: macroColor }}>
-                {macroPenalty > 0 ? `−${macroPenalty} pts` : macroPenalty < 0 ? `+${Math.abs(macroPenalty)} pts (favourable)` : 'neutral'}
-                {eco.cap && eco.cap < 100 ? ` · cap ${eco.cap}%` : ''}
+                {macroPenalty > 0
+                  ? `−${macroPenalty} pts`
+                  : macroPenalty < 0
+                    ? `+${Math.abs(macroPenalty)} pts (favourable)`
+                    : "neutral"}
+                {eco.cap && eco.cap < 100 ? ` · cap ${eco.cap}%` : ""}
               </span>
             </div>
             <div className="flex items-center gap-3">
               <div style={{ flex: 1 }}>
                 <div className="bar">
-                  <div className="bar-fill" style={{ width: `${macroStress}%`, background: macroColor }} />
+                  <div
+                    className="bar-fill"
+                    style={{ width: `${macroStress}%`, background: macroColor }}
+                  />
                 </div>
               </div>
-              <span className="mono tnum t-xs muted">{macroStress != null ? `${macroStress}/100` : '—'}</span>
+              <span className="mono tnum t-xs muted">
+                {macroStress != null ? `${macroStress}/100` : "—"}
+              </span>
             </div>
             {macroSignals.length > 0 && (
               <div className="t-2xs muted" style={{ marginTop: 6 }}>
-                {macroSignals.join(' · ')}
+                {macroSignals.join(" · ")}
               </div>
             )}
             <div className="t-2xs muted" style={{ marginTop: 4 }}>
-              Yield curve · HY credit trend · jobless claims — post-score macro adjustment
+              Yield curve · HY credit trend · jobless claims — post-score macro
+              adjustment
             </div>
           </div>
         )}
@@ -549,13 +920,23 @@ function ExposureFactors({ markets }) {
 
 function MarketPulse({ markets }) {
   const safeCurrent = safeGetMarketCurrent(markets);
-  if (!safeCurrent) return <Empty title="No data" desc="Pulse loads when exposure is computed" />;
+  if (!safeCurrent)
+    return (
+      <Empty title="No data" desc="Pulse loads when exposure is computed" />
+    );
   const factors = safeGetFactors(safeCurrent);
   const dd = safeCurrent.distribution_days || 0;
-  const ddRegime = factors.distribution_days?.regime || '—';
+  const ddRegime = factors.distribution_days?.regime || "—";
   const ddColor = dd >= 5 ? C.danger : dd >= 4 ? C.amber : C.success;
   const pcRatio = factors.put_call_ratio?.value;
-  const pcSignal = pcRatio == null ? '—' : pcRatio > 1.1 ? 'FEAR' : pcRatio < 0.6 ? 'GREED' : 'NEUTRAL';
+  const pcSignal =
+    pcRatio == null
+      ? "—"
+      : pcRatio > 1.1
+        ? "FEAR"
+        : pcRatio < 0.6
+          ? "GREED"
+          : "NEUTRAL";
 
   return (
     <div className="card">
@@ -566,35 +947,86 @@ function MarketPulse({ markets }) {
         </div>
       </div>
       <div className="card-body">
-        <div className="flex items-center justify-center" style={{ padding: 'var(--space-5) 0' }}>
-          <div style={{
-            width: 120, height: 120, borderRadius: '50%',
-            background: `radial-gradient(circle, ${ddColor}20 0%, transparent 70%)`,
-            border: `4px solid ${ddColor}`,
-            display: 'flex', alignItems: 'center', justifyContent: 'center',
-            boxShadow: `0 0 32px ${ddColor}40`,
-          }}>
-            <span className="mono tnum" style={{ fontSize: 'var(--t-3xl)', fontWeight: 'var(--w-extra)', color: ddColor }}>{dd}</span>
+        <div
+          className="flex items-center justify-center"
+          style={{ padding: "var(--space-5) 0" }}
+        >
+          <div
+            style={{
+              width: 120,
+              height: 120,
+              borderRadius: "50%",
+              background: `radial-gradient(circle, ${ddColor}20 0%, transparent 70%)`,
+              border: `4px solid ${ddColor}`,
+              display: "flex",
+              alignItems: "center",
+              justifyContent: "center",
+              boxShadow: `0 0 32px ${ddColor}40`,
+            }}
+          >
+            <span
+              className="mono tnum"
+              style={{
+                fontSize: "var(--t-3xl)",
+                fontWeight: "var(--w-extra)",
+                color: ddColor,
+              }}
+            >
+              {dd}
+            </span>
           </div>
         </div>
-        <div className="eyebrow center" style={{ marginBottom: 'var(--space-4)' }}>Distribution Days (25 sessions)</div>
-        <div className="panel" style={{ background: 'var(--bg-2)' }}>
-          <div className="flex items-center justify-between t-sm mono" style={{ padding: '6px 0' }}>
+        <div
+          className="eyebrow center"
+          style={{ marginBottom: "var(--space-4)" }}
+        >
+          Distribution Days (25 sessions)
+        </div>
+        <div className="panel" style={{ background: "var(--bg-2)" }}>
+          <div
+            className="flex items-center justify-between t-sm mono"
+            style={{ padding: "6px 0" }}
+          >
             <span className="muted">Put/Call Ratio</span>
-            <span className={pcRatio != null && pcRatio > 1.1 ? 'up' : pcRatio != null && pcRatio < 0.6 ? 'down' : 'neutral'} style={{ fontWeight: 'var(--w-bold)' }}>
-              {pcRatio != null ? `${pcRatio.toFixed(2)} (${pcSignal})` : '—'}
+            <span
+              className={
+                pcRatio != null && pcRatio > 1.1
+                  ? "up"
+                  : pcRatio != null && pcRatio < 0.6
+                    ? "down"
+                    : "neutral"
+              }
+              style={{ fontWeight: "var(--w-bold)" }}
+            >
+              {pcRatio != null ? `${pcRatio.toFixed(2)} (${pcSignal})` : "—"}
             </span>
           </div>
-          <div className="flex items-center justify-between t-sm mono" style={{ padding: '6px 0', borderTop: '1px solid var(--border-soft)' }}>
+          <div
+            className="flex items-center justify-between t-sm mono"
+            style={{
+              padding: "6px 0",
+              borderTop: "1px solid var(--border-soft)",
+            }}
+          >
             <span className="muted">Regime</span>
-            <span className={ddRegime.includes('clean') ? 'up' : ddRegime.includes('caution') ? 'neutral' : 'down'} style={{ fontWeight: 'var(--w-bold)' }}>
-              {ddRegime.replace(/_/g, ' ').toUpperCase()}
+            <span
+              className={
+                ddRegime.includes("clean")
+                  ? "up"
+                  : ddRegime.includes("caution")
+                    ? "neutral"
+                    : "down"
+              }
+              style={{ fontWeight: "var(--w-bold)" }}
+            >
+              {ddRegime.replace(/_/g, " ").toUpperCase()}
             </span>
           </div>
         </div>
-        <div className="t-xs muted" style={{ marginTop: 'var(--space-3)' }}>
-          5+ selling-pressure days in 4 weeks signals institutional distribution.
-          Put/call ratio above 1.1 indicates fear; below 0.6 indicates complacency.
+        <div className="t-xs muted" style={{ marginTop: "var(--space-3)" }}>
+          5+ selling-pressure days in 4 weeks signals institutional
+          distribution. Put/call ratio above 1.1 indicates fear; below 0.6
+          indicates complacency.
         </div>
       </div>
     </div>
@@ -607,24 +1039,45 @@ function MarketPulse({ markets }) {
 
 function ExposureHistory({ markets }) {
   const historyArray = Array.isArray(markets?.history) ? markets.history : [];
-  if (historyArray.length === 0) return <Empty title="Exposure history" desc="Builds over time as exposure runs daily" wrap />;
+  if (historyArray.length === 0)
+    return (
+      <Empty
+        title="Exposure history"
+        desc="Builds over time as exposure runs daily"
+        wrap
+      />
+    );
   const history = historyArray.slice().reverse();
-  const data = history.map(h => ({
-    date: h?.date, exposure: h?.exposure_pct != null ? parseFloat(h.exposure_pct) : null,
-    regime: h?.regime, dd: h?.distribution_days,
-  })).filter(d => d.exposure != null);
+  const data = history
+    .map((h) => ({
+      date: h?.date,
+      exposure: h?.exposure_pct != null ? parseFloat(h.exposure_pct) : null,
+      regime: h?.regime,
+      dd: h?.distribution_days,
+    }))
+    .filter((d) => d.exposure != null);
   return (
     <div className="card">
       <div className="card-head">
         <div>
-          <div className="card-title">Exposure History — last {data.length} sessions</div>
-          <div className="card-sub">How the algo's risk allocation moved with the market regime</div>
+          <div className="card-title">
+            Exposure History — last {data.length} sessions
+          </div>
+          <div className="card-sub">
+            How the algo's risk allocation moved with the market regime
+          </div>
         </div>
       </div>
-      <div className="card-body" style={{ padding: 'var(--space-4)', width: '100%', minWidth: 0 }}>
+      <div
+        className="card-body"
+        style={{ padding: "var(--space-4)", width: "100%", minWidth: 0 }}
+      >
         <div className="chart-container" style={{ height: 320 }}>
           <ResponsiveContainer width="100%" height="100%">
-            <AreaChart data={data} margin={{ top: 8, right: 16, bottom: 0, left: 0 }}>
+            <AreaChart
+              data={data}
+              margin={{ top: 8, right: 16, bottom: 0, left: 0 }}
+            >
               <defs>
                 <linearGradient id="expGrad" x1="0" y1="0" x2="0" y2="1">
                   <stop offset="0%" stopColor={C.brand} stopOpacity={0.4} />
@@ -632,14 +1085,78 @@ function ExposureHistory({ markets }) {
                 </linearGradient>
               </defs>
               <CartesianGrid stroke={C.border} strokeDasharray="2 4" />
-              <XAxis dataKey="date" tick={{ fill: C.textFaint, fontSize: 11 }} tickFormatter={d => String(d).slice(5)} />
-              <YAxis domain={[0, 100]} tick={{ fill: C.textFaint, fontSize: 11 }} tickFormatter={v => `${v}%`} width={42} />
-              <RTooltip contentStyle={{ background: C.surface, border: `1px solid ${C.border2}`, borderRadius: 8, fontSize: 12, color: C.text }} />
-              <ReferenceLine y={80} stroke={C.success} strokeDasharray="3 3" label={{ value: 'Confirmed', fill: C.success, fontSize: 10, position: 'right' }} />
-              <ReferenceLine y={60} stroke={C.brand2}  strokeDasharray="3 3" label={{ value: 'Healthy',   fill: C.brand2,  fontSize: 10, position: 'right' }} />
-              <ReferenceLine y={40} stroke={C.amber}   strokeDasharray="3 3" label={{ value: 'Pressure',  fill: C.amber,   fontSize: 10, position: 'right' }} />
-              <ReferenceLine y={20} stroke={C.danger}  strokeDasharray="3 3" label={{ value: 'Caution',   fill: C.danger,  fontSize: 10, position: 'right' }} />
-              <Area type="monotone" dataKey="exposure" stroke={C.brand2} strokeWidth={2} fill="url(#expGrad)" connectNulls={true} />
+              <XAxis
+                dataKey="date"
+                tick={{ fill: C.textFaint, fontSize: 11 }}
+                tickFormatter={(d) => String(d).slice(5)}
+              />
+              <YAxis
+                domain={[0, 100]}
+                tick={{ fill: C.textFaint, fontSize: 11 }}
+                tickFormatter={(v) => `${v}%`}
+                width={42}
+              />
+              <RTooltip
+                contentStyle={{
+                  background: C.surface,
+                  border: `1px solid ${C.border2}`,
+                  borderRadius: 8,
+                  fontSize: 12,
+                  color: C.text,
+                }}
+              />
+              <ReferenceLine
+                y={80}
+                stroke={C.success}
+                strokeDasharray="3 3"
+                label={{
+                  value: "Confirmed",
+                  fill: C.success,
+                  fontSize: 10,
+                  position: "right",
+                }}
+              />
+              <ReferenceLine
+                y={60}
+                stroke={C.brand2}
+                strokeDasharray="3 3"
+                label={{
+                  value: "Healthy",
+                  fill: C.brand2,
+                  fontSize: 10,
+                  position: "right",
+                }}
+              />
+              <ReferenceLine
+                y={40}
+                stroke={C.amber}
+                strokeDasharray="3 3"
+                label={{
+                  value: "Pressure",
+                  fill: C.amber,
+                  fontSize: 10,
+                  position: "right",
+                }}
+              />
+              <ReferenceLine
+                y={20}
+                stroke={C.danger}
+                strokeDasharray="3 3"
+                label={{
+                  value: "Caution",
+                  fill: C.danger,
+                  fontSize: 10,
+                  position: "right",
+                }}
+              />
+              <Area
+                type="monotone"
+                dataKey="exposure"
+                stroke={C.brand2}
+                strokeWidth={2}
+                fill="url(#expGrad)"
+                connectNulls={true}
+              />
             </AreaChart>
           </ResponsiveContainer>
         </div>
@@ -655,11 +1172,25 @@ function ExposureHistory({ markets }) {
 function BreadthCard({ markets }) {
   const safeCurrent = safeGetMarketCurrent(markets);
   const factors = safeCurrent ? safeGetFactors(safeCurrent) : {};
-  const b50 = (factors?.breadth_50dma && typeof factors.breadth_50dma === 'object') ? factors.breadth_50dma : {};
-  const b200 = (factors?.breadth_200dma && typeof factors.breadth_200dma === 'object') ? factors.breadth_200dma : {};
+  const b50 =
+    factors?.breadth_50dma && typeof factors.breadth_50dma === "object"
+      ? factors.breadth_50dma
+      : {};
+  const b200 =
+    factors?.breadth_200dma && typeof factors.breadth_200dma === "object"
+      ? factors.breadth_200dma
+      : {};
   const data = [
-    { name: '> 50-DMA',  value: b50?.value ?? 0,  count: `${b50?.above ?? 0}/${b50?.total ?? 0}` },
-    { name: '> 200-DMA', value: b200?.value ?? 0, count: `${b200?.above ?? 0}/${b200?.total ?? 0}` },
+    {
+      name: "> 50-DMA",
+      value: b50?.value ?? 0,
+      count: `${b50?.above ?? 0}/${b50?.total ?? 0}`,
+    },
+    {
+      name: "> 200-DMA",
+      value: b200?.value ?? 0,
+      count: `${b200?.above ?? 0}/${b200?.total ?? 0}`,
+    },
   ];
   return (
     <div className="card">
@@ -672,35 +1203,78 @@ function BreadthCard({ markets }) {
       <div className="card-body">
         <div className="chart-container" style={{ height: 200 }}>
           <ResponsiveContainer width="100%" height="100%">
-            <BarChart data={data} margin={{ top: 8, right: 16, bottom: 0, left: 0 }} barSize={56}>
+            <BarChart
+              data={data}
+              margin={{ top: 8, right: 16, bottom: 0, left: 0 }}
+              barSize={56}
+            >
               <CartesianGrid stroke={C.border} strokeDasharray="2 4" />
-              <XAxis dataKey="name" tick={{ fill: C.textFaint, fontSize: 11 }} />
-              <YAxis domain={[0, 100]} tick={{ fill: C.textFaint, fontSize: 11 }} tickFormatter={v => `${v}%`} />
-              <RTooltip contentStyle={{ background: C.surface, border: `1px solid ${C.border2}`, borderRadius: 8, fontSize: 12, color: C.text }}
-                formatter={(v, _, p) => [`${v}% (${p.payload.count})`, p.payload.name]} />
-              <ReferenceLine y={50} stroke={C.textMuted} strokeDasharray="3 3" />
+              <XAxis
+                dataKey="name"
+                tick={{ fill: C.textFaint, fontSize: 11 }}
+              />
+              <YAxis
+                domain={[0, 100]}
+                tick={{ fill: C.textFaint, fontSize: 11 }}
+                tickFormatter={(v) => `${v}%`}
+              />
+              <RTooltip
+                contentStyle={{
+                  background: C.surface,
+                  border: `1px solid ${C.border2}`,
+                  borderRadius: 8,
+                  fontSize: 12,
+                  color: C.text,
+                }}
+                formatter={(v, _, p) => [
+                  `${v}% (${p.payload.count})`,
+                  p.payload.name,
+                ]}
+              />
+              <ReferenceLine
+                y={50}
+                stroke={C.textMuted}
+                strokeDasharray="3 3"
+              />
               <Bar dataKey="value" radius={[4, 4, 0, 0]}>
                 {data.map((d, i) => (
-                  <Cell key={i} fill={d.value >= 60 ? C.success : d.value >= 40 ? C.brand2 : C.danger} />
+                  <Cell
+                    key={i}
+                    fill={
+                      d.value >= 60
+                        ? C.success
+                        : d.value >= 40
+                          ? C.brand2
+                          : C.danger
+                    }
+                  />
                 ))}
               </Bar>
             </BarChart>
           </ResponsiveContainer>
         </div>
-        <div className="grid grid-3" style={{ marginTop: 'var(--space-3)' }}>
+        <div className="grid grid-3" style={{ marginTop: "var(--space-3)" }}>
           <div className="stile">
             <div className="stile-label">&gt; 50-DMA</div>
             <div className="stile-value">{num(b50.value, 1)}%</div>
-            <div className="stile-sub">{b50.above || 0} of {b50.total || 0}</div>
+            <div className="stile-sub">
+              {b50.above || 0} of {b50.total || 0}
+            </div>
           </div>
           <div className="stile">
             <div className="stile-label">&gt; 200-DMA</div>
             <div className="stile-value">{num(b200.value, 1)}%</div>
-            <div className="stile-sub">{b200.above || 0} of {b200.total || 0}</div>
+            <div className="stile-sub">
+              {b200.above || 0} of {b200.total || 0}
+            </div>
           </div>
           <div className="stile">
             <div className="stile-label">A/D Signal</div>
-            <div className="stile-value">{factors.ad_line?.relation ? factors.ad_line.relation.replace(/_/g, ' ') : '—'}</div>
+            <div className="stile-value">
+              {factors.ad_line?.relation
+                ? factors.ad_line.relation.replace(/_/g, " ")
+                : "—"}
+            </div>
             <div className="stile-sub">vs SPY 20d</div>
           </div>
         </div>
@@ -718,8 +1292,8 @@ function NewHighsLowsCard({ markets }) {
   const factors = safeCurrent ? safeGetFactors(safeCurrent) : {};
   const nhnl = factors.new_highs_lows || {};
   const data = [
-    { name: 'New Highs', value: nhnl?.new_highs ?? 0, fill: C.success },
-    { name: 'New Lows',  value: -(nhnl?.new_lows ?? 0), fill: C.danger },
+    { name: "New Highs", value: nhnl?.new_highs ?? 0, fill: C.success },
+    { name: "New Lows", value: -(nhnl?.new_lows ?? 0), fill: C.danger },
   ];
   const net = nhnl?.net ?? 0;
   return (
@@ -733,23 +1307,51 @@ function NewHighsLowsCard({ markets }) {
       <div className="card-body">
         <div className="chart-container" style={{ height: 200 }}>
           <ResponsiveContainer width="100%" height="100%">
-            <BarChart data={data} margin={{ top: 8, right: 16, bottom: 0, left: 0 }} barSize={64}>
+            <BarChart
+              data={data}
+              margin={{ top: 8, right: 16, bottom: 0, left: 0 }}
+              barSize={64}
+            >
               <CartesianGrid stroke={C.border} strokeDasharray="2 4" />
-              <XAxis dataKey="name" tick={{ fill: C.textFaint, fontSize: 11 }} />
+              <XAxis
+                dataKey="name"
+                tick={{ fill: C.textFaint, fontSize: 11 }}
+              />
               <YAxis tick={{ fill: C.textFaint, fontSize: 11 }} />
               <ReferenceLine y={0} stroke={C.border2} />
-              <RTooltip contentStyle={{ background: C.surface, border: `1px solid ${C.border2}`, borderRadius: 8, fontSize: 12, color: C.text }}
-                formatter={(v, _, p) => [Math.abs(v), p.payload.name]} />
+              <RTooltip
+                contentStyle={{
+                  background: C.surface,
+                  border: `1px solid ${C.border2}`,
+                  borderRadius: 8,
+                  fontSize: 12,
+                  color: C.text,
+                }}
+                formatter={(v, _, p) => [Math.abs(v), p.payload.name]}
+              />
               <Bar dataKey="value" radius={[4, 4, 0, 0]}>
-                {data.map((d, i) => <Cell key={i} fill={d.fill} />)}
+                {data.map((d, i) => (
+                  <Cell key={i} fill={d.fill} />
+                ))}
               </Bar>
             </BarChart>
           </ResponsiveContainer>
         </div>
-        <div className="grid grid-3" style={{ marginTop: 'var(--space-3)' }}>
-          <div className="stile"><div className="stile-label">Highs</div><div className="stile-value up">{nhnl.new_highs || 0}</div></div>
-          <div className="stile"><div className="stile-label">Lows</div><div className="stile-value down">{nhnl.new_lows || 0}</div></div>
-          <div className="stile"><div className="stile-label">Net</div><div className={`stile-value ${net >= 0 ? 'up' : 'down'}`}>{net}</div></div>
+        <div className="grid grid-3" style={{ marginTop: "var(--space-3)" }}>
+          <div className="stile">
+            <div className="stile-label">Highs</div>
+            <div className="stile-value up">{nhnl.new_highs || 0}</div>
+          </div>
+          <div className="stile">
+            <div className="stile-label">Lows</div>
+            <div className="stile-value down">{nhnl.new_lows || 0}</div>
+          </div>
+          <div className="stile">
+            <div className="stile-label">Net</div>
+            <div className={`stile-value ${net >= 0 ? "up" : "down"}`}>
+              {net}
+            </div>
+          </div>
         </div>
       </div>
     </div>
@@ -762,29 +1364,48 @@ function NewHighsLowsCard({ markets }) {
 
 function SentimentCard({ markets, sentiment, loading, error }) {
   const safeSentiment = safeGetSentimentData(sentiment);
-  const aaiiHistoryRaw = safeSentiment.aaii?.history || safeSentiment.aaii?.data || (Array.isArray(markets?.sentiment) ? markets.sentiment : []);
+  const aaiiHistoryRaw =
+    safeSentiment.aaii?.history ||
+    safeSentiment.aaii?.data ||
+    (Array.isArray(markets?.sentiment) ? markets.sentiment : []);
   const aaiiHistory = Array.isArray(aaiiHistoryRaw) ? aaiiHistoryRaw : [];
   const naaim = safeSentiment.naaim?.current ?? null;
   const fearGreed = safeSentiment.fearGreed?.current?.value ?? null;
   if (loading) return <Empty title="Investor Sentiment" desc="Loading…" wrap />;
-  if (error) return (
-    <div className="card">
-      <div className="card-head"><div><div className="card-title">Investor Sentiment</div></div></div>
-      <div className="card-body">
-        <div className="alert alert-danger" style={{ margin: 0 }}>
-          <AlertTriangle size={16} />
-          <div>Sentiment data unavailable — {error?.responseData?.message || error?.message || `HTTP ${error?.status || 'error'}`}</div>
+  if (error)
+    return (
+      <div className="card">
+        <div className="card-head">
+          <div>
+            <div className="card-title">Investor Sentiment</div>
+          </div>
+        </div>
+        <div className="card-body">
+          <div className="alert alert-danger" style={{ margin: 0 }}>
+            <AlertTriangle size={16} />
+            <div>
+              Sentiment data unavailable —{" "}
+              {error?.responseData?.message ||
+                error?.message ||
+                `HTTP ${error?.status || "error"}`}
+            </div>
+          </div>
         </div>
       </div>
-    </div>
-  );
-  if (!aaiiHistory.length) return <Empty title="Investor Sentiment" desc="AAII data not yet loaded" wrap />;
-  const data = aaiiHistory.slice().reverse().map(s => ({
-    date: s?.date,
-    bull: s?.bullish != null ? parseFloat(s.bullish) : 0,
-    bear: s?.bearish != null ? parseFloat(s.bearish) : 0,
-    neutral: s?.neutral != null ? parseFloat(s.neutral) : 0,
-  }));
+    );
+  if (!aaiiHistory.length)
+    return (
+      <Empty title="Investor Sentiment" desc="AAII data not yet loaded" wrap />
+    );
+  const data = aaiiHistory
+    .slice()
+    .reverse()
+    .map((s) => ({
+      date: s?.date,
+      bull: s?.bullish != null ? parseFloat(s.bullish) : 0,
+      bear: s?.bearish != null ? parseFloat(s.bearish) : 0,
+      neutral: s?.neutral != null ? parseFloat(s.neutral) : 0,
+    }));
   const latest = data[data.length - 1] || { bull: 0, bear: 0, neutral: 0 };
   const spread = (latest.bull || 0) - (latest.bear || 0);
   return (
@@ -792,36 +1413,103 @@ function SentimentCard({ markets, sentiment, loading, error }) {
       <div className="card-head">
         <div>
           <div className="card-title">Investor Sentiment</div>
-          <div className="card-sub">AAII bull/bear · contrarian signal at extremes</div>
+          <div className="card-sub">
+            AAII bull/bear · contrarian signal at extremes
+          </div>
         </div>
       </div>
       <div className="card-body">
         <div className="chart-container" style={{ height: 200 }}>
           <ResponsiveContainer width="100%" height="100%">
-            <LineChart data={data} margin={{ top: 8, right: 16, bottom: 0, left: 0 }}>
+            <LineChart
+              data={data}
+              margin={{ top: 8, right: 16, bottom: 0, left: 0 }}
+            >
               <CartesianGrid stroke={C.border} strokeDasharray="2 4" />
-              <XAxis dataKey="date" tick={{ fill: C.textFaint, fontSize: 11 }} tickFormatter={d => String(d).slice(5)} />
-              <YAxis tick={{ fill: C.textFaint, fontSize: 11 }} tickFormatter={v => `${v}%`} />
-              <RTooltip contentStyle={{ background: C.surface, border: `1px solid ${C.border2}`, borderRadius: 8, fontSize: 12, color: C.text }} />
+              <XAxis
+                dataKey="date"
+                tick={{ fill: C.textFaint, fontSize: 11 }}
+                tickFormatter={(d) => String(d).slice(5)}
+              />
+              <YAxis
+                tick={{ fill: C.textFaint, fontSize: 11 }}
+                tickFormatter={(v) => `${v}%`}
+              />
+              <RTooltip
+                contentStyle={{
+                  background: C.surface,
+                  border: `1px solid ${C.border2}`,
+                  borderRadius: 8,
+                  fontSize: 12,
+                  color: C.text,
+                }}
+              />
               <Legend wrapperStyle={{ fontSize: 11 }} />
-              <Line type="monotone" dataKey="bull" stroke={C.success} strokeWidth={2} dot={false} name="Bullish" />
-              <Line type="monotone" dataKey="bear" stroke={C.danger}  strokeWidth={2} dot={false} name="Bearish" />
-              <Line type="monotone" dataKey="neutral" stroke={C.textMuted} strokeWidth={1.5} strokeDasharray="3 3" dot={false} name="Neutral" />
+              <Line
+                type="monotone"
+                dataKey="bull"
+                stroke={C.success}
+                strokeWidth={2}
+                dot={false}
+                name="Bullish"
+              />
+              <Line
+                type="monotone"
+                dataKey="bear"
+                stroke={C.danger}
+                strokeWidth={2}
+                dot={false}
+                name="Bearish"
+              />
+              <Line
+                type="monotone"
+                dataKey="neutral"
+                stroke={C.textMuted}
+                strokeWidth={1.5}
+                strokeDasharray="3 3"
+                dot={false}
+                name="Neutral"
+              />
             </LineChart>
           </ResponsiveContainer>
         </div>
-        <div className="grid grid-4" style={{ marginTop: 'var(--space-3)' }}>
-          <div className="stile"><div className="stile-label">Bullish</div><div className="stile-value up">{num(latest.bull, 1)}%</div></div>
-          <div className="stile"><div className="stile-label">Bearish</div><div className="stile-value down">{num(latest.bear, 1)}%</div></div>
+        <div className="grid grid-4" style={{ marginTop: "var(--space-3)" }}>
           <div className="stile">
-            <div className="stile-label">Spread</div>
-            <div className={`stile-value ${spread >= 0 ? 'up' : 'down'}`}>{spread >= 0 ? '+' : ''}{num(spread, 1)}</div>
-            <div className="stile-sub">{Math.abs(spread) > 20 ? 'contrarian alert' : 'normal'}</div>
+            <div className="stile-label">Bullish</div>
+            <div className="stile-value up">{num(latest.bull, 1)}%</div>
           </div>
           <div className="stile">
-            <div className="stile-label">{naaim != null ? 'NAAIM' : 'Fear/Greed'}</div>
-            <div className="stile-value">{naaim != null ? `${num(naaim, 0)}%` : (fearGreed != null ? num(fearGreed, 0) : '—')}</div>
-            <div className="stile-sub">{naaim != null ? 'manager exposure' : (fearGreed > 50 ? 'greed' : 'fear')}</div>
+            <div className="stile-label">Bearish</div>
+            <div className="stile-value down">{num(latest.bear, 1)}%</div>
+          </div>
+          <div className="stile">
+            <div className="stile-label">Spread</div>
+            <div className={`stile-value ${spread >= 0 ? "up" : "down"}`}>
+              {spread >= 0 ? "+" : ""}
+              {num(spread, 1)}
+            </div>
+            <div className="stile-sub">
+              {Math.abs(spread) > 20 ? "contrarian alert" : "normal"}
+            </div>
+          </div>
+          <div className="stile">
+            <div className="stile-label">
+              {naaim != null ? "NAAIM" : "Fear/Greed"}
+            </div>
+            <div className="stile-value">
+              {naaim != null
+                ? `${num(naaim, 0)}%`
+                : fearGreed != null
+                  ? num(fearGreed, 0)
+                  : "—"}
+            </div>
+            <div className="stile-sub">
+              {naaim != null
+                ? "manager exposure"
+                : fearGreed > 50
+                  ? "greed"
+                  : "fear"}
+            </div>
           </div>
         </div>
       </div>
@@ -839,47 +1527,105 @@ function VixCard({ markets }) {
   const vix = factors.vix_regime || {};
   const level = vix.value || 0;
   const regime =
-    level < 15 ? 'Calm' :
-    level < 20 ? 'Normal' :
-    level < 28 ? 'Elevated' :
-    level < 36 ? 'High' : 'Extreme';
+    level < 15
+      ? "Calm"
+      : level < 20
+        ? "Normal"
+        : level < 28
+          ? "Elevated"
+          : level < 36
+            ? "High"
+            : "Extreme";
   const variant =
-    level < 15 ? 'badge-success' :
-    level < 20 ? 'badge-brand' :
-    level < 28 ? 'badge-amber' : 'badge-danger';
+    level < 15
+      ? "badge-success"
+      : level < 20
+        ? "badge-brand"
+        : level < 28
+          ? "badge-amber"
+          : "badge-danger";
   const color =
-    level < 15 ? C.success :
-    level < 20 ? C.brand2 :
-    level < 28 ? C.amber : C.danger;
+    level < 15
+      ? C.success
+      : level < 20
+        ? C.brand2
+        : level < 28
+          ? C.amber
+          : C.danger;
 
   return (
     <div className="card">
       <div className="card-head">
         <div>
           <div className="card-title">Volatility Regime (VIX)</div>
-          <div className="card-sub">Implied volatility — proxy for market fear</div>
+          <div className="card-sub">
+            Implied volatility — proxy for market fear
+          </div>
         </div>
       </div>
-      <div className="card-body" style={{ textAlign: 'center', padding: 'var(--space-7)' }}>
-        <div className="mono tnum" style={{ fontSize: 56, fontWeight: 'var(--w-extra)', color, lineHeight: 1, textShadow: `0 0 32px ${color}40` }}>
+      <div
+        className="card-body"
+        style={{ textAlign: "center", padding: "var(--space-7)" }}
+      >
+        <div
+          className="mono tnum"
+          style={{
+            fontSize: 56,
+            fontWeight: "var(--w-extra)",
+            color,
+            lineHeight: 1,
+            textShadow: `0 0 32px ${color}40`,
+          }}
+        >
           {num(level, 2)}
         </div>
         <div style={{ marginTop: 12 }}>
-          <span className={`badge badge-lg ${variant}`}>{regime.toUpperCase()}</span>
+          <span className={`badge badge-lg ${variant}`}>
+            {regime.toUpperCase()}
+          </span>
         </div>
-        <div className="t-2xs faint mono" style={{ marginTop: 8 }}>{vix.rising ? 'RISING' : 'STABLE/FALLING'}</div>
-        <div className="grid grid-4" style={{ marginTop: 'var(--space-5)', fontFamily: 'var(--font-mono)', fontSize: 'var(--t-2xs)' }}>
-          <div className="stile" style={{ alignItems: 'center', textAlign: 'center' }}>
-            <div className="stile-label">&lt; 15</div><div className="stile-sub up">Calm</div>
+        <div className="t-2xs faint mono" style={{ marginTop: 8 }}>
+          {vix.rising ? "RISING" : "STABLE/FALLING"}
+        </div>
+        <div
+          className="grid grid-4"
+          style={{
+            marginTop: "var(--space-5)",
+            fontFamily: "var(--font-mono)",
+            fontSize: "var(--t-2xs)",
+          }}
+        >
+          <div
+            className="stile"
+            style={{ alignItems: "center", textAlign: "center" }}
+          >
+            <div className="stile-label">&lt; 15</div>
+            <div className="stile-sub up">Calm</div>
           </div>
-          <div className="stile" style={{ alignItems: 'center', textAlign: 'center' }}>
-            <div className="stile-label">15–20</div><div className="stile-sub" style={{ color: C.brand2 }}>Normal</div>
+          <div
+            className="stile"
+            style={{ alignItems: "center", textAlign: "center" }}
+          >
+            <div className="stile-label">15–20</div>
+            <div className="stile-sub" style={{ color: C.brand2 }}>
+              Normal
+            </div>
           </div>
-          <div className="stile" style={{ alignItems: 'center', textAlign: 'center' }}>
-            <div className="stile-label">20–28</div><div className="stile-sub" style={{ color: C.amber }}>Elevated</div>
+          <div
+            className="stile"
+            style={{ alignItems: "center", textAlign: "center" }}
+          >
+            <div className="stile-label">20–28</div>
+            <div className="stile-sub" style={{ color: C.amber }}>
+              Elevated
+            </div>
           </div>
-          <div className="stile" style={{ alignItems: 'center', textAlign: 'center' }}>
-            <div className="stile-label">28+</div><div className="stile-sub down">High</div>
+          <div
+            className="stile"
+            style={{ alignItems: "center", textAlign: "center" }}
+          >
+            <div className="stile-label">28+</div>
+            <div className="stile-sub down">High</div>
           </div>
         </div>
       </div>
@@ -893,30 +1639,59 @@ function VixCard({ markets }) {
 
 function InternalsCard({ data, loading, error }) {
   if (loading) return <Empty title="Market Internals" desc="Loading…" wrap />;
-  if (error) return (
-    <div className="card">
-      <div className="card-head"><div><div className="card-title">Market Internals</div></div></div>
-      <div className="card-body">
-        <div className="alert alert-danger" style={{ margin: 0 }}>
-          <AlertTriangle size={16} />
-          <div>Market internals unavailable — {error?.responseData?.message || error?.message || `HTTP ${error?.status || 'error'}`}</div>
+  if (error)
+    return (
+      <div className="card">
+        <div className="card-head">
+          <div>
+            <div className="card-title">Market Internals</div>
+          </div>
+        </div>
+        <div className="card-body">
+          <div className="alert alert-danger" style={{ margin: 0 }}>
+            <AlertTriangle size={16} />
+            <div>
+              Market internals unavailable —{" "}
+              {error?.responseData?.message ||
+                error?.message ||
+                `HTTP ${error?.status || "error"}`}
+            </div>
+          </div>
         </div>
       </div>
-    </div>
-  );
+    );
   if (!data) return <Empty title="Market Internals" desc="No data" wrap />;
-  const breadth = (data && typeof data === 'object' && data.breadth) ? data.breadth : {};
-  const advancing = breadth?.advancing != null ? parseInt(breadth.advancing) : 0;
-  const declining = breadth?.declining != null ? parseInt(breadth.declining) : 0;
-  const unchanged = breadth?.unchanged != null ? parseInt(breadth.unchanged) : 0;
-  const total = breadth?.total_stocks != null ? parseInt(breadth.total_stocks) : (advancing + declining + unchanged || 0);
+  const breadth =
+    data && typeof data === "object" && data.breadth ? data.breadth : {};
+  const advancing =
+    breadth?.advancing != null ? parseInt(breadth.advancing) : 0;
+  const declining =
+    breadth?.declining != null ? parseInt(breadth.declining) : 0;
+  const unchanged =
+    breadth?.unchanged != null ? parseInt(breadth.unchanged) : 0;
+  const total =
+    breadth?.total_stocks != null
+      ? parseInt(breadth.total_stocks)
+      : advancing + declining + unchanged || 0;
   const advPct = total > 0 ? (advancing / total) * 100 : 0;
   const decPct = total > 0 ? (declining / total) * 100 : 0;
-  const adRatio = declining > 0 ? (advancing / declining) : 0;
-  const mcDataRaw = Array.isArray(data?.mcclellan_oscillator) ? data.mcclellan_oscillator : [];
-  const mcclellan = mcDataRaw.length > 0 ? mcDataRaw.slice().reverse().map(d => ({
-    date: d?.date, value: d?.advance_decline_line != null ? parseFloat(d.advance_decline_line) : 0,
-  })) : [];
+  const adRatio = declining > 0 ? advancing / declining : 0;
+  const mcDataRaw = Array.isArray(data?.mcclellan_oscillator)
+    ? data.mcclellan_oscillator
+    : [];
+  const mcclellan =
+    mcDataRaw.length > 0
+      ? mcDataRaw
+          .slice()
+          .reverse()
+          .map((d) => ({
+            date: d?.date,
+            value:
+              d?.advance_decline_line != null
+                ? parseFloat(d.advance_decline_line)
+                : 0,
+          }))
+      : [];
   return (
     <div className="card">
       <div className="card-head">
@@ -926,15 +1701,36 @@ function InternalsCard({ data, loading, error }) {
         </div>
       </div>
       <div className="card-body">
-        <div className="grid grid-3" style={{ marginBottom: 'var(--space-4)' }}>
-          <div className="stile"><div className="stile-label">Advancing</div><div className="stile-value up">{advancing.toLocaleString('en-US')}</div><div className="stile-sub">{num(advPct, 1)}%</div></div>
-          <div className="stile"><div className="stile-label">Declining</div><div className="stile-value down">{declining.toLocaleString('en-US')}</div><div className="stile-sub">{num(decPct, 1)}%</div></div>
-          <div className="stile"><div className="stile-label">A/D Ratio</div><div className={`stile-value ${adRatio > 1 ? 'up' : 'down'}`}>{num(adRatio, 2)}</div><div className="stile-sub">{unchanged} unch.</div></div>
+        <div className="grid grid-3" style={{ marginBottom: "var(--space-4)" }}>
+          <div className="stile">
+            <div className="stile-label">Advancing</div>
+            <div className="stile-value up">
+              {advancing.toLocaleString("en-US")}
+            </div>
+            <div className="stile-sub">{num(advPct, 1)}%</div>
+          </div>
+          <div className="stile">
+            <div className="stile-label">Declining</div>
+            <div className="stile-value down">
+              {declining.toLocaleString("en-US")}
+            </div>
+            <div className="stile-sub">{num(decPct, 1)}%</div>
+          </div>
+          <div className="stile">
+            <div className="stile-label">A/D Ratio</div>
+            <div className={`stile-value ${adRatio > 1 ? "up" : "down"}`}>
+              {num(adRatio, 2)}
+            </div>
+            <div className="stile-sub">{unchanged} unch.</div>
+          </div>
         </div>
         {mcclellan.length > 1 && (
           <div className="chart-container" style={{ height: 140 }}>
             <ResponsiveContainer width="100%" height="100%">
-              <AreaChart data={mcclellan} margin={{ top: 4, right: 8, bottom: 0, left: 0 }}>
+              <AreaChart
+                data={mcclellan}
+                margin={{ top: 4, right: 8, bottom: 0, left: 0 }}
+              >
                 <defs>
                   <linearGradient id="mcGrad" x1="0" y1="0" x2="0" y2="1">
                     <stop offset="0%" stopColor={C.brand2} stopOpacity={0.4} />
@@ -942,11 +1738,34 @@ function InternalsCard({ data, loading, error }) {
                   </linearGradient>
                 </defs>
                 <CartesianGrid stroke={C.border} strokeDasharray="2 4" />
-                <XAxis dataKey="date" tick={{ fill: C.textFaint, fontSize: 10 }} tickFormatter={d => String(d).slice(5, 10)} />
-                <YAxis tick={{ fill: C.textFaint, fontSize: 10 }} width={60} tickFormatter={v => Number(v).toLocaleString('en-US')} />
+                <XAxis
+                  dataKey="date"
+                  tick={{ fill: C.textFaint, fontSize: 10 }}
+                  tickFormatter={(d) => String(d).slice(5, 10)}
+                />
+                <YAxis
+                  tick={{ fill: C.textFaint, fontSize: 10 }}
+                  width={60}
+                  tickFormatter={(v) => Number(v).toLocaleString("en-US")}
+                />
                 <ReferenceLine y={0} stroke={C.border2} />
-                <RTooltip contentStyle={{ background: C.surface, border: `1px solid ${C.border2}`, borderRadius: 8, fontSize: 11, color: C.text }} />
-                <Area type="monotone" dataKey="value" stroke={C.brand2} strokeWidth={1.5} fill="url(#mcGrad)" connectNulls={true} />
+                <RTooltip
+                  contentStyle={{
+                    background: C.surface,
+                    border: `1px solid ${C.border2}`,
+                    borderRadius: 8,
+                    fontSize: 11,
+                    color: C.text,
+                  }}
+                />
+                <Area
+                  type="monotone"
+                  dataKey="value"
+                  stroke={C.brand2}
+                  strokeWidth={1.5}
+                  fill="url(#mcGrad)"
+                  connectNulls={true}
+                />
               </AreaChart>
             </ResponsiveContainer>
           </div>
@@ -962,17 +1781,27 @@ function InternalsCard({ data, loading, error }) {
 
 function TopMoversCard({ data, loading, error }) {
   if (loading) return <Empty title="Top Movers" desc="Loading…" wrap />;
-  if (error) return (
-    <div className="card">
-      <div className="card-head"><div><div className="card-title">Top Movers</div></div></div>
-      <div className="card-body">
-        <div className="alert alert-danger" style={{ margin: 0 }}>
-          <AlertTriangle size={16} />
-          <div>Top movers unavailable — {error?.responseData?.message || error?.message || `HTTP ${error?.status || 'error'}`}</div>
+  if (error)
+    return (
+      <div className="card">
+        <div className="card-head">
+          <div>
+            <div className="card-title">Top Movers</div>
+          </div>
+        </div>
+        <div className="card-body">
+          <div className="alert alert-danger" style={{ margin: 0 }}>
+            <AlertTriangle size={16} />
+            <div>
+              Top movers unavailable —{" "}
+              {error?.responseData?.message ||
+                error?.message ||
+                `HTTP ${error?.status || "error"}`}
+            </div>
+          </div>
         </div>
       </div>
-    </div>
-  );
+    );
   if (!data) return <Empty title="Top Movers" desc="No data" wrap />;
   const gainers = Array.isArray(data.gainers) ? data.gainers : [];
   const losers = Array.isArray(data.losers) ? data.losers : [];
@@ -989,18 +1818,54 @@ function TopMoversCard({ data, loading, error }) {
       <div className="card-body">
         <div className="eyebrow up" style={{ marginBottom: 6 }}>
           Gainers
-          {totalGainers > 6 && <span className="t-xs muted"> ({gainers.length} of {totalGainers})</span>}
+          {totalGainers > 6 && (
+            <span className="t-xs muted">
+              {" "}
+              ({gainers.length} of {totalGainers})
+            </span>
+          )}
         </div>
-        {gainers.length === 0 ? <div className="muted t-xs">—</div> : gainers.map((g, i) => (
-          <Mover key={i} symbol={g.symbol} chg={g.pct_change ?? g.change_pct ?? g.changePercent} dir="up" />
-        ))}
-        <div className="eyebrow down" style={{ marginTop: 'var(--space-3)', marginBottom: 6, borderTop: '1px solid var(--border-soft)', paddingTop: 'var(--space-3)' }}>
+        {gainers.length === 0 ? (
+          <div className="muted t-xs">—</div>
+        ) : (
+          gainers.map((g, i) => (
+            <Mover
+              key={i}
+              symbol={g.symbol}
+              chg={g.pct_change ?? g.change_pct ?? g.changePercent}
+              dir="up"
+            />
+          ))
+        )}
+        <div
+          className="eyebrow down"
+          style={{
+            marginTop: "var(--space-3)",
+            marginBottom: 6,
+            borderTop: "1px solid var(--border-soft)",
+            paddingTop: "var(--space-3)",
+          }}
+        >
           Losers
-          {totalLosers > 6 && <span className="t-xs muted"> ({losers.length} of {totalLosers})</span>}
+          {totalLosers > 6 && (
+            <span className="t-xs muted">
+              {" "}
+              ({losers.length} of {totalLosers})
+            </span>
+          )}
         </div>
-        {losers.length === 0 ? <div className="muted t-xs">—</div> : losers.map((l, i) => (
-          <Mover key={i} symbol={l.symbol} chg={l.pct_change ?? l.change_pct ?? l.changePercent} dir="down" />
-        ))}
+        {losers.length === 0 ? (
+          <div className="muted t-xs">—</div>
+        ) : (
+          losers.map((l, i) => (
+            <Mover
+              key={i}
+              symbol={l.symbol}
+              chg={l.pct_change ?? l.change_pct ?? l.changePercent}
+              dir="down"
+            />
+          ))
+        )}
       </div>
     </div>
   );
@@ -1008,10 +1873,19 @@ function TopMoversCard({ data, loading, error }) {
 function Mover({ symbol, chg, dir }) {
   const chgVal = chg ?? 0;
   return (
-    <div className="flex items-center justify-between" style={{ padding: '4px 0', fontSize: 'var(--t-sm)' }}>
-      <span className="mono" style={{ fontWeight: 'var(--w-bold)' }}>{symbol ?? '—'}</span>
-      <span className={`mono tnum ${dir}`} style={{ fontWeight: 'var(--w-semibold)' }}>
-        {chgVal >= 0 ? '+' : ''}{num(chgVal, 2)}%
+    <div
+      className="flex items-center justify-between"
+      style={{ padding: "4px 0", fontSize: "var(--t-sm)" }}
+    >
+      <span className="mono" style={{ fontWeight: "var(--w-bold)" }}>
+        {symbol ?? "—"}
+      </span>
+      <span
+        className={`mono tnum ${dir}`}
+        style={{ fontWeight: "var(--w-semibold)" }}
+      >
+        {chgVal >= 0 ? "+" : ""}
+        {num(chgVal, 2)}%
       </span>
     </div>
   );
@@ -1022,70 +1896,116 @@ function Mover({ symbol, chg, dir }) {
 // â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
 
 function SeasonalityCard({ data, loading, error }) {
-  if (loading) return <Empty title="Seasonality Context" desc="Loading…" wrap />;
-  if (error) return (
-    <div className="card">
-      <div className="card-head"><div><div className="card-title">Seasonality Context</div></div></div>
-      <div className="card-body">
-        <div className="alert alert-danger" style={{ margin: 0 }}>
-          <AlertTriangle size={16} />
-          <div>Seasonality data unavailable — {error?.responseData?.message || error?.message || `HTTP ${error?.status || 'error'}`}</div>
+  if (loading)
+    return <Empty title="Seasonality Context" desc="Loading…" wrap />;
+  if (error)
+    return (
+      <div className="card">
+        <div className="card-head">
+          <div>
+            <div className="card-title">Seasonality Context</div>
+          </div>
+        </div>
+        <div className="card-body">
+          <div className="alert alert-danger" style={{ margin: 0 }}>
+            <AlertTriangle size={16} />
+            <div>
+              Seasonality data unavailable —{" "}
+              {error?.responseData?.message ||
+                error?.message ||
+                `HTTP ${error?.status || "error"}`}
+            </div>
+          </div>
         </div>
       </div>
-    </div>
-  );
-  if (!data) return <Empty title="Seasonality Context" desc="No data available" wrap />;
-  const summary = (data && typeof data === 'object' && data.summary) ? data.summary : {};
+    );
+  if (!data)
+    return <Empty title="Seasonality Context" desc="No data available" wrap />;
+  const summary =
+    data && typeof data === "object" && data.summary ? data.summary : {};
   const bestMonth = summary?.best_month;
   const worstMonth = summary?.worst_month;
   const bestDay = summary?.best_day;
   const worstDay = summary?.worst_day;
   const currentMonthNum = new Date().getMonth() + 1;
   const monthlyArray = Array.isArray(data.monthly) ? data.monthly : [];
-  const currentMonthData = monthlyArray.find(m => m.month === currentMonthNum);
+  const currentMonthData = monthlyArray.find(
+    (m) => m.month === currentMonthNum
+  );
   return (
     <div className="card">
       <div className="card-head">
         <div>
           <div className="card-title">Seasonality Context</div>
-          <div className="card-sub">Historical return patterns by month &amp; day of week</div>
+          <div className="card-sub">
+            Historical return patterns by month &amp; day of week
+          </div>
         </div>
       </div>
       <div className="card-body">
         <div className="grid grid-4">
           <div className="stile">
             <div className="stile-label">This Month Hist. Avg</div>
-            <div className={`stile-value ${(currentMonthData?.avg_return || 0) >= 0 ? 'up' : 'down'}`}>
-              {currentMonthData ? `${currentMonthData.avg_return >= 0 ? '+' : ''}${num(currentMonthData.avg_return, 2)}%` : '—'}
+            <div
+              className={`stile-value ${(currentMonthData?.avg_return || 0) >= 0 ? "up" : "down"}`}
+            >
+              {currentMonthData
+                ? `${currentMonthData.avg_return >= 0 ? "+" : ""}${num(currentMonthData.avg_return, 2)}%`
+                : "—"}
             </div>
-            <div className="stile-sub">{currentMonthData?.month_name || '—'}</div>
+            <div className="stile-sub">
+              {currentMonthData?.month_name || "—"}
+            </div>
           </div>
           <div className="stile">
             <div className="stile-label">Best Month</div>
-            <div className="stile-value up">{bestMonth?.name || '—'}</div>
-            <div className="stile-sub">{bestMonth ? `+${num(bestMonth.avg_return_pct, 2)}% avg` : '—'}</div>
+            <div className="stile-value up">{bestMonth?.name || "—"}</div>
+            <div className="stile-sub">
+              {bestMonth ? `+${num(bestMonth.avg_return_pct, 2)}% avg` : "—"}
+            </div>
           </div>
           <div className="stile">
             <div className="stile-label">Worst Month</div>
-            <div className="stile-value down">{worstMonth?.name || '—'}</div>
-            <div className="stile-sub">{worstMonth ? `${num(worstMonth.avg_return_pct, 2)}% avg` : '—'}</div>
+            <div className="stile-value down">{worstMonth?.name || "—"}</div>
+            <div className="stile-sub">
+              {worstMonth ? `${num(worstMonth.avg_return_pct, 2)}% avg` : "—"}
+            </div>
           </div>
           <div className="stile">
             <div className="stile-label">Best Day of Week</div>
-            <div className="stile-value up">{bestDay?.name || '—'}</div>
-            <div className="stile-sub">{worstDay ? `Worst: ${worstDay.name}` : '—'}</div>
+            <div className="stile-value up">{bestDay?.name || "—"}</div>
+            <div className="stile-sub">
+              {worstDay ? `Worst: ${worstDay.name}` : "—"}
+            </div>
           </div>
         </div>
         {monthlyArray.length > 0 && (
-          <div style={{ marginTop: 'var(--space-4)', height: 80, minWidth: 0 }}>
+          <div style={{ marginTop: "var(--space-4)", height: 80, minWidth: 0 }}>
             <ResponsiveContainer width="100%" height="100%">
-              <BarChart data={monthlyArray} margin={{ top: 4, right: 4, bottom: 0, left: 0 }}>
-                <XAxis dataKey="month_name" tick={{ fill: C.textFaint, fontSize: 9 }} tickFormatter={m => String(m).slice(0, 3)} />
+              <BarChart
+                data={monthlyArray}
+                margin={{ top: 4, right: 4, bottom: 0, left: 0 }}
+              >
+                <XAxis
+                  dataKey="month_name"
+                  tick={{ fill: C.textFaint, fontSize: 9 }}
+                  tickFormatter={(m) => String(m).slice(0, 3)}
+                />
                 <YAxis hide />
-                <RTooltip contentStyle={TOOLTIP_STYLE} formatter={(v) => [`${v >= 0 ? '+' : ''}${num(v, 2)}%`, 'Hist. Avg']} />
+                <RTooltip
+                  contentStyle={TOOLTIP_STYLE}
+                  formatter={(v) => [
+                    `${v >= 0 ? "+" : ""}${num(v, 2)}%`,
+                    "Hist. Avg",
+                  ]}
+                />
                 <Bar dataKey="avg_return">
                   {monthlyArray.map((m, i) => (
-                    <Cell key={i} fill={(m.avg_return || 0) >= 0 ? C.success : C.danger} fillOpacity={0.7} />
+                    <Cell
+                      key={i}
+                      fill={(m.avg_return || 0) >= 0 ? C.success : C.danger}
+                      fillOpacity={0.7}
+                    />
                   ))}
                 </Bar>
               </BarChart>
@@ -1102,17 +2022,17 @@ function SeasonalityCard({ data, loading, error }) {
 // â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
 
 const SECTOR_ETFS = [
-  { etf: 'XLK', name: 'Technology',           weight: 30 },
-  { etf: 'XLF', name: 'Financials',           weight: 14 },
-  { etf: 'XLV', name: 'Health Care',          weight: 12 },
-  { etf: 'XLY', name: 'Consumer Discretionary',weight: 11 },
-  { etf: 'XLC', name: 'Communication Services',weight: 9  },
-  { etf: 'XLI', name: 'Industrials',          weight: 8  },
-  { etf: 'XLP', name: 'Consumer Staples',     weight: 6  },
-  { etf: 'XLE', name: 'Energy',               weight: 4  },
-  { etf: 'XLU', name: 'Utilities',            weight: 3  },
-  { etf: 'XLRE',name: 'Real Estate',          weight: 2  },
-  { etf: 'XLB', name: 'Materials',            weight: 2  },
+  { etf: "XLK", name: "Technology", weight: 30 },
+  { etf: "XLF", name: "Financials", weight: 14 },
+  { etf: "XLV", name: "Health Care", weight: 12 },
+  { etf: "XLY", name: "Consumer Discretionary", weight: 11 },
+  { etf: "XLC", name: "Communication Services", weight: 9 },
+  { etf: "XLI", name: "Industrials", weight: 8 },
+  { etf: "XLP", name: "Consumer Staples", weight: 6 },
+  { etf: "XLE", name: "Energy", weight: 4 },
+  { etf: "XLU", name: "Utilities", weight: 3 },
+  { etf: "XLRE", name: "Real Estate", weight: 2 },
+  { etf: "XLB", name: "Materials", weight: 2 },
 ];
 
 function SectorTile({ etf, name, weight, onSelect, prices = [] }) {
@@ -1123,16 +2043,23 @@ function SectorTile({ etf, name, weight, onSelect, prices = [] }) {
   const prev = prevEntry?.close ? parseFloat(prevEntry.close) : null;
   const lastN = last != null ? parseFloat(last) : null;
   const prevN = prev != null ? parseFloat(prev) : null;
-  const chgPct = lastN && prevN && prevN !== 0 ? ((lastN - prevN) / prevN) * 100 : null;
+  const chgPct =
+    lastN && prevN && prevN !== 0 ? ((lastN - prevN) / prevN) * 100 : null;
 
   // Color by intensity: green up, red down
   const intensity = chgPct == null ? 0 : Math.min(Math.abs(chgPct) / 3, 1);
-  const baseColor = chgPct == null ? 'var(--surface-2)'
-    : chgPct >= 0
-    ? `rgba(34, 197, 94, ${0.15 + intensity * 0.55})`
-    : `rgba(239, 68, 68, ${0.15 + intensity * 0.55})`;
-  const borderC = chgPct == null ? 'var(--border)'
-    : chgPct >= 0 ? 'var(--success)' : 'var(--danger)';
+  const baseColor =
+    chgPct == null
+      ? "var(--surface-2)"
+      : chgPct >= 0
+        ? `rgba(34, 197, 94, ${0.15 + intensity * 0.55})`
+        : `rgba(239, 68, 68, ${0.15 + intensity * 0.55})`;
+  const borderC =
+    chgPct == null
+      ? "var(--border)"
+      : chgPct >= 0
+        ? "var(--success)"
+        : "var(--danger)";
 
   return (
     <button
@@ -1141,60 +2068,107 @@ function SectorTile({ etf, name, weight, onSelect, prices = [] }) {
       style={{
         background: baseColor,
         border: `1px solid ${borderC}`,
-        borderRadius: 'var(--r-sm)',
-        padding: 'var(--space-3)',
-        color: 'var(--text)',
-        cursor: 'pointer',
-        textAlign: 'left',
+        borderRadius: "var(--r-sm)",
+        padding: "var(--space-3)",
+        color: "var(--text)",
+        cursor: "pointer",
+        textAlign: "left",
         minHeight: 80,
-        display: 'flex', flexDirection: 'column', justifyContent: 'space-between',
-        transition: 'transform 100ms',
+        display: "flex",
+        flexDirection: "column",
+        justifyContent: "space-between",
+        transition: "transform 100ms",
       }}
-      onMouseEnter={(e) => e.currentTarget.style.transform = 'scale(1.02)'}
-      onMouseLeave={(e) => e.currentTarget.style.transform = 'scale(1)'}
+      onMouseEnter={(e) => (e.currentTarget.style.transform = "scale(1.02)")}
+      onMouseLeave={(e) => (e.currentTarget.style.transform = "scale(1)")}
     >
-      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline' }}>
-        <span style={{ fontWeight: 'var(--w-bold)', fontSize: 'var(--t-md)' }}>{etf}</span>
-        <span className="t-2xs" style={{ color: 'var(--text-faint)' }}>{weight}%</span>
+      <div
+        style={{
+          display: "flex",
+          justifyContent: "space-between",
+          alignItems: "baseline",
+        }}
+      >
+        <span style={{ fontWeight: "var(--w-bold)", fontSize: "var(--t-md)" }}>
+          {etf}
+        </span>
+        <span className="t-2xs" style={{ color: "var(--text-faint)" }}>
+          {weight}%
+        </span>
       </div>
-      <div className="t-2xs" style={{ color: 'var(--text-muted)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+      <div
+        className="t-2xs"
+        style={{
+          color: "var(--text-muted)",
+          overflow: "hidden",
+          textOverflow: "ellipsis",
+          whiteSpace: "nowrap",
+        }}
+      >
         {name}
       </div>
-      <div className="tnum" style={{
-        fontSize: 'var(--t-lg)',
-        fontWeight: 'var(--w-bold)',
-        color: chgPct == null ? 'var(--text-faint)' : (chgPct >= 0 ? 'var(--success)' : 'var(--danger)'),
-      }}>
-        {chgPct == null ? '—' : fmtPct(chgPct)}
+      <div
+        className="tnum"
+        style={{
+          fontSize: "var(--t-lg)",
+          fontWeight: "var(--w-bold)",
+          color:
+            chgPct == null
+              ? "var(--text-faint)"
+              : chgPct >= 0
+                ? "var(--success)"
+                : "var(--danger)",
+        }}
+      >
+        {chgPct == null ? "—" : fmtPct(chgPct)}
       </div>
     </button>
   );
 }
 
 function SectorHeatMap({ onSelect }) {
-  const etfSymbols = SECTOR_ETFS.map(s => s.etf).join(',');
+  const etfSymbols = SECTOR_ETFS.map((s) => s.etf).join(",");
   const { data: batchData } = useApiQuery(
-    ['sector-batch-history'],
-    () => api.get(`/api/prices/batch-history?symbols=${etfSymbols}&timeframe=daily&limit=2`),
+    ["sector-batch-history"],
+    () =>
+      api.get(
+        `/api/prices/batch-history?symbols=${etfSymbols}&timeframe=daily&limit=2`
+      ),
     { staleTime: 30000, refetchInterval: 60000 }
   );
-  const symbolMap = safeGetObject(batchData, {}).symbols && typeof safeGetObject(batchData, {}).symbols === 'object' ? safeGetObject(batchData, {}).symbols : {};
+  const symbolMap =
+    safeGetObject(batchData, {}).symbols &&
+    typeof safeGetObject(batchData, {}).symbols === "object"
+      ? safeGetObject(batchData, {}).symbols
+      : {};
   return (
     <div className="card">
       <div className="card-head">
         <div>
           <div className="card-title">Sector Heat Map</div>
-          <div className="card-sub">11 SPDR sector ETFs · tile size = approx S&P weight · color = today's % change · click to drill</div>
+          <div className="card-sub">
+            11 SPDR sector ETFs · tile size = approx S&P weight · color =
+            today's % change · click to drill
+          </div>
         </div>
       </div>
       <div className="card-body">
-        <div style={{
-          display: 'grid',
-          gridTemplateColumns: 'repeat(auto-fill, minmax(140px, 1fr))',
-          gap: 'var(--space-2)',
-        }}>
-          {SECTOR_ETFS.map(s => (
-            <SectorTile key={s.etf} etf={s.etf} name={s.name} weight={s.weight} onSelect={onSelect} prices={symbolMap[s.etf] || []} />
+        <div
+          style={{
+            display: "grid",
+            gridTemplateColumns: "repeat(auto-fill, minmax(140px, 1fr))",
+            gap: "var(--space-2)",
+          }}
+        >
+          {SECTOR_ETFS.map((s) => (
+            <SectorTile
+              key={s.etf}
+              etf={s.etf}
+              name={s.name}
+              weight={s.weight}
+              onSelect={onSelect}
+              prices={symbolMap[s.etf] || []}
+            />
           ))}
         </div>
       </div>
@@ -1207,17 +2181,21 @@ function SectorHeatMap({ onSelect }) {
 // â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
 
 function SectorRotationMap({ markets, onSelect }) {
-  const sectors = safeGetArray(markets?.sectors, 'sectors') || [];
+  const sectors = safeGetArray(markets?.sectors, "sectors") || [];
   // RS-Rank: lower current_rank = stronger (invert to score 0-100, higher = better)
   // RS-Momentum: positive if rank improved (rank_4w_ago > current_rank)
   const data = useMemo(() => {
     if (!sectors.length) return [];
-    const maxRank = Math.max(...sectors.map(s => s.rank || 0)) || sectors.length;
-    return sectors.map(s => {
-      const rsRank = maxRank ? ((maxRank - (s.rank || maxRank)) / maxRank) * 100 : 50;
-      const rsMomentum = s.rank_4w_ago != null && s.rank != null
-        ? (s.rank_4w_ago - s.rank) // positive = improving
-        : 0;
+    const maxRank =
+      Math.max(...sectors.map((s) => s.rank || 0)) || sectors.length;
+    return sectors.map((s) => {
+      const rsRank = maxRank
+        ? ((maxRank - (s.rank || maxRank)) / maxRank) * 100
+        : 50;
+      const rsMomentum =
+        s.rank_4w_ago != null && s.rank != null
+          ? s.rank_4w_ago - s.rank // positive = improving
+          : 0;
       return {
         name: s.name,
         rsRank: Number(rsRank.toFixed(1)),
@@ -1228,23 +2206,33 @@ function SectorRotationMap({ markets, onSelect }) {
     });
   }, [sectors]);
 
-  if (!data.length) return <Empty title="Sector Rotation" desc="Sector ranking data not available" wrap />;
+  if (!data.length)
+    return (
+      <Empty
+        title="Sector Rotation"
+        desc="Sector ranking data not available"
+        wrap
+      />
+    );
 
   // Compute axis ranges
-  const momRange = Math.max(2, Math.max(...data.map(d => Math.abs(d.rsMomentum))));
+  const momRange = Math.max(
+    2,
+    Math.max(...data.map((d) => Math.abs(d.rsMomentum)))
+  );
 
   // Quadrant: leading (high RS, +mom), improving (low RS, +mom), weakening (high RS, -mom), lagging (low RS, -mom)
   const quadrant = (d) => {
-    if (d.rsRank >= 50 && d.rsMomentum >= 0) return 'leading';
-    if (d.rsRank < 50  && d.rsMomentum >= 0) return 'improving';
-    if (d.rsRank >= 50 && d.rsMomentum < 0)  return 'weakening';
-    return 'lagging';
+    if (d.rsRank >= 50 && d.rsMomentum >= 0) return "leading";
+    if (d.rsRank < 50 && d.rsMomentum >= 0) return "improving";
+    if (d.rsRank >= 50 && d.rsMomentum < 0) return "weakening";
+    return "lagging";
   };
   const QUAD_COLOR = {
-    leading:   C.success,
+    leading: C.success,
     improving: C.cyan,
     weakening: C.amber,
-    lagging:   C.danger,
+    lagging: C.danger,
   };
 
   const RotTooltip = ({ active, payload }) => {
@@ -1253,9 +2241,14 @@ function SectorRotationMap({ markets, onSelect }) {
     if (!p) return null;
     return (
       <div style={TOOLTIP_STYLE}>
-        <div style={{ fontWeight: 'var(--w-bold)', marginBottom: 4 }}>{p.name}</div>
+        <div style={{ fontWeight: "var(--w-bold)", marginBottom: 4 }}>
+          {p.name}
+        </div>
         <div className="mono tnum">RS-Rank: {p.rsRank.toFixed(1)}</div>
-        <div className="mono tnum">4w Δrank: {p.rsMomentum >= 0 ? '+' : ''}{p.rsMomentum}</div>
+        <div className="mono tnum">
+          4w Δrank: {p.rsMomentum >= 0 ? "+" : ""}
+          {p.rsMomentum}
+        </div>
         <div className="mono tnum">Quadrant: {quadrant(p)}</div>
       </div>
     );
@@ -1266,34 +2259,82 @@ function SectorRotationMap({ markets, onSelect }) {
       <div className="card-head">
         <div>
           <div className="card-title">Sector Rotation Map</div>
-          <div className="card-sub">RS-Rank vs 4-week momentum · leading / improving / weakening / lagging</div>
+          <div className="card-sub">
+            RS-Rank vs 4-week momentum · leading / improving / weakening /
+            lagging
+          </div>
         </div>
       </div>
       <div className="card-body">
-        <div className="chart-container" style={{ height: 360, position: 'relative' }}>
+        <div
+          className="chart-container"
+          style={{ height: 360, position: "relative" }}
+        >
           <ResponsiveContainer width="100%" height="100%">
             <ScatterChart margin={{ top: 16, right: 24, bottom: 24, left: 24 }}>
               <CartesianGrid stroke={C.border} strokeDasharray="2 4" />
-              <XAxis type="number" dataKey="rsRank" domain={[0, 100]}
+              <XAxis
+                type="number"
+                dataKey="rsRank"
+                domain={[0, 100]}
                 tick={{ fill: C.textFaint, fontSize: 11 }}
-                label={{ value: 'RS-Rank →', position: 'insideBottom', offset: -8, fill: C.textFaint, fontSize: 11 }} />
-              <YAxis type="number" dataKey="rsMomentum" domain={[-momRange, momRange]}
+                label={{
+                  value: "RS-Rank →",
+                  position: "insideBottom",
+                  offset: -8,
+                  fill: C.textFaint,
+                  fontSize: 11,
+                }}
+              />
+              <YAxis
+                type="number"
+                dataKey="rsMomentum"
+                domain={[-momRange, momRange]}
                 tick={{ fill: C.textFaint, fontSize: 11 }}
-                label={{ value: '4-week Δ rank', angle: -90, position: 'insideLeft', fill: C.textFaint, fontSize: 11 }} />
+                label={{
+                  value: "4-week Δ rank",
+                  angle: -90,
+                  position: "insideLeft",
+                  fill: C.textFaint,
+                  fontSize: 11,
+                }}
+              />
               <ZAxis range={[80, 80]} />
               <ReferenceLine x={50} stroke={C.border2} strokeDasharray="3 3" />
-              <ReferenceLine y={0}  stroke={C.border2} strokeDasharray="3 3" />
-              <RTooltip content={<RotTooltip />} cursor={{ strokeDasharray: '3 3' }} />
+              <ReferenceLine y={0} stroke={C.border2} strokeDasharray="3 3" />
+              <RTooltip
+                content={<RotTooltip />}
+                cursor={{ strokeDasharray: "3 3" }}
+              />
               <Scatter
                 data={data}
                 shape={(props) => {
                   const { cx, cy, payload } = props;
                   return (
-                    <g style={{ cursor: 'pointer' }} onClick={() => onSelect && onSelect(payload.name)}>
-                      <circle cx={cx} cy={cy} r={8} fill={QUAD_COLOR[quadrant(payload)]} fillOpacity={0.7}
-                              stroke={QUAD_COLOR[quadrant(payload)]} strokeWidth={1.5} />
-                      <text x={cx} y={cy - 12} fill={C.text} fontSize={10} textAnchor="middle"
-                            style={{ fontFamily: 'var(--font-mono)', fontWeight: 'var(--w-semibold)' }}>
+                    <g
+                      style={{ cursor: "pointer" }}
+                      onClick={() => onSelect && onSelect(payload.name)}
+                    >
+                      <circle
+                        cx={cx}
+                        cy={cy}
+                        r={8}
+                        fill={QUAD_COLOR[quadrant(payload)]}
+                        fillOpacity={0.7}
+                        stroke={QUAD_COLOR[quadrant(payload)]}
+                        strokeWidth={1.5}
+                      />
+                      <text
+                        x={cx}
+                        y={cy - 12}
+                        fill={C.text}
+                        fontSize={10}
+                        textAnchor="middle"
+                        style={{
+                          fontFamily: "var(--font-mono)",
+                          fontWeight: "var(--w-semibold)",
+                        }}
+                      >
                         {payload.name.slice(0, 8)}
                       </text>
                     </g>
@@ -1303,17 +2344,23 @@ function SectorRotationMap({ markets, onSelect }) {
             </ScatterChart>
           </ResponsiveContainer>
         </div>
-        <div className="grid grid-4" style={{ marginTop: 'var(--space-3)' }}>
+        <div className="grid grid-4" style={{ marginTop: "var(--space-3)" }}>
           {[
-            ['Leading',   'leading',   'High RS · + mom'],
-            ['Improving', 'improving', 'Low RS · + mom'],
-            ['Weakening', 'weakening', 'High RS · - mom'],
-            ['Lagging',   'lagging',   'Low RS · - mom'],
+            ["Leading", "leading", "High RS · + mom"],
+            ["Improving", "improving", "Low RS · + mom"],
+            ["Weakening", "weakening", "High RS · - mom"],
+            ["Lagging", "lagging", "Low RS · - mom"],
           ].map(([label, key, sub]) => (
-            <div key={key} className="stile" style={{ borderLeft: `3px solid ${QUAD_COLOR[key]}` }}>
-              <div className="stile-label" style={{ color: QUAD_COLOR[key] }}>{label}</div>
-              <div className="stile-value" style={{ fontSize: 'var(--t-lg)' }}>
-                {data.filter(d => quadrant(d) === key).length}
+            <div
+              key={key}
+              className="stile"
+              style={{ borderLeft: `3px solid ${QUAD_COLOR[key]}` }}
+            >
+              <div className="stile-label" style={{ color: QUAD_COLOR[key] }}>
+                {label}
+              </div>
+              <div className="stile-value" style={{ fontSize: "var(--t-lg)" }}>
+                {data.filter((d) => quadrant(d) === key).length}
               </div>
               <div className="stile-sub">{sub}</div>
             </div>
@@ -1330,63 +2377,113 @@ function SectorRotationMap({ markets, onSelect }) {
 
 function SectorRotationSignalCard() {
   const { data, loading, error } = useApiQuery(
-    ['sector-rotation'],
-    () => api.get('/api/algo/sector-rotation?limit=90'),
+    ["sector-rotation"],
+    () => api.get("/api/algo/sector-rotation?limit=90"),
     { refetchInterval: 1000 * 60 * 15 }
   );
 
-  const items = Array.isArray(data) ? data : (data?.items || []);
+  const items = Array.isArray(data) ? data : data?.items || [];
 
-  if (loading && !items.length) return <Empty title="Sector Rotation Signal" desc="Loading…" wrap />;
-  if (error || !items.length) return <Empty title="Sector Rotation Signal" desc="Signal data not available" wrap />;
+  if (loading && !items.length)
+    return <Empty title="Sector Rotation Signal" desc="Loading…" wrap />;
+  if (error || !items.length)
+    return (
+      <Empty
+        title="Sector Rotation Signal"
+        desc="Signal data not available"
+        wrap
+      />
+    );
   const latest = items[items.length - 1];
   const _prior = items[items.length - 2] || latest;
 
-  const signalColor = latest?.signal === 'DEFENSIVE' ? C.cyan : latest?.signal === 'CYCLICAL' ? C.success : C.amber;
+  const signalColor =
+    latest?.signal === "DEFENSIVE"
+      ? C.cyan
+      : latest?.signal === "CYCLICAL"
+        ? C.success
+        : C.amber;
 
   return (
     <div className="card">
       <div className="card-head">
         <div>
           <div className="card-title">Sector Rotation Signal</div>
-          <div className="card-sub">Defensive vs Cyclical leadership · {latest?.weeks_persistent || 0} weeks persistent</div>
+          <div className="card-sub">
+            Defensive vs Cyclical leadership · {latest?.weeks_persistent || 0}{" "}
+            weeks persistent
+          </div>
         </div>
-        <span className="badge" style={{ background: signalColor, color: 'white' }}>
-          {String(latest?.signal || 'neutral').replace(/_/g, ' ').toUpperCase()}
+        <span
+          className="badge"
+          style={{ background: signalColor, color: "white" }}
+        >
+          {String(latest?.signal || "neutral")
+            .replace(/_/g, " ")
+            .toUpperCase()}
         </span>
       </div>
       <div className="card-body">
         <div className="chart-container" style={{ height: 200 }}>
           <ResponsiveContainer width="100%" height="100%">
-            <LineChart data={items.map(d => ({
-              date: fmtDate(d.date),
-              fullDate: d.date,
-              defensive: parseFloat(d.defensive_lead_score || 0),
-              cyclical: parseFloat(d.cyclical_weak_score || 0),
-              signal: d.signal
-            }))} margin={{ top: 8, right: 16, bottom: 20, left: 0 }}>
+            <LineChart
+              data={items.map((d) => ({
+                date: fmtDate(d.date),
+                fullDate: d.date,
+                defensive: parseFloat(d.defensive_lead_score || 0),
+                cyclical: parseFloat(d.cyclical_weak_score || 0),
+                signal: d.signal,
+              }))}
+              margin={{ top: 8, right: 16, bottom: 20, left: 0 }}
+            >
               <CartesianGrid stroke={C.border} strokeDasharray="2 4" />
-              <XAxis dataKey="date" tick={{ fill: C.textFaint, fontSize: 11 }} />
-              <YAxis tick={{ fill: C.textFaint, fontSize: 11 }} domain={[0, 100]} />
+              <XAxis
+                dataKey="date"
+                tick={{ fill: C.textFaint, fontSize: 11 }}
+              />
+              <YAxis
+                tick={{ fill: C.textFaint, fontSize: 11 }}
+                domain={[0, 100]}
+              />
               <RTooltip
                 contentStyle={TOOLTIP_STYLE}
-                formatter={(v) => [num(v, 1), v === items[items.length - 1]?.defensive_lead_score ? 'Defensive' : 'Cyclical']}
+                formatter={(v) => [
+                  num(v, 1),
+                  v === items[items.length - 1]?.defensive_lead_score
+                    ? "Defensive"
+                    : "Cyclical",
+                ]}
               />
               <Legend />
-              <Line type="monotone" dataKey="defensive" stroke={C.cyan} strokeWidth={2.5} name="Defensive Lead" dot={false} />
-              <Line type="monotone" dataKey="cyclical" stroke={C.success} strokeWidth={2.5} name="Cyclical Strength" dot={false} />
+              <Line
+                type="monotone"
+                dataKey="defensive"
+                stroke={C.cyan}
+                strokeWidth={2.5}
+                name="Defensive Lead"
+                dot={false}
+              />
+              <Line
+                type="monotone"
+                dataKey="cyclical"
+                stroke={C.success}
+                strokeWidth={2.5}
+                name="Cyclical Strength"
+                dot={false}
+              />
             </LineChart>
           </ResponsiveContainer>
         </div>
 
-        <div className="grid grid-3" style={{ marginTop: 'var(--space-3)' }}>
+        <div className="grid grid-3" style={{ marginTop: "var(--space-3)" }}>
           <div className="stile">
             <div className="stile-label">Defensive Lead</div>
             <div className="stile-value mono tnum" style={{ color: C.cyan }}>
               {num(latest?.defensive_lead_score, 1)}
             </div>
-            <div className="stile-sub" style={{ fontSize: 'var(--t-2xs)' }}>
-              {latest?.defensive_avg_rs > 0 ? '+' : ''}{num(latest?.defensive_avg_rs, 2)}% RS avg
+            <div className="stile-sub" style={{ fontSize: "var(--t-2xs)" }}>
+              {latest?.defensive_avg_rs > 0 ? "+" : ""}
+              {num(latest?.defensive_avg_rs, 2)}% RS avg
             </div>
           </div>
           <div className="stile">
@@ -1394,16 +2491,20 @@ function SectorRotationSignalCard() {
             <div className="stile-value mono tnum" style={{ color: C.success }}>
               {num(latest?.cyclical_weak_score, 1)}
             </div>
-            <div className="stile-sub" style={{ fontSize: 'var(--t-2xs)' }}>
-              {latest?.cyclical_avg_rs > 0 ? '+' : ''}{num(latest?.cyclical_avg_rs, 2)}% RS avg
+            <div className="stile-sub" style={{ fontSize: "var(--t-2xs)" }}>
+              {latest?.cyclical_avg_rs > 0 ? "+" : ""}
+              {num(latest?.cyclical_avg_rs, 2)}% RS avg
             </div>
           </div>
           <div className="stile">
             <div className="stile-label">Spread</div>
-            <div className="stile-value mono tnum" style={{ color: signalColor }}>
+            <div
+              className="stile-value mono tnum"
+              style={{ color: signalColor }}
+            >
               {num(latest?.spread, 1)}
             </div>
-            <div className="stile-sub" style={{ fontSize: 'var(--t-2xs)' }}>
+            <div className="stile-sub" style={{ fontSize: "var(--t-2xs)" }}>
               {latest?.weeks_persistent || 0} wks persistent
             </div>
           </div>
@@ -1419,29 +2520,42 @@ function SectorRotationSignalCard() {
 
 function YieldCurveCard() {
   const { data, loading, error } = useApiQuery(
-    ['yield-curve-full'],
-    () => api.get('/api/economic/yield-curve-full'),
+    ["yield-curve-full"],
+    () => api.get("/api/economic/yield-curve-full"),
     { refetchInterval: 1000 * 60 * 30 }
   );
 
-  if (loading && !data) return <Empty title="Yield Curve" desc="Loading…" wrap />;
-  const currentCurve = (data && typeof data === 'object' && data.currentCurve) ? data.currentCurve : {};
-  if (error || !currentCurve || typeof currentCurve !== 'object' || Object.keys(currentCurve).length === 0) {
-    return <Empty title="Yield Curve" desc="Treasury data not available" wrap />;
+  if (loading && !data)
+    return <Empty title="Yield Curve" desc="Loading…" wrap />;
+  const currentCurve =
+    data && typeof data === "object" && data.currentCurve
+      ? data.currentCurve
+      : {};
+  if (
+    error ||
+    !currentCurve ||
+    typeof currentCurve !== "object" ||
+    Object.keys(currentCurve).length === 0
+  ) {
+    return (
+      <Empty title="Yield Curve" desc="Treasury data not available" wrap />
+    );
   }
 
-  const order = ['3M', '6M', '1Y', '2Y', '3Y', '5Y', '7Y', '10Y', '20Y', '30Y'];
+  const order = ["3M", "6M", "1Y", "2Y", "3Y", "5Y", "7Y", "10Y", "20Y", "30Y"];
   const curve = order
-    .filter(k => currentCurve[k] != null)
-    .map(k => {
+    .filter((k) => currentCurve[k] != null)
+    .map((k) => {
       const val = parseFloat(currentCurve[k]);
       return { maturity: k, yield: isFinite(val) ? val : null };
     })
-    .filter(d => d.yield != null);
+    .filter((d) => d.yield != null);
 
-  if (!curve.length) return <Empty title="Yield Curve" desc="No maturities available" wrap />;
+  if (!curve.length)
+    return <Empty title="Yield Curve" desc="No maturities available" wrap />;
 
-  const spreads = (data && typeof data === 'object' && data.spreads) ? data.spreads : {};
+  const spreads =
+    data && typeof data === "object" && data.spreads ? data.spreads : {};
   const spread2y10y = spreads?.T10Y2Y;
   const spread3m10y = spreads?.T10Y3M;
   const isInverted = data?.isInverted;
@@ -1452,67 +2566,105 @@ function YieldCurveCard() {
         <div>
           <div className="card-title">Treasury Yield Curve</div>
           <div className="card-sub">
-            Current curve · 2s10s {spread2y10y != null ? `${num(spread2y10y, 2)}%` : '—'}
-            {' · '}3m10y {spread3m10y != null ? `${num(spread3m10y, 2)}%` : '—'}
+            Current curve · 2s10s{" "}
+            {spread2y10y != null ? `${num(spread2y10y, 2)}%` : "—"}
+            {" · "}3m10y {spread3m10y != null ? `${num(spread3m10y, 2)}%` : "—"}
           </div>
         </div>
         {isInverted && (
-          <span className="badge badge-danger" style={{ fontSize: 'var(--t-2xs)' }}>
-            <AlertTriangle size={11} style={{ marginRight: 4 }} />INVERTED
+          <span
+            className="badge badge-danger"
+            style={{ fontSize: "var(--t-2xs)" }}
+          >
+            <AlertTriangle size={11} style={{ marginRight: 4 }} />
+            INVERTED
           </span>
         )}
       </div>
       <div className="card-body">
-        <div style={{
-          background: isInverted ? 'var(--danger-soft)' : 'transparent',
-          borderRadius: 'var(--r-sm)',
-          padding: isInverted ? 'var(--space-2)' : 0,
-        }}>
-          <div style={{ height: 220, width: '100%', minWidth: 0 }}>
+        <div
+          style={{
+            background: isInverted ? "var(--danger-soft)" : "transparent",
+            borderRadius: "var(--r-sm)",
+            padding: isInverted ? "var(--space-2)" : 0,
+          }}
+        >
+          <div style={{ height: 220, width: "100%", minWidth: 0 }}>
             <ResponsiveContainer width="100%" height="100%">
-              <LineChart data={curve} margin={{ top: 8, right: 16, bottom: 0, left: 0 }}>
+              <LineChart
+                data={curve}
+                margin={{ top: 8, right: 16, bottom: 0, left: 0 }}
+              >
                 <CartesianGrid stroke={C.border} strokeDasharray="2 4" />
-                <XAxis dataKey="maturity" tick={{ fill: C.textFaint, fontSize: 11 }} />
-                <YAxis tick={{ fill: C.textFaint, fontSize: 11 }} tickFormatter={v => `${v}%`}
-                       domain={['dataMin - 0.2', 'dataMax + 0.2']} />
-                <RTooltip contentStyle={TOOLTIP_STYLE}
-                  formatter={(v) => [`${num(v, 3)}%`, 'Yield']} />
-                <Line type="monotone" dataKey="yield"
-                      stroke={isInverted ? C.danger : C.brand}
-                      strokeWidth={2.5}
-                      dot={{ fill: isInverted ? C.danger : C.brand, r: 4 }}
-                      activeDot={{ r: 6 }} />
+                <XAxis
+                  dataKey="maturity"
+                  tick={{ fill: C.textFaint, fontSize: 11 }}
+                />
+                <YAxis
+                  tick={{ fill: C.textFaint, fontSize: 11 }}
+                  tickFormatter={(v) => `${v}%`}
+                  domain={["dataMin - 0.2", "dataMax + 0.2"]}
+                />
+                <RTooltip
+                  contentStyle={TOOLTIP_STYLE}
+                  formatter={(v) => [`${num(v, 3)}%`, "Yield"]}
+                />
+                <Line
+                  type="monotone"
+                  dataKey="yield"
+                  stroke={isInverted ? C.danger : C.brand}
+                  strokeWidth={2.5}
+                  dot={{ fill: isInverted ? C.danger : C.brand, r: 4 }}
+                  activeDot={{ r: 6 }}
+                />
               </LineChart>
             </ResponsiveContainer>
           </div>
         </div>
         {isInverted && (
-          <div className="t-xs muted" style={{ marginTop: 'var(--space-3)' }}>
-            <strong style={{ color: 'var(--danger)' }}>Recession warning:</strong>{' '}
+          <div className="t-xs muted" style={{ marginTop: "var(--space-3)" }}>
+            <strong style={{ color: "var(--danger)" }}>
+              Recession warning:
+            </strong>{" "}
             10Y &lt; 2Y spread historically precedes recessions by 6-24 months.
           </div>
         )}
-        <div className="grid grid-3" style={{ marginTop: 'var(--space-3)' }}>
+        <div className="grid grid-3" style={{ marginTop: "var(--space-3)" }}>
           <div className="stile">
             <div className="stile-label">3M</div>
-            <div className="stile-value mono tnum">{(() => {
-              const item = curve.find(c => c.maturity === '3M');
-              return item?.yield != null ? Number(item.yield).toFixed(2) : '—';
-            })()}%</div>
+            <div className="stile-value mono tnum">
+              {(() => {
+                const item = curve.find((c) => c.maturity === "3M");
+                return item?.yield != null
+                  ? Number(item.yield).toFixed(2)
+                  : "—";
+              })()}
+              %
+            </div>
           </div>
           <div className="stile">
             <div className="stile-label">10Y</div>
-            <div className="stile-value mono tnum">{(() => {
-              const item = curve.find(c => c.maturity === '10Y');
-              return item?.yield != null ? Number(item.yield).toFixed(2) : '—';
-            })()}%</div>
+            <div className="stile-value mono tnum">
+              {(() => {
+                const item = curve.find((c) => c.maturity === "10Y");
+                return item?.yield != null
+                  ? Number(item.yield).toFixed(2)
+                  : "—";
+              })()}
+              %
+            </div>
           </div>
           <div className="stile">
             <div className="stile-label">30Y</div>
-            <div className="stile-value mono tnum">{(() => {
-              const item = curve.find(c => c.maturity === '30Y');
-              return item?.yield != null ? Number(item.yield).toFixed(2) : '—';
-            })()}%</div>
+            <div className="stile-value mono tnum">
+              {(() => {
+                const item = curve.find((c) => c.maturity === "30Y");
+                return item?.yield != null
+                  ? Number(item.yield).toFixed(2)
+                  : "—";
+              })()}
+              %
+            </div>
           </div>
         </div>
       </div>
@@ -1524,19 +2676,22 @@ function YieldCurveCard() {
 // 16. VOLATILITY TERM STRUCTURE
 // â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
 
-const VIX_TERM_SYMBOLS = ['^VIX9D', '^VIX', '^VIX3M', '^VIX6M'];
+const VIX_TERM_SYMBOLS = ["^VIX9D", "^VIX", "^VIX3M", "^VIX6M"];
 const VIX_TERM_META = [
-  { sym: '^VIX9D', label: 'VIX9D', days: 9 },
-  { sym: '^VIX',   label: 'VIX',   days: 30 },
-  { sym: '^VIX3M', label: 'VIX3M', days: 90 },
-  { sym: '^VIX6M', label: 'VIX6M', days: 180 },
+  { sym: "^VIX9D", label: "VIX9D", days: 9 },
+  { sym: "^VIX", label: "VIX", days: 30 },
+  { sym: "^VIX3M", label: "VIX3M", days: 90 },
+  { sym: "^VIX6M", label: "VIX6M", days: 180 },
 ];
 
 function VolTermStructureCard() {
-  const symbols = VIX_TERM_SYMBOLS.join(',');
+  const symbols = VIX_TERM_SYMBOLS.join(",");
   const { data: batchData } = useApiQuery(
-    ['vix-batch-history'],
-    () => api.get(`/api/prices/batch-history?symbols=${symbols}&timeframe=daily&limit=2`),
+    ["vix-batch-history"],
+    () =>
+      api.get(
+        `/api/prices/batch-history?symbols=${symbols}&timeframe=daily&limit=2`
+      ),
     { staleTime: 60000, refetchInterval: 60000 }
   );
   const symbolMap = safeGetObject(batchData, {}).symbols || {};
@@ -1547,16 +2702,25 @@ function VolTermStructureCard() {
     return last != null ? parseFloat(last) : null;
   };
 
-  const points = VIX_TERM_META
-    .map(m => ({ ...m, value: getLastClose(m.sym) }))
-    .filter(p => p.value != null);
+  const points = VIX_TERM_META.map((m) => ({
+    ...m,
+    value: getLastClose(m.sym),
+  })).filter((p) => p.value != null);
 
-  if (points.length < 2) return <Empty title="Vol Term Structure" desc="VIX term structure data not loaded (^VIX9D / ^VIX3M / ^VIX6M)" wrap />;
+  if (points.length < 2)
+    return (
+      <Empty
+        title="Vol Term Structure"
+        desc="VIX term structure data not loaded (^VIX9D / ^VIX3M / ^VIX6M)"
+        wrap
+      />
+    );
 
   // Contango if value increases with time, backwardation if decreases
-  const isBackwardation = points.length >= 2 &&
-    points[0].value > points[points.length - 1].value;
-  const ratio = points.length >= 2 ? (points[points.length - 1].value / points[0].value) : 1;
+  const isBackwardation =
+    points.length >= 2 && points[0].value > points[points.length - 1].value;
+  const ratio =
+    points.length >= 2 ? points[points.length - 1].value / points[0].value : 1;
 
   return (
     <div className="card">
@@ -1565,31 +2729,54 @@ function VolTermStructureCard() {
           <div className="card-title">Volatility Term Structure</div>
           <div className="card-sub">
             {isBackwardation
-              ? 'BACKWARDATION — short-term stress, near-term IV elevated'
-              : 'CONTANGO — normal regime, vol curve upward-sloping'}
+              ? "BACKWARDATION — short-term stress, near-term IV elevated"
+              : "CONTANGO — normal regime, vol curve upward-sloping"}
           </div>
         </div>
-        <span className={`badge ${isBackwardation ? 'badge-danger' : 'badge-success'}`}>
-          {isBackwardation ? 'STRESS' : 'NORMAL'}
+        <span
+          className={`badge ${isBackwardation ? "badge-danger" : "badge-success"}`}
+        >
+          {isBackwardation ? "STRESS" : "NORMAL"}
         </span>
       </div>
       <div className="card-body">
         <div className="chart-container" style={{ height: 200 }}>
           <ResponsiveContainer width="100%" height="100%">
-            <LineChart data={points} margin={{ top: 8, right: 16, bottom: 0, left: 0 }}>
+            <LineChart
+              data={points}
+              margin={{ top: 8, right: 16, bottom: 0, left: 0 }}
+            >
               <CartesianGrid stroke={C.border} strokeDasharray="2 4" />
-              <XAxis dataKey="label" tick={{ fill: C.textFaint, fontSize: 11 }} />
-              <YAxis tick={{ fill: C.textFaint, fontSize: 11 }} domain={['dataMin - 1', 'dataMax + 1']} />
-              <RTooltip contentStyle={TOOLTIP_STYLE} formatter={(v) => [num(v, 2), 'IV']} />
-              <Line type="monotone" dataKey="value"
+              <XAxis
+                dataKey="label"
+                tick={{ fill: C.textFaint, fontSize: 11 }}
+              />
+              <YAxis
+                tick={{ fill: C.textFaint, fontSize: 11 }}
+                domain={["dataMin - 1", "dataMax + 1"]}
+              />
+              <RTooltip
+                contentStyle={TOOLTIP_STYLE}
+                formatter={(v) => [num(v, 2), "IV"]}
+              />
+              <Line
+                type="monotone"
+                dataKey="value"
                 stroke={isBackwardation ? C.danger : C.brand}
                 strokeWidth={2.5}
-                dot={{ fill: isBackwardation ? C.danger : C.brand, r: 5 }} />
+                dot={{ fill: isBackwardation ? C.danger : C.brand, r: 5 }}
+              />
             </LineChart>
           </ResponsiveContainer>
         </div>
-        <div className="grid" style={{ gridTemplateColumns: `repeat(${points.length}, 1fr)`, marginTop: 'var(--space-3)' }}>
-          {points.map(p => (
+        <div
+          className="grid"
+          style={{
+            gridTemplateColumns: `repeat(${points.length}, 1fr)`,
+            marginTop: "var(--space-3)",
+          }}
+        >
+          {points.map((p) => (
             <div key={p.label} className="stile">
               <div className="stile-label">{p.label}</div>
               <div className="stile-value mono tnum">{num(p.value, 2)}</div>
@@ -1597,9 +2784,10 @@ function VolTermStructureCard() {
             </div>
           ))}
         </div>
-        <div className="t-xs muted" style={{ marginTop: 'var(--space-3)' }}>
-          Front/back ratio {num(ratio, 2)} · {ratio < 1 ? 'inverted' : 'upward'}.
-          Backwardation often coincides with market stress and short-term tops in vol.
+        <div className="t-xs muted" style={{ marginTop: "var(--space-3)" }}>
+          Front/back ratio {num(ratio, 2)} · {ratio < 1 ? "inverted" : "upward"}
+          . Backwardation often coincides with market stress and short-term tops
+          in vol.
         </div>
       </div>
     </div>
@@ -1612,16 +2800,29 @@ function VolTermStructureCard() {
 
 function DistributionDaysTimeline() {
   const { data, loading, error } = useApiQuery(
-    ['distribution-days'],
-    () => api.get('/api/market/distribution-days'),
+    ["distribution-days"],
+    () => api.get("/api/market/distribution-days"),
     { refetchInterval: 1000 * 60 * 5 }
   );
 
-  if (loading && !data) return <Empty title="Distribution Days" desc="Loading…" wrap />;
-  if (error || !data || typeof data !== 'object') return <Empty title="Distribution Days" desc="Distribution days data not loaded" wrap />;
+  if (loading && !data)
+    return <Empty title="Distribution Days" desc="Loading…" wrap />;
+  if (error || !data || typeof data !== "object")
+    return (
+      <Empty
+        title="Distribution Days"
+        desc="Distribution days data not loaded"
+        wrap
+      />
+    );
 
-  const indices = ['^GSPC', '^IXIC', '^DJI', '^NYA'].filter(k => data[k] && typeof data[k] === 'object');
-  if (!indices.length) return <Empty title="Distribution Days" desc="No index data available" wrap />;
+  const indices = ["^GSPC", "^IXIC", "^DJI", "^NYA"].filter(
+    (k) => data[k] && typeof data[k] === "object"
+  );
+  if (!indices.length)
+    return (
+      <Empty title="Distribution Days" desc="No index data available" wrap />
+    );
 
   return (
     <div className="card">
@@ -1629,40 +2830,68 @@ function DistributionDaysTimeline() {
         <div>
           <div className="card-title">Distribution Days · last 25 sessions</div>
           <div className="card-sub">
-            Red = institutional selling (down day on heavier volume) · Gray = normal
+            Red = institutional selling (down day on heavier volume) · Gray =
+            normal
           </div>
         </div>
       </div>
       <div className="card-body">
-        {indices.map(sym => {
+        {indices.map((sym) => {
           const idx = data[sym];
           const daysArray = Array.isArray(idx?.days) ? idx.days : [];
-          const days = daysArray.slice().sort((a, b) => (a.days_ago ?? 0) - (b.days_ago ?? 0));
+          const days = daysArray
+            .slice()
+            .sort((a, b) => (a.days_ago ?? 0) - (b.days_ago ?? 0));
           // Build last 25-day timeline; oldest left → newest right
           const timeline = days.reverse();
-          const sigColor = idx.signal === 'NORMAL' ? C.success
-            : idx.signal === 'WATCH' ? C.brand2
-            : idx.signal === 'CAUTION' ? C.amber
-            : C.danger;
+          const sigColor =
+            idx.signal === "NORMAL"
+              ? C.success
+              : idx.signal === "WATCH"
+                ? C.brand2
+                : idx.signal === "CAUTION"
+                  ? C.amber
+                  : C.danger;
           return (
-            <div key={sym} style={{ marginBottom: 'var(--space-4)' }}>
-              <div className="flex items-center justify-between" style={{ marginBottom: 6 }}>
+            <div key={sym} style={{ marginBottom: "var(--space-4)" }}>
+              <div
+                className="flex items-center justify-between"
+                style={{ marginBottom: 6 }}
+              >
                 <div>
-                  <span className="mono" style={{ fontWeight: 'var(--w-bold)' }}>{idx.name}</span>
-                  <span className="muted t-xs" style={{ marginLeft: 8 }}>({sym})</span>
+                  <span
+                    className="mono"
+                    style={{ fontWeight: "var(--w-bold)" }}
+                  >
+                    {idx.name}
+                  </span>
+                  <span className="muted t-xs" style={{ marginLeft: 8 }}>
+                    ({sym})
+                  </span>
                 </div>
                 <div className="flex items-center gap-3">
-                  <span className="mono tnum t-sm" style={{ color: sigColor, fontWeight: 'var(--w-bold)' }}>
+                  <span
+                    className="mono tnum t-sm"
+                    style={{ color: sigColor, fontWeight: "var(--w-bold)" }}
+                  >
                     {idx.count} dist days
                   </span>
-                  <span className={`badge ${
-                    idx.signal === 'NORMAL' ? 'badge-success' :
-                    idx.signal === 'WATCH' ? 'badge-brand' :
-                    idx.signal === 'CAUTION' ? 'badge-amber' : 'badge-danger'
-                  }`}>{idx.signal}</span>
+                  <span
+                    className={`badge ${
+                      idx.signal === "NORMAL"
+                        ? "badge-success"
+                        : idx.signal === "WATCH"
+                          ? "badge-brand"
+                          : idx.signal === "CAUTION"
+                            ? "badge-amber"
+                            : "badge-danger"
+                    }`}
+                  >
+                    {idx.signal}
+                  </span>
                 </div>
               </div>
-              <div style={{ display: 'flex', gap: 2, height: 32 }}>
+              <div style={{ display: "flex", gap: 2, height: 32 }}>
                 {Array.from({ length: 25 }).map((_, i) => {
                   const d = timeline[i];
                   const isDist = !!d;
@@ -1671,30 +2900,44 @@ function DistributionDaysTimeline() {
                   return (
                     <div
                       key={i}
-                      title={d
-                        ? `${d.date} · ${num(chg, 2)}% · vol ${num(volRatio, 2)}×`
-                        : 'normal session'}
+                      title={
+                        d
+                          ? `${d.date} · ${num(chg, 2)}% · vol ${num(volRatio, 2)}×`
+                          : "normal session"
+                      }
                       style={{
                         flex: 1,
                         minWidth: 12,
-                        background: isDist ? C.danger : 'var(--surface-2)',
-                        border: isDist ? `1px solid ${C.danger}` : '1px solid var(--border-soft)',
+                        background: isDist ? C.danger : "var(--surface-2)",
+                        border: isDist
+                          ? `1px solid ${C.danger}`
+                          : "1px solid var(--border-soft)",
                         borderRadius: 2,
-                        opacity: isDist ? Math.min(1, 0.55 + (volRatio || 1) * 0.15) : 0.5,
+                        opacity: isDist
+                          ? Math.min(1, 0.55 + (volRatio || 1) * 0.15)
+                          : 0.5,
                       }}
                     />
                   );
                 })}
               </div>
-              <div className="t-2xs faint" style={{ marginTop: 4, display: 'flex', justifyContent: 'space-between' }}>
+              <div
+                className="t-2xs faint"
+                style={{
+                  marginTop: 4,
+                  display: "flex",
+                  justifyContent: "space-between",
+                }}
+              >
                 <span>← 25 sessions ago</span>
                 <span>today →</span>
               </div>
             </div>
           );
         })}
-        <div className="t-xs muted" style={{ marginTop: 'var(--space-3)' }}>
-          5+ distribution days in 25 sessions historically signals correction. Color intensity reflects volume ratio above average.
+        <div className="t-xs muted" style={{ marginTop: "var(--space-3)" }}>
+          5+ distribution days in 25 sessions historically signals correction.
+          Color intensity reflects volume ratio above average.
         </div>
       </div>
     </div>
@@ -1707,119 +2950,232 @@ function DistributionDaysTimeline() {
 
 function SentimentCompositeCard({ markets, sentiment, loading }) {
   const { data: fgData, loading: fgLoading } = useApiQuery(
-    ['fear-greed-30d'],
-    () => api.get('/api/market/fear-greed?range=30d'),
+    ["fear-greed-30d"],
+    () => api.get("/api/market/fear-greed?range=30d"),
     { refetchInterval: 1000 * 60 * 60 }
   );
 
-  const fgArray = Array.isArray(fgData) ? fgData : (fgData?.items || fgData?.history || []);
+  const fgArray = Array.isArray(fgData)
+    ? fgData
+    : fgData?.items || fgData?.history || [];
   const fg = (fgArray || []).slice();
   const fgLatest = fg.length ? fg[fg.length - 1] : null;
   const fgValue = fgLatest?.value ?? fgLatest?.fear_greed_value ?? null;
 
   // AAII bull-bear spread last 30 sessions for mini chart
-  const aaii = sentiment?.aaii?.history || (Array.isArray(markets?.sentiment) ? markets.sentiment : []);
-  const aaiiSeries = aaii.slice().reverse().map(s => ({
-    date: s.date,
-    spread: parseFloat(s.bullish || 0) - parseFloat(s.bearish || 0),
-  }));
+  const aaii =
+    sentiment?.aaii?.history ||
+    (Array.isArray(markets?.sentiment) ? markets.sentiment : []);
+  const aaiiSeries = aaii
+    .slice()
+    .reverse()
+    .map((s) => ({
+      date: s.date,
+      spread: parseFloat(s.bullish || 0) - parseFloat(s.bearish || 0),
+    }));
   const aaiiLatest = aaiiSeries[aaiiSeries.length - 1];
 
-  if (loading || fgLoading) return <Empty title="Sentiment Composite" desc="Loading…" wrap />;
+  if (loading || fgLoading)
+    return <Empty title="Sentiment Composite" desc="Loading…" wrap />;
 
   // Gauge segments for Fear & Greed
-  const fgRegime = fgValue == null ? null
-    : fgValue < 25 ? { label: 'Extreme Fear',   color: C.danger }
-    : fgValue < 45 ? { label: 'Fear',           color: C.amber  }
-    : fgValue < 55 ? { label: 'Neutral',        color: C.textMuted }
-    : fgValue < 75 ? { label: 'Greed',          color: C.cyan   }
-    :                { label: 'Extreme Greed',  color: C.success };
+  const fgRegime =
+    fgValue == null
+      ? null
+      : fgValue < 25
+        ? { label: "Extreme Fear", color: C.danger }
+        : fgValue < 45
+          ? { label: "Fear", color: C.amber }
+          : fgValue < 55
+            ? { label: "Neutral", color: C.textMuted }
+            : fgValue < 75
+              ? { label: "Greed", color: C.cyan }
+              : { label: "Extreme Greed", color: C.success };
 
   return (
     <div className="card">
       <div className="card-head">
         <div>
           <div className="card-title">Sentiment Composite</div>
-          <div className="card-sub">CNN Fear &amp; Greed · AAII bull-bear spread · contrarian indicators</div>
+          <div className="card-sub">
+            CNN Fear &amp; Greed · AAII bull-bear spread · contrarian indicators
+          </div>
         </div>
       </div>
       <div className="card-body">
-        <div className="grid grid-2" style={{ gap: 'var(--space-5)' }}>
+        <div className="grid grid-2" style={{ gap: "var(--space-5)" }}>
           {/* Fear & Greed gauge */}
           <div>
-            <div className="eyebrow" style={{ marginBottom: 8 }}>CNN Fear &amp; Greed Index</div>
+            <div className="eyebrow" style={{ marginBottom: 8 }}>
+              CNN Fear &amp; Greed Index
+            </div>
             {fgValue == null ? (
               <Empty title="Fear &amp; Greed" desc="Data not loaded" />
             ) : (
               <>
-                <div style={{ position: 'relative', display: 'flex', flexDirection: 'column', alignItems: 'center' }}>
+                <div
+                  style={{
+                    position: "relative",
+                    display: "flex",
+                    flexDirection: "column",
+                    alignItems: "center",
+                  }}
+                >
                   <FGGauge value={fgValue} regime={fgRegime} />
-                  <div style={{ marginTop: 'var(--space-3)', textAlign: 'center' }}>
-                    <div className="mono tnum" style={{ fontSize: 'var(--t-3xl)', fontWeight: 'var(--w-extra)', color: fgRegime.color, lineHeight: 1 }}>
+                  <div
+                    style={{ marginTop: "var(--space-3)", textAlign: "center" }}
+                  >
+                    <div
+                      className="mono tnum"
+                      style={{
+                        fontSize: "var(--t-3xl)",
+                        fontWeight: "var(--w-extra)",
+                        color: fgRegime.color,
+                        lineHeight: 1,
+                      }}
+                    >
                       {fgValue}
                     </div>
-                    <div className="t-sm" style={{ color: fgRegime.color, fontWeight: 'var(--w-bold)', textTransform: 'uppercase', marginTop: 4 }}>
+                    <div
+                      className="t-sm"
+                      style={{
+                        color: fgRegime.color,
+                        fontWeight: "var(--w-bold)",
+                        textTransform: "uppercase",
+                        marginTop: 4,
+                      }}
+                    >
                       {fgRegime.label}
                     </div>
                   </div>
                 </div>
                 {fg.length > 1 && (
-                  <div style={{ height: 60, width: '100%', marginTop: 'var(--space-3)', minWidth: 0 }}>
+                  <div
+                    style={{
+                      height: 60,
+                      width: "100%",
+                      marginTop: "var(--space-3)",
+                      minWidth: 0,
+                    }}
+                  >
                     <ResponsiveContainer width="100%" height="100%">
-                      <AreaChart data={fg} margin={{ top: 4, right: 4, bottom: 0, left: 0 }}>
+                      <AreaChart
+                        data={fg}
+                        margin={{ top: 4, right: 4, bottom: 0, left: 0 }}
+                      >
                         <defs>
-                          <linearGradient id="fgGrad" x1="0" y1="0" x2="0" y2="1">
-                            <stop offset="0%" stopColor={fgRegime.color} stopOpacity={0.4} />
-                            <stop offset="100%" stopColor={fgRegime.color} stopOpacity={0} />
+                          <linearGradient
+                            id="fgGrad"
+                            x1="0"
+                            y1="0"
+                            x2="0"
+                            y2="1"
+                          >
+                            <stop
+                              offset="0%"
+                              stopColor={fgRegime.color}
+                              stopOpacity={0.4}
+                            />
+                            <stop
+                              offset="100%"
+                              stopColor={fgRegime.color}
+                              stopOpacity={0}
+                            />
                           </linearGradient>
                         </defs>
                         <YAxis hide domain={[0, 100]} />
-                        <Area type="monotone" dataKey="value" stroke={fgRegime.color} strokeWidth={1.5} fill="url(#fgGrad)" connectNulls={true} />
-                        <RTooltip contentStyle={TOOLTIP_STYLE} formatter={(v) => [v, 'F&G']} />
+                        <Area
+                          type="monotone"
+                          dataKey="value"
+                          stroke={fgRegime.color}
+                          strokeWidth={1.5}
+                          fill="url(#fgGrad)"
+                          connectNulls={true}
+                        />
+                        <RTooltip
+                          contentStyle={TOOLTIP_STYLE}
+                          formatter={(v) => [v, "F&G"]}
+                        />
                       </AreaChart>
                     </ResponsiveContainer>
                   </div>
                 )}
-                <div className="t-2xs faint center" style={{ marginTop: 4 }}>30-day trend</div>
+                <div className="t-2xs faint center" style={{ marginTop: 4 }}>
+                  30-day trend
+                </div>
               </>
             )}
           </div>
 
           {/* AAII bull-bear spread */}
           <div>
-            <div className="eyebrow" style={{ marginBottom: 8 }}>AAII Bull-Bear Spread</div>
-            {!aaiiLatest || aaiiLatest.spread == null || aaiiSeries.length === 0 ? (
+            <div className="eyebrow" style={{ marginBottom: 8 }}>
+              AAII Bull-Bear Spread
+            </div>
+            {!aaiiLatest ||
+            aaiiLatest.spread == null ||
+            aaiiSeries.length === 0 ? (
               <Empty title="AAII Spread" desc="Data not loaded" />
             ) : (
               <>
-                <div style={{ textAlign: 'center', padding: 'var(--space-4) 0' }}>
-                  <div className="mono tnum" style={{
-                    fontSize: 'var(--t-3xl)', fontWeight: 'var(--w-extra)',
-                    color: Number(aaiiLatest.spread) >= 0 ? C.success : C.danger, lineHeight: 1,
-                  }}>
-                    {Number(aaiiLatest.spread) >= 0 ? '+' : ''}{num(aaiiLatest.spread, 1)}
+                <div
+                  style={{ textAlign: "center", padding: "var(--space-4) 0" }}
+                >
+                  <div
+                    className="mono tnum"
+                    style={{
+                      fontSize: "var(--t-3xl)",
+                      fontWeight: "var(--w-extra)",
+                      color:
+                        Number(aaiiLatest.spread) >= 0 ? C.success : C.danger,
+                      lineHeight: 1,
+                    }}
+                  >
+                    {Number(aaiiLatest.spread) >= 0 ? "+" : ""}
+                    {num(aaiiLatest.spread, 1)}
                   </div>
                   <div className="t-sm muted" style={{ marginTop: 4 }}>
-                    {Math.abs(Number(aaiiLatest.spread)) > 20 ? 'Contrarian extreme' : 'Normal range'}
+                    {Math.abs(Number(aaiiLatest.spread)) > 20
+                      ? "Contrarian extreme"
+                      : "Normal range"}
                   </div>
                 </div>
-                <div style={{ height: 100, width: '100%', minWidth: 0 }}>
+                <div style={{ height: 100, width: "100%", minWidth: 0 }}>
                   <ResponsiveContainer width="100%" height="100%">
-                    <BarChart data={aaiiSeries} margin={{ top: 4, right: 4, bottom: 0, left: 0 }}>
+                    <BarChart
+                      data={aaiiSeries}
+                      margin={{ top: 4, right: 4, bottom: 0, left: 0 }}
+                    >
                       <CartesianGrid stroke={C.border} strokeDasharray="2 4" />
-                      <XAxis dataKey="date" tick={{ fill: C.textFaint, fontSize: 10 }} tickFormatter={d => String(d).slice(5)} />
-                      <YAxis tick={{ fill: C.textFaint, fontSize: 10 }} width={32} />
+                      <XAxis
+                        dataKey="date"
+                        tick={{ fill: C.textFaint, fontSize: 10 }}
+                        tickFormatter={(d) => String(d).slice(5)}
+                      />
+                      <YAxis
+                        tick={{ fill: C.textFaint, fontSize: 10 }}
+                        width={32}
+                      />
                       <ReferenceLine y={0} stroke={C.border2} />
-                      <RTooltip contentStyle={TOOLTIP_STYLE} formatter={(v) => [num(v, 1), 'spread']} />
+                      <RTooltip
+                        contentStyle={TOOLTIP_STYLE}
+                        formatter={(v) => [num(v, 1), "spread"]}
+                      />
                       <Bar dataKey="spread">
                         {aaiiSeries.map((d, i) => (
-                          <Cell key={i} fill={d.spread >= 0 ? C.success : C.danger} fillOpacity={0.7} />
+                          <Cell
+                            key={i}
+                            fill={d.spread >= 0 ? C.success : C.danger}
+                            fillOpacity={0.7}
+                          />
                         ))}
                       </Bar>
                     </BarChart>
                   </ResponsiveContainer>
                 </div>
-                <div className="t-2xs faint center" style={{ marginTop: 4 }}>30-day spread history</div>
+                <div className="t-2xs faint center" style={{ marginTop: 4 }}>
+                  30-day spread history
+                </div>
               </>
             )}
           </div>
@@ -1833,20 +3189,24 @@ function SentimentCompositeCard({ markets, sentiment, loading }) {
 function FGGauge({ value, regime }) {
   const v = Math.max(0, Math.min(100, value));
   const angle = (v / 100) * 180 - 90; // -90 (left) to +90 (right)
-  const cx = 100, cy = 80, r = 70;
+  const cx = 100,
+    cy = 80,
+    r = 70;
   const segments = [
-    { from: 0,   to: 25,  color: C.danger },
-    { from: 25,  to: 45,  color: C.amber },
-    { from: 45,  to: 55,  color: C.textMuted },
-    { from: 55,  to: 75,  color: C.cyan },
-    { from: 75,  to: 100, color: C.success },
+    { from: 0, to: 25, color: C.danger },
+    { from: 25, to: 45, color: C.amber },
+    { from: 45, to: 55, color: C.textMuted },
+    { from: 55, to: 75, color: C.cyan },
+    { from: 75, to: 100, color: C.success },
   ];
   const arc = (from, to, color) => {
     const a1 = (from / 100) * Math.PI - Math.PI;
     const a2 = (to / 100) * Math.PI - Math.PI;
-    const x1 = cx + r * Math.cos(a1), y1 = cy + r * Math.sin(a1);
-    const x2 = cx + r * Math.cos(a2), y2 = cy + r * Math.sin(a2);
-    const large = (to - from) > 50 ? 1 : 0;
+    const x1 = cx + r * Math.cos(a1),
+      y1 = cy + r * Math.sin(a1);
+    const x2 = cx + r * Math.cos(a2),
+      y2 = cy + r * Math.sin(a2);
+    const large = to - from > 50 ? 1 : 0;
     return (
       <path
         key={from}
@@ -1864,9 +3224,16 @@ function FGGauge({ value, regime }) {
   const ny = cy + (r - 6) * Math.sin(a - Math.PI / 2);
   return (
     <svg width="200" height="110" viewBox="0 0 200 110">
-      {segments.map(s => arc(s.from, s.to, s.color))}
-      <line x1={cx} y1={cy} x2={nx} y2={ny}
-            stroke={regime?.color || C.text} strokeWidth={2.5} strokeLinecap="round" />
+      {segments.map((s) => arc(s.from, s.to, s.color))}
+      <line
+        x1={cx}
+        y1={cy}
+        x2={nx}
+        y2={ny}
+        stroke={regime?.color || C.text}
+        strokeWidth={2.5}
+        strokeLinecap="round"
+      />
       <circle cx={cx} cy={cy} r={5} fill={regime?.color || C.text} />
     </svg>
   );
@@ -1882,70 +3249,166 @@ function EconomicCalendarCard() {
   const startStr = today.toISOString().slice(0, 10);
   const endStr = end.toISOString().slice(0, 10);
   const { data, loading, error } = useApiQuery(
-    ['economic-calendar', startStr, endStr],
-    () => api.get(`/api/economic/calendar?start_date=${startStr}&end_date=${endStr}`),
+    ["economic-calendar", startStr, endStr],
+    () =>
+      api.get(
+        `/api/economic/calendar?start_date=${startStr}&end_date=${endStr}`
+      ),
     { refetchInterval: 1000 * 60 * 30 }
   );
 
-  if (loading && !data) return <Empty title="Economic Calendar" desc="Loading…" wrap />;
-  const allEvents = Array.isArray(data) ? data : (data?.items || []);
+  if (loading && !data)
+    return <Empty title="Economic Calendar" desc="Loading…" wrap />;
+  const allEvents = Array.isArray(data) ? data : data?.items || [];
   const events = allEvents;
 
   return (
     <div className="card">
       <div className="card-head">
         <div>
-          <div className="card-title">
-            Economic Calendar · next 7 days
+          <div className="card-title">Economic Calendar · next 7 days</div>
+          <div className="card-sub">
+            FOMC · CPI · NFP · GDP · expected vs prior
           </div>
-          <div className="card-sub">FOMC · CPI · NFP · GDP · expected vs prior</div>
         </div>
       </div>
       <div className="card-body" style={{ padding: 0 }}>
         {error || events.length === 0 ? (
-          <Empty title="No upcoming releases" desc="Calendar table empty for next 7 days" />
+          <Empty
+            title="No upcoming releases"
+            desc="Calendar table empty for next 7 days"
+          />
         ) : (
-          <div style={{ maxHeight: 360, overflowY: 'auto' }}>
-            <table className="data-table" style={{ width: '100%', fontSize: 'var(--t-xs)' }}>
+          <div style={{ maxHeight: 360, overflowY: "auto" }}>
+            <table
+              className="data-table"
+              style={{ width: "100%", fontSize: "var(--t-xs)" }}
+            >
               <thead>
                 <tr>
-                  <th style={{ textAlign: 'left',  padding: 'var(--space-2) var(--space-3)' }}>Date</th>
-                  <th style={{ textAlign: 'left',  padding: 'var(--space-2) var(--space-3)' }}>Event</th>
-                  <th style={{ textAlign: 'right', padding: 'var(--space-2) var(--space-3)' }}>Forecast</th>
-                  <th style={{ textAlign: 'right', padding: 'var(--space-2) var(--space-3)' }}>Prior</th>
-                  <th style={{ textAlign: 'center',padding: 'var(--space-2) var(--space-3)' }}>Impact</th>
+                  <th
+                    style={{
+                      textAlign: "left",
+                      padding: "var(--space-2) var(--space-3)",
+                    }}
+                  >
+                    Date
+                  </th>
+                  <th
+                    style={{
+                      textAlign: "left",
+                      padding: "var(--space-2) var(--space-3)",
+                    }}
+                  >
+                    Event
+                  </th>
+                  <th
+                    style={{
+                      textAlign: "right",
+                      padding: "var(--space-2) var(--space-3)",
+                    }}
+                  >
+                    Forecast
+                  </th>
+                  <th
+                    style={{
+                      textAlign: "right",
+                      padding: "var(--space-2) var(--space-3)",
+                    }}
+                  >
+                    Prior
+                  </th>
+                  <th
+                    style={{
+                      textAlign: "center",
+                      padding: "var(--space-2) var(--space-3)",
+                    }}
+                  >
+                    Impact
+                  </th>
                 </tr>
               </thead>
               <tbody>
                 {events.map((ev, i) => {
-                  const importance = (ev.importance || '').toLowerCase();
-                  const impactColor = importance === 'high' ? C.danger
-                    : importance === 'medium' ? C.amber : C.textMuted;
+                  const importance = (ev.importance || "").toLowerCase();
+                  const impactColor =
+                    importance === "high"
+                      ? C.danger
+                      : importance === "medium"
+                        ? C.amber
+                        : C.textMuted;
                   return (
-                    <tr key={i} style={{ borderTop: '1px solid var(--border-soft)' }}>
-                      <td className="mono tnum" style={{ padding: 'var(--space-2) var(--space-3)', color: 'var(--text-muted)' }}>
+                    <tr
+                      key={i}
+                      style={{ borderTop: "1px solid var(--border-soft)" }}
+                    >
+                      <td
+                        className="mono tnum"
+                        style={{
+                          padding: "var(--space-2) var(--space-3)",
+                          color: "var(--text-muted)",
+                        }}
+                      >
                         {fmtDate(String(ev.event_date || ev.date))}
                         {ev.event_time && (
-                          <div className="t-2xs faint">{String(ev.event_time).slice(0, 5)}</div>
+                          <div className="t-2xs faint">
+                            {String(ev.event_time).slice(0, 5)}
+                          </div>
                         )}
                       </td>
-                      <td style={{ padding: 'var(--space-2) var(--space-3)' }}>
-                        <div style={{ fontWeight: 'var(--w-semibold)' }}>{String(ev.event_name || ev.event || ev.name || '—')}</div>
-                        {ev.country && <div className="t-2xs faint">{String(ev.country)}</div>}
+                      <td style={{ padding: "var(--space-2) var(--space-3)" }}>
+                        <div style={{ fontWeight: "var(--w-semibold)" }}>
+                          {String(ev.event_name || ev.event || ev.name || "—")}
+                        </div>
+                        {ev.country && (
+                          <div className="t-2xs faint">
+                            {String(ev.country)}
+                          </div>
+                        )}
                       </td>
-                      <td className="mono tnum" style={{ padding: 'var(--space-2) var(--space-3)', textAlign: 'right' }}>
-                        {String(ev.forecast ?? ev.expected ?? '—')}
+                      <td
+                        className="mono tnum"
+                        style={{
+                          padding: "var(--space-2) var(--space-3)",
+                          textAlign: "right",
+                        }}
+                      >
+                        {String(ev.forecast ?? ev.expected ?? "—")}
                       </td>
-                      <td className="mono tnum" style={{ padding: 'var(--space-2) var(--space-3)', textAlign: 'right', color: 'var(--text-muted)' }}>
-                        {String(ev.previous ?? ev.prior ?? '—')}
+                      <td
+                        className="mono tnum"
+                        style={{
+                          padding: "var(--space-2) var(--space-3)",
+                          textAlign: "right",
+                          color: "var(--text-muted)",
+                        }}
+                      >
+                        {String(ev.previous ?? ev.prior ?? "—")}
                       </td>
-                      <td style={{ padding: 'var(--space-2) var(--space-3)', textAlign: 'center' }}>
-                        <span style={{
-                          display: 'inline-block', width: 8, height: 8, borderRadius: '50%',
-                          background: impactColor,
-                        }} />
-                        <span className="t-2xs" style={{ marginLeft: 4, color: impactColor, textTransform: 'uppercase' }}>
-                          {String(importance || '—')}
+                      <td
+                        style={{
+                          padding: "var(--space-2) var(--space-3)",
+                          textAlign: "center",
+                        }}
+                      >
+                        <span
+                          style={{
+                            display: "inline-block",
+                            width: 8,
+                            height: 8,
+                            borderRadius: "50%",
+                            background: impactColor,
+                          }}
+                        />
+                        <span
+                          className="t-2xs"
+                          style={{
+                            marginLeft: 4,
+                            color: impactColor,
+                            textTransform: "uppercase",
+                          }}
+                        >
+                          {String(importance || "—")}
                         </span>
                       </td>
                     </tr>
@@ -1959,7 +3422,6 @@ function EconomicCalendarCard() {
     </div>
   );
 }
-
 
 // â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
 // EMPTY HELPER
@@ -2003,4 +3465,3 @@ SentimentCompositeCard.propTypes = {
   sentiment: PropTypes.object,
   loading: PropTypes.bool,
 };
-

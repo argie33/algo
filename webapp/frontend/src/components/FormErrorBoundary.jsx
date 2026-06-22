@@ -1,5 +1,5 @@
-import React, { Component } from 'react';
-import PropTypes from 'prop-types';
+import React, { Component } from "react";
+import PropTypes from "prop-types";
 
 /**
  * Error boundary specifically for form submissions.
@@ -27,7 +27,11 @@ class FormErrorBoundary extends Component {
 
   componentDidCatch(error, errorInfo) {
     this.setState({ errorInfo });
-    console.error('[FormErrorBoundary] Caught submission error:', error, errorInfo);
+    console.error(
+      "[FormErrorBoundary] Caught submission error:",
+      error,
+      errorInfo
+    );
     if (this.props.onError) {
       this.props.onError(error, errorInfo);
     }
@@ -51,24 +55,34 @@ class FormErrorBoundary extends Component {
       }
 
       return (
-        <div className="alert alert-danger" style={{ marginBottom: 'var(--space-4)' }}>
-          <div style={{ marginBottom: 'var(--space-3)' }}>
+        <div
+          className="alert alert-danger"
+          style={{ marginBottom: "var(--space-4)" }}
+        >
+          <div style={{ marginBottom: "var(--space-3)" }}>
             <strong>Form submission failed</strong>
-            <p style={{ marginTop: 'var(--space-2)', fontSize: 'var(--t-sm)' }}>
-              {error?.message || 'An unexpected error occurred'}
+            <p style={{ marginTop: "var(--space-2)", fontSize: "var(--t-sm)" }}>
+              {error?.message || "An unexpected error occurred"}
             </p>
             {errorInfo && (
-              <details style={{ marginTop: 'var(--space-2)', fontSize: 'var(--t-2xs)' }}>
-                <summary style={{ cursor: 'pointer', fontWeight: 'var(--w-bold)' }}>
+              <details
+                style={{
+                  marginTop: "var(--space-2)",
+                  fontSize: "var(--t-2xs)",
+                }}
+              >
+                <summary
+                  style={{ cursor: "pointer", fontWeight: "var(--w-bold)" }}
+                >
                   Details
                 </summary>
                 <pre
                   style={{
-                    marginTop: 'var(--space-2)',
-                    padding: 'var(--space-2)',
-                    background: 'var(--surface)',
-                    borderRadius: 'var(--r-sm)',
-                    overflow: 'auto',
+                    marginTop: "var(--space-2)",
+                    padding: "var(--space-2)",
+                    background: "var(--surface)",
+                    borderRadius: "var(--r-sm)",
+                    overflow: "auto",
                   }}
                 >
                   {errorInfo.componentStack}
@@ -80,7 +94,7 @@ class FormErrorBoundary extends Component {
             type="button"
             className="btn btn-sm btn-default"
             onClick={this.resetError}
-            style={{ marginTop: 'var(--space-3)' }}
+            style={{ marginTop: "var(--space-3)" }}
           >
             Try Again
           </button>

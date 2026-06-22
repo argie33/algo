@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState } from "react";
 import {
   Box,
   Container,
@@ -8,14 +8,14 @@ import {
   useTheme,
   alpha,
   Alert,
-} from '@mui/material';
-import { useNavigate } from 'react-router-dom';
-import { Email as EmailIcon } from '@mui/icons-material';
+} from "@mui/material";
+import { useNavigate } from "react-router-dom";
+import { Email as EmailIcon } from "@mui/icons-material";
 
 const CommunitySignup = () => {
   const theme = useTheme();
   const navigate = useNavigate();
-  const [email, setEmail] = useState('');
+  const [email, setEmail] = useState("");
   const [isLoading, setIsLoading] = useState(false);
   const [message, setMessage] = useState(null);
 
@@ -23,12 +23,12 @@ const CommunitySignup = () => {
     e.preventDefault();
 
     if (!email) {
-      setMessage({ type: 'error', text: 'Please enter your email address' });
+      setMessage({ type: "error", text: "Please enter your email address" });
       return;
     }
 
     if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
-      setMessage({ type: 'error', text: 'Please enter a valid email address' });
+      setMessage({ type: "error", text: "Please enter a valid email address" });
       return;
     }
 
@@ -36,34 +36,34 @@ const CommunitySignup = () => {
     setMessage(null);
 
     try {
-      const response = await fetch('/api/contact', {
-        method: 'POST',
+      const response = await fetch("/api/contact", {
+        method: "POST",
         headers: {
-          'Content-Type': 'application/json',
+          "Content-Type": "application/json",
         },
         body: JSON.stringify({
           email,
-          subject: 'Newsletter Signup',
-          message: 'User subscribed to newsletter',
-          type: 'newsletter'
+          subject: "Newsletter Signup",
+          message: "User subscribed to newsletter",
+          type: "newsletter",
         }),
       });
 
       const result = await response.json();
 
       if (!response.ok) {
-        throw new Error(result.error || 'Failed to sign up');
+        throw new Error(result.error || "Failed to sign up");
       }
 
       setMessage({
-        type: 'success',
-        text: 'Success! You\'ve been added to our mailing list.',
+        type: "success",
+        text: "Success! You've been added to our mailing list.",
       });
-      setEmail('');
+      setEmail("");
     } catch (error) {
       setMessage({
-        type: 'error',
-        text: error.message || 'Failed to sign up. Please try again.',
+        type: "error",
+        text: error.message || "Failed to sign up. Please try again.",
       });
     } finally {
       setIsLoading(false);
@@ -80,14 +80,14 @@ const CommunitySignup = () => {
       }}
     >
       <Container maxWidth="md">
-        <Box sx={{ textAlign: 'center' }}>
+        <Box sx={{ textAlign: "center" }}>
           {/* Icon */}
           <Box
             sx={{
               mb: 2.5,
-              display: 'inline-flex',
-              alignItems: 'center',
-              justifyContent: 'center',
+              display: "inline-flex",
+              alignItems: "center",
+              justifyContent: "center",
               width: 60,
               height: 60,
               backgroundColor: alpha(theme.palette.primary.main, 0.12),
@@ -95,7 +95,7 @@ const CommunitySignup = () => {
               color: theme.palette.primary.main,
             }}
           >
-            <EmailIcon sx={{ fontSize: '1.7rem' }} />
+            <EmailIcon sx={{ fontSize: "1.7rem" }} />
           </Box>
 
           {/* Headline */}
@@ -103,11 +103,11 @@ const CommunitySignup = () => {
             variant="h3"
             component="h2"
             sx={{
-              fontSize: { xs: '1.8rem', sm: '2.2rem', md: '2.6rem' },
+              fontSize: { xs: "1.8rem", sm: "2.2rem", md: "2.6rem" },
               fontWeight: 800,
               mb: 1.5,
               color: theme.palette.text.primary,
-              letterSpacing: '-0.5px',
+              letterSpacing: "-0.5px",
             }}
           >
             Stay Ahead of the Market
@@ -117,16 +117,17 @@ const CommunitySignup = () => {
           <Typography
             variant="body1"
             sx={{
-              fontSize: '1.05rem',
+              fontSize: "1.05rem",
               color: theme.palette.text.secondary,
               mb: 4,
-              maxWidth: '560px',
-              mx: 'auto',
+              maxWidth: "560px",
+              mx: "auto",
               lineHeight: 1.8,
             }}
           >
-            Weekly market research, sector rotation analysis, and signal commentary
-            from our research team&#8212;directly to your inbox. No spam, no paywall.
+            Weekly market research, sector rotation analysis, and signal
+            commentary from our research team&#8212;directly to your inbox. No
+            spam, no paywall.
           </Typography>
 
           {/* Form */}
@@ -134,11 +135,11 @@ const CommunitySignup = () => {
             component="form"
             onSubmit={handleSubmit}
             sx={{
-              display: 'flex',
-              flexDirection: { xs: 'column', sm: 'row' },
+              display: "flex",
+              flexDirection: { xs: "column", sm: "row" },
               gap: 2,
-              maxWidth: '500px',
-              mx: 'auto',
+              maxWidth: "500px",
+              mx: "auto",
               mb: 3,
             }}
           >
@@ -150,14 +151,14 @@ const CommunitySignup = () => {
               onChange={(e) => setEmail(e.target.value)}
               disabled={isLoading}
               sx={{
-                '& .MuiOutlinedInput-root': {
+                "& .MuiOutlinedInput-root": {
                   backgroundColor: theme.palette.background.paper,
-                  fontSize: '1rem',
-                  '&:hover fieldset': {
+                  fontSize: "1rem",
+                  "&:hover fieldset": {
                     borderColor: theme.palette.primary.main,
                   },
                 },
-                '& .MuiOutlinedInput-input::placeholder': {
+                "& .MuiOutlinedInput-input::placeholder": {
                   opacity: 0.6,
                 },
               }}
@@ -170,13 +171,13 @@ const CommunitySignup = () => {
               sx={{
                 px: 4,
                 py: 1.75,
-                fontSize: '1rem',
+                fontSize: "1rem",
                 fontWeight: 600,
-                textTransform: 'none',
-                whiteSpace: 'nowrap',
+                textTransform: "none",
+                whiteSpace: "nowrap",
               }}
             >
-              {isLoading ? 'Signing Up...' : 'Join Now'}
+              {isLoading ? "Signing Up..." : "Join Now"}
             </Button>
           </Box>
 
@@ -185,12 +186,13 @@ const CommunitySignup = () => {
             <Alert
               severity={message.type}
               sx={{
-                maxWidth: '500px',
-                mx: 'auto',
+                maxWidth: "500px",
+                mx: "auto",
                 mb: 2,
-                backgroundColor: message.type === 'success'
-                  ? alpha(theme.palette.success.main, 0.1)
-                  : alpha(theme.palette.error.main, 0.1),
+                backgroundColor:
+                  message.type === "success"
+                    ? alpha(theme.palette.success.main, 0.1)
+                    : alpha(theme.palette.error.main, 0.1),
               }}
             >
               {message.text}
@@ -202,34 +204,34 @@ const CommunitySignup = () => {
             variant="caption"
             sx={{
               color: theme.palette.text.secondary,
-              fontSize: '0.85rem',
-              display: 'block',
+              fontSize: "0.85rem",
+              display: "block",
             }}
           >
-            By continuing, you agree to the{' '}
+            By continuing, you agree to the{" "}
             <Box
               component="span"
-              onClick={() => navigate('/terms')}
+              onClick={() => navigate("/terms")}
               sx={{
                 color: theme.palette.primary.main,
-                cursor: 'pointer',
-                textDecoration: 'underline',
-                '&:hover': {
+                cursor: "pointer",
+                textDecoration: "underline",
+                "&:hover": {
                   opacity: 0.8,
                 },
               }}
             >
               Terms of Service
-            </Box>
-            {' '}and{' '}
+            </Box>{" "}
+            and{" "}
             <Box
               component="span"
-              onClick={() => navigate('/privacy')}
+              onClick={() => navigate("/privacy")}
               sx={{
                 color: theme.palette.primary.main,
-                cursor: 'pointer',
-                textDecoration: 'underline',
-                '&:hover': {
+                cursor: "pointer",
+                textDecoration: "underline",
+                "&:hover": {
                   opacity: 0.8,
                 },
               }}
@@ -244,4 +246,3 @@ const CommunitySignup = () => {
 };
 
 export default CommunitySignup;
-

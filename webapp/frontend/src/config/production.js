@@ -124,8 +124,8 @@ export const PRODUCTION_CONFIG = {
   // Content Security Policy - Strict CSP without unsafe-inline
   csp: {
     defaultSrc: ["'self'"],
-    scriptSrc: ["'self'"],  // Only self-hosted scripts, no inline
-    styleSrc: ["'self'", "https://fonts.googleapis.com"],  // No unsafe-inline
+    scriptSrc: ["'self'"], // Only self-hosted scripts, no inline
+    styleSrc: ["'self'", "https://fonts.googleapis.com"], // No unsafe-inline
     fontSrc: ["'self'", "https://fonts.gstatic.com"],
     imgSrc: ["'self'", "data:", "https:"],
     connectSrc: ["'self'", "wss:", "https:"],
@@ -139,7 +139,8 @@ export const PRODUCTION_CONFIG = {
 
 // Environment-specific overrides
 export const getEnvironmentConfig = (envMode = null) => {
-  const env = (envMode && envMode.trim()) || import.meta.env.MODE || "development";
+  const env =
+    (envMode && envMode.trim()) || import.meta.env.MODE || "development";
 
   const overrides = {
     development: {
@@ -217,4 +218,3 @@ if (!validation.isValid) {
 }
 
 export default CONFIG;
-

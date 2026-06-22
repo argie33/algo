@@ -1,16 +1,16 @@
-import React from 'react';
-import { Box } from '@mui/material';
-import MarketingNav from './MarketingNav';
-import Footer from './Footer';
+import React from "react";
+import { Box } from "@mui/material";
+import MarketingNav from "./MarketingNav";
+import Footer from "./Footer";
 
 const MarketingLayout = ({ children }) => {
   return (
     <Box
       sx={{
-        display: 'flex',
-        flexDirection: 'column',
-        minHeight: '100vh',
-        backgroundColor: 'background.default',
+        display: "flex",
+        flexDirection: "column",
+        minHeight: "100vh",
+        backgroundColor: "background.default",
       }}
     >
       <MarketingNav />
@@ -18,7 +18,7 @@ const MarketingLayout = ({ children }) => {
         component="main"
         sx={{
           flex: 1,
-          width: '100%',
+          width: "100%",
         }}
       >
         {children}
@@ -29,4 +29,3 @@ const MarketingLayout = ({ children }) => {
 };
 
 export default MarketingLayout;
-

@@ -15,8 +15,8 @@ const mockApiData = {
   market: {
     indices: {
       SPY: { price: 543.21, change: 0.8, symbol: "S&P 500" },
-      QQQ: { price: 378.90, change: -0.1, symbol: "NASDAQ" },
-      DIA: { price: 389.00, change: 0.4, symbol: "DOW" },
+      QQQ: { price: 378.9, change: -0.1, symbol: "NASDAQ" },
+      DIA: { price: 389.0, change: 0.4, symbol: "DOW" },
     },
     status: "open",
     session: "regular",
@@ -103,8 +103,8 @@ export const createApiMock = () => ({
         market_cap: "175430000000",
         trailing_pe: null,
         dividend_yield: null,
-        performance_percent: "0"
-      }
+        performance_percent: "0",
+      },
     ],
     timeframe: "daily",
     count: 1,
@@ -114,12 +114,12 @@ export const createApiMock = () => ({
       total: 15,
       totalPages: 2,
       hasNext: true,
-      hasPrev: false
+      hasPrev: false,
     },
     metadata: {
       signal_type: "all",
-      symbol: null
-    }
+      symbol: null,
+    },
   }),
   getTradingPositions: vi.fn().mockResolvedValue({
     success: true,

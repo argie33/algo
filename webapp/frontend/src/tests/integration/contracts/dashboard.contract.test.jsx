@@ -57,4 +57,3 @@ describe("Dashboard Critical Contract Tests", () => {
     expect(data).toHaveProperty("success", true);
   });
 });
-

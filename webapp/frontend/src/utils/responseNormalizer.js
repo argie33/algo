@@ -21,19 +21,19 @@
  */
 export const extractData = (response) => {
   if (!response) {
-    throw new Error('Response is null or undefined');
+    throw new Error("Response is null or undefined");
   }
 
   // Handle axios response structure
   const data = response.data || response;
 
   if (!data) {
-    throw new Error('Response data is null or undefined');
+    throw new Error("Response data is null or undefined");
   }
 
   // Check for error responses first
   if (data.success === false) {
-    const errorMsg = data.message || data.error || 'API request failed';
+    const errorMsg = data.message || data.error || "API request failed";
     const error = new Error(errorMsg);
     error.code = data.errorType;
     error.status = data.statusCode || response.status;
@@ -50,7 +50,8 @@ export const extractData = (response) => {
   }
 
   // Check HTTP status codes
-  const httpStatus = data.statusCode !== undefined ? data.statusCode : response.status;
+  const httpStatus =
+    data.statusCode !== undefined ? data.statusCode : response.status;
   if (httpStatus >= 400) {
     const errorMsg = data.message || data.error || `API error: ${httpStatus}`;
     const error = new Error(errorMsg);
@@ -93,7 +94,9 @@ export const extractData = (response) => {
   // Use Array.isArray alone (not && data.items) to handle empty arrays correctly
   if (Array.isArray(data.items)) {
     // Filter out null/undefined items, but preserve falsy values like 0, false, ""
-    const filteredItems = data.items.filter(item => item !== null && item !== undefined);
+    const filteredItems = data.items.filter(
+      (item) => item !== null && item !== undefined
+    );
     const pag = data.pagination || {};
     const limit = pag.limit ?? data.limit ?? 50;
     const offset = pag.offset ?? data.offset ?? 0;
@@ -105,8 +108,12 @@ export const extractData = (response) => {
         offset,
         total,
         page: pag.page ?? data.page ?? 1,
-        totalPages: pag.totalPages ?? data.totalPages ?? Math.ceil(total / (limit || 1)),
-        hasNext: pag.hasNext !== undefined ? pag.hasNext : (offset + filteredItems.length) < total,
+        totalPages:
+          pag.totalPages ?? data.totalPages ?? Math.ceil(total / (limit || 1)),
+        hasNext:
+          pag.hasNext !== undefined
+            ? pag.hasNext
+            : offset + filteredItems.length < total,
         hasPrev: pag.hasPrev !== undefined ? pag.hasPrev : offset > 0,
       },
       statusCode: httpStatus,
@@ -144,7 +151,7 @@ export const extractData = (response) => {
 
   // Fallback: return the whole data object with statusCode if it's an object
   // Error responses with success: false are already caught by the statusCode check above
-  if (typeof data === 'object' && data !== null && !Array.isArray(data)) {
+  if (typeof data === "object" && data !== null && !Array.isArray(data)) {
     return {
       ...data,
       statusCode: httpStatus,
@@ -153,12 +160,15 @@ export const extractData = (response) => {
   }
 
   // Enhanced error for debugging: detect HTML responses (usually 404/error pages from CDN)
-  const isHtml = typeof data === 'string' && data.includes('<');
-  const preview = typeof data === 'string'
-    ? data.substring(0, 150)
-    : JSON.stringify(data).substring(0, 150);
-  const statusCode = response.status ? ` (HTTP ${response.status})` : '';
-  throw new Error(`Unable to extract data from response${statusCode}${isHtml ? ' (received HTML, likely 404 or CDN error)' : ''}: ${preview}`);
+  const isHtml = typeof data === "string" && data.includes("<");
+  const preview =
+    typeof data === "string"
+      ? data.substring(0, 150)
+      : JSON.stringify(data).substring(0, 150);
+  const statusCode = response.status ? ` (HTTP ${response.status})` : "";
+  throw new Error(
+    `Unable to extract data from response${statusCode}${isHtml ? " (received HTML, likely 404 or CDN error)" : ""}: ${preview}`
+  );
 };
 
 /**
@@ -171,7 +181,7 @@ export const extractPaginatedData = (response) => {
 
   // Check for error responses
   if (data.success === false) {
-    const errorMsg = data.message || data.error || 'API request failed';
+    const errorMsg = data.message || data.error || "API request failed";
     const error = new Error(errorMsg);
     error.code = data.errorType;
     error.status = data.statusCode || response.status;
@@ -188,9 +198,12 @@ export const extractPaginatedData = (response) => {
   }
 
   // Check HTTP status
-  const httpStatus = data.statusCode !== undefined ? data.statusCode : response.status;
+  const httpStatus =
+    data.statusCode !== undefined ? data.statusCode : response.status;
   if (httpStatus >= 400) {
-    const error = new Error(data.message || data.error || `API error: ${httpStatus}`);
+    const error = new Error(
+      data.message || data.error || `API error: ${httpStatus}`
+    );
     error.code = data.errorType;
     error.status = httpStatus;
     error.details = {
@@ -209,7 +222,9 @@ export const extractPaginatedData = (response) => {
   // Handle direct items (new standardized format)
   if (Array.isArray(data.items)) {
     // Filter out null/undefined items but preserve other falsy values (0, false, "")
-    const items = data.items.filter(item => item !== null && item !== undefined);
+    const items = data.items.filter(
+      (item) => item !== null && item !== undefined
+    );
     const pag = data.pagination || {};
     const limit = pag.limit ?? data.limit ?? 100;
     const offset = pag.offset ?? data.offset ?? 0;
@@ -221,8 +236,12 @@ export const extractPaginatedData = (response) => {
         offset,
         total,
         page: pag.page ?? data.page ?? 1,
-        totalPages: pag.totalPages ?? data.totalPages ?? Math.ceil(total / (limit || 1)),
-        hasNext: pag.hasNext !== undefined ? pag.hasNext : (offset + items.length) < total,
+        totalPages:
+          pag.totalPages ?? data.totalPages ?? Math.ceil(total / (limit || 1)),
+        hasNext:
+          pag.hasNext !== undefined
+            ? pag.hasNext
+            : offset + items.length < total,
         hasPrev: pag.hasPrev !== undefined ? pag.hasPrev : offset > 0,
       },
     };
@@ -231,7 +250,9 @@ export const extractPaginatedData = (response) => {
   // Handle nested data.items (for backward compatibility)
   if (data.data && Array.isArray(data.data.items)) {
     // Filter out null/undefined items but preserve other falsy values (0, false, "")
-    const items = data.data.items.filter(item => item !== null && item !== undefined);
+    const items = data.data.items.filter(
+      (item) => item !== null && item !== undefined
+    );
     const pag = data.data.pagination || {};
     const limit = pag.limit ?? data.limit ?? 100;
     const offset = pag.offset ?? data.offset ?? 0;
@@ -243,8 +264,12 @@ export const extractPaginatedData = (response) => {
         offset,
         total,
         page: pag.page ?? data.page ?? 1,
-        totalPages: pag.totalPages ?? data.totalPages ?? Math.ceil(total / (limit || 1)),
-        hasNext: pag.hasNext !== undefined ? pag.hasNext : (offset + items.length) < total,
+        totalPages:
+          pag.totalPages ?? data.totalPages ?? Math.ceil(total / (limit || 1)),
+        hasNext:
+          pag.hasNext !== undefined
+            ? pag.hasNext
+            : offset + items.length < total,
         hasPrev: pag.hasPrev !== undefined ? pag.hasPrev : offset > 0,
       },
     };
@@ -253,7 +278,10 @@ export const extractPaginatedData = (response) => {
   // No items array found — return empty paginated result rather than throwing.
   // This handles backend responses that return valid 200s with non-list payloads
   // (e.g. a summary object), or paginated endpoints that currently have no data.
-  console.warn('[responseNormalizer] extractPaginatedData: no items array found, returning empty. Data:', JSON.stringify(data).substring(0, 200));
+  console.warn(
+    "[responseNormalizer] extractPaginatedData: no items array found, returning empty. Data:",
+    JSON.stringify(data).substring(0, 200)
+  );
   return {
     items: [],
     pagination: {
@@ -288,20 +316,23 @@ export const validateItems = (items, requiredFields = []) => {
   const missingFields = new Set();
   const invalidItems = items
     .map((item, idx) => {
-      if (!item || typeof item !== 'object') {
+      if (!item || typeof item !== "object") {
         return idx;
       }
-      const missing = requiredFields.filter(field => {
+      const missing = requiredFields.filter((field) => {
         const value = item?.[field];
-        return value === null || value === undefined || value === '';
+        return value === null || value === undefined || value === "";
       });
-      missing.forEach(f => missingFields.add(f));
+      missing.forEach((f) => missingFields.add(f));
       return missing.length > 0 ? idx : null;
     })
-    .filter(idx => idx !== null);
+    .filter((idx) => idx !== null);
 
   if (invalidItems.length > 0) {
-    console.warn(`[validateItems] ${invalidItems.length} of ${items.length} items missing required fields:`, [...missingFields].join(', '));
+    console.warn(
+      `[validateItems] ${invalidItems.length} of ${items.length} items missing required fields:`,
+      [...missingFields].join(", ")
+    );
   }
 
   return {
@@ -321,7 +352,7 @@ export const extractDataOrFallback = (response, fallback = null) => {
   try {
     return extractData(response);
   } catch (error) {
-    console.warn('Failed to extract data, returning fallback:', error.message);
+    console.warn("Failed to extract data, returning fallback:", error.message);
     return fallback;
   }
 };
@@ -331,4 +362,3 @@ export default {
   extractPaginatedData,
   extractDataOrFallback,
 };
-

@@ -26,7 +26,13 @@ const TITLES = {
   [AUTH_MODES.MFA_CHALLENGE]: "Two-Factor Auth",
 };
 
-function AuthModal({ open, onClose, initialMode = AUTH_MODES.LOGIN, email = "", onSuccess }) {
+function AuthModal({
+  open,
+  onClose,
+  initialMode = AUTH_MODES.LOGIN,
+  email = "",
+  onSuccess,
+}) {
   const [mode, setMode] = useState(initialMode);
   const [username, setUsername] = useState(email);
   const [successMessage, setSuccessMessage] = useState("");
@@ -59,7 +65,10 @@ function AuthModal({ open, onClose, initialMode = AUTH_MODES.LOGIN, email = "", 
   const handleMFAVerify = async (code) => {
     try {
       const { isSignedIn } = await confirmSignIn({ challengeResponse: code });
-      return { success: isSignedIn, error: isSignedIn ? null : "Verification did not complete sign-in" };
+      return {
+        success: isSignedIn,
+        error: isSignedIn ? null : "Verification did not complete sign-in",
+      };
     } catch (err) {
       return { success: false, error: err.message || "Verification failed" };
     }
@@ -84,33 +93,69 @@ function AuthModal({ open, onClose, initialMode = AUTH_MODES.LOGIN, email = "", 
   return (
     <div className="card animate-in" style={{ padding: 0, overflow: "hidden" }}>
       {/* Header */}
-      <div style={{
-        display: "flex",
-        alignItems: "center",
-        justifyContent: "space-between",
-        padding: "var(--space-4) var(--space-5)",
-        borderBottom: "1px solid var(--border)",
-      }}>
-        <div style={{ display: "flex", alignItems: "center", gap: "var(--space-3)" }}>
-          <div style={{
-            width: "32px", height: "32px",
-            borderRadius: "var(--r-sm)",
-            background: "linear-gradient(135deg, var(--brand) 0%, var(--purple) 100%)",
-            boxShadow: "0 2px 10px var(--brand-glow)",
-            display: "flex", alignItems: "center", justifyContent: "center",
-            flexShrink: 0,
-          }}>
-            <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="white" strokeWidth="2.5" strokeLinecap="round">
-              <circle cx="12" cy="12" r="10"/>
-              <circle cx="12" cy="12" r="6"/>
-              <circle cx="12" cy="12" r="2"/>
+      <div
+        style={{
+          display: "flex",
+          alignItems: "center",
+          justifyContent: "space-between",
+          padding: "var(--space-4) var(--space-5)",
+          borderBottom: "1px solid var(--border)",
+        }}
+      >
+        <div
+          style={{
+            display: "flex",
+            alignItems: "center",
+            gap: "var(--space-3)",
+          }}
+        >
+          <div
+            style={{
+              width: "32px",
+              height: "32px",
+              borderRadius: "var(--r-sm)",
+              background:
+                "linear-gradient(135deg, var(--brand) 0%, var(--purple) 100%)",
+              boxShadow: "0 2px 10px var(--brand-glow)",
+              display: "flex",
+              alignItems: "center",
+              justifyContent: "center",
+              flexShrink: 0,
+            }}
+          >
+            <svg
+              width="15"
+              height="15"
+              viewBox="0 0 24 24"
+              fill="none"
+              stroke="white"
+              strokeWidth="2.5"
+              strokeLinecap="round"
+            >
+              <circle cx="12" cy="12" r="10" />
+              <circle cx="12" cy="12" r="6" />
+              <circle cx="12" cy="12" r="2" />
             </svg>
           </div>
           <div>
-            <div style={{ fontSize: "var(--t-md)", fontWeight: "var(--w-semibold)", color: "var(--text)", lineHeight: 1.2 }}>
+            <div
+              style={{
+                fontSize: "var(--t-md)",
+                fontWeight: "var(--w-semibold)",
+                color: "var(--text)",
+                lineHeight: 1.2,
+              }}
+            >
               {TITLES[mode]}
             </div>
-            <div style={{ fontSize: "var(--t-2xs)", color: "var(--text-faint)", marginTop: "2px", letterSpacing: "0.04em" }}>
+            <div
+              style={{
+                fontSize: "var(--t-2xs)",
+                color: "var(--text-faint)",
+                marginTop: "2px",
+                letterSpacing: "0.04em",
+              }}
+            >
               Bullseye Trading
             </div>
           </div>
@@ -120,9 +165,17 @@ function AuthModal({ open, onClose, initialMode = AUTH_MODES.LOGIN, email = "", 
           onClick={handleClose}
           aria-label="Close"
         >
-          <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round">
-            <line x1="18" y1="6" x2="6" y2="18"/>
-            <line x1="6" y1="6" x2="18" y2="18"/>
+          <svg
+            width="15"
+            height="15"
+            viewBox="0 0 24 24"
+            fill="none"
+            stroke="currentColor"
+            strokeWidth="2"
+            strokeLinecap="round"
+          >
+            <line x1="18" y1="6" x2="6" y2="18" />
+            <line x1="6" y1="6" x2="18" y2="18" />
           </svg>
         </button>
       </div>
@@ -130,9 +183,21 @@ function AuthModal({ open, onClose, initialMode = AUTH_MODES.LOGIN, email = "", 
       {/* Body */}
       <div style={{ padding: "var(--space-6)" }}>
         {successMessage && (
-          <div className="alert alert-success" style={{ marginBottom: "var(--space-5)" }}>
-            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
-              <polyline points="20 6 9 17 4 12"/>
+          <div
+            className="alert alert-success"
+            style={{ marginBottom: "var(--space-5)" }}
+          >
+            <svg
+              width="14"
+              height="14"
+              viewBox="0 0 24 24"
+              fill="none"
+              stroke="currentColor"
+              strokeWidth="2.5"
+              strokeLinecap="round"
+              strokeLinejoin="round"
+            >
+              <polyline points="20 6 9 17 4 12" />
             </svg>
             <span style={{ fontSize: "var(--t-sm)" }}>{successMessage}</span>
           </div>
@@ -140,15 +205,27 @@ function AuthModal({ open, onClose, initialMode = AUTH_MODES.LOGIN, email = "", 
 
         {mode === AUTH_MODES.LOGIN && (
           <LoginForm
-            onSwitchToRegister={() => { setSuccessMessage(""); setMode(AUTH_MODES.REGISTER); }}
-            onSwitchToForgotPassword={() => { setSuccessMessage(""); setMode(AUTH_MODES.FORGOT_PASSWORD); }}
-            onMFARequired={(nextStep) => { setMfaNextStep(nextStep); setMode(AUTH_MODES.MFA_CHALLENGE); }}
+            onSwitchToRegister={() => {
+              setSuccessMessage("");
+              setMode(AUTH_MODES.REGISTER);
+            }}
+            onSwitchToForgotPassword={() => {
+              setSuccessMessage("");
+              setMode(AUTH_MODES.FORGOT_PASSWORD);
+            }}
+            onMFARequired={(nextStep) => {
+              setMfaNextStep(nextStep);
+              setMode(AUTH_MODES.MFA_CHALLENGE);
+            }}
           />
         )}
 
         {mode === AUTH_MODES.REGISTER && (
           <RegisterForm
-            onSwitchToLogin={() => { setSuccessMessage(""); setMode(AUTH_MODES.LOGIN); }}
+            onSwitchToLogin={() => {
+              setSuccessMessage("");
+              setMode(AUTH_MODES.LOGIN);
+            }}
             onRegistrationSuccess={handleRegistrationSuccess}
           />
         )}
@@ -157,13 +234,19 @@ function AuthModal({ open, onClose, initialMode = AUTH_MODES.LOGIN, email = "", 
           <ConfirmationForm
             username={username}
             onConfirmationSuccess={handleConfirmationSuccess}
-            onSwitchToLogin={() => { setSuccessMessage(""); setMode(AUTH_MODES.LOGIN); }}
+            onSwitchToLogin={() => {
+              setSuccessMessage("");
+              setMode(AUTH_MODES.LOGIN);
+            }}
           />
         )}
 
         {mode === AUTH_MODES.FORGOT_PASSWORD && (
           <ForgotPasswordForm
-            onBack={() => { setSuccessMessage(""); setMode(AUTH_MODES.LOGIN); }}
+            onBack={() => {
+              setSuccessMessage("");
+              setMode(AUTH_MODES.LOGIN);
+            }}
             onForgotPasswordSuccess={handleForgotPasswordSuccess}
           />
         )}
@@ -172,13 +255,20 @@ function AuthModal({ open, onClose, initialMode = AUTH_MODES.LOGIN, email = "", 
           <ResetPasswordForm
             username={username}
             onPasswordResetSuccess={handlePasswordResetSuccess}
-            onSwitchToLogin={() => { setSuccessMessage(""); setMode(AUTH_MODES.LOGIN); }}
+            onSwitchToLogin={() => {
+              setSuccessMessage("");
+              setMode(AUTH_MODES.LOGIN);
+            }}
           />
         )}
 
         {mode === AUTH_MODES.MFA_CHALLENGE && (
           <MFAChallenge
-            challengeType={mfaNextStep?.signInStep === "CONFIRM_SIGN_IN_WITH_TOTP_CODE" ? "SOFTWARE_TOKEN_MFA" : "SMS_MFA"}
+            challengeType={
+              mfaNextStep?.signInStep === "CONFIRM_SIGN_IN_WITH_TOTP_CODE"
+                ? "SOFTWARE_TOKEN_MFA"
+                : "SMS_MFA"
+            }
             message="Enter the verification code sent to your device."
             onVerify={handleMFAVerify}
             onSuccess={handleMFASuccess}

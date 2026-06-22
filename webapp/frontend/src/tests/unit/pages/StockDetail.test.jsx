@@ -71,30 +71,30 @@ vi.mock("../../../utils/formatters.jsx", () => ({
     return `$${value?.toFixed(2)}`;
   }),
   formatNumber: vi.fn((value) => value?.toLocaleString()),
-  formatPercent: vi.fn((value) => `${(value * 100)?.toFixed(2)}%`),  // Convert decimal to percentage
+  formatPercent: vi.fn((value) => `${(value * 100)?.toFixed(2)}%`), // Convert decimal to percentage
 }));
 
 const mockStockData = {
   symbol: "AAPL",
-  company_name: "Apple Inc.",  // Component expects company_name
+  company_name: "Apple Inc.", // Component expects company_name
   price: 175.25,
-  previous_close: 172.75,  // Component calculates: 175.25 - 172.75 = 2.5
+  previous_close: 172.75, // Component calculates: 175.25 - 172.75 = 2.5
   change: 2.5,
   changePercent: 1.45,
   volume: 45678900,
   marketCap: 2750000000000,
   market_capitalization: 2750000000000, // Component expects snake_case
-  pe_ratio: 28.5,                       // Component expects snake_case
-  dividend_yield: 0.0052,               // Component expects decimal: 0.52% = 0.0052
+  pe_ratio: 28.5, // Component expects snake_case
+  dividend_yield: 0.0052, // Component expects decimal: 0.52% = 0.0052
   beta: 1.2,
   high52Week: 198.23,
   low52Week: 124.17,
   avgVolume: 52000000,
   eps: 6.15,
-  earnings_per_share: 6.15,  // Component expects earnings_per_share
+  earnings_per_share: 6.15, // Component expects earnings_per_share
   sector: "Technology",
   industry: "Consumer Electronics",
-  country: "US",  // Add country field
+  country: "US", // Add country field
   description: "Apple Inc. designs, manufactures, and markets smartphones...",
 
   // Additional fields that component may expect
@@ -109,21 +109,42 @@ const mockStockData = {
 // Component receives data newest-first (DESC from backend) and reverses to ascending.
 // Provide data in DESC order so after reversal: Jan01<Jan02<Jan03 (ascending).
 const mockChartData = [
-  { date: "2024-01-03", open: 173.00, high: 176.00, low: 172.50, close: 175.25, volume: 45678900 },
-  { date: "2024-01-02", open: 170.50, high: 173.50, low: 170.00, close: 172.75, volume: 48000000 },
-  { date: "2024-01-01", open: 169.50, high: 171.00, low: 168.00, close: 170.25, volume: 45000000 },
+  {
+    date: "2024-01-03",
+    open: 173.0,
+    high: 176.0,
+    low: 172.5,
+    close: 175.25,
+    volume: 45678900,
+  },
+  {
+    date: "2024-01-02",
+    open: 170.5,
+    high: 173.5,
+    low: 170.0,
+    close: 172.75,
+    volume: 48000000,
+  },
+  {
+    date: "2024-01-01",
+    open: 169.5,
+    high: 171.0,
+    low: 168.0,
+    close: 170.25,
+    volume: 45000000,
+  },
 ];
 
 const mockFinancials = {
   revenue: 394328000000,
   grossProfit: 169148000000,
   operatingIncome: 114301000000,
-  net_income: 99803000000,  // Component expects net_income (snake_case)
-  netIncome: 99803000000,   // Keep both for compatibility
+  net_income: 99803000000, // Component expects net_income (snake_case)
+  netIncome: 99803000000, // Keep both for compatibility
   totalAssets: 352755000000,
   totalDebt: 123930000000,
   freeCashFlow: 84726000000,
-  free_cash_flow: 84726000000,  // Component expects free_cash_flow (snake_case)
+  free_cash_flow: 84726000000, // Component expects free_cash_flow (snake_case)
   returnOnEquity: 175.1,
   returnOnAssets: 28.3,
   profitMargin: 25.3,
@@ -139,39 +160,48 @@ describe("StockDetail Component", () => {
     // call mockReturnValue({symbol: undefined}) would pollute subsequent tests.
     const rdModule = await import("react-router-dom");
     vi.mocked(rdModule.useParams).mockReset();
-    vi.mocked(rdModule.useParams).mockImplementation(() => ({ symbol: "AAPL" }));
+    vi.mocked(rdModule.useParams).mockImplementation(() => ({
+      symbol: "AAPL",
+    }));
 
     // Get the mocked useQuery function
     const { useQuery } = await import("@tanstack/react-query");
     mockUseQuery = vi.mocked(useQuery);
 
     // Mock successful API responses using the correct query keys from the component
-    const base = { isLoading: false, error: null, isFetching: false, refetch: vi.fn() };
+    const base = {
+      isLoading: false,
+      error: null,
+      isFetching: false,
+      refetch: vi.fn(),
+    };
     mockUseQuery.mockImplementation((options) => {
-      const key = Array.isArray(options.queryKey) ? options.queryKey[0] : options.queryKey;
+      const key = Array.isArray(options.queryKey)
+        ? options.queryKey[0]
+        : options.queryKey;
 
       // Price history: component derives priceSeries from items or array
-      if (key === 'stock-price') {
+      if (key === "stock-price") {
         return { ...base, data: mockChartData };
       }
       // Stock profile: profileData used directly as { company_name, sector, ... }
-      if (key === 'stock-profile') {
+      if (key === "stock-profile") {
         return { ...base, data: mockStockData };
       }
       // Key metrics: keyMetricsData?.items?.[0]
-      if (key === 'stock-keymetrics') {
+      if (key === "stock-keymetrics") {
         return { ...base, data: { items: [mockStockData] } };
       }
       // Swing scores: scoreData?.items?.[0]
-      if (key === 'stock-scores-detail') {
+      if (key === "stock-scores-detail") {
         return { ...base, data: { items: [] } };
       }
       // Trading signals: signalsData?.items or []
-      if (key === 'stock-signals') {
+      if (key === "stock-signals") {
         return { ...base, data: { items: [] } };
       }
       // Income statement: incomeData?.items?.[0]
-      if (key === 'stock-income') {
+      if (key === "stock-income") {
         return { ...base, data: { items: [mockFinancials] } };
       }
 
@@ -259,7 +289,9 @@ describe("StockDetail Component", () => {
 
     // When price query errors, component shows "Failed to load price data"
     await waitFor(() => {
-      expect(screen.getByText(/Failed to load price data/i)).toBeInTheDocument();
+      expect(
+        screen.getByText(/Failed to load price data/i)
+      ).toBeInTheDocument();
     });
   });
 
@@ -310,14 +342,18 @@ describe("StockDetail Component", () => {
     });
 
     // Click on Price & Volume tab to see the chart
-    const priceVolumeTab = screen.queryByRole("tab", { name: /price.*volume/i });
+    const priceVolumeTab = screen.queryByRole("tab", {
+      name: /price.*volume/i,
+    });
     if (priceVolumeTab) {
       fireEvent.click(priceVolumeTab);
       await waitFor(() => {
         // Chart should be rendered - check for chart components or SVG
         const chartSvg = document.querySelector("svg");
         const rechartContainer = document.querySelector('[class*="recharts"]');
-        const responsiveContainer = document.querySelector('[class*="ResponsiveContainer"]');
+        const responsiveContainer = document.querySelector(
+          '[class*="ResponsiveContainer"]'
+        );
 
         // Accept if any chart-related element is found
         if (chartSvg || rechartContainer || responsiveContainer) {
@@ -342,7 +378,9 @@ describe("StockDetail Component", () => {
     });
 
     // Check if volume information is in a specific tab
-    const priceVolumeTab = screen.queryByRole("tab", { name: /price.*volume/i });
+    const priceVolumeTab = screen.queryByRole("tab", {
+      name: /price.*volume/i,
+    });
     if (priceVolumeTab) {
       fireEvent.click(priceVolumeTab);
       await waitFor(() => {
@@ -352,7 +390,7 @@ describe("StockDetail Component", () => {
           /45,678,900/,
           /45\.678/,
           /45\s*M/,
-          /Volume/i,  // At least check the tab has volume-related content
+          /Volume/i, // At least check the tab has volume-related content
         ];
 
         let foundVolume = false;
@@ -442,16 +480,23 @@ describe("StockDetail Component", () => {
       analystCount: 25,
     };
 
-    const base = { isLoading: false, error: null, isFetching: false, refetch: vi.fn() };
+    const base = {
+      isLoading: false,
+      error: null,
+      isFetching: false,
+      refetch: vi.fn(),
+    };
     mockUseQuery.mockImplementation((options) => {
-      const key = Array.isArray(options.queryKey) ? options.queryKey[0] : options.queryKey;
-      if (key === 'stock-profile') {
+      const key = Array.isArray(options.queryKey)
+        ? options.queryKey[0]
+        : options.queryKey;
+      if (key === "stock-profile") {
         return { ...base, data: mockStockWithAnalyst };
       }
-      if (key === 'stock-keymetrics') {
+      if (key === "stock-keymetrics") {
         return { ...base, data: { items: [mockStockWithAnalyst] } };
       }
-      if (key === 'stock-price') {
+      if (key === "stock-price") {
         return { ...base, data: mockChartData };
       }
       return { ...base, data: null };
@@ -466,16 +511,23 @@ describe("StockDetail Component", () => {
   });
 
   it("handles chart data loading states", async () => {
-    const base = { isLoading: false, error: null, isFetching: false, refetch: vi.fn() };
+    const base = {
+      isLoading: false,
+      error: null,
+      isFetching: false,
+      refetch: vi.fn(),
+    };
     mockUseQuery.mockImplementation((options) => {
-      const key = Array.isArray(options.queryKey) ? options.queryKey[0] : options.queryKey;
-      if (key === 'stock-profile') {
+      const key = Array.isArray(options.queryKey)
+        ? options.queryKey[0]
+        : options.queryKey;
+      if (key === "stock-profile") {
         return { ...base, data: mockStockData };
       }
-      if (key === 'stock-keymetrics') {
+      if (key === "stock-keymetrics") {
         return { ...base, data: { items: [mockStockData] } };
       }
-      if (key === 'stock-price') {
+      if (key === "stock-price") {
         return { ...base, data: null, isLoading: true };
       }
       return { ...base, data: null };
@@ -495,4 +547,3 @@ describe("StockDetail Component", () => {
     });
   });
 });
-

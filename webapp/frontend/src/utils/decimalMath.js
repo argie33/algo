@@ -19,8 +19,8 @@
  * @returns {string} Sum as string with specified decimals
  */
 export function add(a, b, decimals = 2) {
-  const aNum = typeof a === 'string' ? a : String(a);
-  const bNum = typeof b === 'string' ? b : String(b);
+  const aNum = typeof a === "string" ? a : String(a);
+  const bNum = typeof b === "string" ? b : String(b);
 
   const factor = Math.pow(10, decimals);
   const aInt = Math.round(parseFloat(aNum) * factor);
@@ -38,8 +38,8 @@ export function add(a, b, decimals = 2) {
  * @returns {string} Difference as string with specified decimals
  */
 export function subtract(a, b, decimals = 2) {
-  const aNum = typeof a === 'string' ? a : String(a);
-  const bNum = typeof b === 'string' ? b : String(b);
+  const aNum = typeof a === "string" ? a : String(a);
+  const bNum = typeof b === "string" ? b : String(b);
 
   const factor = Math.pow(10, decimals);
   const aInt = Math.round(parseFloat(aNum) * factor);
@@ -76,7 +76,7 @@ export function divide(a, b, decimals = 2) {
   const bVal = parseFloat(b);
 
   if (bVal === 0) {
-    throw new Error('Division by zero in financial calculation');
+    throw new Error("Division by zero in financial calculation");
   }
 
   const quotient = aVal / bVal;
@@ -95,7 +95,7 @@ export function percentageChange(oldValue, newValue, decimals = 2) {
   const newVal = parseFloat(newValue);
 
   if (old === 0) {
-    return '0.00';
+    return "0.00";
   }
 
   const change = ((newVal - old) / old) * 100;
@@ -110,12 +110,12 @@ export function percentageChange(oldValue, newValue, decimals = 2) {
  */
 export function toFixed(value, decimals = 2) {
   if (value === null || value === undefined) {
-    return '0.00';
+    return "0.00";
   }
 
   const num = parseFloat(value);
   if (isNaN(num)) {
-    return '0.00';
+    return "0.00";
   }
 
   return num.toFixed(decimals);
@@ -129,7 +129,7 @@ export function toFixed(value, decimals = 2) {
  */
 export function sum(values, decimals = 2) {
   if (!Array.isArray(values) || values.length === 0) {
-    return '0.00';
+    return "0.00";
   }
 
   const factor = Math.pow(10, decimals);

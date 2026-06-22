@@ -8,7 +8,15 @@ import {
   Alert,
   Paper,
 } from "@mui/material";
-import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from "recharts";
+import {
+  BarChart,
+  Bar,
+  XAxis,
+  YAxis,
+  CartesianGrid,
+  Tooltip,
+  ResponsiveContainer,
+} from "recharts";
 import { TrendingUp, TrendingDown } from "@mui/icons-material";
 import { useTheme, alpha } from "@mui/material/styles";
 import { formatPercentageChange } from "../utils/formatters";
@@ -32,12 +40,8 @@ const MarketVolatility = ({ data, isLoading, error }) => {
   const { market_volatility, avg_absolute_change } = data;
 
   // Handle case where required fields might be missing
-  if (typeof market_volatility !== 'number' || isNaN(market_volatility)) {
-    return (
-      <Alert severity="info">
-        Volatility data not yet available.
-      </Alert>
-    );
+  if (typeof market_volatility !== "number" || isNaN(market_volatility)) {
+    return <Alert severity="info">Volatility data not yet available.</Alert>;
   }
 
   // Determine volatility level
@@ -61,14 +65,14 @@ const MarketVolatility = ({ data, isLoading, error }) => {
   if (market_volatility !== null && market_volatility !== undefined) {
     chartData.push({
       name: "Market Volatility",
-      value: parseFloat(market_volatility)
+      value: parseFloat(market_volatility),
     });
   }
 
   if (avg_absolute_change !== null && avg_absolute_change !== undefined) {
     chartData.push({
       name: "Avg Daily Change",
-      value: parseFloat(avg_absolute_change)
+      value: parseFloat(avg_absolute_change),
     });
   }
 
@@ -93,7 +97,11 @@ const MarketVolatility = ({ data, isLoading, error }) => {
                   mb: 2,
                 }}
               >
-                <Typography variant="body2" color="text.secondary" sx={{ mb: 1 }}>
+                <Typography
+                  variant="body2"
+                  color="text.secondary"
+                  sx={{ mb: 1 }}
+                >
                   Current Volatility Level
                 </Typography>
                 <Typography
@@ -119,10 +127,15 @@ const MarketVolatility = ({ data, isLoading, error }) => {
 
               <Paper elevation={0} sx={{ p: 2, bgcolor: "grey.50" }}>
                 <Box sx={{ display: "flex", alignItems: "center", gap: 2 }}>
-                  {typeof avg_absolute_change === 'number' && avg_absolute_change > 2 ? (
-                    <TrendingUp sx={{ color: theme.palette.warning.main, fontSize: 32 }} />
+                  {typeof avg_absolute_change === "number" &&
+                  avg_absolute_change > 2 ? (
+                    <TrendingUp
+                      sx={{ color: theme.palette.warning.main, fontSize: 32 }}
+                    />
                   ) : (
-                    <TrendingDown sx={{ color: theme.palette.success.main, fontSize: 32 }} />
+                    <TrendingDown
+                      sx={{ color: theme.palette.success.main, fontSize: 32 }}
+                    />
                   )}
                   <Box>
                     <Typography variant="body2" color="text.secondary">
@@ -146,7 +159,7 @@ const MarketVolatility = ({ data, isLoading, error }) => {
                 <Typography variant="h6" sx={{ mb: 3, fontWeight: 600 }}>
                   Volatility Metrics
                 </Typography>
-                <div style={getChartContainerStyle('default')}>
+                <div style={getChartContainerStyle("default")}>
                   <ResponsiveContainer width="100%" height="100%">
                     <BarChart
                       data={chartData}
@@ -162,7 +175,11 @@ const MarketVolatility = ({ data, isLoading, error }) => {
                       <YAxis width={50} />
                       <Tooltip
                         formatter={(value) => formatPercentageChange(value, 3)}
-                        contentStyle={{ backgroundColor: "rgba(0,0,0,0.85)", border: "1px solid #666", borderRadius: 4 }}
+                        contentStyle={{
+                          backgroundColor: "rgba(0,0,0,0.85)",
+                          border: "1px solid #666",
+                          borderRadius: 4,
+                        }}
                         labelStyle={{ color: "#fff" }}
                       />
                       <Bar
@@ -184,4 +201,3 @@ const MarketVolatility = ({ data, isLoading, error }) => {
 };
 
 export default MarketVolatility;
-

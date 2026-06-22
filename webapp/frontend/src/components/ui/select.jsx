@@ -54,4 +54,3 @@ export const SelectValue = React.forwardRef(
   )
 );
 SelectValue.displayName = "SelectValue";
-

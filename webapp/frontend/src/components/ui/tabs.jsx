@@ -67,7 +67,12 @@ export const Tabs = React.forwardRef(
     return (
       <div ref={ref} className={className} {...divProps}>
         {React.Children.map(children, (child) => {
-          if (child && React.isValidElement(child) && child.type && child.type.displayName === "TabsList") {
+          if (
+            child &&
+            React.isValidElement(child) &&
+            child.type &&
+            child.type.displayName === "TabsList"
+          ) {
             return React.cloneElement(child, {
               value: activeTab,
               onChange: handleChange,
@@ -77,7 +82,12 @@ export const Tabs = React.forwardRef(
           return child;
         })}
         {React.Children.map(children, (child) => {
-          if (child && React.isValidElement(child) && child.type && child.type.displayName === "TabsContent") {
+          if (
+            child &&
+            React.isValidElement(child) &&
+            child.type &&
+            child.type.displayName === "TabsContent"
+          ) {
             return React.cloneElement(child, {
               value: child.props.value,
               active: activeTab === child.props.value,
@@ -186,4 +196,3 @@ export const TabsContent = React.forwardRef(
   }
 );
 TabsContent.displayName = "TabsContent";
-

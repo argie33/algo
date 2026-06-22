@@ -46,7 +46,13 @@ const MarketExposure = ({ marketData, breadthData, distributionDaysData }) => {
 
     // CRITICAL: Return null/error if essential data is missing (no fake defaults)
     if (!marketData || !breadthData || !distributionDaysData) {
-      return { score: null, level: "No Data", signals: [], breakdown: {}, error: "Missing required market data" };
+      return {
+        score: null,
+        level: "No Data",
+        signals: [],
+        breakdown: {},
+        error: "Missing required market data",
+      };
     }
 
     const breakdown = {};
@@ -57,8 +63,18 @@ const MarketExposure = ({ marketData, breadthData, distributionDaysData }) => {
     // 1. MARKET BREADTH (±30 points)
     // Simple logic: Advancing/Declining ratio tells us market health
     const breadthInfo = breadthData?.data || breadthData;
-    if (!breadthInfo || breadthInfo.advancing === null || breadthInfo.declining === null) {
-      return { score: null, level: "No Data", signals: [], breakdown: {}, error: "Missing breadth data" };
+    if (
+      !breadthInfo ||
+      breadthInfo.advancing === null ||
+      breadthInfo.declining === null
+    ) {
+      return {
+        score: null,
+        level: "No Data",
+        signals: [],
+        breakdown: {},
+        error: "Missing breadth data",
+      };
     }
     const advancers = parseInt(breadthInfo.advancing);
     const decliners = parseInt(breadthInfo.declining);
@@ -66,7 +82,13 @@ const MarketExposure = ({ marketData, breadthData, distributionDaysData }) => {
 
     // Return error if total stocks is 0 (no market data)
     if (total === 0) {
-      return { score: null, level: "No Data", signals: [], breakdown: {}, error: "No market breadth data available" };
+      return {
+        score: null,
+        level: "No Data",
+        signals: [],
+        breakdown: {},
+        error: "No market breadth data available",
+      };
     }
 
     let breadthScore = 0;
@@ -78,11 +100,19 @@ const MarketExposure = ({ marketData, breadthData, distributionDaysData }) => {
       if (advancePercent > 65) {
         signals.push({ label: "Strong Breadth", color: "success", icon: "📈" });
       } else if (advancePercent > 55) {
-        signals.push({ label: "Positive Breadth", color: "success", icon: "📊" });
+        signals.push({
+          label: "Positive Breadth",
+          color: "success",
+          icon: "📊",
+        });
       } else if (advancePercent < 35) {
         signals.push({ label: "Weak Breadth", color: "error", icon: "📉" });
       } else if (advancePercent < 45) {
-        signals.push({ label: "Declining Breadth", color: "warning", icon: "⚠️" });
+        signals.push({
+          label: "Declining Breadth",
+          color: "warning",
+          icon: "⚠️",
+        });
       }
     }
     breakdown.breadth = breadthScore;
@@ -100,18 +130,30 @@ const MarketExposure = ({ marketData, breadthData, distributionDaysData }) => {
     } else {
       const spxIndex = indices.find((i) => i.symbol === "^GSPC");
 
-      if (spxIndex && spxIndex.changePercent !== null && spxIndex.changePercent !== undefined) {
+      if (
+        spxIndex &&
+        spxIndex.changePercent !== null &&
+        spxIndex.changePercent !== undefined
+      ) {
         // Simple: +1% index move = +6.67 points (max ±20)
         sentimentScore = spxIndex.changePercent * 6.67;
 
         if (spxIndex.changePercent > 2) {
-          signals.push({ label: "Strong Market Up", color: "success", icon: "🟢" });
+          signals.push({
+            label: "Strong Market Up",
+            color: "success",
+            icon: "🟢",
+          });
         } else if (spxIndex.changePercent > 0.5) {
           signals.push({ label: "Market Up", color: "success", icon: "📈" });
         } else if (spxIndex.changePercent < -2) {
           signals.push({ label: "Market Down", color: "error", icon: "🔴" });
         } else if (spxIndex.changePercent < -0.5) {
-          signals.push({ label: "Market Declining", color: "warning", icon: "📉" });
+          signals.push({
+            label: "Market Declining",
+            color: "warning",
+            icon: "📉",
+          });
         }
       }
     }
@@ -123,25 +165,42 @@ const MarketExposure = ({ marketData, breadthData, distributionDaysData }) => {
     let distributionScore = 0;
     const distributionDaysData_obj = distributionDaysData || {};
     // Get S&P 500 distribution days count (or fall back to first available index)
-    const recentDistribution = parseInt(
-      distributionDaysData_obj["^GSPC"]?.count ||
-      distributionDaysData_obj["^IXIC"]?.count ||
-      distributionDaysData_obj["^DJI"]?.count ||
-      0
-    ) || 0;
+    const recentDistribution =
+      parseInt(
+        distributionDaysData_obj["^GSPC"]?.count ||
+          distributionDaysData_obj["^IXIC"]?.count ||
+          distributionDaysData_obj["^DJI"]?.count ||
+          0
+      ) || 0;
 
     if (recentDistribution >= 6) {
       distributionScore = -30; // Maximum penalty
-      signals.push({ label: "High Distribution ⚠️", color: "error", icon: "⛔" });
+      signals.push({
+        label: "High Distribution ⚠️",
+        color: "error",
+        icon: "⛔",
+      });
     } else if (recentDistribution >= 4) {
       distributionScore = -20;
-      signals.push({ label: `${recentDistribution} Distribution Days`, color: "error", icon: "⛔" });
+      signals.push({
+        label: `${recentDistribution} Distribution Days`,
+        color: "error",
+        icon: "⛔",
+      });
     } else if (recentDistribution >= 2) {
       distributionScore = -10;
-      signals.push({ label: `${recentDistribution} Distribution Days`, color: "warning", icon: "⚠️" });
+      signals.push({
+        label: `${recentDistribution} Distribution Days`,
+        color: "warning",
+        icon: "⚠️",
+      });
     } else if (recentDistribution === 1) {
       distributionScore = -5;
-      signals.push({ label: "1 Distribution Day", color: "warning", icon: "⚠️" });
+      signals.push({
+        label: "1 Distribution Day",
+        color: "warning",
+        icon: "⚠️",
+      });
     }
     breakdown.distribution = distributionScore;
     score += distributionScore;
@@ -223,9 +282,14 @@ const MarketExposure = ({ marketData, breadthData, distributionDaysData }) => {
               }}
             >
               <Typography variant="body2" color="error">
-                ⚠️ Unable to calculate exposure: {exposureScore.error || "Market data unavailable"}
+                ⚠️ Unable to calculate exposure:{" "}
+                {exposureScore.error || "Market data unavailable"}
               </Typography>
-              <Typography variant="caption" color="text.secondary" sx={{ mt: 1, display: "block" }}>
+              <Typography
+                variant="caption"
+                color="text.secondary"
+                sx={{ mt: 1, display: "block" }}
+              >
                 Please ensure market data is loading correctly
               </Typography>
             </Paper>
@@ -292,12 +356,22 @@ const MarketExposure = ({ marketData, breadthData, distributionDaysData }) => {
                 >
                   {exposureLevel.level}
                 </Typography>
-                <Typography variant="body2" color="text.secondary" sx={{ mt: 0.5 }}>
+                <Typography
+                  variant="body2"
+                  color="text.secondary"
+                  sx={{ mt: 0.5 }}
+                >
                   {exposureLevel.exposure} Recommended
                 </Typography>
               </Box>
               <Box sx={{ flex: 1 }}>
-                <Box sx={{ display: "flex", justifyContent: "space-between", mb: 1 }}>
+                <Box
+                  sx={{
+                    display: "flex",
+                    justifyContent: "space-between",
+                    mb: 1,
+                  }}
+                >
                   <Typography variant="caption" color="text.secondary">
                     Exposure Score
                   </Typography>
@@ -369,7 +443,14 @@ const MarketExposure = ({ marketData, breadthData, distributionDaysData }) => {
         </Box>
 
         {/* Score Breakdown */}
-        <Box sx={{ mt: 3, p: 1.5, backgroundColor: alpha(theme.palette.primary.main, 0.05), borderRadius: 1 }}>
+        <Box
+          sx={{
+            mt: 3,
+            p: 1.5,
+            backgroundColor: alpha(theme.palette.primary.main, 0.05),
+            borderRadius: 1,
+          }}
+        >
           <Typography
             variant="subtitle2"
             sx={{ fontWeight: 600, mb: 1.5, color: "text.secondary" }}
@@ -379,20 +460,32 @@ const MarketExposure = ({ marketData, breadthData, distributionDaysData }) => {
           <Grid container spacing={2}>
             <Grid item xs={6} sm={4}>
               <Box>
-                <Typography variant="caption" color="text.secondary" display="block">
+                <Typography
+                  variant="caption"
+                  color="text.secondary"
+                  display="block"
+                >
                   Breadth
                 </Typography>
                 <Typography
                   variant="body2"
                   sx={{
                     fontWeight: 600,
-                    color: exposureScore.breakdown?.breadth > 0 ? "success.main" :
-                           exposureScore.breakdown?.breadth < 0 ? "error.main" : "text.primary"
+                    color:
+                      exposureScore.breakdown?.breadth > 0
+                        ? "success.main"
+                        : exposureScore.breakdown?.breadth < 0
+                          ? "error.main"
+                          : "text.primary",
                   }}
                 >
-                  {exposureScore.breakdown?.breadth !== null && exposureScore.breakdown?.breadth !== undefined
+                  {exposureScore.breakdown?.breadth !== null &&
+                  exposureScore.breakdown?.breadth !== undefined
                     ? (() => {
-                        const val = typeof exposureScore.breakdown.breadth === 'number' ? exposureScore.breakdown.breadth : parseFloat(exposureScore.breakdown.breadth) || 0;
+                        const val =
+                          typeof exposureScore.breakdown.breadth === "number"
+                            ? exposureScore.breakdown.breadth
+                            : parseFloat(exposureScore.breakdown.breadth) || 0;
                         return formatPercentageChange(val, 1);
                       })()
                     : "N/A"}
@@ -401,20 +494,33 @@ const MarketExposure = ({ marketData, breadthData, distributionDaysData }) => {
             </Grid>
             <Grid item xs={6} sm={4}>
               <Box>
-                <Typography variant="caption" color="text.secondary" display="block">
+                <Typography
+                  variant="caption"
+                  color="text.secondary"
+                  display="block"
+                >
                   Sentiment
                 </Typography>
                 <Typography
                   variant="body2"
                   sx={{
                     fontWeight: 600,
-                    color: exposureScore.breakdown?.sentiment > 0 ? "success.main" :
-                           exposureScore.breakdown?.sentiment < 0 ? "error.main" : "text.primary"
+                    color:
+                      exposureScore.breakdown?.sentiment > 0
+                        ? "success.main"
+                        : exposureScore.breakdown?.sentiment < 0
+                          ? "error.main"
+                          : "text.primary",
                   }}
                 >
-                  {exposureScore.breakdown?.sentiment !== null && exposureScore.breakdown?.sentiment !== undefined
+                  {exposureScore.breakdown?.sentiment !== null &&
+                  exposureScore.breakdown?.sentiment !== undefined
                     ? (() => {
-                        const val = typeof exposureScore.breakdown.sentiment === 'number' ? exposureScore.breakdown.sentiment : parseFloat(exposureScore.breakdown.sentiment) || 0;
+                        const val =
+                          typeof exposureScore.breakdown.sentiment === "number"
+                            ? exposureScore.breakdown.sentiment
+                            : parseFloat(exposureScore.breakdown.sentiment) ||
+                              0;
                         return formatPercentageChange(val, 1);
                       })()
                     : "N/A"}
@@ -423,19 +529,33 @@ const MarketExposure = ({ marketData, breadthData, distributionDaysData }) => {
             </Grid>
             <Grid item xs={6} sm={4}>
               <Box>
-                <Typography variant="caption" color="text.secondary" display="block">
+                <Typography
+                  variant="caption"
+                  color="text.secondary"
+                  display="block"
+                >
                   Distribution
                 </Typography>
                 <Typography
                   variant="body2"
                   sx={{
                     fontWeight: 600,
-                    color: exposureScore.breakdown?.distribution < 0 ? "error.main" : "text.primary"
+                    color:
+                      exposureScore.breakdown?.distribution < 0
+                        ? "error.main"
+                        : "text.primary",
                   }}
                 >
-                  {exposureScore.breakdown?.distribution !== null && exposureScore.breakdown?.distribution !== undefined
+                  {exposureScore.breakdown?.distribution !== null &&
+                  exposureScore.breakdown?.distribution !== undefined
                     ? (() => {
-                        const val = typeof exposureScore.breakdown.distribution === 'number' ? exposureScore.breakdown.distribution : parseFloat(exposureScore.breakdown.distribution) || 0;
+                        const val =
+                          typeof exposureScore.breakdown.distribution ===
+                          "number"
+                            ? exposureScore.breakdown.distribution
+                            : parseFloat(
+                                exposureScore.breakdown.distribution
+                              ) || 0;
                         return formatPercentageChange(val, 1);
                       })()
                     : "N/A"}
@@ -443,7 +563,11 @@ const MarketExposure = ({ marketData, breadthData, distributionDaysData }) => {
               </Box>
             </Grid>
           </Grid>
-          <Typography variant="caption" color="text.secondary" sx={{ mt: 1, display: "block" }}>
+          <Typography
+            variant="caption"
+            color="text.secondary"
+            sx={{ mt: 1, display: "block" }}
+          >
             Formula: 50 (base) + Breadth ± Sentiment ± Distribution
           </Typography>
         </Box>
@@ -463,22 +587,38 @@ const MarketExposure = ({ marketData, breadthData, distributionDaysData }) => {
           </Typography>
           <Grid container spacing={1}>
             <Grid item xs={12} sm={6}>
-              <Typography variant="caption" color="text.secondary" display="block">
+              <Typography
+                variant="caption"
+                color="text.secondary"
+                display="block"
+              >
                 📈 If Bullish: Enter on strength
               </Typography>
             </Grid>
             <Grid item xs={12} sm={6}>
-              <Typography variant="caption" color="text.secondary" display="block">
+              <Typography
+                variant="caption"
+                color="text.secondary"
+                display="block"
+              >
                 📉 If Bearish: Reduce exposure
               </Typography>
             </Grid>
             <Grid item xs={12} sm={6}>
-              <Typography variant="caption" color="text.secondary" display="block">
+              <Typography
+                variant="caption"
+                color="text.secondary"
+                display="block"
+              >
                 ⚠️ If Mixed: Use trailing stops
               </Typography>
             </Grid>
             <Grid item xs={12} sm={6}>
-              <Typography variant="caption" color="text.secondary" display="block">
+              <Typography
+                variant="caption"
+                color="text.secondary"
+                display="block"
+              >
                 💰 Scale in/out gradually
               </Typography>
             </Grid>
@@ -490,4 +630,3 @@ const MarketExposure = ({ marketData, breadthData, distributionDaysData }) => {
 };
 
 export default MarketExposure;
-

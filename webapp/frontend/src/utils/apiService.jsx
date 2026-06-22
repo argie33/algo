@@ -70,9 +70,12 @@ export const createLogger = (componentName) => ({
 const getAuthToken = () => {
   try {
     // Use tokenManager for consistent token retrieval
-    return tokenManager.getToken('access');
+    return tokenManager.getToken("access");
   } catch (error) {
-    console.warn('[apiService] Failed to retrieve auth token:', error?.message || error);
+    console.warn(
+      "[apiService] Failed to retrieve auth token:",
+      error?.message || error
+    );
   }
   return null;
 };
@@ -120,7 +123,10 @@ export const apiCall = async (
       try {
         errorData = JSON.parse(errorText);
       } catch (parseErr) {
-        console.error('[API] Failed to parse error response JSON:', parseErr?.message || parseErr);
+        console.error(
+          "[API] Failed to parse error response JSON:",
+          parseErr?.message || parseErr
+        );
         errorData = { message: errorText };
       }
 
@@ -145,22 +151,25 @@ export const apiCall = async (
     }
 
     // Validate content-type before parsing JSON (allow charset and other JSON variations)
-    const contentType = response.headers.get('content-type') || '';
-    const isJsonContentType = contentType.startsWith('application/json');
+    const contentType = response.headers.get("content-type") || "";
+    const isJsonContentType = contentType.startsWith("application/json");
     if (contentType && !isJsonContentType) {
       // Log warning for non-JSON responses but still try to parse (some APIs omit content-type)
-      logger.warn('API response has non-JSON content-type, attempting to parse anyway', {
-        contentType,
-        url,
-        status: response.status,
-      });
+      logger.warn(
+        "API response has non-JSON content-type, attempting to parse anyway",
+        {
+          contentType,
+          url,
+          status: response.status,
+        }
+      );
     }
 
     let data;
     try {
       data = await response.json();
     } catch (parseError) {
-      logger.error('Failed to parse JSON response', parseError, {
+      logger.error("Failed to parse JSON response", parseError, {
         url,
         status: response.status,
         contentType,
@@ -195,7 +204,7 @@ export const apiCall = async (
       const freshness = data.data_freshness;
       if (freshness.is_stale) {
         console.warn(
-          `⚠️ Stale data from ${url}: ${freshness.warning || 'Data is older than expected'}`,
+          `⚠️ Stale data from ${url}: ${freshness.warning || "Data is older than expected"}`,
           freshness
         );
       }
@@ -205,12 +214,12 @@ export const apiCall = async (
     if (data && data.items && data.items.length > 0) {
       const item = data.items[0];
       const requiredFieldsByEndpoint = {
-        '/api/scores': ['symbol', 'momentum_score', 'composite_score'],
-        '/api/signals': ['symbol', 'ema_21', 'adx', 'signal'],
-        '/api/market': ['vix_level']
+        "/api/scores": ["symbol", "momentum_score", "composite_score"],
+        "/api/signals": ["symbol", "ema_21", "adx", "signal"],
+        "/api/market": ["vix_level"],
       };
 
-      const endpoint = url.split('?')[0]; // Remove query params
+      const endpoint = url.split("?")[0]; // Remove query params
       const requiredFields = requiredFieldsByEndpoint[endpoint] || [];
 
       for (const field of requiredFields) {
@@ -374,7 +383,6 @@ export const withErrorHandling = (Component, componentName) => {
 
       window.addEventListener("error", handleError);
       return () => window.removeEventListener("error", handleError);
-      
     }, []);
 
     return <Component {...props} />;
@@ -391,4 +399,3 @@ export default {
   withErrorHandling,
   getApiConfig,
 };
-

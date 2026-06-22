@@ -11,7 +11,6 @@ test.describe("Financial Platform - Authentication Flows", () => {
     await page.waitForLoadState("domcontentloaded");
     await page.waitForTimeout(2000);
 
-
     // Look for sign in button or authentication prompt
     const signInButton = page
       .locator(
@@ -49,7 +48,6 @@ test.describe("Financial Platform - Authentication Flows", () => {
     await page.waitForLoadState("domcontentloaded");
     await page.waitForTimeout(2000);
 
-
     // Look for and click API Keys tab - with multiple approaches
     const apiKeysSelectors = [
       '[data-testid="api-keys-tab"]',
@@ -81,14 +79,12 @@ test.describe("Financial Platform - Authentication Flows", () => {
       )
       .count();
 
-
     // Look for provider setup (Alpaca, Polygon, etc.)
     const providerElements = await page
       .locator(
         ':has-text("Alpaca"), :has-text("Polygon"), :has-text("Finnhub"), .provider, [data-provider]'
       )
       .count();
-
 
     // Check for setup wizard or configuration options
     const setupElements = await page
@@ -97,14 +93,15 @@ test.describe("Financial Platform - Authentication Flows", () => {
       )
       .count();
 
-
     // Should find at least some API-related elements after clicking the tab
     const totalElements = apiKeyElements + providerElements + setupElements;
 
     if (totalElements === 0) {
       // At minimum, we should be on settings page with some content
       const pageTitle = await page.title();
-      const hasSettingsContent = await page.locator('h1, h2, h3, h4, h5, h6').count();
+      const hasSettingsContent = await page
+        .locator("h1, h2, h3, h4, h5, h6")
+        .count();
       expect(hasSettingsContent).toBeGreaterThan(0);
     } else {
       expect(totalElements).toBeGreaterThan(0);
@@ -114,11 +111,7 @@ test.describe("Financial Platform - Authentication Flows", () => {
   test("should handle protected routes", async ({ page }) => {
     // Test without authentication
 
-    const protectedRoutes = [
-      "/app/portfolio",
-      "/app/trades",
-      "/app/settings",
-    ];
+    const protectedRoutes = ["/app/portfolio", "/app/trades", "/app/settings"];
 
     let accessibleRoutes = 0;
     let redirectedRoutes = 0;
@@ -154,7 +147,9 @@ test.describe("Financial Platform - Authentication Flows", () => {
       }
     }
 
-    console.log(`Route accessibility: ${accessibleRoutes} accessible, ${redirectedRoutes} protected`);
+    console.log(
+      `Route accessibility: ${accessibleRoutes} accessible, ${redirectedRoutes} protected`
+    );
 
     // Should have tested at least one route successfully
     const totalTested = accessibleRoutes + redirectedRoutes;
@@ -186,7 +181,6 @@ test.describe("Financial Platform - Authentication Flows", () => {
     await page.waitForLoadState("domcontentloaded");
     await page.waitForTimeout(2000);
 
-
     // Check if page content loads successfully
     const pageTitle = await page.title();
 
@@ -195,7 +189,6 @@ test.describe("Financial Platform - Authentication Flows", () => {
       .locator('button, a[href], input, [role="button"], [role="link"]')
       .count();
 
-
     // Check for general portfolio or data elements
     const contentElements = await page
       .locator(
@@ -203,12 +196,13 @@ test.describe("Financial Platform - Authentication Flows", () => {
       )
       .count();
 
-
     // Verify page has meaningful content
     const pageContent = await page.locator("#root").textContent();
     const hasContent = pageContent && pageContent.length > 500;
 
-    console.log(`Page content loaded: ${hasContent ? "Yes" : "No"} (${pageContent?.length || 0} chars)`);
+    console.log(
+      `Page content loaded: ${hasContent ? "Yes" : "No"} (${pageContent?.length || 0} chars)`
+    );
 
     // Test passes if page loads with interactive elements or content
     expect(interactiveElements + contentElements).toBeGreaterThan(0);
@@ -224,7 +218,6 @@ test.describe("Financial Platform - Authentication Flows", () => {
     await page.waitForLoadState("domcontentloaded");
     await page.waitForTimeout(2000);
 
-
     // Look for logout button/menu
     const logoutElements = await page
       .locator(
@@ -232,12 +225,10 @@ test.describe("Financial Platform - Authentication Flows", () => {
       )
       .count();
 
-
     // Look for user menu/profile that might contain logout
     const userMenu = await page
       .locator('.user-menu, .profile, .avatar, [data-testid*="user"]')
       .count();
-
 
     if (logoutElements > 0) {
     } else if (userMenu > 0) {
@@ -247,4 +238,3 @@ test.describe("Financial Platform - Authentication Flows", () => {
     expect(true).toBe(true); // Test passes if page loads
   });
 });
-
