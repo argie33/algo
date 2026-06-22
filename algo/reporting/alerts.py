@@ -109,7 +109,7 @@ def _validate_webhook_url(url: str) -> bool:
 
 
 class AlertManager:
-    """Send alerts via email and webhook. Fails hard if no channels configured."""
+    """Send alerts via email, SNS, and webhook. Fails hard if no channels configured."""
 
     def __init__(self):
         self.email_from = os.getenv("ALERT_SMTP_FROM") or os.getenv("ALERT_EMAIL_FROM", "noreply@algo.local")
@@ -117,14 +117,21 @@ class AlertManager:
         self.smtp_host = os.getenv("ALERT_SMTP_HOST")
         self.smtp_port = int(os.getenv("ALERT_SMTP_PORT", "587"))
         self.smtp_user = os.getenv("ALERT_SMTP_USER", "")
-        self.smtp_password = self._load_smtp_password()
+        self.smtp_password = os.getenv("ALERT_SMTP_PASSWORD", "")
 
-        # Fail fast if email is configured but incomplete
+        # Warn and disable email if ALERT_EMAIL_TO is set but SMTP credentials are incomplete.
+        # This lets SNS or webhook serve as the primary channel when SMTP is not configured.
         if self.email_to and not (self.smtp_host and self.smtp_user and self.smtp_password):
-            raise RuntimeError(
-                "Email alerts configured (ALERT_EMAIL_TO set) but SMTP credentials incomplete. "
-                "Set ALERT_SMTP_HOST, ALERT_SMTP_USER, ALERT_SMTP_PASSWORD or remove ALERT_EMAIL_TO."
+            logger.warning(
+                "Email alerts configured (ALERT_EMAIL_TO set) but SMTP credentials incomplete — "
+                "email alerts disabled. Set ALERT_SMTP_HOST, ALERT_SMTP_USER, ALERT_SMTP_PASSWORD "
+                "to enable email, or configure ALERTS_SNS_TOPIC / ALERT_WEBHOOK_URL instead."
             )
+            self.email_to = []
+
+        # SNS alert channel — used in Lambda where SMTP is unavailable
+        self.sns_topic = os.getenv("ALERTS_SNS_TOPIC", "")
+        self._sns_client = None
 
         # SECURITY FIX: Validate webhook URL before using (prevent SSRF)
         webhook_url_raw = os.getenv("ALERT_WEBHOOK_URL", "")
@@ -157,23 +164,31 @@ class AlertManager:
                 raise RuntimeError(f"Twilio client initialization failed: {e}") from e
 
         # Fail fast if no alert channels configured
-        if not (self.email_to or self.webhook_url or self.twilio_client):
+        if not (self.email_to or self.sns_topic or self.webhook_url or self.twilio_client):
             raise RuntimeError(
                 "[ALERT CONFIG] No alert channels configured. "
                 "Set at least one of: ALERT_EMAIL_TO + ALERT_SMTP_* (email), "
-                "ALERT_WEBHOOK_URL (Slack/Teams/Discord), or TWILIO_* (SMS). "
-                "Cannot proceed without alert capability."
+                "ALERTS_SNS_TOPIC (AWS SNS), ALERT_WEBHOOK_URL (Slack/Teams/Discord), "
+                "or TWILIO_* (SMS). Cannot proceed without alert capability."
             )
 
-    def _load_smtp_password(self) -> str:
-        """Load SMTP password from environment variable. Fails if empty when email is configured."""
-        password = os.getenv("ALERT_SMTP_PASSWORD", "")
-        if not password and os.getenv("ALERT_EMAIL_TO"):
-            raise ValueError(
-                "ALERT_SMTP_PASSWORD not set but ALERT_EMAIL_TO is configured. "
-                "Set ALERT_SMTP_PASSWORD or remove ALERT_EMAIL_TO."
+    def _get_sns_client(self):
+        if self._sns_client is None:
+            import boto3
+            self._sns_client = boto3.client("sns", region_name=os.getenv("AWS_REGION", "us-east-1"))
+        return self._sns_client
+
+    def _publish_sns(self, subject: str, message: str) -> None:
+        try:
+            self._get_sns_client().publish(
+                TopicArn=self.sns_topic,
+                Subject=subject[:100],
+                Message=message,
             )
-        return password
+            logger.info(f"SNS alert published: {subject}")
+        except Exception as e:
+            logger.error(f"SNS publish failed: {e}")
+            raise
 
     def send_patrol_alert(self, patrol_run_id, counts, flagged_findings):
         """Send CRITICAL alert when patrol finds issues. Fails hard on send failure.
@@ -234,6 +249,12 @@ class AlertManager:
             except Exception as e:
                 send_errors.append(f"Email: {e}")
 
+        if self.sns_topic:
+            try:
+                self._publish_sns(subject, body_text)
+            except Exception as e:
+                send_errors.append(f"SNS: {e}")
+
         if self.phone_numbers and self.twilio_client:
             try:
                 self._send_sms(sms_text)
@@ -281,6 +302,12 @@ class AlertManager:
                 self._send_email(subject, body_text)
             except (smtplib.SMTPException, RuntimeError, OSError, ConnectionError) as e:
                 logger.error(f"Position alert email failed (non-blocking): {e}")
+
+        if self.sns_topic:
+            try:
+                self._publish_sns(subject, body_text)
+            except Exception as e:
+                logger.error(f"Position alert SNS failed (non-blocking): {e}")
 
         if self.webhook_url:
             try:
@@ -341,6 +368,12 @@ class AlertManager:
             except Exception as e:
                 logger.error(f"Loader alert email failed (non-blocking): {e}")
 
+        if self.sns_topic:
+            try:
+                self._publish_sns(subject, body_text)
+            except Exception as e:
+                logger.error(f"Loader alert SNS failed (non-blocking): {e}")
+
         if self.webhook_url:
             try:
                 self._send_webhook_simple(subject, f"{severity}: Data loaders failing", "LOADER_FAILURE")
@@ -361,6 +394,12 @@ class AlertManager:
                 self._send_email(subject, body_text)
             except (smtplib.SMTPException, RuntimeError, OSError, ConnectionError) as e:
                 logger.error(f"Critical alert email failed (non-blocking): {e}")
+
+        if self.sns_topic:
+            try:
+                self._publish_sns(subject, body_text)
+            except Exception as e:
+                logger.error(f"Critical alert SNS failed (non-blocking): {e}")
 
         if self.webhook_url:
             try:
