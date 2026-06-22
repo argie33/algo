@@ -247,7 +247,7 @@ def requires_auth(handler_func: Callable[..., T]) -> Callable[..., T]:
             # Pass user_id as additional parameter to handler
             return handler_func(cur, path, method, params, body, jwt_claims=jwt_claims, user_id=user_id)
         except ValueError as e:
-            return cast(dict[str, Any], error_response(401, "unauthorized", str(e))  # type: ignore[return-value]  # type: ignore[no-any-return])
+            return error_response(401, "unauthorized", str(e))  # type: ignore[return-value]
 
     return wrapper
 
