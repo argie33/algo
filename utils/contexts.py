@@ -208,7 +208,7 @@ def timeout_context(
     try:
         if hasattr(signal, "SIGALRM"):
             old_handler = signal.signal(signal.SIGALRM, timeout_handler)
-            signal.alarm(timeout_sec)  # type: ignore[attr-defined]
+            signal.alarm(timeout_sec)  # type: ignore[attr-defined,unused-ignore]
     except (AttributeError, ValueError):
         # Windows or already set
         pass
@@ -219,7 +219,7 @@ def timeout_context(
         # Cancel alarm
         try:
             if hasattr(signal, "SIGALRM"):
-                signal.alarm(0)  # type: ignore[attr-defined]
+                signal.alarm(0)  # type: ignore[attr-defined,unused-ignore]
                 if old_handler:
                     signal.signal(signal.SIGALRM, old_handler)
         except (AttributeError, ValueError):
