@@ -495,7 +495,8 @@ def _tech_heartbeat_worker(stop_event):
     """Periodically update last_updated to signal loader is alive."""
     while not stop_event.is_set():
         try:
-            time.sleep(60)
+            if stop_event.wait(timeout=60):  # exits early when stop is requested
+                break
             with DatabaseContext("write") as cur:
                 cur.execute(
                     """
