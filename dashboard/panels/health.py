@@ -5,6 +5,73 @@ import logging
 
 logger = logging.getLogger(__name__)
 
+
+class HealthFormatter:
+    """Centralized formatting logic for health dashboard panels."""
+
+    @staticmethod
+    def var_color(var95: float | None) -> str:
+        """Choose color for VaR 95% value: red if ≥4%, yellow if ≥2%, white otherwise."""
+        from ..utilities import R, Y
+
+        if var95 is None:
+            return "dim"
+        if var95 >= 4:
+            return R
+        if var95 >= 2:
+            return Y
+        return "white"
+
+    @staticmethod
+    def format_phase_badge(phase_status: str) -> tuple[str, str]:
+        """Format phase status to (color, icon) badge."""
+        from ..utilities import G, R, Y
+
+        ps_lower = phase_status.lower() if phase_status else ""
+        success_states = ("success", "completed", "ok")
+        halted_states = ("halt", "halted", "warn", "degraded", "skipped")
+        if ps_lower in success_states:
+            return G, "✓"
+        elif ps_lower in halted_states:
+            return Y, "~"
+        else:
+            return R, "✗"
+
+    @staticmethod
+    def fmt_age(r: dict) -> str:
+        """Format age from health item dict."""
+        from dashboard.data_validation import safe_float
+
+        ah = r.get("age_hours")
+        ad = r.get("age")
+        if ah is not None:
+            ah_f = safe_float(ah, default=0.0) or 0.0
+            return f"{ah_f:.0f}h" if ah_f < 24 else f"{ah_f / 24:.1f}d"
+        elif ad is not None:
+            ad_f = safe_float(ad, default=0.0) or 0.0
+            return f"{ad_f:.1f}d"
+        return "?"
+
+    @staticmethod
+    def fmt_updated(r: dict) -> str:
+        """Format last_updated/latest timestamp from health item dict."""
+        lat = r.get("last_updated") or r.get("latest")
+        if lat is not None and hasattr(lat, "strftime"):
+            return str(lat.strftime("%m/%d"))
+        if isinstance(lat, str) and len(lat) >= 10:
+            return lat[5:10]
+        return str(lat or "")[:5]
+
+    @staticmethod
+    def pc(v) -> int:
+        """Count phases: convert list or int to count."""
+        if isinstance(v, list):
+            return len(v)
+        if isinstance(v, int):
+            return v
+        return 0
+
+
 try:
     from panel_registry import register_panel
 except ImportError as e:
@@ -92,35 +159,6 @@ PHASE_DATA_KEYS = (
 )
 
 
-def _var_color(var95: float | None) -> str:
-    """Choose color for VaR 95% value: red if ≥4%, yellow if ≥2%, white otherwise."""
-    if var95 is None:
-        return "dim"
-    if var95 >= 4:
-        return R
-    if var95 >= 2:
-        return Y
-    return "white"
-
-
-def _format_phase_badge(phase_status: str) -> tuple[str, str]:
-    """Format phase status to (color, icon) badge.
-
-    Args:
-        phase_status: Phase status string (success, halt, halted, warn, degraded, skipped, error, etc.)
-
-    Returns:
-        Tuple of (color, icon) for phase badge
-    """
-    ps_lower = phase_status.lower() if phase_status else ""
-    if ps_lower in SUCCESS_STATES:
-        return G, "✓"
-    elif ps_lower in HALTED_STATES:
-        return Y, "~"
-    else:
-        return R, "✗"
-
-
 def _build_freshness_panel(hlth_items: list, ready_to_trade: bool | None) -> Panel:
     """Build LEFT panel: data freshness table with status summary.
 
@@ -166,25 +204,6 @@ def _build_freshness_panel(hlth_items: list, ready_to_trade: bool | None) -> Pan
         )
     )
 
-    def _fmt_age(r):
-        ah = r.get("age_hours")
-        ad = r.get("age")
-        if ah is not None:
-            ah_f = safe_float(ah, default=0.0)
-            return f"{ah_f:.0f}h" if ah_f < 24 else f"{ah_f / 24:.1f}d"
-        elif ad is not None:
-            ad_f = safe_float(ad, default=0.0)
-            return f"{ad_f:.1f}d"
-        return "?"
-
-    def _fmt_updated(r):
-        lat = r.get("last_updated") or r.get("latest")
-        if hasattr(lat, "strftime"):
-            return lat.strftime("%m/%d")
-        if isinstance(lat, str) and len(lat) >= 10:
-            return lat[5:10]
-        return str(lat or "")[:5]
-
     _role_order = {"CRIT": 0, "IMP": 1, "NORM": 2}
     sorted_items = sorted(
         [r for r in hlth_items if isinstance(r, dict)],
@@ -220,8 +239,8 @@ def _build_freshness_panel(hlth_items: list, ready_to_trade: bool | None) -> Pan
         all_tbl.add_row(
             Text(role, style=rc),
             Text.from_markup(f"[{ic}]{ii}[/] [{rc}]{nm}[/]"),
-            Text(_fmt_age(r), style=DIM if ok else Y),
-            Text(_fmt_updated(r), style="dim"),
+            Text(HealthFormatter.fmt_age(r), style=DIM if ok else Y),
+            Text(HealthFormatter.fmt_updated(r), style="dim"),
             Text(rc_s, style="dim"),
             Text(st_label, style=G if ok else (Y if st == "empty" else R)),
         )
@@ -274,7 +293,7 @@ def panel_orch(run, cfg, risk=None):
             conc5_val = risk_metrics["conc5"]
             svar_val = risk_metrics["svar"]
             beta_c = R if beta_val >= 1.2 else (Y if beta_val >= 0.8 else G)
-            var_c = _var_color(var95_val)
+            var_c = HealthFormatter.var_color(var95_val)
             svar_f = safe_float(svar_val, default=0.0)
             svar_s = f"\n[dim]Stressed VaR:[/][{R}]{svar_f:.2f}%[/]" if svar_val is not None and svar_f > 0 else ""
             var_line = (
@@ -624,14 +643,6 @@ def panel_status(
     # Extract items from data dicts using safe helpers
     hlth_items = safe_get_list(hlth)
 
-    # Helper to count phase list items
-    def _pc(v):
-        if isinstance(v, list):
-            return len(v)
-        if isinstance(v, int):
-            return v
-        return 0
-
     # ── Run status + schedule + mode + trading config ────────────────────────────
     run_valid = run and not has_error(run)
     act_valid = act and not has_error(act)
@@ -707,9 +718,9 @@ def panel_status(
 
         # Show phases_completed/halted/errored counts from the run object
         if run_valid:
-            n_done = _pc(run.get("phases_completed"))
-            n_hlt = _pc(run.get("phases_halted"))
-            n_err = _pc(run.get("phases_errored"))
+            n_done = HealthFormatter.pc(run.get("phases_completed"))
+            n_hlt = HealthFormatter.pc(run.get("phases_halted"))
+            n_err = HealthFormatter.pc(run.get("phases_errored"))
             if n_done + n_hlt + n_err > 0:
                 done_s = f"[{G}]{n_done} phases OK[/]"
                 hlt_s = f"  [{Y}]{n_hlt} halted[/]" if n_hlt else ""
@@ -789,9 +800,9 @@ def panel_status(
         if phase_badges:
             rows.append(Text.from_markup("  ".join(phase_badges)))
 
-        n_ok = _pc(run.get("phases_completed"))
-        n_hlt = _pc(run.get("phases_halted"))
-        n_err = _pc(run.get("phases_errored"))
+        n_ok = HealthFormatter.pc(run.get("phases_completed"))
+        n_hlt = HealthFormatter.pc(run.get("phases_halted"))
+        n_err = HealthFormatter.pc(run.get("phases_errored"))
         if n_ok + n_hlt + n_err > 0:
             ok_s = f"[{G}]{n_ok} phases done[/]"
             hlt_s = f"  [{Y}]{n_hlt} halted[/]" if n_hlt else ""
@@ -818,7 +829,7 @@ def panel_status(
             default_short = "_".join(name_parts)[:7] if name_parts else f"P{num}"
             short = PHASE_NAMES.get(phase_key, default_short)[:9]
             st = p.get("status", "")
-            sc, si = _format_phase_badge(st)
+            sc, si = HealthFormatter.format_phase_badge(st)
             phase_badges.append(f"[{sc}]{si}[dim]{short}[/][/]")
         if phase_badges:
             rows.append(Text.from_markup("  ".join(phase_badges)))
@@ -994,13 +1005,6 @@ def panel_algo_health(
     exits_exec = 0
     phase_badges: list = []
 
-    def _pc(v):
-        if isinstance(v, list):
-            return len(v)
-        if isinstance(v, int):
-            return v
-        return 0
-
     if run_valid and run.get("_source") == "exec_log":
         if "phase_results" not in run:
             return 0
@@ -1011,7 +1015,7 @@ def panel_algo_health(
             base = "_".join(parts_p[:2]) if len(parts_p) >= 2 else raw
             short = PHASE_NAMES.get(base, base.replace("phase_", "P"))[:8]
             ps = p.get("status", "")
-            sc, si = _format_phase_badge(ps)
+            sc, si = HealthFormatter.format_phase_badge(ps)
             phase_badges.append(f"[{sc}]{si}[dim]{short}[/][/]")
             pdata = p.get("data")
             if isinstance(pdata, str):
@@ -1054,7 +1058,7 @@ def panel_algo_health(
             default_short = "_".join(name_parts)[:7] if name_parts else f"P{num}"
             short = PHASE_NAMES.get(phase_key, default_short)[:8]
             st = p.get("status", "")
-            sc, si = _format_phase_badge(st)
+            sc, si = HealthFormatter.format_phase_badge(st)
             phase_badges.append(f"[{sc}]{si}[dim]{short}[/][/]")
 
     if phase_badges:
@@ -1210,7 +1214,7 @@ def panel_algo_health(
             svar_val = risk_dict.get("svar")
             beta_c = R if beta_val >= 1.2 else (Y if beta_val >= 0.8 else G)
             conc_c = R if conc5_val >= 35 else (Y if conc5_val >= 25 else "white")
-            var_c = _var_color(var95_val)
+            var_c = HealthFormatter.var_color(var95_val)
             risk_parts = [
                 f"[dim]VaR 95%:[/][{var_c}]{var95_val:.2f}%[/]",
                 f"[dim]CVaR 95%:[/][{var_c}]{cvar95_val:.2f}%[/]",
@@ -1299,7 +1303,7 @@ def _build_results_panel(run, act, algo_metrics, exec_hist, risk, notifs, audit)
                 base = "_".join(parts_p[:2]) if len(parts_p) >= 2 else raw
                 short = PHASE_NAMES.get(base, base.replace("phase_", "P"))[:8]
                 ps = p.get("status", "")
-                sc, si = _format_phase_badge(ps)
+                sc, si = HealthFormatter.format_phase_badge(ps)
             phase_badges_e.append(f"[{sc}]{si}[dim]{short}[/][/]")
     if phase_badges_e:
         right_rows.append(Text.from_markup("  ".join(phase_badges_e)))
