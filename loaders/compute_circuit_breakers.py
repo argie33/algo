@@ -15,9 +15,10 @@ Metrics computed:
 """
 
 import logging
+from collections.abc import Callable
 from datetime import date, timedelta
 from datetime import datetime as dt
-from typing import Any, Callable
+from typing import Any
 
 import psycopg2
 import psycopg2.extras
