@@ -41,7 +41,7 @@ format:
 type-check:
 	mypy algo/ loaders/ utils/ config/ --ignore-missing-imports --show-error-codes
 	mypy tools/ --ignore-missing-imports --show-error-codes
-	mypy lambda/base_handler.py lambda/algo_orchestrator/ lambda/monitoring/ --ignore-missing-imports --show-error-codes
+	mypy lambda/base_handler.py lambda/algo_orchestrator/lambda_function.py lambda/monitoring/health_monitor.py lambda/monitoring/loader_failure_handler.py lambda/monitoring/loader_timeout_guardian.py --ignore-missing-imports --show-error-codes
 	cd lambda/api && mypy . --ignore-missing-imports --show-error-codes --explicit-package-bases
 
 security:

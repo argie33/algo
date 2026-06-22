@@ -65,7 +65,7 @@ exclude = [
 module = [
     "utils.loaders.helpers",
 ]
-ignore_errors = true
+ignore_errors = true  # Has SIGALRM (Unix-only signal) and legacy type issues — fix tracked separately
 
 [tool.ruff]
 line-length = 120
