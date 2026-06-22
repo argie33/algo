@@ -90,15 +90,20 @@ jobs:
           echo "Payload: $PAYLOAD"
           echo ""
 
+          AWS_INVOKE_EXIT=0
           RESULT=$(aws lambda invoke \
             --function-name "$LAMBDA_NAME" \
             --payload "$(echo "$PAYLOAD" | base64 -w 0)" \
             --cli-binary-format raw-in-base64-out \
             --log-type Tail \
             --region us-east-1 \
-            /tmp/response.json 2>&1)
+            /tmp/response.json 2>/tmp/invoke_stderr.txt) || AWS_INVOKE_EXIT=$?
 
-          echo "=== Invocation Status ==="
+          echo "=== Invocation Status (AWS CLI exit: $AWS_INVOKE_EXIT) ==="
+          if [ -f /tmp/invoke_stderr.txt ] && [ -s /tmp/invoke_stderr.txt ]; then
+            echo "--- CLI stderr ---"
+            cat /tmp/invoke_stderr.txt
+          fi
           cat /tmp/response.json | jq . 2>/dev/null || cat /tmp/response.json
           echo ""
 
@@ -120,7 +125,11 @@ jobs:
             echo "$LOG_RESULT" | base64 -d 2>/dev/null || true
           fi
 
-          # Fail the workflow if orchestrator returned error
+          # Fail the workflow if orchestrator returned error or AWS CLI error
+          if [ "$AWS_INVOKE_EXIT" -ne 0 ]; then
+            echo "AWS Lambda invoke failed (exit $AWS_INVOKE_EXIT) — check stderr above"
+            exit "$AWS_INVOKE_EXIT"
+          fi
           if [ "$STATUS" = "500" ]; then
             echo "Orchestrator returned error status 500"
             exit 1
