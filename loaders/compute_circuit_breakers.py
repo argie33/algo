@@ -174,13 +174,15 @@ def _compute_daily_loss(cur, today: date) -> float:
     cur.execute(
         """
         SELECT daily_return_pct FROM algo_portfolio_snapshots
-        WHERE snapshot_date = %s
+        WHERE snapshot_date <= %s
+        ORDER BY snapshot_date DESC
+        LIMIT 1
     """,
         (today,),
     )
     row = cur.fetchone()
     if not row or row["daily_return_pct"] is None:
-        raise ValueError(f"Portfolio snapshot unavailable for {today}")
+        raise ValueError(f"Portfolio snapshot unavailable on or before {today}")
     daily = float(row["daily_return_pct"])
     loss = abs(min(0, daily))
     return round(loss, 2)
