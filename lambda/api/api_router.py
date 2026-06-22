@@ -4,9 +4,11 @@ import json
 import logging
 import os
 import threading
+from typing import Any
 
 # Set up imports for Lambda API - ensures routes and api_utils are importable
 import setup_imports  # noqa: F401
+from psycopg2.extensions import cursor
 
 logger = logging.getLogger(__name__)
 
@@ -162,7 +164,7 @@ if _SKIPPED_ROUTES:
     )
 
 
-def _wrap_response(response):
+def _wrap_response(response: Any) -> Any:
     """Standardize response format for consistent client handling.
 
     All API responses follow a consistent format:
@@ -250,7 +252,7 @@ def _wrap_response(response):
     return response
 
 
-def _add_cors_headers(response):
+def _add_cors_headers(response: Any) -> Any:
     """Add CORS headers to response with origin whitelist.
 
     SECURITY: CORS is configured to whitelist specific origins from environment.
@@ -293,11 +295,11 @@ def _add_cors_headers(response):
     return response
 
 
-def route_request(cur, path, method, params, body=None, jwt_claims=None):
+def route_request(cur: cursor, path: str, method: str, params: dict[str, Any], body: dict[str, Any] | None = None, jwt_claims: dict[str, Any] | None = None) -> Any:
     """Route request to handler. Public handlers checked first (no auth required)."""
 
     # Issue #11 FIX: Use strict path matching to distinguish /api/algo from /api/algorithm
-    def matches_route(request_path, route_prefix):
+    def matches_route(request_path: str, route_prefix: str) -> bool:
         if request_path == route_prefix:
             return True
         if request_path.startswith(route_prefix + "/"):
@@ -358,7 +360,7 @@ def route_request(cur, path, method, params, body=None, jwt_claims=None):
     )
 
 
-def get_import_status():
+def get_import_status() -> dict[str, Any]:
     """Return structured import status for monitoring/diagnostics.
 
     Used by:
@@ -391,7 +393,7 @@ def get_import_status():
     }
 
 
-def _publish_import_metrics():
+def _publish_import_metrics() -> None:
     """Publish API route import status to CloudWatch metrics.
 
     Creates custom metrics:
@@ -438,7 +440,7 @@ except Exception as e:
     logger.warning(f"Metrics publishing failed at startup: {e}")
 
 
-def _format_handler_error(e):
+def _format_handler_error(e: Exception) -> dict[str, Any]:
     """Format exception as error response with diagnostic error types.
 
     Returns specific error type to client for debugging without exposing sensitive details.

@@ -78,7 +78,7 @@ logger = logging.getLogger()
 logger.setLevel(logging.INFO)
 
 
-def fetch_cloudfront_domain_from_secrets():
+def fetch_cloudfront_domain_from_secrets() -> tuple[str | None, str | None]:
     """Fetch CloudFront domain from AWS Secrets Manager (thread-safe with TTL).
 
     Uses centralized credential_manager for consistent error handling, caching, and fallback.
@@ -145,7 +145,7 @@ def fetch_cloudfront_domain_from_secrets():
             return None, f"Error: {e}"
 
 
-def validate_environment():
+def validate_environment() -> tuple[bool, list[str], list[str]]:
     """Validate critical environment variables at cold start.
 
     Returns: (valid: bool, errors: List[str], warnings: List[str])
@@ -245,7 +245,7 @@ def validate_environment():
     return len(errors) == 0, errors, warnings
 
 
-def test_db_connection():
+def test_db_connection() -> tuple[bool, str | None]:
     """Test database connection at Lambda cold-start.
 
     Validates that the database is reachable and responsive.
@@ -328,7 +328,7 @@ RATE_LIMIT_EXEMPT_PATHS = {
 }
 
 
-def redact_sensitive_headers(headers_dict):
+def redact_sensitive_headers(headers_dict: dict[str, str]) -> dict[str, str]:
     """Issue #42: Redact sensitive headers from logs to prevent credential leakage."""
     redacted = dict(headers_dict)
     sensitive_keys = ["authorization", "cookie", "x-api-key", "x-auth-token"]
@@ -539,7 +539,7 @@ def get_bearer_token(event: dict) -> str | None:
     return str(auth_header[7:])  # Remove 'Bearer ' prefix
 
 
-def _get_cognito_jwks():
+def _get_cognito_jwks() -> dict[str, Any] | None:
     """Fetch and cache Cognito JWKS (JSON Web Key Set) - cached for 10 minutes.
 
     Short TTL allows rapid key rotation in emergencies (max 10min delay).
@@ -806,11 +806,11 @@ def get_client_ip(event: dict) -> str:
 
 
 def log_api_request(
-    event: dict,
+    event: dict[str, Any],
     status_code: int,
     user_id: str | None = None,
     error_msg: str | None = None,
-):
+) -> None:
     """Log API request for audit trail (security incident investigation).
 
     Format: JSON structured log with timestamp, request ID, IP, method, path, status, user
@@ -890,7 +890,7 @@ def require_auth(event: dict, path: str) -> tuple:
 
     # Check if path matches any public prefix
     # Match: exact route or /path/subpath (strict matching to prevent auth bypass)
-    def matches_prefix(p, prefix):
+    def matches_prefix(p: str, prefix: str) -> bool:
         if p == prefix:
             return True
         if p.startswith(prefix + "/"):
@@ -1230,7 +1230,7 @@ def lambda_handler(event: dict[str, Any], context: Any) -> dict[str, Any]:
             }
 
         # Ensure response has proper format
-        def _json_default(obj):
+        def _json_default(obj: Any) -> str | float:
             import datetime
             from decimal import Decimal
 

@@ -788,7 +788,7 @@ def _handle_naaim(cur: cursor) -> dict[str, Any]:
 
 
 @db_route_handler("get fear greed history")
-def _get_fear_greed_history(cur, days: int = 30) -> dict[str, Any]:
+def _get_fear_greed_history(cur: cursor, days: int = 30) -> dict[str, Any]:
     """Get fear/greed index history with signals."""
     cur.execute("SET LOCAL statement_timeout = '5000ms'")
     cutoff_date = (datetime.now(timezone.utc) - timedelta(days=days)).date()

@@ -2,10 +2,9 @@
 
 import logging
 import time
-from collections.abc import Callable
 from datetime import date, datetime, timezone
 from functools import wraps
-from typing import Any, NoReturn, TypeVar
+from typing import Any, NoReturn
 
 import psycopg2
 import psycopg2.errors
@@ -23,8 +22,6 @@ from exceptions import (
 from psycopg2.extensions import cursor
 
 from utils.validation import APIResponseValidator
-
-T = TypeVar('T')
 
 logger = logging.getLogger(__name__)
 
@@ -447,7 +444,7 @@ def execute_with_timeout(
     timeout_sec: int = 10,
     max_attempts: int = 2,
     backoff_multiplier: float = 1.5,
-) -> list[Any]:
+) -> Any:
     """Execute query with automatic timeout handling and exponential backoff retry.
 
     ALL database queries should use this wrapper to prevent hanging queries.
@@ -485,7 +482,7 @@ def execute_with_timeout(
                 cur.execute(query, params)
             else:
                 cur.execute(query)
-            return cur.fetchall()
+            return list(cur.fetchall())
 
         except psycopg2.errors.QueryCanceled as e:
             last_error = e
@@ -794,7 +791,7 @@ def handle_db_error(
     return status_code, error_type, message
 
 
-def db_route_handler(operation_name: str, default_error_response: Any = None) -> Callable[[Callable[..., T]], Callable[..., T]]:
+def db_route_handler(operation_name: str, default_error_response: Any = None) -> Callable[[Callable[..., dict[str, Any]]], Callable[..., dict[str, Any]]]:
     """Decorator for route handlers to standardize database error handling.
 
     Eliminates redundant try-except blocks by wrapping function with:
@@ -816,9 +813,9 @@ def db_route_handler(operation_name: str, default_error_response: Any = None) ->
         def _get_users(cur): ...
     """
 
-    def decorator(func: Callable[..., T]) -> Callable[..., T]:
+    def decorator(func: Callable[..., dict[str, Any]]) -> Callable[..., dict[str, Any]]:
         @wraps(func)
-        def wrapper(*args: Any, **kwargs: Any) -> T:
+        def wrapper(*args: Any, **kwargs: Any) -> dict[str, Any]:
             try:
                 return func(*args, **kwargs)
             except (

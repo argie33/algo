@@ -4,8 +4,8 @@ import logging
 from datetime import datetime, timezone
 from typing import Any
 
-# Import get_config from lambda/api/api_utils/config.py
 from api_utils.config import get_config
+from psycopg2.extensions import cursor
 from routes.utils import (
     error_response,
     execute_with_timeout,
@@ -21,7 +21,7 @@ try:
     from api_router import get_import_status as get_api_import_status
 except (ImportError, ModuleNotFoundError):
     # Fallback if api_router not available (shouldn't happen in normal execution)
-    def get_api_import_status():
+    def get_api_import_status() -> dict[str, Any]:
         return {"failed_routes": 0, "critical_failures": []}
 
 
@@ -29,7 +29,7 @@ logger = logging.getLogger(__name__)
 
 
 def handle(
-    cur,
+    cur: cursor,
     path: str,
     method: str,
     params: dict[str, Any],
@@ -57,7 +57,7 @@ def handle(
         return _handle_basic(cur)
 
 
-def _handle_basic(cur) -> dict[str, Any]:
+def _handle_basic(cur: cursor) -> dict[str, Any]:
     """Basic health check - PUBLIC, no auth required.
 
     Fast health check: DB connectivity + key metrics (optimized).
@@ -171,7 +171,7 @@ def _handle_basic(cur) -> dict[str, Any]:
         return error_response(code, error_type, message)
 
 
-def _handle_cognito(cur) -> dict[str, Any]:
+def _handle_cognito(cur: cursor) -> dict[str, Any]:
     """C-7 FIX: Verify Cognito client ID matches AWS Cognito configuration.
 
     This endpoint is called by pre-deploy validation (GitHub Actions) to ensure
@@ -296,7 +296,7 @@ def _handle_cognito(cur) -> dict[str, Any]:
         return error_response(503, "health_check_error", sanitized)
 
 
-def _handle_detailed(cur, jwt_claims: dict[str, Any] | None) -> dict[str, Any]:
+def _handle_detailed(cur: cursor, jwt_claims: dict[str, Any] | None) -> dict[str, Any]:
     """Detailed health check - AUTHENTICATED. Exposes schema information."""
     if not jwt_claims:
         return error_response(401, "unauthorized", "Authentication required")
@@ -329,7 +329,7 @@ def _handle_detailed(cur, jwt_claims: dict[str, Any] | None) -> dict[str, Any]:
         return error_response(code, error_type, message)
 
 
-def _handle_pipeline(cur, jwt_claims: dict[str, Any] | None) -> dict[str, Any]:
+def _handle_pipeline(cur: cursor, jwt_claims: dict[str, Any] | None) -> dict[str, Any]:
     """Pipeline health check - AUTHENTICATED. Data freshness of critical loaders."""
     if not jwt_claims:
         return error_response(401, "unauthorized", "Authentication required")
