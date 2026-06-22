@@ -109,7 +109,7 @@ def panel_circuit(cb):
         tbl.add_row(Text.from_markup(fmt_b(a)), Text.from_markup(fmt_b(b)))
     parts = [Text.from_markup(f"[{hc}][bold]{hs}[/bold][/]"), tbl]
     return Panel(
-        Group(*parts),
+        Group(*parts),  # type: ignore[arg-type]
         title="[bold blue]CIRCUIT BREAKERS[/]  [dim][b] expand[/]",
         border_style="blue",
         padding=(0, 1),
@@ -232,7 +232,7 @@ def panel_circuit_expanded(cb):
             )
 
     return Panel(
-        Group(*rows),
+        Group(*rows),  # type: ignore[arg-type]
         title="[bold blue]CIRCUIT BREAKERS - EXPANDED[/]  [dim][b] return[/]",
         border_style="blue",
         padding=(0, 1),

@@ -175,13 +175,10 @@ class RenderRecovery:
         For transient errors, reloading data may help recover from API issues.
         """
         with self._lock:
-            return cast(
-                bool,
-                (
-                    self.state.error_category == ErrorCategory.TRANSIENT
-                    and self.state.retry_count > 0
-                    and self.state.should_retry()
-                ),
+            return (
+                self.state.error_category == ErrorCategory.TRANSIENT
+                and self.state.retry_count > 0
+                and self.state.should_retry()
             )
 
     def get_recovery_status(self) -> str:
@@ -191,7 +188,7 @@ class RenderRecovery:
             Human-readable recovery status string, or empty string if no error.
         """
         with self._lock:
-            return cast(str, self.state.get_recovery_status())
+            return self.state.get_recovery_status()
 
     def _create_loading_panel(self, status: str) -> Layout:
         """Create a loading panel for backoff periods."""

@@ -306,7 +306,7 @@ def panel_economic_expanded(eco, econ_cal=None):
         rows.append(Text.from_markup("[dim bold]YIELD CURVE SPREADS[/]"))
         for lbl, val in spreads_data:
             if isinstance(val, Text):
-                rows.append(Group(Text.from_markup(f"  [dim]{lbl}:[/]  "), val))
+                rows.append(Group(Text.from_markup(f"  [dim]{lbl}:[/]  "), val))  # type: ignore[arg-type]
             else:
                 rows.append(Text.from_markup(f"  [dim]{lbl}:[/]  [white]{val}[/]"))
 
@@ -407,7 +407,7 @@ def panel_economic_expanded(eco, econ_cal=None):
     if not rows:
         rows.append(Text("[dim]no economic data[/]"))
     return Panel(
-        Group(*rows),
+        Group(*rows),  # type: ignore[arg-type]
         title="[bold bright_magenta]ECONOMIC INPUTS - EXPANDED[/]  [dim][e] return[/]",
         border_style="bright_magenta",
         padding=(0, 1),

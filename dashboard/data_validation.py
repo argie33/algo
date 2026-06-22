@@ -24,6 +24,16 @@ class StrictValidationError(Exception):
 def safe_float(
     value: Any,
     *,
+    default: float,
+    strict: Literal[False] = False,
+    field_name: str | None = None,
+) -> float: ...
+
+
+@overload
+def safe_float(
+    value: Any,
+    *,
     default: float | None = None,
     strict: Literal[False] = False,
     field_name: str | None = None,
@@ -83,6 +93,16 @@ def safe_float(
         elif default is not None:
             logger.warning(f"Failed to convert {field_name or 'value'}={value!r} to float (returning {default}): {e}")
         return default
+
+
+@overload
+def safe_int(
+    value: Any,
+    *,
+    default: int,
+    strict: Literal[False] = False,
+    field_name: str | None = None,
+) -> int: ...
 
 
 @overload

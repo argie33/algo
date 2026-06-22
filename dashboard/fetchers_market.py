@@ -238,7 +238,7 @@ def fetch_exp_factors(c):
             record_data_quality_issue("exp_factors", "validation", "missing_current_field")
             return FetcherValidator.build_error_response(error_msg)
 
-        current = inner.get("current")
+        current = inner["current"]
         return {
             "exposure_pct": safe_float(current.get("exposure_pct"), field_name="exposure.exposure_pct"),
             "raw_score": safe_float(current.get("raw_score"), field_name="exposure.raw_score"),

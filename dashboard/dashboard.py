@@ -120,6 +120,7 @@ from dashboard.panels import (
     panel_signals_expanded,
     panel_trades_expanded,
 )
+from dashboard.credentials_provider import CredentialsProvider
 from dashboard.utilities import (
     CONSOLE,
     ET,
@@ -270,177 +271,12 @@ def _validate_api_url(url: str) -> bool:
         return False
 
 
-def _ensure_aws_profile() -> None:
-    """Ensure AWS_PROFILE environment variable is set to algo-developer."""
-    if not os.environ.get("AWS_PROFILE"):
-        os.environ["AWS_PROFILE"] = "algo-developer"
-        logger.debug("Set AWS_PROFILE=algo-developer")
 
 
-def _fetch_secrets_manager_credentials() -> tuple[str | None, str | None, str | None]:
-    """Fetch dashboard credentials from AWS Secrets Manager.
-
-    Returns (api_url, pool_id, client_id) or (None, None, None).
-    """
-
-    try:
-        # Ensure AWS_PROFILE is set
-        _ensure_aws_profile()
-
-        # Try to fetch from Secrets Manager
-        client = boto3.client("secretsmanager", region_name="us-east-1")
-
-        try:
-            # Try dashboard-config secret first
-            response = client.get_secret_value(SecretId="algo/dashboard-config")
-            secret = json.loads(response["SecretString"])
-
-            api_url = secret.get("api_url", "").strip()
-            pool_id = secret.get("cognito_user_pool_id", "").strip()
-            client_id = secret.get("cognito_user_pool_client_id", "").strip()
-
-            if all([api_url, pool_id, client_id]):
-                logger.info("Credentials fetched from AWS Secrets Manager")
-                return (api_url, pool_id, client_id)
-        except client.exceptions.ResourceNotFoundException:
-            logger.debug("Secrets Manager secret not found")
-        except Exception as e:
-            logger.debug("Secrets Manager fetch failed: %s", type(e).__name__)
-
-        return (None, None, None)
-    except Exception as e:
-        logger.debug("Secrets Manager access failed: %s", type(e).__name__)
-        return (None, None, None)
 
 
-def _find_terraform_directory() -> str | None:
-    """Find terraform directory from multiple candidate locations."""
-    for root in [
-        os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__)))),
-        os.getcwd(),
-        os.path.dirname(os.getcwd()),
-    ]:
-        candidate = os.path.join(root, "terraform")
-        if os.path.isdir(candidate) and os.path.exists(os.path.join(candidate, "main.tf")):
-            logger.debug("Found terraform directory at %s", candidate)
-            return candidate
-    return None
 
 
-def _check_terraform_installed() -> bool:
-    """Check if terraform CLI is available."""
-    try:
-        subprocess.run(["terraform", "--version"], capture_output=True, timeout=5, check=True)
-        return True
-    except FileNotFoundError:
-        logger.warning("Terraform not installed - use launcher script or set env vars manually")
-    except subprocess.TimeoutExpired:
-        logger.warning("Terraform check timed out (running but slow) - use launcher script or set env vars manually")
-    except subprocess.CalledProcessError as e:
-        logger.warning(
-            "Terraform version check failed (code %d) - may be misconfigured",
-            e.returncode,
-        )
-    return False
-
-
-def _init_terraform(tf_dir: str) -> bool:
-    """Initialize terraform if needed."""
-    if os.path.exists(os.path.join(tf_dir, ".terraform")):
-        return True
-    logger.debug("Initializing Terraform...")
-    try:
-        result = subprocess.run(
-            ["terraform", "init", "-backend=true"],
-            cwd=tf_dir,
-            capture_output=True,
-            text=True,
-            timeout=60,
-        )
-        if result.returncode == 0:
-            return True
-        error_output = result.stderr.strip() if result.stderr else "(no error output)"
-        logger.warning("Terraform init failed: %s - may need manual setup", error_output[:200])
-    except subprocess.TimeoutExpired:
-        logger.warning("Terraform init timed out (60s) - running but slow, may need manual setup")
-    return False
-
-
-def _get_terraform_outputs(tf_dir: str) -> dict | None:
-    """Fetch terraform outputs as JSON dict."""
-    try:
-        result = subprocess.run(
-            ["terraform", "output", "-json"],
-            cwd=tf_dir,
-            capture_output=True,
-            text=True,
-            timeout=30,
-        )
-    except subprocess.TimeoutExpired:
-        logger.warning("Terraform output timed out (30s) - running but slow, may need manual setup")
-        return None
-    if result.returncode != 0:
-        error_output = result.stderr.strip() if result.stderr else "(no error output)"
-        logger.warning("Terraform output failed: %s", error_output[:100])
-        return None
-    try:
-        return cast(dict[str, Any], json.loads(result.stdout))
-    except json.JSONDecodeError as e:
-        logger.error(f"Failed to parse terraform outputs: {e}")
-        return None
-
-
-def _extract_tf_value(outputs: dict, key: str) -> str | None:
-    """Extract terraform output value, handling both dict and string formats."""
-    val = outputs.get(key)
-    result = val.get("value", "").strip() if isinstance(val, dict) else str(val or "").strip()
-    return result if result else None
-
-
-def _fetch_terraform_credentials() -> tuple[str | None, str | None, str | None]:
-    """Fetch AWS credentials from Terraform. Returns (api_url, pool_id, client_id) or (None, None, None)."""
-    try:
-        _ensure_aws_profile()
-        tf_dir = _find_terraform_directory()
-        if not tf_dir:
-            logger.warning("Terraform directory not found - cannot auto-fetch credentials")
-            return (None, None, None)
-        if not _check_terraform_installed():
-            return (None, None, None)
-        if not _init_terraform(tf_dir):
-            return (None, None, None)
-
-        outputs = _get_terraform_outputs(tf_dir)
-        if not outputs:
-            return (None, None, None)
-
-        api_url = _extract_tf_value(outputs, "api_url")
-        pool_id = _extract_tf_value(outputs, "cognito_user_pool_id")
-        client_id = _extract_tf_value(outputs, "cognito_user_pool_client_id")
-
-        if api_url is None or pool_id is None or client_id is None:
-            logger.warning(
-                "Terraform outputs incomplete: url=%s, pool=%s, client=%s",
-                bool(api_url),
-                bool(pool_id),
-                bool(client_id),
-            )
-            logger.debug(f"Available outputs: {list(outputs.keys())}")
-            return (None, None, None)
-
-        if not _validate_api_url(api_url):
-            logger.error(f"Invalid API URL format from terraform: {api_url[:50]}")
-            return (None, None, None)
-
-        logger.info("Successfully fetched credentials from Terraform")
-        return (api_url, pool_id, client_id)
-    except Exception as e:
-        logger.error(
-            f"Failed to fetch terraform credentials: {type(e).__name__}: {e}\n"
-            f"  Operation: Read Terraform outputs (api_url, pool_id, client_id)\n"
-            f"  File: terraform/outputs.json"
-        )
-        return (None, None, None)
 
 
 def _validate_panel_dependencies(data: dict) -> dict[str, bool]:
@@ -926,7 +762,7 @@ def _run_once_update_display(
         render_wrapper.frame = frame
         render_wrapper.view_mode = view_mode
     try:
-        layout, _recovery_status = recovery.render_with_recovery(state.result, render_wrapper)
+        layout, _recovery_status = recovery.render_with_recovery(state.result or {}, render_wrapper)
         live.update(layout)
     except Exception as e:
         error_panel = _handle_render_error(e, recovery.get_recovery_status())
@@ -1246,12 +1082,19 @@ def _setup_local_api() -> str:
 
 def _fetch_and_validate_aws_credentials() -> tuple[str, str, str]:
     """Fetch AWS credentials from Secrets Manager or Terraform. Exits on failure."""
+    env_url = os.environ.get("DASHBOARD_API_URL")
+    env_pool = os.environ.get("COGNITO_USER_POOL_ID")
+    env_client = os.environ.get("COGNITO_CLIENT_ID")
+    if env_url and env_pool and env_client:
+        logger.info("AWS mode: Using credentials from environment variables")
+        return env_url, env_pool, env_client
+
     logger.info("AWS mode: Fetching dashboard credentials...")
-    aws_url, pool_id, client_id = _fetch_secrets_manager_credentials()
+    aws_url, pool_id, client_id = CredentialsProvider.fetch_secrets_manager_credentials()
 
     if not aws_url:
         logger.info("Secrets Manager unavailable, trying Terraform...")
-        aws_url, pool_id, client_id = _fetch_terraform_credentials()
+        aws_url, pool_id, client_id = CredentialsProvider.fetch_terraform_credentials()
 
     if not aws_url:
         try:

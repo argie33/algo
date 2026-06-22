@@ -430,6 +430,18 @@ class SignalQualityScoresLoader(OptimalLoader):
             )
 
         try:
+            # Fail fast if critical enrichment data is missing
+            if not vcp_rows:
+                raise RuntimeError(
+                    f"[QUALITY_SCORES] VCP pattern data unavailable for {symbol}. "
+                    "VCP strength is critical for quality scoring. Cannot compute scores without this data."
+                )
+            if not positioning_data:
+                raise RuntimeError(
+                    f"[QUALITY_SCORES] Positioning data unavailable for {symbol}. "
+                    "Institutional ownership is critical for quality scoring. Cannot compute scores without this data."
+                )
+
             vcp_rows = vcp_rows or []
             positioning_data = positioning_data or {}
 

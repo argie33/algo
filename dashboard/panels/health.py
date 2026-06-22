@@ -875,7 +875,7 @@ def panel_status(
             )
 
     # Data loader status (errors/stale from data_loader_status table)
-    valid_loader = safe_get_list(loader)
+    valid_loader = safe_get_list(loader) or []
     problem_loader = [r for r in valid_loader if (r.get("status", "")) in ("error", "failed", "stale")]
     running_loader = [r for r in valid_loader if (r.get("status", "")) == "loading"]
     ok_count = len(valid_loader) - len(problem_loader) - len(running_loader)
@@ -1065,7 +1065,7 @@ def panel_algo_health(
         rows.append(Text.from_markup("  ".join(phase_badges)))
 
     # Fallback: use algo_metrics for today's entry/exit counts
-    valid_metrics = safe_get_list(algo_metrics)
+    valid_metrics = safe_get_list(algo_metrics) or []
     today_m = valid_metrics[0] if valid_metrics else {}
     if not entries_exec:
         en = today_m.get("entries")
@@ -1212,8 +1212,8 @@ def panel_algo_health(
             conc5_val = risk_dict.get("conc5")
             cvar95_val = risk_dict.get("cvar95")
             svar_val = risk_dict.get("svar")
-            beta_c = R if beta_val >= 1.2 else (Y if beta_val >= 0.8 else G)
-            conc_c = R if conc5_val >= 35 else (Y if conc5_val >= 25 else "white")
+            beta_c = R if beta_val >= 1.2 else (Y if beta_val >= 0.8 else G)  # type: ignore[operator]
+            conc_c = R if conc5_val >= 35 else (Y if conc5_val >= 25 else "white")  # type: ignore[operator]
             var_c = HealthFormatter.var_color(var95_val)
             risk_parts = [
                 f"[dim]VaR 95%:[/][{var_c}]{var95_val:.2f}%[/]",

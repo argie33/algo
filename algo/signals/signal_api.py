@@ -12,7 +12,7 @@ This design:
 - Centralizes all signal query logic in one place
 """
 
-from typing import cast
+from typing import Any
 
 from algo.infrastructure import get_config
 from algo.signals.signal_computer import SignalComputer
@@ -31,53 +31,37 @@ class SignalAPI:
         config = get_config()
         self._computer = SignalComputer(config)
 
-    def detect_base(self, symbol: str, eval_date) -> bool:
+    def detect_base(self, symbol: str, eval_date) -> dict[str, Any]:
         """Detect if stock is in base pattern.
 
-        Args:
-            symbol: Stock ticker
-            eval_date: Evaluation date
-
         Returns:
-            True if stock matches base detection criteria, False otherwise
+            Dict with detection result fields (in_base, breakout_imminent, etc.)
         """
-        return cast(bool, self._computer.base_detection(symbol, eval_date))
+        return self._computer.base_detection(symbol, eval_date)
 
-    def detect_vcp(self, symbol: str, eval_date) -> bool:
+    def detect_vcp(self, symbol: str, eval_date) -> dict[str, Any]:
         """Detect if stock is in VCP (Volatility Contraction Pattern).
 
-        Args:
-            symbol: Stock ticker
-            eval_date: Evaluation date
-
         Returns:
-            True if stock matches VCP detection criteria, False otherwise
+            Dict with detection result fields (is_vcp, contractions, etc.)
         """
-        return cast(bool, self._computer.vcp_detection(symbol, eval_date))
+        return self._computer.vcp_detection(symbol, eval_date)
 
-    def detect_pivot(self, symbol: str, eval_date) -> bool:
+    def detect_pivot(self, symbol: str, eval_date) -> dict[str, Any]:
         """Detect if stock has pivot breakout.
 
-        Args:
-            symbol: Stock ticker
-            eval_date: Evaluation date
-
         Returns:
-            True if stock matches pivot breakout criteria, False otherwise
+            Dict with detection result fields (breakout, close, pivot, etc.)
         """
-        return cast(bool, self._computer.pivot_breakout(symbol, eval_date))
+        return self._computer.pivot_breakout(symbol, eval_date)
 
-    def detect_power_trend(self, symbol: str, eval_date) -> bool:
+    def detect_power_trend(self, symbol: str, eval_date) -> dict[str, Any]:
         """Detect if stock is in power trend.
 
-        Args:
-            symbol: Stock ticker
-            eval_date: Evaluation date
-
         Returns:
-            True if stock matches power trend criteria, False otherwise
+            Dict with detection result fields (power_trend, return_21d, etc.)
         """
-        return cast(bool, self._computer.power_trend(symbol, eval_date))
+        return self._computer.power_trend(symbol, eval_date)
 
     def rank_rs_percentile(self, cur, symbol: str, eval_date, lookback: int = 60) -> float:
         """Compute Mansfield-style RS percentile ranking.

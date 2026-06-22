@@ -280,7 +280,7 @@ def api_call(endpoint: str, params: dict | None = None, method: str = "GET") -> 
                 return {"_error": f"API error {resp.status_code} after {max_att} attempts"}
 
             data = resp.json()
-            if isinstance(data, dict) and data.get("statusCode", 200) >= 400:
+            if isinstance(data, dict) and int(data.get("statusCode", 200)) >= 400:
                 logger.warning(f"API {endpoint}: error in JSON response")
                 if attempt < API_MAX_RETRIES:
                     backoff = min((2**attempt) + random.random() * (2**attempt), API_MAX_BACKOFF)

@@ -91,7 +91,7 @@ class PutCallRatioFetcher:
             if total_calls == 0:
                 return None
 
-            return total_puts / total_calls
+            return total_puts / total_calls  # type: ignore[no-any-return]
         except Exception as e:
             logger.warning(f"Put/call ratio fetch failed: {e}")
             raise

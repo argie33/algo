@@ -28,6 +28,7 @@ from algo.trading.exceptions import (
 )
 from algo.trading.executor_entry_handler import EntryHandler
 from algo.trading.executor_exit_handler import ExitHandler
+from algo.trading.handler_context import HandlerContext
 from algo.trading.executor_strategies import create_execution_mode_strategy
 from algo.trading.notification_dispatcher import NotificationDispatcher
 from algo.trading.order_manager import OrderManager
@@ -158,11 +159,31 @@ class TradeExecutor:
         # Initialize notification dispatcher for trade notifications and TCA recording
         self.notification_dispatcher = NotificationDispatcher(config, self.tca)
 
-        # Initialize entry handler for focused entry execution logic
-        self.entry_handler = EntryHandler(self)
+        # Create handler context with dependencies (decouples handlers from direct executor access)
+        handler_context = HandlerContext(
+            config=config,
+            validator=self.validator,
+            tca=self.tca,
+            t1_target_r_multiple=self.t1_target_r_multiple,
+            t2_target_r_multiple=self.t2_target_r_multiple,
+            t3_target_r_multiple=self.t3_target_r_multiple,
+            execution_mode=self.execution_mode,
+            get_portfolio_value_fn=self._get_portfolio_value,
+            with_cursor_fn=self._with_cursor,
+            validate_entry_conditions_fn=self._validate_entry_conditions,
+            submit_and_validate_order_fn=self._submit_and_validate_order,
+            cancel_bracket_orders_fn=self._cancel_bracket_orders,
+            verify_order_status_fn=self._verify_order_status,
+            get_order_filled_quantity_fn=self._get_order_filled_quantity,
+            send_alpaca_exit_fn=self._send_alpaca_exit,
+            update_position_with_retry_fn=self._update_position_with_retry,
+        )
 
-        # Initialize exit handler for focused exit execution logic
-        self.exit_handler = ExitHandler(self)
+        # Initialize entry handler with context (not whole executor)
+        self.entry_handler = EntryHandler(handler_context)
+
+        # Initialize exit handler with context (not whole executor)
+        self.exit_handler = ExitHandler(handler_context)
 
         # Initialize order manager specialist for order submission and validation
         self.order_manager = OrderManager(self.alpaca_key, self.alpaca_secret, self.alpaca_base_url)

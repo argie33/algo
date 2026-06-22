@@ -90,15 +90,15 @@ def _redact_for_logs(message: str) -> str:
 class EntryHandler:
     """Handles entry trade execution logic."""
 
-    def __init__(self, executor: Any) -> None:
-        """Initialize with reference to TradeExecutor for access to shared resources."""
-        self.executor = executor
-        self.config = executor.config
-        self.validator = executor.validator
-        self.tca = executor.tca
-        self.t1_target_r_multiple = executor.t1_target_r_multiple
-        self.t2_target_r_multiple = executor.t2_target_r_multiple
-        self.t3_target_r_multiple = executor.t3_target_r_multiple
+    def __init__(self, context: Any) -> None:
+        """Initialize with HandlerContext for access to dependencies (not whole executor)."""
+        self.context = context
+        self.config = context.config
+        self.validator = context.validator
+        self.tca = context.tca
+        self.t1_target_r_multiple = context.t1_target_r_multiple
+        self.t2_target_r_multiple = context.t2_target_r_multiple
+        self.t3_target_r_multiple = context.t3_target_r_multiple
 
     def execute_entry(self, context: TradeContext) -> dict[str, Any]:
         """Execute entry trade through 4 phases: validate → submit → record → notify.
@@ -134,7 +134,7 @@ class EntryHandler:
             entry_price=entry_price,
             stop_loss_price=stop_loss_price,
             shares=shares,
-            portfolio_value=self.executor._get_portfolio_value(),
+            portfolio_value=self.context._get_portfolio_value(),
             signal_date=signal_date,
             entry_date=entry_date,
             target_1_price=target_1_price,
@@ -165,7 +165,7 @@ class EntryHandler:
             return None
 
         try:
-            dup_result = self.executor._with_cursor(_check_dup_pos)
+            dup_result = self.context._with_cursor(_check_dup_pos)
             if dup_result and "error" in dup_result:
                 return {
                     "success": False,
@@ -208,7 +208,7 @@ class EntryHandler:
 
             # Generate trade ID and prepare for submission
             trade_id = f"TRD-{uuid.uuid4().hex[:10].upper()}"
-            execution_mode = self.executor.execution_mode
+            execution_mode = self.context.execution_mode
 
             # PHASE 2: Submit
             order_ok, order_error, order_status, alpaca_order_id, executed_price, rejection_reason = (
@@ -286,7 +286,7 @@ class EntryHandler:
 
         # Execute entry transaction with locks
         try:
-            return self.executor._with_cursor(_execute_entry_txn, acquire_locks=True)  # type: ignore[no-any-return]
+            return self.context._with_cursor(_execute_entry_txn, acquire_locks=True)  # type: ignore[no-any-return]
         except Exception as e:
             logger.exception(f"Entry execution failed: {e}")
             raise
@@ -467,10 +467,8 @@ class EntryHandler:
     ) -> None:
         """Record trade cost analysis (execution quality)."""
         try:
-            if not hasattr(self.executor, "_order_send_time"):
-                raise RuntimeError(f"[TCA CRITICAL] {symbol}: _order_send_time not set")
-
-            execution_latency_ms = int((time.time() - self.executor._order_send_time) * 1000)
+            # _order_send_time is set by the order submission logic
+            execution_latency_ms = int((time.time() - self.context._order_send_time) * 1000)
             if execution_latency_ms < 0:
                 raise ValueError(f"[TCA CRITICAL] {symbol}: negative latency {execution_latency_ms}ms")
 
@@ -503,7 +501,7 @@ class EntryHandler:
         self, cur: Any, symbol: str, signal_date: Any, entry_price: Decimal, stop_loss_price: Decimal
     ) -> tuple[bool, str, dict[str, Any]]:
         """PHASE 1: Validate entry conditions within transaction."""
-        is_valid, error_msg, error_details = self.executor._validate_entry_conditions(
+        is_valid, error_msg, error_details = self.context._validate_entry_conditions(
             cur, symbol, signal_date, entry_price, stop_loss_price
         )
         return is_valid, error_msg, error_details if error_details else {}
@@ -521,7 +519,7 @@ class EntryHandler:
     ) -> tuple[bool, str, str, str, Decimal | None, str | None]:
         """PHASE 2: Submit order and validate result."""
         order_ok, alpaca_order_id, order_status, order_error, executed_price, rejection_reason = (
-            self.executor._submit_and_validate_order(
+            self.context._submit_and_validate_order(
                 symbol,
                 trade_id,
                 shares,
@@ -537,8 +535,8 @@ class EntryHandler:
 
         # Verify bracket orders in auto mode
         if execution_mode == "auto":
-            has_last_order = hasattr(self.executor, "_last_order_result")
-            order_result = self.executor._last_order_result if has_last_order else None
+            # _last_order_result is set by order submission logic
+            order_result = self.context._last_order_result
             if order_result is None:
                 return (
                     False,
@@ -557,7 +555,7 @@ class EntryHandler:
 
             if order_result.get("order_class") == "bracket" and len(legs) < 2:
                 try:
-                    self.executor._cancel_bracket_orders(alpaca_order_id)
+                    self.context._cancel_bracket_orders(alpaca_order_id)
                 except (
                     OrderExecutionError,
                     DatabaseError,
@@ -615,7 +613,7 @@ class EntryHandler:
     ) -> str:
         """PHASE 3: Insert trade record, position record, record TCA."""
         # Calculate position size percentage
-        pv_for_pct = self.executor._get_portfolio_value()
+        pv_for_pct = self.context._get_portfolio_value()
         position_size_pct = self._calculate_position_size_pct(shares, executed_price or entry_price, pv_for_pct)
 
         entry_reason = self._build_entry_reason(
@@ -640,7 +638,7 @@ class EntryHandler:
             target_2_price=target_2_price,
             target_3_price=target_3_price,
             order_status=order_status,
-            execution_mode=self.executor.execution_mode,
+            execution_mode=self.context.execution_mode,
             alpaca_order_id=alpaca_order_id,
             position_size_pct=position_size_pct,
             sqs=context.sqs,
@@ -664,15 +662,15 @@ class EntryHandler:
 
         # Insert position record if order was filled
         if order_status in ("filled", "partially_filled"):
-            if self.executor.execution_mode == "auto" and alpaca_order_id:
-                verified_status = self.executor._verify_order_status(alpaca_order_id)
+            if self.context.execution_mode == "auto" and alpaca_order_id:
+                verified_status = self.context._verify_order_status(alpaca_order_id)
                 if verified_status not in ("filled", "partially_filled"):
                     return verified_status or "unknown"
                 order_status = verified_status
 
             actual_shares = shares
             if order_status == "partially_filled" and alpaca_order_id:
-                filled_qty = self.executor._get_order_filled_quantity(alpaca_order_id)
+                filled_qty = self.context._get_order_filled_quantity(alpaca_order_id)
                 if filled_qty and filled_qty > 0:
                     actual_shares = filled_qty
                     logger.info(_redact_for_logs(f"Partial fill: {actual_shares} of {shares} shares"))
@@ -710,7 +708,7 @@ class EntryHandler:
             )
 
         # Record TCA (execution quality) for fills in auto mode
-        if self.executor.execution_mode == "auto" and order_status in ("filled", "partially_filled"):
+        if self.context.execution_mode == "auto" and order_status in ("filled", "partially_filled"):
             self._record_tca(trade_id, symbol, entry_price, executed_price, order_status)
 
         return order_status

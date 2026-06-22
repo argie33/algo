@@ -62,7 +62,7 @@ def diagnose_data_issues():
             value = data.get(key)
 
             if has_error(value):
-                error_msg = value.get("_error", "Unknown error")
+                error_msg = value.get("_error", "Unknown error") if isinstance(value, dict) else "Unknown error"
                 print(f"[X] {label:30} - ERROR")
                 print(f"     {error_msg}")
                 error_count += 1
@@ -88,28 +88,36 @@ def diagnose_data_issues():
         print("-" * 80)
 
         mkt = data.get("mkt")
-        if not has_error(mkt):
+        if isinstance(mkt, dict) and not has_error(mkt):
             spy = mkt.get("spy")
             vix = mkt.get("vix")
             print(f"Market - SPY: {spy}, VIX: {vix}")
-        else:
+        elif isinstance(mkt, dict):
             print(f"Market [ERROR]: {mkt.get('_error', 'Unknown')}")
+        else:
+            print("Market [MISSING]")
 
         port = data.get("port")
-        if not has_error(port):
+        if isinstance(port, dict) and not has_error(port):
             total_value = port.get("total_portfolio_value")
             cash = port.get("total_cash")
             print(f"Portfolio - Total Value: {total_value}, Cash: {cash}")
-        else:
+        elif isinstance(port, dict):
             print(f"Portfolio [ERROR]: {port.get('_error', 'Unknown')}")
+        else:
+            print("Portfolio [MISSING]")
 
         pos = data.get("pos")
-        if not has_error(pos):
-            items = pos.get("items") if isinstance(pos, dict) else pos
+        if isinstance(pos, dict) and not has_error(pos):
+            items = pos.get("items")
             item_count = len(items) if isinstance(items, list) else "?"
             print(f"Positions - Count: {item_count}")
-        else:
+        elif isinstance(pos, list):
+            print(f"Positions - Count: {len(pos)}")
+        elif isinstance(pos, dict):
             print(f"Positions [ERROR]: {pos.get('_error', 'Unknown')}")
+        else:
+            print("Positions [MISSING]")
 
         print("\n" + "=" * 80)
         print("END DIAGNOSTIC")

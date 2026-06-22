@@ -558,7 +558,7 @@ def panel_signals_expanded(sig, sig_eval=None, scores=None):
         rows.append(Text.from_markup("[dim]A-grade radar:[/] " + "  ".join(parts)))
 
     rows.extend(_build_funnel_row(sig_eval))
-    rows.append(Rule(style="dim"))
+    rows.append(Rule(style="dim"))  # type: ignore[arg-type]
     rows.append(Text.from_markup(f"[{Y}][bold]DETAILED SCORE BREAKDOWN[/][/]"))
 
     buy_sig_map_exp = _build_buy_sig_map(buy_sigs)
@@ -651,7 +651,7 @@ def panel_signals_expanded(sig, sig_eval=None, scores=None):
                 ),
                 Text(sector, style=DIM),
             )
-        rows.append(sig_tbl)
+        rows.append(sig_tbl)  # type: ignore[arg-type]
     else:
         rows.append(Text.from_markup(f"[{Y}]No composite score data — check Data Health[/]"))
 

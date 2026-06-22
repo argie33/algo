@@ -273,7 +273,7 @@ def panel_market_expanded(mkt, sentiment=None):
     rows.append(Text.from_markup(f"  [dim]Trading Halt:[/] [{hc}]{halt_s}[/]"))
 
     return Panel(
-        Group(*rows),
+        Group(*rows),  # type: ignore[arg-type]
         title="[bold blue]MARKET - EXPANDED[/]  [dim][m] return[/]",
         border_style="blue",
         padding=(0, 1),
@@ -399,7 +399,7 @@ def panel_header_market(mkt, sentiment, ts, mkt_s, elapsed, refresh_s="", cfg=No
             if t1r:
                 parts6.append(f"[dim]T1:[/][white]{t1r}R[/]")
             parts6.append(f"[dim]next run:[/][white]{next_run_str()}[/]")
-            rows.append(Rule(style="dim"))
+            rows.append(Rule(style="dim"))  # type: ignore[arg-type]
             rows.append(Text.from_markup("  ".join(parts6)))
     else:
         rows.append(Text("no market data", style="dim"))

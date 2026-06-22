@@ -43,7 +43,7 @@ class _RenderCache:
             border_style=mc,
             padding=(0, 0),
         )
-        return cast(Panel, self.mascot_compact_panel)
+        return self.mascot_compact_panel
 
     def get_loading_layout(self, pose_index: int, dots_idx: int, data_source: str) -> Layout:
         """Return cached Layout if pose and dots haven't changed."""

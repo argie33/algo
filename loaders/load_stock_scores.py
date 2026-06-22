@@ -151,17 +151,26 @@ class StockScoresLoader(OptimalLoader):
             clamped_stability = max(0, min(100, stability_score)) if stability_score is not None else None
             clamped_momentum = max(0, min(100, momentum_score)) if momentum_score is not None else None
 
-            # Composite: convert None to 0 only for calculation, not for storage
-            composite_score = round(
-                (clamped_quality or 0) * normalized_weights["quality"]
-                + (clamped_growth or 0) * normalized_weights["growth"]
-                + (clamped_value or 0) * normalized_weights["value"]
-                + (clamped_positioning or 0) * normalized_weights["positioning"]
-                + (clamped_stability or 0) * normalized_weights["stability"]
-                + (clamped_momentum or 0) * normalized_weights["momentum"],
-                2,
-            )
-            composite_score = max(0, min(100, composite_score))
+            # Composite: only use metrics that are actually available
+            # Fail fast if a metric has weight but no value (indicates calculation error)
+            composite_score_value = 0.0
+            for metric_name, clamped_value_score in [
+                ("quality", clamped_quality),
+                ("growth", clamped_growth),
+                ("value", clamped_value),
+                ("positioning", clamped_positioning),
+                ("stability", clamped_stability),
+                ("momentum", clamped_momentum),
+            ]:
+                weight = normalized_weights[metric_name]
+                if weight > 0:
+                    if clamped_value_score is None:
+                        raise ValueError(
+                            f"[{symbol}] Metric '{metric_name}' has weight {weight:.3f} but value is None. "
+                            "This indicates incomplete data despite passing min_required_metrics check."
+                        )
+                    composite_score_value += clamped_value_score * weight
+            composite_score = max(0, min(100, round(composite_score_value, 2)))
 
             return {
                 "symbol": symbol,

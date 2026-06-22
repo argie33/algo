@@ -131,13 +131,13 @@ class FetcherValidator:
         return current, None
 
     @staticmethod
-    def build_error_response(error_message: str) -> dict[str, str]:
+    def build_error_response(error_message: str | None) -> dict[str, str]:
         """Build standardized error response dict.
 
         Returns:
             dict with _error key and message
         """
-        return {"_error": error_message}
+        return {"_error": error_message or "Unknown error"}
 
     @staticmethod
     def validate_response(

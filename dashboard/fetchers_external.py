@@ -287,7 +287,7 @@ def fetch_sentiment(c):
             record_data_quality_issue("sentiment", "validation", "missing_fields")
             return FetcherValidator.build_error_response(error_msg)
 
-        fg = float(d.get("fear_greed_index"))
+        fg = float(d.get("fear_greed_index"))  # type: ignore[arg-type]
         label = d.get("label")
         c_fg = R if fg <= 25 else (Y if fg <= 45 else (G if fg >= 75 else CY))
         return {

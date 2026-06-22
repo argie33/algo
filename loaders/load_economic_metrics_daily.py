@@ -148,10 +148,26 @@ class EconomicMetricsDailyLoader(OptimalLoader):
                     ycs_error = f"ycs_error:{type(e).__name__}"
                     logger.warning(f"Failed to compute yield curve slope: {e}")
 
-                if cpi_yoy is None and spy_price_change is None and ycs_10y2y is None:
+                # Yield curve slope is CRITICAL for market regime detection
+                if ycs_10y2y is None:
                     raise RuntimeError(
-                        f"[ECONOMIC_METRICS] All metrics failed: CPI({cpi_error}), "
-                        f"SPY({spy_error}), YCS({ycs_error}). Cannot proceed without at least one metric."
+                        f"[ECONOMIC_METRICS] Yield curve slope unavailable ({ycs_error}). "
+                        "Yield curve is critical for market regime detection and cannot be skipped."
+                    )
+
+                # CPI is CRITICAL for understanding inflation environment
+                if cpi_yoy is None:
+                    raise RuntimeError(
+                        f"[ECONOMIC_METRICS] CPI YoY unavailable ({cpi_error}). "
+                        "CPI is critical for understanding inflation and cost of capital."
+                    )
+
+                # SPY price change is useful but can be derived from price_daily if needed
+                if spy_price_change is None:
+                    logger.warning(
+                        f"[ECONOMIC_METRICS] SPY price change unavailable ({spy_error}). "
+                        "SPY will be NULL but other metrics are available. "
+                        "Consider checking price_daily table if prices exist."
                     )
 
                 result = {

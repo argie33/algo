@@ -57,12 +57,12 @@ class MetricDefinition:
     # Database column definition
     column_name: str
     data_type: MetricType
-    nullable: bool = False
-    default_value: Optional[Any] = None
 
     # Business metadata
     category: MetricCategory
     description: str
+    nullable: bool = False
+    default_value: Optional[Any] = None
     unit: Optional[str] = None  # e.g., "%" for percentages
 
     # Validation rules (used by loaders)

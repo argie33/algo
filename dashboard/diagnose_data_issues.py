@@ -97,7 +97,7 @@ def diagnose():
     print(f"❌ Failures: {len(failures)}/{len(data)}")
     if failures:
         for name, msg in failures[:5]:
-            print(f"   - {name}: {msg[:60]}")
+            print(f"   - {name}: {(msg or '')[:60]}")
         if len(failures) > 5:
             print(f"   ... and {len(failures) - 5} more")
 

@@ -24,7 +24,7 @@ _data_status_cache: dict[str, Any] = {}
 
 # Thread-safe cache for sector aggregation (Issue: Race condition during cache eviction)
 _sector_cache_lock = threading.Lock()
-_sector_agg_cache: dict[str, Any] = {}
+_sector_agg_cache: OrderedDict[str, Any] = OrderedDict()
 
 G = "bright_green"
 R = "bright_red"
@@ -175,7 +175,7 @@ def compute_sector_agg(pos, port):
             return cached["sorted_secs"], cached["total_secs"], cached.get("pv")
 
     pv = safe_float(port.get("total_portfolio_value"), default=None)
-    sd = {}
+    sd: dict[str, dict[str, Any]] = {}
     invalid_count = 0
     for p in pos:
         if not isinstance(p, dict):

@@ -56,7 +56,7 @@ def diagnose_fetchers():
             if result.get("_data_stale"):
                 stale[key] = error_msg
             else:
-                errors[key] = error_msg
+                errors[key] = error_msg or "Unknown error"
         else:
             # Check for missing fields (fields that are None)
             none_fields = [k for k, v in result.items() if v is None and not k.startswith("_")]
@@ -79,8 +79,8 @@ def diagnose_fetchers():
         print("=" * 80)
         for key in sorted(success.keys()):
             meta = FETCHER_METADATA.get(key)
-            endpoint = meta.get("endpoint", "?")
-            desc = meta.get("desc", "")
+            endpoint = meta.get("endpoint", "?") if meta else "?"
+            desc = meta.get("desc", "") if meta else ""
             result = success[key]
             field_count = len([k for k in result.keys() if not k.startswith("_")])
             print(f"\n  {key:12} {endpoint:40} ({field_count} fields)")
@@ -95,8 +95,8 @@ def diagnose_fetchers():
         print("=" * 80)
         for key, error_msg in sorted(stale.items()):
             meta = FETCHER_METADATA.get(key)
-            endpoint = meta.get("endpoint", "?")
-            desc = meta.get("desc", "")
+            endpoint = meta.get("endpoint", "?") if meta else "?"
+            desc = meta.get("desc", "") if meta else ""
             print(f"\n  {key:12} {endpoint:40}")
             if desc:
                 print(f"  {' ' * 12} {desc}")
@@ -110,8 +110,8 @@ def diagnose_fetchers():
         print("=" * 80)
         for key, error_msg in sorted(errors.items()):
             meta = FETCHER_METADATA.get(key)
-            endpoint = meta.get("endpoint", "?")
-            desc = meta.get("desc", "")
+            endpoint = meta.get("endpoint", "?") if meta else "?"
+            desc = meta.get("desc", "") if meta else ""
             print(f"\n  {key:12} {endpoint:40}")
             if desc:
                 print(f"  {' ' * 12} {desc}")
@@ -125,7 +125,7 @@ def diagnose_fetchers():
         print("=" * 80)
         for key, fields in sorted(missing_fields.items()):
             meta = FETCHER_METADATA.get(key)
-            endpoint = meta.get("endpoint", "?")
+            endpoint = meta.get("endpoint", "?") if meta else "?"
             print(f"\n  {key:12} {endpoint:40}")
             print(f"  {' ' * 12} Missing fields: {', '.join(fields)}")
         print()
@@ -138,14 +138,14 @@ def diagnose_fetchers():
         print(f"\n1. FIX {len(errors)} BROKEN ENDPOINTS:")
         for key in sorted(errors.keys()):
             meta = FETCHER_METADATA.get(key)
-            endpoint = meta.get("endpoint", "?")
+            endpoint = meta.get("endpoint", "?") if meta else "?"
             print(f"   - {key:12} {endpoint}")
     if stale:
         print(f"\n2. UPDATE {len(stale)} STALE DATA SOURCES:")
         print("   (Data loaders not running or data too old)")
         for key in sorted(stale.keys()):
             meta = FETCHER_METADATA.get(key)
-            endpoint = meta.get("endpoint", "?")
+            endpoint = meta.get("endpoint", "?") if meta else "?"
             print(f"   - {key:12} {endpoint}")
     if missing_fields:
         print(f"\n3. INVESTIGATE {len(missing_fields)} PARTIAL RESPONSES:")
@@ -177,7 +177,7 @@ def diagnose_fetchers_verbose():
     for key in sorted(data.keys()):
         result = data[key]
         meta = FETCHER_METADATA.get(key)
-        endpoint = meta.get("endpoint", "?")
+        endpoint = meta.get("endpoint", "?") if meta else "?"
 
         # Determine status
         if has_error(result):

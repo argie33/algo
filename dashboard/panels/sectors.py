@@ -1,6 +1,7 @@
 """Sector analysis panel functions."""
 
 import logging
+from typing import Any
 
 logger = logging.getLogger(__name__)
 
@@ -65,7 +66,7 @@ def panel_sector_compact(srank, pos, port, sec_rot=None, irank=None):
     if _error_panel("portfolio", port, "SECTORS"):
         return _error_panel("portfolio", port, "SECTORS")
 
-    rows = []
+    rows: list[Any] = []
 
     # Row 1: Rotation signal
     if sec_rot and not _error_panel("sec_rot", sec_rot, "SECTORS") and safe_get_field(sec_rot, "signal"):
@@ -304,7 +305,7 @@ def panel_sectors_expanded(srank, pos, port, sec_rot=None, irank=None):
 
     # All sector rankings — one per row, full names, 1wk and 4wk changes
     # Fail-fast: skip section if API error detected
-    valid_srank = []
+    valid_srank: list[Any] = []
     if not has_error(srank):
         srank_items_exp = None
         if isinstance(srank, dict) and "items" in srank:
@@ -330,7 +331,7 @@ def panel_sectors_expanded(srank, pos, port, sec_rot=None, irank=None):
 
     # All industries — full names, 1wk change
     # Fail-fast: skip section if API error detected
-    valid_irank = []
+    valid_irank: list[Any] = []
     if not has_error(irank):
         irank_items_exp = None
         if isinstance(irank, dict) and "items" in irank:

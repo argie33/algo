@@ -266,7 +266,7 @@ def load_all() -> dict:
             elapsed = time.monotonic() - start_time
             if elapsed > timeout_sec:
                 meta = FETCHER_METADATA.get(name)
-                endpoint = meta.get("endpoint", "unknown endpoint")
+                endpoint = meta.get("endpoint", "unknown endpoint") if meta else "unknown endpoint"
                 timeout_msg = f"Fetcher {name} ({endpoint}) exceeded per-fetcher timeout ({timeout_sec:.1f}s)"
                 logger.warning(timeout_msg)
                 return name, {"_error": timeout_msg}
@@ -278,7 +278,7 @@ def load_all() -> dict:
                     base_backoff = (2**attempt) + random.random() * (2**attempt)
                     backoff = min(base_backoff, API_MAX_BACKOFF)
                     meta = FETCHER_METADATA.get(name)
-                    endpoint = meta.get("endpoint", "unknown endpoint")
+                    endpoint = meta.get("endpoint", "unknown endpoint") if meta else "unknown endpoint"
                     logger.warning(
                         f"Fetcher {name} ({endpoint}) retry {attempt + 1}/{max_retries} "
                         f"(backoff {backoff:.1f}s): {type(e).__name__}"

@@ -33,15 +33,15 @@ class CredentialsProvider:
             CredentialsProvider.ensure_aws_profile()
             secrets_client = boto3.client("secretsmanager", region_name=os.getenv("AWS_REGION", "us-east-1"))
 
-            secret_name = os.getenv("DASHBOARD_SECRETS_NAME", "algo/dashboard-credentials")
+            secret_name = os.getenv("DASHBOARD_SECRETS_NAME", "algo/dashboard-config")
             response = secrets_client.get_secret_value(SecretId=secret_name)
 
             if "SecretString" in response:
                 secret = json.loads(response["SecretString"])
                 return (
-                    secret.get("dashboard_api_url"),
+                    secret.get("api_url") or secret.get("dashboard_api_url"),
                     secret.get("cognito_user_pool_id"),
-                    secret.get("cognito_client_id"),
+                    secret.get("cognito_user_pool_client_id") or secret.get("cognito_client_id"),
                 )
         except Exception as e:
             logger.warning(f"Failed to fetch credentials from Secrets Manager: {e}")
@@ -123,7 +123,7 @@ class CredentialsProvider:
                 text=True,
             )
             import json
-            return json.loads(result.stdout)
+            return json.loads(result.stdout)  # type: ignore[no-any-return]
         except Exception as e:
             logger.warning(f"Failed to get Terraform outputs: {e}")
             return None

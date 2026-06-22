@@ -178,6 +178,11 @@ def validate_config_response(data: dict[str, Any]) -> dict[str, Any]:
     if has_error(data):
         return data
 
+    # API returns {items: [{key, value, ...}], total: N} — flatten for field checks
+    if "items" in data and isinstance(data["items"], list):
+        flat = {i["key"]: i.get("value") for i in data["items"] if isinstance(i, dict) and "key" in i}
+        data = {**data, **flat}
+
     # Critical fields that must be present for config validation
     required_fields = [
         "min_signal_quality_score",

@@ -127,7 +127,7 @@ class MarketHealthDailyLoader(OptimalLoader):
         )
 
         # Merge real breadth data (A/D ratio, new highs/lows) into health metrics
-        breadth = self._fetch_breadth_data(start, end)
+        breadth = self._breadth_fetcher.fetch(start, end)
         for m in health_metrics:
             b = breadth.get(m["date"])
             if b is None:
@@ -141,13 +141,15 @@ class MarketHealthDailyLoader(OptimalLoader):
                 m["new_highs_count"] = b.get("new_highs_count")
                 m["new_lows_count"] = b.get("new_lows_count")
 
-        # Merge VIX data (OPTIONAL enrichment - fail gracefully if unavailable)
-        vix = self._vix_breaker.execute(
-            fetch_func=lambda: self._fetch_vix_data(start, end),
-            importance=DataImportance.OPTIONAL,
-            fallback_value={},
-        )
-        vix_data = vix or {}
+        # Merge VIX data (CRITICAL for risk management)
+        vix = self._vix_fetcher.fetch(start, end)
+        if not vix:
+            raise RuntimeError(
+                f"VIX data unavailable for {start} to {end}. "
+                "VIX is critical for position sizing and risk calculation. "
+                "Cannot proceed with incomplete market health metrics."
+            )
+        vix_data = vix
         matched_count = 0
         for m in health_metrics:
             if m["date"] in vix_data:
@@ -155,20 +157,17 @@ class MarketHealthDailyLoader(OptimalLoader):
                 matched_count += 1
             else:
                 m["vix_level"] = None
-        if matched_count > 0:
-            logger.info(f"VIX enrichment: matched {matched_count}/{len(health_metrics)} dates")
-        else:
-            logger.debug("VIX enrichment: no data available (optional enrichment skipped)")
+        if matched_count == 0:
+            raise RuntimeError(
+                f"VIX data exists but no dates matched {start} to {end}. This indicates data inconsistency."
+            )
+        logger.info(f"VIX enrichment: matched {matched_count}/{len(health_metrics)} dates")
 
         # Merge today's put/call ratio from SPY options (OPTIONAL enrichment)
         # Put/call_ratio and VIX both depend on yfinance API which has rate limits and outages.
         # Making this REQUIRED would block entire pipeline on yfinance issues.
         # Graceful degradation allows data pipeline to continue and signal generation to proceed.
-        today_pc = self._put_call_breaker.execute(
-            fetch_func=lambda: self._fetch_put_call_ratio(end),
-            importance=DataImportance.OPTIONAL,
-            fallback_value=None,
-        )
+        today_pc = self._put_call_fetcher.fetch(end)
         end_str = end.isoformat()
         matched_count = 0
         for m in health_metrics:
@@ -183,24 +182,26 @@ class MarketHealthDailyLoader(OptimalLoader):
         else:
             logger.debug("Put/call ratio unavailable (optional enrichment skipped)")
 
-        # Merge yield curve slope from economic_metrics_daily (OPTIONAL enrichment)
-        # Yield curve data is computed by economic_metrics_daily loader which runs separately.
-        # If that loader has issues, yield curve will be missing, but market health should still load.
-        yield_curve = self._yield_curve_breaker.execute(
-            fetch_func=lambda: self._fetch_yield_curve_data(start, end),
-            importance=DataImportance.OPTIONAL,
-            fallback_value={},
-        )
-        yield_curve_data = yield_curve or {}
+        # Merge yield curve slope from economic_metrics_daily (CRITICAL for regime detection)
+        # Yield curve is required for understanding market regime and risk environment.
+        yield_curve = self._yield_curve_fetcher.fetch(start, end)
+        if not yield_curve:
+            raise RuntimeError(
+                f"Yield curve data unavailable for {start} to {end}. "
+                "Yield curve is critical for market regime detection. "
+                "Cannot proceed with incomplete market health metrics."
+            )
+        yield_curve_data = yield_curve
         matched_count = 0
         for m in health_metrics:
             m["yield_curve_slope"] = yield_curve_data.get(m["date"])
             if m["yield_curve_slope"] is not None:
                 matched_count += 1
-        if matched_count > 0:
-            logger.info(f"Yield curve enrichment: matched {matched_count}/{len(health_metrics)} dates")
-        else:
-            logger.debug("Yield curve enrichment: no data available (optional enrichment skipped)")
+        if matched_count == 0:
+            raise RuntimeError(
+                f"Yield curve data exists but no dates matched {start} to {end}. This indicates data inconsistency."
+            )
+        logger.info(f"Yield curve enrichment: matched {matched_count}/{len(health_metrics)} dates")
 
         # Optimize breadth data fetching for incremental updates: only compute for dates we'll keep
         if since is not None:
@@ -212,276 +213,6 @@ class MarketHealthDailyLoader(OptimalLoader):
             )
 
         return health_metrics
-
-    def _fetch_vix_data(self, start: date, end: date) -> dict[str, Any]:
-        """Fetch VIX close prices via wrapper. Returns {date_str: vix_close}.
-
-        CRITICAL: If yfinance returns data but ALL values are < 5.0, this is a
-        data quality issue (not missing data). Logs ERROR so operators know
-        to investigate yfinance feed.
-        """
-        try:
-            from utils.external.yfinance import YFinanceWrapper
-
-            ticker = YFinanceWrapper.get_ticker("^VIX")
-            if not ticker:
-                raise RuntimeError(
-                    f"[VIX] Ticker ^VIX not available from yfinance for {start} to {end}. "
-                    "VIX is CRITICAL market data required for risk monitoring."
-                )
-            df = ticker.history(start=start, end=end, interval="1d", auto_adjust=True)
-            if df is None or df.empty:
-                raise RuntimeError(
-                    f"[VIX] No data available from yfinance for {start} to {end}. "
-                    "VIX is CRITICAL market data required for circuit breaker logic."
-                )
-
-            result = {}
-            low_value_count = 0  # Track but don't reject low values
-            low_values = []
-
-            for idx, row in df.iterrows():
-                date_str = idx.strftime("%Y-%m-%d") if hasattr(idx, "strftime") else str(idx)[:10]
-                close_val = row.get("Close") if hasattr(row, "get") else row["Close"]
-                is_nan = isinstance(close_val, float) and close_val != close_val
-
-                if close_val is None or is_nan:
-                    continue
-
-                close_float = float(close_val)
-                # VIX must be > 0 (can never be 0 in real market data)
-                # If yfinance returns 0, it's a data quality issue - skip it
-                if close_float <= 0:
-                    logger.warning(f"[VIX] Skipping invalid value {close_float} on {date_str} (VIX must be > 0)")
-                    continue
-
-                result[date_str] = round(close_float, 2)
-                if close_float < 5.0:
-                    low_value_count += 1
-                    low_values.append(close_float)
-
-            # Check for data availability
-            if len(result) == 0:
-                raise RuntimeError(
-                    "[VIX] No valid VIX data returned by yfinance (all values were NaN/None). "
-                    "Cannot compute market health without valid VIX values."
-                )
-
-            # WARN if many low values (unusual pattern, may indicate data issue)
-            if low_value_count > 0:
-                low_pct = (low_value_count / len(result) * 100) if result else 0
-                if low_pct > 50:
-                    logger.warning(
-                        f"[VIX] Unusual data pattern: {low_pct:.0f}% of values < 5.0 ({low_values[:3]}...). "
-                        "This may indicate a data feed issue. Check yfinance directly."
-                    )
-                else:
-                    logger.info(f"[VIX] Fetched {len(result)} values, {low_value_count} were < 5.0 (low volatility)")
-
-            return result
-        except (ValueError, ZeroDivisionError, TypeError) as e:
-            raise RuntimeError(
-                f"[VIX] Failed to fetch VIX data: {type(e).__name__}: {e}. "
-                "VIX data is authoritative for market health computation."
-            ) from None
-
-    def _fetch_put_call_ratio(self, eval_date: date) -> float | None:
-        """Compute put/call ratio from SPY options chain volume via yfinance.
-
-        Sums total puts and calls volume across near-term expirations as a proxy
-        for the daily equity put/call ratio. Only runs on trading days.
-        High ratio (>1.1): fear/hedging dominant. Low ratio (<0.6): complacency.
-        """
-        from algo.infrastructure import MarketCalendar
-
-        if not MarketCalendar.is_trading_day(eval_date):
-            logger.debug(f"Put/call: skipping {eval_date} (not a trading day)")
-            return None  # OK to return None on non-trading days-no options data expected
-        try:
-            from utils.external.yfinance import YFinanceWrapper, _throttled_yf_request
-
-            ticker = YFinanceWrapper.get_ticker("SPY")
-            if not ticker:
-                raise RuntimeError(
-                    "Put/call: could not get SPY ticker from yfinance. Cannot compute put/call ratio for market health."
-                )
-
-            # ticker.options makes an outbound request - run through the rate limiter
-            # so it doesn't race against other yfinance calls sharing the NAT gateway IP.
-            try:
-                expirations = _throttled_yf_request(lambda: ticker.options)
-            except Exception as e:
-                raise RuntimeError(
-                    f"[PUT_CALL] Failed to fetch option expirations from yfinance: {e}. "
-                    "Cannot compute put/call ratio for market health."
-                ) from None
-
-            if not expirations:
-                raise RuntimeError(
-                    "Put/call: no option expirations returned by yfinance (ticker.options empty). "
-                    "Cannot compute put/call ratio without available option contracts."
-                )
-
-            total_puts = 0.0
-            total_calls = 0.0
-            chain_errors = 0
-            for exp in expirations[:4]:  # near-term expirations (most liquid)
-                try:
-                    chain = _throttled_yf_request(lambda e=exp: ticker.option_chain(e))
-                    total_puts += float(chain.puts["volume"].fillna(0).sum())
-                    total_calls += float(chain.calls["volume"].fillna(0).sum())
-                except (
-                    AttributeError,
-                    KeyError,
-                    ValueError,
-                    TypeError,
-                    ZeroDivisionError,
-                ) as e:
-                    logger.warning(f"Put/call: option_chain({exp}) fetch error: {e}")
-                    chain_errors += 1
-                    continue
-
-            if chain_errors == min(4, len(expirations)):
-                raise RuntimeError(
-                    "Put/call: all option chain fetches failed - cannot compute market health without this data."
-                )
-
-            if total_calls > 0:
-                ratio = round(total_puts / total_calls, 3)
-                logger.info(
-                    f"Put/call ratio: {ratio:.3f} "
-                    f"(puts={total_puts:.0f}, calls={total_calls:.0f}, chain_errors={chain_errors})"
-                )
-                return ratio
-            raise RuntimeError(
-                f"Put/call: zero calls volume across {len(expirations[:4])} expirations. "
-                "Cannot compute market health without valid put/call data."
-            )
-        except RuntimeError:
-            raise
-        except (ValueError, ZeroDivisionError, TypeError) as e:
-            raise RuntimeError(
-                f"[PUT_CALL] Failed to compute put/call ratio: {e}. This metric is authoritative for market health."
-            ) from None
-
-    def _fetch_yield_curve_data(self, start: date, end: date) -> dict[str, Any]:
-        """Read 10Y-2Y yield spread from economic_metrics_daily. Returns {date_str: slope}."""
-        try:
-            with DatabaseContext("read") as cur:
-                cur.execute(
-                    "SELECT report_date, yield_curve_slope_10y2y FROM economic_metrics_daily"
-                    " WHERE report_date >= %s AND report_date <= %s AND yield_curve_slope_10y2y IS NOT NULL"
-                    " ORDER BY report_date",
-                    (start, end),
-                )
-                rows = cur.fetchall()
-            result = {str(row[0]): float(row[1]) for row in rows}
-            if result:
-                logger.info(f"Fetched yield curve data: {len(result)} days")
-            return result
-        except (psycopg2.DatabaseError, psycopg2.OperationalError) as e:
-            raise RuntimeError(
-                f"[YIELD_CURVE] Failed to fetch yield curve data from economic_metrics_daily: {e}. "
-                "Cannot compute market health without yield curve slope data."
-            ) from None
-
-    def _fetch_breadth_data(self, start: date, end: date) -> dict[str, Any]:
-        """Compute advance/decline ratio and new 52-week highs/lows from full stock universe."""
-        try:
-            with DatabaseContext("read") as cur:
-                # For efficiency: only compute breadth for the last 30 days (most recent data)
-                # For dates older than 30 days, query existing market_health_daily data to reuse
-                recent_start = max(start, end - timedelta(days=30))
-                lookback_start = recent_start - timedelta(days=365)
-
-                result = {}
-
-                # First, get cached breadth data from market_health_daily for older dates
-                if start < recent_start:
-                    try:
-                        cur.execute(
-                            """
-                            SELECT date,
-                                   COALESCE(advance_decline_ratio, 1.0),
-                                   COALESCE(new_highs_count, 0),
-                                   COALESCE(new_lows_count, 0)
-                            FROM market_health_daily
-                            WHERE date >= %s AND date < %s
-                            ORDER BY date ASC
-                        """,
-                            (start, recent_start),
-                        )
-
-                        for r in cur.fetchall():
-                            result[r[0].isoformat()] = {
-                                "advance_decline_ratio": float(r[1]),
-                                "new_highs_count": int(r[2]),
-                                "new_lows_count": int(r[3]),
-                            }
-                    except (psycopg2.DatabaseError, psycopg2.OperationalError) as e:
-                        raise RuntimeError(
-                            f"[BREADTH] Failed to fetch cached breadth data: {e}. "
-                            "Cannot verify previously computed market breadth metrics."
-                        ) from None
-
-                # Now compute breadth data only for recent dates (more efficient).
-                # 90s timeout: this query joins 365-day price history for 5000+ symbols.
-                # Under write load from stock_prices_daily ECS tasks the query can block
-                # for minutes - fail fast and let the loader write market health rows
-                # without breadth columns (orchestrator Phase 1 only checks date freshness,
-                # not whether advance_decline_ratio is populated).
-                cur.execute("SET LOCAL statement_timeout = '90s'")
-                cur.execute(
-                    """
-                    WITH prices AS (
-                        SELECT symbol, date, close
-                        FROM price_daily
-                        WHERE date >= %s AND date <= %s
-                          AND symbol NOT LIKE '^%%'
-                    ),
-                    with_context AS (
-                        SELECT
-                            date, symbol, close,
-                            LAG(close) OVER (PARTITION BY symbol ORDER BY date) AS prev_close,
-                            MAX(close) OVER (PARTITION BY symbol ORDER BY date
-                                             ROWS BETWEEN 251 PRECEDING AND 1 PRECEDING) AS high_251d,
-                            MIN(close) OVER (PARTITION BY symbol ORDER BY date
-                                             ROWS BETWEEN 251 PRECEDING AND 1 PRECEDING) AS low_251d
-                        FROM prices
-                    )
-                    SELECT
-                        date,
-                        COUNT(CASE WHEN close > prev_close THEN 1 END) AS advances,
-                        COUNT(CASE WHEN close < prev_close THEN 1 END) AS declines,
-                        ROUND(
-                            COUNT(CASE WHEN close > prev_close THEN 1 END)::numeric /
-                            NULLIF(COUNT(CASE WHEN close < prev_close THEN 1 END), 0), 3
-                        ) AS advance_decline_ratio,
-                        COUNT(CASE WHEN high_251d IS NOT NULL AND close >= high_251d THEN 1 END) AS new_highs,
-                        COUNT(CASE WHEN low_251d IS NOT NULL AND close <= low_251d THEN 1 END) AS new_lows
-                    FROM with_context
-                    WHERE prev_close IS NOT NULL AND date >= %s
-                    GROUP BY date
-                    ORDER BY date ASC
-                """,
-                    (lookback_start, end, recent_start),
-                )
-
-                for r in cur.fetchall():
-                    if r[4] is None or r[5] is None:
-                        raise ValueError(f"New highs/lows data missing for {r[0]}")
-                    result[r[0].isoformat()] = {
-                        "advance_decline_ratio": (float(r[3]) if r[3] is not None else 1.0),
-                        "new_highs_count": int(r[4]),
-                        "new_lows_count": int(r[5]),
-                    }
-
-                return result
-        except (ValueError, ZeroDivisionError, TypeError) as e:
-            raise RuntimeError(
-                f"[BREADTH] Failed to compute breadth data: {e}. "
-                "Advance/decline ratio and new highs/lows are authoritative for market health."
-            ) from None
 
     def _fetch_price_daily(self, symbol: str, start: date, end: date) -> list[dict[str, Any]]:
         try:

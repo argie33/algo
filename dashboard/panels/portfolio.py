@@ -340,7 +340,7 @@ def panel_performance_spark(perf, rec, perf_anl=None, pos=None):
             rows.append(Text.from_markup("  ".join(parts)))
 
     return Panel(
-        Group(*rows),
+        Group(*rows),  # type: ignore[arg-type]
         title="[bold green]PERFORMANCE[/]  [dim][f] expand[/]",
         border_style="green",
         padding=(0, 1),
@@ -648,7 +648,7 @@ def panel_portfolio_perf_expanded(port, cfg, risk=None, perf=None, perf_anl=None
             rows.append(ctbl2)
 
     return Panel(
-        Group(*rows),
+        Group(*rows),  # type: ignore[arg-type]
         title="[bold green]PORTFOLIO & PERFORMANCE - EXPANDED[/]  [dim][f] return[/]",
         border_style="green",
         padding=(0, 1),

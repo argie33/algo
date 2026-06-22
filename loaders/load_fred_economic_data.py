@@ -20,10 +20,10 @@ import requests
 
 from config.api_endpoints import get_fred_url
 from loaders.runner import run_loader
-from utils.infrastructure.circuit_breaker import CircuitBreaker, DataImportance
+from utils.infrastructure.circuit_breaker import DataImportance
 from utils.infrastructure.timeout import ExecutionTimeout
 from utils.infrastructure.url_validator import validate_url
-from utils.loaders.helpers import get_api_key
+from utils.loaders import create_circuit_breaker, get_api_key
 from utils.optimal_loader import OptimalLoader
 from utils.validation.data_freshness import FreshnessValidator, StaleDataError
 
@@ -123,7 +123,7 @@ class FredEconomicDataLoader(OptimalLoader):
         super().__init__(*args, **kwargs)
 
         # Circuit breaker for FRED API outage handling
-        self._circuit_breaker = CircuitBreaker(name="fred_api", importance=DataImportance.REQUIRED)
+        self._circuit_breaker = create_circuit_breaker("fred_api", importance_name="REQUIRED")
 
         # Freshness validator: FRED economic data must be <= 48 hours old
         # FRED updates weekly, so 48-hour requirement allows latest data plus 1 day buffer

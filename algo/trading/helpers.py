@@ -9,10 +9,14 @@ This module consolidates repeated patterns across the trading system:
 """
 
 from decimal import Decimal, InvalidOperation
-from typing import Any
+from typing import Any, overload
 
 
-def safe_decimal(value: Any, default: Decimal | None = None) -> Decimal | None:
+@overload
+def safe_decimal(value: Any, default: Decimal | float) -> Decimal | float: ...
+@overload
+def safe_decimal(value: Any, default: Decimal | float | None = ...) -> Decimal | float | None: ...
+def safe_decimal(value: Any, default: Any = None) -> Decimal | float | None:
     """Convert value to Decimal safely, returning default on failure.
 
     Args:
@@ -23,7 +27,7 @@ def safe_decimal(value: Any, default: Decimal | None = None) -> Decimal | None:
         Decimal if conversion succeeds, else default
     """
     if value is None:
-        return default
+        return default  # type: ignore[no-any-return]
 
     if isinstance(value, Decimal):
         return value
@@ -31,7 +35,7 @@ def safe_decimal(value: Any, default: Decimal | None = None) -> Decimal | None:
     try:
         return Decimal(str(value))
     except (InvalidOperation, ValueError, TypeError):
-        return default
+        return default  # type: ignore[no-any-return]
 
 
 def safe_float(value: Any, default: float | None = None) -> float | None:

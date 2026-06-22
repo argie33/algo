@@ -165,19 +165,17 @@ class QueryCache(Generic[T]):
                 self._access_order[key] = time.time()  # Update LRU
                 return value
             else:
-                # Cache expired
+                # Cache expired - remove from cache, never return stale by default
+                del self._cache[key]
+                del self._access_order[key]
                 if allow_stale:
-                    # Return stale entry and log warning
                     logger.warning(
-                        f"[{self.cache_name}] STALE HIT: {key} age={age:.0f}s ttl={self.ttl_seconds}s {context}"
+                        f"[{self.cache_name}] STALE CACHE REQUESTED: {key} age={age:.0f}s ttl={self.ttl_seconds}s "
+                        f"— caller explicitly requested stale data (high risk for finance operations) {context}"
                     )
+                    # Only return stale if caller EXPLICITLY allows (rare case for UI/diagnostics)
                     self._stats.stale_hits += 1
-                    self._access_order[key] = time.time()
                     return value
-                else:
-                    # Remove expired entry
-                    del self._cache[key]
-                    del self._access_order[key]
 
         # Cache miss - compute value
         try:
@@ -201,11 +199,6 @@ class QueryCache(Generic[T]):
 
         except Exception as e:
             logger.error(f"[{self.cache_name}] Compute failed for {key}: {e} {context}")
-            if allow_stale and key in self._cache:
-                # Return stale entry as fallback
-                logger.warning(f"[{self.cache_name}] Returning stale entry for {key}")
-                self._stats.stale_hits += 1
-                return self._cache[key][0]
             raise
 
     def invalidate(self, key: Any | None = None) -> None:

@@ -39,13 +39,13 @@ class RejectionTracker:
         def _log_rejection(cur):
             rejected_at_tier = None
             for tier in [1, 2, 3, 4, 5]:
-                if not tier_results.get(tier).get("pass", False):
+                if not (tier_results.get(tier) or {}).get("pass", False):
                     rejected_at_tier = tier
                     break
 
             rejection_reason = ""
             if rejected_at_tier:
-                rejection_reason = tier_results.get(rejected_at_tier).get("reason", "Unknown")
+                rejection_reason = (tier_results.get(rejected_at_tier) or {}).get("reason", "Unknown")
 
             cur.execute(
                 """
@@ -62,15 +62,15 @@ class RejectionTracker:
                     entry_price,
                     rejected_at_tier,
                     rejection_reason,
-                    tier_results.get(1).get("pass", False),
-                    tier_results.get(2).get("pass", False),
-                    tier_results.get(2).get("reason", ""),
-                    tier_results.get(3).get("pass", False),
-                    tier_results.get(3).get("reason", ""),
-                    tier_results.get(4).get("pass", False),
-                    tier_results.get(4).get("reason", ""),
-                    tier_results.get(5).get("pass", False),
-                    tier_results.get(5).get("reason", ""),
+                    (tier_results.get(1) or {}).get("pass", False),
+                    (tier_results.get(2) or {}).get("pass", False),
+                    (tier_results.get(2) or {}).get("reason", ""),
+                    (tier_results.get(3) or {}).get("pass", False),
+                    (tier_results.get(3) or {}).get("reason", ""),
+                    (tier_results.get(4) or {}).get("pass", False),
+                    (tier_results.get(4) or {}).get("reason", ""),
+                    (tier_results.get(5) or {}).get("pass", False),
+                    (tier_results.get(5) or {}).get("reason", ""),
                     advanced_results.get("reason", "") if advanced_results else None,
                 ),
             )

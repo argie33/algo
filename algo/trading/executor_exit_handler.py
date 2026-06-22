@@ -32,10 +32,10 @@ logger = logging.getLogger(__name__)
 class ExitHandler:
     """Handles exit trade execution logic with transaction safety guarantees."""
 
-    def __init__(self, executor: Any) -> None:
-        """Initialize with reference to TradeExecutor for access to shared resources."""
-        self.executor = executor
-        self.config = executor.config
+    def __init__(self, context: Any) -> None:
+        """Initialize with HandlerContext for access to dependencies (not whole executor)."""
+        self.context = context
+        self.config = context.config
 
     def execute_exit(
         self,
@@ -97,7 +97,7 @@ class ExitHandler:
                     new_stop_price,
                 )
             else:
-                result = self.executor._with_cursor(
+                result = self.context._with_cursor(
                     lambda c: self._execute_exit(
                         c,
                         trade_id,
@@ -164,7 +164,7 @@ class ExitHandler:
             if cur is not None:
                 return _raise_stop(cur)
             else:
-                return self.executor._with_cursor(_raise_stop)  # type: ignore[no-any-return]
+                return self.context._with_cursor(_raise_stop)  # type: ignore[no-any-return]
         except DatabaseError as e:
             logger.error(f"Database error raising stop: {e}")
             return {"success": False, "message": f"Database error: {e}"}
@@ -264,20 +264,20 @@ class ExitHandler:
 
         # Cancel bracket orders on full exit
         if full_exit and alpaca_order_id:
-            cancel_result = self.executor._cancel_bracket_orders(alpaca_order_id)
+            cancel_result = self.context._cancel_bracket_orders(alpaca_order_id)
             if not cancel_result.get("success"):
                 logger.warning(
                     f"Failed to cancel bracket for {trade_id}: {cancel_result.get('message', 'Unknown error')}"
                 )
 
         # Execute exit order (if not review/paper mode)
-        execution_mode = self.executor.execution_mode
+        execution_mode = self.context.execution_mode
         actual_fill_price = None
         exit_order_result = {"success": False, "message": "No order sent"}
         is_estimated_price = True
 
         if execution_mode == "auto":
-            exit_order_result = self.executor._send_alpaca_exit(symbol, shares_to_exit)
+            exit_order_result = self.context._send_alpaca_exit(symbol, shares_to_exit)
             if exit_order_result.get("success"):
                 actual_fill_price = exit_order_result["filled_price"] if "filled_price" in exit_order_result else None
                 is_estimated_price = False
@@ -390,7 +390,7 @@ class ExitHandler:
 
         # TRANSACTION GUARD 4: Update position with safety checks
         effective_stop = new_stop_price if new_stop_price is not None else stop_loss_price
-        update_success, update_error = self.executor._update_position_with_retry(
+        update_success, update_error = self.context._update_position_with_retry(
             cur=cur,
             position_id=position_id,
             new_qty=new_qty,

@@ -335,4 +335,4 @@ class SignalMomentumMixin:
                 )
             return int(row[0])
 
-        return self._with_cursor(_count_dist)
+        return int(self._with_cursor(_count_dist))
