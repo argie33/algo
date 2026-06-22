@@ -748,16 +748,18 @@ def get_client_ip(event: dict) -> str:
     To log real user IPs, configure CloudFront to add a shared-secret custom header
     (e.g. x-origin-verify) and verify it here before trusting CF-Connecting-IP.
     """
-    # API GW fills sourceIp from the TCP connection — not client-spoofable
-    source_ip = event.get("requestContext").get("identity").get("sourceIp", "")
+    _req_ctx = event.get("requestContext") or {}
+    # API GW v1: requestContext.identity.sourceIp
+    source_ip = (_req_ctx.get("identity") or {}).get("sourceIp", "")
+    if not source_ip:
+        # API GW v2: requestContext.http.sourceIp
+        source_ip = (_req_ctx.get("http") or {}).get("sourceIp", "")
     if source_ip:
         return source_ip
 
     # Fallback for local/test invocations without requestContext
-    headers = event.get("headers")
-    xff = headers.get("x-forwarded-for")
-    if not xff:
-        xff = headers.get("X-Forwarded-For", "")
+    headers = event.get("headers") or {}
+    xff = headers.get("x-forwarded-for") or headers.get("X-Forwarded-For", "")
     if xff:
         return xff.split(",")[0].strip()
 
@@ -777,8 +779,9 @@ def log_api_request(
     try:
         client_ip = get_client_ip(event)
         path = event.get("rawPath", event.get("path", "/"))
-        method = event.get("requestContext").get("http").get("method", "UNKNOWN")
-        request_id = event.get("requestContext").get("requestId", "unknown")
+        _req_ctx = event.get("requestContext") or {}
+        method = (_req_ctx.get("http") or {}).get("method", event.get("httpMethod", "UNKNOWN"))
+        request_id = _req_ctx.get("requestId", "unknown")
 
         audit_log = {
             "event": "API_REQUEST",
