@@ -159,8 +159,8 @@ class LambdaHandler(ABC):
             client = boto3.client("secretsmanager", region_name=region)
             response = client.get_secret_value(SecretId=secret_arn)
             if "SecretString" in response:
-                return json.loads(response["SecretString"])
-            return json.loads(response["SecretBinary"])
+                return dict(json.loads(response["SecretString"]))
+            return dict(json.loads(response["SecretBinary"]))
         except Exception as e:
             raise RuntimeError(f"Failed to fetch secret {secret_arn}: {e}") from e
 
