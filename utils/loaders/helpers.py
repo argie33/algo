@@ -183,3 +183,169 @@ def _resolve_period(cli_arg: str | None = None) -> str:
     if cli_arg:
         return cli_arg
     return os.getenv("LOADER_PERIOD", "quarterly")
+
+
+# =======================
+# Database Query Helpers
+# =======================
+# These eliminate 169+ repetitions of `with DatabaseContext("read") as cur:` pattern
+
+def execute_query(query: str, params=None, role: str = "read", timeout: int = 30):
+    """Execute a query and return all results.
+
+    Eliminates: with DatabaseContext(role) as cur: cur.execute(...); cur.fetchall()
+    Pattern found in 169 locations across 78 files.
+
+    Args:
+        query: SQL query string
+        params: Query parameters (if any)
+        role: 'read' or 'write'
+        timeout: Connection timeout in seconds
+
+    Returns:
+        List of row tuples/dicts (depends on cursor_factory)
+    """
+    with DatabaseContext(role, timeout=timeout) as cur:
+        cur.execute(query, params)
+        return cur.fetchall()
+
+
+def fetch_one(query: str, params=None, role: str = "read", timeout: int = 30):
+    """Execute a query and return single result.
+
+    Eliminates: with DatabaseContext(role) as cur: cur.execute(...); cur.fetchone()
+
+    Args:
+        query: SQL query string
+        params: Query parameters (if any)
+        role: 'read' or 'write'
+        timeout: Connection timeout in seconds
+
+    Returns:
+        Single row tuple/dict or None
+    """
+    with DatabaseContext(role, timeout=timeout) as cur:
+        cur.execute(query, params)
+        return cur.fetchone()
+
+
+def fetch_latest(
+    table: str,
+    order_by_col: str,
+    where_clause: str | None = None,
+    params=None,
+    timeout: int = 30,
+):
+    """Fetch latest row from a table ordered by a specific column.
+
+    Common pattern: SELECT ... FROM table [WHERE ...] ORDER BY col DESC LIMIT 1
+
+    Args:
+        table: Table name
+        order_by_col: Column to order by (DESC)
+        where_clause: Optional WHERE clause (without 'WHERE' keyword)
+        params: Parameters for WHERE clause
+        timeout: Connection timeout in seconds
+
+    Returns:
+        Single row dict or None
+    """
+    where_sql = f" WHERE {where_clause}" if where_clause else ""
+    query = f"SELECT * FROM {table}{where_sql} ORDER BY {order_by_col} DESC LIMIT 1"
+    return fetch_one(query, params, timeout=timeout)
+
+
+def fetch_all(
+    table: str,
+    where_clause: str | None = None,
+    params=None,
+    order_by: str | None = None,
+    timeout: int = 30,
+):
+    """Fetch all rows matching optional WHERE clause.
+
+    Common pattern: SELECT ... FROM table [WHERE ...] [ORDER BY ...]
+
+    Args:
+        table: Table name
+        where_clause: Optional WHERE clause (without 'WHERE' keyword)
+        params: Parameters for WHERE clause
+        order_by: Optional ORDER BY clause (without 'ORDER BY' keyword)
+        timeout: Connection timeout in seconds
+
+    Returns:
+        List of row dicts
+    """
+    where_sql = f" WHERE {where_clause}" if where_clause else ""
+    order_sql = f" ORDER BY {order_by}" if order_by else ""
+    query = f"SELECT * FROM {table}{where_sql}{order_sql}"
+    return execute_query(query, params, timeout=timeout)
+
+
+def count_rows(
+    table: str,
+    where_clause: str | None = None,
+    params=None,
+    timeout: int = 30,
+) -> int:
+    """Count rows in a table matching optional WHERE clause.
+
+    Args:
+        table: Table name
+        where_clause: Optional WHERE clause (without 'WHERE' keyword)
+        params: Parameters for WHERE clause
+        timeout: Connection timeout in seconds
+
+    Returns:
+        Row count
+    """
+    where_sql = f" WHERE {where_clause}" if where_clause else ""
+    query = f"SELECT COUNT(*) FROM {table}{where_sql}"
+    result = fetch_one(query, params, timeout=timeout)
+    return result[0] if result else 0
+
+
+# =======================
+# Circuit Breaker Factory
+# =======================
+# Eliminates repetitive CircuitBreaker initialization patterns
+
+def create_circuit_breaker(
+    name: str,
+    importance_name: str = "OPTIONAL",
+    failure_threshold: int = 3,
+    recovery_timeout_sec: int = 300,
+):
+    """Factory for common CircuitBreaker patterns.
+
+    Eliminates: Repeated CircuitBreaker(name=..., importance=DataImportance.X) across loaders
+
+    Common patterns:
+    - VIX/enrichment data: failure_threshold=3, recovery_timeout=300, importance=OPTIONAL
+    - API data (FRED, etc): failure_threshold=3, recovery_timeout=300, importance=REQUIRED
+    - Core prices: failure_threshold=2, recovery_timeout=600, importance=CRITICAL
+
+    Args:
+        name: Circuit breaker identifier (e.g., "yfinance_vix")
+        importance_name: "CRITICAL", "REQUIRED", or "OPTIONAL"
+        failure_threshold: Number of failures before opening circuit
+        recovery_timeout_sec: Seconds to wait before half-open recovery attempt
+
+    Returns:
+        Configured CircuitBreaker instance
+    """
+    from utils.infrastructure.circuit_breaker import CircuitBreaker, DataImportance
+
+    importance_map = {
+        "CRITICAL": DataImportance.CRITICAL,
+        "REQUIRED": DataImportance.REQUIRED,
+        "OPTIONAL": DataImportance.OPTIONAL,
+    }
+    importance = importance_map.get(importance_name, DataImportance.OPTIONAL)
+
+    return CircuitBreaker(
+        name=name,
+        failure_threshold=failure_threshold,
+        recovery_timeout_sec=recovery_timeout_sec,
+        importance=importance,
+    )
