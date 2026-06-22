@@ -41,8 +41,10 @@ jobs:
         run: |
           VPC_ID=$(aws ec2 describe-vpcs --filters "Name=tag:Name,Values=algo*" \
             --region us-east-1 --query "Vpcs[0].VpcId" --output text)
+          # Prefer public subnets: ECS tasks need internet access to reach Secrets Manager/ECR.
+          # Public subnets with assignPublicIp=ENABLED work without NAT gateway.
           SUBNET=$(aws ec2 describe-subnets \
-            --filters "Name=vpc-id,Values=$VPC_ID" "Name=tag:Name,Values=*private*" \
+            --filters "Name=vpc-id,Values=$VPC_ID" "Name=map-public-ip-on-launch,Values=true" \
             --region us-east-1 --query "Subnets[0].SubnetId" --output text)
           if [ -z "$SUBNET" ] || [ "$SUBNET" = "None" ]; then
             SUBNET=$(aws ec2 describe-subnets --filters "Name=vpc-id,Values=$VPC_ID" \
@@ -74,7 +76,7 @@ jobs:
             --cluster algo-cluster \
             --capacity-provider-strategy "capacityProvider=FARGATE_SPOT,weight=100,base=0" \
             --task-definition "${{ steps.taskdef.outputs.task_def }}" \
-            --network-configuration "awsvpcConfiguration={subnets=[${{ steps.network.outputs.subnet }}],securityGroups=[${{ steps.network.outputs.security_group }}],assignPublicIp=DISABLED}" \
+            --network-configuration "awsvpcConfiguration={subnets=[${{ steps.network.outputs.subnet }}],securityGroups=[${{ steps.network.outputs.security_group }}],assignPublicIp=ENABLED}" \
             --region us-east-1 \
             --query "tasks[0].taskArn" --output text)
           echo "task_arn=$TASK_ARN" >> $GITHUB_OUTPUT
@@ -82,16 +84,29 @@ jobs:
 
       - name: Wait for completion
         if: inputs.wait_for_completion
+        timeout-minutes: 120
         run: |
-          echo "Waiting for ${{ inputs.loader_name }} to finish..."
-          aws ecs wait tasks-stopped \
-            --cluster algo-cluster \
-            --tasks "${{ steps.run_task.outputs.task_arn }}" \
-            --region us-east-1
+          echo "Waiting for ${{ inputs.loader_name }} to finish (up to 2h)..."
+          TASK_ARN="${{ steps.run_task.outputs.task_arn }}"
+          MAX_WAIT=7200
+          ELAPSED=0
+          while [ $ELAPSED -lt $MAX_WAIT ]; do
+            STATUS=$(aws ecs describe-tasks \
+              --cluster algo-cluster \
+              --tasks "$TASK_ARN" \
+              --region us-east-1 \
+              --query "tasks[0].lastStatus" --output text)
+            echo "[$ELAPSED s] Status: $STATUS"
+            if [ "$STATUS" = "STOPPED" ]; then
+              break
+            fi
+            sleep 30
+            ELAPSED=$((ELAPSED + 30))
+          done
 
           EXIT_CODE=$(aws ecs describe-tasks \
             --cluster algo-cluster \
-            --tasks "${{ steps.run_task.outputs.task_arn }}" \
+            --tasks "$TASK_ARN" \
             --region us-east-1 \
             --query "tasks[0].containers[0].exitCode" --output text)
           echo "Exit code: $EXIT_CODE"
