@@ -10,13 +10,14 @@ import logging
 import os
 import sys
 from http.server import BaseHTTPRequestHandler, HTTPServer
+from typing import Any
 from urllib.parse import parse_qs, urlparse
 
 os.environ["ENVIRONMENT"] = "development"
 
 
 # Load database credentials from AWS Secrets Manager (real AWS data) or environment variables
-def _load_db_credentials():
+def _load_db_credentials() -> dict[str, Any]:
     """Load DB credentials from AWS Secrets Manager if available, else environment variables.
 
     Behavior controlled by LOCAL_MODE environment variable:

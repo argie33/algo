@@ -4,6 +4,8 @@ import logging
 from datetime import datetime, timezone
 from typing import Any
 
+from psycopg2.extensions import cursor
+
 # Ensure imports work - setup_imports is imported by parent module (lambda_function or api_router)
 from routes.utils import (
     db_route_handler,
@@ -21,7 +23,7 @@ logger = logging.getLogger(__name__)
 
 
 @db_route_handler("fetch algo config")
-def _get_algo_config(cur) -> dict[str, Any]:
+def _get_algo_config(cur: cursor) -> dict[str, Any]:
     """Return all algo configuration rows with defaults and categorization for TIER 3 visibility."""
 
     cur.execute("SELECT key, value, value_type, description, updated_at FROM algo_config ORDER BY key")
