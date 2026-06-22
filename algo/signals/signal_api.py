@@ -14,6 +14,7 @@ This design:
 
 from typing import cast
 
+from algo.infrastructure import get_config
 from algo.signals.signal_computer import SignalComputer
 
 
@@ -27,7 +28,8 @@ class SignalAPI:
 
     def __init__(self):
         """Initialize the signal API with a shared SignalComputer instance."""
-        self._computer = SignalComputer()
+        config = get_config()
+        self._computer = SignalComputer(config)
 
     def detect_base(self, symbol: str, eval_date) -> bool:
         """Detect if stock is in base pattern.
@@ -83,11 +85,8 @@ class SignalAPI:
         Ranks the stock's relative strength vs SPY over the lookback period,
         returning a 0-100 percentile score. Higher = stronger momentum.
 
-        This method encapsulates the batch-cached percentile computation that
-        was previously accessed as a private method (_rs_percentile_vs_spy).
-
         Args:
-            cur: Database cursor (will be passed to SignalComputer)
+            cur: Database cursor (provided for compatibility, not used internally)
             symbol: Stock ticker
             eval_date: Evaluation date
             lookback: Number of days to look back (default 60)
@@ -98,28 +97,8 @@ class SignalAPI:
         Raises:
             ValueError: If symbol has insufficient price history
         """
-        return cast(float, self._computer._rs_percentile_vs_spy(cur, symbol, eval_date, lookback))
-
-    def compute_period_return(self, cur, symbol: str, end_date, lookback_days: int) -> float:
-        """Compute simple period return.
-
-        Args:
-            cur: Database cursor
-            symbol: Stock ticker
-            end_date: End date for return calculation
-            lookback_days: Number of days to look back
-
-        Returns:
-            Simple return as decimal (e.g., 0.15 for +15%)
-
-        Raises:
-            ValueError: If price data is missing or invalid
-        """
-        return cast(float, self._computer._period_return(cur, symbol, end_date, lookback_days))
-
-    def clear_cache(self):
-        """Clear all internal signal caches.
-
-        Use after bulk operations or when stale data is suspected.
-        """
-        self._computer.clear_cache()
+        rs_data = self._computer.mansfield_rs(symbol, eval_date, lookback)
+        if rs_data and rs_data.get("mansfield_rs") is not None:
+            mrs = float(rs_data["mansfield_rs"])
+            return max(0.0, min(100.0, (mrs + 1) * 50))
+        return 0.0
