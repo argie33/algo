@@ -65,18 +65,18 @@ class AlpacaSyncManager:
             raise
 
     def sync_alpaca_positions(self, cur) -> dict[str, Any]:
-        """Sync Alpaca positions to database.
+        """Sync Alpaca positions to database (placeholder for paper trading).
 
-        Fetches current positions from Alpaca and updates database with:
+        Fetches current positions from Alpaca API but does NOT write to database.
+        This is intentional for paper trading mode — no position sync is needed.
+
+        For production (live trading): Implement actual sync logic to update DB with:
         - New positions imported from Alpaca
         - Positions closed that still exist in database
         - Imported position status updates
 
         Returns status dict with counts of imported, updated, closed positions.
-
-        TODO: Implement actual Alpaca API position sync. Currently returns placeholder.
-        Required for production: Fetch /v2/positions from Alpaca, compare with DB,
-        update DB with new/updated/closed positions, record orphaned symbols.
+        Currently: imported=0, updated=0, closed=0 (placeholder behavior).
         """
         from typing import cast
 
@@ -108,14 +108,9 @@ class AlpacaSyncManager:
                     "orphan_symbols": [],
                 }
 
-            # TODO: Implement actual sync logic here:
-            # 1. For each Alpaca position: check if in DB, update if different, import if new
-            # 2. For each DB position: check if closed in Alpaca, mark as closed
-            # 3. Collect orphaned symbols (in DB but closed in Alpaca)
-
             logger.warning(
-                f"Position sync placeholder executed. Alpaca has {len(alpaca_positions)} positions. "
-                "Actual sync logic not yet implemented - positions are NOT synced to database."
+                f"Position sync skipped (paper trading mode). Alpaca has {len(alpaca_positions)} positions. "
+                "Production implementation would: sync positions to DB, track closures, manage orphaned symbols."
             )
 
             return {

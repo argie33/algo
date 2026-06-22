@@ -69,7 +69,7 @@ class DataPatrol:
             # Log configuration snapshot
             try:
                 self.logger.log_configuration(cur, self.config.as_dict())
-            except (psycopg2.DatabaseError, psycopg2.OperationalError, DataLoadError) as e:
+            except (RuntimeError, psycopg2.DatabaseError, psycopg2.OperationalError, DataLoadError) as e:
                 logger.error(f"Failed to log configuration: {e}")
 
             # Run checks
@@ -78,7 +78,7 @@ class DataPatrol:
             # Log all results
             try:
                 self.logger.log_results(cur, self.results)
-            except (psycopg2.DatabaseError, psycopg2.OperationalError, DataLoadError) as e:
+            except (RuntimeError, psycopg2.DatabaseError, psycopg2.OperationalError, DataLoadError) as e:
                 logger.error(f"Failed to log results: {e}")
 
             elapsed = time.time() - start_time
@@ -148,14 +148,14 @@ class DataPatrol:
         assert self.logger is not None, "Logger must be initialized before updating completion status"
         try:
             self.logger.update_completion_status(ready, elapsed_seconds)
-        except (ValueError, ZeroDivisionError, TypeError) as e:
+        except (RuntimeError, ValueError, ZeroDivisionError, TypeError) as e:
             logger.warning(f"Could not update DynamoDB: {e}")
 
         # Log performance
         if elapsed_seconds:
             try:
                 self.logger.log_performance(cur, elapsed_seconds, "OK" if ready else "FINDINGS")
-            except (ValueError, ZeroDivisionError, TypeError) as e:
+            except (RuntimeError, ValueError, ZeroDivisionError, TypeError) as e:
                 logger.error(f"Failed to log performance: {e}")
 
         return {
