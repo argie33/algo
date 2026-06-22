@@ -1,7 +1,7 @@
 """Route: sentiment"""
 
 import logging
-from typing import cast, Any
+from typing import Any, cast
 
 import psycopg2
 import psycopg2.errors
