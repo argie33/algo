@@ -30,7 +30,7 @@ def handle(
     params: dict,
     body: dict | None = None,
     jwt_claims: dict | None = None,
-) -> dict:
+) -> dict[str, Any]:
     """Handle /api/scores/* endpoints."""
     try:
         if path in ["/api/scores", "/api/scores/stockscores"] or path.startswith(
@@ -86,7 +86,7 @@ def _get_stock_scores(
     sort_order: str = "desc",
     sp500_only: bool = False,
     symbol: str | None = None,
-) -> dict:
+) -> dict[str, Any]:
     """Get stock scores with multi-factor ranking."""
     try:
         allowed_sorts = {

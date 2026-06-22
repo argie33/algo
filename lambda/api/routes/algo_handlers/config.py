@@ -2,6 +2,7 @@
 
 import logging
 from datetime import datetime, timezone
+from typing import Any
 
 # Ensure imports work - setup_imports is imported by parent module (lambda_function or api_router)
 from routes.utils import (
@@ -13,6 +14,7 @@ from routes.utils import (
     safe_json_serialize,
 )
 
+from algo.infrastructure import AlgoConfig
 from shared_contracts.response_validator import ResponseValidator
 
 
@@ -20,9 +22,8 @@ logger = logging.getLogger(__name__)
 
 
 @db_route_handler("fetch algo config")
-def _get_algo_config(cur) -> dict:
+def _get_algo_config(cur) -> dict[str, Any]:
     """Return all algo configuration rows with defaults and categorization for TIER 3 visibility."""
-    from algo.infrastructure import AlgoConfig
 
     cur.execute("SELECT key, value, value_type, description, updated_at FROM algo_config ORDER BY key")
     rows = cur.fetchall()
@@ -58,7 +59,7 @@ def _get_algo_config(cur) -> dict:
 
 
 @db_route_handler("fetch algo config key")
-def _get_algo_config_key(cur, key: str) -> dict:
+def _get_algo_config_key(cur, key: str) -> dict[str, Any]:
     """Return a single algo config key."""
     cur.execute(
         "SELECT key, value, value_type, description, updated_at FROM algo_config WHERE key = %s",
@@ -69,10 +70,8 @@ def _get_algo_config_key(cur, key: str) -> dict:
 
 
 @db_route_handler("reset algo config key")
-def _reset_algo_config_key(cur, key: str, actor: str) -> dict:
+def _reset_algo_config_key(cur, key: str, actor: str) -> dict[str, Any]:
     """Reset a configuration key to its default value (TIER 5: Reset capability)."""
-    from algo.infrastructure import AlgoConfig
-
     # Validate the key exists
     if key not in AlgoConfig.DEFAULTS:
         return error_response(404, "not_found", f"Config key not found: {key}")
@@ -120,10 +119,8 @@ def _reset_algo_config_key(cur, key: str, actor: str) -> dict:
 
 
 @db_route_handler("update algo config key")
-def _update_algo_config_key(cur, key: str, body: dict, actor: str) -> dict:
+def _update_algo_config_key(cur, key: str, body: dict, actor: str) -> dict[str, Any]:
     """Update a configuration key (TIER 4: Configuration Editing)."""
-    from algo.infrastructure import AlgoConfig
-
     if not body or "value" not in body:
         return error_response(400, "bad_request", "value required in request body")
 

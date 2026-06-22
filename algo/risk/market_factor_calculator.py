@@ -219,7 +219,7 @@ class MarketFactorCalculator:
                 dist = int(row[0]) or 0
                 # 0-2 = 100, 3-4 = 60, 5+ = 20
                 score = 100.0 if dist <= 2 else (60.0 if dist <= 4 else 20.0)
-                return {"heavy_down_days": dist, "score": score}
+                return {"heavy_down_days": dist, "count": dist, "score": score}
             return {"error": "No selling pressure data"}
         except (ValueError, ZeroDivisionError, TypeError) as e:
             logger.warning(f"Selling pressure calculation failed: {e}")

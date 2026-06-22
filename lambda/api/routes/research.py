@@ -1,6 +1,7 @@
 """Route: research"""
 
 import logging
+from typing import Any
 
 import psycopg2
 import psycopg2.errors
@@ -29,7 +30,7 @@ def handle(
     params: dict,
     body: dict | None = None,
     jwt_claims: dict | None = None,
-) -> dict:
+) -> dict[str, Any]:
     """Handle /api/research/* endpoints."""
     try:
         if path == "/api/research/backtests" or path.startswith("/api/research/backtests?"):

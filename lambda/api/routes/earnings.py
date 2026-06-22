@@ -1,6 +1,7 @@
 """Route: earnings"""
 
 import logging
+from typing import Any
 
 import psycopg2
 import psycopg2.errors
@@ -29,7 +30,7 @@ def handle(
     params: dict,
     body: dict | None = None,
     jwt_claims: dict | None = None,
-) -> dict:
+) -> dict[str, Any]:
     try:
         parts = path.split("/")
         symbol = parts[3] if len(parts) > 3 else None

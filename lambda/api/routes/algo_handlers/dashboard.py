@@ -32,7 +32,7 @@ logger = logging.getLogger(__name__)
 
 
 @db_route_handler("fetch algo positions")
-def _get_algo_positions(cur, user_id: str | None = None) -> dict:
+def _get_algo_positions(cur, user_id: str | None = None) -> dict[str, Any]:
     """Get current open positions with computed fields.
 
     Provides comprehensive position data with:
@@ -233,7 +233,7 @@ def _get_algo_positions(cur, user_id: str | None = None) -> dict:
 
 
 @db_route_handler("fetch algo status")
-def _get_algo_status(cur) -> dict:
+def _get_algo_status(cur) -> dict[str, Any]:
     """Get latest algo execution status plus latest portfolio snapshot."""
     cur.execute("""
             SELECT
@@ -306,7 +306,7 @@ def _get_algo_status(cur) -> dict:
 
 
 @db_route_handler("fetch algo trades")
-def _get_algo_trades(cur, limit: int = 200, user_id: str | None = None, status: str | None = None) -> dict:
+def _get_algo_trades(cur, limit: int = 200, user_id: str | None = None, status: str | None = None) -> dict[str, Any]:
     """Get recent trades with all fields for frontend (scoped to user if user_id provided, filtered by status if provided)."""
     where_parts: list[str] = []
     params: list[Any] = []
@@ -359,7 +359,7 @@ def _get_algo_trades(cur, limit: int = 200, user_id: str | None = None, status: 
 
 
 @db_route_handler("fetch circuit breakers")
-def _get_circuit_breakers(cur) -> dict:
+def _get_circuit_breakers(cur) -> dict[str, Any]:
     """Get real-time circuit breaker state with current values vs thresholds."""
     try:
         today = date.today()
@@ -839,7 +839,7 @@ def _get_circuit_breakers(cur) -> dict:
 
 
 @db_route_handler("fetch dashboard signals")
-def _get_dashboard_signals(cur) -> dict:
+def _get_dashboard_signals(cur) -> dict[str, Any]:
     """Get dashboard-specific signal data with aggregations for the Ops Terminal.
 
     Returns: BUY signals with quality scores, grade distribution (A-D by score),
@@ -950,7 +950,7 @@ def _get_dashboard_signals(cur) -> dict:
 
 
 @db_route_handler("fetch equity curve")
-def _get_equity_curve(cur, days: int = 180) -> dict:
+def _get_equity_curve(cur, days: int = 180) -> dict[str, Any]:
     """Get equity curve for last N days."""
     try:
         cutoff_date = (datetime.now(timezone.utc) - timedelta(days=days)).date()

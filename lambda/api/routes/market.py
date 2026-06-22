@@ -34,7 +34,7 @@ def _rollback_savepoint(cur, name: str) -> None:
         logger.debug(f"[SAVEPOINT_ROLLBACK] Error rolling back {name}: {type(sp_err).__name__}")
 
 
-def _handle_market_status(cur) -> dict:
+def _handle_market_status(cur) -> dict[str, Any]:
     """Handle /api/market and /api/market/status endpoints."""
     cur.execute("SET LOCAL statement_timeout = '5000ms'")
     cur.execute("""
@@ -61,7 +61,7 @@ def _handle_market_status(cur) -> dict:
     return json_response(200, result, data_freshness=freshness)
 
 
-def _handle_breadth(cur) -> dict:
+def _handle_breadth(cur) -> dict[str, Any]:
     """Handle /api/market/breadth endpoint."""
     # Compute A/D per day using a self-join on consecutive trading dates.
     # Self-join is faster than LAG window over 35 days x 9000 symbols.
@@ -135,7 +135,7 @@ def _handle_breadth(cur) -> dict:
     )
 
 
-def _handle_technicals(cur) -> dict:
+def _handle_technicals(cur) -> dict[str, Any]:
     """Handle /api/market/technicals endpoint."""
     try:
         cur.execute("SET LOCAL statement_timeout = '3000ms'")
@@ -246,7 +246,7 @@ def _handle_technicals(cur) -> dict:
     return json_response(200, base, data_freshness=freshness)
 
 
-def _handle_top_movers(cur) -> dict:
+def _handle_top_movers(cur) -> dict[str, Any]:
     """Handle /api/market/top-movers endpoint."""
     movers = []
     gainers = []
@@ -318,7 +318,7 @@ def _handle_top_movers(cur) -> dict:
     return json_response(200, {"gainers": gainers or [], "losers": losers or [], "items": items})
 
 
-def _handle_distribution_days(cur) -> dict:
+def _handle_distribution_days(cur) -> dict[str, Any]:
     """Handle /api/market/distribution-days endpoint."""
     dist_index_names = {
         "^GSPC": "S&P 500",
@@ -392,7 +392,7 @@ def _handle_distribution_days(cur) -> dict:
         raise_db_error(e, "distribution days query")
 
 
-def _handle_seasonality(cur) -> dict:
+def _handle_seasonality(cur) -> dict[str, Any]:
     """Handle /api/market/seasonality endpoint."""
     # Seasonality tables are market-wide aggregates (SPY-based)
     monthly_data = []
@@ -548,7 +548,7 @@ def _handle_seasonality(cur) -> dict:
     )
 
 
-def _handle_sentiment(cur, params: dict) -> dict:
+def _handle_sentiment(cur, params: dict) -> dict[str, Any]:
     """Handle /api/market/sentiment endpoint."""
     range_days = _parse_range_param(params) if params else 30
     sentiment_data = {}
@@ -700,7 +700,7 @@ def _handle_sentiment(cur, params: dict) -> dict:
     return json_response(200, sentiment_data, data_freshness=freshness)
 
 
-def _handle_naaim(cur) -> dict:
+def _handle_naaim(cur) -> dict[str, Any]:
     """Handle /api/market/naaim endpoint."""
     try:
         cur.execute("SET LOCAL statement_timeout = '5000ms'")
@@ -793,7 +793,7 @@ def _handle_naaim(cur) -> dict:
 
 
 @db_route_handler("get fear greed history")
-def _get_fear_greed_history(cur, days: int = 30) -> dict:
+def _get_fear_greed_history(cur, days: int = 30) -> dict[str, Any]:
     """Get fear/greed index history with signals."""
     cur.execute("SET LOCAL statement_timeout = '5000ms'")
     cutoff_date = (datetime.now(timezone.utc) - timedelta(days=days)).date()
@@ -885,7 +885,7 @@ def _get_fear_greed_history(cur, days: int = 30) -> dict:
 
 
 @db_route_handler("get market latest")
-def _get_market_latest(cur) -> dict:
+def _get_market_latest(cur) -> dict[str, Any]:
     """Get latest market data including indices, breadth, and sentiment."""
     cur.execute("""
         SELECT date, market_trend, market_stage, advance_decline_ratio,
@@ -933,7 +933,7 @@ def _parse_range_param(params: dict, default: int = 30) -> int:
 
 
 @db_route_handler("get correlation matrix")
-def _get_correlation_matrix(cur) -> dict:
+def _get_correlation_matrix(cur) -> dict[str, Any]:
     """Compute and return correlation matrix between key market indices."""
     symbols = ["^GSPC", "^IXIC", "SPY", "QQQ", "IVV", "TLT", "GLD"]
 
@@ -1129,7 +1129,7 @@ def _get_correlation_matrix(cur) -> dict:
 
 
 @db_route_handler("get cap distribution")
-def _get_cap_distribution(cur) -> dict:
+def _get_cap_distribution(cur) -> dict[str, Any]:
     """Get market cap distribution across market cap buckets and sectors."""
     # market_cap is in key_metrics, sector is in company_profile — stock_symbols has neither
     cur.execute("""
@@ -1257,7 +1257,7 @@ INDEX_NAMES = {
 
 
 @db_route_handler("get market indices")
-def _get_markets(cur) -> dict:
+def _get_markets(cur) -> dict[str, Any]:
 
     cur.execute(
         """
@@ -1366,7 +1366,7 @@ def _get_markets(cur) -> dict:
 
 
 @db_route_handler("get sector overview")
-def _get_sector_overview(cur) -> dict:
+def _get_sector_overview(cur) -> dict[str, Any]:
     """Get latest sector performance overview from sectors table."""
     cur.execute("""
         SELECT sector_name, performance_ytd, performance_1y, pe_ratio,

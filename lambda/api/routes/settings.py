@@ -2,6 +2,7 @@
 
 import json
 import logging
+from typing import Any
 
 import psycopg2
 import psycopg2.errors
@@ -34,7 +35,7 @@ def handle(
     params: dict,
     body: dict | None = None,
     jwt_claims: dict | None = None,
-) -> dict:
+) -> dict[str, Any]:
     """Handle /api/settings endpoints."""
     if jwt_claims is None:
         return error_response(401, "unauthorized", "Authentication required")
@@ -51,7 +52,7 @@ def handle(
     return error_response(405, "method_not_allowed", f"{method} not supported")
 
 
-def _get_settings(cur, jwt_claims: dict) -> dict:
+def _get_settings(cur, jwt_claims: dict) -> dict[str, Any]:
     """Return user settings, falling back to defaults."""
     user_id = jwt_claims.get("sub")
     if not user_id:
@@ -87,7 +88,7 @@ def _get_settings(cur, jwt_claims: dict) -> dict:
         return error_response(code, error_type, message)
 
 
-def _save_settings(cur, body: dict, jwt_claims: dict) -> dict:
+def _save_settings(cur, body: dict, jwt_claims: dict) -> dict[str, Any]:
     """Persist user settings (theme, notifications, other preferences)."""
     user_id = jwt_claims.get("sub")
     if not user_id:

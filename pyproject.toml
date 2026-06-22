@@ -67,6 +67,12 @@ module = [
 ]
 ignore_errors = true  # Has SIGALRM (Unix-only signal) and legacy type issues — fix tracked separately
 
+[[tool.mypy.overrides]]
+module = [
+    "tools.dashboard.dashboard",
+]
+warn_unused_ignores = false  # msvcrt is Windows-only; try/except ImportError block makes ignores platform-dependent
+
 [tool.ruff]
 line-length = 120
 target-version = "py310"

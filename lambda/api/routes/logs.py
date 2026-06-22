@@ -27,6 +27,7 @@ Body: {
 
 import json
 import logging
+from typing import Any
 
 import boto3
 from routes.utils import error_response, success_response
@@ -64,7 +65,7 @@ def handle(
     params: dict,
     body: dict | None = None,
     jwt_claims: dict | None = None,
-) -> dict:
+) -> dict[str, Any]:
     """Handle frontend error logging.
 
     POST /api/logs - Receive and log frontend errors to CloudWatch

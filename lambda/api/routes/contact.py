@@ -5,6 +5,7 @@ import os
 import re
 from datetime import datetime, timezone
 from time import time
+from typing import Any
 
 import psycopg2
 import psycopg2.errors
@@ -154,7 +155,7 @@ def handle(
     params: dict,
     body: dict | None = None,
     jwt_claims: dict | None = None,
-) -> dict:
+) -> dict[str, Any]:
     """Handle /api/contact/* endpoints. Submissions require admin auth."""
     try:
         if path == "/api/contact/submissions":
@@ -180,7 +181,7 @@ def handle(
         return error_response(500, "internal_error", "An error occurred processing your request")
 
 
-def _submit_contact(cur, body: dict) -> dict:
+def _submit_contact(cur, body: dict) -> dict[str, Any]:
     """Store a contact form submission."""
     try:
         req = ContactSubmissionRequest(**body)
@@ -257,7 +258,7 @@ def _submit_contact(cur, body: dict) -> dict:
         return error_response(code, error_type, message)
 
 
-def _get_submissions(cur, params: dict) -> dict:
+def _get_submissions(cur, params: dict) -> dict[str, Any]:
     """Get contact submissions (admin-only)."""
     try:
         limit_raw = params.get("limit", [None])[0] if params else None

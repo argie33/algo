@@ -364,7 +364,7 @@ def handle(
     params: dict,
     body: dict | None = None,
     jwt_claims: dict | None = None,
-) -> dict:
+) -> dict[str, Any]:
     """Handle GET /api/data-coverage request."""
     if method != "GET":
         return error_response(405, "method_not_allowed", "Method not allowed. Only GET is supported.")

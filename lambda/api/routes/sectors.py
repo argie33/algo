@@ -32,7 +32,7 @@ def handle(
     params: dict,
     body: dict | None = None,
     jwt_claims: dict | None = None,
-) -> dict:
+) -> dict[str, Any]:
     """Handle /api/sectors and /api/sectors/* endpoints - return full ranking data."""
     try:
         if path == "/api/sectors/trends-batch" or path.startswith("/api/sectors/trends-batch?"):

@@ -43,7 +43,7 @@ def handle(
     params: dict,
     body: dict | None = None,
     jwt_claims: dict | None = None,
-) -> dict:
+) -> dict[str, Any]:
     """Route risk dashboard endpoints."""
     if os.environ.get("DEV_BYPASS_AUTH") != "true" and not _check_admin_access(jwt_claims):
         return error_response(403, "forbidden", "Admin access required")
@@ -69,7 +69,7 @@ def handle(
         return error_response(404, "not_found", f"No risk dashboard handler for {path}")
 
 
-def _get_comprehensive_risk_dashboard(cur) -> dict:
+def _get_comprehensive_risk_dashboard(cur) -> dict[str, Any]:
     """Get all current risk metrics in one view."""
     try:
         result = {
@@ -272,7 +272,7 @@ def _fetch_exposure_tier_info(cur) -> dict[str, Any]:
     }
 
 
-def _get_drawdown_metrics(cur) -> dict:
+def _get_drawdown_metrics(cur) -> dict[str, Any]:
     """GET /api/algo/risk-dashboard/drawdown"""
     try:
         info = _fetch_drawdown_info(cur)
@@ -282,7 +282,7 @@ def _get_drawdown_metrics(cur) -> dict:
         return error_response(code, error_type, message)
 
 
-def _get_exposure_tier_info(cur) -> dict:
+def _get_exposure_tier_info(cur) -> dict[str, Any]:
     """GET /api/algo/risk-dashboard/exposure-tier"""
     try:
         info = _fetch_exposure_tier_info(cur)
@@ -292,7 +292,7 @@ def _get_exposure_tier_info(cur) -> dict:
         return error_response(code, error_type, message)
 
 
-def _get_position_sizing_audit(cur, days: int) -> dict:
+def _get_position_sizing_audit(cur, days: int) -> dict[str, Any]:
     """GET /api/algo/risk-dashboard/position-sizing-audit?days=30"""
     try:
         audit_rows = execute_with_timeout(
@@ -338,7 +338,7 @@ def _get_position_sizing_audit(cur, days: int) -> dict:
         return error_response(code, error_type, message)
 
 
-def _get_stop_loss_audit(cur, days: int) -> dict:
+def _get_stop_loss_audit(cur, days: int) -> dict[str, Any]:
     """GET /api/algo/risk-dashboard/stop-loss-audit?days=30"""
     try:
         cur.execute(
@@ -380,7 +380,7 @@ def _get_stop_loss_audit(cur, days: int) -> dict:
         return error_response(code, error_type, message)
 
 
-def _get_exit_rules_distribution(cur, days: int) -> dict:
+def _get_exit_rules_distribution(cur, days: int) -> dict[str, Any]:
     """GET /api/algo/risk-dashboard/exit-rules?days=30"""
     try:
         cur.execute(

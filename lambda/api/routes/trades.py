@@ -6,6 +6,7 @@ import logging
 import os
 import uuid
 from datetime import date
+from typing import Any
 
 import psycopg2
 import psycopg2.errors
@@ -92,7 +93,7 @@ def handle(
     body: dict | None = None,
     jwt_claims: dict | None = None,
     headers: dict | None = None,
-) -> dict:
+) -> dict[str, Any]:
     """Handle /api/trades and /api/trades/* endpoints."""
     try:
         if path == "/api/trades/manual" and method == "POST":
@@ -191,7 +192,7 @@ def handle(
         raise_db_error(e, "handle trades")
 
 
-def _create_manual_trade(cur, body: dict, idempotency_key: str | None = None) -> dict:
+def _create_manual_trade(cur, body: dict, idempotency_key: str | None = None) -> dict[str, Any]:
     """POST /api/trades/manual — manually log a trade entry.
 
     If idempotency_key is provided, uses it to prevent duplicate requests.

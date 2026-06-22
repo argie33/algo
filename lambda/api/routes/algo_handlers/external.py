@@ -1,6 +1,7 @@
 """Route: algo"""
 
 import logging
+from typing import Any
 
 import psycopg2
 import psycopg2.errors
@@ -24,7 +25,7 @@ logger = logging.getLogger(__name__)
 
 
 @db_route_handler("get economic calendar")
-def _get_economic_calendar(cur) -> dict:
+def _get_economic_calendar(cur) -> dict[str, Any]:
     """Get economic calendar data with freshness validation.
 
     Returns list of upcoming economic events. Includes data_freshness metadata
@@ -63,7 +64,7 @@ def _get_economic_calendar(cur) -> dict:
 
 
 @db_route_handler("get sentiment")
-def _get_sentiment(cur) -> dict:
+def _get_sentiment(cur) -> dict[str, Any]:
     """Get market sentiment data.
 
     Returns current market sentiment (fear/greed index). Returns 503 error

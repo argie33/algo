@@ -93,7 +93,7 @@ def handle(
         return error_response(code, error_type, message)
 
 
-def _get_vix(cur) -> dict:
+def _get_vix(cur) -> dict[str, Any]:
     """Get VIX historical data."""
     try:
         rows = execute_with_timeout(
@@ -127,7 +127,7 @@ def _get_vix(cur) -> dict:
         return error_response(code, error_type, message)
 
 
-def _get_calendar(cur, params: dict) -> dict:
+def _get_calendar(cur, params: dict) -> dict[str, Any]:
     """Get economic calendar data with optional date filtering."""
     try:
         cur.execute("SET LOCAL statement_timeout = '5000ms'")
@@ -180,7 +180,7 @@ def _get_calendar(cur, params: dict) -> dict:
         return error_response(code, error_type, message)
 
 
-def _get_leading_indicators(cur) -> dict:
+def _get_leading_indicators(cur) -> dict[str, Any]:
     """Get leading economic indicators formatted for EconomicDashboard."""
     # Maps FRED series IDs to indicator names
     indicator_map = {
@@ -403,7 +403,7 @@ def _get_leading_indicators(cur) -> dict:
         return error_response(code, error_type, message)
 
 
-def _get_yield_curve_full(cur) -> dict:
+def _get_yield_curve_full(cur) -> dict[str, Any]:
     """Get yield curve and credit spread data formatted for EconomicDashboard."""
     try:
         cur.execute("""

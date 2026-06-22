@@ -3,6 +3,7 @@
 import json
 import logging
 from datetime import date, datetime, timedelta, timezone
+from typing import Any
 
 import psycopg2
 import psycopg2.errors
@@ -32,7 +33,7 @@ logger = logging.getLogger(__name__)
 
 
 @db_route_handler("get data quality")
-def _get_data_quality(cur) -> dict:
+def _get_data_quality(cur) -> dict[str, Any]:
     """Get detailed data quality summary by table from latest data_patrol_log run."""
     try:
         # Get patrol log entries from last 24 hours
@@ -134,7 +135,7 @@ def _get_data_quality(cur) -> dict:
 
 
 @db_route_handler("fetch data status")
-def _get_data_status(cur) -> dict:
+def _get_data_status(cur) -> dict[str, Any]:
     """Get data freshness status with summary for ServiceHealth/AlgoTradingDashboard.
 
     Uses same trading-day-aware freshness logic as Phase 1 orchestrator to avoid
@@ -305,7 +306,7 @@ def _get_data_status(cur) -> dict:
         return error_response(code, error_type, message)
 
 
-def _normalize_market_health(mh: dict) -> dict:
+def _normalize_market_health(mh: dict) -> dict[str, Any]:
     """Normalize market_health dict with safe defaults for all expected fields."""
     return {
         "market_trend": mh.get("market_trend"),
@@ -323,7 +324,7 @@ def _normalize_market_health(mh: dict) -> dict:
     }
 
 
-def _normalize_exposure(exp: dict) -> dict:
+def _normalize_exposure(exp: dict) -> dict[str, Any]:
     """Normalize exposure dict with safe defaults for all expected fields."""
     halt_reasons = exp.get("halt_reasons")
     return {
@@ -335,7 +336,7 @@ def _normalize_exposure(exp: dict) -> dict:
 
 
 @db_route_handler("get market")
-def _get_market(cur) -> dict:
+def _get_market(cur) -> dict[str, Any]:
     """Get simplified market data for dashboard. Returns market_health_daily + exposure data."""
     try:
         cur.execute("SET LOCAL statement_timeout = '8000ms'")
@@ -423,7 +424,7 @@ def _get_market(cur) -> dict:
 
 
 @db_route_handler("get market factors")
-def _get_market_factors(cur) -> dict:
+def _get_market_factors(cur) -> dict[str, Any]:
     """Get market exposure factors for dashboard display."""
     try:
         cur.execute("SET LOCAL statement_timeout = '8000ms'")
@@ -484,7 +485,7 @@ def _get_market_factors(cur) -> dict:
 
 
 @db_route_handler("get market sentiment")
-def _get_market_sentiment(cur) -> dict:
+def _get_market_sentiment(cur) -> dict[str, Any]:
     """Return latest market sentiment score and trend."""
     # market_sentiment view provides: date, fear_greed_index, label, put_call_ratio, vix, sentiment_score
     cur.execute("""
@@ -532,7 +533,7 @@ def _get_market_sentiment(cur) -> dict:
 
 
 @db_route_handler("get markets")
-def _get_markets(cur) -> dict:
+def _get_markets(cur) -> dict[str, Any]:
     """Get market regime, exposure, and 12-factor data for the Markets Health dashboard."""
     try:
         # Latest exposure row
@@ -721,7 +722,7 @@ def _get_markets(cur) -> dict:
 
 
 @db_route_handler("get trend criteria")
-def _get_trend_criteria(cur) -> dict:
+def _get_trend_criteria(cur) -> dict[str, Any]:
     """Return trend criteria analysis with passing count from actual data."""
     cur.execute("""
         SELECT

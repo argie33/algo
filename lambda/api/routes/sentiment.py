@@ -1,6 +1,7 @@
 """Route: sentiment"""
 
 import logging
+from typing import Any
 
 import psycopg2
 import psycopg2.errors
@@ -32,7 +33,7 @@ def handle(
     params: dict,
     body: dict | None = None,
     jwt_claims: dict | None = None,
-) -> dict:
+) -> dict[str, Any]:
     """Handle /api/sentiment/* endpoints."""
     try:
         if path == "/api/sentiment/summary":
@@ -395,7 +396,7 @@ def handle(
         return error_response(code, error_type, message)
 
 
-def _get_vix_data(cur) -> dict:
+def _get_vix_data(cur) -> dict[str, Any]:
     """Get latest VIX data and historical trend."""
     try:
         cur.execute("""
