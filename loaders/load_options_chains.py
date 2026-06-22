@@ -63,6 +63,7 @@ class OptionsLoader:
         chains_inserted = 0
         iv_inserted = 0
         symbols_processed = 0
+        failed_symbols = []
 
         for i in range(0, len(symbols), self.batch_size):
             batch = symbols[i : i + self.batch_size]
@@ -76,12 +77,18 @@ class OptionsLoader:
                         iv_inserted += iv_cnt
                         symbols_processed += 1
                     except Exception as e:
-                        logger.warning(f"Failed to load options for {symbol}: {e}")
-                        continue
+                        logger.error(f"Failed to load options for {symbol}: {e}")
+                        failed_symbols.append((symbol, str(e)))
 
             time.sleep(0.5)  # Rate limit yfinance
 
         duration = time.time() - start_time
+
+        if failed_symbols:
+            error_msg = f"Options data loading failed for {len(failed_symbols)} symbols: {failed_symbols}"
+            logger.critical(error_msg)
+            raise RuntimeError(error_msg)
+
         result = {
             "symbols_processed": symbols_processed,
             "chains_inserted": chains_inserted,

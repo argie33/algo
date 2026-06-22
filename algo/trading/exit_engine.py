@@ -1295,9 +1295,13 @@ class ExitEngine:
 
         ema_21 = Decimal(str(ema_21)) if ema_21 is not None else None
 
-        vol = float(vol) if vol is not None else 0
+        if vol is None:
+            raise ValueError(f"Volume data missing for {symbol}; cannot evaluate volume-based exits")
+        vol = float(vol)
 
-        avg_vol_50 = float(avg_vol_50) if avg_vol_50 is not None else 0
+        if avg_vol_50 is None:
+            raise ValueError(f"50-day average volume missing for {symbol}; cannot evaluate relative volume")
+        avg_vol_50 = float(avg_vol_50)
 
         cur_price_decimal = Decimal(str(cur_price))
 

@@ -153,7 +153,9 @@ class CircuitBreaker:
                         }
                     state["label"] = CHECK_LABELS.get(check_name, check_name)
                     results["checks"][check_name] = state
-                    if state.get("halted"):
+                    if "halted" not in state:
+                        raise ValueError(f"Circuit breaker check '{check_name}' missing required 'halted' field in state: {state}")
+                    if state["halted"]:
                         results["halted"] = True
                         results["halt_reasons"].append(f"{state['label']}: {state['reason']}")
 
@@ -892,7 +894,9 @@ if __name__ == "__main__":
     result = cb.check_all()
     logger.info(f"\n{'HALTED' if result['halted'] else 'CLEAR'}\n")
     for name, state in result["checks"].items():
-        flag = "[HALT]" if state.get("halted") else "[OK]  "
+        if "halted" not in state:
+            raise ValueError(f"State dict for check '{name}' missing 'halted' field: {state}")
+        flag = "[HALT]" if state["halted"] else "[OK]  "
         label = state.get("label", name)
         logger.info(f"  {flag} {label:40s} : {state.get('reason', 'no detail')}")
     if result["halted"]:

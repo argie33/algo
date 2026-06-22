@@ -167,6 +167,8 @@ class MarketExposure:
                     logger.error(f"Malformed factors JSON: {e} — treating as empty dict")
                     factors = {}
 
+            if dist_days is None:
+                raise ValueError("Distribution days data missing; cannot assess institutional distribution risk")
             result = {
                 "eval_date": str(eval_date),
                 "raw_score": raw_score,
@@ -174,7 +176,7 @@ class MarketExposure:
                 "exposure_pct": exposure_pct,
                 "regime": regime,
                 "halt_reasons": halt_reasons,
-                "distribution_days": dist_days or 0,
+                "distribution_days": dist_days,
                 "factors": factors,
                 "_cached": True,
             }
@@ -897,8 +899,12 @@ class MarketExposure:
         row = cur.fetchone()
         if row is None:
             return {"score_factor": None, "value": None}
-        new_hi = int(row["new_highs_count"] or 0)
-        new_lo = int(row["new_lows_count"] or 0)
+        if row["new_highs_count"] is None:
+            raise ValueError(f"Breadth data missing: new_highs_count is None on {eval_date}")
+        if row["new_lows_count"] is None:
+            raise ValueError(f"Breadth data missing: new_lows_count is None on {eval_date}")
+        new_hi = int(row["new_highs_count"])
+        new_lo = int(row["new_lows_count"])
         net = new_hi - new_lo
         # Net +50 -> 1.0, 0 -> 0.5, -50 -> 0
         sf = max(0.0, min(1.0, 0.5 + net / 100.0))

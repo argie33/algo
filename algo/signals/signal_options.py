@@ -232,23 +232,26 @@ class SignalOptionsMixin:
         im_sig = self.implied_move_signal(symbol, eval_date)
 
         # Validate all signals have bonus_pts before aggregating
-        if iv_sig is None or "bonus_pts" not in iv_sig:
-            logger.warning(f"IV rank signal missing for {symbol}")
-            iv_bonus = 0
-        else:
-            iv_bonus = iv_sig.get("bonus_pts", 0)
+        if iv_sig is None:
+            logger.error(f"IV rank signal missing for {symbol}; cannot compute options score")
+            raise ValueError(f"IV rank signal required but missing for {symbol}")
+        if "bonus_pts" not in iv_sig:
+            raise ValueError(f"IV signal for {symbol} missing required 'bonus_pts' field")
+        iv_bonus = iv_sig["bonus_pts"]
 
-        if pc_sig is None or "bonus_pts" not in pc_sig:
-            logger.warning(f"Put/call signal missing for {symbol}")
-            pc_bonus = 0
-        else:
-            pc_bonus = pc_sig.get("bonus_pts", 0)
+        if pc_sig is None:
+            logger.error(f"Put/call signal missing for {symbol}; cannot compute options score")
+            raise ValueError(f"Put/call signal required but missing for {symbol}")
+        if "bonus_pts" not in pc_sig:
+            raise ValueError(f"Put/call signal for {symbol} missing required 'bonus_pts' field")
+        pc_bonus = pc_sig["bonus_pts"]
 
-        if im_sig is None or "bonus_pts" not in im_sig:
-            logger.warning(f"Implied move signal missing for {symbol}")
-            im_bonus = 0
-        else:
-            im_bonus = im_sig.get("bonus_pts", 0)
+        if im_sig is None:
+            logger.error(f"Implied move signal missing for {symbol}; cannot compute options score")
+            raise ValueError(f"Implied move signal required but missing for {symbol}")
+        if "bonus_pts" not in im_sig:
+            raise ValueError(f"Implied move signal for {symbol} missing required 'bonus_pts' field")
+        im_bonus = im_sig["bonus_pts"]
 
         total_bonus = min(3.0, iv_bonus + pc_bonus + im_bonus)
 

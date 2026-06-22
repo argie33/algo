@@ -351,9 +351,15 @@ class SignalPatternsMixin:
         Returns: { 'stop_price': float, 'method': str, 'reasoning': str }
         """
         base = self.classify_base_type(symbol, eval_date)
-        base_type = base.get("type", "no_base")
+        if "type" not in base or base["type"] is None:
+            raise ValueError(f"Base type classification missing for {symbol} on {eval_date}; cannot compute stop loss")
+        base_type = base["type"]
         twt = self.three_weeks_tight(symbol, eval_date)
+        if "is_3wt" not in twt or twt["is_3wt"] is None:
+            raise ValueError(f"Three-weeks-tight classification missing for {symbol}; cannot compute stop loss")
         htf = self.high_tight_flag(symbol, eval_date)
+        if "is_ht" not in htf or htf["is_ht"] is None:
+            raise ValueError(f"High-tight flag classification missing for {symbol}; cannot compute stop loss")
 
         def _compute_stop(cur):
             nonlocal atr
@@ -405,19 +411,22 @@ class SignalPatternsMixin:
                     method = "3wt_low"
                     reasoning = f"3-Weeks-Tight: 1.5% below 3wk low ${three_wk_low:.2f}"
 
-            if htf.get("is_ht") and htf.get("pivot_high"):
-                pivot_high = htf.get("pivot_high")
-                consolidation_pct = htf.get("consolidation_pct")
-                if pivot_high is not None and consolidation_pct is not None:
-                    if isinstance(pivot_high, (int, float)) and isinstance(consolidation_pct, (int, float)):
-                        cons_low = pivot_high * (1 - consolidation_pct / 100)
-                        candidate = max(candidate, cons_low * 0.95)
-                        method = "htf_consolidation_low"
-                        reasoning = f"HTF: 5% below consolidation low ${cons_low:.2f}"
-                    else:
-                        logger.warning(
-                            f"HTF data invalid types for {symbol}: pivot_high={type(pivot_high).__name__}, consolidation_pct={type(consolidation_pct).__name__}"
-                        )
+            if htf.get("is_ht"):
+                if "pivot_high" not in htf or htf["pivot_high"] is None:
+                    raise ValueError(f"HTF flag active but pivot_high missing for {symbol}")
+                if "consolidation_pct" not in htf or htf["consolidation_pct"] is None:
+                    raise ValueError(f"HTF flag active but consolidation_pct missing for {symbol}")
+                pivot_high = htf["pivot_high"]
+                consolidation_pct = htf["consolidation_pct"]
+                if isinstance(pivot_high, (int, float)) and isinstance(consolidation_pct, (int, float)):
+                    cons_low = pivot_high * (1 - consolidation_pct / 100)
+                    candidate = max(candidate, cons_low * 0.95)
+                    method = "htf_consolidation_low"
+                    reasoning = f"HTF: 5% below consolidation low ${cons_low:.2f}"
+                else:
+                    raise ValueError(
+                        f"HTF data invalid types for {symbol}: pivot_high={type(pivot_high).__name__}, consolidation_pct={type(consolidation_pct).__name__}"
+                    )
 
             if candidate < floor_stop:
                 candidate = floor_stop

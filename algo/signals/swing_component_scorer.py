@@ -140,7 +140,9 @@ class SwingComponentScorer:
                 raise ValueError(f"{symbol}: base_type field missing from classification. Setup validation failed.")
 
             base_type = setup["base_type"]
-            base_quality = setup.get("quality", "D")
+            if "quality" not in setup or setup["quality"] is None:
+                raise ValueError(f"Base setup for {symbol} missing required 'quality' field")
+            base_quality = setup["quality"]
 
             base_type_mapping = {
                 "high_tight": 25,
