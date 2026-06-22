@@ -149,10 +149,8 @@ class IncomeStatementLoader(OptimalLoader):
         try:
             rows = self._sec_client.get_income_statement(symbol, period=self._edgar_period)
             if not rows:
-                raise RuntimeError(
-                    f"[INCOME_STATEMENT] No {self._edgar_period} income statement data for {symbol} "
-                    f"(CIK={cik}). Cannot proceed without historical financials."
-                )
+                logger.debug("%s: no %s income statement data in SEC EDGAR, skipping", symbol, self._edgar_period)
+                return None
             logger.info("%s: Fetched %d %s income statement row(s)", symbol, len(rows), self._edgar_period)
 
             since_year = int(since.year) if since else 2000

@@ -117,10 +117,8 @@ class CashFlowLoader(OptimalLoader):
         try:
             rows = self._sec_client.get_cash_flow(symbol, period=self.period)
             if not rows:
-                raise RuntimeError(
-                    f"[CASH_FLOW] No {self.period} cash flow data found for {symbol} (CIK={cik}). "
-                    "Cannot load fundamentals without cash flow data."
-                )
+                logger.debug("%s: no %s cash flow data in SEC EDGAR, skipping", symbol, self.period)
+                return None
             logger.info("%s: Fetched %d %s cash flow row(s)", symbol, len(rows), self.period)
 
             since_year = int(since.year) if since else 2000
@@ -130,12 +128,7 @@ class CashFlowLoader(OptimalLoader):
                     f"{symbol}: Filtered {len(rows) - len(filtered)} row(s) with fiscal_year <= {since_year} "
                     f"(watermark incremental load — keeping {len(filtered)} newer rows)"
                 )
-            if not filtered:
-                raise RuntimeError(
-                    f"[CASH_FLOW] No new cash flow data for {symbol} after watermark (since {since}). "
-                    "Cannot proceed with empty incremental load."
-                )
-            return filtered
+            return filtered or None
         except (ValueError, ZeroDivisionError, TypeError) as e:
             raise RuntimeError(
                 f"[CASH_FLOW] Failed to fetch cash flow for {symbol}: {e}. Cannot proceed without fundamental data."

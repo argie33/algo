@@ -129,10 +129,8 @@ class BalanceSheetLoader(OptimalLoader):
         try:
             rows = self._sec_client.get_balance_sheet(symbol, period=self.period)
             if not rows:
-                raise RuntimeError(
-                    f"[BALANCE_SHEET] No {self.period} balance sheet data found for {symbol} (CIK={cik}). "
-                    "Cannot load fundamentals without balance sheet data."
-                )
+                logger.debug("%s: no %s balance sheet data in SEC EDGAR, skipping", symbol, self.period)
+                return None
             logger.info("%s: Fetched %d %s balance sheet row(s)", symbol, len(rows), self.period)
 
             since_year = int(since.year) if since else 2000
@@ -142,12 +140,7 @@ class BalanceSheetLoader(OptimalLoader):
                     f"{symbol}: Filtered {len(rows) - len(filtered)} row(s) with fiscal_year <= {since_year} "
                     f"(watermark incremental load — keeping {len(filtered)} newer rows)"
                 )
-            if not filtered:
-                raise RuntimeError(
-                    f"[BALANCE_SHEET] No new balance sheet data for {symbol} after watermark (since {since}). "
-                    "Cannot proceed with empty incremental load."
-                )
-            return filtered
+            return filtered or None
         except (ValueError, ZeroDivisionError, TypeError) as e:
             raise RuntimeError(
                 f"[BALANCE_SHEET] Failed to fetch balance sheet for {symbol}: {e}. "
