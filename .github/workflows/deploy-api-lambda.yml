@@ -32,8 +32,8 @@ jobs:
           set -e
           mkdir -p api-pkg
           cp -r lambda/api/. api-pkg/
-          # Copy shared utils (admin_rate_limiter, url_validator, validation, etc.) used by API routes
-          cp -r utils/ api-pkg/utils/
+          # Copy shared utils into existing api-pkg/utils/ using /. to merge contents (not nest)
+          cp -r utils/. api-pkg/utils/
           # Copy config (credential_manager used by lambda_handler)
           cp -r config/ api-pkg/config/
           # Copy algo package (algo/infrastructure etc. imported by routes/algo.py and routes/admin.py)
