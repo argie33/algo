@@ -69,9 +69,9 @@ def compute_performance_metrics(cur, metric_date: date | None = None) -> dict[st
             logger.info(f"No trades (closed or open with current price) for {metric_date}, inserted defaults")
             return None
 
-        # Extract metrics from trades
-        pnl_dollars = [float(t["profit_loss_dollars"]) for t in trades]
-        pnl_pcts = [float(t["profit_loss_pct"]) for t in trades]
+        # Extract metrics from trades (filter out None values for open positions lacking realized P&L)
+        pnl_dollars = [float(t["profit_loss_dollars"]) for t in trades if t["profit_loss_dollars"] is not None]
+        pnl_pcts = [float(t["profit_loss_pct"]) for t in trades if t["profit_loss_pct"] is not None]
         [float(t["exit_r_multiple"]) for t in trades if t["exit_r_multiple"] is not None]
         holding_days_list = [float(t["holding_days"]) for t in trades if t["holding_days"]]
 
