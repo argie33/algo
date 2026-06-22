@@ -99,31 +99,6 @@ class PriceLoader(OptimalLoader):
         self.watermark_mgr = None
         self.run_id = None
 
-        # Initialize rate limiting and performance tracking
-        self._rate_limit_tokens: float = 160.0
-        self._rate_limit_max_tokens: float = 160.0
-        self._rate_limit_refill_rate: float = 160.0 / 60.0
-        self._rate_limit_last_refill: float = time.time()
-        self._rate_limit_event: threading.Condition = threading.Condition()
-        self._rate_limit_wait_event: threading.Event = threading.Event()
-        self._rate_limit_errors: int = 0
-        self._last_request_time: float = 0.0
-        self._adaptive_request_interval: float = 0.1
-        self._last_market_close_timeout_time: float | None = None
-        self._market_close_timeout_count: int = 0
-        self._request_latency_samples: list[float] = []
-        self._latency_window_sec: float = 60.0
-        self._min_request_interval: float = 0.1
-        self._batch_size_performance: dict[int, list[int]] = {}
-        self._batch_success_count: int = 0
-        self._batch_total_count: int = 0
-        self._batch_failure_ratio: float = 0.0
-        self._backfill_days: int = 365
-        self._check_market_close_data_available: bool = False
-        self._dedup_filter: dict | None = None
-        self._bulk_insert: bool = True
-        self._detect_eod_pipeline_context_val: bool | None = None
-
         # Initialize specialists
         self._is_eod_pipeline = self._detect_eod_pipeline_context()
         from config.thresholds import ThresholdConfig
