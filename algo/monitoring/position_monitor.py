@@ -490,12 +490,12 @@ class PositionMonitor:
         if days_held >= max_hold * 0.5 and target_hits == 0 and r_multiple < 0.5:
             flags.append("TIME_DECAY_NO_PROGRESS")
 
-        # 3e. Earnings proximity (explicit: fails if earnings data unavailable)
+        # 3e. Earnings proximity (fails if earnings data unavailable — per-position, not phase-level)
         try:
             days_to_earn = self._days_to_earnings(symbol, current_date, cur)
         except (ValueError, RuntimeError) as e:
-            raise ValueError(
-                f"Cannot evaluate earnings proximity for {symbol} on {current_date}: {e} - explicit halt"
+            raise PositionValidationError(
+                f"Cannot evaluate earnings proximity for {symbol} on {current_date}: {e}"
             ) from e
 
         if 0 <= days_to_earn <= 3:
@@ -505,7 +505,9 @@ class PositionMonitor:
         try:
             market_dist_days = self._fetch_market_dist_days(current_date, cur)
         except (ValueError, RuntimeError) as e:
-            raise ValueError(f"Cannot evaluate market distribution days for position {symbol}: {e}") from e
+            raise PositionValidationError(
+                f"Cannot evaluate market distribution days for position {symbol}: {e}"
+            ) from e
 
         try:
             max_dist_days = int(self.config["max_distribution_days"])
