@@ -247,9 +247,12 @@ class SwingComponentScorer:
                 "weinstein_stage": weinstein_stage,
                 "ma_30wk_slope": round(ma_slope, 2),
             }
-        except (ValueError, ZeroDivisionError, TypeError) as e:
-            logger.debug(f"Trend component failed for {symbol}: {e}")
-            return 0, {"error": str(e)[:50]}
+        except ValueError:
+            # ValueError = missing/invalid critical data. Propagate instead of degrading.
+            raise
+        except (ZeroDivisionError, TypeError) as e:
+            logger.error(f"Trend component calculation error for {symbol}: {e}")
+            raise ValueError(f"{symbol}: Trend component failed unexpectedly: {e}") from e
 
     def _momentum_component(self, symbol: str, eval_date, cur) -> tuple[float, dict[str, Any]]:
         """Momentum: RS percentile, 1m/3m/6m returns.
@@ -296,9 +299,12 @@ class SwingComponentScorer:
                 "return_3m": round(r3m, 2),
                 "return_6m": round(r6m, 2),
             }
-        except (ValueError, ZeroDivisionError, TypeError) as e:
-            logger.debug(f"Momentum component failed for {symbol}: {e}")
-            return 0, {"error": str(e)[:50]}
+        except ValueError:
+            # ValueError = missing/invalid critical data. Propagate instead of degrading.
+            raise
+        except (ZeroDivisionError, TypeError) as e:
+            logger.error(f"Momentum component calculation error for {symbol}: {e}")
+            raise ValueError(f"{symbol}: Momentum component failed unexpectedly: {e}") from e
 
     def _volume_component(self, symbol: str, eval_date, cur) -> tuple[float, dict[str, Any]]:
         """Volume: breakout confirmation, accumulation days.
@@ -336,9 +342,12 @@ class SwingComponentScorer:
                 "breakout_vol_ratio": round(vol_ratio, 2),
                 "accumulation_days": accum_days,
             }
+        except ValueError:
+            # ValueError = missing/invalid critical data. Propagate instead of degrading.
+            raise
         except (psycopg2.DatabaseError, psycopg2.OperationalError) as e:
-            logger.debug(f"Volume component failed for {symbol}: {e}")
-            return 0, {"error": str(e)[:50]}
+            logger.error(f"Volume component database error for {symbol}: {e}")
+            raise ValueError(f"{symbol}: Volume component database error: {e}") from e
 
     def _fundamentals_component(self, symbol: str, cur) -> tuple[float, dict[str, Any]]:
         """Fundamentals: EPS growth, revenue growth, ROE."""
