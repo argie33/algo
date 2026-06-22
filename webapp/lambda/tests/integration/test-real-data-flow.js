@@ -405,7 +405,9 @@ describe("Real Data Flow Verification", () => {
       // Check that when data is unavailable, we return null (not calculated estimates)
       // Example: beta requires SPY correlation - should be null if not calculated
       if (summary.beta === null) {
-        // TODO: Add assertion or remove block
+        expect(summary.beta).toBeNull();
+      } else {
+        expect(typeof summary.beta).toBe("number");
       }
 
       // Example: period returns require historical data - should be null if unavailable
@@ -415,7 +417,19 @@ describe("Real Data Flow Verification", () => {
         !summary.return_6m &&
         !summary.return_1y
       ) {
-        // TODO: Add assertion or remove block
+        // If no returns are available, all should be null or undefined
+        expect(summary.return_1m === null || summary.return_1m === undefined).toBe(true);
+        expect(summary.return_3m === null || summary.return_3m === undefined).toBe(true);
+        expect(summary.return_6m === null || summary.return_6m === undefined).toBe(true);
+        expect(summary.return_1y === null || summary.return_1y === undefined).toBe(true);
+      } else {
+        // If any returns are available, at least one should be a number
+        const hasNumericReturn =
+          (summary.return_1m && typeof summary.return_1m === "number") ||
+          (summary.return_3m && typeof summary.return_3m === "number") ||
+          (summary.return_6m && typeof summary.return_6m === "number") ||
+          (summary.return_1y && typeof summary.return_1y === "number");
+        expect(hasNumericReturn).toBe(true);
       }
     }, 30000);
   });
