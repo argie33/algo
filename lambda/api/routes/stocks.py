@@ -273,11 +273,11 @@ def handle(
                     f"Deep-value query failed - schema error: {type(e).__name__}: {e}",
                     extra={"operation": "deep-value"},
                 )
-                return cast(dict[str, Any], error_response()
+                return cast(dict[str, Any], error_response(
                     503,
                     "schema_error",
                     "Database schema mismatch - please check RDS migrations",
-                )  # type: ignore[no-any-return]
+                ))  # type: ignore[no-any-return]
             except (psycopg2.OperationalError, psycopg2.DatabaseError) as e:
                 logger.error(
                     f"Deep-value query failed - database error: {type(e).__name__}: {e}",
