@@ -406,22 +406,24 @@ def _check_critical_dependencies(run_date: _date, log_phase_result_fn: Callable)
                 log_phase_result_fn(7, "signal_generation", "halt", msg)
                 return False, msg
 
-            # CRITICAL #2: market_exposure_daily must have valid data for today
+            # CRITICAL #2: market_exposure_daily must have valid data on or before run_date
+            # Uses same query pattern as read_market_regime() so guard is consistent with actual read.
+            # On weekends/holidays, the most recent trading day's data is sufficient.
             cur.execute(
                 """
-                SELECT COUNT(*), COUNT(CASE WHEN exposure_pct IS NOT NULL THEN 1 END)
+                SELECT exposure_pct, date
                 FROM market_exposure_daily
-                WHERE date = %s
+                WHERE date <= %s AND exposure_pct IS NOT NULL
+                ORDER BY date DESC
+                LIMIT 1
                 """,
                 (run_date,),
             )
             exposure_row = cur.fetchone()
-            exposure_count = exposure_row[0] if exposure_row else 0
-            exposure_valid = exposure_row[1] if exposure_row and len(exposure_row) > 1 else 0
 
-            if exposure_count == 0:
+            if exposure_row is None:
                 msg = (
-                    f"[PHASE 7 CRITICAL] market_exposure_daily has no data for {run_date}. "
+                    f"[PHASE 7 CRITICAL] market_exposure_daily has no valid data on or before {run_date}. "
                     "Cannot determine market regime for position sizing. "
                     "Check that market exposure pipeline completed."
                 )
@@ -429,15 +431,12 @@ def _check_critical_dependencies(run_date: _date, log_phase_result_fn: Callable)
                 log_phase_result_fn(7, "signal_generation", "halt", msg)
                 return False, msg
 
-            if exposure_valid == 0:
-                msg = (
-                    f"[PHASE 7 CRITICAL] market_exposure_daily for {run_date} has NULL exposure_pct. "
-                    "Cannot size positions without valid market exposure data. "
-                    "Check exposure computation pipeline."
+            exposure_data_date = exposure_row[1]
+            if exposure_data_date < run_date:
+                logger.info(
+                    f"[PHASE 7] market_exposure_daily: using data from {exposure_data_date} "
+                    f"(most recent available; run_date={run_date})"
                 )
-                logger.critical(msg)
-                log_phase_result_fn(7, "signal_generation", "halt", msg)
-                return False, msg
 
             # CRITICAL #3: buy_sell_daily must be available (primary signal source)
             # Guard rail: If buy_sell_daily has NO data within lookback window, fail immediately
