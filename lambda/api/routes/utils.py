@@ -672,7 +672,7 @@ def ensure_valid_response(endpoint_name: str, response_data: dict[str, Any]) -> 
         return False
 
 
-def safe_dict_convert(row):
+def safe_dict_convert(row: Any) -> dict[str, Any]:
     """Safely convert DictCursor row to dictionary, handling schema mismatches.
 
     DictCursor rows support dict() conversion, but this can fail if:
@@ -702,7 +702,7 @@ def safe_dict_convert(row):
         )
 
 
-def safe_json_serialize(obj):
+def safe_json_serialize(obj: Any) -> Any:
     """Convert database objects to JSON-serializable format.
 
     Converts non-JSON types: Decimal→float, datetime/date→ISO string, UUID→string.
@@ -734,7 +734,12 @@ def safe_json_serialize(obj):
         return obj
 
 
-def handle_db_error(error, context="database operation", query=None, params=None):
+def handle_db_error(
+    error: Exception,
+    context: str = "database operation",
+    query: str | None = None,
+    params: Any = None,
+) -> tuple[int, str, str]:
     """Unified database error handler for all route handlers.
 
     Uses centralized error classification from utils.error_handlers.classify_exception.
