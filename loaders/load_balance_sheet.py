@@ -102,7 +102,8 @@ def _resolve_period(cli_arg: str | None) -> str:
 class BalanceSheetLoader(OptimalLoader):
     watermark_field = "fiscal_year"
 
-    def __init__(self, period: str):
+    def __init__(self, period: str | None = None):
+        period = _resolve_period(period)
         assert period in ("annual", "quarterly")
         cfg = _PERIOD_CONFIG[period]
         self.period = period
