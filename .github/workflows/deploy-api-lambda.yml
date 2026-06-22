@@ -29,20 +29,21 @@ jobs:
 
       - name: Package API Lambda handler
         run: |
-          python3 - << 'EOF'
-          import os, zipfile
-          from pathlib import Path
-
-          api_path = Path("lambda/api")
-          zip_path = Path("api_lambda.zip")
-
-          with zipfile.ZipFile(zip_path, 'w', zipfile.ZIP_DEFLATED) as zf:
-              for fp in api_path.rglob("*"):
-                  if fp.is_file() and not (fp.name.endswith(".pyc") or "__pycache__" in str(fp)):
-                      zf.write(str(fp), str(fp.relative_to(api_path)))
-
-          print(f"Packaged {zip_path.stat().st_size / 1024:.0f} KB")
-          EOF
+          set -e
+          mkdir -p api-pkg
+          cp -r lambda/api/. api-pkg/
+          # Copy shared utils (admin_rate_limiter, url_validator, validation, etc.) used by API routes
+          cp -r utils/ api-pkg/utils/
+          # Copy config (credential_manager used by lambda_handler)
+          cp -r config/ api-pkg/config/
+          # Copy algo package (algo/infrastructure etc. imported by routes/algo.py and routes/admin.py)
+          cp -r algo/ api-pkg/algo/
+          cd api-pkg && zip -r ../api_lambda.zip . -x "*.pyc" -x "__pycache__/*" && cd ..
+          if [ ! -f api_lambda.zip ]; then
+            echo "ERROR: Failed to create api_lambda.zip!"
+            exit 1
+          fi
+          echo "[OK] API Lambda ZIP: $(du -sh api_lambda.zip | cut -f1)"
 
       - name: Deploy to Lambda
         run: |

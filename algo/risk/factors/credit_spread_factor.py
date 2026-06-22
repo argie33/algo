@@ -83,9 +83,8 @@ class CreditSpreadFactor(MarketFactorStrategy):
 
             return {
                 "score": score,
-                "reason": f"Credit spreads: HY OAS {hy:.2f}% ({regime})" + (
-                    ", widening rapidly" if widening_1pp else ""
-                ),
+                "reason": f"Credit spreads: HY OAS {hy:.2f}% ({regime})"
+                + (", widening rapidly" if widening_1pp else ""),
                 "details": {
                     "hy_oas": hy,
                     "hy_20d_ago": hy_20d_ago,

@@ -316,24 +316,8 @@ jobs:
       - name: Install dependencies
         run: |
           pip install -q pytest pytest-cov pytest-mock psycopg2-binary python-dotenv requests boto3 yfinance pandas pydantic
-      - name: Run unit tests
-        run: pytest tests/ -m unit -v --tb=short
-        env:
-          DB_MODE: mock
-          EXECUTION_MODE: dry_run
-          DB_PASSWORD: test-password-for-ci
-          ALPACA_KEY: pk-test-alpaca-key
-          ALPACA_SECRET: sk-test-alpaca-secret
-      - name: Run edge case tests
-        run: pytest tests/ -m edge -v --tb=short
-        env:
-          DB_MODE: mock
-          EXECUTION_MODE: dry_run
-          DB_PASSWORD: test-password-for-ci
-          ALPACA_KEY: pk-test-alpaca-key
-          ALPACA_SECRET: sk-test-alpaca-secret
-      - name: Run integration tests
-        run: pytest tests/ -m integration -v --tb=short
+      - name: Run tests
+        run: pytest tests/ -v --tb=short
         env:
           DB_MODE: mock
           EXECUTION_MODE: dry_run

@@ -144,6 +144,18 @@ class PriceFetcher:
         """Set circuit breaker for API call protection."""
         self._circuit_breaker = circuit_breaker
 
+    def get_current_batch_size(self) -> int:
+        """Get the current adaptive batch size based on performance and pipeline context."""
+        smart_size = self._get_smart_batch_size()
+        if smart_size != 500:  # If smart sizing found a different size
+            return smart_size
+        # Fallback: conservative during EOD
+        return 20 if self._is_eod_pipeline else 100
+
+    def get_rate_limit_error_count(self) -> int:
+        """Get the current count of rate limit errors encountered."""
+        return self._rate_limit_errors
+
     def fetch_incremental(self, symbol: str, since: date | None, is_eod_pipeline: bool = False):
         """Fetch OHLCV from yfinance at specified interval.
 

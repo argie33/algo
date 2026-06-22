@@ -84,9 +84,8 @@ class YieldCurveFactor(MarketFactorStrategy):
 
             return {
                 "score": score,
-                "reason": f"Yield curve: {current_spread:.2f}% spread ({signal})" + (
-                    f" - inverted {weeks_inverted}+ weeks" if weeks_inverted >= 8 else ""
-                ),
+                "reason": f"Yield curve: {current_spread:.2f}% spread ({signal})"
+                + (f" - inverted {weeks_inverted}+ weeks" if weeks_inverted >= 8 else ""),
                 "details": {
                     "t10y2y_spread": current_spread,
                     "weeks_inverted": weeks_inverted,

@@ -99,6 +99,31 @@ class PriceLoader(OptimalLoader):
         self.watermark_mgr = None
         self.run_id = None
 
+        # Initialize rate limiting and performance tracking
+        self._rate_limit_tokens: float = 160.0
+        self._rate_limit_max_tokens: float = 160.0
+        self._rate_limit_refill_rate: float = 160.0 / 60.0
+        self._rate_limit_last_refill: float = time.time()
+        self._rate_limit_event: threading.Condition = threading.Condition()
+        self._rate_limit_wait_event: threading.Event = threading.Event()
+        self._rate_limit_errors: int = 0
+        self._last_request_time: float = 0.0
+        self._adaptive_request_interval: float = 0.1
+        self._last_market_close_timeout_time: float | None = None
+        self._market_close_timeout_count: int = 0
+        self._request_latency_samples: list[float] = []
+        self._latency_window_sec: float = 60.0
+        self._min_request_interval: float = 0.1
+        self._batch_size_performance: dict[int, list[int]] = {}
+        self._batch_success_count: int = 0
+        self._batch_total_count: int = 0
+        self._batch_failure_ratio: float = 0.0
+        self._backfill_days: int = 365
+        self._check_market_close_data_available: bool = False
+        self._dedup_filter: dict | None = None
+        self._bulk_insert: bool = True
+        self._detect_eod_pipeline_context_val: bool | None = None
+
         # Initialize specialists
         self._is_eod_pipeline = self._detect_eod_pipeline_context()
         from config.thresholds import ThresholdConfig
@@ -116,8 +141,41 @@ class PriceLoader(OptimalLoader):
         self.validator = PriceValidator(table_name=self.table_name, asset_class=asset_class)
         self.transformer = PriceTransformer(asset_class=asset_class)
 
-        # All rate limiting, batch optimization, and request pacing is now managed by PriceFetcher
-        # PriceLoader delegates all fetch concerns to self.fetcher specialist
+        # ISSUE #14-15 FIX: Differentiate failure causes for targeted remediation
+        # Track root cause of failures to apply appropriate fixes:
+        # - Market close unavailability: wait and retry (data will become available)
+        # - Rate limiting (429): reduce batch size, apply backoff
+        # - API lag/timeout: increase timeout, reduce parallelism
+        # - Other errors: log and fail
+        self._failure_cause = None  # 'market_close', 'rate_limit_429', 'api_lag', 'other'
+        self._api_lag_timeouts = 0  # Count of timeout errors (not rate limiting)
+        self._api_lag_error_start_time = None  # When API lag started
+
+        # CREATIVE FIX #2: Track batch size performance for smart batch sizing
+        self._batch_size_performance: dict[int, list[int]] = {}
+
+        # Rate limit tracking
+        self._rate_limit_errors = 0
+        self._rate_limit_error_start_time: float | None = None
+
+        # CREATIVE FIX #1: Adaptive request pacing to stay under rate limits
+        self._request_latency_samples: list[tuple[float, float]] = []
+        self._latency_window_sec = 60
+        self._adaptive_request_interval = 0.375
+        self._min_request_interval = 0.375
+        self._last_request_time: float | None = None
+
+        # Rate limit token bucket (thread-safe fairness)
+        self._rate_limit_event = threading.Condition()
+        self._rate_limit_tokens = 160.0
+        self._rate_limit_max_tokens = 160.0
+        self._rate_limit_refill_rate = 160.0 / 60.0
+        self._rate_limit_last_refill = time.time()
+
+        # Market close data tracking
+        self._market_close_detected = False
+        self._market_close_timeout_count = 0
+        self._last_market_close_timeout_time: float | None = None
 
     def _detect_eod_pipeline_context(self) -> bool:
         """Detect if running during EOD pipeline (4:05-5:30 PM ET) for timing-aware rate limiting.
@@ -1434,7 +1492,7 @@ class PriceLoader(OptimalLoader):
                 "Will timeout if pace doesn't improve."
             )
 
-        current_batch_size = self._get_adaptive_batch_size()
+        current_batch_size = self.fetcher.get_current_batch_size()
         circuit_break_threshold_sec = self._rate_limit_circuit_break_threshold
         if current_batch_size < 100 and elapsed_sec > circuit_break_threshold_sec:
             pipeline_context = "EOD (85-min window)" if self._is_eod_pipeline else "Morning prep (450-min window)"
