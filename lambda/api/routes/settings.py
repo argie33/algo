@@ -38,25 +38,29 @@ def handle(
 ) -> dict[str, Any]:
     """Handle /api/settings endpoints."""
     if jwt_claims is None:
-        return cast(dict[str, Any], error_response(401, "unauthorized", "Authentication required")  # type: ignore[no-any-return])
+        return cast(dict[str, Any], error_response(401, "unauthorized", "Authentication required"))
 
     if path != "/api/settings":
-        return cast(dict[str, Any], error_response(404, "not_found", f"No settings handler for {path}")  # type: ignore[no-any-return])
+        return cast(dict[str, Any], error_response(404, "not_found", f"No settings handler for {path}"))
 
     if method == "GET":
         return _get_settings(cur, jwt_claims)
     if method in ("POST", "PUT", "PATCH"):
         if not body:
-            return cast(dict[str, Any], error_response(400, "bad_request", "Request body is required")  # type: ignore[no-any-return])
+            return cast(dict[str, Any], error_response(400, "bad_request", "Request body is required"))
         return _save_settings(cur, body, jwt_claims)
-    return cast(dict[str, Any], error_response(405, "method_not_allowed", f"{method} not supported")  # type: ignore[no-any-return])
+    return cast(dict[str, Any], error_response(405, "method_not_allowed", f"{method} not supported"))
 
 
 def _get_settings(cur: cursor, jwt_claims: dict[str, Any]) -> dict[str, Any]:
-    """Return user settings, falling back to defaults."""
+    """Return user settings from database.
+
+    Fails fast on schema errors, data corruption, or unavailability.
+    Returns defaults only for empty user records, not for system failures.
+    """
     user_id = jwt_claims.get("sub")
     if not user_id:
-        return cast(dict[str, Any], error_response(401, "unauthorized", "User identity required")  # type: ignore[no-any-return])
+        return cast(dict[str, Any], error_response(401, "unauthorized", "User identity required"))
 
     try:
         rows = execute_with_timeout(
@@ -70,29 +74,28 @@ def _get_settings(cur: cursor, jwt_claims: dict[str, Any]) -> dict[str, Any]:
         )
         row = rows[0] if rows else None
         if row:
-            try:
-                preferences = row.get("preferences") or {}
-                stored = {
-                    "theme": row["theme"] or "dark",
-                    "notifications": (row["notifications"] if row["notifications"] is not None else True),
-                    **preferences,
-                }
-            except (TypeError, KeyError):
-                stored = {}
-            return cast(dict[str, Any], json_response(200, {**_DEFAULTS, **stored})  # type: ignore[no-any-return])
-        return cast(dict[str, Any], json_response(200, dict(_DEFAULTS))  # type: ignore[no-any-return])
-    except (psycopg2.errors.UndefinedTable, psycopg2.errors.UndefinedColumn):
-        return cast(dict[str, Any], json_response(200, dict(_DEFAULTS))  # type: ignore[no-any-return])
+            preferences = row.get("preferences") or {}
+            stored = {
+                "theme": row["theme"] or "dark",
+                "notifications": (row["notifications"] if row["notifications"] is not None else True),
+                **preferences,
+            }
+            return cast(dict[str, Any], json_response(200, {**_DEFAULTS, **stored}))
+        return cast(dict[str, Any], json_response(200, dict(_DEFAULTS)))
     except (psycopg2.OperationalError, psycopg2.DatabaseError, Exception) as e:
         code, error_type, message = handle_db_error(e, "get settings")
-        return cast(dict[str, Any], error_response(code, error_type, message)  # type: ignore[no-any-return])
+        return cast(dict[str, Any], error_response(code, error_type, message))
 
 
 def _save_settings(cur: cursor, body: dict[str, Any], jwt_claims: dict[str, Any]) -> dict[str, Any]:
-    """Persist user settings (theme, notifications, other preferences)."""
+    """Persist user settings (theme, notifications, other preferences).
+
+    Fails fast on schema errors or data unavailability - does not silently
+    pretend to save settings when the table is missing.
+    """
     user_id = jwt_claims.get("sub")
     if not user_id:
-        return cast(dict[str, Any], error_response(401, "unauthorized", "User identity required")  # type: ignore[no-any-return])
+        return cast(dict[str, Any], error_response(401, "unauthorized", "User identity required"))
 
     try:
         theme = body.get("theme", "dark")
@@ -101,12 +104,12 @@ def _save_settings(cur: cursor, body: dict[str, Any], jwt_claims: dict[str, Any]
 
         # Validate arbitrary preference keys - limit to 50 keys to prevent storage abuse
         if len(other_prefs) > 50:
-            return cast(dict[str, Any], error_response(400, "bad_request", "Too many preference fields (max 50)")  # type: ignore[no-any-return])
+            return cast(dict[str, Any], error_response(400, "bad_request", "Too many preference fields (max 50)"))
 
         # Validate preference JSON size - limit to 10KB
         prefs_json = json.dumps(other_prefs)
         if len(prefs_json.encode("utf-8")) > 10240:  # 10KB
-            return cast(dict[str, Any], error_response(400, "bad_request", "Preferences too large (max 10KB)")  # type: ignore[no-any-return])
+            return cast(dict[str, Any], error_response(400, "bad_request", "Preferences too large (max 10KB)"))
 
         # notifications column is BOOLEAN; if frontend sends a dict (per-type toggles),
         # store it in preferences JSONB so it survives the round-trip intact.
@@ -129,10 +132,7 @@ def _save_settings(cur: cursor, body: dict[str, Any], jwt_claims: dict[str, Any]
             (user_id, theme, notifications, prefs_json),
         )
 
-        return cast(dict[str, Any], json_response(200, {"success": True, "message": "Settings saved"})  # type: ignore[no-any-return])
-    except (psycopg2.errors.UndefinedTable, psycopg2.errors.UndefinedColumn):
-        logger.warning("user_dashboard_settings table missing; settings not persisted")
-        return cast(dict[str, Any], json_response(200, {"success": True, "message": "Settings saved"})  # type: ignore[no-any-return])
+        return cast(dict[str, Any], json_response(200, {"success": True, "message": "Settings saved"}))
     except (psycopg2.OperationalError, psycopg2.DatabaseError, Exception) as e:
         code, error_type, message = handle_db_error(e, "save settings")
-        return cast(dict[str, Any], error_response(code, error_type, message)  # type: ignore[no-any-return])
+        return cast(dict[str, Any], error_response(code, error_type, message))
