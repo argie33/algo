@@ -540,7 +540,7 @@ def render_dashboard(
     perf = data.get("perf")
     pos = data.get("pos")
     sig = data.get("sig")
-    hlth = data.get("health")  # keep raw dict; ready_to_trade/critical_stale available to panels
+    hlth = data.get("health")
     cb = data.get("cb")
     rec = data.get("trades")
     srank = _extract_items(data.get("srank"))
@@ -560,48 +560,15 @@ def render_dashboard(
     exec_hist = _extract_items(data.get("exec_hist"))
     scores = data.get("scores")
 
-    now_et = datetime.now(ET)
-    _mkt_badge, _mkt_cdown = mkt_hours_str()
-    mkt_s = f"{_mkt_badge}  [dim]{_mkt_cdown}[/]"
-    ts = now_et.strftime("%a %b %d  %I:%M %p ET")
-
-    refresh_s = ""
-    if refreshing:
-        refresh_s = "  [cyan]↻[/]"
-    elif watch_interval is not None and last_load_time is not None:
-        secs = max(0, watch_interval - int(time.monotonic() - last_load_time))
-        refresh_s = f"  [dim]↻{secs}s[/]"
-
-    # FIX: Check header data before rendering
-    if has_error(mkt) or has_error(cfg):
-        hdr_panel = Panel(
-            Text.from_markup("[red]Market/Config Error - Dashboard data unavailable[/]"),
-            title="[bold red]✗ Data Error[/]",
-            border_style="red",
-        )
-    else:
-        hdr_panel = panel_header_market(
-            mkt,
-            sentiment,
-            ts,
-            mkt_s,
-            elapsed,
-            refresh_s,
-            cfg=cfg,
-            data_source=data_source,
-        )
-
-    exp_panel = panel_exposure_compact(exp_f) if not has_error(exp_f) else Panel("[red]Exposure factors unavailable[/]")
+    hdr_panel, exp_panel = _render_header_components(
+        mkt, cfg, sentiment, elapsed, watch_interval, last_load_time, refreshing, data_source, exp_f
+    )
     mascot_panel = mascot_compact(data, frame)
 
-    # Check for authentication loss first (highest priority)
     auth_lost_panel = _check_auth_lost()
-
-    # Check for data fetch errors and show summary if present
     error_panel = error_summary_panel(data)
 
     outer = Layout()
-    # If authentication was lost, show that first; otherwise show other errors
     if auth_lost_panel:
         outer.split_column(
             Layout(name="auth_error", size=5),
@@ -640,7 +607,96 @@ def render_dashboard(
     outer["top"]["exposure"].update(exp_panel)
     outer["top"]["mascot"].update(mascot_panel)
 
-    # FIX: Wrap all panels with error checks
+    _render_dashboard_body(
+        outer,
+        run, act, hlth, notifs, algo_metrics, audit, exec_hist, risk,
+        cb,
+        port, cfg, perf, rec, perf_anl, pos,
+        eco, econ_cal,
+        sig, sig_eval, scores,
+        srank, sec_rot, irank,
+        compact,
+    )
+
+    expanded_layout = _render_expanded_view(
+        view_mode,
+        hdr_panel, exp_panel, mascot_panel,
+        cb, exp_f, mkt, sentiment,
+        pos, compact, rec,
+        sig, sig_eval, scores,
+        run, act, hlth, notifs, algo_metrics, audit, exec_hist, risk,
+        srank, port, sec_rot, irank,
+        cfg, perf, perf_anl,
+        eco, econ_cal,
+        data,
+    )
+
+    return expanded_layout if expanded_layout is not None else outer
+
+
+def _render_header_components(
+    mkt: Any,
+    cfg: Any,
+    sentiment: Any,
+    elapsed: float,
+    watch_interval: int | None,
+    last_load_time: float | None,
+    refreshing: bool,
+    data_source: str,
+    exp_f: Any,
+) -> tuple[Panel, Panel]:
+    """Render header and exposure panels with error handling.
+
+    Returns (header_panel, exposure_panel).
+    """
+    now_et = datetime.now(ET)
+    _mkt_badge, _mkt_cdown = mkt_hours_str()
+    mkt_s = f"{_mkt_badge}  [dim]{_mkt_cdown}[/]"
+    ts = now_et.strftime("%a %b %d  %I:%M %p ET")
+
+    refresh_s = ""
+    if refreshing:
+        refresh_s = "  [cyan]↻[/]"
+    elif watch_interval is not None and last_load_time is not None:
+        secs = max(0, watch_interval - int(time.monotonic() - last_load_time))
+        refresh_s = f"  [dim]↻{secs}s[/]"
+
+    if has_error(mkt) or has_error(cfg):
+        hdr_panel = Panel(
+            Text.from_markup("[red]Market/Config Error - Dashboard data unavailable[/]"),
+            title="[bold red]✗ Data Error[/]",
+            border_style="red",
+        )
+    else:
+        hdr_panel = panel_header_market(
+            mkt,
+            sentiment,
+            ts,
+            mkt_s,
+            elapsed,
+            refresh_s,
+            cfg=cfg,
+            data_source=data_source,
+        )
+
+    exp_panel = panel_exposure_compact(exp_f) if not has_error(exp_f) else Panel("[red]Exposure factors unavailable[/]")
+    return hdr_panel, exp_panel
+
+
+def _render_dashboard_body(
+    outer: Layout,
+    run: Any, act: Any, hlth: Any, notifs: Any, algo_metrics: Any, audit: Any, exec_hist: Any, risk: Any,
+    cb: Any,
+    port: Any, cfg: Any, perf: Any, rec: Any, perf_anl: Any, pos: Any,
+    eco: Any, econ_cal: Any,
+    sig: Any, sig_eval: Any, scores: Any,
+    srank: Any, sec_rot: Any, irank: Any,
+    compact: bool,
+) -> None:
+    """Build main dashboard body layout with all panels.
+
+    Modifies outer Layout in place.
+    """
     cb_panel = (
         panel_circuit(cb) if not has_error(cb) else Panel("[red]Circuit breakers unavailable[/]", border_style="red")
     )
@@ -655,7 +711,6 @@ def render_dashboard(
         Layout(health_panel, ratio=5, name="health"),
     )
 
-    # FIX: Portfolio/Performance row with error checks
     port_panel = (
         panel_portfolio(port, cfg, risk=risk, perf=perf)
         if not (has_error(port) or has_error(cfg))
@@ -678,7 +733,6 @@ def render_dashboard(
         Layout(eco_panel, name="eco"),
     )
 
-    # FIX: Signals/Sectors row with error checks
     sig_panel = (
         panel_signals_compact(sig, sig_eval, scores=scores)
         if not (has_error(sig) or has_error(scores))
@@ -695,7 +749,6 @@ def render_dashboard(
         Layout(sector_panel, ratio=2, name="sectors"),
     )
 
-    # FIX: Positions/Trades row with error checks
     pos_panel = (
         panel_positions(pos, compact, trades=rec)
         if not (has_error(pos) or has_error(rec))
@@ -712,111 +765,132 @@ def render_dashboard(
         Layout(trades_panel, ratio=3, name="recent_trades"),
     )
 
+
+def _render_expanded_view(
+    view_mode: str,
+    hdr_panel: Panel, exp_panel: Panel, mascot_panel: Panel,
+    cb: Any,
+    exp_f: Any,
+    mkt: Any, sentiment: Any,
+    pos: Any, compact: bool, rec: Any,
+    sig: Any, sig_eval: Any, scores: Any,
+    run: Any, act: Any, hlth: Any, notifs: Any, algo_metrics: Any, audit: Any, exec_hist: Any, risk: Any,
+    srank: Any, port: Any, sec_rot: Any, irank: Any,
+    cfg: Any, perf: Any, perf_anl: Any,
+    eco: Any, econ_cal: Any,
+    data: dict,
+) -> Layout | None:
+    """Render expanded view for the given view_mode.
+
+    Returns the expanded Layout, or None if view_mode is 'normal'.
+    """
+    if view_mode == "normal":
+        return None
+
     _exp_top = (hdr_panel, exp_panel, mascot_panel)
 
-    if view_mode != "normal":
-        match view_mode:
-            case "circuit":
-                if has_error(cb):
-                    panel = Panel("[red]Circuit breaker data unavailable[/]", border_style="red")
-                    return _expanded_layout(*_exp_top, panel)
-                return _expanded_layout(*_exp_top, panel_circuit_expanded(cb))
-            case "exposure":
-                if has_error(exp_f):
-                    panel = Panel("[red]Exposure factors unavailable[/]", border_style="red")
-                    return _expanded_layout(*_exp_top, panel)
-                return _expanded_layout(*_exp_top, panel_exposure_expanded(exp_f))
-            case "market":
-                if has_error(mkt):
-                    return _expanded_layout(
-                        *_exp_top,
-                        Panel("[red]Market data unavailable[/]", border_style="red"),
-                    )
-                return _expanded_layout(*_exp_top, panel_market_expanded(mkt, sentiment))
-            case "positions":
-                if has_error(pos):
-                    return _expanded_layout(
-                        *_exp_top,
-                        Panel("[red]Positions data unavailable[/]", border_style="red"),
-                    )
-                _pos_items = pos if isinstance(pos, list) else (pos.get("items", []) if isinstance(pos, dict) else [])
-                hint = Text.from_markup("[dim]press [/][bold cyan]p[/][dim] to return to dashboard[/]")
+    match view_mode:
+        case "circuit":
+            if has_error(cb):
+                panel = Panel("[red]Circuit breaker data unavailable[/]", border_style="red")
+                return _expanded_layout(*_exp_top, panel)
+            return _expanded_layout(*_exp_top, panel_circuit_expanded(cb))
+        case "exposure":
+            if has_error(exp_f):
+                panel = Panel("[red]Exposure factors unavailable[/]", border_style="red")
+                return _expanded_layout(*_exp_top, panel)
+            return _expanded_layout(*_exp_top, panel_exposure_expanded(exp_f))
+        case "market":
+            if has_error(mkt):
                 return _expanded_layout(
                     *_exp_top,
-                    Panel(
-                        Group(
-                            hint,
-                            Rule(style="dim"),
-                            panel_positions(pos, compact=False, trades=rec, extended=True),
-                        ),
-                        title=f"[bold cyan]ALL POSITIONS ({len(_pos_items)})[/]  [dim][p] return[/]",
-                        border_style="cyan",
-                        padding=(0, 1),
+                    Panel("[red]Market data unavailable[/]", border_style="red"),
+                )
+            return _expanded_layout(*_exp_top, panel_market_expanded(mkt, sentiment))
+        case "positions":
+            if has_error(pos):
+                return _expanded_layout(
+                    *_exp_top,
+                    Panel("[red]Positions data unavailable[/]", border_style="red"),
+                )
+            _pos_items = pos if isinstance(pos, list) else (pos.get("items", []) if isinstance(pos, dict) else [])
+            hint = Text.from_markup("[dim]press [/][bold cyan]p[/][dim] to return to dashboard[/]")
+            return _expanded_layout(
+                *_exp_top,
+                Panel(
+                    Group(
+                        hint,
+                        Rule(style="dim"),
+                        panel_positions(pos, compact=False, trades=rec, extended=True),
                     ),
-                )
-            case "signals":
-                if has_error(sig) or has_error(scores):
-                    return _expanded_layout(
-                        *_exp_top,
-                        Panel("[red]Signals data unavailable[/]", border_style="red"),
-                    )
-                return _expanded_layout(*_exp_top, panel_signals_expanded(sig, sig_eval, scores=scores))
-            case "health":
-                if has_error(run) or has_error(hlth):
-                    return _expanded_layout(
-                        *_exp_top,
-                        Panel("[red]Health data unavailable[/]", border_style="red"),
-                    )
+                    title=f"[bold cyan]ALL POSITIONS ({len(_pos_items)})[/]  [dim][p] return[/]",
+                    border_style="cyan",
+                    padding=(0, 1),
+                ),
+            )
+        case "signals":
+            if has_error(sig) or has_error(scores):
                 return _expanded_layout(
                     *_exp_top,
-                    panel_algo_health_expanded(
-                        run,
-                        act,
-                        hlth,
-                        notifs,
-                        algo_metrics,
-                        audit,
-                        exec_hist,
-                        risk=risk,
-                    ),
+                    Panel("[red]Signals data unavailable[/]", border_style="red"),
                 )
-            case "sectors":
-                if has_error(pos) or has_error(port):
-                    return _expanded_layout(
-                        *_exp_top,
-                        Panel("[red]Sectors data unavailable[/]", border_style="red"),
-                    )
-                return _expanded_layout(*_exp_top, panel_sectors_expanded(srank, pos, port, sec_rot, irank))
-            case "trades":
-                if has_error(rec):
-                    return _expanded_layout(
-                        *_exp_top,
-                        Panel("[red]Trade history unavailable[/]", border_style="red"),
-                    )
-                return _expanded_layout(*_exp_top, panel_trades_expanded(rec))
-            case "economic":
-                if has_error(eco):
-                    return _expanded_layout(
-                        *_exp_top,
-                        Panel("[red]Economic data unavailable[/]", border_style="red"),
-                    )
-                return _expanded_layout(*_exp_top, panel_economic_expanded(eco, econ_cal))
-            case "portfolio":
-                if has_error(port) or has_error(cfg):
-                    return _expanded_layout(
-                        *_exp_top,
-                        Panel("[red]Portfolio data unavailable[/]", border_style="red"),
-                    )
+            return _expanded_layout(*_exp_top, panel_signals_expanded(sig, sig_eval, scores=scores))
+        case "health":
+            if has_error(run) or has_error(hlth):
                 return _expanded_layout(
                     *_exp_top,
-                    panel_portfolio_perf_expanded(port, cfg, risk=risk, perf=perf, perf_anl=perf_anl, pos=pos),
+                    Panel("[red]Health data unavailable[/]", border_style="red"),
                 )
-            case "errors":
-                error_panel_exp = error_summary_panel_expanded(data)
-                if error_panel_exp:
-                    return _expanded_layout(*_exp_top, error_panel_exp)
+            return _expanded_layout(
+                *_exp_top,
+                panel_algo_health_expanded(
+                    run,
+                    act,
+                    hlth,
+                    notifs,
+                    algo_metrics,
+                    audit,
+                    exec_hist,
+                    risk=risk,
+                ),
+            )
+        case "sectors":
+            if has_error(pos) or has_error(port):
+                return _expanded_layout(
+                    *_exp_top,
+                    Panel("[red]Sectors data unavailable[/]", border_style="red"),
+                )
+            return _expanded_layout(*_exp_top, panel_sectors_expanded(srank, pos, port, sec_rot, irank))
+        case "trades":
+            if has_error(rec):
+                return _expanded_layout(
+                    *_exp_top,
+                    Panel("[red]Trade history unavailable[/]", border_style="red"),
+                )
+            return _expanded_layout(*_exp_top, panel_trades_expanded(rec))
+        case "economic":
+            if has_error(eco):
+                return _expanded_layout(
+                    *_exp_top,
+                    Panel("[red]Economic data unavailable[/]", border_style="red"),
+                )
+            return _expanded_layout(*_exp_top, panel_economic_expanded(eco, econ_cal))
+        case "portfolio":
+            if has_error(port) or has_error(cfg):
+                return _expanded_layout(
+                    *_exp_top,
+                    Panel("[red]Portfolio data unavailable[/]", border_style="red"),
+                )
+            return _expanded_layout(
+                *_exp_top,
+                panel_portfolio_perf_expanded(port, cfg, risk=risk, perf=perf, perf_anl=perf_anl, pos=pos),
+            )
+        case "errors":
+            error_panel_exp = error_summary_panel_expanded(data)
+            if error_panel_exp:
+                return _expanded_layout(*_exp_top, error_panel_exp)
 
-    return outer
+    return None
 
 
 def _run_once_update_frame_and_mode(key: str, frame: int, view_mode: str) -> tuple[int, str]:
