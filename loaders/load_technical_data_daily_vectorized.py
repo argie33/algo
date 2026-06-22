@@ -102,6 +102,7 @@ class VectorizedTechnicalLoader:
                 "rows_inserted": inserted,
                 "duration_sec": round(duration, 2),
                 "latest_date": latest_date,
+                "error": None,
             }
 
         except RuntimeError as e:
