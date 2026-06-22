@@ -78,6 +78,7 @@ def _table_exists(cur, table_name: str) -> bool:
 def _table_from_sql(sql: str) -> str:
     """Extract table name from CREATE INDEX ... ON <table>(...) SQL."""
     import re
+
     m = re.search(r"\bON\s+(\w+)\s*\(", sql, re.IGNORECASE)
     return m.group(1) if m else ""
 

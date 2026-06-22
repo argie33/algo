@@ -262,14 +262,20 @@ def run(
             logger.info(f"Signal attribution: IC computed for {len(attr_result)} components")
             for comp, ic_data in attr_result.items():
                 # Fail-fast if IC values missing — these are critical for signal validation
-                ic_value = ic_data.get('ic_value')
-                ic_pvalue = ic_data.get('ic_pvalue')
+                ic_value = ic_data.get("ic_value")
+                ic_pvalue = ic_data.get("ic_pvalue")
                 if ic_value is None:
                     logger.critical(f"CRITICAL: IC value missing for component {comp}. Cannot validate signal quality.")
-                    raise ValueError(f"IC calculation failed for {comp}: missing 'ic_value'. Signal validation incomplete.")
+                    raise ValueError(
+                        f"IC calculation failed for {comp}: missing 'ic_value'. Signal validation incomplete."
+                    )
                 if ic_pvalue is None:
-                    logger.critical(f"CRITICAL: IC p-value missing for component {comp}. Cannot validate signal significance.")
-                    raise ValueError(f"IC calculation failed for {comp}: missing 'ic_pvalue'. Signal validation incomplete.")
+                    logger.critical(
+                        f"CRITICAL: IC p-value missing for component {comp}. Cannot validate signal significance."
+                    )
+                    raise ValueError(
+                        f"IC calculation failed for {comp}: missing 'ic_pvalue'. Signal validation incomplete."
+                    )
                 logger.info(f"  {comp}: IC={ic_value:.3f}, pval={ic_pvalue:.3f}")
             if attr_result:
                 attribution.persist(run_date, attr_result)
@@ -394,28 +400,31 @@ def run(
             if perf_report and perf_report.get("status") == "ok":
                 perf_status = "success"
                 # Performance metrics must be present — don't default to 'N/A'
-                sharpe = perf_report.get('rolling_sharpe_252d')
-                win_rate = perf_report.get('win_rate_50t')
-                expectancy = perf_report.get('expectancy')
+                sharpe = perf_report.get("rolling_sharpe_252d")
+                win_rate = perf_report.get("win_rate_50t")
+                expectancy = perf_report.get("expectancy")
                 if sharpe is None or win_rate is None or expectancy is None:
-                    missing = [k for k in ['rolling_sharpe_252d', 'win_rate_50t', 'expectancy']
-                               if perf_report.get(k) is None]
-                    logger.critical(f"CRITICAL: Performance metrics missing: {missing}. Cannot assess strategy quality.")
+                    missing = [
+                        k for k in ["rolling_sharpe_252d", "win_rate_50t", "expectancy"] if perf_report.get(k) is None
+                    ]
+                    logger.critical(
+                        f"CRITICAL: Performance metrics missing: {missing}. Cannot assess strategy quality."
+                    )
                     raise ValueError(f"Performance report incomplete. Missing: {missing}. Strategy validation failed.")
-                perf_summary = (
-                    f"Sharpe {sharpe}, "
-                    f"Win rate {win_rate}%, "
-                    f"Expectancy {expectancy}"
-                )
+                perf_summary = f"Sharpe {sharpe}, Win rate {win_rate}%, Expectancy {expectancy}"
             elif perf_report:
                 # Performance report failed. Must have a message explaining why.
                 perf_message = perf_report.get("message")
                 if not perf_message:
                     logger.critical("CRITICAL: Performance report failed but no error message provided.")
-                    raise ValueError("Performance report generation failed without error details. Cannot diagnose issue.")
+                    raise ValueError(
+                        "Performance report generation failed without error details. Cannot diagnose issue."
+                    )
                 perf_summary = perf_message
             else:
-                logger.critical("CRITICAL: Performance report generation returned None. Cannot assess strategy quality.")
+                logger.critical(
+                    "CRITICAL: Performance report generation returned None. Cannot assess strategy quality."
+                )
                 raise ValueError("Performance report generation failed. Cannot proceed without performance metrics.")
         except (psycopg2.DatabaseError, psycopg2.OperationalError) as e:
             perf_summary = f"error: {str(e)[:60]}"

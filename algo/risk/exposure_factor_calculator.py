@@ -80,8 +80,7 @@ class ExposureFactorCalculator:
                 f"Cannot calculate exposure without all defined factors."
             )
             raise ValueError(
-                f"Unknown exposure factor: {name}. "
-                f"Exposure calculation incomplete. Cannot proceed without all factors."
+                f"Unknown exposure factor: {name}. Exposure calculation incomplete. Cannot proceed without all factors."
             )
         return factor.calculate(market_data)
 
