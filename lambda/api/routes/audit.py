@@ -2,7 +2,7 @@
 
 import logging
 import os
-from typing import Any
+from typing import Any, cast
 
 import psycopg2
 import psycopg2.errors
@@ -50,7 +50,7 @@ def handle(
     """Handle /api/audit/* endpoints."""
     # Require admin authorization for all audit endpoints (bypass in dev mode)
     if os.environ.get("DEV_BYPASS_AUTH") != "true" and not _check_admin_access(jwt_claims):
-        return error_response(403, "forbidden", "Admin access required to view audit logs")  # type: ignore[no-any-return]
+        return cast(dict[str, Any], error_response(403, "forbidden", "Admin access required to view audit logs")  # type: ignore[no-any-return])
 
     try:
         limit_str = params.get("limit", [None])[0] if params else None
@@ -159,7 +159,7 @@ def handle(
                 data_freshness=freshness,
             )  # type: ignore[no-any-return]
 
-        return error_response(404, "not_found", f"No audit handler for {path}")  # type: ignore[no-any-return]
+        return cast(dict[str, Any], error_response(404, "not_found", f"No audit handler for {path}")  # type: ignore[no-any-return])
     except (
         psycopg2.errors.UndefinedTable,
         psycopg2.errors.UndefinedColumn,
@@ -168,4 +168,4 @@ def handle(
         Exception,
     ) as e:
         code, error_type, message = handle_db_error(e, "handle audit")
-        return error_response(code, error_type, message)  # type: ignore[no-any-return]
+        return cast(dict[str, Any], error_response(code, error_type, message)  # type: ignore[no-any-return])

@@ -2,7 +2,7 @@
 
 import logging
 from datetime import date, datetime, timedelta, timezone
-from typing import Any
+from typing import Any, cast
 
 import psycopg2
 import psycopg2.errors
@@ -229,7 +229,7 @@ def _get_algo_positions(cur: cursor, user_id: str | None = None) -> dict[str, An
     # Validate positions response matches contract schema
     ensure_valid_response("pos", sanitized)
 
-    return json_response(200, sanitized)  # type: ignore[no-any-return]
+    return cast(dict[str, Any], json_response(200, sanitized)  # type: ignore[no-any-return])
 
 
 @db_route_handler("fetch algo status")
@@ -249,7 +249,7 @@ def _get_algo_status(cur: cursor) -> dict[str, Any]:
         """)
     row = cur.fetchone()
     if row is None:
-        return json_response(200, {"status": "no_runs_yet", "last_run": None, "portfolio": {}})  # type: ignore[no-any-return]
+        return cast(dict[str, Any], json_response(200, {"status": "no_runs_yet", "last_run": None, "portfolio": {}})  # type: ignore[no-any-return])
 
     portfolio = {}
     try:
@@ -288,10 +288,10 @@ def _get_algo_status(cur: cursor) -> dict[str, Any]:
         Exception,
     ) as e:
         code, error_type, message = handle_db_error(e, "fetch portfolio snapshot")
-        return error_response(code, error_type, message)  # type: ignore[no-any-return]
+        return cast(dict[str, Any], error_response(code, error_type, message)  # type: ignore[no-any-return])
 
     freshness = check_data_freshness(cur, "algo_audit_log", "created_at", warning_days=1)
-    return json_response(
+    return cast(dict[str, Any], json_response()
         200,
         {
             "run_id": row["run_id"],
@@ -355,7 +355,7 @@ def _get_algo_trades(cur: cursor, limit: int = 200, user_id: str | None = None, 
     # Validate trades response matches contract schema
     ensure_valid_response("trades", sanitized)
 
-    return json_response(200, sanitized)  # type: ignore[no-any-return]
+    return cast(dict[str, Any], json_response(200, sanitized)  # type: ignore[no-any-return])
 
 
 @db_route_handler("fetch circuit breakers")
@@ -387,7 +387,7 @@ def _get_circuit_breakers(cur: cursor) -> dict[str, Any]:
 
         if missing_tables:
             logger.error(f"ALERT: Circuit breaker CRITICAL config tables missing: {missing_tables}")
-            return json_response(
+            return cast(dict[str, Any], json_response()
                 503,
                 {
                     "breakers": [],
@@ -414,7 +414,7 @@ def _get_circuit_breakers(cur: cursor) -> dict[str, Any]:
             cbm_row = cur.fetchone()
             if not cbm_row:
                 logger.warning("Circuit breaker metrics unavailable (circuit_breaker_status table empty)")
-                return json_response(
+                return cast(dict[str, Any], json_response()
                     503,
                     {
                         "breakers": [],
@@ -443,7 +443,7 @@ def _get_circuit_breakers(cur: cursor) -> dict[str, Any]:
             missing = [f for f in critical_fields if cbm_row[f] is None]
             if missing:
                 logger.error(f"Circuit breaker critical fields missing: {missing}")
-                return json_response(
+                return cast(dict[str, Any], json_response()
                     503,
                     {
                         "breakers": [],
@@ -477,7 +477,7 @@ def _get_circuit_breakers(cur: cursor) -> dict[str, Any]:
             Exception,
         ) as e:
             code, error_type, message = handle_db_error(e, "fetch circuit breaker metrics")
-            return error_response(code, error_type, message)  # type: ignore[no-any-return]
+            return cast(dict[str, Any], error_response(code, error_type, message)  # type: ignore[no-any-return])
 
         # CB1: Portfolio drawdown (from pre-computed metrics)
         try:
@@ -496,7 +496,7 @@ def _get_circuit_breakers(cur: cursor) -> dict[str, Any]:
             )
         except (ValueError, ZeroDivisionError, TypeError, KeyError) as e:
             logger.error(f"CB1 (drawdown) computation failed: {type(e).__name__}: {e}")
-            return json_response(
+            return cast(dict[str, Any], json_response()
                 503,
                 {
                     "breakers": [],
@@ -530,7 +530,7 @@ def _get_circuit_breakers(cur: cursor) -> dict[str, Any]:
             )
         except (ValueError, ZeroDivisionError, TypeError, KeyError) as e:
             logger.error(f"CB2 (daily_loss) computation failed: {type(e).__name__}: {e}")
-            return json_response(
+            return cast(dict[str, Any], json_response()
                 503,
                 {
                     "breakers": [],
@@ -564,7 +564,7 @@ def _get_circuit_breakers(cur: cursor) -> dict[str, Any]:
             )
         except (ValueError, ZeroDivisionError, TypeError, KeyError) as e:
             logger.error(f"CB3 (consecutive_losses) computation failed: {type(e).__name__}: {e}")
-            return json_response(
+            return cast(dict[str, Any], json_response()
                 503,
                 {
                     "breakers": [],
@@ -627,7 +627,7 @@ def _get_circuit_breakers(cur: cursor) -> dict[str, Any]:
             )
         except (ValueError, ZeroDivisionError, TypeError, KeyError) as e:
             logger.error(f"CB5 (weekly_loss) computation failed: {type(e).__name__}: {e}")
-            return json_response(
+            return cast(dict[str, Any], json_response()
                 503,
                 {
                     "breakers": [],
@@ -660,7 +660,7 @@ def _get_circuit_breakers(cur: cursor) -> dict[str, Any]:
             )
         except (ValueError, ZeroDivisionError, TypeError, KeyError) as e:
             logger.error(f"CB6 (market_stage) computation failed: {type(e).__name__}: {e}")
-            return json_response(
+            return cast(dict[str, Any], json_response()
                 503,
                 {
                     "breakers": [],
@@ -694,7 +694,7 @@ def _get_circuit_breakers(cur: cursor) -> dict[str, Any]:
             )
         except (ValueError, ZeroDivisionError, TypeError, KeyError) as e:
             logger.error(f"CB7 (total_risk) computation failed: {type(e).__name__}: {e}")
-            return json_response(
+            return cast(dict[str, Any], json_response()
                 503,
                 {
                     "breakers": [],
@@ -826,7 +826,7 @@ def _get_circuit_breakers(cur: cursor) -> dict[str, Any]:
         # Validate circuit breaker response matches contract schema
         ensure_valid_response("cb", cb_response)
 
-        return json_response(200, cb_response)  # type: ignore[no-any-return]
+        return cast(dict[str, Any], json_response(200, cb_response)  # type: ignore[no-any-return])
     except (
         psycopg2.errors.UndefinedTable,
         psycopg2.errors.UndefinedColumn,
@@ -835,7 +835,7 @@ def _get_circuit_breakers(cur: cursor) -> dict[str, Any]:
         Exception,
     ) as e:
         code, error_type, message = handle_db_error(e, "fetch circuit breakers")
-        return error_response(code, error_type, message)  # type: ignore[no-any-return]
+        return cast(dict[str, Any], error_response(code, error_type, message)  # type: ignore[no-any-return])
 
 
 @db_route_handler("fetch dashboard signals")
@@ -852,7 +852,7 @@ def _get_dashboard_signals(cur: cursor) -> dict[str, Any]:
                 WHERE date=(SELECT MAX(date) FROM swing_trader_scores)""")
         sig = cur.fetchone()
         if sig is None or sig.get("n") is None:
-            return error_response(503, "no_data", "No swing trader signals available")  # type: ignore[no-any-return]
+            return cast(dict[str, Any], error_response(503, "no_data", "No swing trader signals available")  # type: ignore[no-any-return])
         total_n = int(sig["n"])
 
         # Top swing candidates with swing score and sector
@@ -935,7 +935,7 @@ def _get_dashboard_signals(cur: cursor) -> dict[str, Any]:
         # Validate signals response matches contract schema
         ensure_valid_response("sig", sig_response)
 
-        return json_response(200, sig_response)  # type: ignore[no-any-return]
+        return cast(dict[str, Any], json_response(200, sig_response)  # type: ignore[no-any-return])
     except (
         psycopg2.errors.UndefinedTable,
         psycopg2.errors.UndefinedColumn,
@@ -944,7 +944,7 @@ def _get_dashboard_signals(cur: cursor) -> dict[str, Any]:
         Exception,
     ) as e:
         code, error_type, message = handle_db_error(e, "fetch dashboard signals")
-        return error_response(code, error_type, message)  # type: ignore[no-any-return]
+        return cast(dict[str, Any], error_response(code, error_type, message)  # type: ignore[no-any-return])
 
 
 @db_route_handler("fetch equity curve")
@@ -990,4 +990,4 @@ def _get_equity_curve(cur: cursor, days: int = 180) -> dict[str, Any]:
         Exception,
     ) as e:
         code, error_type, message = handle_db_error(e, "fetch equity curve")
-        return error_response(code, error_type, message)  # type: ignore[no-any-return]
+        return cast(dict[str, Any], error_response(code, error_type, message)  # type: ignore[no-any-return])

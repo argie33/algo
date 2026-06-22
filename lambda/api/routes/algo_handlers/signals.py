@@ -2,7 +2,7 @@
 
 import logging
 from datetime import date, datetime, timedelta, timezone
-from typing import Any
+from typing import Any, cast
 
 import psycopg2
 import psycopg2.errors
@@ -42,7 +42,7 @@ def _calculate_pre_trade_impact(cur: cursor, body: dict[str, Any]) -> dict[str, 
             req = PreTradeImpactRequest(**body)
         except ValidationError as e:
             error_details = e.errors()[0] if e.errors() else {"msg": "Validation error"}
-            return error_response(
+            return cast(dict[str, Any], error_response()
                 400,
                 "bad_request",
                 f"Invalid request: {error_details.get('msg', 'Validation failed')}",
@@ -57,12 +57,12 @@ def _calculate_pre_trade_impact(cur: cursor, body: dict[str, Any]) -> dict[str, 
         """)
         port_row = cur.fetchone()
         if port_row is None:
-            return error_response(503, "service_unavailable", "Portfolio snapshot unavailable")  # type: ignore[no-any-return]
+            return cast(dict[str, Any], error_response(503, "service_unavailable", "Portfolio snapshot unavailable")  # type: ignore[no-any-return])
         portfolio_value = float(port_row["total_portfolio_value"])
         open_positions = int(port_row["position_count"])
 
         if not portfolio_value or portfolio_value <= 0:
-            return error_response(503, "service_unavailable", "Portfolio value unavailable")  # type: ignore[no-any-return]
+            return cast(dict[str, Any], error_response(503, "service_unavailable", "Portfolio value unavailable")  # type: ignore[no-any-return])
 
         # Determine position size
         entry_price = req.entry_price
@@ -102,7 +102,7 @@ def _calculate_pre_trade_impact(cur: cursor, body: dict[str, Any]) -> dict[str, 
                 if sr["sector"]:
                     sector_val = float(sr["sector_value"])
                     if sector_val is None:
-                        return error_response(503, "data_unavailable", "Sector exposure data incomplete")  # type: ignore[no-any-return]
+                        return cast(dict[str, Any], error_response(503, "data_unavailable", "Sector exposure data incomplete")  # type: ignore[no-any-return])
                     sector_exposure[sr["sector"]] = sector_val
         except (psycopg2.DatabaseError, psycopg2.OperationalError) as e:
             raise RuntimeError(f"Unexpected error: {e}") from e
@@ -113,11 +113,11 @@ def _calculate_pre_trade_impact(cur: cursor, body: dict[str, Any]) -> dict[str, 
 
         max_positions = 15
         if open_positions is None:
-            return error_response(503, "data_unavailable", "Position count unavailable")  # type: ignore[no-any-return]
+            return cast(dict[str, Any], error_response(503, "data_unavailable", "Position count unavailable")  # type: ignore[no-any-return])
         available_slots = max(0, max_positions - open_positions)
         sector_warning = sector and projected_sector_pct > 30
 
-        return json_response(
+        return cast(dict[str, Any], json_response()
             200,
             {
                 "symbol": symbol,
@@ -153,7 +153,7 @@ def _calculate_pre_trade_impact(cur: cursor, body: dict[str, Any]) -> dict[str, 
         Exception,
     ) as e:
         code, error_type, message = handle_db_error(e, "calculate pre-trade impact")
-        return error_response(code, error_type, message)  # type: ignore[no-any-return]
+        return cast(dict[str, Any], error_response(code, error_type, message)  # type: ignore[no-any-return])
 
 
 @db_route_handler("calculate trade preview")
@@ -168,7 +168,7 @@ def _calculate_trade_preview(cur: cursor, body: dict[str, Any]) -> dict[str, Any
             req = TradePreviewRequest(**body)
         except ValidationError as e:
             error_details = e.errors()[0] if e.errors() else {"msg": "Validation error"}
-            return error_response(
+            return cast(dict[str, Any], error_response()
                 400,
                 "bad_request",
                 f"Invalid request: {error_details.get('msg', 'Validation failed')}",
@@ -186,7 +186,7 @@ def _calculate_trade_preview(cur: cursor, body: dict[str, Any]) -> dict[str, Any
         portfolio_value = float(portfolio_row["total_portfolio_value"]) if portfolio_row else None
 
         if not portfolio_value or portfolio_value <= 0:
-            return error_response(
+            return cast(dict[str, Any], error_response()
                 503,
                 "service_unavailable",
                 "Portfolio value unavailable for position sizing",
@@ -217,7 +217,7 @@ def _calculate_trade_preview(cur: cursor, body: dict[str, Any]) -> dict[str, Any
                     "profit_at_target": format_decimal_string(profit_total, precision=2),
                 }
 
-        return json_response(
+        return cast(dict[str, Any], json_response()
             200,
             {
                 "symbol": symbol,
@@ -242,7 +242,7 @@ def _calculate_trade_preview(cur: cursor, body: dict[str, Any]) -> dict[str, Any
         Exception,
     ) as e:
         code, error_type, message = handle_db_error(e, "calculate trade preview")
-        return error_response(code, error_type, message)  # type: ignore[no-any-return]
+        return cast(dict[str, Any], error_response(code, error_type, message)  # type: ignore[no-any-return])
 
 
 @db_route_handler("fetch rejection funnel")
@@ -264,7 +264,7 @@ def _get_rejection_funnel(cur: cursor) -> dict[str, Any]:
         if not row:
             error_msg = "No signal data available in swing_trader_scores (no records in last 14 days)"
             logger.error(error_msg)
-            return error_response(503, "no_data", error_msg)  # type: ignore[no-any-return]
+            return cast(dict[str, Any], error_response(503, "no_data", error_msg)  # type: ignore[no-any-return])
 
         row_data = safe_json_serialize(safe_dict_convert(row))
         # Fail-fast: required fields must be present
@@ -273,7 +273,7 @@ def _get_rejection_funnel(cur: cursor) -> dict[str, Any]:
         if missing:
             error_msg = f"Signal data incomplete: missing {missing}"
             logger.error(error_msg)
-            return error_response(503, "incomplete_data", error_msg)  # type: ignore[no-any-return]
+            return cast(dict[str, Any], error_response(503, "incomplete_data", error_msg)  # type: ignore[no-any-return])
 
         initial_count = int(row_data["total_signals"])
         scored_count = int(row_data["scored"])
@@ -368,15 +368,15 @@ def _get_rejection_funnel(cur: cursor) -> dict[str, Any]:
         is_valid, error_msg = ResponseValidator.validate_endpoint_response("sig_eval", result)
         if not is_valid:
             logger.error(f"Endpoint response validation failed: {error_msg}")
-            return error_response(500, "response_validation_error", error_msg or "Validation failed")  # type: ignore[no-any-return]
-        return json_response(200, result)  # type: ignore[no-any-return]
+            return cast(dict[str, Any], error_response(500, "response_validation_error", error_msg or "Validation failed")  # type: ignore[no-any-return])
+        return cast(dict[str, Any], json_response(200, result)  # type: ignore[no-any-return])
     except (psycopg2.OperationalError, psycopg2.DatabaseError) as e:
         logger.error(
             f"Failed to fetch rejection funnel: {type(e).__name__}: {e}\n  Operation: Query candidate_signals_reject table\n  Endpoint: GET /api/algo/rejection-funnel"
         )
         raise
     except (psycopg2.errors.UndefinedTable, psycopg2.errors.UndefinedColumn):
-        return json_response(
+        return cast(dict[str, Any], json_response()
             200,
             {
                 "funnel": [],
@@ -523,7 +523,7 @@ def _get_swing_scores(
         Exception,
     ) as e:
         code, error_type, message = handle_db_error(e, "fetch swing scores")
-        return error_response(code, error_type, message)  # type: ignore[no-any-return]
+        return cast(dict[str, Any], error_response(code, error_type, message)  # type: ignore[no-any-return])
 
 
 @db_route_handler("fetch swing scores history")
@@ -559,4 +559,4 @@ def _get_swing_scores_history(cur: cursor, days: int = 30) -> dict[str, Any]:
             f"Failed to fetch swing scores history: {type(e).__name__}: {e!s}\n  Operation: Query algo_swing_score_history with days parameter\n  Endpoint: GET /api/algo/swing-scores-history",
             exc_info=True,
         )
-        return error_response(500, "internal_error", "Failed to fetch swing scores history")  # type: ignore[no-any-return]
+        return cast(dict[str, Any], error_response(500, "internal_error", "Failed to fetch swing scores history")  # type: ignore[no-any-return])

@@ -1,7 +1,7 @@
 """Route: algo"""
 
 import logging
-from typing import Any
+from typing import Any, cast
 
 import psycopg2
 import psycopg2.errors
@@ -60,7 +60,7 @@ def _get_economic_calendar(cur: cursor) -> dict[str, Any]:
         Exception,
     ) as e:
         code, error_type, message = handle_db_error(e, "get economic calendar")
-        return error_response(code, error_type, message)  # type: ignore[no-any-return]
+        return cast(dict[str, Any], error_response(code, error_type, message)  # type: ignore[no-any-return])
 
 
 @db_route_handler("get sentiment")
@@ -83,7 +83,7 @@ def _get_sentiment(cur: cursor) -> dict[str, Any]:
 
     if row is None:
         logger.warning("Sentiment data missing: market_sentiment table is empty")
-        return error_response(503, "service_unavailable", "Sentiment data unavailable")  # type: ignore[no-any-return]
+        return cast(dict[str, Any], error_response(503, "service_unavailable", "Sentiment data unavailable")  # type: ignore[no-any-return])
 
     data = safe_dict_convert(row)
     fear_greed = data.get("fear_greed_index")
@@ -91,7 +91,7 @@ def _get_sentiment(cur: cursor) -> dict[str, Any]:
 
     if fear_greed is None or label is None:
         logger.warning(f"Sentiment data incomplete: fear_greed={fear_greed}, label={label}")
-        return error_response(503, "service_unavailable", "Sentiment data incomplete")  # type: ignore[no-any-return]
+        return cast(dict[str, Any], error_response(503, "service_unavailable", "Sentiment data incomplete")  # type: ignore[no-any-return])
 
     return success_response(
         {

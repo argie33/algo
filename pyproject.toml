@@ -195,6 +195,9 @@ disable = [
     "assignment-from-no-return",
     "raising-bad-type",
     "no-member",
+    "import-error",  # False positives: setup_imports modifies sys.path at runtime
+    "no-name-in-module",  # False positives: setup_imports modifies sys.path at runtime
+    "assignment-from-none",  # Incorrect annotations or false positives from runtime path setup
 ]
 
 [tool.pylint.variables]

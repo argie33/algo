@@ -27,7 +27,7 @@ Body: {
 
 import json
 import logging
-from typing import Any
+from typing import Any, cast
 
 import boto3
 from psycopg2.extensions import cursor
@@ -73,10 +73,10 @@ def handle(
     """
 
     if method != "POST":
-        return error_response(405, "method_not_allowed", "Only POST is supported")  # type: ignore[no-any-return]
+        return cast(dict[str, Any], error_response(405, "method_not_allowed", "Only POST is supported")  # type: ignore[no-any-return])
 
     if not body:
-        return error_response(400, "missing_body", "Request body required")  # type: ignore[no-any-return]
+        return cast(dict[str, Any], error_response(400, "missing_body", "Request body required")  # type: ignore[no-any-return])
 
     try:
         logs = body.get("logs")

@@ -2,7 +2,7 @@
 
 import json
 import logging
-from typing import Any
+from typing import Any, cast
 
 import psycopg2
 from psycopg2.extensions import cursor
@@ -35,7 +35,7 @@ def _get_orchestrator_execution_details(cur: cursor, run_id: str) -> dict[str, A
     )
     row = cur.fetchone()
     if not row:
-        return error_response(404, "not_found", f"Run {run_id} not found")  # type: ignore[no-any-return]
+        return cast(dict[str, Any], error_response(404, "not_found", f"Run {run_id} not found")  # type: ignore[no-any-return])
 
     result = safe_json_serialize(safe_dict_convert(row))
     # Parse phase_results JSONB

@@ -1,7 +1,7 @@
 """Route: research"""
 
 import logging
-from typing import Any
+from typing import Any, cast
 
 import psycopg2
 import psycopg2.errors
@@ -59,7 +59,7 @@ def handle(
             try:
                 run_id_int = int(run_id)
             except ValueError:
-                return error_response(400, "bad_request", "Run ID must be numeric")  # type: ignore[no-any-return]
+                return cast(dict[str, Any], error_response(400, "bad_request", "Run ID must be numeric")  # type: ignore[no-any-return])
 
             backtest_rows = execute_with_timeout(
                 cur,
@@ -79,7 +79,7 @@ def handle(
             )
             backtest = backtest_rows[0] if backtest_rows else None
             if not backtest:
-                return error_response(404, "not_found", f"Backtest run {run_id} not found")  # type: ignore[no-any-return]
+                return cast(dict[str, Any], error_response(404, "not_found", f"Backtest run {run_id} not found")  # type: ignore[no-any-return])
 
             limit_str = params.get("limit", [None])[0] if params else None
             offset_str = params.get("offset", [None])[0] if params else None
@@ -117,7 +117,7 @@ def handle(
             # Build response
             run_dict = safe_json_serialize(dict(backtest))
             freshness = check_data_freshness(cur, "backtest_runs", "created_at", warning_days=7)
-            return json_response(
+            return cast(dict[str, Any], json_response()
                 200,
                 {
                     "run": run_dict,
@@ -126,7 +126,7 @@ def handle(
                     "data_freshness": freshness,
                 },
             )  # type: ignore[no-any-return]
-        return error_response(404, "not_found", f"No research handler for {path}")  # type: ignore[no-any-return]
+        return cast(dict[str, Any], error_response(404, "not_found", f"No research handler for {path}")  # type: ignore[no-any-return])
     except (
         psycopg2.errors.UndefinedTable,
         psycopg2.errors.UndefinedColumn,
@@ -135,4 +135,4 @@ def handle(
         Exception,
     ) as e:
         code, error_type, message = handle_db_error(e, "handle research")
-        return error_response(code, error_type, message)  # type: ignore[no-any-return]
+        return cast(dict[str, Any], error_response(code, error_type, message)  # type: ignore[no-any-return])

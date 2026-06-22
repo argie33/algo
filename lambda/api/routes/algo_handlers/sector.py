@@ -2,7 +2,7 @@
 
 import logging
 from datetime import datetime, timedelta, timezone
-from typing import Any
+from typing import Any, cast
 
 import psycopg2
 import psycopg2.errors
@@ -48,7 +48,7 @@ def _get_algo_evaluate(cur: cursor) -> dict[str, Any]:
             """)
         sig_row = cur.fetchone()
         if not sig_row or not sig_row.get("candidates_screened"):
-            return json_response(
+            return cast(dict[str, Any], json_response()
                 200,
                 {
                     "stage": "no_data",
@@ -105,7 +105,7 @@ def _get_algo_evaluate(cur: cursor) -> dict[str, Any]:
         risk_row = cur.fetchone()
         if not risk_row:
             # No portfolio snapshot data yet (algo just started) — fail-fast
-            return json_response(
+            return cast(dict[str, Any], json_response()
                 200,
                 {
                     "stage": "no_data",
@@ -142,7 +142,7 @@ def _get_algo_evaluate(cur: cursor) -> dict[str, Any]:
         missing = [f for f in critical_fields if risk_row.get(f) is None]
         if missing:
             logger.error(f"Portfolio snapshot data incomplete: missing {missing}")
-            return json_response(
+            return cast(dict[str, Any], json_response()
                 503,
                 {
                     "stage": "incomplete_data",
@@ -168,7 +168,7 @@ def _get_algo_evaluate(cur: cursor) -> dict[str, Any]:
         missing_candidates = [f for f in candidate_fields if f not in sig_dict]
         if missing_candidates:
             logger.error(f"Signal candidate counts incomplete: missing {missing_candidates}")
-            return json_response(
+            return cast(dict[str, Any], json_response()
                 503,
                 {
                     "stage": "incomplete_data",
@@ -176,7 +176,7 @@ def _get_algo_evaluate(cur: cursor) -> dict[str, Any]:
                 },
             )  # type: ignore[no-any-return]
 
-        return json_response(
+        return cast(dict[str, Any], json_response()
             200,
             {
                 "stage": "evaluated",
@@ -221,7 +221,7 @@ def _get_algo_evaluate(cur: cursor) -> dict[str, Any]:
         )
         raise
     except (psycopg2.errors.UndefinedTable, psycopg2.errors.UndefinedColumn):
-        return json_response(
+        return cast(dict[str, Any], json_response()
             200,
             {
                 "signals": {"total_candidates": 0},
@@ -301,7 +301,7 @@ def _get_sector_breadth(cur: cursor) -> dict[str, Any]:
         except (psycopg2.DatabaseError, psycopg2.OperationalError) as sp_err:
             logger.debug(f"Failed to rollback sector_breadth_check savepoint: {sp_err}")
         code, error_type, message = handle_db_error(e, "get sector breadth")
-        return error_response(code, error_type, message)  # type: ignore[no-any-return]
+        return cast(dict[str, Any], error_response(code, error_type, message)  # type: ignore[no-any-return])
 
 
 @db_route_handler("get sector position warnings")
@@ -368,7 +368,7 @@ def _get_sector_position_warnings(cur: cursor) -> dict[str, Any]:
         Exception,
     ) as e:
         code, error_type, message = handle_db_error(e, "get sector position warnings")
-        return error_response(code, error_type, message)  # type: ignore[no-any-return]
+        return cast(dict[str, Any], error_response(code, error_type, message)  # type: ignore[no-any-return])
 
 
 @db_route_handler("get sector rotation")
@@ -461,7 +461,7 @@ def _get_sector_rotation(cur: cursor, days: int = 180) -> dict[str, Any]:
     is_valid, error_msg = ResponseValidator.validate_endpoint_response("sec_rot", response["data"])
     if not is_valid:
         logger.error(f"Sector rotation response validation failed: {error_msg}")
-        return error_response(500, "response_validation_error", error_msg)  # type: ignore[no-any-return]
+        return cast(dict[str, Any], error_response(500, "response_validation_error", error_msg)  # type: ignore[no-any-return])
 
     return response
 
@@ -509,4 +509,4 @@ def _get_sector_stage2(cur: cursor) -> dict[str, Any]:
         Exception,
     ) as e:
         code, error_type, message = handle_db_error(e, "get sector stage2")
-        return error_response(code, error_type, message)  # type: ignore[no-any-return]
+        return cast(dict[str, Any], error_response(code, error_type, message)  # type: ignore[no-any-return])
