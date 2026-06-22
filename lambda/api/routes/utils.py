@@ -49,7 +49,7 @@ def set_query_timeout(cur: Any, timeout_ms: int | None = None, timeout_name: str
     # Validate timeout_ms is an integer to prevent injection
     if not isinstance(timeout_ms, int) or timeout_ms < 0:
         raise ValueError(f"Invalid timeout_ms: must be non-negative integer, got {timeout_ms}")
-    cur.execute(f"SET LOCAL statement_timeout = {timeout_ms}ms")
+    cur.execute(f"SET LOCAL statement_timeout = '{timeout_ms}ms'")
 
 
 def normalize_to_utc_datetime(dt: date | datetime | None) -> datetime | None:
@@ -477,7 +477,7 @@ def execute_with_timeout(
             timeout_ms = int(current_timeout * 1000)
             if timeout_ms < 0:
                 raise ValueError(f"Invalid timeout: {timeout_ms}ms must be non-negative")
-            cur.execute(f"SET LOCAL statement_timeout = {timeout_ms}ms")
+            cur.execute(f"SET LOCAL statement_timeout = '{timeout_ms}ms'")
             if params:
                 cur.execute(query, params)
             else:
