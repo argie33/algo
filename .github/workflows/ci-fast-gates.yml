@@ -234,10 +234,11 @@ jobs:
         with:
           node-version: '18'
           cache: 'npm'
+          cache-dependency-path: webapp/frontend/package-lock.json
       - name: Check Node.js dependency licenses
         run: |
           npm install -g license-checker
-          license-checker --json > /tmp/npm-licenses.json || true
+          license-checker --json --prefix webapp/frontend > /tmp/npm-licenses.json || true
           if grep -iE '(GPL|SSPL)' /tmp/npm-licenses.json; then
             echo "WARNING: GPL/SSPL licenses detected in Node.js dependencies"
             cat /tmp/npm-licenses.json
