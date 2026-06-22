@@ -1146,6 +1146,8 @@ class OptimalLoader:
                     latest_date = result[1] if result else None
                     if hasattr(latest_date, "date"):
                         latest_date = latest_date.date()  # type: ignore[union-attr]
+                    elif isinstance(latest_date, int):
+                        latest_date = None  # fiscal_year (int) is not a valid date for the status table
 
                 # ISSUE #2 FIX: Track completion percentage and mark INCOMPLETE if <95%
                 symbols_expected = len(symbols) if symbols else 1
@@ -1446,6 +1448,8 @@ class OptimalLoader:
                         latest_date = result[1] if result else None
                         if hasattr(latest_date, "date"):
                             latest_date = latest_date.date()  # type: ignore[union-attr]
+                        elif isinstance(latest_date, int):
+                            latest_date = None  # fiscal_year (int) is not a valid date for the status table
                     with DatabaseContext("write", enable_correlation_tracking=False) as cur:
                         cur.execute("SET statement_timeout = 0")
                         cur.execute(
