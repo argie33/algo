@@ -2,6 +2,7 @@
 
 import logging
 from datetime import date
+from typing import Any
 
 import psycopg2
 
@@ -21,7 +22,7 @@ class WatermarkManager:
     def __init__(self, table_name: str, watermark_field: str = "date"):
         self.table_name = table_name
         self.watermark_field = watermark_field
-        self._marks = {}  # in-memory cache
+        self._marks: dict[str, Any] = {}  # in-memory cache
 
     def get(self, symbol: str) -> date | None:
         """Get cached watermark for a symbol."""
