@@ -7,7 +7,7 @@ from datetime import datetime, timezone
 
 import psycopg2
 
-from utils.db import assert_safe_table
+from utils.db import assert_safe_column, assert_safe_table
 
 from ..base import BaseCheck, CheckResult
 from ..config import ERROR, INFO, WARN
@@ -112,7 +112,7 @@ class SpecializedChecker(BaseCheck):
                 f"{pct:.1f}% symbol coverage ({est_syms}/{price_syms})",
                 {"coverage_pct": round(pct, 1)},
             )
-        except (ValueError, ZeroDivisionError, TypeError) as e:
+        except (psycopg2.DatabaseError, psycopg2.OperationalError, ValueError, ZeroDivisionError, TypeError) as e:
             self.log(
                 "earnings_coverage",
                 WARN,
@@ -137,12 +137,12 @@ class SpecializedChecker(BaseCheck):
         try:
             for tbl, col, _max_days, _sev in table_checks:
                 assert_safe_table(tbl)
-                assert_safe_table(col)
+                assert_safe_column(col)
 
             union_parts = []
             for tbl, col, _max_days, _sev in table_checks:
                 tbl_safe = assert_safe_table(tbl)
-                col_safe = assert_safe_table(col)
+                col_safe = assert_safe_column(col)
                 union_parts.append(
                     f"SELECT '{tbl}' as tbl_name, MAX({col_safe}::date) as latest, COUNT(*) as total, COUNT(DISTINCT symbol) as unique_syms FROM {tbl_safe}"
                 )
@@ -256,7 +256,7 @@ class SpecializedChecker(BaseCheck):
                     "No NaN/Infinity values in technical data",
                     None,
                 )
-        except (ValueError, ZeroDivisionError, TypeError) as e:
+        except (psycopg2.DatabaseError, psycopg2.OperationalError, ValueError, ZeroDivisionError, TypeError) as e:
             self.log(
                 "derived_metrics",
                 ERROR,

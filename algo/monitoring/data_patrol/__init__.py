@@ -110,14 +110,14 @@ class DataPatrol:
                 try:
                     results = checker.run(cur)
                     self.results.extend(results)
-                except (psycopg2.DatabaseError, psycopg2.OperationalError) as e:
+                except Exception as e:
                     logger.error(f"Check {check_name} failed: {e}", exc_info=True)
                 finally:
                     try:
                         cur.execute(f"ROLLBACK TO SAVEPOINT {savepoint_name}")
-                    except (psycopg2.DatabaseError, psycopg2.OperationalError):
+                    except Exception:
                         pass
-            except (psycopg2.DatabaseError, psycopg2.OperationalError) as e:
+            except Exception as e:
                 logger.error(f"Failed to create savepoint for {check_name}: {e}")
             elapsed = time.time() - start
             self.check_timings[check_name] = elapsed

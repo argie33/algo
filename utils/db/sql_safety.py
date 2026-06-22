@@ -104,6 +104,7 @@ SAFE_TABLES = {
     "stability_metrics",
     "positioning_metrics",
     "momentum_metrics",
+    "key_metrics",
     # Financial statements
     "balance_sheet",
     "cash_flow",

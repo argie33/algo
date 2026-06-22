@@ -3,6 +3,7 @@
 
 import json
 import logging
+from decimal import Decimal
 from typing import Any
 
 import psycopg2
@@ -108,7 +109,7 @@ class PatrolLogger:
                 UpdateExpression="SET last_success_at = :now, #ts = :ts, last_completion_status = :status",
                 ExpressionAttributeNames={"#ts": "ttl"},
                 ExpressionAttributeValues={
-                    ":now": time.time(),
+                    ":now": Decimal(str(time.time())),
                     ":ts": int(time.time()) + 3600,  # 1-hour TTL
                     ":status": "ready" if ready else "completed_with_findings",
                 },
