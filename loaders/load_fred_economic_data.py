@@ -90,7 +90,6 @@ SERIES = [
     "AHETPI",  # Average Hourly Earnings, Total Private (level; displayed as YoY %)
     # Industrial capacity
     "TCU",  # Capacity Utilization: Manufacturing, Mining, Utilities (%)
-    "MFGBDPHI",  # Philadelphia Fed Manufacturing Index (diffusion; >0=expansion)
     "CFNAI",  # Chicago Fed National Activity Index (85-indicator composite)
     # Housing — leading indicator
     "PERMIT",  # Building Permits, Total (thousands, SAAR, monthly)
@@ -226,10 +225,8 @@ class FredEconomicDataLoader(OptimalLoader):
                     for obs in observations:
                         val_str = obs.get("value")
                         if val_str is None or val_str == ".":
-                            raise ValueError(
-                                f"FRED data missing for {series_id} on {obs.get('date')} — "
-                                "economic data cannot have gaps. Check FRED data availability."
-                            )
+                            # FRED returns "." for holidays/non-reporting dates — skip silently
+                            continue
                         try:
                             all_rows.append(
                                 {
@@ -324,6 +321,12 @@ class FredEconomicDataLoader(OptimalLoader):
                         "FRED API response format may have changed or data is corrupted."
                     )
                     self._circuit_breaker.record_failure()
+                    failed_series.append(series_id)
+                    break
+                except RuntimeError as e:
+                    # Circuit breaker raised RuntimeError for REQUIRED data failure (e.g. 400 on
+                    # a retired series ID). Skip this series rather than aborting the whole load.
+                    logger.error(f"[FRED] Circuit breaker failed for {series_id}: {e}; skipping series")
                     failed_series.append(series_id)
                     break
                 except (requests.RequestException, requests.Timeout, json.JSONDecodeError) as e:
