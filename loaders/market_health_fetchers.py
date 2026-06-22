@@ -10,23 +10,29 @@ logger = logging.getLogger(__name__)
 
 
 class VIXFetcher:
-    """Fetches VIX data from yfinance with circuit breaker."""
+    """Fetches VIX data from yfinance with circuit breaker.
+
+    CRITICAL: VIX is used for circuit breaker decisions (VIX >= 35 halts trading).
+    Marked as CRITICAL to fail-fast on unavailable data per governance.
+    """
 
     def __init__(self):
         self.breaker = CircuitBreaker(
             name="yfinance_vix",
             failure_threshold=3,
             recovery_timeout_sec=300,
-            importance=DataImportance.OPTIONAL,
+            importance=DataImportance.CRITICAL,
         )
 
     def fetch(self, start: date, end: date) -> dict[str, Any]:
-        """Fetch VIX data with circuit breaker protection."""
+        """Fetch VIX data with circuit breaker protection. Fails fast if unavailable."""
         result = self.breaker.execute(
             fetch_func=lambda: self._fetch_vix_data(start, end),
-            importance=DataImportance.OPTIONAL,
-            fallback_value={},
+            importance=DataImportance.CRITICAL,
+            fallback_value=None,
         )
+        if result is None:
+            raise RuntimeError("VIX data unavailable - circuit breaker failed")
         return result if isinstance(result, dict) else {}
 
     def _fetch_vix_data(self, start: date, end: date) -> dict[str, Any]:

@@ -25,8 +25,6 @@ from routes.utils import (
     safe_json_serialize,
 )
 
-# setup_imports is imported by parent module (lambda_function or api_router),
-# so utils is already available in sys.path
 from utils.rate_limiting import ADMIN_RATE_LIMITS, check_admin_rate_limit
 from utils.validation import CognitoValidator
 

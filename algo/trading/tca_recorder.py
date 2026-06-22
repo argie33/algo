@@ -69,15 +69,23 @@ class TCARecorder:
             logger.warning(f"Failed to record exit TCA: {e}")
 
     def get_tca_summary(self) -> dict[str, Any]:
-        """Get TCA summary metrics."""
+        """Get TCA summary metrics. Fails fast if any record is malformed."""
         if not self.tca_records:
             return {"total_records": 0, "avg_entry_slippage": 0, "avg_exit_slippage": 0}
 
         entries = [r for r in self.tca_records if r["event"] == "entry"]
         exits = [r for r in self.tca_records if r["event"] == "exit"]
 
-        avg_entry_slippage = sum(r.get("slippage_pct", 0) for r in entries) / len(entries) if entries else 0
-        avg_exit_slippage = sum(r.get("slippage_pct", 0) for r in exits) / len(exits) if exits else 0
+        # Validate all records have required slippage_pct field (fail-fast if missing)
+        for r in entries:
+            if "slippage_pct" not in r:
+                raise ValueError(f"Entry record missing slippage_pct: {r}")
+        for r in exits:
+            if "slippage_pct" not in r:
+                raise ValueError(f"Exit record missing slippage_pct: {r}")
+
+        avg_entry_slippage = sum(r["slippage_pct"] for r in entries) / len(entries) if entries else 0
+        avg_exit_slippage = sum(r["slippage_pct"] for r in exits) / len(exits) if exits else 0
 
         return {
             "total_records": len(self.tca_records),

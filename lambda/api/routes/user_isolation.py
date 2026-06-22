@@ -8,13 +8,17 @@ Provides helper functions to:
 """
 
 import logging
+from collections.abc import Callable
 from functools import wraps
-from typing import Any, cast
+from typing import Any, TypeVar, cast
 
 import psycopg2.sql
+from psycopg2.extensions import cursor
 from routes.utils import error_response
 
 from utils.db.sql_safety import assert_safe_column, assert_safe_table
+
+T = TypeVar('T')
 
 logger = logging.getLogger(__name__)
 
@@ -212,7 +216,7 @@ def validate_user_resource_access(cur, user_id: str, resource_type: str, resourc
         raise RuntimeError(f"Operation failed: {e}") from e
 
 
-def require_user_resource_access(cur, user_id: str, resource_type: str, resource_id: str) -> bool:
+def require_user_resource_access(cur: cursor, user_id: str, resource_type: str, resource_id: str) -> bool:
     """Require user to have access to resource, raise if denied.
 
     Args:
@@ -230,33 +234,33 @@ def require_user_resource_access(cur, user_id: str, resource_type: str, resource
 
 
 # Decorator for route handlers that require user authentication
-def requires_auth(handler_func):
+def requires_auth(handler_func: Callable[..., T]) -> Callable[..., T]:
     """Decorator to require authentication for a handler.
 
     Wraps handler function to check for valid JWT claims and extract user_id.
     """
 
     @wraps(handler_func)
-    def wrapper(cur, path, method, params, body=None, jwt_claims=None):
+    def wrapper(cur: cursor, path: str, method: str, params: Any, body: Any = None, jwt_claims: Any = None) -> T:
         try:
             user_id = require_user(jwt_claims)
             # Pass user_id as additional parameter to handler
             return handler_func(cur, path, method, params, body, jwt_claims=jwt_claims, user_id=user_id)
         except ValueError as e:
-            return error_response(401, "unauthorized", str(e))
+            return error_response(401, "unauthorized", str(e))  # type: ignore[return-value]
 
     return wrapper
 
 
 # Decorator for route handlers that handle both authenticated and public requests
-def optional_auth(handler_func):
+def optional_auth(handler_func: Callable[..., T]) -> Callable[..., T]:
     """Decorator for handlers that support both authenticated and public access.
 
     Extracts user_id if available, sets to None if not authenticated.
     """
 
     @wraps(handler_func)
-    def wrapper(cur, path, method, params, body=None, jwt_claims=None):
+    def wrapper(cur: cursor, path: str, method: str, params: Any, body: Any = None, jwt_claims: Any = None) -> T:
         user_id = get_user_id(jwt_claims)
         return handler_func(cur, path, method, params, body, jwt_claims=jwt_claims, user_id=user_id)
 

@@ -319,7 +319,14 @@ def _get_data_status(cur) -> dict[str, Any]:
 
 
 def _normalize_market_health(mh: dict) -> dict[str, Any]:
-    """Normalize market_health dict with safe defaults for all expected fields."""
+    """Validate and normalize market_health dict. Fails fast if critical fields missing.
+
+    Critical fields (halt circuit breaker): vix_level, market_stage, market_trend
+    """
+    critical_fields = {"vix_level", "market_stage", "market_trend"}
+    missing = critical_fields - set(k for k in mh.keys() if mh[k] is not None)
+    if missing:
+        raise ValueError(f"Market health missing critical fields: {missing}")
     return {
         "market_trend": mh.get("market_trend"),
         "market_stage": mh.get("market_stage"),
@@ -337,7 +344,14 @@ def _normalize_market_health(mh: dict) -> dict[str, Any]:
 
 
 def _normalize_exposure(exp: dict) -> dict[str, Any]:
-    """Normalize exposure dict with safe defaults for all expected fields."""
+    """Validate and normalize exposure dict. Fails fast if critical fields missing.
+
+    Critical fields (position sizing, trading halts): exposure_pct, regime
+    """
+    critical_fields = {"exposure_pct", "regime"}
+    missing = critical_fields - set(k for k in exp.keys() if exp[k] is not None)
+    if missing:
+        raise ValueError(f"Market exposure missing critical fields: {missing}")
     halt_reasons = exp.get("halt_reasons")
     return {
         "exposure_pct": exp.get("exposure_pct"),
@@ -515,7 +529,7 @@ def _get_market_sentiment(cur) -> dict[str, Any]:
     if not row:
         return error_response(503, "no_data", "Market sentiment data not yet available")
 
-    if not row.get("sentiment_score"):
+    if row.get("sentiment_score") is None:
         return error_response(503, "incomplete_data", "Market sentiment data incomplete")
 
     sentiment_score = float(row["sentiment_score"])
