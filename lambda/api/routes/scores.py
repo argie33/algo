@@ -37,8 +37,8 @@ def handle(
         ):
             limit_str = params.get("limit", [None])[0] if params else None
             limit = safe_limit(limit_str or "1000", max_val=1000)
-            offset_str = params.get("offset", [None])[0] if params else None
-            offset = safe_offset(offset_str)
+            offset_str = params.get("offset", ["0"])[0] if params else "0"
+            offset = safe_offset(offset_str or "0")
             sort_by = params.get("sortBy", ["composite_score"])[0] if params else "composite_score"
             sort_order = params.get("sortOrder", ["desc"])[0] if params else "desc"
             sp500_only = params.get("sp500Only", ["false"])[0] if params else "false"

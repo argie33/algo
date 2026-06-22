@@ -95,15 +95,12 @@ def _get_algo_metrics(cur) -> dict[str, Any]:
         exits = int(exits)
 
         avg_signal_score_raw = data.get("avg_signal_score")
-        if avg_signal_score_raw is None:
-            logger.error("Algo metrics has None avg_signal_score")
-            return error_response(503, "incomplete_data", "Algo metrics missing avg_signal_score")
-
-        try:
-            avg_signal_score = float(avg_signal_score_raw)
-        except (ValueError, TypeError) as e:
-            logger.error(f"Cannot convert avg_signal_score to float: {avg_signal_score_raw} ({e})")
-            return error_response(503, "incomplete_data", "Algo metrics has invalid avg_signal_score")
+        avg_signal_score: float | None = None
+        if avg_signal_score_raw is not None:
+            try:
+                avg_signal_score = float(avg_signal_score_raw)
+            except (ValueError, TypeError) as e:
+                logger.warning(f"Cannot convert avg_signal_score to float: {avg_signal_score_raw} ({e})")
 
         return success_response(
             {
