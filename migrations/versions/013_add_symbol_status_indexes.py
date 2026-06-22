@@ -91,7 +91,16 @@ def up():
             print(f"  SKIP (table '{table}' does not exist): {sql[:70]}...")
             continue
         print(f"  {sql[:70]}...")
-        cur.execute(sql)
+        try:
+            cur.execute(sql)
+        except Exception as e:
+            # Schema may differ across environments; skip indexes that can't be created
+            print(f"  SKIP (error: {e!s:.120}): {sql[:70]}...")
+            # Reopen connection — autocommit mode, but failed statement may need reset
+            cur.close()
+            conn.close()
+            conn = _connect_autocommit()
+            cur = conn.cursor()
     cur.close()
     conn.close()
 
