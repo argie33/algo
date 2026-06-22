@@ -2,9 +2,10 @@
 
 import logging
 import time
+from collections.abc import Callable
 from datetime import date, datetime, timezone
 from functools import wraps
-from typing import Any, Callable, NoReturn, TypeVar
+from typing import Any, NoReturn, TypeVar
 
 import psycopg2
 import psycopg2.errors
@@ -471,7 +472,7 @@ def execute_with_timeout(
     if not isinstance(timeout_sec, (int, float)):
         raise TypeError(f"timeout_sec must be numeric, got {type(timeout_sec).__name__}")
     current_timeout: float = float(timeout_sec)
-    last_error = None
+    last_error: Exception | None = None
 
     for attempt in range(max_attempts):
         try:
@@ -527,6 +528,8 @@ def execute_with_timeout(
         with log_sanitizer("query execution final") as safe_log:
             safe_log.error(last_error)
         raise last_error
+    # Fallback — this should not happen
+    raise RuntimeError("Query execution failed without error")
 
 
 def check_data_freshness(
@@ -828,11 +831,11 @@ def db_route_handler(operation_name: str, default_error_response: Any = None) ->
                 code, error_type, message = handle_db_error(e, operation_name)
                 # Always return proper error response with correct HTTP status code
                 # Never return 200 OK with empty data - use proper 503/504/500 instead
-                return json_response(  # type: ignore[return-value]
+                return json_response(
                     code,
                     {"errorType": error_type, "message": message, "_error": message},
                 )
 
-        return wrapper  # type: ignore[return-value]
+        return wrapper
 
     return decorator
