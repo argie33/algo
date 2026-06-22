@@ -593,9 +593,7 @@ def _handle_sentiment(cur, params: dict) -> dict:
             "trend": aaii_trend,
             "data": aaii_rows,
             "bullish_pct": (
-                float(aaii_current.get("bullish"))
-                if aaii_current and aaii_current.get("bullish") is not None
-                else None
+                float(aaii_current.get("bullish")) if aaii_current and aaii_current.get("bullish") is not None else None
             ),
         }
     except (ValueError, ZeroDivisionError, TypeError) as e:
@@ -744,7 +742,7 @@ def _handle_naaim(cur) -> dict:
 
         if history:
             current = history[-1]
-            values: list[float] = [h["value"] for h in history if h["value"] is not None]
+            values: list[float] = [float(h["value"]) for h in history if h["value"] is not None]
 
             # Compute moving averages
             ma_10 = sum(values[-10:]) / min(10, len(values)) if len(values) >= 10 else None
@@ -752,7 +750,8 @@ def _handle_naaim(cur) -> dict:
             ma_50 = sum(values[-50:]) / min(50, len(values)) if len(values) >= 50 else None
 
             # Identify extremes (>80 = extreme bullish, <20 = extreme bearish)
-            curr_val: float | None = current["value"]
+            _cv = current["value"]
+            curr_val: float | None = float(_cv) if _cv is not None else None
             signals = {
                 "extreme_bullish": (curr_val > 80 if curr_val is not None else None),
                 "extreme_bearish": (curr_val < 20 if curr_val is not None else None),
@@ -781,11 +780,7 @@ def _handle_naaim(cur) -> dict:
                         "extremity": (
                             "extreme_bullish"
                             if curr_val is not None and curr_val > 80
-                            else (
-                                "extreme_bearish"
-                                if curr_val is not None and curr_val < 20
-                                else "normal"
-                            )
+                            else ("extreme_bearish" if curr_val is not None and curr_val < 20 else "normal")
                         ),
                     },
                 },

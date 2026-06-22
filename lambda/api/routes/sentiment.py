@@ -244,11 +244,7 @@ def handle(
             price_targets = [
                 {
                     "date": str(dict(r)["date"]),
-                    "target": (
-                        float(dict(r)["target_price"])
-                        if dict(r).get("target_price")
-                        else None
-                    ),
+                    "target": (float(dict(r)["target_price"]) if dict(r).get("target_price") else None),
                 }
                 for r in rows
                 if dict(r).get("target_price")
@@ -333,11 +329,7 @@ def handle(
             price_targets = [
                 {
                     "date": str(dict(r)["date"]),
-                    "target": (
-                        float(dict(r)["target_price"])
-                        if dict(r).get("target_price")
-                        else None
-                    ),
+                    "target": (float(dict(r)["target_price"]) if dict(r).get("target_price") else None),
                 }
                 for r in rows
                 if dict(r).get("target_price")
