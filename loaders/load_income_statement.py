@@ -137,13 +137,16 @@ class IncomeStatementLoader(OptimalLoader):
     def fetch_incremental(self, symbol: str, since: date | None):
         try:
             cik = self._sec_client.symbol_to_cik(symbol)
-            if not cik:
-                raise RuntimeError(
-                    f"[INCOME_STATEMENT] CIK resolution failed for {symbol}. "
-                    "Cannot fetch income statement data without CIK."
-                )
-            logger.debug("Symbol %s resolved to CIK %s", symbol, cik)
-
+        except ValueError:
+            logger.debug("%s: not in SEC ticker cache, skipping", symbol)
+            return None
+        if not cik:
+            raise RuntimeError(
+                f"[INCOME_STATEMENT] CIK resolution failed for {symbol}. "
+                "Cannot fetch income statement data without CIK."
+            )
+        logger.debug("Symbol %s resolved to CIK %s", symbol, cik)
+        try:
             rows = self._sec_client.get_income_statement(symbol, period=self._edgar_period)
             if not rows:
                 raise RuntimeError(

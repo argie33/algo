@@ -57,9 +57,10 @@ class SignalsDailyLoader(OptimalLoader):
 
         self._batch_context = {}
         try:
-            # CRITICAL: Check that signal_quality_scores is available (ISSUE: loader dependency)
-            # If SQS loader is stuck/incomplete, buy_sell_daily will generate signals with NULL scores
-            # which corrupts the data and cascades to Phase 5 (signal generation).
+            # Check signal_quality_scores availability — warn but don't block.
+            # On initial bootstrap, quality scores don't exist yet; buy_sell_daily must run
+            # first so signal_quality_scores can evaluate its output. Signals will have NULL
+            # quality scores on first run; a subsequent SQS run backfills them.
             with DatabaseContext("read") as cur:
                 cur.execute(
                     "SELECT status FROM data_loader_status WHERE table_name = %s",
@@ -67,10 +68,11 @@ class SignalsDailyLoader(OptimalLoader):
                 )
                 sqs_status = cur.fetchone()
                 if not sqs_status or sqs_status[0] not in ("COMPLETED", "success", "OK"):
-                    raise RuntimeError(
-                        "signal_quality_scores loader is not COMPLETED. "
-                        "Cannot generate buy/sell signals without quality scores. "
-                        "Phase 5 (signal generation) depends on signal_quality_scores → buy_sell_daily ordering."
+                    logger.warning(
+                        "signal_quality_scores is not COMPLETED (status=%s). "
+                        "Proceeding with NULL quality scores on this run. "
+                        "Run signal_quality_scores after completion to backfill scores.",
+                        sqs_status[0] if sqs_status else "no record",
                     )
 
             now_utc = datetime.now(timezone.utc)

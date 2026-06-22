@@ -105,13 +105,16 @@ class CashFlowLoader(OptimalLoader):
     def fetch_incremental(self, symbol: str, since: date | None):
         try:
             cik = self._sec_client.symbol_to_cik(symbol)
-            if not cik:
-                raise RuntimeError(
-                    f"[CASH_FLOW] CIK resolution failed for {symbol}. "
-                    "Cannot fetch cash flow data without SEC EDGAR CIK."
-                )
-            logger.debug("Symbol %s resolved to CIK %s", symbol, cik)
-
+        except ValueError:
+            logger.debug("%s: not in SEC ticker cache, skipping", symbol)
+            return None
+        if not cik:
+            raise RuntimeError(
+                f"[CASH_FLOW] CIK resolution failed for {symbol}. "
+                "Cannot fetch cash flow data without SEC EDGAR CIK."
+            )
+        logger.debug("Symbol %s resolved to CIK %s", symbol, cik)
+        try:
             rows = self._sec_client.get_cash_flow(symbol, period=self.period)
             if not rows:
                 raise RuntimeError(

@@ -117,13 +117,16 @@ class BalanceSheetLoader(OptimalLoader):
     def fetch_incremental(self, symbol: str, since: date | None):
         try:
             cik = self._sec_client.symbol_to_cik(symbol)
-            if not cik:
-                raise RuntimeError(
-                    f"[BALANCE_SHEET] CIK resolution failed for {symbol}. "
-                    "Cannot fetch balance sheet data without SEC EDGAR CIK."
-                )
-            logger.debug("Symbol %s resolved to CIK %s", symbol, cik)
-
+        except ValueError:
+            logger.debug("%s: not in SEC ticker cache, skipping", symbol)
+            return None
+        if not cik:
+            raise RuntimeError(
+                f"[BALANCE_SHEET] CIK resolution failed for {symbol}. "
+                "Cannot fetch balance sheet data without SEC EDGAR CIK."
+            )
+        logger.debug("Symbol %s resolved to CIK %s", symbol, cik)
+        try:
             rows = self._sec_client.get_balance_sheet(symbol, period=self.period)
             if not rows:
                 raise RuntimeError(
