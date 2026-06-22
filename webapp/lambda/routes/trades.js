@@ -7,10 +7,7 @@
 const express = require("express");
 
 const { query: dbQuery, safeFloat, safeInt } = require("../utils/database");
-const {
-  sendSuccess,
-  sendError,
-} = require("../utils/apiResponse");
+const { sendSuccess, sendError } = require("../utils/apiResponse");
 const { validateQueryResult } = require("../utils/responseValidation");
 const logger = require("../utils/logger");
 const router = express.Router();

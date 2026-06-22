@@ -33,19 +33,19 @@ def savepoint_context(cur, savepoint_name: str, fallback_value=None, log_errors=
         yield
         cur.execute(f"RELEASE SAVEPOINT {savepoint_name}")
     except (
-        psycopg2.errors.QueryCanceled,
-        psycopg2.errors.UndefinedTable,
-        psycopg2.errors.UndefinedColumn,
+        psycopg2.errors.QueryCanceled,  # pylint: disable=no-member
+        psycopg2.errors.UndefinedTable,  # pylint: disable=no-member
+        psycopg2.errors.UndefinedColumn,  # pylint: disable=no-member
         psycopg2.OperationalError,
         psycopg2.DatabaseError,
     ) as e:
         if log_errors:
-            logger.warning(f"[SAVEPOINT] Rolling back {savepoint_name}: {type(e).__name__}")
+            logger.warning("[SAVEPOINT] Rolling back %s: %s", savepoint_name, type(e).__name__)
         try:
             cur.execute(f"ROLLBACK TO SAVEPOINT {savepoint_name}")
             cur.execute(f"RELEASE SAVEPOINT {savepoint_name}")
         except (psycopg2.OperationalError, psycopg2.DatabaseError) as rollback_err:
             if log_errors:
-                logger.debug(f"[SAVEPOINT] Rollback failed for {savepoint_name}: {type(rollback_err).__name__}")
+                logger.debug("[SAVEPOINT] Rollback failed for %s: %s", savepoint_name, type(rollback_err).__name__)
         if fallback_value is not None:
             raise

@@ -418,10 +418,18 @@ describe("Real Data Flow Verification", () => {
         !summary.return_1y
       ) {
         // If no returns are available, all should be null or undefined
-        expect(summary.return_1m === null || summary.return_1m === undefined).toBe(true);
-        expect(summary.return_3m === null || summary.return_3m === undefined).toBe(true);
-        expect(summary.return_6m === null || summary.return_6m === undefined).toBe(true);
-        expect(summary.return_1y === null || summary.return_1y === undefined).toBe(true);
+        expect(
+          summary.return_1m === null || summary.return_1m === undefined
+        ).toBe(true);
+        expect(
+          summary.return_3m === null || summary.return_3m === undefined
+        ).toBe(true);
+        expect(
+          summary.return_6m === null || summary.return_6m === undefined
+        ).toBe(true);
+        expect(
+          summary.return_1y === null || summary.return_1y === undefined
+        ).toBe(true);
       } else {
         // If any returns are available, at least one should be a number
         const hasNumericReturn =

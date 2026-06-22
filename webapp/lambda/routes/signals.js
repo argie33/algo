@@ -1,10 +1,7 @@
 const express = require("express");
 
 const { query } = require("../utils/database");
-const {
-  sendSuccess,
-  sendError,
-} = require("../utils/apiResponse");
+const { sendSuccess, sendError } = require("../utils/apiResponse");
 const { validateQueryResult } = require("../utils/responseValidation");
 const paginationConfig = require("../config/pagination");
 const router = express.Router();

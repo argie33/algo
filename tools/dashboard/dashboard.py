@@ -77,7 +77,10 @@ from tools.dashboard.cognito_auth import (
 from tools.dashboard.cognito_auth import (
     save_tokens,
 )
-from tools.dashboard.error_boundary import error_summary_panel, error_summary_panel_expanded
+from tools.dashboard.error_boundary import (
+    error_summary_panel,
+    error_summary_panel_expanded,
+)
 from tools.dashboard.error_recovery import RenderRecovery
 from tools.dashboard.fetchers import load_all
 from tools.dashboard.formatters import mkt_hours_str
@@ -325,7 +328,10 @@ def _check_terraform_installed() -> bool:
     except subprocess.TimeoutExpired:
         logger.warning("Terraform check timed out (running but slow) - use launcher script or set env vars manually")
     except subprocess.CalledProcessError as e:
-        logger.warning("Terraform version check failed (code %d) - may be misconfigured", e.returncode)
+        logger.warning(
+            "Terraform version check failed (code %d) - may be misconfigured",
+            e.returncode,
+        )
     return False
 
 
@@ -567,7 +573,16 @@ def render_dashboard(
             border_style="red",
         )
     else:
-        hdr_panel = panel_header_market(mkt, sentiment, ts, mkt_s, elapsed, refresh_s, cfg=cfg, data_source=data_source)
+        hdr_panel = panel_header_market(
+            mkt,
+            sentiment,
+            ts,
+            mkt_s,
+            elapsed,
+            refresh_s,
+            cfg=cfg,
+            data_source=data_source,
+        )
 
     exp_panel = panel_exposure_compact(exp_f) if not has_error(exp_f) else Panel("[red]Exposure factors unavailable[/]")
     mascot_panel = mascot_compact(data, frame)
@@ -706,11 +721,17 @@ def render_dashboard(
                 return _expanded_layout(*_exp_top, panel_exposure_expanded(exp_f))
             case "market":
                 if has_error(mkt):
-                    return _expanded_layout(*_exp_top, Panel("[red]Market data unavailable[/]", border_style="red"))
+                    return _expanded_layout(
+                        *_exp_top,
+                        Panel("[red]Market data unavailable[/]", border_style="red"),
+                    )
                 return _expanded_layout(*_exp_top, panel_market_expanded(mkt, sentiment))
             case "positions":
                 if has_error(pos):
-                    return _expanded_layout(*_exp_top, Panel("[red]Positions data unavailable[/]", border_style="red"))
+                    return _expanded_layout(
+                        *_exp_top,
+                        Panel("[red]Positions data unavailable[/]", border_style="red"),
+                    )
                 _pos_items = pos if isinstance(pos, list) else (pos.get("items", []) if isinstance(pos, dict) else [])
                 hint = Text.from_markup("[dim]press [/][bold cyan]p[/][dim] to return to dashboard[/]")
                 return _expanded_layout(
@@ -728,11 +749,17 @@ def render_dashboard(
                 )
             case "signals":
                 if has_error(sig) or has_error(scores):
-                    return _expanded_layout(*_exp_top, Panel("[red]Signals data unavailable[/]", border_style="red"))
+                    return _expanded_layout(
+                        *_exp_top,
+                        Panel("[red]Signals data unavailable[/]", border_style="red"),
+                    )
                 return _expanded_layout(*_exp_top, panel_signals_expanded(sig, sig_eval, scores=scores))
             case "health":
                 if has_error(run) or has_error(hlth):
-                    return _expanded_layout(*_exp_top, Panel("[red]Health data unavailable[/]", border_style="red"))
+                    return _expanded_layout(
+                        *_exp_top,
+                        Panel("[red]Health data unavailable[/]", border_style="red"),
+                    )
                 return _expanded_layout(
                     *_exp_top,
                     panel_algo_health_expanded(
@@ -748,19 +775,31 @@ def render_dashboard(
                 )
             case "sectors":
                 if has_error(pos) or has_error(port):
-                    return _expanded_layout(*_exp_top, Panel("[red]Sectors data unavailable[/]", border_style="red"))
+                    return _expanded_layout(
+                        *_exp_top,
+                        Panel("[red]Sectors data unavailable[/]", border_style="red"),
+                    )
                 return _expanded_layout(*_exp_top, panel_sectors_expanded(srank, pos, port, sec_rot, irank))
             case "trades":
                 if has_error(rec):
-                    return _expanded_layout(*_exp_top, Panel("[red]Trade history unavailable[/]", border_style="red"))
+                    return _expanded_layout(
+                        *_exp_top,
+                        Panel("[red]Trade history unavailable[/]", border_style="red"),
+                    )
                 return _expanded_layout(*_exp_top, panel_trades_expanded(rec))
             case "economic":
                 if has_error(eco):
-                    return _expanded_layout(*_exp_top, Panel("[red]Economic data unavailable[/]", border_style="red"))
+                    return _expanded_layout(
+                        *_exp_top,
+                        Panel("[red]Economic data unavailable[/]", border_style="red"),
+                    )
                 return _expanded_layout(*_exp_top, panel_economic_expanded(eco, econ_cal))
             case "portfolio":
                 if has_error(port) or has_error(cfg):
-                    return _expanded_layout(*_exp_top, Panel("[red]Portfolio data unavailable[/]", border_style="red"))
+                    return _expanded_layout(
+                        *_exp_top,
+                        Panel("[red]Portfolio data unavailable[/]", border_style="red"),
+                    )
                 return _expanded_layout(
                     *_exp_top,
                     panel_portfolio_perf_expanded(port, cfg, risk=risk, perf=perf, perf_anl=perf_anl, pos=pos),
@@ -845,7 +884,16 @@ def run_once(compact: bool, data_source: str = "AWS") -> None:
                     if key == "q":
                         break
                     frame, view_mode = _run_once_update_frame_and_mode(key, frame, view_mode)
-                    _run_once_update_display(live, done, state, frame, view_mode, recovery, render_wrapper, data_source)
+                    _run_once_update_display(
+                        live,
+                        done,
+                        state,
+                        frame,
+                        view_mode,
+                        recovery,
+                        render_wrapper,
+                        data_source,
+                    )
                     time.sleep(0.125)
             except KeyboardInterrupt:
                 pass
@@ -860,9 +908,15 @@ def run_once(compact: bool, data_source: str = "AWS") -> None:
 
 
 def _run_watch_process_render(
-    current_result: Any, render_wrapper: _RenderWrapper, recovery: RenderRecovery,
-    is_loading: bool, current_last_load: float, interval: int, current_elapsed: float,
-    current_frame: int, view_mode: str
+    current_result: Any,
+    render_wrapper: _RenderWrapper,
+    recovery: RenderRecovery,
+    is_loading: bool,
+    current_last_load: float,
+    interval: int,
+    current_elapsed: float,
+    current_frame: int,
+    view_mode: str,
 ) -> tuple[Exception | None, Layout | None, str | None, bool, bool]:
     """Process rendering state and determine reload status.
 
@@ -875,7 +929,13 @@ def _run_watch_process_render(
     should_retry_load = False
 
     if current_result is None:
-        return render_error, render_layout, error_status, should_reload, should_retry_load
+        return (
+            render_error,
+            render_layout,
+            error_status,
+            should_reload,
+            should_retry_load,
+        )
 
     with render_wrapper._state_lock:
         render_wrapper.elapsed = current_elapsed
@@ -932,9 +992,18 @@ def _run_watch_render_display(
 
 
 def _run_watch_main_loop(
-    live: Live, state: _WatchState, state_lock: threading.Lock, render_wrapper: _RenderWrapper,
-    recovery: RenderRecovery, interval: int, data_source: str, active_threads: list,
-    active_threads_lock: threading.Lock, cleanup_dead_threads, reload, reload_thread
+    live: Live,
+    state: _WatchState,
+    state_lock: threading.Lock,
+    render_wrapper: _RenderWrapper,
+    recovery: RenderRecovery,
+    interval: int,
+    data_source: str,
+    active_threads: list,
+    active_threads_lock: threading.Lock,
+    cleanup_dead_threads,
+    reload,
+    reload_thread,
 ) -> None:
     """Main event loop for watch mode."""
     view_mode = "normal"
@@ -958,18 +1027,36 @@ def _run_watch_main_loop(
                 current_last_load = state.last_load
                 current_elapsed = state.elapsed
 
-            render_error, render_layout, error_status, should_reload, should_retry_load = \
-                _run_watch_process_render(
-                    current_result, render_wrapper, recovery, is_loading,
-                    current_last_load, interval, current_elapsed, current_frame, view_mode
-                )
+            (
+                render_error,
+                render_layout,
+                error_status,
+                should_reload,
+                should_retry_load,
+            ) = _run_watch_process_render(
+                current_result,
+                render_wrapper,
+                recovery,
+                is_loading,
+                current_last_load,
+                interval,
+                current_elapsed,
+                current_frame,
+                view_mode,
+            )
 
             if current_error and not error_status:
                 error_status = recovery.get_recovery_status()
 
             _run_watch_render_display(
-                live, current_result, current_error, error_status,
-                current_frame, render_error, render_layout, data_source,
+                live,
+                current_result,
+                current_error,
+                error_status,
+                current_frame,
+                render_error,
+                render_layout,
+                data_source,
             )
 
             if should_reload or should_retry_load:
@@ -1047,8 +1134,18 @@ def run_watch(interval: int, compact: bool, data_source: str = "AWS") -> None:
         render_wrapper.watch_interval = interval
         with Live(console=CONSOLE, refresh_per_second=8, screen=True) as live:
             _run_watch_main_loop(
-                live, state, state_lock, render_wrapper, recovery, interval, data_source,
-                active_threads, active_threads_lock, cleanup_dead_threads, reload, reload_thread
+                live,
+                state,
+                state_lock,
+                render_wrapper,
+                recovery,
+                interval,
+                data_source,
+                active_threads,
+                active_threads_lock,
+                cleanup_dead_threads,
+                reload,
+                reload_thread,
             )
     finally:
         _run_watch_shutdown_threads(active_threads, active_threads_lock, shutdown)

@@ -229,7 +229,7 @@ def _get_data_status(cur) -> dict[str, Any]:
             table_name = row["table_name"]
 
             # Extract max_age with consistent default of 1 day for unknown tables
-            max_age = rule.get("max_age_days")
+            max_age = rule.get("max_age_days") if rule is not None else None
             if max_age is None:
                 max_age = 1
                 if table_name in _fr:

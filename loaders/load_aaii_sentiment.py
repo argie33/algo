@@ -8,14 +8,12 @@ import sys
 import zipfile
 from datetime import date
 from io import BytesIO
-from typing import Optional
 
 import pandas as pd
 import requests
 
 from config.api_endpoints import get_aaii_sentiment_url
 from loaders.runner import run_loader
-from utils.infrastructure.timeout import ExecutionTimeout
 from utils.infrastructure.url_validator import validate_redirect_url, validate_url
 from utils.optimal_loader import OptimalLoader
 

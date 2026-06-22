@@ -54,20 +54,19 @@ def check_idempotency_key(cur, idempotency_key: str, endpoint: str, timeout_sec:
         )
         row = cur.fetchone()
         if row:
-            logger.info(f"Idempotency key cache hit: {endpoint} (key={idempotency_key[:16]}...)")
+            logger.info("Idempotency key cache hit: %s (key=%s...)", endpoint, idempotency_key[:16])
             try:
                 response = json.loads(row["response_data"])
                 if isinstance(response, dict):
                     return response
-                else:
-                    logger.error(f"Cached response is not a dict: {type(response)}")
-                    return None
+                logger.error("Cached response is not a dict: %s", type(response))
+                return None
             except (json.JSONDecodeError, TypeError) as e:
-                logger.error(f"Failed to deserialize cached response: {e}. Treating as cache miss.")
+                logger.error("Failed to deserialize cached response: %s. Treating as cache miss.", e)
                 return None
         return None
     except (
-        psycopg2.errors.UndefinedTable,
+        psycopg2.errors.UndefinedTable,  # pylint: disable=no-member
         psycopg2.OperationalError,
         psycopg2.DatabaseError,
     ):
@@ -103,18 +102,18 @@ def store_idempotency_key(cur, idempotency_key: str, endpoint: str, response_dat
             """,
             (idempotency_key, endpoint, response_json, response_json),
         )
-        logger.info(f"Stored idempotency key: {endpoint} (key={idempotency_key[:16]}...)")
+        logger.info("Stored idempotency key: %s (key=%s...)", endpoint, idempotency_key[:16])
         return True
     except (
-        psycopg2.errors.UndefinedTable,
+        psycopg2.errors.UndefinedTable,  # pylint: disable=no-member
         psycopg2.OperationalError,
         psycopg2.DatabaseError,
     ) as e:
-        logger.debug(f"Idempotency key storage skipped (table missing or DB error): {type(e).__name__}")
+        logger.debug("Idempotency key storage skipped (table missing or DB error): %s", type(e).__name__)
         return False
 
 
-def cleanup_expired_keys(cur, days_old: int = 7, batch_size: int = 1000, timeout_sec: int = 10) -> int:
+def cleanup_expired_keys(cur, days_old: int = 7, timeout_sec: int = 10) -> int:
     """Clean up expired idempotency keys older than specified days.
 
     Typically called by background job to prevent unbounded table growth.
@@ -122,7 +121,6 @@ def cleanup_expired_keys(cur, days_old: int = 7, batch_size: int = 1000, timeout
     Args:
         cur: Database cursor
         days_old: Delete keys older than this many days (default 7)
-        batch_size: Delete this many rows per batch
         timeout_sec: Query timeout in seconds
 
     Returns:
@@ -140,11 +138,11 @@ def cleanup_expired_keys(cur, days_old: int = 7, batch_size: int = 1000, timeout
         )
         deleted_count: int = int(cur.rowcount) if cur.rowcount else 0
         if deleted_count > 0:
-            logger.info(f"Cleaned up {deleted_count} expired idempotency keys")
+            logger.info("Cleaned up %s expired idempotency keys", deleted_count)
         return deleted_count
-    except (psycopg2.errors.UndefinedTable, psycopg2.DatabaseError, psycopg2.OperationalError) as e:
-        if isinstance(e, psycopg2.errors.UndefinedTable):
+    except (psycopg2.errors.UndefinedTable, psycopg2.DatabaseError, psycopg2.OperationalError) as e:  # pylint: disable=no-member
+        if isinstance(e, psycopg2.errors.UndefinedTable):  # pylint: disable=no-member
             logger.warning("Cleanup skipped: idempotency key table does not exist")
         else:
-            logger.error(f"Failed to clean up idempotency keys: {type(e).__name__}: {e}")
+            logger.error("Failed to clean up idempotency keys: %s: %s", type(e).__name__, e)
         return 0

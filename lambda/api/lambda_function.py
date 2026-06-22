@@ -127,14 +127,14 @@ def fetch_cloudfront_domain_from_secrets():
                     logger.warning("[CloudFront] Secret exists but domain is empty")
                     return None, "Secret exists but domain is empty"
 
+            except json.JSONDecodeError as e:
+                logger.warning(f"[CloudFront] Failed to parse secret JSON: {e}")
+                return None, f"Invalid secret format: {e}"
             except ValueError:
                 logger.info(
                     "[CloudFront] Secret 'algo/cloudfront-domain' not found in Secrets Manager (OK on first deploy)"
                 )
                 return None, "Secret not found"
-            except json.JSONDecodeError as e:
-                logger.warning(f"[CloudFront] Failed to parse secret JSON: {e}")
-                return None, f"Invalid secret format: {e}"
 
         except ImportError:
             logger.warning("[CloudFront] boto3 not available, skipping Secrets Manager fetch")
@@ -681,7 +681,11 @@ def validate_bearer_token(token: str | None) -> tuple:
         missing_claims = [claim for claim in required_claims if not payload.get(claim)]
         if missing_claims:
             logger.warning(f"JWT missing required claims: {missing_claims}")
-            return (False, None, f"Token missing required claims: {', '.join(missing_claims)}")
+            return (
+                False,
+                None,
+                f"Token missing required claims: {', '.join(missing_claims)}",
+            )
 
         # Manually verify client identity from either claim
         actual_client = payload.get("client_id")

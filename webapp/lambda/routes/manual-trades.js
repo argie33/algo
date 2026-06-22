@@ -106,13 +106,7 @@ router.post(
   createInputValidationMiddleware(inputSchemas.manualTrade),
   async (req, res) => {
     try {
-      const {
-        symbol,
-        trade_type,
-        quantity,
-        price,
-        execution_date,
-      } = req.body;
+      const { symbol, trade_type, quantity, price, execution_date } = req.body;
       const userId = req.user.sub;
 
       // Normalize trade type (middleware already validated)

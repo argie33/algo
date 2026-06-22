@@ -137,7 +137,7 @@ def _update_algo_config_key(cur, key: str, body: dict, actor: str) -> dict[str, 
         if not AlgoConfig.DEFAULTS.get(key):
             return error_response(400, "bad_request", f"Unknown config key: {key}")
 
-        _, expected_type, _ = AlgoConfig.DEFAULTS[key]
+        expected_type = AlgoConfig.DEFAULTS[key][1]
         # Validate bounds and type
         config = AlgoConfig()
         config._validate_value(key, str(new_value), expected_type)
