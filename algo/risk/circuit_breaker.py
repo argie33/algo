@@ -88,9 +88,9 @@ def _float(value, default=None, context=""):
                 raise ValueError(f"Invalid float {value!r} (NaN/Inf) {context}")
             return default
         return f
-    except (ValueError, TypeError):
+    except (ValueError, TypeError) as e:
         if default is None:
-            raise ValueError(f"Failed to convert {value!r} to float {context}")
+            raise ValueError(f"Failed to convert {value!r} to float {context}") from e
         return default
 
 

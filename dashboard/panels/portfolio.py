@@ -144,29 +144,34 @@ def panel_portfolio(port, cfg, risk=None, perf=None):
         )
 
     # Risk metrics (VaR, CVaR, Beta, concentration, Stressed VaR)
-    var95_val = safe_float(risk.get("var95") if risk else None, default=0.0) if risk and not risk.get("_error") else 0.0
-    if risk and not risk.get("_error") and var95_val > 0:
-        var_v = safe_float(risk.get("var95"), default=0.0)
-        cvar_v = safe_float(risk.get("cvar95"), default=0.0)
-        beta_v = safe_float(risk.get("beta"), default=0.0)
-        conc5_v = safe_float(risk.get("conc5"), default=0.0)
+    # CRITICAL: Do NOT default NULL risk metrics to 0.0 — that hides missing data!
+    # NULL risk data should render as None (empty) so missing calculations are visible,
+    # not silently appear as "0% risk" (which is catastrophically misleading)
+    var_v = safe_float(risk.get("var95") if risk and not risk.get("_error") else None, default=None)
+    if var_v is not None and var_v > 0:
+        cvar_v = safe_float(risk.get("cvar95"), default=None)
+        beta_v = safe_float(risk.get("beta"), default=None)
+        conc5_v = safe_float(risk.get("conc5"), default=None)
         svar_v = safe_float(risk.get("svar"), default=None)
-        conc_c = R if conc5_v >= 35 else (Y if conc5_v >= 25 else "white")
-        var_c = R if var_v >= 4 else (Y if var_v >= 2 else "white")
-        beta_c = R if beta_v >= 1.2 else (Y if beta_v >= 0.8 else G)
-        tbl.add_row(
-            cell("Value at Risk (95%):", f"[{var_c}]{var_v:.2f}%[/]"),
-            cell("Cond. VaR (95%):", f"[{var_c}]{cvar_v:.2f}%[/]"),
-        )
-        tbl.add_row(
-            cell("Portfolio Beta:", f"[{beta_c}]{beta_v:.2f}[/]"),
-            cell("Top 5 Concentration:", f"[{conc_c}]{conc5_v:.0f}%[/]"),
-        )
-        if svar_v is not None and svar_v > 0:
+
+        # Only render risk metrics if all critical fields are available
+        if cvar_v is not None and beta_v is not None and conc5_v is not None:
+            conc_c = R if conc5_v >= 35 else (Y if conc5_v >= 25 else "white")
+            var_c = R if var_v >= 4 else (Y if var_v >= 2 else "white")
+            beta_c = R if beta_v >= 1.2 else (Y if beta_v >= 0.8 else G)
             tbl.add_row(
-                cell("Stressed VaR:", f"[{R}]{svar_v:.2f}%[/]"),
-                Text(""),
+                cell("Value at Risk (95%):", f"[{var_c}]{var_v:.2f}%[/]"),
+                cell("Cond. VaR (95%):", f"[{var_c}]{cvar_v:.2f}%[/]"),
             )
+            tbl.add_row(
+                cell("Portfolio Beta:", f"[{beta_c}]{beta_v:.2f}[/]"),
+                cell("Top 5 Concentration:", f"[{conc_c}]{conc5_v:.0f}%[/]"),
+            )
+            if svar_v is not None and svar_v > 0:
+                tbl.add_row(
+                    cell("Stressed VaR:", f"[{R}]{svar_v:.2f}%[/]"),
+                    Text(""),
+                )
 
     return Panel(
         Group(header, tbl),

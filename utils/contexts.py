@@ -38,7 +38,7 @@ class DatabaseErrorContext:
         self.operation = operation
         self.table = table
         self.role = role
-        self.start_time = None
+        self.start_time: float | None = None
 
     def __enter__(self):
         self.start_time = time.time()
@@ -91,7 +91,7 @@ class LoaderErrorContext:
         self.symbol = symbol
         self.correlation_id = correlation_id
         self.operation_type = operation_type
-        self.start_time = None
+        self.start_time: float | None = None
         self.rows_inserted = 0
         self.rows_failed = 0
 

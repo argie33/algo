@@ -56,7 +56,7 @@ class SignalTrendMixin:
                 f"non-numeric values at indices {invalid_indices[:5]}{'...' if len(invalid_indices) > 5 else ''}. "
                 f"Cannot silently drop data points (breaks date alignment). "
                 f"Original error: {e}"
-            )
+            ) from e
 
         close = close[np.isfinite(close)]
         if len(close) < 200:

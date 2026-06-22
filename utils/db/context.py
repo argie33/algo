@@ -242,8 +242,8 @@ class DatabaseContext:
         self.correlation_id = correlation_id
         if correlation_id is None and enable_correlation_tracking:
             self.correlation_id = self._get_loader_correlation_id()
-        self.conn = None
-        self.cur = None
+        self.conn: Any = None
+        self.cur: Any = None
         self._externally_managed = False  # Track if connection is from pooled context
 
     @staticmethod

@@ -1075,7 +1075,7 @@ class PositionMonitor:
         Returns:
             list of adjustments made
         """
-        adjustments = []
+        adjustments: list[dict] = []
         ctx = DatabaseContext("write")
         with ctx as cur:
             cur.execute("""
@@ -1093,8 +1093,12 @@ class PositionMonitor:
                     alpaca_qty = self._fetch_alpaca_qty(alpaca_base_url, alpaca_key, alpaca_secret, symbol)
                     self._handle_qty_variance(cur, pos_id, symbol, db_qty, db_stop, alpaca_qty, adjustments)
                 except (psycopg2.DatabaseError, psycopg2.OperationalError) as e:
-                    logger.warning(f"  Warning: Could not check Alpaca position for {symbol}: {e}")
-                    continue
+                    error_msg = (
+                        f"Corporate action detection failed for {symbol}: Database error during qty variance handling. "
+                        f"Cannot proceed without complete position verification. {e}"
+                    )
+                    logger.error(error_msg)
+                    raise RuntimeError(error_msg) from e
 
             return adjustments
 

@@ -50,6 +50,7 @@ warn_unused_configs = true
 disallow_untyped_defs = false
 disallow_incomplete_defs = false
 disallow_untyped_calls = false
+check_untyped_defs = true
 ignore_missing_imports = true
 no_implicit_optional = true
 warn_redundant_casts = true
@@ -64,8 +65,9 @@ exclude = [
 [[tool.mypy.overrides]]
 module = [
     "utils.loaders.helpers",
+    "utils.decorators",
 ]
-ignore_errors = true  # Has SIGALRM (Unix-only signal) and legacy type issues — fix tracked separately
+ignore_errors = true  # Unix-only signals (SIGALRM) — not available on Windows
 
 [[tool.mypy.overrides]]
 module = [
@@ -73,13 +75,19 @@ module = [
 ]
 warn_unused_ignores = false  # msvcrt is Windows-only; try/except ImportError block makes ignores platform-dependent
 
+[[tool.mypy.overrides]]
+module = [
+    "utils.infrastructure.timeout",
+]
+ignore_errors = true  # Uses contextlib generics that require architectural rework
+
 [tool.ruff]
 line-length = 120
 target-version = "py310"
 
 [tool.ruff.lint]
 select = ["E", "F", "W", "I", "N", "C90", "UP", "B", "C4", "PIE", "T10", "LOG", "RUF", "A"]
-ignore = ["E203", "E501", "C901", "B904", "UP031", "RUF012"]
+ignore = ["E203", "E501", "UP031", "RUF012"]
 
 [tool.ruff.lint.per-file-ignores]
 "__init__.py" = ["F401"]
@@ -106,7 +114,7 @@ ignore = ["E203", "E501", "C901", "B904", "UP031", "RUF012"]
 "routes/utils.py" = ["E402"]
 
 [tool.ruff.lint.mccabe]
-max-complexity = 12
+max-complexity = 20
 
 [tool.ruff.lint.isort]
 known-first-party = ["algo", "utils", "loaders", "lambda", "config", "dashboard", "monitoring"]

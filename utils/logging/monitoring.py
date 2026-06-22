@@ -48,9 +48,9 @@ class TimeBlock:
         self.operation_name = operation_name
         self.log_level = getattr(logging, log_level.upper(), logging.INFO)
         self.raise_on_slow = raise_on_slow
-        self.start_time = None
-        self.end_time = None
-        self.duration_ms = None
+        self.start_time: float | None = None
+        self.end_time: float | None = None
+        self.duration_ms: float | None = None
 
     def __enter__(self):
         self.start_time = time.time()

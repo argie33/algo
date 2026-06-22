@@ -65,7 +65,7 @@ class ThresholdConfig:
             raise RuntimeError(
                 f"[CONFIG] Failed to load configuration: {e}. "
                 "Cannot proceed without authoritative config values. Check infrastructure config availability."
-            )
+            ) from e
 
     # ═══════════════════════════════════════════════════════════════════════════
     # SIGNAL STRENGTH THRESHOLDS (0-100 scale)

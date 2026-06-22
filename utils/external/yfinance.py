@@ -63,7 +63,7 @@ class YFinanceWrapper:
     """Wrapper for yfinance with AWS VPC compatibility."""
 
     _session = None
-    _last_session_time = 0
+    _last_session_time: float = 0
     SESSION_TIMEOUT = 3600  # Refresh session every hour
     _ticker_cache: dict[str, Any] = {}  # Cache ticker objects to reduce API calls
     _ticker_cache_lock = threading.Lock()

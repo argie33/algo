@@ -69,7 +69,7 @@ class LoaderConfigManager:
         )
         self._dynamodb_available: bool | None = None
         self._rds_connection_cache: int | None = None
-        self._rds_connection_cache_time = 0
+        self._rds_connection_cache_time: float = 0
         self._rds_cache_ttl = 30  # Cache RDS metrics for 30 seconds
 
     @classmethod

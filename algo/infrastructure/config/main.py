@@ -965,8 +965,8 @@ class AlgoConfig:
         Every critical key in VALIDATION_SCHEMA must be in DEFAULTS.
         Raises RuntimeError if inconsistencies are found.
         """
-        errors = []
-        warnings = []
+        errors: list[str] = []
+        warnings: list[str] = []
 
         # Check that all DEFAULTS keys have corresponding VALIDATION_SCHEMA entries
         for key, default_entry in self.DEFAULTS.items():
@@ -1206,8 +1206,8 @@ class AlgoConfig:
         Checks all keys marked as critical in VALIDATION_SCHEMA. Raises RuntimeError
         if any critical threshold is missing, zero, or out of valid range.
         """
-        errors = []
-        warnings = []
+        errors: list[str] = []
+        warnings: list[str] = []
 
         for key, (
             _schema_type,

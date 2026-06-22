@@ -50,9 +50,9 @@ class OptimalLoader:
     max_age_for_full_refresh: timedelta = timedelta(days=365)
 
     def __init__(self, backfill_days: int | None = None):
-        self._dedup = None
-        self._watermark = None
-        self._router = None
+        self._dedup: bool | None = None
+        self._watermark: Any = None
+        self._router: Any = None
         self._backfill_days = backfill_days or int(os.getenv("BACKFILL_DAYS", "0"))
         self._schema_cols_cache: set[str] | None = None  # cached column list for _bulk_insert
         self._constraint_checked = False  # track if we've verified/fixed constraint
