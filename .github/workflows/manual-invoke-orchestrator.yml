@@ -90,11 +90,12 @@ jobs:
           echo "Payload: $PAYLOAD"
           echo ""
 
+          # Write payload to file to avoid shell quoting/escaping issues
+          echo "$PAYLOAD" > /tmp/lambda_payload.json
           AWS_INVOKE_EXIT=0
           RESULT=$(aws lambda invoke \
             --function-name "$LAMBDA_NAME" \
-            --payload "$(echo "$PAYLOAD" | base64 -w 0)" \
-            --cli-binary-format raw-in-base64-out \
+            --payload file:///tmp/lambda_payload.json \
             --log-type Tail \
             --region us-east-1 \
             /tmp/response.json 2>/tmp/invoke_stderr.txt) || AWS_INVOKE_EXIT=$?
