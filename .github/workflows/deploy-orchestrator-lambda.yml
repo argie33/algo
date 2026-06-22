@@ -44,6 +44,7 @@ jobs:
           cp -r algo $PKG_DIR/
           cp -r config $PKG_DIR/
           cp -r utils $PKG_DIR/
+          cp -r monitoring $PKG_DIR/
 
           find $PKG_DIR -type d -name "__pycache__" -exec rm -rf {} + 2>/dev/null || true
           find $PKG_DIR -type f -name "*.pyc" -delete
