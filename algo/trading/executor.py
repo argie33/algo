@@ -28,6 +28,7 @@ from algo.trading.exceptions import (
 )
 from algo.trading.executor_entry_handler import EntryHandler
 from algo.trading.executor_exit_handler import ExitHandler
+from algo.trading.executor_strategies import create_execution_mode_strategy
 from algo.trading.notification_dispatcher import NotificationDispatcher
 from algo.trading.order_manager import OrderManager
 from algo.trading.position_tracker import PositionTracker
@@ -125,7 +126,9 @@ class TradeExecutor:
                 "Silently defaulting to paper would hide configuration errors. "
                 "Check configuration and restart."
             )
-        self.execution_mode = str(config["execution_mode"]).lower()
+        mode_str = str(config["execution_mode"]).lower()
+        self.execution_mode_strategy = create_execution_mode_strategy(mode_str)
+        self.execution_mode = mode_str
 
         # Validate R-multiple config values at init time (fail-fast) — must come before
         # handler initializations since EntryHandler and ExitHandler read these attributes
@@ -145,6 +148,10 @@ class TradeExecutor:
         self.t2_target_r_multiple = float(config["t2_target_r_multiple"])
         self.t3_target_r_multiple = float(config["t3_target_r_multiple"])
 
+        # Resolve Alpaca base URL using execution mode strategy
+        self.alpaca_base_url = self.execution_mode_strategy.resolve_base_url(self.alpaca_base_url)
+        self.is_paper = self.execution_mode_strategy.resolve_paper_mode()
+
         # Initialize position tracker specialist for all position DB operations
         self.position_tracker = PositionTracker(self.alpaca_key, self.alpaca_secret, self.alpaca_base_url)
 
@@ -160,42 +167,9 @@ class TradeExecutor:
         # Initialize order manager specialist for order submission and validation
         self.order_manager = OrderManager(self.alpaca_key, self.alpaca_secret, self.alpaca_base_url)
 
-        live_ack = os.getenv("ALGO_LIVE_TRADING", "").strip()
-        paper_flag = os.getenv("ALPACA_PAPER_TRADING", "false").strip().lower()
-        url_says_paper = "paper" in (self.alpaca_base_url or "").lower()
-        live_intent = (
-            self.execution_mode == "auto"
-            and live_ack == "I_UNDERSTAND_REAL_MONEY"
-            and paper_flag != "true"
-            and not url_says_paper
+        self.execution_mode_strategy.validate_and_log_initialization(
+            self.alpaca_key, self.alpaca_secret, self.alpaca_base_url
         )
-
-        logger.info(
-            f"[EXECUTOR] mode={self.execution_mode} live_intent={live_intent} "
-            f"({'LIVE TRADING  api.alpaca.markets' if live_intent else 'PAPER TRADING  paper-api.alpaca.markets'}) | "
-            f"live_ack={'SET' if live_ack == 'I_UNDERSTAND_REAL_MONEY' else 'NOT SET'} "
-            f"paper_flag={paper_flag} url_says_paper={url_says_paper} "
-            f"key_set={bool(self.alpaca_key)} secret_set={bool(self.alpaca_secret)}"
-        )
-
-        if not live_intent:
-            # Force paper trading - CRITICAL: explicitly use paper URL, ignore APCA_API_BASE_URL
-            self.alpaca_base_url = "https://paper-api.alpaca.markets"
-            self.is_paper = True
-            if self.execution_mode == "auto":
-                # execution_mode is auto but live_intent is False - log exactly why
-                reasons = []
-                if live_ack != "I_UNDERSTAND_REAL_MONEY":
-                    reasons.append(f"ALGO_LIVE_TRADING not set to 'I_UNDERSTAND_REAL_MONEY' (got '{live_ack}')")
-                if paper_flag == "true":
-                    reasons.append("ALPACA_PAPER_TRADING=true")
-                if url_says_paper:
-                    reasons.append(f"APCA_API_BASE_URL contains 'paper': {self.alpaca_base_url}")
-                logger.warning(
-                    f"[EXECUTOR] execution_mode=auto but forced to PAPER. Reason(s): {'; '.join(reasons) or 'unknown'}"
-                )
-        else:
-            self.is_paper = False
 
     def _setup_position_data(
         self,

@@ -346,7 +346,7 @@ class EndToEndIntegrationTest:
                 # Check for key phase-related functions/patterns
                 phase_indicators = {
                     "phase_1_logic": "_trigger_loader_failsafe" in source,
-                    "halt_flag_check": "_check_halt_flag" in source,
+                    "halt_flag_check": "halt_manager.check_halt_flag" in source or "HaltFlagManager" in source,
                     "data_validation": "data.*fresh" in source.lower(),
                     "phase_execution": "Phase" in source,
                 }

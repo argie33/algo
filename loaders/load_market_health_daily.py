@@ -17,8 +17,13 @@ import pandas as pd
 import psycopg2
 
 from loaders.technical_indicators import compute_moving_averages
+from loaders.market_health_fetchers import (
+    VIXFetcher,
+    PutCallRatioFetcher,
+    YieldCurveFetcher,
+    BreadthFetcher,
+)
 from utils.db.context import DatabaseContext
-from utils.infrastructure.circuit_breaker import CircuitBreaker, DataImportance
 from utils.infrastructure.timezone import EASTERN_TZ
 from utils.optimal_loader import OptimalLoader
 
@@ -26,11 +31,11 @@ logger = logging.getLogger(__name__)
 
 
 class MarketHealthDailyLoader(OptimalLoader):
-    """Market health metrics loader with standardized circuit breaker patterns.
+    """Market health metrics loader.
 
-    CRITICAL DATA: SPY prices (market_health computation cannot proceed without)
-    REQUIRED DATA: Market breadth (A/D ratio, new highs/lows)
-    OPTIONAL ENRICHMENTS: VIX, put/call ratio, yield curve (missing is OK, computation continues)
+    Uses specialized fetchers for VIX, put/call, yield curve, breadth data.
+    CRITICAL: SPY prices (required for market_health computation)
+    OPTIONAL: VIX, put/call ratio, yield curve (missing is OK, computation continues)
     """
 
     table_name = "market_health_daily"
@@ -39,53 +44,23 @@ class MarketHealthDailyLoader(OptimalLoader):
 
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
-        # Circuit breakers for optional enrichments
-        # These follow GRACEFUL DEGRADATION pattern: warn on failure, continue with None
-        self._vix_breaker = CircuitBreaker(
-            name="yfinance_vix",
-            failure_threshold=3,
-            recovery_timeout_sec=300,
-            importance=DataImportance.OPTIONAL,
-        )
-        self._put_call_breaker = CircuitBreaker(
-            name="yfinance_put_call",
-            failure_threshold=3,
-            recovery_timeout_sec=300,
-            importance=DataImportance.OPTIONAL,
-        )
-        self._yield_curve_breaker = CircuitBreaker(
-            name="economic_metrics_yield_curve",
-            failure_threshold=3,
-            recovery_timeout_sec=300,
-            importance=DataImportance.OPTIONAL,
-        )
+        # Initialize fetchers for specialized data sources
+        self._vix_fetcher = VIXFetcher()
+        self._put_call_fetcher = PutCallRatioFetcher()
+        self._yield_curve_fetcher = YieldCurveFetcher()
+        self._breadth_fetcher = BreadthFetcher()
 
     def fetch_vix_with_breaker(self, start: date, end: date) -> dict[str, Any]:
-        """Fetch VIX data with circuit breaker protection (OPTIONAL enrichment)."""
-        result = self._vix_breaker.execute(
-            fetch_func=lambda: self._fetch_vix_data(start, end),
-            importance=DataImportance.OPTIONAL,
-            fallback_value={},
-        )
-        return result if isinstance(result, dict) else {}
+        """Fetch VIX data with circuit breaker protection."""
+        return self._vix_fetcher.fetch(start, end)
 
     def fetch_put_call_with_breaker(self, eval_date: date) -> float | None:
-        """Fetch put/call ratio with circuit breaker protection (OPTIONAL enrichment)."""
-        result = self._put_call_breaker.execute(
-            fetch_func=lambda: self._fetch_put_call_ratio(eval_date),
-            importance=DataImportance.OPTIONAL,
-            fallback_value=None,
-        )
-        return result if isinstance(result, (float, type(None))) else None
+        """Fetch put/call ratio with circuit breaker protection."""
+        return self._put_call_fetcher.fetch(eval_date)
 
     def fetch_yield_curve_with_breaker(self, start: date, end: date) -> dict[str, Any]:
-        """Fetch yield curve data with circuit breaker protection (OPTIONAL enrichment)."""
-        result = self._yield_curve_breaker.execute(
-            fetch_func=lambda: self._fetch_yield_curve_data(start, end),
-            importance=DataImportance.OPTIONAL,
-            fallback_value={},
-        )
-        return result if isinstance(result, dict) else {}
+        """Fetch yield curve data with circuit breaker protection."""
+        return self._yield_curve_fetcher.fetch(start, end)
 
     def fetch_incremental(self, symbol: str = "SPY", since: date | None = None):
         """Fetch SPY price data and compute market health metrics."""

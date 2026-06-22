@@ -92,9 +92,6 @@ class PriceLoader(OptimalLoader):
         self.primary_key = ("symbol", "date")
         self.watermark_field = "date"
         super().__init__(*args, **kwargs)
-        self.tracker = None
-        self.watermark_mgr = None
-        self.run_id = None
 
         # Initialize specialists
         self._is_eod_pipeline = self._detect_eod_pipeline_context()
@@ -158,12 +155,14 @@ class PriceLoader(OptimalLoader):
         """
         from datetime import datetime
 
+        eod_window_start_min = -10
+        eod_window_end_min = 120
+
         now_et = datetime.now(EASTERN_TZ)
         eod_start_et = now_et.replace(hour=16, minute=5, second=0, microsecond=0)  # 4:05 PM ET
 
-        # Check if we're within 2 hours of EOD start (accounts for possible scheduler delays)
         time_since_eod_start = (now_et - eod_start_et).total_seconds() / 60
-        if -10 < time_since_eod_start < 120:  # -10 min to +120 min relative to 4:05 PM
+        if eod_window_start_min < time_since_eod_start < eod_window_end_min:
             logger.info(
                 f"[CONTEXT] Running during EOD pipeline "
                 f"({time_since_eod_start:.0f} min from 4:05 PM ET), using aggressive rate limiting"
@@ -1307,7 +1306,7 @@ class PriceLoader(OptimalLoader):
 
     def transform(self, rows):
         """Validate and filter rows. Phase 1: Reject invalid ticks. Integrated validation framework."""
-        return self.transformer.validate_and_transform(rows, tracker=self.tracker)
+        return self.transformer.validate_and_transform(rows)
 
     def _validate_row(self, row: dict) -> bool:
         """Add price-range sanity check on top of default PK check."""
@@ -1320,30 +1319,6 @@ class PriceLoader(OptimalLoader):
                 f"[PRICE_VALIDATION] Price validation failed: row is missing required fields or has invalid types: {e}. "
                 "Price data integrity check is mandatory."
             )
-
-    def start_provenance_tracking(self):
-        """Initialize Phase 1 data integrity components."""
-        with DatabaseContext() as cur:
-            db_conn = cur.connection
-            self.tracker = DataProvenanceTracker(
-                loader_name="loadpricedaily",
-                table_name="price_daily",
-                db_conn=db_conn,
-            )
-            self.watermark_mgr = WatermarkManager(
-                loader_name="loadpricedaily",
-                table_name="price_daily",
-                db_conn=db_conn,
-                granularity="symbol",
-            )
-            self.run_id = self.tracker.start_run(source_api="yfinance")
-            logger.info("[Phase 1] Started provenance tracking: run_id=%s", self.run_id)
-
-    def end_provenance_tracking(self, success: bool = True):
-        """Finalize Phase 1 data integrity tracking."""
-        if self.tracker and self.run_id:
-            self.tracker.end_run(success=success)
-            logger.info("[Phase 1] Ended provenance tracking: run_id=%s", self.run_id)
 
     def _validate_and_check_preconditions(self) -> None:
         """Validate preflight conditions: schema and market close availability."""

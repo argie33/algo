@@ -100,44 +100,6 @@ class Orchestrator:
     def cleanup(self) -> None:
         """No-op: RDS Proxy handles connection cleanup."""
 
-    # ---------- Database health monitoring (delegated to specialist) ----------
-
-    def _check_db_connectivity(self) -> bool:
-        """Delegate to DatabaseHealthMonitor."""
-        return self.db_monitor.check_db_connectivity()
-
-    def _check_halt_flag(self) -> bool:
-        """Delegate to HaltFlagManager."""
-        return self.halt_manager.check_halt_flag()
-
-    def _set_halt_flag(self, reason: str = "") -> bool:
-        """Delegate to HaltFlagManager."""
-        return self.halt_manager.set_halt_flag(reason)
-
-    def _clear_halt_flag(self, reason: str = "") -> bool:
-        """Delegate to HaltFlagManager."""
-        return self.halt_manager.clear_halt_flag(reason)
-
-    def _check_connection_pool_health(self) -> None:
-        """Delegate to DatabaseHealthMonitor."""
-        self.db_monitor.check_connection_pool_health()
-
-    def _health_check_diagnostics(self) -> None:
-        """Delegate to DatabaseHealthMonitor."""
-        self.db_monitor.health_check_diagnostics()
-
-    def _verify_task_stopped(
-        self,
-        ecs: Any,
-        cluster: str,
-        task_arn: str,
-        loader_name: str,
-        max_retries: int = 3,
-        retry_delay_sec: float = 1.0,
-    ) -> bool:
-        """Delegate to DatabaseHealthMonitor."""
-        return self.db_monitor.verify_task_stopped(ecs, cluster, task_arn, loader_name, max_retries, retry_delay_sec)
-
     def _kill_long_running_loaders(self) -> None:
         """CRITICAL: Kill hung loaders (analytics + critical-path) if approaching next orchestrator run.
 
@@ -283,7 +245,7 @@ class Orchestrator:
                         continue
 
                     # ISSUE #5: Verify task actually stopped (with retries)
-                    if self._verify_task_stopped(ecs, cluster, task_arn, loader_name):
+                    if self.db_monitor.verify_task_stopped(ecs, cluster, task_arn, loader_name):
                         self.log_phase_result(
                             0,
                             "oom_prevention",
@@ -488,9 +450,9 @@ class Orchestrator:
             degraded_status = result.status == "degraded"
             if degraded_status:
                 logger.info(f"[DEGRADED_MODE] Phase 1 returned degraded status: {result.error}")
-                self._set_halt_flag(f"Phase 1 degraded: {result.error}")
+                self.halt_manager.set_halt_flag(f"Phase 1 degraded: {result.error}")
             elif result.status == "ok":
-                self._clear_halt_flag(f"Phase 1 verified data is fresh at {datetime.now(timezone.utc).isoformat()}")
+                self.halt_manager.clear_halt_flag(f"Phase 1 verified data is fresh at {datetime.now(timezone.utc).isoformat()}")
         except (ValueError, KeyError, AttributeError) as e:
             logger.warning(f"Failed to manage halt flag after Phase 1: {e}")
 
@@ -584,7 +546,7 @@ class Orchestrator:
         Returns:
             OrchestratorPhaseExecutor ready to execute all phases.
         """
-        executor = OrchestratorPhaseExecutor(config=self.config, halt_check_fn=self._check_halt_flag)
+        executor = OrchestratorPhaseExecutor(config=self.config, halt_check_fn=self.halt_manager.check_halt_flag)
 
         # Wire phase executor functions from registry
         phase_executors: dict[int | str, Any] = {
@@ -804,7 +766,7 @@ class Orchestrator:
                 return report
 
             logger.info("\n[CHECK] Database connectivity...")
-            if not self._check_db_connectivity():
+            if not self.db_monitor.check_db_connectivity():
                 logger.error("[DB_ERROR] Database connectivity check FAILED")
                 logger.error("Check CloudWatch alarms for database availability. Returning skipped status.")
                 report = cast(dict[str, Any], self._final_report())
@@ -815,13 +777,13 @@ class Orchestrator:
                 logger.info("[OK] Database connectivity check passed")
 
             logger.info("\n[CHECK] Monitoring RDS connection pool...")
-            self._check_connection_pool_health()
+            self.db_monitor.check_connection_pool_health()
 
             logger.info("\n[CHECK] Killing long-running analytics loaders...")
             self._kill_long_running_loaders()
 
             logger.info("\n[HEALTH CHECK] System diagnostics before Phase 1:")
-            self._health_check_diagnostics()
+            self.db_monitor.health_check_diagnostics()
 
             executor = self._setup_executor()
             with TimeBlock("orchestrator_executor"):

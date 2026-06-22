@@ -17,7 +17,7 @@ import psycopg2
 logger = logging.getLogger(__name__)
 
 from loaders.runner import run_loader
-from utils.db.context import DatabaseContext
+from utils.loaders import execute_query
 from utils.optimal_loader import OptimalLoader
 
 
@@ -29,33 +29,30 @@ class GrowthMetricsLoader(OptimalLoader):
     def fetch_incremental(self, symbol: str, since: date | None):
         """Compute multi-year growth metrics from annual income statement."""
         try:
-            with DatabaseContext("read") as cur:
-                # Fetch up to 10 years of financials to calculate 1Y, 3Y, 5Y growth
-                cur.execute(
-                    """
-                    SELECT fiscal_year, revenue, earnings_per_share
-                    FROM annual_income_statement
-                    WHERE symbol = %s
-                    ORDER BY fiscal_year DESC
-                    LIMIT 10
-                """,
-                    (symbol,),
-                )
+            # Fetch up to 10 years of financials to calculate 1Y, 3Y, 5Y growth
+            rows = execute_query(
+                """
+                SELECT fiscal_year, revenue, earnings_per_share
+                FROM annual_income_statement
+                WHERE symbol = %s
+                ORDER BY fiscal_year DESC
+                LIMIT 10
+            """,
+                (symbol,),
+            )
 
-                rows = cur.fetchall()
-
-                if not rows or len(rows) < 1:
-                    return None
-
-                # Sort by year ascending for easier calculation
-                rows = list(reversed(rows))
-
-                latest = rows[-1]  # Most recent year
-                metrics = self._compute_metrics(symbol, latest, rows)
-
-                if metrics:
-                    return [metrics]
+            if not rows or len(rows) < 1:
                 return None
+
+            # Sort by year ascending for easier calculation
+            rows = list(reversed(rows))
+
+            latest = rows[-1]  # Most recent year
+            metrics = self._compute_metrics(symbol, latest, rows)
+
+            if metrics:
+                return [metrics]
+            return None
 
         except (psycopg2.DatabaseError, psycopg2.OperationalError) as e:
             raise RuntimeError(f"Operation failed: {e}") from e

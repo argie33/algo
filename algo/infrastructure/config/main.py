@@ -1750,58 +1750,6 @@ class AlgoConfig:
         self._audit_config_sources()
         logger.info("[AlgoConfig] Reload completed with validation")
 
-    def get_staleness_windows(self) -> dict[str, int]:
-        """Deprecated: Use config.data_patrol.get_staleness_windows() instead.
-
-        Get data patrol staleness thresholds (days) for all data types.
-        """
-        logger.warning("get_staleness_windows() is deprecated. Use config.data_patrol.get_staleness_windows() instead.")
-        return cast(dict[str, int], self.data_patrol.get_staleness_windows())
-
-    def get_coverage_thresholds(self) -> dict[str, int]:
-        """Deprecated: Use config.data_patrol.get_coverage_thresholds() instead."""
-        logger.warning(
-            "get_coverage_thresholds() is deprecated. Use config.data_patrol.get_coverage_thresholds() instead."
-        )
-        return cast(dict[str, int], self.data_patrol.get_coverage_thresholds())
-
-    def get_price_sanity_config(self) -> dict[str, Any]:
-        """Deprecated: Use config.data_patrol.get_price_sanity_config() instead."""
-        logger.warning(
-            "get_price_sanity_config() is deprecated. Use config.data_patrol.get_price_sanity_config() instead."
-        )
-        return cast(dict[str, Any], self.data_patrol.get_price_sanity_config())
-
-    def get_volume_config(self) -> dict[str, Any]:
-        """Deprecated: Use config.data_patrol.get_volume_config() instead."""
-        logger.warning("get_volume_config() is deprecated. Use config.data_patrol.get_volume_config() instead.")
-        return cast(dict[str, Any], self.data_patrol.get_volume_config())
-
-    def get_quality_config(self) -> dict[str, Any]:
-        """Deprecated: Use config.data_patrol.get_quality_config() instead."""
-        logger.warning("get_quality_config() is deprecated. Use config.data_patrol.get_quality_config() instead.")
-        return cast(dict[str, Any], self.data_patrol.get_quality_config())
-
-    def get_cross_validation_config(self) -> dict[str, Any]:
-        """Deprecated: Use config.data_patrol.get_cross_validation_config() instead."""
-        logger.warning(
-            "get_cross_validation_config() is deprecated. Use config.data_patrol.get_cross_validation_config() instead."
-        )
-        return cast(dict[str, Any], self.data_patrol.get_cross_validation_config())
-
-    def get_corporate_actions_config(self) -> dict[str, Any]:
-        """Deprecated: Use config.data_patrol.get_corporate_actions_config() instead."""
-        logger.warning(
-            "get_corporate_actions_config() is deprecated. "
-            "Use config.data_patrol.get_corporate_actions_config() instead."
-        )
-        return cast(dict[str, Any], self.data_patrol.get_corporate_actions_config())
-
-    def get_loader_contracts(self) -> dict[str, dict[str, Any]]:
-        """Deprecated: Use config.data_patrol.get_loader_contracts() instead."""
-        logger.warning("get_loader_contracts() is deprecated. Use config.data_patrol.get_loader_contracts() instead.")
-        return cast(dict[str, dict[str, Any]], self.data_patrol.get_loader_contracts())
-
     def __repr__(self):
         return f"<AlgoConfig {len(self._config)} keys>"
 

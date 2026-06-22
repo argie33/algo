@@ -21,7 +21,7 @@ from datetime import date
 from typing import Any
 
 from loaders.runner import run_loader
-from utils.db.context import DatabaseContext
+from utils.loaders import fetch_one
 from utils.optimal_loader import OptimalLoader
 
 logger = logging.getLogger(__name__)
@@ -34,40 +34,37 @@ class QualityMetricsLoader(OptimalLoader):
 
     def fetch_incremental(self, symbol: str, since: date | None):
         """Compute quality metrics from balance sheet and income statement."""
-        with DatabaseContext("read") as cur:
-            cur.execute(
-                """
-                SELECT revenue, operating_income, net_income
-                FROM annual_income_statement
-                WHERE symbol = %s
-                ORDER BY fiscal_year DESC
-                LIMIT 1
-            """,
-                (symbol,),
-            )
-            income_row = cur.fetchone()
+        income_row = fetch_one(
+            """
+            SELECT revenue, operating_income, net_income
+            FROM annual_income_statement
+            WHERE symbol = %s
+            ORDER BY fiscal_year DESC
+            LIMIT 1
+        """,
+            (symbol,),
+        )
 
-            cur.execute(
-                """
-                SELECT total_assets, stockholders_equity, current_assets,
-                       total_liabilities, current_liabilities, inventory
-                FROM annual_balance_sheet
-                WHERE symbol = %s
-                ORDER BY fiscal_year DESC
-                LIMIT 1
-            """,
-                (symbol,),
-            )
-            balance_row = cur.fetchone()
+        balance_row = fetch_one(
+            """
+            SELECT total_assets, stockholders_equity, current_assets,
+                   total_liabilities, current_liabilities, inventory
+            FROM annual_balance_sheet
+            WHERE symbol = %s
+            ORDER BY fiscal_year DESC
+            LIMIT 1
+        """,
+            (symbol,),
+        )
 
-            # Require at least income statement; balance sheet is optional
-            if not income_row:
-                return None
-
-            metrics = self._compute_metrics(symbol, income_row, balance_row)
-            if metrics:
-                return [metrics]
+        # Require at least income statement; balance sheet is optional
+        if not income_row:
             return None
+
+        metrics = self._compute_metrics(symbol, income_row, balance_row)
+        if metrics:
+            return [metrics]
+        return None
 
     @staticmethod
     def _compute_metrics(symbol: str, income: tuple, balance: tuple | None) -> dict | None:
