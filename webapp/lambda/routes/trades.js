@@ -7,17 +7,13 @@
 const express = require("express");
 
 const { query: dbQuery, safeFloat, safeInt } = require("../utils/database");
-const { authenticateToken } = require("../middleware/auth");
 const {
   sendSuccess,
   sendError,
   sendPaginated,
 } = require("../utils/apiResponse");
+const { validateQueryResult } = require("../utils/responseValidation");
 const logger = require("../utils/logger");
-const {
-  validateQueryResult,
-  validateAndCoerceRows,
-} = require("../utils/responseValidation");
 const router = express.Router();
 
 // Alpaca API service
