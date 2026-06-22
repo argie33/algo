@@ -3,9 +3,6 @@
 import json
 import logging
 
-
-logger = logging.getLogger(__name__)
-
 from rich.panel import Panel
 from rich.text import Text
 
@@ -18,6 +15,9 @@ from ..utilities import (
     R,
     Y,
 )
+
+
+logger = logging.getLogger(__name__)
 
 
 def _score_cell(v):

@@ -16,16 +16,16 @@ except ImportError as e:
         return lambda fn: fn
 
 
-from rich import box
-from rich.console import Group
-from rich.panel import Panel
-from rich.rule import Rule
-from rich.table import Table
-from rich.text import Text
+from rich import box  # noqa: E402
+from rich.console import Group  # noqa: E402
+from rich.panel import Panel  # noqa: E402
+from rich.rule import Rule  # noqa: E402
+from rich.table import Table  # noqa: E402
+from rich.text import Text  # noqa: E402
 
-from ..formatter_strategies import TierFormatter
-from ..formatters import mini_bar
-from ..utilities import (
+from ..formatter_strategies import TierFormatter  # noqa: E402
+from ..formatters import mini_bar  # noqa: E402
+from ..utilities import (  # noqa: E402
     TIER_COLOR,
     G,
     R,
@@ -34,7 +34,7 @@ from ..utilities import (
 
 
 _tier_formatter = TierFormatter()
-from ._helpers import _error_panel
+from ._helpers import _error_panel  # noqa: E402
 
 
 @register_panel(

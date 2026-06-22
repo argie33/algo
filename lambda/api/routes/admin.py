@@ -32,7 +32,7 @@ from utils.validation import CognitoValidator
 
 # Add parent directory to sys.path to enable imports from lambda/api module
 sys.path.insert(0, str(Path(__file__).parent.parent))
-from api_types import JWTClaims, RouteBody, RouteParams, RouteResponse
+from api_types import JWTClaims, RouteBody, RouteParams, RouteResponse  # noqa: E402
 
 
 logger = logging.getLogger(__name__)
