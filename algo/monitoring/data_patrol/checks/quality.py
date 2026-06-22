@@ -156,6 +156,7 @@ class QualityChecker(BaseCheck):
             # Mark suspicious OHLC in database
             if ident_count > 0:
                 try:
+                    cur.execute("SAVEPOINT mark_suspicious_ohlc")
                     cur.execute(
                         """
                         UPDATE price_daily
@@ -165,6 +166,7 @@ class QualityChecker(BaseCheck):
                         (ident_symbols,),
                     )
                 except (psycopg2.DatabaseError, psycopg2.OperationalError) as e:
+                    cur.execute("ROLLBACK TO SAVEPOINT mark_suspicious_ohlc")
                     logger.warning(f"Could not mark suspicious OHLC: {e}")
 
             if ident_count > ident_threshold:
