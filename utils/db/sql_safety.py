@@ -94,6 +94,7 @@ SAFE_TABLES = {
     "earnings_history",
     "earnings_calendar",
     "earnings_estimates",
+    "earnings_estimate_revisions",
     "earnings_revisions",
     # Fundamental metrics
     "growth_metrics",
