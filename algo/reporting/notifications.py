@@ -53,7 +53,13 @@ class TradeNotificationService:
         """Format trade entry notification."""
         try:
             details = json.loads(event["details"]) if isinstance(event["details"], str) else event["details"]
-            symbol = event.get("symbol") or details.get("symbol", "?")
+            symbol = event.get("symbol") or details.get("symbol")
+            if not symbol:
+                raise ValueError(
+                    f"CRITICAL: Trade entry event missing symbol. "
+                    f"Cannot format notification without knowing which symbol was entered. "
+                    f"Audit log corruption: event={event.get('id')}, details={details}"
+                )
             entry_price = details.get("entry_price")
             shares = details.get("shares")
             stop_loss = details.get("stop_loss")
@@ -74,11 +80,23 @@ Time:         {event["created_at"].strftime("%H:%M:%S")}
         """Format trade exit notification."""
         try:
             details = json.loads(event["details"]) if isinstance(event["details"], str) else event["details"]
-            symbol = event.get("symbol") or details.get("symbol", "?")
+            symbol = event.get("symbol") or details.get("symbol")
+            if not symbol:
+                raise ValueError(
+                    f"CRITICAL: Trade exit event missing symbol. "
+                    f"Cannot format notification without knowing which symbol was exited. "
+                    f"Audit log corruption: event={event.get('id')}, details={details}"
+                )
             exit_price = details.get("exit_price")
             shares = details.get("shares")
             pnl = details.get("pnl")
-            exit_reason = details.get("reason", "unknown")
+            exit_reason = details.get("reason")
+            if not exit_reason:
+                raise ValueError(
+                    f"CRITICAL: Trade exit event missing reason. "
+                    f"Cannot format notification without knowing exit reason (stop, target, other). "
+                    f"Audit log corruption: symbol={symbol}, event={event.get('id')}"
+                )
 
             return f"""
 [EXIT] TRADE EXIT -- {symbol}

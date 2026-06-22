@@ -34,7 +34,12 @@ class PositionSizerSpecialist:
         price_diff = float(entry_price) - float(stop_loss)
 
         if price_diff <= 0:
-            return 0
+            raise ValueError(
+                f"CRITICAL: Invalid stop loss configuration. "
+                f"Entry price ${entry_price:.2f} <= stop loss ${stop_loss:.2f}. "
+                f"Stop loss must be below entry price. Cannot calculate valid risk per share. "
+                f"Check position_sizer_specialist configuration."
+            )
 
         shares = int(risk_amount / price_diff)
         max_shares = int((float(portfolio_value) * self.max_position_size_pct / 100) / float(entry_price))

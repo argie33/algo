@@ -545,7 +545,16 @@ def run(
         return PhaseResult(7, "signal_generation", "halted", {"qualified_trades": []}, True, msg)
 
     if exposure_constraints and exposure_constraints.get("halt_new_entries"):
-        reason = exposure_constraints.get("halt_reason", "Exposure policy halted new entries")
+        reason = exposure_constraints.get("halt_reason")
+        if not reason:
+            logger.critical(
+                "CRITICAL: Exposure policy halted entries but no halt_reason provided. "
+                "Cannot determine why trading is halted. Exposure policy data incomplete."
+            )
+            raise ValueError(
+                "Exposure constraints: halt_new_entries=True but halt_reason missing. "
+                "Must provide explicit reason for halt."
+            )
         logger.warning(f"[PHASE 7] {reason}")
         log_phase_result_fn(7, "signal_generation", "halt", reason)
         return PhaseResult(7, "signal_generation", "halted", {"qualified_trades": []}, True, reason)

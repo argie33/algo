@@ -216,21 +216,32 @@ class ExposurePolicy:
 
         # CRITICAL: target_hits configuration must be present. Do not mask missing config with fallback to 0.
         if target_hits is None:
-            logger.warning(f"SKIP {symbol}: target_hits configuration missing (NULL). Cannot evaluate exposure policy.")
-            return None
+            raise ValueError(
+                f"CRITICAL: {symbol} — target_hits is NULL in algo_trades. "
+                f"Cannot evaluate exposure policy without target hit history. "
+                f"Database schema or trade data corrupted. Cannot proceed with position evaluation."
+            )
         target_hits = int(target_hits)
 
         # CRITICAL: Do NOT use entry_price as fallback for cur_price. This distorts risk evaluation.
         # cur_price must be valid; if missing, skip this position.
-        if not cur_price or float(cur_price) <= 0:
-            logger.warning(f"SKIP {symbol}: No valid current price in algo_positions. Cannot evaluate exposure policy.")
-            return None
-
-        cur_price = float(cur_price)
+        if not cur_price:
+            raise ValueError(
+                f"CRITICAL: {symbol} — current_price is NULL in algo_positions. "
+                f"Cannot evaluate exposure policy without live price. "
+                f"Price data missing for open position. Cannot calculate current R-multiple or exit levels."
+            )
+        cur_price_float = float(cur_price)
+        if cur_price_float <= 0:
+            raise ValueError(
+                f"CRITICAL: {symbol} — current_price={cur_price_float} <= 0. "
+                f"Invalid price data in algo_positions. Cannot evaluate position risk. "
+                f"Database integrity issue or price data corruption."
+            )
 
         # R-multiple
         risk_per_share = entry_price - init_stop
-        r_mult = ((cur_price - entry_price) / risk_per_share) if risk_per_share > 0 else 0
+        r_mult = ((cur_price_float - entry_price) / risk_per_share) if risk_per_share > 0 else 0
 
         # 1. CORRECTION TIER + force_exit_negative_r: cut losers
         if tier.get("force_exit_negative_r") and r_mult < 0:

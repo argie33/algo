@@ -80,7 +80,16 @@ def run(
                 f"unrealized P&L ${result['unrealized_pnl']:+,.2f}"
             )
         else:
-            summary = result.get("error", "unknown")
+            # Reconciliation failed. Error message is CRITICAL for debugging.
+            # Do not default to "unknown" — must surface actual error.
+            error_msg = result.get("error")
+            if not error_msg:
+                raise ValueError(
+                    f"CRITICAL: Reconciliation failed but error message missing. "
+                    f"Result keys: {list(result.keys())}. "
+                    f"Cannot proceed without understanding why reconciliation failed."
+                )
+            summary = error_msg
         log_phase_result_fn(9, "reconciliation", status, summary)
 
         # CRITICAL: Validate that local P&L matches Broker P&L
@@ -252,7 +261,16 @@ def run(
             # compute_ic returns {component_name: {ic_value, ic_pvalue, sample_size, ...}}
             logger.info(f"Signal attribution: IC computed for {len(attr_result)} components")
             for comp, ic_data in attr_result.items():
-                logger.info(f"  {comp}: IC={ic_data.get('ic_value', 0):.3f}, pval={ic_data.get('ic_pvalue', 1):.3f}")
+                # Fail-fast if IC values missing — these are critical for signal validation
+                ic_value = ic_data.get('ic_value')
+                ic_pvalue = ic_data.get('ic_pvalue')
+                if ic_value is None:
+                    logger.critical(f"CRITICAL: IC value missing for component {comp}. Cannot validate signal quality.")
+                    raise ValueError(f"IC calculation failed for {comp}: missing 'ic_value'. Signal validation incomplete.")
+                if ic_pvalue is None:
+                    logger.critical(f"CRITICAL: IC p-value missing for component {comp}. Cannot validate signal significance.")
+                    raise ValueError(f"IC calculation failed for {comp}: missing 'ic_pvalue'. Signal validation incomplete.")
+                logger.info(f"  {comp}: IC={ic_value:.3f}, pval={ic_pvalue:.3f}")
             if attr_result:
                 attribution.persist(run_date, attr_result)
         except ImportError as e:
@@ -343,8 +361,18 @@ def run(
                     logger.critical(f"[AUDIT_FAILURE] Could not log daily report to audit log: {e}")
                     raise
 
-                current_val = portfolio_data.get("current_value", "N/A") if portfolio_data else "N/A"
-                pnl_pct = portfolio_data.get("daily_pnl_pct", "N/A") if portfolio_data else "N/A"
+                # Portfolio data must be present for daily reporting
+                if not portfolio_data:
+                    logger.critical("CRITICAL: Portfolio data missing from daily report. Cannot report account status.")
+                    raise ValueError("Daily report missing portfolio_data. Cannot calculate current value or P&L.")
+                current_val = portfolio_data.get("current_value")
+                pnl_pct = portfolio_data.get("daily_pnl_pct")
+                if current_val is None:
+                    logger.critical("CRITICAL: Portfolio current_value missing from daily report.")
+                    raise ValueError("Daily report: current_value missing. Cannot report account status.")
+                if pnl_pct is None:
+                    logger.critical("CRITICAL: Portfolio daily_pnl_pct missing from daily report.")
+                    raise ValueError("Daily report: daily_pnl_pct missing. Cannot report P&L.")
                 log_phase_result_fn(
                     7,
                     "daily_report",
@@ -365,15 +393,30 @@ def run(
             perf_report = perf.generate_daily_report(run_date)
             if perf_report and perf_report.get("status") == "ok":
                 perf_status = "success"
+                # Performance metrics must be present — don't default to 'N/A'
+                sharpe = perf_report.get('rolling_sharpe_252d')
+                win_rate = perf_report.get('win_rate_50t')
+                expectancy = perf_report.get('expectancy')
+                if sharpe is None or win_rate is None or expectancy is None:
+                    missing = [k for k in ['rolling_sharpe_252d', 'win_rate_50t', 'expectancy']
+                               if perf_report.get(k) is None]
+                    logger.critical(f"CRITICAL: Performance metrics missing: {missing}. Cannot assess strategy quality.")
+                    raise ValueError(f"Performance report incomplete. Missing: {missing}. Strategy validation failed.")
                 perf_summary = (
-                    f"Sharpe {perf_report.get('rolling_sharpe_252d', 'N/A')}, "
-                    f"Win rate {perf_report.get('win_rate_50t', 'N/A')}%, "
-                    f"Expectancy {perf_report.get('expectancy', 'N/A')}"
+                    f"Sharpe {sharpe}, "
+                    f"Win rate {win_rate}%, "
+                    f"Expectancy {expectancy}"
                 )
             elif perf_report:
-                perf_summary = perf_report.get("message", "insufficient data")
+                # Performance report failed. Must have a message explaining why.
+                perf_message = perf_report.get("message")
+                if not perf_message:
+                    logger.critical("CRITICAL: Performance report failed but no error message provided.")
+                    raise ValueError("Performance report generation failed without error details. Cannot diagnose issue.")
+                perf_summary = perf_message
             else:
-                perf_summary = "failed to generate report"
+                logger.critical("CRITICAL: Performance report generation returned None. Cannot assess strategy quality.")
+                raise ValueError("Performance report generation failed. Cannot proceed without performance metrics.")
         except (psycopg2.DatabaseError, psycopg2.OperationalError) as e:
             perf_summary = f"error: {str(e)[:60]}"
         finally:

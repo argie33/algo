@@ -419,10 +419,22 @@ class EntryHandler:
     def _calculate_position_size_pct(
         self, shares: Decimal, price: Decimal, portfolio_value: Decimal | None
     ) -> Decimal | None:
-        """Calculate position size as percentage of portfolio."""
-        if portfolio_value is None or portfolio_value <= 0:
-            logger.warning("Portfolio value unavailable for position size calculation")
-            return None
+        """Calculate position size as percentage of portfolio.
+
+        Raises ValueError if portfolio value is missing or invalid.
+        Cannot proceed without knowing portfolio size for position sizing.
+        """
+        if portfolio_value is None:
+            raise ValueError(
+                "CRITICAL: Portfolio value is None. Cannot calculate position size percentage. "
+                "Alpaca API must return valid account equity or portfolio snapshot must be fresh."
+            )
+        if portfolio_value <= 0:
+            raise ValueError(
+                f"CRITICAL: Portfolio value is {portfolio_value}. "
+                "Cannot calculate position size with zero or negative portfolio. "
+                "Account may be liquidated or in error state."
+            )
 
         position_size = (Decimal(shares) * Decimal(str(price)) / Decimal(str(portfolio_value)) * Decimal(100)).quantize(
             Decimal("0.01"), rounding=ROUND_HALF_UP
