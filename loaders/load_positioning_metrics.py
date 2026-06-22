@@ -43,6 +43,10 @@ class PositioningMetricsLoader(OptimalLoader):
                 return [metrics]
             return None
         except Exception as e:
+            err_str = str(e)
+            if "404" in err_str or "Not Found" in err_str:
+                logger.debug("[%s] Not found (404), skipping", symbol)
+                return None
             raise RuntimeError(f"Operation failed: {e}") from e
 
     @staticmethod

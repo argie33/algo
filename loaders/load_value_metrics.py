@@ -103,8 +103,8 @@ class ValueMetricsLoader(OptimalLoader):
                     else:
                         logger.error(f"Rate limit persisted after retries for {symbol}")
                         raise RuntimeError(f"API rate limited for {symbol} after retries") from e
-                logger.error(f"API error fetching value metrics for {symbol}: {e}")
-                raise RuntimeError(f"Failed to fetch value metrics for {symbol}") from e
+                logger.warning(f"[{symbol}] Skipping: API error fetching value metrics: {e}")
+                return None
 
         return None
 

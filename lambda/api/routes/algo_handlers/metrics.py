@@ -602,22 +602,24 @@ def _get_performance_analytics(cur) -> dict[str, Any]:
                 "Performance analytics not available. Check data loader health.",
             )
         data = safe_dict_convert(row)
+        sharpe: Any = data.get("rolling_sharpe_252d")
+        sortino: Any = data.get("rolling_sortino_252d")
+        calmar: Any = data.get("calmar_ratio")
+        wr_50t: Any = data.get("win_rate_50t")
+        avg_wr: Any = data.get("avg_win_r_50t")
+        avg_lr: Any = data.get("avg_loss_r_50t")
+        expectancy_val: Any = data.get("expectancy")
+        max_dd: Any = data.get("max_drawdown_pct")
         return success_response(
             {
-                "rolling_sharpe_252d": float(data.get("rolling_sharpe_252d"))
-                if data.get("rolling_sharpe_252d") is not None
-                else None,
-                "rolling_sortino_252d": float(data.get("rolling_sortino_252d"))
-                if data.get("rolling_sortino_252d") is not None
-                else None,
-                "calmar_ratio": float(data.get("calmar_ratio")) if data.get("calmar_ratio") is not None else None,
-                "win_rate_50t": float(data.get("win_rate_50t")) if data.get("win_rate_50t") is not None else None,
-                "avg_win_r_50t": float(data.get("avg_win_r_50t")) if data.get("avg_win_r_50t") is not None else None,
-                "avg_loss_r_50t": float(data.get("avg_loss_r_50t")) if data.get("avg_loss_r_50t") is not None else None,
-                "expectancy": float(data.get("expectancy")) if data.get("expectancy") is not None else None,
-                "max_drawdown_pct": float(data.get("max_drawdown_pct"))
-                if data.get("max_drawdown_pct") is not None
-                else None,
+                "rolling_sharpe_252d": float(sharpe) if sharpe is not None else None,
+                "rolling_sortino_252d": float(sortino) if sortino is not None else None,
+                "calmar_ratio": float(calmar) if calmar is not None else None,
+                "win_rate_50t": float(wr_50t) if wr_50t is not None else None,
+                "avg_win_r_50t": float(avg_wr) if avg_wr is not None else None,
+                "avg_loss_r_50t": float(avg_lr) if avg_lr is not None else None,
+                "expectancy": float(expectancy_val) if expectancy_val is not None else None,
+                "max_drawdown_pct": float(max_dd) if max_dd is not None else None,
             }
         )
     except (psycopg2.errors.UndefinedTable, psycopg2.errors.UndefinedColumn):

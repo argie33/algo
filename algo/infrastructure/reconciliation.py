@@ -190,7 +190,10 @@ class DailyReconciliation:
                     if pending_result.get("stuck_count", 0) > 0:
                         pending_list = pending_result.get("pending")
                         if pending_list is None:
-                            pending_list = []
+                            raise RuntimeError(
+                                "check_pending_reconciliations() reported stuck_count > 0 but pending list is missing. "
+                                "Cannot report stuck trade details (incomplete status report)."
+                            )
                         for p in pending_list[:5]:
                             logger.warning(
                                 f"   STUCK: {p['symbol']} {p['trade_id']} "
