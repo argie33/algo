@@ -62,7 +62,9 @@ class MomentumFactor(MarketFactorStrategy):
         year_ago_row = cur.fetchone()
 
         if not year_ago_row or year_ago_row[0] is None:
-            raise ValueError("SPY momentum factor: insufficient historical data (12-month lookback) - cannot calculate momentum")
+            raise ValueError(
+                "SPY momentum factor: insufficient historical data (12-month lookback) - cannot calculate momentum"
+            )
 
         price_12m_ago = float(year_ago_row[0])
         return_pct = ((current_price - price_12m_ago) / price_12m_ago) * 100

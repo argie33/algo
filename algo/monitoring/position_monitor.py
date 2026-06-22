@@ -1,4 +1,4 @@
-﻿#!/usr/bin/env python3
+#!/usr/bin/env python3
 """
 Position Monitor - Institutional-grade daily position health checks
 
@@ -88,7 +88,9 @@ class PositionMonitor:
                 )
                 stale_orders = cur.fetchall()
             except (psycopg2.DatabaseError, psycopg2.OperationalError) as e:
-                raise RuntimeError(f"Failed to check for stale orders: {e}. Cannot proceed without this critical check.") from e
+                raise RuntimeError(
+                    f"Failed to check for stale orders: {e}. Cannot proceed without this critical check."
+                ) from e
 
             if stale_orders:
                 # Filter out halted symbols (halts are normal, not actionable)
@@ -1063,12 +1065,8 @@ class PositionMonitor:
 
             for pos_id, symbol, db_qty, db_stop, _entry_price in positions:
                 try:
-                    alpaca_qty = self._fetch_alpaca_qty(
-                        alpaca_base_url, alpaca_key, alpaca_secret, symbol
-                    )
-                    self._handle_qty_variance(
-                        cur, pos_id, symbol, db_qty, db_stop, alpaca_qty, adjustments
-                    )
+                    alpaca_qty = self._fetch_alpaca_qty(alpaca_base_url, alpaca_key, alpaca_secret, symbol)
+                    self._handle_qty_variance(cur, pos_id, symbol, db_qty, db_stop, alpaca_qty, adjustments)
                 except (psycopg2.DatabaseError, psycopg2.OperationalError) as e:
                     logger.warning(f"  Warning: Could not check Alpaca position for {symbol}: {e}")
                     continue
@@ -1089,14 +1087,10 @@ class PositionMonitor:
             alpaca_secret = None
 
         if not alpaca_key or not alpaca_secret:
-            raise RuntimeError(
-                "Alpaca credentials unavailable - cannot detect corporate actions. Halted."
-            )
+            raise RuntimeError("Alpaca credentials unavailable - cannot detect corporate actions. Halted.")
         return alpaca_base_url, alpaca_key, alpaca_secret
 
-    def _fetch_alpaca_qty(
-        self, alpaca_base_url: str, alpaca_key: str, alpaca_secret: str, symbol: str
-    ) -> int:
+    def _fetch_alpaca_qty(self, alpaca_base_url: str, alpaca_key: str, alpaca_secret: str, symbol: str) -> int:
         """Fetch position quantity from Alpaca API."""
         url = f"{alpaca_base_url}/v2/positions/{symbol}"
         headers = {
@@ -1110,9 +1104,7 @@ class PositionMonitor:
 
         resp = requests.get(url, headers=headers, timeout=timeout)
         if resp.status_code != 200:
-            raise RuntimeError(
-                f"Alpaca API returned {resp.status_code} for {symbol}"
-            )
+            raise RuntimeError(f"Alpaca API returned {resp.status_code} for {symbol}")
 
         try:
             alpaca_pos = resp.json()
@@ -1122,8 +1114,7 @@ class PositionMonitor:
         return int(alpaca_pos.get("qty", 0))
 
     def _handle_qty_variance(
-        self, cur: Any, pos_id: Any, symbol: str, db_qty: Any, db_stop: Any,
-        alpaca_qty: int, adjustments: list
+        self, cur: Any, pos_id: Any, symbol: str, db_qty: Any, db_stop: Any, alpaca_qty: int, adjustments: list
     ) -> None:
         """Handle quantity changes between DB and Alpaca."""
         if alpaca_qty == 0:
@@ -1131,12 +1122,14 @@ class PositionMonitor:
                 "UPDATE algo_positions SET status = 'closed' WHERE position_id = %s",
                 (pos_id,),
             )
-            adjustments.append({
-                "symbol": symbol,
-                "action": "POSITION_CLOSED_AT_ALPACA",
-                "db_qty": db_qty,
-                "alpaca_qty": alpaca_qty,
-            })
+            adjustments.append(
+                {
+                    "symbol": symbol,
+                    "action": "POSITION_CLOSED_AT_ALPACA",
+                    "db_qty": db_qty,
+                    "alpaca_qty": alpaca_qty,
+                }
+            )
             return
 
         if alpaca_qty == db_qty:
@@ -1149,16 +1142,13 @@ class PositionMonitor:
         self._apply_split_adjustment(cur, pos_id, symbol, db_qty, db_stop, alpaca_qty, adjustments)
 
     def _apply_split_adjustment(
-        self, cur: Any, pos_id: Any, symbol: str, db_qty: Any, db_stop: Any,
-        alpaca_qty: int, adjustments: list
+        self, cur: Any, pos_id: Any, symbol: str, db_qty: Any, db_stop: Any, alpaca_qty: int, adjustments: list
     ) -> None:
         """Apply stock split adjustment if stop available, else update qty only."""
         split_ratio = alpaca_qty / db_qty if db_qty > 0 else 1.0
 
         if not db_stop:
-            logger.critical(
-                f"STOCK SPLIT DETECTED but no stop in DB for {symbol}. Manual review required."
-            )
+            logger.critical(f"STOCK SPLIT DETECTED but no stop in DB for {symbol}. Manual review required.")
             cur.execute(
                 "UPDATE algo_positions SET quantity = %s WHERE position_id = %s",
                 (alpaca_qty, pos_id),
@@ -1190,15 +1180,17 @@ class PositionMonitor:
             ),
         )
 
-        adjustments.append({
-            "symbol": symbol,
-            "action": "STOCK_SPLIT",
-            "old_qty": db_qty,
-            "new_qty": alpaca_qty,
-            "split_ratio": round(split_ratio, 2),
-            "old_stop": db_stop,
-            "new_stop": new_stop,
-        })
+        adjustments.append(
+            {
+                "symbol": symbol,
+                "action": "STOCK_SPLIT",
+                "old_qty": db_qty,
+                "new_qty": alpaca_qty,
+                "split_ratio": round(split_ratio, 2),
+                "old_stop": db_stop,
+                "new_stop": new_stop,
+            }
+        )
 
     def get_open_positions(self):
         """Get list of open positions for halt checking and monitoring.

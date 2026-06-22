@@ -194,9 +194,7 @@ class ValueAtRisk:
     def _validate_snapshot_count(self, rows: list) -> None:
         """Validate that we have sufficient snapshot data."""
         if len(rows) < 5:
-            logger.critical(
-                f"CVaR calculation failed: only {len(rows)} portfolio snapshots found (minimum 5 required)"
-            )
+            logger.critical(f"CVaR calculation failed: only {len(rows)} portfolio snapshots found (minimum 5 required)")
             raise RuntimeError(f"Insufficient historical data for CVaR (only {len(rows)} snapshots, need 5+)")
         if len(rows) < 30:
             logger.warning(f"Risk metrics using limited historical data: {len(rows)} snapshots (recommend 30+)")
@@ -220,8 +218,7 @@ class ValueAtRisk:
                 values.append(val)
             except (ValueError, TypeError) as e:
                 raise RuntimeError(
-                    f"Portfolio value conversion failed at row {i} (date {row[0]}): {e}. "
-                    "Check snapshot data integrity."
+                    f"Portfolio value conversion failed at row {i} (date {row[0]}): {e}. Check snapshot data integrity."
                 ) from e
         return values
 
@@ -229,9 +226,7 @@ class ValueAtRisk:
         """Compute returns from portfolio values."""
         returns_decimal = [(values[i] - values[i - 1]) / values[i - 1] for i in range(1, len(values))]
         if not returns_decimal:
-            logger.critical(
-                "Historical VaR calculation failed: no valid returns computed from portfolio snapshots"
-            )
+            logger.critical("Historical VaR calculation failed: no valid returns computed from portfolio snapshots")
             raise RuntimeError(
                 "Cannot compute VaR: no valid portfolio return data available. Verify portfolio snapshots have valid values."
             )

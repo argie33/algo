@@ -29,6 +29,7 @@ logger = logging.getLogger(__name__)
 
 class PhaseStatus(Enum):
     """Phase execution status."""
+
     PENDING = "pending"
     RUNNING = "running"
     SUCCESS = "success"
@@ -40,6 +41,7 @@ class PhaseStatus(Enum):
 @dataclass
 class PhaseEvent:
     """Base event for phase lifecycle."""
+
     event_type: str
     phase_num: int | str
     phase_name: str
@@ -60,6 +62,7 @@ class PhaseEvent:
 @dataclass
 class PhaseStartedEvent(PhaseEvent):
     """Fired when phase execution starts."""
+
     def __init__(self, phase_num: int | str, phase_name: str):
         super().__init__(
             event_type="phase_started",
@@ -71,6 +74,7 @@ class PhaseStartedEvent(PhaseEvent):
 @dataclass
 class PhaseCompletedEvent(PhaseEvent):
     """Fired when phase execution completes."""
+
     def __init__(
         self,
         phase_num: int | str,
@@ -94,6 +98,7 @@ class PhaseCompletedEvent(PhaseEvent):
 @dataclass
 class PhaseErrorEvent(PhaseEvent):
     """Fired when phase execution fails."""
+
     def __init__(
         self,
         phase_num: int | str,

@@ -283,10 +283,7 @@ class TradeExecutor:
             entry_price_disp = executed_price or entry_price
             notif_service._send_notification(
                 subject=f"ENTRY: {symbol}",
-                message=(
-                    f"{actual_shares:.2f} sh {symbol} @ ${entry_price_disp:.2f} "
-                    f"(stop ${stop_loss_price:.2f})"
-                ),
+                message=(f"{actual_shares:.2f} sh {symbol} @ ${entry_price_disp:.2f} (stop ${stop_loss_price:.2f})"),
                 kind="trade_entry",
                 severity="info",
                 symbol=symbol,
@@ -488,9 +485,7 @@ class TradeExecutor:
 
         return True, "", None
 
-    def _process_validation_result(
-        self, check_name: str, result: tuple
-    ) -> tuple[bool, str, dict | None]:
+    def _process_validation_result(self, check_name: str, result: tuple) -> tuple[bool, str, dict | None]:
         """Process validation check result and return early-exit tuple if check failed.
 
         Eliminates if-elif chain for different check result types by delegating
@@ -996,8 +991,7 @@ class TradeExecutor:
                     severity="warning",
                     title="Position Quantity Corrected",
                     message=(
-                        f"{symbol}: Corrected quantity {db_qty} → {alpaca_qty} "
-                        "to match Alpaca after partial fill."
+                        f"{symbol}: Corrected quantity {db_qty} → {alpaca_qty} to match Alpaca after partial fill."
                     ),
                     symbol=symbol,
                     details={

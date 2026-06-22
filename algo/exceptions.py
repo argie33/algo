@@ -302,8 +302,7 @@ class LockAcquisitionError(AlgoError):
             error_category=ErrorCategory.TRANSIENT,
             retry_eligible=True,
             recovery_suggestion=(
-                "Verify distributed lock service (DynamoDB) is available; "
-                "retry when another instance releases the lock"
+                "Verify distributed lock service (DynamoDB) is available; retry when another instance releases the lock"
             ),
             context=ctx,
         )

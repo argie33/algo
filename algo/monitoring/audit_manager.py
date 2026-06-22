@@ -58,9 +58,7 @@ class AuditManager:
                 (symbol, current_date, json.dumps(audit_entry)),
             )
         except Exception as e:
-            logger.error(
-                f"[AUDIT] Failed to log review for {symbol}: {e}"
-            )
+            logger.error(f"[AUDIT] Failed to log review for {symbol}: {e}")
 
     def log_stop_adjustment(
         self,
@@ -91,9 +89,7 @@ class AuditManager:
                 (symbol, current_date, old_stop, new_stop, reason),
             )
         except Exception as e:
-            logger.error(
-                f"[AUDIT] Failed to log stop adjustment for {symbol}: {e}"
-            )
+            logger.error(f"[AUDIT] Failed to log stop adjustment for {symbol}: {e}")
 
     def log_exit_recommendation(
         self,
@@ -123,13 +119,9 @@ class AuditManager:
                     (symbol, current_date, reason),
                 )
         except Exception as e:
-            logger.error(
-                f"[AUDIT] Failed to log exit recommendation for {symbol}: {e}"
-            )
+            logger.error(f"[AUDIT] Failed to log exit recommendation for {symbol}: {e}")
 
-    def get_position_history(
-        self, symbol: str, lookback_days: int = 30, cur: Any = None
-    ) -> list[dict[str, Any]]:
+    def get_position_history(self, symbol: str, lookback_days: int = 30, cur: Any = None) -> list[dict[str, Any]]:
         """Retrieve recent position review history.
 
         Args:
@@ -152,9 +144,7 @@ class AuditManager:
         except Exception as e:
             raise RuntimeError(f"Cannot retrieve position history for {symbol}: {e}") from e
 
-    def _fetch_history(
-        self, symbol: str, lookback_days: int, cur: Any
-    ) -> list[dict[str, Any]]:
+    def _fetch_history(self, symbol: str, lookback_days: int, cur: Any) -> list[dict[str, Any]]:
         """Helper to fetch history from cursor."""
         cur.execute(
             """

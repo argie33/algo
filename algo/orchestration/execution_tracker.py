@@ -1,4 +1,4 @@
-﻿#!/usr/bin/env python3
+#!/usr/bin/env python3
 """Execution Tracker - Phase logging and execution tracking with event publishing."""
 
 import logging
@@ -29,6 +29,7 @@ class ExecutionTracker:
         # Publish event for subscribers (dashboard, monitoring, etc)
         try:
             from algo.orchestration.phase_event_hub import PhaseStartedEvent, get_event_hub
+
             hub = get_event_hub()
             hub.publish(PhaseStartedEvent(phase_num, name))
         except Exception as e:
@@ -46,8 +47,15 @@ class ExecutionTracker:
         # Publish event for subscribers (dashboard, monitoring, etc)
         try:
             from algo.orchestration.phase_event_hub import PhaseCompletedEvent, PhaseStatus, get_event_hub
+
             hub = get_event_hub()
-            phase_status = PhaseStatus.SUCCESS if status == "OK" else PhaseStatus(status.lower()) if status.upper() in [s.name for s in PhaseStatus] else PhaseStatus.DEGRADED
+            phase_status = (
+                PhaseStatus.SUCCESS
+                if status == "OK"
+                else PhaseStatus(status.lower())
+                if status.upper() in [s.name for s in PhaseStatus]
+                else PhaseStatus.DEGRADED
+            )
             hub.publish(PhaseCompletedEvent(phase_num, name, phase_status, summary))
         except Exception as e:
             logger.warning(f"Could not publish phase_completed event: {e}")

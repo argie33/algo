@@ -289,9 +289,7 @@ class MarketEventHandler:
             }
 
         except (psycopg2.DatabaseError, psycopg2.OperationalError) as e:
-            raise RuntimeError(
-                f"Cannot record single stock halt for {symbol} (safety gate failed): {e}"
-            ) from e
+            raise RuntimeError(f"Cannot record single stock halt for {symbol} (safety gate failed): {e}") from e
 
     def handle_market_circuit_breaker(self, level: int) -> dict[str, Any]:
         """Handle market circuit breaker: halt entries, tighten stops, or close positions.

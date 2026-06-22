@@ -20,17 +20,14 @@ class SignalQualityScorer(ABC):
     @abstractmethod
     def calculate_base_quality_score(self) -> int:
         """Base quality score (40-60): signal existence + trend alignment."""
-        pass
 
     @abstractmethod
     def calculate_volume_confirmation_score(self, rsi: float | None, macd: float | None, macd_signal: float | None) -> int:
         """Volume confirmation score (0-20): based on MACD/RSI."""
-        pass
 
     @abstractmethod
     def calculate_trend_template_score(self, minervini: float | None, weinstein_stage: int | None) -> int:
         """Trend template score (0-25): minervini score and stage."""
-        pass
 
 
 class BuySignalScorer(SignalQualityScorer):

@@ -78,6 +78,7 @@ class Orchestrator:
         self.execution_tracker.set_run_context(self.run_id, self.run_date)
 
         from utils.db import DynamoDBLockManager
+
         self.lock_manager = DynamoDBLockManager()
         self._lock_acquired = False
 

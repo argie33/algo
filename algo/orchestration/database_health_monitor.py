@@ -1,4 +1,4 @@
-﻿#!/usr/bin/env python3
+#!/usr/bin/env python3
 """Database health monitoring specialist for Orchestrator.
 
 Extracted responsibilities:

@@ -37,6 +37,22 @@ def main():
         ("Fetchers module", "from tools.dashboard import fetchers"),
         ("Panels __init__", "from tools.dashboard import panels"),
         ("Utilities module", "from tools.dashboard import utilities"),
+        ("Panel registry", "from tools.dashboard import panel_registry"),
+        ("Error boundary", "from tools.dashboard import error_boundary"),
+        ("Formatters", "from tools.dashboard import formatters"),
+        ("API data layer", "from tools.dashboard import api_data_layer"),
+        ("Cognito auth", "from tools.dashboard import cognito_auth"),
+        ("Panel helpers", "from tools.dashboard.panels import _helpers"),
+        ("Panel base", "from tools.dashboard.panels import panel_base"),
+        ("Circuit panel", "from tools.dashboard.panels import circuit"),
+        ("Economic panel", "from tools.dashboard.panels import economic"),
+        ("Health panel", "from tools.dashboard.panels import health"),
+        ("Market panel", "from tools.dashboard.panels import market"),
+        ("Portfolio panel", "from tools.dashboard.panels import portfolio"),
+        ("Positions panel", "from tools.dashboard.panels import positions"),
+        ("Sectors panel", "from tools.dashboard.panels import sectors"),
+        ("Signals panel", "from tools.dashboard.panels import signals"),
+        ("Trades panel", "from tools.dashboard.panels import trades"),
     ]
 
     results = [test_module_import(desc, stmt) for desc, stmt in tests]

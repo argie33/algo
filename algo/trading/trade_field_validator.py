@@ -7,15 +7,9 @@ from typing import Any
 class TradeFieldValidator:
     """Validates and consolidates trade field handling."""
 
-    REQUIRED_FIELDS = {
-        "symbol", "entry_price", "shares", "stop_loss",
-        "entry_time", "status", "trade_id"
-    }
+    REQUIRED_FIELDS = {"symbol", "entry_price", "shares", "stop_loss", "entry_time", "status", "trade_id"}
 
-    OPTIONAL_FIELDS = {
-        "exit_price", "exit_time", "pnl", "exit_shares",
-        "stop_adjusted_at", "max_profit", "reason"
-    }
+    OPTIONAL_FIELDS = {"exit_price", "exit_time", "pnl", "exit_shares", "stop_adjusted_at", "max_profit", "reason"}
 
     @classmethod
     def validate_trade_entry(cls, trade_data: dict[str, Any]) -> tuple[bool, str]:

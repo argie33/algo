@@ -92,7 +92,9 @@ class SectorRotationDetector:
                 "momentum_spread": round(metrics["momentum_spread"], 2),
                 "weeks_persistent": metrics["weeks_persistent"],
                 "sector_data": sector_data,
-                "reduce_exposure_pts": self._exposure_penalty(metrics["defensive_lead_score"], metrics["weeks_persistent"]),
+                "reduce_exposure_pts": self._exposure_penalty(
+                    metrics["defensive_lead_score"], metrics["weeks_persistent"]
+                ),
             }
             self._persist(eval_date, result)
             return result

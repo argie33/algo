@@ -55,12 +55,8 @@ class PositionAggregator:
                 }
 
         # Count flags
-        severity: float = sum(
-            1 for f in flags.values() if f["status"] == "RED"
-        )
-        severity += 0.5 * sum(
-            1 for f in flags.values() if f["status"] == "YELLOW"
-        )
+        severity: float = sum(1 for f in flags.values() if f["status"] == "RED")
+        severity += 0.5 * sum(1 for f in flags.values() if f["status"] == "YELLOW")
 
         halt_flag_count = self.config.get("halt_flag_count_for_early_exit", 3)
 

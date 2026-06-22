@@ -680,7 +680,7 @@ def _write_vix_family_prices(start: date, end: date) -> int:
                 for idx, row in df.iterrows():
                     d = idx.date() if hasattr(idx, "date") else date.fromisoformat(str(idx)[:10])
 
-                    def _v(col, row=row):
+                    def _v(col, row=row, sym=sym, d=d):
                         val = row.get(col) if hasattr(row, "get") else row[col]
                         if val is None:
                             return None

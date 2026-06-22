@@ -134,6 +134,27 @@ class PriceLoader(OptimalLoader):
         self._api_lag_timeouts = 0  # Count of timeout errors (not rate limiting)
         self._api_lag_error_start_time = None  # When API lag started
 
+        # CREATIVE FIX #2: Track batch size performance for smart batch sizing
+        self._batch_size_performance: dict[int, list[int]] = {}
+
+        # Rate limit tracking
+        self._rate_limit_errors = 0
+        self._rate_limit_error_start_time: float | None = None
+
+        # CREATIVE FIX #1: Adaptive request pacing to stay under rate limits
+        self._request_latency_samples: list[tuple[float, float]] = []
+        self._latency_window_sec = 60
+        self._adaptive_request_interval = 0.375
+        self._min_request_interval = 0.375
+        self._last_request_time: float | None = None
+
+        # Rate limit token bucket (thread-safe fairness)
+        self._rate_limit_event = threading.Condition()
+        self._rate_limit_tokens = 160.0
+        self._rate_limit_max_tokens = 160.0
+        self._rate_limit_refill_rate = 160.0 / 60.0
+        self._rate_limit_last_refill = time.time()
+
     def _detect_eod_pipeline_context(self) -> bool:
         """Detect if running during EOD pipeline (4:05-5:30 PM ET) for timing-aware rate limiting.
 
@@ -428,7 +449,7 @@ class PriceLoader(OptimalLoader):
                             # Increased upper bound from 1800s to 3600s to support longer waits if needed
                             if config_value < 1 or config_value > 3600:
                                 logger.warning(
-                                    f"[MARKET_CLOSE] âš ï¸  Config {config_key}={config_value}s is out of bounds (1-3600s). "
+                                    f"[MARKET_CLOSE] âš ï,  Config {config_key}={config_value}s is out of bounds (1-3600s). "
                                     f"Using default {default_timeout_sec}s instead."
                                 )
                                 max_wait_sec = default_timeout_sec
@@ -441,7 +462,7 @@ class PriceLoader(OptimalLoader):
                                 config_used = "configured"
                         except (ValueError, TypeError) as parse_err:
                             logger.warning(
-                                f"[MARKET_CLOSE] âš ï¸  Config {config_key}={config_result[0]} is not a valid integer. "
+                                f"[MARKET_CLOSE] âš ï,  Config {config_key}={config_result[0]} is not a valid integer. "
                                 f"Using default {default_timeout_sec}s instead. Error: {parse_err}"
                             )
                             max_wait_sec = default_timeout_sec
@@ -449,7 +470,7 @@ class PriceLoader(OptimalLoader):
                     else:
                         max_wait_sec = default_timeout_sec
                         logger.debug(
-                            f"[MARKET_CLOSE] Config key {config_key} not found, using default timeout: {max_wait_sec}s"
+                            f"[MARKET_CLOSE] WARNING Config key {config_key} not found, using default timeout: {max_wait_sec}s"
                         )
                         config_used = "default (key missing)"
             except (psycopg2.DatabaseError, psycopg2.OperationalError) as config_err:
@@ -746,17 +767,7 @@ class PriceLoader(OptimalLoader):
 
     def _execute_batch_fetch(self, symbols: list[str], start: date, end: date) -> dict | None:
         """Execute batch fetch with circuit breaker and validate freshness."""
-        import time
-
-        self._adaptive_request_pacing()
-        request_start = time.time()
-
-        def fetch_batch():
-            return self.router.fetch_ohlcv_batch(symbols, start, end, interval=self.interval)
-
-        result = self._circuit_breaker.execute(fetch_func=fetch_batch, importance=DataImportance.CRITICAL)
-        request_latency = time.time() - request_start
-        self._record_request_latency(request_latency)
+        result = self.fetcher._execute_batch_fetch(symbols, start, end)
 
         if result and isinstance(result, dict):
             latest_price_date: datetime | None = None
@@ -950,7 +961,7 @@ class PriceLoader(OptimalLoader):
         logger.warning(
             f"[BATCH FETCH] Transient {error_type} error (attempt {attempt + 1}/{max_attempts}, elapsed {elapsed_sec:.0f}s): {error}. "
             f"Retrying {len(symbols)} symbols with same batch_size={batch_size} in {wait_time:.1f}s... "
-            "(Note: batch size not reduced for timeouts – if API fundamentally slow, increasing wait time not batch reduction)"
+            "(Note: batch size not reduced for timeouts - if API fundamentally slow, increasing wait time not batch reduction)"
         )
         time.sleep(wait_time)
         return cast(
@@ -1244,143 +1255,7 @@ class PriceLoader(OptimalLoader):
 
     def transform(self, rows):
         """Validate and filter rows. Phase 1: Reject invalid ticks. Integrated validation framework."""
-        if not rows:
-            return []
-
-        from algo.infrastructure import MarketCalendar
-
-        # CLUSTER 4 FIX: Batch-precompute all trading days in date range for O(1) lookup
-        # Instead of calling is_trading_day() for each row (10,000+ calls = 10k dict lookups),
-        # compute trading day range once and use set membership check (O(1) per row).
-        # Performance: ~500ms for computing trading days vs 15s+ for 10,000 individual calls.
-        min_row_date = None
-        max_row_date = None
-        try:
-            for row in rows:
-                row_date_str = row.get("date")
-                if row_date_str:
-                    row_date = datetime.fromisoformat(row_date_str).date()
-                    if min_row_date is None or row_date < min_row_date:
-                        min_row_date = row_date
-                    if max_row_date is None or row_date > max_row_date:
-                        max_row_date = row_date
-        except Exception as e:
-            logger.warning(f"Could not determine trading day range from rows: {e}. Falling back to per-row checks.")
-            min_row_date = None
-            max_row_date = None
-
-        # Precompute trading day set if we have a valid date range
-        trading_day_set = None
-        if min_row_date and max_row_date:
-            try:
-                trading_day_set = MarketCalendar.create_trading_day_set(min_row_date, max_row_date)
-                logger.debug(
-                    f"[CLUSTER_4_OPT] Precomputed {len(trading_day_set)} trading days in range [{min_row_date}, {max_row_date}]"
-                )
-            except Exception as e:
-                logger.warning(f"Could not precompute trading days: {e}. Falling back to per-row checks.")
-                trading_day_set = None
-
-        # PHASE 1: Validation via tick validator for provenance tracking
-        final_validated = []
-        prior_close_by_symbol = {}  # FIXED: Track prior_close per-symbol to avoid cross-symbol contamination
-        non_trading_filtered = 0
-        parse_errors = 0
-
-        for row in rows:
-            # CRITICAL: Filter out weekend/holiday data before any other validation
-            # yfinance occasionally returns non-trading-day rows; we must reject them
-            row_date_str = row.get("date")
-            symbol = row.get("symbol")
-            try:
-                row_date = datetime.fromisoformat(row_date_str).date()
-                # CLUSTER 4 FIX: Use precomputed trading day set for O(1) lookup instead of dict lookup
-                if trading_day_set is not None:
-                    is_trading_day = row_date in trading_day_set
-                else:
-                    # Fallback: per-row check (slow but correct if precomputation failed)
-                    is_trading_day = MarketCalendar.is_trading_day(row_date)
-
-                if not is_trading_day:
-                    if self.tracker:
-                        try:
-                            self.tracker.record_error(
-                                symbol=symbol,
-                                error_type="NON_TRADING_DAY",
-                                error_message="Data for non-trading day (weekend/holiday)",
-                                resolution="rejected",
-                            )
-                        except Exception as e:
-                            logger.warning(f"Could not record error for {symbol}: {e}")
-                    non_trading_filtered += 1
-                    logger.debug(f"[{symbol}] {row_date}: Non-trading day, rejecting")
-                    continue
-            except (ValueError, TypeError) as e:
-                parse_errors += 1
-                logger.warning(f"[{symbol}] Could not parse date {row_date_str}: {e}")
-                continue
-
-            # FIXED: Use per-symbol prior_close to avoid cross-symbol contamination
-            symbol_prior_close = prior_close_by_symbol.get(symbol)
-            is_valid, errors = validate_price_tick(
-                symbol=symbol,
-                open_price=row.get("open"),
-                high=row.get("high"),
-                low=row.get("low"),
-                close=row.get("close"),
-                volume=row.get("volume"),
-                prior_close=symbol_prior_close,
-                is_etf=(self.asset_class == "etf"),
-            )
-
-            if not is_valid:
-                if self.tracker:
-                    try:
-                        self.tracker.record_error(
-                            symbol=symbol,
-                            error_type="DATA_INVALID",
-                            error_message=", ".join(errors),
-                            resolution="skipped",
-                        )
-                    except Exception as e:
-                        logger.warning(f"Could not record error for {symbol}: {e}")
-                logger.warning(f"[{symbol}] {row.get('date')}: {errors[0]}")
-                continue
-
-            # Track provenance for each valid tick
-            if self.tracker:
-                self.tracker.record_tick(
-                    symbol=symbol,
-                    tick_date=row.get("date"),
-                    data=row,
-                    source_api="yfinance",  # Could detect from router later
-                )
-
-            final_validated.append(row)
-            prior_close_by_symbol[symbol] = row.get("close")  # FIXED: Update per-symbol prior_close
-
-        # Log data quality summary for this batch
-        if non_trading_filtered > 0 or parse_errors > 0:
-            total_input = len(rows)
-            filtered_pct = (non_trading_filtered + parse_errors) / total_input * 100 if total_input > 0 else 0
-            if not rows:
-                raise ValueError("No price data rows available for validation")
-            symbol = rows[0].get("symbol")
-            if not symbol:
-                raise ValueError("Price row missing symbol")
-
-            if filtered_pct > 5:
-                logger.warning(
-                    f"[{symbol}] High rejection rate: {non_trading_filtered} non-trading-day + {parse_errors} parse errors "
-                    f"out of {total_input} rows ({filtered_pct:.1f}%). This may indicate bad data or API issues."
-                )
-            else:
-                logger.info(
-                    f"[{symbol}] Filtered {non_trading_filtered} non-trading-day + {parse_errors} parse errors "
-                    f"from {total_input} rows ({filtered_pct:.1f}%)"
-                )
-
-        return final_validated
+        return self.transformer.validate_and_transform(rows, tracker=self.tracker)
 
     def _validate_row(self, row: dict) -> bool:
         """Add price-range sanity check on top of default PK check."""

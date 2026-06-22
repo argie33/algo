@@ -15,11 +15,15 @@ Usage in loader scripts:
 """
 
 import json
+import logging
 import socket
 import sys
 from pathlib import Path
 
 import requests
+
+
+logger = logging.getLogger(__name__)
 
 
 def setup_imports():
@@ -46,6 +50,4 @@ def setup_loader_timeouts(socket_timeout_sec: float = 30.0):
     try:
         socket.setdefaulttimeout(socket_timeout_sec)
     except (requests.RequestException, requests.Timeout, json.JSONDecodeError) as e:
-        import logging
-
-        logging.warning(f"Could not set socket timeout: {e}")
+        logger.warning(f"Could not set socket timeout: {e}")
