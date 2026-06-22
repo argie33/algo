@@ -266,8 +266,8 @@ def fetch_health(c):
 
                     r = _FR.get(name)
                     is_crit = r and r.get("critical")
-                    is_imp = r and int(r.get("max_age_days", 999)) <= 7
-                    role = "CRIT" if is_crit else ("IMP" if is_imp else "NORM")  # type: ignore[call-overload]
+                    is_imp = r and int(r.get("max_age_days", 999)) <= 7  # type: ignore[call-overload]
+                    role = "CRIT" if is_crit else ("IMP" if is_imp else "NORM")
                 except ImportError:
                     role = "CRIT" if name in set(critical_stale or []) else "NORM"
             sources.append(

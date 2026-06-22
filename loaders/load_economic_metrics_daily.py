@@ -188,7 +188,7 @@ class EconomicMetricsDailyLoader(OptimalLoader):
         except (psycopg2.DatabaseError, psycopg2.OperationalError) as e:
             raise RuntimeError(
                 f"[ECONOMIC_METRICS] Failed to compute daily metrics: {e}. Cannot proceed without macro indicators."
-            )
+            ) from e
 
 
 if __name__ == "__main__":

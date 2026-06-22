@@ -141,7 +141,7 @@ class PriceValidator:
             raise RuntimeError(
                 f"[SCHEMA_VALIDATION] Failed to validate schema for {self.table_name}: {e}. "
                 "Cannot proceed with data load."
-            )
+            ) from e
 
     def verify_unique_constraint_exists(self, cur: Any) -> bool:
         """Verify unique constraint on (symbol, date)."""

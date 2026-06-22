@@ -712,7 +712,7 @@ def safe_dict_convert(row: Any) -> dict[str, Any]:
             f"  Row keys: {row_keys}\n"
             f"  Row type: {type(row).__name__}\n"
             f"  This may indicate a schema mismatch between code and database."
-        )
+        ) from e
 
 
 def safe_json_serialize(obj: Any) -> Any:

@@ -46,14 +46,14 @@ class SP500ConstituentsLoader(OptimalLoader):
             try:
                 response = requests.get(SP500_URL, headers=headers, timeout=15)
                 response.raise_for_status()
-            except requests.exceptions.Timeout:
+            except requests.exceptions.Timeout as e:
                 raise RuntimeError(
                     "S&P 500 fetch timeout. Wikipedia API is unreachable or slow. Cannot load S&P 500 constituent list."
-                )
-            except requests.exceptions.ConnectionError:
+                ) from e
+            except requests.exceptions.ConnectionError as e:
                 raise RuntimeError(
                     "S&P 500 connection error. Cannot reach Wikipedia. Cannot load S&P 500 constituent list."
-                )
+                ) from e
 
             tables = pd.read_html(StringIO(response.text))
             if not tables:

@@ -241,12 +241,12 @@ class FredEconomicDataLoader(OptimalLoader):
                             raise RuntimeError(
                                 f"[FRED] Missing required field in observation for {series_id}: {e}. "
                                 "FRED API response format may have changed or data is corrupted."
-                            )
+                            ) from e
                         except ValueError as e:
                             raise RuntimeError(
                                 f"[FRED] Failed to parse value for {series_id} [{obs.get('date')}]: {e}. "
                                 "Value string: '{val_str}'. Cannot parse economic data."
-                            )
+                            ) from e
 
                     # Validate freshness after successful fetch
                     if latest_obs_date:

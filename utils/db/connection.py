@@ -81,7 +81,7 @@ def _get_connection_pool():
                 try:
                     port = int(port)
                 except (ValueError, TypeError) as e:
-                    raise psycopg2.OperationalError(f"Invalid DB_PORT: {e}")
+                    raise psycopg2.OperationalError(f"Invalid DB_PORT: {e}") from e
 
                 try:
                     # RDS Proxy doesn't support command-line options, so don't pass them during connection

@@ -1274,7 +1274,7 @@ class PriceLoader(OptimalLoader):
                     raise RuntimeError(
                         f"[{symbol}] Rate limited after {max_retries} attempts. "
                         "Cannot fetch price data when API is rate limited."
-                    )
+                    ) from e
                 # Network/timeout errors - retry with backoff + jitter
                 if any(x in error_str for x in ["timeout", "json", "parse", "connection", "reset"]):
                     if attempt < max_retries - 1:
@@ -1290,13 +1290,13 @@ class PriceLoader(OptimalLoader):
                     raise RuntimeError(
                         f"[{symbol}] Transient error after {max_retries} attempts: {e}. "
                         "Cannot fetch price data after exhausting retries."
-                    )
+                    ) from e
                 # Auth errors - must fail fast
                 if "403" in error_str or "401" in error_str or "unauthorized" in error_str:
                     raise RuntimeError(
                         f"[{symbol}] Authentication error accessing price data: {e}. "
                         "Cannot proceed without valid credentials."
-                    )
+                    ) from e
                 # Other errors - log and re-raise
                 logger.error("[{symbol}] Unexpected error: %s", e)
                 raise
@@ -1317,7 +1317,7 @@ class PriceLoader(OptimalLoader):
             raise RuntimeError(
                 f"[PRICE_VALIDATION] Price validation failed: row is missing required fields or has invalid types: {e}. "
                 "Price data integrity check is mandatory."
-            )
+            ) from e
 
     def _validate_and_check_preconditions(self) -> None:
         """Validate preflight conditions: schema and market close availability."""
@@ -1345,7 +1345,7 @@ class PriceLoader(OptimalLoader):
         except Exception as e:
             raise RuntimeError(
                 f"[MARKET_CLOSE] Could not verify market close data: {e}. Cannot load prices without this verification."
-            )
+            ) from e
 
     def _execute_batch_jobs(
         self,
@@ -1572,7 +1572,7 @@ class PriceLoader(OptimalLoader):
                             "interval": self.interval,
                         },
                     )
-                    if self._stats.get("rate_limit_error_duration_sec", 0) > 0:  # type: ignore
+                    if self._stats.get("rate_limit_error_duration_sec", 0) > 0:
                         m.put_metric(
                             "RateLimitErrorDuration",
                             self._stats["rate_limit_error_duration_sec"],
@@ -1715,11 +1715,11 @@ class PriceLoader(OptimalLoader):
             self._rate_limit_errors,
         )
 
-        return self._stats
+        return self._stats.to_dict()
 
     def _load_batch(self, symbols: list[str]) -> None:
         """Load a batch of symbols using batch API fetch (50x reduction in API calls)."""
-        wm_store = self._get_watermark()
+        wm_store = self._watermark._marks
 
         # Determine the watermark date for all symbols in batch
         # (simplified: use same date for all, finest-grained would be per-symbol)
@@ -1729,7 +1729,7 @@ class PriceLoader(OptimalLoader):
         else:
             # Use earliest watermark from batch
             watermarks = [wm_store.get(s) if wm_store else None for s in symbols]
-            previous_dates = [self._parse_watermark_date(w) for w in watermarks]
+            previous_dates = [self._watermark._parse_watermark_date(w) for w in watermarks]
             previous_date = (
                 min(d for d in previous_dates if d) if any(previous_dates) else None  # type: ignore[assignment]
             )
@@ -1745,25 +1745,23 @@ class PriceLoader(OptimalLoader):
                     "[{self.table_name}] %s: No rows fetched (watermark current), skipping",
                     symbol,
                 )
-                self._stats["symbols_skipped_by_watermark"] += 1  # type: ignore
-                self._stats[  # type: ignore
-                    "symbols_processed"
-                ] += 1  # Count as processed (no new data needed, not a failure)
+                self._stats["symbols_skipped_by_watermark"] += 1
+                self._stats["symbols_processed"] += 1
                 continue
 
             logger.debug("[{self.table_name}] {symbol}: Fetched %s rows from batch", len(rows))
-            self._stats["rows_fetched"] += len(rows)  # type: ignore
+            self._stats["rows_fetched"] += len(rows)
 
             if self.router and self.router.last_source:
                 src = self.router.last_source
-                self._stats["source_distribution"][src] = (  # type: ignore
-                    self._stats["source_distribution"].get(src, 0) + 1  # type: ignore
+                self._stats["source_distribution"][src] = (
+                    self._stats["source_distribution"].get(src, 0) + 1
                 )
 
             rows = self.transform(rows)
             before_quality = len(rows)
             rows = [r for r in rows if self._validate_row(r)]
-            self._stats["rows_quality_dropped"] += before_quality - len(rows)  # type: ignore
+            self._stats["rows_quality_dropped"] += before_quality - len(rows)
 
             # Bloom dedup (cheap pre-filter)
             # SKIP for price_daily: EOD price data is immutable, dedup not needed
@@ -1775,7 +1773,7 @@ class PriceLoader(OptimalLoader):
                 self._stats["rows_dedup_skipped"] += before_dedup - len(rows)
 
             if not rows:
-                self._stats["symbols_processed"] += 1  # type: ignore
+                self._stats["symbols_processed"] += 1
                 continue
 
             # Calculate new watermark BEFORE insert
@@ -1787,7 +1785,7 @@ class PriceLoader(OptimalLoader):
                 chunk = rows[chunk_start : chunk_start + self.chunk_size]
                 is_final_chunk = chunk_start + self.chunk_size >= len(rows)
                 chunk_wm = new_wm if is_final_chunk else None
-                inserted += self._bulk_insert(
+                inserted += self._bulk_insert_mgr.bulk_insert(
                     chunk,
                     symbol=symbol if is_final_chunk else None,
                     new_watermark=chunk_wm,
@@ -1798,8 +1796,8 @@ class PriceLoader(OptimalLoader):
                     key = ":".join(str(row.get(c, "")) for c in self.primary_key)
                     dedup.add(key)
 
-            self._stats["rows_inserted"] += inserted  # type: ignore
-            self._stats["symbols_processed"] += 1  # type: ignore
+            self._stats["rows_inserted"] += inserted
+            self._stats["symbols_processed"] += 1
 
 
 def _invalidate_phase1_cache():
@@ -1984,7 +1982,7 @@ def main():
             raise RuntimeError(
                 f"[MAIN] Could not log environment loading failure to audit trail: {log_err}. "
                 "Audit trail integrity is mandatory for Phase 7 reconciliation."
-            )
+            ) from log_err
 
     # Read from environment variables (no CLI args, cleaner for containerized execution)
     intervals_str = os.getenv("LOADER_INTERVALS", "1d,1wk,1mo")
@@ -2017,7 +2015,7 @@ def main():
     # SIGALRM only available on Unix; skip on Windows
     if hasattr(signal, "SIGALRM"):
         signal.signal(signal.SIGALRM, timeout_handler)
-        signal.alarm(execution_timeout_sec)
+        signal.alarm(execution_timeout_sec)  # type: ignore[attr-defined]
     else:
         logger.debug("[TIMEOUT] SIGALRM not available (Windows). Using process-level timeout instead.")
 
@@ -2107,7 +2105,7 @@ def main():
             raise RuntimeError(
                 f"[MAIN] Could not log symbols loading failure to audit trail: {log_err}. "
                 "Audit trail integrity is mandatory for Phase 7 reconciliation."
-            )
+            ) from log_err
 
     # Essential symbols that must be present in price_daily regardless of what stock_symbols contains.
     # stock_symbols excludes ETFs, so these never appear via get_active_symbols().
@@ -2235,7 +2233,7 @@ def main():
                         raise RuntimeError(
                             f"[MAIN] Loader failed for {asset_class}/{interval}: {e}. "
                             "Cannot proceed with price loading if an interval fails."
-                        )
+                        ) from e
     except Exception as timeout_err:
         logger.critical("[MAIN] Loader execution timeout exceeded: %s", timeout_err)
         try:
@@ -2255,7 +2253,7 @@ def main():
             raise RuntimeError(
                 f"[MAIN] Could not log timeout failure to audit trail: {log_err}. "
                 "Audit trail integrity is mandatory for Phase 7 reconciliation."
-            )
+            ) from log_err
 
     logger.info("[MAIN] All intervals completed. Total: %s", total_stats)
 
@@ -2281,7 +2279,7 @@ def main():
             raise RuntimeError(
                 f"[MAIN] Could not log multi-interval failure to audit trail: {log_err}. "
                 "Audit trail integrity is mandatory for Phase 7 reconciliation."
-            )
+            ) from log_err
 
     try:
         if "rows_inserted" not in total_stats:
@@ -2297,7 +2295,7 @@ def main():
         raise RuntimeError(
             f"[MAIN] Could not log loader completion to audit trail: {log_err}. "
             "Audit trail integrity is mandatory for Phase 7 reconciliation."
-        )
+        ) from log_err
     if _lock_conn:
         try:
             _lock_conn.close()

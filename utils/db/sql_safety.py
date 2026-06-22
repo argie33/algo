@@ -264,8 +264,8 @@ def safe_execute(cur, query_template: str, **kwargs) -> None:
             except ValueError:
                 try:
                     safe_kwargs[key] = validate_identifier(value, SAFE_COLUMNS, "column")
-                except ValueError:
-                    raise ValueError(f"Invalid identifier '{value}' for parameter '{key}'")
+                except ValueError as e:
+                    raise ValueError(f"Invalid identifier '{value}' for parameter '{key}'") from e
         else:
             safe_kwargs[key] = value
 

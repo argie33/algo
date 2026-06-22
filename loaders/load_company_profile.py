@@ -71,7 +71,7 @@ class CompanyProfileLoader(OptimalLoader):
             raise RuntimeError(
                 f"[COMPANY_PROFILE] Failed to fetch profile for {symbol}: {e}. "
                 "Cannot proceed without sector/industry data."
-            )
+            ) from e
 
 
 if __name__ == "__main__":

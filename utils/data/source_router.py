@@ -304,7 +304,7 @@ class DataSourceRouter:
             return rows
         except TimeoutError as e:
             logger.warning(f"yfinance timeout for {symbol} (60s exceeded): {e}")
-            raise Exception(f"yfinance timeout: {e}")
+            raise Exception(f"yfinance timeout: {e}") from e
         except (ValueError, ZeroDivisionError, TypeError) as e:
             if any(
                 keyword in str(e).lower()
@@ -319,7 +319,7 @@ class DataSourceRouter:
                 ]
             ):
                 logger.warning(f"yfinance rate limited or parse error for {symbol}: {e}")
-                raise Exception(f"yfinance rate limited: {e}")
+                raise Exception(f"yfinance rate limited: {e}") from e
             logger.error(f"yfinance error for {symbol}: {e}")
             raise
 
@@ -426,7 +426,7 @@ class DataSourceRouter:
 
         except TimeoutError as e:
             logger.warning(f"yfinance timeout for batch of {len(symbols)} symbols: {e}")
-            raise Exception(f"yfinance batch timeout: {e}")
+            raise Exception(f"yfinance batch timeout: {e}") from e
         except (ValueError, ZeroDivisionError, TypeError) as e:
             if any(
                 keyword in str(e).lower()
@@ -441,7 +441,7 @@ class DataSourceRouter:
                 ]
             ):
                 logger.warning(f"yfinance batch rate limited or parse error: {e}")
-                raise Exception(f"yfinance batch rate limited: {e}")
+                raise Exception(f"yfinance batch rate limited: {e}") from e
             logger.error(f"yfinance batch error: {e}")
             raise
 

@@ -188,8 +188,8 @@ def validate_date_string(date_str: str, format_str: str = "%Y-%m-%d") -> str:
     try:
         datetime.strptime(date_str, format_str)
         return date_str
-    except ValueError:
-        raise ValidationError(f"Invalid date format: {date_str} (expected {format_str})")
+    except ValueError as e:
+        raise ValidationError(f"Invalid date format: {date_str} (expected {format_str})") from e
 
 
 def validate_integer_range(

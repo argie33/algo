@@ -231,7 +231,7 @@ class PriceFetcher:
                     raise RuntimeError(
                         f"[{symbol}] Rate limited after {max_retries} attempts. "
                         "Cannot fetch price data when API is rate limited."
-                    )
+                    ) from e
                 # Network/timeout errors - retry with backoff + jitter
                 if any(x in error_str for x in ["timeout", "json", "parse", "connection", "reset"]):
                     if attempt < max_retries - 1:
@@ -247,13 +247,13 @@ class PriceFetcher:
                     raise RuntimeError(
                         f"[{symbol}] Transient error after {max_retries} attempts: {e}. "
                         "Cannot fetch price data after exhausting retries."
-                    )
+                    ) from e
                 # Auth errors - must fail fast
                 if "403" in error_str or "401" in error_str or "unauthorized" in error_str:
                     raise RuntimeError(
                         f"[{symbol}] Authentication error accessing price data: {e}. "
                         "Cannot proceed without valid credentials."
-                    )
+                    ) from e
                 logger.error(f"[{symbol}] Unexpected error: {e}")
                 raise
         raise RuntimeError(f"[{symbol}] Exhausted all fetch attempts without successful data fetch")

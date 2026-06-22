@@ -551,6 +551,18 @@ class TradeExecutor:
             logger.error(f"Alpaca API error getting portfolio value: {e}")
             raise DataUnavailableError(f"Cannot reach Alpaca: {e}") from e
 
+    def _cancel_bracket_orders(self, alpaca_order_id: str) -> dict[str, Any]:
+        return self.order_manager.cancel_bracket_orders(alpaca_order_id)
+
+    def _verify_order_status(self, alpaca_order_id: str) -> str | None:
+        return self.order_manager.verify_order_status(alpaca_order_id)
+
+    def _get_order_filled_quantity(self, alpaca_order_id: str) -> float | None:
+        return self.order_manager.get_order_filled_quantity(alpaca_order_id)
+
+    def _send_alpaca_exit(self, symbol: str, shares: float) -> dict[str, Any]:
+        return self.order_manager.send_market_exit(symbol, shares, self.execution_mode)
+
     # ---------- Entry ----------
 
     def execute_trade(

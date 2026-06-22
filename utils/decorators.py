@@ -187,7 +187,7 @@ def validation_handler(
                         raise InputValidationError(
                             f"Invalid input: {e!s}",
                             context={"validation_error": str(e)},
-                        )
+                        ) from e
 
                 return func(*args, **kwargs)
             except Exception as e:

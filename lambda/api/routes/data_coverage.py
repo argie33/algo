@@ -286,7 +286,7 @@ def get_loader_health(cur) -> dict[str, Any]:
             }
         )
     except (psycopg2.DatabaseError, psycopg2.OperationalError) as e:
-        raise Exception(f"Failed to retrieve loader health: {e}")
+        raise Exception(f"Failed to retrieve loader health: {e}") from e
 
 
 def _safe_call(cur, fn) -> dict[str, Any]:

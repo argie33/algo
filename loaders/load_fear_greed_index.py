@@ -148,22 +148,22 @@ class FearGreedIndexLoader(OptimalLoader):
                     )
                 return rows
 
-            except requests.exceptions.Timeout:
+            except requests.exceptions.Timeout as e:
                 if attempt < 2:
                     logger.warning(f"Fear & Greed timeout (attempt {attempt + 1}/3), retrying...")
                     time.sleep((attempt + 1) * 5)
                 else:
                     raise RuntimeError(
                         "Failed to fetch Fear & Greed index after 3 timeout attempts. CNN API is unreachable or slow."
-                    )
-            except requests.exceptions.ConnectionError:
+                    ) from e
+            except requests.exceptions.ConnectionError as e:
                 if attempt < 2:
                     logger.warning(f"Fear & Greed connection error (attempt {attempt + 1}/3), retrying...")
                     time.sleep((attempt + 1) * 5)
                 else:
                     raise RuntimeError(
                         "Failed to fetch Fear & Greed index after 3 connection errors. Cannot reach CNN API."
-                    )
+                    ) from e
             except (ValueError, KeyError, TypeError) as e:
                 raise RuntimeError(
                     f"[FEAR_GREED] Data format error parsing CNN response: {e}. "
