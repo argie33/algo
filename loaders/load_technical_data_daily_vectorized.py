@@ -186,6 +186,11 @@ class VectorizedTechnicalLoader:
         df = pd.DataFrame(prices)
         df["date"] = pd.to_datetime(df["date"])
 
+        # Pre-fetch SPY prices once for the full date range — cached for all symbols.
+        # Previously fetched per-symbol (10,635 DB queries). Now fetched once.
+        all_dates = df["date"]
+        spy_prices_cached = self._fetch_spy_prices(all_dates.min().date(), all_dates.max().date())
+
         results = []
 
         for symbol in df["symbol"].unique():
@@ -250,14 +255,12 @@ class VectorizedTechnicalLoader:
                 # Volume MA
                 symbol_df["volume_ma_50"] = compute_volume_ma(symbol_df["volume"], 50)
 
-                # Mansfield RS (SPY comparison)
+                # Mansfield RS (SPY comparison) — uses pre-cached SPY prices (1 DB fetch for all symbols)
                 try:
-                    # Fetch SPY data for this date range
-                    spy_prices = self._fetch_spy_prices(symbol_df["date"].min(), symbol_df["date"].max())
-                    if spy_prices:
+                    if spy_prices_cached:
                         from algo.infrastructure.market_calendar import US_HOLIDAYS
 
-                        spy_df = pd.DataFrame(spy_prices)
+                        spy_df = pd.DataFrame(spy_prices_cached)
                         spy_df["date"] = pd.to_datetime(spy_df["date"])
                         spy_closes = spy_df.set_index("date")["close"]
 
@@ -273,8 +276,8 @@ class VectorizedTechnicalLoader:
                             target_index = pd.DatetimeIndex(symbol_df["date"].values, freq=cbd)
                             spy_aligned = spy_closes.reindex(target_index)
 
-                            # Forward-fill NaN values from missing SPY dates
-                            spy_filled = spy_aligned.fillna(method="pad")
+                            # Forward-fill NaN values from missing SPY dates (ffill avoids FutureWarning)
+                            spy_filled = spy_aligned.ffill()
                             rs_line = symbol_df["close"].values / spy_filled.values
                             rs_line_s = pd.Series(rs_line, index=symbol_df.index)
                             # Replace infinities with NaN
