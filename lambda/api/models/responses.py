@@ -23,7 +23,7 @@ class DataFreshness(BaseModel):
 class BaseResponse(BaseModel):
     """Base response wrapper for all API responses."""
 
-    model_config = ConfigDict(populate_by_name=True, by_alias=True)
+    model_config = ConfigDict(populate_by_name=True)
 
     status_code: int = Field(..., alias="statusCode", description="HTTP status code")
     data_freshness: DataFreshness | None = Field(None, description="Data freshness metadata")

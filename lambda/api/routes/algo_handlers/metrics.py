@@ -264,7 +264,7 @@ def _get_algo_performance(cur) -> dict:
         # Compute expectancy_r from win_rate and average R multiples
         expectancy_r = None
         try:
-            wr = float(metrics.get("win_rate_pct"))  # type: ignore[arg-type,unused-ignore]
+            wr = float(metrics.get("win_rate_pct"))
             avg_wr = float(trade_stats.get("avg_win_r"))  # type: ignore[arg-type]
             avg_lr = float(trade_stats.get("avg_loss_r"))  # type: ignore[arg-type]
             if wr is not None and avg_wr is not None and avg_lr is not None:

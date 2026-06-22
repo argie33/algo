@@ -27,7 +27,7 @@ except ModuleNotFoundError as setup_err:
 IMPORT_ERROR = None
 ENV_VALIDATION_ERROR = None
 DB_CONNECTION_ERROR = None
-_JWKS_CACHE = {}
+_JWKS_CACHE: dict[str, Any] = {}
 _JWKS_CACHE_TIME = None
 _JWKS_CACHE_LOCK = threading.Lock()  # Protects JWKS cache updates
 _ALLOWED_ORIGINS_CACHE = None
@@ -359,7 +359,7 @@ def parse_query_params(event: dict) -> dict:
         for param in event["rawQueryString"].split("&"):
             if "=" in param:
                 k, v = param.split("=", 1)
-                params[k] = [*params.get(k), v]
+                params[k] = [*(params.get(k) or []), v]
             else:
                 params[param] = [""]
     return params
@@ -415,7 +415,7 @@ def get_cors_headers(event: dict) -> dict[str, str]:
 
     Issue #10 FIX: Improved diagnostics when CORS fails.
     """
-    headers = event.get("headers")
+    headers = event.get("headers") or {}
     origin = headers.get("origin", "") or headers.get("Origin", "")
     if not origin:
         origin = ""
@@ -505,15 +505,15 @@ def get_cache_headers(cache_type: str = "no-cache") -> dict[str, str]:
 
 def get_bearer_token(event: dict) -> str | None:
     """Extract Bearer token from Authorization header."""
-    headers = event.get("headers")
+    headers = event.get("headers") or {}
     auth_header = headers.get("Authorization")
     if not auth_header:
         auth_header = headers.get("authorization", "")
 
-    if not auth_header.startswith("Bearer "):
+    if not auth_header or not auth_header.startswith("Bearer "):
         return None
 
-    return auth_header[7:]  # Remove 'Bearer ' prefix
+    return str(auth_header[7:])  # Remove 'Bearer ' prefix
 
 
 def _get_cognito_jwks():
@@ -755,13 +755,13 @@ def get_client_ip(event: dict) -> str:
         # API GW v2: requestContext.http.sourceIp
         source_ip = (_req_ctx.get("http") or {}).get("sourceIp", "")
     if source_ip:
-        return source_ip
+        return str(source_ip)
 
     # Fallback for local/test invocations without requestContext
     headers = event.get("headers") or {}
     xff = headers.get("x-forwarded-for") or headers.get("X-Forwarded-For", "")
     if xff:
-        return xff.split(",")[0].strip()
+        return str(xff).split(",")[0].strip()
 
     return "unknown"
 

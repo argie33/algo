@@ -39,7 +39,7 @@ from api_types import JWTClaims, RouteBody, RouteParams
 logger = logging.getLogger(__name__)
 
 
-def _check_admin_access(jwt_claims: dict | None) -> bool:
+def _check_admin_access(jwt_claims: "dict | JWTClaims | None") -> bool:
     """Check if user has admin access from verified JWT claims only.
 
     Checks the 'cognito:groups' claim for 'admin' group membership.
@@ -84,7 +84,7 @@ def handle(
     params: RouteParams,
     body: RouteBody | None = None,
     jwt_claims: JWTClaims | None = None,
-) -> dict[str, Any]:
+) -> Any:
     """Handle /api/admin/* endpoints for operational visibility."""
     try:
         # Validate jwt_claims at entry point
@@ -129,7 +129,7 @@ def handle(
             _audit_log_admin_action(cur, user_id, path, "success")
             return result
         elif path == "/api/admin/verify-user-email" and method == "POST":
-            result = _verify_user_email(body)
+            result = _verify_user_email(dict(body) if body else None)
             _audit_log_admin_action(
                 cur,
                 user_id,
@@ -387,7 +387,7 @@ def _get_data_quality(cur) -> dict:
     return json_response(200, quality)
 
 
-def _verify_user_email(body: "RouteBody | None" = None) -> dict:
+def _verify_user_email(body: "dict[str, Any] | None" = None) -> dict:
     """Verify a user's email in Cognito (dev/testing only)."""
     if not body:
         return error_response(400, "bad_request", "Request body is required")

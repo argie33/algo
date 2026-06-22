@@ -34,7 +34,7 @@ logger = logging.getLogger(__name__)
 
 
 def _check_admin_access(jwt_claims: dict | None) -> bool:
-    return CognitoValidator.validate_admin_access(jwt_claims)
+    return bool(CognitoValidator.validate_admin_access(jwt_claims))
 
 
 def _compute_request_signature(idempotency_key: str, body: dict) -> str:
@@ -62,7 +62,7 @@ def _check_idempotency(cur, signature: str) -> dict | None:
         )
         row = cur.fetchone()
         if row:
-            return _json.loads(row[0])
+            return dict(_json.loads(row[0]))
         return None
     except (psycopg2.Error, _json.JSONDecodeError) as e:
         logger.warning(f"Idempotency check failed: {e}")

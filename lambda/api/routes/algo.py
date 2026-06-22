@@ -289,7 +289,8 @@ def _dispatch(
     elif path == "/api/algo/trades":
         limit_str = params.get("limit", [None])[0] if params and params.get("limit") else None
         limit = safe_limit(limit_str or "100", max_val=10000)
-        status_filter = (params.get("status")[0] if params.get("status") else None) if params else None
+        _status_list = params.get("status") if params else None
+        status_filter = _status_list[0] if _status_list else None
         if status_filter and status_filter not in ("open", "closed", "halted", "cancelled"):
             raise_api_error(
                 400, "bad_request", f"Invalid status '{status_filter}'. Must be one of: open, closed, halted, cancelled"

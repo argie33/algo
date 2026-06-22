@@ -28,7 +28,7 @@ def _check_admin_access(jwt_claims: dict | None) -> bool:
     return bool(result)
 
 
-def handle(  # type: ignore
+def handle(
     cur,
     path: str,
     method: str,
