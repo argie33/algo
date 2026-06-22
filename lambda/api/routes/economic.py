@@ -1,6 +1,7 @@
 """Route: economic"""
 
 import logging
+from typing import Any
 
 import psycopg2
 import psycopg2.errors
@@ -68,10 +69,10 @@ def handle(
             return error_response(404, "not_found", f"No economic handler for {path}")
 
         # Get handler function from module globals
-        handler_func = globals()[handler_name]
+        handler_func = globals()[str(handler_name)]
 
         # Call handler with appropriate parameters
-        if route_config["needs_params"]:
+        if route_config and route_config["needs_params"]:
             return handler_func(cur, params)
         else:
             return handler_func(cur)
@@ -283,7 +284,7 @@ def _get_leading_indicators(cur) -> dict:
             all_history = []
 
         # Group by series_id
-        history_by_series = {}
+        history_by_series: dict[str, list[Any]] = {}
         for row in all_history:
             sid = row["series_id"]
             if sid not in history_by_series:
@@ -466,7 +467,7 @@ def _get_yield_curve_full(cur) -> dict:
                 is_inverted = (val < 0) if val else False
 
         # Add history for spreads
-        history_by_series = {}
+        history_by_series: dict[str, list[Any]] = {}
         for row in history_rows:
             sid = row["series_id"]
             if sid not in history_by_series:

@@ -4,7 +4,7 @@ import logging
 import time
 from datetime import date, datetime, timezone
 from functools import wraps
-from typing import Any, cast
+from typing import Any, NoReturn
 
 import psycopg2
 import psycopg2.errors
@@ -303,7 +303,7 @@ def error_response(code: int, typ: str, msg: str) -> dict[str, Any]:
     return {"statusCode": code, "errorType": typ, "message": msg, "_error": msg}
 
 
-def raise_db_error(error: Exception, context: str = "database operation") -> Any:
+def raise_db_error(error: Exception, context: str = "database operation") -> NoReturn:
     """Convert database error to APIException.
 
     Maps psycopg2 exceptions to appropriate HTTP status codes:
@@ -367,7 +367,7 @@ def extract_param(params, key: str, required: bool = False, default: str | None 
     )
 
 
-def raise_api_error(status_code: int, error_type: str, message: str) -> Any:
+def raise_api_error(status_code: int, error_type: str, message: str) -> NoReturn:
     """Raise APIException with explicit status code and error type.
 
     Selects the appropriate exception subclass based on status code.
@@ -608,16 +608,16 @@ def json_response(code: int, data: dict[str, Any], data_freshness: dict[str, Any
         response = success_response(data)
         if data_freshness:
             response["data_freshness"] = data_freshness
-        return cast(dict[str, Any], response)
+        return response
     else:
         # For error responses, sanitize to prevent None values in nested fields
         # BUT only auto-populate _error from message if message was not None originally
         has_non_none_message = "message" in data and data.get("message") is not None
         sanitized_data = APIResponseValidator.sanitize_response(data)
-        response: dict[str, Any] = {"statusCode": code, **sanitized_data}
-        if "_error" not in response and has_non_none_message:
-            response["_error"] = sanitized_data["message"]
-        return response
+        error_resp: dict[str, Any] = {"statusCode": code, **sanitized_data}
+        if "_error" not in error_resp and has_non_none_message:
+            error_resp["_error"] = sanitized_data["message"]
+        return error_resp
 
 
 def validate_dashboard_response(endpoint_name: str, response_data: dict[str, Any]) -> dict[str, Any]:
@@ -666,7 +666,7 @@ def ensure_valid_response(endpoint_name: str, response_data: dict[str, Any]) -> 
         is_valid, error_msg = ResponseValidator.validate_endpoint_response(endpoint_name, response_data)
         if not is_valid:
             logger.warning(f"[RESPONSE_VALIDATION] Endpoint '{endpoint_name}' validation failed: {error_msg}")
-        return is_valid
+        return bool(is_valid)
     except (ImportError, AttributeError, KeyError, TypeError) as e:
         logger.warning(f"[RESPONSE_VALIDATION] Could not validate endpoint '{endpoint_name}': {type(e).__name__}: {e}")
         return False

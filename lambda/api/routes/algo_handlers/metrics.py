@@ -263,9 +263,9 @@ def _get_algo_performance(cur) -> dict:
         # Compute expectancy_r from win_rate and average R multiples
         expectancy_r = None
         try:
-            wr = float(metrics.get("win_rate_pct"))
-            avg_wr = float(trade_stats.get("avg_win_r"))
-            avg_lr = float(trade_stats.get("avg_loss_r"))
+            wr = float(metrics.get("win_rate_pct"))  # type: ignore[arg-type]
+            avg_wr = float(trade_stats.get("avg_win_r"))  # type: ignore[arg-type]
+            avg_lr = float(trade_stats.get("avg_loss_r"))  # type: ignore[arg-type]
             if wr is not None and avg_wr is not None and avg_lr is not None:
                 wr_frac = wr / 100
                 expectancy_r = round(wr_frac * avg_wr + (1 - wr_frac) * avg_lr, 3)
@@ -526,7 +526,7 @@ def _get_holding_period_distribution(cur) -> dict:
     if not durations:
         return list_response([], total=0, limit=None, offset=None)
 
-    buckets: list[dict[str, int | str]] = [
+    buckets: list[dict[str, Any]] = [
         {"range": "0-3 days", "count": 0},
         {"range": "4-7 days", "count": 0},
         {"range": "8-14 days", "count": 0},

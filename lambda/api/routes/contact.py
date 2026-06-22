@@ -25,7 +25,7 @@ from utils.validation import CognitoValidator, DynamoDBValidator
 
 def _check_admin_access(jwt_claims: dict | None) -> bool:
     """Check if user has admin access from verified JWT claims only."""
-    return CognitoValidator.validate_admin_access(jwt_claims)
+    return bool(CognitoValidator.validate_admin_access(jwt_claims))
 
 
 logger = logging.getLogger(__name__)
@@ -260,7 +260,8 @@ def _submit_contact(cur, body: dict) -> dict:
 def _get_submissions(cur, params: dict) -> dict:
     """Get contact submissions (admin-only)."""
     try:
-        limit = safe_limit(params.get("limit", [100])[0] if params else 100)
+        limit_raw = params.get("limit", [None])[0] if params else None
+        limit = safe_limit(str(limit_raw) if limit_raw is not None else None, default=100)
         try:
             rows = execute_with_timeout(
                 cur,

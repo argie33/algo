@@ -1,6 +1,7 @@
 """Route: industries"""
 
 import logging
+from typing import Any
 
 import psycopg2
 import psycopg2.errors
@@ -42,7 +43,7 @@ def handle(
     params: dict,
     body: dict | None = None,
     jwt_claims: dict | None = None,
-) -> dict:
+) -> Any:
     """Handle /api/industries, /api/industries/{name}, /api/industries/{name}/trend."""
     try:
         parts = [p for p in path.split("/") if p]

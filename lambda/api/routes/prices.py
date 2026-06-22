@@ -1,6 +1,7 @@
 """Route: prices"""
 
 import logging
+from typing import Any
 
 import psycopg2
 import psycopg2.errors
@@ -68,10 +69,10 @@ def handle(
                     default=30,
                 )
                 timeframe = extract_param(params, "timeframe", required=False, default="daily")
-                table_name = _TABLE_MAP.get(timeframe, "price_daily")
-                etf_table_name = _ETF_TABLE_MAP.get(timeframe, "etf_price_daily")
+                table_name = _TABLE_MAP.get(timeframe or "daily", "price_daily")
+                etf_table_name = _ETF_TABLE_MAP.get(timeframe or "daily", "etf_price_daily")
 
-                result = {sym: [] for sym in symbols}
+                result: dict[str, Any] = {sym: [] for sym in symbols}
 
                 batch_query = psycopg2.sql.SQL("""
                     WITH ranked AS (
@@ -172,7 +173,7 @@ def handle(
             timeframe = extract_param(params, "timeframe", required=False, default="daily")
             days_str = extract_param(params, "days", required=False)
 
-            table_name = _TABLE_MAP.get(timeframe, "price_daily")
+            table_name = _TABLE_MAP.get(timeframe or "daily", "price_daily")
 
             where_clause = "symbol = %s"
             qparams = [symbol]
@@ -185,7 +186,7 @@ def handle(
                     logger.debug(f"Invalid days parameter: {days_str}, ignoring date filter")
 
             # Query stock price table first; fall back to ETF table if no results
-            etf_table_name = _ETF_TABLE_MAP.get(timeframe, "etf_price_daily")
+            etf_table_name = _ETF_TABLE_MAP.get(timeframe or "daily", "etf_price_daily")
             query = psycopg2.sql.SQL("""
                 SELECT date, open, high, low, close, volume
                 FROM {}
@@ -221,7 +222,7 @@ def handle(
         # Returns {symbols: {SYM: [{date, open, high, low, close, volume}, ...]}}
         # Replaces N concurrent per-symbol calls with one batch query.
         elif len(parts) >= 4 and parts[3] == "batch-history":
-            symbols_raw = extract_param(params, "symbols", required=False, default="")
+            symbols_raw = extract_param(params, "symbols", required=False, default="") or ""
             symbols = [s.strip().upper() for s in symbols_raw.split(",") if s.strip()]
             if not symbols:
                 return error_response(400, "bad_request", "symbols parameter required")
@@ -237,10 +238,10 @@ def handle(
                 default=30,
             )
             timeframe = extract_param(params, "timeframe", required=False, default="daily")
-            table_name = _TABLE_MAP.get(timeframe, "price_daily")
-            etf_table_name = _ETF_TABLE_MAP.get(timeframe, "etf_price_daily")
+            table_name = _TABLE_MAP.get(timeframe or "daily", "price_daily")
+            etf_table_name = _ETF_TABLE_MAP.get(timeframe or "daily", "etf_price_daily")
 
-            result = {sym: [] for sym in symbols}
+            result3: dict[str, Any] = {sym: [] for sym in symbols}
 
             batch_query = psycopg2.sql.SQL("""
                 WITH ranked AS (
@@ -256,11 +257,11 @@ def handle(
             """).format(psycopg2.sql.Identifier(table_name))
             rows = execute_with_timeout(cur, batch_query, [symbols, limit], timeout_sec=20)
             if not DatabaseResultValidator.validate_rows_not_empty(rows, "prices batch-history query"):
-                return json_response(200, result)
+                return json_response(200, result3)
             found_symbols = set()
             for row in rows:
                 sym = row["symbol"]
-                result[sym].append(safe_json_serialize(dict(row)))
+                result3[sym].append(safe_json_serialize(dict(row)))
                 found_symbols.add(sym)
 
             missing = [s for s in symbols if s not in found_symbols]
@@ -281,9 +282,9 @@ def handle(
                 if etf_rows:
                     for row in etf_rows:
                         sym = row["symbol"]
-                        result[sym].append(safe_json_serialize(dict(row)))
+                        result3[sym].append(safe_json_serialize(dict(row)))
 
-            batch_result = {"symbols": result, "limit": limit}
+            batch_result = {"symbols": result3, "limit": limit}
             is_valid, error_msg = ResponseValidator.validate_endpoint_response("prices", batch_result)
             if not is_valid:
                 logger.error(f"Endpoint response validation failed: {error_msg}")

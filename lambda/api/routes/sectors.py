@@ -1,6 +1,7 @@
 """Route: sectors"""
 
 import logging
+from typing import Any
 
 import psycopg2
 import psycopg2.errors
@@ -43,7 +44,7 @@ def handle(
                 return error_response(400, "bad_request", "sectors parameter required (comma-separated)")
 
             sectors = [s.strip() for s in sectors_str.split(",") if s.strip()]
-            result = {s: [] for s in sectors}
+            result: dict[str, Any] = {s: [] for s in sectors}
 
             # Set timeout for batch trends query (12s for complex aggregations)
             cur.execute("SET LOCAL statement_timeout = '12000ms'")

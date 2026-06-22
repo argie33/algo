@@ -212,10 +212,10 @@ def handle(
             bull_val = latest.get("bullish_count")
             bear_val = latest.get("bearish_count")
             neut_val = latest.get("neutral_count")
-            total = int(total_val)
-            bull = int(bull_val)
-            bear = int(bear_val)
-            neut = int(neut_val)
+            total = int(total_val) if total_val is not None else 0
+            bull = int(bull_val) if bull_val is not None else 0
+            bear = int(bear_val) if bear_val is not None else 0
+            neut = int(neut_val) if neut_val is not None else 0
             bp = round(bull / total * 100, 1) if total > 0 else None
             bep = round(bear / total * 100, 1) if total > 0 else None
             np_ = round(neut / total * 100, 1) if total > 0 else None
@@ -245,7 +245,7 @@ def handle(
                 {
                     "date": str(dict(r)["date"]),
                     "target": (
-                        float(dict(r)["target_price"], default=None, context="target_price")
+                        float(dict(r)["target_price"])
                         if dict(r).get("target_price")
                         else None
                     ),
@@ -301,10 +301,10 @@ def handle(
             bull_val = latest.get("bullish_count")
             bear_val = latest.get("bearish_count")
             neut_val = latest.get("neutral_count")
-            total = int(total_val)
-            bull = int(bull_val)
-            bear = int(bear_val)
-            neut = int(neut_val)
+            total = int(total_val) if total_val is not None else 0
+            bull = int(bull_val) if bull_val is not None else 0
+            bear = int(bear_val) if bear_val is not None else 0
+            neut = int(neut_val) if neut_val is not None else 0
             bp = round(bull / total * 100, 1) if total and total > 0 else None
             bep = round(bear / total * 100, 1) if total and total > 0 else None
             np_ = round(neut / total * 100, 1) if total and total > 0 else None
@@ -334,7 +334,7 @@ def handle(
                 {
                     "date": str(dict(r)["date"]),
                     "target": (
-                        float(dict(r)["target_price"], default=None, context="target_price")
+                        float(dict(r)["target_price"])
                         if dict(r).get("target_price")
                         else None
                     ),

@@ -2,6 +2,7 @@
 
 import logging
 import re
+from typing import Any
 
 import psycopg2
 import psycopg2.errors
@@ -98,9 +99,11 @@ from .positions import handle as handle_positions
 logger = logging.getLogger(__name__)
 
 
-def _check_admin_access(jwt_claims: dict) -> bool:
+def _check_admin_access(jwt_claims: dict | None) -> bool:
     """Check if user has admin access from verified JWT claims only."""
-    return CognitoValidator.validate_admin_access(jwt_claims)
+    if not jwt_claims:
+        return False
+    return bool(CognitoValidator.validate_admin_access(jwt_claims))
 
 
 def handle(
@@ -111,7 +114,7 @@ def handle(
     body: dict | None = None,
     jwt_claims: dict | None = None,
     idempotency_key: str | None = None,
-) -> dict:
+) -> Any:
     """Handle /api/algo/* endpoints."""
     try:
         return _dispatch(cur, path, method, params, body, jwt_claims, idempotency_key)
@@ -136,7 +139,7 @@ def _dispatch(
     body: dict | None = None,
     jwt_claims: dict | None = None,
     idempotency_key: str | None = None,
-) -> dict:
+) -> Any:
     if not jwt_claims:
         raise_api_error(401, "missing_jwt_claims", "JWT claims required for request attribution")
     if "sub" not in jwt_claims or not jwt_claims["sub"]:

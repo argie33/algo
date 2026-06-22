@@ -33,7 +33,7 @@ logger = logging.getLogger(__name__)
 
 def _check_admin_access(jwt_claims: dict | None) -> bool:
     """Check if user has admin access from verified JWT claims only."""
-    return CognitoValidator.validate_admin_access(jwt_claims)
+    return bool(CognitoValidator.validate_admin_access(jwt_claims))
 
 
 def handle(

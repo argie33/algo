@@ -1,7 +1,8 @@
 """Route: market"""
 
 import logging
-from datetime import datetime, timedelta, timezone
+from datetime import date, datetime, timedelta, timezone
+from typing import Any
 
 import psycopg2
 import psycopg2.errors
@@ -352,7 +353,7 @@ def _handle_distribution_days(cur) -> dict:
             ORDER BY symbol, date DESC
         """)
         rows = cur.fetchall()
-        by_sym = {}
+        by_sym: dict[str, list[dict[str, Any]]] = {}
         for row in rows:
             r = dict(row)
             sym = r["symbol"]
@@ -460,13 +461,13 @@ def _handle_seasonality(cur) -> dict:
                     {
                         "name": (best_month.get("month_name") if best_month else None),
                         "avg_return_pct": (
-                            float(best_month.get("avg_return"))
+                            float(best_month.get("avg_return"))  # type: ignore[arg-type]
                             if best_month and best_month.get("avg_return") is not None
                             else None
                         ),
                         "win_rate_pct": (
                             round(
-                                (float(best_month.get("winning_years")) / float(best_month.get("years_counted")) * 100),
+                                (float(best_month.get("winning_years")) / float(best_month.get("years_counted")) * 100),  # type: ignore[arg-type]
                                 1,
                             )
                             if best_month
@@ -482,15 +483,15 @@ def _handle_seasonality(cur) -> dict:
                     {
                         "name": (worst_month.get("month_name") if worst_month else None),
                         "avg_return_pct": (
-                            float(worst_month.get("avg_return"))
+                            float(worst_month.get("avg_return"))  # type: ignore[arg-type]
                             if worst_month and worst_month.get("avg_return") is not None
                             else None
                         ),
                         "win_rate_pct": (
                             round(
                                 (
-                                    float(worst_month.get("winning_years"))
-                                    / float(worst_month.get("years_counted"))
+                                    float(worst_month.get("winning_years"))  # type: ignore[arg-type]
+                                    / float(worst_month.get("years_counted"))  # type: ignore[arg-type]
                                     * 100
                                 ),
                                 1,
@@ -508,12 +509,12 @@ def _handle_seasonality(cur) -> dict:
                     {
                         "name": best_dow.get("day") if best_dow else None,
                         "avg_return_pct": (
-                            float(best_dow.get("avg_return"))
+                            float(best_dow.get("avg_return"))  # type: ignore[arg-type]
                             if best_dow and best_dow.get("avg_return") is not None
                             else None
                         ),
                         "win_rate_pct": (
-                            float(best_dow.get("win_rate"))
+                            float(best_dow.get("win_rate"))  # type: ignore[arg-type]
                             if best_dow and best_dow.get("win_rate") is not None
                             else None
                         ),
@@ -525,12 +526,12 @@ def _handle_seasonality(cur) -> dict:
                     {
                         "name": worst_dow.get("day") if worst_dow else None,
                         "avg_return_pct": (
-                            float(worst_dow.get("avg_return"))
+                            float(worst_dow.get("avg_return"))  # type: ignore[arg-type]
                             if worst_dow and worst_dow.get("avg_return") is not None
                             else None
                         ),
                         "win_rate_pct": (
-                            float(worst_dow.get("win_rate"))
+                            float(worst_dow.get("win_rate"))  # type: ignore[arg-type]
                             if worst_dow and worst_dow.get("win_rate") is not None
                             else None
                         ),
@@ -592,7 +593,7 @@ def _handle_sentiment(cur, params: dict) -> dict:
             "trend": aaii_trend,
             "data": aaii_rows,
             "bullish_pct": (
-                float(aaii_current.get("bullish"), context="aaii_bullish")
+                float(aaii_current.get("bullish"))
                 if aaii_current and aaii_current.get("bullish") is not None
                 else None
             ),
@@ -633,19 +634,19 @@ def _handle_sentiment(cur, params: dict) -> dict:
 
         sentiment_data["naaim"] = {
             "current": (
-                float(naaim_current.get("naaim_number_mean"), context="naaim_number_mean")
+                float(naaim_current.get("naaim_number_mean"))
                 if naaim_current and naaim_current.get("naaim_number_mean") is not None
                 else None
             ),
             "history": naaim_rows,
             "trend": naaim_trend,
             "bullish_pct": (
-                float(naaim_current.get("bullish"), context="naaim_bullish")
+                float(naaim_current.get("bullish"))
                 if naaim_current and naaim_current.get("bullish") is not None
                 else None
             ),
             "bearish_pct": (
-                float(naaim_current.get("bearish"), context="naaim_bearish")
+                float(naaim_current.get("bearish"))
                 if naaim_current and naaim_current.get("bearish") is not None
                 else None
             ),
@@ -743,7 +744,7 @@ def _handle_naaim(cur) -> dict:
 
         if history:
             current = history[-1]
-            values = [h["value"] for h in history]
+            values: list[float] = [h["value"] for h in history if h["value"] is not None]
 
             # Compute moving averages
             ma_10 = sum(values[-10:]) / min(10, len(values)) if len(values) >= 10 else None
@@ -751,7 +752,7 @@ def _handle_naaim(cur) -> dict:
             ma_50 = sum(values[-50:]) / min(50, len(values)) if len(values) >= 50 else None
 
             # Identify extremes (>80 = extreme bullish, <20 = extreme bearish)
-            curr_val = current["value"]
+            curr_val: float | None = current["value"]
             signals = {
                 "extreme_bullish": (curr_val > 80 if curr_val is not None else None),
                 "extreme_bearish": (curr_val < 20 if curr_val is not None else None),
@@ -776,9 +777,15 @@ def _handle_naaim(cur) -> dict:
                     "signals": signals,
                     "interpretation": {
                         "meaning": "Manager equity allocation %; 0=all cash, 100=fully invested",
-                        "current_stance": ("bullish" if curr_val > 50 else "bearish"),
+                        "current_stance": ("bullish" if curr_val is not None and curr_val > 50 else "bearish"),
                         "extremity": (
-                            "extreme_bullish" if curr_val > 80 else ("extreme_bearish" if curr_val < 20 else "normal")
+                            "extreme_bullish"
+                            if curr_val is not None and curr_val > 80
+                            else (
+                                "extreme_bearish"
+                                if curr_val is not None and curr_val < 20
+                                else "normal"
+                            )
                         ),
                     },
                 },
@@ -912,7 +919,7 @@ def _get_market_latest(cur) -> dict:
     """)
     recent_prices = cur.fetchall()
 
-    result = {}
+    result: dict[str, Any] = {}
     if market_row:
         result["market"] = dict(market_row)
     if sentiment_row:
@@ -972,7 +979,7 @@ def _get_correlation_matrix(cur) -> dict:
             },
         )
 
-    prices_by_symbol = {}
+    prices_by_symbol: dict[str, list[Any]] = {}
     for row in rows:
         sym = row["symbol"]
         if sym not in prices_by_symbol:
@@ -1167,8 +1174,8 @@ def _get_cap_distribution(cur) -> dict:
     stocks = [safe_json_serialize(dict(r)) for r in rows]
     total_cap = sum(s["market_cap"] for s in stocks if s["market_cap"])
 
-    by_category = {}
-    by_sector = {}
+    by_category: dict[Any, dict[str, Any]] = {}
+    by_sector: dict[Any, dict[str, Any]] = {}
 
     for stock in stocks:
         cap = stock.get("market_cap", 0)
@@ -1256,7 +1263,6 @@ INDEX_NAMES = {
 
 @db_route_handler("get market indices")
 def _get_markets(cur) -> dict:
-    from datetime import date
 
     cur.execute(
         """
@@ -1304,7 +1310,7 @@ def _get_markets(cur) -> dict:
     )
     history_rows = cur.fetchall()
 
-    history = {}
+    history: dict[str, list[Any]] = {}
     for row in history_rows:
         sym = row["symbol"]
         if sym not in history:
@@ -1433,7 +1439,7 @@ def handle(
     params: dict,
     body: dict | None = None,
     jwt_claims: dict | None = None,
-) -> dict:
+) -> Any:
     """Handle /api/market/* endpoints."""
     try:
         handler = _MARKET_REGISTRY.get_handler(path)

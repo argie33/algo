@@ -1,6 +1,7 @@
 """Route: scores"""
 
 import logging
+from typing import Any
 
 import psycopg2
 import psycopg2.errors
@@ -106,7 +107,7 @@ def _get_stock_scores(
             AND NOT EXISTS (SELECT 1 FROM etf_symbols WHERE symbol = sc.symbol)
             AND ss.etf = 'N'
             """
-        params_list = []
+        params_list: list[Any] = []
 
         if sp500_only:
             where_clause += " AND ss.is_sp500 = TRUE"

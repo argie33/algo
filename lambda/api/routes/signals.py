@@ -2,6 +2,7 @@
 
 import logging
 import re
+from typing import Any
 
 import psycopg2
 import psycopg2.errors
@@ -30,7 +31,7 @@ def handle(
     params: dict,
     body: dict | None = None,
     jwt_claims: dict | None = None,
-) -> "dict":
+) -> Any:
     """Handle /api/signals/* endpoints."""
     try:
         if not params:
@@ -90,7 +91,7 @@ def _get_signals_stocks(cur, limit: int = 500, timeframe: str = "daily", symbol_
             )
 
         cur.execute("SET LOCAL statement_timeout = '25000ms'")
-        params = []
+        params: list[Any] = []
         symbol_clause = ""
 
         if symbol_filter:

@@ -9,7 +9,7 @@ Provides helper functions to:
 
 import logging
 from functools import wraps
-from typing import Any
+from typing import Any, cast
 
 import psycopg2.sql
 from routes.utils import error_response
@@ -146,7 +146,7 @@ def get_user_alpaca_credentials(cur, user_id: str, default_to_shared: bool = Tru
                 return None
 
         if creds:
-            return creds
+            return cast(dict[str, str], creds)
 
     except Exception as e:
         logger.warning(f"[ALPACA] Could not load user-scoped credentials for {user_id}: {e}")
@@ -163,7 +163,7 @@ def get_user_alpaca_credentials(cur, user_id: str, default_to_shared: bool = Tru
                 logger.error("[ALPACA] Shared credentials failed validation")
                 return None
 
-            return creds
+            return cast(dict[str, str], creds)
         except Exception as fallback_err:
             raise RuntimeError(f"Operation failed: {fallback_err}") from fallback_err
 

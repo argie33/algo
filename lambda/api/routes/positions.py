@@ -88,8 +88,8 @@ def _update_position(cur, body: dict) -> dict[str, Any]:
 
         symbol = position["symbol"] if hasattr(position, "__getitem__") else position[1]
 
-        update_fields = []
-        update_args = []
+        update_fields: list[str] = []
+        update_args: list[Any] = []
 
         if req.quantity is not None:
             update_fields.append("quantity = %s")
@@ -112,7 +112,7 @@ def _update_position(cur, body: dict) -> dict[str, Any]:
             update_args.append(req.target_3_price)
 
         if not update_fields:
-            return json_response(  # type: ignore
+            return json_response(
                 200,
                 {
                     "status": "no_changes",
@@ -146,7 +146,7 @@ def _update_position(cur, body: dict) -> dict[str, Any]:
         if not is_valid:
             logger.error(f"Endpoint response validation failed: {error_msg}")
             return error_response(500, "response_validation_error", error_msg)
-        return json_response(200, result)  # type: ignore
+        return json_response(200, result)
 
     except (
         psycopg2.errors.UndefinedTable,
@@ -156,4 +156,4 @@ def _update_position(cur, body: dict) -> dict[str, Any]:
         Exception,
     ) as e:
         code, error_type, message = handle_db_error(e, "update position")
-        return error_response(code, error_type, message)  # type: ignore
+        return error_response(code, error_type, message)

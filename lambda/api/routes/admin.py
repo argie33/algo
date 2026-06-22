@@ -3,8 +3,9 @@
 import logging
 import os
 import sys
-from datetime import datetime, timedelta, timezone
+from datetime import date, datetime, timedelta, timezone
 from pathlib import Path
+from typing import Any
 
 import boto3
 import psycopg2
@@ -32,20 +33,22 @@ from utils.validation import CognitoValidator
 
 # Add parent directory to sys.path to enable imports from lambda/api module
 sys.path.insert(0, str(Path(__file__).parent.parent))
-from api_types import JWTClaims, RouteBody, RouteParams, RouteResponse
+from api_types import JWTClaims, RouteBody, RouteParams
 
 
 logger = logging.getLogger(__name__)
 
 
-def _check_admin_access(jwt_claims: dict) -> bool:
+def _check_admin_access(jwt_claims: dict | None) -> bool:
     """Check if user has admin access from verified JWT claims only.
 
     Checks the 'cognito:groups' claim for 'admin' group membership.
     Never trust role from query params - only from JWT signature.
     Validates JWT claims structure before checking group membership.
     """
-    return CognitoValidator.validate_admin_access(jwt_claims)
+    if not jwt_claims:
+        return False
+    return bool(CognitoValidator.validate_admin_access(jwt_claims))
 
 
 def _audit_log_admin_action(cur, user_id: str, endpoint: str, status: str = "success", details: str = "") -> None:
@@ -81,7 +84,7 @@ def handle(
     params: RouteParams,
     body: RouteBody | None = None,
     jwt_claims: JWTClaims | None = None,
-) -> RouteResponse:
+) -> dict[str, Any]:
     """Handle /api/admin/* endpoints for operational visibility."""
     try:
         # Validate jwt_claims at entry point
@@ -132,7 +135,7 @@ def handle(
                 user_id,
                 path,
                 "success",
-                f"verified: {body.get('username', 'unknown')}",
+                f"verified: {(body or {}).get('username', 'unknown')}",
             )
             return result
 
@@ -227,7 +230,7 @@ def _get_loader_status(cur) -> dict:
 @db_route_handler("get system health")
 def _get_system_health(cur) -> dict:
     """Get overall system health status."""
-    health_data = {"status": "healthy", "components": {}}
+    health_data: dict[str, Any] = {"status": "healthy", "components": {}}
     cur.execute("SET LOCAL statement_timeout = '3000ms'")
 
     try:
@@ -247,8 +250,9 @@ def _get_system_health(cur) -> dict:
     price_row = cur.fetchone()
     last_price_date = next(iter(safe_json_serialize(dict(price_row).values())), 0) if price_row else 0
     if last_price_date:
+        last_price_date_typed: date = last_price_date  # type: ignore[assignment]
         today = datetime.now(timezone.utc).date()
-        age_days = (today - last_price_date).days
+        age_days = (today - last_price_date_typed).days
         # Use trading-day-aware freshness: data is fresh if it's from the most
         # recent trading day. A hardcoded day threshold causes false 'degraded'
         # on 3-day holiday weekends where Friday data is 4 calendar days old.
@@ -260,7 +264,7 @@ def _get_system_health(cur) -> dict:
                 if MarketCalendar.is_trading_day(expected):
                     break
                 expected -= timedelta(days=1)
-            is_fresh = last_price_date >= expected
+            is_fresh = last_price_date_typed >= expected
         except ImportError as e:
             logger.warning(f"[MARKET_CALENDAR] Import failed: {e} - falling back to age-based check")
             is_fresh = age_days <= 3
@@ -268,7 +272,7 @@ def _get_system_health(cur) -> dict:
             logger.warning(f"[MARKET_CALENDAR] Error computing expected trading day: {type(e).__name__}: {e}")
             is_fresh = age_days <= 3
         health_data["components"]["data_freshness"] = "ok" if is_fresh else "stale"
-        health_data["last_data_update"] = last_price_date.isoformat()
+        health_data["last_data_update"] = last_price_date_typed.isoformat()
         if not is_fresh:
             health_data["status"] = "degraded"
     else:
@@ -338,7 +342,7 @@ def _get_database_stats(cur) -> dict:
 @db_route_handler("get data quality")
 def _get_data_quality(cur) -> dict:
     """Get data quality metrics."""
-    quality = {"timestamp": datetime.now(timezone.utc).isoformat(), "checks": {}}
+    quality: dict[str, Any] = {"timestamp": datetime.now(timezone.utc).isoformat(), "checks": {}}
     cur.execute("SET LOCAL statement_timeout = '10000ms'")
 
     cur.execute("""
@@ -383,7 +387,7 @@ def _get_data_quality(cur) -> dict:
     return json_response(200, quality)
 
 
-def _verify_user_email(body: dict | None = None) -> dict:
+def _verify_user_email(body: "RouteBody | None" = None) -> dict:
     """Verify a user's email in Cognito (dev/testing only)."""
     if not body:
         return error_response(400, "bad_request", "Request body is required")
@@ -427,7 +431,8 @@ def _verify_user_email(body: dict | None = None) -> dict:
             return error_response(503, "cognito_error", f"Cognito error: {error_msg}")
 
         # Verify HTTP status indicates success
-        http_status = response.get("ResponseMetadata").get("HTTPStatusCode")
+        response_metadata = response.get("ResponseMetadata") or {}
+        http_status = response_metadata.get("HTTPStatusCode")
         if http_status not in (200, 201):
             logger.error(f"Cognito returned unexpected status code: {http_status}. Expected 200 or 201.")
             return error_response(

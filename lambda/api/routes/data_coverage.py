@@ -296,7 +296,7 @@ def _safe_call(cur, fn) -> dict[str, Any]:
         logger.debug(f"[SAVEPOINT_CREATE] Error creating savepoint: {type(e).__name__}: {e}")
 
     try:
-        result = fn(cur)
+        result: dict[str, Any] = fn(cur)
         # fn succeeded - release the savepoint
         try:
             cur.execute("RELEASE SAVEPOINT coverage_check")
