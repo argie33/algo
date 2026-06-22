@@ -40,7 +40,7 @@ describe("Trading Routes Unit Tests", () => {
 
   describe("GET /trading/", () => {
     test("should return trading info", async () => {
-      const _response = await request(app).get("/trading/");
+      const response = await request(app).get("/trading/");
 
       expect(response.body).toHaveProperty("success");
       expect(response.body.data || response.body.success).toBeDefined();
@@ -49,7 +49,7 @@ describe("Trading Routes Unit Tests", () => {
 
   describe("GET /trading/health", () => {
     test("should return trading health status", async () => {
-      const _response = await request(app).get("/trading/health");
+      const response = await request(app).get("/trading/health");
 
       expect(response.body).toHaveProperty("success");
       expect(response.body).toHaveProperty("status");
@@ -58,7 +58,7 @@ describe("Trading Routes Unit Tests", () => {
 
   describe("GET /trading/debug", () => {
     test("should return debug information", async () => {
-      const _response = await request(app).get("/trading/debug");
+      const response = await request(app).get("/trading/debug");
 
       expect(response.body).toHaveProperty("success");
       expect(response.body).toHaveProperty("tables");
@@ -67,7 +67,7 @@ describe("Trading Routes Unit Tests", () => {
 
   describe("GET /trading/signals", () => {
     test("should handle trading signals request", async () => {
-      const _response = await request(app).get("/trading/signals");
+      const response = await request(app).get("/trading/signals");
 
       expect([200, 401, 500]).toContain(response.status);
       expect(response.body).toHaveProperty("success");
@@ -83,7 +83,7 @@ describe("Trading Routes Unit Tests", () => {
         type: "market",
       };
 
-      const _response = await request(app)
+      const response = await request(app)
         .post("/trading/orders")
         .send(validOrderData);
 
@@ -94,7 +94,7 @@ describe("Trading Routes Unit Tests", () => {
 
   describe("GET /trading/positions", () => {
     test("should handle positions request", async () => {
-      const _response = await request(app).get("/trading/positions");
+      const response = await request(app).get("/trading/positions");
 
       expect([200, 401, 500]).toContain(response.status);
       if (response.body.success) {
@@ -110,7 +110,7 @@ describe("Trading Routes Unit Tests", () => {
 
   describe("GET /trading/risk/portfolio", () => {
     test("should return portfolio risk analysis", async () => {
-      const _response = await request(app).get("/trading/risk/portfolio");
+      const response = await request(app).get("/trading/risk/portfolio");
 
       if (response.body.success) {
         expect(response.body).toHaveProperty("success", true);
@@ -135,7 +135,7 @@ describe("Trading Routes Unit Tests", () => {
         maxMonthlyLoss: 8.0,
       };
 
-      const _response = await request(app)
+      const response = await request(app)
         .post("/trading/risk/limits")
         .send(riskLimitsData);
 
@@ -149,7 +149,7 @@ describe("Trading Routes Unit Tests", () => {
 
   describe("Error Handling", () => {
     test("should handle database connection errors gracefully", async () => {
-      const _response = await request(app)
+      const response = await request(app)
         .get("/trading/positions")
         .timeout(5000);
 
@@ -158,7 +158,7 @@ describe("Trading Routes Unit Tests", () => {
     });
 
     test("should validate symbol format", async () => {
-      const _response = await request(app).get(
+      const response = await request(app).get(
         "/trading/quotes/invalid-symbol-format-123!"
       );
 

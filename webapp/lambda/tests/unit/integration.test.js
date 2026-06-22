@@ -137,7 +137,7 @@ describe("System Integration Tests", () => {
 
       // Should NOT create transaction
       if (isValidTrade) {
-        const _transaction = {
+        const transaction = {
           symbol: trade.symbol,
           quantity: Math.abs(shares),
           price: price,

@@ -62,7 +62,7 @@ describe("Commodities Routes", () => {
   });
   describe("GET /api/commodities/health", () => {
     test("should return health status", async () => {
-      const _response = await request(app)
+      const response = await request(app)
         .get("/api/commodities/health")
         .expect(200);
       expect(response.body).toEqual({
@@ -75,7 +75,7 @@ describe("Commodities Routes", () => {
     });
     test("should not require authentication", async () => {
       // Should work without any auth headers
-      const _response = await request(app)
+      const response = await request(app)
         .get("/api/commodities/health")
         .expect(200);
       expect(response.body.status).toBe("operational");
@@ -83,7 +83,7 @@ describe("Commodities Routes", () => {
   });
   describe("GET /api/commodities/", () => {
     test("should return commodities API overview", async () => {
-      const _response = await request(app).get("/api/commodities/").expect(200);
+      const response = await request(app).get("/api/commodities/").expect(200);
       expect(response.body).toEqual({
         success: true,
         data: {
@@ -103,7 +103,7 @@ describe("Commodities Routes", () => {
       expect(new Date(response.body.data.timestamp)).toBeInstanceOf(Date);
     });
     test("should return all expected endpoints", async () => {
-      const _response = await request(app).get("/api/commodities/").expect(200);
+      const response = await request(app).get("/api/commodities/").expect(200);
       const endpoints = response.body.data.available_endpoints;
       expect(endpoints).toHaveLength(5);
       expect(endpoints).toContain(
@@ -125,7 +125,7 @@ describe("Commodities Routes", () => {
   });
   describe("GET /api/commodities/categories", () => {
     test("should return commodity categories", async () => {
-      const _response = await request(app)
+      const response = await request(app)
         .get("/api/commodities/categories")
         .expect(200);
       expect(response.body).toHaveProperty("data");
@@ -135,7 +135,7 @@ describe("Commodities Routes", () => {
       expect(response.body.data).toHaveLength(5); // energy, precious-metals, base-metals, agriculture, livestock
     });
     test("should include energy category with correct structure", async () => {
-      const _response = await request(app)
+      const response = await request(app)
         .get("/api/commodities/categories")
         .expect(200);
       const energyCategory = response.body.data.find(
@@ -158,7 +158,7 @@ describe("Commodities Routes", () => {
       });
     });
     test("should include precious metals category", async () => {
-      const _response = await request(app)
+      const response = await request(app)
         .get("/api/commodities/categories")
         .expect(200);
       const preciousMetals = response.body.data.find(
@@ -171,7 +171,7 @@ describe("Commodities Routes", () => {
       expect(preciousMetals.weight).toBe(0.25);
     });
     test("should include base metals category", async () => {
-      const _response = await request(app)
+      const response = await request(app)
         .get("/api/commodities/categories")
         .expect(200);
       const baseMetals = response.body.data.find(
@@ -184,7 +184,7 @@ describe("Commodities Routes", () => {
       expect(baseMetals.weight).toBe(0.2);
     });
     test("should include agriculture category", async () => {
-      const _response = await request(app)
+      const response = await request(app)
         .get("/api/commodities/categories")
         .expect(200);
       const agriculture = response.body.data.find(
@@ -195,7 +195,7 @@ describe("Commodities Routes", () => {
       expect(agriculture.weight).toBe(0.15); // Actual weight from route
     });
     test("should calculate total weight correctly", async () => {
-      const _response = await request(app)
+      const response = await request(app)
         .get("/api/commodities/categories")
         .expect(200);
       const totalWeight = response.body.data.reduce(
@@ -205,7 +205,7 @@ describe("Commodities Routes", () => {
       expect(totalWeight).toBeCloseTo(1.0, 1); // Should sum to 1.0 with floating point tolerance
     });
     test("should include performance data for all time periods", async () => {
-      const _response = await request(app)
+      const response = await request(app)
         .get("/api/commodities/categories")
         .expect(200);
       const expectedPeriods = ["1d", "1w", "1m", "3m", "1y"];
@@ -219,7 +219,7 @@ describe("Commodities Routes", () => {
   });
   describe("GET /api/commodities/prices", () => {
     test("should return current commodity prices", async () => {
-      const _response = await request(app)
+      const response = await request(app)
         .get("/api/commodities/prices")
         .expect(200);
       expect(response.body).toHaveProperty("data");
@@ -229,7 +229,7 @@ describe("Commodities Routes", () => {
       expect(response.body.data.length).toBeGreaterThan(0);
     });
     test("should include major commodities", async () => {
-      const _response = await request(app)
+      const response = await request(app)
         .get("/api/commodities/prices")
         .expect(200);
       const symbols = response.body.data.map((item) => item.symbol);
@@ -239,7 +239,7 @@ describe("Commodities Routes", () => {
       expect(symbols).toContain("HG"); // Copper
     });
     test("should include required price fields", async () => {
-      const _response = await request(app).get("/api/commodities/prices");
+      const response = await request(app).get("/api/commodities/prices");
       expect(response.status).toBe(200);
       if (response.status === 200) {
         const goldPrice = response.body.data.find(
@@ -257,7 +257,7 @@ describe("Commodities Routes", () => {
       }
     });
     test("should filter by category when provided", async () => {
-      const _response = await request(app)
+      const response = await request(app)
         .get("/api/commodities/prices?category=precious-metals")
         .expect(200);
       response.body.data.forEach((item) => {
@@ -265,14 +265,14 @@ describe("Commodities Routes", () => {
       });
     });
     test("should handle invalid category filter", async () => {
-      const _response = await request(app)
+      const response = await request(app)
         .get("/api/commodities/prices?category=invalid")
         .expect(200);
       expect(response.body.data).toEqual([]);
       expect(response.body.metadata.totalCount).toBe(0);
     });
     test("should limit results when limit parameter provided", async () => {
-      const _response = await request(app).get(
+      const response = await request(app).get(
         "/api/commodities/prices?limit=3"
       );
       expect(response.status).toBe(200);
@@ -285,7 +285,7 @@ describe("Commodities Routes", () => {
   });
   describe("GET /api/commodities/market-summary", () => {
     test("should return market summary", async () => {
-      const _response = await request(app).get(
+      const response = await request(app).get(
         "/api/commodities/market-summary"
       );
       expect(response.status).toBe(200);
@@ -297,7 +297,7 @@ describe("Commodities Routes", () => {
       }
     });
     test("should include market overview metrics", async () => {
-      const _response = await request(app).get(
+      const response = await request(app).get(
         "/api/commodities/market-summary"
       );
       expect(response.status).toBe(200);
@@ -313,7 +313,7 @@ describe("Commodities Routes", () => {
       }
     });
     test("should include top gainers and losers", async () => {
-      const _response = await request(app).get(
+      const response = await request(app).get(
         "/api/commodities/market-summary"
       );
       expect(response.status).toBe(200);
@@ -334,7 +334,7 @@ describe("Commodities Routes", () => {
       }
     });
     test("should include market sentiment", async () => {
-      const _response = await request(app).get(
+      const response = await request(app).get(
         "/api/commodities/market-summary"
       );
       expect(response.status).toBe(200);
@@ -347,7 +347,7 @@ describe("Commodities Routes", () => {
   });
   describe("GET /api/commodities/correlations", () => {
     test("should return price correlations", async () => {
-      const _response = await request(app).get("/api/commodities/correlations");
+      const response = await request(app).get("/api/commodities/correlations");
       expect(response.status).toBe(200);
       if (response.status === 200) {
         expect(response.body).toHaveProperty("data");
@@ -357,7 +357,7 @@ describe("Commodities Routes", () => {
       }
     });
     test("should include correlation matrix", async () => {
-      const _response = await request(app).get("/api/commodities/correlations");
+      const response = await request(app).get("/api/commodities/correlations");
       expect(response.status).toBe(200);
       if (response.status === 200) {
         const matrix = response.body.data.matrix;
@@ -368,7 +368,7 @@ describe("Commodities Routes", () => {
       }
     });
     test("should include correlation insights", async () => {
-      const _response = await request(app).get("/api/commodities/correlations");
+      const response = await request(app).get("/api/commodities/correlations");
       expect(response.status).toBe(200);
       if (response.status === 200) {
         const correlations = response.body.data.correlations;
@@ -383,7 +383,7 @@ describe("Commodities Routes", () => {
       }
     });
     test("should filter correlations by minimum threshold", async () => {
-      const _response = await request(app).get(
+      const response = await request(app).get(
         "/api/commodities/correlations?min_correlation=0.5"
       );
       expect(response.status).toBe(200);
@@ -395,7 +395,7 @@ describe("Commodities Routes", () => {
   });
   describe("GET /api/commodities/news", () => {
     test("should return commodity news", async () => {
-      const _response = await request(app).get("/api/commodities/news");
+      const response = await request(app).get("/api/commodities/news");
       expect(response.status).toBe(200);
       if (response.status === 200) {
         expect(response.body).toHaveProperty("data");
@@ -404,7 +404,7 @@ describe("Commodities Routes", () => {
       }
     });
     test("should include required news fields", async () => {
-      const _response = await request(app).get("/api/commodities/news");
+      const response = await request(app).get("/api/commodities/news");
       expect(response.status).toBe(200);
       if (response.status === 200 && response.body.data?.articles?.length > 0) {
         const newsItem = response.body.data.articles[0];
@@ -413,7 +413,7 @@ describe("Commodities Routes", () => {
       }
     });
     test("should filter by category when provided", async () => {
-      const _response = await request(app).get(
+      const response = await request(app).get(
         "/api/commodities/news?category=energy"
       );
       expect(response.status).toBe(200);
@@ -424,7 +424,7 @@ describe("Commodities Routes", () => {
       }
     });
     test("should respect limit parameter", async () => {
-      const _response = await request(app).get("/api/commodities/news?limit=5");
+      const response = await request(app).get("/api/commodities/news?limit=5");
       expect(response.status).toBe(200);
       if (response.status === 200) {
         if (response.body.data && response.body.data.articles) {
@@ -445,7 +445,7 @@ describe("Commodities Routes", () => {
         "/news",
       ];
       for (const endpoint of endpoints) {
-        const _response = await request(app).get(`/api/commodities${endpoint}`);
+        const response = await request(app).get(`/api/commodities${endpoint}`);
         // Handle different possible status codes
         expect(response.status).toBe(200);
         if (response.status === 200) {
@@ -458,7 +458,7 @@ describe("Commodities Routes", () => {
     test("should include timestamps in ISO format where applicable", async () => {
       const endpoints = ["/health", "/", "/categories", "/prices"];
       for (const endpoint of endpoints) {
-        const _response = await request(app)
+        const response = await request(app)
           .get(`/api/commodities${endpoint}`)
           .expect(200);
         // Find timestamp field in response
@@ -480,7 +480,7 @@ describe("Commodities Routes", () => {
         "/correlations",
       ];
       for (const endpoint of apiEndpoints) {
-        const _response = await request(app).get(`/api/commodities${endpoint}`);
+        const response = await request(app).get(`/api/commodities${endpoint}`);
         expect(response.status).toBe(200);
         if (response.status === 200) {
           // API returns direct data structure, not wrapped with success field
@@ -491,7 +491,7 @@ describe("Commodities Routes", () => {
   });
   describe("Edge Cases and Error Handling", () => {
     test("should handle malformed query parameters gracefully", async () => {
-      const _response = await request(app).get(
+      const response = await request(app).get(
         "/api/commodities/prices?limit=invalid&category=123"
       );
       expect(response.status).toBe(200);
@@ -502,7 +502,7 @@ describe("Commodities Routes", () => {
       }
     });
     test("should handle very large limit values", async () => {
-      const _response = await request(app).get(
+      const response = await request(app).get(
         "/api/commodities/prices?limit=999999"
       );
       expect(response.status).toBe(200);
@@ -513,7 +513,7 @@ describe("Commodities Routes", () => {
       }
     });
     test("should handle negative limit values", async () => {
-      const _response = await request(app).get("/api/commodities/news?limit=-5");
+      const response = await request(app).get("/api/commodities/news?limit=-5");
       // Handle different possible status codes
       expect(response.status).toBe(200);
       if (response.status === 200) {

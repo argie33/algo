@@ -9,7 +9,7 @@ jest.mock("../../../utils/database", () => ({
   query: jest.fn().mockResolvedValue({ rows: [], rowCount: 0 }),
 }));
 
-const { _query } = require("../../../utils/database");
+const { query } = require("../../../utils/database");
 
 describe("Manual Trades Routes Unit Tests", () => {
   let app;
@@ -42,7 +42,7 @@ describe("Manual Trades Routes Unit Tests", () => {
     it("should return empty list when no trades exist", async () => {
       query.mockResolvedValueOnce({ rows: [], rowCount: 0 });
 
-      const _response = await request(app).get("/manual-trades").expect(200);
+      const response = await request(app).get("/manual-trades").expect(200);
 
       expect(response.body.success).toBe(true);
       expect(response.body.data).toEqual([]);
@@ -68,7 +68,7 @@ describe("Manual Trades Routes Unit Tests", () => {
 
       query.mockResolvedValueOnce({ rows: mockTrades, rowCount: 1 });
 
-      const _response = await request(app).get("/manual-trades").expect(200);
+      const response = await request(app).get("/manual-trades").expect(200);
 
       expect(response.body.success).toBe(true);
       expect(response.body.data).toHaveLength(1);
@@ -88,7 +88,7 @@ describe("Manual Trades Routes Unit Tests", () => {
       );
       appNoAuth.use("/manual-trades", manualTradesRouter);
 
-      const _response = await request(appNoAuth)
+      const response = await request(appNoAuth)
         .get("/manual-trades")
         .expect(401);
 
@@ -110,7 +110,7 @@ describe("Manual Trades Routes Unit Tests", () => {
 
       query.mockResolvedValueOnce({ rows: [mockTrade], rowCount: 1 });
 
-      const _response = await request(app).get("/manual-trades/1").expect(200);
+      const response = await request(app).get("/manual-trades/1").expect(200);
 
       expect(response.body.success).toBe(true);
       expect(response.body.data.symbol).toBe("AAPL");
@@ -119,7 +119,7 @@ describe("Manual Trades Routes Unit Tests", () => {
     it("should return 404 when trade not found", async () => {
       query.mockResolvedValueOnce({ rows: [], rowCount: 0 });
 
-      const _response = await request(app).get("/manual-trades/999").expect(404);
+      const response = await request(app).get("/manual-trades/999").expect(404);
 
       expect(response.body.error).toBe("Trade not found");
     });
@@ -142,7 +142,7 @@ describe("Manual Trades Routes Unit Tests", () => {
         rowCount: 1,
       });
 
-      const _response = await request(app)
+      const response = await request(app)
         .post("/manual-trades")
         .send(newTrade)
         .expect(201);
@@ -167,7 +167,7 @@ describe("Manual Trades Routes Unit Tests", () => {
         rowCount: 1,
       });
 
-      const _response = await request(app)
+      const response = await request(app)
         .post("/manual-trades")
         .send(newTrade)
         .expect(201);
@@ -190,7 +190,7 @@ describe("Manual Trades Routes Unit Tests", () => {
         rowCount: 1,
       });
 
-      const _response = await request(app)
+      const response = await request(app)
         .post("/manual-trades")
         .send(newTrade)
         .expect(201);
@@ -207,7 +207,7 @@ describe("Manual Trades Routes Unit Tests", () => {
         execution_date: "2025-01-15",
       };
 
-      const _response = await request(app)
+      const response = await request(app)
         .post("/manual-trades")
         .send(invalidTrade)
         .expect(400);
@@ -225,7 +225,7 @@ describe("Manual Trades Routes Unit Tests", () => {
         execution_date: "2025-01-15",
       };
 
-      const _response = await request(app)
+      const response = await request(app)
         .post("/manual-trades")
         .send(invalidTrade)
         .expect(400);
@@ -245,7 +245,7 @@ describe("Manual Trades Routes Unit Tests", () => {
         execution_date: "2025-01-15",
       };
 
-      const _response = await request(app)
+      const response = await request(app)
         .post("/manual-trades")
         .send(invalidTrade)
         .expect(400);
@@ -263,7 +263,7 @@ describe("Manual Trades Routes Unit Tests", () => {
         execution_date: "2025-01-15",
       };
 
-      const _response = await request(app)
+      const response = await request(app)
         .post("/manual-trades")
         .send(invalidTrade)
         .expect(400);
@@ -284,7 +284,7 @@ describe("Manual Trades Routes Unit Tests", () => {
         execution_date: tomorrow.toISOString().split("T")[0],
       };
 
-      const _response = await request(app)
+      const response = await request(app)
         .post("/manual-trades")
         .send(invalidTrade)
         .expect(400);
@@ -310,7 +310,7 @@ describe("Manual Trades Routes Unit Tests", () => {
           rowCount: 1,
         });
 
-      const _response = await request(app)
+      const response = await request(app)
         .patch("/manual-trades/1")
         .send({ quantity: 100 });
 
@@ -325,7 +325,7 @@ describe("Manual Trades Routes Unit Tests", () => {
         rowCount: 1,
       });
 
-      const _response = await request(app)
+      const response = await request(app)
         .patch("/manual-trades/1")
         .send({ quantity: -50 });
 
@@ -337,7 +337,7 @@ describe("Manual Trades Routes Unit Tests", () => {
     it("should return 404 when updating non-existent trade", async () => {
       query.mockResolvedValueOnce({ rows: [], rowCount: 0 });
 
-      const _response = await request(app)
+      const response = await request(app)
         .patch("/manual-trades/999")
         .send({ quantity: 50 });
 
@@ -363,7 +363,7 @@ describe("Manual Trades Routes Unit Tests", () => {
         })
         .mockResolvedValueOnce({ rowCount: 1 });
 
-      const _response = await request(app).delete("/manual-trades/1");
+      const response = await request(app).delete("/manual-trades/1");
 
       if (response.status === 200) {
         expect(response.body.success).toBe(true);
@@ -374,7 +374,7 @@ describe("Manual Trades Routes Unit Tests", () => {
     it("should return 404 when deleting non-existent trade", async () => {
       query.mockResolvedValueOnce({ rows: [], rowCount: 0 });
 
-      const _response = await request(app).delete("/manual-trades/999");
+      const response = await request(app).delete("/manual-trades/999");
 
       if (response.status === 404) {
         expect(response.body.error).toBe("Trade not found");
@@ -387,7 +387,7 @@ describe("Manual Trades Routes Unit Tests", () => {
         rowCount: 1,
       });
 
-      const _response = await request(app).delete("/manual-trades/1");
+      const response = await request(app).delete("/manual-trades/1");
 
       if (response.status === 403) {
         expect(response.body.error).toBe("Unauthorized");
@@ -402,7 +402,7 @@ describe("Manual Trades Routes Unit Tests", () => {
         rowCount: 1,
       });
 
-      const _response = await request(app)
+      const response = await request(app)
         .get("/manual-trades?limit=20&offset=0")
         .expect(200);
 
@@ -418,7 +418,7 @@ describe("Manual Trades Routes Unit Tests", () => {
         rowCount: 1,
       });
 
-      const _response = await request(app)
+      const response = await request(app)
         .get("/manual-trades?symbol=TSLA")
         .expect(200);
 
@@ -431,7 +431,7 @@ describe("Manual Trades Routes Unit Tests", () => {
         rowCount: 1,
       });
 
-      const _response = await request(app)
+      const response = await request(app)
         .get("/manual-trades?status=filled")
         .expect(200);
 

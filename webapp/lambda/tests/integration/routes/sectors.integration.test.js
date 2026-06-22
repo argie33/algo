@@ -20,7 +20,7 @@ describe("Sectors Routes - Real Data Validation", () => {
 
   describe("GET /api/sectors", () => {
     test("should return sector performance data", async () => {
-      const _response = await request(app).get("/api/sectors");
+      const response = await request(app).get("/api/sectors");
 
       expect(response.status).toBe(200);
       expect(response.body.success).toBe(true);
@@ -44,7 +44,7 @@ describe("Sectors Routes - Real Data Validation", () => {
 
   describe("GET /api/sectors/performance", () => {
     test("should return detailed sector performance", async () => {
-      const _response = await request(app).get("/api/sectors/performance");
+      const response = await request(app).get("/api/sectors/performance");
 
       expect(response.status).toBe(200);
       expect(response.body.success).toBe(true);
@@ -52,7 +52,7 @@ describe("Sectors Routes - Real Data Validation", () => {
     });
 
     test("should handle period parameter", async () => {
-      const _response = await request(app).get(
+      const response = await request(app).get(
         "/api/sectors/performance?period=1m"
       );
 
@@ -63,7 +63,7 @@ describe("Sectors Routes - Real Data Validation", () => {
 
   describe("GET /api/sectors/leaders", () => {
     test("should return sector leaders", async () => {
-      const _response = await request(app).get("/api/sectors/leaders");
+      const response = await request(app).get("/api/sectors/leaders");
 
       expect(response.status).toBe(200);
       expect(response.body.success).toBe(true);
@@ -74,7 +74,7 @@ describe("Sectors Routes - Real Data Validation", () => {
 
   describe("GET /api/sectors/rotation", () => {
     test("should return sector rotation analysis", async () => {
-      const _response = await request(app).get("/api/sectors/rotation");
+      const response = await request(app).get("/api/sectors/rotation");
 
       expect(response.status).toBe(200);
       expect(response.body.success).toBe(true);
@@ -85,7 +85,7 @@ describe("Sectors Routes - Real Data Validation", () => {
 
   describe("GET /api/sectors/:sector/details", () => {
     test("should return specific sector data", async () => {
-      const _response = await request(app).get(
+      const response = await request(app).get(
         "/api/sectors/Technology/details"
       );
 
@@ -98,7 +98,7 @@ describe("Sectors Routes - Real Data Validation", () => {
 
   describe("GET /api/sectors/:sector/stocks", () => {
     test("should return stocks in sector", async () => {
-      const _response = await request(app).get("/api/sectors/Technology/stocks");
+      const response = await request(app).get("/api/sectors/Technology/stocks");
 
       expect(response.status).toBe(200);
       expect(response.body.success).toBe(true);
@@ -106,7 +106,7 @@ describe("Sectors Routes - Real Data Validation", () => {
     });
 
     test("should handle limit parameter", async () => {
-      const _response = await request(app).get(
+      const response = await request(app).get(
         "/api/sectors/Technology/stocks?limit=10"
       );
 
@@ -118,7 +118,7 @@ describe("Sectors Routes - Real Data Validation", () => {
 
   describe("GET /api/sectors/allocation", () => {
     test("should return sector allocation data", async () => {
-      const _response = await request(app)
+      const response = await request(app)
         .get("/api/sectors/allocation")
         .set("Authorization", "Bearer dev-bypass-token");
 

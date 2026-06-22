@@ -889,7 +889,7 @@ describe("Market Routes Unit Tests", () => {
     test("should handle invalid query parameters gracefully", async () => {
       const response = await request(app)
         .get("/market/overview?limit=invalid")
-        .expect(200); // Most endpoints handle invalid _params gracefully
+        .expect(200); // Most endpoints handle invalid params gracefully
       expect(response.body).toHaveProperty("success");
     });
     test("should handle missing optional parameters", async () => {

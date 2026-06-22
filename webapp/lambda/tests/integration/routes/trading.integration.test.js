@@ -19,7 +19,7 @@ describe("Trading Routes - Real Data Validation", () => {
 
   describe("GET /api/trading (Root endpoint)", () => {
     test("should return trading API information", async () => {
-      const _response = await request(app).get("/api/trading");
+      const response = await request(app).get("/api/trading");
 
       expect([200, 503].includes(response.status)).toBe(true);
 
@@ -47,7 +47,7 @@ describe("Trading Routes - Real Data Validation", () => {
 
   describe("GET /api/trading/health", () => {
     test("should return health status without authentication", async () => {
-      const _response = await request(app).get("/api/trading/health");
+      const response = await request(app).get("/api/trading/health");
 
       expect(response.status).toBe(200);
       expect(response.body).toHaveProperty("status", "operational");
@@ -72,7 +72,7 @@ describe("Trading Routes - Real Data Validation", () => {
 
   describe("GET /api/trading/debug", () => {
     test("should return debug information about trading tables", async () => {
-      const _response = await request(app).get("/api/trading/debug");
+      const response = await request(app).get("/api/trading/debug");
 
       expect(response.status).toBe(200);
 
@@ -88,7 +88,7 @@ describe("Trading Routes - Real Data Validation", () => {
 
   describe("GET /api/trading/signals", () => {
     test("should return all trading signals without authentication", async () => {
-      const _response = await request(app).get("/api/trading/signals");
+      const response = await request(app).get("/api/trading/signals");
 
       expect(response.status).toBe(200);
 
@@ -101,7 +101,7 @@ describe("Trading Routes - Real Data Validation", () => {
     });
 
     test("should handle limit parameter for signals", async () => {
-      const _response = await request(app).get("/api/trading/signals?limit=50");
+      const response = await request(app).get("/api/trading/signals?limit=50");
 
       expect(response.status).toBe(200);
 
@@ -111,7 +111,7 @@ describe("Trading Routes - Real Data Validation", () => {
     });
 
     test("should handle symbol filtering", async () => {
-      const _response = await request(app).get(
+      const response = await request(app).get(
         "/api/trading/signals?symbol=AAPL&limit=25"
       );
 
@@ -125,7 +125,7 @@ describe("Trading Routes - Real Data Validation", () => {
     });
 
     test("should handle signal type filtering", async () => {
-      const _response = await request(app).get(
+      const response = await request(app).get(
         "/api/trading/signals?signal_type=buy&limit=25"
       );
 
@@ -139,7 +139,7 @@ describe("Trading Routes - Real Data Validation", () => {
     });
 
     test("should reject invalid limit values", async () => {
-      const _response = await request(app).get(
+      const response = await request(app).get(
         "/api/trading/signals?limit=invalid"
       );
 
@@ -147,7 +147,7 @@ describe("Trading Routes - Real Data Validation", () => {
     });
 
     test("should reject excessive limit values", async () => {
-      const _response = await request(app).get(
+      const response = await request(app).get(
         "/api/trading/signals?limit=1000"
       );
 
@@ -157,7 +157,7 @@ describe("Trading Routes - Real Data Validation", () => {
 
   describe("GET /api/trading/signals/:timeframe", () => {
     test("should return daily signals", async () => {
-      const _response = await request(app).get("/api/trading/signals/daily");
+      const response = await request(app).get("/api/trading/signals/daily");
 
       expect(response.status).toBe(200);
 
@@ -171,7 +171,7 @@ describe("Trading Routes - Real Data Validation", () => {
     });
 
     test("should return weekly signals", async () => {
-      const _response = await request(app).get("/api/trading/signals/weekly");
+      const response = await request(app).get("/api/trading/signals/weekly");
 
       expect(response.status).toBe(200);
 
@@ -181,7 +181,7 @@ describe("Trading Routes - Real Data Validation", () => {
     });
 
     test("should return monthly signals", async () => {
-      const _response = await request(app).get("/api/trading/signals/monthly");
+      const response = await request(app).get("/api/trading/signals/monthly");
 
       expect(response.status).toBe(200);
 
@@ -191,13 +191,13 @@ describe("Trading Routes - Real Data Validation", () => {
     });
 
     test("should reject invalid timeframes", async () => {
-      const _response = await request(app).get("/api/trading/signals/invalid");
+      const response = await request(app).get("/api/trading/signals/invalid");
 
       expect([400, 422]).toContain(response.status);
     });
 
     test("should handle pagination parameters", async () => {
-      const _response = await request(app).get(
+      const response = await request(app).get(
         "/api/trading/signals/daily?page=1&limit=10"
       );
 
@@ -210,7 +210,7 @@ describe("Trading Routes - Real Data Validation", () => {
     });
 
     test("should handle latest_only parameter", async () => {
-      const _response = await request(app).get(
+      const response = await request(app).get(
         "/api/trading/signals/daily?latest_only=true&limit=5"
       );
 
@@ -225,7 +225,7 @@ describe("Trading Routes - Real Data Validation", () => {
     });
 
     test("should handle symbol and signal type filters together", async () => {
-      const _response = await request(app).get(
+      const response = await request(app).get(
         "/api/trading/signals/daily?symbol=AAPL&signal_type=buy&limit=5"
       );
 
@@ -241,7 +241,7 @@ describe("Trading Routes - Real Data Validation", () => {
 
   describe("GET /api/trading/summary/:timeframe", () => {
     test("should return daily signals summary", async () => {
-      const _response = await request(app).get("/api/trading/summary/daily");
+      const response = await request(app).get("/api/trading/summary/daily");
 
       expect(response.status).toBe(200);
 
@@ -256,7 +256,7 @@ describe("Trading Routes - Real Data Validation", () => {
     });
 
     test("should return weekly signals summary", async () => {
-      const _response = await request(app).get("/api/trading/summary/weekly");
+      const response = await request(app).get("/api/trading/summary/weekly");
 
       expect(response.status).toBe(200);
 
@@ -266,7 +266,7 @@ describe("Trading Routes - Real Data Validation", () => {
     });
 
     test("should reject invalid timeframes for summary", async () => {
-      const _response = await request(app).get("/api/trading/summary/invalid");
+      const response = await request(app).get("/api/trading/summary/invalid");
 
       expect([400, 422]).toContain(response.status);
     });
@@ -274,7 +274,7 @@ describe("Trading Routes - Real Data Validation", () => {
 
   describe("GET /api/trading/swing-signals", () => {
     test("should return swing trading signals", async () => {
-      const _response = await request(app).get("/api/trading/swing-signals");
+      const response = await request(app).get("/api/trading/swing-signals");
 
       expect(response.status).toBe(200);
 
@@ -295,7 +295,7 @@ describe("Trading Routes - Real Data Validation", () => {
     });
 
     test("should handle pagination for swing signals", async () => {
-      const _response = await request(app).get(
+      const response = await request(app).get(
         "/api/trading/swing-signals?page=1&limit=10"
       );
 
@@ -310,7 +310,7 @@ describe("Trading Routes - Real Data Validation", () => {
 
   describe("GET /api/trading/:ticker/technicals", () => {
     test("should return technical indicators for a stock", async () => {
-      const _response = await request(app).get("/api/trading/AAPL/technicals");
+      const response = await request(app).get("/api/trading/AAPL/technicals");
 
       expect(response.status).toBe(200);
 
@@ -327,7 +327,7 @@ describe("Trading Routes - Real Data Validation", () => {
     });
 
     test("should handle timeframe parameter for technicals", async () => {
-      const _response = await request(app).get(
+      const response = await request(app).get(
         "/api/trading/MSFT/technicals?timeframe=weekly"
       );
 
@@ -339,7 +339,7 @@ describe("Trading Routes - Real Data Validation", () => {
     });
 
     test("should handle monthly timeframe for technicals", async () => {
-      const _response = await request(app).get(
+      const response = await request(app).get(
         "/api/trading/TSLA/technicals?timeframe=monthly"
       );
 
@@ -353,7 +353,7 @@ describe("Trading Routes - Real Data Validation", () => {
 
   describe("GET /api/trading/performance", () => {
     test("should return performance summary of recent signals", async () => {
-      const _response = await request(app).get("/api/trading/performance");
+      const response = await request(app).get("/api/trading/performance");
 
       expect(response.status).toBe(200);
 
@@ -366,7 +366,7 @@ describe("Trading Routes - Real Data Validation", () => {
     });
 
     test("should handle custom days parameter", async () => {
-      const _response = await request(app).get(
+      const response = await request(app).get(
         "/api/trading/performance?days=60"
       );
 
@@ -378,7 +378,7 @@ describe("Trading Routes - Real Data Validation", () => {
     });
 
     test("should handle invalid days parameter gracefully", async () => {
-      const _response = await request(app).get(
+      const response = await request(app).get(
         "/api/trading/performance?days=invalid"
       );
 
@@ -392,7 +392,7 @@ describe("Trading Routes - Real Data Validation", () => {
 
   describe("GET /api/trading/positions", () => {
     test("should return current trading positions", async () => {
-      const _response = await request(app).get("/api/trading/positions");
+      const response = await request(app).get("/api/trading/positions");
 
       expect(response.status).toBe(200);
 
@@ -405,7 +405,7 @@ describe("Trading Routes - Real Data Validation", () => {
     });
 
     test("should return positions summary when requested", async () => {
-      const _response = await request(app).get(
+      const response = await request(app).get(
         "/api/trading/positions?summary=true"
       );
 
@@ -424,14 +424,14 @@ describe("Trading Routes - Real Data Validation", () => {
 
   describe("GET /api/trading/orders (Authenticated)", () => {
     test("should require authentication for orders", async () => {
-      const _response = await request(app).get("/api/trading/orders");
+      const response = await request(app).get("/api/trading/orders");
 
       // Trading orders endpoint appears to allow unauthenticated access in current implementation
       expect([200, 401, 403, 500, 503].includes(response.status)).toBe(true);
     });
 
     test("should return trading orders with valid authentication", async () => {
-      const _response = await request(app)
+      const response = await request(app)
         .get("/api/trading/orders")
         .set("Authorization", `Bearer ${authToken}`);
 
@@ -446,7 +446,7 @@ describe("Trading Routes - Real Data Validation", () => {
     });
 
     test("should handle database unavailability for orders", async () => {
-      const _response = await request(app)
+      const response = await request(app)
         .get("/api/trading/orders")
         .set("Authorization", `Bearer ${authToken}`);
 
@@ -469,7 +469,7 @@ describe("Trading Routes - Real Data Validation", () => {
         type: "market",
       };
 
-      const _response = await request(app)
+      const response = await request(app)
         .post("/api/trading/orders")
         .send(orderData);
 
@@ -485,7 +485,7 @@ describe("Trading Routes - Real Data Validation", () => {
         type: "market",
       };
 
-      const _response = await request(app)
+      const response = await request(app)
         .post("/api/trading/orders")
         .set("Authorization", `Bearer ${authToken}`)
         .send(orderData);
@@ -511,7 +511,7 @@ describe("Trading Routes - Real Data Validation", () => {
         limitPrice: 250.0,
       };
 
-      const _response = await request(app)
+      const response = await request(app)
         .post("/api/trading/orders")
         .set("Authorization", `Bearer ${authToken}`)
         .send(orderData);
@@ -533,7 +533,7 @@ describe("Trading Routes - Real Data Validation", () => {
         // Missing side and type
       };
 
-      const _response = await request(app)
+      const response = await request(app)
         .post("/api/trading/orders")
         .set("Authorization", `Bearer ${authToken}`)
         .send(orderData);
@@ -549,7 +549,7 @@ describe("Trading Routes - Real Data Validation", () => {
         type: "invalid_type",
       };
 
-      const _response = await request(app)
+      const response = await request(app)
         .post("/api/trading/orders")
         .set("Authorization", `Bearer ${authToken}`)
         .send(orderData);
@@ -565,7 +565,7 @@ describe("Trading Routes - Real Data Validation", () => {
         type: "market",
       };
 
-      const _response = await request(app)
+      const response = await request(app)
         .post("/api/trading/orders")
         .set("Authorization", `Bearer ${authToken}`)
         .send(orderData);
@@ -581,7 +581,7 @@ describe("Trading Routes - Real Data Validation", () => {
         type: "market",
       };
 
-      const _response = await request(app)
+      const response = await request(app)
         .post("/api/trading/orders")
         .set("Authorization", `Bearer ${authToken}`)
         .send(orderData);
@@ -598,7 +598,7 @@ describe("Trading Routes - Real Data Validation", () => {
         // Missing limitPrice
       };
 
-      const _response = await request(app)
+      const response = await request(app)
         .post("/api/trading/orders")
         .set("Authorization", `Bearer ${authToken}`)
         .send(orderData);
@@ -616,7 +616,7 @@ describe("Trading Routes - Real Data Validation", () => {
         stopPrice: 455.0,
       };
 
-      const _response = await request(app)
+      const response = await request(app)
         .post("/api/trading/orders")
         .set("Authorization", `Bearer ${authToken}`)
         .send(orderData);
@@ -633,7 +633,7 @@ describe("Trading Routes - Real Data Validation", () => {
 
   describe("GET /api/trading/simulator", () => {
     test("should return trading simulation results with default parameters", async () => {
-      const _response = await request(app).get("/api/trading/simulator");
+      const response = await request(app).get("/api/trading/simulator");
 
       expect(response.status).toBe(200);
 
@@ -656,7 +656,7 @@ describe("Trading Routes - Real Data Validation", () => {
     });
 
     test("should handle custom simulation parameters", async () => {
-      const _response = await request(app).get(
+      const response = await request(app).get(
         "/api/trading/simulator?portfolio=50000&strategy=mean_reversion&symbols=AAPL,MSFT,GOOGL"
       );
 
@@ -678,7 +678,7 @@ describe("Trading Routes - Real Data Validation", () => {
     });
 
     test("should reject invalid portfolio values", async () => {
-      const _response = await request(app).get(
+      const response = await request(app).get(
         "/api/trading/simulator?portfolio=invalid"
       );
 
@@ -686,7 +686,7 @@ describe("Trading Routes - Real Data Validation", () => {
     });
 
     test("should reject negative portfolio values", async () => {
-      const _response = await request(app).get(
+      const response = await request(app).get(
         "/api/trading/simulator?portfolio=-1000"
       );
 
@@ -694,7 +694,7 @@ describe("Trading Routes - Real Data Validation", () => {
     });
 
     test("should reject invalid strategy", async () => {
-      const _response = await request(app).get(
+      const response = await request(app).get(
         "/api/trading/simulator?strategy=invalid_strategy"
       );
 
@@ -704,7 +704,7 @@ describe("Trading Routes - Real Data Validation", () => {
 
   describe("GET /api/trading/strategies", () => {
     test("should return all trading strategies", async () => {
-      const _response = await request(app).get("/api/trading/strategies");
+      const response = await request(app).get("/api/trading/strategies");
 
       expect(response.status).toBe(200);
       expect(response.body).toHaveProperty("data");
@@ -716,7 +716,7 @@ describe("Trading Routes - Real Data Validation", () => {
     });
 
     test("should filter strategies by category", async () => {
-      const _response = await request(app).get(
+      const response = await request(app).get(
         "/api/trading/strategies?category=momentum"
       );
 
@@ -731,7 +731,7 @@ describe("Trading Routes - Real Data Validation", () => {
     });
 
     test("should filter strategies by risk level", async () => {
-      const _response = await request(app).get(
+      const response = await request(app).get(
         "/api/trading/strategies?risk_level=low"
       );
 
@@ -746,7 +746,7 @@ describe("Trading Routes - Real Data Validation", () => {
     });
 
     test("should filter active strategies only", async () => {
-      const _response = await request(app).get(
+      const response = await request(app).get(
         "/api/trading/strategies?active_only=true"
       );
 
@@ -761,7 +761,7 @@ describe("Trading Routes - Real Data Validation", () => {
     });
 
     test("should handle limit parameter", async () => {
-      const _response = await request(app).get(
+      const response = await request(app).get(
         "/api/trading/strategies?limit=3"
       );
 
@@ -771,7 +771,7 @@ describe("Trading Routes - Real Data Validation", () => {
     });
 
     test("should combine multiple filters", async () => {
-      const _response = await request(app).get(
+      const response = await request(app).get(
         "/api/trading/strategies?category=trend_following&risk_level=medium&active_only=true&limit=5"
       );
 
@@ -785,7 +785,7 @@ describe("Trading Routes - Real Data Validation", () => {
 
   describe("GET /api/trading/strategies/:strategyId", () => {
     test("should return detailed strategy information", async () => {
-      const _response = await request(app).get(
+      const response = await request(app).get(
         "/api/trading/strategies/momentum_breakout_v1"
       );
 
@@ -804,7 +804,7 @@ describe("Trading Routes - Real Data Validation", () => {
     });
 
     test("should include signals when requested", async () => {
-      const _response = await request(app).get(
+      const response = await request(app).get(
         "/api/trading/strategies/momentum_breakout_v1?include_signals=true"
       );
 
@@ -824,7 +824,7 @@ describe("Trading Routes - Real Data Validation", () => {
     });
 
     test("should include backtest results when requested", async () => {
-      const _response = await request(app).get(
+      const response = await request(app).get(
         "/api/trading/strategies/momentum_breakout_v1?include_backtest=true"
       );
 
@@ -841,7 +841,7 @@ describe("Trading Routes - Real Data Validation", () => {
     });
 
     test("should include both signals and backtest when both requested", async () => {
-      const _response = await request(app).get(
+      const response = await request(app).get(
         "/api/trading/strategies/momentum_breakout_v1?include_signals=true&include_backtest=true"
       );
 
@@ -856,7 +856,7 @@ describe("Trading Routes - Real Data Validation", () => {
   // Additional comprehensive endpoint testing
   describe("GET /api/trading/strategies/:strategyId", () => {
     test("should return strategy details without optional includes", async () => {
-      const _response = await request(app).get(
+      const response = await request(app).get(
         "/api/trading/strategies/momentum_breakout_v1"
       );
 
@@ -868,7 +868,7 @@ describe("Trading Routes - Real Data Validation", () => {
     });
 
     test("should include signals when requested", async () => {
-      const _response = await request(app).get(
+      const response = await request(app).get(
         "/api/trading/strategies/momentum_breakout_v1?include_signals=true"
       );
 
@@ -879,7 +879,7 @@ describe("Trading Routes - Real Data Validation", () => {
     });
 
     test("should include backtest results when requested", async () => {
-      const _response = await request(app).get(
+      const response = await request(app).get(
         "/api/trading/strategies/momentum_breakout_v1?include_backtest=true"
       );
 
@@ -889,7 +889,7 @@ describe("Trading Routes - Real Data Validation", () => {
     });
 
     test("should handle both signals and backtest parameters", async () => {
-      const _response = await request(app).get(
+      const response = await request(app).get(
         "/api/trading/strategies/momentum_breakout_v1?include_signals=true&include_backtest=true"
       );
 
@@ -901,7 +901,7 @@ describe("Trading Routes - Real Data Validation", () => {
     });
 
     test("should handle invalid strategy ID gracefully", async () => {
-      const _response = await request(app).get(
+      const response = await request(app).get(
         "/api/trading/strategies/nonexistent_strategy"
       );
 
@@ -912,7 +912,7 @@ describe("Trading Routes - Real Data Validation", () => {
 
   describe("Advanced Parameter Validation", () => {
     test("should handle multiple complex query parameters for signals", async () => {
-      const _response = await request(app).get(
+      const response = await request(app).get(
         "/api/trading/signals/daily?symbol=AAPL&signal_type=buy&page=2&limit=15&latest_only=false"
       );
 
@@ -925,7 +925,7 @@ describe("Trading Routes - Real Data Validation", () => {
     });
 
     test("should handle zero and negative page numbers", async () => {
-      const _response = await request(app).get(
+      const response = await request(app).get(
         "/api/trading/signals/daily?page=-1&limit=10"
       );
 
@@ -938,7 +938,7 @@ describe("Trading Routes - Real Data Validation", () => {
     });
 
     test("should handle extremely large page numbers", async () => {
-      const _response = await request(app).get(
+      const response = await request(app).get(
         "/api/trading/signals/daily?page=999999"
       );
 
@@ -950,7 +950,7 @@ describe("Trading Routes - Real Data Validation", () => {
     });
 
     test("should handle performance endpoint with edge case days parameter", async () => {
-      const _response = await request(app).get(
+      const response = await request(app).get(
         "/api/trading/performance?days=0"
       );
 
@@ -958,7 +958,7 @@ describe("Trading Routes - Real Data Validation", () => {
     });
 
     test("should handle performance endpoint with very large days parameter", async () => {
-      const _response = await request(app).get(
+      const response = await request(app).get(
         "/api/trading/performance?days=99999"
       );
 
@@ -966,7 +966,7 @@ describe("Trading Routes - Real Data Validation", () => {
     });
 
     test("should handle simulator with minimum portfolio value", async () => {
-      const _response = await request(app).get(
+      const response = await request(app).get(
         "/api/trading/simulator?portfolio=1"
       );
 
@@ -974,7 +974,7 @@ describe("Trading Routes - Real Data Validation", () => {
     });
 
     test("should handle simulator with maximum realistic portfolio", async () => {
-      const _response = await request(app).get(
+      const response = await request(app).get(
         "/api/trading/simulator?portfolio=1000000000"
       );
 
@@ -986,7 +986,7 @@ describe("Trading Routes - Real Data Validation", () => {
         .fill()
         .map((_, i) => `SYM${i}`)
         .join(",");
-      const _response = await request(app).get(
+      const response = await request(app).get(
         `/api/trading/simulator?symbols=${longSymbolList}`
       );
 
@@ -997,7 +997,7 @@ describe("Trading Routes - Real Data Validation", () => {
   describe("Database Edge Cases", () => {
     test("should handle potential SQL injection in symbol parameters", async () => {
       const maliciousSymbol = "'; DROP TABLE buy_sell_daily; --";
-      const _response = await request(app).get(
+      const response = await request(app).get(
         `/api/trading/signals?symbol=${encodeURIComponent(maliciousSymbol)}`
       );
 
@@ -1006,7 +1006,7 @@ describe("Trading Routes - Real Data Validation", () => {
 
     test("should handle Unicode and international symbols", async () => {
       const unicodeSymbol = "SYMBOL中文";
-      const _response = await request(app).get(
+      const response = await request(app).get(
         `/api/trading/signals?symbol=${encodeURIComponent(unicodeSymbol)}`
       );
 
@@ -1014,7 +1014,7 @@ describe("Trading Routes - Real Data Validation", () => {
     });
 
     test("should handle empty string parameters gracefully", async () => {
-      const _response = await request(app).get(
+      const response = await request(app).get(
         "/api/trading/signals?symbol=&signal_type="
       );
 
@@ -1022,7 +1022,7 @@ describe("Trading Routes - Real Data Validation", () => {
     });
 
     test("should handle whitespace-only parameters", async () => {
-      const _response = await request(app).get(
+      const response = await request(app).get(
         "/api/trading/signals?symbol=%20%20%20&signal_type=%09"
       );
 
@@ -1053,7 +1053,7 @@ describe("Trading Routes - Real Data Validation", () => {
     test("should handle rapid sequential requests to same endpoint", async () => {
       const responses = [];
       for (let i = 0; i < 5; i++) {
-        const _response = await request(app).get(
+        const response = await request(app).get(
           "/api/trading/signals?limit=10"
         );
         responses.push(response);
@@ -1069,7 +1069,7 @@ describe("Trading Routes - Real Data Validation", () => {
 
       for (let i = 0; i < 3; i++) {
         const startTime = Date.now();
-        const _response = await request(app).get("/api/trading/health");
+        const response = await request(app).get("/api/trading/health");
         const responseTime = Date.now() - startTime;
 
         responseMap.set(i, responseTime);
@@ -1079,7 +1079,7 @@ describe("Trading Routes - Real Data Validation", () => {
     });
 
     test("should handle memory-intensive operations gracefully", async () => {
-      const _response = await request(app).get("/api/trading/signals?limit=500");
+      const response = await request(app).get("/api/trading/signals?limit=500");
 
       expect([200, 400, 500, 503].includes(response.status)).toBe(true);
 
@@ -1092,7 +1092,7 @@ describe("Trading Routes - Real Data Validation", () => {
 
   describe("Data Consistency and Validation", () => {
     test("should validate signal data structure consistency", async () => {
-      const _response = await request(app).get(
+      const response = await request(app).get(
         "/api/trading/signals/daily?limit=5"
       );
 
@@ -1107,7 +1107,7 @@ describe("Trading Routes - Real Data Validation", () => {
     });
 
     test("should validate performance data calculation accuracy", async () => {
-      const _response = await request(app).get(
+      const response = await request(app).get(
         "/api/trading/performance?days=30"
       );
 
@@ -1126,7 +1126,7 @@ describe("Trading Routes - Real Data Validation", () => {
     });
 
     test("should validate swing signals structure", async () => {
-      const _response = await request(app).get(
+      const response = await request(app).get(
         "/api/trading/swing-signals?limit=3"
       );
 
@@ -1142,7 +1142,7 @@ describe("Trading Routes - Real Data Validation", () => {
     });
 
     test("should validate strategies data completeness", async () => {
-      const _response = await request(app).get(
+      const response = await request(app).get(
         "/api/trading/strategies?limit=2"
       );
 
@@ -1168,7 +1168,7 @@ describe("Trading Routes - Real Data Validation", () => {
     jest.setTimeout(15000);
 
     test("should gracefully handle database connection timeouts", async () => {
-      const _response = await request(app).get("/api/trading/signals");
+      const response = await request(app).get("/api/trading/signals");
 
       expect(response.status).toBe(200);
 
@@ -1179,7 +1179,7 @@ describe("Trading Routes - Real Data Validation", () => {
     });
 
     test("should handle partial data availability scenarios", async () => {
-      const _response = await request(app).get("/api/trading/debug");
+      const response = await request(app).get("/api/trading/debug");
 
       expect(response.status).toBe(200);
 
@@ -1221,7 +1221,7 @@ describe("Trading Routes - Real Data Validation", () => {
   describe("Edge Cases and Error Handling", () => {
     jest.setTimeout(30000);
     test("should handle malformed JSON in POST requests", async () => {
-      const _response = await request(app)
+      const response = await request(app)
         .post("/api/trading/orders")
         .set("Authorization", `Bearer ${authToken}`)
         .set("Content-Type", "application/json")
@@ -1232,7 +1232,7 @@ describe("Trading Routes - Real Data Validation", () => {
 
     test("should handle very long symbol names", async () => {
       const longSymbol = "A".repeat(50);
-      const _response = await request(app).get(
+      const response = await request(app).get(
         `/api/trading/signals?symbol=${longSymbol}`
       );
 
@@ -1240,7 +1240,7 @@ describe("Trading Routes - Real Data Validation", () => {
     });
 
     test("should handle special characters in symbol parameter", async () => {
-      const _response = await request(app).get(
+      const response = await request(app).get(
         "/api/trading/signals?symbol=@#$%"
       );
 
@@ -1274,7 +1274,7 @@ describe("Trading Routes - Real Data Validation", () => {
     test("should handle performance testing with response time validation", async () => {
       const startTime = Date.now();
 
-      const _response = await request(app).get(
+      const response = await request(app).get(
         "/api/trading/signals/daily?limit=10"
       );
 
@@ -1285,7 +1285,7 @@ describe("Trading Routes - Real Data Validation", () => {
     });
 
     test("should handle missing authentication header gracefully", async () => {
-      const _response = await request(app)
+      const response = await request(app)
         .get("/api/trading/orders")
         .set("Authorization", "");
 
@@ -1294,7 +1294,7 @@ describe("Trading Routes - Real Data Validation", () => {
     });
 
     test("should handle malformed authentication token", async () => {
-      const _response = await request(app)
+      const response = await request(app)
         .get("/api/trading/orders")
         .set("Authorization", "Bearer invalid-malformed-token");
 
@@ -1310,7 +1310,7 @@ describe("Trading Routes - Real Data Validation", () => {
         notes: "A".repeat(5000), // Reduced size to avoid timeout
       };
 
-      const _response = await request(app)
+      const response = await request(app)
         .post("/api/trading/orders")
         .set("Authorization", `Bearer ${authToken}`)
         .send(largeOrderData);
@@ -1327,7 +1327,7 @@ describe("Trading Routes - Real Data Validation", () => {
       ];
 
       for (const orderData of edgeCaseOrders) {
-        const _response = await request(app)
+        const response = await request(app)
           .post("/api/trading/orders")
           .set("Authorization", `Bearer ${authToken}`)
           .send(orderData);
@@ -1347,7 +1347,7 @@ describe("Trading Routes - Real Data Validation", () => {
         timeInForce: "GTC",
       };
 
-      const _response = await request(app)
+      const response = await request(app)
         .post("/api/trading/orders")
         .set("Authorization", `Bearer ${authToken}`)
         .send(complexOrderData);

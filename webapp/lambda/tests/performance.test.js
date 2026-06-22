@@ -19,7 +19,7 @@ describe("API Performance Tests", () => {
   describe("Response Time Tests", () => {
     it("health endpoint should respond quickly (< 200ms)", async () => {
       const start = Date.now();
-      const _response = await axios.get(`${API_BASE}/../health`);
+      const response = await axios.get(`${API_BASE}/../health`);
       const elapsed = Date.now() - start;
 
       expect(response.status).toBe(200);
@@ -28,7 +28,7 @@ describe("API Performance Tests", () => {
 
     it("stocks list should respond acceptably (< 1000ms)", async () => {
       const start = Date.now();
-      const _response = await axios.get(`${API_BASE}/stocks?limit=10`);
+      const response = await axios.get(`${API_BASE}/stocks?limit=10`);
       const elapsed = Date.now() - start;
 
       expect(response.status).toBe(200);
@@ -37,7 +37,7 @@ describe("API Performance Tests", () => {
 
     it("stock detail should respond quickly (< 200ms)", async () => {
       const start = Date.now();
-      const _response = await axios.get(`${API_BASE}/stocks?symbol=GOOGL`);
+      const response = await axios.get(`${API_BASE}/stocks?symbol=GOOGL`);
       const elapsed = Date.now() - start;
 
       expect(response.status).toBe(200);
@@ -46,7 +46,7 @@ describe("API Performance Tests", () => {
 
     it("metrics endpoint should respond acceptably (< 1000ms)", async () => {
       const start = Date.now();
-      const _response = await axios.get(`${API_BASE}/metrics/GOOGL`);
+      const response = await axios.get(`${API_BASE}/metrics/GOOGL`);
       const elapsed = Date.now() - start;
 
       expect(response.status).toBe(200);
@@ -55,7 +55,7 @@ describe("API Performance Tests", () => {
 
     it("signals endpoint should avoid timeout (< 25000ms)", async () => {
       const start = Date.now();
-      const _response = await axios.get(
+      const response = await axios.get(
         `${API_BASE}/signals?timeframe=daily&limit=10`
       );
       const elapsed = Date.now() - start;
@@ -66,7 +66,7 @@ describe("API Performance Tests", () => {
 
     it("market overview should respond within timeout (< 25000ms)", async () => {
       const start = Date.now();
-      const _response = await axios.get(`${API_BASE}/market/overview`);
+      const response = await axios.get(`${API_BASE}/market/overview`);
       const elapsed = Date.now() - start;
 
       expect(response.status).toBe(200);
@@ -75,7 +75,7 @@ describe("API Performance Tests", () => {
 
     it("market sectors should respond acceptably (< 1000ms)", async () => {
       const start = Date.now();
-      const _response = await axios.get(`${API_BASE}/market/sectors`);
+      const response = await axios.get(`${API_BASE}/market/sectors`);
       const elapsed = Date.now() - start;
 
       expect(response.status).toBe(200);
@@ -84,7 +84,7 @@ describe("API Performance Tests", () => {
 
     it("market indices should respond acceptably (< 1000ms)", async () => {
       const start = Date.now();
-      const _response = await axios.get(`${API_BASE}/market/indices`);
+      const response = await axios.get(`${API_BASE}/market/indices`);
       const elapsed = Date.now() - start;
 
       expect(response.status).toBe(200);
@@ -93,7 +93,7 @@ describe("API Performance Tests", () => {
 
     it("technical daily should respond within timeout (< 25000ms)", async () => {
       const start = Date.now();
-      const _response = await axios.get(
+      const response = await axios.get(
         `${API_BASE}/technical/daily?page=1&limit=10`
       );
       const elapsed = Date.now() - start;
@@ -104,7 +104,7 @@ describe("API Performance Tests", () => {
 
     it("economic indicators should respond acceptably (< 1000ms)", async () => {
       const start = Date.now();
-      const _response = await axios.get(`${API_BASE}/economic/indicators`);
+      const response = await axios.get(`${API_BASE}/economic/indicators`);
       const elapsed = Date.now() - start;
 
       expect(response.status).toBe(200);
@@ -145,7 +145,7 @@ describe("API Performance Tests", () => {
   describe("Data Volume Tests", () => {
     it("should handle large stocks list (50 items) within timeout", async () => {
       const start = Date.now();
-      const _response = await axios.get(`${API_BASE}/stocks?limit=50`);
+      const response = await axios.get(`${API_BASE}/stocks?limit=50`);
       const elapsed = Date.now() - start;
 
       expect(response.status).toBe(200);
@@ -156,7 +156,7 @@ describe("API Performance Tests", () => {
 
     it("should handle signals query with 50 results within timeout", async () => {
       const start = Date.now();
-      const _response = await axios.get(
+      const response = await axios.get(
         `${API_BASE}/signals?timeframe=daily&limit=50`
       );
       const elapsed = Date.now() - start;
@@ -169,7 +169,7 @@ describe("API Performance Tests", () => {
   describe("Edge Case Performance", () => {
     it("should handle non-existent stock gracefully and quickly", async () => {
       const start = Date.now();
-      const _response = await axios.get(
+      const response = await axios.get(
         `${API_BASE}/stocks?symbol=NONEXISTENT99999`
       );
       const elapsed = Date.now() - start;
@@ -180,7 +180,7 @@ describe("API Performance Tests", () => {
 
     it("should handle empty search gracefully", async () => {
       const start = Date.now();
-      const _response = await axios.get(`${API_BASE}/stocks?search=`);
+      const response = await axios.get(`${API_BASE}/stocks?search=`);
       const elapsed = Date.now() - start;
 
       expect(response.status).toBe(200);
@@ -191,7 +191,7 @@ describe("API Performance Tests", () => {
   describe("Database Query Performance", () => {
     it("signals performance endpoint should complete within timeout", async () => {
       const start = Date.now();
-      const _response = await axios.get(`${API_BASE}/signals/performance`);
+      const response = await axios.get(`${API_BASE}/signals/performance`);
       const elapsed = Date.now() - start;
 
       expect(response.status).toBe(200);
@@ -200,7 +200,7 @@ describe("API Performance Tests", () => {
 
     it("market overview aggregation should be efficient", async () => {
       const start = Date.now();
-      const _response = await axios.get(`${API_BASE}/market/overview`);
+      const response = await axios.get(`${API_BASE}/market/overview`);
       const elapsed = Date.now() - start;
 
       expect(response.status).toBe(200);

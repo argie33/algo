@@ -36,7 +36,7 @@ describe("4xx Client Error Scenarios Integration", () => {
           );
         }
 
-        const _response = await requestBuilder
+        const response = await requestBuilder
           .set("Content-Type", "application/json")
           .send(test.body);
 
@@ -67,7 +67,7 @@ describe("4xx Client Error Scenarios Integration", () => {
       ];
 
       for (const test of invalidParamTests) {
-        const _response = await request(app).get(test.endpoint);
+        const response = await request(app).get(test.endpoint);
 
         // Should return 400 for invalid parameters
         expect(response.status).toBe(400);
@@ -98,7 +98,7 @@ describe("4xx Client Error Scenarios Integration", () => {
           );
         }
 
-        const _response = await requestBuilder.send(test.body);
+        const response = await requestBuilder.send(test.body);
 
         expect(response.status).toBe(test.expectedStatus);
 
@@ -133,7 +133,7 @@ describe("4xx Client Error Scenarios Integration", () => {
           );
         }
 
-        const _response = await requestBuilder.send(test.body);
+        const response = await requestBuilder.send(test.body);
 
         expect([200, 400, 404]).toContain(response.status);
 
@@ -153,7 +153,7 @@ describe("4xx Client Error Scenarios Integration", () => {
       ];
 
       for (const test of protectedEndpoints) {
-        const _response = await request(app)[test.method](test.endpoint);
+        const response = await request(app)[test.method](test.endpoint);
 
         // Should return 401 for missing authorization
         expect(response.status).toBe(401);
@@ -176,7 +176,7 @@ describe("4xx Client Error Scenarios Integration", () => {
       const testEndpoint = "/api/portfolio";
 
       for (const token of invalidTokens) {
-        const _response = await request(app)
+        const response = await request(app)
           .get(testEndpoint)
           .set("Authorization", token);
 
@@ -198,7 +198,7 @@ describe("4xx Client Error Scenarios Integration", () => {
       const testEndpoint = "/api/portfolio";
 
       for (const header of malformedHeaders) {
-        const _response = await request(app)
+        const response = await request(app)
           .get(testEndpoint)
           .set("Authorization", header);
 
@@ -213,7 +213,7 @@ describe("4xx Client Error Scenarios Integration", () => {
   describe("403 Forbidden Scenarios", () => {
     test("should return 403 for insufficient permissions", async () => {
       // Test with a potentially restricted endpoint
-      const _response = await request(app)
+      const response = await request(app)
         .get("/api/portfolio/admin")
         .set("Authorization", "Bearer dev-bypass-token");
 
@@ -254,7 +254,7 @@ describe("4xx Client Error Scenarios Integration", () => {
           );
         }
 
-        const _response = await requestBuilder;
+        const response = await requestBuilder;
 
         // Could be 200 (allowed), 403 (forbidden), or 404 (not found)
         expect([200, 403, 404]).toContain(response.status);
@@ -277,7 +277,7 @@ describe("4xx Client Error Scenarios Integration", () => {
       ];
 
       for (const test of nonExistentEndpoints) {
-        const _response = await request(app)[test.method](test.endpoint);
+        const response = await request(app)[test.method](test.endpoint);
 
         expect([401, 404, 500]).toContain(response.status);
         expect(response.body).toHaveProperty("success", false);
@@ -312,7 +312,7 @@ describe("4xx Client Error Scenarios Integration", () => {
           );
         }
 
-        const _response = await requestBuilder;
+        const response = await requestBuilder;
 
         expect([404, 500]).toContain(response.status);
 
@@ -331,7 +331,7 @@ describe("4xx Client Error Scenarios Integration", () => {
       ];
 
       for (const endpoint of invalidSubRoutes) {
-        const _response = await request(app).get(endpoint);
+        const response = await request(app).get(endpoint);
 
         expect([401, 404, 501]).toContain(response.status);
 
@@ -358,7 +358,7 @@ describe("4xx Client Error Scenarios Integration", () => {
       ];
 
       for (const test of methodTests) {
-        const _response = await request(app)[test.method](test.endpoint);
+        const response = await request(app)[test.method](test.endpoint);
 
         // Could be 404, 405, or handled differently
         expect([404, 405, 501]).toContain(response.status);
@@ -382,7 +382,7 @@ describe("4xx Client Error Scenarios Integration", () => {
       ];
 
       for (const endpoint of getOnlyEndpoints) {
-        const _response = await request(app)
+        const response = await request(app)
           .post(endpoint)
           .send({ test: "data" });
 
@@ -421,7 +421,7 @@ describe("4xx Client Error Scenarios Integration", () => {
           );
         }
 
-        const _response = await requestBuilder.send(test.body);
+        const response = await requestBuilder.send(test.body);
 
         // Could be 404 (endpoint doesn't exist), 409 (conflict), or other status
         expect([200, 404, 422]).toContain(response.status);
@@ -448,7 +448,7 @@ describe("4xx Client Error Scenarios Integration", () => {
       const testEndpoint = "/api/portfolio/analyze";
 
       for (const test of unsupportedContentTypes) {
-        const _response = await request(app)
+        const response = await request(app)
           .post(testEndpoint)
           .set("Authorization", "Bearer dev-bypass-token")
           .set("Content-Type", test.contentType)
@@ -503,7 +503,7 @@ describe("4xx Client Error Scenarios Integration", () => {
           requestBuilder = requestBuilder.send(test.body);
         }
 
-        const _response = await requestBuilder;
+        const response = await requestBuilder;
 
         expect([200, 400, 404]).toContain(response.status);
 
@@ -579,7 +579,7 @@ describe("4xx Client Error Scenarios Integration", () => {
             .send(scenario.body);
         }
 
-        const _response = await requestBuilder;
+        const response = await requestBuilder;
 
         const expectedStatuses = Array.isArray(scenario.expectedStatus)
           ? scenario.expectedStatus
@@ -607,7 +607,7 @@ describe("4xx Client Error Scenarios Integration", () => {
       ];
 
       for (const test of sensitiveErrorTests) {
-        const _response = await request(app)
+        const response = await request(app)
           .get(test.endpoint)
           .set("Authorization", test.auth);
 

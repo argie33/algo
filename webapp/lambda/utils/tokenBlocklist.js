@@ -50,7 +50,7 @@ setInterval(cleanupExpiredTokens, CLEANUP_INTERVAL);
  * @param {number} tokenExp - JWT exp claim (expiration timestamp)
  * @returns {Promise<boolean>} - true if token is revoked/blocked
  */
-const isTokenRevoked = async (tokenJti, tokenExp) => {
+const isTokenRevoked = async (tokenJti, _tokenExp) => {
   if (!tokenJti) {
     // No jti claim - cannot track revocation
     // (Some JWT implementations don't include jti)

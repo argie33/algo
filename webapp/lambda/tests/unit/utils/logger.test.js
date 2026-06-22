@@ -343,13 +343,13 @@ describe("Logger", () => {
     });
 
     test("should log performance with normal duration", () => {
-      logger.performance("database_query", 1000, { table: "stocks" });
+      logger.performance("databasequery", 1000, { table: "stocks" });
 
       expect(consoleSpy).toHaveBeenCalled();
     });
 
     test("should log performance warning for slow operations", () => {
-      logger.performance("slow_query", 6000, { table: "stocks" });
+      logger.performance("slowquery", 6000, { table: "stocks" });
 
       expect(consoleSpy).toHaveBeenCalled();
     });

@@ -31,7 +31,7 @@ describe("Dividend Route - Comprehensive Unit Tests", () => {
     mockQuery.mockImplementation((sql, params) => {
       // Mock dividend history query
       if (sql.includes("dividend_history")) {
-        const symbol = _params && params[0];
+        const symbol = params && params[0];
         return Promise.resolve({
           rows: [
             {

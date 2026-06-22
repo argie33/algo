@@ -9,7 +9,7 @@ describe("Market Routes Unit Tests", () => {
 
   describe("GET /api/market", () => {
     test("should return market endpoint information", async () => {
-      const _response = await request(app).get("/api/market");
+      const response = await request(app).get("/api/market");
 
       expect(response.status).toBe(200);
 
@@ -28,7 +28,7 @@ describe("Market Routes Unit Tests", () => {
 
   describe("GET /api/market/overview", () => {
     test("should return market overview data or handle missing data gracefully", async () => {
-      const _response = await request(app).get("/api/market/overview");
+      const response = await request(app).get("/api/market/overview");
 
       expect([200, 500, 503]).toContain(response.status);
 
@@ -53,7 +53,7 @@ describe("Market Routes Unit Tests", () => {
     });
 
     test("should handle market overview with parameters", async () => {
-      const _response = await request(app).get(
+      const response = await request(app).get(
         "/api/market/overview?period=1d&includePremarket=true"
       );
 
@@ -70,7 +70,7 @@ describe("Market Routes Unit Tests", () => {
 
   describe("GET /api/market/data", () => {
     test("should return market data or handle service unavailable", async () => {
-      const _response = await request(app).get("/api/market/data");
+      const response = await request(app).get("/api/market/data");
 
       expect([200, 503]).toContain(response.status);
 
@@ -95,7 +95,7 @@ describe("Market Routes Unit Tests", () => {
     });
 
     test("should handle symbol-specific market data", async () => {
-      const _response = await request(app).get("/api/market/data?symbol=AAPL");
+      const response = await request(app).get("/api/market/data?symbol=AAPL");
 
       expect([200, 503]).toContain(response.status);
 
@@ -116,7 +116,7 @@ describe("Market Routes Unit Tests", () => {
 
   describe("GET /api/market/sentiment", () => {
     test("should return market sentiment data or handle missing data", async () => {
-      const _response = await request(app).get("/api/market/sentiment");
+      const response = await request(app).get("/api/market/sentiment");
 
       expect([200, 404, 500]).toContain(response.status);
 
@@ -142,7 +142,7 @@ describe("Market Routes Unit Tests", () => {
 
   describe("GET /api/market/sentiment/history", () => {
     test("should return sentiment history or handle service unavailable", async () => {
-      const _response = await request(app).get("/api/market/sentiment/history");
+      const response = await request(app).get("/api/market/sentiment/history");
 
       expect([200, 503]).toContain(response.status);
 
@@ -164,7 +164,7 @@ describe("Market Routes Unit Tests", () => {
     });
 
     test("should handle sentiment history with time range", async () => {
-      const _response = await request(app).get(
+      const response = await request(app).get(
         "/api/market/sentiment/history?days=30"
       );
 
@@ -178,7 +178,7 @@ describe("Market Routes Unit Tests", () => {
 
   describe("GET /api/market/movers", () => {
     test("should return top movers or handle missing data", async () => {
-      const _response = await request(app).get("/api/market/movers");
+      const response = await request(app).get("/api/market/movers");
 
       expect([200, 500]).toContain(response.status);
 
@@ -205,7 +205,7 @@ describe("Market Routes Unit Tests", () => {
     });
 
     test("should handle movers with type parameter", async () => {
-      const _response = await request(app).get(
+      const response = await request(app).get(
         "/api/market/movers?type=gainers"
       );
 
@@ -219,7 +219,7 @@ describe("Market Routes Unit Tests", () => {
 
   describe("GET /api/market/indices", () => {
     test("should return market indices or handle missing data", async () => {
-      const _response = await request(app).get("/api/market/indices");
+      const response = await request(app).get("/api/market/indices");
 
       expect([200, 500]).toContain(response.status);
 
@@ -245,7 +245,7 @@ describe("Market Routes Unit Tests", () => {
 
   describe("GET /api/market/status", () => {
     test("should return market status", async () => {
-      const _response = await request(app).get("/api/market/status");
+      const response = await request(app).get("/api/market/status");
 
       expect(response.status).toBe(200);
 
@@ -274,7 +274,7 @@ describe("Market Routes Unit Tests", () => {
 
   describe("GET /api/sectors/sectors-with-history", () => {
     test("should return sector performance or handle missing data", async () => {
-      const _response = await request(app).get(
+      const response = await request(app).get(
         "/api/sectors/sectors-with-history"
       );
 
@@ -301,7 +301,7 @@ describe("Market Routes Unit Tests", () => {
 
   describe("GET /api/market/distribution-days", () => {
     test("should return distribution days data or handle missing data", async () => {
-      const _response = await request(app).get("/api/market/distribution-days");
+      const response = await request(app).get("/api/market/distribution-days");
 
       expect([200, 404, 503]).toContain(response.status);
 
@@ -363,7 +363,7 @@ describe("Market Routes Unit Tests", () => {
     });
 
     test("should have correct data structure and IBD methodology", async () => {
-      const _response = await request(app).get("/api/market/distribution-days");
+      const response = await request(app).get("/api/market/distribution-days");
 
       if (response.status === 200 && response.body.data) {
         const data = response.body.data;
@@ -397,7 +397,7 @@ describe("Market Routes Unit Tests", () => {
     });
 
     test("should return timestamp in response", async () => {
-      const _response = await request(app).get("/api/market/distribution-days");
+      const response = await request(app).get("/api/market/distribution-days");
 
       if (response.status === 200) {
         expect(response.body).toHaveProperty("timestamp");
@@ -412,7 +412,7 @@ describe("Market Routes Unit Tests", () => {
 
   describe("GET /api/market/seasonality", () => {
     test("should return seasonality data with proper structure", async () => {
-      const _response = await request(app).get("/api/market/seasonality");
+      const response = await request(app).get("/api/market/seasonality");
 
       expect([200, 500]).toContain(response.status);
 
@@ -431,7 +431,7 @@ describe("Market Routes Unit Tests", () => {
     });
 
     test("should return monthly seasonality with S&P cumulative return lines", async () => {
-      const _response = await request(app).get("/api/market/seasonality");
+      const response = await request(app).get("/api/market/seasonality");
 
       if (response.status === 200 && response.body.data) {
         const monthlySeasonality = response.body.data.monthlySeasonality;
@@ -462,7 +462,7 @@ describe("Market Routes Unit Tests", () => {
     });
 
     test("should have cumulative returns that generally trend upward across months", async () => {
-      const _response = await request(app).get("/api/market/seasonality");
+      const response = await request(app).get("/api/market/seasonality");
 
       if (response.status === 200 && response.body.data) {
         const monthlySeasonality = response.body.data.monthlySeasonality;
@@ -483,7 +483,7 @@ describe("Market Routes Unit Tests", () => {
     });
 
     test("should have all months with valid Presidential Cycle context", async () => {
-      const _response = await request(app).get("/api/market/seasonality");
+      const response = await request(app).get("/api/market/seasonality");
 
       if (response.status === 200 && response.body.data) {
         const presidentialCycle = response.body.data.presidentialCycle;
@@ -510,7 +510,7 @@ describe("Market Routes Unit Tests", () => {
     });
 
     test("should include quarterly seasonality patterns", async () => {
-      const _response = await request(app).get("/api/market/seasonality");
+      const response = await request(app).get("/api/market/seasonality");
 
       if (response.status === 200 && response.body.data) {
         const quarterlySeasonality = response.body.data.quarterlySeasonality;
@@ -529,7 +529,7 @@ describe("Market Routes Unit Tests", () => {
     });
 
     test("should include day of week effects", async () => {
-      const _response = await request(app).get("/api/market/seasonality");
+      const response = await request(app).get("/api/market/seasonality");
 
       if (response.status === 200 && response.body.data) {
         const dowEffects = response.body.data.dayOfWeekEffects;
@@ -554,7 +554,7 @@ describe("Market Routes Unit Tests", () => {
     });
 
     test("should have current seasonal position information", async () => {
-      const _response = await request(app).get("/api/market/seasonality");
+      const response = await request(app).get("/api/market/seasonality");
 
       if (response.status === 200 && response.body.data) {
         const currentPosition = response.body.data.currentPosition;
@@ -573,7 +573,7 @@ describe("Market Routes Unit Tests", () => {
 
     test("should respond within reasonable time", async () => {
       const startTime = Date.now();
-      const _response = await request(app).get("/api/market/seasonality");
+      const response = await request(app).get("/api/market/seasonality");
       const endTime = Date.now();
 
       const responseTime = endTime - startTime;
@@ -584,13 +584,13 @@ describe("Market Routes Unit Tests", () => {
 
   describe("Error Handling", () => {
     test("should handle invalid endpoints gracefully", async () => {
-      const _response = await request(app).get("/api/market/invalid-endpoint");
+      const response = await request(app).get("/api/market/invalid-endpoint");
 
       expect([500, 404]).toContain(response.status);
     });
 
     test("should handle database connection issues", async () => {
-      const _response = await request(app).get(
+      const response = await request(app).get(
         "/api/market/data?force_error=true"
       );
 
@@ -598,7 +598,7 @@ describe("Market Routes Unit Tests", () => {
     });
 
     test("should handle malformed query parameters", async () => {
-      const _response = await request(app).get(
+      const response = await request(app).get(
         "/api/market/sentiment/history?days=invalid"
       );
 
@@ -609,7 +609,7 @@ describe("Market Routes Unit Tests", () => {
   describe("Performance Tests", () => {
     test("should respond to overview requests within reasonable time", async () => {
       const startTime = Date.now();
-      const _response = await request(app).get("/api/market/overview");
+      const response = await request(app).get("/api/market/overview");
 
       const endTime = Date.now();
       const responseTime = endTime - startTime;

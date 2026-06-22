@@ -9,7 +9,7 @@ describe("Trades Routes", () => {
 
   describe("GET /api/trades", () => {
     test("should return trade API information", async () => {
-      const _response = await request(app).get("/api/trades");
+      const response = await request(app).get("/api/trades");
 
       expect([200, 401, 404]).toContain(response.status);
       expect(response.body).toHaveProperty(
@@ -28,7 +28,7 @@ describe("Trades Routes", () => {
 
   describe("GET /api/trades/health", () => {
     test("should return health status", async () => {
-      const _response = await request(app).get("/api/trades/health");
+      const response = await request(app).get("/api/trades/health");
 
       expect(response.status).toBe(200);
       expect(response.body).toHaveProperty("status", "operational");
@@ -43,7 +43,7 @@ describe("Trades Routes", () => {
 
   describe("GET /api/trades/recent", () => {
     test("should return 501 not implemented", async () => {
-      const _response = await request(app)
+      const response = await request(app)
         .get("/api/trades/recent")
         .set("Authorization", "Bearer dev-bypass-token");
 
@@ -60,7 +60,7 @@ describe("Trades Routes", () => {
     });
 
     test("should handle query parameters", async () => {
-      const _response = await request(app)
+      const response = await request(app)
         .get(
           "/api/trades/recent?limit=10&days=30&symbol=AAPL&type=buy&status=executed"
         )
@@ -75,7 +75,7 @@ describe("Trades Routes", () => {
     });
 
     test("should use default values for missing parameters", async () => {
-      const _response = await request(app)
+      const response = await request(app)
         .get("/api/trades/recent")
         .set("Authorization", "Bearer dev-bypass-token");
 
@@ -88,7 +88,7 @@ describe("Trades Routes", () => {
     });
 
     test("should require authentication", async () => {
-      const _response = await request(app).get("/api/trades/recent");
+      const response = await request(app).get("/api/trades/recent");
       // No auth header
 
       expect([401].includes(response.status)).toBe(true);
@@ -97,7 +97,7 @@ describe("Trades Routes", () => {
 
   describe("GET /api/trades/import/status", () => {
     test("should return broker status for authenticated user", async () => {
-      const _response = await request(app)
+      const response = await request(app)
         .get("/api/trades/import/status")
         .set("Authorization", "Bearer dev-bypass-token");
 
@@ -114,7 +114,7 @@ describe("Trades Routes", () => {
     });
 
     test("should require authentication", async () => {
-      const _response = await request(app).get("/api/trades/import/status");
+      const response = await request(app).get("/api/trades/import/status");
       // No auth header
 
       expect([401].includes(response.status)).toBe(true);
@@ -123,7 +123,7 @@ describe("Trades Routes", () => {
 
   describe("POST /api/trades/import/alpaca", () => {
     test("should handle Alpaca import request", async () => {
-      const _response = await request(app)
+      const response = await request(app)
         .post("/api/trades/import/alpaca")
         .set("Authorization", "Bearer dev-bypass-token")
         .send({
@@ -144,7 +144,7 @@ describe("Trades Routes", () => {
     });
 
     test("should require authentication", async () => {
-      const _response = await request(app)
+      const response = await request(app)
         .post("/api/trades/import/alpaca")
         .send({ startDate: "2023-01-01", endDate: "2023-12-31" });
       // No auth header
@@ -155,7 +155,7 @@ describe("Trades Routes", () => {
 
   describe("GET /api/trades/summary", () => {
     test("should return trade summary for authenticated user", async () => {
-      const _response = await request(app)
+      const response = await request(app)
         .get("/api/trades/summary")
         .set("Authorization", "Bearer dev-bypass-token");
 
@@ -168,7 +168,7 @@ describe("Trades Routes", () => {
     });
 
     test("should require authentication", async () => {
-      const _response = await request(app).get("/api/trades/summary");
+      const response = await request(app).get("/api/trades/summary");
       // No auth header
 
       expect([401].includes(response.status)).toBe(true);
@@ -177,7 +177,7 @@ describe("Trades Routes", () => {
 
   describe("GET /api/trades/positions", () => {
     test("should return positions data", async () => {
-      const _response = await request(app)
+      const response = await request(app)
         .get("/api/trades/positions")
         .set("Authorization", "Bearer dev-bypass-token");
 
@@ -192,7 +192,7 @@ describe("Trades Routes", () => {
     });
 
     test("should handle query parameters", async () => {
-      const _response = await request(app)
+      const response = await request(app)
         .get("/api/trades/positions?status=open&limit=10&offset=0")
         .set("Authorization", "Bearer dev-bypass-token");
 
@@ -205,7 +205,7 @@ describe("Trades Routes", () => {
     });
 
     test("should require authentication", async () => {
-      const _response = await request(app).get("/api/trades/positions");
+      const response = await request(app).get("/api/trades/positions");
       // No auth header
 
       expect([401].includes(response.status)).toBe(true);
@@ -214,7 +214,7 @@ describe("Trades Routes", () => {
 
   describe("GET /api/trades/analytics", () => {
     test("should return comprehensive trade analytics", async () => {
-      const _response = await request(app)
+      const response = await request(app)
         .get("/api/trades/analytics")
         .set("Authorization", "Bearer dev-bypass-token");
 
@@ -246,7 +246,7 @@ describe("Trades Routes", () => {
       const timeframes = ["1W", "1M", "3M", "6M", "1Y", "YTD"];
 
       for (const timeframe of timeframes) {
-        const _response = await request(app)
+        const response = await request(app)
           .get(`/api/trades/analytics?timeframe=${timeframe}`)
           .set("Authorization", "Bearer dev-bypass-token");
 
@@ -259,7 +259,7 @@ describe("Trades Routes", () => {
     });
 
     test("should require authentication", async () => {
-      const _response = await request(app).get("/api/trades/analytics");
+      const response = await request(app).get("/api/trades/analytics");
       // No auth header
 
       expect([401].includes(response.status)).toBe(true);
@@ -268,7 +268,7 @@ describe("Trades Routes", () => {
 
   describe("GET /api/trades/analytics/overview", () => {
     test("should return analytics overview", async () => {
-      const _response = await request(app)
+      const response = await request(app)
         .get("/api/trades/analytics/overview")
         .set("Authorization", "Bearer dev-bypass-token");
 
@@ -288,7 +288,7 @@ describe("Trades Routes", () => {
     });
 
     test("should require authentication", async () => {
-      const _response = await request(app).get("/api/trades/analytics/overview");
+      const response = await request(app).get("/api/trades/analytics/overview");
       // No auth header
 
       expect([401].includes(response.status)).toBe(true);
@@ -297,7 +297,7 @@ describe("Trades Routes", () => {
 
   describe("GET /api/trades/history", () => {
     test("should return trade history or service unavailable", async () => {
-      const _response = await request(app)
+      const response = await request(app)
         .get("/api/trades/history")
         .set("Authorization", "Bearer dev-bypass-token");
 
@@ -320,7 +320,7 @@ describe("Trades Routes", () => {
     });
 
     test("should handle query parameters", async () => {
-      const _response = await request(app)
+      const response = await request(app)
         .get(
           "/api/trades/history?symbol=AAPL&limit=10&offset=0&sortBy=execution_time&sortOrder=desc"
         )
@@ -330,7 +330,7 @@ describe("Trades Routes", () => {
     });
 
     test("should require authentication", async () => {
-      const _response = await request(app).get("/api/trades/history");
+      const response = await request(app).get("/api/trades/history");
       // No auth header
 
       expect([401].includes(response.status)).toBe(true);
@@ -339,7 +339,7 @@ describe("Trades Routes", () => {
 
   describe("GET /api/trades/performance", () => {
     test("should return performance data or error", async () => {
-      const _response = await request(app)
+      const response = await request(app)
         .get("/api/trades/performance")
         .set("Authorization", "Bearer dev-bypass-token");
 
@@ -362,7 +362,7 @@ describe("Trades Routes", () => {
     });
 
     test("should require authentication", async () => {
-      const _response = await request(app).get("/api/trades/performance");
+      const response = await request(app).get("/api/trades/performance");
       // No auth header
 
       expect([401].includes(response.status)).toBe(true);
@@ -371,7 +371,7 @@ describe("Trades Routes", () => {
 
   describe("GET /api/trades/insights", () => {
     test("should return trade insights", async () => {
-      const _response = await request(app)
+      const response = await request(app)
         .get("/api/trades/insights")
         .set("Authorization", "Bearer dev-bypass-token");
 
@@ -387,7 +387,7 @@ describe("Trades Routes", () => {
     });
 
     test("should handle limit parameter", async () => {
-      const _response = await request(app)
+      const response = await request(app)
         .get("/api/trades/insights?limit=5")
         .set("Authorization", "Bearer dev-bypass-token");
 
@@ -395,7 +395,7 @@ describe("Trades Routes", () => {
     });
 
     test("should require authentication", async () => {
-      const _response = await request(app).get("/api/trades/insights");
+      const response = await request(app).get("/api/trades/insights");
       // No auth header
 
       expect([401].includes(response.status)).toBe(true);
@@ -404,7 +404,7 @@ describe("Trades Routes", () => {
 
   describe("GET /api/trades/export", () => {
     test("should export trade data as JSON by default", async () => {
-      const _response = await request(app)
+      const response = await request(app)
         .get("/api/trades/export")
         .set("Authorization", "Bearer dev-bypass-token");
 
@@ -436,7 +436,7 @@ describe("Trades Routes", () => {
     });
 
     test("should export as CSV when format=csv", async () => {
-      const _response = await request(app)
+      const response = await request(app)
         .get("/api/trades/export?format=csv")
         .set("Authorization", "Bearer dev-bypass-token");
 
@@ -453,7 +453,7 @@ describe("Trades Routes", () => {
     });
 
     test("should handle date range parameters", async () => {
-      const _response = await request(app)
+      const response = await request(app)
         .get("/api/trades/export?startDate=2023-01-01&endDate=2023-12-31")
         .set("Authorization", "Bearer dev-bypass-token");
 
@@ -461,7 +461,7 @@ describe("Trades Routes", () => {
     });
 
     test("should require authentication", async () => {
-      const _response = await request(app).get("/api/trades/export");
+      const response = await request(app).get("/api/trades/export");
       // No auth header
 
       expect([401].includes(response.status)).toBe(true);
@@ -470,7 +470,7 @@ describe("Trades Routes", () => {
 
   describe("DELETE /api/trades/data", () => {
     test("should require confirmation", async () => {
-      const _response = await request(app)
+      const response = await request(app)
         .delete("/api/trades/data")
         .set("Authorization", "Bearer dev-bypass-token")
         .send({});
@@ -482,7 +482,7 @@ describe("Trades Routes", () => {
     });
 
     test("should delete data with proper confirmation", async () => {
-      const _response = await request(app)
+      const response = await request(app)
         .delete("/api/trades/data")
         .set("Authorization", "Bearer dev-bypass-token")
         .send({ confirm: "DELETE_ALL_TRADE_DATA" });
@@ -496,7 +496,7 @@ describe("Trades Routes", () => {
     });
 
     test("should require authentication", async () => {
-      const _response = await request(app)
+      const response = await request(app)
         .delete("/api/trades/data")
         .send({ confirm: "DELETE_ALL_TRADE_DATA" });
       // No auth header
@@ -507,7 +507,7 @@ describe("Trades Routes", () => {
 
   describe("Error Handling", () => {
     test("should handle malformed requests", async () => {
-      const _response = await request(app)
+      const response = await request(app)
         .get("/api/trades/analytics?timeframe=invalid")
         .set("Authorization", "Bearer dev-bypass-token");
 
@@ -515,7 +515,7 @@ describe("Trades Routes", () => {
     });
 
     test("should handle invalid position ID", async () => {
-      const _response = await request(app)
+      const response = await request(app)
         .get("/api/trades/analytics/invalid-id")
         .set("Authorization", "Bearer dev-bypass-token");
 
@@ -527,7 +527,7 @@ describe("Trades Routes", () => {
     test("should respond within reasonable time", async () => {
       const startTime = Date.now();
 
-      const _response = await request(app)
+      const response = await request(app)
         .get("/api/trades")
         .set("Authorization", "Bearer dev-bypass-token");
 

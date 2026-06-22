@@ -38,7 +38,7 @@ describe("Connection Pool Stress Integration", () => {
     const client = await testPool.connect();
     try {
       await client.query(`
-        CREATE TABLE IF NOT EXISTS test_transaction_stress (
+        CREATE TABLE IF NOT EXISTS testtransaction_stress (
           id SERIAL PRIMARY KEY,
           value INTEGER NOT NULL,
           updated_by VARCHAR(50),
@@ -49,7 +49,7 @@ describe("Connection Pool Stress Integration", () => {
 
       // Insert initial test data
       await client.query(`
-        INSERT INTO test_transaction_stress (value, updated_by) VALUES (100, 'initial')
+        INSERT INTO testtransaction_stress (value, updated_by) VALUES (100, 'initial')
         ON CONFLICT DO NOTHING
       `);
     } finally {
@@ -395,7 +395,7 @@ describe("Connection Pool Stress Integration", () => {
     beforeEach(async () => {
       // Clean up any previous test data before each test
       await transaction(async (client) => {
-        await client.query("DELETE FROM test_transaction_stress");
+        await client.query("DELETE FROM testtransaction_stress");
         await client.query("DELETE FROM test_isolation_stress");
       });
     });
@@ -415,7 +415,7 @@ describe("Connection Pool Stress Integration", () => {
             for (let opId = 0; opId < operationsPerTransaction; opId++) {
               operations.push(
                 client.query(
-                  "INSERT INTO test_transaction_stress (value, updated_by_id) VALUES ($1, $2)",
+                  "INSERT INTO testtransaction_stress (value, updated_by_id) VALUES ($1, $2)",
                   [opId, `test-${transactionId}-${opId}`]
                 )
               );
@@ -425,7 +425,7 @@ describe("Connection Pool Stress Integration", () => {
 
             // Verify our operations
             const result = await client.query(
-              "SELECT COUNT(*) as count FROM test_transaction_stress WHERE transaction_id = $1",
+              "SELECT COUNT(*) as count FROM testtransaction_stress WHERE transaction_id = $1",
               [transactionId.toString()]
             );
 
@@ -460,7 +460,7 @@ describe("Connection Pool Stress Integration", () => {
       // Verify total records
       const totalRecords = await transaction(async (client) => {
         const result = await client.query(
-          "SELECT COUNT(*) as count FROM test_transaction_stress"
+          "SELECT COUNT(*) as count FROM testtransaction_stress"
         );
         return parseInt(result.rows[0].count);
       });

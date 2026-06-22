@@ -15,7 +15,7 @@ describe("Recommendations Routes - Real Data Validation", () => {
   });
   describe("GET /api/recommendations", () => {
     test("should fetch stock recommendations successfully", async () => {
-      const _response = await request(app)
+      const response = await request(app)
         .get("/api/recommendations")
         .set("Authorization", "Bearer dev-bypass-token");
 
@@ -29,7 +29,7 @@ describe("Recommendations Routes - Real Data Validation", () => {
     });
 
     test("should handle symbol parameter", async () => {
-      const _response = await request(app)
+      const response = await request(app)
         .get("/api/recommendations?symbol=AAPL")
         .set("Authorization", "Bearer dev-bypass-token");
 
@@ -39,7 +39,7 @@ describe("Recommendations Routes - Real Data Validation", () => {
     });
 
     test("should handle category parameter", async () => {
-      const _response = await request(app)
+      const response = await request(app)
         .get("/api/recommendations?category=buy")
         .set("Authorization", "Bearer dev-bypass-token");
 
@@ -49,7 +49,7 @@ describe("Recommendations Routes - Real Data Validation", () => {
     });
 
     test("should handle analyst parameter", async () => {
-      const _response = await request(app)
+      const response = await request(app)
         .get("/api/recommendations?analyst=goldman_sachs")
         .set("Authorization", "Bearer dev-bypass-token");
 
@@ -59,7 +59,7 @@ describe("Recommendations Routes - Real Data Validation", () => {
     });
 
     test("should handle limit parameter", async () => {
-      const _response = await request(app)
+      const response = await request(app)
         .get("/api/recommendations?limit=50")
         .set("Authorization", "Bearer dev-bypass-token");
 
@@ -69,7 +69,7 @@ describe("Recommendations Routes - Real Data Validation", () => {
     });
 
     test("should handle timeframe parameter", async () => {
-      const _response = await request(app)
+      const response = await request(app)
         .get("/api/recommendations?timeframe=weekly")
         .set("Authorization", "Bearer dev-bypass-token");
 
@@ -79,7 +79,7 @@ describe("Recommendations Routes - Real Data Validation", () => {
     });
 
     test("should handle multiple parameters", async () => {
-      const _response = await request(app)
+      const response = await request(app)
         .get("/api/recommendations?symbol=MSFT&category=hold&limit=10")
         .set("Authorization", "Bearer dev-bypass-token");
 
@@ -91,7 +91,7 @@ describe("Recommendations Routes - Real Data Validation", () => {
     });
 
     test("should use default values for missing parameters", async () => {
-      const _response = await request(app)
+      const response = await request(app)
         .get("/api/recommendations")
         .set("Authorization", "Bearer dev-bypass-token");
 
@@ -105,7 +105,7 @@ describe("Recommendations Routes - Real Data Validation", () => {
     });
 
     test("should include proper response structure", async () => {
-      const _response = await request(app)
+      const response = await request(app)
         .get("/api/recommendations")
         .set("Authorization", "Bearer dev-bypass-token");
 
@@ -122,7 +122,7 @@ describe("Recommendations Routes - Real Data Validation", () => {
     });
 
     test("should have valid timestamp", async () => {
-      const _response = await request(app)
+      const response = await request(app)
         .get("/api/recommendations")
         .set("Authorization", "Bearer dev-bypass-token");
 
@@ -134,7 +134,7 @@ describe("Recommendations Routes - Real Data Validation", () => {
     });
 
     test("should handle mixed case symbol", async () => {
-      const _response = await request(app)
+      const response = await request(app)
         .get("/api/recommendations?symbol=aapl")
         .set("Authorization", "Bearer dev-bypass-token");
 
@@ -144,7 +144,7 @@ describe("Recommendations Routes - Real Data Validation", () => {
     });
 
     test("should handle special characters in symbol", async () => {
-      const _response = await request(app)
+      const response = await request(app)
         .get("/api/recommendations?symbol=BRK.A")
         .set("Authorization", "Bearer dev-bypass-token");
 
@@ -156,7 +156,7 @@ describe("Recommendations Routes - Real Data Validation", () => {
 
   describe("GET /api/recommendations/analysts/:symbol", () => {
     test("should fetch analyst coverage successfully", async () => {
-      const _response = await request(app)
+      const response = await request(app)
         .get("/api/recommendations/analysts/AAPL")
         .set("Authorization", "Bearer dev-bypass-token");
 
@@ -170,7 +170,7 @@ describe("Recommendations Routes - Real Data Validation", () => {
     });
 
     test("should convert symbol to uppercase", async () => {
-      const _response = await request(app)
+      const response = await request(app)
         .get("/api/recommendations/analysts/aapl")
         .set("Authorization", "Bearer dev-bypass-token");
 
@@ -180,7 +180,7 @@ describe("Recommendations Routes - Real Data Validation", () => {
     });
 
     test("should handle limit parameter", async () => {
-      const _response = await request(app)
+      const response = await request(app)
         .get("/api/recommendations/analysts/MSFT?limit=5")
         .set("Authorization", "Bearer dev-bypass-token");
 
@@ -190,7 +190,7 @@ describe("Recommendations Routes - Real Data Validation", () => {
     });
 
     test("should use default limit when not specified", async () => {
-      const _response = await request(app)
+      const response = await request(app)
         .get("/api/recommendations/analysts/TSLA")
         .set("Authorization", "Bearer dev-bypass-token");
 
@@ -200,7 +200,7 @@ describe("Recommendations Routes - Real Data Validation", () => {
     });
 
     test("should handle special characters in symbol", async () => {
-      const _response = await request(app)
+      const response = await request(app)
         .get("/api/recommendations/analysts/BRK.A")
         .set("Authorization", "Bearer dev-bypass-token");
 
@@ -210,7 +210,7 @@ describe("Recommendations Routes - Real Data Validation", () => {
     });
 
     test("should include analyst coverage response structure", async () => {
-      const _response = await request(app)
+      const response = await request(app)
         .get("/api/recommendations/analysts/GOOGL")
         .set("Authorization", "Bearer dev-bypass-token");
 
@@ -225,7 +225,7 @@ describe("Recommendations Routes - Real Data Validation", () => {
     });
 
     test("should have valid timestamp", async () => {
-      const _response = await request(app)
+      const response = await request(app)
         .get("/api/recommendations/analysts/NVDA")
         .set("Authorization", "Bearer dev-bypass-token");
 
@@ -237,7 +237,7 @@ describe("Recommendations Routes - Real Data Validation", () => {
     });
 
     test("should handle numeric symbols", async () => {
-      const _response = await request(app)
+      const response = await request(app)
         .get("/api/recommendations/analysts/123")
         .set("Authorization", "Bearer dev-bypass-token");
 
@@ -247,7 +247,7 @@ describe("Recommendations Routes - Real Data Validation", () => {
     });
 
     test("should handle malformed limit parameter", async () => {
-      const _response = await request(app)
+      const response = await request(app)
         .get("/api/recommendations/analysts/AAPL?limit=invalid")
         .set("Authorization", "Bearer dev-bypass-token");
 
@@ -259,7 +259,7 @@ describe("Recommendations Routes - Real Data Validation", () => {
     });
 
     test("should handle negative limit parameter", async () => {
-      const _response = await request(app)
+      const response = await request(app)
         .get("/api/recommendations/analysts/AAPL?limit=-5")
         .set("Authorization", "Bearer dev-bypass-token");
 
@@ -269,7 +269,7 @@ describe("Recommendations Routes - Real Data Validation", () => {
     });
 
     test("should handle extremely large limit", async () => {
-      const _response = await request(app)
+      const response = await request(app)
         .get("/api/recommendations/analysts/AAPL?limit=99999")
         .set("Authorization", "Bearer dev-bypass-token");
 
@@ -282,14 +282,14 @@ describe("Recommendations Routes - Real Data Validation", () => {
 
   describe("Authentication", () => {
     test("should require authentication for recommendations", async () => {
-      const _response = await request(app).get("/api/recommendations");
+      const response = await request(app).get("/api/recommendations");
       // No auth header
 
       expect([501, 401, 403, 500].includes(response.status)).toBe(true);
     });
 
     test("should require authentication for analyst coverage", async () => {
-      const _response = await request(app).get(
+      const response = await request(app).get(
         "/api/recommendations/analysts/AAPL"
       );
       // No auth header
@@ -298,7 +298,7 @@ describe("Recommendations Routes - Real Data Validation", () => {
     });
 
     test("should handle invalid authentication", async () => {
-      const _response = await request(app)
+      const response = await request(app)
         .get("/api/recommendations")
         .set("Authorization", "Bearer invalid-token");
 
@@ -308,7 +308,7 @@ describe("Recommendations Routes - Real Data Validation", () => {
 
   describe("Error Handling", () => {
     test("should handle malformed URLs gracefully", async () => {
-      const _response = await request(app)
+      const response = await request(app)
         .get("/api/recommendations?symbol=%20invalid%20")
         .set("Authorization", "Bearer dev-bypass-token");
 
@@ -319,7 +319,7 @@ describe("Recommendations Routes - Real Data Validation", () => {
     });
 
     test("should handle empty parameters", async () => {
-      const _response = await request(app)
+      const response = await request(app)
         .get("/api/recommendations?symbol=&category=&analyst=")
         .set("Authorization", "Bearer dev-bypass-token");
 
@@ -328,7 +328,7 @@ describe("Recommendations Routes - Real Data Validation", () => {
     });
 
     test("should handle URL encoded parameters", async () => {
-      const _response = await request(app)
+      const response = await request(app)
         .get("/api/recommendations?symbol=BRK%2EA")
         .set("Authorization", "Bearer dev-bypass-token");
 
@@ -340,7 +340,7 @@ describe("Recommendations Routes - Real Data Validation", () => {
 
   describe("Response Structure Validation", () => {
     test("should have consistent response structure", async () => {
-      const _response = await request(app)
+      const response = await request(app)
         .get("/api/recommendations")
         .set("Authorization", "Bearer dev-bypass-token");
 
@@ -364,7 +364,7 @@ describe("Recommendations Routes - Real Data Validation", () => {
     });
 
     test("should have consistent analyst coverage response structure", async () => {
-      const _response = await request(app)
+      const response = await request(app)
         .get("/api/recommendations/analysts/AAPL")
         .set("Authorization", "Bearer dev-bypass-token");
 
@@ -382,7 +382,7 @@ describe("Recommendations Routes - Real Data Validation", () => {
     test("should respond within reasonable time", async () => {
       const startTime = Date.now();
 
-      const _response = await request(app)
+      const response = await request(app)
         .get("/api/recommendations")
         .set("Authorization", "Bearer dev-bypass-token");
 
@@ -417,7 +417,7 @@ describe("Recommendations Routes - Real Data Validation", () => {
 
   describe("Required Setup Documentation", () => {
     test("should return recommendations data successfully", async () => {
-      const _response = await request(app)
+      const response = await request(app)
         .get("/api/recommendations")
         .set("Authorization", "Bearer dev-bypass-token");
 
@@ -436,7 +436,7 @@ describe("Recommendations Routes - Real Data Validation", () => {
     });
 
     test("should return analyst coverage data successfully", async () => {
-      const _response = await request(app)
+      const response = await request(app)
         .get("/api/recommendations/analysts/AAPL")
         .set("Authorization", "Bearer dev-bypass-token");
 

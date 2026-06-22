@@ -31,7 +31,7 @@ describe("Price Route - Unit Tests", () => {
     // Setup default mock responses
     mockQuery.mockImplementation((sql, params) => {
       // Mock table existence checks for information_schema.tables
-      if (sql.includes("information_schema.tables") && _params && params[0]) {
+      if (sql.includes("information_schema.tables") && params && params[0]) {
         const tableName = params[0];
         if (
           tableName === "price_daily" ||
@@ -48,7 +48,7 @@ describe("Price Route - Unit Tests", () => {
       }
       // Mock price_daily queries
       if (sql.includes("FROM price_daily") && sql.includes("WHERE symbol")) {
-        const symbol = _params && params[0] ? params[0] : "AAPL";
+        const symbol = params && params[0] ? params[0] : "AAPL";
         if (symbol === "INVALID") {
           return Promise.resolve({ rows: [] });
         }
@@ -86,7 +86,7 @@ describe("Price Route - Unit Tests", () => {
       }
       // Mock futures data queries
       if (sql.includes("futures_pricing") || sql.includes("futures")) {
-        const symbol = _params && params[0] ? params[0] : "CLZ24";
+        const symbol = params && params[0] ? params[0] : "CLZ24";
         if (symbol === "INVALID") {
           return Promise.resolve({ rows: [] });
         }
@@ -112,7 +112,7 @@ describe("Price Route - Unit Tests", () => {
         sql.includes("prediction") ||
         sql.includes("analysis")
       ) {
-        const symbol = _params && params[0] ? params[0] : "AAPL";
+        const symbol = params && params[0] ? params[0] : "AAPL";
         return Promise.resolve({
           rows: [
             {

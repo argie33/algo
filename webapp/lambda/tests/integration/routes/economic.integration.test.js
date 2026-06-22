@@ -16,7 +16,7 @@ describe("Economic Routes - Real Data Validation", () => {
 
   describe("GET /api/economic (Economic Data)", () => {
     test("should return economic data with pagination", async () => {
-      const _response = await request(app).get("/api/economic");
+      const response = await request(app).get("/api/economic");
 
       expect(response.status).toBe(200);
 
@@ -32,7 +32,7 @@ describe("Economic Routes - Real Data Validation", () => {
     });
 
     test("should handle page and limit parameters", async () => {
-      const _response = await request(app).get("/api/economic?page=1&limit=10");
+      const response = await request(app).get("/api/economic?page=1&limit=10");
 
       expect([200, 400, 500, 503].includes(response.status)).toBe(true);
 
@@ -56,7 +56,7 @@ describe("Economic Routes - Real Data Validation", () => {
       ];
 
       for (const series of economicSeries) {
-        const _response = await request(app).get(
+        const response = await request(app).get(
           `/api/economic?series=${series}`
         );
 
@@ -72,7 +72,7 @@ describe("Economic Routes - Real Data Validation", () => {
     });
 
     test("should validate economic data structure", async () => {
-      const _response = await request(app).get("/api/economic?limit=5");
+      const response = await request(app).get("/api/economic?limit=5");
 
       if (response.status === 200 && response.body.data.length > 0) {
         const dataPoint = response.body.data[0];
@@ -93,8 +93,8 @@ describe("Economic Routes - Real Data Validation", () => {
         "page=999999&limit=1000",
       ];
 
-      for (const _params of invalidParams) {
-        const _response = await request(app).get(`/api/economic?${params}`);
+      for (const params of invalidParams) {
+        const response = await request(app).get(`/api/economic?${params}`);
 
         expect([200, 400, 404, 500, 503].includes(response.status)).toBe(true);
       }
@@ -103,7 +103,7 @@ describe("Economic Routes - Real Data Validation", () => {
 
   describe("GET /api/economic/indicators", () => {
     test("should return available economic indicators", async () => {
-      const _response = await request(app).get("/api/economic/indicators");
+      const response = await request(app).get("/api/economic/indicators");
 
       expect(response.status).toBe(200);
 
@@ -116,7 +116,7 @@ describe("Economic Routes - Real Data Validation", () => {
     });
 
     test("should categorize economic indicators", async () => {
-      const _response = await request(app).get("/api/economic/indicators");
+      const response = await request(app).get("/api/economic/indicators");
 
       if (response.status === 200 && response.body.categories) {
         const expectedCategories = [
@@ -141,7 +141,7 @@ describe("Economic Routes - Real Data Validation", () => {
       const categories = ["growth", "inflation", "employment", "monetary"];
 
       for (const category of categories) {
-        const _response = await request(app).get(
+        const response = await request(app).get(
           `/api/economic/indicators?category=${category}`
         );
 
@@ -152,7 +152,7 @@ describe("Economic Routes - Real Data Validation", () => {
 
   describe("GET /api/economic/calendar", () => {
     test("should return economic calendar events", async () => {
-      const _response = await request(app).get("/api/economic/calendar");
+      const response = await request(app).get("/api/economic/calendar");
 
       expect(response.status).toBe(200);
 
@@ -165,7 +165,7 @@ describe("Economic Routes - Real Data Validation", () => {
     });
 
     test("should handle date range for calendar", async () => {
-      const _response = await request(app).get(
+      const response = await request(app).get(
         "/api/economic/calendar?start_date=2025-01-01&end_date=2025-12-31"
       );
 
@@ -184,7 +184,7 @@ describe("Economic Routes - Real Data Validation", () => {
       const importanceLevels = ["high", "medium", "low"];
 
       for (const importance of importanceLevels) {
-        const _response = await request(app).get(
+        const response = await request(app).get(
           `/api/economic/calendar?importance=${importance}`
         );
 
@@ -202,7 +202,7 @@ describe("Economic Routes - Real Data Validation", () => {
       const countries = ["US", "EU", "JP", "GB", "CA"];
 
       for (const country of countries) {
-        const _response = await request(app).get(
+        const response = await request(app).get(
           `/api/economic/calendar?country=${country}`
         );
 
@@ -216,7 +216,7 @@ describe("Economic Routes - Real Data Validation", () => {
       const seriesIds = ["GDPC1", "UNRATE", "VIXCLS", "FEDFUNDS"];
 
       for (const seriesId of seriesIds) {
-        const _response = await request(app).get(
+        const response = await request(app).get(
           `/api/economic/series/${seriesId}`
         );
 
@@ -236,7 +236,7 @@ describe("Economic Routes - Real Data Validation", () => {
       const timeframes = ["1Y", "2Y", "5Y", "10Y", "max"];
 
       for (const timeframe of timeframes) {
-        const _response = await request(app).get(
+        const response = await request(app).get(
           `/api/economic/series/GDPC1?timeframe=${timeframe}`
         );
 
@@ -248,7 +248,7 @@ describe("Economic Routes - Real Data Validation", () => {
       const frequencies = ["daily", "weekly", "monthly", "quarterly", "annual"];
 
       for (const frequency of frequencies) {
-        const _response = await request(app).get(
+        const response = await request(app).get(
           `/api/economic/series/UNEMPLOYMENT_RATE?frequency=${frequency}`
         );
 
@@ -257,7 +257,7 @@ describe("Economic Routes - Real Data Validation", () => {
     });
 
     test("should handle invalid series ID", async () => {
-      const _response = await request(app).get(
+      const response = await request(app).get(
         "/api/economic/series/INVALID_SERIES"
       );
 
@@ -267,7 +267,7 @@ describe("Economic Routes - Real Data Validation", () => {
 
   describe("GET /api/economic/compare", () => {
     test("should compare multiple economic series", async () => {
-      const _response = await request(app).get(
+      const response = await request(app).get(
         "/api/economic/compare?series=GDPC1,UNRATE,VIXCLS"
       );
 
@@ -283,7 +283,7 @@ describe("Economic Routes - Real Data Validation", () => {
     });
 
     test("should handle normalization parameter", async () => {
-      const _response = await request(app).get(
+      const response = await request(app).get(
         "/api/economic/compare?series=GDPC1,UNRATE&normalize=true"
       );
 
@@ -295,7 +295,7 @@ describe("Economic Routes - Real Data Validation", () => {
     });
 
     test("should handle period alignment", async () => {
-      const _response = await request(app).get(
+      const response = await request(app).get(
         "/api/economic/compare?series=GDPC1,UNRATE&align_period=quarterly"
       );
 
@@ -305,7 +305,7 @@ describe("Economic Routes - Real Data Validation", () => {
 
   describe("GET /api/economic/forecast", () => {
     test("should return economic forecasts", async () => {
-      const _response = await request(app).get(
+      const response = await request(app).get(
         "/api/economic/forecast?series=GDPC1"
       );
 
@@ -324,7 +324,7 @@ describe("Economic Routes - Real Data Validation", () => {
       const horizons = ["1Q", "2Q", "1Y", "2Y"];
 
       for (const horizon of horizons) {
-        const _response = await request(app).get(
+        const response = await request(app).get(
           `/api/economic/forecast?series=UNRATE&horizon=${horizon}`
         );
 
@@ -333,7 +333,7 @@ describe("Economic Routes - Real Data Validation", () => {
     });
 
     test("should handle confidence level parameter", async () => {
-      const _response = await request(app).get(
+      const response = await request(app).get(
         "/api/economic/forecast?series=UNRATE&confidence=0.95"
       );
 
@@ -343,7 +343,7 @@ describe("Economic Routes - Real Data Validation", () => {
 
   describe("GET /api/economic/correlations", () => {
     test("should return correlations with market indices", async () => {
-      const _response = await request(app).get(
+      const response = await request(app).get(
         "/api/economic/correlations?series=FEDFUNDS"
       );
 
@@ -361,7 +361,7 @@ describe("Economic Routes - Real Data Validation", () => {
     });
 
     test("should handle timeframe for correlations", async () => {
-      const _response = await request(app).get(
+      const response = await request(app).get(
         "/api/economic/correlations?series=UNRATE&timeframe=5Y"
       );
 
@@ -389,14 +389,14 @@ describe("Economic Routes - Real Data Validation", () => {
     });
 
     test("should handle large data requests gracefully", async () => {
-      const _response = await request(app).get("/api/economic?limit=1000");
+      const response = await request(app).get("/api/economic?limit=1000");
 
       expect([200, 400, 500, 503].includes(response.status)).toBe(true);
     });
 
     test("should maintain response time consistency", async () => {
       const startTime = Date.now();
-      const _response = await request(app).get("/api/economic/indicators");
+      const response = await request(app).get("/api/economic/indicators");
       const responseTime = Date.now() - startTime;
 
       expect(response.status).toBe(200);
@@ -412,7 +412,7 @@ describe("Economic Routes - Real Data Validation", () => {
       ];
 
       for (const dateParams of malformedDates) {
-        const _response = await request(app).get(
+        const response = await request(app).get(
           `/api/economic/calendar?${dateParams}`
         );
 
@@ -421,7 +421,7 @@ describe("Economic Routes - Real Data Validation", () => {
     });
 
     test("should validate economic data value ranges", async () => {
-      const _response = await request(app).get(
+      const response = await request(app).get(
         "/api/economic/series/UNEMPLOYMENT_RATE?limit=10"
       );
 
@@ -435,7 +435,7 @@ describe("Economic Routes - Real Data Validation", () => {
     });
 
     test("should handle database connection failures gracefully", async () => {
-      const _response = await request(app).get("/api/economic");
+      const response = await request(app).get("/api/economic");
 
       expect(response.status).toBe(200);
 
@@ -446,7 +446,7 @@ describe("Economic Routes - Real Data Validation", () => {
 
     test("should handle SQL injection attempts", async () => {
       const maliciousSeries = "GDP'; DROP TABLE economic_data; --";
-      const _response = await request(app).get(
+      const response = await request(app).get(
         `/api/economic?series=${encodeURIComponent(maliciousSeries)}`
       );
 
@@ -454,7 +454,7 @@ describe("Economic Routes - Real Data Validation", () => {
     });
 
     test("should handle memory pressure with large datasets", async () => {
-      const _response = await request(app).get(
+      const response = await request(app).get(
         "/api/economic/compare?series=GDP,UNEMPLOYMENT_RATE,FEDERAL_FUNDS_RATE,INFLATION_RATE&timeframe=max"
       );
 
@@ -462,7 +462,7 @@ describe("Economic Routes - Real Data Validation", () => {
     });
 
     test("should validate forecast accuracy metadata", async () => {
-      const _response = await request(app).get(
+      const response = await request(app).get(
         "/api/economic/forecast?series=GDP&horizon=1Y"
       );
 

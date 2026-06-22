@@ -29,7 +29,7 @@ describe("Analyst Routes Unit Tests - Real YFinance Data", () => {
   });
   describe("GET /api/analysts/", () => {
     test("should return API overview with real YFinance endpoints", async () => {
-      const _response = await request(app).get("/api/analysts/").expect(200);
+      const response = await request(app).get("/api/analysts/").expect(200);
       expect(response.body).toHaveProperty(
         "message",
         "Analysts API - Real YFinance Data Only"
@@ -65,7 +65,7 @@ describe("Analyst Routes Unit Tests - Real YFinance Data", () => {
       query
         .mockResolvedValueOnce({ rows: mockUpgrades }) // main query
         .mockResolvedValueOnce({ rows: [{ total: "1" }] }); // count query
-      const _response = await request(app)
+      const response = await request(app)
         .get("/api/analysts/upgrades")
         .expect(200);
       expect(response.body).toHaveProperty("success", true);
@@ -86,7 +86,7 @@ describe("Analyst Routes Unit Tests - Real YFinance Data", () => {
       query
         .mockResolvedValueOnce({ rows: [] })
         .mockResolvedValueOnce({ rows: [{ total: "0" }] });
-      const _response = await request(app)
+      const response = await request(app)
         .get("/api/analysts/upgrades?page=2&limit=10")
         .expect(200);
       expect(query).toHaveBeenCalledWith(
@@ -111,7 +111,7 @@ describe("Analyst Routes Unit Tests - Real YFinance Data", () => {
         },
       ];
       query.mockResolvedValueOnce({ rows: mockEstimates });
-      const _response = await request(app)
+      const response = await request(app)
         .get("/api/analysts/revenue-estimates")
         .expect(200);
       expect(response.body).toHaveProperty("success", true);
@@ -154,7 +154,7 @@ describe("Analyst Routes Unit Tests - Real YFinance Data", () => {
       query
         .mockResolvedValueOnce({ rows: mockUpgrades }) // upgrades query
         .mockResolvedValueOnce({ rows: mockRevenueEstimates }); // revenue estimates query
-      const _response = await request(app).get("/api/analysts/AAPL").expect(200);
+      const response = await request(app).get("/api/analysts/AAPL").expect(200);
       expect(response.body).toHaveProperty("success", true);
       expect(response.body).toHaveProperty("symbol", "AAPL");
       expect(response.body).toHaveProperty("data");
@@ -181,7 +181,7 @@ describe("Analyst Routes Unit Tests - Real YFinance Data", () => {
   describe("Error Handling", () => {
     test("should handle database query failures", async () => {
       query.mockRejectedValueOnce(new Error("Database connection failed"));
-      const _response = await request(app)
+      const response = await request(app)
         .get("/api/analysts/upgrades")
         .expect(500);
       expect(response.body).toHaveProperty("success", false);
@@ -192,7 +192,7 @@ describe("Analyst Routes Unit Tests - Real YFinance Data", () => {
     });
     test("should handle null database results", async () => {
       query.mockResolvedValueOnce(null);
-      const _response = await request(app)
+      const response = await request(app)
         .get("/api/analysts/upgrades")
         .expect(500);
       expect(response.body).toHaveProperty("success", false);
@@ -200,7 +200,7 @@ describe("Analyst Routes Unit Tests - Real YFinance Data", () => {
     });
     test("should handle symbol-specific query failures", async () => {
       query.mockRejectedValueOnce(new Error("Symbol not found"));
-      const _response = await request(app)
+      const response = await request(app)
         .get("/api/analysts/INVALID")
         .expect(500);
       expect(response.body).toHaveProperty("success", false);

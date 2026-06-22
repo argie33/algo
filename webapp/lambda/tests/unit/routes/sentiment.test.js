@@ -67,7 +67,7 @@ describe("Sentiment Routes - Unit Tests", () => {
   });
   describe("GET /sentiment/health", () => {
     test("should return health status without authentication", async () => {
-      const _response = await request(app).get("/sentiment/health");
+      const response = await request(app).get("/sentiment/health");
       expect(response.status).toBe(200);
       expect(response.body).toHaveProperty("status", "operational");
       expect(response.body).toHaveProperty("service", "sentiment");
@@ -75,7 +75,7 @@ describe("Sentiment Routes - Unit Tests", () => {
   });
   describe("GET /sentiment", () => {
     test("should return sentiment API information without authentication", async () => {
-      const _response = await request(app).get("/sentiment");
+      const response = await request(app).get("/sentiment");
       expect(response.status).toBe(200);
       expect(response.body).toHaveProperty("service", "sentiment");
       expect(response.body).toHaveProperty("message", "Sentiment API - Ready");
@@ -83,7 +83,7 @@ describe("Sentiment Routes - Unit Tests", () => {
   });
   describe("GET /sentiment/analysis", () => {
     test("should require symbol parameter", async () => {
-      const _response = await request(app).get("/sentiment/analysis");
+      const response = await request(app).get("/sentiment/analysis");
       expect(response.status).toBe(400);
       expect(response.body).toHaveProperty("success", false);
       expect(response.body).toHaveProperty(
@@ -96,7 +96,7 @@ describe("Sentiment Routes - Unit Tests", () => {
       query.mockResolvedValueOnce({
         rows: [],
       });
-      const _response = await request(app)
+      const response = await request(app)
         .get("/sentiment/analysis")
         .query({ symbol: "AAPL" });
       // Should return 404 or 503, not simulate fake data
@@ -108,37 +108,37 @@ describe("Sentiment Routes - Unit Tests", () => {
   describe("GET /sentiment/stock/:symbol", () => {
     test("should return 404 for removed endpoint", async () => {
       // /stock/:symbol endpoint removed - only real data sources
-      const _response = await request(app).get("/sentiment/stock/AAPL");
+      const response = await request(app).get("/sentiment/stock/AAPL");
       // Should return 404 since endpoint no longer exists
       expect([404, 501]).toContain(response.status);
     });
   });
   describe("GET /sentiment/social", () => {
     test("should return social sentiment data", async () => {
-      const _response = await request(app).get("/sentiment/social");
+      const response = await request(app).get("/sentiment/social");
       // Accept various response codes for social endpoints
       expect([200, 404, 500, 501, 503]).toContain(response.status);
     });
     test("should return 404 for removed twitter endpoint", async () => {
       // /social/twitter endpoint removed - only real data sources
-      const _response = await request(app).get("/sentiment/social/twitter");
+      const response = await request(app).get("/sentiment/social/twitter");
       // Should return 404 since endpoint no longer exists
       expect([404, 501]).toContain(response.status);
     });
     test("should return reddit sentiment data", async () => {
-      const _response = await request(app).get("/sentiment/social/reddit");
+      const response = await request(app).get("/sentiment/social/reddit");
       // Accept various response codes for social endpoints
       expect([200, 404, 500, 501, 503]).toContain(response.status);
     });
   });
   describe("GET /sentiment/trending", () => {
     test("should return trending sentiment data", async () => {
-      const _response = await request(app).get("/sentiment/trending");
+      const response = await request(app).get("/sentiment/trending");
       // Accept various response codes for trending endpoints
       expect([200, 404, 500, 501, 503]).toContain(response.status);
     });
     test("should handle trending/social endpoint", async () => {
-      const _response = await request(app).get("/sentiment/trending/social");
+      const response = await request(app).get("/sentiment/trending/social");
       // Accept various response codes for trending endpoints
       // May return 404 if endpoint doesn't exist or 501 if not implemented
       expect([200, 404, 500, 501, 503]).toContain(response.status);
@@ -158,7 +158,7 @@ describe("Sentiment Routes - Unit Tests", () => {
           },
         ],
       });
-      const _response = await request(app).get("/sentiment/market");
+      const response = await request(app).get("/sentiment/market");
       expect(response.status).toBe(200);
       expect(response.body).toHaveProperty("success", true);
       expect(response.body).toHaveProperty("data");
@@ -176,7 +176,7 @@ describe("Sentiment Routes - Unit Tests", () => {
       query.mockResolvedValueOnce({
         rows: [],
       });
-      const _response = await request(app).get("/sentiment/market");
+      const response = await request(app).get("/sentiment/market");
       // Should return success with empty array, not fallback to fake data
       expect(response.status).toBe(200);
       expect(response.body).toHaveProperty("success", true);
@@ -187,7 +187,7 @@ describe("Sentiment Routes - Unit Tests", () => {
   describe("Parameter validation", () => {
     test("should sanitize symbol parameter for market analysis", async () => {
       // Market sentiment endpoint (real data)
-      const _response = await request(app)
+      const response = await request(app)
         .get("/sentiment/market")
         .query({ period: "30d" });
       // Should accept valid period parameter
@@ -204,7 +204,7 @@ describe("Sentiment Routes - Unit Tests", () => {
           },
         ],
       });
-      const _response = await request(app)
+      const response = await request(app)
         .get("/sentiment/market")
         .query({ period: "7d" });
       expect([200, 404, 500, 503]).toContain(response.status);
@@ -212,17 +212,17 @@ describe("Sentiment Routes - Unit Tests", () => {
   });
   describe("Authentication handling", () => {
     test("should allow public access to health endpoint", async () => {
-      const _response = await request(app).get("/sentiment/health");
+      const response = await request(app).get("/sentiment/health");
       expect(response.status).toBe(200);
       expect(response.body).toHaveProperty("status", "operational");
     });
     test("should allow public access to root endpoint", async () => {
-      const _response = await request(app).get("/sentiment");
+      const response = await request(app).get("/sentiment");
       expect(response.status).toBe(200);
       expect(response.body).toHaveProperty("service", "sentiment");
     });
     test("should allow public access to analysis endpoint", async () => {
-      const _response = await request(app)
+      const response = await request(app)
         .get("/sentiment/analysis")
         .query({ symbol: "AAPL" });
       // Public access should work (may fail due to database, but not auth)
@@ -232,7 +232,7 @@ describe("Sentiment Routes - Unit Tests", () => {
   describe("Error handling", () => {
     test("should handle market sentiment database errors gracefully", async () => {
       query.mockRejectedValueOnce(new Error("Database connection failed"));
-      const _response = await request(app).get("/sentiment/market");
+      const response = await request(app).get("/sentiment/market");
       // Should return 500 or 503 error, not fake data
       expect([500, 503]).toContain(response.status);
       expect(response.body).toHaveProperty("success", false);
@@ -240,7 +240,7 @@ describe("Sentiment Routes - Unit Tests", () => {
     });
     test("should handle missing sentiment data without fallbacks", async () => {
       query.mockResolvedValueOnce({ rows: [] });
-      const _response = await request(app).get("/sentiment/market");
+      const response = await request(app).get("/sentiment/market");
       // Should return 200 with empty data, not simulate fake sentiment
       expect(response.status).toBe(200);
       expect(response.body.data).toEqual([]);
@@ -248,13 +248,13 @@ describe("Sentiment Routes - Unit Tests", () => {
   });
   describe("Response format", () => {
     test("should return consistent JSON response format", async () => {
-      const _response = await request(app).get("/sentiment");
+      const response = await request(app).get("/sentiment");
       expect(response.status).toBe(200);
       expect(response.headers["content-type"]).toMatch(/application\/json/);
       expect(response.body).toHaveProperty("service", "sentiment");
     });
     test("should include timestamp in all responses", async () => {
-      const _response = await request(app).get("/sentiment/market");
+      const response = await request(app).get("/sentiment/market");
       // All API responses should have timestamp
       expect(response.body).toHaveProperty("timestamp");
     });
@@ -269,7 +269,7 @@ describe("Sentiment Routes - Unit Tests", () => {
           },
         ],
       });
-      const _response = await request(app).get("/sentiment/market");
+      const response = await request(app).get("/sentiment/market");
       expect(response.status).toBe(200);
       expect(response.body).toHaveProperty("success", true);
       expect(response.body).toHaveProperty("data");

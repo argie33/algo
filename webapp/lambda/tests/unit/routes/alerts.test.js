@@ -50,8 +50,8 @@ describe("Alerts Routes Unit Tests", () => {
         // Check if filtering by status = "triggered" - look in both SQL and params
         const statusFilter =
           (sql.includes("status = $") &&
-            _params &&
-            _params.includes("triggered")) ||
+            params &&
+            params.includes("triggered")) ||
           sql.includes("'triggered'");
         const status = statusFilter ? "triggered" : "active";
 
@@ -141,11 +141,11 @@ describe("Alerts Routes Unit Tests", () => {
       ) {
         // For INSERT operations, return the inserted data based on params
         if (sql.includes("INSERT") && params) {
-          // Extract symbol from _params - look for stock ticker patterns
+          // Extract symbol from params - look for stock ticker patterns
           let symbol = "AAPL"; // default
           if (params) {
-            // Look for valid stock symbols in _params (1-5 uppercase letters)
-            const symbolMatch = _params.find(
+            // Look for valid stock symbols in params (1-5 uppercase letters)
+            const symbolMatch = params.find(
               (p) => typeof p === "string" && /^[A-Z]{1,5}$/.test(p)
             );
             if (symbolMatch) {
@@ -156,7 +156,7 @@ describe("Alerts Routes Unit Tests", () => {
           // Extract sentiment threshold for news alerts
           let sentimentThreshold = 0.7;
           if (params && sql.includes("news")) {
-            const sentimentMatch = _params.find(
+            const sentimentMatch = params.find(
               (p) => typeof p === "number" && p >= -1 && p <= 1
             );
             if (sentimentMatch !== undefined) {
@@ -175,7 +175,7 @@ describe("Alerts Routes Unit Tests", () => {
                     ? "news"
                     : "price",
                 threshold_multiplier:
-                  _params.find(
+                  params.find(
                     (p) => typeof p === "string" && p.includes(".")
                   ) || "2.50",
                 sentiment_threshold: sentimentThreshold,

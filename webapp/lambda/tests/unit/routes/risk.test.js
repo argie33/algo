@@ -46,7 +46,7 @@ describe("Risk Routes Integration Tests", () => {
 
   describe("GET /risk/health", () => {
     test("should return health status without authentication", async () => {
-      const _response = await request(app).get("/risk/health");
+      const response = await request(app).get("/risk/health");
 
       expect(response.status).toBe(200);
       expect(response.body).toHaveProperty("status", "operational");
@@ -64,7 +64,7 @@ describe("Risk Routes Integration Tests", () => {
 
   describe("GET /risk", () => {
     test("should return risk API information without authentication", async () => {
-      const _response = await request(app).get("/risk");
+      const response = await request(app).get("/risk");
 
       expect(response.status).toBe(200);
       expect(response.body).toHaveProperty("success", true);
@@ -83,7 +83,7 @@ describe("Risk Routes Integration Tests", () => {
 
   describe("GET /risk/analysis (authenticated)", () => {
     test("should return risk analysis for empty portfolio - SKIPPED: performance issues", async () => {
-      const _response = await request(app).get("/risk/analysis");
+      const response = await request(app).get("/risk/analysis");
 
       expect(response.status).toBe(200);
       expect(response.body).toHaveProperty("success", true);
@@ -99,7 +99,7 @@ describe("Risk Routes Integration Tests", () => {
     });
 
     test("should handle different period parameters - SKIPPED: performance issues", async () => {
-      const _response = await request(app)
+      const response = await request(app)
         .get("/risk/analysis")
         .query({ period: "1y", confidence_level: 0.99 });
 
@@ -109,7 +109,7 @@ describe("Risk Routes Integration Tests", () => {
     });
 
     test("should handle invalid period gracefully - SKIPPED: performance issues", async () => {
-      const _response = await request(app)
+      const response = await request(app)
         .get("/risk/analysis")
         .query({ period: "invalid_period" });
 
@@ -118,7 +118,7 @@ describe("Risk Routes Integration Tests", () => {
     });
 
     test("should accept confidence level parameter - SKIPPED: performance issues", async () => {
-      const _response = await request(app)
+      const response = await request(app)
         .get("/risk/analysis")
         .query({ confidence_level: 0.99 });
 
@@ -127,7 +127,7 @@ describe("Risk Routes Integration Tests", () => {
     });
 
     test("should handle invalid confidence level gracefully - SKIPPED: performance issues", async () => {
-      const _response = await request(app)
+      const response = await request(app)
         .get("/risk/analysis")
         .query({ confidence_level: "invalid" });
 
@@ -146,7 +146,7 @@ describe("Risk Routes Integration Tests", () => {
 
     test("should allow public health endpoint", async () => {
       // Health endpoint should work without authentication
-      const _response = await request(app).get("/risk/health");
+      const response = await request(app).get("/risk/health");
 
       expect(response.status).toBe(200);
       expect(response.body).toHaveProperty("status", "operational");
@@ -154,7 +154,7 @@ describe("Risk Routes Integration Tests", () => {
 
     test("should allow public root endpoint", async () => {
       // Root endpoint should work without authentication
-      const _response = await request(app).get("/risk");
+      const response = await request(app).get("/risk");
 
       expect(response.status).toBe(200);
       expect(response.body).toHaveProperty("success", true);
@@ -168,7 +168,7 @@ describe("Risk Routes Integration Tests", () => {
 
   describe("Response format", () => {
     test("should return consistent JSON response", async () => {
-      const _response = await request(app).get("/risk/health");
+      const response = await request(app).get("/risk/health");
 
       expect(response.headers["content-type"]).toMatch(/json/);
       expect(typeof response.body).toBe("object");

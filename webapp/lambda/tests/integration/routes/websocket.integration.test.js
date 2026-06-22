@@ -9,7 +9,7 @@ describe("WebSocket Routes", () => {
 
   describe("GET /api/websocket", () => {
     test("should return websocket API overview", async () => {
-      const _response = await request(app).get("/api/websocket");
+      const response = await request(app).get("/api/websocket");
 
       expect(response.status).toBe(200);
       expect(response.body).toHaveProperty("success", true);
@@ -26,7 +26,7 @@ describe("WebSocket Routes", () => {
     });
 
     test("should include expected endpoints", async () => {
-      const _response = await request(app).get("/api/websocket");
+      const response = await request(app).get("/api/websocket");
 
       expect(response.status).toBe(200);
       const endpoints = response.body.data.endpoints;
@@ -39,7 +39,7 @@ describe("WebSocket Routes", () => {
 
   describe("GET /api/websocket/test", () => {
     test("should return test endpoint response", async () => {
-      const _response = await request(app).get("/api/websocket/test");
+      const response = await request(app).get("/api/websocket/test");
 
       expect(response.status).toBe(200);
       expect(response.body).toHaveProperty(
@@ -56,7 +56,7 @@ describe("WebSocket Routes", () => {
 
   describe("GET /api/websocket/health", () => {
     test("should return health status", async () => {
-      const _response = await request(app).get("/api/websocket/health");
+      const response = await request(app).get("/api/websocket/health");
 
       expect(response.status).toBe(200);
       expect(response.body).toHaveProperty("success", true);
@@ -99,7 +99,7 @@ describe("WebSocket Routes", () => {
     });
 
     test("should handle dependencies gracefully", async () => {
-      const _response = await request(app).get("/api/websocket/health");
+      const response = await request(app).get("/api/websocket/health");
 
       expect(response.status).toBe(200);
 
@@ -114,7 +114,7 @@ describe("WebSocket Routes", () => {
 
   describe("GET /api/websocket/status", () => {
     test("should return status information", async () => {
-      const _response = await request(app).get("/api/websocket/status");
+      const response = await request(app).get("/api/websocket/status");
 
       expect(response.status).toBe(200);
       expect(response.body).toHaveProperty("success", true);
@@ -134,7 +134,7 @@ describe("WebSocket Routes", () => {
     });
 
     test("should handle status errors gracefully", async () => {
-      const _response = await request(app).get("/api/websocket/status");
+      const response = await request(app).get("/api/websocket/status");
 
       expect(response.status).toBe(200);
 
@@ -147,13 +147,13 @@ describe("WebSocket Routes", () => {
 
   describe("GET /api/websocket/stream/:symbols", () => {
     test("should require authentication", async () => {
-      const _response = await request(app).get("/api/websocket/stream/AAPL");
+      const response = await request(app).get("/api/websocket/stream/AAPL");
 
       expect([401].includes(response.status)).toBe(true);
     });
 
     test("should handle missing API credentials", async () => {
-      const _response = await request(app)
+      const response = await request(app)
         .get("/api/websocket/stream/AAPL")
         .set("Authorization", "Bearer dev-bypass-token");
 
@@ -174,7 +174,7 @@ describe("WebSocket Routes", () => {
     });
 
     test("should validate symbols parameter", async () => {
-      const _response = await request(app)
+      const response = await request(app)
         .get("/api/websocket/stream/")
         .set("Authorization", "Bearer dev-bypass-token");
 
@@ -182,7 +182,7 @@ describe("WebSocket Routes", () => {
     });
 
     test("should handle single symbol", async () => {
-      const _response = await request(app)
+      const response = await request(app)
         .get("/api/websocket/stream/AAPL")
         .set("Authorization", "Bearer dev-bypass-token");
 
@@ -198,7 +198,7 @@ describe("WebSocket Routes", () => {
     });
 
     test("should handle multiple symbols", async () => {
-      const _response = await request(app)
+      const response = await request(app)
         .get("/api/websocket/stream/AAPL,MSFT,GOOGL")
         .set("Authorization", "Bearer dev-bypass-token");
 
@@ -206,7 +206,7 @@ describe("WebSocket Routes", () => {
     });
 
     test("should handle invalid symbols", async () => {
-      const _response = await request(app)
+      const response = await request(app)
         .get("/api/websocket/stream/INVALID@#$,123456789012345")
         .set("Authorization", "Bearer dev-bypass-token");
 
@@ -214,7 +214,7 @@ describe("WebSocket Routes", () => {
     });
 
     test("should handle mixed valid/invalid symbols", async () => {
-      const _response = await request(app)
+      const response = await request(app)
         .get("/api/websocket/stream/AAPL,INVALID@#$,MSFT")
         .set("Authorization", "Bearer dev-bypass-token");
 
@@ -222,7 +222,7 @@ describe("WebSocket Routes", () => {
     });
 
     test("should handle symbol case conversion", async () => {
-      const _response = await request(app)
+      const response = await request(app)
         .get("/api/websocket/stream/aapl,msft")
         .set("Authorization", "Bearer dev-bypass-token");
 
@@ -233,7 +233,7 @@ describe("WebSocket Routes", () => {
       const manySymbols = Array.from({ length: 25 }, (_, i) => `SYM${i}`).join(
         ","
       );
-      const _response = await request(app)
+      const response = await request(app)
         .get(`/api/websocket/stream/${manySymbols}`)
         .set("Authorization", "Bearer dev-bypass-token");
 
@@ -241,7 +241,7 @@ describe("WebSocket Routes", () => {
     });
 
     test("should validate response structure when successful", async () => {
-      const _response = await request(app)
+      const response = await request(app)
         .get("/api/websocket/stream/AAPL")
         .set("Authorization", "Bearer dev-bypass-token");
 
@@ -283,13 +283,13 @@ describe("WebSocket Routes", () => {
 
   describe("GET /api/websocket/trades/:symbols", () => {
     test("should require authentication", async () => {
-      const _response = await request(app).get("/api/websocket/trades/AAPL");
+      const response = await request(app).get("/api/websocket/trades/AAPL");
 
       expect([401].includes(response.status)).toBe(true);
     });
 
     test("should handle missing API credentials", async () => {
-      const _response = await request(app)
+      const response = await request(app)
         .get("/api/websocket/trades/AAPL")
         .set("Authorization", "Bearer dev-bypass-token");
 
@@ -305,7 +305,7 @@ describe("WebSocket Routes", () => {
     });
 
     test("should handle single symbol", async () => {
-      const _response = await request(app)
+      const response = await request(app)
         .get("/api/websocket/trades/AAPL")
         .set("Authorization", "Bearer dev-bypass-token");
 
@@ -313,7 +313,7 @@ describe("WebSocket Routes", () => {
     });
 
     test("should handle multiple symbols", async () => {
-      const _response = await request(app)
+      const response = await request(app)
         .get("/api/websocket/trades/AAPL,MSFT,GOOGL")
         .set("Authorization", "Bearer dev-bypass-token");
 
@@ -321,7 +321,7 @@ describe("WebSocket Routes", () => {
     });
 
     test("should validate response structure when successful", async () => {
-      const _response = await request(app)
+      const response = await request(app)
         .get("/api/websocket/trades/AAPL")
         .set("Authorization", "Bearer dev-bypass-token");
 
@@ -335,13 +335,13 @@ describe("WebSocket Routes", () => {
 
   describe("GET /api/websocket/bars/:symbols", () => {
     test("should require authentication", async () => {
-      const _response = await request(app).get("/api/websocket/bars/AAPL");
+      const response = await request(app).get("/api/websocket/bars/AAPL");
 
       expect([401].includes(response.status)).toBe(true);
     });
 
     test("should handle missing API credentials", async () => {
-      const _response = await request(app)
+      const response = await request(app)
         .get("/api/websocket/bars/AAPL")
         .set("Authorization", "Bearer dev-bypass-token");
 
@@ -357,7 +357,7 @@ describe("WebSocket Routes", () => {
     });
 
     test("should handle timeframe parameter", async () => {
-      const _response = await request(app)
+      const response = await request(app)
         .get("/api/websocket/bars/AAPL?timeframe=5Min")
         .set("Authorization", "Bearer dev-bypass-token");
 
@@ -365,7 +365,7 @@ describe("WebSocket Routes", () => {
     });
 
     test("should use default timeframe when not specified", async () => {
-      const _response = await request(app)
+      const response = await request(app)
         .get("/api/websocket/bars/AAPL")
         .set("Authorization", "Bearer dev-bypass-token");
 
@@ -373,7 +373,7 @@ describe("WebSocket Routes", () => {
     });
 
     test("should handle multiple symbols", async () => {
-      const _response = await request(app)
+      const response = await request(app)
         .get("/api/websocket/bars/AAPL,MSFT")
         .set("Authorization", "Bearer dev-bypass-token");
 
@@ -384,7 +384,7 @@ describe("WebSocket Routes", () => {
       const timeframes = ["1Min", "5Min", "15Min", "1Hour", "1Day"];
 
       for (const timeframe of timeframes) {
-        const _response = await request(app)
+        const response = await request(app)
           .get(`/api/websocket/bars/AAPL?timeframe=${timeframe}`)
           .set("Authorization", "Bearer dev-bypass-token");
 
@@ -395,7 +395,7 @@ describe("WebSocket Routes", () => {
 
   describe("POST /api/websocket/subscribe", () => {
     test("should require authentication", async () => {
-      const _response = await request(app)
+      const response = await request(app)
         .post("/api/websocket/subscribe")
         .send({
           symbols: ["AAPL", "MSFT"],
@@ -405,7 +405,7 @@ describe("WebSocket Routes", () => {
     });
 
     test("should validate symbols parameter", async () => {
-      const _response = await request(app)
+      const response = await request(app)
         .post("/api/websocket/subscribe")
         .set("Authorization", "Bearer dev-bypass-token")
         .send({});
@@ -416,7 +416,7 @@ describe("WebSocket Routes", () => {
     });
 
     test("should handle valid subscription", async () => {
-      const _response = await request(app)
+      const response = await request(app)
         .post("/api/websocket/subscribe")
         .set("Authorization", "Bearer dev-bypass-token")
         .send({
@@ -443,7 +443,7 @@ describe("WebSocket Routes", () => {
     });
 
     test("should handle symbols case conversion", async () => {
-      const _response = await request(app)
+      const response = await request(app)
         .post("/api/websocket/subscribe")
         .set("Authorization", "Bearer dev-bypass-token")
         .send({
@@ -459,7 +459,7 @@ describe("WebSocket Routes", () => {
     });
 
     test("should handle default dataTypes", async () => {
-      const _response = await request(app)
+      const response = await request(app)
         .post("/api/websocket/subscribe")
         .set("Authorization", "Bearer dev-bypass-token")
         .send({
@@ -474,7 +474,7 @@ describe("WebSocket Routes", () => {
     });
 
     test("should handle invalid symbols array types", async () => {
-      const _response = await request(app)
+      const response = await request(app)
         .post("/api/websocket/subscribe")
         .set("Authorization", "Bearer dev-bypass-token")
         .send({
@@ -488,13 +488,13 @@ describe("WebSocket Routes", () => {
 
   describe("GET /api/websocket/subscriptions", () => {
     test("should require authentication", async () => {
-      const _response = await request(app).get("/api/websocket/subscriptions");
+      const response = await request(app).get("/api/websocket/subscriptions");
 
       expect([401].includes(response.status)).toBe(true);
     });
 
     test("should return user subscriptions", async () => {
-      const _response = await request(app)
+      const response = await request(app)
         .get("/api/websocket/subscriptions")
         .set("Authorization", "Bearer dev-bypass-token");
 
@@ -524,7 +524,7 @@ describe("WebSocket Routes", () => {
 
   describe("DELETE /api/websocket/subscribe", () => {
     test("should require authentication", async () => {
-      const _response = await request(app)
+      const response = await request(app)
         .delete("/api/websocket/subscribe")
         .send({
           symbols: ["AAPL"],
@@ -534,7 +534,7 @@ describe("WebSocket Routes", () => {
     });
 
     test("should handle specific symbol unsubscription", async () => {
-      const _response = await request(app)
+      const response = await request(app)
         .delete("/api/websocket/subscribe")
         .set("Authorization", "Bearer dev-bypass-token")
         .send({
@@ -558,7 +558,7 @@ describe("WebSocket Routes", () => {
     });
 
     test("should handle full unsubscription", async () => {
-      const _response = await request(app)
+      const response = await request(app)
         .delete("/api/websocket/subscribe")
         .set("Authorization", "Bearer dev-bypass-token")
         .send({});
@@ -575,7 +575,7 @@ describe("WebSocket Routes", () => {
     });
 
     test("should handle empty symbols array", async () => {
-      const _response = await request(app)
+      const response = await request(app)
         .delete("/api/websocket/subscribe")
         .set("Authorization", "Bearer dev-bypass-token")
         .send({
@@ -588,13 +588,13 @@ describe("WebSocket Routes", () => {
 
   describe("GET /api/websocket/connections", () => {
     test("should require authentication", async () => {
-      const _response = await request(app).get("/api/websocket/connections");
+      const response = await request(app).get("/api/websocket/connections");
 
       expect([401].includes(response.status)).toBe(true);
     });
 
     test("should return connection information", async () => {
-      const _response = await request(app)
+      const response = await request(app)
         .get("/api/websocket/connections")
         .set("Authorization", "Bearer dev-bypass-token");
 
@@ -649,7 +649,7 @@ describe("WebSocket Routes", () => {
     });
 
     test("should handle details parameter", async () => {
-      const _response = await request(app)
+      const response = await request(app)
         .get("/api/websocket/connections?details=true")
         .set("Authorization", "Bearer dev-bypass-token");
 
@@ -673,7 +673,7 @@ describe("WebSocket Routes", () => {
     });
 
     test("should handle details parameter false", async () => {
-      const _response = await request(app)
+      const response = await request(app)
         .get("/api/websocket/connections?details=false")
         .set("Authorization", "Bearer dev-bypass-token");
 
@@ -687,7 +687,7 @@ describe("WebSocket Routes", () => {
 
   describe("Authentication and Error Handling", () => {
     test("should handle invalid authentication tokens", async () => {
-      const _response = await request(app)
+      const response = await request(app)
         .get("/api/websocket/stream/AAPL")
         .set("Authorization", "Bearer invalid-token");
 
@@ -695,7 +695,7 @@ describe("WebSocket Routes", () => {
     });
 
     test("should handle missing authorization header", async () => {
-      const _response = await request(app)
+      const response = await request(app)
         .post("/api/websocket/subscribe")
         .send({
           symbols: ["AAPL"],
@@ -705,7 +705,7 @@ describe("WebSocket Routes", () => {
     });
 
     test("should handle malformed request bodies", async () => {
-      const _response = await request(app)
+      const response = await request(app)
         .post("/api/websocket/subscribe")
         .set("Authorization", "Bearer dev-bypass-token")
         .send("invalid json");
@@ -718,7 +718,7 @@ describe("WebSocket Routes", () => {
     test("should respond within reasonable time", async () => {
       const startTime = Date.now();
 
-      const _response = await request(app)
+      const response = await request(app)
         .get("/api/websocket/health")
         .set("Authorization", "Bearer dev-bypass-token");
 
@@ -754,7 +754,7 @@ describe("WebSocket Routes", () => {
 
   describe("Data Validation", () => {
     test("should validate timestamp formats", async () => {
-      const _response = await request(app).get("/api/websocket");
+      const response = await request(app).get("/api/websocket");
 
       expect(response.status).toBe(200);
       const timestamp = new Date(response.body.timestamp);
@@ -763,7 +763,7 @@ describe("WebSocket Routes", () => {
     });
 
     test("should validate numeric types", async () => {
-      const _response = await request(app).get("/api/websocket/status");
+      const response = await request(app).get("/api/websocket/status");
 
       if (response.status === 200) {
         expect(typeof response.body.data.activeUsers).toBe("number");
@@ -773,7 +773,7 @@ describe("WebSocket Routes", () => {
     });
 
     test("should validate array types", async () => {
-      const _response = await request(app)
+      const response = await request(app)
         .get("/api/websocket/subscriptions")
         .set("Authorization", "Bearer dev-bypass-token");
 
@@ -785,7 +785,7 @@ describe("WebSocket Routes", () => {
 
   describe("Edge Cases", () => {
     test("should handle empty symbol parameters", async () => {
-      const _response = await request(app)
+      const response = await request(app)
         .get("/api/websocket/stream/")
         .set("Authorization", "Bearer dev-bypass-token");
 
@@ -793,7 +793,7 @@ describe("WebSocket Routes", () => {
     });
 
     test("should handle special characters in symbols", async () => {
-      const _response = await request(app)
+      const response = await request(app)
         .get("/api/websocket/stream/A@PPL,M$FT")
         .set("Authorization", "Bearer dev-bypass-token");
 
@@ -802,7 +802,7 @@ describe("WebSocket Routes", () => {
 
     test("should handle extremely long symbol names", async () => {
       const longSymbol = "A".repeat(50);
-      const _response = await request(app)
+      const response = await request(app)
         .get(`/api/websocket/stream/${longSymbol}`)
         .set("Authorization", "Bearer dev-bypass-token");
 
@@ -810,7 +810,7 @@ describe("WebSocket Routes", () => {
     });
 
     test("should handle numeric symbols", async () => {
-      const _response = await request(app)
+      const response = await request(app)
         .get("/api/websocket/stream/123,456")
         .set("Authorization", "Bearer dev-bypass-token");
 

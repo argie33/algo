@@ -1,5 +1,5 @@
 const RiskEngine = require("../../../utils/riskEngine");
-const { _query } = require("../../../utils/database");
+const { query } = require("../../../utils/database");
 
 jest.mock("../../../utils/database");
 

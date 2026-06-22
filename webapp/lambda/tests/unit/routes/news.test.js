@@ -20,7 +20,7 @@ jest.mock("../../../middleware/auth", () => ({
 
 // Import after mocks
 const { authenticateToken } = require("../../../middleware/auth");
-const { _query } = require("../../../utils/database");
+const { query } = require("../../../utils/database");
 jest.mock("../../../utils/newsAnalyzer", () => ({
   calculateReliabilityScore: jest.fn((source) => {
     const scores = {
@@ -74,7 +74,7 @@ describe("News Routes", () => {
   });
   describe("GET /news/health", () => {
     test("should return health status", async () => {
-      const _response = await request(app).get("/news/health");
+      const response = await request(app).get("/news/health");
       if (response.body.success !== undefined) {
         expect([true, false]).toContain(response.body.success);
       } else {
@@ -84,7 +84,7 @@ describe("News Routes", () => {
   });
   describe("GET /news/", () => {
     test("should return API status", async () => {
-      const _response = await request(app).get("/news/");
+      const response = await request(app).get("/news/");
       if (response.body.success !== undefined) {
         expect([true, false]).toContain(response.body.success);
       } else {
@@ -122,7 +122,7 @@ describe("News Routes", () => {
       query
         .mockResolvedValueOnce(mockArticles)
         .mockResolvedValueOnce(mockCount);
-      const _response = await request(app)
+      const response = await request(app)
         .get("/news/articles")
         .query({ symbol: "AAPL", limit: 10, timeframe: "24h" });
       if (response.body.success !== undefined) {
@@ -138,7 +138,7 @@ describe("News Routes", () => {
       query
         .mockResolvedValueOnce(mockArticles)
         .mockResolvedValueOnce(mockCount);
-      const _response = await request(app).get("/news/articles").query({
+      const response = await request(app).get("/news/articles").query({
         category: "technology",
         sentiment: "positive",
         timeframe: "1w",
@@ -152,7 +152,7 @@ describe("News Routes", () => {
     });
     test("should handle database errors", async () => {
       query.mockRejectedValue(new Error("Database connection failed"));
-      const _response = await request(app).get("/news/articles");
+      const response = await request(app).get("/news/articles");
       if (response.body.success !== undefined) {
         expect([true, false]).toContain(response.body.success);
       } else {
@@ -194,7 +194,7 @@ describe("News Routes", () => {
         .mockResolvedValueOnce(mockSentimentData)
         .mockResolvedValueOnce(mockTrendData)
         .mockResolvedValueOnce(mockKeywordData);
-      const _response = await request(app)
+      const response = await request(app)
         .get("/news/sentiment/AAPL")
         .query({ timeframe: "24h" });
       if (response.body.success !== undefined) {
@@ -207,7 +207,7 @@ describe("News Routes", () => {
     });
     test("should handle database errors", async () => {
       query.mockRejectedValue(new Error("Database query failed"));
-      const _response = await request(app).get("/news/sentiment/AAPL");
+      const response = await request(app).get("/news/sentiment/AAPL");
       if (response.body.success !== undefined) {
         expect([true, false]).toContain(response.body.success);
       } else {
@@ -266,7 +266,7 @@ describe("News Routes", () => {
         .mockResolvedValueOnce(mockCategoryData)
         .mockResolvedValueOnce(mockSymbolData)
         .mockResolvedValueOnce(mockTrendData);
-      const _response = await request(app)
+      const response = await request(app)
         .get("/news/market-sentiment")
         .query({ timeframe: "24h" });
       if (response.body.success !== undefined) {
@@ -279,7 +279,7 @@ describe("News Routes", () => {
   });
   describe("POST /news/analyze-sentiment", () => {
     test("should analyze sentiment for custom text", async () => {
-      const _response = await request(app).post("/news/analyze-sentiment").send({
+      const response = await request(app).post("/news/analyze-sentiment").send({
         text: "The company reported excellent quarterly results with strong growth",
         symbol: "AAPL",
       });
@@ -294,7 +294,7 @@ describe("News Routes", () => {
       );
     });
     test("should require text parameter", async () => {
-      const _response = await request(app)
+      const response = await request(app)
         .post("/news/analyze-sentiment")
         .send({ symbol: "AAPL" });
       if (response.body.success !== undefined) {
@@ -307,7 +307,7 @@ describe("News Routes", () => {
       sentimentEngine.analyzeSentiment.mockRejectedValue(
         new Error("Analysis failed")
       );
-      const _response = await request(app)
+      const response = await request(app)
         .post("/news/analyze-sentiment")
         .send({ text: "Test text", symbol: "AAPL" });
       if (response.body.success !== undefined) {
@@ -342,7 +342,7 @@ describe("News Routes", () => {
         ],
       };
       query.mockResolvedValue(mockSourcesData);
-      const _response = await request(app).get("/news/sources");
+      const response = await request(app).get("/news/sources");
       if (response.body.success !== undefined) {
         expect([true, false]).toContain(response.body.success);
       } else {
@@ -371,7 +371,7 @@ describe("News Routes", () => {
         ],
       };
       query.mockResolvedValue(mockCategoriesData);
-      const _response = await request(app).get("/news/categories");
+      const response = await request(app).get("/news/categories");
       if (response.body.success !== undefined) {
         expect([true, false]).toContain(response.body.success);
       } else {
@@ -416,7 +416,7 @@ describe("News Routes", () => {
       query
         .mockResolvedValueOnce(mockKeywordData)
         .mockResolvedValueOnce(mockSymbolData);
-      const _response = await request(app)
+      const response = await request(app)
         .get("/news/trending")
         .query({ timeframe: "24h", limit: 10 });
       if (response.body.success !== undefined) {
@@ -429,7 +429,7 @@ describe("News Routes", () => {
   });
   describe("GET /news/feed", () => {
     test("should return enhanced news feed", async () => {
-      const _response = await request(app)
+      const response = await request(app)
         .get("/news/feed")
         .query({ category: "technology", limit: 5, time_range: "24h" });
       if (response.body.success !== undefined) {
@@ -452,7 +452,7 @@ describe("News Routes", () => {
       Math.random = () => {
         throw new Error("Forced error for testing");
       };
-      const _response = await request(app)
+      const response = await request(app)
         .get("/news/feed")
         .query({ category: "technology" });
       // Should return error status instead of fake data
@@ -467,7 +467,7 @@ describe("News Routes", () => {
   });
   describe("GET /news/economic-calendar", () => {
     test("should return economic calendar data", async () => {
-      const _response = await request(app)
+      const response = await request(app)
         .get("/news/economic-calendar")
         .query({ importance: "high", country: "US", limit: 10 });
       if (response.body.success !== undefined) {
@@ -482,7 +482,7 @@ describe("News Routes", () => {
   });
   describe("GET /news/sentiment-dashboard", () => {
     test("should return sentiment dashboard data", async () => {
-      const _response = await request(app)
+      const response = await request(app)
         .get("/news/sentiment-dashboard")
         .query({ timeframe: "24h" });
       // Expect 503 when news tables don't exist (test environment)
@@ -534,8 +534,8 @@ describe("News Routes", () => {
       query
         .mockResolvedValueOnce({ rows: mockSearchResults })
         .mockResolvedValueOnce({ rows: [mockStats] });
-      const _response = await request(app).get(
-        "/news/search?_query =Apple earnings"
+      const response = await request(app).get(
+        "/news/search?query =Apple earnings"
       );
       if (response.body.success !== undefined) {
         expect([true, false]).toContain(response.body.success);
@@ -544,7 +544,7 @@ describe("News Routes", () => {
       }
     });
     test("should require search query parameter", async () => {
-      const _response = await request(app).get("/news/search");
+      const response = await request(app).get("/news/search");
       if (response.body.success !== undefined) {
         expect([true, false]).toContain(response.body.success);
       } else {
@@ -555,7 +555,7 @@ describe("News Routes", () => {
       query
         .mockResolvedValueOnce({ rows: [] })
         .mockResolvedValueOnce({ rows: [{ total_matches: 0 }] });
-      const _response = await request(app).get("/news/search?_query =nonexistent");
+      const response = await request(app).get("/news/search?query =nonexistent");
       if (response.body.success !== undefined) {
         expect([true, false]).toContain(response.body.success);
       } else {
@@ -564,7 +564,7 @@ describe("News Routes", () => {
     });
     test("should handle database errors gracefully", async () => {
       query.mockRejectedValueOnce(new Error("Database connection failed"));
-      const _response = await request(app).get("/news/search?_query =test");
+      const response = await request(app).get("/news/search?query =test");
       if (response.body.success !== undefined) {
         expect([true, false]).toContain(response.body.success);
       } else {
@@ -598,8 +598,8 @@ describe("News Routes", () => {
           },
         ],
       });
-      const _response = await request(app).get(
-        "/news/search?_query =AAPL&category=earnings&sentiment=positive&symbol=AAPL&timeframe=7d&limit=10"
+      const response = await request(app).get(
+        "/news/search?query =AAPL&category=earnings&sentiment=positive&symbol=AAPL&timeframe=7d&limit=10"
       );
       expect(response.body.filters).toMatchObject({
         query: "AAPL",

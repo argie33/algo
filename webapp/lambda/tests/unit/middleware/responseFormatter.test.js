@@ -12,7 +12,7 @@ describe("Response Formatter Middleware", () => {
         res.json({ test: true });
       });
 
-      const _response = await request(app).get("/test-header");
+      const response = await request(app).get("/test-header");
       expect(response.headers["api-version"]).toBe("v1.0");
     });
 
@@ -54,7 +54,7 @@ describe("Response Formatter Middleware", () => {
         res.success(mockData, 200, mockMeta);
       });
 
-      const _response = await request(app).get("/test-success");
+      const response = await request(app).get("/test-success");
 
       expect(response.status).toBe(200);
       expect(response.body.success).toBe(true);
@@ -70,7 +70,7 @@ describe("Response Formatter Middleware", () => {
         res.success(mockData);
       });
 
-      const _response = await request(app).get("/test-success-default");
+      const response = await request(app).get("/test-success-default");
 
       expect(response.status).toBe(200);
       expect(response.body.success).toBe(true);
@@ -84,7 +84,7 @@ describe("Response Formatter Middleware", () => {
         res.success(mockData, 201);
       });
 
-      const _response = await request(app).get("/test-success-201");
+      const response = await request(app).get("/test-success-201");
 
       expect(response.status).toBe(201);
       expect(response.body.success).toBe(true);
@@ -101,7 +101,7 @@ describe("Response Formatter Middleware", () => {
         res.error(mockMessage, 400, mockDetails);
       });
 
-      const _response = await request(app).get("/test-error");
+      const response = await request(app).get("/test-error");
 
       expect(response.status).toBe(400);
       expect(response.body.success).toBe(false);
@@ -117,7 +117,7 @@ describe("Response Formatter Middleware", () => {
         res.error(mockMessage);
       });
 
-      const _response = await request(app).get("/test-error-default");
+      const response = await request(app).get("/test-error-default");
 
       expect(response.status).toBe(400);
       expect(response.body.success).toBe(false);
@@ -131,7 +131,7 @@ describe("Response Formatter Middleware", () => {
         res.error(mockMessage, 400, {});
       });
 
-      const _response = await request(app).get("/test-error-service");
+      const response = await request(app).get("/test-error-service");
 
       expect(response.body.service).toBe("financial-platform");
     });
@@ -147,7 +147,7 @@ describe("Response Formatter Middleware", () => {
         res.paginated(mockData, mockPagination, mockMeta);
       });
 
-      const _response = await request(app).get("/test-paginated");
+      const response = await request(app).get("/test-paginated");
 
       expect(response.status).toBe(200);
       expect(response.body.success).toBe(true);
@@ -166,7 +166,7 @@ describe("Response Formatter Middleware", () => {
         res.paginated(mockData, mockPagination);
       });
 
-      const _response = await request(app).get("/test-paginated-calc");
+      const response = await request(app).get("/test-paginated-calc");
 
       expect(response.body.data.pagination.totalPages).toBe(5);
     });
@@ -183,7 +183,7 @@ describe("Response Formatter Middleware", () => {
         res.validationError(mockErrors);
       });
 
-      const _response = await request(app).get("/test-validation-error");
+      const response = await request(app).get("/test-validation-error");
 
       expect(response.status).toBe(422);
       expect(response.body.success).toBe(false);
@@ -200,7 +200,7 @@ describe("Response Formatter Middleware", () => {
         res.validationError(singleError);
       });
 
-      const _response = await request(app).get("/test-validation-single");
+      const response = await request(app).get("/test-validation-single");
 
       expect(Array.isArray(response.body.errors)).toBe(true);
       expect(response.body.errors[0]).toBe(singleError);
@@ -215,7 +215,7 @@ describe("Response Formatter Middleware", () => {
         res.notFound(mockResource);
       });
 
-      const _response = await request(app).get("/test-not-found");
+      const response = await request(app).get("/test-not-found");
 
       expect(response.status).toBe(404);
       expect(response.body.success).toBe(false);
@@ -229,7 +229,7 @@ describe("Response Formatter Middleware", () => {
         res.notFound();
       });
 
-      const _response = await request(app).get("/test-not-found-default");
+      const response = await request(app).get("/test-not-found-default");
 
       expect(response.status).toBe(404);
       expect(response.body.error).toBe("Resource not found");
@@ -244,7 +244,7 @@ describe("Response Formatter Middleware", () => {
         res.unauthorized(mockMessage);
       });
 
-      const _response = await request(app).get("/test-unauthorized");
+      const response = await request(app).get("/test-unauthorized");
 
       expect(response.status).toBe(401);
       expect(response.body.success).toBe(false);
@@ -260,7 +260,7 @@ describe("Response Formatter Middleware", () => {
         res.unauthorized();
       });
 
-      const _response = await request(app).get("/test-unauthorized-default");
+      const response = await request(app).get("/test-unauthorized-default");
 
       expect(response.status).toBe(401);
       expect(response.body.error).toBe(defaultMessage);
@@ -275,7 +275,7 @@ describe("Response Formatter Middleware", () => {
         res.forbidden(mockMessage);
       });
 
-      const _response = await request(app).get("/test-forbidden");
+      const response = await request(app).get("/test-forbidden");
 
       expect(response.status).toBe(403);
       expect(response.body.success).toBe(false);
@@ -291,7 +291,7 @@ describe("Response Formatter Middleware", () => {
         res.forbidden();
       });
 
-      const _response = await request(app).get("/test-forbidden-default");
+      const response = await request(app).get("/test-forbidden-default");
 
       expect(response.status).toBe(403);
       expect(response.body.error).toBe(defaultMessage);
@@ -307,7 +307,7 @@ describe("Response Formatter Middleware", () => {
         res.serverError(mockMessage, mockDetails);
       });
 
-      const _response = await request(app).get("/test-server-error");
+      const response = await request(app).get("/test-server-error");
 
       expect(response.status).toBe(500);
       expect(response.body.success).toBe(false);
@@ -325,7 +325,7 @@ describe("Response Formatter Middleware", () => {
         res.serverError();
       });
 
-      const _response = await request(app).get("/test-server-error-default");
+      const response = await request(app).get("/test-server-error-default");
 
       expect(response.status).toBe(500);
       expect(response.body.error).toBe(defaultMessage);
@@ -368,7 +368,7 @@ describe("Response Formatter Middleware", () => {
       ];
 
       for (const endpoint of endpoints) {
-        const _response = await request(app).get(endpoint);
+        const response = await request(app).get(endpoint);
         expect(response.headers["api-version"]).toBe("v1.0");
       }
     });
@@ -386,7 +386,7 @@ describe("Response Formatter Middleware", () => {
         res.success(complexData);
       });
 
-      const _response = await request(app).get("/test-types");
+      const response = await request(app).get("/test-types");
 
       expect(response.body.data).toEqual(complexData);
       expect(typeof response.body.data.string).toBe("string");
@@ -399,7 +399,7 @@ describe("Response Formatter Middleware", () => {
         res.success({ test: true });
       });
 
-      const _response = await request(app).get("/test-timestamp");
+      const response = await request(app).get("/test-timestamp");
 
       expect(response.body.timestamp).toMatch(
         /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}\.\d{3}Z$/

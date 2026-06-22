@@ -18,7 +18,7 @@ jest.mock("../../../utils/database", () => ({
   closeDatabase: jest.fn(),
 }));
 
-const { _query } = require("../../../utils/database");
+const { query } = require("../../../utils/database");
 
 // Mock auth middleware
 jest.mock("../../../middleware/auth", () => ({
@@ -188,7 +188,7 @@ describe("Issue #4: User ID Type Consistency", () => {
       // Check all query calls for hardcoded IDs
       query.mock.calls.forEach((call) => {
         const sql = call[0];
-        const _params = call[1] || [];
+        const params = call[1] || [];
 
         // Verify no hardcoded '1' or '2' in user_id context
         if (sql && sql.includes("user_id")) {

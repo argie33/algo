@@ -470,7 +470,7 @@ async function runContractTest(endpoint, baseURL) {
   const url = `${baseURL}${path}`;
 
   try {
-    const _response = await axios({
+    const response = await axios({
       method: method.toLowerCase(),
       url,
       timeout: CONFIG.timeout,

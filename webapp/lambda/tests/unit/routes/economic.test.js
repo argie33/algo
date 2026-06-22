@@ -46,7 +46,7 @@ describe("Economic Routes Unit Tests", () => {
       mockQuery
         .mockResolvedValueOnce({ rows: mockEconomicData })
         .mockResolvedValueOnce({ rows: mockCount });
-      const _response = await request(app).get("/economic");
+      const response = await request(app).get("/economic");
       expect(response.status).toBe(200);
       expect(response.body).toHaveProperty("data", mockEconomicData);
       expect(response.body).toHaveProperty("pagination");
@@ -72,7 +72,7 @@ describe("Economic Routes Unit Tests", () => {
       mockQuery
         .mockResolvedValueOnce({ rows: mockData })
         .mockResolvedValueOnce({ rows: mockCount });
-      const _response = await request(app).get("/economic?page=3&limit=10");
+      const response = await request(app).get("/economic?page=3&limit=10");
       expect(response.body.pagination).toMatchObject({
         page: 3,
         limit: 10,
@@ -94,7 +94,7 @@ describe("Economic Routes Unit Tests", () => {
       mockQuery
         .mockResolvedValueOnce({ rows: mockData })
         .mockResolvedValueOnce({ rows: mockCount });
-      const _response = await request(app).get(
+      const response = await request(app).get(
         "/economic?series=GDP&page=1&limit=50"
       );
       expect(mockQuery).toHaveBeenCalledWith(
@@ -108,7 +108,7 @@ describe("Economic Routes Unit Tests", () => {
     });
     test("should handle database unavailable gracefully", async () => {
       mockQuery.mockResolvedValueOnce({ rows: [] }).mockResolvedValueOnce(null);
-      const _response = await request(app).get("/economic");
+      const response = await request(app).get("/economic");
       expect(response.status).toBe(503);
       expect([true, false]).toContain(response.body.success);
       expect(response.body).toHaveProperty(
@@ -130,7 +130,7 @@ describe("Economic Routes Unit Tests", () => {
       mockQuery
         .mockResolvedValueOnce({ rows: [] })
         .mockResolvedValueOnce({ rows: mockCount });
-      const _response = await request(app).get("/economic");
+      const response = await request(app).get("/economic");
       expect(response.status).toBe(404);
       expect([true, false]).toContain(response.body.success);
       expect(response.body).toHaveProperty(
@@ -143,7 +143,7 @@ describe("Economic Routes Unit Tests", () => {
       mockQuery
         .mockResolvedValueOnce(null)
         .mockResolvedValueOnce({ rows: mockCount });
-      const _response = await request(app).get("/economic");
+      const response = await request(app).get("/economic");
       expect(response.status).toBe(404);
       expect(response.body).toHaveProperty(
         "error",
@@ -152,7 +152,7 @@ describe("Economic Routes Unit Tests", () => {
     });
     test("should handle database errors", async () => {
       mockQuery.mockRejectedValue(new Error("Database connection failed"));
-      const _response = await request(app).get("/economic");
+      const response = await request(app).get("/economic");
       expect([200, 404, 500]).toContain(response.status);
       expect([true, false]).toContain(response.body.success);
       expect(response.body).toHaveProperty("error", "Database error");
@@ -165,7 +165,7 @@ describe("Economic Routes Unit Tests", () => {
       mockQuery
         .mockResolvedValueOnce({ rows: [] })
         .mockResolvedValueOnce({ rows: [] });
-      const _response = await request(app).get("/economic");
+      const response = await request(app).get("/economic");
       expect(response.status).toBe(503);
       expect(response.body).toHaveProperty(
         "error",
@@ -193,7 +193,7 @@ describe("Economic Routes Unit Tests", () => {
         },
       ];
       mockQuery.mockResolvedValue({ rows: mockEconomicData });
-      const _response = await request(app).get("/economic/data");
+      const response = await request(app).get("/economic/data");
       expect(response.status).toBe(200);
       expect(response.body).toHaveProperty("data", mockEconomicData);
       expect(response.body).toHaveProperty("count", 3);
@@ -209,7 +209,7 @@ describe("Economic Routes Unit Tests", () => {
         { series_id: "GDP", date: "2024-01-01", value: 25000000000 },
       ];
       mockQuery.mockResolvedValue({ rows: mockData });
-      const _response = await request(app).get("/economic/data?limit=200");
+      const response = await request(app).get("/economic/data?limit=200");
       expect(response.body.limit).toBe(100); // Capped at 100
       expect(mockQuery).toHaveBeenCalledWith(expect.any(String), [100]);
     });
@@ -218,7 +218,7 @@ describe("Economic Routes Unit Tests", () => {
         { series_id: "GDP", date: "2024-01-01", value: 25000000000 },
       ];
       mockQuery.mockResolvedValue({ rows: mockData });
-      const _response = await request(app).get("/economic/data?limit=10");
+      const response = await request(app).get("/economic/data?limit=10");
       expect(response.body.limit).toBe(10);
       expect(mockQuery).toHaveBeenCalledWith(expect.any(String), [10]);
     });
@@ -227,13 +227,13 @@ describe("Economic Routes Unit Tests", () => {
         { series_id: "GDP", date: "2024-01-01", value: 25000000000 },
       ];
       mockQuery.mockResolvedValue({ rows: mockData });
-      const _response = await request(app).get("/economic/data");
+      const response = await request(app).get("/economic/data");
       expect(response.body.limit).toBe(50);
       expect(mockQuery).toHaveBeenCalledWith(expect.any(String), [50]);
     });
     test("should return 404 when no data found", async () => {
       mockQuery.mockResolvedValue({ rows: [] });
-      const _response = await request(app).get("/economic/data");
+      const response = await request(app).get("/economic/data");
       expect(response.status).toBe(404);
       expect([true, false]).toContain(response.body.success);
       expect(response.body).toHaveProperty(
@@ -243,7 +243,7 @@ describe("Economic Routes Unit Tests", () => {
     });
     test("should return 404 when null result", async () => {
       mockQuery.mockResolvedValue(null);
-      const _response = await request(app).get("/economic/data");
+      const response = await request(app).get("/economic/data");
       expect(response.status).toBe(404);
       expect(response.body).toHaveProperty(
         "error",
@@ -252,7 +252,7 @@ describe("Economic Routes Unit Tests", () => {
     });
     test("should return 404 when undefined rows", async () => {
       mockQuery.mockResolvedValue({ rows: undefined });
-      const _response = await request(app).get("/economic/data");
+      const response = await request(app).get("/economic/data");
       expect(response.status).toBe(404);
       expect(response.body).toHaveProperty(
         "error",
@@ -261,7 +261,7 @@ describe("Economic Routes Unit Tests", () => {
     });
     test("should handle database errors", async () => {
       mockQuery.mockRejectedValue(new Error("Query timeout"));
-      const _response = await request(app).get("/economic/data");
+      const response = await request(app).get("/economic/data");
       expect([200, 404, 500]).toContain(response.status);
       expect([true, false]).toContain(response.body.success);
       expect(response.body).toHaveProperty("error", "Database error");
@@ -272,7 +272,7 @@ describe("Economic Routes Unit Tests", () => {
         { series_id: "GDP", date: "2024-01-01", value: 25000000000 },
       ];
       mockQuery.mockResolvedValue({ rows: mockData });
-      const _response = await request(app).get("/economic/data");
+      const response = await request(app).get("/economic/data");
       expect(response.body.timestamp).toBeDefined();
       expect(new Date(response.body.timestamp)).toBeInstanceOf(Date);
       expect(response.body.timestamp).toMatch(
@@ -289,7 +289,7 @@ describe("Economic Routes Unit Tests", () => {
       mockQuery
         .mockResolvedValueOnce({ rows: mockData })
         .mockResolvedValueOnce({ rows: mockCount });
-      const _response = await request(app).get(
+      const response = await request(app).get(
         "/economic?page=invalid&limit=notanumber"
       );
       expect(response.body.pagination?.page || 1).toBe(1); // Default page
@@ -303,7 +303,7 @@ describe("Economic Routes Unit Tests", () => {
       mockQuery
         .mockResolvedValueOnce({ rows: mockData })
         .mockResolvedValueOnce({ rows: mockCount });
-      const _response = await request(app).get("/economic?page=-5&limit=-10");
+      const response = await request(app).get("/economic?page=-5&limit=-10");
       expect(response.body.pagination?.page || 1).toBe(1); // Defaults to 1
       expect(response.body.pagination.limit).toBe(25); // Defaults to 25
     });
@@ -315,7 +315,7 @@ describe("Economic Routes Unit Tests", () => {
       mockQuery
         .mockResolvedValueOnce({ rows: mockData })
         .mockResolvedValueOnce({ rows: mockCount });
-      const _response = await request(app).get("/economic?page=999&limit=25");
+      const response = await request(app).get("/economic?page=999&limit=25");
       expect(response.body.pagination).toMatchObject({
         page: 999,
         limit: 25,
@@ -337,7 +337,7 @@ describe("Economic Routes Unit Tests", () => {
       mockQuery
         .mockResolvedValueOnce({ rows: mockData })
         .mockResolvedValueOnce({ rows: mockCount });
-      const _response = await request(app).get(
+      const response = await request(app).get(
         "/economic?series=GDP'; DROP TABLE economic_data; --"
       );
       // Should still process safely due to parameterized queries
@@ -352,7 +352,7 @@ describe("Economic Routes Unit Tests", () => {
       mockQuery
         .mockResolvedValueOnce({ rows: mockData })
         .mockResolvedValueOnce({ rows: mockCount });
-      const _response = await request(app).get("/economic?series=");
+      const response = await request(app).get("/economic?series=");
       expect(mockQuery).toHaveBeenCalledWith(
         expect.stringContaining("WHERE series_id = $1"),
         ["", 25, 0]
@@ -363,7 +363,7 @@ describe("Economic Routes Unit Tests", () => {
         { series_id: "GDP", date: "2024-01-01", value: 25000000000 },
       ];
       mockQuery.mockResolvedValue({ rows: mockData });
-      const _response = await request(app).get("/economic/data?limit=invalid");
+      const response = await request(app).get("/economic/data?limit=invalid");
       expect(response.body.limit).toBe(50); // Falls back to default
       expect(mockQuery).toHaveBeenCalledWith(expect.any(String), [50]);
     });
@@ -377,7 +377,7 @@ describe("Economic Routes Unit Tests", () => {
       mockQuery
         .mockResolvedValueOnce({ rows: mockData })
         .mockResolvedValueOnce({ rows: mockCount });
-      const _response = await request(app).get("/economic");
+      const response = await request(app).get("/economic");
       expect(response.headers["content-type"]).toMatch(/json/);
       expect(typeof response.body).toBe("object");
       expect(response.body).toHaveProperty("data");
@@ -385,7 +385,7 @@ describe("Economic Routes Unit Tests", () => {
     });
     test("should maintain consistent error response format", async () => {
       mockQuery.mockRejectedValue(new Error("Test error"));
-      const _response = await request(app).get("/economic");
+      const response = await request(app).get("/economic");
       expect([true, false]).toContain(response.body.success);
       expect(response.body.error || response.body.success).toBeDefined();
       expect(response.body.message || response.body.success).toBeDefined();
@@ -397,7 +397,7 @@ describe("Economic Routes Unit Tests", () => {
         { series_id: "CPI", date: "2024-01-01", value: 310.5 },
       ];
       mockQuery.mockResolvedValue({ rows: mockData });
-      const _response = await request(app).get("/economic/data");
+      const response = await request(app).get("/economic/data");
       expect(Array.isArray(response.body.data)).toBe(true);
       expect(response.body.data.length).toBeGreaterThanOrEqual(0);
       expect(response.body.data[0] || {}).toBeDefined();
@@ -412,7 +412,7 @@ describe("Economic Routes Unit Tests", () => {
         { series_id: "CPI", date: "2024-01-01", value: 310.125 },
       ];
       mockQuery.mockResolvedValue({ rows: mockData });
-      const _response = await request(app).get("/economic/data");
+      const response = await request(app).get("/economic/data");
       expect(response.body.data[0].value).toBe(25000000000.5);
       expect(response.body.data[1].value).toBe(310.125);
     });
@@ -423,7 +423,7 @@ describe("Economic Routes Unit Tests", () => {
         value: i * 1000,
       }));
       mockQuery.mockResolvedValue({ rows: largeDataset });
-      const _response = await request(app).get("/economic/data?limit=100");
+      const response = await request(app).get("/economic/data?limit=100");
       expect(response.status).toBe(200);
       expect(response.body.data).toHaveLength(100);
       expect(response.body.count).toBe(100);
@@ -436,7 +436,7 @@ describe("Economic Routes Unit Tests", () => {
       mockQuery
         .mockResolvedValueOnce({ rows: mockData })
         .mockResolvedValueOnce({ rows: mockCount });
-      const _response = await request(app).get("/economic?page=5&limit=20");
+      const response = await request(app).get("/economic?page=5&limit=20");
       expect(response.body.pagination).toMatchObject({
         page: 5,
         limit: 20,

@@ -22,7 +22,7 @@ describe("Scores Integration - Real Data Validation Routes - Real Data Validatio
   });
   describe("GET /scores/ping", () => {
     test("should return ping response", async () => {
-      const _response = await request(app).get("/scores/ping");
+      const response = await request(app).get("/scores/ping");
 
       expect(response.status).toBe(200);
       expect(response.body).toHaveProperty("status", "ok");
@@ -33,7 +33,7 @@ describe("Scores Integration - Real Data Validation Routes - Real Data Validatio
 
   describe("GET /scores - Real Data Validation", () => {
     test("should return ALL loaded stocks from database (3000+)", async () => {
-      const _response = await request(app).get("/scores");
+      const response = await request(app).get("/scores");
 
       expect(response.status).toBe(200);
       expect(response.body.success).toBe(true);
@@ -55,7 +55,7 @@ describe("Scores Integration - Real Data Validation Routes - Real Data Validatio
     });
 
     test("should validate NO-FALLBACK policy - real data without fallback operators", async () => {
-      const _response = await request(app).get("/scores");
+      const response = await request(app).get("/scores");
 
       expect(response.status).toBe(200);
       const stocks = response.body.data.stocks;
@@ -99,7 +99,7 @@ describe("Scores Integration - Real Data Validation Routes - Real Data Validatio
     });
 
     test("should provide real growth metrics from loaders", async () => {
-      const _response = await request(app).get("/scores");
+      const response = await request(app).get("/scores");
       const stocks = response.body.data.stocks;
 
       // Check for stocks with growth data from loaders
@@ -128,7 +128,7 @@ describe("Scores Integration - Real Data Validation Routes - Real Data Validatio
     });
 
     test("should provide real quality metrics from loaders", async () => {
-      const _response = await request(app).get("/scores");
+      const response = await request(app).get("/scores");
       const stocks = response.body.data.stocks;
 
       // Check for stocks with quality data from loaders
@@ -153,7 +153,7 @@ describe("Scores Integration - Real Data Validation Routes - Real Data Validatio
     });
 
     test("should handle pagination parameters correctly", async () => {
-      const _response = await request(app)
+      const response = await request(app)
         .get("/scores")
         .query({ page: 1, limit: 10 });
 
@@ -165,7 +165,7 @@ describe("Scores Integration - Real Data Validation Routes - Real Data Validatio
     });
 
     test("should handle search parameter with real data", async () => {
-      const _response = await request(app)
+      const response = await request(app)
         .get("/scores")
         .query({ search: "AAPL" });
 
@@ -184,7 +184,7 @@ describe("Scores Integration - Real Data Validation Routes - Real Data Validatio
     });
 
     test("should return stocks sorted by composite score descending", async () => {
-      const _response = await request(app).get("/scores");
+      const response = await request(app).get("/scores");
 
       expect(response.status).toBe(200);
       const stocks = response.body.data.stocks;
@@ -209,7 +209,7 @@ describe("Scores Integration - Real Data Validation Routes - Real Data Validatio
 
   describe("GET /scores/:symbol - Individual Stock Data", () => {
     test("should return real individual stock data (e.g., AAPL)", async () => {
-      const _response = await request(app).get("/scores/AAPL");
+      const response = await request(app).get("/scores/AAPL");
 
       if (response.status === 200) {
         expect(response.body).toHaveProperty("success", true);
@@ -259,7 +259,7 @@ describe("Scores Integration - Real Data Validation Routes - Real Data Validatio
     });
 
     test("should handle case insensitive symbol lookup", async () => {
-      const _response = await request(app).get("/scores/aapl");
+      const response = await request(app).get("/scores/aapl");
 
       if (response.status === 200) {
         expect(response.body.data).toHaveProperty("symbol", "AAPL");
@@ -269,7 +269,7 @@ describe("Scores Integration - Real Data Validation Routes - Real Data Validatio
     });
 
     test("should return 404 for non-existent symbol", async () => {
-      const _response = await request(app).get("/scores/ZZZNONEXISTENT999");
+      const response = await request(app).get("/scores/ZZZNONEXISTENT999");
 
       expect(response.status).toBe(404);
       expect(response.body).toHaveProperty("success", false);
@@ -279,7 +279,7 @@ describe("Scores Integration - Real Data Validation Routes - Real Data Validatio
   describe("Performance Tests", () => {
     test("should respond quickly to ping requests", async () => {
       const startTime = Date.now();
-      const _response = await request(app).get("/scores/ping");
+      const response = await request(app).get("/scores/ping");
       const responseTime = Date.now() - startTime;
 
       expect(response.status).toBe(200);
@@ -302,20 +302,20 @@ describe("Scores Integration - Real Data Validation Routes - Real Data Validatio
 
   describe("Error Handling", () => {
     test("should return consistent JSON response format", async () => {
-      const _response = await request(app).get("/scores/ping");
+      const response = await request(app).get("/scores/ping");
 
       expect(response.headers["content-type"]).toMatch(/json/);
       expect(typeof response.body).toBe("object");
     });
 
     test("should handle invalid endpoints gracefully", async () => {
-      const _response = await request(app).get("/scores/invalid/endpoint");
+      const response = await request(app).get("/scores/invalid/endpoint");
 
       expect([404, 500]).toContain(response.status);
     });
 
     test("should handle SQL injection attempts safely", async () => {
-      const _response = await request(app).get("/scores").query({
+      const response = await request(app).get("/scores").query({
         search: "'; DROP TABLE stock_scores; --",
       });
 

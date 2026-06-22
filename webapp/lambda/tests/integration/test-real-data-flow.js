@@ -28,7 +28,7 @@ async function apiCall(endpoint, method = "GET", data = null) {
     };
     if (data) config.data = data;
 
-    const _response = await axios(config);
+    const response = await axios(config);
     return response.data;
   } catch (error) {
     console.error(
@@ -43,7 +43,7 @@ async function apiCall(endpoint, method = "GET", data = null) {
 describe("Real Data Flow Verification", () => {
   describe("Portfolio Data - Alpaca Integration", () => {
     test("Portfolio metrics endpoint returns real Alpaca data", async () => {
-      const _response = await apiCall("/api/portfolio/metrics");
+      const response = await apiCall("/api/portfolio/metrics");
 
       expect(response.success).toBe(true);
       expect(response.data).toBeDefined();
@@ -98,7 +98,7 @@ describe("Real Data Flow Verification", () => {
       // 2. Database fallback (secondary)
       // 3. Empty response (tertiary) - no fake data
 
-      const _response = await apiCall("/api/portfolio/metrics");
+      const response = await apiCall("/api/portfolio/metrics");
       const { positions, metadata } = response.data;
 
       // If we have positions, verify they're recent (Alpaca updates in real-time)
@@ -115,7 +115,7 @@ describe("Real Data Flow Verification", () => {
 
   describe("Trade History - Alpaca + Manual Entries", () => {
     test("Trade history includes both Alpaca and manual trades", async () => {
-      const _response = await apiCall("/api/trades/history?limit=100");
+      const response = await apiCall("/api/trades/history?limit=100");
 
       expect(response.success).toBe(true);
       expect(response.data).toBeDefined();
@@ -147,7 +147,7 @@ describe("Real Data Flow Verification", () => {
     }, 30000);
 
     test("Trade summary calculated from real data only", async () => {
-      const _response = await apiCall("/api/trades/summary");
+      const response = await apiCall("/api/trades/summary");
 
       expect(response.success).toBe(true);
       expect(response.data).toBeDefined();
@@ -179,7 +179,7 @@ describe("Real Data Flow Verification", () => {
     }, 30000);
 
     test("FIFO analysis uses real trade data", async () => {
-      const _response = await apiCall("/api/trades/fifo-analysis");
+      const response = await apiCall("/api/trades/fifo-analysis");
 
       if (!response.success) {
         return;
@@ -229,7 +229,7 @@ describe("Real Data Flow Verification", () => {
         commission: 0,
       };
 
-      const _response = await apiCall("/api/manual-trades", "POST", tradeData);
+      const response = await apiCall("/api/manual-trades", "POST", tradeData);
 
       expect(response.success).toBe(true);
       expect(response.data).toBeDefined();
@@ -241,7 +241,7 @@ describe("Real Data Flow Verification", () => {
     }, 30000);
 
     test("Fetch manual trades", async () => {
-      const _response = await apiCall("/api/manual-trades");
+      const response = await apiCall("/api/manual-trades");
 
       expect(response.success).toBe(true);
       expect(Array.isArray(response.data)).toBe(true);
@@ -262,7 +262,7 @@ describe("Real Data Flow Verification", () => {
         price: 155.75,
       };
 
-      const _response = await apiCall(
+      const response = await apiCall(
         `/api/manual-trades/${testTradeId}`,
         "PATCH",
         updateData
@@ -278,7 +278,7 @@ describe("Real Data Flow Verification", () => {
         return;
       }
 
-      const _response = await apiCall(
+      const response = await apiCall(
         `/api/manual-trades/${testTradeId}`,
         "DELETE"
       );
@@ -289,7 +289,7 @@ describe("Real Data Flow Verification", () => {
 
   describe("Portfolio Optimization - Real Data Only", () => {
     test("Optimization analysis uses real portfolio data", async () => {
-      const _response = await apiCall("/api/optimization/analysis");
+      const response = await apiCall("/api/optimization/analysis");
 
       expect(response.success).toBe(true);
       expect(response.data).toBeDefined();
@@ -350,7 +350,7 @@ describe("Real Data Flow Verification", () => {
 
       for (const endpoint of endpoints) {
         try {
-          const _response = await apiCall(endpoint);
+          const response = await apiCall(endpoint);
           const jsonStr = JSON.stringify(response);
 
           // Check for common fake defaults in context that suggests they're fake
@@ -399,7 +399,7 @@ describe("Real Data Flow Verification", () => {
     }, 60000);
 
     test("Null values used instead of calculated fallbacks", async () => {
-      const _response = await apiCall("/api/portfolio/metrics");
+      const response = await apiCall("/api/portfolio/metrics");
       const { summary } = response.data;
 
       // Check that when data is unavailable, we return null (not calculated estimates)

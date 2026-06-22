@@ -9,7 +9,7 @@ describe("Orders Routes Integration Tests", () => {
 
   describe("GET /api/orders (List Orders)", () => {
     test("should return user orders", async () => {
-      const _response = await request(app)
+      const response = await request(app)
         .get("/api/orders")
         .set("Authorization", "Bearer dev-bypass-token");
 
@@ -23,7 +23,7 @@ describe("Orders Routes Integration Tests", () => {
     });
 
     test("should handle status filter", async () => {
-      const _response = await request(app)
+      const response = await request(app)
         .get("/api/orders?status=filled")
         .set("Authorization", "Bearer dev-bypass-token");
 
@@ -35,7 +35,7 @@ describe("Orders Routes Integration Tests", () => {
     });
 
     test("should handle side filter", async () => {
-      const _response = await request(app)
+      const response = await request(app)
         .get("/api/orders?side=buy")
         .set("Authorization", "Bearer dev-bypass-token");
 
@@ -47,7 +47,7 @@ describe("Orders Routes Integration Tests", () => {
     });
 
     test("should handle pagination parameters", async () => {
-      const _response = await request(app)
+      const response = await request(app)
         .get("/api/orders?limit=10&offset=5")
         .set("Authorization", "Bearer dev-bypass-token");
 
@@ -59,7 +59,7 @@ describe("Orders Routes Integration Tests", () => {
     });
 
     test("should require authentication", async () => {
-      const _response = await request(app).get("/api/orders");
+      const response = await request(app).get("/api/orders");
 
       expect([200, 401, 403].includes(response.status)).toBe(true);
     });
@@ -67,7 +67,7 @@ describe("Orders Routes Integration Tests", () => {
 
   describe("GET /api/orders/:orderId (Get Specific Order)", () => {
     test("should handle order lookup", async () => {
-      const _response = await request(app)
+      const response = await request(app)
         .get("/api/orders/test-order-123")
         .set("Authorization", "Bearer dev-bypass-token");
 
@@ -80,7 +80,7 @@ describe("Orders Routes Integration Tests", () => {
     });
 
     test("should return 404 for non-existent order", async () => {
-      const _response = await request(app)
+      const response = await request(app)
         .get("/api/orders/non-existent-order")
         .set("Authorization", "Bearer dev-bypass-token");
 
@@ -88,7 +88,7 @@ describe("Orders Routes Integration Tests", () => {
     });
 
     test("should require authentication", async () => {
-      const _response = await request(app).get("/api/orders/test-order-123");
+      const response = await request(app).get("/api/orders/test-order-123");
 
       expect([200, 401, 403, 404].includes(response.status)).toBe(true);
     });
@@ -103,7 +103,7 @@ describe("Orders Routes Integration Tests", () => {
         order_type: "market",
       };
 
-      const _response = await request(app)
+      const response = await request(app)
         .post("/api/orders")
         .set("Authorization", "Bearer dev-bypass-token")
         .send(orderRequest);
@@ -118,7 +118,7 @@ describe("Orders Routes Integration Tests", () => {
     });
 
     test("should validate required fields", async () => {
-      const _response = await request(app)
+      const response = await request(app)
         .post("/api/orders")
         .set("Authorization", "Bearer dev-bypass-token")
         .send({ symbol: "AAPL" });
@@ -134,7 +134,7 @@ describe("Orders Routes Integration Tests", () => {
         order_type: "market",
       };
 
-      const _response = await request(app)
+      const response = await request(app)
         .post("/api/orders")
         .set("Authorization", "Bearer dev-bypass-token")
         .send(orderRequest);
@@ -154,7 +154,7 @@ describe("Orders Routes Integration Tests", () => {
         order_type: "invalid_type",
       };
 
-      const _response = await request(app)
+      const response = await request(app)
         .post("/api/orders")
         .set("Authorization", "Bearer dev-bypass-token")
         .send(orderRequest);
@@ -170,7 +170,7 @@ describe("Orders Routes Integration Tests", () => {
         order_type: "market",
       };
 
-      const _response = await request(app)
+      const response = await request(app)
         .post("/api/orders")
         .send(orderRequest);
 
@@ -184,7 +184,7 @@ describe("Orders Routes Integration Tests", () => {
         limit_price: 150.0,
       };
 
-      const _response = await request(app)
+      const response = await request(app)
         .put("/api/orders/test-order-123")
         .set("Authorization", "Bearer dev-bypass-token")
         .send(updateRequest);
@@ -201,7 +201,7 @@ describe("Orders Routes Integration Tests", () => {
         limit_price: "invalid",
       };
 
-      const _response = await request(app)
+      const response = await request(app)
         .put("/api/orders/test-order-123")
         .set("Authorization", "Bearer dev-bypass-token")
         .send(updateRequest);
@@ -210,7 +210,7 @@ describe("Orders Routes Integration Tests", () => {
     });
 
     test("should require authentication", async () => {
-      const _response = await request(app)
+      const response = await request(app)
         .put("/api/orders/test-order-123")
         .send({ limit_price: 150.0 });
 
@@ -220,7 +220,7 @@ describe("Orders Routes Integration Tests", () => {
 
   describe("DELETE /api/orders/:orderId (Cancel Order)", () => {
     test("should cancel order", async () => {
-      const _response = await request(app)
+      const response = await request(app)
         .delete("/api/orders/test-order-123")
         .set("Authorization", "Bearer dev-bypass-token");
 
@@ -232,7 +232,7 @@ describe("Orders Routes Integration Tests", () => {
     });
 
     test("should return 404 for non-existent order", async () => {
-      const _response = await request(app)
+      const response = await request(app)
         .delete("/api/orders/non-existent-order")
         .set("Authorization", "Bearer dev-bypass-token");
 
@@ -240,7 +240,7 @@ describe("Orders Routes Integration Tests", () => {
     });
 
     test("should require authentication", async () => {
-      const _response = await request(app).delete("/api/orders/test-order-123");
+      const response = await request(app).delete("/api/orders/test-order-123");
 
       expect([200, 401, 403, 404].includes(response.status)).toBe(true);
     });
@@ -248,7 +248,7 @@ describe("Orders Routes Integration Tests", () => {
 
   describe("GET /api/orders/history (Order History)", () => {
     test("should return order history", async () => {
-      const _response = await request(app)
+      const response = await request(app)
         .get("/api/orders/history")
         .set("Authorization", "Bearer dev-bypass-token");
 
@@ -262,7 +262,7 @@ describe("Orders Routes Integration Tests", () => {
     });
 
     test("should handle date filtering", async () => {
-      const _response = await request(app)
+      const response = await request(app)
         .get("/api/orders/history?from=2023-01-01&to=2023-12-31")
         .set("Authorization", "Bearer dev-bypass-token");
 
@@ -274,7 +274,7 @@ describe("Orders Routes Integration Tests", () => {
     });
 
     test("should include performance summary", async () => {
-      const _response = await request(app)
+      const response = await request(app)
         .get("/api/orders/history?include_summary=true")
         .set("Authorization", "Bearer dev-bypass-token");
 
@@ -286,7 +286,7 @@ describe("Orders Routes Integration Tests", () => {
     });
 
     test("should require authentication", async () => {
-      const _response = await request(app).get("/api/orders/history");
+      const response = await request(app).get("/api/orders/history");
 
       expect([200, 401, 403].includes(response.status)).toBe(true);
     });
@@ -335,7 +335,7 @@ describe("Orders Routes Integration Tests", () => {
       ];
 
       for (const req of invalidRequests) {
-        const _response = await req;
+        const response = await req;
         expect([200, 400, 401, 403, 500, 503].includes(response.status)).toBe(
           true
         );
@@ -344,7 +344,7 @@ describe("Orders Routes Integration Tests", () => {
 
     test("should maintain response time consistency", async () => {
       const startTime = Date.now();
-      const _response = await request(app)
+      const response = await request(app)
         .get("/api/orders")
         .set("Authorization", "Bearer dev-bypass-token");
       const responseTime = Date.now() - startTime;
@@ -361,7 +361,7 @@ describe("Orders Routes Integration Tests", () => {
       ];
 
       for (const input of maliciousInputs) {
-        const _response = await request(app)
+        const response = await request(app)
           .get(`/api/orders/${encodeURIComponent(input)}`)
           .set("Authorization", "Bearer dev-bypass-token");
 
@@ -373,7 +373,7 @@ describe("Orders Routes Integration Tests", () => {
       const endpoints = ["/api/orders", "/api/orders/history"];
 
       for (const endpoint of endpoints) {
-        const _response = await request(app)
+        const response = await request(app)
           .get(endpoint)
           .set("Authorization", "Bearer dev-bypass-token");
 
@@ -384,7 +384,7 @@ describe("Orders Routes Integration Tests", () => {
     });
 
     test("should handle database connection issues gracefully", async () => {
-      const _response = await request(app)
+      const response = await request(app)
         .get("/api/orders")
         .set("Authorization", "Bearer dev-bypass-token");
 
@@ -398,7 +398,7 @@ describe("Orders Routes Integration Tests", () => {
 
   describe("Authentication and Trading Mode", () => {
     test("should respect trading mode restrictions", async () => {
-      const _response = await request(app)
+      const response = await request(app)
         .get("/api/orders")
         .set("Authorization", "Bearer dev-bypass-token");
 
@@ -410,7 +410,7 @@ describe("Orders Routes Integration Tests", () => {
     });
 
     test("should handle malformed authorization headers", async () => {
-      const _response = await request(app)
+      const response = await request(app)
         .get("/api/orders")
         .set("Authorization", "InvalidFormat");
 
@@ -418,7 +418,7 @@ describe("Orders Routes Integration Tests", () => {
     });
 
     test("should handle empty authorization headers", async () => {
-      const _response = await request(app)
+      const response = await request(app)
         .get("/api/orders")
         .set("Authorization", "");
 
@@ -428,7 +428,7 @@ describe("Orders Routes Integration Tests", () => {
 
   describe("GET /api/orders/recent (Recent Orders)", () => {
     test("should return recent orders with sample data", async () => {
-      const _response = await request(app)
+      const response = await request(app)
         .get("/api/orders/recent")
         .set("Authorization", "Bearer dev-bypass-token");
 
@@ -456,7 +456,7 @@ describe("Orders Routes Integration Tests", () => {
     });
 
     test("should handle query parameters for recent orders", async () => {
-      const _response = await request(app)
+      const response = await request(app)
         .get("/api/orders/recent?limit=10&days=30&status=filled")
         .set("Authorization", "Bearer dev-bypass-token");
 

@@ -9,7 +9,7 @@ describe("Screener Routes", () => {
 
   describe("GET /api/screener", () => {
     test("should return screener endpoints", async () => {
-      const _response = await request(app).get("/api/screener");
+      const response = await request(app).get("/api/screener");
 
       expect(response.status).toBe(200);
       expect(response.body.success).toBe(true);
@@ -20,7 +20,7 @@ describe("Screener Routes", () => {
 
   describe("GET /api/screener/screen", () => {
     test("should screen stocks with basic criteria", async () => {
-      const _response = await request(app)
+      const response = await request(app)
         .get("/api/screener/screen?market_cap_min=1000000000")
         .set("Authorization", "Bearer dev-bypass-token");
 
@@ -31,7 +31,7 @@ describe("Screener Routes", () => {
     });
 
     test("should handle multiple criteria", async () => {
-      const _response = await request(app)
+      const response = await request(app)
         .get(
           "/api/screener/screen?market_cap_min=1000000000&pe_max=25&volume_min=1000000"
         )
@@ -43,7 +43,7 @@ describe("Screener Routes", () => {
     });
 
     test("should handle sector filter", async () => {
-      const _response = await request(app)
+      const response = await request(app)
         .get("/api/screener/screen?sector=Technology")
         .set("Authorization", "Bearer dev-bypass-token");
 
@@ -54,7 +54,7 @@ describe("Screener Routes", () => {
 
   describe("GET /api/screener/presets", () => {
     test("should return screening presets", async () => {
-      const _response = await request(app)
+      const response = await request(app)
         .get("/api/screener/presets")
         .set("Authorization", "Bearer dev-bypass-token");
 
@@ -72,7 +72,7 @@ describe("Screener Routes", () => {
 
   describe("GET /api/screener/presets/:presetName", () => {
     test("should return specific preset", async () => {
-      const _response = await request(app)
+      const response = await request(app)
         .get("/api/screener/presets/growth")
         .set("Authorization", "Bearer dev-bypass-token");
 
@@ -89,7 +89,7 @@ describe("Screener Routes", () => {
 
   describe("GET /api/screener/growth", () => {
     test("should return growth stocks", async () => {
-      const _response = await request(app)
+      const response = await request(app)
         .get("/api/screener/growth")
         .set("Authorization", "Bearer dev-bypass-token");
 
@@ -99,7 +99,7 @@ describe("Screener Routes", () => {
     });
 
     test("should handle timeframe parameter", async () => {
-      const _response = await request(app)
+      const response = await request(app)
         .get("/api/screener/growth?timeframe=1M")
         .set("Authorization", "Bearer dev-bypass-token");
 
@@ -110,7 +110,7 @@ describe("Screener Routes", () => {
 
   describe("GET /api/screener/value", () => {
     test("should return value stocks", async () => {
-      const _response = await request(app)
+      const response = await request(app)
         .get("/api/screener/value")
         .set("Authorization", "Bearer dev-bypass-token");
 
@@ -122,7 +122,7 @@ describe("Screener Routes", () => {
 
   describe("GET /api/screener/growth", () => {
     test("should return growth stocks", async () => {
-      const _response = await request(app)
+      const response = await request(app)
         .get("/api/screener/growth")
         .set("Authorization", "Bearer dev-bypass-token");
 
@@ -134,7 +134,7 @@ describe("Screener Routes", () => {
 
   describe("GET /api/screener/dividend", () => {
     test("should return dividend stocks", async () => {
-      const _response = await request(app).get("/api/screener/dividend");
+      const response = await request(app).get("/api/screener/dividend");
 
       expect(response.status).toBe(200);
       expect(response.body.success).toBe(true);
@@ -142,7 +142,7 @@ describe("Screener Routes", () => {
     });
 
     test("should handle minimum yield parameter", async () => {
-      const _response = await request(app).get(
+      const response = await request(app).get(
         "/api/screener/dividend?min_yield=3"
       );
 
@@ -153,7 +153,7 @@ describe("Screener Routes", () => {
 
   describe("GET /api/screener/technical", () => {
     test("should return error for non-existent technical endpoint", async () => {
-      const _response = await request(app)
+      const response = await request(app)
         .get("/api/screener/technical?rsi_min=30&rsi_max=70")
         .set("Authorization", "Bearer dev-bypass-token");
 
@@ -174,7 +174,7 @@ describe("Screener Routes", () => {
         name: "Custom Tech Screen",
       };
 
-      const _response = await request(app)
+      const response = await request(app)
         .post("/api/screener/custom")
         .send(screenData);
 
@@ -187,7 +187,7 @@ describe("Screener Routes", () => {
     });
 
     test("should validate criteria", async () => {
-      const _response = await request(app).post("/api/screener/custom").send({});
+      const response = await request(app).post("/api/screener/custom").send({});
 
       expect([400, 401, 422]).toContain(response.status);
     });
@@ -195,7 +195,7 @@ describe("Screener Routes", () => {
 
   describe("GET /api/screener/backtest", () => {
     test("should return error for non-existent backtest endpoint", async () => {
-      const _response = await request(app)
+      const response = await request(app)
         .get("/api/screener/backtest?strategy=momentum&start_date=2023-01-01")
         .set("Authorization", "Bearer dev-bypass-token");
 
@@ -204,7 +204,7 @@ describe("Screener Routes", () => {
     });
 
     test("should return error for backtest without parameters", async () => {
-      const _response = await request(app)
+      const response = await request(app)
         .get("/api/screener/backtest")
         .set("Authorization", "Bearer dev-bypass-token");
 
@@ -215,7 +215,7 @@ describe("Screener Routes", () => {
 
   describe("GET /api/screener/export", () => {
     test("should return error for non-existent export endpoint", async () => {
-      const _response = await request(app)
+      const response = await request(app)
         .get("/api/screener/export?market_cap_min=1000000000&format=csv")
         .set("Authorization", "Bearer dev-bypass-token");
 

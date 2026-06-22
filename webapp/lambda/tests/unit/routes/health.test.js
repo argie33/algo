@@ -29,7 +29,7 @@ describe("Health Routes - Testing Your Actual Site", () => {
   });
   describe("GET /api/health - Health check endpoint", () => {
     test("should return quick health check when quick=true", async () => {
-      const _response = await request(app)
+      const response = await request(app)
         .get("/api/health")
         .query({ quick: "true" })
         .expect(200);
@@ -70,7 +70,7 @@ describe("Health Routes - Testing Your Actual Site", () => {
       };
       initializeDatabase.mockResolvedValue();
       healthCheck.mockResolvedValue(mockHealthCheck);
-      const _response = await request(app).get("/api/health").expect(200);
+      const response = await request(app).get("/api/health").expect(200);
       expect(response.body).toMatchObject({
         status: "healthy",
         healthy: true,
@@ -103,7 +103,7 @@ describe("Health Routes - Testing Your Actual Site", () => {
       mockGetPool.mockImplementation(() => {
         throw new Error("Pool not initialized");
       });
-      const _response = await request(app).get("/api/health").expect(200); // In test mode, returns 200 with fallback
+      const response = await request(app).get("/api/health").expect(200); // In test mode, returns 200 with fallback
       expect(response.body).toMatchObject({
         status: expect.any(String), // May be "error" or "unhealthy"
         service: "Financial Dashboard API",
@@ -119,7 +119,7 @@ describe("Health Routes - Testing Your Actual Site", () => {
         status: "error",
         error: "Query timeout",
       });
-      const _response = await request(app).get("/api/health").expect(200); // Your site returns 200 even for query failures
+      const response = await request(app).get("/api/health").expect(200); // Your site returns 200 even for query failures
       expect(response.body).toMatchObject({
         service: "Financial Dashboard API",
         timestamp: expect.any(String),
@@ -131,7 +131,7 @@ describe("Health Routes - Testing Your Actual Site", () => {
   describe("Error handling", () => {
     test("should return valid response structure for all cases", async () => {
       // Test that health endpoint always returns valid JSON structure
-      const _response = await request(app)
+      const response = await request(app)
         .get("/api/health")
         .query({ quick: "true" })
         .expect(200);

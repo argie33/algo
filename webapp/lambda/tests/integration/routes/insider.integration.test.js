@@ -15,7 +15,7 @@ describe("Insider Trading - Real Data Validation", () => {
   });
   describe("Insider Trades", () => {
     test("should return insider trades data (may be empty)", async () => {
-      const _response = await request(app).get("/api/insider/trades/AAPL");
+      const response = await request(app).get("/api/insider/trades/AAPL");
 
       expect(response.status).toBe(200);
       expect(response.body).toHaveProperty("success", true);
@@ -26,7 +26,7 @@ describe("Insider Trading - Real Data Validation", () => {
     });
 
     test("should handle different symbols correctly", async () => {
-      const _response = await request(app).get("/api/insider/trades/GOOGL");
+      const response = await request(app).get("/api/insider/trades/GOOGL");
 
       expect(response.status).toBe(200);
       expect(response.body).toHaveProperty("success", true);
@@ -39,7 +39,7 @@ describe("Insider Trading - Real Data Validation", () => {
 
   describe("Error handling", () => {
     test("should handle invalid symbols", async () => {
-      const _response = await request(app).get("/api/insider/trades/INVALID123");
+      const response = await request(app).get("/api/insider/trades/INVALID123");
 
       expect(response.status).toBe(200);
       expect(response.body).toHaveProperty("success", true);
@@ -51,7 +51,7 @@ describe("Insider Trading - Real Data Validation", () => {
     });
 
     test("should handle server errors gracefully", async () => {
-      const _response = await request(app).get("/api/insider/trades/AAPL");
+      const response = await request(app).get("/api/insider/trades/AAPL");
 
       // Endpoint is implemented and should return 200 even with no data
       expect(response.status).toBe(200);

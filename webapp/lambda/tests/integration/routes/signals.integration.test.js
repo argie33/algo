@@ -26,7 +26,7 @@ describe("Signals - Routes - Real Data Validation", () => {
 
   describe("Frontend API Pattern Validation", () => {
     test("should reject /api/signals/daily path parameter pattern", async () => {
-      const _response = await request(app).get("/api/signals/daily");
+      const response = await request(app).get("/api/signals/daily");
 
       expect(response.status).toBe(400);
       expect(response.body.success).toBe(false);
@@ -36,7 +36,7 @@ describe("Signals - Routes - Real Data Validation", () => {
     });
 
     test("should reject /api/signals/weekly path parameter pattern", async () => {
-      const _response = await request(app).get("/api/signals/weekly");
+      const response = await request(app).get("/api/signals/weekly");
 
       expect(response.status).toBe(400);
       expect(response.body.success).toBe(false);
@@ -46,7 +46,7 @@ describe("Signals - Routes - Real Data Validation", () => {
     });
 
     test("should reject /api/signals/monthly path parameter pattern", async () => {
-      const _response = await request(app).get("/api/signals/monthly");
+      const response = await request(app).get("/api/signals/monthly");
 
       expect(response.status).toBe(400);
       expect(response.body.success).toBe(false);
@@ -56,7 +56,7 @@ describe("Signals - Routes - Real Data Validation", () => {
     });
 
     test("should accept correct query parameter timeframe pattern", async () => {
-      const _response = await request(app).get("/api/signals?timeframe=daily");
+      const response = await request(app).get("/api/signals?timeframe=daily");
 
       // Should succeed or fail with proper error (not the frontend pattern error)
       if (response.status === 400) {
@@ -71,7 +71,7 @@ describe("Signals - Routes - Real Data Validation", () => {
 
   describe("GET /api/signals - Database Schema Integration", () => {
     test("should return signals with proper loader table schema structure including swing metrics", async () => {
-      const _response = await request(app).get("/api/signals");
+      const response = await request(app).get("/api/signals");
 
       expect(response.status).toBe(200);
       expect(response.body.success).toBe(true);
@@ -145,7 +145,7 @@ describe("Signals - Routes - Real Data Validation", () => {
     });
 
     test("should handle timeframe parameter with database schema", async () => {
-      const _response = await request(app).get("/api/signals?timeframe=daily");
+      const response = await request(app).get("/api/signals?timeframe=daily");
 
       if (response.status === 200) {
         expect(response.body.success).toBe(true);
@@ -163,7 +163,7 @@ describe("Signals - Routes - Real Data Validation", () => {
 
   describe("GET /api/signals/:symbol", () => {
     test("should return symbol-specific signals", async () => {
-      const _response = await request(app).get("/api/signals/AAPL");
+      const response = await request(app).get("/api/signals/AAPL");
 
       expect(response.status).toBe(200);
       expect(response.body.success).toBe(true);
@@ -176,7 +176,7 @@ describe("Signals - Routes - Real Data Validation", () => {
 
   describe("GET /api/signals/trending", () => {
     test("should return trending signals with proper structure", async () => {
-      const _response = await request(app).get("/api/signals/trending");
+      const response = await request(app).get("/api/signals/trending");
 
       expect(response.status).toBe(200);
       expect(response.body.success).toBe(true);
@@ -187,7 +187,7 @@ describe("Signals - Routes - Real Data Validation", () => {
 
   describe("GET /api/signals/buy - Loader Schema Integration", () => {
     test("should return buy signals with exact loader table schema structure including swing metrics", async () => {
-      const _response = await request(app).get("/api/signals/buy");
+      const response = await request(app).get("/api/signals/buy");
 
       if (response.status === 200) {
         expect(response.body.success).toBe(true);
@@ -237,7 +237,7 @@ describe("Signals - Routes - Real Data Validation", () => {
     });
 
     test("should handle timeframe filters with database schema", async () => {
-      const _response = await request(app).get(
+      const response = await request(app).get(
         "/api/signals/buy?timeframe=weekly"
       );
 
@@ -251,7 +251,7 @@ describe("Signals - Routes - Real Data Validation", () => {
     });
 
     test("should validate timeframe parameter strictly", async () => {
-      const _response = await request(app).get(
+      const response = await request(app).get(
         "/api/signals/buy?timeframe=invalid"
       );
 
@@ -265,7 +265,7 @@ describe("Signals - Routes - Real Data Validation", () => {
 
   describe("GET /api/signals/sell - Loader Schema Integration", () => {
     test("should return sell signals with exact loader table schema structure", async () => {
-      const _response = await request(app).get("/api/signals/sell");
+      const response = await request(app).get("/api/signals/sell");
 
       if (response.status === 200) {
         expect(response.body.success).toBe(true);
@@ -298,7 +298,7 @@ describe("Signals - Routes - Real Data Validation", () => {
 
   describe("GET /api/signals/alerts", () => {
     test("should return alerts with AWS-compatible structure", async () => {
-      const _response = await request(app).get("/api/signals/alerts");
+      const response = await request(app).get("/api/signals/alerts");
 
       expect(response.status).toBe(200);
       expect(response.body.success).toBe(true);
@@ -316,7 +316,7 @@ describe("Signals - Routes - Real Data Validation", () => {
         notification_method: "email",
       };
 
-      const _response = await request(app)
+      const response = await request(app)
         .post("/api/signals/alerts")
         .set("Authorization", "Bearer dev-bypass-token")
         .send(alertData);
@@ -336,7 +336,7 @@ describe("Signals - Routes - Real Data Validation", () => {
     });
 
     test("should validate required fields strictly", async () => {
-      const _response = await request(app)
+      const response = await request(app)
         .post("/api/signals/alerts")
         .set("Authorization", "Bearer dev-bypass-token")
         .send({});
@@ -347,7 +347,7 @@ describe("Signals - Routes - Real Data Validation", () => {
     });
 
     test("should validate signal_type field strictly", async () => {
-      const _response = await request(app)
+      const response = await request(app)
         .post("/api/signals/alerts")
         .set("Authorization", "Bearer dev-bypass-token")
         .send({
@@ -369,7 +369,7 @@ describe("Signals - Routes - Real Data Validation", () => {
 
   describe("GET /api/signals/backtest", () => {
     test("should return backtest results with proper structure", async () => {
-      const _response = await request(app).get(
+      const response = await request(app).get(
         "/api/signals/backtest?symbol=AAPL&start_date=2023-01-01"
       );
 
@@ -379,7 +379,7 @@ describe("Signals - Routes - Real Data Validation", () => {
     });
 
     test("should handle missing parameters gracefully", async () => {
-      const _response = await request(app).get("/api/signals/backtest");
+      const response = await request(app).get("/api/signals/backtest");
 
       expect(response.status).toBe(400);
       expect(response.body.success).toBe(false);
@@ -406,7 +406,7 @@ describe("Signals - Routes - Real Data Validation", () => {
         expect(alertId).toBeDefined();
 
         // Now delete the created alert
-        const _response = await request(app)
+        const response = await request(app)
           .delete(`/api/signals/alerts/${alertId}`)
           .set("Authorization", "Bearer dev-bypass-token");
 
@@ -418,7 +418,7 @@ describe("Signals - Routes - Real Data Validation", () => {
     });
 
     test("should handle non-existent alert ID", async () => {
-      const _response = await request(app)
+      const response = await request(app)
         .delete("/api/signals/alerts/99999")
         .set("Authorization", "Bearer dev-bypass-token");
 
@@ -429,7 +429,7 @@ describe("Signals - Routes - Real Data Validation", () => {
 
   describe("GET /api/signals/options", () => {
     test("should return options signals endpoint", async () => {
-      const _response = await request(app).get("/api/signals/options");
+      const response = await request(app).get("/api/signals/options");
 
       expect(response.status).toBe(200);
       expect(response.body.success).toBe(true);
@@ -441,7 +441,7 @@ describe("Signals - Routes - Real Data Validation", () => {
 
   describe("GET /api/signals/sentiment", () => {
     test("should return sentiment signals endpoint", async () => {
-      const _response = await request(app).get("/api/signals/sentiment");
+      const response = await request(app).get("/api/signals/sentiment");
 
       expect(response.status).toBe(200);
       expect(response.body.success).toBe(true);
@@ -453,7 +453,7 @@ describe("Signals - Routes - Real Data Validation", () => {
 
   describe("GET /api/signals/earnings", () => {
     test("should return earnings signals endpoint", async () => {
-      const _response = await request(app).get("/api/signals/earnings");
+      const response = await request(app).get("/api/signals/earnings");
 
       expect(response.status).toBe(200);
       expect(response.body.success).toBe(true);
@@ -465,7 +465,7 @@ describe("Signals - Routes - Real Data Validation", () => {
 
   describe("GET /api/signals/crypto", () => {
     test("should return crypto signals endpoint", async () => {
-      const _response = await request(app).get("/api/signals/crypto");
+      const response = await request(app).get("/api/signals/crypto");
 
       expect(response.status).toBe(200);
       expect(response.body.success).toBe(true);
@@ -477,7 +477,7 @@ describe("Signals - Routes - Real Data Validation", () => {
 
   describe("GET /api/signals/history", () => {
     test("should return historical signals endpoint", async () => {
-      const _response = await request(app).get("/api/signals/history");
+      const response = await request(app).get("/api/signals/history");
 
       expect(response.status).toBe(200);
       expect(response.body.success).toBe(true);
@@ -488,7 +488,7 @@ describe("Signals - Routes - Real Data Validation", () => {
     });
 
     test("should handle pagination parameters", async () => {
-      const _response = await request(app).get(
+      const response = await request(app).get(
         "/api/signals/history?page=1&limit=5"
       );
 
@@ -502,7 +502,7 @@ describe("Signals - Routes - Real Data Validation", () => {
 
   describe("GET /api/signals/sector-rotation", () => {
     test("should return sector rotation signals endpoint", async () => {
-      const _response = await request(app).get("/api/signals/sector-rotation");
+      const response = await request(app).get("/api/signals/sector-rotation");
 
       expect(response.status).toBe(200);
       expect(response.body.success).toBe(true);
@@ -514,7 +514,7 @@ describe("Signals - Routes - Real Data Validation", () => {
 
   describe("GET /api/signals/list", () => {
     test("should return signals list endpoint", async () => {
-      const _response = await request(app).get("/api/signals/list");
+      const response = await request(app).get("/api/signals/list");
 
       expect(response.status).toBe(200);
       expect(response.body.success).toBe(true);
@@ -524,7 +524,7 @@ describe("Signals - Routes - Real Data Validation", () => {
     });
 
     test("should handle timeframe parameter", async () => {
-      const _response = await request(app).get(
+      const response = await request(app).get(
         "/api/signals/list?timeframe=weekly"
       );
 
@@ -534,7 +534,7 @@ describe("Signals - Routes - Real Data Validation", () => {
     });
 
     test("should handle pagination parameters", async () => {
-      const _response = await request(app).get(
+      const response = await request(app).get(
         "/api/signals/list?page=1&limit=10"
       );
 
@@ -561,7 +561,7 @@ describe("Signals - Routes - Real Data Validation", () => {
         alert_threshold: 8.5,
       };
 
-      const _response = await request(app)
+      const response = await request(app)
         .post("/api/signals/custom")
         .set("Authorization", "Bearer dev-bypass-token")
         .send(customSignalData);
@@ -576,7 +576,7 @@ describe("Signals - Routes - Real Data Validation", () => {
     });
 
     test("should validate required fields", async () => {
-      const _response = await request(app)
+      const response = await request(app)
         .post("/api/signals/custom")
         .set("Authorization", "Bearer dev-bypass-token")
         .send({});
@@ -593,7 +593,7 @@ describe("Signals - Routes - Real Data Validation", () => {
         symbols: ["AAPL"],
       };
 
-      const _response = await request(app)
+      const response = await request(app)
         .post("/api/signals/custom")
         .set("Authorization", "Bearer dev-bypass-token")
         .send(invalidData);
@@ -606,7 +606,7 @@ describe("Signals - Routes - Real Data Validation", () => {
 
   describe("GET /api/signals/technical - Advanced", () => {
     test("should support symbol filtering", async () => {
-      const _response = await request(app).get(
+      const response = await request(app).get(
         "/api/signals/technical?symbols=AAPL,TSLA"
       );
 
@@ -628,7 +628,7 @@ describe("Signals - Routes - Real Data Validation", () => {
     });
 
     test("should return technical indicators", async () => {
-      const _response = await request(app).get("/api/signals/technical");
+      const response = await request(app).get("/api/signals/technical");
 
       if (response.status === 200) {
         expect(response.body.success).toBe(true);
@@ -651,7 +651,7 @@ describe("Signals - Routes - Real Data Validation", () => {
       const invalidSymbols = ["", "INVALID_SYMBOL_123456", "!@#$%"];
 
       for (const symbol of invalidSymbols) {
-        const _response = await request(app).get(
+        const response = await request(app).get(
           `/api/signals/${encodeURIComponent(symbol)}`
         );
         expect([200, 400, 404]).toContain(response.status);
@@ -667,9 +667,9 @@ describe("Signals - Routes - Real Data Validation", () => {
         { page: 9999, limit: 1 },
       ];
 
-      for (const _params of extremeValues) {
-        const _response = await request(app).get(
-          `/api/signals?page=${_params.page}&limit=${_params.limit}`
+      for (const params of extremeValues) {
+        const response = await request(app).get(
+          `/api/signals?page=${params.page}&limit=${params.limit}`
         );
         expect([200, 400, 500]).toContain(response.status);
         expect(response.body).toHaveProperty("success");
@@ -680,7 +680,7 @@ describe("Signals - Routes - Real Data Validation", () => {
       const specialTimeframes = ["daily!", "week@ly", "month#ly", ""];
 
       for (const timeframe of specialTimeframes) {
-        const _response = await request(app).get(
+        const response = await request(app).get(
           `/api/signals?timeframe=${encodeURIComponent(timeframe)}`
         );
         expect([200, 400]).toContain(response.status);
@@ -714,7 +714,7 @@ describe("Signals - Routes - Real Data Validation", () => {
       ];
 
       for (const endpoint of endpoints) {
-        const _response = await request(app).get(endpoint);
+        const response = await request(app).get(endpoint);
         // Should not crash, regardless of database state
         expect(response.status).toBeDefined();
         expect(response.body).toBeDefined();

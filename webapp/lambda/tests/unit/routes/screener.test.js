@@ -91,7 +91,7 @@ describe("Screener Routes Unit Tests", () => {
   });
   describe("GET /screener", () => {
     test("should return screener API overview without authentication", async () => {
-      const _response = await request(app).get("/screener");
+      const response = await request(app).get("/screener");
       expect(response.status).toBe(200);
       expect(response.body).toHaveProperty("data");
       expect(response.body.data).toHaveProperty("system", "Stock Screener API");
@@ -164,7 +164,7 @@ describe("Screener Routes Unit Tests", () => {
         riskLevel: "Medium",
         recommendation: "Buy",
       });
-      const _response = await request(app).get("/screener/screen");
+      const response = await request(app).get("/screener/screen");
       expect(response.status).toBe(200);
       expect(response.body).toHaveProperty("success", true);
       expect(response.body).toHaveProperty("data");
@@ -186,7 +186,7 @@ describe("Screener Routes Unit Tests", () => {
       mockQuery.mockResolvedValueOnce({ rows: [], rowCount: 0 });
       // Mock count query
       mockQuery.mockResolvedValueOnce({ rows: [{ total: "0" }] });
-      const _response = await request(app).get("/screener/screen").query({
+      const response = await request(app).get("/screener/screen").query({
         priceMin: 100,
         priceMax: 500,
       });
@@ -203,7 +203,7 @@ describe("Screener Routes Unit Tests", () => {
       mockQuery.mockResolvedValueOnce({ rows: [], rowCount: 0 });
       // Mock count query
       mockQuery.mockResolvedValueOnce({ rows: [{ total: "0" }] });
-      const _response = await request(app).get("/screener/screen").query({
+      const response = await request(app).get("/screener/screen").query({
         marketCapMin: 1000000000, // 1B
         marketCapMax: 100000000000, // 100B
       });
@@ -220,7 +220,7 @@ describe("Screener Routes Unit Tests", () => {
       mockQuery.mockResolvedValueOnce({ rows: [], rowCount: 0 });
       // Mock count query
       mockQuery.mockResolvedValueOnce({ rows: [{ total: "0" }] });
-      const _response = await request(app).get("/screener/screen").query({
+      const response = await request(app).get("/screener/screen").query({
         volumeMin: 1000000, // 1M - only volumeMin is implemented
       });
       expect(response.status).toBe(200);
@@ -236,7 +236,7 @@ describe("Screener Routes Unit Tests", () => {
       mockQuery.mockResolvedValueOnce({ rows: [], rowCount: 0 });
       // Mock count query
       mockQuery.mockResolvedValueOnce({ rows: [{ total: "0" }] });
-      const _response = await request(app)
+      const response = await request(app)
         .get("/screener/screen")
         .query({ sector: "Technology" });
       expect(response.status).toBe(200);
@@ -252,7 +252,7 @@ describe("Screener Routes Unit Tests", () => {
       mockQuery.mockResolvedValueOnce({ rows: [], rowCount: 0 });
       // Mock count query
       mockQuery.mockResolvedValueOnce({ rows: [{ total: "0" }] });
-      const _response = await request(app).get("/screener/screen").query({
+      const response = await request(app).get("/screener/screen").query({
         peRatioMin: 10,
         peRatioMax: 30,
       });
@@ -269,7 +269,7 @@ describe("Screener Routes Unit Tests", () => {
       mockQuery.mockResolvedValueOnce({ rows: [], rowCount: 0 });
       // Mock count query
       mockQuery.mockResolvedValueOnce({ rows: [{ total: "0" }] });
-      const _response = await request(app).get("/screener/screen").query({
+      const response = await request(app).get("/screener/screen").query({
         dividendYieldMin: 2,
         dividendYieldMax: 8,
       });
@@ -285,7 +285,7 @@ describe("Screener Routes Unit Tests", () => {
       mockQuery.mockResolvedValueOnce({ rows: [], rowCount: 0 });
       // Mock count query
       mockQuery.mockResolvedValueOnce({ rows: [{ total: "0" }] });
-      const _response = await request(app)
+      const response = await request(app)
         .get("/screener/screen")
         .query({ page: 3, limit: 100 });
       expect(response.status).toBe(200);
@@ -301,7 +301,7 @@ describe("Screener Routes Unit Tests", () => {
       mockQuery.mockResolvedValueOnce({ rows: [], rowCount: 0 });
       // Mock count query
       mockQuery.mockResolvedValueOnce({ rows: [{ total: "0" }] });
-      const _response = await request(app)
+      const response = await request(app)
         .get("/screener/screen")
         .query({ limit: 1000 }); // Request more than max
       expect(response.status).toBe(200);
@@ -317,7 +317,7 @@ describe("Screener Routes Unit Tests", () => {
       mockQuery.mockResolvedValueOnce({ rows: [], rowCount: 0 });
       // Mock count query
       mockQuery.mockResolvedValueOnce({ rows: [{ total: "0" }] });
-      const _response = await request(app).get("/screener/screen").query({
+      const response = await request(app).get("/screener/screen").query({
         priceMin: 50,
         priceMax: 200,
         marketCapMin: 5000000000,
@@ -338,7 +338,7 @@ describe("Screener Routes Unit Tests", () => {
       mockQuery.mockResolvedValueOnce({ rows: [], rowCount: 0 });
       // Mock count query
       mockQuery.mockResolvedValueOnce({ rows: [{ total: "0" }] });
-      const _response = await request(app).get("/screener/screen").query({
+      const response = await request(app).get("/screener/screen").query({
         priceMin: "not_a_number",
         marketCapMax: "also_not_a_number",
       });
@@ -352,7 +352,7 @@ describe("Screener Routes Unit Tests", () => {
       mockQuery.mockResolvedValueOnce({ rows: [], rowCount: 0 });
       // Mock count query
       mockQuery.mockResolvedValueOnce({ rows: [{ total: "0" }] });
-      const _response = await request(app)
+      const response = await request(app)
         .get("/screener/screen")
         .query({ priceMin: 10000 }); // Unrealistic filter
       expect(response.status).toBe(200);
@@ -366,7 +366,7 @@ describe("Screener Routes Unit Tests", () => {
       // Mock query error (during Promise.all)
       const dbError = new Error("Database query failed");
       mockQuery.mockRejectedValueOnce(dbError);
-      const _response = await request(app).get("/screener/screen");
+      const response = await request(app).get("/screener/screen");
       expect(response.status).toBe(500);
       expect(response.body).toHaveProperty("success", false);
       expect(response.body.error).toBe("Database query failed");
@@ -391,7 +391,7 @@ describe("Screener Routes Unit Tests", () => {
   });
   describe("Authentication", () => {
     test("should allow public access to root endpoint", async () => {
-      const _response = await request(app).get("/screener");
+      const response = await request(app).get("/screener");
       expect(response.status).toBe(200);
       // Should work without authentication
     });
@@ -403,7 +403,7 @@ describe("Screener Routes Unit Tests", () => {
   describe("Parameter validation", () => {
     test("should sanitize SQL injection attempts", async () => {
       mockQuery.mockResolvedValueOnce({ rows: [], rowCount: 0 });
-      const _response = await request(app).get("/screener/screen").query({
+      const response = await request(app).get("/screener/screen").query({
         sector: "Technology'; DROP TABLE stocks; --",
         priceMin: "50; DELETE FROM screener_templates; --",
       });
@@ -419,7 +419,7 @@ describe("Screener Routes Unit Tests", () => {
     });
     test("should handle extreme numeric values", async () => {
       mockQuery.mockResolvedValueOnce({ rows: [], rowCount: 0 });
-      const _response = await request(app).get("/screener/screen").query({
+      const response = await request(app).get("/screener/screen").query({
         priceMin: -1000000,
         priceMax: 999999999999,
         marketCapMin: 0,
@@ -437,7 +437,7 @@ describe("Screener Routes Unit Tests", () => {
       const timeoutError = new Error("Query timeout");
       timeoutError.code = "QUERY_TIMEOUT";
       mockQuery.mockRejectedValueOnce(timeoutError);
-      const _response = await request(app).get("/screener/screen");
+      const response = await request(app).get("/screener/screen");
       expect(response.status).toBe(500);
       expect(response.body).toHaveProperty("success", false);
       expect(response.body.error).toBe("Database query failed");
@@ -445,14 +445,14 @@ describe("Screener Routes Unit Tests", () => {
   });
   describe("Response format", () => {
     test("should return consistent JSON response format", async () => {
-      const _response = await request(app).get("/screener");
+      const response = await request(app).get("/screener");
       expect(response.headers["content-type"]).toMatch(/json/);
       expect(typeof response.body).toBe("object");
     });
     test("should include pagination metadata", async () => {
       mockQuery.mockResolvedValueOnce({ rows: [], rowCount: 0 });
       mockQuery.mockResolvedValueOnce({ rows: [{ total: "250" }] });
-      const _response = await request(app)
+      const response = await request(app)
         .get("/screener/screen")
         .query({ page: 2, limit: 50 });
       expect(response.status).toBe(200);

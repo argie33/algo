@@ -16,7 +16,7 @@ describe("Alerts Routes - Real Data Validation", () => {
 
   describe("GET /api/alerts/active", () => {
     test("should return active alerts with proper structure", async () => {
-      const _response = await request(app)
+      const response = await request(app)
         .get("/api/alerts/active")
         .set("Authorization", "Bearer dev-bypass-token");
 
@@ -39,7 +39,7 @@ describe("Alerts Routes - Real Data Validation", () => {
     });
 
     test("should handle query parameters", async () => {
-      const _response = await request(app)
+      const response = await request(app)
         .get("/api/alerts/active?priority=high&category=price&limit=25")
         .set("Authorization", "Bearer dev-bypass-token");
 
@@ -53,7 +53,7 @@ describe("Alerts Routes - Real Data Validation", () => {
     });
 
     test("should handle include_resolved parameter", async () => {
-      const _response = await request(app)
+      const response = await request(app)
         .get("/api/alerts/active?include_resolved=true")
         .set("Authorization", "Bearer dev-bypass-token");
 
@@ -68,7 +68,7 @@ describe("Alerts Routes - Real Data Validation", () => {
 
   describe("GET /api/alerts", () => {
     test("should redirect to active alerts", async () => {
-      const _response = await request(app)
+      const response = await request(app)
         .get("/api/alerts")
         .set("Authorization", "Bearer dev-bypass-token");
 
@@ -76,7 +76,7 @@ describe("Alerts Routes - Real Data Validation", () => {
     });
 
     test("should handle status parameter", async () => {
-      const _response = await request(app)
+      const response = await request(app)
         .get("/api/alerts?status=resolved&limit=50")
         .set("Authorization", "Bearer dev-bypass-token");
 
@@ -88,7 +88,7 @@ describe("Alerts Routes - Real Data Validation", () => {
     test("should acknowledge alert successfully", async () => {
       const alertId = "test_alert_123";
 
-      const _response = await request(app)
+      const response = await request(app)
         .put(`/api/alerts/${alertId}/acknowledge`)
         .set("Authorization", "Bearer dev-bypass-token")
         .send({ action: "acknowledge" });
@@ -106,7 +106,7 @@ describe("Alerts Routes - Real Data Validation", () => {
     test("should handle dismiss action", async () => {
       const alertId = "test_alert_456";
 
-      const _response = await request(app)
+      const response = await request(app)
         .put(`/api/alerts/${alertId}/acknowledge`)
         .set("Authorization", "Bearer dev-bypass-token")
         .send({ action: "dismiss" });
@@ -120,7 +120,7 @@ describe("Alerts Routes - Real Data Validation", () => {
     test("should handle default acknowledge action", async () => {
       const alertId = "test_alert_789";
 
-      const _response = await request(app)
+      const response = await request(app)
         .put(`/api/alerts/${alertId}/acknowledge`)
         .set("Authorization", "Bearer dev-bypass-token")
         .send({});
@@ -134,7 +134,7 @@ describe("Alerts Routes - Real Data Validation", () => {
     test("should snooze alert with default duration", async () => {
       const alertId = "test_alert_snooze";
 
-      const _response = await request(app)
+      const response = await request(app)
         .put(`/api/alerts/${alertId}/snooze`)
         .set("Authorization", "Bearer dev-bypass-token")
         .send({});
@@ -151,7 +151,7 @@ describe("Alerts Routes - Real Data Validation", () => {
     test("should snooze alert with custom duration", async () => {
       const alertId = "test_alert_custom_snooze";
 
-      const _response = await request(app)
+      const response = await request(app)
         .put(`/api/alerts/${alertId}/snooze`)
         .set("Authorization", "Bearer dev-bypass-token")
         .send({ duration_minutes: 120 });
@@ -164,7 +164,7 @@ describe("Alerts Routes - Real Data Validation", () => {
       const alertId = "test_alert_time_validate";
       const beforeRequest = Date.now();
 
-      const _response = await request(app)
+      const response = await request(app)
         .put(`/api/alerts/${alertId}/snooze`)
         .set("Authorization", "Bearer dev-bypass-token")
         .send({ duration_minutes: 30 });
@@ -191,7 +191,7 @@ describe("Alerts Routes - Real Data Validation", () => {
         notification_methods: ["email", "push"],
       };
 
-      const _response = await request(app)
+      const response = await request(app)
         .post("/api/alerts")
         .set("Authorization", "Bearer dev-bypass-token")
         .send(alertData);
@@ -225,7 +225,7 @@ describe("Alerts Routes - Real Data Validation", () => {
         threshold: 2.0,
       };
 
-      const _response = await request(app)
+      const response = await request(app)
         .post("/api/alerts")
         .set("Authorization", "Bearer dev-bypass-token")
         .send(alertData);
@@ -238,7 +238,7 @@ describe("Alerts Routes - Real Data Validation", () => {
 
   describe("GET /api/alerts/summary", () => {
     test("should return alerts summary with default timeframe", async () => {
-      const _response = await request(app)
+      const response = await request(app)
         .get("/api/alerts/summary")
         .set("Authorization", "Bearer dev-bypass-token");
 
@@ -262,7 +262,7 @@ describe("Alerts Routes - Real Data Validation", () => {
       const timeframes = ["1h", "6h", "24h", "7d", "30d"];
 
       for (const timeframe of timeframes) {
-        const _response = await request(app)
+        const response = await request(app)
           .get(`/api/alerts/summary?timeframe=${timeframe}`)
           .set("Authorization", "Bearer dev-bypass-token");
 
@@ -272,7 +272,7 @@ describe("Alerts Routes - Real Data Validation", () => {
     });
 
     test("should reject invalid timeframe", async () => {
-      const _response = await request(app)
+      const response = await request(app)
         .get("/api/alerts/summary?timeframe=invalid")
         .set("Authorization", "Bearer dev-bypass-token");
 
@@ -283,7 +283,7 @@ describe("Alerts Routes - Real Data Validation", () => {
     });
 
     test("should include trends when requested", async () => {
-      const _response = await request(app)
+      const response = await request(app)
         .get("/api/alerts/summary?include_trends=true")
         .set("Authorization", "Bearer dev-bypass-token");
 
@@ -293,7 +293,7 @@ describe("Alerts Routes - Real Data Validation", () => {
     });
 
     test("should include detailed stats when requested", async () => {
-      const _response = await request(app)
+      const response = await request(app)
         .get("/api/alerts/summary?include_stats=true")
         .set("Authorization", "Bearer dev-bypass-token");
 
@@ -303,7 +303,7 @@ describe("Alerts Routes - Real Data Validation", () => {
     });
 
     test("should validate severity breakdown structure", async () => {
-      const _response = await request(app)
+      const response = await request(app)
         .get("/api/alerts/summary")
         .set("Authorization", "Bearer dev-bypass-token");
 
@@ -324,7 +324,7 @@ describe("Alerts Routes - Real Data Validation", () => {
 
   describe("GET /api/alerts/settings", () => {
     test("should return comprehensive alert settings", async () => {
-      const _response = await request(app)
+      const response = await request(app)
         .get("/api/alerts/settings")
         .set("Authorization", "Bearer dev-bypass-token");
 
@@ -349,7 +349,7 @@ describe("Alerts Routes - Real Data Validation", () => {
     });
 
     test("should include notification preferences", async () => {
-      const _response = await request(app)
+      const response = await request(app)
         .get("/api/alerts/settings")
         .set("Authorization", "Bearer dev-bypass-token");
 
@@ -362,7 +362,7 @@ describe("Alerts Routes - Real Data Validation", () => {
     });
 
     test("should include alert categories", async () => {
-      const _response = await request(app)
+      const response = await request(app)
         .get("/api/alerts/settings")
         .set("Authorization", "Bearer dev-bypass-token");
 
@@ -378,7 +378,7 @@ describe("Alerts Routes - Real Data Validation", () => {
     });
 
     test("should include subscription info", async () => {
-      const _response = await request(app)
+      const response = await request(app)
         .get("/api/alerts/settings")
         .set("Authorization", "Bearer dev-bypass-token");
 
@@ -393,7 +393,7 @@ describe("Alerts Routes - Real Data Validation", () => {
 
   describe("GET /api/alerts/history", () => {
     test("should return 501 not implemented", async () => {
-      const _response = await request(app)
+      const response = await request(app)
         .get("/api/alerts/history")
         .set("Authorization", "Bearer dev-bypass-token");
 
@@ -415,7 +415,7 @@ describe("Alerts Routes - Real Data Validation", () => {
     });
 
     test("should handle query parameters", async () => {
-      const _response = await request(app)
+      const response = await request(app)
         .get("/api/alerts/history?limit=50&status=resolved&category=price")
         .set("Authorization", "Bearer dev-bypass-token");
 
@@ -430,7 +430,7 @@ describe("Alerts Routes - Real Data Validation", () => {
 
   describe("GET /api/alerts/rules", () => {
     test("should return alert rules", async () => {
-      const _response = await request(app)
+      const response = await request(app)
         .get("/api/alerts/rules")
         .set("Authorization", "Bearer dev-bypass-token");
 
@@ -448,7 +448,7 @@ describe("Alerts Routes - Real Data Validation", () => {
     });
 
     test("should return rule structure", async () => {
-      const _response = await request(app)
+      const response = await request(app)
         .get("/api/alerts/rules")
         .set("Authorization", "Bearer dev-bypass-token");
 
@@ -465,7 +465,7 @@ describe("Alerts Routes - Real Data Validation", () => {
 
   describe("GET /api/alerts/webhooks", () => {
     test("should return 501 not implemented", async () => {
-      const _response = await request(app)
+      const response = await request(app)
         .get("/api/alerts/webhooks")
         .set("Authorization", "Bearer dev-bypass-token");
 
@@ -487,7 +487,7 @@ describe("Alerts Routes - Real Data Validation", () => {
     });
 
     test("should handle webhook parameters", async () => {
-      const _response = await request(app)
+      const response = await request(app)
         .get("/api/alerts/webhooks?status=active&webhook_type=slack&limit=10")
         .set("Authorization", "Bearer dev-bypass-token");
 
@@ -507,7 +507,7 @@ describe("Alerts Routes - Real Data Validation", () => {
         threshold: 500.0,
       };
 
-      const _response = await request(app)
+      const response = await request(app)
         .post("/api/alerts/create")
         .set("Authorization", "Bearer dev-bypass-token")
         .send(alertData);
@@ -527,7 +527,7 @@ describe("Alerts Routes - Real Data Validation", () => {
         threshold: 300.0,
       };
 
-      const _response = await request(app)
+      const response = await request(app)
         .post("/api/alerts/create")
         .set("Authorization", "Bearer dev-bypass-token")
         .send(alertData);
@@ -541,7 +541,7 @@ describe("Alerts Routes - Real Data Validation", () => {
     });
 
     test("should reject missing required fields", async () => {
-      const _response = await request(app)
+      const response = await request(app)
         .post("/api/alerts/create")
         .set("Authorization", "Bearer dev-bypass-token")
         .send({ symbol: "AAPL" }); // Missing threshold
@@ -553,7 +553,7 @@ describe("Alerts Routes - Real Data Validation", () => {
     });
 
     test("should reject empty request", async () => {
-      const _response = await request(app)
+      const response = await request(app)
         .post("/api/alerts/create")
         .set("Authorization", "Bearer dev-bypass-token")
         .send({});
@@ -567,7 +567,7 @@ describe("Alerts Routes - Real Data Validation", () => {
     test("should delete alert successfully", async () => {
       const alertId = "alert_to_delete_123";
 
-      const _response = await request(app)
+      const response = await request(app)
         .delete(`/api/alerts/delete/${alertId}`)
         .set("Authorization", "Bearer dev-bypass-token")
         .send({ reason: "no_longer_needed" });
@@ -596,7 +596,7 @@ describe("Alerts Routes - Real Data Validation", () => {
     test("should use default deletion reason", async () => {
       const alertId = "alert_default_reason";
 
-      const _response = await request(app)
+      const response = await request(app)
         .delete(`/api/alerts/delete/${alertId}`)
         .set("Authorization", "Bearer dev-bypass-token")
         .send({});
@@ -608,7 +608,7 @@ describe("Alerts Routes - Real Data Validation", () => {
     });
 
     test("should reject empty alert ID", async () => {
-      const _response = await request(app)
+      const response = await request(app)
         .delete("/api/alerts/delete/")
         .set("Authorization", "Bearer dev-bypass-token")
         .send({});
@@ -619,7 +619,7 @@ describe("Alerts Routes - Real Data Validation", () => {
 
   describe("GET /api/alerts/price", () => {
     test("should handle price alerts endpoint", async () => {
-      const _response = await request(app)
+      const response = await request(app)
         .get("/api/alerts/price")
         .set("Authorization", "Bearer dev-bypass-token");
 
@@ -641,7 +641,7 @@ describe("Alerts Routes - Real Data Validation", () => {
     });
 
     test("should handle symbol filter", async () => {
-      const _response = await request(app)
+      const response = await request(app)
         .get("/api/alerts/price?symbol=AAPL")
         .set("Authorization", "Bearer dev-bypass-token");
 
@@ -654,7 +654,7 @@ describe("Alerts Routes - Real Data Validation", () => {
     });
 
     test("should handle threshold filters", async () => {
-      const _response = await request(app)
+      const response = await request(app)
         .get("/api/alerts/price?threshold_min=100&threshold_max=200")
         .set("Authorization", "Bearer dev-bypass-token");
 
@@ -667,7 +667,7 @@ describe("Alerts Routes - Real Data Validation", () => {
     });
 
     test("should handle alert type filter", async () => {
-      const _response = await request(app)
+      const response = await request(app)
         .get("/api/alerts/price?alert_type=stop_loss&status=active")
         .set("Authorization", "Bearer dev-bypass-token");
 
@@ -690,7 +690,7 @@ describe("Alerts Routes - Real Data Validation", () => {
         reason: "threshold_adjustment",
       };
 
-      const _response = await request(app)
+      const response = await request(app)
         .put(`/api/alerts/update/${alertId}`)
         .set("Authorization", "Bearer dev-bypass-token")
         .send(updateData);
@@ -713,7 +713,7 @@ describe("Alerts Routes - Real Data Validation", () => {
     test("should use defaults when no data provided", async () => {
       const alertId = "alert_defaults_123";
 
-      const _response = await request(app)
+      const response = await request(app)
         .put(`/api/alerts/update/${alertId}`)
         .set("Authorization", "Bearer dev-bypass-token")
         .send({});
@@ -727,7 +727,7 @@ describe("Alerts Routes - Real Data Validation", () => {
     });
 
     test("should reject empty alert ID", async () => {
-      const _response = await request(app)
+      const response = await request(app)
         .put("/api/alerts/update/")
         .set("Authorization", "Bearer dev-bypass-token")
         .send({ threshold: 200 });
@@ -745,7 +745,7 @@ describe("Alerts Routes - Real Data Validation", () => {
       ];
 
       for (const endpoint of endpoints) {
-        const _response = await request(app)
+        const response = await request(app)
           .get(endpoint)
           .set("Authorization", "Bearer dev-bypass-token");
 

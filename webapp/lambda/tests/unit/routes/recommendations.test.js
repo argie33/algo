@@ -72,7 +72,7 @@ describe("Recommendations Routes Unit Tests", () => {
           },
         ],
       });
-      const _response = await request(app).get("/recommendations");
+      const response = await request(app).get("/recommendations");
       expect(response.status).toBe(200);
       expect(response.body).toHaveProperty("success", true);
       expect(response.body).toHaveProperty("recommendations");
@@ -105,7 +105,7 @@ describe("Recommendations Routes Unit Tests", () => {
           },
         ],
       });
-      const _response = await request(app).get("/recommendations").query({
+      const response = await request(app).get("/recommendations").query({
         symbol: "AAPL",
         category: "buy",
         analyst: "goldman_sachs",
@@ -122,7 +122,7 @@ describe("Recommendations Routes Unit Tests", () => {
       // Parameters are processed and endpoint returns real data
     });
     test("should include comprehensive troubleshooting information", async () => {
-      const _response = await request(app).get("/recommendations");
+      const response = await request(app).get("/recommendations");
       expect(response.status).toBe(200);
       expect(response.body).toHaveProperty("success", true);
       expect(response.body).toHaveProperty("recommendations");
@@ -133,7 +133,7 @@ describe("Recommendations Routes Unit Tests", () => {
     test("should handle different category parameters", async () => {
       const categories = ["all", "buy", "sell", "hold"];
       for (const category of categories) {
-        const _response = await request(app)
+        const response = await request(app)
           .get("/recommendations")
           .query({ category });
         expect(response.status).toBe(200);
@@ -142,7 +142,7 @@ describe("Recommendations Routes Unit Tests", () => {
       }
     });
     test("should default to all category", async () => {
-      const _response = await request(app)
+      const response = await request(app)
         .get("/recommendations")
         .query({ symbol: "AAPL" });
       expect(response.status).toBe(200);
@@ -151,7 +151,7 @@ describe("Recommendations Routes Unit Tests", () => {
     test("should handle different timeframe parameters", async () => {
       const timeframes = ["recent", "weekly", "monthly"];
       for (const timeframe of timeframes) {
-        const _response = await request(app)
+        const response = await request(app)
           .get("/recommendations")
           .query({ timeframe });
         expect(response.status).toBe(200);
@@ -160,7 +160,7 @@ describe("Recommendations Routes Unit Tests", () => {
       }
     });
     test("should handle analyst filter parameter", async () => {
-      const _response = await request(app)
+      const response = await request(app)
         .get("/recommendations")
         .query({ analyst: "morgan_stanley" });
       expect(response.status).toBe(200);
@@ -168,7 +168,7 @@ describe("Recommendations Routes Unit Tests", () => {
       expect(response.body).toHaveProperty("success", true);
     });
     test("should handle limit parameter and parse as integer", async () => {
-      const _response = await request(app)
+      const response = await request(app)
         .get("/recommendations")
         .query({ limit: "100" });
       expect(response.status).toBe(200);
@@ -176,12 +176,12 @@ describe("Recommendations Routes Unit Tests", () => {
       expect(response.body).toHaveProperty("success", true);
     });
     test("should handle default limit parameter", async () => {
-      const _response = await request(app).get("/recommendations");
+      const response = await request(app).get("/recommendations");
       expect(response.status).toBe(200);
       expect(response.body.filters).toHaveProperty("limit", 20); // default value
     });
     test("should handle symbol parameter", async () => {
-      const _response = await request(app)
+      const response = await request(app)
         .get("/recommendations")
         .query({ symbol: "GOOGL" });
       expect(response.status).toBe(200);
@@ -189,7 +189,7 @@ describe("Recommendations Routes Unit Tests", () => {
       expect(response.body).toHaveProperty("success", true);
     });
     test("should handle no symbol parameter", async () => {
-      const _response = await request(app).get("/recommendations");
+      const response = await request(app).get("/recommendations");
       expect(response.status).toBe(200);
       expect(response.body.filters.symbol).toBeUndefined();
       expect(response.body).toHaveProperty("success", true);
@@ -198,7 +198,7 @@ describe("Recommendations Routes Unit Tests", () => {
   describe("GET /recommendations/consensus", () => {
     test("should return not implemented for consensus endpoint when accessed", async () => {
       // This test assumes the consensus endpoint exists but is also not implemented
-      const _response = await request(app).get("/recommendations/consensus");
+      const response = await request(app).get("/recommendations/consensus");
       // The consensus endpoint doesn't exist, so it should return 404
       expect(response.status).toBe(404);
     });
@@ -206,7 +206,7 @@ describe("Recommendations Routes Unit Tests", () => {
   describe("GET /recommendations/analysts", () => {
     test("should handle analysts endpoint when accessed", async () => {
       // This test assumes the analysts endpoint might exist
-      const _response = await request(app).get("/recommendations/analysts");
+      const response = await request(app).get("/recommendations/analysts");
       // The analysts endpoint without symbol doesn't exist, should return 404
       expect(response.status).toBe(404);
     });
@@ -214,7 +214,7 @@ describe("Recommendations Routes Unit Tests", () => {
   describe("GET /recommendations/price-targets", () => {
     test("should handle price targets endpoint when accessed", async () => {
       // This test assumes the price targets endpoint might exist
-      const _response = await request(app).get("/recommendations/price-targets");
+      const response = await request(app).get("/recommendations/price-targets");
       // The price-targets endpoint doesn't exist, should return 404
       expect(response.status).toBe(404);
     });
@@ -223,14 +223,14 @@ describe("Recommendations Routes Unit Tests", () => {
     test("should handle implementation errors gracefully", async () => {
       // Test the catch block by making the database query fail
       mockQuery.mockRejectedValue(new Error("Database connection failed"));
-      const _response = await request(app).get("/recommendations");
+      const response = await request(app).get("/recommendations");
       // Should return error response when implementation fails
       expect(response.status).toBe(500);
       expect(response.body).toHaveProperty("success", false);
       expect(response.body).toHaveProperty("error");
     });
     test("should handle malformed query parameters", async () => {
-      const _response = await request(app).get("/recommendations").query({
+      const response = await request(app).get("/recommendations").query({
         limit: "not_a_number",
         category: "invalid_category_but_still_works",
         analyst: "special!@#$%^&*()characters",
@@ -248,7 +248,7 @@ describe("Recommendations Routes Unit Tests", () => {
       // Should still process gracefully even with invalid parameters
     });
     test("should handle special characters in parameters", async () => {
-      const _response = await request(app).get("/recommendations").query({
+      const response = await request(app).get("/recommendations").query({
         symbol: "AAPL'; DROP TABLE recommendations; --",
         analyst: "<script>alert('xss')</script>",
       });
@@ -265,7 +265,7 @@ describe("Recommendations Routes Unit Tests", () => {
       // Should handle malicious input safely since it's not actually querying database
     });
     test("should handle empty string parameters", async () => {
-      const _response = await request(app).get("/recommendations").query({
+      const response = await request(app).get("/recommendations").query({
         symbol: "",
         category: "",
         analyst: "",
@@ -279,14 +279,14 @@ describe("Recommendations Routes Unit Tests", () => {
   });
   describe("Response format", () => {
     test("should return consistent JSON response format", async () => {
-      const _response = await request(app).get("/recommendations");
+      const response = await request(app).get("/recommendations");
       expect(response.headers["content-type"]).toMatch(/json/);
       expect(typeof response.body).toBe("object");
       expect(response.body).toHaveProperty("success");
       expect(response.body).toHaveProperty("timestamp");
     });
     test("should include proper response structure", async () => {
-      const _response = await request(app).get("/recommendations");
+      const response = await request(app).get("/recommendations");
       expect(response.body).toHaveProperty("success", true);
       expect(response.body).toHaveProperty("recommendations");
       expect(response.body).toHaveProperty("summary");
@@ -294,7 +294,7 @@ describe("Recommendations Routes Unit Tests", () => {
       expect(response.body).toHaveProperty("timestamp");
     });
     test("should preserve query parameters in response", async () => {
-      const _response = await request(app).get("/recommendations").query({
+      const response = await request(app).get("/recommendations").query({
         symbol: "TSLA",
         category: "buy",
         limit: "25",
@@ -304,7 +304,7 @@ describe("Recommendations Routes Unit Tests", () => {
       expect(response.body.filters).toHaveProperty("limit", 25);
     });
     test("should include all filter parameters in response", async () => {
-      const _response = await request(app).get("/recommendations").query({
+      const response = await request(app).get("/recommendations").query({
         symbol: "AAPL",
         category: "hold",
         analyst: "jp_morgan",
@@ -320,7 +320,7 @@ describe("Recommendations Routes Unit Tests", () => {
   });
   describe("Future implementation readiness", () => {
     test("should handle comprehensive parameter requests with proper structure", async () => {
-      const _response = await request(app).get("/recommendations").query({
+      const response = await request(app).get("/recommendations").query({
         symbol: "AAPL",
         category: "buy",
         analyst: "goldman_sachs",
@@ -339,7 +339,7 @@ describe("Recommendations Routes Unit Tests", () => {
     test("should handle all expected recommendation categories", async () => {
       const validCategories = ["all", "buy", "sell", "hold"];
       for (const category of validCategories) {
-        const _response = await request(app)
+        const response = await request(app)
           .get("/recommendations")
           .query({ category });
         expect(response.status).toBe(200);

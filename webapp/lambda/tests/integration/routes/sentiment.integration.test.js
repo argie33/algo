@@ -16,7 +16,7 @@ describe("Sentiment Routes", () => {
 
   describe("GET /api/sentiment", () => {
     test("should return sentiment API information", async () => {
-      const _response = await request(app).get("/api/sentiment");
+      const response = await request(app).get("/api/sentiment");
 
       expect(response.status).toBe(200);
       expect(response.body).toHaveProperty("success", true);
@@ -35,7 +35,7 @@ describe("Sentiment Routes", () => {
 
   describe("GET /api/sentiment/health", () => {
     test("should return health status", async () => {
-      const _response = await request(app).get("/api/sentiment/health");
+      const response = await request(app).get("/api/sentiment/health");
 
       expect(response.status).toBe(200);
       expect(response.body).toHaveProperty("status", "operational");
@@ -50,7 +50,7 @@ describe("Sentiment Routes", () => {
 
   describe("GET /api/sentiment/ping", () => {
     test("should return ping response", async () => {
-      const _response = await request(app).get("/api/sentiment/ping");
+      const response = await request(app).get("/api/sentiment/ping");
 
       expect(response.status).toBe(200);
       expect(response.body).toHaveProperty("status", "ok");
@@ -61,7 +61,7 @@ describe("Sentiment Routes", () => {
 
   describe("GET /api/sentiment/analysis", () => {
     test("should require symbol parameter", async () => {
-      const _response = await request(app)
+      const response = await request(app)
         .get("/api/sentiment/analysis")
         .set("Authorization", "Bearer dev-bypass-token");
 
@@ -76,7 +76,7 @@ describe("Sentiment Routes", () => {
     });
 
     test("should return sentiment analysis for valid symbol", async () => {
-      const _response = await request(app)
+      const response = await request(app)
         .get("/api/sentiment/analysis?symbol=AAPL")
         .set("Authorization", "Bearer dev-bypass-token");
 
@@ -123,7 +123,7 @@ describe("Sentiment Routes", () => {
       const periods = ["1d", "3d", "7d", "14d", "30d"];
 
       for (const period of periods) {
-        const _response = await request(app)
+        const response = await request(app)
           .get(`/api/sentiment/analysis?symbol=AAPL&period=${period}`)
           .set("Authorization", "Bearer dev-bypass-token");
 
@@ -136,7 +136,7 @@ describe("Sentiment Routes", () => {
     });
 
     test("should use default period when not specified", async () => {
-      const _response = await request(app)
+      const response = await request(app)
         .get("/api/sentiment/analysis?symbol=MSFT")
         .set("Authorization", "Bearer dev-bypass-token");
 
@@ -148,7 +148,7 @@ describe("Sentiment Routes", () => {
     });
 
     test("should handle invalid period parameter", async () => {
-      const _response = await request(app)
+      const response = await request(app)
         .get("/api/sentiment/analysis?symbol=TSLA&period=invalid")
         .set("Authorization", "Bearer dev-bypass-token");
 
@@ -161,7 +161,7 @@ describe("Sentiment Routes", () => {
     });
 
     test("should convert symbol to uppercase", async () => {
-      const _response = await request(app)
+      const response = await request(app)
         .get("/api/sentiment/analysis?symbol=aapl")
         .set("Authorization", "Bearer dev-bypass-token");
 
@@ -173,7 +173,7 @@ describe("Sentiment Routes", () => {
     });
 
     test("should handle special characters in symbol", async () => {
-      const _response = await request(app)
+      const response = await request(app)
         .get("/api/sentiment/analysis?symbol=BRK.A")
         .set("Authorization", "Bearer dev-bypass-token");
 
@@ -185,7 +185,7 @@ describe("Sentiment Routes", () => {
     });
 
     test("should validate sentiment grades", async () => {
-      const _response = await request(app)
+      const response = await request(app)
         .get("/api/sentiment/analysis?symbol=GOOGL")
         .set("Authorization", "Bearer dev-bypass-token");
 
@@ -202,7 +202,7 @@ describe("Sentiment Routes", () => {
     });
 
     test("should validate trend values", async () => {
-      const _response = await request(app)
+      const response = await request(app)
         .get("/api/sentiment/analysis?symbol=NVDA")
         .set("Authorization", "Bearer dev-bypass-token");
 
@@ -213,7 +213,7 @@ describe("Sentiment Routes", () => {
     });
 
     test("should validate recent articles structure", async () => {
-      const _response = await request(app)
+      const response = await request(app)
         .get("/api/sentiment/analysis?symbol=META")
         .set("Authorization", "Bearer dev-bypass-token");
 
@@ -237,7 +237,7 @@ describe("Sentiment Routes", () => {
 
   describe("GET /api/sentiment/social", () => {
     test("should return 501 not implemented", async () => {
-      const _response = await request(app)
+      const response = await request(app)
         .get("/api/sentiment/social")
         .set("Authorization", "Bearer dev-bypass-token");
 
@@ -255,7 +255,7 @@ describe("Sentiment Routes", () => {
 
   describe("GET /api/sentiment/social/:symbol", () => {
     test("should return 501 not implemented", async () => {
-      const _response = await request(app)
+      const response = await request(app)
         .get("/api/sentiment/social/AAPL")
         .set("Authorization", "Bearer dev-bypass-token");
 
@@ -274,7 +274,7 @@ describe("Sentiment Routes", () => {
       const symbols = ["MSFT", "TSLA", "GOOGL"];
 
       for (const symbol of symbols) {
-        const _response = await request(app)
+        const response = await request(app)
           .get(`/api/sentiment/social/${symbol}`)
           .set("Authorization", "Bearer dev-bypass-token");
 
@@ -284,7 +284,7 @@ describe("Sentiment Routes", () => {
     });
 
     test("should handle special characters in symbol", async () => {
-      const _response = await request(app)
+      const response = await request(app)
         .get("/api/sentiment/social/BRK.A")
         .set("Authorization", "Bearer dev-bypass-token");
 
@@ -295,7 +295,7 @@ describe("Sentiment Routes", () => {
 
   describe("GET /api/sentiment/trending", () => {
     test("should return 501 not implemented", async () => {
-      const _response = await request(app)
+      const response = await request(app)
         .get("/api/sentiment/trending")
         .set("Authorization", "Bearer dev-bypass-token");
 
@@ -321,14 +321,14 @@ describe("Sentiment Routes", () => {
       ];
 
       for (const endpoint of publicEndpoints) {
-        const _response = await request(app).get(endpoint);
+        const response = await request(app).get(endpoint);
         // Should not return 401/403 for public endpoints
         expect([401, 403].includes(response.status)).toBe(false);
       }
     });
 
     test("should handle sentiment analysis without authentication", async () => {
-      const _response = await request(app).get(
+      const response = await request(app).get(
         "/api/sentiment/analysis?symbol=AAPL"
       );
 
@@ -341,7 +341,7 @@ describe("Sentiment Routes", () => {
 
   describe("Error Handling", () => {
     test("should handle database errors gracefully", async () => {
-      const _response = await request(app)
+      const response = await request(app)
         .get("/api/sentiment/analysis?symbol=TEST_ERROR_SYMBOL")
         .set("Authorization", "Bearer dev-bypass-token");
 
@@ -354,7 +354,7 @@ describe("Sentiment Routes", () => {
     });
 
     test("should handle empty symbol parameter", async () => {
-      const _response = await request(app)
+      const response = await request(app)
         .get("/api/sentiment/analysis?symbol=")
         .set("Authorization", "Bearer dev-bypass-token");
 
@@ -362,7 +362,7 @@ describe("Sentiment Routes", () => {
     });
 
     test("should handle malformed URLs", async () => {
-      const _response = await request(app)
+      const response = await request(app)
         .get("/api/sentiment/analysis?symbol=%20invalid%20")
         .set("Authorization", "Bearer dev-bypass-token");
 
@@ -370,7 +370,7 @@ describe("Sentiment Routes", () => {
     });
 
     test("should handle URL encoded parameters", async () => {
-      const _response = await request(app)
+      const response = await request(app)
         .get("/api/sentiment/analysis?symbol=BRK%2EA&period=7d")
         .set("Authorization", "Bearer dev-bypass-token");
 
@@ -384,7 +384,7 @@ describe("Sentiment Routes", () => {
 
   describe("Data Validation", () => {
     test("should return consistent response structure", async () => {
-      const _response = await request(app)
+      const response = await request(app)
         .get("/api/sentiment/analysis?symbol=AAPL")
         .set("Authorization", "Bearer dev-bypass-token");
 
@@ -398,7 +398,7 @@ describe("Sentiment Routes", () => {
     });
 
     test("should validate sentiment score range", async () => {
-      const _response = await request(app)
+      const response = await request(app)
         .get("/api/sentiment/analysis?symbol=AAPL")
         .set("Authorization", "Bearer dev-bypass-token");
 
@@ -412,7 +412,7 @@ describe("Sentiment Routes", () => {
     });
 
     test("should validate percentage values", async () => {
-      const _response = await request(app)
+      const response = await request(app)
         .get("/api/sentiment/analysis?symbol=MSFT")
         .set("Authorization", "Bearer dev-bypass-token");
 
@@ -435,7 +435,7 @@ describe("Sentiment Routes", () => {
     test("should respond within reasonable time", async () => {
       const startTime = Date.now();
 
-      const _response = await request(app)
+      const response = await request(app)
         .get("/api/sentiment/analysis?symbol=AAPL")
         .set("Authorization", "Bearer dev-bypass-token");
 
@@ -471,7 +471,7 @@ describe("Sentiment Routes", () => {
 
   describe("Edge Cases", () => {
     test("should handle numeric symbols", async () => {
-      const _response = await request(app)
+      const response = await request(app)
         .get("/api/sentiment/analysis?symbol=123")
         .set("Authorization", "Bearer dev-bypass-token");
 
@@ -484,7 +484,7 @@ describe("Sentiment Routes", () => {
 
     test("should handle extremely long symbols", async () => {
       const longSymbol = "A".repeat(50);
-      const _response = await request(app)
+      const response = await request(app)
         .get(`/api/sentiment/analysis?symbol=${longSymbol}`)
         .set("Authorization", "Bearer dev-bypass-token");
 
@@ -492,7 +492,7 @@ describe("Sentiment Routes", () => {
     });
 
     test("should handle multiple query parameters", async () => {
-      const _response = await request(app)
+      const response = await request(app)
         .get("/api/sentiment/analysis?symbol=AAPL&period=7d&extra=ignored")
         .set("Authorization", "Bearer dev-bypass-token");
 

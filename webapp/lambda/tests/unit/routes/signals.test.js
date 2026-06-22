@@ -53,7 +53,7 @@ describe("Signals Route - Unit Tests", () => {
   });
   describe("Frontend API Pattern Validation", () => {
     test("should reject /api/signals/daily path parameter pattern", async () => {
-      const _response = await request(app).get("/api/signals/daily");
+      const response = await request(app).get("/api/signals/daily");
       expect(response.status).toBe(400);
       expect(response.body.success).toBe(false);
       expect(response.body.error).toContain("Invalid symbol");
@@ -61,7 +61,7 @@ describe("Signals Route - Unit Tests", () => {
       expect(response.body.symbol).toBe("DAILY");
     });
     test("should reject /api/signals/weekly path parameter pattern", async () => {
-      const _response = await request(app).get("/api/signals/weekly");
+      const response = await request(app).get("/api/signals/weekly");
       expect(response.status).toBe(400);
       expect(response.body.success).toBe(false);
       expect(response.body.error).toContain("Invalid symbol");
@@ -69,7 +69,7 @@ describe("Signals Route - Unit Tests", () => {
       expect(response.body.symbol).toBe("WEEKLY");
     });
     test("should reject /api/signals/monthly path parameter pattern", async () => {
-      const _response = await request(app).get("/api/signals/monthly");
+      const response = await request(app).get("/api/signals/monthly");
       expect(response.status).toBe(400);
       expect(response.body.success).toBe(false);
       expect(response.body.error).toContain("Invalid symbol");
@@ -77,7 +77,7 @@ describe("Signals Route - Unit Tests", () => {
       expect(response.body.symbol).toBe("MONTHLY");
     });
     test("should validate timeframe parameter strictly", async () => {
-      const _response = await request(app).get("/api/signals?timeframe=invalid");
+      const response = await request(app).get("/api/signals?timeframe=invalid");
       expect(response.status).toBe(400);
       expect(response.body.success).toBe(false);
       expect(response.body.error).toBe(
@@ -128,7 +128,7 @@ describe("Signals Route - Unit Tests", () => {
       mockQuery.mockResolvedValueOnce({
         rows: [{ total: 1 }],
       });
-      const _response = await request(app).get("/api/signals/buy");
+      const response = await request(app).get("/api/signals/buy");
       expect(response.status).toBe(200);
       expect(response.body.success).toBe(true);
       expect(response.body.data).toHaveLength(1);
@@ -149,7 +149,7 @@ describe("Signals Route - Unit Tests", () => {
       mockQuery.mockRejectedValueOnce(
         new Error("Table buy_sell_daily does not exist")
       );
-      const _response = await request(app).get("/api/signals/buy");
+      const response = await request(app).get("/api/signals/buy");
       expect(response.status).toBe(404);
       expect(response.body.success).toBe(false);
       expect(response.body.error).toBe("Signals data not available");
@@ -157,7 +157,7 @@ describe("Signals Route - Unit Tests", () => {
       expect(response.body.timeframe).toBe("daily");
     });
     test("should validate timeframe parameter", async () => {
-      const _response = await request(app).get(
+      const response = await request(app).get(
         "/api/signals/buy?timeframe=invalid"
       );
       expect(response.status).toBe(400);
@@ -191,7 +191,7 @@ describe("Signals Route - Unit Tests", () => {
       mockQuery.mockResolvedValueOnce({
         rows: [{ total: 1 }],
       });
-      const _response = await request(app).get(
+      const response = await request(app).get(
         "/api/signals/buy?timeframe=weekly"
       );
       expect(response.status).toBe(200);
@@ -224,7 +224,7 @@ describe("Signals Route - Unit Tests", () => {
       mockQuery.mockResolvedValueOnce({
         rows: [{ total: 1 }],
       });
-      const _response = await request(app).get("/api/signals/sell");
+      const response = await request(app).get("/api/signals/sell");
       expect(response.status).toBe(200);
       expect(response.body.success).toBe(true);
       expect(response.body.data).toHaveLength(1);
@@ -250,7 +250,7 @@ describe("Signals Route - Unit Tests", () => {
       mockQuery.mockResolvedValueOnce({
         rows: [{ total: 1 }],
       });
-      const _response = await request(app).get("/api/signals/technical");
+      const response = await request(app).get("/api/signals/technical");
       expect(response.status).toBe(200);
       expect(response.body.success).toBe(true);
       expect(response.body.data).toHaveLength(1);
@@ -277,7 +277,7 @@ describe("Signals Route - Unit Tests", () => {
       mockQuery.mockResolvedValueOnce({
         rows: [{ total: 1 }],
       });
-      const _response = await request(app).get("/api/signals/momentum");
+      const response = await request(app).get("/api/signals/momentum");
       expect(response.status).toBe(200);
       expect(response.body.success).toBe(true);
       expect(response.body.data).toHaveLength(1);
@@ -288,7 +288,7 @@ describe("Signals Route - Unit Tests", () => {
   });
   describe("GET /api/signals/options - Static Endpoints", () => {
     test("should return options signals structure", async () => {
-      const _response = await request(app).get("/api/signals/options");
+      const response = await request(app).get("/api/signals/options");
       expect(response.status).toBe(200);
       expect(response.body.success).toBe(true);
       expect(response.body.signal_type).toBe("options");
@@ -309,7 +309,7 @@ describe("Signals Route - Unit Tests", () => {
           },
         ],
       });
-      const _response = await request(app).get("/api/signals/alerts");
+      const response = await request(app).get("/api/signals/alerts");
       expect(response.status).toBe(200);
       expect(response.body.success).toBe(true);
       expect(response.body.data).toHaveLength(1);
@@ -318,7 +318,7 @@ describe("Signals Route - Unit Tests", () => {
       mockQuery.mockRejectedValueOnce(
         new Error('relation "signal_alerts" does not exist')
       );
-      const _response = await request(app).get("/api/signals/alerts");
+      const response = await request(app).get("/api/signals/alerts");
       expect(response.status).toBe(200);
       expect(response.body.success).toBe(true);
       expect(response.body.data).toEqual([]);
@@ -340,7 +340,7 @@ describe("Signals Route - Unit Tests", () => {
           },
         ],
       });
-      const _response = await request(app).post("/api/signals/alerts").send({
+      const response = await request(app).post("/api/signals/alerts").send({
         symbol: "AAPL",
         signal_type: "BUY",
         min_strength: 0.7,
@@ -351,7 +351,7 @@ describe("Signals Route - Unit Tests", () => {
     });
     test("should validate required fields", async () => {
       // Skipped - requires auth middleware integration
-      const _response = await request(app).post("/api/signals/alerts").send({});
+      const response = await request(app).post("/api/signals/alerts").send({});
       expect(response.status).toBe(400);
       expect(response.body.success).toBe(false);
       expect(response.body.error).toContain("symbol is required");
@@ -359,7 +359,7 @@ describe("Signals Route - Unit Tests", () => {
   });
   describe("GET /api/signals/options - Business Logic", () => {
     test("should return options signals structure", async () => {
-      const _response = await request(app).get("/api/signals/options");
+      const response = await request(app).get("/api/signals/options");
       expect(response.status).toBe(200);
       expect(response.body.success).toBe(true);
       expect(response.body.signal_type).toBe("options");
@@ -368,7 +368,7 @@ describe("Signals Route - Unit Tests", () => {
   });
   describe("GET /api/signals/sentiment - Business Logic", () => {
     test("should return sentiment signals structure", async () => {
-      const _response = await request(app).get("/api/signals/sentiment");
+      const response = await request(app).get("/api/signals/sentiment");
       expect(response.status).toBe(200);
       expect(response.body.success).toBe(true);
       expect(response.body.signal_type).toBe("sentiment");
@@ -377,7 +377,7 @@ describe("Signals Route - Unit Tests", () => {
   });
   describe("GET /api/signals/earnings - Business Logic", () => {
     test("should return earnings signals structure", async () => {
-      const _response = await request(app).get("/api/signals/earnings");
+      const response = await request(app).get("/api/signals/earnings");
       expect(response.status).toBe(200);
       expect(response.body.success).toBe(true);
       expect(response.body.signal_type).toBe("earnings");
@@ -386,7 +386,7 @@ describe("Signals Route - Unit Tests", () => {
   });
   describe("GET /api/signals/crypto - Business Logic", () => {
     test("should return crypto signals structure", async () => {
-      const _response = await request(app).get("/api/signals/crypto");
+      const response = await request(app).get("/api/signals/crypto");
       expect(response.status).toBe(200);
       expect(response.body.success).toBe(true);
       expect(response.body.signal_type).toBe("crypto");
@@ -395,7 +395,7 @@ describe("Signals Route - Unit Tests", () => {
   });
   describe("GET /api/signals/history - Business Logic", () => {
     test("should return historical signals with pagination", async () => {
-      const _response = await request(app).get("/api/signals/history");
+      const response = await request(app).get("/api/signals/history");
       expect(response.status).toBe(200);
       expect(response.body.success).toBe(true);
       expect(response.body.signal_type).toBe("history");
@@ -404,7 +404,7 @@ describe("Signals Route - Unit Tests", () => {
       expect(Array.isArray(response.body.data)).toBe(true);
     });
     test("should handle pagination parameters", async () => {
-      const _response = await request(app).get(
+      const response = await request(app).get(
         "/api/signals/history?page=2&limit=5"
       );
       expect(response.status).toBe(200);
@@ -415,7 +415,7 @@ describe("Signals Route - Unit Tests", () => {
   });
   describe("GET /api/signals/sector-rotation - Business Logic", () => {
     test("should return sector rotation signals", async () => {
-      const _response = await request(app).get("/api/signals/sector-rotation");
+      const response = await request(app).get("/api/signals/sector-rotation");
       expect(response.status).toBe(200);
       expect(response.body.success).toBe(true);
       expect(response.body.signal_type).toBe("sector_rotation");
@@ -443,7 +443,7 @@ describe("Signals Route - Unit Tests", () => {
           },
         ],
       });
-      const _response = await request(app).get("/api/signals/list");
+      const response = await request(app).get("/api/signals/list");
       expect(response.status).toBe(200);
       expect(response.body.success).toBe(true);
       expect(response.body).toHaveProperty("data");
@@ -470,7 +470,7 @@ describe("Signals Route - Unit Tests", () => {
           },
         ],
       });
-      const _response = await request(app).get(
+      const response = await request(app).get(
         "/api/signals/list?timeframe=weekly"
       );
       expect(response.status).toBe(200);
@@ -486,7 +486,7 @@ describe("Signals Route - Unit Tests", () => {
         criteria: { rsi: { min: 30, max: 70 } },
         symbols: ["AAPL"],
       };
-      const _response = await request(app)
+      const response = await request(app)
         .post("/api/signals/custom")
         .send(customSignalData);
       expect(response.status).toBe(201);
@@ -495,7 +495,7 @@ describe("Signals Route - Unit Tests", () => {
     });
     test("should validate required fields for custom signals", async () => {
       // Skipped - requires auth middleware integration
-      const _response = await request(app).post("/api/signals/custom").send({});
+      const response = await request(app).post("/api/signals/custom").send({});
       expect(response.status).toBe(400);
       expect(response.body.success).toBe(false);
       expect(response.body.error).toContain("required");
@@ -504,7 +504,7 @@ describe("Signals Route - Unit Tests", () => {
   describe("Error Handling", () => {
     test("should handle database connection errors", async () => {
       mockQuery.mockRejectedValueOnce(new Error("Database connection failed"));
-      const _response = await request(app).get("/api/signals/buy");
+      const response = await request(app).get("/api/signals/buy");
       expect([404, 500]).toContain(response.status);
       expect(response.body.success).toBe(false);
       expect(response.body.error).toMatch(
@@ -512,7 +512,7 @@ describe("Signals Route - Unit Tests", () => {
       );
     });
     test("should validate signal type parameters", async () => {
-      const _response = await request(app).get(
+      const response = await request(app).get(
         "/api/signals/invalid_signal_type"
       );
       expect(response.status).toBe(404);

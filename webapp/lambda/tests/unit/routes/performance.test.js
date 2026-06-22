@@ -96,7 +96,7 @@ describe("Performance Routes Unit Tests", () => {
   });
   describe("GET /performance/health", () => {
     test("should return health status without authentication", async () => {
-      const _response = await request(app).get("/performance/health");
+      const response = await request(app).get("/performance/health");
       expect(response.status).toBe(200);
       expect(response.body).toHaveProperty("status", "operational");
       expect(response.body).toHaveProperty("service", "performance-analytics");
@@ -112,7 +112,7 @@ describe("Performance Routes Unit Tests", () => {
   });
   describe("GET /performance", () => {
     test("should return performance API information without authentication", async () => {
-      const _response = await request(app).get("/performance");
+      const response = await request(app).get("/performance");
       expect(response.status).toBe(200);
       expect(response.body).toHaveProperty(
         "message",
@@ -176,7 +176,7 @@ describe("Performance Routes Unit Tests", () => {
         sharpe_ratio: 1.2,
         tracking_error: 0.05,
       });
-      const _response = await request(app).get("/performance/benchmark");
+      const response = await request(app).get("/performance/benchmark");
       expect(response.status).toBe(200);
       expect(response.body).toHaveProperty("success", true);
       expect(response.body).toHaveProperty("data");
@@ -193,7 +193,7 @@ describe("Performance Routes Unit Tests", () => {
       mockQuery
         .mockResolvedValueOnce({ rows: [] })
         .mockResolvedValueOnce({ rows: [] });
-      const _response = await request(app)
+      const response = await request(app)
         .get("/performance/benchmark")
         .query({ benchmark: "QQQ" });
       expect(response.status).toBe(200);
@@ -206,7 +206,7 @@ describe("Performance Routes Unit Tests", () => {
       mockQuery
         .mockResolvedValueOnce({ rows: [] })
         .mockResolvedValueOnce({ rows: [] });
-      const _response = await request(app)
+      const response = await request(app)
         .get("/performance/benchmark")
         .query({ period: "6m" });
       expect(response.status).toBe(200);
@@ -219,7 +219,7 @@ describe("Performance Routes Unit Tests", () => {
       mockQuery
         .mockResolvedValueOnce({ rows: [] })
         .mockResolvedValueOnce({ rows: [] });
-      const _response = await request(app)
+      const response = await request(app)
         .get("/performance/benchmark")
         .query({ period: "invalid_period" });
       expect(response.status).toBe(200);
@@ -243,7 +243,7 @@ describe("Performance Routes Unit Tests", () => {
       mockQuery
         .mockResolvedValueOnce({ rows: [] }) // No portfolio data
         .mockResolvedValueOnce({ rows: [] }); // No benchmark data
-      const _response = await request(app).get("/performance/benchmark");
+      const response = await request(app).get("/performance/benchmark");
       expect(response.status).toBe(200);
       expect(response.body).toHaveProperty("success", true);
       expect(response.body).toHaveProperty(
@@ -254,7 +254,7 @@ describe("Performance Routes Unit Tests", () => {
     test("should handle database query errors", async () => {
       const dbError = new Error("Database connection failed");
       mockQuery.mockRejectedValueOnce(dbError);
-      const _response = await request(app).get("/performance/benchmark");
+      const response = await request(app).get("/performance/benchmark");
       expect(response.status).toBe(500);
       expect(response.body).toHaveProperty("success", false);
       expect(response.body.error).toBeDefined();
@@ -270,7 +270,7 @@ describe("Performance Routes Unit Tests", () => {
           throw new Error("Performance calculation failed");
         }
       );
-      const _response = await request(app).get("/performance/benchmark");
+      const response = await request(app).get("/performance/benchmark");
       expect(response.status).toBe(500);
       expect(response.body).toHaveProperty("success", false);
       expect(response.body.error).toContain(
@@ -292,7 +292,7 @@ describe("Performance Routes Unit Tests", () => {
       mockPerformanceMonitor.getPerformanceAnalytics.mockResolvedValue(
         mockAnalyticsData
       );
-      const _response = await request(app).get("/performance/analytics");
+      const response = await request(app).get("/performance/analytics");
       expect(response.status).toBe(200);
       expect(response.body).toHaveProperty("success", true);
       expect(response.body).toHaveProperty("data");
@@ -306,7 +306,7 @@ describe("Performance Routes Unit Tests", () => {
       mockPerformanceMonitor.getPerformanceAnalytics.mockRejectedValue(
         new Error("Analytics failed")
       );
-      const _response = await request(app).get("/performance/analytics");
+      const response = await request(app).get("/performance/analytics");
       expect(response.status).toBe(500);
       expect(response.body).toHaveProperty("success", false);
       expect(response.body.error).toContain(
@@ -321,25 +321,25 @@ describe("Performance Routes Unit Tests", () => {
         memory_usage: 0.62,
         disk_usage: 0.35,
         network_latency: 25,
-        db_query_time: 15,
-        api_response_time: 120,
+        dbquery_time: 15,
+        apiresponse_time: 120,
       };
       mockPerformanceMonitor.getSystemMetrics.mockResolvedValue(
         mockSystemMetrics
       );
-      const _response = await request(app).get("/performance/metrics");
+      const response = await request(app).get("/performance/metrics");
       expect(response.status).toBe(200);
       expect(response.body).toHaveProperty("success", true);
       expect(response.body).toHaveProperty("data");
       expect(response.body.data).toHaveProperty("cpu_usage", 0.45);
-      expect(response.body.data).toHaveProperty("api_response_time", 120);
+      expect(response.body.data).toHaveProperty("apiresponse_time", 120);
       expect(mockPerformanceMonitor.getSystemMetrics).toHaveBeenCalled();
     });
     test("should handle metrics collection errors", async () => {
       mockPerformanceMonitor.getSystemMetrics.mockRejectedValue(
         new Error("Metrics collection failed")
       );
-      const _response = await request(app).get("/performance/metrics");
+      const response = await request(app).get("/performance/metrics");
       expect(response.status).toBe(500);
       expect(response.body).toHaveProperty("success", false);
       expect(response.body.error).toContain(
@@ -374,7 +374,7 @@ describe("Performance Routes Unit Tests", () => {
         ],
       };
       mockQuery.mockResolvedValueOnce(mockAttributionData);
-      const _response = await request(app).get("/performance/attribution");
+      const response = await request(app).get("/performance/attribution");
       expect(response.status).toBe(200);
       expect(response.body).toHaveProperty("success", true);
       expect(response.body).toHaveProperty("data");
@@ -406,7 +406,7 @@ describe("Performance Routes Unit Tests", () => {
     });
     test("should handle custom benchmark for attribution", async () => {
       mockQuery.mockResolvedValueOnce({ rows: [] });
-      const _response = await request(app).get(
+      const response = await request(app).get(
         "/performance/attribution?benchmark=QQQ"
       );
       expect(response.status).toBe(200);
@@ -417,7 +417,7 @@ describe("Performance Routes Unit Tests", () => {
     });
     test("should handle custom period for attribution", async () => {
       mockQuery.mockResolvedValueOnce({ rows: [] });
-      const _response = await request(app).get(
+      const response = await request(app).get(
         "/performance/attribution?period=3m"
       );
       expect(response.status).toBe(200);
@@ -428,7 +428,7 @@ describe("Performance Routes Unit Tests", () => {
     });
     test("should handle insufficient data for attribution", async () => {
       mockQuery.mockResolvedValueOnce({ rows: [] });
-      const _response = await request(app).get("/performance/attribution");
+      const response = await request(app).get("/performance/attribution");
       expect(response.status).toBe(200);
       expect(response.body).toHaveProperty("success", true);
       expect(response.body).toHaveProperty(
@@ -438,7 +438,7 @@ describe("Performance Routes Unit Tests", () => {
       expect(response.body.data.attribution_analysis).toHaveLength(0);
     });
     test("should validate attribution parameters", async () => {
-      const _response = await request(app).get(
+      const response = await request(app).get(
         "/performance/attribution?benchmark=invalid-symbol!@#"
       );
       expect(response.status).toBe(400);
@@ -462,7 +462,7 @@ describe("Performance Routes Unit Tests", () => {
         ],
       };
       mockQuery.mockResolvedValueOnce(mockSymbolPerformance);
-      const _response = await request(app).get("/performance/portfolio/AAPL");
+      const response = await request(app).get("/performance/portfolio/AAPL");
       expect(response.status).toBe(200);
       expect(response.body).toHaveProperty("success", true);
       expect(response.body).toHaveProperty("data");
@@ -483,7 +483,7 @@ describe("Performance Routes Unit Tests", () => {
     });
     test("should handle symbol not found", async () => {
       mockQuery.mockResolvedValueOnce({ rows: [] });
-      const _response = await request(app).get("/performance/portfolio/INVALID");
+      const response = await request(app).get("/performance/portfolio/INVALID");
       expect(response.status).toBe(404);
       expect(response.body).toHaveProperty("success", false);
       expect(response.body.error).toContain("No performance data found");
@@ -491,12 +491,12 @@ describe("Performance Routes Unit Tests", () => {
   });
   describe("Authentication", () => {
     test("should allow public access to health endpoint", async () => {
-      const _response = await request(app).get("/performance/health");
+      const response = await request(app).get("/performance/health");
       expect(response.status).toBe(200);
       // Should work without authentication
     });
     test("should allow public access to root endpoint", async () => {
-      const _response = await request(app).get("/performance");
+      const response = await request(app).get("/performance");
       expect(response.status).toBe(200);
       // Should work without authentication
     });
@@ -507,7 +507,7 @@ describe("Performance Routes Unit Tests", () => {
   });
   describe("Parameter validation", () => {
     test("should validate benchmark symbol format", async () => {
-      const _response = await request(app)
+      const response = await request(app)
         .get("/performance/benchmark")
         .query({ benchmark: "invalid-benchmark-format!@#" });
       expect(response.status).toBe(400);
@@ -533,7 +533,7 @@ describe("Performance Routes Unit Tests", () => {
       const timeoutError = new Error("Query timeout");
       timeoutError.code = "QUERY_TIMEOUT";
       mockQuery.mockRejectedValueOnce(timeoutError);
-      const _response = await request(app).get("/performance/benchmark");
+      const response = await request(app).get("/performance/benchmark");
       expect(response.status).toBe(500);
       expect(response.body).toHaveProperty("success", false);
       expect(response.body.error).toContain("timeout");
@@ -542,7 +542,7 @@ describe("Performance Routes Unit Tests", () => {
       mockPerformanceMonitor.getSystemMetrics.mockRejectedValue(
         new Error("Monitor unavailable")
       );
-      const _response = await request(app).get("/performance/metrics");
+      const response = await request(app).get("/performance/metrics");
       expect(response.status).toBe(500);
       expect(response.body).toHaveProperty("success", false);
       expect(response.body.error).toContain("Monitor unavailable");
@@ -550,7 +550,7 @@ describe("Performance Routes Unit Tests", () => {
   });
   describe("Response format", () => {
     test("should return consistent JSON response format", async () => {
-      const _response = await request(app).get("/performance/health");
+      const response = await request(app).get("/performance/health");
       expect(response.headers["content-type"]).toMatch(/json/);
       expect(typeof response.body).toBe("object");
     });
@@ -558,7 +558,7 @@ describe("Performance Routes Unit Tests", () => {
       mockQuery
         .mockResolvedValueOnce({ rows: [] })
         .mockResolvedValueOnce({ rows: [] });
-      const _response = await request(app).get("/performance/benchmark");
+      const response = await request(app).get("/performance/benchmark");
       expect(response.status).toBe(200);
       expect(response.body).toHaveProperty("success");
       expect(response.body).toHaveProperty("data");
