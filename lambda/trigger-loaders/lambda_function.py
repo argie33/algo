@@ -1,71 +1,62 @@
 #!/usr/bin/env python3
-"""
-Lambda function to manually trigger data loaders via ECS.
+"""Lambda function to manually trigger data loaders via ECS.
+
 Called when EventBridge fails or for emergency data refresh.
-
 Invoked by: API /api/algo/trigger-loader endpoint or CloudWatch alarm
+Uses LambdaHandler base class for standardized pattern.
 """
 
-import json
 import logging
 import os
 from datetime import datetime, timezone
+from typing import Any
 
 import boto3
 
+from base_handler import LambdaHandler, LambdaResponse, create_lambda_handler
 
-ecs = boto3.client("ecs")
+
 logger = logging.getLogger()
-logger.setLevel(logging.INFO)
 
 
-def lambda_handler(event, context):
-    """
-    Trigger ECS loader task.
+class TriggerLoadersHandler(LambdaHandler):
+    """Triggers ECS loader tasks."""
 
-    Event params:
-      - loader_name: (required) 'stock_prices_daily', 'market_health_daily', etc.
-      - task_count: (optional, default 1) how many parallel tasks
-      - priority: (optional) FARGATE (on-demand) or FARGATE_SPOT
-    """
-    try:
-        # Parse input
-        loader_name = event.get("loader_name") or event.get("pathParameters").get("loader")
+    def handle(self, event: dict[str, Any], context: Any) -> LambdaResponse:
+        """Handle loader trigger request.
+
+        Event params:
+          - loader_name: (required) 'stock_prices_daily', 'market_health_daily', etc.
+          - task_count: (optional, default 1) how many parallel tasks
+        """
+        loader_name = event.get("loader_name")
         if not loader_name:
-            return {
-                "statusCode": 400,
-                "body": json.dumps({"error": "loader_name required"}),
-            }
+            path_params = event.get("pathParameters", {})
+            loader_name = path_params.get("loader") if path_params else None
 
-        # Issue #14: task_count should be explicit when specified (no implicit default)
+        if not loader_name:
+            return LambdaResponse.validation_error("loader_name", "loader_name is required")
+
         task_count_raw = event.get("task_count")
         if task_count_raw is None:
-            # If not specified, require default via environment or use 1 as documented default
             task_count = int(os.getenv("DEFAULT_LOADER_TASK_COUNT", "1"))
         else:
             try:
                 task_count = int(task_count_raw)
                 if task_count < 1:
-                    return {
-                        "statusCode": 400,
-                        "body": json.dumps({"error": "task_count must be >= 1"}),
-                    }
+                    return LambdaResponse.validation_error("task_count", "task_count must be >= 1")
             except (ValueError, TypeError):
-                return {
-                    "statusCode": 400,
-                    "body": json.dumps({"error": f"task_count not numeric: {task_count_raw}"}),
-                }
+                return LambdaResponse.validation_error(
+                    "task_count",
+                    f"task_count must be numeric, got {task_count_raw!r}",
+                )
+
         project_name = os.getenv("PROJECT_NAME", "algo")
-        os.getenv("ENVIRONMENT", "dev")
         cluster_arn = os.getenv("ECS_CLUSTER_ARN")
 
         if not cluster_arn:
-            return {
-                "statusCode": 500,
-                "body": json.dumps({"error": "ECS_CLUSTER_ARN not configured"}),
-            }
+            return LambdaResponse.error("ECS_CLUSTER_ARN not configured", status_code=500)
 
-        # Determine launch type (critical loaders use on-demand)
         critical_loaders = {
             "stock_prices_daily",
             "signals_daily",
@@ -75,12 +66,10 @@ def lambda_handler(event, context):
         }
         use_fargate = loader_name in critical_loaders
 
-        # Run ECS task
         task_def = f"{project_name}-{loader_name}-loader"
         logger.info(f"Triggering loader: {loader_name} (task_def={task_def}, count={task_count})")
 
-        # Build run_task params carefully - only include launchType if FARGATE, don't pass None
-        run_task_params = {
+        run_task_params: dict[str, Any] = {
             "cluster": cluster_arn,
             "taskDefinition": task_def,
             "networkConfiguration": {
@@ -94,43 +83,34 @@ def lambda_handler(event, context):
         }
 
         if use_fargate:
-            # Critical loaders: use on-demand FARGATE
             run_task_params["launchType"] = "FARGATE"
         else:
-            # Non-critical loaders: use FARGATE_SPOT via capacity provider strategy
             run_task_params["capacityProviderStrategy"] = [
                 {"capacityProvider": "FARGATE_SPOT", "weight": 100, "base": 0}
             ]
 
+        ecs = boto3.client("ecs", region_name=os.getenv("AWS_REGION", "us-east-1"))
         response = ecs.run_task(**run_task_params)
 
-        tasks = response.get("tasks")
+        tasks = response.get("tasks", [])
         if not tasks:
-            failures = response.get("failures")
-            return {
-                "statusCode": 500,
-                "body": json.dumps(
-                    {
-                        "error": "Failed to start task",
-                        "failures": [f["reason"] for f in failures],
-                    }
-                ),
-            }
+            failures = response.get("failures", [])
+            error_reasons = [f["reason"] for f in failures] if failures else ["Unknown error"]
+            return LambdaResponse.error(
+                f"Failed to start task: {', '.join(error_reasons)}",
+                status_code=500,
+            )
 
         task_arns = [t["taskArn"] for t in tasks]
         logger.info(f"✓ Started {len(task_arns)} tasks: {task_arns}")
 
-        return {
-            "statusCode": 200,
-            "body": json.dumps(
-                {
-                    "message": f"Triggered {loader_name} loader",
-                    "tasks": task_arns,
-                    "timestamp": datetime.now(timezone.utc).isoformat(),
-                }
-            ),
-        }
+        return LambdaResponse.success(
+            {
+                "message": f"Triggered {loader_name} loader",
+                "tasks": task_arns,
+                "timestamp": datetime.now(timezone.utc).isoformat(),
+            }
+        )
 
-    except (json.JSONDecodeError, ValueError) as e:
-        logger.error(f"Error triggering loader: {e}", exc_info=True)
-        return {"statusCode": 500, "body": json.dumps({"error": str(e)})}
+
+lambda_handler = create_lambda_handler(TriggerLoadersHandler)

@@ -170,12 +170,14 @@ class PriceLoader(OptimalLoader):
         time_since_eod_start = (now_et - eod_start_et).total_seconds() / 60
         if -10 < time_since_eod_start < 120:  # -10 min to +120 min relative to 4:05 PM
             logger.info(
-                f"[CONTEXT] Running during EOD pipeline ({time_since_eod_start:.0f} min from 4:05 PM ET), using aggressive rate limiting"
+                f"[CONTEXT] Running during EOD pipeline "
+                f"({time_since_eod_start:.0f} min from 4:05 PM ET), using aggressive rate limiting"
             )
             return True
 
         logger.debug(
-            f"[CONTEXT] Running during morning/regular hours ({time_since_eod_start:.0f} min from 4:05 PM ET), using conservative rate limiting"
+            f"[CONTEXT] Running during morning/regular hours "
+            f"({time_since_eod_start:.0f} min from 4:05 PM ET), using conservative rate limiting"
         )
         return False
 
@@ -449,7 +451,7 @@ class PriceLoader(OptimalLoader):
                             # Increased upper bound from 1800s to 3600s to support longer waits if needed
                             if config_value < 1 or config_value > 3600:
                                 logger.warning(
-                                    f"[MARKET_CLOSE] âš ï,  Config {config_key}={config_value}s is out of bounds (1-3600s). "
+                                    f"[MARKET_CLOSE] Config {config_key}={config_value}s is out of bounds (1-3600s). "
                                     f"Using default {default_timeout_sec}s instead."
                                 )
                                 max_wait_sec = default_timeout_sec
@@ -462,7 +464,7 @@ class PriceLoader(OptimalLoader):
                                 config_used = "configured"
                         except (ValueError, TypeError) as parse_err:
                             logger.warning(
-                                f"[MARKET_CLOSE] âš ï,  Config {config_key}={config_result[0]} is not a valid integer. "
+                                f"[MARKET_CLOSE] Config {config_key}={config_result[0]} is not a valid integer. "
                                 f"Using default {default_timeout_sec}s instead. Error: {parse_err}"
                             )
                             max_wait_sec = default_timeout_sec
@@ -1036,7 +1038,7 @@ class PriceLoader(OptimalLoader):
         # If we've hit 3+ rate limit errors, yfinance is clearly degraded. Timing is context-aware:
         #   - EOD (85-min pipeline): abort immediately after 3 errors (tight deadline, fail-fast required)
         #   - Morning (450-min pipeline): abort after 3 errors + 30s duration (allow brief recovery)
-        # This prevents: batch 150â†’20â†’10â†’5â†’1 cascade where load time balloons from 15 min â†’ 200+ min
+        # This prevents: batch 150->20->10->5->1 cascade where load time balloons from 15 min -> 200+ min
         if batch_size >= 20 and self._rate_limit_errors >= 3:
             error_duration = (
                 (time.time() - self._rate_limit_error_start_time) if self._rate_limit_error_start_time else 0
@@ -1212,7 +1214,7 @@ class PriceLoader(OptimalLoader):
                     if attempt < max_retries - 1:
                         # ISSUE #23 FIX: Reduced exponential backoff base from 5s to 2s
                         # Prevents long waits: 5 retries at old rate = 310s, new rate = 62s
-                        base_wait = min(120, (2**attempt) * 2)  # 2s, 4s, 8s, 16s, 32s, 64s, 128s â†’ capped at 120s
+                        base_wait = min(120, (2**attempt) * 2)  # 2s, 4s, 8s, 16s, 32s, 64s, 128s -> capped at 120s
                         jitter = random.uniform(0.9, 1.1)  # Â±10% jitter
                         wait_time = base_wait * jitter
                         logger.warning(
@@ -1807,7 +1809,7 @@ def _invalidate_phase1_cache():
             error_dict = delete_err.response.get("Error")
             if error_dict and error_dict.get("Code") in ("AccessDenied", "AccessDeniedException"):
                 logger.warning(
-                    "[CACHE INVALIDATION] âš  Permission denied (DELETE): No DynamoDB write access. "
+                    "[CACHE INVALIDATION]  Permission denied (DELETE): No DynamoDB write access. "
                     "Loader will proceed without cache invalidation (risk: may use stale data from previous run)."
                 )
                 return
@@ -1839,7 +1841,7 @@ def _invalidate_phase1_cache():
             error_dict = poison_err.response.get("Error")
             if error_dict and error_dict.get("Code") in ("AccessDenied", "AccessDeniedException"):
                 logger.warning(
-                    "[CACHE INVALIDATION] âš  Permission denied (UPDATE): No DynamoDB write access. "
+                    "[CACHE INVALIDATION]  Permission denied (UPDATE): No DynamoDB write access. "
                     "Loader will proceed without cache invalidation (risk: may use stale data from previous run)."
                 )
                 return

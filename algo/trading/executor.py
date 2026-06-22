@@ -25,6 +25,7 @@ from algo.trading.exceptions import (
     PretradeCheckFailedError,
     TradingError,
 )
+from algo.trading.check_handler_strategies import CheckHandlerRegistry
 from algo.trading.executor_entry_handler import EntryHandler
 from algo.trading.executor_exit_handler import ExitHandler
 from algo.trading.notification_dispatcher import NotificationDispatcher
@@ -486,10 +487,9 @@ class TradeExecutor:
         return True, "", None
 
     def _process_validation_result(self, check_name: str, result: tuple) -> tuple[bool, str, dict | None]:
-        """Process validation check result and return early-exit tuple if check failed.
+        """Process validation check result using strategy pattern.
 
-        Eliminates if-elif chain for different check result types by delegating
-        to a single handler that knows how to unpack each result type.
+        Delegates to handler that knows how to unpack each check type's result tuple.
 
         Args:
             check_name: Name of the validation check
@@ -498,60 +498,12 @@ class TradeExecutor:
         Returns:
             (should_return_early, error_msg, status_dict_or_none)
         """
-        if check_name == "idempotent":
-            is_dup, error_msg, existing_trade_id = result
-            if is_dup:
-                return (
-                    True,
-                    error_msg,
-                    {
-                        "status": "duplicate",
-                        "trade_id": existing_trade_id or "",
-                        "duplicate": True,
-                    },
-                )
-        elif check_name == "open_position":
-            is_dup, error_msg = result
-            if is_dup:
-                return (
-                    True,
-                    error_msg,
-                    {"status": "duplicate", "duplicate": True},
-                )
-        elif check_name == "fingerprint":
-            is_dup, error_msg, existing_trade_id = result
-            if is_dup:
-                return (
-                    True,
-                    error_msg,
-                    {
-                        "status": "duplicate",
-                        "trade_id": existing_trade_id or "",
-                        "duplicate": True,
-                    },
-                )
-        elif check_name == "pending":
-            has_pending, error_msg, _ = result
-            if has_pending:
-                return (
-                    True,
-                    error_msg,
-                    {"status": "pending_trade_exists"},
-                )
-        elif check_name == "reentry":
-            valid, error_msg, _ = result
-            if not valid:
-                status = "reentry_blocked" if "prior re-entries" in (error_msg or "") else "reentry_cooldown"
-                return (
-                    True,
-                    error_msg,
-                    {
-                        "status": status,
-                        "reentry_blocked": "prior" in (error_msg or "").lower(),
-                    },
-                )
-
-        return False, "", None
+        try:
+            handler = CheckHandlerRegistry.get_handler(check_name)
+            return handler.process(result)
+        except ValueError as e:
+            logger.error(f"[VALIDATION] Unknown check type: {check_name}: {e}")
+            raise
 
     def _with_cursor(self, operation: Any, acquire_locks: bool = False) -> Any:
         """Execute an operation with a cursor via DatabaseContext.
