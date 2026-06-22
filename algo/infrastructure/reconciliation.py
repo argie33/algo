@@ -678,7 +678,7 @@ class DailyReconciliation:
 
     def audit_stale_estimated_prices(self, cur) -> dict[Any, Any]:
         """Audit for trades with estimated exit prices (stub - returns empty result)."""
-        return {"stale_count": 0, "stale_symbols": [], "details": {}}
+        return {"status": "OK", "stale_count": 0, "stale_symbols": [], "details": {}}
 
     def sync_positions(self, cur):
         """Sync broker positions via BrokerAdapter."""

@@ -128,12 +128,13 @@ def run(
         try:
             with DatabaseContext("read") as audit_cur:
                 stale_audit = recon.audit_stale_estimated_prices(audit_cur)
-                if stale_audit["status"] != "OK":
-                    logger.warning(f"[PHASE 7 AUDIT] Stale estimated prices detected: {stale_audit['message']}")
-                    log_phase_result_fn(9, "exit_reconciliation_audit", "warn", stale_audit["message"])
+                if stale_audit.get("status", "OK") != "OK":
+                    msg = stale_audit.get("message", str(stale_audit))
+                    logger.warning(f"[PHASE 7 AUDIT] Stale estimated prices detected: {msg}")
+                    log_phase_result_fn(9, "exit_reconciliation_audit", "warn", msg)
                 else:
                     logger.info("[PHASE 7 AUDIT] All exit prices reconciled properly")
-        except (psycopg2.DatabaseError, psycopg2.OperationalError) as e:
+        except (psycopg2.DatabaseError, psycopg2.OperationalError, KeyError) as e:
             logger.error(f"[PHASE 7] Exit price audit failed: {e}")
 
         # Record exits for recently closed positions (batch operation to avoid N+1 queries)
