@@ -618,7 +618,7 @@ def render_dashboard(
         compact,
     )
 
-    expanded_layout = _render_expanded_view(
+    expanded_layout = _render_footer_expanded_view(
         view_mode,
         hdr_panel, exp_panel, mascot_panel,
         cb, exp_f, mkt, sentiment,
@@ -766,7 +766,7 @@ def _render_dashboard_body(
     )
 
 
-def _render_expanded_view(
+def _render_footer_expanded_view(
     view_mode: str,
     hdr_panel: Panel, exp_panel: Panel, mascot_panel: Panel,
     cb: Any,
@@ -780,9 +780,11 @@ def _render_expanded_view(
     eco: Any, econ_cal: Any,
     data: dict,
 ) -> Layout | None:
-    """Render expanded view for the given view_mode.
+    """Render footer/expanded detail view for the given view_mode.
 
-    Returns the expanded Layout, or None if view_mode is 'normal'.
+    Handles 12 expanded modes: circuit, exposure, market, positions, signals, health,
+    sectors, trades, economic, portfolio, errors. Returns the expanded Layout, or None
+    if view_mode is 'normal'.
     """
     if view_mode == "normal":
         return None

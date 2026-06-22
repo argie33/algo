@@ -2,7 +2,6 @@
 from __future__ import annotations
 
 import logging
-from dataclasses import dataclass
 from datetime import datetime, timezone
 from decimal import ROUND_DOWN, ROUND_HALF_UP, Decimal
 from typing import TYPE_CHECKING, Any, cast
@@ -66,26 +65,342 @@ State tracked on algo_positions:
 logger = logging.getLogger(__name__)
 
 
-@dataclass
 class PositionContext:
-    """Context for position exit evaluation."""
+    """Context for position exit evaluation with integrated check methods."""
 
-    symbol: str
-    current_date: datetime
-    cur_price: Decimal
-    prev_close: Decimal | None
-    entry_price: Decimal
-    active_stop: Decimal
-    init_stop: Decimal
-    t1_price: Decimal | None
-    t2_price: Decimal | None
-    t3_price: Decimal | None
-    target_hits: int
-    days_held: int
-    dist_days_today: int | None
-    t1_hit_time: Any | None = None
-    t2_hit_time: Any | None = None
-    t3_hit_time: Any | None = None
+    def __init__(
+        self,
+        symbol: str,
+        current_date: datetime,
+        cur_price: Decimal,
+        prev_close: Decimal | None,
+        entry_price: Decimal,
+        active_stop: Decimal,
+        init_stop: Decimal,
+        t1_price: Decimal | None,
+        t2_price: Decimal | None,
+        t3_price: Decimal | None,
+        target_hits: int,
+        days_held: int,
+        dist_days_today: int | None,
+        config: Any | None = None,
+        cur: Any | None = None,
+        t1_hit_time: Any | None = None,
+        t2_hit_time: Any | None = None,
+        t3_hit_time: Any | None = None,
+    ) -> None:
+        self.symbol = symbol
+        self.current_date = current_date
+        self.cur_price = cur_price
+        self.prev_close = prev_close
+        self.entry_price = entry_price
+        self.active_stop = active_stop
+        self.init_stop = init_stop
+        self.t1_price = t1_price
+        self.t2_price = t2_price
+        self.t3_price = t3_price
+        self.target_hits = target_hits
+        self.days_held = days_held
+        self.dist_days_today = dist_days_today
+        self.t1_hit_time = t1_hit_time
+        self.t2_hit_time = t2_hit_time
+        self.t3_hit_time = t3_hit_time
+        self.config = config
+        self.cur = cur
+
+    def check_stop_loss(self) -> tuple[bool, dict[str, Any] | None]:
+        """Stop loss check: hard capital preservation rule."""
+        if self.cur_price <= self.active_stop:
+            return (
+                True,
+                {
+                    "stage": "stop",
+                    "fraction": 1.0,
+                    "reason": f"STOP hit: ${float(self.cur_price):.2f} <= ${float(self.active_stop):.2f}",
+                },
+            )
+        return False, None
+
+    def check_minervini_break(self, engine: ExitEngine) -> tuple[bool, dict[str, Any] | None]:
+        """Minervini break: trend-following exit on moving average break."""
+        if engine._is_minervini_break(self.cur, self.symbol, self.current_date, float(self.cur_price)):
+            return (
+                True,
+                {
+                    "stage": "stop",
+                    "fraction": 1.0,
+                    "reason": "Minervini trend break: closed below key MA on volume",
+                },
+            )
+        return False, None
+
+    def check_rs_line_break(self, engine: ExitEngine) -> tuple[bool, dict[str, Any] | None]:
+        """RS line break: relative strength deterioration vs SPY."""
+        if "exit_on_rs_line_break_50dma" not in self.config:
+            raise ValueError(
+                "CRITICAL: 'exit_on_rs_line_break_50dma' config missing. "
+                "Cannot proceed with exit rules  - risk controls undefined."
+            )
+        if self.config["exit_on_rs_line_break_50dma"]:
+            if engine._rs_line_breaking(self.cur, self.symbol, self.current_date):
+                return (
+                    True,
+                    {
+                        "stage": "stop",
+                        "fraction": 1.0,
+                        "reason": "RS line broke below 50-DMA  - relative strength deterioration",
+                    },
+                )
+        return False, None
+
+    def check_time_exit(self, engine: ExitEngine) -> tuple[bool, dict[str, Any] | None]:
+        """Time-based exit with O'Neil 8-week rule override."""
+        max_hold_val = self.config.get("max_hold_days")
+        if max_hold_val is None:
+            raise ValueError("CRITICAL: max_hold_days config missing. Cannot enforce maximum holding period.")
+
+        max_hold = int(max_hold_val)
+        if self.days_held >= max_hold:
+            eight_wk_val = self.config.get("eight_week_rule_threshold_pct")
+            if eight_wk_val is None:
+                raise ValueError("CRITICAL: eight_week_rule_threshold_pct config missing.")
+
+            eight_wk_threshold = float(eight_wk_val)
+            eight_wk_window_val = self.config.get("eight_week_rule_window_days")
+            if eight_wk_window_val is None:
+                raise ValueError("CRITICAL: eight_week_rule_window_days config missing.")
+
+            eight_wk_window = int(eight_wk_window_val)
+            eight_wk_ext = engine._eight_week_rule_active(
+                self.cur,
+                self.symbol,
+                self.current_date,
+                self.entry_price,
+                self.days_held,
+                eight_wk_threshold,
+                eight_wk_window,
+            )
+
+            if eight_wk_ext and self.days_held < 56:
+                return False, None
+
+            return (
+                True,
+                {
+                    "stage": "time",
+                    "fraction": 1.0,
+                    "reason": f"TIME exit: {self.days_held} days >= {max_hold} max",
+                },
+            )
+        return False, None
+
+    def _was_target_hit_today(self, hit_time: Any | None) -> bool:
+        """Check if target was already hit today."""
+        if hit_time is None:
+            return False
+        hit_date = hit_time.date() if hasattr(hit_time, "date") else hit_time
+        return cast(bool, hit_date == self.current_date.date())
+
+    def check_target_t1(self, engine: ExitEngine) -> tuple[bool, dict[str, Any] | None]:
+        """T1 target exit (1.5R): 50% position reduction."""
+        if self.target_hits == 0 and self.t1_price is not None and self.cur_price >= self.t1_price:
+            if self._was_target_hit_today(self.t1_hit_time):
+                return False, None
+            require_pb = bool(self.config.get("require_target_pullback", False))
+            if not require_pb or engine._is_pulling_back(self.cur, self.symbol, self.current_date):
+                return (
+                    True,
+                    {
+                        "stage": "target_1",
+                        "fraction": 0.50,
+                        "reason": f"T1 exit: ${float(self.cur_price):.2f} >= ${float(self.t1_price):.2f} (1.5R)",
+                        "new_stop": float(max(self.active_stop, self.entry_price)),
+                    },
+                )
+        return False, None
+
+    def check_target_t2(self, engine: ExitEngine) -> tuple[bool, dict[str, Any] | None]:
+        """T2 target exit (3R): 25% position reduction with stop raise to T1."""
+        if self.target_hits == 1 and self.t2_price is not None and self.cur_price >= self.t2_price:
+            if self._was_target_hit_today(self.t2_hit_time):
+                return False, None
+            require_pb = bool(self.config.get("require_target_pullback", False))
+            if not require_pb or engine._is_pulling_back(self.cur, self.symbol, self.current_date):
+                stop_for_t2 = max(self.active_stop, self.t1_price) if self.t1_price is not None else self.active_stop
+                return (
+                    True,
+                    {
+                        "stage": "target_2",
+                        "fraction": 0.50,
+                        "reason": f"T2 exit: ${float(self.cur_price):.2f} >= ${float(self.t2_price):.2f} (3R)",
+                        "new_stop": float(stop_for_t2),
+                    },
+                )
+        return False, None
+
+    def check_target_t3(self) -> tuple[bool, dict[str, Any] | None]:
+        """T3 target exit (4R): final 25% position reduction."""
+        if self.target_hits == 2 and self.t3_price is not None and self.cur_price >= self.t3_price:
+            if not self._was_target_hit_today(self.t3_hit_time):
+                return (
+                    True,
+                    {
+                        "stage": "target_3",
+                        "fraction": 1.0,
+                        "reason": f"T3 target hit: ${float(self.cur_price):.2f} >= ${float(self.t3_price):.2f} (4R) - FINAL EXIT",
+                    },
+                )
+        return False, None
+
+    def check_chandelier_trail(self, engine: ExitEngine) -> tuple[bool, dict[str, Any] | None]:
+        """Chandelier/EMA trailing stop: tightens stop after 1R profit."""
+        risk_per_share = self.entry_price - self.init_stop
+        r_mult = (
+            ((Decimal(str(self.cur_price)) - self.entry_price) / risk_per_share).quantize(
+                Decimal("0.01"), rounding=ROUND_HALF_UP
+            )
+            if risk_per_share > 0
+            else Decimal(0)
+        )
+
+        chandelier_enabled = self.config.get("use_chandelier_trail")
+        if chandelier_enabled is None:
+            raise ValueError("CRITICAL: use_chandelier_trail config missing.")
+
+        if bool(chandelier_enabled) and r_mult >= Decimal(1):
+            chand_stop = engine._chandelier_or_ema_stop(self.cur, self.symbol, self.current_date, self.days_held)
+            if chand_stop and Decimal(str(chand_stop)) > self.active_stop:
+                return (
+                    True,
+                    {
+                        "stage": "raise_stop_trail",
+                        "fraction": 0.0,
+                        "reason": f"Chandelier/EMA trail tightens stop to ${chand_stop:.2f}",
+                        "new_stop": chand_stop,
+                    },
+                )
+        return False, None
+
+    def check_td_sequential(self, engine: ExitEngine) -> tuple[bool, dict[str, Any] | None]:
+        """TD Sequential exhaustion: 9-count (50%) or 13-count (100%) exit."""
+        risk_per_share = self.entry_price - self.init_stop
+        r_mult = (
+            ((Decimal(str(self.cur_price)) - self.entry_price) / risk_per_share).quantize(
+                Decimal("0.01"), rounding=ROUND_HALF_UP
+            )
+            if risk_per_share > 0
+            else Decimal(0)
+        )
+
+        td_seq_enabled = self.config.get("exit_on_td_sequential")
+        if td_seq_enabled is None:
+            raise ValueError("CRITICAL: exit_on_td_sequential config missing.")
+
+        if bool(td_seq_enabled) and self.target_hits >= 1:
+            if r_mult >= Decimal("0.5"):
+                td_state = engine._get_td_state(self.cur, self.symbol, self.current_date)
+                if td_state.get("combo_13_complete") and td_state.get("setup_type") == "sell":
+                    return (
+                        True,
+                        {
+                            "stage": "td_combo_13",
+                            "fraction": 1.0,
+                            "reason": f"TD Combo 13-count exhaustion (FULL EXIT, R={float(r_mult):.2f})",
+                        },
+                    )
+                if td_state.get("completed_9") and td_state.get("setup_type") == "sell":
+                    return (
+                        True,
+                        {
+                            "stage": "td_exhaustion",
+                            "fraction": 0.50,
+                            "reason": f"TD Sequential 9-count exhaustion (R={float(r_mult):.2f})",
+                            "new_stop": float(max(self.active_stop, self.entry_price)),
+                        },
+                    )
+        return False, None
+
+    def check_first_red_day(self, engine: ExitEngine) -> tuple[bool, dict[str, Any] | None]:
+        """First red day: institutional distribution after parabolic run."""
+        risk_per_share = self.entry_price - self.init_stop
+        r_mult = (
+            ((Decimal(str(self.cur_price)) - self.entry_price) / risk_per_share).quantize(
+                Decimal("0.01"), rounding=ROUND_HALF_UP
+            )
+            if risk_per_share > 0
+            else Decimal(0)
+        )
+
+        if r_mult >= Decimal("2.5") and self.prev_close is not None and self.prev_close > 0:
+            down_pct = float(
+                (
+                    (Decimal(str(self.prev_close)) - Decimal(str(self.cur_price)))
+                    / Decimal(str(self.prev_close))
+                    * Decimal(100)
+                ).quantize(Decimal("0.01"), rounding=ROUND_HALF_UP)
+            )
+            if down_pct >= 1.5:
+                vol_check = engine._check_volume_spike(self.cur, self.symbol, self.current_date, 1.5)
+                if vol_check:
+                    return (
+                        True,
+                        {
+                            "stage": "first_red_day",
+                            "fraction": 0.50,
+                            "reason": f"First Red Day: down {down_pct:.2f}% on heavy volume (R={float(r_mult):.2f})",
+                            "new_stop": float(max(self.active_stop, self.entry_price)),
+                        },
+                    )
+        return False, None
+
+    def check_climax_exhaustion(self, engine: ExitEngine) -> tuple[bool, dict[str, Any] | None]:
+        """Climax run exhaustion: parabolic move climax after 5R+ gain in 10d."""
+        risk_per_share = self.entry_price - self.init_stop
+        r_mult = (
+            ((Decimal(str(self.cur_price)) - self.entry_price) / risk_per_share).quantize(
+                Decimal("0.01"), rounding=ROUND_HALF_UP
+            )
+            if risk_per_share > 0
+            else Decimal(0)
+        )
+
+        if self.days_held > 30 and r_mult >= Decimal("5.0"):
+            gain_10d = engine._compute_gain_last_n_days(self.cur, self.symbol, self.current_date, 10)
+            if gain_10d is not None and gain_10d >= 20.0:
+                return (
+                    True,
+                    {
+                        "stage": "climax_exhaustion",
+                        "fraction": 0.50,
+                        "reason": f"Climax run exhaustion: gained {gain_10d:.1f}% in last 10d (R={float(r_mult):.2f})",
+                        "new_stop": float(max(self.active_stop, self.entry_price)),
+                    },
+                )
+        return False, None
+
+    def check_distribution(self) -> tuple[bool, dict[str, Any] | None]:
+        """Distribution day: market distribution day count exceeded."""
+        dist_enabled = self.config.get("exit_on_distribution_day")
+        if dist_enabled is None:
+            raise ValueError("CRITICAL: exit_on_distribution_day config missing.")
+
+        if bool(dist_enabled) and self.dist_days_today is not None:
+            max_dd_val = self.config.get("max_distribution_days")
+            if max_dd_val is None:
+                raise ValueError("CRITICAL: max_distribution_days config missing.")
+
+            max_dd = int(max_dd_val)
+            if self.dist_days_today > max_dd:
+                return (
+                    True,
+                    {
+                        "stage": "distribution",
+                        "fraction": 0.5,
+                        "new_stop": max(self.active_stop, self.entry_price),
+                        "reason": f"Market distribution: {self.dist_days_today} dist days > {max_dd}  - reducing 50%, stop raised to breakeven",
+                    },
+                )
+        return False, None
 
 
 class ExitEngine:
@@ -122,300 +437,6 @@ class ExitEngine:
                 f"ExitEngine config missing required keys: {missing}. "
                 f"Cannot initialize exit engine without these values."
             )
-
-    def _check_stop_loss(self, ctx: PositionContext) -> tuple[bool, dict[str, Any] | None]:
-        """Stop loss check: hard capital preservation rule."""
-        if ctx.cur_price <= ctx.active_stop:
-            return (
-                True,
-                {
-                    "stage": "stop",
-                    "fraction": 1.0,
-                    "reason": f"STOP hit: ${float(ctx.cur_price):.2f} <= ${float(ctx.active_stop):.2f}",
-                },
-            )
-        return False, None
-
-    def _check_minervini_break(self, cur, ctx: PositionContext) -> tuple[bool, dict[str, Any] | None]:
-        """Minervini break: trend-following exit on moving average break."""
-        if self._is_minervini_break(cur, ctx.symbol, ctx.current_date, float(ctx.cur_price)):
-            return (
-                True,
-                {
-                    "stage": "stop",
-                    "fraction": 1.0,
-                    "reason": "Minervini trend break: closed below key MA on volume",
-                },
-            )
-        return False, None
-
-    def _check_rs_line_break(self, cur, ctx: PositionContext) -> tuple[bool, dict[str, Any] | None]:
-        """RS line break: relative strength deterioration vs SPY."""
-        if "exit_on_rs_line_break_50dma" not in self.config:
-            raise ValueError(
-                "CRITICAL: 'exit_on_rs_line_break_50dma' config missing. "
-                "Cannot proceed with exit rules  - risk controls undefined."
-            )
-        if self.config["exit_on_rs_line_break_50dma"]:
-            if self._rs_line_breaking(cur, ctx.symbol, ctx.current_date):
-                return (
-                    True,
-                    {
-                        "stage": "stop",
-                        "fraction": 1.0,
-                        "reason": "RS line broke below 50-DMA  - relative strength deterioration",
-                    },
-                )
-        return False, None
-
-    def _check_time_exit(self, cur, ctx: PositionContext) -> tuple[bool, dict[str, Any] | None]:
-        """Time-based exit with O'Neil 8-week rule override."""
-        max_hold_val = self.config.get("max_hold_days")
-        if max_hold_val is None:
-            raise ValueError("CRITICAL: max_hold_days config missing. Cannot enforce maximum holding period.")
-
-        max_hold = int(max_hold_val)
-        if ctx.days_held >= max_hold:
-            eight_wk_val = self.config.get("eight_week_rule_threshold_pct")
-            if eight_wk_val is None:
-                raise ValueError("CRITICAL: eight_week_rule_threshold_pct config missing.")
-
-            eight_wk_threshold = float(eight_wk_val)
-            eight_wk_window_val = self.config.get("eight_week_rule_window_days")
-            if eight_wk_window_val is None:
-                raise ValueError("CRITICAL: eight_week_rule_window_days config missing.")
-
-            eight_wk_window = int(eight_wk_window_val)
-            eight_wk_ext = self._eight_week_rule_active(
-                cur,
-                ctx.symbol,
-                ctx.current_date,
-                ctx.entry_price,
-                ctx.days_held,
-                eight_wk_threshold,
-                eight_wk_window,
-            )
-
-            if eight_wk_ext and ctx.days_held < 56:
-                return False, None
-
-            return (
-                True,
-                {
-                    "stage": "time",
-                    "fraction": 1.0,
-                    "reason": f"TIME exit: {ctx.days_held} days >= {max_hold} max",
-                },
-            )
-        return False, None
-
-    def _was_target_hit_today(self, hit_time: Any | None, current_date: datetime) -> bool:
-        """Check if target was already hit today."""
-        if hit_time is None:
-            return False
-        hit_date = hit_time.date() if hasattr(hit_time, "date") else hit_time
-        return cast(bool, hit_date == current_date.date())
-
-    def _check_target_t1(self, cur: Any, ctx: PositionContext) -> tuple[bool, dict[str, Any] | None]:
-        """T1 target exit (1.5R): 50% position reduction."""
-        if ctx.target_hits == 0 and ctx.t1_price is not None and ctx.cur_price >= ctx.t1_price:
-            if self._was_target_hit_today(ctx.t1_hit_time, ctx.current_date):
-                return False, None
-            require_pb = bool(self.config.get("require_target_pullback", False))
-            if not require_pb or self._is_pulling_back(cur, ctx.symbol, ctx.current_date):
-                return (
-                    True,
-                    {
-                        "stage": "target_1",
-                        "fraction": 0.50,
-                        "reason": f"T1 exit: ${float(ctx.cur_price):.2f} >= ${float(ctx.t1_price):.2f} (1.5R)",
-                        "new_stop": float(max(ctx.active_stop, ctx.entry_price)),
-                    },
-                )
-        return False, None
-
-    def _check_target_t2(self, cur: Any, ctx: PositionContext) -> tuple[bool, dict[str, Any] | None]:
-        """T2 target exit (3R): 25% position reduction with stop raise to T1."""
-        if ctx.target_hits == 1 and ctx.t2_price is not None and ctx.cur_price >= ctx.t2_price:
-            if self._was_target_hit_today(ctx.t2_hit_time, ctx.current_date):
-                return False, None
-            require_pb = bool(self.config.get("require_target_pullback", False))
-            if not require_pb or self._is_pulling_back(cur, ctx.symbol, ctx.current_date):
-                stop_for_t2 = max(ctx.active_stop, ctx.t1_price) if ctx.t1_price is not None else ctx.active_stop
-                return (
-                    True,
-                    {
-                        "stage": "target_2",
-                        "fraction": 0.50,
-                        "reason": f"T2 exit: ${float(ctx.cur_price):.2f} >= ${float(ctx.t2_price):.2f} (3R)",
-                        "new_stop": float(stop_for_t2),
-                    },
-                )
-        return False, None
-
-    def _check_target_t3(self, ctx: PositionContext) -> tuple[bool, dict[str, Any] | None]:
-        """T3 target exit (4R): final 25% position reduction."""
-        if ctx.target_hits == 2 and ctx.t3_price is not None and ctx.cur_price >= ctx.t3_price:
-            if not self._was_target_hit_today(ctx.t3_hit_time, ctx.current_date):
-                return (
-                    True,
-                    {
-                        "stage": "target_3",
-                        "fraction": 1.0,
-                        "reason": f"T3 target hit: ${float(ctx.cur_price):.2f} >= ${float(ctx.t3_price):.2f} (4R) - FINAL EXIT",
-                    },
-                )
-        return False, None
-
-    def _check_chandelier_trail(self, cur, ctx: PositionContext) -> tuple[bool, dict[str, Any] | None]:
-        """Chandelier/EMA trailing stop: tightens stop after 1R profit."""
-        risk_per_share = ctx.entry_price - ctx.init_stop
-        r_mult = (
-            ((Decimal(str(ctx.cur_price)) - ctx.entry_price) / risk_per_share).quantize(
-                Decimal("0.01"), rounding=ROUND_HALF_UP
-            )
-            if risk_per_share > 0
-            else Decimal(0)
-        )
-
-        chandelier_enabled = self.config.get("use_chandelier_trail")
-        if chandelier_enabled is None:
-            raise ValueError("CRITICAL: use_chandelier_trail config missing.")
-
-        if bool(chandelier_enabled) and r_mult >= Decimal(1):
-            chand_stop = self._chandelier_or_ema_stop(cur, ctx.symbol, ctx.current_date, ctx.days_held)
-            if chand_stop and Decimal(str(chand_stop)) > ctx.active_stop:
-                return (
-                    True,
-                    {
-                        "stage": "raise_stop_trail",
-                        "fraction": 0.0,
-                        "reason": f"Chandelier/EMA trail tightens stop to ${chand_stop:.2f}",
-                        "new_stop": chand_stop,
-                    },
-                )
-        return False, None
-
-    def _check_td_sequential(self, cur, ctx: PositionContext) -> tuple[bool, dict[str, Any] | None]:
-        """TD Sequential exhaustion: 9-count (50%) or 13-count (100%) exit."""
-        risk_per_share = ctx.entry_price - ctx.init_stop
-        r_mult = (
-            ((Decimal(str(ctx.cur_price)) - ctx.entry_price) / risk_per_share).quantize(
-                Decimal("0.01"), rounding=ROUND_HALF_UP
-            )
-            if risk_per_share > 0
-            else Decimal(0)
-        )
-
-        td_seq_enabled = self.config.get("exit_on_td_sequential")
-        if td_seq_enabled is None:
-            raise ValueError("CRITICAL: exit_on_td_sequential config missing.")
-
-        if bool(td_seq_enabled) and ctx.target_hits >= 1:
-            if r_mult >= Decimal("0.5"):
-                td_state = self._get_td_state(cur, ctx.symbol, ctx.current_date)
-                if td_state.get("combo_13_complete") and td_state.get("setup_type") == "sell":
-                    return (
-                        True,
-                        {
-                            "stage": "td_combo_13",
-                            "fraction": 1.0,
-                            "reason": f"TD Combo 13-count exhaustion (FULL EXIT, R={float(r_mult):.2f})",
-                        },
-                    )
-                if td_state.get("completed_9") and td_state.get("setup_type") == "sell":
-                    return (
-                        True,
-                        {
-                            "stage": "td_exhaustion",
-                            "fraction": 0.50,
-                            "reason": f"TD Sequential 9-count exhaustion (R={float(r_mult):.2f})",
-                            "new_stop": float(max(ctx.active_stop, ctx.entry_price)),
-                        },
-                    )
-        return False, None
-
-    def _check_first_red_day(self, cur, ctx: PositionContext) -> tuple[bool, dict[str, Any] | None]:
-        """First red day: institutional distribution after parabolic run."""
-        risk_per_share = ctx.entry_price - ctx.init_stop
-        r_mult = (
-            ((Decimal(str(ctx.cur_price)) - ctx.entry_price) / risk_per_share).quantize(
-                Decimal("0.01"), rounding=ROUND_HALF_UP
-            )
-            if risk_per_share > 0
-            else Decimal(0)
-        )
-
-        if r_mult >= Decimal("2.5") and ctx.prev_close is not None and ctx.prev_close > 0:
-            down_pct = float(
-                (
-                    (Decimal(str(ctx.prev_close)) - Decimal(str(ctx.cur_price)))
-                    / Decimal(str(ctx.prev_close))
-                    * Decimal(100)
-                ).quantize(Decimal("0.01"), rounding=ROUND_HALF_UP)
-            )
-            if down_pct >= 1.5:
-                vol_check = self._check_volume_spike(cur, ctx.symbol, ctx.current_date, 1.5)
-                if vol_check:
-                    return (
-                        True,
-                        {
-                            "stage": "first_red_day",
-                            "fraction": 0.50,
-                            "reason": f"First Red Day: down {down_pct:.2f}% on heavy volume (R={float(r_mult):.2f})",
-                            "new_stop": float(max(ctx.active_stop, ctx.entry_price)),
-                        },
-                    )
-        return False, None
-
-    def _check_climax_exhaustion(self, cur, ctx: PositionContext) -> tuple[bool, dict[str, Any] | None]:
-        """Climax run exhaustion: parabolic move climax after 5R+ gain in 10d."""
-        risk_per_share = ctx.entry_price - ctx.init_stop
-        r_mult = (
-            ((Decimal(str(ctx.cur_price)) - ctx.entry_price) / risk_per_share).quantize(
-                Decimal("0.01"), rounding=ROUND_HALF_UP
-            )
-            if risk_per_share > 0
-            else Decimal(0)
-        )
-
-        if ctx.days_held > 30 and r_mult >= Decimal("5.0"):
-            gain_10d = self._compute_gain_last_n_days(cur, ctx.symbol, ctx.current_date, 10)
-            if gain_10d is not None and gain_10d >= 20.0:
-                return (
-                    True,
-                    {
-                        "stage": "climax_exhaustion",
-                        "fraction": 0.50,
-                        "reason": f"Climax run exhaustion: gained {gain_10d:.1f}% in last 10d (R={float(r_mult):.2f})",
-                        "new_stop": float(max(ctx.active_stop, ctx.entry_price)),
-                    },
-                )
-        return False, None
-
-    def _check_distribution(self, ctx: PositionContext) -> tuple[bool, dict[str, Any] | None]:
-        """Distribution day: market distribution day count exceeded."""
-        dist_enabled = self.config.get("exit_on_distribution_day")
-        if dist_enabled is None:
-            raise ValueError("CRITICAL: exit_on_distribution_day config missing.")
-
-        if bool(dist_enabled) and ctx.dist_days_today is not None:
-            max_dd_val = self.config.get("max_distribution_days")
-            if max_dd_val is None:
-                raise ValueError("CRITICAL: max_distribution_days config missing.")
-
-            max_dd = int(max_dd_val)
-            if ctx.dist_days_today > max_dd:
-                return (
-                    True,
-                    {
-                        "stage": "distribution",
-                        "fraction": 0.5,
-                        "new_stop": max(ctx.active_stop, ctx.entry_price),
-                        "reason": f"Market distribution: {ctx.dist_days_today} dist days > {max_dd}  - reducing 50%, stop raised to breakeven",
-                    },
-                )
-        return False, None
 
     def check_and_execute_exits(self, current_date=None) -> int:
         """Check all open positions for exit conditions and execute."""
@@ -734,6 +755,8 @@ class ExitEngine:
             target_hits=target_hits,
             days_held=days_held,
             dist_days_today=dist_days_today,
+            config=self.config,
+            cur=cur,
             t1_hit_time=t1_hit_time,
             t2_hit_time=t2_hit_time,
             t3_hit_time=t3_hit_time,

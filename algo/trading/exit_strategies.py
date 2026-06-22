@@ -105,18 +105,17 @@ class MinerviniBreakStrategy(ExitStrategy):
     """Exit on Minervini break: close < 21-EMA on volume > 50d avg (or cleanly below 50-DMA)."""
 
     def evaluate(self, ctx: PositionContext, cur: Any) -> ExitSignal:
-        # Imported here to avoid circular dependency
         from algo.trading.exit_engine import ExitEngine
 
         engine = ExitEngine(self.config)
-        is_break = engine._is_minervini_break(cur, ctx.symbol, ctx.current_date, float(ctx.cur_price))
+        _should_exit, decision = ctx.check_minervini_break(engine)
 
-        if is_break:
+        if _should_exit and decision:
             return ExitSignal(
                 triggered=True,
-                stage="minervini_break",
-                reason=f"Minervini break at ${float(ctx.cur_price):.2f}",
-                fraction=1.0,
+                stage=decision.get("stage", "minervini_break"),
+                reason=decision.get("reason", ""),
+                fraction=decision.get("fraction", 1.0),
             )
         return ExitSignal(triggered=False, stage="hold", reason="", fraction=0.0)
 
@@ -128,14 +127,14 @@ class RSLineBreakStrategy(ExitStrategy):
         from algo.trading.exit_engine import ExitEngine
 
         engine = ExitEngine(self.config)
-        is_breaking = engine._rs_line_breaking(cur, ctx.symbol, ctx.current_date)
+        _should_exit, decision = ctx.check_rs_line_break(engine)
 
-        if is_breaking:
+        if _should_exit and decision:
             return ExitSignal(
                 triggered=True,
-                stage="rs_breakdown",
-                reason=f"RS line breakdown detected for {ctx.symbol}",
-                fraction=1.0,
+                stage=decision.get("stage", "rs_breakdown"),
+                reason=decision.get("reason", ""),
+                fraction=decision.get("fraction", 1.0),
             )
         return ExitSignal(triggered=False, stage="hold", reason="", fraction=0.0)
 
@@ -147,7 +146,7 @@ class TimeBasedExitStrategy(ExitStrategy):
         from algo.trading.exit_engine import ExitEngine
 
         engine = ExitEngine(self.config)
-        _should_exit, decision = engine._check_time_exit(cur, ctx)
+        _should_exit, decision = ctx.check_time_exit(engine)
 
         if _should_exit and decision:
             return ExitSignal(
@@ -171,11 +170,11 @@ class ProfitTargetStrategy(ExitStrategy):
         engine = ExitEngine(self.config)
 
         if self.target_level == 1:
-            _should_exit, decision = engine._check_target_t1(cur, ctx)
+            _should_exit, decision = ctx.check_target_t1(engine)
         elif self.target_level == 2:
-            _should_exit, decision = engine._check_target_t2(cur, ctx)
+            _should_exit, decision = ctx.check_target_t2(engine)
         elif self.target_level == 3:
-            _should_exit, decision = engine._check_target_t3(ctx)
+            _should_exit, decision = ctx.check_target_t3()
         else:
             return ExitSignal(triggered=False, stage="hold", reason="", fraction=0.0)
 
@@ -218,7 +217,7 @@ class ChandelierTrailStrategy(ExitStrategy):
         from algo.trading.exit_engine import ExitEngine
 
         engine = ExitEngine(self.config)
-        _should_exit, decision = engine._check_chandelier_trail(cur, ctx)
+        _should_exit, decision = ctx.check_chandelier_trail(engine)
 
         if _should_exit and decision:
             return ExitSignal(
@@ -226,6 +225,7 @@ class ChandelierTrailStrategy(ExitStrategy):
                 stage=decision.get("stage", "chandelier_trail"),
                 reason=decision.get("reason", ""),
                 fraction=decision.get("fraction", 1.0),
+                new_stop=decision.get("new_stop"),
             )
         return ExitSignal(triggered=False, stage="hold", reason="", fraction=0.0)
 
@@ -237,7 +237,7 @@ class TDSequentialStrategy(ExitStrategy):
         from algo.trading.exit_engine import ExitEngine
 
         engine = ExitEngine(self.config)
-        _should_exit, decision = engine._check_td_sequential(cur, ctx)
+        _should_exit, decision = ctx.check_td_sequential(engine)
 
         if _should_exit and decision:
             required_fields = ["stage", "reason", "fraction"]
@@ -263,7 +263,7 @@ class FirstRedDayStrategy(ExitStrategy):
         from algo.trading.exit_engine import ExitEngine
 
         engine = ExitEngine(self.config)
-        _should_exit, decision = engine._check_first_red_day(cur, ctx)
+        _should_exit, decision = ctx.check_first_red_day(engine)
 
         if _should_exit and decision:
             required_fields = ["stage", "reason", "fraction"]
@@ -289,7 +289,7 @@ class ClimaxExhaustionStrategy(ExitStrategy):
         from algo.trading.exit_engine import ExitEngine
 
         engine = ExitEngine(self.config)
-        _should_exit, decision = engine._check_climax_exhaustion(cur, ctx)
+        _should_exit, decision = ctx.check_climax_exhaustion(engine)
 
         if _should_exit and decision:
             required_fields = ["stage", "reason", "fraction"]
@@ -312,10 +312,7 @@ class DistributionStrategy(ExitStrategy):
     """Exit if market distribution day count exceeds configured limit."""
 
     def evaluate(self, ctx: PositionContext, cur: Any) -> ExitSignal:
-        from algo.trading.exit_engine import ExitEngine
-
-        engine = ExitEngine(self.config)
-        _should_exit, decision = engine._check_distribution(ctx)
+        _should_exit, decision = ctx.check_distribution()
 
         if _should_exit and decision:
             return ExitSignal(
@@ -323,6 +320,7 @@ class DistributionStrategy(ExitStrategy):
                 stage=decision.get("stage", "distribution"),
                 reason=decision.get("reason", ""),
                 fraction=decision.get("fraction", 1.0),
+                new_stop=decision.get("new_stop"),
             )
         return ExitSignal(triggered=False, stage="hold", reason="", fraction=0.0)
 

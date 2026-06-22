@@ -101,7 +101,7 @@ class EntryHandler:
         self.t3_target_r_multiple = executor.t3_target_r_multiple
 
     def execute_entry(self, context: TradeContext) -> dict[str, Any]:
-        """Execute entry trade with all validations and database operations.
+        """Execute entry trade through 4 phases: validate → submit → record → notify.
 
         Returns: {
             'success': bool,
@@ -186,47 +186,43 @@ class EntryHandler:
 
         # Execute entry in database transaction with locks
         def _execute_entry_txn(cur: Any) -> dict[str, Any]:
-            """Execute entry transaction with database locks."""
-            # Local variables for this transaction (converted to Decimal for type safety)
+            """Execute entry transaction through 4 phases with database locks."""
+            # Convert targets to Decimal for type safety
             tgt_1_price: Decimal | None = Decimal(str(target_1_price)) if target_1_price else None
             tgt_2_price: Decimal | None = Decimal(str(target_2_price)) if target_2_price else None
             tgt_3_price: Decimal | None = Decimal(str(target_3_price)) if target_3_price else None
 
-            # Validate entry conditions within transaction
-            is_valid, error_msg, error_details = self.executor._validate_entry_conditions(
+            # PHASE 1: Validate
+            is_valid, error_msg, error_details = self._validate_entry_phase(
                 cur, symbol, signal_date, entry_price, stop_loss_price
             )
             if not is_valid:
                 result: dict[str, Any] = {
                     "success": False,
-                    "trade_id": error_details["trade_id"] if error_details else "",
+                    "trade_id": error_details.get("trade_id", ""),
                     "message": error_msg,
                 }
                 if error_details:
                     result.update({k: v for k, v in error_details.items() if k != "trade_id"})
                 return result
 
-            # Generate trade ID and submit order
+            # Generate trade ID and prepare for submission
             trade_id = f"TRD-{uuid.uuid4().hex[:10].upper()}"
             execution_mode = self.executor.execution_mode
 
-            (
-                order_ok,
-                alpaca_order_id,
-                order_status,
-                order_error,
-                executed_price,
-                rejection_reason,
-            ) = self.executor._submit_and_validate_order(
-                symbol,
-                trade_id,
-                shares,
-                entry_price,
-                stop_loss_price,
-                tgt_1_price,
-                execution_mode,
+            # PHASE 2: Submit
+            order_ok, order_error, order_status, alpaca_order_id, executed_price, rejection_reason = (
+                self._submit_entry_phase(
+                    cur,
+                    symbol,
+                    trade_id,
+                    shares,
+                    entry_price,
+                    stop_loss_price,
+                    tgt_1_price,
+                    execution_mode,
+                )
             )
-
             if not order_ok:
                 return {
                     "success": False,
@@ -235,177 +231,41 @@ class EntryHandler:
                     "message": order_error,
                 }
 
-            # Verify bracket orders in auto mode
-            if execution_mode == "auto":
-                has_last_order = hasattr(self.executor, "_last_order_result")
-                order_result = self.executor._last_order_result if has_last_order else None
-                if order_result is None:
-                    return {
-                        "success": False,
-                        "trade_id": trade_id,
-                        "status": "failed",
-                        "message": "Order result missing - bracket validation failed",
-                    }
-                legs = order_result.get("legs")
-                if legs is None:
-                    raise RuntimeError(
-                        f"[ENTRY_HANDLER] {symbol}: OrderManager returned success=True but no 'legs' field. "
-                        f"Cannot validate bracket order without legs. OrderManager contract violated."
-                    )
-
-                if order_result.get("order_class") == "bracket" and len(legs) < 2:
-                    try:
-                        self.executor._cancel_bracket_orders(alpaca_order_id)
-                    except (
-                        OrderExecutionError,
-                        DatabaseError,
-                        requests.RequestException,
-                        requests.Timeout,
-                    ) as e:
-                        logger.warning(f"Failed to cancel bracket order {alpaca_order_id}: {e}")
-                    return {
-                        "success": False,
-                        "trade_id": trade_id,
-                        "status": "failed",
-                        "message": f"Bracket order missing stop loss leg ({len(legs)} legs)",
-                    }
-
-                # Check for order rejection/cancellation
-                if order_status in ("rejected", "cancelled", "expired"):
-                    try:
-                        notify(
-                            "critical",
-                            title=f"Order {order_status.upper()}: {symbol}",
-                            message=f"Trade {trade_id}: {shares}sh @ ${entry_price:.2f}",
-                        )
-                    except NotificationError as e:
-                        logger.warning(f"Failed to send rejection alert: {e}")
-                    return {
-                        "success": False,
-                        "trade_id": trade_id,
-                        "status": order_status,
-                        "message": f"Alpaca {order_status} order: {symbol}",
-                    }
-
             # Handle slippage: recalculate targets if fill price differs from signal
             if executed_price and executed_price != entry_price:
                 tgt_1_price, tgt_2_price, tgt_3_price = self._recalculate_targets_for_slippage(
                     executed_price, entry_price, stop_loss_price
                 )
 
-            # Calculate position size percentage
-            pv_for_pct = self.executor._get_portfolio_value()
-            position_size_pct = self._calculate_position_size_pct(shares, executed_price or entry_price, pv_for_pct)
-
-            entry_reason = self._build_entry_reason(
-                context.signals.swing_grade,
-                context.signals.base_type,
-                context.signals.stage_phase,
-                context.market.exposure_tier_at_entry,
+            # PHASE 3: Record
+            final_order_status = self._record_entry_phase(
+                cur,
+                trade_id,
+                symbol,
+                shares,
+                entry_price,
+                executed_price,
+                stop_loss_price,
+                tgt_1_price,
+                tgt_2_price,
+                tgt_3_price,
+                order_status,
+                alpaca_order_id,
+                context,
+                rejection_reason,
+                idempotency_key,
             )
 
-            trade_request = TradeInsertionRequest(
-                trade_id=trade_id,
-                idempotency_key=idempotency_key,
-                symbol=symbol,
-                signal_date=signal_date,
-                entry_date=entry_date,
-                executed_price=executed_price,
-                shares=shares,
-                entry_reason=entry_reason,
-                stop_loss_price=stop_loss_price,
-                stop_method=context.execution.stop_method,
-                target_1_price=tgt_1_price,
-                target_2_price=tgt_2_price,
-                target_3_price=tgt_3_price,
-                order_status=order_status,
-                execution_mode=execution_mode,
-                alpaca_order_id=alpaca_order_id,
-                position_size_pct=position_size_pct,
-                sqs=context.sqs,
-                trend_score=context.signals.trend_score,
-                swing_score=context.signals.swing_score,
-                swing_grade=context.signals.swing_grade,
-                base_type=context.signals.base_type,
-                base_quality=context.signals.base_quality,
-                stage_phase=context.signals.stage_phase,
-                sector=context.market.sector,
-                industry=context.market.industry,
-                rs_percentile=context.signals.rs_percentile,
-                market_exposure_at_entry=context.market.market_exposure_at_entry,
-                exposure_tier_at_entry=context.market.exposure_tier_at_entry,
-                stop_reasoning=context.execution.stop_reasoning,
-                swing_components=context.signals.swing_components,
-                advanced_components=context.signals.advanced_components,
-                rejection_reason=rejection_reason,
-            )
-            self._insert_trade_record(cur, trade_request)
+            if final_order_status in ("invalid", "unknown"):
+                return {
+                    "success": False,
+                    "trade_id": trade_id,
+                    "status": final_order_status,
+                    "message": f"Order status changed to {final_order_status}",
+                }
 
-            # Insert position record if order was filled
-            if order_status in ("filled", "partially_filled"):
-                if execution_mode == "auto" and alpaca_order_id:
-                    verified_status = self.executor._verify_order_status(alpaca_order_id)
-                    if verified_status not in ("filled", "partially_filled"):
-                        return {
-                            "success": False,
-                            "trade_id": trade_id,
-                            "status": verified_status or "unknown",
-                            "message": f"Order status changed from {order_status} to {verified_status}",
-                        }
-                    order_status = verified_status
-
-                actual_shares = shares
-                if order_status == "partially_filled" and alpaca_order_id:
-                    filled_qty = self.executor._get_order_filled_quantity(alpaca_order_id)
-                    if filled_qty and filled_qty > 0:
-                        actual_shares = filled_qty
-                        logger.info(_redact_for_logs(f"Partial fill: {actual_shares} of {shares} shares"))
-
-                # Validate position value
-                position_value = Decimal(str(actual_shares)) * Decimal(str(executed_price))
-                if position_value <= 0:
-                    return {
-                        "success": False,
-                        "trade_id": trade_id,
-                        "status": "invalid",
-                        "message": f"Invalid position value: {actual_shares} @ ${executed_price:.2f}",
-                    }
-
-                # Insert position record
-                position_id = f"POS-{trade_id}"
-                cur.execute(
-                    """
-                    INSERT INTO algo_positions (
-                        position_id, symbol, quantity, avg_entry_price,
-                        current_price, position_value, status,
-                        trade_ids_arr, current_stop_price, stop_loss_price, target_levels_hit,
-                        created_at
-                    ) VALUES (
-                        %s, %s, %s, %s, %s, %s, 'open',
-                        %s, %s, %s, 0, CURRENT_TIMESTAMP
-                    )
-                    """,
-                    (
-                        position_id,
-                        symbol,
-                        actual_shares,
-                        executed_price,
-                        executed_price,
-                        position_value,
-                        [trade_id],
-                        stop_loss_price,
-                        stop_loss_price,
-                    ),
-                )
-
-            # Record TCA (execution quality) for fills in auto mode
-            if self.executor.execution_mode == "auto" and order_status in (
-                "filled",
-                "partially_filled",
-            ):
-                self._record_tca(trade_id, symbol, entry_price, executed_price, order_status)
-
-            self._send_entry_notification(
+            # PHASE 4: Notify
+            self._notify_entry_phase(
                 symbol,
                 shares,
                 executed_price or entry_price,
@@ -420,7 +280,7 @@ class EntryHandler:
                 "success": True,
                 "trade_id": trade_id,
                 "alpaca_order_id": alpaca_order_id,
-                "status": order_status,
+                "status": final_order_status,
                 "message": f"{shares} sh {symbol} @ ${(executed_price or entry_price):.2f}",
             }
 
@@ -638,6 +498,238 @@ class EntryHandler:
                     logger.warning(f"Failed to send TCA alert: {e}")
         except DatabaseError as e:
             logger.warning(f"TCA recording failed: {e}")
+
+    def _validate_entry_phase(
+        self, cur: Any, symbol: str, signal_date: Any, entry_price: Decimal, stop_loss_price: Decimal
+    ) -> tuple[bool, str, dict[str, Any]]:
+        """PHASE 1: Validate entry conditions within transaction."""
+        is_valid, error_msg, error_details = self.executor._validate_entry_conditions(
+            cur, symbol, signal_date, entry_price, stop_loss_price
+        )
+        return is_valid, error_msg, error_details if error_details else {}
+
+    def _submit_entry_phase(
+        self,
+        cur: Any,
+        symbol: str,
+        trade_id: str,
+        shares: Decimal,
+        entry_price: Decimal,
+        stop_loss_price: Decimal,
+        target_1_price: Decimal | None,
+        execution_mode: str,
+    ) -> tuple[bool, str, str, str, Decimal | None, str | None]:
+        """PHASE 2: Submit order and validate result."""
+        order_ok, alpaca_order_id, order_status, order_error, executed_price, rejection_reason = (
+            self.executor._submit_and_validate_order(
+                symbol,
+                trade_id,
+                shares,
+                entry_price,
+                stop_loss_price,
+                target_1_price,
+                execution_mode,
+            )
+        )
+
+        if not order_ok:
+            return False, order_error, "", "", None, rejection_reason
+
+        # Verify bracket orders in auto mode
+        if execution_mode == "auto":
+            has_last_order = hasattr(self.executor, "_last_order_result")
+            order_result = self.executor._last_order_result if has_last_order else None
+            if order_result is None:
+                return (
+                    False,
+                    "Order result missing - bracket validation failed",
+                    "",
+                    "",
+                    None,
+                    rejection_reason,
+                )
+            legs = order_result.get("legs")
+            if legs is None:
+                raise RuntimeError(
+                    f"[ENTRY_HANDLER] {symbol}: OrderManager returned success=True but no 'legs' field. "
+                    f"Cannot validate bracket order without legs. OrderManager contract violated."
+                )
+
+            if order_result.get("order_class") == "bracket" and len(legs) < 2:
+                try:
+                    self.executor._cancel_bracket_orders(alpaca_order_id)
+                except (
+                    OrderExecutionError,
+                    DatabaseError,
+                    requests.RequestException,
+                    requests.Timeout,
+                ) as e:
+                    logger.warning(f"Failed to cancel bracket order {alpaca_order_id}: {e}")
+                return (
+                    False,
+                    f"Bracket order missing stop loss leg ({len(legs)} legs)",
+                    "",
+                    "",
+                    None,
+                    rejection_reason,
+                )
+
+            # Check for order rejection/cancellation
+            if order_status in ("rejected", "cancelled", "expired"):
+                try:
+                    notify(
+                        "critical",
+                        title=f"Order {order_status.upper()}: {symbol}",
+                        message=f"Trade {trade_id}: {shares}sh @ ${entry_price:.2f}",
+                    )
+                except NotificationError as e:
+                    logger.warning(f"Failed to send rejection alert: {e}")
+                return (
+                    False,
+                    f"Alpaca {order_status} order: {symbol}",
+                    order_status,
+                    "",
+                    None,
+                    rejection_reason,
+                )
+
+        return True, "", order_status, alpaca_order_id, executed_price, rejection_reason
+
+    def _record_entry_phase(
+        self,
+        cur: Any,
+        trade_id: str,
+        symbol: str,
+        shares: Decimal,
+        entry_price: Decimal,
+        executed_price: Decimal | None,
+        stop_loss_price: Decimal,
+        target_1_price: Decimal | None,
+        target_2_price: Decimal | None,
+        target_3_price: Decimal | None,
+        order_status: str,
+        alpaca_order_id: str,
+        context: TradeContext,
+        rejection_reason: str | None,
+        idempotency_key: str,
+    ) -> str:
+        """PHASE 3: Insert trade record, position record, record TCA."""
+        # Calculate position size percentage
+        pv_for_pct = self.executor._get_portfolio_value()
+        position_size_pct = self._calculate_position_size_pct(shares, executed_price or entry_price, pv_for_pct)
+
+        entry_reason = self._build_entry_reason(
+            context.signals.swing_grade,
+            context.signals.base_type,
+            context.signals.stage_phase,
+            context.market.exposure_tier_at_entry,
+        )
+
+        trade_request = TradeInsertionRequest(
+            trade_id=trade_id,
+            idempotency_key=idempotency_key,
+            symbol=symbol,
+            signal_date=context.signal_date,
+            entry_date=context.entry_date,
+            executed_price=executed_price,
+            shares=shares,
+            entry_reason=entry_reason,
+            stop_loss_price=stop_loss_price,
+            stop_method=context.execution.stop_method,
+            target_1_price=target_1_price,
+            target_2_price=target_2_price,
+            target_3_price=target_3_price,
+            order_status=order_status,
+            execution_mode=self.executor.execution_mode,
+            alpaca_order_id=alpaca_order_id,
+            position_size_pct=position_size_pct,
+            sqs=context.sqs,
+            trend_score=context.signals.trend_score,
+            swing_score=context.signals.swing_score,
+            swing_grade=context.signals.swing_grade,
+            base_type=context.signals.base_type,
+            base_quality=context.signals.base_quality,
+            stage_phase=context.signals.stage_phase,
+            sector=context.market.sector,
+            industry=context.market.industry,
+            rs_percentile=context.signals.rs_percentile,
+            market_exposure_at_entry=context.market.market_exposure_at_entry,
+            exposure_tier_at_entry=context.market.exposure_tier_at_entry,
+            stop_reasoning=context.execution.stop_reasoning,
+            swing_components=context.signals.swing_components,
+            advanced_components=context.signals.advanced_components,
+            rejection_reason=rejection_reason,
+        )
+        self._insert_trade_record(cur, trade_request)
+
+        # Insert position record if order was filled
+        if order_status in ("filled", "partially_filled"):
+            if self.executor.execution_mode == "auto" and alpaca_order_id:
+                verified_status = self.executor._verify_order_status(alpaca_order_id)
+                if verified_status not in ("filled", "partially_filled"):
+                    return verified_status or "unknown"
+                order_status = verified_status
+
+            actual_shares = shares
+            if order_status == "partially_filled" and alpaca_order_id:
+                filled_qty = self.executor._get_order_filled_quantity(alpaca_order_id)
+                if filled_qty and filled_qty > 0:
+                    actual_shares = filled_qty
+                    logger.info(_redact_for_logs(f"Partial fill: {actual_shares} of {shares} shares"))
+
+            # Validate position value
+            position_value = Decimal(str(actual_shares)) * Decimal(str(executed_price))
+            if position_value <= 0:
+                return "invalid"
+
+            # Insert position record
+            position_id = f"POS-{trade_id}"
+            cur.execute(
+                """
+                INSERT INTO algo_positions (
+                    position_id, symbol, quantity, avg_entry_price,
+                    current_price, position_value, status,
+                    trade_ids_arr, current_stop_price, stop_loss_price, target_levels_hit,
+                    created_at
+                ) VALUES (
+                    %s, %s, %s, %s, %s, %s, 'open',
+                    %s, %s, %s, 0, CURRENT_TIMESTAMP
+                )
+                """,
+                (
+                    position_id,
+                    symbol,
+                    actual_shares,
+                    executed_price,
+                    executed_price,
+                    position_value,
+                    [trade_id],
+                    stop_loss_price,
+                    stop_loss_price,
+                ),
+            )
+
+        # Record TCA (execution quality) for fills in auto mode
+        if self.executor.execution_mode == "auto" and order_status in ("filled", "partially_filled"):
+            self._record_tca(trade_id, symbol, entry_price, executed_price, order_status)
+
+        return order_status
+
+    def _notify_entry_phase(
+        self,
+        symbol: str,
+        shares: Decimal,
+        executed_price: Decimal | float,
+        stop_loss_price: Decimal | float,
+        target_1_price: Decimal | None,
+        swing_score: float | None,
+        base_type: str | None,
+        trade_id: str,
+    ) -> None:
+        """PHASE 4: Send entry notification."""
+        self._send_entry_notification(
+            symbol, shares, executed_price, stop_loss_price, target_1_price, swing_score, base_type, trade_id
+        )
 
     def _send_entry_notification(
         self,
