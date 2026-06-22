@@ -28,14 +28,14 @@ jobs:
         run: python scripts/ci_validation.py
 
       - name: Check syntax with ruff
-        run: ruff check algo/ tests/ tools/ loaders/ utils/ config/ lambda/
+        run: ruff check algo/ tests/ tools/ loaders/ utils/ config/ lambda/ monitoring/
 
       - name: Ruff format check
-        run: ruff format --check algo/ tests/ tools/ loaders/ utils/ config/ lambda/
+        run: ruff format --check algo/ tests/ tools/ loaders/ utils/ config/ lambda/ monitoring/
 
       - name: Type check with mypy — core packages
         run: |
-          mypy algo/ loaders/ utils/ config/ --ignore-missing-imports --show-error-codes
+          mypy algo/ loaders/ utils/ config/ monitoring/ --ignore-missing-imports --show-error-codes
           mypy tools/ --ignore-missing-imports --show-error-codes
           mypy lambda/base_handler.py lambda/algo_orchestrator/lambda_function.py \
             lambda/monitoring/health_monitor.py \

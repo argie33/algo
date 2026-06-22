@@ -288,13 +288,13 @@ jobs:
           python -m py_compile $(find . -name "*.py" -type f ! -path "./.git/*" ! -path "./__pycache__/*" ! -path "./.pytest_cache/*" ! -path "./node_modules/*" ! -path "./.venv/*" ! -path "./venv/*")
           echo "OK: All Python files have correct syntax"
       - name: Ruff format check
-        run: ruff format --check algo/ tests/ dashboard/ loaders/ utils/ config/ lambda/
+        run: ruff format --check algo/ tests/ dashboard/ loaders/ utils/ config/ lambda/ monitoring/
       - name: Ruff lint check
-        run: ruff check algo/ tests/ dashboard/ loaders/ utils/ config/ lambda/
+        run: ruff check algo/ tests/ dashboard/ loaders/ utils/ config/ lambda/ monitoring/
       - name: MyPy type check — core packages
         run: |
-          echo "Type checking algo/ loaders/ utils/ config/ dashboard/ and standalone lambda files..."
-          mypy algo/ loaders/ utils/ config/ --ignore-missing-imports --show-error-codes
+          echo "Type checking algo/ loaders/ utils/ config/ dashboard/ monitoring/ and standalone lambda files..."
+          mypy algo/ loaders/ utils/ config/ monitoring/ --ignore-missing-imports --show-error-codes
           mypy dashboard/ --ignore-missing-imports --show-error-codes
           mypy lambda/base_handler.py lambda/algo_orchestrator/lambda_function.py \
             lambda/monitoring/health_monitor.py \

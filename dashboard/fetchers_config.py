@@ -265,7 +265,9 @@ def fetch_health(c):
                     from utils.validation.freshness_config import FRESHNESS_RULES as _FR
 
                     r = _FR.get(name)
-                    role = "CRIT" if (r and r.get("critical")) else ("IMP" if (r and int(r.get("max_age_days", 999)) <= 7) else "NORM")  # type: ignore[call-overload]
+                    is_crit = r and r.get("critical")
+                    is_imp = r and int(r.get("max_age_days", 999)) <= 7
+                    role = "CRIT" if is_crit else ("IMP" if is_imp else "NORM")  # type: ignore[call-overload]
                 except ImportError:
                     role = "CRIT" if name in set(critical_stale or []) else "NORM"
             sources.append(

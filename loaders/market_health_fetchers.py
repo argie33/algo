@@ -32,9 +32,10 @@ class VIXFetcher:
     def _fetch_vix_data(self, start: date, end: date) -> dict[str, Any]:
         """Internal VIX fetch implementation."""
         try:
-            import yfinance
-            import pandas as pd
             from datetime import datetime, timezone
+
+            import pandas as pd
+            import yfinance
 
             vix_data = yfinance.download("^VIX", start=start, end=end, progress=False)
             if vix_data.empty:
@@ -76,8 +77,9 @@ class PutCallRatioFetcher:
     def _fetch_put_call_ratio(self, eval_date: date) -> float | None:
         """Internal put/call fetch implementation."""
         try:
-            import yfinance
             from datetime import datetime, timezone
+
+            import yfinance
 
             spx_options = yfinance.Ticker("^SPX")
             options_chain = spx_options.option_chain(eval_date.isoformat())
@@ -120,8 +122,8 @@ class YieldCurveFetcher:
     def _fetch_yield_curve_data(self, start: date, end: date) -> dict[str, Any]:
         """Internal yield curve fetch implementation."""
         try:
-            import requests
             import pandas as pd
+            import requests
 
             fred_api_key = __import__("os").getenv("FRED_API_KEY")
             if not fred_api_key:
@@ -159,8 +161,8 @@ class BreadthFetcher:
     def fetch(self, start: date, end: date) -> dict[str, Any]:
         """Fetch market breadth data."""
         try:
-            import requests
             import pandas as pd
+            import requests
 
             url = "https://api.example.com/market/breadth"
             params = {"start": start.isoformat(), "end": end.isoformat()}

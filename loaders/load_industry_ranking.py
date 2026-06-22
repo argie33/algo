@@ -8,7 +8,7 @@ from typing import Optional
 
 from loaders.runner import run_loader
 from utils.db.context import DatabaseContext
-from utils.loaders import fetch_latest, execute_query
+from utils.loaders import execute_query, fetch_latest
 from utils.optimal_loader import OptimalLoader
 
 logger = logging.getLogger(__name__)

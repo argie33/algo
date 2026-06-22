@@ -7,8 +7,6 @@ from collections.abc import Iterable, Sequence
 from datetime import date, datetime, timedelta, timezone
 from typing import Any
 
-import psycopg2
-
 from utils.bulk_insert_manager import BulkInsertManager
 from utils.db.context import DatabaseContext
 from utils.loader_infrastructure import LoaderInfrastructure
@@ -192,7 +190,7 @@ class OptimalLoader:
                 self._log_execution_history("failed", "Upstream data incomplete")
                 return self._stats.to_dict()
 
-            parallelism, was_adjusted = self._infrastructure.should_reduce_parallelism(parallelism)
+            parallelism, _ = self._infrastructure.should_reduce_parallelism(parallelism)
             logger.info(f"[{self.table_name}] Starting load: {len(symbols)} symbols (parallelism={parallelism})")
 
             sla_timeout_seconds = int(os.getenv("LOADER_SLA_TIMEOUT_SECONDS", "10800"))
@@ -335,7 +333,8 @@ class OptimalLoader:
                 logger.info(f"  Progress: {i}/{len(symbols)}")
 
     def _run_parallel(self, symbols: list[str], workers: int) -> None:
-        from concurrent.futures import ThreadPoolExecutor, as_completed, TimeoutError as FutureTimeoutError
+        from concurrent.futures import ThreadPoolExecutor, as_completed
+        from concurrent.futures import TimeoutError as FutureTimeoutError
 
         with ThreadPoolExecutor(max_workers=workers) as exe:
             futures = {exe.submit(self._safe_load_symbol, s): s for s in symbols}

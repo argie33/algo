@@ -16,9 +16,10 @@ This eliminates the "10+ files touched" problem by making the metric
 definition the single source of truth.
 """
 
+from collections.abc import Callable
 from dataclasses import dataclass
 from enum import Enum
-from typing import Any, Callable, Optional
+from typing import Any
 
 
 class MetricType(Enum):
@@ -62,13 +63,13 @@ class MetricDefinition:
     category: MetricCategory
     description: str
     nullable: bool = False
-    default_value: Optional[Any] = None
-    unit: Optional[str] = None  # e.g., "%" for percentages
+    default_value: Any | None = None
+    unit: str | None = None  # e.g., "%" for percentages
 
     # Validation rules (used by loaders)
-    min_value: Optional[float] = None
-    max_value: Optional[float] = None
-    validator_func: Optional[Callable[[Any], bool]] = None
+    min_value: float | None = None
+    max_value: float | None = None
+    validator_func: Callable[[Any], bool] | None = None
 
     # Dashboard/API display rules
     display_name: str = ""
@@ -77,9 +78,9 @@ class MetricDefinition:
     is_ranking: bool = False
 
     # Config thresholds (used by orchestration/risk)
-    warning_threshold: Optional[float] = None
-    critical_threshold: Optional[float] = None
-    trend_direction: Optional[str] = None  # "higher_is_better" or "lower_is_better"
+    warning_threshold: float | None = None
+    critical_threshold: float | None = None
+    trend_direction: str | None = None  # "higher_is_better" or "lower_is_better"
 
     def __post_init__(self):
         if not self.display_name:
@@ -185,7 +186,7 @@ class MetricRegistry:
     }
 
     @classmethod
-    def get_metric(cls, name: str) -> Optional[MetricDefinition]:
+    def get_metric(cls, name: str) -> MetricDefinition | None:
         """Get metric definition by name."""
         return cls.STOCK_METRICS.get(name) or cls.MARKET_METRICS.get(name)
 

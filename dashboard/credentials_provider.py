@@ -3,7 +3,6 @@
 import logging
 import os
 import subprocess
-import tempfile
 from pathlib import Path
 
 logger = logging.getLogger(__name__)
@@ -27,8 +26,9 @@ class CredentialsProvider:
         Returns: (dashboard_api_url, cognito_user_pool_id, cognito_client_id)
         """
         try:
-            import boto3
             import json
+
+            import boto3
 
             CredentialsProvider.ensure_aws_profile()
             secrets_client = boto3.client("secretsmanager", region_name=os.getenv("AWS_REGION", "us-east-1"))

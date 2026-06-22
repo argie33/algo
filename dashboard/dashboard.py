@@ -24,8 +24,6 @@ if _repo_root not in sys.path:
     sys.path.insert(0, _repo_root)
 
 import argparse
-import json
-import subprocess
 import threading
 import time
 import traceback
@@ -65,7 +63,6 @@ except ImportError:
         return ""
 
 
-import boto3
 from rich.console import Group
 from rich.layout import Layout
 from rich.live import Live
@@ -85,6 +82,7 @@ from dashboard.cognito_auth import (
 from dashboard.cognito_auth import (
     save_tokens,
 )
+from dashboard.credentials_provider import CredentialsProvider
 from dashboard.error_boundary import (
     error_summary_panel,
     error_summary_panel_expanded,
@@ -120,7 +118,6 @@ from dashboard.panels import (
     panel_signals_expanded,
     panel_trades_expanded,
 )
-from dashboard.credentials_provider import CredentialsProvider
 from dashboard.utilities import (
     CONSOLE,
     ET,
@@ -236,8 +233,8 @@ def _validate_watch_interval(value):
         if int_value > 600:
             raise argparse.ArgumentTypeError(f"Watch interval must be at most 600 seconds (got {int_value})")
         return int_value
-    except ValueError:
-        raise argparse.ArgumentTypeError(f"Watch interval must be an integer (got {value})")
+    except ValueError as err:
+        raise argparse.ArgumentTypeError(f"Watch interval must be an integer (got {value})") from err
 
 
 def _validate_api_url(url: str) -> bool:

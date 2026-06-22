@@ -76,9 +76,8 @@ def safe_float(
         if strict:
             raise StrictValidationError(f"Cannot convert None to float{f' for {field_name}' if field_name else ''}")
         if default == 0.0:
-            logger.warning(
-                f"Converting None to 0.0{f' for {field_name}' if field_name else ''}—finance data should use strict mode"
-            )
+            suffix = f" for {field_name}" if field_name else ""
+            logger.warning(f"Converting None to 0.0{suffix}—finance data should use strict mode")
         return default
 
     try:
@@ -87,8 +86,9 @@ def safe_float(
         if strict:
             raise StrictValidationError(f"Cannot convert {field_name or 'value'}={value!r} to float: {e}") from e
         if default == 0.0:
+            field = field_name or "value"
             logger.warning(
-                f"Failed to convert {field_name or 'value'}={value!r} to float (returning 0.0—use strict mode for finance): {e}"
+                f"Failed to convert {field}={value!r} to float (returning 0.0—use strict mode): {e}"
             )
         elif default is not None:
             logger.warning(f"Failed to convert {field_name or 'value'}={value!r} to float (returning {default}): {e}")
@@ -162,9 +162,8 @@ def safe_int(
         if strict:
             raise StrictValidationError(f"Cannot convert {field_name or 'value'}={value!r} to int: {e}") from e
         if default == 0:
-            logger.warning(
-                f"Failed to convert {field_name or 'value'}={value!r} to int (returning 0—use strict mode for finance): {e}"
-            )
+            field = field_name or "value"
+            logger.warning(f"Failed to convert {field}={value!r} to int (returning 0—use strict mode): {e}")
         elif default is not None:
             logger.warning(f"Failed to convert {field_name or 'value'}={value!r} to int (returning {default}): {e}")
         return default
@@ -214,8 +213,9 @@ def safe_json_parse(
 
     # For unexpected types
     if strict:
+        suffix = f" for {field_name}" if field_name else ""
         raise StrictValidationError(
-            f"Expected string or dict{f' for {field_name}' if field_name else ''}, got {type(value).__name__}: {value!r}"
+            f"Expected string or dict{suffix}, got {type(value).__name__}: {value!r}"
         )
     logger.warning(
         f"Expected string or dict{f' for {field_name}' if field_name else ''}, got {type(value).__name__}: {value!r}"

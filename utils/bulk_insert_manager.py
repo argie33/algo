@@ -4,8 +4,9 @@ import csv
 import io
 import logging
 import uuid
+from collections.abc import Sequence
 from datetime import date
-from typing import Any, Sequence, cast
+from typing import Any, cast
 
 import psycopg2
 import psycopg2.sql

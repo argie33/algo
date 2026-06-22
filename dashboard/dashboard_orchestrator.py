@@ -2,12 +2,7 @@
 
 import logging
 import threading
-import time
-from typing import Any, Optional
-
-from rich.console import Console
-from rich.layout import Layout
-from rich.live import Live
+from typing import Any
 
 logger = logging.getLogger(__name__)
 
@@ -23,8 +18,8 @@ class DashboardOrchestrator:
         self.data_source = data_source
         self.frame = 0
         self.view_mode = "normal"
-        self.watch_interval: Optional[int] = None
-        self.last_load_time: Optional[float] = None
+        self.watch_interval: int | None = None
+        self.last_load_time: float | None = None
         self.refreshing = False
         self.elapsed = 0.0
         self._state_lock = threading.Lock()
@@ -38,7 +33,7 @@ class DashboardOrchestrator:
 
     def update_view_mode(self, key: str) -> None:
         """Update view mode based on keyboard input."""
-        KEY_MAP = {
+        key_map = {
             "p": "positions",
             "s": "signals",
             "h": "health",
@@ -52,8 +47,8 @@ class DashboardOrchestrator:
             "d": "errors",
         }
         with self._state_lock:
-            if key in KEY_MAP:
-                target = KEY_MAP[key]
+            if key in key_map:
+                target = key_map[key]
                 self.view_mode = "normal" if self.view_mode == target else target
 
     def get_snapshot(self) -> dict[str, Any]:

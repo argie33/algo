@@ -5,8 +5,9 @@ Extracted from TradeExecutor to decouple EntryHandler and ExitHandler from direc
 Handlers receive a context object instead of the whole executor, reducing coupling and improving testability.
 """
 
+from collections.abc import Callable
 from decimal import Decimal
-from typing import Any, Callable
+from typing import Any
 
 
 class HandlerContext:

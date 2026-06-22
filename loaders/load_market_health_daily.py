@@ -16,13 +16,13 @@ from typing import Any, Optional
 import pandas as pd
 import psycopg2
 
-from loaders.technical_indicators import compute_moving_averages
 from loaders.market_health_fetchers import (
-    VIXFetcher,
-    PutCallRatioFetcher,
-    YieldCurveFetcher,
     BreadthFetcher,
+    PutCallRatioFetcher,
+    VIXFetcher,
+    YieldCurveFetcher,
 )
+from loaders.technical_indicators import compute_moving_averages
 from utils.db.context import DatabaseContext
 from utils.infrastructure.timezone import EASTERN_TZ
 from utils.optimal_loader import OptimalLoader
@@ -62,26 +62,21 @@ class MarketHealthDailyLoader(OptimalLoader):
         """Fetch yield curve data with circuit breaker protection."""
         return self._yield_curve_fetcher.fetch(start, end)
 
-    def fetch_incremental(self, symbol: str = "SPY", since: date | None = None):
-        """Fetch SPY price data and compute market health metrics."""
+    def _get_end_date(self) -> date:
+        """Determine end date (latest trading day in ET)."""
         from datetime import datetime, timezone
 
         from algo.infrastructure import MarketCalendar
 
-        # CRITICAL: Use ET (trading hours), not UTC, to determine end date.
-        # FIXED: Use ZoneInfo instead of hardcoded -5 offset to handle EDT properly.
         now_utc = datetime.now(timezone.utc)
         now_et = now_utc.astimezone(EASTERN_TZ)
         end = now_et.date()
-
-        # If today is not a trading day, use yesterday instead
-        # (prevents computing health metrics for non-trading days when no new data exists)
         while end > date(2020, 1, 1) and not MarketCalendar.is_trading_day(end):
             end = end - timedelta(days=1)
+        return end
 
-        # If no watermark (e.g. first call after ECS restart), read the actual table max date
-        # to avoid a full 5-year recompute + expensive all-stock breadth query on every restart.
-        # BUT: if the table is nearly empty (< 5 rows), assume it needs backfilling and start from scratch
+    def _get_start_date(self, end: date, since: date | None) -> date:
+        """Determine start date based on watermark or backfill logic."""
         if since is None:
             try:
                 with DatabaseContext("read") as cur:
@@ -89,7 +84,6 @@ class MarketHealthDailyLoader(OptimalLoader):
                     row = cur.fetchone()
                     row_count = row[1] if row else 0
                     if row and row[0]:
-                        # If table has fewer than 5 rows, it's likely incomplete/corrupted - do a full backfill
                         if row_count < 5:
                             logger.info(
                                 f"market_health_daily has {row_count} rows (< 5), starting from scratch for backfill"
@@ -104,35 +98,15 @@ class MarketHealthDailyLoader(OptimalLoader):
                 ) from None
 
         if since is None:
-            start = end - timedelta(days=5 * 365)
-        else:
-            start = since - timedelta(days=100)
+            return end - timedelta(days=5 * 365)
+        return since - timedelta(days=100)
 
-        rows = self._fetch_price_daily("SPY", start, end)
-        if not rows:
-            raise RuntimeError(
-                f"[MARKET_HEALTH] No SPY price data available for {start} to {end}. "
-                "Cannot compute market health metrics without price data."
-            )
-
-        health_metrics = self._compute_market_health(rows)
-        if not health_metrics:
-            raise RuntimeError(
-                f"[MARKET_HEALTH] Failed to compute health metrics from {len(rows)} price rows. "
-                "Market health computation should never produce empty results from valid input."
-            )
-
-        logger.info(
-            f"Computed {len(health_metrics)} health metrics from {len(rows)} price rows, date range: {health_metrics[0]['date']} to {health_metrics[-1]['date']}"
-        )
-
-        # Merge real breadth data (A/D ratio, new highs/lows) into health metrics
+    def _merge_breadth_data(self, health_metrics: list[dict], start: date, end: date) -> None:
+        """Merge breadth data into health metrics."""
         breadth = self._breadth_fetcher.fetch(start, end)
         for m in health_metrics:
             b = breadth.get(m["date"])
             if b is None:
-                # Breadth data is REQUIRED for market health - if missing, log warning but continue with explicit None
-                # This allows partial data to surface in error reporting instead of silently showing default 1.0
                 m["advance_decline_ratio"] = None
                 m["new_highs_count"] = None
                 m["new_lows_count"] = None
@@ -141,7 +115,8 @@ class MarketHealthDailyLoader(OptimalLoader):
                 m["new_highs_count"] = b.get("new_highs_count")
                 m["new_lows_count"] = b.get("new_lows_count")
 
-        # Merge VIX data (CRITICAL for risk management)
+    def _merge_vix_data(self, health_metrics: list[dict], start: date, end: date) -> None:
+        """Merge VIX data into health metrics."""
         vix = self._vix_fetcher.fetch(start, end)
         if not vix:
             raise RuntimeError(
@@ -149,11 +124,10 @@ class MarketHealthDailyLoader(OptimalLoader):
                 "VIX is critical for position sizing and risk calculation. "
                 "Cannot proceed with incomplete market health metrics."
             )
-        vix_data = vix
         matched_count = 0
         for m in health_metrics:
-            if m["date"] in vix_data:
-                m["vix_level"] = vix_data[m["date"]]
+            if m["date"] in vix:
+                m["vix_level"] = vix[m["date"]]
                 matched_count += 1
             else:
                 m["vix_level"] = None
@@ -163,10 +137,8 @@ class MarketHealthDailyLoader(OptimalLoader):
             )
         logger.info(f"VIX enrichment: matched {matched_count}/{len(health_metrics)} dates")
 
-        # Merge today's put/call ratio from SPY options (OPTIONAL enrichment)
-        # Put/call_ratio and VIX both depend on yfinance API which has rate limits and outages.
-        # Making this REQUIRED would block entire pipeline on yfinance issues.
-        # Graceful degradation allows data pipeline to continue and signal generation to proceed.
+    def _merge_put_call_data(self, health_metrics: list[dict], end: date) -> None:
+        """Merge put/call ratio into health metrics."""
         today_pc = self._put_call_fetcher.fetch(end)
         end_str = end.isoformat()
         matched_count = 0
@@ -182,8 +154,8 @@ class MarketHealthDailyLoader(OptimalLoader):
         else:
             logger.debug("Put/call ratio unavailable (optional enrichment skipped)")
 
-        # Merge yield curve slope from economic_metrics_daily (CRITICAL for regime detection)
-        # Yield curve is required for understanding market regime and risk environment.
+    def _merge_yield_curve_data(self, health_metrics: list[dict], start: date, end: date) -> None:
+        """Merge yield curve slope into health metrics."""
         yield_curve = self._yield_curve_fetcher.fetch(start, end)
         if not yield_curve:
             raise RuntimeError(
@@ -191,10 +163,9 @@ class MarketHealthDailyLoader(OptimalLoader):
                 "Yield curve is critical for market regime detection. "
                 "Cannot proceed with incomplete market health metrics."
             )
-        yield_curve_data = yield_curve
         matched_count = 0
         for m in health_metrics:
-            m["yield_curve_slope"] = yield_curve_data.get(m["date"])
+            m["yield_curve_slope"] = yield_curve.get(m["date"])
             if m["yield_curve_slope"] is not None:
                 matched_count += 1
         if matched_count == 0:
@@ -202,6 +173,37 @@ class MarketHealthDailyLoader(OptimalLoader):
                 f"Yield curve data exists but no dates matched {start} to {end}. This indicates data inconsistency."
             )
         logger.info(f"Yield curve enrichment: matched {matched_count}/{len(health_metrics)} dates")
+
+    def fetch_incremental(self, symbol: str = "SPY", since: date | None = None):
+        """Fetch SPY price data and compute market health metrics."""
+        end = self._get_end_date()
+        start = self._get_start_date(end, since)
+
+        rows = self._fetch_price_daily("SPY", start, end)
+        if not rows:
+            raise RuntimeError(
+                f"[MARKET_HEALTH] No SPY price data available for {start} to {end}. "
+                "Cannot compute market health metrics without price data."
+            )
+
+        health_metrics = self._compute_market_health(rows)
+        if not health_metrics:
+            raise RuntimeError(
+                f"[MARKET_HEALTH] Failed to compute health metrics from {len(rows)} price rows. "
+                "Market health computation should never produce empty results from valid input."
+            )
+
+        date_start = health_metrics[0]["date"]
+        date_end = health_metrics[-1]["date"]
+        logger.info(
+            f"Computed {len(health_metrics)} metrics from {len(rows)} rows, "
+            f"range: {date_start} to {date_end}"
+        )
+
+        self._merge_breadth_data(health_metrics, start, end)
+        self._merge_vix_data(health_metrics, start, end)
+        self._merge_put_call_data(health_metrics, end)
+        self._merge_yield_curve_data(health_metrics, start, end)
 
         # Optimize breadth data fetching for incremental updates: only compute for dates we'll keep
         if since is not None:
@@ -407,8 +409,7 @@ def _write_vix_family_prices(start: date, end: date) -> int:
                             return round(f, 4)
                         except (TypeError, ValueError) as e:
                             raise RuntimeError(
-                                f"[PRICE_EXTRACTION] Failed to parse {col} value '{val}' as float for {sym} on {d}: {e}. "
-                                "Data integrity issue in yfinance response."
+                                f"[PRICE_EXTRACTION] Failed to parse {col}={val!r} for {sym}: {e}"
                             ) from None
 
                     close = _v("Close")
@@ -451,16 +452,17 @@ def _write_vix_family_prices(start: date, end: date) -> int:
 
         coverage = (len(INDEX_SYMBOLS_FOR_PRICE_DAILY) - len(failed_symbols)) / len(INDEX_SYMBOLS_FOR_PRICE_DAILY) * 100
         if coverage < 80:
+            count_fetched = len(INDEX_SYMBOLS_FOR_PRICE_DAILY) - len(failed_symbols)
+            total_count = len(INDEX_SYMBOLS_FOR_PRICE_DAILY)
             raise RuntimeError(
-                f"[VIX_PRICES] Insufficient market health index coverage: {coverage:.1f}% ({len(INDEX_SYMBOLS_FOR_PRICE_DAILY) - len(failed_symbols)} of {len(INDEX_SYMBOLS_FOR_PRICE_DAILY)} symbols). "
-                f"Failed symbols: {failed_symbols}. "
-                "Cannot compute breadth and regime metrics with incomplete index data."
+                f"[VIX_PRICES] Insufficient coverage: {coverage:.1f}% ({count_fetched} of {total_count} symbols). "
+                f"Failed symbols: {failed_symbols}"
             )
 
         if not records:
             raise RuntimeError(
-                f"[VIX_PRICES] No VIX family or index prices could be fetched from yfinance for any of {len(INDEX_SYMBOLS_FOR_PRICE_DAILY)} symbols. "
-                "All fetch attempts failed. Cannot load market health without these critical indices."
+                f"[VIX_PRICES] No prices fetched for {len(INDEX_SYMBOLS_FOR_PRICE_DAILY)} symbols. "
+                "All fetch attempts failed."
             )
 
         with DatabaseContext("write") as cur:
