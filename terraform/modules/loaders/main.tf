@@ -1125,6 +1125,9 @@ resource "aws_ecs_task_definition" "algo_orchestrator" {
         { name = "ORCHESTRATOR_EXECUTION_MODE", value = var.execution_mode },
         { name = "ORCHESTRATOR_DRY_RUN", value = tostring(var.orchestrator_dry_run) },
         { name = "ORCHESTRATOR_LOCK_TABLE", value = aws_dynamodb_table.orchestrator_locks.name },
+        { name = "ALERTS_SNS_TOPIC", value = var.sns_alert_topic_arn },
+        { name = "ALERT_EMAIL_TO", value = var.alert_email_to },
+        { name = "ALERT_WEBHOOK_URL", value = var.alert_webhook_url },
         { name = "SEC_USER_AGENT", value = "algo-trading argeropolos@gmail.com" },
         { name = "PYTHONPATH", value = "/app" }
       ]
