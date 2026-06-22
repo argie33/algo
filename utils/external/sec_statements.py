@@ -111,12 +111,17 @@ def _aggregate_concepts(
     """
     cik = client.symbol_to_cik(symbol)
 
-    # Fetch all facts for this company in a single API call
-    all_facts = client.get_company_facts(cik)
+    # Fetch all facts for this company in a single API call.
+    # FileNotFoundError (404) means the CIK has no XBRL filings — mutual funds,
+    # special-purpose vehicles, and some investment trusts never file XBRL.
+    try:
+        all_facts = client.get_company_facts(cik)
+    except FileNotFoundError:
+        return []
 
     # Extract concepts from all_facts (us-gaap taxonomy).
-    # Some entities (ETFs, foreign filers, special-purpose vehicles) have SEC CIKs
-    # but report under IFRS or non-US-GAAP taxonomies — return empty for those.
+    # Some entities (ETFs, foreign filers) have CIKs but report under IFRS
+    # or a non-US-GAAP taxonomy — return empty for those too.
     facts = all_facts.get("facts") or {}
     us_gaap_facts = facts.get("us-gaap")
     if not us_gaap_facts:
