@@ -80,8 +80,8 @@ class TestExtractDataOrEmpty:
             extract_data_or_empty(error_response, dict)
 
     def test_returns_empty_dict_on_missing_data(self):
-        """Should return empty dict when data is missing (no error)."""
-        result = extract_data_or_empty(None, dict)
+        """Should return empty dict when data is missing and allow_empty=True."""
+        result = extract_data_or_empty(None, dict, allow_empty=True)
         assert result == {}
 
     def test_returns_data_when_present(self):
@@ -91,8 +91,8 @@ class TestExtractDataOrEmpty:
         assert result == {"key": "value"}
 
     def test_returns_empty_list_for_list_type(self):
-        """Should return empty list when type is list and data missing."""
-        result = extract_data_or_empty(None, list)
+        """Should return empty list when type is list, data missing, and allow_empty=True."""
+        result = extract_data_or_empty(None, list, allow_empty=True)
         assert result == []
 
     def test_returns_list_data_when_present(self):

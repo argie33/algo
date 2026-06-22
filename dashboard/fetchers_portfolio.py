@@ -221,13 +221,12 @@ def fetch_perf(c):
             return FetcherValidator.build_error_response(error_msg)
 
         # Comprehensive validation using FetcherValidator
+        # No freshness check: data is pre-computed daily (no "timestamp" field in response)
         required_fields = ["total_trades", "winning_trades", "losing_trades"]
         valid, validation_error = FetcherValidator.validate_response(
             response=perf,
             required_fields=required_fields,
             source_name="fetch_perf",
-            max_age_seconds=3600,
-            timestamp_field="timestamp",
         )
         if not valid:
             logger.error(validation_error)

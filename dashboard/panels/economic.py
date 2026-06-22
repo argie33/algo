@@ -82,10 +82,11 @@ def _build_calendar_rows(econ_cal) -> list:
         else:
             when = "--"
         vals = ""
+        f_f: float | None = None
         if a_v is not None:
             a_f = safe_float(a_v, default=None)
             if a_f is not None:
-                f_f = safe_float(f_v, default=a_f)
+                f_f = safe_float(f_v, default=a_f) or a_f
                 ac = G if a_f <= f_f else R
                 vals = f" [{ac}]A={a_f:.1f}[/]"
         elif f_v is not None:

@@ -298,12 +298,12 @@ def _build_buy_signals_table(scored_with_signals: list, buy_sig_details: dict) -
             price = safe_get_field(score_item, "current_price")
 
         rr_ratio = None
-        stop_lvl_f = safe_float(stop_lvl, default=0.0)
-        if buy_lvl is not None and stop_lvl is not None and stop_lvl_f > 0:
+        stop_lvl_guard = safe_float(stop_lvl, default=0.0) or 0.0
+        if buy_lvl is not None and stop_lvl is not None and stop_lvl_guard > 0:
             try:
-                buy_lvl_f = safe_float(buy_lvl, default=0.0)
-                stop_lvl_f = safe_float(stop_lvl, default=0.0)
-                rr_ratio = (buy_lvl_f - stop_lvl_f) / stop_lvl_f
+                buy_lvl_ratio = safe_float(buy_lvl, default=0.0) or 0.0
+                stop_lvl_ratio = safe_float(stop_lvl, default=0.0) or 0.0
+                rr_ratio = (buy_lvl_ratio - stop_lvl_ratio) / stop_lvl_ratio
             except (ValueError, TypeError, ZeroDivisionError):
                 pass
 
