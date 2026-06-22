@@ -23,11 +23,28 @@ class SpecializedChecker(BaseCheck):
         """Execute specialized checks."""
         self.results = []
 
-        self.check_earnings_data(cur)
-        self.check_fundamental_data(cur)
-        self.check_derived_metrics(cur)
-        self.check_sentiment_aggregate(cur)
-        self.check_trade_recorder_columns(cur)
+        checks = [
+            ("earnings_data", self.check_earnings_data),
+            ("fundamental_data", self.check_fundamental_data),
+            ("derived_metrics", self.check_derived_metrics),
+            ("sentiment_aggregate", self.check_sentiment_aggregate),
+            ("trade_recorder_columns", self.check_trade_recorder_columns),
+        ]
+        for fn_name, fn in checks:
+            sp = f"sp_spec_{fn_name}"
+            try:
+                cur.execute(f"SAVEPOINT {sp}")
+            except Exception:
+                pass
+            try:
+                fn(cur)
+            except Exception as e:
+                logger.error(f"Specialized {fn_name} failed: {e}")
+            finally:
+                try:
+                    cur.execute(f"ROLLBACK TO SAVEPOINT {sp}")
+                except Exception:
+                    pass
 
         return self.results
 

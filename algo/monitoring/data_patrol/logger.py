@@ -105,7 +105,7 @@ class PatrolLogger:
             state_table = dynamodb.Table(state_table_name)
 
             state_table.update_item(
-                Key={"state_key": "patrol_trigger_log"},
+                Key={"key": "patrol_trigger_log"},
                 UpdateExpression="SET last_success_at = :now, #ts = :ts, last_completion_status = :status",
                 ExpressionAttributeNames={"#ts": "ttl"},
                 ExpressionAttributeValues={
@@ -116,5 +116,5 @@ class PatrolLogger:
             )
             status = "ready" if ready else "completed_with_findings"
             logger.info(f"[PATROL] ✓ Completed successfully. Updated DynamoDB (status={status})")
-        except (ValueError, ZeroDivisionError, TypeError) as e:
+        except Exception as e:
             logger.warning(f"[PATROL] Could not update DynamoDB completion status: {e}")
