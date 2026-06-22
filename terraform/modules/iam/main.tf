@@ -719,7 +719,8 @@ data "aws_iam_policy_document" "ecs_task" {
       "dynamodb:UpdateItem",
       "dynamodb:DeleteItem",
       "dynamodb:Query",
-      "dynamodb:Scan"
+      "dynamodb:Scan",
+      "dynamodb:DescribeTable"
     ]
 
     resources = [
