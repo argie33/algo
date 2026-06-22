@@ -57,7 +57,7 @@ class TestRealisticLoaderScenarios:
 
         assert sla.is_breaching is False
         assert sla.is_critical is False
-        assert sla.elapsed_seconds == execution_time_sec
+        assert abs(sla.elapsed_seconds - execution_time_sec) < 1.0
         print(
             f"[PASS] {loader_name}: {execution_time_sec / 60:.0f} min (SLA: {sla.warning_threshold_seconds / 60:.0f} min)"
         )

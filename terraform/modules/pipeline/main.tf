@@ -1489,7 +1489,7 @@ resource "aws_scheduler_schedule" "morning_pipeline_trigger" {
 
     retry_policy {
       maximum_event_age_in_seconds = 3600
-      maximum_retry_attempts  = 2
+      maximum_retry_attempts       = 2
     }
   }
 }
@@ -1515,7 +1515,7 @@ resource "aws_scheduler_schedule" "afternoon_update_pipeline_trigger" {
 
     retry_policy {
       maximum_event_age_in_seconds = 3600
-      maximum_retry_attempts  = 2
+      maximum_retry_attempts       = 2
     }
   }
 }
@@ -1541,7 +1541,7 @@ resource "aws_scheduler_schedule" "preclose_update_pipeline_trigger" {
 
     retry_policy {
       maximum_event_age_in_seconds = 3600
-      maximum_retry_attempts  = 2
+      maximum_retry_attempts       = 2
     }
   }
 }
@@ -1567,7 +1567,7 @@ resource "aws_scheduler_schedule" "eod_pipeline_trigger" {
 
     retry_policy {
       maximum_event_age_in_seconds = 3600
-      maximum_retry_attempts  = 2
+      maximum_retry_attempts       = 2
     }
   }
 }

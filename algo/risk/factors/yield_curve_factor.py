@@ -77,7 +77,7 @@ class YieldCurveFactor(MarketFactorStrategy):
                 signal = "deeply_inverted"
 
             # Additional penalty if curve has been inverted for extended period
-            inversion_penalty = 0
+            inversion_penalty: float = 0
             if weeks_inverted >= 8:
                 inversion_penalty = 15.0
                 score = max(0.0, score - inversion_penalty)

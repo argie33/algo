@@ -76,7 +76,7 @@ class CreditSpreadFactor(MarketFactorStrategy):
                 regime = "severe_stress"
 
             # Rapid widening penalty: stress accelerating
-            widening_penalty = 0
+            widening_penalty: float = 0
             if widening_1pp and hy > 4.0:
                 widening_penalty = 20.0  # Additional penalty
                 score = max(0.0, score - widening_penalty)

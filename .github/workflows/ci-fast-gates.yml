@@ -175,7 +175,7 @@ jobs:
           output: 'trivy-results.sarif'
           severity: 'CRITICAL,HIGH'
       - name: Upload Trivy results to GitHub Security
-        uses: github/codeql-action/upload-sarif@522fcb2491c81aab3e92074897baeab4019e6401  # v3
+        uses: github/codeql-action/upload-sarif@v3  # v3
         if: always()
         with:
           sarif_file: 'trivy-results.sarif'
@@ -200,7 +200,7 @@ jobs:
             p/typescript
           generateSarif: true
       - name: Upload Semgrep results to GitHub Security
-        uses: github/codeql-action/upload-sarif@522fcb2491c81aab3e92074897baeab4019e6401  # v3
+        uses: github/codeql-action/upload-sarif@v3  # v3
         if: always()
         with:
           sarif_file: 'semgrep.sarif'
@@ -499,7 +499,7 @@ jobs:
           grype algo:${{ github.sha }} -o sarif > grype-results.sarif || true
           echo "Supply chain vulnerability scan completed"
       - name: Upload Grype results to GitHub Security
-        uses: github/codeql-action/upload-sarif@522fcb2491c81aab3e92074897baeab4019e6401  # v3
+        uses: github/codeql-action/upload-sarif@v3  # v3
         if: always()
         with:
           sarif_file: 'grype-results.sarif'

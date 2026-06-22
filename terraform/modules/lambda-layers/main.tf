@@ -9,24 +9,24 @@
 
 locals {
   shared_deps = {
-    name              = "${var.project_name}-shared-deps-${var.environment}"
-    requirements_file = "${path.root}/lambda-layer-requirements.txt"
+    name                = "${var.project_name}-shared-deps-${var.environment}"
+    requirements_file   = "${path.root}/lambda-layer-requirements.txt"
     compatible_runtimes = ["python3.12"]
-    description       = "Shared dependencies: numpy (scipy fails-open)"
+    description         = "Shared dependencies: numpy (scipy fails-open)"
   }
 
   orchestrator = {
-    name              = "${var.project_name}-orchestrator-layer-${var.environment}"
-    requirements_file = "${path.root}/../lambda/algo_orchestrator/requirements.txt"
+    name                = "${var.project_name}-orchestrator-layer-${var.environment}"
+    requirements_file   = "${path.root}/../lambda/algo_orchestrator/requirements.txt"
     compatible_runtimes = ["python3.11", "python3.12"]
-    description       = "Orchestrator dependencies + config + algo + utils + monitoring"
+    description         = "Orchestrator dependencies + config + algo + utils + monitoring"
   }
 
   api = {
-    name              = "${var.project_name}-api-layer-${var.environment}"
-    requirements_file = "${path.root}/../lambda/api/requirements.txt"
+    name                = "${var.project_name}-api-layer-${var.environment}"
+    requirements_file   = "${path.root}/../lambda/api/requirements.txt"
     compatible_runtimes = ["python3.12"]
-    description       = "API dependencies only"
+    description         = "API dependencies only"
   }
 }
 

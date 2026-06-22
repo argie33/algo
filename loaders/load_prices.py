@@ -74,9 +74,7 @@ class PriceLoader(OptimalLoader):
         self._circuit_breaker = CircuitBreaker(name="yfinance_prices", importance=DataImportance.CRITICAL)
 
         # Freshness validator: stock prices must be <= 1 day old
-        self._freshness_validator = FreshnessValidator(
-            max_age_hours={"price_data": 24.0}
-        )
+        self._freshness_validator = FreshnessValidator(max_age_hours={"price_data": 24.0})
 
         # Map interval + asset_class to table name
         if asset_class == "etf":
@@ -102,6 +100,7 @@ class PriceLoader(OptimalLoader):
         # Initialize specialists
         self._is_eod_pipeline = self._detect_eod_pipeline_context()
         from config.thresholds import ThresholdConfig
+
         self._rate_limit_circuit_break_threshold = ThresholdConfig.get_rate_limit_threshold(self._is_eod_pipeline)
 
         # Instantiate specialists - each handles a specific concern
@@ -1620,9 +1619,7 @@ class PriceLoader(OptimalLoader):
                 # Cache invalidation failed after exhausting all retry strategies.
                 # This means Phase 1 might use stale data = data corruption risk.
                 # Must halt loader to maintain data integrity.
-                logger.critical(
-                    f"[CACHE INVALIDATION] CRITICAL FAILURE in _finalize_loader_metadata: {cache_err}"
-                )
+                logger.critical(f"[CACHE INVALIDATION] CRITICAL FAILURE in _finalize_loader_metadata: {cache_err}")
                 raise
         except (psycopg2.DatabaseError, psycopg2.OperationalError) as e:
             logger.warning(f"Failed to update data_loader_status for {self.table_name}: {e}")

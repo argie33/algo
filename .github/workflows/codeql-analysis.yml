@@ -26,16 +26,16 @@ jobs:
         uses: actions/checkout@692973e3d937129bcbf40652eb9f2f61becf3332  # v4.1.7
 
       - name: Initialize CodeQL
-        uses: github/codeql-action/init@522fcb2491c81aab3e92074897baeab4019e6401  # v3
+        uses: github/codeql-action/init@v3  # v3
         with:
           languages: ${{ matrix.language }}
           # Query suite selections: Add more query packs as needed
           queries: security-and-quality
 
       - name: Autobuild
-        uses: github/codeql-action/autobuild@522fcb2491c81aab3e92074897baeab4019e6401  # v3
+        uses: github/codeql-action/autobuild@v3  # v3
 
       - name: Perform CodeQL Analysis
-        uses: github/codeql-action/analyze@522fcb2491c81aab3e92074897baeab4019e6401  # v3
+        uses: github/codeql-action/analyze@v3  # v3
         with:
           category: "/language:${{ matrix.language }}"

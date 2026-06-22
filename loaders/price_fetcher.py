@@ -26,7 +26,14 @@ class PriceFetcher:
     - Batch fetch orchestration
     """
 
-    def __init__(self, router=None, interval: str = "1d", asset_class: str = "stock", is_eod_pipeline: bool = False, rate_limit_config: dict | None = None):
+    def __init__(
+        self,
+        router=None,
+        interval: str = "1d",
+        asset_class: str = "stock",
+        is_eod_pipeline: bool = False,
+        rate_limit_config: dict | None = None,
+    ):
         """Initialize PriceFetcher with rate limiting config."""
         self.router = router
         self.interval = interval
@@ -82,10 +89,7 @@ class PriceFetcher:
         now = time.time()
         elapsed = now - self._rate_limit_last_refill
         tokens_earned = elapsed * self._rate_limit_refill_rate
-        self._rate_limit_tokens = min(
-            self._rate_limit_max_tokens,
-            self._rate_limit_tokens + tokens_earned
-        )
+        self._rate_limit_tokens = min(self._rate_limit_max_tokens, self._rate_limit_tokens + tokens_earned)
         self._rate_limit_last_refill = now
 
     def _adaptive_request_pacing(self) -> None:
@@ -94,10 +98,7 @@ class PriceFetcher:
 
         # Remove old samples outside the window
         cutoff = now - self._latency_window_sec
-        self._request_latency_samples = [
-            (ts, lat) for ts, lat in self._request_latency_samples
-            if ts > cutoff
-        ]
+        self._request_latency_samples = [(ts, lat) for ts, lat in self._request_latency_samples if ts > cutoff]
 
         if len(self._request_latency_samples) > 10:
             avg_latency = sum(lat for _, lat in self._request_latency_samples) / len(self._request_latency_samples)
@@ -106,10 +107,7 @@ class PriceFetcher:
                 self._adaptive_request_interval = min(1.0, self._adaptive_request_interval * 1.1)
             # If API is fast (avg latency < 0.1s), decrease request interval
             elif avg_latency < 0.1:
-                self._adaptive_request_interval = max(
-                    self._min_request_interval,
-                    self._adaptive_request_interval * 0.9
-                )
+                self._adaptive_request_interval = max(self._min_request_interval, self._adaptive_request_interval * 0.9)
 
     def _record_request_latency(self, latency_sec: float) -> None:
         """Record API request latency for adaptive pacing."""
@@ -138,7 +136,7 @@ class PriceFetcher:
             self._batch_size_performance[batch_size] = [0, 0]
 
         self._batch_size_performance[batch_size][0] += success_count
-        self._batch_size_performance[batch_size][1] += (total_count - success_count)
+        self._batch_size_performance[batch_size][1] += total_count - success_count
 
     def set_circuit_breaker(self, circuit_breaker) -> None:
         """Set circuit breaker for API call protection."""
@@ -273,6 +271,7 @@ class PriceFetcher:
 
         if self._circuit_breaker:
             from utils.infrastructure.circuit_breaker import DataImportance
+
             result = self._circuit_breaker.execute(fetch_func=fetch_batch, importance=DataImportance.CRITICAL)
         else:
             result = fetch_batch()
@@ -281,7 +280,16 @@ class PriceFetcher:
         self._record_request_latency(request_latency)
         return cast(dict | None, result)
 
-    def _fetch_with_fallback(self, symbols: list[str], start: date, end: date, batch_size: int = 500, attempt: int = 0, max_attempts: int = 3, elapsed_sec: float = 0) -> dict:
+    def _fetch_with_fallback(
+        self,
+        symbols: list[str],
+        start: date,
+        end: date,
+        batch_size: int = 500,
+        attempt: int = 0,
+        max_attempts: int = 3,
+        elapsed_sec: float = 0,
+    ) -> dict:
         """Fetch batch with fallback to smaller batch size on rate limiting."""
         batch_size = min(len(symbols), batch_size)
         logger.debug(f"[FETCH_BATCH] Attempting with batch_size={batch_size}, attempt={attempt}")
@@ -302,10 +310,14 @@ class PriceFetcher:
                 error_str = str(e).lower()
                 # Rate limit errors - use dedicated handler
                 if "rate" in error_str or "429" in error_str:
-                    return self._handle_rate_limit_error(batch, start, end, batch_size, attempt, max_attempts, elapsed_sec, e)
+                    return self._handle_rate_limit_error(
+                        batch, start, end, batch_size, attempt, max_attempts, elapsed_sec, e
+                    )
                 # Transient errors - retry with backoff
                 if any(x in error_str for x in ["timeout", "connection", "reset"]):
-                    return self._handle_transient_error(batch, start, end, batch_size, attempt, max_attempts, elapsed_sec, e)
+                    return self._handle_transient_error(
+                        batch, start, end, batch_size, attempt, max_attempts, elapsed_sec, e
+                    )
                 raise
 
         return all_results
@@ -337,6 +349,7 @@ class PriceFetcher:
 
         try:
             from algo.reporting import MetricsPublisher
+
             metrics = MetricsPublisher()
             metrics.add_metric(
                 "RateLimitErrors",

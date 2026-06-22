@@ -72,7 +72,7 @@ resource "aws_route_table_association" "public" {
 # Elastic IP for NAT Gateway
 # OPTIMIZED 2026-06-21: Disabled NAT in dev (saves $32/month). Use bastion + port forwarding instead.
 resource "aws_eip" "nat" {
-  count  = false ? 1 : 0  # DISABLED FOR DEV: was length(var.public_subnet_cidrs) >= 1 ? 1 : 0
+  count  = false ? 1 : 0 # DISABLED FOR DEV: was length(var.public_subnet_cidrs) >= 1 ? 1 : 0
   domain = "vpc"
 
   tags = merge(var.common_tags, {
@@ -85,7 +85,7 @@ resource "aws_eip" "nat" {
 # NAT Gateway in first public subnet
 # OPTIMIZED 2026-06-21: Disabled NAT in dev (saves $32/month). Use bastion + port forwarding instead.
 resource "aws_nat_gateway" "main" {
-  count         = false ? 1 : 0  # DISABLED FOR DEV: was length(var.public_subnet_cidrs) >= 1 ? 1 : 0
+  count         = false ? 1 : 0 # DISABLED FOR DEV: was length(var.public_subnet_cidrs) >= 1 ? 1 : 0
   allocation_id = aws_eip.nat[0].id
   subnet_id     = aws_subnet.public[0].id
 
@@ -99,7 +99,7 @@ resource "aws_nat_gateway" "main" {
 # Route from private subnets to NAT Gateway (internet access)
 # OPTIMIZED 2026-06-21: Disabled NAT in dev (saves $32/month).
 resource "aws_route" "private_nat" {
-  count                  = false ? 1 : 0  # DISABLED FOR DEV: was length(var.public_subnet_cidrs) >= 1 ? 1 : 0
+  count                  = false ? 1 : 0 # DISABLED FOR DEV: was length(var.public_subnet_cidrs) >= 1 ? 1 : 0
   route_table_id         = aws_route_table.private.id
   destination_cidr_block = "0.0.0.0/0"
   nat_gateway_id         = aws_nat_gateway.main[0].id

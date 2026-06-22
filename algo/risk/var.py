@@ -189,7 +189,7 @@ class ValueAtRisk:
             """,
             (int(lookback_days),),
         )
-        return cur.fetchall()
+        return list(cur.fetchall())
 
     def _validate_snapshot_count(self, rows: list) -> None:
         """Validate that we have sufficient snapshot data."""

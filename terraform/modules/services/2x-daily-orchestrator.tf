@@ -106,7 +106,7 @@ resource "aws_scheduler_schedule" "algo_orchestrator_afternoon" {
   schedule_expression          = "cron(0 13 ? * MON-FRI *)" # 1:00 PM ET (America/New_York auto-handles EST/EDT)
   schedule_expression_timezone = "America/New_York"
   # OPTIMIZED 2026-06-21: Disable intraday runs in dev (not needed, saves compute)
-  state                        = "DISABLED"
+  state = "DISABLED"
 
   flexible_time_window {
     mode = "OFF"
@@ -144,7 +144,7 @@ resource "aws_scheduler_schedule" "algo_orchestrator_preclose" {
   schedule_expression          = "cron(0 15 ? * MON-FRI *)" # 3:00 PM ET (America/New_York auto-handles EST/EDT)
   schedule_expression_timezone = "America/New_York"
   # OPTIMIZED 2026-06-21: Disable pre-close runs in dev (not needed, saves compute)
-  state                        = "DISABLED"
+  state = "DISABLED"
 
   flexible_time_window {
     mode = "OFF"
