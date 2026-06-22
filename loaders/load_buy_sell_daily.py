@@ -232,11 +232,11 @@ class SignalsDailyLoader(OptimalLoader):
                 tech_count = row[0]
 
                 if tech_count == 0:
-                    raise RuntimeError(
-                        f"[BUY_SELL_DAILY] Technical data missing for {symbol} on {end}. "
-                        "Cannot generate buy/sell signals without current technical indicators. "
-                        "Verify technical_data_daily loader completed successfully."
+                    logger.warning(
+                        "[buy_sell_daily] %s: No technical data for %s; skipping (delisted or not traded that day)",
+                        symbol, end,
                     )
+                    return None
 
                 # Validate upstream loader completeness before generating signals.
                 # buy_sell_daily depends on price_daily and technical_data_daily.
