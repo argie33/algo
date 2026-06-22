@@ -31,22 +31,31 @@ class ThresholdConfig:
         """Load a config value from AlgoConfig.
 
         Args:
-            key: Configuration key in algo_config.DEFAULTS
-            default: Default value (no longer used — fails if key missing)
+            key: Configuration key in algo_config table
+            default: Fallback used if key is absent from the DB (allows loaders to
+                     start before migration 092 is applied; DB value takes precedence
+                     once the row exists)
 
         Returns:
             Config value
 
         Raises:
-            RuntimeError: If config cannot be loaded or key is missing.
-                         Configuration is authoritative; no silent fallbacks.
+            RuntimeError: If config cannot be loaded and no default is provided.
         """
+        import logging
+
         try:
             from algo.infrastructure import get_config
 
             val = get_config().get(key)
             if val is not None:
                 return val
+            if default is not None:
+                logging.getLogger(__name__).warning(
+                    f"[CONFIG FALLBACK] Key '{key}' missing from algo_config table. "
+                    f"Using code default: {default}. Apply pending migrations to resolve."
+                )
+                return default
             raise RuntimeError(
                 f"[CONFIG] Missing required configuration key: '{key}'. "
                 "No hardcoded fallback allowed. Check algo_config table for this key."
