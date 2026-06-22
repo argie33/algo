@@ -2,6 +2,7 @@
 
 import logging
 import time
+from collections.abc import Callable
 from datetime import date, datetime, timezone
 from functools import wraps
 from typing import Any, NoReturn
