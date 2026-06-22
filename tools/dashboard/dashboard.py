@@ -253,7 +253,7 @@ def _validate_api_url(url: str) -> bool:
 
         return True
     except Exception as e:
-        logger.error(f"API URL validation failed for '{url}': {e}")
+        logger.error("API URL validation failed for '%s': %s", url, e)
         return False
 
 
@@ -289,11 +289,11 @@ def _fetch_secrets_manager_credentials() -> tuple[str | None, str | None, str | 
         except client.exceptions.ResourceNotFoundException:
             logger.debug("Secrets Manager secret not found")
         except Exception as e:
-            logger.debug(f"Secrets Manager fetch failed: {type(e).__name__}")
+            logger.debug("Secrets Manager fetch failed: %s", type(e).__name__)
 
         return (None, None, None)
     except Exception as e:
-        logger.debug(f"Secrets Manager access failed: {type(e).__name__}")
+        logger.debug("Secrets Manager access failed: %s", type(e).__name__)
         return (None, None, None)
 
 
@@ -316,7 +316,7 @@ def _fetch_terraform_credentials() -> tuple[str | None, str | None, str | None]:
             candidate = os.path.join(root, "terraform")
             if os.path.isdir(candidate) and os.path.exists(os.path.join(candidate, "main.tf")):
                 tf_dir = candidate
-                logger.debug(f"Found terraform directory at {tf_dir}")
+                logger.debug("Found terraform directory at %s", tf_dir)
                 break
 
         if not tf_dir:
@@ -354,7 +354,7 @@ def _fetch_terraform_credentials() -> tuple[str | None, str | None, str | None]:
                 )
                 if result.returncode != 0:
                     error_output = result.stderr.strip() if result.stderr else "(no error output)"
-                    logger.warning(f"Terraform init failed: {error_output[:200]} - may need manual setup")
+                    logger.warning("Terraform init failed: %s - may need manual setup", error_output[:200])
                     return (None, None, None)
             except subprocess.TimeoutExpired:
                 logger.warning("Terraform init timed out (60s) - running but slow, may need manual setup")
@@ -375,7 +375,7 @@ def _fetch_terraform_credentials() -> tuple[str | None, str | None, str | None]:
 
         if result.returncode != 0:
             error_output = result.stderr.strip() if result.stderr else "(no error output)"
-            logger.warning(f"Terraform output failed: {error_output[:100]}")
+            logger.warning("Terraform output failed: %s", error_output[:100])
             return (None, None, None)
 
         try:

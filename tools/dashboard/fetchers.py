@@ -257,7 +257,7 @@ def load_all() -> dict:
                 except Exception as e:
                     k = futures[f]
                     error_msg = format_fetcher_error(k, e)
-                    logger.error(f"Thread exception: {error_msg}")
+                    logger.error("Thread exception: %s", error_msg)
                     out[k] = {"_error": error_msg}
                     pending_futures.discard(f)
         except TimeoutError:
@@ -293,7 +293,7 @@ def load_all() -> dict:
                 except Exception as e:
                     k = futures[f]
                     error_msg = format_fetcher_error(k, e)
-                    logger.debug(f"Optional fetcher failed: {error_msg}")
+                    logger.debug("Optional fetcher failed: %s", error_msg)
                     out[k] = {"_error": error_msg}
                     pending_futures.discard(f)
         except TimeoutError:

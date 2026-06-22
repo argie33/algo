@@ -6,7 +6,7 @@ Responsibility: Transform and normalize raw price data from yfinance.
 """
 
 import logging
-from datetime import date, datetime
+from datetime import datetime
 from typing import Any
 
 
@@ -107,20 +107,8 @@ class PriceTransformer:
         """Set timezone for date handling."""
         self.timezone = tz
 
-    def validate_and_transform(self, rows: list[dict], tracker=None) -> list[dict]:
-        """Validate and filter rows with trading day filtering and provenance tracking.
-
-        Args:
-            rows: Raw price data rows
-            tracker: Optional DataProvenanceTracker for recording errors
-        """
-        if not rows:
-            return []
-
-        from algo.infrastructure import MarketCalendar
-        from utils.data.tick_validator import validate_price_tick
-
-        # CLUSTER 4 FIX: Batch-precompute all trading days in date range for O(1) lookup
+    def _extract_date_range(self, rows: list[dict]) -> tuple[Any | None, Any | None]:
+        """Extract min/max dates from rows."""
         min_row_date = None
         max_row_date = None
         try:
@@ -134,29 +122,101 @@ class PriceTransformer:
                         max_row_date = row_date
         except Exception as e:
             logger.warning(f"Could not determine trading day range from rows: {e}. Falling back to per-row checks.")
-            min_row_date = None
-            max_row_date = None
+            return None, None
+        return min_row_date, max_row_date
 
-        # Precompute trading day set if we have a valid date range
-        trading_day_set = None
-        if min_row_date and max_row_date:
+    def _precompute_trading_days(self, min_row_date, max_row_date):
+        """Precompute trading days for O(1) lookups."""
+        if not min_row_date or not max_row_date:
+            return None
+        try:
+            from algo.infrastructure import MarketCalendar
+            trading_day_set = MarketCalendar.create_trading_day_set(min_row_date, max_row_date)
+            logger.debug(
+                f"[CLUSTER_4_OPT] Precomputed {len(trading_day_set)} trading days in range [{min_row_date}, {max_row_date}]"
+            )
+            return trading_day_set
+        except Exception as e:
+            logger.warning(f"Could not precompute trading days: {e}. Falling back to per-row checks.")
+            return None
+
+    def _validate_row_trading_day(self, row_date_str, row_date, trading_day_set, symbol, tracker) -> bool:
+        """Validate if row is from a trading day."""
+        from algo.infrastructure import MarketCalendar
+
+        if trading_day_set is not None:
+            is_trading_day = row_date in trading_day_set
+        else:
+            is_trading_day = MarketCalendar.is_trading_day(row_date)
+
+        if not is_trading_day and tracker:
             try:
-                trading_day_set = MarketCalendar.create_trading_day_set(min_row_date, max_row_date)
-                logger.debug(
-                    f"[CLUSTER_4_OPT] Precomputed {len(trading_day_set)} trading days in range [{min_row_date}, {max_row_date}]"
+                tracker.record_error(
+                    symbol=symbol or "unknown",
+                    error_type="NON_TRADING_DAY",
+                    error_message="Data for non-trading day (weekend/holiday)",
+                    resolution="rejected",
                 )
             except Exception as e:
-                logger.warning(f"Could not precompute trading days: {e}. Falling back to per-row checks.")
-                trading_day_set = None
+                logger.warning(f"Could not record error for {symbol}: {e}")
+        return is_trading_day
 
-        # PHASE 1: Validation via tick validator for provenance tracking
+    def _validate_row_prices(self, row, symbol, prior_close_by_symbol, tracker) -> tuple[bool, str | None]:
+        """Validate price fields in row."""
+        from utils.data.tick_validator import validate_price_tick
+
+        open_val: float | None = row.get("open")
+        high_val: float | None = row.get("high")
+        low_val: float | None = row.get("low")
+        close_val: float | None = row.get("close")
+        volume_val: int | None = row.get("volume")
+
+        if open_val is None or high_val is None or low_val is None or close_val is None or volume_val is None:
+            return False, None
+
+        symbol_prior_close = prior_close_by_symbol.get(symbol)
+        is_valid, errors = validate_price_tick(
+            symbol=symbol,
+            open_price=open_val,
+            high=high_val,
+            low=low_val,
+            close=close_val,
+            volume=volume_val,
+            prior_close=symbol_prior_close,
+            is_etf=(self.asset_class == "etf"),
+        )
+
+        if not is_valid and tracker:
+            try:
+                tracker.record_error(
+                    symbol=symbol,
+                    error_type="DATA_INVALID",
+                    error_message=", ".join(errors),
+                    resolution="skipped",
+                )
+            except Exception as e:
+                logger.warning(f"Could not record error for {symbol}: {e}")
+        return is_valid, errors[0] if errors else None
+
+    def validate_and_transform(self, rows: list[dict], tracker=None) -> list[dict]:
+        """Validate and filter rows with trading day filtering and provenance tracking.
+
+        Args:
+            rows: Raw price data rows
+            tracker: Optional DataProvenanceTracker for recording errors
+        """
+        if not rows:
+            return []
+
+        min_row_date, max_row_date = self._extract_date_range(rows)
+        trading_day_set = self._precompute_trading_days(min_row_date, max_row_date)
+
         final_validated = []
         prior_close_by_symbol: dict[str, float | None] = {}
         non_trading_filtered = 0
         parse_errors = 0
 
         for row in rows:
-            # CRITICAL: Filter out weekend/holiday data before any other validation
             row_date_str: str | None = row.get("date")
             symbol: str | None = row.get("symbol")
             try:
@@ -165,23 +225,8 @@ class PriceTransformer:
                     logger.warning(f"[{symbol}] No date in row, skipping")
                     continue
                 row_date = datetime.fromisoformat(row_date_str).date()
-                # CLUSTER 4 FIX: Use precomputed trading day set for O(1) lookup
-                if trading_day_set is not None:
-                    is_trading_day = row_date in trading_day_set
-                else:
-                    is_trading_day = MarketCalendar.is_trading_day(row_date)
 
-                if not is_trading_day:
-                    if tracker:
-                        try:
-                            tracker.record_error(
-                                symbol=symbol or "unknown",
-                                error_type="NON_TRADING_DAY",
-                                error_message="Data for non-trading day (weekend/holiday)",
-                                resolution="rejected",
-                            )
-                        except Exception as e:
-                            logger.warning(f"Could not record error for {symbol}: {e}")
+                if not self._validate_row_trading_day(row_date_str, row_date, trading_day_set, symbol, tracker):
                     non_trading_filtered += 1
                     logger.debug(f"[{symbol}] {row_date}: Non-trading day, rejecting")
                     continue
@@ -190,50 +235,18 @@ class PriceTransformer:
                 logger.warning(f"[{symbol}] Could not parse date {row_date_str}: {e}")
                 continue
 
-            # Validate price tick with proper None checks
             if not symbol or not isinstance(symbol, str):
                 parse_errors += 1
                 logger.warning("[unknown] Missing symbol, skipping row")
                 continue
 
-            open_val: float | None = row.get("open")
-            high_val: float | None = row.get("high")
-            low_val: float | None = row.get("low")
-            close_val: float | None = row.get("close")
-            volume_val: int | None = row.get("volume")
-
-            if open_val is None or high_val is None or low_val is None or close_val is None or volume_val is None:
-                parse_errors += 1
-                logger.warning(f"[{symbol}] Missing required price fields, skipping")
-                continue
-
-            symbol_prior_close = prior_close_by_symbol.get(symbol)
-            is_valid, errors = validate_price_tick(
-                symbol=symbol,
-                open_price=open_val,
-                high=high_val,
-                low=low_val,
-                close=close_val,
-                volume=volume_val,
-                prior_close=symbol_prior_close,
-                is_etf=(self.asset_class == "etf"),
-            )
-
+            is_valid, error_msg = self._validate_row_prices(row, symbol, prior_close_by_symbol, tracker)
             if not is_valid:
-                if tracker:
-                    try:
-                        tracker.record_error(
-                            symbol=symbol,
-                            error_type="DATA_INVALID",
-                            error_message=", ".join(errors),
-                            resolution="skipped",
-                        )
-                    except Exception as e:
-                        logger.warning(f"Could not record error for {symbol}: {e}")
-                logger.warning(f"[{symbol}] {row.get('date')}: {errors[0]}")
+                parse_errors += 1
+                if error_msg:
+                    logger.warning(f"[{symbol}] {row.get('date')}: {error_msg}")
                 continue
 
-            # Track provenance for each valid tick
             if tracker:
                 tracker.record_tick(
                     symbol=symbol,
