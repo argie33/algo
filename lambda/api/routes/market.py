@@ -880,7 +880,7 @@ def _get_fear_greed_history(cur: cursor, days: int = 30) -> dict[str, Any]:
 
 
 @db_route_handler("get market latest")
-def _get_market_latest(cur) -> dict[str, Any]:
+def _get_market_latest(cur: cursor) -> dict[str, Any]:
     """Get latest market data including indices, breadth, and sentiment."""
     cur.execute("""
         SELECT date, market_trend, market_stage, advance_decline_ratio,
@@ -928,7 +928,7 @@ def _parse_range_param(params: dict, default: int = 30) -> int:
 
 
 @db_route_handler("get correlation matrix")
-def _get_correlation_matrix(cur) -> dict[str, Any]:
+def _get_correlation_matrix(cur: cursor) -> dict[str, Any]:
     """Compute and return correlation matrix between key market indices."""
     symbols = ["^GSPC", "^IXIC", "SPY", "QQQ", "IVV", "TLT", "GLD"]
 
@@ -1015,7 +1015,7 @@ def _get_correlation_matrix(cur) -> dict[str, Any]:
             },
         )
 
-    def pearson_corr(x_ret, y_ret):
+    def pearson_corr(x_ret: list[float], y_ret: list[float]) -> float | None:
         if len(x_ret) < 2 or len(y_ret) < 2:
             return None
         min_len = min(len(x_ret), len(y_ret))
@@ -1124,7 +1124,7 @@ def _get_correlation_matrix(cur) -> dict[str, Any]:
 
 
 @db_route_handler("get cap distribution")
-def _get_cap_distribution(cur) -> dict[str, Any]:
+def _get_cap_distribution(cur: cursor) -> dict[str, Any]:
     """Get market cap distribution across market cap buckets and sectors."""
     # market_cap is in key_metrics, sector is in company_profile — stock_symbols has neither
     cur.execute("""
@@ -1252,7 +1252,7 @@ INDEX_NAMES = {
 
 
 @db_route_handler("get market indices")
-def _get_markets(cur) -> dict[str, Any]:
+def _get_markets(cur: cursor) -> dict[str, Any]:
 
     cur.execute(
         """
@@ -1361,7 +1361,7 @@ def _get_markets(cur) -> dict[str, Any]:
 
 
 @db_route_handler("get sector overview")
-def _get_sector_overview(cur) -> dict[str, Any]:
+def _get_sector_overview(cur: cursor) -> dict[str, Any]:
     """Get latest sector performance overview from sectors table."""
     cur.execute("""
         SELECT sector_name, performance_ytd, performance_1y, pe_ratio,
@@ -1387,7 +1387,7 @@ def _get_sector_overview(cur) -> dict[str, Any]:
 class _MarketHandlerRegistry:
     """Registry mapping market endpoint paths to handler functions."""
 
-    def __init__(self):
+    def __init__(self) -> None:
         self._handlers = {
             "/api/market/status": _handle_market_status,
             "/api/market/indices": _get_markets,
@@ -1405,14 +1405,14 @@ class _MarketHandlerRegistry:
             "/api/market/sectors": _get_sector_overview,
         }
 
-    def _wrap_sentiment(self, cur, params=None):
+    def _wrap_sentiment(self, cur: cursor, params: dict[str, Any] | None = None) -> dict[str, Any]:
         return _handle_sentiment(cur, params)
 
-    def _wrap_fear_greed(self, cur, params=None):
+    def _wrap_fear_greed(self, cur: cursor, params: dict[str, Any] | None = None) -> dict[str, Any]:
         range_days = _parse_range_param(params) if params else 30
         return _get_fear_greed_history(cur, range_days)
 
-    def get_handler(self, path: str):
+    def get_handler(self, path: str) -> Any:
         """Get handler for path, handling aliases like /api/market → /api/market/status."""
         if path in ["/api/market", "/api/market/status"] or path.startswith("/api/market?"):
             return self._handlers["/api/market/status"]
@@ -1423,12 +1423,12 @@ _MARKET_REGISTRY = _MarketHandlerRegistry()
 
 
 def handle(
-    cur,
+    cur: cursor,
     path: str,
     method: str,
-    params: dict,
-    body: dict | None = None,
-    jwt_claims: dict | None = None,
+    params: dict[str, Any],
+    body: dict[str, Any] | None = None,
+    jwt_claims: dict[str, Any] | None = None,
 ) -> Any:
     """Handle /api/market/* endpoints."""
     try:
