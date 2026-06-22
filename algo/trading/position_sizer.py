@@ -43,6 +43,23 @@ class PositionSizer:
             raise TypeError(f"PositionSizer config must be a dict, got {type(config).__name__}")
         self.config = config
 
+        required_config_keys = [
+            "base_risk_pct",
+            "max_positions",
+            "risk_reduction_at_minus_5",
+            "risk_reduction_at_minus_10",
+            "risk_reduction_at_minus_15",
+            "vix_caution_threshold",
+            "vix_max_threshold",
+            "vix_caution_risk_reduction",
+        ]
+        missing_keys = [k for k in required_config_keys if k not in config or config[k] is None]
+        if missing_keys:
+            raise ConfigurationError(
+                f"CRITICAL: PositionSizer config missing required keys: {', '.join(missing_keys)}. "
+                f"Cannot proceed with position sizing without explicit risk configuration."
+            )
+
     def _with_cursor(self, operation: Any) -> Any:
         """Execute an operation with a cursor via DatabaseContext."""
         with DatabaseContext("read") as cur:
@@ -59,7 +76,7 @@ class PositionSizer:
 
         CRITICAL: Does NOT fall back to default $100k. If neither is available,
         raises RuntimeError to fail-closed. Position sizing requires accurate
-        portfolio value  -” guessing is worse than not trading.
+        portfolio value  -" guessing is worse than not trading.
 
         THREAD SAFETY: Uses PostgreSQL advisory lock to prevent race condition
         where Phase 6 (position sizing) reads while Phase 7 (reconciliation) updates.
@@ -209,7 +226,7 @@ class PositionSizer:
     def get_current_drawdown(self) -> Decimal:
         """Calculate current drawdown from peak.
 
-        Fails fast  -” raises if any data missing. Position sizing requires accurate
+        Fails fast  -" raises if any data missing. Position sizing requires accurate
         drawdown to adjust risk multiplier correctly. Guessing is worse than not trading.
         """
 
@@ -255,8 +272,7 @@ class PositionSizer:
         Combined with market_exposure_pct multiplier for dynamic risk:
             effective_risk = base_risk x dd_adjustment x (exposure_pct / 100)
 
-        CRITICAL: Risk adjustment thresholds are hard risk gates. Fails closed if any
-        config value is missing  -” these must NEVER use fallback defaults.
+        Config keys validated at init; assumes all risk thresholds are present.
         """
         dd = self.get_current_drawdown()
 
@@ -267,33 +283,18 @@ class PositionSizer:
             )
             return Decimal(0)
         elif dd >= 15:
-            val = self.config.get("risk_reduction_at_minus_15")
-            if val is None:
-                raise ValueError(
-                    "CRITICAL: risk_reduction_at_minus_15 config missing. Cannot adjust risk at -15% drawdown."
-                )
-            return Decimal(str(val))
+            return Decimal(str(self.config["risk_reduction_at_minus_15"]))
         elif dd >= 10:
-            val = self.config.get("risk_reduction_at_minus_10")
-            if val is None:
-                raise ValueError(
-                    "CRITICAL: risk_reduction_at_minus_10 config missing. Cannot adjust risk at -10% drawdown."
-                )
-            return Decimal(str(val))
+            return Decimal(str(self.config["risk_reduction_at_minus_10"]))
         elif dd >= 5:
-            val = self.config.get("risk_reduction_at_minus_5")
-            if val is None:
-                raise ValueError(
-                    "CRITICAL: risk_reduction_at_minus_5 config missing. Cannot adjust risk at -5% drawdown."
-                )
-            return Decimal(str(val))
+            return Decimal(str(self.config["risk_reduction_at_minus_5"]))
         else:
             return Decimal(1)
 
     def get_market_exposure_multiplier(self) -> Decimal:
         """Look up the most recent market exposure pct (0-100). Returns multiplier 0.0-1.0.
 
-        Fail-fast  -” if data unavailable, raises exception. Position sizing requires
+        Fail-fast  -" if data unavailable, raises exception. Position sizing requires
         current market exposure to avoid over-committing during risk-off periods.
         """
 
@@ -313,9 +314,9 @@ class PositionSizer:
         """Reduce risk if VIX is in caution zone (caution_threshold < VIX < max_threshold).
 
         Returns risk multiplier: 1.0 if VIX is normal, reduced multiplier if in caution zone.
-        Fail-fast  -” if data unavailable, raises exception.
+        Fail-fast  -" if data unavailable, raises exception.
 
-        CRITICAL: VIX thresholds are hard risk gates. Fails closed if config missing.
+        VIX thresholds validated at init; assumes all config keys are present.
         """
 
         def fetch_vix(cur):
@@ -328,21 +329,10 @@ class PositionSizer:
                     "VIX level unavailable from market_health_daily. Cannot adjust position size for volatility."
                 )
             vix = Decimal(str(row[0]))
-            caution_threshold_val = self.config.get("vix_caution_threshold")
-            max_threshold_val = self.config.get("vix_max_threshold")
-            reduction_val = self.config.get("vix_caution_risk_reduction")
-            if caution_threshold_val is None:
-                raise ValueError("CRITICAL: vix_caution_threshold config missing. Cannot determine VIX caution zone.")
-            if max_threshold_val is None:
-                raise ValueError("CRITICAL: vix_max_threshold config missing. Cannot determine VIX max threshold.")
-            if reduction_val is None:
-                raise ValueError(
-                    "CRITICAL: vix_caution_risk_reduction config missing. Cannot apply VIX risk reduction."
-                )
-            caution_threshold = Decimal(str(caution_threshold_val))
-            max_threshold = Decimal(str(max_threshold_val))
+            caution_threshold = Decimal(str(self.config["vix_caution_threshold"]))
+            max_threshold = Decimal(str(self.config["vix_max_threshold"]))
             if vix > caution_threshold and vix <= max_threshold:
-                return Decimal(str(reduction_val))
+                return Decimal(str(self.config["vix_caution_risk_reduction"]))
             return Decimal(1)
 
         result: Any = self._with_cursor(fetch_vix)
@@ -357,7 +347,7 @@ class PositionSizer:
     def get_position_size_multiplier_from_regime(self, signal_date=None) -> float:
         """Get position size multiplier from current market regime.
 
-        Fail-fast  -” if regime cannot be determined, raises exception. Position sizing
+        Fail-fast  -" if regime cannot be determined, raises exception. Position sizing
         must account for current market regime to avoid inappropriate sizing.
         """
         try:
@@ -378,7 +368,7 @@ class PositionSizer:
     def get_active_positions_value(self) -> Decimal:
         """Get sum of active position values.
 
-        B13: Fail-closed  -” on error, assume high value to prevent over-sizing.
+        B13: Fail-closed  -" on error, assume high value to prevent over-sizing.
         """
 
         def fetch_positions_value(cur):
@@ -405,7 +395,7 @@ class PositionSizer:
     def get_position_count(self) -> int:
         """Get count of active positions (Issue #26: Now checks capital, not just count).
 
-        Fail-fast  -” if data unavailable, raises exception. Cannot size positions
+        Fail-fast  -" if data unavailable, raises exception. Cannot size positions
         without knowing how many are already open.
         """
 
@@ -427,7 +417,7 @@ class PositionSizer:
         """Issue #26: Get total capital invested as % of portfolio.
 
         Returns capital-based position limit, not just count-based.
-        Fail-fast  -” if data unavailable, raises exception.
+        Fail-fast  -" if data unavailable, raises exception.
         """
         portfolio_value = self.get_portfolio_value()
         if portfolio_value <= 0:
@@ -455,7 +445,7 @@ class PositionSizer:
         stop_loss_price,
         signal_date=None,
         portfolio_value=None,
-    ) -> dict:
+    ) -> dict[str, Any]:
         """
         Calculate position size for a new trade.
 
@@ -505,7 +495,7 @@ class PositionSizer:
         stop_loss_price,
         signal_date=None,
         portfolio_value=None,
-    ) -> dict:
+    ) -> dict[str, Any]:
         """Internal method for position calculation."""
         try:
             assert symbol and isinstance(symbol, str), f"Symbol must be non-empty string, got {symbol}"
@@ -528,17 +518,9 @@ class PositionSizer:
             assert isinstance(active_positions, int), f"Active positions must be int, got {type(active_positions)}"
             active_position_value = self.get_active_positions_value()
 
-            max_positions_val = self.config.get("max_positions")
-            if max_positions_val is None:
-                raise ValueError("CRITICAL: max_positions config missing. Cannot determine position limit.")
-            try:
-                max_positions = int(max_positions_val)
-                if max_positions <= 0:
-                    raise ValueError(f"max_positions must be > 0, got {max_positions}")
-            except (ValueError, TypeError) as e:
-                raise ValueError(
-                    f"CRITICAL: max_positions config has invalid value '{max_positions_val}': {e}"
-                ) from None
+            max_positions = int(self.config["max_positions"])
+            if max_positions <= 0:
+                raise ValueError(f"max_positions must be > 0, got {max_positions}")
             if active_positions >= max_positions:
                 return {
                     "shares": 0,
@@ -557,10 +539,7 @@ class PositionSizer:
                     "reason": "Drawdown >= 20%, trading halted",
                 }
 
-            base_risk_val = self.config.get("base_risk_pct")
-            if base_risk_val is None:
-                raise ValueError("CRITICAL: base_risk_pct config missing. Cannot calculate position size.")
-            base_risk_pct = Decimal(str(base_risk_val)) / Decimal(100)
+            base_risk_pct = Decimal(str(self.config["base_risk_pct"])) / Decimal(100)
             exposure_mult = self.get_market_exposure_multiplier()
             phase_mult = self.get_phase_size_multiplier()
             vix_mult = self.get_vix_caution_multiplier()
@@ -586,7 +565,7 @@ class PositionSizer:
                     "position_size_pct": 0,
                     "risk_dollars": 0,
                     "status": "phase_climax",
-                    "reason": f"{symbol} in Stage-2 climax phase  -” skip entry",
+                    "reason": f"{symbol} in Stage-2 climax phase - skip entry",
                 }
 
             if entry_price <= 0 or stop_loss_price >= entry_price:
