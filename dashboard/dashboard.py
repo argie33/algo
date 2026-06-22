@@ -2,22 +2,30 @@
 """Algo Ops Terminal Dashboard
 
 Usage:
-  python -m tools.dashboard.dashboard                 # live view (AWS endpoints, q or Ctrl+C to exit)
-  python -m tools.dashboard.dashboard -w              # watch mode, auto-refresh every 30s
-  python -m tools.dashboard.dashboard -w 60           # watch mode, refresh every 60s
-  python -m tools.dashboard.dashboard --compact       # narrow positions table
-  python -m tools.dashboard.dashboard --local         # use local API (localhost:3001) instead of AWS
+  python -m dashboard                                 # live view (AWS endpoints, q or Ctrl+C to exit)
+  python -m dashboard -w                              # watch mode, auto-refresh every 30s
+  python -m dashboard -w 60                           # watch mode, refresh every 60s
+  python -m dashboard --compact                       # narrow positions table
+  python -m dashboard --local                         # use local API (localhost:3001) instead of AWS
 
 Modes:
   AWS (default): Set DASHBOARD_API_URL, COGNITO_USER_POOL_ID, COGNITO_CLIENT_ID env vars
   Local: Run local dev server on localhost:3001 first, then use --local flag
 """
 
+import os
+import sys
+
+# When run as a script (python dashboard/dashboard.py) the dashboard/ dir lands on
+# sys.path and `from dashboard.X` resolves to dashboard.py itself, not the package.
+# Insert the repo root so absolute intra-package imports always resolve correctly.
+_repo_root = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+if _repo_root not in sys.path:
+    sys.path.insert(0, _repo_root)
+
 import argparse
 import json
-import os
 import subprocess
-import sys
 import threading
 import time
 import traceback

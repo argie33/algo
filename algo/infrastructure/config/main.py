@@ -788,6 +788,34 @@ class AlgoConfig:
             "float",
             "Portfolio variance threshold to trigger CB circuit breaker",
         ),
+        # Data Patrol Staleness Thresholds (days; see data_patrol_config.py for usage)
+        "patrol_staleness_price": ("7", "int", "Days before price_daily considered stale"),
+        "patrol_staleness_technical_data": ("7", "int", "Days before technical_data_daily considered stale"),
+        "patrol_staleness_fundamentals": ("60", "int", "Days before fundamentals (quarterly data) considered stale"),
+        "patrol_staleness_growth_metrics": ("30", "int", "Days before growth_metrics considered stale"),
+        "patrol_staleness_stock_scores": ("7", "int", "Days before stock_scores considered stale"),
+        "patrol_staleness_aaii_sentiment": ("7", "int", "Days before aaii_sentiment considered stale"),
+        "patrol_staleness_earnings_history": ("120", "int", "Days before earnings_history considered stale"),
+        # Data Patrol Volume Thresholds
+        "patrol_high_volume_threshold": ("100000000", "int", "Volume sanity check: daily volume above this = suspicious"),
+        "patrol_low_volume_threshold": ("1000", "int", "Volume sanity check: daily volume below this = suspicious"),
+        "patrol_new_low_volume_alert": ("5", "int", "Alert when N stocks hit 52w volume lows"),
+        # Data Patrol Quality Thresholds
+        "patrol_max_null_pct_threshold": ("5.0", "float", "Max allowed null % in a data table"),
+        "patrol_max_daily_move_pct": ("0.5", "float", "Flag OHLC rows with daily move > N * 100%"),
+        "patrol_max_daily_move_count": ("10", "int", "Max allowed extreme daily moves per run"),
+        # Data Patrol Coverage Thresholds
+        "patrol_price_daily_14d_min": ("40000", "int", "Min rows in price_daily over last 14 days"),
+        "patrol_buy_sell_daily_14d_min": ("800", "int", "Min rows in buy_sell_daily over last 14 days"),
+        "patrol_coverage_ratio_min": ("0.8", "float", "Min coverage ratio (0-1) for data completeness check"),
+        "patrol_min_coverage_ratio": ("80.0", "float", "Min coverage ratio % (0-100) for universe coverage"),
+        "patrol_min_universe_pct": ("80.0", "float", "Min % of active universe that must have data"),
+        # Signal and Loader Thresholds
+        "signal_max_data_age_days": ("3", "int", "Max data age in days for signal generation"),
+        "stale_loader_threshold_minutes": ("30", "int", "Loader heartbeat age (minutes) before marking stale"),
+        # Swing Score Grade Thresholds
+        "swing_score_excellent_threshold": ("85", "int", "Swing score >= this = Excellent/A+"),
+        "swing_score_good_threshold": ("75", "int", "Swing score >= this = Good/A"),
     }
 
     @classmethod

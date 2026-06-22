@@ -218,25 +218,24 @@ class SignalTrendMixin:
         """
 
         def _compute_rs(cur):
-            stock_ret = None
-            spy_ret = None
             try:
                 stock_ret = self._period_return(cur, symbol, eval_date, lookback)
             except (ValueError, RuntimeError) as e:
-                logger.debug(f"Stock return calculation failed for {symbol}: {e}")
+                raise ValueError(
+                    f"Mansfield RS calculation failed for {symbol}: could not compute stock return: {e}"
+                ) from e
 
             try:
                 spy_ret = self._period_return(cur, "SPY", eval_date, lookback)
             except (ValueError, RuntimeError) as e:
-                logger.debug(f"SPY return calculation failed: {e}")
+                raise ValueError(
+                    f"Mansfield RS calculation failed: could not compute SPY return: {e}"
+                ) from e
 
-            if stock_ret is None or spy_ret is None or spy_ret == 0:
-                return {
-                    "mansfield_rs": 0,
-                    "positive": False,
-                    "stock_return_pct": stock_ret,
-                    "spy_return_pct": spy_ret,
-                }
+            if spy_ret == 0:
+                raise ValueError(
+                    "Mansfield RS calculation failed: SPY return is zero (no price data for lookback period)"
+                )
 
             mrs = (stock_ret / spy_ret) - 1
             return {

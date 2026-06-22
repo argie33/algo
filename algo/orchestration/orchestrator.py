@@ -23,6 +23,7 @@ from algo.orchestration.phase_event_hub import (
 from algo.orchestrator.phase_executor import OrchestratorPhaseExecutor, PhaseDefinition
 from algo.orchestrator.phase_registry import PhaseRegistry
 from algo.reporting import AlertManager
+from algo.reporting.alerts import NullAlertManager
 from monitoring.metrics_context import (
     TimeBlock,
     log_metrics_summary,
@@ -82,7 +83,16 @@ class Orchestrator:
         self._lock_acquired = False
 
         self.degraded_mode = False
-        self.alerts = AlertManager()
+        try:
+            self.alerts = AlertManager()
+        except RuntimeError as e:
+            if self.dry_run:
+                logger.warning(
+                    f"[ALERTS] No alert channels configured — using null alerts for dry-run: {e}"
+                )
+                self.alerts = NullAlertManager()  # type: ignore[assignment]
+            else:
+                raise
 
         self.db_monitor = DatabaseHealthMonitor(self.alerts)
         self.halt_manager = HaltFlagManager(self.alerts, self.log_phase_result)

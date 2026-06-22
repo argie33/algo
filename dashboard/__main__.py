@@ -1,8 +1,8 @@
 """Entry point for running dashboard as a module.
 
 Supports:
-  python -m tools.dashboard
-  python -m tools.dashboard.dashboard
+  python -m dashboard
+  python -m dashboard.dashboard
 """
 
 from .dashboard import main

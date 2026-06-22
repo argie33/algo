@@ -44,18 +44,13 @@ class StockScoresLoader(OptimalLoader):
     def fetch_incremental(self, symbol: str, since: date | None):
         """Compute stock scores for this symbol.
 
-        Returns list with score if computed successfully.
-        Raises exception if data insufficient or actual errors (database, calculation failures).
+        Returns list with score if computed, empty list if insufficient data.
+        Raises only on actual errors (database failures, calculation exceptions).
         """
         score_result = self._compute_stock_score(symbol)
         if score_result:
             return [score_result]
-        raise RuntimeError(
-            f"[STOCK_SCORES] Failed to compute score for {symbol}: "
-            "Insufficient real data (completeness < 50%) or all metrics NULL. "
-            "Check: quality_metrics, growth_metrics, value_metrics, positioning_metrics, "
-            "stability_metrics, momentum_metrics tables for missing data."
-        )
+        return []
 
     def _compute_stock_score(self, symbol: str) -> dict | None:
         """Compute composite stock score from REAL metrics only (no fake defaults).
@@ -168,8 +163,6 @@ class StockScoresLoader(OptimalLoader):
             )
             composite_score = max(0, min(100, composite_score))
 
-            rs_percentile = 0.0
-
             return {
                 "symbol": symbol,
                 "composite_score": composite_score,
@@ -179,7 +172,7 @@ class StockScoresLoader(OptimalLoader):
                 "momentum_score": (round(clamped_momentum, 2) if clamped_momentum is not None else None),
                 "positioning_score": (round(clamped_positioning, 2) if clamped_positioning is not None else None),
                 "stability_score": (round(clamped_stability, 2) if clamped_stability is not None else None),
-                "rs_percentile": rs_percentile,
+                "rs_percentile": 0.0,
                 "data_completeness": data_completeness,
                 "updated_at": datetime.now(timezone.utc).isoformat(),
             }
@@ -633,6 +626,9 @@ class StockScoresLoader(OptimalLoader):
         # Clamp to 0-100 range
         score = 50 + (pct_return / 0.4)
         return max(0, min(100, score))
+
+    def post_run(self) -> None:
+        self.update_rs_percentiles()
 
     def update_rs_percentiles(self):
         """Batch pass: rank all stocks by momentum_score and write true RS percentile.

@@ -78,7 +78,8 @@ class EarningsCalendarLoader(OptimalLoader):
                                 continue
                             try:
                                 ed_date = ed if isinstance(ed, date) else pd.Timestamp(ed).date()
-                            except Exception:
+                            except Exception as e:
+                                logger.warning(f"[{symbol}] Failed to parse earnings date {ed!r}: {e}")
                                 continue
                             if ed_date >= cutoff_date:
                                 results.append(

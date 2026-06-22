@@ -636,16 +636,7 @@ resource "aws_cloudwatch_event_rule" "scheduled_loader" {
   name                = "${var.project_name}-${each.key}-schedule"
   description         = each.value.description
   schedule_expression = each.value.schedule
-  # OPTIMIZED 2026-06-21: Disable non-critical loaders in dev to save $20-25/month
-  # Keep only: stock_prices_daily, stock_scores, growth/quality/value_metrics, economic_metrics_daily
-  state = contains([
-    "stock_prices_daily",
-    "stock_scores",
-    "growth_metrics",
-    "quality_metrics",
-    "value_metrics",
-    "economic_metrics_daily",
-  ], each.key) ? "ENABLED" : "DISABLED"
+  state               = "ENABLED"
 
   tags = var.common_tags
 }

@@ -59,7 +59,8 @@ class EarningsHistoryLoader(OptimalLoader):
 
                             f = float(v)
                             return None if math.isnan(f) else round(f, 4)
-                        except (TypeError, ValueError):
+                        except (TypeError, ValueError) as e:
+                            logger.debug(f"[{symbol}] Could not convert {v!r} to float: {e}")
                             return None
 
                     # Derive quarter start date (the quarter in which earnings fall)
@@ -69,8 +70,11 @@ class EarningsHistoryLoader(OptimalLoader):
                         qstart_month = (q - 1) * 3 + 1
                         quarter_str = f"{dt.year}-{qstart_month:02d}-01"
                     except (ValueError, ZeroDivisionError, TypeError) as e:
-                        logger.warning(f"Exception: {e}")
-                        quarter_str = ed[:10]
+                        logger.warning(
+                            f"[{symbol}] Could not derive quarter from earnings date {ed!r}, "
+                            f"using date as-is: {e}"
+                        )
+                        quarter_str = str(ed)[:10]
 
                     rows.append(
                         {
@@ -83,7 +87,7 @@ class EarningsHistoryLoader(OptimalLoader):
                         }
                     )
                 except (ValueError, ZeroDivisionError, TypeError) as e:
-                    logger.debug(f"Earnings row error {symbol} {idx}: {e}")
+                    logger.warning(f"[{symbol}] Skipped earnings row (index {idx}) due to error: {e}")
 
             # Deduplicate by (symbol, quarter) - keep most recent earnings_date
             if rows:
