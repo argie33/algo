@@ -135,8 +135,6 @@ def check_public_rate_limit(
         else:
             window_seconds = DEFAULT_TIME_WINDOW
 
-    global _public_rate_limits
-
     now = time()
     window_start = now - window_seconds
 
@@ -357,8 +355,6 @@ def _check_memory_rate_limit(
     window_start: float,
     now: float,
 ) -> tuple[bool, str | None]:
-    global _admin_rate_limits
-
     key = _get_admin_rate_limit_key(user_id, endpoint)
 
     if key not in _admin_rate_limits:

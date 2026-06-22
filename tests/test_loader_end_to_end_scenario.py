@@ -19,7 +19,6 @@ if str(_project_root) not in sys.path:
     sys.path.insert(0, str(_project_root))
 
 import time
-from typing import ClassVar
 
 import pytest
 

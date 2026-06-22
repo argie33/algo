@@ -19,7 +19,7 @@ UPDATE PROTOCOL:
 
 from typing import Any, cast
 
-from pydantic import BaseModel, Field, field_validator
+from pydantic import BaseModel, Field
 
 
 class ResponseSchema(BaseModel):
@@ -581,10 +581,10 @@ DASHBOARD_ENDPOINTS = {
         "response_schema": ResponseSchema(
             required_fields=[],
             optional_fields=["industry_name", "stock_count", "composite_score", "momentum_score",
-                            "value_score", "quality_score", "growth_score", "stability_score",
-                            "data_freshness"],
+                             "value_score", "quality_score", "growth_score", "stability_score",
+                             "data_freshness"],
             field_types={"stock_count": int, "composite_score": (float, type(None)),
-                        "momentum_score": (float, type(None))},
+                         "momentum_score": (float, type(None))},
             description="Industry detail with scores",
         ),
         "freshness_max_age_seconds": 3600,

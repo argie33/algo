@@ -128,7 +128,6 @@ def _check_circuit_breaker():
     """Check if circuit breaker is open; attempt half-open state after reset time."""
     global _circuit_breaker_state
     global _circuit_breaker_failures
-    global _circuit_breaker_reset_time
     with _circuit_breaker_lock:
         if _circuit_breaker_state != "open":
             return False

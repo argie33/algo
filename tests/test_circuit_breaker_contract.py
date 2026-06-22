@@ -4,8 +4,6 @@ This test catches field name mismatches automatically so we don't have to find
 them manually by running the dashboard.
 """
 
-import pytest
-
 
 def test_circuit_breaker_response_schema():
     """Verify API circuit breaker response has fields that panel expects."""

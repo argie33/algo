@@ -17,7 +17,7 @@ Metrics computed:
 import logging
 from datetime import date, timedelta
 from datetime import datetime as dt
-from typing import Any, Optional
+from typing import Any
 
 import psycopg2
 import psycopg2.extras

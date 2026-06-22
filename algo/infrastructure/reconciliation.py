@@ -534,7 +534,7 @@ class DailyReconciliation:
         estimated prices with actual Alpaca fill prices after market opens.
         """
         if not self.broker.alpaca_key or not self.broker.alpaca_secret:
-            return {"updated": 0, "message": "No Alpaca credentials"}
+            raise ValueError("Cannot reconcile exit fills: Alpaca credentials unavailable")
         try:
             import requests
 
@@ -555,14 +555,11 @@ class DailyReconciliation:
                 timeout=self.config.get("api_request_timeout_seconds", 5),
             )
             if resp.status_code != 200:
-                return {
-                    "updated": 0,
-                    "message": f"Alpaca orders API {resp.status_code}",
-                }
+                raise ValueError(f"Alpaca orders API returned {resp.status_code} - cannot reconcile exit fills")
 
             orders = resp.json()
             if not isinstance(orders, list):
-                return {"updated": 0, "message": "Unexpected Alpaca response format"}
+                raise ValueError(f"Unexpected Alpaca response format: expected list, got {type(orders)}")
 
             updated = 0
             two_days_ago = reconcile_date - timedelta(days=2)
@@ -934,7 +931,7 @@ class DailyReconciliation:
         Returns: dict with reconciliation status and any detected drift
         """
         if not self.broker.alpaca_key or not self.broker.alpaca_secret:
-            return {"checked": 0, "message": "No Alpaca credentials"}
+            raise ValueError("Cannot check partial fills: Alpaca credentials unavailable")
 
         try:
             import requests
@@ -949,11 +946,11 @@ class DailyReconciliation:
             )
 
             if resp.status_code != 200:
-                return {"checked": 0, "message": f"Alpaca orders API {resp.status_code}"}
+                raise ValueError(f"Alpaca orders API returned {resp.status_code} - cannot check partial fills")
 
             orders = resp.json()
             if not isinstance(orders, list):
-                return {"checked": 0, "message": "Unexpected Alpaca response format"}
+                raise ValueError(f"Unexpected Alpaca response format: expected list, got {type(orders)}")
 
             # Check each order against our DB records
             mismatches = []

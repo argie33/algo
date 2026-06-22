@@ -6,7 +6,6 @@ Responsibility: Transform and normalize raw price data from yfinance.
 """
 
 import logging
-from datetime import datetime
 from typing import Any
 
 

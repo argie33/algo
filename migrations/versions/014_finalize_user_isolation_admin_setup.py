@@ -7,6 +7,8 @@ happens in migration 015_replace_admin_placeholder_with_real_cognito_sub.py
 This migration verifies preconditions and documents the setup process.
 """
 
+import psycopg2
+
 from utils.db.context import DatabaseContext
 
 

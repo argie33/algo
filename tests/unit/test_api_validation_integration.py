@@ -10,7 +10,6 @@ from unittest.mock import MagicMock, patch
 import pytest
 
 from tools.dashboard.api_data_layer import api_call
-from tools.dashboard.response_validators import ResponseValidationError
 
 
 def test_api_call_validates_portfolio_response():

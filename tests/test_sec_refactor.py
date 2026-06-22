@@ -13,7 +13,6 @@ print("=" * 60)
 print("TEST 1: Import refactored modules")
 print("=" * 60)
 try:
-    from utils.external import sec_statements
     from utils.external.sec_edgar import SecEdgarClient
 
     print("[OK] Imports successful")

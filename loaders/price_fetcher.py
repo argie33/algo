@@ -8,8 +8,6 @@ Responsibility: Fetch price data from yfinance API with error handling, retries,
 import logging
 import threading
 import time
-from datetime import date, datetime, timedelta
-from typing import Optional
 
 
 logger = logging.getLogger(__name__)

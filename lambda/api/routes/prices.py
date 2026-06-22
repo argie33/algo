@@ -14,6 +14,7 @@ from routes.utils import (
     handle_db_error,
     json_response,
     list_response,
+    raise_api_error,
     safe_json_serialize,
     safe_limit,
 )

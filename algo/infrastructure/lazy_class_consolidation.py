@@ -1,6 +1,7 @@
 #!/usr/bin/env python3
 """Lazy Class Consolidation - Eliminate overly simple utility classes."""
 
+
 class ConfigMetadata:
     """Consolidated metadata store for configuration and constants."""
 

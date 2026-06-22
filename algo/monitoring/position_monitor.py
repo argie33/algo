@@ -88,8 +88,7 @@ class PositionMonitor:
                 )
                 stale_orders = cur.fetchall()
             except (psycopg2.DatabaseError, psycopg2.OperationalError) as e:
-                logger.error(f"Stale orders query failed: {e}")
-                return {"status": "ERROR", "error": str(e)}
+                raise RuntimeError(f"Failed to check for stale orders: {e}. Cannot proceed without this critical check.") from e
 
             if stale_orders:
                 # Filter out halted symbols (halts are normal, not actionable)
@@ -501,11 +500,10 @@ class PositionMonitor:
             flags.append(f"EARNINGS_IN_{days_to_earn}D")
 
         # 3f. Distribution-day stress
-        market_dist_days = None
         try:
             market_dist_days = self._fetch_market_dist_days(current_date, cur)
         except (ValueError, RuntimeError) as e:
-            logger.debug(f"Market distribution days unavailable for {current_date}: {e}")
+            raise ValueError(f"Cannot evaluate market distribution days for position {symbol}: {e}") from e
 
         try:
             max_dist_days = int(self.config["max_distribution_days"])
@@ -1073,8 +1071,7 @@ class PositionMonitor:
                 alpaca_secret = None
 
             if not alpaca_key or not alpaca_secret:
-                logger.warning("Alpaca credentials not available, skipping position sync")
-                return adjustments
+                raise RuntimeError("Alpaca credentials unavailable - cannot detect corporate actions (stock splits, dividends). Position monitoring halted.")
 
             for pos_id, symbol, db_qty, db_stop, _entry_price in positions:
                 try:
@@ -1093,13 +1090,12 @@ class PositionMonitor:
                         timeout=timeout,
                     )
                     if resp.status_code != 200:
-                        continue
+                        raise RuntimeError(f"Alpaca API returned {resp.status_code} for {symbol} - cannot complete corporate action check")
 
                     try:
                         alpaca_pos = resp.json()
                     except (ValueError, Exception) as e:
-                        logger.warning(f"Invalid JSON response for {symbol}: {e}, skipping")
-                        continue
+                        raise RuntimeError(f"Invalid JSON response from Alpaca for {symbol}: {e}") from e
 
                     alpaca_qty = int(alpaca_pos.get("qty", 0))
 

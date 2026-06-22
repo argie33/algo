@@ -1,9 +1,6 @@
 """Unit tests for health panel helper functions."""
 
 from datetime import datetime
-from unittest.mock import MagicMock
-
-import pytest
 
 from tools.dashboard.panels.health import (
     ERROR_STATES,

@@ -1,8 +1,6 @@
 #!/usr/bin/env python3
 """Test Phase Executor Dependency Validation: Verify the executor enforces dependencies."""
 
-import pytest
-
 from algo.orchestrator.phase_executor import OrchestratorPhaseExecutor, PhaseDefinition
 from algo.orchestrator.phase_result import Phase5Result, Phase7Result, PhaseResult
 

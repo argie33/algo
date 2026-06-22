@@ -100,7 +100,7 @@ class FinancialStatementLoader:
         logger.info(f"Loading {self.statement_type} ({self.period}) to {table_name}")
 
         loader = OptimalLoader(
-            query=f"SELECT symbol FROM watchlist_symbols",
+            query="SELECT symbol FROM watchlist_symbols",
             table_name=table_name,
             primary_key=self.config["primary_key"],
             schema_cols=self.config["schema_cols"],

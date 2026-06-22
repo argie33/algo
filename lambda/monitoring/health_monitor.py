@@ -11,9 +11,11 @@ Triggered by: EventBridge rule (6-hour interval)
 
 import json
 import logging
+import os
 from datetime import datetime, timezone
 
 import boto3
+import psycopg2
 
 from utils.db.connection import get_db_connection
 from utils.db.sql_safety import assert_safe_table
