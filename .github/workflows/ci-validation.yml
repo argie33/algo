@@ -29,7 +29,7 @@ jobs:
         run: python scripts/ci_validation.py
 
       - name: Check syntax with ruff
-        run: ruff check tools/ lambda/ algo/ loaders/ --select=E,F
+        run: ruff check tools/ lambda/ algo/ loaders/
 
       - name: Type check with mypy
         run: mypy tools/dashboard --ignore-missing-imports --show-error-codes
