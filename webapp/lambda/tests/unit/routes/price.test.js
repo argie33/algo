@@ -31,7 +31,7 @@ describe("Price Route - Unit Tests", () => {
     // Setup default mock responses
     mockQuery.mockImplementation((sql, params) => {
       // Mock table existence checks for information_schema.tables
-      if (sql.includes("information_schema.tables") && params && params[0]) {
+      if (sql.includes("information_schema.tables") && _params && params[0]) {
         const tableName = params[0];
         if (
           tableName === "price_daily" ||
@@ -48,7 +48,7 @@ describe("Price Route - Unit Tests", () => {
       }
       // Mock price_daily queries
       if (sql.includes("FROM price_daily") && sql.includes("WHERE symbol")) {
-        const symbol = params && params[0] ? params[0] : "AAPL";
+        const symbol = _params && params[0] ? params[0] : "AAPL";
         if (symbol === "INVALID") {
           return Promise.resolve({ rows: [] });
         }
@@ -86,7 +86,7 @@ describe("Price Route - Unit Tests", () => {
       }
       // Mock futures data queries
       if (sql.includes("futures_pricing") || sql.includes("futures")) {
-        const symbol = params && params[0] ? params[0] : "CLZ24";
+        const symbol = _params && params[0] ? params[0] : "CLZ24";
         if (symbol === "INVALID") {
           return Promise.resolve({ rows: [] });
         }
@@ -112,7 +112,7 @@ describe("Price Route - Unit Tests", () => {
         sql.includes("prediction") ||
         sql.includes("analysis")
       ) {
-        const symbol = params && params[0] ? params[0] : "AAPL";
+        const symbol = _params && params[0] ? params[0] : "AAPL";
         return Promise.resolve({
           rows: [
             {
@@ -142,7 +142,7 @@ describe("Price Route - Unit Tests", () => {
   });
   describe("GET /api/price/", () => {
     test("should return API overview", async () => {
-      const _response = await request(app).get("/api/price/").expect(200);
+      const response = await request(app).get("/api/price/").expect(200);
       expect(response.body.message).toBe("Price API - Ready");
       expect(response.body.status).toBe("operational");
       expect(response.body.endpoints).toBeDefined();
@@ -152,7 +152,7 @@ describe("Price Route - Unit Tests", () => {
   });
   describe("GET /api/price/ping", () => {
     test("should return health status", async () => {
-      const _response = await request(app).get("/api/price/ping").expect(200);
+      const response = await request(app).get("/api/price/ping").expect(200);
       expect(response.body.status).toBe("ok");
       expect(response.body.endpoint).toBe("price");
       expect(response.body.timestamp).toBeDefined();
@@ -160,7 +160,7 @@ describe("Price Route - Unit Tests", () => {
   });
   describe("GET /api/price/:symbol", () => {
     test("should get current price for valid symbol", async () => {
-      const _response = await request(app).get("/api/price/AAPL").expect(200);
+      const response = await request(app).get("/api/price/AAPL").expect(200);
       expect(response.body.symbol).toBe("AAPL");
       expect(response.body.data.current_price).toBe(153.5);
       expect(response.body.data.open).toBe(150.0);
@@ -172,7 +172,7 @@ describe("Price Route - Unit Tests", () => {
       );
     });
     test("should handle symbol not found", async () => {
-      const _response = await request(app).get("/api/price/INVALID").expect(404);
+      const response = await request(app).get("/api/price/INVALID").expect(404);
       expect(response.body.success).toBe(false);
       expect(response.body.error).toContain("Invalid symbol format");
     });
@@ -182,14 +182,14 @@ describe("Price Route - Unit Tests", () => {
         return Promise.reject(new Error("Database connection failed"));
       });
       // When database fails, tableExists returns false, causing 404 "Price data not available"
-      const _response = await request(app).get("/api/price/AAPL").expect(404);
+      const response = await request(app).get("/api/price/AAPL").expect(404);
       expect(response.body.success).toBe(false);
       expect(response.body.error).toContain("Price data not available");
     });
   });
   describe("GET /api/price/:symbol/intraday", () => {
     test("should return intraday data with default 5min interval", async () => {
-      const _response = await request(app)
+      const response = await request(app)
         .get("/api/price/AAPL/intraday")
         .expect(200);
       expect(response.body.meta.symbol).toBe("AAPL");
@@ -201,13 +201,13 @@ describe("Price Route - Unit Tests", () => {
       expect(response.body.data[0]).toHaveProperty("volume");
     });
     test("should handle different intervals", async () => {
-      const _response = await request(app)
+      const response = await request(app)
         .get("/api/price/AAPL/intraday?interval=1min")
         .expect(200);
       expect(response.body.meta.interval).toBe("daily");
     });
     test("should validate interval parameter", async () => {
-      const _response = await request(app)
+      const response = await request(app)
         .get("/api/price/AAPL/intraday?interval=invalid")
         .expect(200);
       expect(response.body.success).toBe(true);
@@ -224,7 +224,7 @@ describe("Price Route - Unit Tests", () => {
         { symbol: "GOOGL", close_price: 140.0 },
       ];
       mockQuery.mockResolvedValue({ rows: mockBatchData });
-      const _response = await request(app)
+      const response = await request(app)
         .post("/api/price/batch")
         .send({ symbols: ["AAPL", "MSFT", "GOOGL"] })
         .expect(200);
@@ -237,7 +237,7 @@ describe("Price Route - Unit Tests", () => {
       expect(response.body.data.prices).toHaveProperty("GOOGL");
     });
     test("should validate batch request body", async () => {
-      const _response = await request(app)
+      const response = await request(app)
         .post("/api/price/batch")
         .send({}) // Missing symbols array
         .expect(400);
@@ -246,7 +246,7 @@ describe("Price Route - Unit Tests", () => {
     });
     test("should handle large batch size", async () => {
       const manySymbols = Array.from({ length: 101 }, (_, i) => `STOCK${i}`);
-      const _response = await request(app)
+      const response = await request(app)
         .post("/api/price/batch")
         .send({ symbols: manySymbols })
         .expect(200);

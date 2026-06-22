@@ -14,7 +14,7 @@ jest.mock("../../../utils/apiKeyService", () => ({
 jest.mock("../../../utils/database");
 const jwt = require("jsonwebtoken");
 const apiKeyService = require("../../../utils/apiKeyService");
-const { query } = require("../../../utils/database");
+const { _query } = require("../../../utils/database");
 const {
   authenticateToken,
   requireRole,

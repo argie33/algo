@@ -50,8 +50,8 @@ describe("Alerts Routes Unit Tests", () => {
         // Check if filtering by status = "triggered" - look in both SQL and params
         const statusFilter =
           (sql.includes("status = $") &&
-            params &&
-            params.includes("triggered")) ||
+            _params &&
+            _params.includes("triggered")) ||
           sql.includes("'triggered'");
         const status = statusFilter ? "triggered" : "active";
 
@@ -141,11 +141,11 @@ describe("Alerts Routes Unit Tests", () => {
       ) {
         // For INSERT operations, return the inserted data based on params
         if (sql.includes("INSERT") && params) {
-          // Extract symbol from params - look for stock ticker patterns
+          // Extract symbol from _params - look for stock ticker patterns
           let symbol = "AAPL"; // default
           if (params) {
-            // Look for valid stock symbols in params (1-5 uppercase letters)
-            const symbolMatch = params.find(
+            // Look for valid stock symbols in _params (1-5 uppercase letters)
+            const symbolMatch = _params.find(
               (p) => typeof p === "string" && /^[A-Z]{1,5}$/.test(p)
             );
             if (symbolMatch) {
@@ -156,7 +156,7 @@ describe("Alerts Routes Unit Tests", () => {
           // Extract sentiment threshold for news alerts
           let sentimentThreshold = 0.7;
           if (params && sql.includes("news")) {
-            const sentimentMatch = params.find(
+            const sentimentMatch = _params.find(
               (p) => typeof p === "number" && p >= -1 && p <= 1
             );
             if (sentimentMatch !== undefined) {
@@ -175,7 +175,7 @@ describe("Alerts Routes Unit Tests", () => {
                     ? "news"
                     : "price",
                 threshold_multiplier:
-                  params.find(
+                  _params.find(
                     (p) => typeof p === "string" && p.includes(".")
                   ) || "2.50",
                 sentiment_threshold: sentimentThreshold,
@@ -203,7 +203,7 @@ describe("Alerts Routes Unit Tests", () => {
 
   describe("GET /alerts/", () => {
     test("should return alerts info", async () => {
-      const _response = await request(app)
+      const response = await request(app)
         .get("/alerts/")
         .set("Authorization", "Bearer test-token");
 
@@ -219,7 +219,7 @@ describe("Alerts Routes Unit Tests", () => {
 
   describe("GET /alerts/active", () => {
     test("should return active alerts with proper structure", async () => {
-      const _response = await request(app)
+      const response = await request(app)
         .get("/alerts/active")
         .set("Authorization", "Bearer test-token");
 
@@ -241,7 +241,7 @@ describe("Alerts Routes Unit Tests", () => {
     });
 
     test("should handle limit parameter", async () => {
-      const _response = await request(app)
+      const response = await request(app)
         .get("/alerts/active?limit=5")
         .set("Authorization", "Bearer test-token");
 
@@ -251,7 +251,7 @@ describe("Alerts Routes Unit Tests", () => {
     });
 
     test("should handle offset parameter", async () => {
-      const _response = await request(app)
+      const response = await request(app)
         .get("/alerts/active?offset=10&limit=5")
         .set("Authorization", "Bearer test-token");
 
@@ -262,7 +262,7 @@ describe("Alerts Routes Unit Tests", () => {
     });
 
     test("should handle priority filter", async () => {
-      const _response = await request(app)
+      const response = await request(app)
         .get("/alerts/active?priority=high")
         .set("Authorization", "Bearer test-token");
 
@@ -274,7 +274,7 @@ describe("Alerts Routes Unit Tests", () => {
     });
 
     test("should handle status filter", async () => {
-      const _response = await request(app)
+      const response = await request(app)
         .get("/alerts/active?status=triggered")
         .set("Authorization", "Bearer test-token");
 
@@ -292,7 +292,7 @@ describe("Alerts Routes Unit Tests", () => {
 
   describe("GET /alerts/distance/:symbol", () => {
     test("should return distance-based alert analysis", async () => {
-      const _response = await request(app)
+      const response = await request(app)
         .get("/alerts/distance/AAPL")
         .set("Authorization", "Bearer test-token");
 
@@ -316,7 +316,7 @@ describe("Alerts Routes Unit Tests", () => {
     });
 
     test("should handle invalid symbol", async () => {
-      const _response = await request(app)
+      const response = await request(app)
         .get("/alerts/distance/INVALID")
         .set("Authorization", "Bearer test-token");
 
@@ -340,7 +340,7 @@ describe("Alerts Routes Unit Tests", () => {
       ) {
         const alertId = alertsResponse.body.data.alerts[0].id;
 
-        const _response = await request(app)
+        const response = await request(app)
           .put(`/alerts/${alertId}/dismiss`)
           .set("Authorization", "Bearer test-token");
 
@@ -351,7 +351,7 @@ describe("Alerts Routes Unit Tests", () => {
         }
       } else {
         // Test with non-existent ID
-        const _response = await request(app)
+        const response = await request(app)
           .put("/alerts/99999/dismiss")
           .set("Authorization", "Bearer test-token");
 
@@ -360,7 +360,7 @@ describe("Alerts Routes Unit Tests", () => {
     });
 
     test("should handle invalid alert ID format", async () => {
-      const _response = await request(app)
+      const response = await request(app)
         .put("/alerts/invalid-id/dismiss")
         .set("Authorization", "Bearer test-token");
 
@@ -376,7 +376,7 @@ describe("Alerts Routes Unit Tests", () => {
         value: 150,
       };
 
-      const _response = await request(app)
+      const response = await request(app)
         .post("/alerts/")
         .set("Authorization", "Bearer test-token")
         .send(alertData);
@@ -401,7 +401,7 @@ describe("Alerts Routes Unit Tests", () => {
         notes: "Buy signal for AAPL",
       };
 
-      const _response = await request(app)
+      const response = await request(app)
         .post("/alerts/price")
         .set("Authorization", "Bearer test-token")
         .send(priceAlertData);
@@ -424,7 +424,7 @@ describe("Alerts Routes Unit Tests", () => {
         // Missing required fields
       };
 
-      const _response = await request(app)
+      const response = await request(app)
         .post("/alerts/price")
         .set("Authorization", "Bearer test-token")
         .send(incompleteData)
@@ -461,7 +461,7 @@ describe("Alerts Routes Unit Tests", () => {
 
   describe("GET /alerts/price/:symbol", () => {
     test("should return price alerts for symbol", async () => {
-      const _response = await request(app)
+      const response = await request(app)
         .get("/alerts/price/AAPL")
         .set("Authorization", "Bearer test-token")
         .expect(200);
@@ -474,7 +474,7 @@ describe("Alerts Routes Unit Tests", () => {
     });
 
     test("should filter alerts by status", async () => {
-      const _response = await request(app)
+      const response = await request(app)
         .get("/alerts/price/AAPL?status=active")
         .set("Authorization", "Bearer test-token")
         .expect(200);
@@ -502,7 +502,7 @@ describe("Alerts Routes Unit Tests", () => {
         notification_method: "sms",
       };
 
-      const _response = await request(app)
+      const response = await request(app)
         .post("/alerts/volume")
         .set("Authorization", "Bearer test-token")
         .send(volumeAlertData);
@@ -526,7 +526,7 @@ describe("Alerts Routes Unit Tests", () => {
         threshold_multiplier: -1.0, // Invalid negative multiplier
       };
 
-      const _response = await request(app)
+      const response = await request(app)
         .post("/alerts/volume")
         .set("Authorization", "Bearer test-token")
         .send(invalidData)
@@ -539,7 +539,7 @@ describe("Alerts Routes Unit Tests", () => {
 
   describe("GET /alerts/volume/analysis/:symbol", () => {
     test("should return volume analysis for symbol", async () => {
-      const _response = await request(app)
+      const response = await request(app)
         .get("/alerts/volume/analysis/TSLA")
         .set("Authorization", "Bearer test-token")
         .expect(200);
@@ -559,7 +559,7 @@ describe("Alerts Routes Unit Tests", () => {
     });
 
     test("should include historical volume data", async () => {
-      const _response = await request(app)
+      const response = await request(app)
         .get("/alerts/volume/analysis/TSLA?include_history=true")
         .set("Authorization", "Bearer test-token")
         .expect(200);
@@ -586,7 +586,7 @@ describe("Alerts Routes Unit Tests", () => {
         notification_method: "email",
       };
 
-      const _response = await request(app)
+      const response = await request(app)
         .post("/alerts/technical")
         .set("Authorization", "Bearer test-token")
         .send(rsiAlertData);
@@ -610,7 +610,7 @@ describe("Alerts Routes Unit Tests", () => {
         webhook_url: "https://example.com/webhook",
       };
 
-      const _response = await request(app)
+      const response = await request(app)
         .post("/alerts/technical")
         .set("Authorization", "Bearer test-token")
         .send(macdAlertData);
@@ -631,7 +631,7 @@ describe("Alerts Routes Unit Tests", () => {
         threshold: 50,
       };
 
-      const _response = await request(app)
+      const response = await request(app)
         .post("/alerts/technical")
         .set("Authorization", "Bearer test-token")
         .send(unsupportedIndicator)
@@ -644,7 +644,7 @@ describe("Alerts Routes Unit Tests", () => {
 
   describe("GET /alerts/technical/status/:symbol", () => {
     test("should return technical alert status", async () => {
-      const _response = await request(app)
+      const response = await request(app)
         .get("/alerts/technical/status/AAPL")
         .set("Authorization", "Bearer test-token")
         .expect(200);
@@ -662,7 +662,7 @@ describe("Alerts Routes Unit Tests", () => {
     });
 
     test("should filter by indicator type", async () => {
-      const _response = await request(app)
+      const response = await request(app)
         .get("/alerts/technical/status/AAPL?indicator=RSI")
         .set("Authorization", "Bearer test-token")
         .expect(200);
@@ -711,7 +711,7 @@ describe("Alerts Routes Unit Tests", () => {
         notification_method: "email",
       };
 
-      const _response = await request(app)
+      const response = await request(app)
         .post("/alerts/news")
         .set("Authorization", "Bearer test-token")
         .send(newsAlertData);
@@ -734,7 +734,7 @@ describe("Alerts Routes Unit Tests", () => {
         sentiment_threshold: 0.5,
       };
 
-      const _response = await request(app)
+      const response = await request(app)
         .post("/alerts/news")
         .set("Authorization", "Bearer test-token")
         .send(invalidSourceData);
@@ -751,7 +751,7 @@ describe("Alerts Routes Unit Tests", () => {
 
   describe("GET /alerts/news/recent/:symbol", () => {
     test("should return recent news alerts", async () => {
-      const _response = await request(app)
+      const response = await request(app)
         .get("/alerts/news/recent/AAPL")
         .set("Authorization", "Bearer test-token")
         .expect(200);
@@ -770,7 +770,7 @@ describe("Alerts Routes Unit Tests", () => {
     });
 
     test("should filter by time period", async () => {
-      const _response = await request(app)
+      const response = await request(app)
         .get("/alerts/news/recent/AAPL?hours=24")
         .set("Authorization", "Bearer test-token")
         .expect(200);
@@ -793,7 +793,7 @@ describe("Alerts Routes Unit Tests", () => {
         notification_method: "email",
       };
 
-      const _response = await request(app)
+      const response = await request(app)
         .post("/alerts/portfolio")
         .set("Authorization", "Bearer test-token")
         .send(portfolioAlertData);
@@ -818,7 +818,7 @@ describe("Alerts Routes Unit Tests", () => {
         notification_method: "sms",
       };
 
-      const _response = await request(app)
+      const response = await request(app)
         .post("/alerts/portfolio")
         .set("Authorization", "Bearer test-token")
         .send(sectorAlertData);
@@ -834,7 +834,7 @@ describe("Alerts Routes Unit Tests", () => {
 
   describe("GET /alerts/portfolio/status", () => {
     test("should return portfolio alert status", async () => {
-      const _response = await request(app)
+      const response = await request(app)
         .get("/alerts/portfolio/status")
         .set("Authorization", "Bearer test-token")
         .expect(200);
@@ -846,7 +846,7 @@ describe("Alerts Routes Unit Tests", () => {
     });
 
     test("should include triggered alerts summary", async () => {
-      const _response = await request(app)
+      const response = await request(app)
         .get("/alerts/portfolio/status?include_triggered=true")
         .set("Authorization", "Bearer test-token")
         .expect(200);
@@ -870,7 +870,7 @@ describe("Alerts Routes Unit Tests", () => {
         expiration_date: "2024-06-30",
       };
 
-      const _response = await request(app)
+      const response = await request(app)
         .put("/alerts/1/update")
         .set("Authorization", "Bearer test-token")
         .send(updateData);
@@ -889,7 +889,7 @@ describe("Alerts Routes Unit Tests", () => {
         target_price: "invalid_price",
       };
 
-      const _response = await request(app)
+      const response = await request(app)
         .put("/alerts/1/update")
         .set("Authorization", "Bearer test-token")
         .send(invalidUpdate)
@@ -902,7 +902,7 @@ describe("Alerts Routes Unit Tests", () => {
 
   describe("DELETE /alerts/:id", () => {
     test("should delete alert", async () => {
-      const _response = await request(app)
+      const response = await request(app)
         .delete("/alerts/1")
         .set("Authorization", "Bearer test-token");
 
@@ -915,7 +915,7 @@ describe("Alerts Routes Unit Tests", () => {
     });
 
     test("should handle non-existent alert deletion", async () => {
-      const _response = await request(app)
+      const response = await request(app)
         .delete("/alerts/99999")
         .set("Authorization", "Bearer test-token")
         .expect(404);
@@ -932,7 +932,7 @@ describe("Alerts Routes Unit Tests", () => {
         reason: "Bulk cleanup",
       };
 
-      const _response = await request(app)
+      const response = await request(app)
         .post("/alerts/bulk/dismiss")
         .set("Authorization", "Bearer test-token")
         .send(dismissData);
@@ -951,7 +951,7 @@ describe("Alerts Routes Unit Tests", () => {
         alert_ids: "not_an_array",
       };
 
-      const _response = await request(app)
+      const response = await request(app)
         .post("/alerts/bulk/dismiss")
         .set("Authorization", "Bearer test-token")
         .send(invalidData)
@@ -968,7 +968,7 @@ describe("Alerts Routes Unit Tests", () => {
 
   describe("GET /alerts/history", () => {
     test("should return alert history with pagination", async () => {
-      const _response = await request(app)
+      const response = await request(app)
         .get("/alerts/history")
         .set("Authorization", "Bearer test-token")
         .expect(200);
@@ -980,7 +980,7 @@ describe("Alerts Routes Unit Tests", () => {
     });
 
     test("should filter history by date range", async () => {
-      const _response = await request(app)
+      const response = await request(app)
         .get("/alerts/history?start_date=2024-01-01&end_date=2024-01-31")
         .set("Authorization", "Bearer test-token")
         .expect(200);
@@ -999,7 +999,7 @@ describe("Alerts Routes Unit Tests", () => {
     });
 
     test("should filter by alert type", async () => {
-      const _response = await request(app)
+      const response = await request(app)
         .get("/alerts/history?alert_type=price_above")
         .set("Authorization", "Bearer test-token")
         .expect(200);
@@ -1015,7 +1015,7 @@ describe("Alerts Routes Unit Tests", () => {
 
   describe("GET /alerts/history/performance", () => {
     test("should return alert performance analytics", async () => {
-      const _response = await request(app)
+      const response = await request(app)
         .get("/alerts/history/performance")
         .set("Authorization", "Bearer test-token")
         .expect(200);
@@ -1027,7 +1027,7 @@ describe("Alerts Routes Unit Tests", () => {
     });
 
     test("should break down performance by alert type", async () => {
-      const _response = await request(app)
+      const response = await request(app)
         .get("/alerts/history/performance?breakdown=alert_type")
         .set("Authorization", "Bearer test-token")
         .expect(200);
@@ -1045,7 +1045,7 @@ describe("Alerts Routes Unit Tests", () => {
 
   describe("GET /alerts/settings", () => {
     test("should return user alert settings", async () => {
-      const _response = await request(app)
+      const response = await request(app)
         .get("/alerts/settings")
         .set("Authorization", "Bearer test-token")
         .expect(200);
@@ -1075,7 +1075,7 @@ describe("Alerts Routes Unit Tests", () => {
         },
       };
 
-      const _response = await request(app)
+      const response = await request(app)
         .put("/alerts/settings")
         .set("Authorization", "Bearer test-token")
         .send(settingsData);
@@ -1095,7 +1095,7 @@ describe("Alerts Routes Unit Tests", () => {
         quiet_hours: "invalid_format",
       };
 
-      const _response = await request(app)
+      const response = await request(app)
         .put("/alerts/settings")
         .set("Authorization", "Bearer test-token")
         .send(invalidSettings)
@@ -1123,7 +1123,7 @@ describe("Alerts Routes Unit Tests", () => {
 
       // Import mocked functions
 
-      const _response = await request(app)
+      const response = await request(app)
         .get("/alerts/active")
         .set("Authorization", "Bearer test-token")
         .timeout(5000);
@@ -1133,14 +1133,14 @@ describe("Alerts Routes Unit Tests", () => {
     });
 
     test("should handle missing authentication", async () => {
-      const _response = await request(app).get("/alerts/active").expect(401);
+      const response = await request(app).get("/alerts/active").expect(401);
 
       expect(response.body).toHaveProperty("success", false);
       expect(response.body.error || response.body.success).toBeDefined();
     });
 
     test("should handle malformed request data", async () => {
-      const _response = await request(app)
+      const response = await request(app)
         .post("/alerts/price")
         .set("Authorization", "Bearer test-token")
         .send("invalid json string")
@@ -1150,7 +1150,7 @@ describe("Alerts Routes Unit Tests", () => {
     });
 
     test("should handle invalid symbol format", async () => {
-      const _response = await request(app)
+      const response = await request(app)
         .get("/alerts/price/INVALID_SYMBOL_123!")
         .set("Authorization", "Bearer test-token")
         .expect(400);

@@ -64,7 +64,7 @@ const settingsRoutes = require("./routes/settings");
 const app = express();
 
 // CRITICAL: Catch unhandled errors to prevent orphaned processes
-process.on('unhandledRejection', (reason, promise) => {
+process.on('unhandledRejection', (reason) => {
   console.error(' Unhandled Promise Rejection:', reason);
   if (reason && reason.stack) console.error('Stack:', reason.stack);
 });

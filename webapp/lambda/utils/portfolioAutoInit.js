@@ -114,7 +114,6 @@ class PortfolioAutoInit {
                WHERE user_id = $2 AND symbol = $3`,
               [sector, userId, symbol]
             );
-            updated++;
           }
         } catch (e) {
           updateErrors.push(`${symbol}: ${e.message}`);
@@ -179,7 +178,6 @@ class PortfolioAutoInit {
             totalCost += costBasis;
             totalUnrealized += unrealizedPL;
             totalMarketValue += currentValue;
-            calculatedCount++;
           }
         } catch (e) {
           calcErrors.push(`${holding.symbol}: ${e.message}`);

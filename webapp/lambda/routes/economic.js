@@ -249,7 +249,6 @@ router.get("/leading-indicators", async (req, res) => {
     const spread2y10y = indicators["T10Y2Y"]
       ? indicators["T10Y2Y"].value
       : null;
-    const isInverted = spread2y10y !== null && spread2y10y < 0;
 
     const indicatorsArray = [
       {

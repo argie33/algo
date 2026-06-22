@@ -3,14 +3,7 @@ jest.mock("../../../utils/database", () => ({
   query: jest.fn().mockResolvedValue({ rows: [], rowCount: 0 }),
 }));
 
-const {
-  query,
-  closeDatabase,
-  initializeDatabase,
-  getPool,
-  transaction,
-  healthCheck,
-} = require("../../../utils/database");
+const { query } = require("../../../utils/database");
 
 // Mock Alpaca Service
 jest.mock("../../../utils/alpacaService", () => ({

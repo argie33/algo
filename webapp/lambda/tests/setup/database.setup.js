@@ -15,7 +15,7 @@ process.env.DB_PORT = "5432";
 process.env.DB_SSL = "false";
 
 // Database setup for individual test files
-const { query} = require("../../utils/database");
+const { query, initializeDatabase } = require("../../utils/database");
 
 // Helper to check if database is available for tests
 async function isDatabaseAvailable() {

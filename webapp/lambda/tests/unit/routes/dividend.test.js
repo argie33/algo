@@ -31,7 +31,7 @@ describe("Dividend Route - Comprehensive Unit Tests", () => {
     mockQuery.mockImplementation((sql, params) => {
       // Mock dividend history query
       if (sql.includes("dividend_history")) {
-        const symbol = params && params[0];
+        const symbol = _params && params[0];
         return Promise.resolve({
           rows: [
             {
@@ -78,7 +78,7 @@ describe("Dividend Route - Comprehensive Unit Tests", () => {
   });
   describe("GET /api/dividend/history/:symbol", () => {
     test("should return dividend history for valid symbol", async () => {
-      const _response = await request(app)
+      const response = await request(app)
         .get("/api/dividend/history/AAPL")
         .expect(200);
       expect(response.body.success).toBe(true);
@@ -92,7 +92,7 @@ describe("Dividend Route - Comprehensive Unit Tests", () => {
       expect(response.body.timestamp).toBeDefined();
     });
     test("should handle case insensitive symbols", async () => {
-      const _response = await request(app)
+      const response = await request(app)
         .get("/api/dividend/history/aapl")
         .expect(200);
       expect(response.body.data.symbol).toBe("AAPL");
@@ -100,7 +100,7 @@ describe("Dividend Route - Comprehensive Unit Tests", () => {
       expect(response.body.data.dividend_history).toBeDefined();
     });
     test("should handle special characters in symbol", async () => {
-      const _response = await request(app)
+      const response = await request(app)
         .get("/api/dividend/history/BRK.B")
         .expect(200);
       expect(response.body.data.symbol).toBe("BRK.B");
@@ -108,7 +108,7 @@ describe("Dividend Route - Comprehensive Unit Tests", () => {
       expect(response.body.data.dividend_history).toBeDefined();
     });
     test("should handle query parameters gracefully", async () => {
-      const _response = await request(app)
+      const response = await request(app)
         .get("/api/dividend/history/AAPL?limit=100")
         .expect(200);
       expect(response.body.data.symbol).toBe("AAPL");
@@ -123,7 +123,7 @@ describe("Dividend Route - Comprehensive Unit Tests", () => {
       console.log = jest.fn(() => {
         throw new Error("Console error");
       });
-      const _response = await request(app)
+      const response = await request(app)
         .get("/api/dividend/history/AAPL")
         .expect(500);
       expect(response.body.success).toBe(false);
@@ -135,7 +135,7 @@ describe("Dividend Route - Comprehensive Unit Tests", () => {
   });
   describe("GET /api/dividend/calendar", () => {
     test("should get dividend calendar with valid database data", async () => {
-      const _response = await request(app)
+      const response = await request(app)
         .get("/api/dividend/calendar")
         .expect(200);
       expect(response.body.success).toBe(true);
@@ -156,7 +156,7 @@ describe("Dividend Route - Comprehensive Unit Tests", () => {
     });
     test("should handle empty database results and generate sample data", async () => {
       mockQuery.mockResolvedValue({ rows: [] });
-      const _response = await request(app)
+      const response = await request(app)
         .get("/api/dividend/calendar")
         .expect(200);
       expect(response.body.success).toBe(true);
@@ -167,7 +167,7 @@ describe("Dividend Route - Comprehensive Unit Tests", () => {
     });
     test("should handle database connection failures gracefully", async () => {
       mockQuery.mockRejectedValue(new Error("Database connection failed"));
-      const _response = await request(app)
+      const response = await request(app)
         .get("/api/dividend/calendar")
         .expect(500);
       expect(response.body.success).toBe(false);
@@ -176,7 +176,7 @@ describe("Dividend Route - Comprehensive Unit Tests", () => {
     });
     test("should handle query parameters correctly", async () => {
       mockQuery.mockResolvedValue({ rows: [] });
-      const _response = await request(app)
+      const response = await request(app)
         .get(
           "/api/dividend/calendar?days=7&symbol=AAPL&min_yield=2.0&max_yield=5.0&limit=25&sort_by=yield"
         )
@@ -190,7 +190,7 @@ describe("Dividend Route - Comprehensive Unit Tests", () => {
     });
     test("should handle sorting options correctly", async () => {
       mockQuery.mockResolvedValue({ rows: [] });
-      const _response = await request(app)
+      const response = await request(app)
         .get("/api/dividend/calendar?sort_by=amount")
         .expect(200);
       expect(response.body.success).toBe(true);
@@ -199,7 +199,7 @@ describe("Dividend Route - Comprehensive Unit Tests", () => {
     });
     test("should handle invalid sorting options with fallback", async () => {
       mockQuery.mockResolvedValue({ rows: [] });
-      const _response = await request(app)
+      const response = await request(app)
         .get("/api/dividend/calendar?sort_by=invalid")
         .expect(200);
       expect(response.body.success).toBe(true);
@@ -234,7 +234,7 @@ describe("Dividend Route - Comprehensive Unit Tests", () => {
         },
       ];
       mockQuery.mockResolvedValue({ rows: mockDividendData });
-      const _response = await request(app)
+      const response = await request(app)
         .get("/api/dividend/calendar")
         .expect(200);
       expect(response.body.data.summary.dividend_stats).toMatchObject({
@@ -247,7 +247,7 @@ describe("Dividend Route - Comprehensive Unit Tests", () => {
     });
     test("should handle null database results gracefully", async () => {
       mockQuery.mockResolvedValue(null);
-      const _response = await request(app)
+      const response = await request(app)
         .get("/api/dividend/calendar")
         .expect(200);
       expect(response.body.success).toBe(true);
@@ -256,7 +256,7 @@ describe("Dividend Route - Comprehensive Unit Tests", () => {
     });
     test("should handle malformed database results", async () => {
       mockQuery.mockResolvedValue({ rows: null });
-      const _response = await request(app)
+      const response = await request(app)
         .get("/api/dividend/calendar")
         .expect(200);
       expect(response.body.success).toBe(true);
@@ -279,7 +279,7 @@ describe("Dividend Route - Comprehensive Unit Tests", () => {
         },
       ];
       mockQuery.mockResolvedValue({ rows: mockDividendData });
-      const _response = await request(app)
+      const response = await request(app)
         .get("/api/dividend/calendar")
         .expect(200);
       expect(response.body.data.dividend_calendar[0].dividend_amount).toBe(
@@ -289,7 +289,7 @@ describe("Dividend Route - Comprehensive Unit Tests", () => {
     });
     test("should handle error in dividend calendar", async () => {
       // Test error handling by providing invalid parameters that will cause parsing issues
-      const _response = await request(app)
+      const response = await request(app)
         .get("/api/dividend/calendar?days_ahead=invalid_number")
         .expect(400);
       expect(response.body.success).toBe(false);
@@ -303,14 +303,14 @@ describe("Dividend Route - Comprehensive Unit Tests", () => {
   // Edge Cases and Error Scenarios
   describe("Edge Cases and Error Handling", () => {
     test("should handle very long symbol names", async () => {
-      const _response = await request(app)
+      const response = await request(app)
         .get("/api/dividend/history/VERYLONGSYMBOLNAME123456")
         .expect(200);
       expect(response.body.data.symbol).toBe("VERYLONGSYMBOLNAME123456");
       expect(response.body.success).toBe(true);
     });
     test("should handle symbols with special characters", async () => {
-      const _response = await request(app)
+      const response = await request(app)
         .get("/api/dividend/history/TEST@123")
         .expect(200);
       expect(response.body.data.symbol).toBe("TEST@123");
@@ -318,7 +318,7 @@ describe("Dividend Route - Comprehensive Unit Tests", () => {
     });
     test("should handle extreme query parameters gracefully", async () => {
       mockQuery.mockResolvedValue({ rows: [] });
-      const _response = await request(app)
+      const response = await request(app)
         .get(
           "/api/dividend/calendar?days=99999&limit=99999&min_yield=-100&max_yield=100"
         )
@@ -328,7 +328,7 @@ describe("Dividend Route - Comprehensive Unit Tests", () => {
     });
     test("should handle non-numeric parameters correctly", async () => {
       mockQuery.mockResolvedValue({ rows: [] });
-      const _response = await request(app)
+      const response = await request(app)
         .get("/api/dividend/calendar?days=invalid&limit=abc&min_yield=xyz")
         .expect(400);
       expect(response.body.success).toBe(false);
@@ -336,7 +336,7 @@ describe("Dividend Route - Comprehensive Unit Tests", () => {
     });
     test("should handle empty query parameters", async () => {
       mockQuery.mockResolvedValue({ rows: [] });
-      const _response = await request(app)
+      const response = await request(app)
         .get("/api/dividend/calendar?symbol=&days=&limit=")
         .expect(400);
       expect(response.body.success).toBe(false);
@@ -344,7 +344,7 @@ describe("Dividend Route - Comprehensive Unit Tests", () => {
     });
     test("should handle database timeout errors", async () => {
       mockQuery.mockRejectedValue(new Error("Query timeout"));
-      const _response = await request(app)
+      const response = await request(app)
         .get("/api/dividend/calendar")
         .expect(500);
       expect(response.body.success).toBe(false);
@@ -353,7 +353,7 @@ describe("Dividend Route - Comprehensive Unit Tests", () => {
     });
     test("should handle SQL injection attempts safely", async () => {
       mockQuery.mockResolvedValue({ rows: [] });
-      const _response = await request(app)
+      const response = await request(app)
         .get(
           "/api/dividend/calendar?symbol=AAPL'; DROP TABLE dividend_calendar; --"
         )
@@ -390,7 +390,7 @@ describe("Dividend Route - Comprehensive Unit Tests", () => {
       }));
       mockQuery.mockResolvedValue({ rows: largeDividendDataset });
       const startTime = Date.now();
-      const _response = await request(app)
+      const response = await request(app)
         .get("/api/dividend/calendar")
         .expect(200);
       const endTime = Date.now();
@@ -402,7 +402,7 @@ describe("Dividend Route - Comprehensive Unit Tests", () => {
   // Response Format Validation
   describe("Response Format Validation", () => {
     test("should return consistent JSON response format", async () => {
-      const _response = await request(app)
+      const response = await request(app)
         .get("/api/dividend/history/AAPL")
         .expect(200);
       expect(response.headers["content-type"]).toMatch(/json/);
@@ -411,7 +411,7 @@ describe("Dividend Route - Comprehensive Unit Tests", () => {
       expect(response.body.timestamp).toBeDefined();
     });
     test("should include timestamp in ISO format", async () => {
-      const _response = await request(app)
+      const response = await request(app)
         .get("/api/dividend/history/AAPL")
         .expect(200);
       expect(response.body.timestamp).toBeDefined();
@@ -426,7 +426,7 @@ describe("Dividend Route - Comprehensive Unit Tests", () => {
       console.log = jest.fn(() => {
         throw new Error("Test error");
       });
-      const _response = await request(app)
+      const response = await request(app)
         .get("/api/dividend/history/AAPL")
         .expect(500);
       expect(response.body.success).toBe(false);
@@ -452,7 +452,7 @@ describe("Dividend Route - Comprehensive Unit Tests", () => {
         },
       ];
       mockQuery.mockResolvedValue({ rows: mockDividendData });
-      const _response = await request(app)
+      const response = await request(app)
         .get("/api/dividend/calendar")
         .expect(200);
       expect(response.body.data).toBeDefined();
