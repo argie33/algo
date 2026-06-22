@@ -951,7 +951,8 @@ def lambda_handler(event: dict[str, Any], context: Any) -> dict[str, Any]:
 
     # Extract path and method before ANY checks so health/CORS always work
     path = event.get("rawPath", event.get("path", "/"))
-    method = event.get("requestContext").get("http").get("method", event.get("httpMethod", "GET"))
+    _req_ctx = event.get("requestContext") or {}
+    method = (_req_ctx.get("http") or {}).get("method", event.get("httpMethod", "GET"))
 
     # CORS preflight: must succeed even during import failures (browsers need this)
     if method == "OPTIONS":
