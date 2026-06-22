@@ -107,7 +107,7 @@ class EarningsCalendarLoader(OptimalLoader):
                 except requests.exceptions.HTTPError as e:
                     if e.response is not None and e.response.status_code == 404:
                         logger.debug(f"[{symbol}] Not found on Yahoo Finance (404), skipping")
-                        return None
+                        return []
                     raise
                 except (KeyError, ValueError, TypeError) as e:
                     logger.warning(
