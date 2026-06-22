@@ -1,7 +1,7 @@
 """Route: positions - Handle position update and management endpoints."""
 
 import logging
-from typing import Any
+from typing import cast, Any
 
 import psycopg2
 import psycopg2.errors
@@ -112,13 +112,16 @@ def _update_position(cur, body: dict) -> dict[str, Any]:
             update_args.append(req.target_3_price)
 
         if not update_fields:
-            return json_response(
-                200,
-                {
-                    "status": "no_changes",
-                    "message": "No valid fields to update",
-                    "position_id": position_id,
-                },
+            return cast(
+                dict[str, Any],
+                json_response(
+                    200,
+                    {
+                        "status": "no_changes",
+                        "message": "No valid fields to update",
+                        "position_id": position_id,
+                    },
+                ),
             )
 
         update_sql = ", ".join(update_fields)
@@ -145,8 +148,8 @@ def _update_position(cur, body: dict) -> dict[str, Any]:
         is_valid, error_msg = ResponseValidator.validate_endpoint_response("pos", result)
         if not is_valid:
             logger.error(f"Endpoint response validation failed: {error_msg}")
-            return error_response(500, "response_validation_error", error_msg)
-        return json_response(200, result)
+            return cast(dict[str, Any], error_response(500, "response_validation_error", error_msg))
+        return cast(dict[str, Any], json_response(200, result))
 
     except (
         psycopg2.errors.UndefinedTable,
@@ -156,4 +159,4 @@ def _update_position(cur, body: dict) -> dict[str, Any]:
         Exception,
     ) as e:
         code, error_type, message = handle_db_error(e, "update position")
-        return error_response(code, error_type, message)
+        return cast(dict[str, Any], error_response(code, error_type, message))

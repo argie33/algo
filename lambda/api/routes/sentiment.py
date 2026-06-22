@@ -1,7 +1,7 @@
 """Route: sentiment"""
 
 import logging
-from typing import Any
+from typing import cast, Any
 
 import psycopg2
 import psycopg2.errors
@@ -119,8 +119,8 @@ def handle(
             is_valid, error_msg = ResponseValidator.validate_endpoint_response("sentiment", sentiment_result)
             if not is_valid:
                 logger.error(f"Endpoint response validation failed: {error_msg}")
-                return error_response(500, "response_validation_error", error_msg)
-            return json_response(200, sentiment_result)
+                return cast(dict[str, Any], error_response(500, "response_validation_error", error_msg))
+            return cast(dict[str, Any], json_response(200, sentiment_result))
         elif path == "/api/sentiment/data" or path.startswith("/api/sentiment/data?"):
             limit_str = params.get("limit", [None])[0] if params else None
             limit = safe_limit(limit_str or "50000", max_val=50000)
@@ -147,7 +147,7 @@ def handle(
             is_valid, error_msg = ResponseValidator.validate_endpoint_response("sentiment", sentiment_data_result)
             if not is_valid:
                 logger.error(f"Endpoint response validation failed: {error_msg}")
-                return error_response(500, "response_validation_error", error_msg)
+                return cast(dict[str, Any], error_response(500, "response_validation_error", error_msg))
             return sentiment_data_result
         elif path == "/api/sentiment/divergence":
             rows = execute_with_timeout(
@@ -175,13 +175,13 @@ def handle(
             is_valid, error_msg = ResponseValidator.validate_endpoint_response("sentiment", divergence_result)
             if not is_valid:
                 logger.error(f"Endpoint response validation failed: {error_msg}")
-                return error_response(500, "response_validation_error", error_msg)
+                return cast(dict[str, Any], error_response(500, "response_validation_error", error_msg))
             return divergence_result
         elif path.startswith("/api/sentiment/analyst/insights/"):
             symbol = path.split("/api/sentiment/analyst/insights/")[-1].upper()
             # Validate symbol format: max 5 chars, alphanumeric + dash only
             if not symbol or len(symbol) > 5 or not all(c.isalnum() or c == "-" for c in symbol):
-                return error_response(400, "bad_request", "Invalid symbol format")
+                return cast(dict[str, Any], error_response(400, "bad_request", "Invalid symbol format"))
             rows = execute_with_timeout(
                 cur,
                 """
@@ -197,15 +197,18 @@ def handle(
             )
             latest = DatabaseResultValidator.safe_get_first_row(rows, "analyst sentiment metrics")
             if not latest:
-                return json_response(
-                    200,
-                    {
-                        "metrics": None,
-                        "priceTargets": [],
-                        "momentum": None,
-                        "coverage": None,
-                        "recentUpgrades": [],
-                    },
+                return cast(
+                    dict[str, Any],
+                    json_response(
+                        200,
+                        {
+                            "metrics": None,
+                            "priceTargets": [],
+                            "momentum": None,
+                            "coverage": None,
+                            "recentUpgrades": [],
+                        },
+                    ),
                 )
             # Use latest row for metrics summary
             latest = dict(latest)
@@ -262,12 +265,12 @@ def handle(
             is_valid, error_msg = ResponseValidator.validate_endpoint_response("sentiment", analyst_result)
             if not is_valid:
                 logger.error(f"Endpoint response validation failed: {error_msg}")
-                return error_response(500, "response_validation_error", error_msg)
-            return json_response(200, analyst_result)
+                return cast(dict[str, Any], error_response(500, "response_validation_error", error_msg))
+            return cast(dict[str, Any], json_response(200, analyst_result))
         elif path.startswith("/api/sentiment/social/insights/"):
             symbol = path.split("/api/sentiment/social/insights/")[-1].upper()
             if not symbol or len(symbol) > 5 or not all(c.isalnum() or c == "-" for c in symbol):
-                return error_response(400, "bad_request", "Invalid symbol format")
+                return cast(dict[str, Any], error_response(400, "bad_request", "Invalid symbol format"))
             cur.execute("SET LOCAL statement_timeout = '3000ms'")
             cur.execute(
                 """
@@ -283,15 +286,18 @@ def handle(
             rows = cur.fetchall()
             latest = DatabaseResultValidator.safe_get_first_row(rows, "analyst sentiment trends")
             if not latest:
-                return json_response(
-                    200,
-                    {
-                        "sentiment": None,
-                        "priceTargets": [],
-                        "coverage": None,
-                        "momentum": None,
-                        "recentTrends": [],
-                    },
+                return cast(
+                    dict[str, Any],
+                    json_response(
+                        200,
+                        {
+                            "sentiment": None,
+                            "priceTargets": [],
+                            "coverage": None,
+                            "momentum": None,
+                            "recentTrends": [],
+                        },
+                    ),
                 )
             latest = dict(latest)
             total_val = latest.get("analyst_count")
@@ -345,8 +351,8 @@ def handle(
             is_valid, error_msg = ResponseValidator.validate_endpoint_response("sentiment", social_result)
             if not is_valid:
                 logger.error(f"Endpoint response validation failed: {error_msg}")
-                return error_response(500, "response_validation_error", error_msg)
-            return json_response(200, social_result)
+                return cast(dict[str, Any], error_response(500, "response_validation_error", error_msg))
+            return cast(dict[str, Any], json_response(200, social_result))
         elif path == "/api/sentiment/vix":
             return _get_vix_data(cur)
         elif path == "/api/sentiment" or path.startswith("/api/sentiment?"):
@@ -377,10 +383,10 @@ def handle(
                 is_valid, error_msg = ResponseValidator.validate_endpoint_response("sentiment", default_result)
                 if not is_valid:
                     logger.error(f"Endpoint response validation failed: {error_msg}")
-                    return error_response(500, "response_validation_error", error_msg)
-                return json_response(200, default_result)
-            return error_response(503, "no_data", "Sentiment data not available")
-        return error_response(404, "not_found", f"No sentiment handler for {path}")
+                    return cast(dict[str, Any], error_response(500, "response_validation_error", error_msg))
+                return cast(dict[str, Any], json_response(200, default_result))
+            return cast(dict[str, Any], error_response(503, "no_data", "Sentiment data not available"))
+        return cast(dict[str, Any], error_response(404, "not_found", f"No sentiment handler for {path}"))
     except (
         psycopg2.errors.UndefinedTable,
         psycopg2.errors.UndefinedColumn,
@@ -393,7 +399,7 @@ def handle(
             extra={"operation": "get sentiment data"},
         )
         code, error_type, message = handle_db_error(e, "get sentiment data")
-        return error_response(code, error_type, message)
+        return cast(dict[str, Any], error_response(code, error_type, message))
 
 
 def _get_vix_data(cur) -> dict[str, Any]:
@@ -409,7 +415,7 @@ def _get_vix_data(cur) -> dict[str, Any]:
         rows = cur.fetchall()
 
         if not rows:
-            return json_response(200, {"latest": None, "history": []})
+            return cast(dict[str, Any], json_response(200, {"latest": None, "history": []}))
 
         latest = safe_json_serialize(dict(rows[0])) if rows else None
         history = [safe_json_serialize(dict(r)) for r in rows]
@@ -442,8 +448,8 @@ def _get_vix_data(cur) -> dict[str, Any]:
         is_valid, error_msg = ResponseValidator.validate_endpoint_response("sentiment", vix_result)
         if not is_valid:
             logger.error(f"Endpoint response validation failed: {error_msg}")
-            return error_response(500, "response_validation_error", error_msg)
-        return json_response(200, vix_result)
+            return cast(dict[str, Any], error_response(500, "response_validation_error", error_msg))
+        return cast(dict[str, Any], json_response(200, vix_result))
     except (
         psycopg2.errors.UndefinedTable,
         psycopg2.errors.UndefinedColumn,
@@ -456,4 +462,4 @@ def _get_vix_data(cur) -> dict[str, Any]:
             extra={"operation": "get VIX data"},
         )
         code, error_type, message = handle_db_error(e, "get VIX data")
-        return error_response(code, error_type, message)
+        return cast(dict[str, Any], error_response(code, error_type, message))

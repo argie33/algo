@@ -18,7 +18,7 @@ from routes.utils import error_response
 
 from utils.db.sql_safety import assert_safe_column, assert_safe_table
 
-T = TypeVar('T')
+T = TypeVar("T")
 
 logger = logging.getLogger(__name__)
 
@@ -118,7 +118,7 @@ def _validate_credentials_structure(creds: Any) -> bool:
     return True
 
 
-def get_user_alpaca_credentials(cur, user_id: str, default_to_shared: bool = True) -> dict[str, str] | None:
+def get_user_alpaca_credentials(cur: cursor, user_id: str, default_to_shared: bool = True) -> dict[str, str] | None:
     """Get Alpaca credentials for a specific user.
 
     Attempts to fetch user-scoped Alpaca credentials. Falls back to shared
@@ -173,7 +173,7 @@ def get_user_alpaca_credentials(cur, user_id: str, default_to_shared: bool = Tru
     return None
 
 
-def validate_user_resource_access(cur, user_id: str, resource_type: str, resource_id: str) -> bool:
+def validate_user_resource_access(cur: cursor, user_id: str, resource_type: str, resource_id: str) -> bool:
     """Validate that user owns/can access a resource.
 
     Prevents users from accessing other users' data by validating ownership.
