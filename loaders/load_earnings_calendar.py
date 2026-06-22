@@ -65,31 +65,39 @@ class EarningsCalendarLoader(OptimalLoader):
                 try:
                     cal = ticker.calendar
                     if cal and isinstance(cal, dict) and "Earnings Date" in cal:
-                        earnings_date = cal["Earnings Date"]
+                        earnings_date_raw = cal["Earnings Date"]
                         cutoff_date = date.today() - timedelta(days=60)
-                        if earnings_date and earnings_date >= cutoff_date:
-                            results.append(
-                                {
-                                    "symbol": symbol,
-                                    "earnings_date": (
-                                        earnings_date
-                                        if isinstance(earnings_date, date)
-                                        else pd.Timestamp(earnings_date).date()
-                                    ),
-                                    "announce_time": None,
-                                    "eps_estimate": (
-                                        float(eps_est) if (eps_est := cal.get("Earnings Average")) is not None else None
-                                    ),
-                                    "actual_eps": None,
-                                    "revenue_estimate": (
-                                        int(rev_est) if (rev_est := cal.get("Revenue Average")) is not None else None
-                                    ),
-                                    "actual_revenue": None,
-                                    "fiscal_period": None,
-                                }
-                            )
-                            logger.debug(f"[{symbol}] Found earnings date: {earnings_date}")
-                            return results
+                        # yfinance may return a list [start, end] or a single date/Timestamp
+                        if isinstance(earnings_date_raw, list):
+                            earnings_dates = earnings_date_raw
+                        else:
+                            earnings_dates = [earnings_date_raw]
+                        for ed in earnings_dates:
+                            if ed is None:
+                                continue
+                            try:
+                                ed_date = ed if isinstance(ed, date) else pd.Timestamp(ed).date()
+                            except Exception:
+                                continue
+                            if ed_date >= cutoff_date:
+                                results.append(
+                                    {
+                                        "symbol": symbol,
+                                        "earnings_date": ed_date,
+                                        "announce_time": None,
+                                        "eps_estimate": (
+                                            float(eps_est) if (eps_est := cal.get("Earnings Average")) is not None else None
+                                        ),
+                                        "actual_eps": None,
+                                        "revenue_estimate": (
+                                            int(rev_est) if (rev_est := cal.get("Revenue Average")) is not None else None
+                                        ),
+                                        "actual_revenue": None,
+                                        "fiscal_period": None,
+                                    }
+                                )
+                                logger.debug(f"[{symbol}] Found earnings date: {ed_date}")
+                        return results if results else []
                     else:
                         logger.debug(f"[{symbol}] No earnings date in calendar (within cutoff)")
                         return []
