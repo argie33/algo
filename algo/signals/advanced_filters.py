@@ -355,7 +355,14 @@ class AdvancedFilters:
             raise ValueError("Sector ranking data not loaded — call load_market_context() first")
         if not sector:
             raise ValueError("Sector name is missing or empty")
-        rank = self._sector_full_ranking.get(sector, 99) if self._sector_full_ranking else 99
+        if not self._sector_full_ranking:
+            raise ValueError("CRITICAL: Sector ranking data unavailable — cannot score momentum")
+        if sector not in self._sector_full_ranking:
+            raise ValueError(
+                f"CRITICAL: Sector '{sector}' not found in ranking data. "
+                f"Invalid sector name or incomplete ranking data load."
+            )
+        rank = self._sector_full_ranking[sector]
         # Top sector = 10pts, rank 5 = 5pts, rank 11 = 0pts
         return max(
             0.0,
@@ -367,7 +374,12 @@ class AdvancedFilters:
             raise ValueError("Industry ranking data not loaded — call load_market_context() first")
         if not industry:
             raise ValueError("Industry name is missing or empty")
-        return FilterRegistry.get_weight("momentum_industry") if industry in self._strong_industries else 0.0
+        if industry not in self._strong_industries:
+            raise ValueError(
+                f"CRITICAL: Industry '{industry}' not in strong industries list. "
+                f"Invalid industry name or incomplete industry data load."
+            )
+        return FilterRegistry.get_weight("momentum_industry")
 
     def _volume_confirmation_score(self, symbol, signal_date, cur):
         cur.execute(

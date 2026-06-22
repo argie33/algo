@@ -136,7 +136,12 @@ class SignalTrendMixin:
             )
             row = cur.fetchone()
             if row and row[5] and (eval_date - row[5]).days <= 1:
-                score = int(row[0] or 0)
+                if row[0] is None:
+                    raise ValueError(
+                        f"CRITICAL: Minervini trend score is NULL for {symbol} on cached data. "
+                        f"Trend template data is corrupt or incomplete."
+                    )
+                score = int(row[0])
                 return {
                     "score": score,
                     "pass": score >= 5,
