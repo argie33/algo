@@ -466,75 +466,22 @@ class SignalQualityScoresLoader(OptimalLoader):
                 if not signal_type:
                     continue
 
-                # Base quality score (40-60): signal existence + trend alignment
-                base_quality_score = 40
-                if signal_type == "BUY":
-                    base_quality_score = 50
-                elif signal_type == "SELL":
-                    base_quality_score = 45
+                # Use strategy pattern for signal-specific scoring (eliminates OO abuser switch statements)
+                from loaders.signal_quality_scorer import get_signal_scorer
+
+                scorer = get_signal_scorer(signal_type)
+                base_quality_score = scorer.calculate_base_quality_score()
 
                 # Volume confirmation score (0-20): based on MACD/RSI
-                volume_confirmation_score = 0
                 rsi = row.get("rsi")
                 macd = row.get("macd")
                 macd_signal = row.get("macd_signal")
-
-                if signal_type == "BUY":
-                    if rsi is not None and not pd.isna(rsi):
-                        try:
-                            rsi_val = float(rsi)
-                            if 40 < rsi_val < 80:
-                                volume_confirmation_score += 10
-                        except (ValueError, TypeError) as e:
-                            logger.debug(f"Failed to convert RSI to float: {e}")
-                    if macd is not None and macd_signal is not None and not pd.isna(macd) and not pd.isna(macd_signal):
-                        try:
-                            if float(macd) > float(macd_signal):
-                                volume_confirmation_score += 10
-                        except (ValueError, TypeError) as e:
-                            logger.debug(f"Failed to convert RSI to float: {e}")
-                elif signal_type == "SELL":
-                    if rsi is not None and not pd.isna(rsi):
-                        try:
-                            rsi_val = float(rsi)
-                            if 20 < rsi_val < 60:
-                                volume_confirmation_score += 10
-                        except (ValueError, TypeError) as e:
-                            logger.debug(f"Failed to convert RSI to float: {e}")
-                    if macd is not None and macd_signal is not None and not pd.isna(macd) and not pd.isna(macd_signal):
-                        try:
-                            if float(macd) < float(macd_signal):
-                                volume_confirmation_score += 10
-                        except (ValueError, TypeError) as e:
-                            logger.debug(f"Failed to convert RSI to float: {e}")
+                volume_confirmation_score = scorer.calculate_volume_confirmation_score(rsi, macd, macd_signal)
 
                 # Trend template score (0-25): minervini score and stage
-                trend_template_score = 0
                 minervini = row.get("minervini_score")
                 weinstein_stage = row.get("weinstein_stage")
-
-                if signal_type == "BUY":
-                    if minervini is not None and not pd.isna(minervini):
-                        try:
-                            m_val = float(minervini)
-                            if m_val >= 3:
-                                trend_template_score += 15
-                            elif m_val >= 2:
-                                trend_template_score += 10
-                            else:
-                                trend_template_score += 5
-                        except (ValueError, TypeError) as e:
-                            logger.debug(f"Failed to convert RSI to float: {e}")
-
-                    if weinstein_stage is not None and not pd.isna(weinstein_stage):
-                        try:
-                            stage_val = int(weinstein_stage)
-                            if stage_val in [2, 3]:
-                                trend_template_score += 10
-                            else:
-                                trend_template_score += 3
-                        except (ValueError, TypeError) as e:
-                            logger.debug(f"Failed to convert RSI to float: {e}")
+                trend_template_score = scorer.calculate_trend_template_score(minervini, weinstein_stage)
 
                 trend_template_score = min(25, trend_template_score)
 
