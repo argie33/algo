@@ -4,7 +4,6 @@ import signal
 import threading
 import time
 import uuid
-from abc import ABC, abstractmethod
 from collections.abc import Iterable, Sequence
 from datetime import date, datetime, timedelta, timezone
 from typing import Any, cast
@@ -28,7 +27,7 @@ if not logging.root.handlers:
 logger = logging.getLogger(__name__)
 
 
-class OptimalLoader(ABC):
+class OptimalLoader:
     """Base class for production-grade loaders.
 
     Subclasses MUST set:
@@ -278,15 +277,11 @@ class OptimalLoader(ABC):
         except (ValueError, ZeroDivisionError, TypeError) as e:
             logger.debug(f"[CONFIG] Runtime validation check failed: {e}")
 
-    def _get_rds_connection_count(self) -> int:
+    def _get_rds_connection_count(self) -> int | None:
         """Get current RDS active connection count from CloudWatch metrics.
 
         Returns:
-            Current active connections.
-
-        Raises:
-            RuntimeError: If CloudWatch query fails or no data available.
-            Infrastructure visibility is critical—cannot silently proceed without verification.
+            Current active connections, or None if CloudWatch is unavailable.
 
         This helps determine if RDS Proxy pool is approaching saturation.
         Pool saturation = active_connections > 80% of max_db_connections (500).
@@ -296,8 +291,7 @@ class OptimalLoader(ABC):
 
             import boto3
 
-            cloudwatch = boto3.client("cloudwatch")
-            os.getenv("AWS_REGION", "us-east-1")
+            cloudwatch = boto3.client("cloudwatch", region_name=os.getenv("AWS_REGION", "us-east-1"))
 
             response = cloudwatch.get_metric_statistics(
                 Namespace="AWS/RDS",
@@ -310,21 +304,16 @@ class OptimalLoader(ABC):
             )
 
             if response["Datapoints"]:
-                # Get the most recent data point
                 latest = max(response["Datapoints"], key=lambda x: x["Timestamp"])
                 return int(latest["Average"])
-            else:
-                raise RuntimeError(
-                    f"[{self.table_name}] CloudWatch returned no data points for RDS connection count. "
-                    "Cannot verify if connection pool is saturated."
-                )
-        except RuntimeError:
-            raise
-        except (ValueError, ZeroDivisionError, TypeError) as e:
-            raise RuntimeError(
-                f"[{self.table_name}] Failed to fetch RDS connection count from CloudWatch: {e}. "
-                "Infrastructure visibility loss—must resolve CloudWatch connectivity before proceeding."
+            return None
+        except Exception as e:
+            # CloudWatch unavailable (e.g. IAM permissions, network). Use conservative defaults.
+            logger.warning(
+                f"[{self.table_name}] CloudWatch unavailable for RDS connection check: {e}. "
+                "Proceeding with reduced parallelism as conservative default."
             )
+            return None
 
     def _should_reduce_parallelism(self, parallelism: int) -> tuple:
         """Check if RDS connection pool is saturated and reduce parallelism if needed.
@@ -332,18 +321,21 @@ class OptimalLoader(ABC):
         Returns:
             (adjusted_parallelism, was_reduced): boolean tuple indicating if adjustment happened
 
-        Raises:
-            RuntimeError: If CloudWatch query fails. Pool saturation verification is authoritative.
-
         Logic:
         - If RDS active connections > 400 (80% of 500 max): reduce parallelism by 50%
         - If RDS active connections > 450 (90% of 500 max): reduce parallelism to 1 (serial)
+        - If CloudWatch unavailable: use reduced parallelism (half) as conservative default
         - This prevents "too many connections" errors during peak EOD or morning prep loads
         """
         if parallelism <= 1:
             return parallelism, False
 
         conn_count = self._get_rds_connection_count()
+
+        if conn_count is None:
+            # CloudWatch unavailable — use half parallelism as conservative default
+            adjusted = max(1, parallelism // 2)
+            return adjusted, adjusted < parallelism
 
         max_db_connections = 500  # RDS max_connections parameter
         saturation_high = max_db_connections * 0.90  # 450
@@ -353,7 +345,7 @@ class OptimalLoader(ABC):
             # Extreme saturation: go serial to minimize connection overhead
             logger.warning(
                 f"[{self.table_name}] RDS connection pool saturation HIGH ({conn_count}/{max_db_connections}). "
-                f"Reducing parallelism {parallelism}→1 (serial mode)"
+                f"Reducing parallelism {parallelism}->1 (serial mode)"
             )
             return 1, True
         elif conn_count > saturation_medium:
@@ -362,7 +354,7 @@ class OptimalLoader(ABC):
             if adjusted < parallelism:
                 logger.warning(
                     f"[{self.table_name}] RDS connection pool saturation MEDIUM ({conn_count}/{max_db_connections}). "
-                    f"Reducing parallelism {parallelism}→{adjusted}"
+                    f"Reducing parallelism {parallelism}->{adjusted}"
                 )
             return adjusted, adjusted < parallelism
 
@@ -375,7 +367,6 @@ class OptimalLoader(ABC):
 
     # ---- Subclass interface ----
 
-    @abstractmethod
     def fetch_incremental(self, symbol: str, since: date | None) -> list[dict] | None:
         """Return rows newer than `since` for the given symbol. Override for per-symbol loaders."""
         raise NotImplementedError("Implement fetch_incremental (per-symbol) or fetch_global (market-wide)")
@@ -1337,7 +1328,7 @@ class OptimalLoader(ABC):
                 except (psycopg2.DatabaseError, psycopg2.OperationalError) as e:
                     logger.warning(f"Failed to release DynamoDB lock: {e}")
 
-    def close(self) -> None:
+    def close(self) -> None:  # noqa: B027
         """No-op. DatabaseContext handles connection cleanup automatically."""
 
     def load_global(self) -> int:

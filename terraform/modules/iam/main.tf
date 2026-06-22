@@ -696,6 +696,17 @@ data "aws_iam_policy_document" "ecs_task" {
     }
   }
 
+  statement {
+    sid    = "CloudWatchReadMetrics"
+    effect = "Allow"
+
+    actions = [
+      "cloudwatch:GetMetricStatistics"
+    ]
+
+    resources = ["*"]
+  }
+
   # DynamoDB (halt flag, distributed locks, watermarks, phase1 cache)
   # Used by: orchestrator halt flag check, distributed locking, watermark tracking, Phase 1 freshness cache
   statement {
