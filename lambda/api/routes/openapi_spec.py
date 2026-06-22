@@ -12,8 +12,8 @@ logger = logging.getLogger(__name__)
 def handle(
     cur,
     path: str,
-    method: str,
-    params: dict,
+    method,
+    params,
     body: dict | None = None,
     jwt_claims: dict | None = None,
 ) -> dict[str, Any]:
@@ -30,7 +30,7 @@ def handle(
     elif path == "/api/redoc" or path.startswith("/api/redoc?"):
         return _handle_redoc_ui()
     else:
-        return cast(dict[str, Any], error_response(404, "not_found", "OpenAPI endpoint not found"))
+        return cast(int, error_response(404, "not_found", "OpenAPI endpoint not found"))
 
 
 def _handle_openapi_json() -> dict[str, Any]:

@@ -149,7 +149,7 @@ def get_user_alpaca_credentials(cur: cursor, user_id: str, default_to_shared: bo
                 return None
 
         if creds:
-            return cast(dict[str, str], creds)
+            return creds
 
     except Exception as e:
         logger.warning(f"[ALPACA] Could not load user-scoped credentials for {user_id}: {e}")
@@ -166,7 +166,7 @@ def get_user_alpaca_credentials(cur: cursor, user_id: str, default_to_shared: bo
                 logger.error("[ALPACA] Shared credentials failed validation")
                 return None
 
-            return cast(dict[str, str], creds)
+            return creds
         except Exception as fallback_err:
             raise RuntimeError(f"Operation failed: {fallback_err}") from fallback_err
 
@@ -247,7 +247,7 @@ def requires_auth(handler_func: Callable[..., T]) -> Callable[..., T]:
             # Pass user_id as additional parameter to handler
             return handler_func(cur, path, method, params, body, jwt_claims=jwt_claims, user_id=user_id)
         except ValueError as e:
-            return error_response(401, "unauthorized", str(e))  # type: ignore[return-value]
+            return cast(dict[str, Any], error_response(401, "unauthorized", str(e)))
 
     return wrapper
 

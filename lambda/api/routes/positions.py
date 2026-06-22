@@ -43,7 +43,7 @@ def handle(
                 raise_api_error(403, "forbidden", "Admin access required")
             if not body:
                 raise_api_error(400, "bad_request", "Request body is required")
-            return _update_position(cur, body)
+            return _update_position(cur, cast(dict[str, Any], body))
 
         raise_api_error(404, "not_found", f"No position handler for {path}")
     except Exception as e:

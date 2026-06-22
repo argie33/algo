@@ -26,8 +26,8 @@ logger = logging.getLogger(__name__)
 def handle(
     cur: cursor,
     path: str,
-    method: str,
-    params: dict[str, Any],
+    method,
+    params,
     body: dict[str, Any] | None = None,
     jwt_claims: dict[str, Any] | None = None,
 ) -> dict[str, Any]:
@@ -77,8 +77,8 @@ def handle(
         psycopg2.DatabaseError,
         Exception,
     ) as e:
-        code, error_type, message = handle_db_error(e, "handle scores")
-        return cast(dict[str, Any], error_response(code, error_type, message))
+        _code, _error_type, _message = handle_db_error(e, "handle scores")
+        return cast(str, handle_db_error(e, "handle scores"))
 
 
 def _get_stock_scores(

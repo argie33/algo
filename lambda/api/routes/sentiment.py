@@ -176,7 +176,7 @@ def handle(
             if not is_valid:
                 logger.error(f"Endpoint response validation failed: {error_msg}")
                 return cast(dict[str, Any], error_response(500, "response_validation_error", error_msg))
-            return divergence_result
+            return cast(dict[str, Any], divergence_result)
         elif path.startswith("/api/sentiment/analyst/insights/"):
             symbol = path.split("/api/sentiment/analyst/insights/")[-1].upper()
             # Validate symbol format: max 5 chars, alphanumeric + dash only

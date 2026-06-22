@@ -38,7 +38,7 @@ class TradePreviewRequest(BaseModel):
 
     @field_validator("stop_loss_price")
     @classmethod
-    def validate_stop_loss(cls, v: float | None, info) -> float | None:
+    def validate_stop_loss(cls, v, info) -> float | None:
         if v is not None and "entry_price" in info.data:
             entry_price = info.data["entry_price"]
             if v >= entry_price:
@@ -57,7 +57,7 @@ class ContactSubmissionRequest(BaseModel):
 
     @field_validator("email")
     @classmethod
-    def validate_email(cls, v: str) -> str:
+    def validate_email(cls, v) -> str:
         if not EMAIL_PATTERN.match(v):
             raise ValueError("Invalid email format")
         return v
@@ -101,7 +101,7 @@ class VerifyUserEmailRequest(BaseModel):
 
     @field_validator("username")
     @classmethod
-    def validate_username(cls, v: str) -> str:
+    def validate_username(cls, v) -> str:
         # Allow email format or standard username format
         if not re.match(r"^[a-zA-Z0-9._\-@+]+$", v):
             raise ValueError("Username must contain only alphanumeric characters, dots, underscores, dashes, @ or +")
