@@ -958,6 +958,25 @@ class AlgoConfig:
             self._economic_stress_config = EconomicStressConfig(self)
         return self._economic_stress_config
 
+    @property
+    def trading(self):
+        """Get TradingConfig specialist (lazy-loaded on first access).
+
+        Returns:
+            TradingConfig instance (cached after first access)
+
+        Usage:
+            config = get_config()
+            entry_rules = config.trading.get_entry_rules_config()
+            exit_rules = config.trading.get_exit_rules_config()
+            stock_filters = config.trading.get_stock_filter_config()
+        """
+        if not hasattr(self, "_trading_config"):
+            from .trading_config import TradingConfig
+
+            self._trading_config = TradingConfig(self)
+        return self._trading_config
+
     def _validate_schema_consistency(self):
         """Verify that VALIDATION_SCHEMA and DEFAULTS are in sync.
 
@@ -1704,7 +1723,7 @@ class AlgoConfig:
         """Reload configuration from database with full validation.
 
         Ensures hot-reloaded values pass the same critical safety checks as startup.
-        Invalidates cached specialist configs (RiskConfig, CircuitBreakerConfig, DataPatrolConfig)
+        Invalidates cached specialist configs (RiskConfig, CircuitBreakerConfig, DataPatrolConfig, TradingConfig, etc.)
         so they re-read updated values on next access.
         """
         self._config.clear()
@@ -1718,6 +1737,12 @@ class AlgoConfig:
             delattr(self, "_data_patrol_config")
         if hasattr(self, "_timeout_config"):
             delattr(self, "_timeout_config")
+        if hasattr(self, "_trading_config"):
+            delattr(self, "_trading_config")
+        if hasattr(self, "_execution_config"):
+            delattr(self, "_execution_config")
+        if hasattr(self, "_economic_stress_config"):
+            delattr(self, "_economic_stress_config")
         self._load_defaults()
         self._load_from_database()
         self._validate_critical_thresholds()
