@@ -1025,13 +1025,13 @@ def _get_correlation_matrix(cur: cursor) -> dict[str, Any]:
         y = y_ret[-min_len:]
         mx = sum(x) / len(x)
         my = sum(y) / len(y)
-        num = sum((xi - mx) * (yi - my) for xi, yi in zip(x, y, strict=False))
-        dx = sum((xi - mx) ** 2 for xi in x)
-        dy = sum((yi - my) ** 2 for yi in y)
+        num: float = sum((xi - mx) * (yi - my) for xi, yi in zip(x, y, strict=False))
+        dx: float = sum((xi - mx) ** 2 for xi in x)
+        dy: float = sum((yi - my) ** 2 for yi in y)
         denom = (dx * dy) ** 0.5
         if denom == 0:
             return None
-        return num / denom
+        return float(num / denom)
 
     correlations_data = []
     all_corrs = []
@@ -1040,7 +1040,7 @@ def _get_correlation_matrix(cur: cursor) -> dict[str, Any]:
         row_corrs = []
         for sym2 in valid_symbols:
             if sym1 == sym2:
-                corr_val = 1.0
+                corr_val: float | None = 1.0
             else:
                 corr_val = pearson_corr(returns_by_symbol[sym1], returns_by_symbol[sym2])
             row_corrs.append(corr_val)

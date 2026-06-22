@@ -9,6 +9,7 @@ import psycopg2
 import psycopg2.errors
 import psycopg2.extras
 import psycopg2.sql
+from psycopg2.extensions import cursor
 
 # Ensure imports work - setup_imports is imported by parent module (lambda_function or api_router)
 from routes.utils import (
@@ -32,7 +33,7 @@ logger = logging.getLogger(__name__)
 
 
 @db_route_handler("get data quality")
-def _get_data_quality(cur) -> dict[str, Any]:
+def _get_data_quality(cur: cursor) -> dict[str, Any]:
     """Get detailed data quality summary by table from latest data_patrol_log run."""
     try:
         # Get patrol log entries from last 24 hours

@@ -166,7 +166,7 @@ except OSError:
 class APIHandler(BaseHTTPRequestHandler):
     """HTTP request handler that routes to Lambda function."""
 
-    def do_GET(self):
+    def do_GET(self) -> None:
         msg = f"[HTTP] GET {self.path}"
         print(msg, flush=True)
         logger.info(f"[HTTP_GET] {self.path}")
@@ -178,27 +178,27 @@ class APIHandler(BaseHTTPRequestHandler):
             pass
         self._handle_request("GET")
 
-    def do_POST(self):
+    def do_POST(self) -> None:
         print(f"[HTTP] POST {self.path}", flush=True)
         logger.info(f"[HTTP_POST] {self.path}")
         self._handle_request("POST")
 
-    def do_PUT(self):
+    def do_PUT(self) -> None:
         print(f"[HTTP] PUT {self.path}", flush=True)
         logger.info(f"[HTTP_PUT] {self.path}")
         self._handle_request("PUT")
 
-    def do_DELETE(self):
+    def do_DELETE(self) -> None:
         print(f"[HTTP] DELETE {self.path}", flush=True)
         logger.info(f"[HTTP_DELETE] {self.path}")
         self._handle_request("DELETE")
 
-    def do_PATCH(self):
+    def do_PATCH(self) -> None:
         print(f"[HTTP] PATCH {self.path}", flush=True)
         logger.info(f"[HTTP_PATCH] {self.path}")
         self._handle_request("PATCH")
 
-    def do_OPTIONS(self):
+    def do_OPTIONS(self) -> None:
         """Handle CORS preflight."""
         print(f"[HTTP] OPTIONS {self.path}", flush=True)
         logger.info(f"[HTTP_OPTIONS] {self.path}")
@@ -207,7 +207,7 @@ class APIHandler(BaseHTTPRequestHandler):
         self.send_header("Content-Length", "0")
         self.end_headers()
 
-    def _set_cors_headers(self):
+    def _set_cors_headers(self) -> None:
         """Set CORS headers - accept any localhost origin in dev."""
         origin = self.headers.get("Origin", "")
         # In development, accept any localhost origin (5173, 5176, 5177, etc.)
@@ -222,7 +222,7 @@ class APIHandler(BaseHTTPRequestHandler):
         )
         self.send_header("Access-Control-Max-Age", "3600")
 
-    def _handle_request(self, method):
+    def _handle_request(self, method: str) -> None:
         """Route request to Lambda handler."""
         try:
             # Parse URL
@@ -249,7 +249,7 @@ class APIHandler(BaseHTTPRequestHandler):
             auth_header = self.headers.get("Authorization", "")
 
             # Simulate Lambda event (API Gateway v2 HTTP API format)
-            event = {
+            event: dict[str, Any] = {
                 "httpMethod": method,
                 "rawPath": path,
                 "path": path,
@@ -270,7 +270,9 @@ class APIHandler(BaseHTTPRequestHandler):
 
             # Add Authorization to headers if present
             if auth_header:
-                event["headers"]["Authorization"] = auth_header
+                headers = event.get("headers")
+                if isinstance(headers, dict):
+                    headers["Authorization"] = auth_header
 
             # Call Lambda handler with timing info
             logger.info(f"[REQ_START] {method} {path}")
@@ -325,11 +327,11 @@ class APIHandler(BaseHTTPRequestHandler):
             error_response = json.dumps({"statusCode": 500, "message": "Internal server error"})
             self.wfile.write(error_response.encode("utf-8"))
 
-    def log_message(self, fmt, *args):
+    def log_message(self, fmt: str, *args: Any) -> None:
         """Suppress default HTTP logging."""
 
 
-def run_dev_server(port=3001):
+def run_dev_server(port: int = 3001) -> None:
     """Run the development server."""
     server_address = ("", port)
     httpd = HTTPServer(server_address, APIHandler)
