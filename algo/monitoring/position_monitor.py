@@ -1042,8 +1042,8 @@ class PositionMonitor:
     def check_corporate_actions(self):
         """Phase 6.1: Detect stock splits and corporate actions.
 
-        Compares Alpaca current quantity to DB quantity. If different and > 20% change,
-        likely a stock split. Adjusts position quantity and recalculates stop loss.
+        Compares Alpaca qty to DB qty. If different and greater than 20%,
+        likely a stock split. Adjusts position qty and recalculates stop loss.
 
         Returns:
             list of adjustments made
@@ -1059,142 +1059,146 @@ class PositionMonitor:
             """)
             positions = cur.fetchall()
 
-            alpaca_base_url = get_alpaca_base_url()
-            try:
-                cm = get_credential_manager()
-                creds = cm.get_alpaca_credentials()
-                alpaca_key = creds.get("key")
-                alpaca_secret = creds.get("secret")
-            except (psycopg2.DatabaseError, psycopg2.OperationalError) as e:
-                logger.warning(f"Could not retrieve Alpaca credentials: {e}. Skipping Alpaca sync.")
-                alpaca_key = None
-                alpaca_secret = None
-
-            if not alpaca_key or not alpaca_secret:
-                raise RuntimeError("Alpaca credentials unavailable - cannot detect corporate actions (stock splits, dividends). Position monitoring halted.")
+            alpaca_base_url, alpaca_key, alpaca_secret = self._get_alpaca_creds()
 
             for pos_id, symbol, db_qty, db_stop, _entry_price in positions:
                 try:
-                    url = f"{alpaca_base_url}/v2/positions/{symbol}"
-                    headers = {
-                        "APCA-API-KEY-ID": alpaca_key,
-                        "APCA-API-SECRET-KEY": alpaca_secret,
-                    }
-                    try:
-                        timeout = int(self.config["api_request_timeout_seconds"])
-                    except KeyError as e:
-                        raise KeyError(f"[CONFIG] Missing required field: {e}. Check algo_config table.") from e
-                    resp = requests.get(
-                        url,
-                        headers=headers,
-                        timeout=timeout,
+                    alpaca_qty = self._fetch_alpaca_qty(
+                        alpaca_base_url, alpaca_key, alpaca_secret, symbol
                     )
-                    if resp.status_code != 200:
-                        raise RuntimeError(f"Alpaca API returned {resp.status_code} for {symbol} - cannot complete corporate action check")
-
-                    try:
-                        alpaca_pos = resp.json()
-                    except (ValueError, Exception) as e:
-                        raise RuntimeError(f"Invalid JSON response from Alpaca for {symbol}: {e}") from e
-
-                    alpaca_qty = int(alpaca_pos.get("qty", 0))
-
-                    if alpaca_qty == 0:
-                        # Position closed at Alpaca but open in DB  -” likely filled by stop
-                        cur.execute(
-                            """
-                            UPDATE algo_positions SET status = 'closed'
-                            WHERE position_id = %s
-                        """,
-                            (pos_id,),
-                        )
-                        adjustments.append(
-                            {
-                                "symbol": symbol,
-                                "action": "POSITION_CLOSED_AT_ALPACA",
-                                "db_qty": db_qty,
-                                "alpaca_qty": alpaca_qty,
-                            }
-                        )
-                        continue
-
-                    if alpaca_qty != db_qty:
-                        qty_change_pct = abs(alpaca_qty - db_qty) / db_qty * 100 if db_qty > 0 else 0
-
-                        if qty_change_pct > 20:  # Likely a split
-                            split_ratio = alpaca_qty / db_qty if db_qty > 0 else 1.0
-                            if not db_stop:
-                                # FAIL-CLOSED: Can't apply split ratio without knowing original stop
-                                logger.critical(
-                                    f"STOCK SPLIT DETECTED but no stop price in DB for {symbol} {pos_id}. Cannot auto-adjust stop. Manual review required."
-                                )
-                                # Update quantity but leave stop untouched
-                                cur.execute(
-                                    """
-                                    UPDATE algo_positions
-                                    SET quantity = %s
-                                    WHERE position_id = %s
-                                """,
-                                    (alpaca_qty, pos_id),
-                                )
-                                cur.execute(
-                                    """
-                                    INSERT INTO algo_audit_log (
-                                        action_type, action_date, details, severity
-                                    ) VALUES (%s, %s, %s, %s)
-                                """,
-                                    (
-                                        "CORPORATE_ACTION_SPLIT_NO_STOP",
-                                        datetime.now(timezone.utc),
-                                        f"Stock split detected: {symbol} {db_qty} -> {alpaca_qty} shares (ratio {split_ratio:.2f}). Original stop price missing in DB. Quantity updated but STOP NOT ADJUSTED. Manual review required.",
-                                        "CRITICAL",
-                                    ),
-                                )
-                                continue
-
-                            new_stop = db_stop / split_ratio
-
-                            cur.execute(
-                                """
-                                UPDATE algo_positions
-                                SET quantity = %s, current_stop_price = %s
-                                WHERE position_id = %s
-                            """,
-                                (alpaca_qty, new_stop, pos_id),
-                            )
-
-                            # Log the corporate action
-                            cur.execute(
-                                """
-                                INSERT INTO algo_audit_log (
-                                    action_type, action_date, details, severity
-                                ) VALUES (%s, %s, %s, %s)
-                            """,
-                                (
-                                    "CORPORATE_ACTION_SPLIT",
-                                    datetime.now(timezone.utc),
-                                    f"Stock split detected: {symbol} {db_qty} -> {alpaca_qty} shares (ratio {split_ratio:.2f}). Stop adjusted from ${db_stop:.2f} to ${new_stop:.2f}",
-                                    "WARN",
-                                ),
-                            )
-
-                            adjustments.append(
-                                {
-                                    "symbol": symbol,
-                                    "action": "STOCK_SPLIT",
-                                    "old_qty": db_qty,
-                                    "new_qty": alpaca_qty,
-                                    "split_ratio": round(split_ratio, 2),
-                                    "old_stop": db_stop,
-                                    "new_stop": new_stop,
-                                }
-                            )
-
+                    self._handle_qty_variance(
+                        cur, pos_id, symbol, db_qty, db_stop, alpaca_qty, adjustments
+                    )
                 except (psycopg2.DatabaseError, psycopg2.OperationalError) as e:
                     logger.warning(f"  Warning: Could not check Alpaca position for {symbol}: {e}")
                     continue
 
             return adjustments
+
+    def _get_alpaca_creds(self) -> tuple[str, str, str]:
+        """Retrieve Alpaca credentials, raise if unavailable."""
+        alpaca_base_url = get_alpaca_base_url()
+        try:
+            cm = get_credential_manager()
+            creds = cm.get_alpaca_credentials()
+            alpaca_key = creds.get("key")
+            alpaca_secret = creds.get("secret")
+        except (psycopg2.DatabaseError, psycopg2.OperationalError) as e:
+            logger.warning(f"Could not retrieve Alpaca credentials: {e}")
+            alpaca_key = None
+            alpaca_secret = None
+
+        if not alpaca_key or not alpaca_secret:
+            raise RuntimeError(
+                "Alpaca credentials unavailable - cannot detect corporate actions. Halted."
+            )
+        return alpaca_base_url, alpaca_key, alpaca_secret
+
+    def _fetch_alpaca_qty(
+        self, alpaca_base_url: str, alpaca_key: str, alpaca_secret: str, symbol: str
+    ) -> int:
+        """Fetch position quantity from Alpaca API."""
+        url = f"{alpaca_base_url}/v2/positions/{symbol}"
+        headers = {
+            "APCA-API-KEY-ID": alpaca_key,
+            "APCA-API-SECRET-KEY": alpaca_secret,
+        }
+        try:
+            timeout = int(self.config["api_request_timeout_seconds"])
+        except KeyError as e:
+            raise KeyError(f"[CONFIG] Missing required field: {e}") from e
+
+        resp = requests.get(url, headers=headers, timeout=timeout)
+        if resp.status_code != 200:
+            raise RuntimeError(
+                f"Alpaca API returned {resp.status_code} for {symbol}"
+            )
+
+        try:
+            alpaca_pos = resp.json()
+        except (ValueError, Exception) as e:
+            raise RuntimeError(f"Invalid JSON response from Alpaca: {e}") from e
+
+        return int(alpaca_pos.get("qty", 0))
+
+    def _handle_qty_variance(
+        self, cur: Any, pos_id: Any, symbol: str, db_qty: Any, db_stop: Any,
+        alpaca_qty: int, adjustments: list
+    ) -> None:
+        """Handle quantity changes between DB and Alpaca."""
+        if alpaca_qty == 0:
+            cur.execute(
+                "UPDATE algo_positions SET status = 'closed' WHERE position_id = %s",
+                (pos_id,),
+            )
+            adjustments.append({
+                "symbol": symbol,
+                "action": "POSITION_CLOSED_AT_ALPACA",
+                "db_qty": db_qty,
+                "alpaca_qty": alpaca_qty,
+            })
+            return
+
+        if alpaca_qty == db_qty:
+            return
+
+        qty_change_pct = abs(alpaca_qty - db_qty) / db_qty * 100 if db_qty > 0 else 0
+        if qty_change_pct <= 20:
+            return
+
+        self._apply_split_adjustment(cur, pos_id, symbol, db_qty, db_stop, alpaca_qty, adjustments)
+
+    def _apply_split_adjustment(
+        self, cur: Any, pos_id: Any, symbol: str, db_qty: Any, db_stop: Any,
+        alpaca_qty: int, adjustments: list
+    ) -> None:
+        """Apply stock split adjustment if stop available, else update qty only."""
+        split_ratio = alpaca_qty / db_qty if db_qty > 0 else 1.0
+
+        if not db_stop:
+            logger.critical(
+                f"STOCK SPLIT DETECTED but no stop in DB for {symbol}. Manual review required."
+            )
+            cur.execute(
+                "UPDATE algo_positions SET quantity = %s WHERE position_id = %s",
+                (alpaca_qty, pos_id),
+            )
+            cur.execute(
+                "INSERT INTO algo_audit_log (action_type, action_date, details, severity) VALUES (%s, %s, %s, %s)",
+                (
+                    "CORPORATE_ACTION_SPLIT_NO_STOP",
+                    datetime.now(timezone.utc),
+                    f"Split: {symbol} {db_qty} -> {alpaca_qty} ratio {split_ratio:.2f}. Qty updated, stop NOT adjusted.",
+                    "CRITICAL",
+                ),
+            )
+            return
+
+        new_stop = db_stop / split_ratio
+        cur.execute(
+            "UPDATE algo_positions SET quantity = %s, current_stop_price = %s WHERE position_id = %s",
+            (alpaca_qty, new_stop, pos_id),
+        )
+
+        cur.execute(
+            "INSERT INTO algo_audit_log (action_type, action_date, details, severity) VALUES (%s, %s, %s, %s)",
+            (
+                "CORPORATE_ACTION_SPLIT",
+                datetime.now(timezone.utc),
+                f"Split: {symbol} {db_qty} -> {alpaca_qty} ratio {split_ratio:.2f}. Stop adjusted {db_stop:.2f} to {new_stop:.2f}",
+                "WARN",
+            ),
+        )
+
+        adjustments.append({
+            "symbol": symbol,
+            "action": "STOCK_SPLIT",
+            "old_qty": db_qty,
+            "new_qty": alpaca_qty,
+            "split_ratio": round(split_ratio, 2),
+            "old_stop": db_stop,
+            "new_stop": new_stop,
+        })
 
     def get_open_positions(self):
         """Get list of open positions for halt checking and monitoring.

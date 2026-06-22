@@ -73,141 +73,169 @@ class SectorRotationDetector:
             eval_date = _date.today()
 
         try:
-            with DatabaseContext("read") as cur:
-                cur.execute(
-                    """
-                    SELECT sector_name, current_rank, momentum_score,
-                           rank_1w_ago, rank_4w_ago, rank_12w_ago
-                    FROM sector_ranking
-                    WHERE date = (
-                        SELECT MAX(date) FROM sector_ranking
-                        WHERE date <= %s
-                    )
-                    AND sector_name <> '' AND sector_name IS NOT NULL
-                    AND sector_name <> 'Benchmark'
-                    """,
-                    (eval_date,),
-                )
-                rows = cur.fetchall()
-
-            sector_data = {}
-            for sector_name, rank, momentum, r1w, r4w, r12w in rows:
-                if rank is None:
-                    continue
-                rank = int(rank)
-
-                # Fail-fast: missing historical ranks means incomplete data for rotation analysis
-                if r1w is None:
-                    logger.warning(f"[SECTOR ROTATION] {sector_name}: missing 1w rank data for {eval_date}")
-                    raise ValueError(
-                        f"Sector {sector_name} missing rank_1w_ago for {eval_date} — "
-                        "incomplete sector_ranking data; cannot compute rotation signal"
-                    )
-                if r4w is None:
-                    logger.warning(f"[SECTOR ROTATION] {sector_name}: missing 4w rank data for {eval_date}")
-                    raise ValueError(
-                        f"Sector {sector_name} missing rank_4w_ago for {eval_date} — "
-                        "incomplete sector_ranking data; cannot compute rotation signal"
-                    )
-                if r12w is None:
-                    logger.warning(f"[SECTOR ROTATION] {sector_name}: missing 12w rank data for {eval_date}")
-                    raise ValueError(
-                        f"Sector {sector_name} missing rank_12w_ago for {eval_date} — "
-                        "incomplete sector_ranking data; cannot compute rotation signal"
-                    )
-
-                imp_4w = int(r4w) - rank
-                imp_12w = int(r12w) - rank
-                imp_1w = int(r1w) - rank
-
-                # Fail-fast: missing momentum data indicates incomplete calculation
-                if momentum is None:
-                    logger.warning(f"[SECTOR ROTATION] {sector_name}: missing momentum_score for {eval_date}")
-                    raise ValueError(
-                        f"Sector {sector_name} missing momentum_score for {eval_date} — incomplete sector_ranking data"
-                    )
-
-                sector_data[sector_name] = {
-                    "rank": rank,
-                    "momentum": float(momentum),
-                    "rank_improvement_1w": imp_1w,
-                    "rank_improvement_4w": imp_4w,
-                    "rank_improvement_12w": imp_12w,
-                    "is_defensive": sector_name in DEFENSIVE_SECTORS,
-                    "is_cyclical": sector_name in CYCLICAL_SECTORS,
-                }
-
+            sector_data = self._fetch_and_validate_sector_data(eval_date)
             defensive = [d for d in sector_data.values() if d["is_defensive"]]
             cyclical = [d for d in sector_data.values() if d["is_cyclical"]]
+            self._validate_sector_coverage(sector_data, eval_date)
 
-            if not sector_data:
-                raise ValueError(f"No sector ranking data found for {eval_date} — sector_ranking table may be empty")
-            if not defensive or not cyclical:
-                missing_defensive = [s for s in DEFENSIVE_SECTORS if s not in sector_data]
-                missing_cyclical = [s for s in CYCLICAL_SECTORS if s not in sector_data]
-                raise ValueError(
-                    f"Incomplete sector data for {eval_date}: "
-                    f"missing defensive={missing_defensive}, missing cyclical={missing_cyclical}"
-                )
-
-            def_imp_4w = sum(d["rank_improvement_4w"] for d in defensive) / len(defensive)
-            cyc_imp_4w = sum(d["rank_improvement_4w"] for d in cyclical) / len(cyclical)
-            spread = def_imp_4w - cyc_imp_4w
-
-            def_avg_momentum = sum(d["momentum"] for d in defensive) / len(defensive)
-            cyc_avg_momentum = sum(d["momentum"] for d in cyclical) / len(cyclical)
-            momentum_spread = def_avg_momentum - cyc_avg_momentum
-
-            defensive_lead_score = max(0, min(100, spread * 15 + 50))
-
-            cyclical_weak_score = max(0, min(100, -cyc_imp_4w * 15 + 50))
-
-            weeks_persistent = sum(
-                [
-                    (
-                        1
-                        if (sum(d["rank_improvement_1w"] for d in defensive) / len(defensive))
-                        > (sum(d["rank_improvement_1w"] for d in cyclical) / len(cyclical))
-                        else 0
-                    ),
-                    1 if def_imp_4w > cyc_imp_4w else 0,
-                    (
-                        1
-                        if (sum(d["rank_improvement_12w"] for d in defensive) / len(defensive))
-                        > (sum(d["rank_improvement_12w"] for d in cyclical) / len(cyclical))
-                        else 0
-                    ),
-                ]
-            )
-
-            if defensive_lead_score >= 75 and weeks_persistent >= 3:
-                signal = "severe_defensive_rotation"
-            elif defensive_lead_score >= 60 and weeks_persistent >= 2:
-                signal = "defensive_rotation_warning"
-            elif defensive_lead_score >= 50:
-                signal = "mild_defensive_lead"
-            elif def_imp_4w < cyc_imp_4w - 3:
-                signal = "risk_on_confirmed"
-            else:
-                signal = "neutral"
+            metrics = self._compute_sector_metrics(defensive, cyclical)
+            signal = self._determine_rotation_signal(metrics["defensive_lead_score"], metrics["weeks_persistent"])
 
             result = {
                 "eval_date": str(eval_date),
                 "signal": signal,
-                "defensive_lead_score": round(defensive_lead_score, 1),
-                "cyclical_weak_score": round(cyclical_weak_score, 1),
-                "defensive_rank_improvement_4w": round(def_imp_4w, 2),
-                "cyclical_rank_improvement_4w": round(cyc_imp_4w, 2),
-                "spread_4w": round(spread, 2),
-                "momentum_spread": round(momentum_spread, 2),
-                "weeks_persistent": weeks_persistent,
+                "defensive_lead_score": round(metrics["defensive_lead_score"], 1),
+                "cyclical_weak_score": round(metrics["cyclical_weak_score"], 1),
+                "defensive_rank_improvement_4w": round(metrics["def_imp_4w"], 2),
+                "cyclical_rank_improvement_4w": round(metrics["cyc_imp_4w"], 2),
+                "spread_4w": round(metrics["spread"], 2),
+                "momentum_spread": round(metrics["momentum_spread"], 2),
+                "weeks_persistent": metrics["weeks_persistent"],
                 "sector_data": sector_data,
-                "reduce_exposure_pts": self._exposure_penalty(defensive_lead_score, weeks_persistent),
+                "reduce_exposure_pts": self._exposure_penalty(metrics["defensive_lead_score"], metrics["weeks_persistent"]),
             }
             self._persist(eval_date, result)
             return result
         except Exception as e:
             raise RuntimeError(f"Operation failed: {e}") from e
+
+    def _fetch_and_validate_sector_data(self, eval_date):
+        """Fetch sector ranking data and validate each row."""
+        with DatabaseContext("read") as cur:
+            cur.execute(
+                """
+                SELECT sector_name, current_rank, momentum_score,
+                       rank_1w_ago, rank_4w_ago, rank_12w_ago
+                FROM sector_ranking
+                WHERE date = (
+                    SELECT MAX(date) FROM sector_ranking
+                    WHERE date <= %s
+                )
+                AND sector_name <> '' AND sector_name IS NOT NULL
+                AND sector_name <> 'Benchmark'
+                """,
+                (eval_date,),
+            )
+            rows = cur.fetchall()
+
+        sector_data = {}
+        for sector_name, rank, momentum, r1w, r4w, r12w in rows:
+            if rank is None:
+                continue
+            rank = int(rank)
+            self._validate_sector_row(sector_name, r1w, r4w, r12w, momentum, eval_date)
+
+            imp_4w = int(r4w) - rank
+            imp_12w = int(r12w) - rank
+            imp_1w = int(r1w) - rank
+
+            sector_data[sector_name] = {
+                "rank": rank,
+                "momentum": float(momentum),
+                "rank_improvement_1w": imp_1w,
+                "rank_improvement_4w": imp_4w,
+                "rank_improvement_12w": imp_12w,
+                "is_defensive": sector_name in DEFENSIVE_SECTORS,
+                "is_cyclical": sector_name in CYCLICAL_SECTORS,
+            }
+        return sector_data
+
+    def _validate_sector_row(self, sector_name, r1w, r4w, r12w, momentum, eval_date):
+        """Validate a single sector row for missing data."""
+        if r1w is None:
+            logger.warning(f"[SECTOR ROTATION] {sector_name}: missing 1w rank data for {eval_date}")
+            raise ValueError(
+                f"Sector {sector_name} missing rank_1w_ago for {eval_date} — "
+                "incomplete sector_ranking data; cannot compute rotation signal"
+            )
+        if r4w is None:
+            logger.warning(f"[SECTOR ROTATION] {sector_name}: missing 4w rank data for {eval_date}")
+            raise ValueError(
+                f"Sector {sector_name} missing rank_4w_ago for {eval_date} — "
+                "incomplete sector_ranking data; cannot compute rotation signal"
+            )
+        if r12w is None:
+            logger.warning(f"[SECTOR ROTATION] {sector_name}: missing 12w rank data for {eval_date}")
+            raise ValueError(
+                f"Sector {sector_name} missing rank_12w_ago for {eval_date} — "
+                "incomplete sector_ranking data; cannot compute rotation signal"
+            )
+        if momentum is None:
+            logger.warning(f"[SECTOR ROTATION] {sector_name}: missing momentum_score for {eval_date}")
+            raise ValueError(
+                f"Sector {sector_name} missing momentum_score for {eval_date} — incomplete sector_ranking data"
+            )
+
+    def _validate_sector_coverage(self, sector_data, eval_date):
+        """Validate that we have both defensive and cyclical sectors."""
+        if not sector_data:
+            raise ValueError(f"No sector ranking data found for {eval_date} — sector_ranking table may be empty")
+        defensive = [d for d in sector_data.values() if d["is_defensive"]]
+        cyclical = [d for d in sector_data.values() if d["is_cyclical"]]
+        if not defensive or not cyclical:
+            missing_defensive = [s for s in DEFENSIVE_SECTORS if s not in sector_data]
+            missing_cyclical = [s for s in CYCLICAL_SECTORS if s not in sector_data]
+            raise ValueError(
+                f"Incomplete sector data for {eval_date}: "
+                f"missing defensive={missing_defensive}, missing cyclical={missing_cyclical}"
+            )
+
+    def _compute_sector_metrics(self, defensive, cyclical):
+        """Compute all sector rotation metrics."""
+        def_imp_4w = sum(d["rank_improvement_4w"] for d in defensive) / len(defensive)
+        cyc_imp_4w = sum(d["rank_improvement_4w"] for d in cyclical) / len(cyclical)
+        spread = def_imp_4w - cyc_imp_4w
+
+        def_avg_momentum = sum(d["momentum"] for d in defensive) / len(defensive)
+        cyc_avg_momentum = sum(d["momentum"] for d in cyclical) / len(cyclical)
+        momentum_spread = def_avg_momentum - cyc_avg_momentum
+
+        defensive_lead_score = max(0, min(100, spread * 15 + 50))
+        cyclical_weak_score = max(0, min(100, -cyc_imp_4w * 15 + 50))
+
+        weeks_persistent = self._compute_weeks_persistent(defensive, cyclical, def_imp_4w, cyc_imp_4w)
+
+        return {
+            "def_imp_4w": def_imp_4w,
+            "cyc_imp_4w": cyc_imp_4w,
+            "spread": spread,
+            "defensive_lead_score": defensive_lead_score,
+            "cyclical_weak_score": cyclical_weak_score,
+            "def_avg_momentum": def_avg_momentum,
+            "cyc_avg_momentum": cyc_avg_momentum,
+            "momentum_spread": momentum_spread,
+            "weeks_persistent": weeks_persistent,
+        }
+
+    def _compute_weeks_persistent(self, defensive, cyclical, def_imp_4w, cyc_imp_4w):
+        """Compute how many weeks defensive has outperformed across different time windows."""
+        return sum(
+            [
+                (
+                    1
+                    if (sum(d["rank_improvement_1w"] for d in defensive) / len(defensive))
+                    > (sum(d["rank_improvement_1w"] for d in cyclical) / len(cyclical))
+                    else 0
+                ),
+                1 if def_imp_4w > cyc_imp_4w else 0,
+                (
+                    1
+                    if (sum(d["rank_improvement_12w"] for d in defensive) / len(defensive))
+                    > (sum(d["rank_improvement_12w"] for d in cyclical) / len(cyclical))
+                    else 0
+                ),
+            ]
+        )
+
+    def _determine_rotation_signal(self, defensive_lead_score, weeks_persistent):
+        """Determine rotation signal based on score and persistence."""
+        if defensive_lead_score >= 75 and weeks_persistent >= 3:
+            return "severe_defensive_rotation"
+        if defensive_lead_score >= 60 and weeks_persistent >= 2:
+            return "defensive_rotation_warning"
+        if defensive_lead_score >= 50:
+            return "mild_defensive_lead"
+        return "neutral"
 
     def _exposure_penalty(self, lead_score, weeks):
         """Recommend market exposure reduction in pts based on signal severity."""

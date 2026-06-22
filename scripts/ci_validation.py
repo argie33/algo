@@ -5,21 +5,20 @@ import subprocess
 import sys
 
 
-def test_full_import(description, module_path):
-    """Try to actually import and execute a module."""
+def test_module_import(description, import_statement):
+    """Try to import a module using proper package semantics."""
     print(f"\n[IMPORT] {description}")
-    cmd = f"import sys; sys.path.insert(0, '.'); exec(open('{module_path}').read())"
+    cmd = f"import sys; sys.path.insert(0, '.'); {import_statement}"
     result = subprocess.run([sys.executable, "-c", cmd], capture_output=True, text=True)
 
     if result.returncode == 0:
         print("  [PASS]")
         return True
     else:
-        # Extract just the error line
-        if "ImportError" in result.stderr:
+        if "ImportError" in result.stderr or "ModuleNotFoundError" in result.stderr:
             lines = result.stderr.split("\n")
             for line in lines:
-                if "ImportError" in line or "cannot import" in line:
+                if "ImportError" in line or "ModuleNotFoundError" in line or "cannot import" in line:
                     print(f"  [FAIL] {line.strip()[:100]}")
                     break
         else:
@@ -34,13 +33,13 @@ def main():
     print("=" * 60)
 
     tests = [
-        ("Dashboard main", "tools/dashboard/dashboard.py"),
-        ("Fetchers module", "tools/dashboard/fetchers.py"),
-        ("Panels __init__", "tools/dashboard/panels/__init__.py"),
-        ("Utilities module", "tools/dashboard/utilities.py"),
+        ("Dashboard main", "from tools.dashboard import dashboard"),
+        ("Fetchers module", "from tools.dashboard import fetchers"),
+        ("Panels __init__", "from tools.dashboard import panels"),
+        ("Utilities module", "from tools.dashboard import utilities"),
     ]
 
-    results = [test_full_import(desc, path) for desc, path in tests]
+    results = [test_module_import(desc, stmt) for desc, stmt in tests]
 
     print("\n" + "=" * 60)
     passed = sum(results)

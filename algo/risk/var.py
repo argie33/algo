@@ -154,93 +154,109 @@ class ValueAtRisk:
 
         try:
             with DatabaseContext("read") as cur:
-                cur.execute(
-                    """
-                    SELECT snapshot_date, total_portfolio_value FROM algo_portfolio_snapshots
-                    WHERE snapshot_date >= CURRENT_DATE - (%s || ' days')::interval
-                    ORDER BY snapshot_date ASC
-                    """,
-                    (int(lookback_days),),
-                )
-                rows = cur.fetchall()
+                rows = self._fetch_portfolio_snapshots(cur, lookback_days)
+                self._validate_snapshot_count(rows)
+                values = self._extract_portfolio_values(rows)
+                returns = self._compute_portfolio_returns(values)
 
-                if len(rows) < 5:
-                    logger.critical(
-                        f"CVaR calculation failed: only {len(rows)} portfolio snapshots found (minimum 5 required)"
-                    )
-                    raise RuntimeError(f"Insufficient historical data for CVaR (only {len(rows)} snapshots, need 5+)")
-                if len(rows) < 30:
-                    logger.warning(f"Risk metrics using limited historical data: {len(rows)} snapshots (recommend 30+)")
+            var_threshold = np.percentile(returns, (1 - confidence) * 100)
+            tail_losses = [r for r in returns if r <= var_threshold]
+            self._validate_tail_losses(tail_losses)
 
-                # CRITICAL: Portfolio values must be present and valid — no defaults to 0.0
-                # Using 0.0 as fallback would cause VaR to be computed on corrupted data
-                values = []
-                for i, row in enumerate(rows):
-                    if row[1] is None:
-                        raise RuntimeError(
-                            f"Portfolio value NULL at row {i} (date {row[0]}). "
-                            "Cannot compute VaR with missing data. Check portfolio snapshot data."
-                        )
-                    try:
-                        val = Decimal(str(float(row[1])))
-                        if val <= 0:
-                            raise RuntimeError(
-                                f"Portfolio value invalid at row {i} (date {row[0]}): {val} "
-                                "(must be positive). Check snapshot data."
-                            )
-                        values.append(val)
-                    except (ValueError, TypeError) as e:
-                        raise RuntimeError(
-                            f"Portfolio value conversion failed at row {i} (date {row[0]}): {e}. "
-                            "Check snapshot data integrity."
-                        ) from e
+            tail_loss_mean = Decimal(str(abs(np.mean(tail_losses))))
+            cvar_pct = tail_loss_mean * Decimal(100)
+            current_value = values[-1]
+            cvar_dollars = current_value * tail_loss_mean
 
-                returns_decimal = [(values[i] - values[i - 1]) / values[i - 1] for i in range(1, len(values))]
-                if not returns_decimal:
-                    logger.critical(
-                        "Historical VaR calculation failed: no valid returns computed from portfolio snapshots"
-                    )
-                    raise RuntimeError(
-                        "Cannot compute VaR: no valid portfolio return data available. Verify portfolio snapshots have valid values."
-                    )
-
-                # CRITICAL: Returns must be valid — no defaults to 0.0
-                returns = []
-                for i, r in enumerate(returns_decimal):
-                    try:
-                        ret = float(float(r))
-                        returns.append(ret)
-                    except (ValueError, TypeError) as e:
-                        raise RuntimeError(
-                            f"Return computation failed at index {i}: {e}. Portfolio snapshot data may be corrupted."
-                        ) from e
-
-                if not returns:
-                    logger.critical("CVaR calculation failed: no valid returns computed from portfolio snapshots")
-                    raise RuntimeError("Cannot compute CVaR: no valid portfolio return data available")
-
-                var_threshold = np.percentile(returns, (1 - confidence) * 100)
-                tail_losses = [r for r in returns if r <= var_threshold]
-
-                if not tail_losses:
-                    logger.critical("CVaR calculation failed: no tail loss events in historical data")
-                    raise RuntimeError("Cannot compute CVaR: no tail loss events found in historical returns")
-
-                tail_loss_mean = Decimal(str(abs(np.mean(tail_losses))))
-                cvar_pct = tail_loss_mean * Decimal(100)
-                current_value = values[-1]
-                cvar_dollars = current_value * tail_loss_mean
-
-                return {
-                    "confidence_level": confidence,
-                    "cvar_dollars": float(cvar_dollars.quantize(Decimal("0.01"), rounding=ROUND_HALF_UP)),
-                    "cvar_pct": float(cvar_pct.quantize(Decimal("0.001"), rounding=ROUND_HALF_UP)),
-                    "interpretation": f"Average loss on worst-case days (worse than VaR): {cvar_pct:.2f}%",
-                    "tail_event_count": len(tail_losses),
-                }
+            return {
+                "confidence_level": confidence,
+                "cvar_dollars": float(cvar_dollars.quantize(Decimal("0.01"), rounding=ROUND_HALF_UP)),
+                "cvar_pct": float(cvar_pct.quantize(Decimal("0.001"), rounding=ROUND_HALF_UP)),
+                "interpretation": f"Average loss on worst-case days (worse than VaR): {cvar_pct:.2f}%",
+                "tail_event_count": len(tail_losses),
+            }
 
         except (ValueError, ZeroDivisionError, TypeError) as e:
             raise RuntimeError(f"Operation failed: {e}") from e
+
+    def _fetch_portfolio_snapshots(self, cur: Any, lookback_days: int) -> list:
+        """Fetch portfolio snapshots from database."""
+        cur.execute(
+            """
+            SELECT snapshot_date, total_portfolio_value FROM algo_portfolio_snapshots
+            WHERE snapshot_date >= CURRENT_DATE - (%s || ' days')::interval
+            ORDER BY snapshot_date ASC
+            """,
+            (int(lookback_days),),
+        )
+        return cur.fetchall()
+
+    def _validate_snapshot_count(self, rows: list) -> None:
+        """Validate that we have sufficient snapshot data."""
+        if len(rows) < 5:
+            logger.critical(
+                f"CVaR calculation failed: only {len(rows)} portfolio snapshots found (minimum 5 required)"
+            )
+            raise RuntimeError(f"Insufficient historical data for CVaR (only {len(rows)} snapshots, need 5+)")
+        if len(rows) < 30:
+            logger.warning(f"Risk metrics using limited historical data: {len(rows)} snapshots (recommend 30+)")
+
+    def _extract_portfolio_values(self, rows: list) -> list[Decimal]:
+        """Extract and validate portfolio values from snapshot rows."""
+        values = []
+        for i, row in enumerate(rows):
+            if row[1] is None:
+                raise RuntimeError(
+                    f"Portfolio value NULL at row {i} (date {row[0]}). "
+                    "Cannot compute VaR with missing data. Check portfolio snapshot data."
+                )
+            try:
+                val = Decimal(str(float(row[1])))
+                if val <= 0:
+                    raise RuntimeError(
+                        f"Portfolio value invalid at row {i} (date {row[0]}): {val} "
+                        "(must be positive). Check snapshot data."
+                    )
+                values.append(val)
+            except (ValueError, TypeError) as e:
+                raise RuntimeError(
+                    f"Portfolio value conversion failed at row {i} (date {row[0]}): {e}. "
+                    "Check snapshot data integrity."
+                ) from e
+        return values
+
+    def _compute_portfolio_returns(self, values: list[Decimal]) -> list[float]:
+        """Compute returns from portfolio values."""
+        returns_decimal = [(values[i] - values[i - 1]) / values[i - 1] for i in range(1, len(values))]
+        if not returns_decimal:
+            logger.critical(
+                "Historical VaR calculation failed: no valid returns computed from portfolio snapshots"
+            )
+            raise RuntimeError(
+                "Cannot compute VaR: no valid portfolio return data available. Verify portfolio snapshots have valid values."
+            )
+
+        returns = []
+        for i, r in enumerate(returns_decimal):
+            try:
+                ret = float(float(r))
+                returns.append(ret)
+            except (ValueError, TypeError) as e:
+                raise RuntimeError(
+                    f"Return computation failed at index {i}: {e}. Portfolio snapshot data may be corrupted."
+                ) from e
+
+        if not returns:
+            logger.critical("CVaR calculation failed: no valid returns computed from portfolio snapshots")
+            raise RuntimeError("Cannot compute CVaR: no valid portfolio return data available")
+
+        return returns
+
+    def _validate_tail_losses(self, tail_losses: list) -> None:
+        """Validate that we have tail loss events."""
+        if not tail_losses:
+            logger.critical("CVaR calculation failed: no tail loss events in historical data")
+            raise RuntimeError("Cannot compute CVaR: no tail loss events found in historical returns")
 
     def stressed_var(self, confidence: float = 0.99) -> dict[str, Any]:
         """Compute stressed VaR using worst 12-month rolling window.

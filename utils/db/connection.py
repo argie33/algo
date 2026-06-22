@@ -10,6 +10,7 @@ import logging
 import sys
 import threading
 from pathlib import Path
+from typing import Any
 
 import psycopg2
 import psycopg2.pool
@@ -162,6 +163,30 @@ class TrackedConnection:
                 logger.debug(f"[DB_POOL] Could not close connection: {close_err}")
 
 
+def _handle_retry_sleep(attempt: int, max_retries: int, debug: bool, error_type: str, error: Exception) -> None:
+    """Handle sleep and logging for retry logic."""
+    import time
+
+    if attempt < max_retries:
+        wait_time = min(2 ** (attempt - 1), 10)
+        if debug:
+            logger.debug(f"[DB_CONNECT] {error_type} (attempt {attempt}): {str(error)[:100]}, retrying in {wait_time}s")
+        time.sleep(wait_time)
+    else:
+        if debug:
+            logger.error(f"[DB_CONNECT] {error_type} after {max_retries} attempts: {error}")
+
+
+def _check_connection_health(conn: Any, pool: Any) -> None:
+    """Check if connection is still alive, discard if stale."""
+    if conn.closed:
+        logger.warning("[DB_POOL] Stale connection (closed=True) discarded from pool")
+        try:
+            pool.putconn(conn, close=True)
+        except (psycopg2.DatabaseError, psycopg2.OperationalError) as e:
+            raise RuntimeError(f"[DB_POOL] Failed to return stale connection to pool: {e}") from e
+
+
 def get_db_connection(max_retries: int = 3, timeout: int = 10, debug: bool = False):
     """Get a database connection from the connection pool with retries.
 
@@ -189,55 +214,20 @@ def get_db_connection(max_retries: int = 3, timeout: int = 10, debug: bool = Fal
                     f"[DB_CONNECT] Attempt {attempt}/{max_retries + 1}: getting pooled connection (timeout={timeout}s)"
                 )
 
-            # Note: psycopg2's SimpleConnectionPool doesn't support timeout on getconn()
-            # Timeout is controlled via connect_timeout and keepalives at pool creation time
             conn = pool.getconn()
 
             if debug:
                 logger.debug(f"[DB_CONNECT] Got connection from pool on attempt {attempt}")
 
-            # Validate the connection is still alive before returning it. psycopg2's
-            # SimpleConnectionPool returns connections without health-checking them,
-            # so a warm Lambda container can get a stale connection whose SSL layer
-            # was silently closed by RDS Proxy during an idle period.
-            if conn.closed:
-                logger.warning("[DB_POOL] Stale connection (closed=True) discarded from pool")
-                try:
-                    pool.putconn(conn, close=True)
-                except (psycopg2.DatabaseError, psycopg2.OperationalError) as e:
-                    raise RuntimeError(f"[DB_POOL] Failed to return stale connection to pool: {e}") from e
-                continue
-
+            _check_connection_health(conn, pool)
             return TrackedConnection(conn, pool=pool)
 
         except psycopg2.pool.PoolError as e:
             last_error = e
-            if attempt < max_retries:
-                import time
-
-                wait_time = min(2 ** (attempt - 1), 10)
-                if debug:
-                    logger.debug(
-                        f"[DB_CONNECT] Pool exhausted (attempt {attempt}): {str(e)[:100]}, retrying in {wait_time}s"
-                    )
-                time.sleep(wait_time)
-            else:
-                if debug:
-                    logger.error(f"[DB_CONNECT] Pool exhausted after {max_retries} attempts: {e}")
+            _handle_retry_sleep(attempt, max_retries, debug, "Pool exhausted", e)
 
         except psycopg2.OperationalError as e:
             last_error = e
-            if attempt < max_retries:
-                import time
-
-                wait_time = min(2 ** (attempt - 1), 10)
-                if debug:
-                    logger.debug(
-                        f"[DB_CONNECT] Connection failed (attempt {attempt}): {str(e)[:100]}, retrying in {wait_time}s"
-                    )
-                time.sleep(wait_time)
-            else:
-                if debug:
-                    logger.error(f"[DB_CONNECT] Connection failed after {max_retries} attempts: {e}")
+            _handle_retry_sleep(attempt, max_retries, debug, "Connection failed", e)
 
     raise (last_error if last_error else psycopg2.OperationalError("Failed to get pooled connection"))
