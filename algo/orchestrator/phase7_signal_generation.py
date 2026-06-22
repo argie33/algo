@@ -217,10 +217,10 @@ def _detect_upstream_data_quality_drift(run_date: _date, signal_source: str) -> 
     return drift
 
 
-def _check_liquidity_parallel(candidate: dict, run_date: _date) -> tuple[dict, bool]:
+def _check_liquidity_parallel(candidate: dict, run_date: _date, config=None) -> tuple[dict, bool]:
     """Check liquidity for a single candidate. Returns (candidate, passed)."""
     try:
-        liquidity = LiquidityChecks(config={})
+        liquidity = LiquidityChecks(config=config if config is not None else {})
         liq_ok, liq_reason = liquidity.run_all(candidate["symbol"], 0, run_date)
         if not liq_ok:
             logger.debug(f"[PHASE 7] {candidate['symbol']}: liquidity — {liq_reason}")
@@ -628,7 +628,7 @@ def run(
 
     if to_check:
         with ThreadPoolExecutor(max_workers=_MAX_WORKERS) as executor:
-            futures = {executor.submit(_check_liquidity_parallel, cand, run_date): cand for cand in to_check}
+            futures = {executor.submit(_check_liquidity_parallel, cand, run_date, config): cand for cand in to_check}
             for future in as_completed(futures):
                 liq_checked += 1
                 candidate, passed = future.result()
