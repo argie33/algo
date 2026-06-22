@@ -1328,7 +1328,7 @@ class OptimalLoader:
                 except (psycopg2.DatabaseError, psycopg2.OperationalError) as e:
                     logger.warning(f"Failed to release DynamoDB lock: {e}")
 
-    def close(self) -> None:  # noqa: B027
+    def close(self) -> None:
         """No-op. DatabaseContext handles connection cleanup automatically."""
 
     def load_global(self) -> int:

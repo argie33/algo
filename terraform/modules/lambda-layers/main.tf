@@ -36,7 +36,7 @@ resource "aws_lambda_layer_version" "shared_deps" {
   filename                 = "${path.root}/lambda/shared-deps-layer.zip"
   layer_name               = local.shared_deps.name
   compatible_runtimes      = local.shared_deps.compatible_runtimes
-  source_code_hash         = filebase64sha256("${path.root}/lambda/shared-deps-layer.zip")
+  source_code_hash         = try(filebase64sha256("${path.root}/lambda/shared-deps-layer.zip"), "")
   compatible_architectures = ["x86_64"]
 
   lifecycle {
