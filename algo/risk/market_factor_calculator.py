@@ -27,22 +27,16 @@ class MarketFactorCalculator:
     def _wt_pts(factor: dict[str, Any], weight: float) -> tuple[float, float]:
         """Scale factor score to weight. Returns (pts, avail_weight).
 
-        If factor has 'error' key, returns (0, 0) to indicate unavailable.
-        Otherwise scales the 'score' to the given weight.
+        Raises: RuntimeError if score is missing or invalid (fail-closed)
         """
-        if factor.get("error"):
-            return 0.0, 0.0
-
         score = factor.get("score")
         if score is None:
-            logger.warning("Market factor score missing - this factor cannot be included in exposure calculation")
-            return 0.0, 0.0
+            raise ValueError("Market factor score missing - all factors required for exposure calculation")
 
         try:
             score = float(score)
-        except (ValueError, TypeError):
-            logger.error(f"Market factor score is not numeric: {score}")
-            return 0.0, 0.0
+        except (ValueError, TypeError) as e:
+            raise ValueError(f"Market factor score is not numeric: {score}") from e
 
         return score * weight / 100.0, weight
 
@@ -73,8 +67,7 @@ class MarketFactorCalculator:
                 return {"value": pct, "score": score}
             raise RuntimeError("No breadth data available for calculation")
         except (psycopg2.DatabaseError, psycopg2.OperationalError) as e:
-            logger.warning(f"Breadth calculation failed: {e}")
-            return {"error": str(e)[:50]}
+            raise RuntimeError(f"Breadth calculation failed: {e}") from e
 
     def _vix_score(self, vix: float, rising: bool, term_structure=None) -> tuple[float, dict[str, Any]]:
         """Score VIX level and term structure.
@@ -162,8 +155,7 @@ class MarketFactorCalculator:
                 return {"above_30wma": spy > sma, "score": score}
             raise RuntimeError("No trend data available for SPY")
         except (psycopg2.DatabaseError, psycopg2.OperationalError) as e:
-            logger.warning(f"Trend calculation failed: {e}")
-            return {"error": str(e)[:50]}
+            raise RuntimeError(f"Trend calculation failed: {e}") from e
 
     def spy_momentum(self, eval_date, cur) -> dict[str, Any]:
         """SPY 12-month momentum (TSMOM)."""
@@ -195,8 +187,7 @@ class MarketFactorCalculator:
                 return {"return_12m": round(ret * 100, 1), "score": score}
             raise RuntimeError("No momentum data available for 12-month SPY return")
         except (ValueError, ZeroDivisionError, TypeError) as e:
-            logger.warning(f"Momentum calculation failed: {e}")
-            return {"error": str(e)[:50]}
+            raise RuntimeError(f"Momentum calculation failed: {e}") from e
 
     def selling_pressure(self, eval_date, cur) -> dict[str, Any]:
         """Heavy-volume down days in last 25 sessions."""
@@ -220,10 +211,9 @@ class MarketFactorCalculator:
                 # 0-2 = 100, 3-4 = 60, 5+ = 20
                 score = 100.0 if dist <= 2 else (60.0 if dist <= 4 else 20.0)
                 return {"heavy_down_days": dist, "count": dist, "score": score}
-            return {"error": "No selling pressure data"}
+            raise RuntimeError("No selling pressure data available for market factor calculation")
         except (ValueError, ZeroDivisionError, TypeError) as e:
-            logger.warning(f"Selling pressure calculation failed: {e}")
-            return {"error": str(e)[:50]}
+            raise RuntimeError(f"Selling pressure calculation failed: {e}") from e
 
     def vix_regime(self, eval_date, cur) -> dict[str, Any]:
         """VIX level + term structure."""
@@ -240,8 +230,7 @@ class MarketFactorCalculator:
                 return {"vix": round(vix, 1), "score": score, **detail}
             raise RuntimeError("No VIX data available for volatility regime calculation")
         except (psycopg2.DatabaseError, psycopg2.OperationalError) as e:
-            logger.warning(f"VIX regime calculation failed: {e}")
-            return {"error": str(e)[:50]}
+            raise RuntimeError(f"VIX regime calculation failed: {e}") from e
 
     def put_call_ratio(self, eval_date, cur) -> dict[str, Any]:
         """Put/call ratio (contrarian indicator)."""
@@ -256,10 +245,9 @@ class MarketFactorCalculator:
                 # Contrarian: PCR > 1.0 = fear = bullish (100 pts), < 0.7 = greed = bearish (0 pts)
                 score = max(0, min(100, (pcr - 0.7) * 100))
                 return {"put_call_ratio": round(pcr, 2), "score": score}
-            return {"error": "No options data"}
+            raise RuntimeError("No options data available for put/call ratio calculation")
         except (psycopg2.DatabaseError, psycopg2.OperationalError) as e:
-            logger.warning(f"Put/call ratio calculation failed: {e}")
-            return {"error": str(e)[:50]}
+            raise RuntimeError(f"Put/call ratio calculation failed: {e}") from e
 
     def new_highs_lows(self, eval_date, cur) -> dict[str, Any]:
         """52-week new highs vs new lows."""
@@ -283,10 +271,9 @@ class MarketFactorCalculator:
                     # NH% > 80 = 100, 50-80 = 70, 20-50 = 30, < 20 = 0
                     score = 100.0 if nh_pct > 80 else (70.0 if nh_pct > 50 else (30.0 if nh_pct > 20 else 0.0))
                     return {"new_highs": nh, "new_lows": nl, "nh_pct": round(nh_pct, 1), "score": score}
-            return {"error": "No breadth data"}
+            raise RuntimeError("No breadth data available for new highs/lows calculation")
         except (psycopg2.DatabaseError, psycopg2.OperationalError) as e:
-            logger.warning(f"New highs/lows calculation failed: {e}")
-            return {"error": str(e)[:50]}
+            raise RuntimeError(f"New highs/lows calculation failed: {e}") from e
 
     def ad_line(self, eval_date, cur) -> dict[str, Any]:
         """Advance/decline line vs SPY."""
@@ -305,10 +292,9 @@ class MarketFactorCalculator:
                 direction = row[0]
                 score = 100.0 if direction == "up" else 0.0
                 return {"direction": direction, "score": score}
-            return {"error": "No A/D line data"}
+            raise RuntimeError("No A/D line data available for advance/decline calculation")
         except (psycopg2.DatabaseError, psycopg2.OperationalError) as e:
-            logger.warning(f"A/D line calculation failed: {e}")
-            return {"error": str(e)[:50]}
+            raise RuntimeError(f"A/D line calculation failed: {e}") from e
 
     def credit_spread(self, eval_date, cur) -> dict[str, Any]:
         """High-yield credit spread (HY OAS)."""
@@ -323,10 +309,9 @@ class MarketFactorCalculator:
                 # Higher OAS = higher stress = lower score. 300bps = 100, 500bps = 0
                 score = max(0, min(100, 100 - (oas - 300) / 2))
                 return {"hy_oas": round(oas, 0), "score": score}
-            return {"error": "No credit data"}
+            raise RuntimeError("No credit data available for credit spread calculation")
         except (psycopg2.DatabaseError, psycopg2.OperationalError) as e:
-            logger.warning(f"Credit spread calculation failed: {e}")
-            return {"error": str(e)[:50]}
+            raise RuntimeError(f"Credit spread calculation failed: {e}") from e
 
     def aaii(self, eval_date, cur) -> dict[str, Any]:
         """AAII sentiment (contrarian at extremes only)."""
@@ -348,10 +333,9 @@ class MarketFactorCalculator:
                     "spread": round(spread, 1),
                     "score": score,
                 }
-            return {"error": "No sentiment data"}
+            raise RuntimeError("No sentiment data available for AAII sentiment calculation")
         except (psycopg2.DatabaseError, psycopg2.OperationalError) as e:
-            logger.warning(f"AAII calculation failed: {e}")
-            return {"error": str(e)[:50]}
+            raise RuntimeError(f"AAII calculation failed: {e}") from e
 
     def naaim(self, eval_date, cur) -> dict[str, Any]:
         """NAAIM exposure (contrarian positioning)."""
@@ -366,7 +350,6 @@ class MarketFactorCalculator:
                 # NAAIM 0-100 scale: > 80 = greed = lower score, < 30 = fear = higher score
                 score = min(100, max(0, 100 - exp / 2))
                 return {"exposure": round(exp, 1), "score": score}
-            return {"error": "No NAAIM data"}
+            raise RuntimeError("No NAAIM data available for NAAIM exposure calculation")
         except (psycopg2.DatabaseError, psycopg2.OperationalError) as e:
-            logger.warning(f"NAAIM calculation failed: {e}")
-            return {"error": str(e)[:50]}
+            raise RuntimeError(f"NAAIM calculation failed: {e}") from e
