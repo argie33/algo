@@ -38,7 +38,7 @@ class PatrolLogger:
                 ),
             )
         except (psycopg2.DatabaseError, psycopg2.OperationalError) as e:
-            logger.error(f"Failed to log patrol configuration: {e}")
+            raise RuntimeError(f"Failed to log patrol configuration - health check data unavailable: {e}") from e
 
     def log_results(self, cur, results: list[CheckResult]) -> None:
         """Log all check results to database."""
@@ -63,7 +63,7 @@ class PatrolLogger:
                     ],
                 )
             except (psycopg2.DatabaseError, psycopg2.OperationalError) as e:
-                logger.error(f"Failed to log patrol results: {e}")
+                raise RuntimeError(f"Failed to log patrol results - health check results not recorded: {e}") from e
 
     def log_performance(self, cur, elapsed_seconds: float, status: str) -> None:
         """Log patrol execution performance metrics."""

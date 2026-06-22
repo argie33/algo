@@ -119,7 +119,7 @@ class TradeAuditLogger:
                 )
 
         except (psycopg2.DatabaseError, psycopg2.OperationalError) as e:
-            logger.warning(f"Position sizing audit log failed: {e}")
+            raise RuntimeError(f"Position sizing audit log failed - cannot record sizing (safety gate failed): {e}") from e
 
     def log_stop_loss_calculation(
         self,
@@ -190,7 +190,7 @@ class TradeAuditLogger:
                 )
 
         except (psycopg2.DatabaseError, psycopg2.OperationalError) as e:
-            logger.warning(f"Stop loss audit log failed: {e}")
+            raise RuntimeError(f"Stop loss audit log failed - cannot record stop loss (safety gate failed): {e}") from e
 
     def log_exit_execution(
         self,
@@ -251,7 +251,7 @@ class TradeAuditLogger:
                 )
 
         except (psycopg2.DatabaseError, psycopg2.OperationalError) as e:
-            logger.warning(f"Exit execution audit log failed: {e}")
+            raise RuntimeError(f"Exit execution audit log failed - cannot record exit (safety gate failed): {e}") from e
 
     def get_position_sizing_summary(self, days: int = 30) -> dict[str, Any]:
         """Get position sizing statistics for dashboard."""
@@ -280,10 +280,9 @@ class TradeAuditLogger:
                         "max_cascade_multiplier": float(row[3]) if row[3] else 1.0,
                         "avg_position_size_pct": float(row[4]) if row[4] else 0,
                     }
-            return {"error": "No data"}
+            raise RuntimeError("No position sizing data available")
         except (psycopg2.DatabaseError, psycopg2.OperationalError) as e:
-            logger.warning(f"Position sizing summary failed: {e}")
-            return {"error": str(e)}
+            raise RuntimeError(f"Position sizing summary query failed: {e}") from e
 
     def get_exit_rule_distribution(self, days: int = 30) -> dict[str, int]:
         """Get which exit rules fire most (diagnostic)."""
@@ -351,7 +350,7 @@ class TradeAuditLogger:
                     ),
                 )
         except (psycopg2.DatabaseError, psycopg2.OperationalError) as e:
-            logger.warning(f"Portfolio snapshot audit log failed: {e}")
+            raise RuntimeError(f"Portfolio snapshot audit log failed - cannot record snapshot (safety gate failed): {e}") from e
 
     def log_position_reconciliation_audit(
         self,
@@ -385,4 +384,4 @@ class TradeAuditLogger:
                     ),
                 )
         except (psycopg2.DatabaseError, psycopg2.OperationalError) as e:
-            logger.warning(f"Position reconciliation audit log failed: {e}")
+            raise RuntimeError(f"Position reconciliation audit log failed - cannot record reconciliation (safety gate failed): {e}") from e
