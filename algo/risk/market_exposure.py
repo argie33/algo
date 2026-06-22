@@ -1318,6 +1318,9 @@ class MarketExposure:
 
             factors_json = json.dumps(result["factors"])
             halt_reasons_json = json.dumps(result["halt_reasons"])
+            regime = result.get("regime")
+            if not regime:
+                raise ValueError("Market regime calculation missing. Cannot build exposure summary.")
             with DatabaseContext("write") as cur:
                 cur.execute(
                     """
@@ -1341,7 +1344,7 @@ class MarketExposure:
                         eval_date,
                         exposure_pct,
                         result.get("raw_score", exposure_pct),
-                        result.get("regime", "unknown"),
+                        regime,
                         result["distribution_days"],
                         factors_json,
                         halt_reasons_json,
