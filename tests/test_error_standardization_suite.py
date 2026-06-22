@@ -263,9 +263,9 @@ class TestFileStandardization:
             try:
                 content = route_file.read_text(encoding="utf-8", errors="ignore")
                 # Should have imports or decorators related to error handling
-                assert (
-                    "error_response" in content or "handle_db_error" in content or "@db_route_handler" in content
-                ), f"{route_file.name} missing error handling"
+                assert "error_response" in content or "handle_db_error" in content or "@db_route_handler" in content, (
+                    f"{route_file.name} missing error handling"
+                )
             except Exception:
                 # Skip files with encoding issues - they're not critical for this test
                 pass

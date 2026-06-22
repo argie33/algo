@@ -197,12 +197,16 @@ def _industry_list(cur, params):
         momentum_label = (
             "Strong"
             if composite is not None and composite >= 60
-            else "Moderate" if composite is not None and composite >= 45 else "Weak"
+            else "Moderate"
+            if composite is not None and composite >= 45
+            else "Weak"
         )
         trend_label = (
             "Uptrend"
             if perf_20d is not None and perf_20d > 2
-            else "Downtrend" if perf_20d is not None and perf_20d < -2 else "Sideways"
+            else "Downtrend"
+            if perf_20d is not None and perf_20d < -2
+            else "Sideways"
         )
 
         current_rank = ind.get("current_rank")
