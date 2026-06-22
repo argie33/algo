@@ -4,7 +4,7 @@ import logging
 import time
 from datetime import date, datetime, timezone
 from functools import wraps
-from typing import Any, NoReturn
+from typing import Any, Callable, NoReturn, TypeVar
 
 import psycopg2
 import psycopg2.errors
@@ -19,8 +19,11 @@ from exceptions import (
     TooManyRequests,
     UnprocessableEntity,
 )
+from psycopg2.extensions import cursor
 
 from utils.validation import APIResponseValidator
+
+T = TypeVar('T')
 
 logger = logging.getLogger(__name__)
 
@@ -338,7 +341,7 @@ def raise_db_error(error: Exception, context: str = "database operation") -> NoR
         raise ServiceUnavailable(message)
 
 
-def extract_param(params, key: str, required: bool = False, default: str | None = None) -> str | None:
+def extract_param(params: dict[str, Any] | None, key: str, required: bool = False, default: str | None = None) -> str | None:
     """Extract parameter from CGI-style params dict (dict of lists).
 
     Args:
@@ -437,13 +440,13 @@ def list_response(
 
 
 def execute_with_timeout(
-    cur,
+    cur: cursor,
     query: str,
-    params=None,
+    params: Any = None,
     timeout_sec: int = 10,
     max_attempts: int = 2,
     backoff_multiplier: float = 1.5,
-):
+) -> list[Any]:
     """Execute query with automatic timeout handling and exponential backoff retry.
 
     ALL database queries should use this wrapper to prevent hanging queries.
@@ -527,7 +530,7 @@ def execute_with_timeout(
 
 
 def check_data_freshness(
-    cur, table_name: str, date_column: str = "date", warning_days: int | None = None
+    cur: cursor, table_name: str, date_column: str = "date", warning_days: int | None = None
 ) -> dict[str, Any]:
     """Check how fresh data is in a table.
 
@@ -788,7 +791,7 @@ def handle_db_error(
     return status_code, error_type, message
 
 
-def db_route_handler(operation_name: str, default_error_response=None):
+def db_route_handler(operation_name: str, default_error_response: Any = None) -> Callable[[Callable[..., T]], Callable[..., T]]:
     """Decorator for route handlers to standardize database error handling.
 
     Eliminates redundant try-except blocks by wrapping function with:
@@ -810,9 +813,9 @@ def db_route_handler(operation_name: str, default_error_response=None):
         def _get_users(cur): ...
     """
 
-    def decorator(func):
+    def decorator(func: Callable[..., T]) -> Callable[..., T]:
         @wraps(func)
-        def wrapper(*args, **kwargs):
+        def wrapper(*args: Any, **kwargs: Any) -> T:
             try:
                 return func(*args, **kwargs)
             except (
@@ -825,11 +828,11 @@ def db_route_handler(operation_name: str, default_error_response=None):
                 code, error_type, message = handle_db_error(e, operation_name)
                 # Always return proper error response with correct HTTP status code
                 # Never return 200 OK with empty data - use proper 503/504/500 instead
-                return json_response(
+                return json_response(  # type: ignore[return-value]
                     code,
                     {"errorType": error_type, "message": message, "_error": message},
                 )
 
-        return wrapper
+        return wrapper  # type: ignore[return-value]
 
     return decorator
