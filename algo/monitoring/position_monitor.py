@@ -407,7 +407,14 @@ class PositionMonitor:
             logger.error(f"ERROR: {msg}")
             raise PositionValidationError(msg)
         active_stop = float(current_stop) if current_stop else init_stop
-        target_hits = int(target_hits or 0)
+        if target_hits is None:
+            logger.critical(
+                f"CRITICAL: {symbol} — target_hits is NULL in algo_trades. "
+                f"Cannot evaluate position without target hit count. "
+                f"Database schema or trade data corrupted."
+            )
+            raise ValueError(f"Position {symbol}: target_hits missing. Cannot evaluate target progress.")
+        target_hits = int(target_hits)
         days_held = (current_date - trade_date).days
         try:
             max_hold = int(self.config["max_hold_days"])
