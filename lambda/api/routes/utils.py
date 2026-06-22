@@ -521,7 +521,9 @@ def execute_with_timeout(
         raise last_error
 
 
-def check_data_freshness(cur, table_name: str, date_column: str = "date", warning_days: int | None = None) -> dict[str, Any]:
+def check_data_freshness(
+    cur, table_name: str, date_column: str = "date", warning_days: int | None = None
+) -> dict[str, Any]:
     """Check how fresh data is in a table.
 
     Args:

@@ -498,9 +498,7 @@ class PositionMonitor:
         try:
             market_dist_days = self._fetch_market_dist_days(current_date, cur)
         except (ValueError, RuntimeError) as e:
-            raise PositionValidationError(
-                f"Cannot evaluate market distribution days for position {symbol}: {e}"
-            ) from e
+            raise PositionValidationError(f"Cannot evaluate market distribution days for position {symbol}: {e}") from e
 
         try:
             max_dist_days = int(self.config["max_distribution_days"])

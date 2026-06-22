@@ -175,6 +175,7 @@ class AlertManager:
     def _get_sns_client(self):
         if self._sns_client is None:
             import boto3
+
             self._sns_client = boto3.client("sns", region_name=os.getenv("AWS_REGION", "us-east-1"))
         return self._sns_client
 

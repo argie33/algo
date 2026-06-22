@@ -110,8 +110,7 @@ class CashFlowLoader(OptimalLoader):
             return None
         if not cik:
             raise RuntimeError(
-                f"[CASH_FLOW] CIK resolution failed for {symbol}. "
-                "Cannot fetch cash flow data without SEC EDGAR CIK."
+                f"[CASH_FLOW] CIK resolution failed for {symbol}. Cannot fetch cash flow data without SEC EDGAR CIK."
             )
         logger.debug("Symbol %s resolved to CIK %s", symbol, cik)
         try:

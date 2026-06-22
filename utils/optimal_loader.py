@@ -1124,7 +1124,9 @@ class OptimalLoader:
                 with MetricsPublisher() as m:
                     m.put_loader_result(self.table_name, self._stats)
             except (ValueError, ZeroDivisionError, TypeError) as e:
-                raise RuntimeError(f"Loader metrics publishing failed - orchestrator health checks incomplete: {e}") from e
+                raise RuntimeError(
+                    f"Loader metrics publishing failed - orchestrator health checks incomplete: {e}"
+                ) from e
 
             try:
                 with DatabaseContext("read") as cur:

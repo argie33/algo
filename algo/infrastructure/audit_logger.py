@@ -119,7 +119,9 @@ class TradeAuditLogger:
                 )
 
         except (psycopg2.DatabaseError, psycopg2.OperationalError) as e:
-            raise RuntimeError(f"Position sizing audit log failed - cannot record sizing (safety gate failed): {e}") from e
+            raise RuntimeError(
+                f"Position sizing audit log failed - cannot record sizing (safety gate failed): {e}"
+            ) from e
 
     def log_stop_loss_calculation(
         self,
@@ -350,7 +352,9 @@ class TradeAuditLogger:
                     ),
                 )
         except (psycopg2.DatabaseError, psycopg2.OperationalError) as e:
-            raise RuntimeError(f"Portfolio snapshot audit log failed - cannot record snapshot (safety gate failed): {e}") from e
+            raise RuntimeError(
+                f"Portfolio snapshot audit log failed - cannot record snapshot (safety gate failed): {e}"
+            ) from e
 
     def log_position_reconciliation_audit(
         self,
@@ -384,4 +388,6 @@ class TradeAuditLogger:
                     ),
                 )
         except (psycopg2.DatabaseError, psycopg2.OperationalError) as e:
-            raise RuntimeError(f"Position reconciliation audit log failed - cannot record reconciliation (safety gate failed): {e}") from e
+            raise RuntimeError(
+                f"Position reconciliation audit log failed - cannot record reconciliation (safety gate failed): {e}"
+            ) from e

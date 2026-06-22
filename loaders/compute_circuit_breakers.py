@@ -242,7 +242,12 @@ def _compute_weekly_loss(cur, today: date) -> float:
     """)
     week_end = cur.fetchone()
 
-    if not week_start or not week_end or week_start["total_portfolio_value"] is None or week_end["total_portfolio_value"] is None:
+    if (
+        not week_start
+        or not week_end
+        or week_start["total_portfolio_value"] is None
+        or week_end["total_portfolio_value"] is None
+    ):
         raise ValueError("Insufficient portfolio snapshot data for 7-day loss calculation")
 
     sv = float(week_start["total_portfolio_value"])

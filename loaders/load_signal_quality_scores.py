@@ -239,7 +239,9 @@ class SignalQualityScoresLoader(OptimalLoader):
         if not buy_sell_rows:
             logger.debug(
                 "[signal_quality_scores] %s: No buy/sell signals for %s..%s; skipping (delisted or not in buy_sell_daily)",
-                symbol, start, end,
+                symbol,
+                start,
+                end,
             )
             return None
 
@@ -254,7 +256,9 @@ class SignalQualityScoresLoader(OptimalLoader):
         if not scores:
             logger.debug(
                 "[signal_quality_scores] %s: No scores computed for %s..%s; skipping",
-                symbol, start, end,
+                symbol,
+                start,
+                end,
             )
             return None
 

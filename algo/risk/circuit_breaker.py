@@ -202,7 +202,9 @@ class CircuitBreaker:
         halt_threshold = abs(threshold)
         return {
             "halted": dd >= halt_threshold,
-            "reason": (f"Drawdown {dd:.2f}% >= {halt_threshold:.0f}%" if dd >= halt_threshold else f"Drawdown {dd:.2f}%"),
+            "reason": (
+                f"Drawdown {dd:.2f}% >= {halt_threshold:.0f}%" if dd >= halt_threshold else f"Drawdown {dd:.2f}%"
+            ),
             "value": round(dd, 2),
             "threshold": threshold,
         }

@@ -234,7 +234,8 @@ class SignalsDailyLoader(OptimalLoader):
                 if tech_count == 0:
                     logger.warning(
                         "[buy_sell_daily] %s: No technical data for %s; skipping (delisted or not traded that day)",
-                        symbol, end,
+                        symbol,
+                        end,
                     )
                     return None
 

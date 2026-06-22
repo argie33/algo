@@ -88,11 +88,15 @@ class EarningsCalendarLoader(OptimalLoader):
                                         "earnings_date": ed_date,
                                         "announce_time": None,
                                         "eps_estimate": (
-                                            float(eps_est) if (eps_est := cal.get("Earnings Average")) is not None else None
+                                            float(eps_est)
+                                            if (eps_est := cal.get("Earnings Average")) is not None
+                                            else None
                                         ),
                                         "actual_eps": None,
                                         "revenue_estimate": (
-                                            int(rev_est) if (rev_est := cal.get("Revenue Average")) is not None else None
+                                            int(rev_est)
+                                            if (rev_est := cal.get("Revenue Average")) is not None
+                                            else None
                                         ),
                                         "actual_revenue": None,
                                         "fiscal_period": None,
