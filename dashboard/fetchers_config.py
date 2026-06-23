@@ -15,7 +15,7 @@ def record_data_quality_issue(*args: object, **kwargs: object) -> None:
     """Placeholder for data quality issue recording."""
 
 
-_data_status_cache: dict = {}
+_data_status_cache: dict[str, Any] = {}
 _data_status_lock = threading.Lock()
 
 

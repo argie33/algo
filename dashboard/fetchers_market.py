@@ -15,7 +15,7 @@ def record_data_quality_issue(*args: object, **kwargs: object) -> None:
     """Placeholder for data quality issue recording."""
 
 
-_markets_cache: dict = {}
+_markets_cache: dict[str, Any] = {}
 _markets_lock = threading.Lock()
 
 
@@ -43,7 +43,7 @@ def _format_fetcher_error(fetcher_name: str, error: Exception) -> str:
         return f"Fetcher {fetcher_name} ({context}) - {error_type}"
 
 
-def _get_endpoint_path(fetcher_key: str, params: dict | None = None) -> str:
+def _get_endpoint_path(fetcher_key: str, params: dict[str, Any] | None = None) -> str:
     """Map fetcher key to full endpoint path with optional query parameters.
 
     Examples:

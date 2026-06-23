@@ -11,7 +11,7 @@ from dashboard.fetchers import load_all
 ET = ZoneInfo("America/New_York")
 
 
-def diagnose_data_issues():
+def diagnose_data_issues() -> None:
     """Load all dashboard data and report what's broken vs working."""
     print("\n" + "=" * 80)
     print("DASHBOARD DATA DIAGNOSTIC")

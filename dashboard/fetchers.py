@@ -60,6 +60,7 @@ logger = logging.getLogger(__name__)
 
 
 __all__ = [
+    "FETCHER_METADATA",
     "fetch_activity",
     "fetch_algo_config",
     "fetch_algo_metrics",

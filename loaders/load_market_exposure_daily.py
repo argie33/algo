@@ -26,7 +26,7 @@ logging.basicConfig(level=logging.INFO, format="%(asctime)s - %(name)s - %(level
 logger = logging.getLogger(__name__)
 
 
-def main():
+def main() -> int:
     """Compute and persist market_exposure_daily for latest trading date."""
     from utils.db.context import DatabaseContext
 

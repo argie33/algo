@@ -240,10 +240,10 @@ def run(
     run_date: _date,
     dry_run: bool,
     verbose: bool,
-    log_phase_result_fn: Callable,
+    log_phase_result_fn: Callable[..., Any],
     qualified_trades: list[dict[str, Any]] | None = None,
-    exposure_constraints: dict | None = None,
-    check_halt_flag: Callable | None = None,
+    exposure_constraints: dict[str, Any] | None = None,
+    check_halt_flag: Callable[..., Any] | None = None,
     executor: Any = None,
 ) -> PhaseResult:
     """Execute Phase 8: Entry Execution.

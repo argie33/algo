@@ -224,7 +224,7 @@ def enrich_technical_data(
         raise RuntimeError(f"[ENRICHMENT] Unexpected error during enrichment: {e}") from e
 
 
-def main():
+def main() -> int:
     """Main entry point."""
     parser = argparse.ArgumentParser(description="Enrich buy_sell_daily with technical data")
     parser.add_argument(

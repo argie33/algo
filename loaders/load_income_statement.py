@@ -177,7 +177,7 @@ class IncomeStatementLoader(OptimalLoader):
                     f"(watermark incremental load — keeping {len(filtered)} newer rows; "
                     f"{len(null_revenue_years)} null-revenue years also included)"
                 )
-            return filtered or None
+            return filtered
         except RuntimeError:
             raise
         except (ValueError, ZeroDivisionError, TypeError) as e:
