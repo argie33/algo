@@ -74,7 +74,7 @@ def check_loader_config():
         from utils.db import DatabaseContext
 
         with DatabaseContext("read") as cur:
-            AlgoConfig(cur)
+            AlgoConfig()
 
             # Check yfinance rate limit
             logger.info("\n🔗 yfinance Rate Limiting:")
