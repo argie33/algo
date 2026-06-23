@@ -88,7 +88,10 @@ def _calculate_adjusted_win_rate(perf: dict[str, Any] | None, pos: dict[str, Any
         l_val = perf.get("l") if perf else None
         if wr_val is None or w_val is None or l_val is None:
             raise ValueError("Performance data missing: cannot calculate win rate without w/l/wr counts")
-        return (wr_val or 0), (w_val or 0), (l_val or 0)
+        wr_f = safe_float(wr_val, default=0.0)
+        w_i = safe_int(w_val, default=0)
+        l_i = safe_int(l_val, default=0)
+        return wr_f, w_i, l_i
 
     closed_wins = perf.get("w")
     closed_losses = perf.get("l")
@@ -167,17 +170,21 @@ def panel_portfolio(
     )
 
     # Daily return / Unrealized P&L
-    dr_s = f"[{G if (dr or 0) >= 0 else R}]{sign(dr or 0)}{(dr or 0):.2f}%[/]" if dr is not None else "[dim]--[/]"
-    urp_s = f"[{G if (urp or 0) >= 0 else R}]{sign(urp or 0)}{(urp or 0):.2f}%[/]" if urp is not None else "[dim]--[/]"
+    dr_safe = dr if dr is not None else 0
+    urp_safe = urp if urp is not None else 0
+    dr_s = f"[{G if dr_safe >= 0 else R}]{sign(dr_safe)}{dr_safe:.2f}%[/]" if dr is not None else "[dim]--[/]"
+    urp_s = f"[{G if urp_safe >= 0 else R}]{sign(urp_safe)}{urp_safe:.2f}%[/]" if urp is not None else "[dim]--[/]"
     tbl.add_row(cell("Daily Return:", dr_s), cell("Unrealized P&L:", urp_s))
 
     # Total return / Max drawdown
     cum_v = float(cum) if cum is not None else None
     mxdd_v = float(mxdd) if mxdd is not None else None
-    cc = G if (cum_v or 0) >= 0 else R
-    cum_val = f"[{cc}]{sign(cum_v or 0)}{(cum_v or 0):.2f}%[/]" if cum_v is not None else "[dim]--[/]"
+    cum_v_safe = cum_v if cum_v is not None else 0
+    cc = G if cum_v_safe >= 0 else R
+    cum_val = f"[{cc}]{sign(cum_v_safe)}{cum_v_safe:.2f}%[/]" if cum_v is not None else "[dim]--[/]"
     dd_v: float | None = abs(mxdd_v) if mxdd_v is not None else None
-    dd_c = R if (dd_v or 0) >= 15 else (Y if (dd_v or 0) >= 5 else G)
+    dd_v_safe = dd_v if dd_v is not None else 0
+    dd_c = R if dd_v_safe >= 15 else (Y if dd_v_safe >= 5 else G)
     dd_val = f"[{dd_c}]-{dd_v:.1f}%[/]" if dd_v is not None else "[dim]--[/]"
     tbl.add_row(cell("Total Return:", cum_val), cell("Max Drawdown:", dd_val))
 
@@ -251,12 +258,12 @@ def panel_performance_spark(
     str_c = G if streak >= 0 else R
     unrlzd = perf.get("unrealized_pnl")
     pnl_val_raw = perf.get("pnl")
-    pnl_val = float(pnl_val_raw) if pnl_val_raw is not None else None
+    pnl_val = safe_float(pnl_val_raw, default=None)
     pnl_c = G if pnl_val is not None and pnl_val >= 0 else R
-    pf = perf.get("profit_factor")
+    pf = safe_float(perf.get("profit_factor"), default=None)
     pf_s = f"{pf:.2f}" if pf is not None else "--"
     pf_c = G if pf is not None and pf >= 1.5 else (Y if pf is not None and pf >= 1.0 else R)
-    exp = perf.get("expectancy")
+    exp = safe_float(perf.get("expectancy"), default=None)
     exp_c = G if (exp is None or exp >= 0) else R
     exp_s = f"{exp:.2f}R" if exp is not None else "--"
     sharpe_v = perf.get("sharpe")
@@ -294,8 +301,9 @@ def panel_performance_spark(
 
     # P&L row
     pnl_s = f"[{pnl_c}]{fmt_money(perf.get('pnl'))}[/]"
-    if unrlzd is not None:
-        unrlzd_s = f"[{G if (unrlzd or 0) >= 0 else R}]{fmt_money(unrlzd)}[/]"
+    unrlzd_f = safe_float(unrlzd, default=None)
+    if unrlzd_f is not None:
+        unrlzd_s = f"[{G if unrlzd_f >= 0 else R}]{fmt_money(unrlzd)}[/]"
         grid_rows.append((cell("Realized P&L:", pnl_s), cell("Unrealized P&L:", unrlzd_s)))
     else:
         grid_rows.append((cell("Realized P&L:", pnl_s), Text("")))
@@ -484,12 +492,12 @@ def panel_portfolio_perf_expanded(  # noqa: C901
         closed_losses = int(l_val) if l_val is not None and isinstance(l_val, (int, float)) else 0
         streak_val = perf.get("streak")
         streak = int(streak_val) if streak_val is not None and isinstance(streak_val, (int, float)) else 0
-        pnl_val = perf.get("pnl")
-        unrlzd_pnl = perf.get("unrealized_pnl")
-        open_cnt = perf.get("open_count")
-        pf = perf.get("profit_factor")
-        sharpe_v = perf.get("sharpe")
-        exp = perf.get("expectancy")
+        pnl_val = safe_float(perf.get("pnl"), default=None)
+        unrlzd_pnl = safe_float(perf.get("unrealized_pnl"), default=None)
+        open_cnt = safe_int(perf.get("open_count"), default=None)
+        pf = safe_float(perf.get("profit_factor"), default=None)
+        sharpe_v = safe_float(perf.get("sharpe"), default=None)
+        exp = safe_float(perf.get("expectancy"), default=None)
         dd_val = perf.get("maxdd")
         dd_v = float(dd_val) if dd_val is not None and isinstance(dd_val, (int, float)) else 0
         avg_win = perf.get("avg_win")
@@ -529,9 +537,11 @@ def panel_portfolio_perf_expanded(  # noqa: C901
             "Streak:",
             Text(str_s, style=str_c),
         )
+        pnl_val_safe = pnl_val if pnl_val is not None else 0
+        unrlzd_pnl_safe = unrlzd_pnl if unrlzd_pnl is not None else 0
         perfblk.add_row(
             "Total P&L:",
-            Text(fmt_money(pnl_val), style=G if (pnl_val or 0) >= 0 else R),
+            Text(fmt_money(pnl_val), style=G if pnl_val_safe >= 0 else R),
             "Profit Factor:",
             Text(f"{pf:.2f}" if pf else "--", style=pf_c),
         )
@@ -539,7 +549,7 @@ def panel_portfolio_perf_expanded(  # noqa: C901
             "Unrealized P&L:",
             Text(
                 fmt_money(unrlzd_pnl) if unrlzd_pnl is not None else "--",
-                style=G if (unrlzd_pnl or 0) >= 0 else R,
+                style=G if unrlzd_pnl_safe >= 0 else R,
             ),
             "Open Positions:",
             Text(str(open_cnt) if open_cnt is not None else "--", style="white"),
@@ -606,36 +616,42 @@ def panel_portfolio_perf_expanded(  # noqa: C901
         anl.add_column("val")
         anl.add_column("label2", style="dim")
         anl.add_column("val2")
-        sharpe252 = perf_anl.get("sharpe252")
-        sortino = perf_anl.get("sortino")
-        calmar = perf_anl.get("calmar")
-        wr50 = perf_anl.get("wr50")
-        avg_w_r = perf_anl.get("avg_w_r")
-        avg_l_r = perf_anl.get("avg_l_r")
-        exp2 = perf_anl.get("expectancy")
-        maxdd2 = perf_anl.get("maxdd")
+        sharpe252 = safe_float(perf_anl.get("sharpe252"), default=None)
+        sortino = safe_float(perf_anl.get("sortino"), default=None)
+        calmar = safe_float(perf_anl.get("calmar"), default=None)
+        wr50 = safe_float(perf_anl.get("wr50"), default=None)
+        avg_w_r = safe_float(perf_anl.get("avg_w_r"), default=None)
+        avg_l_r = safe_float(perf_anl.get("avg_l_r"), default=None)
+        exp2 = safe_float(perf_anl.get("expectancy"), default=None)
+        maxdd2 = safe_float(perf_anl.get("maxdd"), default=None)
+        sharpe252_safe = sharpe252 if sharpe252 is not None else 0
+        sortino_safe = sortino if sortino is not None else 0
+        calmar_safe = calmar if calmar is not None else 0
+        wr50_safe = wr50 if wr50 is not None else 0
+        exp2_safe = exp2 if exp2 is not None else 0
+        maxdd2_safe = maxdd2 if maxdd2 is not None else 0
         anl.add_row(
             "Sharpe (252d):",
             Text(
                 f"{sharpe252:.2f}" if sharpe252 is not None else "--",
-                style=(G if (sharpe252 or 0) >= 1 else (Y if (sharpe252 or 0) >= 0 else R)),
+                style=(G if sharpe252_safe >= 1 else (Y if sharpe252_safe >= 0 else R)),
             ),
             "Sortino:",
             Text(
                 f"{sortino:.2f}" if sortino is not None else "--",
-                style=G if (sortino or 0) >= 1.5 else (Y if (sortino or 0) >= 0 else R),
+                style=G if sortino_safe >= 1.5 else (Y if sortino_safe >= 0 else R),
             ),
         )
         anl.add_row(
             "Calmar:",
             Text(
                 f"{calmar:.2f}" if calmar else "--",
-                style=G if (calmar or 0) >= 0.5 else (Y if (calmar or 0) >= 0 else R),
+                style=G if calmar_safe >= 0.5 else (Y if calmar_safe >= 0 else R),
             ),
             "Win Rate (50T):",
             Text(
                 f"{wr50:.0f}%" if wr50 else "--",
-                style=G if (wr50 or 0) >= 50 else (Y if (wr50 or 0) >= 42 else R),
+                style=G if wr50_safe >= 50 else (Y if wr50_safe >= 42 else R),
             ),
         )
         anl.add_row(
@@ -647,11 +663,11 @@ def panel_portfolio_perf_expanded(  # noqa: C901
         if exp2 is not None or maxdd2 is not None:
             anl.add_row(
                 "Expectancy:",
-                Text(f"{exp2:.2f}R" if exp2 else "--", style=G if (exp2 or 0) >= 0 else R),
+                Text(f"{exp2:.2f}R" if exp2 else "--", style=G if exp2_safe >= 0 else R),
                 "Max Drawdown:",
                 Text(
                     f"-{abs(maxdd2):.1f}%" if maxdd2 else "--",
-                    style=(R if abs(maxdd2 or 0) >= 15 else (Y if abs(maxdd2 or 0) >= 5 else G)),
+                    style=(R if abs(maxdd2_safe) >= 15 else (Y if abs(maxdd2_safe) >= 5 else G)),
                 ),
             )
         rows.append(anl)
@@ -679,8 +695,10 @@ def panel_portfolio_perf_expanded(  # noqa: C901
                 svar = safe_float(risk_dict.get("svar"), default=None)
                 risk_date = risk_dict.get("date")
 
-                beta_c = R if (beta or 0) >= 1.2 else (Y if (beta or 0) >= 0.8 else G)
-                conc_c = R if (conc5 or 0) >= 35 else (Y if (conc5 or 0) >= 25 else "white")
+                beta_safe = beta if beta is not None else 0
+                conc5_safe = conc5 if conc5 is not None else 0
+                beta_c = R if beta_safe >= 1.2 else (Y if beta_safe >= 0.8 else G)
+                conc_c = R if conc5_safe >= 35 else (Y if conc5_safe >= 25 else "white")
                 var_c = R if var95_f >= 4 else (Y if var95_f >= 2 else "white")
 
                 rtbl.add_row(
@@ -733,7 +751,8 @@ def panel_portfolio_perf_expanded(  # noqa: C901
             ctbl2.add_column("pnl", justify="right", min_width=7)
             for pct, sym, val, pnl in conc_rows[:15]:
                 bar_f = int(min(pct, 25) / 25 * 12)
-                pc = G if (pnl or 0) >= 0 else R
+                pnl_safe = pnl if pnl is not None else 0
+                pc = G if pnl_safe >= 0 else R
                 bar_s = Text.from_markup(f"[{pc}]{'█' * bar_f}[/][dim]{'░' * (12 - bar_f)}[/]")
                 conc_c = R if pct >= 20 else (Y if pct >= 15 else "white")
                 ctbl2.add_row(
