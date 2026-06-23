@@ -621,6 +621,287 @@ def _format_audit_log_summary(audit: list) -> list[Text]:
     return rows
 
 
+# ── Helper functions for panel_algo_health() ──────────────────────────────────
+
+
+def _age_h(r: dict) -> float | None:
+    """Extract age in hours from health item dict."""
+    ah = r.get("age_hours")
+    if ah is not None:
+        return float(ah)
+    ad = r.get("age")
+    if ad is not None:
+        return float(ad) * 24
+    return None
+
+
+def _age_fmt_c(r: dict) -> str:
+    """Format age with hours/days suffix."""
+    h = _age_h(r)
+    if h is None:
+        return "?"
+    return f"{h:.0f}h" if h < 24 else f"{h / 24:.1f}d"
+
+
+def _extract_phase_metrics_from_pdata(pdata: dict | None) -> tuple[int, int, int]:
+    """Extract signals_generated, entries_executed, exits_executed from phase data.
+
+    Returns:
+        (signals_gen, entries_exec, exits_exec) - all ints >= 0
+    """
+    if not pdata:
+        return 0, 0, 0
+
+    sg = pdata.get("signals_generated") or 0
+    ee = (pdata.get("entries_executed") or pdata.get("trades_executed")) or 0
+    xe = pdata.get("exits_executed") or 0
+    return int(sg) if sg else 0, int(ee) if ee else 0, int(xe) if xe else 0
+
+
+def _parse_phase_data_json(pdata_raw: str | dict | None) -> dict | None:
+    """Parse phase data field (may be string or dict)."""
+    if isinstance(pdata_raw, str):
+        try:
+            return json.loads(pdata_raw)
+        except (json.JSONDecodeError, ValueError) as e:
+            logger.warning(f"Failed to parse phase metrics data JSON: {e}")
+            return None
+    elif isinstance(pdata_raw, dict):
+        return pdata_raw
+    return None
+
+
+def _format_health_data_stale_section(stale: list, hlth_list: list) -> str:
+    """Format data health when stale tables exist."""
+    crit_stale = [r for r in stale if r.get("role") == "CRIT"]
+    if crit_stale:
+        rtt_pfx = f"[bold {R}]CRIT STALE[/]  "
+    else:
+        rtt_pfx = f"[{Y}]{len(stale)} stale[/]  "
+
+    stale_parts = []
+    ordered = crit_stale + [r for r in stale if r not in crit_stale]
+    for r in ordered[:4]:
+        nm = (r.get("tbl") or "--")[:16]
+        cc = f"bold {R}" if r.get("role") == "CRIT" else R
+        stale_parts.append(f"[{R}]✗[/][{cc}]{nm}[/] [dim]{_age_fmt_c(r)}[/]")
+    return f"{rtt_pfx}" + "  ".join(stale_parts)
+
+
+def _format_health_data_fresh_section(hlth_list: list, crit: list, ready_to_trade: bool | None, ages: list) -> str:
+    """Format data health when all tables are fresh."""
+    if ready_to_trade is False:
+        rtt_badge = f"[bold {R}]✗ NOT READY[/]"
+    elif ready_to_trade is True:
+        rtt_badge = f"[{G}]✓ READY TO TRADE[/]"
+    else:
+        rtt_badge = f"[{G}]✓ Data OK[/]"
+
+    n_total = len(hlth_list)
+    n_crit = len(crit)
+    oldest_s = f"  [dim]oldest: {_age_fmt_c(max(hlth_list, key=lambda r: _age_h(r) or 0))}[/]" if ages else ""
+    crit_s = f"  [dim]crit {n_crit}[/][{G}] ok[/]" if n_crit else ""
+    return f"{rtt_badge}  [dim]{n_total} tables fresh[/]{crit_s}{oldest_s}"
+
+
+def _build_phase_badges_and_metrics(run: dict, phase_results: list) -> tuple[list, int, int, int]:
+    """Build phase badges and extract aggregated metrics from phase results.
+
+    Returns:
+        (phase_badges_list, signals_gen, entries_exec, exits_exec)
+    """
+    phase_badges = []
+    signals_gen = 0
+    entries_exec = 0
+    exits_exec = 0
+
+    for p in phase_results:
+        raw = (p.get("name") or p.get("phase", "")).lower()
+        parts_p = raw.split("_")
+        base = "_".join(parts_p[:2]) if len(parts_p) >= 2 else raw
+        short = PHASE_NAMES.get(base, base.replace("phase_", "P"))[:8]
+        ps = p.get("status", "")
+        sc, si = HealthFormatter.format_phase_badge(ps)
+        phase_badges.append(f"[{sc}]{si}[dim]{short}[/][/]")
+
+        # Extract metrics from phase data
+        pdata = p.get("data")
+        pdata = _parse_phase_data_json(pdata)
+        sg, ee, xe = _extract_phase_metrics_from_pdata(pdata)
+        if sg:
+            signals_gen = max(signals_gen, sg)
+        if ee:
+            entries_exec = max(entries_exec, ee)
+        if xe:
+            exits_exec = max(exits_exec, xe)
+
+    return phase_badges, signals_gen, entries_exec, exits_exec
+
+
+def _build_phase_badges_from_audit(phases_list: list) -> list:
+    """Build phase badges from audit log format."""
+    phase_badges = []
+    for p in phases_list:
+        at = p.get("action_type", "")
+        if not at.startswith("phase_"):
+            continue
+        parts_p = at.split("_")
+        num = parts_p[1] if len(parts_p) > 1 else "?"
+        if not num.isdigit():
+            continue
+        phase_key = f"phase_{num}"
+        name_parts = parts_p[2:] if len(parts_p) > 2 else []
+        default_short = "_".join(name_parts)[:7] if name_parts else f"P{num}"
+        short = PHASE_NAMES.get(phase_key, default_short)[:8]
+        st = p.get("status", "")
+        sc, si = HealthFormatter.format_phase_badge(st)
+        phase_badges.append(f"[{sc}]{si}[dim]{short}[/][/]")
+    return phase_badges
+
+
+def _format_algo_actions_and_activity(
+    signals_gen: int, entries_exec: int, exits_exec: int, today_m: dict, valid_metrics: list
+) -> list[Text]:
+    """Format 'what did the algo do' summary and 5-day activity strip."""
+    rows: list[Text] = []
+
+    # "What did the algo do today?" summary
+    action_parts = []
+    if signals_gen > 0:
+        action_parts.append(f"[dim]Signals found:[/][white]{signals_gen}[/]")
+    if entries_exec > 0:
+        action_parts.append(f"[dim]Entries executed:[/][{G}]{entries_exec}[/]")
+    else:
+        action_parts.append(f"[dim]Entries:[/][{DIM}]0[/]")
+    if exits_exec > 0:
+        action_parts.append(f"[dim]Exits executed:[/][{Y}]{exits_exec}[/]")
+    else:
+        action_parts.append(f"[dim]Exits:[/][{DIM}]0[/]")
+
+    avg_sig_score = today_m.get("avg_signal_score")
+    if avg_sig_score is not None:
+        avg_sig_v = float(avg_sig_score)
+        if avg_sig_v > 0:
+            sc_c = G if avg_sig_v >= 80 else (Y if avg_sig_v >= 65 else "white")
+            action_parts.append(f"[dim]Avg score:[/][{sc_c}]{avg_sig_v:.0f}[/]")
+
+    if action_parts:
+        rows.append(Text.from_markup("  ".join(action_parts)))
+
+    # 5-day activity strip
+    if len(valid_metrics) >= 2:
+        day_parts = []
+        for m in valid_metrics[:5]:
+            d = m.get("date")
+            d_s = d.strftime("%d") if hasattr(d, "strftime") else str(d or "")[-2:]
+            en = m.get("entries")
+            ex = m.get("exits")
+            en_s = str(int(en)) if en is not None else "--"
+            ex_s = str(int(ex)) if ex is not None else "--"
+            e_c = G if en is not None and en > 0 else DIM
+            x_c = Y if ex is not None and ex > 0 else DIM
+            day_parts.append(f"[dim]{d_s}:[/][{e_c}]{en_s}↑[/][{x_c}]{ex_s}↓[/]")
+        rows.append(Text.from_markup("[dim]5d activity:[/] " + "  ".join(day_parts)))
+
+    return rows
+
+
+def _format_run_history_summary(valid_hist: list) -> list[Text]:
+    """Format run history badges and summary stats."""
+    rows: list[Text] = []
+    if not valid_hist:
+        return rows
+
+    n_ok = sum(1 for r in valid_hist if (r.get("overall_status") or "").lower() in ("success", "completed"))
+    n_hlt = sum(1 for r in valid_hist if (r.get("overall_status") or "").lower() == "halted")
+    n_err = sum(1 for r in valid_hist if (r.get("overall_status") or "").lower() in ("error", "failed"))
+    total_h = len(valid_hist)
+
+    badges = []
+    for r in valid_hist[:7]:
+        s = (r.get("overall_status") or "").lower()
+        badges.append(
+            f"[{G}]OK[/]" if s in ("success", "completed") else (f"[{Y}]~[/]" if s == "halted" else f"[{R}]X[/]")
+        )
+
+    wc = G if n_ok == total_h else (Y if n_ok > 0 else R)
+    rows.append(
+        Text.from_markup(
+            f"[dim]Last {total_h} runs:[/] {''.join(badges)}"
+            f"  [{wc}]{n_ok}/{total_h} success[/]"
+            + (f"  [{Y}]{n_hlt} halted[/]" if n_hlt else "")
+            + (f"  [{R}]{n_err} error[/]" if n_err else "")
+        )
+    )
+
+    last_halt = next(
+        (r for r in valid_hist if (r.get("overall_status") or "").lower() == "halted"),
+        None,
+    )
+    if last_halt:
+        lhr = last_halt.get("halt_reason", "")
+        lph = _fmt_phases_halted(last_halt.get("phases_halted"))
+        body = lhr or lph
+        if body:
+            ph_s = f"  [dim]({lph})[/]" if lph and lph not in lhr else ""
+            rows.append(Text.from_markup(f"  [{Y}]→ {body[:68]}[/]{ph_s}"))
+
+    return rows
+
+
+def _format_risk_snapshot(risk_dict: dict) -> list[Text]:
+    """Format risk metrics (VaR, CVaR, Beta, Concentration)."""
+    rows: list[Text] = []
+    var95_val = risk_dict.get("var95")
+    if not var95_val or float(var95_val) <= 0:
+        return rows
+
+    rows.append(Rule(style="dim"))
+    beta_val = risk_dict.get("beta")
+    conc5_val = risk_dict.get("conc5")
+    cvar95_val = risk_dict.get("cvar95")
+    svar_val = risk_dict.get("svar")
+
+    beta_c = R if beta_val >= 1.2 else (Y if beta_val >= 0.8 else G)  # type: ignore[operator]
+    conc_c = R if conc5_val >= 35 else (Y if conc5_val >= 25 else "white")  # type: ignore[operator]
+    var_c = HealthFormatter.var_color(var95_val)
+
+    risk_parts = [
+        f"[dim]VaR 95%:[/][{var_c}]{var95_val:.2f}%[/]",
+        f"[dim]CVaR 95%:[/][{var_c}]{cvar95_val:.2f}%[/]",
+        f"[dim]Beta:[/][{beta_c}]{beta_val:.2f}[/]",
+        f"[dim]Top-5 Conc:[/][{conc_c}]{conc5_val:.0f}%[/]",
+    ]
+    if svar_val and float(svar_val) > 0:
+        risk_parts.append(f"[dim]Stressed VaR:[/][{R}]{float(svar_val):.2f}%[/]")
+    rows.append(Text.from_markup("  ".join(risk_parts)))
+
+    return rows
+
+
+def _format_notifications_section(valid_notifs: list) -> list[Text]:
+    """Format notifications summary."""
+    rows: list[Text] = []
+    if not valid_notifs:
+        return rows
+
+    rows.append(Rule(style="dim"))
+    notif_parts = []
+    for n in valid_notifs[:5]:
+        sc = SEV_COLORS.get(n.get("severity", "info"), DIM)
+        raw_t = n.get("title", "") or ""
+        title = next(
+            (v for k, v in NOTIF_SHORT_NAMES.items() if k in raw_t.lower()),
+            raw_t[:20],
+        )
+        age = fmt_age(n.get("created_at"))
+        unread = "-" if not n.get("seen", True) else "·"
+        notif_parts.append(f"[{sc}]{unread}{title}[/][dim]{age}[/]")
+    rows.append(Text.from_markup("[dim]Alerts:[/] " + "  ".join(notif_parts)))
+
+    return rows
+
+
 def panel_status(
     act,
     hlth,
@@ -1009,32 +1290,7 @@ def panel_algo_health(
         if "phase_results" not in run:
             return 0
         phase_results = run["phase_results"]
-        for p in phase_results:
-            raw = (p.get("name") or p.get("phase", "")).lower()
-            parts_p = raw.split("_")
-            base = "_".join(parts_p[:2]) if len(parts_p) >= 2 else raw
-            short = PHASE_NAMES.get(base, base.replace("phase_", "P"))[:8]
-            ps = p.get("status", "")
-            sc, si = HealthFormatter.format_phase_badge(ps)
-            phase_badges.append(f"[{sc}]{si}[dim]{short}[/][/]")
-            pdata = p.get("data")
-            if isinstance(pdata, str):
-                try:
-                    pdata = json.loads(pdata)
-                except (json.JSONDecodeError, ValueError) as e:
-                    logger.warning(f"Failed to parse phase metrics data JSON: {e}")
-                    pdata = None
-            elif not isinstance(pdata, dict) and pdata is not None:
-                pdata = None
-            sg = pdata.get("signals_generated") if pdata else None
-            ee = (pdata.get("entries_executed") or pdata.get("trades_executed")) if pdata else None
-            xe = pdata.get("exits_executed") if pdata else None
-            if sg:
-                signals_gen = max(signals_gen, int(sg))
-            if ee:
-                entries_exec = max(entries_exec, int(ee))
-            if xe:
-                exits_exec = max(exits_exec, int(xe))
+        phase_badges, signals_gen, entries_exec, exits_exec = _build_phase_badges_and_metrics(run, phase_results)
     elif run_valid or act_valid:
         src = run if run_valid else act
         phases_list = src.get("phase_results") or src.get("phases")
@@ -1044,22 +1300,7 @@ def panel_algo_health(
                 "Phase status will not be displayed."
             )
             phases_list = []
-        for p in phases_list:
-            at = p.get("action_type", "")
-            if not at.startswith("phase_"):
-                continue
-            parts_p = at.split("_")
-            num = parts_p[1] if len(parts_p) > 1 else "?"
-            if not num.isdigit():
-                continue
-            # "phase_1_data_freshness" → base "phase_1", name from remaining parts
-            phase_key = f"phase_{num}"
-            name_parts = parts_p[2:] if len(parts_p) > 2 else []
-            default_short = "_".join(name_parts)[:7] if name_parts else f"P{num}"
-            short = PHASE_NAMES.get(phase_key, default_short)[:8]
-            st = p.get("status", "")
-            sc, si = HealthFormatter.format_phase_badge(st)
-            phase_badges.append(f"[{sc}]{si}[dim]{short}[/][/]")
+        phase_badges = _build_phase_badges_from_audit(phases_list)
 
     if phase_badges:
         rows.append(Text.from_markup("  ".join(phase_badges)))
@@ -1076,78 +1317,18 @@ def panel_algo_health(
         if ex is not None:
             exits_exec = int(ex)
 
-    # "What did the algo do today?" summary — the core insight
-    action_parts = []
-    if signals_gen > 0:
-        action_parts.append(f"[dim]Signals found:[/][white]{signals_gen}[/]")
-    if entries_exec > 0:
-        action_parts.append(f"[dim]Entries executed:[/][{G}]{entries_exec}[/]")
-    else:
-        action_parts.append(f"[dim]Entries:[/][{DIM}]0[/]")
-    if exits_exec > 0:
-        action_parts.append(f"[dim]Exits executed:[/][{Y}]{exits_exec}[/]")
-    else:
-        action_parts.append(f"[dim]Exits:[/][{DIM}]0[/]")
-    avg_sig_score = today_m.get("avg_signal_score")
-    if avg_sig_score is not None:
-        avg_sig_v = float(avg_sig_score)
-        if avg_sig_v > 0:
-            sc_c = G if avg_sig_v >= 80 else (Y if avg_sig_v >= 65 else "white")
-            action_parts.append(f"[dim]Avg score:[/][{sc_c}]{avg_sig_v:.0f}[/]")
-    if action_parts:
-        rows.append(Text.from_markup("  ".join(action_parts)))
-
-    # 5-day activity strip (last 5 days)
-    if len(valid_metrics) >= 2:
-        day_parts = []
-        for m in valid_metrics[:5]:
-            d = m.get("date")
-            d_s = d.strftime("%d") if hasattr(d, "strftime") else str(d or "")[-2:]
-            en = m.get("entries")
-            ex = m.get("exits")
-            # Show "--" if counts are missing, not 0 (which would hide incomplete data)
-            en_s = str(int(en)) if en is not None else "--"
-            ex_s = str(int(ex)) if ex is not None else "--"
-            e_c = G if en is not None and en > 0 else DIM
-            x_c = Y if ex is not None and ex > 0 else DIM
-            day_parts.append(f"[dim]{d_s}:[/][{e_c}]{en_s}↑[/][{x_c}]{ex_s}↓[/]")
-        rows.append(Text.from_markup("[dim]5d activity:[/] " + "  ".join(day_parts)))
+    # "What did the algo do today?" summary and 5-day activity
+    action_activity_rows = _format_algo_actions_and_activity(
+        signals_gen, entries_exec, exits_exec, today_m, valid_metrics
+    )
+    rows.extend(action_activity_rows)
 
     rows.append(Rule(style="dim"))
 
     # ── C: Run history (last 7 runs as badges) ───────────────────────────────
     valid_hist = safe_get_list(exec_hist)
-    if valid_hist:
-        n_ok = sum(1 for r in valid_hist if (r.get("overall_status") or "").lower() in ("success", "completed"))
-        n_hlt = sum(1 for r in valid_hist if (r.get("overall_status") or "").lower() == "halted")
-        n_err = sum(1 for r in valid_hist if (r.get("overall_status") or "").lower() in ("error", "failed"))
-        total_h = len(valid_hist)
-        badges = []
-        for r in valid_hist[:7]:
-            s = (r.get("overall_status") or "").lower()
-            badges.append(
-                f"[{G}]OK[/]" if s in ("success", "completed") else (f"[{Y}]~[/]" if s == "halted" else f"[{R}]X[/]")
-            )
-        wc = G if n_ok == total_h else (Y if n_ok > 0 else R)
-        rows.append(
-            Text.from_markup(
-                f"[dim]Last {total_h} runs:[/] {''.join(badges)}"
-                f"  [{wc}]{n_ok}/{total_h} success[/]"
-                + (f"  [{Y}]{n_hlt} halted[/]" if n_hlt else "")
-                + (f"  [{R}]{n_err} error[/]" if n_err else "")
-            )
-        )
-        last_halt = next(
-            (r for r in valid_hist if (r.get("overall_status") or "").lower() == "halted"),
-            None,
-        )
-        if last_halt:
-            lhr = last_halt.get("halt_reason", "")
-            lph = _fmt_phases_halted(last_halt.get("phases_halted"))
-            body = lhr or lph
-            if body:
-                ph_s = f"  [dim]({lph})[/]" if lph and lph not in lhr else ""
-                rows.append(Text.from_markup(f"  [{Y}]→ {body[:68]}[/]{ph_s}"))
+    history_rows = _format_run_history_summary(valid_hist)
+    rows.extend(history_rows)
 
     rows.append(Rule(style="dim"))
 
@@ -1157,50 +1338,14 @@ def panel_algo_health(
         ready_to_trade = hlth.get("ready_to_trade") if isinstance(hlth, dict) else None
         stale = [r for r in hlth_list if isinstance(r, dict) and r.get("st") != "ok"] if hlth_list else []
 
-        def _age_h(r):
-            ah = r.get("age_hours")
-            if ah is not None:
-                return float(ah)
-            ad = r.get("age")
-            if ad is not None:
-                return float(ad) * 24
-            return None
-
-        def _age_fmt_c(r):
-            h = _age_h(r)
-            if h is None:
-                return "?"
-            return f"{h:.0f}h" if h < 24 else f"{h / 24:.1f}d"
-
         if not stale and hlth_list:
             crit = [r for r in hlth_list if r.get("role") == "CRIT"]
-            if ready_to_trade is False:
-                rtt_badge = f"[bold {R}]✗ NOT READY[/]"
-            elif ready_to_trade is True:
-                rtt_badge = f"[{G}]✓ READY TO TRADE[/]"
-            else:
-                rtt_badge = f"[{G}]✓ Data OK[/]"
-            n_total = len(hlth_list)
-            n_crit = len(crit)
             ages = [_age_h(r) for r in hlth_list if _age_h(r) is not None]
-            oldest_s = f"  [dim]oldest: {_age_fmt_c(max(hlth_list, key=lambda r: _age_h(r) or 0))}[/]" if ages else ""
-            crit_s = f"  [dim]crit {n_crit}[/][{G}] ok[/]" if n_crit else ""
-            rows.append(Text.from_markup(f"{rtt_badge}  [dim]{n_total} tables fresh[/]{crit_s}{oldest_s}"))
+            health_text = _format_health_data_fresh_section(hlth_list, crit, ready_to_trade, ages)
+            rows.append(Text.from_markup(health_text))
         else:
-            crit_stale = [r for r in stale if r.get("role") == "CRIT"]
-            if ready_to_trade is False:
-                rtt_pfx = f"[bold {R}]✗ NOT READY[/]  "
-            elif crit_stale:
-                rtt_pfx = f"[bold {R}]CRIT STALE[/]  "
-            else:
-                rtt_pfx = f"[{Y}]{len(stale)} stale[/]  "
-            stale_parts = []
-            ordered = crit_stale + [r for r in stale if r not in crit_stale]
-            for r in ordered[:4]:
-                nm = (r.get("tbl") or "--")[:16]
-                cc = f"bold {R}" if r.get("role") == "CRIT" else R
-                stale_parts.append(f"[{R}]✗[/][{cc}]{nm}[/] [dim]{_age_fmt_c(r)}[/]")
-            rows.append(Text.from_markup(f"{rtt_pfx}" + "  ".join(stale_parts)))
+            health_text = _format_health_data_stale_section(stale, hlth_list)
+            rows.append(Text.from_markup(health_text))
 
     # ── E: Risk snapshot (VaR / CVaR / Beta / Concentration) ────────────────────
     risk_dict = safe_get_dict(risk) if not has_error(risk) else {}
