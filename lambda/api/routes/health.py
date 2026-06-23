@@ -4,7 +4,6 @@ import logging
 from datetime import datetime, timezone
 from typing import Any
 
-from api_router import get_import_status as get_api_import_status
 from api_utils.config import get_config
 from psycopg2.extensions import cursor
 from routes.utils import (
@@ -55,6 +54,8 @@ def _handle_basic(cur: cursor) -> Any:
     Fast health check: DB connectivity + key metrics (optimized).
     Uses simple, indexed queries only. Complex checks move to /health/detailed.
     """
+    from api_router import get_import_status as get_api_import_status
+
     import_status = get_api_import_status()
 
     health: dict[str, Any] = {

@@ -168,9 +168,10 @@ def lambda_handler(event, context):
         # FIXED Issue #12: Parse execution_mode from event (EventBridge Scheduler passes it)
         execution_mode = event.get("execution_mode", os.getenv("ORCHESTRATOR_EXECUTION_MODE", "auto")).strip().lower()
         if execution_mode not in ("auto", "paper", "live"):
-            logger.critical(f"Invalid execution_mode: {execution_mode} (must be 'auto', 'paper', or 'live')")
+            logger.critical(f"Invalid execution_mode: {execution_mode}")
             raise ValueError(
-                f"[CONFIG] Invalid orchestrator execution_mode: {execution_mode}. Halting to prevent trading in unknown mode."
+                f"[CONFIG] Invalid execution_mode {execution_mode} (must be 'auto', 'paper', or 'live'). "
+                "Halting to prevent trading in unknown mode."
             )
 
         # F-02: Check Secrets Manager for intraday circuit breaker halt flag.

@@ -89,7 +89,8 @@ class PositionSizer:
         except RuntimeError as e:
             logger.critical(f"Live Alpaca portfolio value fetch CRITICAL FAILURE: {e}")
             raise RuntimeError(
-                f"[POSITION_SIZE] Failed to fetch current portfolio equity from Alpaca (cannot size positions without current value): {e}"
+                "[POSITION_SIZE] Failed to fetch current portfolio equity from Alpaca "
+                "(cannot size positions without current value)"
             ) from e
 
         def fetch_snapshot(cur):

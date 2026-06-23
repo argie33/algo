@@ -2,7 +2,7 @@
 
 import logging
 import re
-from typing import Any
+from typing import Any, cast
 
 import psycopg2
 import psycopg2.errors
@@ -251,7 +251,7 @@ def _dispatch(
     if method == "POST" and path == "/api/algo/pre-trade-impact":
         if not isinstance(body, dict):
             raise_api_error(400, "bad_request", "Request body is required and must be a JSON object")
-        return _calculate_pre_trade_impact(cur, body)
+        return _calculate_pre_trade_impact(cur, cast(dict[str, Any], body))
 
     # Position management endpoints
     if path.startswith("/api/position/"):

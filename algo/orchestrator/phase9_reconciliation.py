@@ -595,10 +595,10 @@ def run(
         _populate_signal_trade_performance(log_phase_result_fn)
 
         # Step 2: Compute IC via attribution engine
-        attr_result = _compute_signal_attribution(run_date, log_phase_result_fn)
+        _compute_signal_attribution(run_date, log_phase_result_fn)
 
         # Step 3: Run weight optimization (if enough trades)
-        opt_result = _optimize_weights(config, run_date, log_phase_result_fn)
+        _optimize_weights(config, run_date, log_phase_result_fn)
 
         # Step 4: Generate institutional daily report
         _generate_daily_report(run_date, log_phase_result_fn)
