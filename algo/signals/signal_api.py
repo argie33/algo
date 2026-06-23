@@ -26,7 +26,7 @@ class SignalAPI:
     SignalComputer (caching, query optimization, internal helpers) are hidden.
     """
 
-    def __init__(self):
+    def __init__(self) -> None:
         """Initialize the signal API with a shared SignalComputer instance."""
         config = get_config()
         self._computer = SignalComputer(config)

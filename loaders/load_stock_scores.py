@@ -211,7 +211,7 @@ class StockScoresLoader(OptimalLoader):
         except (psycopg2.DatabaseError, psycopg2.OperationalError) as e:
             raise RuntimeError(f"Operation failed: {e}") from e
 
-    def _get_growth_metrics(self, cur, symbol: str) -> dict | None:
+    def _get_growth_metrics(self, cur: Any, symbol: str) -> dict[str, Any] | None:
         """Fetch growth metrics for symbol."""
         try:
             cur.execute(
@@ -232,7 +232,7 @@ class StockScoresLoader(OptimalLoader):
         except (psycopg2.DatabaseError, psycopg2.OperationalError) as e:
             raise RuntimeError(f"Operation failed: {e}") from e
 
-    def _get_value_metrics(self, cur, symbol: str) -> dict | None:
+    def _get_value_metrics(self, cur: Any, symbol: str) -> dict[str, Any] | None:
         """Fetch value metrics for symbol."""
         try:
             cur.execute(
@@ -253,7 +253,7 @@ class StockScoresLoader(OptimalLoader):
         except (psycopg2.DatabaseError, psycopg2.OperationalError) as e:
             raise RuntimeError(f"Operation failed: {e}") from e
 
-    def _get_positioning_metrics(self, cur, symbol: str) -> dict | None:
+    def _get_positioning_metrics(self, cur: Any, symbol: str) -> dict[str, Any] | None:
         """Fetch positioning metrics for symbol."""
         try:
             cur.execute(
@@ -271,7 +271,7 @@ class StockScoresLoader(OptimalLoader):
         except (psycopg2.DatabaseError, psycopg2.OperationalError) as e:
             raise RuntimeError(f"Operation failed: {e}") from e
 
-    def _get_stability_metrics(self, cur, symbol: str) -> dict | None:
+    def _get_stability_metrics(self, cur: Any, symbol: str) -> dict[str, Any] | None:
         """Fetch stability metrics for symbol."""
         try:
             cur.execute(
@@ -291,7 +291,7 @@ class StockScoresLoader(OptimalLoader):
         except (psycopg2.DatabaseError, psycopg2.OperationalError) as e:
             raise RuntimeError(f"Operation failed: {e}") from e
 
-    def _get_momentum_metrics(self, cur, symbol: str) -> dict | None:
+    def _get_momentum_metrics(self, cur: Any, symbol: str) -> dict[str, Any] | None:
         """Fetch momentum/RS metrics for symbol using DATE-based lookups (not OFFSET).
 
         Uses date arithmetic to find approximate prices at 1m/3m/6m/12m ago.
@@ -344,7 +344,7 @@ class StockScoresLoader(OptimalLoader):
         except (psycopg2.DatabaseError, psycopg2.OperationalError) as e:
             raise RuntimeError(f"Operation failed: {e}") from e
 
-    def _score_quality(self, metrics: dict | None) -> float | None:
+    def _score_quality(self, metrics: dict[str, Any] | None) -> float | None:
         """Score quality metrics on 0-100 scale. Returns None if no real data."""
         if not metrics:
             return None
@@ -392,7 +392,7 @@ class StockScoresLoader(OptimalLoader):
 
         return sum(scores) / len(scores) if scores else None
 
-    def _score_growth(self, metrics: dict | None) -> float | None:
+    def _score_growth(self, metrics: dict[str, Any] | None) -> float | None:
         """Score growth metrics on 0-100 scale. Returns None if no real data.
 
         Uses weighted blend: 1Y growth (60%) + 3Y CAGR (30%) + 5Y CAGR (10%).
@@ -404,7 +404,7 @@ class StockScoresLoader(OptimalLoader):
         weighted_sum = 0.0
         total_weight = 0.0
 
-        def _score_single_growth(val, cap):
+        def _score_single_growth(val: float | None, cap: float) -> float | None:
             """Score a single growth rate capped at `cap`%."""
             if val is None:
                 return None
@@ -445,7 +445,7 @@ class StockScoresLoader(OptimalLoader):
 
         return weighted_sum / total_weight if total_weight > 0 else None
 
-    def _score_value(self, metrics: dict | None) -> float | None:
+    def _score_value(self, metrics: dict[str, Any] | None) -> float | None:
         """Score value metrics on 0-100 scale. Returns None if no real data.
 
         Uses P/E (primary), P/B (secondary), FCF yield (secondary), dividend yield (bonus).
@@ -501,7 +501,7 @@ class StockScoresLoader(OptimalLoader):
 
         return weighted_sum / total_weight if total_weight > 0 else None
 
-    def _score_positioning(self, metrics: dict | None) -> float | None:
+    def _score_positioning(self, metrics: dict[str, Any] | None) -> float | None:
         """Score positioning metrics on 0-100 scale. Returns None if no real data."""
         if not metrics:
             return None
@@ -543,7 +543,7 @@ class StockScoresLoader(OptimalLoader):
 
         return weighted_sum / total_weight if total_weight > 0 else None
 
-    def _score_stability(self, metrics: dict | None) -> float | None:
+    def _score_stability(self, metrics: dict[str, Any] | None) -> float | None:
         """Score stability metrics on 0-100 scale. Returns None if no real data.
 
         Uses 12-month volatility (primary), beta vs market (secondary),
@@ -601,7 +601,7 @@ class StockScoresLoader(OptimalLoader):
 
         return weighted_sum / total_weight if total_weight > 0 else None
 
-    def _score_momentum(self, metrics: dict | None) -> float | None:
+    def _score_momentum(self, metrics: dict[str, Any] | None) -> float | None:
         """Score momentum metrics on 0-100 scale. Returns None if no real data.
 
         Weights favor recent momentum (1m/3m) over longer-term (12m) for swing trading.
@@ -639,7 +639,7 @@ class StockScoresLoader(OptimalLoader):
     def post_run(self) -> None:
         self.update_rs_percentiles()
 
-    def update_rs_percentiles(self):
+    def update_rs_percentiles(self) -> None:
         """Batch pass: rank all stocks by momentum_score and write true RS percentile.
 
         Uses PERCENT_RANK() so a stock scoring higher than 90% of peers gets rs_percentile=90.

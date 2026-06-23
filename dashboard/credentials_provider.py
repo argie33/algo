@@ -4,6 +4,7 @@ import logging
 import os
 import subprocess
 from pathlib import Path
+from typing import cast
 
 logger = logging.getLogger(__name__)
 
@@ -160,7 +161,7 @@ class CredentialsProvider:
             )
             import json
 
-            return json.loads(result.stdout)
+            return cast(dict[str, object], json.loads(result.stdout))
         except subprocess.CalledProcessError as e:
             raise RuntimeError(f"Terraform output command failed: {e.stderr}") from e
         except Exception as e:

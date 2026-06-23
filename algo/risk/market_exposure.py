@@ -58,11 +58,13 @@ Persists daily to market_exposure_daily table for dashboard / audit.
 
 import json
 import logging
+from collections.abc import Callable
 from datetime import date as _date
-from typing import Any, Callable
+from typing import Any
 
 import psycopg2
 from psycopg2 import sql as pgsql
+from psycopg2.extensions import cursor as PsycopgCursor
 
 from algo.risk.market_factor_calculator import MarketFactorCalculator
 from utils.db import DatabaseContext
@@ -90,7 +92,7 @@ class MarketExposure:
     def __init__(self) -> None:
         self.calculator = MarketFactorCalculator()
 
-    def _with_cursor(self, operation: Callable[[Any], Any]) -> Any:
+    def _with_cursor(self, operation: Callable[[PsycopgCursor[Any]], Any]) -> Any:
         """Execute an operation with a cursor via DatabaseContext."""
         try:
             with DatabaseContext("read") as cur:

@@ -3,7 +3,7 @@
 """Pattern-based signal methods — base detection, VCP, 3WT, HTF."""
 
 import logging
-from typing import Any
+from typing import Any, cast
 
 from utils.db.context import DatabaseContext
 
@@ -58,7 +58,7 @@ class SignalPatternsMixin:
         return thresholds
 
     def base_detection(self, symbol: str, eval_date: Any) -> dict[str, Any]:
-        def _fetch_and_analyze(cur):
+        def _fetch_and_analyze(cur: Any) -> dict[str, Any]:
             cur.execute(
                 """
                 SELECT date, high, low, close, volume FROM price_daily
@@ -120,7 +120,7 @@ class SignalPatternsMixin:
             }
 
         try:
-            return self._with_cursor(_fetch_and_analyze)
+            return cast(dict[str, Any], self._with_cursor(_fetch_and_analyze))
         except (ValueError, TypeError, IndexError) as e:
             logger.debug(f"Base detection error for {symbol}: {e}")
             return {"in_base": False, "reason": f"Calculation error: {str(e)[:50]}"}
@@ -128,7 +128,7 @@ class SignalPatternsMixin:
             logger.error(f"Unexpected error in base_detection({symbol}): {e}")
             return {"in_base": False, "reason": "Unexpected error"}
 
-    def vcp_detection(self, symbol: str, eval_date) -> dict[str, Any]:
+    def vcp_detection(self, symbol: str, eval_date: Any) -> dict[str, Any]:
         """
         Volatility Contraction Pattern (Minervini's signature setup).
 
@@ -144,7 +144,7 @@ class SignalPatternsMixin:
         }
         """
 
-        def _analyze_vcp(cur):
+        def _analyze_vcp(cur: Any) -> dict[str, Any]:
             cur.execute(
                 """
                 SELECT date, high, low, close FROM price_daily
@@ -189,7 +189,7 @@ class SignalPatternsMixin:
                 "tight_pattern": tight_pattern,
             }
 
-        return self._with_cursor(_analyze_vcp)
+        return cast(dict[str, Any], self._with_cursor(_analyze_vcp))
 
     def classify_base_type(self, symbol: str, eval_date) -> dict[str, Any]:
         """
@@ -331,7 +331,7 @@ class SignalPatternsMixin:
                 **characteristics,
             }
 
-        return self._with_cursor(_classify_with_cursor)
+        return cast(dict[str, Any], self._with_cursor(_classify_with_cursor))
 
     def base_type_stop(self, symbol: str, eval_date, entry_price: float, atr: float | None = None) -> dict[str, Any]:
         """Compute optimal stop loss based on the SPECIFIC base type detected.
@@ -447,7 +447,7 @@ class SignalPatternsMixin:
                 "risk_pct": round((entry_price - candidate) / entry_price * 100, 2),
             }
 
-        return self._with_cursor(_compute_stop)
+        return cast(dict[str, Any], self._with_cursor(_compute_stop))
 
     def three_weeks_tight(self, symbol: str, eval_date) -> dict[str, Any]:
         """
@@ -523,7 +523,7 @@ class SignalPatternsMixin:
                 "breakout_imminent": breakout_imminent,
             }
 
-        return self._with_cursor(_analyze_3wt)
+        return cast(dict[str, Any], self._with_cursor(_analyze_3wt))
 
     def high_tight_flag(self, symbol: str, eval_date) -> dict[str, Any]:
         """
@@ -610,4 +610,4 @@ class SignalPatternsMixin:
                 }
             return {"is_htf": False}
 
-        return self._with_cursor(_analyze_htf)
+        return cast(dict[str, Any], self._with_cursor(_analyze_htf))

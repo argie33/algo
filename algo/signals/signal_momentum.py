@@ -3,7 +3,7 @@
 """Momentum and breakout signal methods — TD Sequential, power trend, pocket pivot, distribution."""
 
 import logging
-from typing import Any
+from typing import Any, cast
 
 import psycopg2
 

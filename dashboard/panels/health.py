@@ -64,7 +64,7 @@ class HealthFormatter:
         return str(lat or "")[:5]
 
     @staticmethod
-    def pc(v: list[Any] | int) -> int:
+    def pc(v: list[Any] | int | None) -> int:
         """Count phases: convert list or int to count."""
         if isinstance(v, list):
             return len(v)
@@ -941,7 +941,7 @@ def panel_status(
             else (
                 "[bold yellow]~ HALTED[/]"
                 if (run_valid and isinstance(run, dict) and run.get("halted"))
-                else ("[bold bright_red]✗ ERROR[/]" if (run_valid and run.get("errored")) else "[dim]RUN[/]")
+                else ("[bold bright_red]✗ ERROR[/]" if (run_valid and isinstance(run, dict) and run.get("errored")) else "[dim]RUN[/]")
             )
         )
         age_s = f"  [dim]{fmt_age(run_at_top)}[/]" if run_at_top else ""
@@ -983,17 +983,17 @@ def panel_status(
         rows.append(Rule(style="dim"))
 
     # Current run status — shown prominently even when history is empty
-    run_id = run.get("run_id") if run_valid else None
-    run_at = run.get("run_at") if run else None
+    run_id = run.get("run_id") if (run_valid and isinstance(run, dict)) else None
+    run_at = run.get("run_at") if (isinstance(run, dict)) else None
     if not run_id and act_valid:
-        act_run_id = act.get("run_id")
+        act_run_id = act.get("run_id") if (isinstance(act, dict)) else None
         if act_run_id:
             run_id = act_run_id[:26]
-        run_at = act.get("run_at")
+        run_at = act.get("run_at") if (isinstance(act, dict)) else None
     if run_id:
         age_s = f"  [dim]{fmt_age(run_at)}[/]" if run_at else ""
         r_stat = ""
-        if run_valid:
+        if run_valid and isinstance(run, dict):
             if run.get("success"):
                 r_stat = f"  [{G}]OK COMPLETED[/]"
             elif run.get("halted"):
@@ -1003,11 +1003,10 @@ def panel_status(
         rows.append(Text.from_markup(f"[dim]Run:[/] [white]{run_id[:30]}[/]{age_s}{r_stat}"))
 
         # Show phases_completed/halted/errored counts from the run object
-        if run_valid:
-            run_cast = cast(dict[str, Any], run)
-            n_done = HealthFormatter.pc(run_cast.get("phases_completed"))
-            n_hlt = HealthFormatter.pc(run_cast.get("phases_halted"))
-            n_err = HealthFormatter.pc(run_cast.get("phases_errored"))
+        if run_valid and isinstance(run, dict):
+            n_done = HealthFormatter.pc(run.get("phases_completed"))
+            n_hlt = HealthFormatter.pc(run.get("phases_halted"))
+            n_err = HealthFormatter.pc(run.get("phases_errored"))
             if n_done + n_hlt + n_err > 0:
                 done_s = f"[{G}]{n_done} phases OK[/]"
                 hlt_s = f"  [{Y}]{n_hlt} halted[/]" if n_hlt else ""
@@ -1092,10 +1091,12 @@ def panel_status(
         if phase_badges:
             rows.append(Text.from_markup("  ".join(phase_badges)))
 
-        run_cast2 = cast(dict[str, Any], run)
-        n_ok = HealthFormatter.pc(run_cast2.get("phases_completed"))
-        n_hlt = HealthFormatter.pc(run_cast2.get("phases_halted"))
-        n_err = HealthFormatter.pc(run_cast2.get("phases_errored"))
+        if run_valid and isinstance(run, dict):
+            n_ok = HealthFormatter.pc(run.get("phases_completed"))
+            n_hlt = HealthFormatter.pc(run.get("phases_halted"))
+            n_err = HealthFormatter.pc(run.get("phases_errored"))
+        else:
+            n_ok = n_hlt = n_err = 0
         if n_ok + n_hlt + n_err > 0:
             ok_s = f"[{G}]{n_ok} phases done[/]"
             hlt_s = f"  [{Y}]{n_hlt} halted[/]" if n_hlt else ""
@@ -1446,18 +1447,17 @@ def _build_results_panel(run: dict[str, Any] | None, act: dict[str, Any] | None,
     age_s = f"  [dim]{fmt_age(run_at)}[/]" if run_at else ""
 
     if run_valid and isinstance(run, dict):
-        run_b = cast(dict[str, Any], run)
         sts = (
             f"[bold {G}]OK COMPLETED[/]"
-            if run_b.get("success") and not run_b.get("halted")
-            else (f"[bold {Y}]~ HALTED[/]" if run_b.get("halted") else f"[bold {R}]X ERROR[/]")
+            if run.get("success") and not run.get("halted")
+            else (f"[bold {Y}]~ HALTED[/]" if run.get("halted") else f"[bold {R}]X ERROR[/]")
         )
         rid = run.get("run_id", "")
         right_rows.append(Text.from_markup(f"{sts}{age_s}  [dim]{rid}[/]"))
         halt_r = run.get("halt_reason", "")
         summary = run.get("summary", "")
         if run.get("halted") or halt_r:
-            for label, detail in _best_halt_reason(halt_r, run_b.get("phase_results") or []):
+            for label, detail in _best_halt_reason(halt_r, run.get("phase_results") or []):
                 prefix = f"{label}: " if label else ""
                 right_rows.append(Text.from_markup(f"  [{Y}]-> {prefix}{detail}[/]"))
         elif summary:

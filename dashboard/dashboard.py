@@ -1191,7 +1191,7 @@ def _fetch_and_validate_aws_credentials() -> tuple[str, str, str]:
                 )
             sys.exit(1)
 
-    return cast(tuple[str, str, str], (aws_url, pool_id, client_id))
+    return (aws_url, pool_id, client_id)
 
 
 def _configure_aws_and_auth(aws_url: str, pool_id: str, client_id: str) -> None:

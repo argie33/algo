@@ -2,7 +2,7 @@
 
 import logging
 from collections.abc import Callable
-from typing import Any
+from typing import Any, cast
 
 logger = logging.getLogger(__name__)
 
@@ -13,7 +13,7 @@ except ImportError as e:
 
     def register_panel(*args: Any, **kwargs: Any) -> Callable[[Any], Any]:
         if args and callable(args[0]):
-            return args[0]
+            return cast(Callable[[Any], Any], args[0])
         return lambda fn: fn
 
 
@@ -57,7 +57,7 @@ from .data_extractors import (
 def _format_signal_date(date_val: Any) -> str:
     """Format date value for display."""
     if hasattr(date_val, "strftime"):
-        return date_val.strftime("%b %d")
+        return cast(str, date_val.strftime("%b %d"))
     if date_val and isinstance(date_val, str) and len(date_val) >= 10:
         try:
             from datetime import date as _date
@@ -119,7 +119,8 @@ def _build_signal_header(sig_data: dict[str, Any], scores_data: dict[str, Any] |
 
     spark_s: str = ""
     trend_field = safe_get_field(overview, "trend", [])
-    trend: list[Any] = safe_get_list(trend_field) if trend_field else []
+    trend_result = safe_get_list(trend_field) if trend_field else None
+    trend: list[Any] = trend_result if trend_result is not None else []
     if trend and len(trend) >= 2:
         counts: list[int] = [
             (int(safe_get_field(t, "buy_n")) if safe_get_field(t, "buy_n") is not None else 0) for t in reversed(trend)
@@ -129,7 +130,8 @@ def _build_signal_header(sig_data: dict[str, Any], scores_data: dict[str, Any] |
         spark_s = f"  [{CY}]{spark}[/]"
 
     near_field = safe_get_field(overview, "near", [])
-    near: list[Any] = safe_get_list(near_field) if near_field else []
+    near_result = safe_get_list(near_field) if near_field else None
+    near: list[Any] = near_result if near_result is not None else []
     n_near: int = len(near) if near else 0
     near_hint: str = f"  [{CY}]{n_near} near[/]" if n_near else ""
 
@@ -214,7 +216,8 @@ def _build_funnel_row(sig_eval_data: dict | None) -> list:
 
     if ev_tot is not None and ev_t5 is not None:
         ev_c = G if ev_t5 >= 20 else (Y if ev_t5 >= 5 else R)
-        rejected: list[Any] = safe_get_list(safe_get_field(funnel, "rejected", []))
+        rejected_result = safe_get_list(safe_get_field(funnel, "rejected", []))
+        rejected: list[Any] = rejected_result if rejected_result is not None else []
 
         blocks_s: str = ""
         if rejected:
@@ -237,7 +240,7 @@ def _build_funnel_row(sig_eval_data: dict | None) -> list:
                 f"[dim]→[/]{ev_t3}[dim]→[/]{ev_t4}[dim]→[/][{ev_c}]{ev_t5}[/]"
             )
         else:
-            funnel_s: str = f"[dim]{ev_tot} →[/] [{ev_c}]{ev_t5} qualified[/]"
+            funnel_s = f"[dim]{ev_tot} →[/] [{ev_c}]{ev_t5} qualified[/]"
 
         avg_s: str = f"  [dim]avg score:[/][white]{ev_avg:.0f}[/]" if ev_avg is not None else ""
         rows.append(Text.from_markup(funnel_s + avg_s + blocks_s))

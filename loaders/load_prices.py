@@ -18,8 +18,9 @@ import sys
 import threading
 import time
 import uuid
+from collections.abc import Iterable
 from datetime import date, datetime, timedelta
-from typing import Any, Iterable, Optional, cast
+from typing import Any, Optional, cast
 
 import psycopg2.sql
 
@@ -631,7 +632,7 @@ class PriceLoader(OptimalLoader):
             try:
                 from algo.reporting import AlertManager
 
-                AlertManager().critical(alert_msg)  # type: ignore[no-untyped-call]
+                AlertManager().critical(alert_msg)
             except Exception as alert_err:
                 logger.error(
                     f"[{self._correlation_id}] Failed to send critical alert: {alert_err}",
@@ -1181,8 +1182,8 @@ class PriceLoader(OptimalLoader):
                 try:
                     from algo.reporting import AlertManager
 
-                    alerts = AlertManager()  # type: ignore[no-untyped-call]  # type: ignore[no-untyped-call]
-                    alerts.send_position_alert(  # type: ignore[no-untyped-call]  # type: ignore[no-untyped-call]
+                    alerts = AlertManager()
+                    alerts.send_position_alert(
                         "YFINANCE",
                         "RATE_LIMIT_CIRCUIT_BREAK",
                         f"yfinance rate limiting persisted {error_duration / 60:.1f}min despite batch reduction. "

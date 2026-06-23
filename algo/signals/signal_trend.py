@@ -9,7 +9,7 @@ computation if trend_template_data is stale.
 """
 
 import logging
-from typing import Any
+from typing import Any, cast
 
 logger = logging.getLogger(__name__)
 
@@ -156,7 +156,7 @@ class SignalTrendMixin:
             logger.debug(f"[MINERVINI] trend_template_data stale for {symbol}; computing on-the-fly")
             return self._compute_minervini_from_prices(cur, symbol, eval_date)
 
-        return self._with_cursor(_fetch_trend)  # type: ignore[attr-defined]
+        return cast(dict[str, Any], self._with_cursor(_fetch_trend))
 
     def weinstein_stage(self, symbol: str, eval_date) -> dict[str, Any]:
         """
@@ -198,7 +198,7 @@ class SignalTrendMixin:
                 "slope_pct": None,
             }
 
-        return self._with_cursor(_fetch_stage)  # type: ignore[attr-defined]
+        return cast(dict[str, Any], self._with_cursor(_fetch_stage))
 
     def mansfield_rs(self, symbol: str, eval_date, lookback: int = 252) -> dict[str, Any]:
         """
@@ -242,7 +242,7 @@ class SignalTrendMixin:
                 "spy_return_pct": round(spy_ret * 100, 2),
             }
 
-        return self._with_cursor(_compute_rs)  # type: ignore[attr-defined]
+        return cast(dict[str, Any], self._with_cursor(_compute_rs))
 
     def stage2_phase(self, symbol: str, eval_date) -> dict[str, Any]:
         """Alias for weinstein_stage() for backwards compatibility."""

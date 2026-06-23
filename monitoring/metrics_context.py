@@ -105,7 +105,7 @@ class TimeBlock:
         logger.log(self.log_level, f"[START] {self.operation_name}")
         return self
 
-    def __exit__(self, exc_type: Any, exc_val: Any, exc_tb: Any) -> bool:
+    def __exit__(self, exc_type: Any, exc_val: Any, exc_tb: Any) -> Literal[False]:
         self.end_time = time.time()
         self.duration_ms = (self.end_time - self.start_time) * 1000
         duration_seconds = self.duration_ms / 1000.0

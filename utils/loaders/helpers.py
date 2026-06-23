@@ -95,8 +95,8 @@ def get_active_symbols(max_symbols: int | None = None, timeout_secs: int = 120) 
     old_handler: Any = None
     try:
         if hasattr(signal, "SIGALRM"):
-            old_handler = signal.signal(signal.SIGALRM, timeout_handler)  # type: ignore[misc]
-            signal.alarm(timeout_secs)  # type: ignore[misc]
+            old_handler = signal.signal(signal.SIGALRM, timeout_handler)
+            signal.alarm(timeout_secs)  # type: ignore[attr-defined]
     except (AttributeError, ValueError):
         # signal.SIGALRM not available on Windows, use threading timeout instead
         pass
@@ -113,7 +113,7 @@ def get_active_symbols(max_symbols: int | None = None, timeout_secs: int = 120) 
                 return symbols
 
     try:
-        result: dict[str, list[str] | None | BaseException] = {"symbols": None, "error": None}
+        result: dict[str, Any] = {"symbols": None, "error": None}
 
         def fetch_symbols() -> None:
             try:
@@ -132,11 +132,12 @@ def get_active_symbols(max_symbols: int | None = None, timeout_secs: int = 120) 
         if thread.is_alive():
             raise TimeoutError(f"get_active_symbols() exceeded {timeout_secs}s timeout")
 
-        if result["error"] is not None:
-            raise result["error"]
+        error: Any = result["error"]
+        if error is not None:
+            raise error
 
-        symbols_result: list[str] | None = result["symbols"]
-        symbols = symbols_result or []
+        symbols_result: list[str] = result["symbols"] or []
+        symbols = symbols_result
 
         # Cache the result
         with _cache_lock:
@@ -153,7 +154,7 @@ def get_active_symbols(max_symbols: int | None = None, timeout_secs: int = 120) 
             try:
                 if hasattr(signal, "SIGALRM"):
                     signal.alarm(0)  # type: ignore[attr-defined]
-                    signal.signal(signal.SIGALRM, old_handler)  # type: ignore[attr-defined]
+                    signal.signal(signal.SIGALRM, old_handler)
             except (AttributeError, ValueError):
                 pass
 
