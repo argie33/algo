@@ -1,4 +1,4 @@
-"""API endpoint URLs for external data sources.
+﻿"""API endpoint URLs for external data sources.
 
 Centralizes endpoint configuration to support:
 - Swapping between different API versions
@@ -43,7 +43,7 @@ def get_alpaca_base_url() -> str:
     Pattern: https://api.alpaca.markets (paper trading)
     Requires: ALPACA_API_KEY and ALPACA_SECRET_KEY environment variables
     """
-    return "https://api.alpaca.markets"
+    return "https://paper-api.alpaca.markets"
 
 
 def get_alpaca_data_url() -> str:
@@ -54,3 +54,4 @@ def get_alpaca_data_url() -> str:
     Requires: ALPACA_API_KEY environment variable
     """
     return "https://data.alpaca.markets"
+

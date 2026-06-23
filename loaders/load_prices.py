@@ -19,7 +19,7 @@ import threading
 import time
 import uuid
 from datetime import date, datetime, timedelta
-from typing import Any, Optional, cast
+from typing import Any, Iterable, Optional, cast
 
 import psycopg2.sql
 
@@ -59,7 +59,7 @@ class PriceLoader(OptimalLoader):
     with DataImportance.CRITICAL and freshness validation to prevent silent stale data.
     """
 
-    def __init__(self, interval: str = "1d", asset_class: str = "stock", *args, **kwargs):
+    def __init__(self, interval: str = "1d", asset_class: str = "stock", *args: Any, **kwargs: Any) -> None:
         """Initialize with interval (1d/1wk/1mo) and asset class (stock/etf)."""
         assert interval in ("1d", "1wk", "1mo"), f"Invalid interval: {interval}"
         assert asset_class in ("stock", "etf"), f"Invalid asset_class: {asset_class}"
@@ -394,7 +394,7 @@ class PriceLoader(OptimalLoader):
         else:
             return 20  # Low success: very small batches
 
-    def _record_batch_result(self, success_count: int, total_count: int):
+    def _record_batch_result(self, success_count: int, total_count: int) -> None:
         """Record batch success/failure ratio for adaptive retry logic.
 
         Allows tracking partial success without requiring per-symbol results.
@@ -631,7 +631,7 @@ class PriceLoader(OptimalLoader):
             try:
                 from algo.reporting import AlertManager
 
-                AlertManager().critical(alert_msg)
+                AlertManager().critical(alert_msg)  # type: ignore[no-untyped-call]
             except Exception as alert_err:
                 logger.error(
                     f"[{self._correlation_id}] Failed to send critical alert: {alert_err}",
@@ -776,18 +776,18 @@ class PriceLoader(OptimalLoader):
             with self._rate_limit_event:
                 self._rate_limit_event.wait(timeout=wait_sec)  # Wake on timeout or notify()
 
-    def fetch_incremental(self, symbol: str, since: date | None):
+    def fetch_incremental(self, symbol: str, since: date | None) -> Any:
         """Fetch OHLCV from yfinance at specified interval."""
         return self.fetcher.fetch_incremental(symbol, since, is_eod_pipeline=self._is_eod_pipeline)
 
-    def fetch_batch_incremental(self, symbols: list[str], since: date | None):
+    def fetch_batch_incremental(self, symbols: list[str], since: date | None) -> dict[str, Any] | None:
         """Fetch OHLCV for multiple symbols at once (50x faster than per-symbol).
 
         Returns: dict[symbol] -> rows or None
         """
         return self.fetcher.fetch_batch_incremental(symbols, since, is_eod_pipeline=self._is_eod_pipeline)
 
-    def _execute_batch_fetch(self, symbols: list[str], start: date, end: date) -> dict | None:
+    def _execute_batch_fetch(self, symbols: list[str], start: date, end: date) -> dict[str, Any] | None:
         """Execute batch fetch with circuit breaker and validate freshness."""
         result = self.fetcher.execute_batch_fetch(symbols, start, end)
 
@@ -817,7 +817,7 @@ class PriceLoader(OptimalLoader):
 
         return result
 
-    def _handle_successful_fetch(self, result: dict, symbols: list[str]) -> dict:
+    def _handle_successful_fetch(self, result: dict[str, Any], symbols: list[str]) -> dict[str, Any]:
         """Reset rate limit tracking and record batch performance."""
         if self._rate_limit_errors > 0:
             logger.info(
@@ -846,7 +846,7 @@ class PriceLoader(OptimalLoader):
         max_attempts: int,
         elapsed_sec: float,
         error: Exception,
-    ) -> dict | None:
+    ) -> dict[str, Any] | None:
         """Retry rate limit errors with pacing or batch reduction."""
         import random
         import time
@@ -905,17 +905,14 @@ class PriceLoader(OptimalLoader):
             wait_time = base_wait * jitter
             logger.debug("[RATE_LIMIT] Waiting %ss before paced retry...", wait_time)
             time.sleep(wait_time)
-            return cast(
-                dict | None,
-                self._fetch_with_fallback(
-                    symbols,
-                    start,
-                    end,
-                    batch_size,
-                    attempt + 1,
-                    max_attempts,
-                    elapsed_sec,
-                ),
+            return self._fetch_with_fallback(
+                symbols,
+                start,
+                end,
+                batch_size,
+                attempt + 1,
+                max_attempts,
+                elapsed_sec,
             )
 
         new_batch_size = max(1, batch_size // 2)
@@ -933,7 +930,7 @@ class PriceLoader(OptimalLoader):
         )
         time.sleep(wait_time)
 
-        results = {}
+        results: dict[str, Any] = {}
         successful_chunks = 0
         for i in range(0, len(symbols), new_batch_size):
             chunk = symbols[i : i + new_batch_size]
@@ -946,8 +943,9 @@ class PriceLoader(OptimalLoader):
                 max_attempts,
                 elapsed_sec=total_elapsed,
             )
-            results.update(chunk_results)
-            if any(v is not None for v in chunk_results.values()):
+            if chunk_results is not None:
+                results.update(chunk_results)
+            if chunk_results is not None and any(v is not None for v in chunk_results.values()):
                 successful_chunks += 1
 
         total_chunks = (len(symbols) + new_batch_size - 1) // new_batch_size
@@ -965,7 +963,7 @@ class PriceLoader(OptimalLoader):
         max_attempts: int,
         elapsed_sec: float,
         error: Exception,
-    ) -> dict | None:
+    ) -> dict[str, Any] | None:
         """Retry transient errors with exponential backoff."""
         import random
         import time
@@ -994,17 +992,14 @@ class PriceLoader(OptimalLoader):
             "(Note: batch size not reduced for timeouts - if API fundamentally slow, increasing wait time not batch reduction)"
         )
         time.sleep(wait_time)
-        return cast(
-            dict | None,
-            self._fetch_with_fallback(
-                symbols,
-                start,
-                end,
-                batch_size,
-                attempt + 1,
-                max_attempts,
-                elapsed_sec=elapsed_sec + wait_time,
-            ),
+        return self._fetch_with_fallback(
+            symbols,
+            start,
+            end,
+            batch_size,
+            attempt + 1,
+            max_attempts,
+            elapsed_sec=elapsed_sec + wait_time,
         )
 
     def _fetch_with_fallback(
@@ -1016,7 +1011,7 @@ class PriceLoader(OptimalLoader):
         attempt: int = 0,
         max_attempts: int = 3,
         elapsed_sec: float = 0,
-    ):
+    ) -> dict[str, Any] | None:
         """Fetch with progressive batch size reduction and adaptive retry with jitter.
 
         ISSUE #6 FIX: Add upper bound check - if batch_size=1 and still rate limited, fail immediately.
@@ -1171,7 +1166,7 @@ class PriceLoader(OptimalLoader):
                         attempt=attempt + 1,
                         max_attempts=max_attempts,
                     )
-                    if any(v is not None for v in reduced_attempt.values()):
+                    if reduced_attempt is not None and any(v is not None for v in reduced_attempt.values()):
                         logger.info(
                             "[CIRCUIT BREAKER] âœ“ Partial success with batch=%s",
                             reduced_size,
@@ -1186,8 +1181,8 @@ class PriceLoader(OptimalLoader):
                 try:
                     from algo.reporting import AlertManager
 
-                    alerts = AlertManager()
-                    alerts.send_position_alert(
+                    alerts = AlertManager()  # type: ignore[no-untyped-call]  # type: ignore[no-untyped-call]
+                    alerts.send_position_alert(  # type: ignore[no-untyped-call]  # type: ignore[no-untyped-call]
                         "YFINANCE",
                         "RATE_LIMIT_CIRCUIT_BREAK",
                         f"yfinance rate limiting persisted {error_duration / 60:.1f}min despite batch reduction. "
@@ -1311,7 +1306,7 @@ class PriceLoader(OptimalLoader):
         """Validate and filter rows. Phase 1: Reject invalid ticks. Integrated validation framework."""
         return self.transformer.validate_and_transform(rows)
 
-    def _validate_row(self, row: dict) -> bool:
+    def _validate_row(self, row: dict[str, Any]) -> bool:
         """Add price-range sanity check on top of default PK check."""
         if not super()._validate_row(row):
             return False
@@ -1340,15 +1335,22 @@ class PriceLoader(OptimalLoader):
 
         try:
             market_close_available = self._check_market_close_data_available(max_wait_sec=10)
-            if not market_close_available:
-                raise RuntimeError(
-                    "[MARKET_CLOSE] Market close data NOT available. "
-                    "Cannot load prices without verifying data is current."
+            if market_close_available:
+                logger.debug("[MARKET_CLOSE] Quick check passed: market close data available")
+            else:
+                # Quick 10s check timed out - proceed anyway. yfinance lags 5-15 min after close.
+                # Phase 1 data freshness check catches staleness after load completes.
+                logger.warning(
+                    "[MARKET_CLOSE] Quick 10s check timed out, proceeding with load. "
+                    "Phase 1 will validate price data freshness."
                 )
-            logger.debug("[MARKET_CLOSE] âœ“ Market close data available")
         except Exception as e:
-            raise RuntimeError(
-                f"[MARKET_CLOSE] Could not verify market close data: {e}. Cannot load prices without this verification."
+            # Quick check failed - proceed. Data loading determines actual availability.
+            # Phase 1 data freshness check catches staleness after load completes.
+            logger.warning(
+                "[MARKET_CLOSE] Quick check failed (%s), proceeding with load. "
+                "Phase 1 will validate price data freshness.",
+                e,
             )
 
     def _execute_batch_jobs(
@@ -1357,7 +1359,7 @@ class PriceLoader(OptimalLoader):
         parallelism: int,
         start_time: float,
         total_symbols: int,
-    ) -> dict | None:
+    ) -> dict[str, Any] | None:
         """Execute batch jobs concurrently with timeout monitoring and circuit breaker logic.
 
         Returns:
@@ -1429,7 +1431,7 @@ class PriceLoader(OptimalLoader):
         emergency_mode_enabled: bool,
         batch_elapsed: float,
         max_concurrent: int,
-    ) -> dict | None:
+    ) -> dict[str, Any] | None:
         """Monitor timeout conditions and enforce circuit breaker logic.
 
         Returns:
@@ -1565,7 +1567,7 @@ class PriceLoader(OptimalLoader):
             from algo.reporting import MetricsPublisher
 
             with MetricsPublisher() as m:
-                m.put_loader_result(self.table_name, dict(self._stats))
+                m.put_loader_result(self.table_name, self._stats.to_dict())
                 if self._rate_limit_errors > 0:
                     m.add_metric(
                         "RateLimitErrors",
@@ -1669,7 +1671,7 @@ class PriceLoader(OptimalLoader):
         except (psycopg2.DatabaseError, psycopg2.OperationalError) as e:
             logger.warning("Failed to update data_loader_status for {self.table_name}: %s", e)
 
-    def run(self, symbols: list, parallelism: int = 1, backfill_days: int | None = None):
+    def run(self, symbols: Iterable[str], parallelism: int = 1, backfill_days: int | None = None) -> dict[str, Any]:
         """Override to use batch fetching (50x faster than per-symbol) + concurrent batches."""
         if backfill_days is not None:
             self._backfill_days = backfill_days
@@ -1726,7 +1728,7 @@ class PriceLoader(OptimalLoader):
             self._rate_limit_errors,
         )
 
-        return self._stats
+        return dict(self._stats)  # type: ignore[call-overload,no-any-return]
 
     def _load_batch(self, symbols: list[str]) -> None:
         """Load a batch of symbols using batch API fetch (50x reduction in API calls)."""
@@ -1735,12 +1737,16 @@ class PriceLoader(OptimalLoader):
         # (simplified: use same date for all, finest-grained would be per-symbol)
         if self._backfill_days > 0:
             # FIX: Use ET date, not system date (AWS runs in UTC but trading is ET-based)
-            previous_date = datetime.now(EASTERN_TZ).date() - timedelta(days=self._backfill_days)
+            previous_date: date | None = datetime.now(EASTERN_TZ).date() - timedelta(days=self._backfill_days)
         else:
             # Use earliest watermark from batch
             watermarks = [wm_store.get(s) if wm_store else None for s in symbols]
             previous_dates = [self._parse_watermark_date(w) for w in watermarks]  # type: ignore[attr-defined]
-            previous_date = min(d for d in previous_dates if d) if any(previous_dates) else None
+            valid_dates: list[date] = [d for d in previous_dates if d is not None]
+            if valid_dates:
+                previous_date = min(valid_dates)
+            else:
+                previous_date = None
 
         # Batch fetch all symbols at once
         batch_results = self.fetch_batch_incremental(symbols, previous_date)
@@ -1806,7 +1812,7 @@ class PriceLoader(OptimalLoader):
             self._stats["symbols_processed"] += 1
 
 
-def _invalidate_phase1_cache():
+def _invalidate_phase1_cache() -> None:
     """Invalidate Phase 1 cache to force fresh status check on next run.
 
     Called on loader failure to ensure Phase 1 doesn't use stale cached data.
@@ -1912,14 +1918,14 @@ def _invalidate_phase1_cache():
 
 
 def log_loader_execution(
-    loader_name,
-    table_name,
-    status,
-    records_loaded=0,
-    records_updated=0,
-    error_msg=None,
-    duration_seconds=0,
-):
+    loader_name: str,
+    table_name: str,
+    status: str,
+    records_loaded: int = 0,
+    records_updated: int = 0,
+    error_msg: str | None = None,
+    duration_seconds: float = 0,
+) -> None:
     """Log loader execution to data_loader_runs table for monitoring."""
     try:
         with DatabaseContext("write") as cur:
@@ -1957,7 +1963,7 @@ def log_loader_execution(
         raise
 
 
-def main():
+def main() -> int:
     """Read config from environment variables (set by ECS task definition)."""
     start_time = time.time()
 
@@ -2011,7 +2017,7 @@ def main():
 
     import signal
 
-    def timeout_handler(signum, frame):
+    def timeout_handler(signum: int, frame: Any) -> None:
         logger.critical(
             "[TIMEOUT] Price loader exceeded %ss timeout. Killing process.",
             execution_timeout_sec,
