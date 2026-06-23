@@ -163,7 +163,7 @@ def handle(
             is_valid, error_msg = ResponseValidator.validate_endpoint_response("trades", trades_result)
             if not is_valid:
                 logger.error(f"Endpoint response validation failed: {error_msg}")
-                return error_response(500, "response_validation_error", error_msg)
+                return error_response(500, "response_validation_error", error_msg or "Trades validation failed")
             return trades_result
         elif path == "/api/trades/summary":
             if os.environ.get("DEV_BYPASS_AUTH") != "true" and not _check_admin_access(jwt_claims):
@@ -184,7 +184,7 @@ def handle(
             is_valid, error_msg = ResponseValidator.validate_endpoint_response("trades", summary_result)
             if not is_valid:
                 logger.error(f"Endpoint response validation failed: {error_msg}")
-                return error_response(500, "response_validation_error", error_msg)
+                return error_response(500, "response_validation_error", error_msg or "Trades summary validation failed")
             return json_response(200, summary_result)
         raise_api_error(404, "not_found", f"Unknown trade endpoint: {path}")
     except (psycopg2.DatabaseError, psycopg2.OperationalError) as e:
@@ -275,7 +275,7 @@ def _create_manual_trade(cur: cursor, body: dict[str, Any], idempotency_key: str
         is_valid, error_msg = ResponseValidator.validate_endpoint_response("trades", manual_trade_response)
         if not is_valid:
             logger.error(f"Endpoint response validation failed: {error_msg}")
-            return error_response(500, "response_validation_error", error_msg)
+            return error_response(500, "response_validation_error", error_msg or "Trades stats validation failed")
 
         if signature:
             _store_idempotent_response(cur, signature, response)

@@ -175,7 +175,7 @@ def _get_signals_stocks(
         is_valid, error_msg = ResponseValidator.validate_endpoint_response("sig", signals_result)
         if not is_valid:
             logger.error(f"Endpoint response validation failed: {error_msg}")
-            return error_response(500, "response_validation_error", error_msg)
+            return error_response(500, "response_validation_error", error_msg or "Signals validation failed")
         return signals_result
     except (
         psycopg2.errors.UndefinedTable,

@@ -65,7 +65,7 @@ def handle(
                 is_valid, error_msg = ResponseValidator.validate_endpoint_response("stocks", stock_result)
                 if not is_valid:
                     logger.error(f"Endpoint response validation failed: {error_msg}")
-                    return error_response(500, "response_validation_error", error_msg)
+                    return error_response(500, "response_validation_error", error_msg or "Stock validation failed")
                 return json_response(200, stock_result)
             return error_response(404, "not_found", f"Stock {symbol} not found")
 
@@ -257,13 +257,13 @@ def handle(
                     is_valid, error_msg = ResponseValidator.validate_endpoint_response("stocks", deep_value_result)
                     if not is_valid:
                         logger.error(f"Endpoint response validation failed: {error_msg}")
-                        return error_response(500, "response_validation_error", error_msg)
+                        return error_response(500, "response_validation_error", error_msg or "Deep value validation failed")
                     return deep_value_result
                 empty_result = list_response([])
                 is_valid, error_msg = ResponseValidator.validate_endpoint_response("stocks", empty_result)
                 if not is_valid:
                     logger.error(f"Endpoint response validation failed: {error_msg}")
-                    return error_response(500, "response_validation_error", error_msg)
+                    return error_response(500, "response_validation_error", error_msg or "Stocks list validation failed")
                 return empty_result
             except (
                 psycopg2.errors.UndefinedTable,
@@ -351,7 +351,7 @@ def handle(
         is_valid, error_msg = ResponseValidator.validate_endpoint_response("stocks", stocks_list_result)
         if not is_valid:
             logger.error(f"Endpoint response validation failed: {error_msg}")
-            return error_response(500, "response_validation_error", error_msg)
+            return error_response(500, "response_validation_error", error_msg or "Stocks list validation failed")
         return json_response(200, stocks_list_result)
     except (
         psycopg2.errors.UndefinedTable,

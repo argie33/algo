@@ -259,7 +259,7 @@ def _industry_list(cur: cursor, params: dict[str, Any]) -> Any:
     is_valid, error_msg = ResponseValidator.validate_endpoint_response("industries/list", result)
     if not is_valid:
         logger.error(f"Industries list response validation failed: {error_msg}")
-        return error_response(500, "response_validation_error", error_msg)
+        return error_response(500, "response_validation_error", error_msg or "Industries list validation failed")
 
     return json_response(200, result)
 
@@ -305,7 +305,7 @@ def _industry_detail(cur: cursor, industry_name: str) -> Any:
     is_valid, error_msg = ResponseValidator.validate_endpoint_response("industries/detail", result)
     if not is_valid:
         logger.error(f"Industries detail response validation failed: {error_msg}")
-        return error_response(500, "response_validation_error", error_msg)
+        return error_response(500, "response_validation_error", error_msg or "Industries detail validation failed")
 
     return json_response(200, result)
 
@@ -363,6 +363,6 @@ def _industry_trend(cur: cursor, industry_name: str, params: dict[str, Any]) -> 
     is_valid, error_msg = ResponseValidator.validate_endpoint_response("industries/trend", result)
     if not is_valid:
         logger.error(f"Industries trend response validation failed: {error_msg}")
-        return error_response(500, "response_validation_error", error_msg)
+        return error_response(500, "response_validation_error", error_msg or "Industries trend validation failed")
 
     return json_response(200, result)
