@@ -150,14 +150,14 @@ class BalanceSheetLoader(OptimalLoader):
                     f"{symbol}: Filtered {len(rows) - len(filtered)} row(s) with fiscal_year <= {since_year} "
                     f"(watermark incremental load — keeping {len(filtered)} newer rows)"
                 )
-            return filtered or None
+            return filtered
         except (ValueError, ZeroDivisionError, TypeError) as e:
             raise RuntimeError(
                 f"[BALANCE_SHEET] Failed to fetch balance sheet for {symbol}: {e}. "
                 "Cannot proceed without fundamental data."
             ) from e
 
-    def transform(self, rows) -> list[dict[str, Any]]:
+    def transform(self, rows: list[dict[str, Any]]) -> list[dict[str, Any]]:
         transformed = []
         for r in rows:
             row: dict[str, Any] = {}

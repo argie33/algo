@@ -132,11 +132,11 @@ def compute_performance_metrics(cur: Any, metric_date: date | None = None) -> di
 
         # Advanced metrics from portfolio snapshots
         sharpe, sortino, max_dd, cagr, calmar = _compute_advanced_metrics(cur, metric_date)
-        metrics["sharpe_ratio"] = round(sharpe, 4)
-        metrics["sortino_ratio"] = round(sortino, 4)
-        metrics["max_drawdown_pct"] = round(max_dd * 100, 2)  # Convert to percentage
+        metrics["sharpe_ratio"] = round(sharpe, 4) if sharpe is not None else None
+        metrics["sortino_ratio"] = round(sortino, 4) if sortino is not None else None
+        metrics["max_drawdown_pct"] = round(max_dd * 100, 2) if max_dd is not None else None  # Convert to percentage
         metrics["cagr_pct"] = round(cagr * 100, 4)  # Convert to percentage
-        metrics["calmar_ratio"] = round(calmar, 4)
+        metrics["calmar_ratio"] = round(calmar, 4) if calmar is not None else None
 
         # Insert or update
         _insert_performance_metrics(cur, metric_date, metrics)

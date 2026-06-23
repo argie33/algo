@@ -23,7 +23,7 @@ class FetcherValidator:
     """
 
     @staticmethod
-    def check_api_error(response: dict) -> tuple[bool, str | None]:
+    def check_api_error(response: dict[str, Any]) -> tuple[bool, str | None]:
         """Check if response indicates an API error.
 
         Returns:
@@ -34,7 +34,7 @@ class FetcherValidator:
         return False, None
 
     @staticmethod
-    def require_fields(data: dict, required_fields: list[str], source: str) -> tuple[bool, str | None]:
+    def require_fields(data: dict[str, Any], required_fields: list[str], source: str) -> tuple[bool, str | None]:
         """Validate that all required fields exist with non-None values.
 
         Returns:
@@ -103,7 +103,7 @@ class FetcherValidator:
         return True, None
 
     @staticmethod
-    def extract_field(data: dict, field_path: str, required: bool = True) -> tuple[Any, str | None]:
+    def extract_field(data: dict[str, Any], field_path: str, required: bool = True) -> tuple[Any, str | None]:
         """Extract nested field from dict using dot notation.
 
         Example: extract_field(data, "portfolio.total_value")
@@ -141,7 +141,7 @@ class FetcherValidator:
 
     @staticmethod
     def validate_response(
-        response: dict,
+        response: dict[str, Any],
         required_fields: list[str],
         source_name: str,
         max_age_seconds: int | None = None,

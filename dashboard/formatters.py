@@ -172,7 +172,7 @@ def next_run_str() -> str:
     return result
 
 
-def _next_run_from_schedule(schedule: list) -> str:
+def _next_run_from_schedule(schedule: list[dict[str, Any]]) -> str:
     """Calculate next run from dynamic schedule (list of {hour, minute} dicts).
 
     CRITICAL: Validates that all schedule entries have required hour/minute fields.
@@ -197,7 +197,7 @@ def _next_run_from_schedule(schedule: list) -> str:
             d += timedelta(days=1)
         return d
 
-    def validate_schedule_entry(s: dict) -> tuple[int, int]:
+    def validate_schedule_entry(s: dict[str, Any]) -> tuple[int, int]:
         """Validate schedule entry has required fields. Fail fast if corrupted."""
         if "hour" not in s or "minute" not in s:
             raise ValueError(
@@ -310,7 +310,7 @@ def sign(v: Any) -> str:
     return _sign_formatter.format(v)
 
 
-def sparkline(values: list, width: int = 24) -> str:
+def sparkline(values: list[Any], width: int = 24) -> str:
     vals = [v for v in (values or []) if v is not None and float(v) > 0]
     if len(vals) < 2:
         return f"[{DIM}]{'▁' * width}[/]"

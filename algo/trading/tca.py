@@ -125,7 +125,7 @@ class TCAEngine:
             logger.error(f"TCA: record_fill failed: {e}")
             raise
 
-    def _check_slippage_alert(self, symbol: str, slippage_bps: Decimal | float, side: str) -> dict | None:
+    def _check_slippage_alert(self, symbol: str, slippage_bps: Decimal | float, side: str) -> dict[str, Any] | None:
         """Check if slippage exceeds alert thresholds.
 
         Returns:
@@ -154,7 +154,7 @@ class TCAEngine:
 
         return None
 
-    def daily_report(self, report_date: date | None = None) -> dict:
+    def daily_report(self, report_date: date | None = None) -> dict[str, Any]:
         """Generate daily TCA report.
 
         Args:
@@ -257,7 +257,7 @@ class TCAEngine:
                 "This is critical — all fills must be audited. Check database connectivity and data integrity."
             ) from e
 
-    def monthly_summary(self, year: int, month: int) -> dict:
+    def monthly_summary(self, year: int, month: int) -> dict[str, Any]:
         """Generate monthly TCA summary.
 
         Args:

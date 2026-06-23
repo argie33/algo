@@ -86,7 +86,7 @@ def format_fetcher_error(fetcher_name: str, error: Exception) -> str:
         return f"Fetcher {fetcher_name} ({context}) - {error_type}"
 
 
-def get_endpoint_path(fetcher_key: str, params: dict | None = None) -> str:
+def get_endpoint_path(fetcher_key: str, params: dict[str, Any] | None = None) -> str:
     """Map fetcher key to full endpoint path."""
     meta = FETCHER_METADATA.get(fetcher_key)
     if not meta:
@@ -97,12 +97,12 @@ def get_endpoint_path(fetcher_key: str, params: dict | None = None) -> str:
     return endpoint
 
 
-def is_api_error(response: dict) -> bool:
+def is_api_error(response: dict[str, Any]) -> bool:
     """Check if API response indicates an error."""
     return "_error" in response or response.get("statusCode", 200) >= 400
 
 
-def get_error_message(response: dict) -> str:
+def get_error_message(response: dict[str, Any]) -> str:
     """Extract error message from API response."""
     if "_error" in response:
         error_val = response["_error"]
