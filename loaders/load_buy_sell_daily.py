@@ -14,7 +14,7 @@ setup_imports()
 import argparse
 import logging
 from datetime import date, datetime, timedelta
-from typing import Any, Optional
+from typing import Any
 
 import psycopg2.sql
 

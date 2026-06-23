@@ -33,7 +33,7 @@ def handle(
     params: dict[str, Any],
     body: dict[str, Any] | None = None,
     jwt_claims: dict[str, Any] | None = None,
-) -> dict[str, Any]:
+) -> Any:
     """Handle /api/sentiment/* endpoints."""
     try:
         if path == "/api/sentiment/summary":
@@ -404,7 +404,7 @@ def handle(
         return error_response(code, error_type, message)
 
 
-def _get_vix_data(cur) -> dict[str, Any]:
+def _get_vix_data(cur) -> Any:
     """Get latest VIX data and historical trend."""
     try:
         cur.execute("""

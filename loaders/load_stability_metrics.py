@@ -21,7 +21,6 @@ setup_imports()
 import logging
 import math
 from datetime import date, datetime, timezone
-from typing import Optional
 
 from loaders.runner import run_loader
 from utils.db.context import DatabaseContext

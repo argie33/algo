@@ -4,11 +4,15 @@ import json
 import logging
 import os
 import threading
-from typing import Any
+from typing import TYPE_CHECKING, Any
 
 # Set up imports for Lambda API - ensures routes and api_utils are importable
 import setup_imports  # noqa: F401
 from psycopg2.extensions import cursor
+
+if TYPE_CHECKING:
+    from lambda_function import fetch_cloudfront_domain_from_secrets
+    from routes import health
 
 logger = logging.getLogger(__name__)
 
@@ -274,9 +278,12 @@ def _add_cors_headers(response: Any) -> Any:
     allowed_origins_str = os.getenv("ALLOWED_ORIGINS", "").strip()
     if not allowed_origins_str:
         # Fallback: fetch CloudFront domain from Secrets Manager
-        from lambda_function import fetch_cloudfront_domain_from_secrets
+        try:
+            from lambda_function import fetch_cloudfront_domain_from_secrets
 
-        cf_domain, _ = fetch_cloudfront_domain_from_secrets()
+            cf_domain, _ = fetch_cloudfront_domain_from_secrets()
+        except (ImportError, AttributeError):
+            cf_domain = None
         allowed_origins = [cf_domain] if cf_domain else []
     else:
         allowed_origins = [o.strip() for o in allowed_origins_str.split(",")]

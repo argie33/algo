@@ -725,9 +725,7 @@ def _log_signal_metrics():
     3. Filter tuning side effects (threshold changes causing signal reduction)
     4. Seasonal variations (volume changes around earnings, Fed days, etc)
     """
-    from datetime import datetime, timezone
 
-    from utils.infrastructure.timezone import EASTERN_TZ
 
     try:
         with DatabaseContext("read") as cur:

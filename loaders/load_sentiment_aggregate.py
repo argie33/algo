@@ -4,7 +4,6 @@
 import logging
 import sys
 from datetime import date
-from typing import Optional
 
 import psycopg2
 

@@ -23,7 +23,7 @@ sys.path.insert(0, str(REPO_ROOT))
 from utils.error_handlers import classify_exception, sanitize_error_message
 from utils.exceptions import (
     DatabaseConnectionError,
-    DatabaseQueryTimeout,
+    DatabaseQueryTimeoutError,
     ExternalAPIError,
     InputValidationError,
     RateLimitedError,
@@ -44,8 +44,8 @@ class TestExceptionHierarchy:
         assert err.error_type == "connection_error"
 
     def test_database_query_timeout_returns_504(self):
-        """DatabaseQueryTimeout should return 504 Gateway Timeout."""
-        err = DatabaseQueryTimeout("Query too slow")
+        """DatabaseQueryTimeoutError should return 504 Gateway Timeout."""
+        err = DatabaseQueryTimeoutError("Query too slow")
         assert err.status_code == 504
         assert err.error_type == "timeout"
 
@@ -92,8 +92,8 @@ class TestErrorClassification:
         assert error_type == "connection_error"
 
     def test_classify_timeout_error(self):
-        """DatabaseQueryTimeout should classify correctly."""
-        err = DatabaseQueryTimeout("query too slow")
+        """DatabaseQueryTimeoutError should classify correctly."""
+        err = DatabaseQueryTimeoutError("query too slow")
         code, error_type, _message = classify_exception(err)
         assert code == 504
         assert error_type == "timeout"

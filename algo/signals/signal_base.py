@@ -29,7 +29,7 @@ class SignalBase(ABC):
             "timestamp": datetime.utcnow().isoformat(),
         }
 
-    def _period_return(self, cur, symbol: str, end_date, lookback_days: int) -> float:
+    def _period_return(self, cur: Any, symbol: str, end_date: Any, lookback_days: int) -> float:
         """Compute simple return over a lookback period.
 
         Args:

@@ -246,7 +246,7 @@ def _get_data_status(cur: cursor) -> Any:
                 if table_name in _fr:
                     logger.warning(f"Freshness rule for {table_name} missing max_age_days field")
             else:
-                max_age = int(max_age_raw)
+                max_age = int(str(max_age_raw))
 
             if row_count is None or row_count == 0:
                 status = "empty"
@@ -319,7 +319,7 @@ def _get_data_status(cur: cursor) -> Any:
         return error_response(code, error_type, message)
 
 
-def _normalize_market_health(mh: dict) -> dict[str, Any]:
+def _normalize_market_health(mh: dict) -> Any:
     """Validate and normalize market_health dict. Fails fast if critical fields missing.
 
     Critical fields (halt circuit breaker): vix_level, market_stage, market_trend
@@ -344,7 +344,7 @@ def _normalize_market_health(mh: dict) -> dict[str, Any]:
     }
 
 
-def _normalize_exposure(exp: dict) -> dict[str, Any]:
+def _normalize_exposure(exp: dict) -> Any:
     """Validate and normalize exposure dict. Fails fast if critical fields missing.
 
     Critical fields (position sizing, trading halts): exposure_pct, regime
@@ -553,7 +553,7 @@ def _get_market_sentiment(cur: cursor) -> Any:
 
 
 @db_route_handler("get markets")
-def _get_markets(cur: cursor) -> dict[str, Any]:
+def _get_markets(cur: cursor) -> Any:
     """Get market regime, exposure, and 12-factor data for the Markets Health dashboard."""
     try:
         # Latest exposure row
@@ -759,7 +759,7 @@ def _get_markets(cur: cursor) -> dict[str, Any]:
 
 
 @db_route_handler("get trend criteria")
-def _get_trend_criteria(cur: cursor) -> dict[str, Any]:
+def _get_trend_criteria(cur: cursor) -> Any:
     """Return trend criteria analysis with passing count from actual data."""
     cur.execute("""
         SELECT

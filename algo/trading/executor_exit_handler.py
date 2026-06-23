@@ -474,7 +474,8 @@ class ExitHandler:
                 },
             )
         except NotificationError as notif_e:
-            logger.warning(f"Failed to send exit notification (non-blocking): {notif_e}")
+            logger.error(f"Critical: Failed to send exit notification for {symbol}: {notif_e}")
+            raise RuntimeError(f"Critical: Exit notification failed for {symbol}") from notif_e
 
         return {
             "success": True,

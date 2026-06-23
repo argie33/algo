@@ -5,7 +5,7 @@ import uuid
 from typing import Any
 
 
-class BaseAPIException(Exception):
+class BaseAPIError(Exception):
     """Base exception for all API/application errors.
 
     Every exception has:
@@ -58,7 +58,7 @@ class BaseAPIException(Exception):
 # Database Errors (5xx)
 
 
-class DatabaseError(BaseAPIException):
+class DatabaseError(BaseAPIError):
     """Generic database error."""
 
     status_code = 503
@@ -72,7 +72,7 @@ class DatabaseConnectionError(DatabaseError):
     message = "Database connection failed"
 
 
-class DatabaseQueryTimeout(DatabaseError):
+class DatabaseQueryTimeoutError(DatabaseError):
     """Query execution exceeded timeout."""
 
     status_code = 504
@@ -87,7 +87,7 @@ class DatabaseSchemaError(DatabaseError):
     message = "Database schema issue"
 
 
-class DatabaseConstraintViolation(DatabaseError):
+class DatabaseConstraintViolationError(DatabaseError):
     """Constraint violation (unique key, foreign key, etc)."""
 
     status_code = 409
@@ -98,7 +98,7 @@ class DatabaseConstraintViolation(DatabaseError):
 # Validation Errors (4xx)
 
 
-class ValidationError(BaseAPIException):
+class ValidationError(BaseAPIError):
     """Generic validation error."""
 
     status_code = 400
@@ -129,7 +129,7 @@ class SchemaValidationError(ValidationError):
 # Timeout Errors (5xx)
 
 
-class TimeoutError(BaseAPIException):
+class TimeoutOperationError(BaseAPIError):
     """Generic timeout error."""
 
     status_code = 504
@@ -137,19 +137,19 @@ class TimeoutError(BaseAPIException):
     message = "Operation timed out"
 
 
-class DatabaseTimeout(TimeoutError):
+class DatabaseTimeoutError(TimeoutOperationError):
     """Database query timeout."""
 
     error_type = "database_timeout"
 
 
-class ExternalAPITimeout(TimeoutError):
+class ExternalAPITimeoutError(TimeoutOperationError):
     """External API call timeout."""
 
     error_type = "api_timeout"
 
 
-class LoaderTimeout(TimeoutError):
+class LoaderTimeoutError(TimeoutOperationError):
     """Data loader execution timeout."""
 
     error_type = "loader_timeout"
@@ -158,7 +158,7 @@ class LoaderTimeout(TimeoutError):
 # External API Errors (5xx)
 
 
-class ExternalAPIError(BaseAPIException):
+class ExternalAPIError(BaseAPIError):
     """Generic external API error."""
 
     status_code = 502
@@ -191,7 +191,7 @@ class ServiceUnavailableError(ExternalAPIError):
 # Data Errors (4xx/5xx)
 
 
-class DataError(BaseAPIException):
+class DataError(BaseAPIError):
     """Generic data-related error."""
 
     status_code = 422
@@ -222,7 +222,7 @@ class IncompleteDataError(DataError):
 # Internal Errors (5xx)
 
 
-class InternalError(BaseAPIException):
+class InternalError(BaseAPIError):
     """Generic internal/unexpected error."""
 
     status_code = 500
@@ -241,3 +241,6 @@ class ProcessingError(InternalError):
 
     error_type = "processing_error"
     message = "Error during processing"
+
+
+BaseAPIException = BaseAPIError

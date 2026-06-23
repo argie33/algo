@@ -216,8 +216,7 @@ def _get_loader_status(cur: cursor) -> Any:
         psycopg2.OperationalError,
         psycopg2.DatabaseError,
     ) as e:
-        logger.warning(f"[LOADER_STATUS] Freshness check failed: {type(e).__name__}: {e}")
-        freshness = None
+        raise RuntimeError(f"Freshness check failed for loader status: {type(e).__name__}: {e}") from e
     response = list_response(loaders, total=len(loaders), limit=None, offset=None)
     response["data"]["status"] = "ok"
     response["data"]["summary"] = {
@@ -269,11 +268,9 @@ def _get_system_health(cur: cursor) -> Any:
                 expected -= timedelta(days=1)
             is_fresh = last_price_date_typed >= expected
         except ImportError as e:
-            logger.warning(f"[MARKET_CALENDAR] Import failed: {e} - falling back to age-based check")
-            is_fresh = age_days <= 3
+            raise RuntimeError(f"MarketCalendar unavailable: cannot determine data freshness: {e}") from e
         except (psycopg2.DatabaseError, psycopg2.OperationalError) as e:
-            logger.warning(f"[MARKET_CALENDAR] Error computing expected trading day: {type(e).__name__}: {e}")
-            is_fresh = age_days <= 3
+            raise RuntimeError(f"Database error determining expected trading day: {type(e).__name__}: {e}") from e
         health_data["components"]["data_freshness"] = "ok" if is_fresh else "stale"
         health_data["last_data_update"] = last_price_date_typed.isoformat()
         if not is_fresh:
@@ -301,9 +298,7 @@ def _get_system_health(cur: cursor) -> Any:
             count = row_dict.get("cnt", 0)
             table_counts[table_name] = count
     except (psycopg2.Error, TypeError, AttributeError) as e:
-        logger.warning(f"Failed to count rows in tables: {e}")
-        for table in tables:
-            table_counts[table] = 0
+        raise RuntimeError(f"Failed to query table row counts: {type(e).__name__}: {e}") from e
 
     health_data["tables"] = table_counts
     health_data["timestamp"] = datetime.now(timezone.utc).isoformat()

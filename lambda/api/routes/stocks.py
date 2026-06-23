@@ -32,7 +32,7 @@ def handle(
     params: dict[str, Any],
     body: dict[str, Any] | None = None,
     jwt_claims: dict[str, Any] | None = None,
-) -> dict[str, Any]:
+) -> Any:
     try:
         parts = path.split("/")
         known_non_symbol_paths = (
@@ -373,7 +373,6 @@ def handle(
         psycopg2.errors.UndefinedColumn,
         psycopg2.OperationalError,
         psycopg2.DatabaseError,
-        Exception,
     ) as e:
         code, error_type, message = handle_db_error(e, "handle stocks")
         return error_response(code, error_type, message)

@@ -76,7 +76,7 @@ def handle(
 @db_route_handler("fetch stock signals")
 def _get_signals_stocks(
     cur: cursor, limit: int = 500, timeframe: str = "daily", symbol_filter: str | None = None
-) -> dict[str, Any]:
+) -> Any:
     """Get stock trading signals from buy_sell_daily (primary signal source).
 
     EOD pipeline runs: prices → metrics → swing_trader_scores → buy_sell_daily.
@@ -189,7 +189,7 @@ def _get_signals_stocks(
 
 
 @db_route_handler("fetch ETF signals")
-def _get_signals_etf(cur: cursor, limit: int = 500) -> dict[str, Any]:
+def _get_signals_etf(cur: cursor, limit: int = 500) -> Any:
     """Get ETF market-regime signals from price_daily + trend_template_data.
 
     buy_sell_daily_etf and technical_data_daily were removed from the pipeline.

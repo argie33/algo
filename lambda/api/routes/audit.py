@@ -46,7 +46,7 @@ def handle(
     params: dict[str, Any],
     body: dict[str, Any] | None = None,
     jwt_claims: dict[str, Any] | None = None,
-) -> dict[str, Any]:
+) -> Any:
     """Handle /api/audit/* endpoints."""
     # Require admin authorization for all audit endpoints (bypass in dev mode)
     if os.environ.get("DEV_BYPASS_AUTH") != "true" and not _check_admin_access(jwt_claims):

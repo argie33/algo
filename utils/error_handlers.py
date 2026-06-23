@@ -13,7 +13,7 @@ import psycopg2
 import psycopg2.errors
 
 from utils.exceptions import (
-    BaseAPIException,
+    BaseAPIError,
 )
 
 logger = logging.getLogger(__name__)
@@ -103,7 +103,7 @@ def log_sanitizer(operation: str = "operation"):
 def classify_exception(e: Exception) -> tuple[int, str, str]:
     """Map any exception to (statusCode, errorType, message).
 
-    Converts standard exceptions and custom BaseAPIException to standardized format.
+    Converts standard exceptions and custom BaseAPIError to standardized format.
 
     Args:
         e: Exception instance
@@ -111,7 +111,7 @@ def classify_exception(e: Exception) -> tuple[int, str, str]:
     Returns:
         Tuple of (statusCode, errorType, message)
     """
-    if isinstance(e, BaseAPIException):
+    if isinstance(e, BaseAPIError):
         return (e.status_code, e.error_type, e.message)
 
     error_type_name = type(e).__name__

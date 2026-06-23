@@ -113,8 +113,8 @@ def enrich_technical_data(
                 )
 
                 # Build a nested dict: tech_data[symbol][date] = row_data
+                # No fallback to stale data: exact date match required for data integrity
                 tech_data_by_symbol_date: dict = {}
-                tech_data_by_symbol_latest: dict = {}  # Fallback: latest data for each symbol
                 for row in cur.fetchall():
                     (
                         symbol,
@@ -139,17 +139,6 @@ def enrich_technical_data(
                             adx,
                             mansfield_rs,
                         )
-                    # Track latest data per symbol for fallback
-                    if symbol not in tech_data_by_symbol_latest:
-                        tech_data_by_symbol_latest[symbol] = (
-                            rsi,
-                            sma_50,
-                            sma_200,
-                            ema_21,
-                            atr,
-                            adx,
-                            mansfield_rs,
-                        )
 
             # Update each record with technical data (now using precomputed data)
             for record_id, symbol, signal_date in records_list:
@@ -157,12 +146,9 @@ def enrich_technical_data(
                     # O(1) lookup: tech_data was precomputed for all symbols/dates
                     tech_row = None
                     if records_list:
-                        # Try exact date first
+                        # Require exact date match: using stale data masks missing technical info
                         if symbol in tech_data_by_symbol_date and signal_date in tech_data_by_symbol_date[symbol]:
                             tech_row = tech_data_by_symbol_date[symbol][signal_date]
-                        # Fallback: use latest data for this symbol
-                        elif symbol in tech_data_by_symbol_latest:
-                            tech_row = tech_data_by_symbol_latest[symbol]
 
                     if tech_row:
                         rsi, sma_50, sma_200, ema_21, atr, adx, mansfield_rs = tech_row
@@ -192,7 +178,7 @@ def enrich_technical_data(
                         stats["updated"] += 1
                     else:
                         stats["nulls_remaining"] += 1
-                        logger.debug(f"{symbol} {signal_date}: No technical data available")
+                        logger.debug(f"{symbol} {signal_date}: No technical data available (exact date match required)")
                 except (psycopg2.DatabaseError, psycopg2.OperationalError) as e:
                     error_msg = f"{symbol} {signal_date}: {str(e)[:100]}"
                     stats["errors"].append(error_msg)

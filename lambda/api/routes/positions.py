@@ -35,14 +35,15 @@ def handle(
     params: dict[str, Any],
     body: dict[str, Any] | None = None,
     jwt_claims: dict[str, Any] | None = None,
-) -> dict[str, Any]:
+) -> Any:
     """Handle /api/position/* endpoints."""
     try:
         if path == "/api/position/update" and method in ("POST", "PUT"):
             if not _check_admin_access(jwt_claims):
                 raise_api_error(403, "forbidden", "Admin access required")
-            if not body:
+            if body is None:
                 raise_api_error(400, "bad_request", "Request body is required")
+            assert body is not None
             return _update_position(cur, body)
 
         raise_api_error(404, "not_found", f"No position handler for {path}")
@@ -51,7 +52,7 @@ def handle(
         raise_db_error(e, "handle positions")
 
 
-def _update_position(cur, body: dict) -> dict[str, Any]:
+def _update_position(cur, body: dict[str, Any]) -> Any:
     """POST/PUT /api/position/update - Update position parameters with validation.
 
     Validates:

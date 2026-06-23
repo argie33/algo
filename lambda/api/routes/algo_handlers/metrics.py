@@ -33,7 +33,7 @@ from utils.validation import (
 logger = logging.getLogger(__name__)
 
 
-def _ensure_portfolio_fields(data: dict) -> dict[str, Any]:
+def _ensure_portfolio_fields(data: dict) -> Any:
     """Validate portfolio response has all required fields. Fail-fast if missing.
 
     CRITICAL: Portfolio value and cash must never be None - they're essential for trading.
@@ -57,7 +57,7 @@ def _ensure_portfolio_fields(data: dict) -> dict[str, Any]:
 
 
 @db_route_handler("get algo metrics")
-def _get_algo_metrics(cur: cursor) -> dict[str, Any]:
+def _get_algo_metrics(cur: cursor) -> Any:
     """Get daily algo metrics (total actions, entries, exits). Fail-fast if unavailable."""
     try:
         cur.execute("""
@@ -124,7 +124,7 @@ def _get_algo_metrics(cur: cursor) -> dict[str, Any]:
 
 
 @db_route_handler("calculate performance")
-def _get_algo_performance(cur: cursor) -> dict[str, Any]:
+def _get_algo_performance(cur: cursor) -> Any:
     """Get comprehensive algo performance metrics from pre-computed daily snapshot.
 
     Queries latest row from algo_performance_metrics table (computed daily by
@@ -415,7 +415,7 @@ def _get_algo_performance(cur: cursor) -> dict[str, Any]:
 
 
 @db_route_handler("get algo portfolio")
-def _get_algo_portfolio(cur: cursor) -> dict[str, Any]:
+def _get_algo_portfolio(cur: cursor) -> Any:
     """Get latest portfolio snapshot data with structured unrealized PnL breakdown.
 
     FAIL-FAST: Returns error if portfolio snapshots are unavailable.
@@ -502,7 +502,7 @@ def _get_algo_portfolio(cur: cursor) -> dict[str, Any]:
 
 
 @db_route_handler("get daily return histogram")
-def _get_daily_return_histogram(cur: cursor) -> dict[str, Any]:
+def _get_daily_return_histogram(cur: cursor) -> Any:
     """Return histogram of daily portfolio returns with stats."""
     cur.execute("""
         SELECT daily_return_pct
@@ -555,7 +555,7 @@ def _get_daily_return_histogram(cur: cursor) -> dict[str, Any]:
 
 
 @db_route_handler("get holding period distribution")
-def _get_holding_period_distribution(cur: cursor) -> dict[str, Any]:
+def _get_holding_period_distribution(cur: cursor) -> Any:
     """Return distribution of position holding periods in days."""
     cur.execute("""
         SELECT CASE
@@ -607,7 +607,7 @@ def _get_holding_period_distribution(cur: cursor) -> dict[str, Any]:
 
 
 @db_route_handler("get performance analytics")
-def _get_performance_analytics(cur: cursor) -> dict[str, Any]:
+def _get_performance_analytics(cur: cursor) -> Any:
     """Get performance analytics data. Fail-fast if unavailable."""
     try:
         cur.execute("SAVEPOINT perf_analytics")
@@ -674,7 +674,7 @@ def _get_performance_analytics(cur: cursor) -> dict[str, Any]:
 
 
 @db_route_handler("get performance metrics endpoint")
-def _get_performance_metrics_endpoint(cur: cursor) -> dict[str, Any]:
+def _get_performance_metrics_endpoint(cur: cursor) -> Any:
     """Return latest performance metrics."""
     cur.execute("""
         SELECT win_rate_pct, profit_factor, avg_trade_pct, sharpe_ratio, max_drawdown_pct
@@ -700,7 +700,7 @@ def _get_performance_metrics_endpoint(cur: cursor) -> dict[str, Any]:
 
 
 @db_route_handler("get portfolio summary")
-def _get_portfolio_summary(cur: cursor) -> dict[str, Any]:
+def _get_portfolio_summary(cur: cursor) -> Any:
     """Return portfolio summary with current value and allocation."""
     cur.execute("""
         SELECT total_portfolio_value, total_cash, total_equity, position_count, daily_return_pct
@@ -744,7 +744,7 @@ def _get_portfolio_summary(cur: cursor) -> dict[str, Any]:
 
 
 @db_route_handler("get risk metrics")
-def _get_risk_metrics(cur: cursor) -> dict[str, Any]:
+def _get_risk_metrics(cur: cursor) -> Any:
     """Get portfolio risk metrics. Fail-fast if unavailable."""
     try:
         cur.execute("SAVEPOINT risk_metrics")
@@ -806,7 +806,7 @@ def _get_risk_metrics(cur: cursor) -> dict[str, Any]:
 
 
 @db_route_handler("get stage distribution")
-def _get_stage_distribution(cur: cursor) -> dict[str, Any]:
+def _get_stage_distribution(cur: cursor) -> Any:
     """Return distribution of positions by Weinstein stage."""
     cur.execute("""
         SELECT
@@ -838,7 +838,7 @@ def _get_stage_distribution(cur: cursor) -> dict[str, Any]:
 
 
 @db_route_handler("get trade distribution")
-def _get_trade_distribution(cur: cursor) -> dict[str, Any]:
+def _get_trade_distribution(cur: cursor) -> Any:
     """Return distribution of trade outcomes by R-multiple."""
     cur.execute("""
         SELECT exit_r_multiple

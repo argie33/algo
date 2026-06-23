@@ -8,8 +8,11 @@ This module consolidates repeated patterns across the trading system:
 - Validation helpers
 """
 
+import logging
 from decimal import Decimal, InvalidOperation
 from typing import Any, overload
+
+logger = logging.getLogger(__name__)
 
 
 @overload
@@ -34,7 +37,8 @@ def safe_decimal(value: Any, default: Any = None) -> Decimal | float | None:
 
     try:
         return Decimal(str(value))
-    except (InvalidOperation, ValueError, TypeError):
+    except (InvalidOperation, ValueError, TypeError) as e:
+        logger.warning(f"safe_decimal conversion failed for {value!r}: {type(e).__name__}, using default {default!r}")
         return default  # type: ignore[no-any-return]
 
 
@@ -48,7 +52,8 @@ def safe_float(value: Any, default: float | None = None) -> float | None:
 
     try:
         return float(value)
-    except (ValueError, TypeError):
+    except (ValueError, TypeError) as e:
+        logger.warning(f"safe_float conversion failed for {value!r}: {type(e).__name__}, using default {default!r}")
         return default
 
 
@@ -62,7 +67,8 @@ def safe_int(value: Any, default: int | None = None) -> int | None:
 
     try:
         return int(value)
-    except (ValueError, TypeError):
+    except (ValueError, TypeError) as e:
+        logger.warning(f"safe_int conversion failed for {value!r}: {type(e).__name__}, using default {default!r}")
         return default
 
 

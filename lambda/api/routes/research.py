@@ -30,7 +30,7 @@ def handle(
     params: dict[str, Any],
     body: dict[str, Any] | None = None,
     jwt_claims: dict[str, Any] | None = None,
-) -> dict[str, Any]:
+) -> Any:
     """Handle /api/research/* endpoints."""
     try:
         if path == "/api/research/backtests" or path.startswith("/api/research/backtests?"):

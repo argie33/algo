@@ -55,10 +55,10 @@ CREDENTIAL_CACHE_TTL_SECONDS = 300
 class CredentialManager:
     """Centralized credential fetcher with caching and TTL-based expiration."""
 
-    def __init__(self):
+    def __init__(self) -> None:
         self._cache: dict[str, tuple[Any, float]] = {}  # key -> (value, timestamp)
         self._is_aws = self._detect_aws()
-        self._secrets_client = None
+        self._secrets_client: Any = None
 
     def _detect_aws(self) -> bool:
         """Check if running in AWS Lambda/ECS or if AWS mode is forced.
@@ -73,7 +73,7 @@ class CredentialManager:
         # Check if running in AWS Lambda/ECS
         return bool(os.getenv("AWS_EXECUTION_ENV"))
 
-    def _get_secrets_client(self):
+    def _get_secrets_client(self) -> Any:
         """Lazy-load boto3 Secrets Manager client."""
         if self._secrets_client is None:
             try:
@@ -540,11 +540,11 @@ class CredentialManager:
             "port": smtp_port,
         }
 
-    def clear_cache(self):
+    def clear_cache(self) -> None:
         """Clear credential cache (useful for testing or forcing a refresh)."""
         self._cache.clear()
 
-    def clear_expired_credentials(self):
+    def clear_expired_credentials(self) -> None:
         """Remove expired credentials from cache without clearing everything."""
         now = time.time()
         expired_keys = [
@@ -553,7 +553,7 @@ class CredentialManager:
         for key in expired_keys:
             del self._cache[key]
 
-    def invalidate_alpaca_credentials(self):
+    def invalidate_alpaca_credentials(self) -> None:
         """FIX S-17: Clear cached Alpaca credentials when detected as invalid (e.g., 401 from API).
 
         Call this when Alpaca returns 401 Unauthorized to force a refetch on next request.
@@ -620,12 +620,12 @@ def get_secret(secret_name: str, default: str | None = None) -> str:
     return get_credential_manager().get_secret(secret_name, default)
 
 
-def get_db_credentials() -> dict[str, str]:
+def get_db_credentials() -> dict[str, Any]:
     """Module-level convenience function."""
     return get_credential_manager().get_db_credentials()
 
 
-def get_alpaca_credentials(user_id: str | None = None) -> dict[str, str]:
+def get_alpaca_credentials(user_id: str | None = None) -> dict[str, Any]:
     """Module-level convenience function for Alpaca credentials.
 
     Args:
@@ -654,7 +654,7 @@ def get_db_config() -> dict[str, Any]:
     return get_db_credentials()
 
 
-def clear_credential_cache():
+def clear_credential_cache() -> bool:
     """Clear the credential cache.
 
     Called at Lambda invocation start to ensure fresh credentials are fetched
@@ -669,7 +669,7 @@ def clear_credential_cache():
     return True
 
 
-def clear_expired_credentials():
+def clear_expired_credentials() -> bool:
     """Remove only expired credentials from cache, keeping fresh ones.
 
     This is called at Lambda invocation start instead of clearing the entire cache.
@@ -683,7 +683,7 @@ def clear_expired_credentials():
     return True
 
 
-def invalidate_alpaca_credentials():
+def invalidate_alpaca_credentials() -> None:
     """FIX S-17: Clear cached Alpaca credentials when detected as invalid (e.g., 401 from API).
 
     Call this from trade executor when Alpaca returns 401 Unauthorized.

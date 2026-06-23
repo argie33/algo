@@ -15,11 +15,10 @@ import psycopg2
 logger = logging.getLogger(__name__)
 import os
 from datetime import date
-from typing import Any, Optional, cast
+from typing import Any, cast
 
 from loaders.runner import run_loader
 from utils.external.sec_edgar import SecEdgarClient
-from utils.loaders.config import get_parallelism
 from utils.optimal_loader import OptimalLoader
 
 _PERIOD_CONFIG = {

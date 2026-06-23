@@ -398,7 +398,8 @@ class Orchestrator:
                     ),
                 )
         except (psycopg2.DatabaseError, psycopg2.OperationalError) as e:
-            logger.warning(f"Warning: Could not persist audit log entry: {e}")
+            logger.critical(f"Audit log persistence CRITICAL FAILURE: {e}")
+            raise RuntimeError(f"[AUDIT] Failed to persist phase log (data integrity risk): {e}") from e
 
     # ---------- Phase implementations ----------
 

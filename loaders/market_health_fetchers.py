@@ -38,9 +38,7 @@ class VIXFetcher:
     def _fetch_vix_data(self, start: date, end: date) -> dict[str, Any]:
         """Internal VIX fetch implementation."""
         try:
-            from datetime import datetime, timezone
 
-            import pandas as pd
             import yfinance
 
             vix_data = yfinance.download("^VIX", start=start, end=end, progress=False)
@@ -83,7 +81,6 @@ class PutCallRatioFetcher:
     def _fetch_put_call_ratio(self, eval_date: date) -> float | None:
         """Internal put/call fetch implementation."""
         try:
-            from datetime import datetime, timezone
 
             import yfinance
 
@@ -177,7 +174,6 @@ class BreadthFetcher:
     def fetch(self, start: date, end: date) -> dict[str, Any]:
         """Fetch market breadth data."""
         try:
-            import pandas as pd
             import requests
 
             url = "https://api.example.com/market/breadth"

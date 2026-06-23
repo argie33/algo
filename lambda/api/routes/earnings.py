@@ -30,7 +30,7 @@ def handle(
     params: dict[str, Any],
     body: dict[str, Any] | None = None,
     jwt_claims: dict[str, Any] | None = None,
-) -> dict[str, Any]:
+) -> Any:
     try:
         parts = path.split("/")
         symbol = parts[3] if len(parts) > 3 else None
@@ -60,9 +60,13 @@ def handle(
                 timeout_sec=3,
             )
 
-            # Validate rows
+            # Validate rows — fail fast on validation failure
             if not DatabaseResultValidator.validate_rows_not_empty(rows, "earnings history query"):
-                rows = []
+                return error_response(
+                    503,
+                    "ServiceUnavailable",
+                    "Earnings data validation failed; earnings history query returned invalid data",
+                )
 
             freshness = check_data_freshness(cur, "earnings_history", "earnings_date", warning_days=7)
             result = list_response(
@@ -96,9 +100,13 @@ def handle(
             timeout_sec=5,
         )
 
-        # Validate rows
+        # Validate rows — fail fast on validation failure
         if not DatabaseResultValidator.validate_rows_not_empty(rows, "earnings all query"):
-            rows = []
+            return error_response(
+                503,
+                "ServiceUnavailable",
+                "Earnings data validation failed; earnings all query returned invalid data",
+            )
 
         freshness = check_data_freshness(cur, "earnings_history", "earnings_date", warning_days=7)
         result = list_response(
@@ -115,7 +123,6 @@ def handle(
         psycopg2.errors.UndefinedColumn,
         psycopg2.OperationalError,
         psycopg2.DatabaseError,
-        Exception,
     ) as e:
         code, error_type, message = handle_db_error(e, "handle earnings")
         return error_response(code, error_type, message)

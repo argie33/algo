@@ -35,7 +35,7 @@ def handle(
     params: dict[str, Any],
     body: dict[str, Any] | None = None,
     jwt_claims: dict[str, Any] | None = None,
-) -> dict[str, Any]:
+) -> Any:
     """Handle /api/settings endpoints."""
     if jwt_claims is None:
         return error_response(401, "unauthorized", "Authentication required")
@@ -52,7 +52,7 @@ def handle(
     return error_response(405, "method_not_allowed", f"{method} not supported")
 
 
-def _get_settings(cur: cursor, jwt_claims: dict[str, Any]) -> dict[str, Any]:
+def _get_settings(cur: cursor, jwt_claims: dict[str, Any]) -> Any:
     """Return user settings from database.
 
     Fails fast on schema errors, data corruption, or unavailability.
@@ -99,12 +99,12 @@ def _get_settings(cur: cursor, jwt_claims: dict[str, Any]) -> dict[str, Any]:
             }
             return json_response(200, {**_DEFAULTS, **stored})
         return json_response(200, dict(_DEFAULTS))
-    except (psycopg2.OperationalError, psycopg2.DatabaseError, Exception) as e:
+    except (psycopg2.OperationalError, psycopg2.DatabaseError) as e:
         code, error_type, message = handle_db_error(e, "get settings")
         return error_response(code, error_type, message)
 
 
-def _save_settings(cur: cursor, body: dict[str, Any], jwt_claims: dict[str, Any]) -> dict[str, Any]:
+def _save_settings(cur: cursor, body: dict[str, Any], jwt_claims: dict[str, Any]) -> Any:
     """Persist user settings (theme, notifications, other preferences).
 
     Fails fast on schema errors or data unavailability - does not silently
@@ -150,6 +150,6 @@ def _save_settings(cur: cursor, body: dict[str, Any], jwt_claims: dict[str, Any]
         )
 
         return json_response(200, {"success": True, "message": "Settings saved"})
-    except (psycopg2.OperationalError, psycopg2.DatabaseError, Exception) as e:
+    except (psycopg2.OperationalError, psycopg2.DatabaseError) as e:
         code, error_type, message = handle_db_error(e, "save settings")
         return error_response(code, error_type, message)

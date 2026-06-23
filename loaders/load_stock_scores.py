@@ -23,7 +23,6 @@ setup_imports()
 
 import logging
 from datetime import date, datetime, timezone
-from typing import Optional
 
 import psycopg2
 

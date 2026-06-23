@@ -93,7 +93,7 @@ def handle(
     body: dict[str, Any] | None = None,
     jwt_claims: dict[str, Any] | None = None,
     headers: dict[str, Any] | None = None,
-) -> dict[str, Any]:
+) -> Any:
     """Handle /api/trades and /api/trades/* endpoints."""
     try:
         if path == "/api/trades/manual" and method == "POST":
@@ -102,7 +102,7 @@ def handle(
             if not body:
                 raise_api_error(400, "bad_request", "Request body is required")
             idempotency_key = headers.get("idempotency-key") if headers else None
-            return _create_manual_trade(cur, body, idempotency_key)
+            return _create_manual_trade(cur, body or {}, idempotency_key)
         if path == "/api/trades":
             if os.environ.get("DEV_BYPASS_AUTH") != "true" and not _check_admin_access(jwt_claims):
                 raise_api_error(403, "forbidden", "Admin access required")
@@ -192,7 +192,7 @@ def handle(
         raise_db_error(e, "handle trades")
 
 
-def _create_manual_trade(cur: cursor, body: dict[str, Any], idempotency_key: str | None = None) -> dict[str, Any]:
+def _create_manual_trade(cur: cursor, body: dict[str, Any], idempotency_key: str | None = None) -> Any:
     """POST /api/trades/manual — manually log a trade entry.
 
     If idempotency_key is provided, uses it to prevent duplicate requests.

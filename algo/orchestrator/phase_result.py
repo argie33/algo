@@ -26,7 +26,7 @@ class PhaseResult:
 class Phase1Result(PhaseResult):
     """Phase 1: Data Freshness Check."""
 
-    def __init__(self, status: str, **kwargs):
+    def __init__(self, status: str, **kwargs: Any) -> None:
         super().__init__(
             phase_num=1,
             phase_name="DATA FRESHNESS CHECK",
@@ -43,7 +43,7 @@ class Phase2Result(PhaseResult):
     Depends on: Phase 1
     """
 
-    def __init__(self, status: str, **kwargs):
+    def __init__(self, status: str, **kwargs: Any) -> None:
         super().__init__(
             phase_num=2,
             phase_name="CIRCUIT BREAKERS",
@@ -61,7 +61,7 @@ class Phase3Result(PhaseResult):
     Produces: position recommendations
     """
 
-    def __init__(self, status: str, recommendations: list[dict] | None = None, **kwargs):
+    def __init__(self, status: str, recommendations: list[dict[str, Any]] | None = None, **kwargs: Any) -> None:
         super().__init__(
             phase_num=3,
             phase_name="POSITION MONITOR",
@@ -79,7 +79,7 @@ class Phase4Result(PhaseResult):
     Depends on: Phase 3
     """
 
-    def __init__(self, status: str, **kwargs):
+    def __init__(self, status: str, **kwargs: Any) -> None:
         super().__init__(
             phase_num=4,
             phase_name="RECONCILIATION",
@@ -100,10 +100,10 @@ class Phase5Result(PhaseResult):
     def __init__(
         self,
         status: str,
-        constraints: dict | None = None,
-        actions: list[dict] | None = None,
-        **kwargs,
-    ):
+        constraints: dict[str, Any] | None = None,
+        actions: list[dict[str, Any]] | None = None,
+        **kwargs: Any,
+    ) -> None:
         super().__init__(
             phase_num=5,
             phase_name="EXPOSURE POLICY ACTIONS",
@@ -125,7 +125,7 @@ class Phase6Result(PhaseResult):
     Produces: exit summary
     """
 
-    def __init__(self, status: str, exits_executed: int = 0, **kwargs):
+    def __init__(self, status: str, exits_executed: int = 0, **kwargs: Any) -> None:
         super().__init__(
             phase_num=6,
             phase_name="EXIT EXECUTION",
@@ -144,7 +144,7 @@ class Phase7Result(PhaseResult):
     Produces: qualified_trades
     """
 
-    def __init__(self, status: str, qualified_trades: list[dict] | None = None, **kwargs):
+    def __init__(self, status: str, qualified_trades: list[dict[str, Any]] | None = None, **kwargs: Any) -> None:
         super().__init__(
             phase_num=7,
             phase_name="SIGNAL GENERATION & RANKING",
@@ -163,7 +163,7 @@ class Phase8Result(PhaseResult):
     Produces: entry summary
     """
 
-    def __init__(self, status: str, entered: int = 0, **kwargs):
+    def __init__(self, status: str, entered: int = 0, **kwargs: Any) -> None:
         super().__init__(
             phase_num=8,
             phase_name="ENTRY EXECUTION",
@@ -182,7 +182,7 @@ class Phase9Result(PhaseResult):
     Produces: portfolio snapshot
     """
 
-    def __init__(self, status: str, positions: int = 0, **kwargs):
+    def __init__(self, status: str, positions: int = 0, **kwargs: Any) -> None:
         super().__init__(
             phase_num=9,
             phase_name="RECONCILIATION & SNAPSHOT",

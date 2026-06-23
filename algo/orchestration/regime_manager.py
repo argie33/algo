@@ -126,8 +126,8 @@ class RegimeManager:
             return regime
 
         except (OSError, RuntimeError, ValueError) as e:
-            logger.warning(f"Could not fetch regime: {e}. Defaulting to caution (conservative)")
-            return "caution"
+            logger.critical(f"Regime fetch CRITICAL FAILURE: {e}")
+            raise RuntimeError(f"[REGIME] Failed to determine market regime (cannot trade without regime): {e}") from e
 
     def get_regime_params(self, as_of_date: _date | None = None) -> dict[str, Any]:
         """Get parameter overrides for current regime."""

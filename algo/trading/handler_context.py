@@ -31,14 +31,14 @@ class HandlerContext:
         execution_mode: str,
         # Callbacks to executor's private methods
         get_portfolio_value_fn: Callable[[], Decimal | None],
-        with_cursor_fn: Callable,
-        validate_entry_conditions_fn: Callable,
-        submit_and_validate_order_fn: Callable,
-        cancel_bracket_orders_fn: Callable,
-        verify_order_status_fn: Callable,
-        get_order_filled_quantity_fn: Callable,
-        send_alpaca_exit_fn: Callable,
-        update_position_with_retry_fn: Callable,
+        with_cursor_fn: Callable[..., Any],
+        validate_entry_conditions_fn: Callable[..., Any],
+        submit_and_validate_order_fn: Callable[..., Any],
+        cancel_bracket_orders_fn: Callable[..., Any],
+        verify_order_status_fn: Callable[..., Any],
+        get_order_filled_quantity_fn: Callable[..., Any],
+        send_alpaca_exit_fn: Callable[..., Any],
+        update_position_with_retry_fn: Callable[..., Any],
     ):
         """Initialize context with handler dependencies.
 

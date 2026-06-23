@@ -128,8 +128,8 @@ class TradeContext:
         exposure_tier_at_entry: str | None = None,
         stop_method: str | None = None,
         stop_reasoning: str | None = None,
-        swing_components: dict | None = None,
-        advanced_components: dict | None = None,
+        swing_components: dict[str, Any] | None = None,
+        advanced_components: dict[str, Any] | None = None,
         execution_mode: str = "auto",
     ) -> TradeContext:
         """Factory method: construct from flat parameter list (for backward compatibility)."""

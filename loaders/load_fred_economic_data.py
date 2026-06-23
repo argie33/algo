@@ -21,7 +21,6 @@ import requests
 from config.api_endpoints import get_fred_url
 from loaders.runner import run_loader
 from utils.infrastructure.circuit_breaker import DataImportance
-from utils.infrastructure.timeout import ExecutionTimeout
 from utils.infrastructure.url_validator import validate_url
 from utils.loaders import create_circuit_breaker, get_api_key
 from utils.optimal_loader import OptimalLoader

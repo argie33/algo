@@ -93,7 +93,7 @@ def handle(
         return error_response(code, error_type, message)
 
 
-def _get_vix(cur: cursor) -> dict[str, Any]:
+def _get_vix(cur: cursor) -> Any:
     """Get VIX historical data."""
     try:
         rows = execute_with_timeout(
@@ -127,7 +127,7 @@ def _get_vix(cur: cursor) -> dict[str, Any]:
         return error_response(code, error_type, message)
 
 
-def _get_calendar(cur: cursor, params: dict[str, Any]) -> dict[str, Any]:
+def _get_calendar(cur: cursor, params: dict[str, Any]) -> Any:
     """Get economic calendar data with optional date filtering."""
     try:
         cur.execute("SET LOCAL statement_timeout = '5000ms'")
@@ -180,7 +180,7 @@ def _get_calendar(cur: cursor, params: dict[str, Any]) -> dict[str, Any]:
         return error_response(code, error_type, message)
 
 
-def _get_leading_indicators(cur: cursor) -> dict[str, Any]:
+def _get_leading_indicators(cur: cursor) -> Any:
     """Get leading economic indicators formatted for EconomicDashboard."""
     # Maps FRED series IDs to indicator names
     indicator_map = {
@@ -267,7 +267,7 @@ def _get_leading_indicators(cur: cursor) -> dict[str, Any]:
                 logger.warning("Row missing series_id in economic latest data")
                 continue
             # Safely convert value to float
-            value = DatabaseResultValidator.safe_get_float(row, "value", default=None, strict=False)
+            value = DatabaseResultValidator.safe_get_float(row, "value", default=0.0, strict=False)
             date = row.get("date")
             latest_rows[series_id] = (value, date)
 
@@ -405,7 +405,7 @@ def _get_leading_indicators(cur: cursor) -> dict[str, Any]:
         return error_response(code, error_type, message)
 
 
-def _get_yield_curve_full(cur: cursor) -> dict[str, Any]:
+def _get_yield_curve_full(cur: cursor) -> Any:
     """Get yield curve and credit spread data formatted for EconomicDashboard."""
     try:
         cur.execute("""

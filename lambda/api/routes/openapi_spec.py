@@ -16,7 +16,7 @@ def handle(
     params,
     body: dict | None = None,
     jwt_claims: dict | None = None,
-) -> dict[str, Any]:
+) -> Any:
     """Handle OpenAPI spec endpoints.
 
     /api/openapi.json - OpenAPI 3.0 specification (machine-readable)
@@ -33,7 +33,7 @@ def handle(
         return error_response(404, "not_found", "OpenAPI endpoint not found")
 
 
-def _handle_openapi_json() -> dict[str, Any]:
+def _handle_openapi_json() -> Any:
     """Serve the OpenAPI specification as JSON.
 
     Returns the complete OpenAPI 3.0 spec that can be used by:
@@ -50,7 +50,7 @@ def _handle_openapi_json() -> dict[str, Any]:
         return error_response(500, "internal_error", "Failed to generate OpenAPI specification")
 
 
-def _handle_swagger_ui() -> dict[str, Any]:
+def _handle_swagger_ui() -> Any:
     """Serve Swagger UI for interactive API documentation.
 
     Returns HTML with Swagger UI pointing to /api/openapi.json.
@@ -99,7 +99,7 @@ def _handle_swagger_ui() -> dict[str, Any]:
     }
 
 
-def _handle_redoc_ui() -> dict[str, Any]:
+def _handle_redoc_ui() -> Any:
     """Serve ReDoc UI for API documentation.
 
     Returns HTML with ReDoc pointing to /api/openapi.json.

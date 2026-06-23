@@ -143,7 +143,7 @@ def _dispatch(
     jwt_claims: dict[str, Any] | None = None,
     idempotency_key: str | None = None,
 ) -> Any:
-    if jwt_claims:
+    if jwt_claims is not None:
         if "sub" not in jwt_claims or not jwt_claims["sub"]:
             raise_api_error(401, "missing_user_id", "JWT missing 'sub' (user ID) — cannot audit request")
         user_id = jwt_claims["sub"]
@@ -249,7 +249,7 @@ def _dispatch(
 
     # Pre-trade impact calculation
     if method == "POST" and path == "/api/algo/pre-trade-impact":
-        if not body:
+        if body is None:
             raise_api_error(400, "bad_request", "Request body required")
         if not isinstance(body, dict):
             raise_api_error(400, "bad_request", "Request body must be a JSON object")
@@ -272,11 +272,13 @@ def _dispatch(
                 raise_api_error(400, "bad_request", "Request body must be a JSON object")
             if not jwt_claims or "sub" not in jwt_claims:
                 raise_api_error(401, "missing_actor", "Cannot audit config change without user ID")
+            assert jwt_claims is not None
             actor = jwt_claims["sub"]
             return _update_algo_config_key(cur, key, body, actor)
         elif method == "DELETE":
             if not jwt_claims or "sub" not in jwt_claims:
                 raise_api_error(401, "missing_actor", "Cannot audit config reset without user ID")
+            assert jwt_claims is not None
             actor = jwt_claims["sub"]
             return _reset_algo_config_key(cur, key, actor)
 

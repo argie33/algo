@@ -31,7 +31,7 @@ from utils.validation import (
 logger = logging.getLogger(__name__)
 
 
-def _calculate_pre_trade_impact(cur: cursor, body: dict[str, Any]) -> dict[str, Any]:
+def _calculate_pre_trade_impact(cur: cursor, body: dict[str, Any]) -> Any:
     """Estimate portfolio impact before entering a trade.
 
     Input: { symbol, entry_price?, position_dollars?, position_pct? }
@@ -157,7 +157,7 @@ def _calculate_pre_trade_impact(cur: cursor, body: dict[str, Any]) -> dict[str, 
 
 
 @db_route_handler("calculate trade preview")
-def _calculate_trade_preview(cur: cursor, body: dict[str, Any]) -> dict[str, Any]:
+def _calculate_trade_preview(cur: cursor, body: dict[str, Any]) -> Any:
     """Calculate position preview before trade entry.
 
     Input: { symbol, entry_price, stop_loss_price }
@@ -246,7 +246,7 @@ def _calculate_trade_preview(cur: cursor, body: dict[str, Any]) -> dict[str, Any
 
 
 @db_route_handler("fetch rejection funnel")
-def _get_rejection_funnel(cur: cursor) -> dict[str, Any]:
+def _get_rejection_funnel(cur: cursor) -> Any:
     """Get signal rejection funnel with detailed breakdown by filter."""
     try:
         today = date.today()
@@ -337,9 +337,9 @@ def _get_rejection_funnel(cur: cursor) -> dict[str, Any]:
             )
 
             for row in cur.fetchall():
-                reason_text = row["rejection_reason"]
+                reason_text = row["rejection_reason"] or ""
                 count = row["count"]
-                if reason_text is None or count is None:
+                if not reason_text or count is None:
                     continue
                 rejected_list.append(
                     {
@@ -348,8 +348,8 @@ def _get_rejection_funnel(cur: cursor) -> dict[str, Any]:
                         "n": count,
                     }
                 )
-        except (psycopg2.errors.UndefinedTable, psycopg2.errors.UndefinedColumn):
-            rejected_list = []
+        except (psycopg2.errors.UndefinedTable, psycopg2.errors.UndefinedColumn) as e:
+            raise RuntimeError(f"Signal rejection data schema error: {e}") from e
 
         result = {
             "funnel": funnel,
@@ -375,20 +375,8 @@ def _get_rejection_funnel(cur: cursor) -> dict[str, Any]:
             f"Failed to fetch rejection funnel: {type(e).__name__}: {e}\n  Operation: Query candidate_signals_reject table\n  Endpoint: GET /api/algo/rejection-funnel"
         )
         raise
-    except (psycopg2.errors.UndefinedTable, psycopg2.errors.UndefinedColumn):
-        return json_response(
-            200,
-            {
-                "funnel": [],
-                "summary": {
-                    "total_initial": 0,
-                    "total_passed": 0,
-                    "total_rejected": 0,
-                    "pass_rate_pct": 0,
-                },
-                "rejected": [],
-            },
-        )
+    except (psycopg2.errors.UndefinedTable, psycopg2.errors.UndefinedColumn) as e:
+        raise RuntimeError(f"Signal rejection funnel schema error - required tables missing: {e}") from e
 
 
 _TIER_CONFIG = {
@@ -481,7 +469,7 @@ def _get_rejection_reason_description(reason: str) -> str:
 @db_route_handler("fetch swing scores")
 def _get_swing_scores(
     cur: cursor, limit: int = 100, min_score: float | None = None, symbol: str | None = None
-) -> dict[str, Any]:
+) -> Any:
     """Get swing trade candidates with scoring."""
     try:
         # Use psycopg2.sql for safe SQL composition
@@ -527,7 +515,7 @@ def _get_swing_scores(
 
 
 @db_route_handler("fetch swing scores history")
-def _get_swing_scores_history(cur: cursor, days: int = 30) -> dict[str, Any]:
+def _get_swing_scores_history(cur: cursor, days: int = 30) -> Any:
     """Get swing scores historical data."""
     try:
         cutoff_date = (datetime.now(timezone.utc) - timedelta(days=days)).date()

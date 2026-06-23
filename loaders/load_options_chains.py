@@ -20,7 +20,6 @@ import logging
 import sys
 import time
 from datetime import date, datetime
-from typing import Optional
 from zoneinfo import ZoneInfo
 
 import psycopg2
@@ -29,7 +28,7 @@ import yfinance as yf
 from utils.db.context import DatabaseContext
 from utils.infrastructure.timezone import EASTERN_TZ
 from utils.loaders import create_circuit_breaker, get_active_symbols
-from utils.validation.data_freshness import FreshnessValidator, StaleDataError
+from utils.validation.data_freshness import FreshnessValidator
 
 logger = logging.getLogger(__name__)
 

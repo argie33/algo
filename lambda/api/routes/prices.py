@@ -45,7 +45,7 @@ def handle(
     params: dict[str, Any],
     body: dict[str, Any] | None = None,
     jwt_claims: dict[str, Any] | None = None,
-) -> dict[str, Any]:
+) -> Any:
     try:
         parts = path.split("/")
 
@@ -260,7 +260,11 @@ def handle(
             """).format(psycopg2.sql.Identifier(table_name))
             rows = execute_with_timeout(cur, batch_query, [symbols, limit], timeout_sec=20)
             if not DatabaseResultValidator.validate_rows_not_empty(rows, "prices batch-history query"):
-                return json_response(200, result3)
+                raise_api_error(
+                    503,
+                    "ServiceUnavailable",
+                    "Price data validation failed; prices batch-history query returned invalid data",
+                )
             found_symbols = set()
             for row in rows:
                 sym = row["symbol"]
@@ -300,7 +304,6 @@ def handle(
         psycopg2.errors.UndefinedColumn,
         psycopg2.OperationalError,
         psycopg2.DatabaseError,
-        Exception,
     ) as e:
         code, error_type, message = handle_db_error(e, "handle prices")
         return error_response(code, error_type, message)

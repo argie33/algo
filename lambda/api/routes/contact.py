@@ -156,7 +156,7 @@ def handle(
     params: dict[str, Any],
     body: dict[str, Any] | None = None,
     jwt_claims: dict[str, Any] | None = None,
-) -> dict[str, Any]:
+) -> Any:
     """Handle /api/contact/* endpoints. Submissions require admin auth."""
     try:
         if path == "/api/contact/submissions":
@@ -182,7 +182,7 @@ def handle(
         return error_response(500, "internal_error", "An error occurred processing your request")
 
 
-def _submit_contact(cur: cursor, body: dict[str, Any]) -> dict[str, Any]:
+def _submit_contact(cur: cursor, body: dict[str, Any]) -> Any:
     """Store a contact form submission."""
     try:
         req = ContactSubmissionRequest(**body)
@@ -259,7 +259,7 @@ def _submit_contact(cur: cursor, body: dict[str, Any]) -> dict[str, Any]:
         return error_response(code, error_type, message)
 
 
-def _get_submissions(cur: cursor, params: dict[str, Any]) -> dict[str, Any]:
+def _get_submissions(cur: cursor, params: dict[str, Any]) -> Any:
     """Get contact submissions (admin-only)."""
     try:
         limit_raw = params.get("limit", [None])[0] if params else None

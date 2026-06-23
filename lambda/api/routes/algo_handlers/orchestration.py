@@ -21,7 +21,7 @@ logger = logging.getLogger(__name__)
 
 
 @db_route_handler("fetch orchestrator execution details")
-def _get_orchestrator_execution_details(cur: cursor, run_id: str) -> dict[str, Any]:
+def _get_orchestrator_execution_details(cur: cursor, run_id: str) -> Any:
     """Return full details of a specific orchestrator run."""
     cur.execute(
         """
@@ -42,14 +42,13 @@ def _get_orchestrator_execution_details(cur: cursor, run_id: str) -> dict[str, A
     if result.get("phase_results"):
         try:
             result["phase_results"] = json.loads(result["phase_results"])
-        except (psycopg2.DatabaseError, psycopg2.OperationalError) as e:
-            logger.warning(f"Failed to parse phase_results JSON: {e}")
-            result["phase_results"] = {}
+        except (psycopg2.DatabaseError, psycopg2.OperationalError, json.JSONDecodeError) as e:
+            raise RuntimeError(f"Orchestrator phase_results JSON parsing failed for run {run_id}: {e}") from e
     return success_response(result)
 
 
 @db_route_handler("fetch orchestrator execution failed")
-def _get_orchestrator_execution_failed(cur: cursor, days: int = 30) -> dict[str, Any]:
+def _get_orchestrator_execution_failed(cur: cursor, days: int = 30) -> Any:
     """Return failed/halted orchestrator runs."""
     cur.execute(
         """
@@ -66,7 +65,7 @@ def _get_orchestrator_execution_failed(cur: cursor, days: int = 30) -> dict[str,
 
 
 @db_route_handler("fetch orchestrator execution patterns")
-def _get_orchestrator_execution_patterns(cur: cursor, days: int = 30) -> dict[str, Any]:
+def _get_orchestrator_execution_patterns(cur: cursor, days: int = 30) -> Any:
     """Analyze halt patterns - which phases halt most often."""
     cur.execute(
         """
@@ -96,7 +95,7 @@ def _get_orchestrator_execution_patterns(cur: cursor, days: int = 30) -> dict[st
 
 
 @db_route_handler("fetch orchestrator execution recent")
-def _get_orchestrator_execution_recent(cur: cursor, days: int = 7, limit: int = 50) -> dict[str, Any]:
+def _get_orchestrator_execution_recent(cur: cursor, days: int = 7, limit: int = 50) -> Any:
     """Return recent orchestrator execution runs."""
     try:
         cur.execute(
@@ -131,15 +130,13 @@ def _get_orchestrator_execution_recent(cur: cursor, days: int = 7, limit: int = 
             items = [safe_json_serialize(safe_dict_convert(r)) for r in rows]
             return list_response(items, total=len(rows), limit=limit)
         except (psycopg2.DatabaseError, psycopg2.OperationalError) as ser_e:
-            logger.warning(f"Serialization error in execution recent: {type(ser_e).__name__}: {ser_e}")
-            return list_response([], total=0, limit=limit)
+            raise RuntimeError(f"Orchestrator execution serialization failed: {type(ser_e).__name__}: {ser_e}") from ser_e
     except (psycopg2.DatabaseError, psycopg2.OperationalError) as e:
-        logger.error(f"Orchestrator execution recent fetch error: {type(e).__name__}: {e}")
-        return list_response([], total=0, limit=limit)
+        raise RuntimeError(f"Orchestrator execution recent query failed: {type(e).__name__}: {e}") from e
 
 
 @db_route_handler("fetch orchestrator execution stats")
-def _get_orchestrator_execution_stats(cur: cursor, days: int = 7) -> dict[str, Any]:
+def _get_orchestrator_execution_stats(cur: cursor, days: int = 7) -> Any:
     """Return execution statistics."""
     cur.execute(
         """

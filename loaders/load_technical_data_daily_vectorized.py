@@ -21,7 +21,7 @@ import threading
 import time
 from datetime import date, datetime, timedelta
 from io import StringIO
-from typing import Optional, cast
+from typing import cast
 from zoneinfo import ZoneInfo
 
 import pandas as pd

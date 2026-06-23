@@ -102,7 +102,8 @@ class NotificationDispatcher:
                 },
             )
         except NotificationError as notif_e:
-            logger.warning(f"Failed to send entry notification (non-blocking): {notif_e}")
+            logger.error(f"Failed to send entry notification for {symbol}: {notif_e}")
+            raise RuntimeError(f"Critical: Entry notification failed for {symbol}") from notif_e
 
         return tca_result
 
@@ -113,7 +114,8 @@ class NotificationDispatcher:
             notify("info", title="Trade Entry", message=message)
             logger.info(f"[NOTIFY_ENTRY] {symbol}: ${entry_price:.2f} x {shares}sh, stop=${stop_loss:.2f}")
         except Exception as e:
-            logger.warning(f"Failed to send entry notification: {e}")
+            logger.error(f"Critical: Failed to send entry notification for {symbol}: {e}")
+            raise RuntimeError(f"Critical: Entry notification failed for {symbol}") from e
 
     def notify_exit_executed(self, symbol: str, exit_price: float, shares: int, pnl: float, pnl_pct: float) -> None:
         """Notify of trade exit execution."""
@@ -122,7 +124,8 @@ class NotificationDispatcher:
             notify("info", title="Trade Exit", message=message)
             logger.info(f"[NOTIFY_EXIT] {symbol}: ${exit_price:.2f} x {shares}sh, PnL=${pnl:.2f}")
         except Exception as e:
-            logger.warning(f"Failed to send exit notification: {e}")
+            logger.error(f"Critical: Failed to send exit notification for {symbol}: {e}")
+            raise RuntimeError(f"Critical: Exit notification failed for {symbol}") from e
 
     def notify_trade_error(self, symbol: str, error: str) -> None:
         """Notify of trade execution error."""
@@ -130,7 +133,8 @@ class NotificationDispatcher:
             notify("error", title="Trade Failed", message=f"{symbol}: {error}")
             logger.error(f"[NOTIFY_ERROR] {symbol}: {error}")
         except Exception as e:
-            logger.warning(f"Failed to send error notification: {e}")
+            logger.error(f"Critical: Failed to send error notification for {symbol}: {e}")
+            raise RuntimeError(f"Critical: Error notification failed for {symbol}") from e
 
     def notify_position_alert(self, symbol: str, alert_type: str, message: str) -> None:
         """Notify of position-related alert."""
@@ -142,4 +146,5 @@ class NotificationDispatcher:
             )
             logger.warning(f"[NOTIFY_ALERT] {symbol} {alert_type}: {message}")
         except Exception as e:
-            logger.warning(f"Failed to send alert notification: {e}")
+            logger.error(f"Critical: Failed to send position alert notification for {symbol}: {e}")
+            raise RuntimeError(f"Critical: Position alert notification failed for {symbol}") from e

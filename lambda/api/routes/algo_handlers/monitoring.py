@@ -33,7 +33,7 @@ logger = logging.getLogger(__name__)
 @db_route_handler("get algo audit log")
 def _get_algo_audit_log(
     cur: cursor, limit: int = 100, offset: int = 0, action_type: str | None = None
-) -> dict[str, Any]:
+) -> Any:
     """Return algo audit log entries with pagination."""
     if action_type:
         cur.execute(
@@ -80,7 +80,7 @@ def _get_algo_audit_log(
 
 
 @db_route_handler("get last run")
-def _get_last_run(cur: cursor) -> dict[str, Any]:
+def _get_last_run(cur: cursor) -> Any:
     """Get the most recent orchestrator run with per-phase status."""
     cur.execute("""
         SELECT details->>'run_id' AS run_id, MAX(created_at) AS run_at
@@ -131,7 +131,7 @@ def _get_last_run(cur: cursor) -> dict[str, Any]:
 @db_route_handler("fetch notifications")
 def _get_notifications(
     cur: cursor, params: dict[str, Any] | None = None, jwt_claims: dict[str, Any] | None = None
-) -> dict[str, Any]:
+) -> Any:
     """Get recent notifications. System broadcasts visible to all authenticated users."""
     try:
         params = params or {}
@@ -206,7 +206,7 @@ def _get_notifications(
 
 
 @db_route_handler("get patrol log")
-def _get_patrol_log(cur: cursor, limit: int = 50, offset: int = 0) -> dict[str, Any]:
+def _get_patrol_log(cur: cursor, limit: int = 50, offset: int = 0) -> Any:
     """Get data patrol findings with pagination."""
     cur.execute("SELECT COUNT(*) as total FROM data_patrol_log")
     row = cur.fetchone()
@@ -226,7 +226,7 @@ def _get_patrol_log(cur: cursor, limit: int = 50, offset: int = 0) -> dict[str, 
 
 
 @db_route_handler("trigger data patrol")
-def _trigger_data_patrol() -> dict[str, Any]:
+def _trigger_data_patrol() -> Any:
     """Trigger async data patrol ECS task."""
     try:
         ecs = boto3.client("ecs")

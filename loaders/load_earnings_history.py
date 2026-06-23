@@ -15,7 +15,6 @@ import logging
 
 logger = logging.getLogger(__name__)
 from datetime import date
-from typing import Optional
 
 from loaders.runner import run_loader
 from utils.optimal_loader import OptimalLoader

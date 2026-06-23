@@ -19,7 +19,7 @@ import threading
 import time
 import uuid
 from datetime import date, datetime, timedelta
-from typing import Optional, cast
+from typing import cast
 
 import psycopg2.sql
 
@@ -27,9 +27,6 @@ from loaders.price_fetcher import PriceFetcher
 from loaders.price_transformer import PriceTransformer
 from loaders.price_validator import PriceValidator
 from monitoring.metrics_context import TimeBlock
-from utils.data.provenance import DataProvenanceTracker
-from utils.data.tick_validator import validate_price_tick
-from utils.data.watermark import WatermarkManager
 from utils.db.context import DatabaseContext
 from utils.db.sql_safety import assert_safe_table
 from utils.infrastructure.circuit_breaker import CircuitBreaker, DataImportance
@@ -1026,7 +1023,6 @@ class PriceLoader(OptimalLoader):
         CRITICAL: Prevents infinite batch reduction + timeout cascade by tracking elapsed time.
         If batch=1 and elapsed > threshold, fail immediately rather than waiting indefinitely.
         """
-        import random
         import time
 
         # ISSUE #6 FIX: Prevent infinite batch reduction and Step Function timeout
@@ -1437,7 +1433,6 @@ class PriceLoader(OptimalLoader):
           - None if execution should continue
 
         """
-        import time
 
         avg_batch_time = sum(batch_times) / len(batch_times) if batch_times else 0
         completion_pct = processed / total_symbols if total_symbols else 0
@@ -1552,7 +1547,6 @@ class PriceLoader(OptimalLoader):
     def _finalize_execution_metrics(self) -> None:
         """Finalize execution: publish metrics, update loader status, attempt final symbol retry."""
         import time
-        from datetime import timedelta, timezone
 
         self._stats["rate_limit_errors"] = self._rate_limit_errors
         if self._rate_limit_error_start_time:

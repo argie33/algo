@@ -11,7 +11,7 @@ import argparse
 import logging
 import sys
 from datetime import date, datetime, timedelta
-from typing import Any, Optional
+from typing import Any
 
 import pandas as pd
 import psycopg2

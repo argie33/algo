@@ -22,12 +22,12 @@ class TradeStatus(Enum):
     ORPHANED = "orphaned"  # Position exists in DB but not in Alpaca (error state)
 
     @classmethod
-    def all_open(cls):
+    def all_open(cls) -> tuple[str, ...]:
         """Returns tuple of statuses where position is still active."""
         return (cls.OPEN.value, cls.FILLED.value, cls.ACTIVE.value, cls.PARTIAL.value)
 
     @classmethod
-    def all_closed(cls):
+    def all_closed(cls) -> tuple[str, ...]:
         """Returns tuple of statuses where position is done."""
         return (cls.CLOSED.value, cls.CANCELLED.value, cls.ORPHANED.value)
 
@@ -72,7 +72,7 @@ class PositionStatus(Enum):
     ORPHANED = "orphaned"  # Position in DB but not in Alpaca (error state)
 
     @classmethod
-    def all_active(cls):
+    def all_active(cls) -> tuple[str, ...]:
         """Returns tuple of statuses where position is still exposed."""
         return (cls.OPEN.value, cls.PARTIAL.value, cls.PENDING_CLOSE.value)
 

@@ -5,13 +5,14 @@ Each check type has a dedicated handler that knows how to unpack and process its
 """
 
 from abc import ABC, abstractmethod
+from typing import Any
 
 
 class CheckResultHandler(ABC):
     """Base class for check result handlers."""
 
     @abstractmethod
-    def process(self, result: tuple) -> tuple[bool, str, dict | None]:
+    def process(self, result: tuple[Any, ...]) -> tuple[bool, str, dict[str, Any] | None]:
         """Process check result.
 
         Args:
@@ -25,7 +26,7 @@ class CheckResultHandler(ABC):
 class IdempotentCheckHandler(CheckResultHandler):
     """Handles idempotent check results."""
 
-    def process(self, result: tuple) -> tuple[bool, str, dict | None]:
+    def process(self, result: tuple[Any, ...]) -> tuple[bool, str, dict[str, Any] | None]:
         is_dup, error_msg, existing_trade_id = result
         if is_dup:
             return (
@@ -43,7 +44,7 @@ class IdempotentCheckHandler(CheckResultHandler):
 class OpenPositionCheckHandler(CheckResultHandler):
     """Handles open position check results."""
 
-    def process(self, result: tuple) -> tuple[bool, str, dict | None]:
+    def process(self, result: tuple[Any, ...]) -> tuple[bool, str, dict[str, Any] | None]:
         is_dup, error_msg = result
         if is_dup:
             return (
@@ -57,7 +58,7 @@ class OpenPositionCheckHandler(CheckResultHandler):
 class FingerprintCheckHandler(CheckResultHandler):
     """Handles fingerprint check results."""
 
-    def process(self, result: tuple) -> tuple[bool, str, dict | None]:
+    def process(self, result: tuple[Any, ...]) -> tuple[bool, str, dict[str, Any] | None]:
         is_dup, error_msg, existing_trade_id = result
         if is_dup:
             return (
@@ -75,7 +76,7 @@ class FingerprintCheckHandler(CheckResultHandler):
 class PendingCheckHandler(CheckResultHandler):
     """Handles pending trade check results."""
 
-    def process(self, result: tuple) -> tuple[bool, str, dict | None]:
+    def process(self, result: tuple[Any, ...]) -> tuple[bool, str, dict[str, Any] | None]:
         has_pending, error_msg, _ = result
         if has_pending:
             return (
@@ -89,7 +90,7 @@ class PendingCheckHandler(CheckResultHandler):
 class ReentryCheckHandler(CheckResultHandler):
     """Handles reentry check results."""
 
-    def process(self, result: tuple) -> tuple[bool, str, dict | None]:
+    def process(self, result: tuple[Any, ...]) -> tuple[bool, str, dict[str, Any] | None]:
         valid, error_msg, _ = result
         if not valid:
             status = "reentry_blocked" if "prior re-entries" in (error_msg or "") else "reentry_cooldown"

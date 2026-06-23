@@ -8,6 +8,7 @@ All dynamic SQL patterns are validated against whitelists before execution.
 """
 
 import re
+from typing import Any
 
 # Known safe tables (whitelist for dynamic table names)
 # Security: M-001 SQL injection prevention — table names validated against whitelist
@@ -203,7 +204,7 @@ SAFE_COLUMNS = {
 }
 
 
-def validate_identifier(identifier: str, whitelist: set, identifier_type: str = "table") -> str:
+def validate_identifier(identifier: str, whitelist: set[str], identifier_type: str = "table") -> str:
     """
     Validate a dynamic identifier (table or column name) against whitelist.
 
@@ -246,7 +247,7 @@ def assert_safe_column(column: str) -> str:
 
 
 # For backwards compatibility - direct safe execution
-def safe_execute(cur, query_template: str, **kwargs) -> None:
+def safe_execute(cur: Any, query_template: str, **kwargs: Any) -> None:
     """
     Execute a query with validated dynamic parts.
 
@@ -274,7 +275,7 @@ def safe_execute(cur, query_template: str, **kwargs) -> None:
 
 
 def safe_select_count(
-    cur,
+    cur: Any,
     table: str,
     date_column: str | None = None,
     where_clause: str | None = None,

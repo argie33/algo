@@ -12,7 +12,6 @@ Pre-computes daily economic metrics for dashboard consumption:
 import logging
 import sys
 from datetime import date, datetime
-from typing import Any
 
 import psycopg2
 

@@ -18,7 +18,6 @@ setup_imports()
 
 import logging
 from datetime import date, datetime, timezone
-from typing import Optional
 
 from loaders.runner import run_loader
 from utils.optimal_loader import OptimalLoader

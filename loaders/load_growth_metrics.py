@@ -10,7 +10,7 @@ Requires: annual_income_statement populated.
 
 import logging
 from datetime import date
-from typing import Any, Optional
+from typing import Any
 
 import psycopg2
 

@@ -10,7 +10,6 @@ from datetime import date
 import requests
 
 from loaders.runner import run_loader
-from utils.infrastructure.timeout import ExecutionTimeout
 from utils.infrastructure.url_validator import validate_url
 from utils.optimal_loader import OptimalLoader
 

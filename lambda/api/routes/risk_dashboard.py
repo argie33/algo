@@ -43,7 +43,7 @@ def handle(
     params: dict[str, Any],
     body: dict[str, Any] | None = None,
     jwt_claims: dict[str, Any] | None = None,
-) -> dict[str, Any]:
+) -> Any:
     """Route risk dashboard endpoints."""
     if os.environ.get("DEV_BYPASS_AUTH") != "true" and not _check_admin_access(jwt_claims):
         return error_response(403, "forbidden", "Admin access required")
@@ -69,7 +69,7 @@ def handle(
         return error_response(404, "not_found", f"No risk dashboard handler for {path}")
 
 
-def _get_comprehensive_risk_dashboard(cur: cursor) -> dict[str, Any]:
+def _get_comprehensive_risk_dashboard(cur: cursor) -> Any:
     """Get all current risk metrics in one view."""
     try:
         result = {
@@ -84,18 +84,16 @@ def _get_comprehensive_risk_dashboard(cur: cursor) -> dict[str, Any]:
         # Drawdown
         try:
             drawdown_info = _fetch_drawdown_info(cur)
-            result["drawdown"] = drawdown_info  # type: ignore[assignment]
+            result["drawdown"] = drawdown_info
         except Exception as e:
-            logger.warning(f"Drawdown fetch failed: {e}")
-            result["drawdown"] = None
+            raise RuntimeError(f"Critical risk metric unavailable: drawdown fetch failed: {e}") from e
 
         # Exposure tier
         try:
             tier_info = _fetch_exposure_tier_info(cur)
-            result["exposure_tier"] = tier_info  # type: ignore[assignment]
+            result["exposure_tier"] = tier_info
         except Exception as e:
-            logger.warning(f"Exposure tier fetch failed: {e}")
-            result["exposure_tier"] = None
+            raise RuntimeError(f"Critical risk metric unavailable: exposure tier fetch failed: {e}") from e
 
         # VIX metrics
         try:
@@ -123,8 +121,10 @@ def _get_comprehensive_risk_dashboard(cur: cursor) -> dict[str, Any]:
                     "halt_threshold": 35.0,
                     "risk_reduction_multiplier": risk_reduction,
                 }
+            else:
+                raise RuntimeError("VIX data unavailable: no recent market_health_daily records")
         except (ValueError, ZeroDivisionError, TypeError) as e:
-            logger.warning(f"VIX fetch failed: {e}")
+            raise RuntimeError(f"Critical risk metric unavailable: VIX calculation failed: {e}") from e
 
         # Position sizing statistics
         try:
@@ -153,8 +153,10 @@ def _get_comprehensive_risk_dashboard(cur: cursor) -> dict[str, Any]:
                         float(row["avg_position_size_pct"]) if row["avg_position_size_pct"] else None
                     ),
                 }
+            else:
+                raise RuntimeError("Position sizing audit data unavailable: no records in algo_position_sizing_audit")
         except (ValueError, ZeroDivisionError, TypeError) as e:
-            logger.warning(f"Position sizing stats fetch failed: {e}")
+            raise RuntimeError(f"Critical risk metric unavailable: position sizing calculation failed: {e}") from e
 
         # Exit rules distribution (top 5)
         try:
@@ -170,12 +172,14 @@ def _get_comprehensive_risk_dashboard(cur: cursor) -> dict[str, Any]:
             """,
                 timeout_sec=8,
             )
+            if not exit_rows:
+                raise RuntimeError("Exit rules data unavailable: no records in algo_exit_rules_distribution")
             rules = {}
             for row in exit_rows:
                 rules[row["exit_rule"]] = row["count"]
             result["exit_rules_distribution"] = rules  # type: ignore[assignment]
         except (ValueError, ZeroDivisionError, TypeError) as e:
-            logger.warning(f"Exit rules fetch failed: {e}")
+            raise RuntimeError(f"Critical risk metric unavailable: exit rules calculation failed: {e}") from e
 
         freshness = check_data_freshness(cur, "algo_portfolio_snapshots", "snapshot_date", warning_days=1)
         response = json_response(200, result)
@@ -187,7 +191,7 @@ def _get_comprehensive_risk_dashboard(cur: cursor) -> dict[str, Any]:
         return error_response(code, error_type, message)
 
 
-def _fetch_drawdown_info(cur: cursor) -> dict[str, Any]:
+def _fetch_drawdown_info(cur: cursor) -> Any:
     """Get current portfolio drawdown and thresholds.
 
     CAVEAT: Intraday drawdowns are invisible. Only EOD snapshots are tracked, so if the algo
@@ -233,46 +237,49 @@ def _fetch_drawdown_info(cur: cursor) -> dict[str, Any]:
     }
 
 
-def _fetch_exposure_tier_info(cur: cursor) -> dict[str, Any]:
-    """Get current market exposure tier (NORMAL/CAUTION/PRESSURE)."""
+def _fetch_exposure_tier_info(cur: cursor) -> Any:
+    """Get current market exposure tier (NORMAL/CAUTION/PRESSURE).
+
+    Fails if market exposure data is unavailable: returning defaults could mask
+    risk and allow over-exposure when system conditions are unknown.
+    """
+    rows = execute_with_timeout(
+        cur,
+        """
+        SELECT exposure_pct, regime, halt_reasons
+        FROM market_exposure_daily
+        ORDER BY date DESC LIMIT 1
+    """,
+        timeout_sec=5,
+    )
+    if not rows:
+        raise ValueError("No market exposure data available (exposure_daily table empty)")
+
+    row = rows[0]
+    if not row:
+        raise ValueError("Market exposure data invalid (null row)")
+
     try:
-        rows = execute_with_timeout(
-            cur,
-            """
-            SELECT exposure_pct, regime, halt_reasons
-            FROM market_exposure_daily
-            ORDER BY date DESC LIMIT 1
-        """,
-            timeout_sec=5,
-        )
-        row = rows[0] if rows else None
-        if row:
-            exposure_pct = float(row["exposure_pct"]) if row["exposure_pct"] else 100
-            tier = row["regime"] or "NORMAL"
-            rationale = row["halt_reasons"] or "No data"
-            return {
-                "current_tier": tier,
-                "exposure_pct": exposure_pct,
-                "rationale": rationale,
-                "position_size_multiplier": {
-                    "confirmed_uptrend": 1.0,
-                    "uptrend_under_pressure": 0.75,
-                    "caution": 0.50,
-                    "correction": 0.0,
-                }.get(tier.lower() if tier else "", 1.0),
-            }
+        exposure_pct = float(row["exposure_pct"]) if row["exposure_pct"] else 100
+        tier = row["regime"] or "NORMAL"
+        rationale = row["halt_reasons"] or "No data"
+        return {
+            "current_tier": tier,
+            "exposure_pct": exposure_pct,
+            "rationale": rationale,
+            "position_size_multiplier": {
+                "confirmed_uptrend": 1.0,
+                "uptrend_under_pressure": 0.75,
+                "caution": 0.50,
+                "correction": 0.0,
+            }.get(tier.lower() if tier else "", 1.0),
+        }
     except (ValueError, ZeroDivisionError, TypeError) as e:
-        logger.warning(f"Exposure tier computation failed, using defaults: {e}")
-
-    return {
-        "current_tier": "NORMAL",
-        "exposure_pct": 100,
-        "rationale": "Default (no data)",
-        "position_size_multiplier": 1.0,
-    }
+        logger.critical(f"Exposure tier computation failed: {e}")
+        raise ValueError(f"Failed to compute market exposure tier: {e}") from e
 
 
-def _get_drawdown_metrics(cur: cursor) -> dict[str, Any]:
+def _get_drawdown_metrics(cur: cursor) -> Any:
     """GET /api/algo/risk-dashboard/drawdown"""
     try:
         info = _fetch_drawdown_info(cur)
@@ -282,7 +289,7 @@ def _get_drawdown_metrics(cur: cursor) -> dict[str, Any]:
         return error_response(code, error_type, message)
 
 
-def _get_exposure_tier_info(cur: cursor) -> dict[str, Any]:
+def _get_exposure_tier_info(cur: cursor) -> Any:
     """GET /api/algo/risk-dashboard/exposure-tier"""
     try:
         info = _fetch_exposure_tier_info(cur)
@@ -292,7 +299,7 @@ def _get_exposure_tier_info(cur: cursor) -> dict[str, Any]:
         return error_response(code, error_type, message)
 
 
-def _get_position_sizing_audit(cur: cursor, days: int) -> dict[str, Any]:
+def _get_position_sizing_audit(cur: cursor, days: int) -> Any:
     """GET /api/algo/risk-dashboard/position-sizing-audit?days=30"""
     try:
         audit_rows = execute_with_timeout(
@@ -338,7 +345,7 @@ def _get_position_sizing_audit(cur: cursor, days: int) -> dict[str, Any]:
         return error_response(code, error_type, message)
 
 
-def _get_stop_loss_audit(cur: cursor, days: int) -> dict[str, Any]:
+def _get_stop_loss_audit(cur: cursor, days: int) -> Any:
     """GET /api/algo/risk-dashboard/stop-loss-audit?days=30"""
     try:
         cur.execute(
@@ -380,7 +387,7 @@ def _get_stop_loss_audit(cur: cursor, days: int) -> dict[str, Any]:
         return error_response(code, error_type, message)
 
 
-def _get_exit_rules_distribution(cur: cursor, days: int) -> dict[str, Any]:
+def _get_exit_rules_distribution(cur: cursor, days: int) -> Any:
     """GET /api/algo/risk-dashboard/exit-rules?days=30"""
     try:
         cur.execute(

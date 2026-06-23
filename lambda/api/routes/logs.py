@@ -55,7 +55,8 @@ def ensure_log_stream(stream_name: str) -> None:
     except _get_logs_client().exceptions.ResourceAlreadyExistsException:
         pass  # Stream already exists
     except Exception as e:
-        logger.warning(f"Could not create log stream {stream_name}: {e}")
+        logger.error(f"Critical: Failed to create log stream {stream_name}: {e}")
+        raise RuntimeError(f"Failed to create CloudWatch log stream: {e}") from e
 
 
 def handle(
@@ -65,7 +66,7 @@ def handle(
     params: dict[str, Any],
     body: dict[str, Any] | None = None,
     jwt_claims: dict[str, Any] | None = None,
-) -> dict[str, Any]:
+) -> Any:
     """Handle frontend error logging.
 
     POST /api/logs - Receive and log frontend errors to CloudWatch
@@ -155,16 +156,9 @@ def handle(
                     logEvents=log_events,
                 )
                 logger.info(f"Logged {len(log_events)} frontend events to {stream_name}")
-            except (json.JSONDecodeError, ValueError) as e:
-                logger.error(f"Failed to put logs to CloudWatch: {e}")
-                # Still return success to avoid breaking frontend
-                return success_response(
-                    {
-                        "logged": len(log_events),
-                        "message": "Logs received (CloudWatch delivery failed)",
-                        "warning": "Local logging may be unavailable",
-                    }
-                )
+            except Exception as e:
+                logger.error(f"Critical: Failed to put logs to CloudWatch: {type(e).__name__}: {e}")
+                return error_response(503, "logging_service_error", f"CloudWatch logging failed: {str(e)[:100]}")
 
         return success_response(
             {
@@ -175,12 +169,5 @@ def handle(
         )
 
     except (ValueError, ZeroDivisionError, TypeError) as e:
-        logger.error(f"Log handler error: {e}", exc_info=True)
-        # Return success anyway - don't break frontend if logging fails
-        return success_response(
-            {
-                "logged": 0,
-                "message": "Log handler error (frontend not affected)",
-                "error": str(e)[:100],
-            }
-        )
+        logger.error(f"Log handler error: {type(e).__name__}: {e}", exc_info=True)
+        return error_response(400, "invalid_request", f"Request validation failed: {str(e)[:100]}")

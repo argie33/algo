@@ -4,6 +4,7 @@ import logging
 from datetime import datetime, timezone
 from typing import Any
 
+from api_router import get_import_status as get_api_import_status
 from api_utils.config import get_config
 from psycopg2.extensions import cursor
 from routes.utils import (
@@ -16,15 +17,6 @@ from routes.utils import (
 
 from shared_contracts.response_validator import ResponseValidator
 
-# C-4 FIX: Import route status for health endpoint
-try:
-    from api_router import get_import_status as get_api_import_status
-except (ImportError, ModuleNotFoundError):
-    # Fallback if api_router not available (shouldn't happen in normal execution)
-    def get_api_import_status() -> dict[str, Any]:
-        return {"failed_routes": 0, "critical_failures": []}
-
-
 logger = logging.getLogger(__name__)
 
 
@@ -36,7 +28,7 @@ def handle(
     body: dict[str, Any] | None = None,
     jwt_claims: dict[str, Any] | None = None,
     idempotency_key: str | None = None,
-) -> dict[str, Any]:
+) -> Any:
     """Handle health check endpoints.
 
     /api/health — PUBLIC, no auth required. Basic system status.
@@ -57,7 +49,7 @@ def handle(
         return _handle_basic(cur)
 
 
-def _handle_basic(cur: cursor) -> dict[str, Any]:
+def _handle_basic(cur: cursor) -> Any:
     """Basic health check - PUBLIC, no auth required.
 
     Fast health check: DB connectivity + key metrics (optimized).
@@ -171,7 +163,7 @@ def _handle_basic(cur: cursor) -> dict[str, Any]:
         return error_response(code, error_type, message)
 
 
-def _handle_cognito(cur: cursor) -> dict[str, Any]:
+def _handle_cognito(cur: cursor) -> Any:
     """C-7 FIX: Verify Cognito client ID matches AWS Cognito configuration.
 
     This endpoint is called by pre-deploy validation (GitHub Actions) to ensure
@@ -296,7 +288,7 @@ def _handle_cognito(cur: cursor) -> dict[str, Any]:
         return error_response(503, "health_check_error", sanitized)
 
 
-def _handle_detailed(cur: cursor, jwt_claims: dict[str, Any] | None) -> dict[str, Any]:
+def _handle_detailed(cur: cursor, jwt_claims: dict[str, Any] | None) -> Any:
     """Detailed health check - AUTHENTICATED. Exposes schema information."""
     if not jwt_claims:
         return error_response(401, "unauthorized", "Authentication required")
@@ -329,7 +321,7 @@ def _handle_detailed(cur: cursor, jwt_claims: dict[str, Any] | None) -> dict[str
         return error_response(code, error_type, message)
 
 
-def _handle_pipeline(cur: cursor, jwt_claims: dict[str, Any] | None) -> dict[str, Any]:
+def _handle_pipeline(cur: cursor, jwt_claims: dict[str, Any] | None) -> Any:
     """Pipeline health check - AUTHENTICATED. Data freshness of critical loaders."""
     if not jwt_claims:
         return error_response(401, "unauthorized", "Authentication required")

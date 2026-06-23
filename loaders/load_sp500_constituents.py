@@ -7,13 +7,11 @@ import socket
 import sys
 from datetime import date
 from io import StringIO
-from typing import Optional
 
 import pandas as pd
 import requests
 
 from loaders.runner import run_loader
-from utils.infrastructure.timeout import ExecutionTimeout
 from utils.infrastructure.url_validator import validate_url
 from utils.optimal_loader import OptimalLoader
 

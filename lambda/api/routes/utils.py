@@ -286,7 +286,7 @@ def get_api_version_headers() -> dict[str, str]:
     return {API_VERSION_HEADER: API_VERSION}
 
 
-def error_response(code: int, typ: str, msg: str | None) -> dict[str, Any]:
+def error_response(code: int, typ: str, msg: str | None) -> Any:
     """Standardized error response.
 
     Returns consistent error format with statusCode, errorType, message, and _error.
@@ -396,7 +396,7 @@ def raise_api_error(status_code: int, error_type: str, message: str | None) -> N
     raise exc_class(message or "", error_type=error_type, status_code=status_code)
 
 
-def success_response(data: dict[str, Any], metadata: dict[str, Any] | None = None) -> dict[str, Any]:
+def success_response(data: dict[str, Any], metadata: dict[str, Any] | None = None) -> Any:
     """Standardized success response for single object.
 
     Always returns object with statusCode=200 and data field.
@@ -416,7 +416,7 @@ def list_response(
     data_freshness: dict[str, Any] | None = None,
     limit: int | None = None,
     offset: int | None = None,
-) -> dict[str, Any]:
+) -> Any:
     """Standardized list response for paginated data.
 
     Always returns array in 'data.items' field with total count.
@@ -534,7 +534,7 @@ def execute_with_timeout(
 
 def check_data_freshness(
     cur: cursor, table_name: str, date_column: str = "date", warning_days: int | None = None
-) -> dict[str, Any]:
+) -> Any:
     """Check how fresh data is in a table.
 
     Args:
@@ -614,7 +614,7 @@ def check_data_freshness(
         raise
 
 
-def json_response(code: int, data: dict[str, Any], data_freshness: dict[str, Any] | None = None) -> dict[str, Any]:
+def json_response(code: int, data: dict[str, Any], data_freshness: dict[str, Any] | None = None) -> Any:
     """Standardized JSON response wrapper for single objects.
 
     Returns consistent format:
@@ -639,7 +639,7 @@ def json_response(code: int, data: dict[str, Any], data_freshness: dict[str, Any
         return error_resp
 
 
-def validate_dashboard_response(endpoint_name: str, response_data: dict[str, Any]) -> dict[str, Any]:
+def validate_dashboard_response(endpoint_name: str, response_data: dict[str, Any]) -> Any:
     """Validate API response against dashboard contract schema.
 
     Validates that responses match the contract defined in shared_contracts.
@@ -691,7 +691,7 @@ def ensure_valid_response(endpoint_name: str, response_data: dict[str, Any]) -> 
         return False
 
 
-def safe_dict_convert(row: Any) -> dict[str, Any]:
+def safe_dict_convert(row: Any) -> Any:
     """Safely convert DictCursor row to dictionary, handling schema mismatches.
 
     DictCursor rows support dict() conversion, but this can fail if:
@@ -820,7 +820,7 @@ def db_route_handler(
 
     def decorator(func: Callable[..., dict[str, Any]]) -> Callable[..., dict[str, Any]]:
         @wraps(func)
-        def wrapper(*args: Any, **kwargs: Any) -> dict[str, Any]:
+        def wrapper(*args: Any, **kwargs: Any) -> Any:
             try:
                 return func(*args, **kwargs)
             except (
