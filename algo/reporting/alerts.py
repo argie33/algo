@@ -527,12 +527,16 @@ class AlertManager:
                 raise
 
 
-class NullAlertManager:
+class NullAlertManager(AlertManager):
     """Drop-in AlertManager replacement that logs instead of sending alerts.
 
     Used in dry-run mode when no alert channels are configured.
     All public methods from AlertManager are implemented as log-only no-ops.
     """
+
+    def __init__(self) -> None:
+        """Initialize without checking for alert channels (dry-run friendly)."""
+        pass
 
     def send_patrol_alert(self, patrol_run_id: str, counts: dict[str, int], flagged_findings: list[dict[str, str]]) -> None:
         logger.warning(f"[NULL_ALERTS] Patrol alert suppressed (no channels): run_id={patrol_run_id}")

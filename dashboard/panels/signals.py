@@ -413,7 +413,7 @@ def _build_scores_table(top_scores: list[Any]) -> list[Text | Table]:
     return rows
 
 
-@register_panel(  # type: ignore[untyped-decorator]
+@register_panel(
     "signals",
     endpoint_deps=["sig", "sig_eval", "scores"],
     optional=True,

@@ -622,7 +622,7 @@ class PositionMonitor:
                 f"Cannot mark order as cancelled in DB without broker confirmation."
             )
 
-    def _auto_cancel_stale_order(self, trade_id, symbol, qty, price, age_minutes, cur):
+    def _auto_cancel_stale_order(self, trade_id: str, symbol: str, qty: int, price: float, age_minutes: int, cur: Any) -> None:
         """Cancel a stale pending order on Alpaca and mark as cancelled in DB.
 
         Attempts Alpaca API cancellation first. Marks trade as cancelled in DB + adds audit log
@@ -732,7 +732,7 @@ class PositionMonitor:
             float(row[3]) if row[3] is not None else None,
         )
 
-    def _compute_trailing_stop(self, entry_price, active_stop, cur_price, atr, sma_50, target_hits):
+    def _compute_trailing_stop(self, entry_price: float, active_stop: float, cur_price: float, atr: float | None, sma_50: float | None, target_hits: int) -> float:
         """Stop ratchets up only.
 
         - Before T1: keep initial stop OR use 50-DMA (whichever higher) capped at entry-2*ATR
@@ -777,7 +777,7 @@ class PositionMonitor:
         # NEVER lower the trailing stop below its prior level
         return round(max(new_stop, active_stop), 2)
 
-    def _check_relative_strength(self, symbol, current_date, cur):
+    def _check_relative_strength(self, symbol: str, current_date: Any, cur: Any) -> str:
         """20-day relative return vs SPY: weakening / neutral / strong."""
         stock = None
         spy = None
@@ -803,7 +803,7 @@ class PositionMonitor:
             return "strong"
         return "neutral"
 
-    def _check_sector_health(self, symbol, current_date, cur):
+    def _check_sector_health(self, symbol: str, current_date: Any, cur: Any) -> str:
         """Is the symbol's sector currently weakening?"""
         # Skip sector checks for ETFs/indices
         if symbol in (
@@ -870,7 +870,7 @@ class PositionMonitor:
             return "strengthening"
         return "stable"
 
-    def _max_unrealized_pct(self, symbol, trade_date, current_date, entry_price, cur):
+    def _max_unrealized_pct(self, symbol: str, trade_date: Any, current_date: Any, entry_price: float, cur: Any) -> float:
         """Highest closing price since entry, expressed as % gain."""
         if entry_price <= 0:
             raise PositionValidationError(
@@ -895,7 +895,7 @@ class PositionMonitor:
             raise PositionValidationError(f"Invalid price data for {symbol}: max close {max_close} <= 0")
         return ((max_close - entry_price) / entry_price) * 100.0
 
-    def _days_to_earnings(self, symbol, current_date, cur):
+    def _days_to_earnings(self, symbol: str, current_date: Any, cur: Any) -> int:
         """Get days until next earnings.
 
         Primary: query earnings_calendar for accurate scheduled dates.
@@ -914,7 +914,7 @@ class PositionMonitor:
             )
             row = cur.fetchone()
             if row is not None and row[0] is not None:
-                return (row[0] - current_date).days
+                return int((row[0] - current_date).days)
 
             # Fallback: estimate from last reported quarter + 90-day cycle
             cur.execute(
@@ -927,7 +927,7 @@ class PositionMonitor:
             est = row[0] + timedelta(days=90)
             while est < current_date:
                 est += timedelta(days=90)
-            days = (est - current_date).days
+            days = int((est - current_date).days)
             if days < 0 or days > 200:
                 raise ValueError(
                     f"Earnings estimate out of range for {symbol}: {days} days - estimated date {est} is invalid"
@@ -938,7 +938,7 @@ class PositionMonitor:
         except (psycopg2.DatabaseError, psycopg2.OperationalError) as e:
             raise ValueError(f"Could not determine earnings for {symbol}: {e}") from e
 
-    def _fetch_market_dist_days(self, current_date, cur):
+    def _fetch_market_dist_days(self, current_date: Any, cur: Any) -> int:
         """Get market distribution days from health data.
 
         Raises:
@@ -955,7 +955,7 @@ class PositionMonitor:
             )
         return int(row[0])
 
-    def _period_return(self, symbol, end_date, lookback_days, cur):
+    def _period_return(self, symbol: str, end_date: Any, lookback_days: int, cur: Any) -> float:
         """Compute simple return over a lookback period.
 
         Raises:
@@ -985,7 +985,7 @@ class PositionMonitor:
             raise ValueError(f"Invalid historical price for {symbol}: oldest close {oldest} <= 0")
         return (recent - oldest) / oldest
 
-    def _persist_review(self, rec, cur):
+    def _persist_review(self, rec: dict[str, Any], cur: Any) -> None:
         """Update algo_positions with current price/PnL and log a monitoring audit row (atomic).
 
         Uses savepoint to ensure both position update and audit log succeed together.
@@ -1054,7 +1054,7 @@ class PositionMonitor:
             logger.error(f"Failed to persist review for {rec['symbol']}: {e} (rolled back)")
             raise
 
-    def _print_recommendation(self, rec):
+    def _print_recommendation(self, rec: dict[str, Any]) -> None:
         flags_str = ", ".join(rec["flags"]) if rec["flags"] else "none"
         logger.info(
             f"  {rec['symbol']:6s}  qty={rec['quantity']:<5d} "
@@ -1066,7 +1066,7 @@ class PositionMonitor:
             f"flags={flags_str}"
         )
 
-    def check_corporate_actions(self):
+    def check_corporate_actions(self) -> list[dict[str, Any]]:
         """Phase 6.1: Detect stock splits and corporate actions.
 
         Compares Alpaca qty to DB qty. If different and greater than 20%,
@@ -1075,7 +1075,7 @@ class PositionMonitor:
         Returns:
             list of adjustments made
         """
-        adjustments: list[dict] = []
+        adjustments: list[dict[str, Any]] = []
         ctx = DatabaseContext("write")
         with ctx as cur:
             cur.execute("""
@@ -1159,7 +1159,7 @@ class PositionMonitor:
         db_qty: Any,
         db_stop: Any,
         alpaca_qty: int,
-        adjustments: list,
+        adjustments: list[dict[str, Any]],
     ) -> None:
         """Handle quantity changes between DB and Alpaca."""
         if alpaca_qty == 0:
@@ -1194,7 +1194,7 @@ class PositionMonitor:
         db_qty: Any,
         db_stop: Any,
         alpaca_qty: int,
-        adjustments: list,
+        adjustments: list[dict[str, Any]],
     ) -> None:
         """Apply stock split adjustment if stop available, else update qty only."""
         split_ratio = alpaca_qty / db_qty if db_qty > 0 else 1.0
@@ -1244,7 +1244,7 @@ class PositionMonitor:
             }
         )
 
-    def get_open_positions(self):
+    def get_open_positions(self) -> list[dict[str, str]]:
         """Get list of open positions for halt checking and monitoring.
 
         Returns a list of dicts with at least 'symbol' and optionally 'name'.

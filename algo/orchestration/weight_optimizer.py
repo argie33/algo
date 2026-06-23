@@ -276,7 +276,7 @@ class WeightOptimizer:
             delta = 100 - sum(blended.values())
             if delta != 0:
                 # Adjust largest component
-                largest_comp = max(blended, key=lambda k: blended[k])
+                largest_comp = max(blended.items(), key=lambda item: item[1])[0]
                 blended[largest_comp] += delta
 
             # Track changes as dicts (consumed by phase7 as change['component'] etc.)

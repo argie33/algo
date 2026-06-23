@@ -4,7 +4,7 @@ from __future__ import annotations
 import logging
 import time
 from decimal import Decimal
-from typing import Any
+from typing import Any, Callable
 
 import psycopg2
 import requests
@@ -455,7 +455,7 @@ class TradeExecutor:
 
         Returns: (is_valid, error_message, error_details_dict_or_none)
         """
-        checks = [
+        checks: list[tuple[Callable[..., Any], tuple[Any, ...], str]] = [
             (
                 self.validator.check_idempotent_duplicate,
                 (cur, symbol, signal_date, entry_price, stop_loss_price),

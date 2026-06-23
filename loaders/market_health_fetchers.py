@@ -88,13 +88,13 @@ class PutCallRatioFetcher:
             if options_chain.calls.empty or options_chain.puts.empty:
                 return None
 
-            total_calls = options_chain.calls["openInterest"].sum()
-            total_puts = options_chain.puts["openInterest"].sum()
+            total_calls = float(options_chain.calls["openInterest"].sum())
+            total_puts = float(options_chain.puts["openInterest"].sum())
 
             if total_calls == 0:
                 return None
 
-            return cast(float, float(total_puts / total_calls))
+            return float(total_puts / total_calls)
         except Exception as e:
             logger.warning(f"Put/call ratio fetch failed: {e}")
             raise

@@ -68,7 +68,9 @@ def run(
                         "At least one identifier is required. "
                         "Verify PositionMonitor.get_open_positions() returns valid position data."
                     )
-                symbol = pos.get("symbol") or pos.get("name")
+                symbol: str = pos.get("symbol") or pos.get("name") or ""
+                if not symbol:
+                    raise RuntimeError("[PHASE 3] Position symbol/name is empty after fallback check")
                 halt_check = meh.check_single_stock_halt(symbol)
                 if halt_check and halt_check.get("halted"):
                     halts_found.append(symbol)
