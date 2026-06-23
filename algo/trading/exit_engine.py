@@ -175,7 +175,7 @@ class PositionContext:
                 self.cur,
                 self.symbol,
                 self.current_date,
-                self.entry_price,
+                float(self.entry_price),
                 self.days_held,
                 eight_wk_threshold,
                 eight_wk_window,
@@ -584,8 +584,8 @@ class ExitEngine:
                         cur,
                         symbol,
                         current_date,
-                        cur_price,
-                        prev_close,
+                        Decimal(str(cur_price)),
+                        Decimal(str(prev_close)) if prev_close is not None else None,
                         entry_price,
                         active_stop,
                         init_stop,
@@ -717,17 +717,17 @@ class ExitEngine:
         cur: Any,
         symbol: str,
         current_date: Any,
-        cur_price: float,
-        prev_close: float,
-        entry_price: float,
-        active_stop: float,
-        init_stop: float,
-        t1_price: float,
-        t2_price: float,
-        t3_price: float,
-        target_hits: dict[str, Any],
+        cur_price: Decimal | float | None,
+        prev_close: Decimal | float | None,
+        entry_price: Decimal | float,
+        active_stop: Decimal | float,
+        init_stop: Decimal | float,
+        t1_price: Decimal | float | None,
+        t2_price: Decimal | float | None,
+        t3_price: Decimal | float | None,
+        target_hits: int,
         days_held: int,
-        dist_days_today: int,
+        dist_days_today: int | None,
         t1_hit_time: Any = None,
         t2_hit_time: Any = None,
         t3_hit_time: Any = None,
@@ -751,17 +751,18 @@ class ExitEngine:
             }
 
         # Consolidate all context into PositionContext for strategy evaluation
+        # Convert all parameters to Decimal types for precise decimal arithmetic
         ctx = PositionContext(
             symbol=symbol,
             current_date=current_date,
-            cur_price=Decimal(str(cur_price)),
+            cur_price=Decimal(str(cur_price)) if cur_price is not None else Decimal(0),
             prev_close=Decimal(str(prev_close)) if prev_close is not None else None,
-            entry_price=Decimal(str(entry_price)),
-            active_stop=Decimal(str(active_stop)),
-            init_stop=Decimal(str(init_stop)),
-            t1_price=Decimal(str(t1_price)) if t1_price is not None else None,
-            t2_price=Decimal(str(t2_price)) if t2_price is not None else None,
-            t3_price=Decimal(str(t3_price)) if t3_price is not None else None,
+            entry_price=Decimal(str(entry_price)) if not isinstance(entry_price, Decimal) else entry_price,
+            active_stop=Decimal(str(active_stop)) if not isinstance(active_stop, Decimal) else active_stop,
+            init_stop=Decimal(str(init_stop)) if not isinstance(init_stop, Decimal) else init_stop,
+            t1_price=Decimal(str(t1_price)) if t1_price is not None and not isinstance(t1_price, Decimal) else t1_price,
+            t2_price=Decimal(str(t2_price)) if t2_price is not None and not isinstance(t2_price, Decimal) else t2_price,
+            t3_price=Decimal(str(t3_price)) if t3_price is not None and not isinstance(t3_price, Decimal) else t3_price,
             target_hits=target_hits,
             days_held=days_held,
             dist_days_today=dist_days_today,
@@ -1144,7 +1145,7 @@ class ExitEngine:
             )
         )
 
-        return cast(bool, gain_pct >= threshold_pct)
+        return gain_pct >= threshold_pct
 
     def _chandelier_or_ema_stop(self, cur: Any, symbol: str, current_date: Any, days_held: int) -> float | None:
         """Trailing stop: chandelier (3xATR from highest high) for first 10d,

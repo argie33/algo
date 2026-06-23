@@ -36,7 +36,7 @@ _yf_last_request_time = [0.0]  # list for mutable access across threads
 _YF_MIN_INTERVAL_SECS = 2.0  # CRITICAL FIX: 1 req/2s = ~1800 req/hour per task. 6 tasks = 10.8k/hour max. Stays under shared IP limits when combined with circuit breaker
 
 
-def _throttled_yf_request(fn):
+def _throttled_yf_request(fn: Any) -> Any:
     """Call fn() under shared IP circuit breaker + local rate limiting.
 
     First checks if the shared IP is banned (from any ECS task). If banned,
@@ -70,7 +70,7 @@ class YFinanceWrapper:
     TICKER_CACHE_TTL = 86400  # CRITICAL FIX: Cache ticker objects for 24 hours (stable data) instead of 1 hour. Reduces yfinance API calls under rate limit stress
 
     @classmethod
-    def get_session(cls):
+    def get_session(cls) -> Any:
         """Get or create a yfinance session with retries."""
         current_time = time.time()
 
@@ -82,7 +82,7 @@ class YFinanceWrapper:
         return cls._session
 
     @classmethod
-    def _create_session(cls):
+    def _create_session(cls) -> Any:
         """Create a new yfinance session with retries."""
         max_retries = 3
         for attempt in range(max_retries):
@@ -99,7 +99,7 @@ class YFinanceWrapper:
         raise RuntimeError("Failed to create yfinance session after all retries")
 
     @classmethod
-    def get_ticker(cls, symbol: str, max_retries: int = 5):
+    def get_ticker(cls, symbol: str, max_retries: int = 5) -> Any:
         """Get yfinance Ticker with retry logic, shared IP circuit breaker, and caching.
 
         Uses exponential backoff controlled by shared circuit breaker that coordinates
@@ -195,7 +195,7 @@ class YFinanceWrapper:
         raise RuntimeError(f"Failed to get ticker for {symbol} after {max_retries} attempts")
 
 
-def get_ticker(symbol: str):
+def get_ticker(symbol: str) -> Any:
     """Convenience function to get yfinance ticker with retry logic.
 
     Raises RuntimeError if yfinance is not installed, session creation fails,

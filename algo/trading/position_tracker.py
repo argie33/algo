@@ -60,7 +60,7 @@ class PositionTracker:
 
     def update_position_with_retry(
         self,
-        cur,
+        cur: Any,
         position_id: int,
         new_qty: float,
         new_stop_price: float | None = None,
@@ -73,7 +73,7 @@ class PositionTracker:
         Returns: (success: bool, message: str or None)
         """
 
-        def do_update():
+        def do_update() -> bool:
             cur.execute(
                 "SELECT quantity, current_stop_price FROM algo_positions WHERE position_id = %s",
                 (position_id,),
@@ -204,7 +204,7 @@ class PositionTracker:
                 }
 
             # Check DB for this position
-            def _check_db_quantity(cur):
+            def _check_db_quantity(cur: Any) -> int | None:
                 cur.execute(
                     """
                     SELECT entry_quantity FROM algo_trades
@@ -239,7 +239,7 @@ class PositionTracker:
                 }
 
             # Mismatch detected - correct DB to match Alpaca (source of truth)
-            def _correct_quantity(cur):
+            def _correct_quantity(cur: Any) -> bool:
                 cur.execute(
                     """
                     UPDATE algo_trades

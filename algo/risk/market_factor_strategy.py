@@ -47,7 +47,7 @@ class MarketFactorStrategy(ABC):
         """
         ...
 
-    def _with_cursor(self, operation):
+    def _with_cursor(self, operation: Any) -> Any:
         """Execute operation with a read-only database cursor."""
         try:
             with DatabaseContext("read") as cur:

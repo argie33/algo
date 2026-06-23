@@ -3,6 +3,7 @@
 
 import logging
 from datetime import datetime, timezone
+from typing import Any
 
 import psycopg2
 
@@ -95,10 +96,10 @@ class StaleSignalCircuitBreaker:
             raise RuntimeError(f"CIRCUIT BREAKER: {message}")
 
 
-def protect_trading_operation(func):
+def protect_trading_operation(func: Any) -> Any:
     """Decorator to halt trading operations if signals are stale."""
 
-    def wrapper(*args, **kwargs):
+    def wrapper(*args: Any, **kwargs: Any) -> Any:
         is_safe, message = StaleSignalCircuitBreaker.check_signal_freshness()
         if not is_safe:
             logger.critical(f"BLOCKING OPERATION: {message}")

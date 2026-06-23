@@ -31,7 +31,7 @@ class SignalAPI:
         config = get_config()
         self._computer = SignalComputer(config)
 
-    def detect_base(self, symbol: str, eval_date) -> dict[str, Any]:
+    def detect_base(self, symbol: str, eval_date: Any) -> dict[str, Any]:
         """Detect if stock is in base pattern.
 
         Returns:
@@ -39,7 +39,7 @@ class SignalAPI:
         """
         return self._computer.base_detection(symbol, eval_date)
 
-    def detect_vcp(self, symbol: str, eval_date) -> dict[str, Any]:
+    def detect_vcp(self, symbol: str, eval_date: Any) -> dict[str, Any]:
         """Detect if stock is in VCP (Volatility Contraction Pattern).
 
         Returns:
@@ -47,7 +47,7 @@ class SignalAPI:
         """
         return self._computer.vcp_detection(symbol, eval_date)
 
-    def detect_pivot(self, symbol: str, eval_date) -> dict[str, Any]:
+    def detect_pivot(self, symbol: str, eval_date: Any) -> dict[str, Any]:
         """Detect if stock has pivot breakout.
 
         Returns:
@@ -55,7 +55,7 @@ class SignalAPI:
         """
         return self._computer.pivot_breakout(symbol, eval_date)
 
-    def detect_power_trend(self, symbol: str, eval_date) -> dict[str, Any]:
+    def detect_power_trend(self, symbol: str, eval_date: Any) -> dict[str, Any]:
         """Detect if stock is in power trend.
 
         Returns:
@@ -63,7 +63,7 @@ class SignalAPI:
         """
         return self._computer.power_trend(symbol, eval_date)
 
-    def rank_rs_percentile(self, cur, symbol: str, eval_date, lookback: int = 60) -> float:
+    def rank_rs_percentile(self, cur: Any, symbol: str, eval_date: Any, lookback: int = 60) -> float:
         """Compute Mansfield-style RS percentile ranking.
 
         Ranks the stock's relative strength vs SPY over the lookback period,

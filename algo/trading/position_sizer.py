@@ -233,7 +233,7 @@ class PositionSizer:
         drawdown to adjust risk multiplier correctly. Guessing is worse than not trading.
         """
 
-        def calc_drawdown(cur):
+        def calc_drawdown(cur: Any) -> Decimal:
             cur.execute("SELECT COUNT(*) FROM algo_portfolio_snapshots")
             count_result = cur.fetchone()
             if not count_result or count_result[0] == 0:
@@ -301,7 +301,7 @@ class PositionSizer:
         current market exposure to avoid over-committing during risk-off periods.
         """
 
-        def fetch_exposure(cur):
+        def fetch_exposure(cur: Any) -> Decimal:
             cur.execute("SELECT exposure_pct FROM market_exposure_daily ORDER BY date DESC LIMIT 1")
             row = cur.fetchone()
             if not row or row[0] is None:
@@ -322,7 +322,7 @@ class PositionSizer:
         VIX thresholds validated at init; assumes all config keys are present.
         """
 
-        def fetch_vix(cur):
+        def fetch_vix(cur: Any) -> Decimal:
             cur.execute(
                 "SELECT vix_level FROM market_health_daily WHERE vix_level IS NOT NULL ORDER BY date DESC LIMIT 1"
             )
@@ -347,7 +347,7 @@ class PositionSizer:
         """Stage-2 phase mult: always 1.0 (DB schema has no late/climax phase column)."""
         return 1.0
 
-    def get_position_size_multiplier_from_regime(self, signal_date=None) -> float:
+    def get_position_size_multiplier_from_regime(self, signal_date: Any = None) -> float:
         """Get position size multiplier from current market regime.
 
         Fail-fast  -" if regime cannot be determined, raises exception. Position sizing
@@ -374,7 +374,7 @@ class PositionSizer:
         B13: Fail-closed  -" on error, assume high value to prevent over-sizing.
         """
 
-        def fetch_positions_value(cur):
+        def fetch_positions_value(cur: Any) -> Decimal:
             cur.execute("""
                 SELECT COALESCE(SUM(position_value), 0) as total
                 FROM algo_positions
@@ -402,7 +402,7 @@ class PositionSizer:
         without knowing how many are already open.
         """
 
-        def fetch_position_count(cur):
+        def fetch_position_count(cur: Any) -> int:
             cur.execute("""
                 SELECT COUNT(*) as count FROM algo_positions WHERE status = 'open'
             """)
@@ -426,7 +426,7 @@ class PositionSizer:
         if portfolio_value <= 0:
             raise ValueError(f"Invalid portfolio value for capital calculation: {portfolio_value}")
 
-        def fetch_capital_pct(cur):
+        def fetch_capital_pct(cur: Any) -> Decimal:
             cur.execute("""
                 SELECT SUM(position_value) FROM algo_positions WHERE status = 'open'
             """)
@@ -443,11 +443,11 @@ class PositionSizer:
 
     def calculate_position_size(
         self,
-        symbol,
-        entry_price,
-        stop_loss_price,
-        signal_date=None,
-        portfolio_value=None,
+        symbol: Any,
+        entry_price: Any,
+        stop_loss_price: Any,
+        signal_date: Any = None,
+        portfolio_value: Any = None,
     ) -> dict[str, Any]:
         """
         Calculate position size for a new trade.
@@ -493,11 +493,11 @@ class PositionSizer:
 
     def _calculate_with_external_cursor(
         self,
-        symbol,
-        entry_price,
-        stop_loss_price,
-        signal_date=None,
-        portfolio_value=None,
+        symbol: Any,
+        entry_price: Any,
+        stop_loss_price: Any,
+        signal_date: Any = None,
+        portfolio_value: Any = None,
     ) -> dict[str, Any]:
         """Internal method for position calculation."""
         try:

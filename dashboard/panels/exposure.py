@@ -1,7 +1,7 @@
 """Portfolio exposure and risk factor panel functions."""
 
 import logging
-from typing import cast
+from typing import Any, cast
 
 from rich.console import ConsoleRenderable, RichCast
 
@@ -12,7 +12,7 @@ try:
 except ImportError as e:
     logger.warning(f"Panel registry not available: {e} - panels will not auto-register")
 
-    def register_panel(*args, **kwargs):
+    def register_panel(*args: Any, **kwargs: Any) -> Any:
         if args and callable(args[0]):
             return args[0]
         return lambda fn: fn
@@ -46,7 +46,7 @@ _tier_formatter = TierFormatter()
     optional=True,
     description="Exposure",
 )
-def panel_exposure_compact(exp_f):
+def panel_exposure_compact(exp_f: Any) -> Any:
     """Exposure score breakdown - compact 2-col layout."""
     err_panel = _error_panel("exposure factors", exp_f, "EXPOSURE FACTORS", border="blue")
     if err_panel:
@@ -60,7 +60,7 @@ def panel_exposure_compact(exp_f):
     tier = _tier_formatter.format(epct)
     tc = TIER_COLOR.get(tier, "dim")
 
-    def factor_detail(key):
+    def factor_detail(key: Any) -> str:
         """Return a short value string for a factor key."""
         if not factors or key not in factors:
             return ""
@@ -188,7 +188,7 @@ def panel_exposure_compact(exp_f):
     )
 
 
-def panel_exposure_expanded(exp_f):
+def panel_exposure_expanded(exp_f: Any) -> Any:
     """Full-screen exposure score detail — all 12 factors with values, thresholds, and signal context."""
     rows: list[Text | Rule | Table] = [
         Text.from_markup("[dim]press [/][bold blue]x[/][dim] to return to dashboard[/]"),

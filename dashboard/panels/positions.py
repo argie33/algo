@@ -1,6 +1,7 @@
 """Position panel functions."""
 
 import logging
+from typing import Any
 
 logger = logging.getLogger(__name__)
 
@@ -9,7 +10,7 @@ try:
 except ImportError as e:
     logger.warning(f"Panel registry not available: {e} - panels will not auto-register")
 
-    def register_panel(*args, **kwargs):
+    def register_panel(*args: Any, **kwargs: Any) -> Any:
         if args and callable(args[0]):
             return args[0]
         return lambda fn: fn
@@ -42,7 +43,7 @@ from ..utilities import (
     optional=True,
     description="Positions",
 )
-def panel_positions(pos, compact=False, trades=None, extended=False):
+def panel_positions(pos: Any, compact: bool = False, trades: Any = None, extended: bool = False) -> Any:
     """Display open positions table. Normalizes input from {"items": [...]} format."""
     # Issue 3.1 FIX: Use unified normalization function
     pos_items, pos_timestamp, has_err = normalize_positions_data(pos)

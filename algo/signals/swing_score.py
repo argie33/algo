@@ -238,7 +238,7 @@ class SwingTraderScore:
 
     # ============= HARD GATES =============
 
-    def _check_hard_gates(self, symbol: str, eval_date, industry: str | None, cur) -> dict[str, Any]:
+    def _check_hard_gates(self, symbol: str, eval_date: Any, industry: str | None, cur: Any) -> dict[str, Any]:
         """
         Apply hard-fail gates that block scoring entirely if violated.
 
@@ -395,7 +395,7 @@ class SwingTraderScore:
             "days_to_earnings": days_to_earn,
         }
 
-    def _days_to_earnings(self, symbol: str, eval_date) -> int | None:
+    def _days_to_earnings(self, symbol: str, eval_date: Any) -> int | None:
         """Days until next earnings from earnings_calendar.
 
         Raises:
@@ -418,7 +418,7 @@ class SwingTraderScore:
 
     # ============= helpers (component methods delegated to SwingComponentScorer) =============
 
-    def _persist(self, symbol: str, eval_date, result: dict[str, Any]) -> None:
+    def _persist(self, symbol: str, eval_date: Any, result: dict[str, Any]) -> None:
         """Persist computed swing score to swing_trader_scores table."""
         try:
             # Validate required fields before persisting

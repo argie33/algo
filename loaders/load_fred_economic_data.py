@@ -15,6 +15,7 @@ import socket
 import sys
 import time
 from datetime import date, datetime, timedelta
+from typing import Any
 
 import requests
 
@@ -117,7 +118,7 @@ class FredEconomicDataLoader(OptimalLoader):
     primary_key = ("series_id", "date")
     watermark_field = "date"
 
-    def __init__(self, *args, **kwargs):
+    def __init__(self, *args: Any, **kwargs: Any) -> None:
         """Initialize FRED loader with circuit breaker and freshness validation."""
         super().__init__(*args, **kwargs)
 

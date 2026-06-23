@@ -1,7 +1,7 @@
 """Mascot animation and loading layout functions."""
 
 import logging
-from typing import cast
+from typing import Any, cast
 
 from rich.align import Align
 from rich.console import Group
@@ -15,15 +15,15 @@ logger = logging.getLogger(__name__)
 class _RenderCache:
     """Cache rendered Panel/Layout objects to avoid redundant rendering on every frame."""
 
-    def __init__(self):
-        self.mascot_compact_pose_index = None
-        self.mascot_compact_panel = None
-        self.loading_layout_pose_index = None
-        self.loading_layout_dots_idx = None
-        self.loading_layout_cache = None
-        self.loading_layout_data_source = None
+    def __init__(self) -> None:
+        self.mascot_compact_pose_index: int | None = None
+        self.mascot_compact_panel: Panel | None = None
+        self.loading_layout_pose_index: int | None = None
+        self.loading_layout_dots_idx: int | None = None
+        self.loading_layout_cache: Layout | None = None
+        self.loading_layout_data_source: str | None = None
 
-    def get_mascot_panel(self, pose_index: int, data: dict) -> Panel:
+    def get_mascot_panel(self, pose_index: int, data: dict[str, Any]) -> Panel:
         """Return cached Panel if pose hasn't changed, otherwise render new one."""
         if self.mascot_compact_pose_index == pose_index:
             return cast(Panel, self.mascot_compact_panel)
@@ -122,7 +122,7 @@ try:
 except ImportError as e:
     logger.warning(f"Panel registry not available: {e} - panels will not auto-register")
 
-    def register_panel(*args, **kwargs):
+    def register_panel(*args: Any, **kwargs: Any) -> Any:  # type: ignore[no-redef]
         if args and callable(args[0]):
             return args[0]
         return lambda fn: fn
@@ -152,7 +152,7 @@ def _get_safe_frame_index(frame_index: int) -> int:
     return frame_index
 
 
-def mascot_pose(data: dict, frame: int) -> int:
+def mascot_pose(data: dict[str, Any], frame: int) -> int:
     """Determine mascot pose based on circuit breaker status."""
     if (data.get("cb") or {}).get("any"):
         seq = [4, 0, 1, 3, 4, 1, 0, 3, 4, 0, 1, 3, 4, 1, 0, 3, 4, 0, 1, 7]
@@ -168,7 +168,7 @@ def mascot_pose(data: dict, frame: int) -> int:
     optional=False,
     description="Mascot",
 )
-def mascot_compact(data: dict, frame: int) -> Panel:
+def mascot_compact(data: dict[str, Any], frame: int) -> Panel:
     fi = mascot_pose(data, frame)
     return _render_cache.get_mascot_panel(fi, data)
 
@@ -179,7 +179,7 @@ def mascot_compact(data: dict, frame: int) -> Panel:
     optional=False,
     description="Loading",
 )
-def loading_layout(frame: int, data_source: str = "AWS") -> Layout:
+def loading_layout(frame: int, data_source: str = "AWS") -> Layout:  # type: ignore[no-redef]
     """Show compact mascot in top-right corner with loading message below."""
     idx = LOAD_SEQ[(frame // 2) % len(LOAD_SEQ)]  # 4fps loading animation
     fi = _get_safe_frame_index(idx)
@@ -187,7 +187,7 @@ def loading_layout(frame: int, data_source: str = "AWS") -> Layout:
     return _render_cache.get_loading_layout(fi, dots_idx, data_source)
 
 
-def _expanded_layout(hdr_panel, exposure_panel, mascot_panel, main_panel) -> Layout:
+def _expanded_layout(hdr_panel: Panel, exposure_panel: Panel, mascot_panel: Panel, main_panel: Panel) -> Layout:
     """Shared skeleton: market header row on top, one full-height panel below."""
     exp = Layout()
     exp.split_column(Layout(name="etop", size=10), Layout(name="emain"))

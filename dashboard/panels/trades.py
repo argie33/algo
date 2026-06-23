@@ -12,7 +12,7 @@ try:
 except ImportError as e:
     logger.warning(f"Panel registry not available: {e} - panels will not auto-register")
 
-    def register_panel(*args, **kwargs):
+    def register_panel(*args: Any, **kwargs: Any) -> Any:
         if args and callable(args[0]):
             return args[0]
         return lambda fn: fn
@@ -69,7 +69,7 @@ def _extract_items(data: Any) -> list | dict:
     optional=True,
     description="Recent Trades",
 )
-def panel_recent_trades(trades):
+def panel_recent_trades(trades: Any) -> Any:
     """Closed trade history (open positions are in the POSITIONS panel)."""
     if error_boundary.has_error(trades):
         error_msg = error_boundary.get_error_message(trades)
@@ -118,7 +118,7 @@ def panel_recent_trades(trades):
     t.add_column("Days", justify="right", no_wrap=True, min_width=4)
     t.add_column("Grade", justify="center", no_wrap=True, min_width=5)
 
-    def _fmt_date(d):
+    def _fmt_date(d: Any) -> str:
         if hasattr(d, "strftime"):
             return d.strftime("%b%d")
         if isinstance(d, str) and len(d) >= 7:
@@ -179,7 +179,7 @@ def panel_recent_trades(trades):
     )
 
 
-def panel_trades_expanded(trades):
+def panel_trades_expanded(trades: Any) -> Any:
     """Full-screen closed trade history with all columns."""
     if error_boundary.has_error(trades):
         error_msg = error_boundary.get_error_message(trades)
@@ -273,7 +273,7 @@ def panel_trades_expanded(trades):
     tbl.add_column("MFE%", justify="right", no_wrap=True, min_width=5)
     tbl.add_column("MAE%", justify="right", no_wrap=True, min_width=5)
 
-    def _fd(d):
+    def _fd(d: Any) -> str:
         if hasattr(d, "strftime"):
             return d.strftime("%b%d")
         if isinstance(d, str) and len(d) >= 7:

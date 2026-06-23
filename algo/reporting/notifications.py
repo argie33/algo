@@ -18,7 +18,7 @@ logger = logging.getLogger(__name__)
 class TradeNotificationService:
     """Monitor trade events and send notifications."""
 
-    def __init__(self, config: dict | None = None):
+    def __init__(self, config: dict[str, Any] | None = None):
         if config is None:
             raise ValueError(
                 "TradeNotificationService requires explicit config dict; "
@@ -28,7 +28,7 @@ class TradeNotificationService:
         self.alert_manager = AlertManager()
         self.enabled = os.getenv("ENABLE_NOTIFICATIONS", "true").lower() == "true"
 
-    def get_recent_events(self, minutes: int = 5) -> list[dict]:
+    def get_recent_events(self, minutes: int = 5) -> list[dict[str, Any]]:
         """Fetch recent audit log events."""
         try:
             with DatabaseContext("read") as cur:
@@ -48,7 +48,7 @@ class TradeNotificationService:
             logger.error(f"[NOTIF] Failed to fetch events: {e}")
             return []
 
-    def _format_trade_entry_alert(self, event: dict) -> str | None:
+    def _format_trade_entry_alert(self, event: dict[str, Any]) -> str | None:
         """Format trade entry notification."""
         try:
             details = json.loads(event["details"]) if isinstance(event["details"], str) else event["details"]
@@ -75,7 +75,7 @@ Time:         {event["created_at"].strftime("%H:%M:%S")}
         except (psycopg2.DatabaseError, psycopg2.OperationalError) as e:
             raise RuntimeError(f"Operation failed: {e}") from e
 
-    def _format_trade_exit_alert(self, event: dict) -> str | None:
+    def _format_trade_exit_alert(self, event: dict[str, Any]) -> str | None:
         """Format trade exit notification."""
         try:
             details = json.loads(event["details"]) if isinstance(event["details"], str) else event["details"]
@@ -159,8 +159,8 @@ Time:         {event["created_at"].strftime("%H:%M:%S")}
         title: str,
         message: str,
         symbol: str | None = None,
-        details: dict | None = None,
-    ):
+        details: dict[str, Any] | None = None,
+    ) -> None:
         """Save notification to database."""
         try:
             with DatabaseContext("write") as cur:
@@ -190,8 +190,8 @@ Time:         {event["created_at"].strftime("%H:%M:%S")}
         kind: str = "trade",
         severity: str = "info",
         symbol: str | None = None,
-        details: dict | None = None,
-    ):
+        details: dict[str, Any] | None = None,
+    ) -> None:
         """Send notification via email, webhook, and database."""
         try:
             # Save to database
@@ -210,8 +210,8 @@ def notify(
     title: str,
     message: str,
     symbol: str | None = None,
-    details: dict | None = None,
-):
+    details: dict[str, Any] | None = None,
+) -> None:
     """Convenience function to send alerts without managing service lifecycle."""
     try:
         service = TradeNotificationService(config={})
@@ -227,7 +227,7 @@ def notify(
         logger.error(f"notify() failed: {e}")
 
 
-def notify_signal_staleness(stale_tables: list[str], details: dict | None = None):
+def notify_signal_staleness(stale_tables: list[str], details: dict[str, Any] | None = None) -> None:
     """Alert when trading signals become stale or unavailable.
 
     Triggered by Phase 1 data freshness check or data patrol when critical

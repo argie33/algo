@@ -60,7 +60,7 @@ class TradeContext:
     swing_components: dict | None = None
     advanced_components: dict | None = None
 
-    def __post_init__(self):
+    def __post_init__(self) -> None:
         """Convert prices to Decimal for consistency."""
         self.entry_price = safe_decimal(self.entry_price, self.entry_price)
         self.shares = safe_decimal(self.shares, self.shares)
@@ -102,7 +102,7 @@ class PositionContext:
     t2_hit_time: date | None = None
     t3_hit_time: date | None = None
 
-    def __post_init__(self):
+    def __post_init__(self) -> None:
         """Convert prices to Decimal."""
         self.current_price = safe_decimal(self.current_price, self.current_price)
         self.entry_price = safe_decimal(self.entry_price, self.entry_price)

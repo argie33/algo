@@ -1,7 +1,7 @@
 """Market regime, internals, breadth, sentiment panel functions."""
 
 import logging
-from typing import cast
+from typing import Any, cast
 
 from rich.console import ConsoleRenderable, RichCast
 
@@ -12,7 +12,7 @@ try:
 except ImportError as e:
     logger.warning(f"Panel registry not available: {e} - panels will not auto-register")
 
-    def register_panel(*args, **kwargs):
+    def register_panel(*args: Any, **kwargs: Any) -> Any:
         if args and callable(args[0]):
             return args[0]
         return lambda fn: fn
@@ -50,7 +50,7 @@ from .data_extractors import (
     optional=False,
     description="Market",
 )
-def panel_market_full(mkt, sentiment=None):
+def panel_market_full(mkt: Any, sentiment: Any = None) -> Any:
     """Market regime + internals combined."""
     err_panel = _error_panel("market", mkt, "MARKET", border="blue")
     if err_panel:
@@ -162,7 +162,7 @@ def panel_market_full(mkt, sentiment=None):
     optional=False,
     description="Market Expanded",
 )
-def panel_market_expanded(mkt, sentiment=None):
+def panel_market_expanded(mkt: Any, sentiment: Any = None) -> Any:
     """Full-screen market internals — regime, breadth, sentiment, macro."""
     rows: list[Text | Rule | Table] = [
         Text.from_markup("[dim]press [/][bold blue]m[/][dim] to return to dashboard[/]"),
@@ -284,7 +284,7 @@ def panel_market_expanded(mkt, sentiment=None):
 
 
 @register_panel("header", endpoint_deps=["mkt", "sentiment"], optional=False, description="Header")
-def panel_header_market(mkt, sentiment, ts, mkt_s, elapsed, refresh_s="", cfg=None, data_source="AWS"):
+def panel_header_market(mkt: Any, sentiment: Any, ts: Any, mkt_s: Any, elapsed: Any, refresh_s: str = "", cfg: Any = None, data_source: str = "AWS") -> Any:
     """Compact market header - fits alongside exposure factors + monkey in the top row."""
     source_color = "cyan" if data_source == "LOCAL" else "dim"
     rows: list[Text | Rule] = [

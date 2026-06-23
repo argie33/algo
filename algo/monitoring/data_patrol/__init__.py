@@ -36,7 +36,7 @@ logger = logging.getLogger(__name__)
 class DataPatrol:
     """Orchestrate data patrol checks and coordinate results."""
 
-    def __init__(self):
+    def __init__(self) -> None:
         self.results: list[CheckResult] = []
         self.run_id: str = ""
         self.config: PatrolConfig | None = None
@@ -93,7 +93,7 @@ class DataPatrol:
             elapsed = time.time() - start_time
             return self.summarize(cur, elapsed)
 
-    def _run_checks(self, cur, quick: bool) -> None:
+    def _run_checks(self, cur: Any, quick: bool) -> None:
         """Execute all configured checks."""
         assert self.config is not None, "Config must be initialized before running checks"
         checks = [
@@ -133,7 +133,7 @@ class DataPatrol:
             if elapsed > 10:
                 logger.warning(f"[patrol_perf] {check_name} took {elapsed:.1f}s (slow)")
 
-    def summarize(self, cur, elapsed_seconds: float | None = None) -> dict[str, Any]:
+    def summarize(self, cur: Any, elapsed_seconds: float | None = None) -> dict[str, Any]:
         """Summarize patrol results."""
         counts = {INFO: 0, WARN: 0, ERROR: 0, CRIT: 0}
         for result in self.results:

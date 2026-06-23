@@ -5,6 +5,7 @@ import logging
 import sys
 import time
 from datetime import date, timedelta
+from typing import Any
 
 import requests
 
@@ -21,7 +22,7 @@ class EarningsCalendarLoader(OptimalLoader):
     primary_key = ("symbol", "earnings_date")
     watermark_field = "updated_at"
 
-    def __init__(self, *args, **kwargs):
+    def __init__(self, *args: Any, **kwargs: Any) -> None:
         super().__init__(*args, **kwargs)
         self._failed_symbols: dict[str, int] = {}
         self._failed_symbols_lock = __import__("threading").Lock()

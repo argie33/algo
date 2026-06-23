@@ -1,7 +1,7 @@
 """Economic indicators and calendar panel functions."""
 
 import logging
-from typing import cast
+from typing import Any, cast
 
 from rich.console import ConsoleRenderable, RichCast
 
@@ -12,7 +12,7 @@ try:
 except ImportError as e:
     logger.warning(f"Panel registry not available: {e} - panels will not auto-register")
 
-    def register_panel(*args, **kwargs):
+    def register_panel(*args: Any, **kwargs: Any) -> Any:
         if args and callable(args[0]):
             return args[0]
         return lambda fn: fn
@@ -36,7 +36,7 @@ from ._helpers import _error_panel
 from .data_extractors import extract_economic_indicators
 
 
-def _build_calendar_rows(econ_cal) -> list:
+def _build_calendar_rows(econ_cal: Any) -> list:
     """Extract and format economic calendar events."""
     rows: list[Text | Rule] = []
     # Fail-fast: return early if API error detected
@@ -113,7 +113,7 @@ def _build_calendar_rows(econ_cal) -> list:
     optional=True,
     description="Economic Pulse",
 )
-def panel_economic_pulse(eco, econ_cal=None):
+def panel_economic_pulse(eco: Any, econ_cal: Any = None) -> Any:
     """Economic factors the algo uses to calculate market exposure score."""
     err_panel = _error_panel("economic pulse", eco, "ECONOMIC INPUTS", border="bright_magenta")
     if err_panel:
@@ -242,7 +242,7 @@ def panel_economic_pulse(eco, econ_cal=None):
     )
 
 
-def panel_economic_expanded(eco, econ_cal=None):
+def panel_economic_expanded(eco: Any, econ_cal: Any = None) -> Any:
     """Full-screen economic inputs — all macro indicators, yield curve, calendar."""
     err_panel = _error_panel("economic pulse", eco, "ECONOMIC INPUTS", border="bright_magenta")
     if err_panel:

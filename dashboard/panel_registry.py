@@ -62,16 +62,16 @@ class PanelRegistry:
     validates dependencies exist, and provides panel lookup methods.
     """
 
-    def __init__(self):
+    def __init__(self) -> None:
         """Initialize the panel registry."""
         self._panels: dict[str, PanelDefinition] = {}
-        self._render_functions: dict[str, Callable] = {}
+        self._render_functions: dict[str, Callable[..., Any]] = {}
 
     def register_panel(
         self,
         name: str,
         endpoint_deps: list[str],
-        render_fn: Callable | None = None,
+        render_fn: Callable[..., Any] | None = None,
         optional: bool = False,
         description: str = "",
     ) -> None:
@@ -115,7 +115,7 @@ class PanelRegistry:
             self._render_functions[name] = render_fn
         logger.debug(f"Registered panel: {name} (deps: {endpoint_deps})")
 
-    def register_render_function(self, name: str, render_fn: Callable) -> None:
+    def register_render_function(self, name: str, render_fn: Callable[..., Any]) -> None:
         """Register or update the rendering function for a panel.
 
         Args:
@@ -143,7 +143,7 @@ class PanelRegistry:
         """Get all registered panel names."""
         return list(self._panels.keys())
 
-    def get_render_function(self, name: str) -> Callable | None:
+    def get_render_function(self, name: str) -> Callable[..., Any] | None:
         """Get the rendering function for a panel."""
         return self._render_functions.get(name)
 
@@ -253,10 +253,10 @@ def get_panel_registry() -> PanelRegistry:
 def register_panel(
     name: str,
     endpoint_deps: list[str],
-    render_fn: Callable | None = None,
+    render_fn: Callable[..., Any] | None = None,
     optional: bool = False,
     description: str = "",
-) -> Callable:
+) -> Callable[[Callable[..., Any]], Callable[..., Any]]:
     """Decorator to register a panel function.
 
     Usage:
@@ -265,7 +265,7 @@ def register_panel(
             ...
     """
 
-    def decorator(fn: Callable) -> Callable:
+    def decorator(fn: Callable[..., Any]) -> Callable[..., Any]:
         _registry.register_panel(
             name=name,
             endpoint_deps=endpoint_deps,

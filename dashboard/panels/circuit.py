@@ -1,7 +1,7 @@
 """Circuit breaker status panel functions."""
 
 import logging
-from typing import cast
+from typing import Any, cast
 
 from rich.console import ConsoleRenderable, RichCast
 
@@ -12,7 +12,7 @@ try:
 except ImportError as e:
     logger.warning(f"Panel registry not available: {e} - panels will not auto-register")
 
-    def register_panel(*args, **kwargs):
+    def register_panel(*args: Any, **kwargs: Any) -> Any:
         if args and callable(args[0]):
             return args[0]
         return lambda fn: fn
@@ -44,7 +44,7 @@ from ._helpers import _error_panel
     optional=False,
     description="Circuit breaker status",
 )
-def panel_circuit(cb):
+def panel_circuit(cb: Any) -> Any:
     err_panel = _error_panel("circuit breakers", cb, "CIRCUIT BREAKERS", border="blue")
     if err_panel:
         return err_panel
@@ -74,7 +74,7 @@ def panel_circuit(cb):
         bs = []
     for a, b in zip(bs[::2], [*bs[1::2], None], strict=False):
 
-        def fmt_b(br):
+        def fmt_b(br: Any) -> str:
             if br is None:
                 return ""
             if not isinstance(br, dict):
@@ -125,7 +125,7 @@ def panel_circuit(cb):
     optional=False,
     description="Circuit Breakers Expanded",
 )
-def panel_circuit_expanded(cb):
+def panel_circuit_expanded(cb: Any) -> Any:
     """Full-screen circuit breaker status — wide bars, % utilization, per-breaker detail."""
     rows: list[Text | Rule | Table] = [
         Text.from_markup("[dim]press [/][bold blue]b[/][dim] to return to dashboard[/]"),

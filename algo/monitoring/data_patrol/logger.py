@@ -19,7 +19,7 @@ class PatrolLogger:
     def __init__(self, run_id: str):
         self.run_id = run_id
 
-    def log_configuration(self, cur, config: dict[str, Any]) -> None:
+    def log_configuration(self, cur: Any, config: dict[str, Any]) -> None:
         """Log patrol configuration snapshot at start of run."""
         try:
             cur.execute(
@@ -40,7 +40,7 @@ class PatrolLogger:
         except (psycopg2.DatabaseError, psycopg2.OperationalError) as e:
             raise RuntimeError(f"Failed to log patrol configuration - health check data unavailable: {e}") from e
 
-    def log_results(self, cur, results: list[CheckResult]) -> None:
+    def log_results(self, cur: Any, results: list[CheckResult]) -> None:
         """Log all check results to database."""
         if results:
             try:
@@ -65,7 +65,7 @@ class PatrolLogger:
             except (psycopg2.DatabaseError, psycopg2.OperationalError) as e:
                 raise RuntimeError(f"Failed to log patrol results - health check results not recorded: {e}") from e
 
-    def log_performance(self, cur, elapsed_seconds: float, status: str) -> None:
+    def log_performance(self, cur: Any, elapsed_seconds: float, status: str) -> None:
         """Log patrol execution performance metrics."""
         try:
             cur.execute(

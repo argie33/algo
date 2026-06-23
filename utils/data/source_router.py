@@ -74,7 +74,7 @@ def get_global_yfinance_limiter() -> RateLimiter:
     return _GLOBAL_YFINANCE_LIMITER
 
 
-def _call_with_timeout(fn: Callable, timeout_sec: float = 30, retries: int = 3) -> Any:
+def _call_with_timeout(fn: Callable[[], Any], timeout_sec: float = 30, retries: int = 3) -> Any:
     """Call a function with timeout protection and automatic retry on timeout."""
     for attempt in range(retries):
         try:
@@ -236,19 +236,19 @@ class DataSourceRouter:
         start: date,
         end: date,
         interval: str = "1d",
-    ) -> dict[str, list[dict] | None]:
+    ) -> dict[str, list[dict[str, Any]] | None]:
         """Batch fetch OHLCV for multiple symbols. Returns dict[symbol] -> rows or None."""
-        sources = [
+        sources: list[tuple[str, Callable[[], Any]]] = [
             (
                 "yfinance",
                 lambda: self._fetch_yfinance_ohlcv_batch(symbols, start, end, interval=interval),
             ),
         ]
         results = self._try_chain(sources, f"OHLCV_BATCH[{len(symbols)} symbols {start}..{end} {interval}]")
-        return cast(dict[str, list[dict] | None], results if results else dict.fromkeys(symbols))
+        return cast(dict[str, list[dict[str, Any]] | None], results if results else dict.fromkeys(symbols))
 
     @retry(max_attempts=2, base_delay=2.0, exceptions=(Exception,))
-    def _fetch_yfinance_ohlcv(self, symbol: str, start: date, end: date, interval: str = "1d"):
+    def _fetch_yfinance_ohlcv(self, symbol: str, start: date, end: date, interval: str = "1d") -> list[dict[str, Any]] | None:
         if yf is None:
             logger.error("[yfinance] yfinance not installed")
             return None
@@ -256,7 +256,7 @@ class DataSourceRouter:
         yf_symbol = symbol.replace(".", "-") if "." in symbol else symbol
         try:
 
-            def do_download():
+            def do_download() -> Any:
                 # yfinance 0.2.40+ requires curl_cffi and doesn't accept requests.Session
                 # Let yfinance handle its own session management for compatibility
                 return yf.download(
@@ -327,7 +327,7 @@ class DataSourceRouter:
             raise
 
     @retry(max_attempts=2, base_delay=2.0, exceptions=(Exception,))
-    def _fetch_yfinance_ohlcv_batch(self, symbols: list[str], start: date, end: date, interval: str = "1d"):
+    def _fetch_yfinance_ohlcv_batch(self, symbols: list[str], start: date, end: date, interval: str = "1d") -> dict[str, list[dict[str, Any]] | None]:
         """Batch fetch multiple symbols in one API call. Returns dict[symbol] -> rows."""
         if yf is None:
             logger.error("[yfinance] yfinance not installed")
@@ -343,7 +343,7 @@ class DataSourceRouter:
 
         try:
 
-            def do_download():
+            def do_download() -> Any:
                 # yfinance 0.2.40+ requires curl_cffi and doesn't accept requests.Session
                 # Let yfinance handle its own session management for compatibility
                 return yf.download(
@@ -492,7 +492,7 @@ class DataSourceRouter:
         try:
             from utils.external import get_ticker
 
-            def fetch():
+            def fetch() -> Any:
                 # Use wrapper's get_ticker to ensure rate-limited access
                 ticker = get_ticker(symbol)
                 if not ticker:
@@ -671,7 +671,7 @@ class DataSourceRouter:
 
             yf_symbol = symbol.replace(".", "-") if "." in symbol else symbol
 
-            def do_download():
+            def do_download() -> Any:
                 return yf.download(
                     yf_symbol,
                     start=today,

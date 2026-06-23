@@ -14,7 +14,7 @@ logger = logging.getLogger(__name__)
 class DailyFinanceReport:
     """Generate institutional daily finance report."""
 
-    def __init__(self):
+    def __init__(self) -> None:
         from algo.orchestration import RegimeManager
 
         self.regime_mgr = RegimeManager()
@@ -56,7 +56,7 @@ class DailyFinanceReport:
             logger.info(f"Daily report generated for {report_date}")
             return report
 
-    def _fetch_portfolio(self, cur, report_date: _date) -> dict[str, Any]:
+    def _fetch_portfolio(self, cur: Any, report_date: _date) -> dict[str, Any]:
         """Portfolio value, P&L, drawdown."""
         try:
             cur.execute(
@@ -96,7 +96,7 @@ class DailyFinanceReport:
         except (ValueError, ZeroDivisionError, TypeError) as e:
             raise RuntimeError(f"Portfolio data conversion failed for {report_date}: {e}") from e
 
-    def _fetch_risk(self, cur, report_date: _date) -> dict[str, Any]:
+    def _fetch_risk(self, cur: Any, report_date: _date) -> dict[str, Any]:
         """Risk metrics: Sharpe, Sortino, max drawdown, Calmar ratio from pre-computed metrics."""
         try:
             cur.execute(
@@ -120,7 +120,7 @@ class DailyFinanceReport:
         except (psycopg2.DatabaseError, psycopg2.OperationalError) as e:
             raise RuntimeError(f"Database error fetching risk metrics for {report_date}: {e}") from e
 
-    def _fetch_strategy(self, cur, report_date: _date) -> dict[str, Any]:
+    def _fetch_strategy(self, cur: Any, report_date: _date) -> dict[str, Any]:
         """Win rate, profit factor, performance metrics from pre-computed daily metrics."""
         try:
             cur.execute(
@@ -144,7 +144,7 @@ class DailyFinanceReport:
         except (psycopg2.DatabaseError, psycopg2.OperationalError) as e:
             raise RuntimeError(f"Database error fetching strategy metrics for {report_date}: {e}") from e
 
-    def _fetch_components(self, cur, report_date: _date) -> dict[str, Any]:
+    def _fetch_components(self, cur: Any, report_date: _date) -> dict[str, Any]:
         """IC and weight for each component."""
         try:
             cur.execute(
@@ -196,7 +196,7 @@ class DailyFinanceReport:
             "description": params["description"],
         }
 
-    def _fetch_signals(self, cur, report_date: _date) -> dict[str, Any]:
+    def _fetch_signals(self, cur: Any, report_date: _date) -> dict[str, Any]:
         """Signal counts for today."""
         try:
             cur.execute(
@@ -364,7 +364,7 @@ class DailyFinanceReport:
         else:
             return "negative"  # anti-predictive - signal has inverted
 
-    def _count_open_positions(self, cur, report_date: _date) -> int:
+    def _count_open_positions(self, cur: Any, report_date: _date) -> int:
         """Count open positions."""
         try:
             cur.execute(

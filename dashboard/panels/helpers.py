@@ -36,7 +36,7 @@ def _get_safe_frame_index(frame_index: int) -> int:
     return frame_index
 
 
-def mascot_pose(data: dict, frame: int) -> int:
+def mascot_pose(data: dict[str, Any], frame: int) -> int:
     """Get mascot pose index based on circuit breaker status and frame.
 
     Validates data is dict before accessing fields.
@@ -52,7 +52,7 @@ def mascot_pose(data: dict, frame: int) -> int:
     return _get_safe_frame_index(idx)
 
 
-def _score_cell(v):
+def _score_cell(v: Any) -> Text:
     """Colored 0-100 sub-score cell: green >=70, cyan >=50, yellow >=30, else red."""
     if v is None or v == "":
         return Text("--", style=DIM)
@@ -64,12 +64,12 @@ def _score_cell(v):
     return Text(f"{fv:.0f}", style=c)
 
 
-def _build_buy_sig_map(buy_sigs) -> dict:
+def _build_buy_sig_map(buy_sigs: Any) -> dict[str, float]:
     """Map symbol -> signal-quality (swing) score from buy-signal records. Uses normalized symbols.
 
     Validates buy_sigs is iterable before processing.
     """
-    out: dict = {}
+    out: dict[str, float] = {}
     if not isinstance(buy_sigs, (list, tuple)):
         return out
     for bs in buy_sigs:
@@ -88,7 +88,7 @@ def _build_buy_sig_map(buy_sigs) -> dict:
     return out
 
 
-def _swing_cell(swing_v):
+def _swing_cell(swing_v: Any) -> Text:
     """Swing-signal cell: ▲score colored by strength, or dim -- when absent."""
     if swing_v is None:
         return Text("--", style=DIM)
@@ -96,12 +96,12 @@ def _swing_cell(swing_v):
     return Text(f"▲{swing_v:.0f}", style=c)
 
 
-def _composite_score_color(v) -> str:
+def _composite_score_color(v: float) -> str:
     """Color for composite scores: green >=80, cyan >=60, yellow >=40, else white."""
     return G if v >= 80 else (CY if v >= 60 else (Y if v >= 40 else "white"))
 
 
-def _best_halt_reason(top_level: str, phase_results: list) -> list[tuple[str, str]]:
+def _best_halt_reason(top_level: str, phase_results: list[Any]) -> list[tuple[str, str]]:
     """Return a list of (phase_label, reason) pairs drawn from phase-level data.
 
     Falls back to top_level if no per-phase detail is found.
@@ -146,7 +146,7 @@ def _best_halt_reason(top_level: str, phase_results: list) -> list[tuple[str, st
     return found
 
 
-def _fmt_phases_halted(phases_halted) -> str:
+def _fmt_phases_halted(phases_halted: Any) -> str:
     """Turn a phases_halted array into a compact human-readable label."""
     if not phases_halted:
         return ""
@@ -160,7 +160,7 @@ def _fmt_phases_halted(phases_halted) -> str:
             phases_halted = [phases_halted]
     if not isinstance(phases_halted, (list, tuple)):
         return ""
-    names = []
+    names: list[str] = []
     for p in phases_halted:
         raw = str(p).lower()
         parts = raw.split("_")
@@ -191,7 +191,7 @@ def _error_panel(data_name: str, data: Any, title: str, border="magenta") -> Pan
     return None
 
 
-def _rdelta(r, wk="rank_1w_ago", wk4=None):
+def _rdelta(r: Any, wk: str = "rank_1w_ago", wk4: str | None = None) -> str:
     """Rank delta formatter: shows rank change with ↑/↓ symbols and color coding.
 
     Validates r is dict before accessing fields.

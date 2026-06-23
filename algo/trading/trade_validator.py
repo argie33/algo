@@ -221,7 +221,7 @@ class TradeValidator:
 
         return True, None, result_dict
 
-    def check_duplicate_position(self, cur, symbol: str) -> tuple[bool, str | None]:
+    def check_duplicate_position(self, cur: Any, symbol: str) -> tuple[bool, str | None]:
         """Check if position for this symbol already exists.
 
         Returns:
@@ -244,7 +244,7 @@ class TradeValidator:
 
     def check_idempotent_duplicate(
         self,
-        cur,
+        cur: Any,
         symbol: str,
         signal_date: Any,
         entry_price: Decimal | float,
@@ -273,7 +273,7 @@ class TradeValidator:
             )
         return False, None, None
 
-    def check_open_position_in_symbol(self, cur, symbol: str) -> tuple[bool, str | None]:
+    def check_open_position_in_symbol(self, cur: Any, symbol: str) -> tuple[bool, str | None]:
         """Check if symbol has an open position in the transaction.
 
         Returns:
@@ -289,11 +289,11 @@ class TradeValidator:
 
     def check_signal_fingerprint_duplicate(
         self,
-        cur,
+        cur: Any,
         symbol: str,
         signal_date: Any,
-        entry_price: Decimal | float,
-        stop_loss_price: Decimal | float,
+        entry_price: Any,
+        stop_loss_price: Any,
     ) -> tuple[bool, str | None, str | None]:
         """Check if same signal already exists as OPEN or PENDING trade.
 
@@ -321,7 +321,7 @@ class TradeValidator:
             )
         return False, None, None
 
-    def check_pending_trades(self, cur, symbol: str) -> tuple[bool, str | None, int]:
+    def check_pending_trades(self, cur: Any, symbol: Any) -> tuple[bool, str | None, int]:
         """Check for pending or open trades in the last 30 days.
 
         Returns:
@@ -345,7 +345,7 @@ class TradeValidator:
             )
         return False, None, 0
 
-    def check_reentry_rules(self, cur, symbol: str) -> tuple[bool, str | None, int]:
+    def check_reentry_rules(self, cur: Any, symbol: Any) -> tuple[bool, str | None, int]:
         """Check re-entry rules: max reentries and cooldown period.
 
         Returns:
