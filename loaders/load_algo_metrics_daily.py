@@ -51,13 +51,53 @@ class AlgoMetricsDailyLoader(OptimalLoader):
                         "Cannot compute performance metrics without trade data."
                     )
 
+                # VALIDATION: Required fields must be present and non-negative
+                total_actions = row[1]
+                entries = row[2]
+                exits = row[3]
+                score = row[4]
+
+                # Validate required fields
+                if total_actions is None:
+                    raise ValueError("total_actions cannot be NULL (required field)")
+                if entries is None:
+                    raise ValueError("entries cannot be NULL (required field)")
+                if exits is None:
+                    raise ValueError("exits cannot be NULL (required field)")
+
+                # Validate value ranges
+                if total_actions < 0:
+                    raise ValueError(f"total_actions must be non-negative, got {total_actions}")
+                if entries < 0:
+                    raise ValueError(f"entries must be non-negative, got {entries}")
+                if exits < 0:
+                    raise ValueError(f"exits must be non-negative, got {exits}")
+
+                # Validate logical consistency
+                if entries + exits > total_actions:
+                    raise ValueError(
+                        f"entries ({entries}) + exits ({exits}) cannot exceed total_actions ({total_actions})"
+                    )
+
+                # Validate and coerce score
+                avg_signal_score = None
+                if score is not None:
+                    try:
+                        avg_signal_score = float(score)
+                        if avg_signal_score < 0 or avg_signal_score > 100:
+                            raise ValueError(
+                                f"avg_signal_score must be 0-100, got {avg_signal_score}"
+                            )
+                    except (ValueError, TypeError) as e:
+                        raise ValueError(f"avg_signal_score must be numeric, got {score}") from e
+
                 return [
                     {
                         "date": row[0],
-                        "total_actions": row[1],
-                        "entries": row[2],
-                        "exits": row[3],
-                        "avg_signal_score": float(row[4]) if row[4] else None,
+                        "total_actions": total_actions,
+                        "entries": entries,
+                        "exits": exits,
+                        "avg_signal_score": avg_signal_score,
                     }
                 ]
 
