@@ -78,7 +78,7 @@ try:
 except ImportError as e:
     logger.warning(f"Panel registry not available: {e} - panels will not auto-register")
 
-    def register_panel(*args, **kwargs):
+    def register_panel(*args: Any, **kwargs: Any) -> Any:
         if args and callable(args[0]):
             return args[0]
         return lambda fn: fn
@@ -170,7 +170,7 @@ def _build_freshness_panel(hlth_items: list[Any], ready_to_trade: bool | None) -
     Returns:
         Rich Panel with freshness table
     """
-    left_rows: list = []
+    left_rows: list[Text] = []
 
     if not hlth_items:
         msg = "⚠ Data health unavailable — loaders may not have run yet.\n"
@@ -257,8 +257,9 @@ def _build_freshness_panel(hlth_items: list[Any], ready_to_trade: bool | None) -
 
 
 def panel_orch(run: dict[str, Any] | None, cfg: dict[str, Any], risk: dict[str, Any] | None = None) -> Panel:
-    if _error_panel("config", cfg, "ORCHESTRATION"):
-        return _error_panel("config", cfg, "ORCHESTRATION")
+    error_pnl = _error_panel("config", cfg, "ORCHESTRATION")
+    if error_pnl:
+        return error_pnl
 
     next_run = next_run_str()
     cfg_params = extract_config_params(cfg)
@@ -282,11 +283,11 @@ def panel_orch(run: dict[str, Any] | None, cfg: dict[str, Any], risk: dict[str, 
 
     # VaR line — only show if table is populated with real data
     var_line = ""
-    risk_dict = safe_get_dict(risk) if not has_error(risk) else {}
+    risk_dict = safe_get_dict(risk) if risk and not has_error(risk) else {}
     var95_check = risk_dict.get("var95") if risk_dict else None
     var95_check_f = safe_float(var95_check, default=0.0)
     if risk_dict and var95_check is not None and var95_check_f > 0:
-        risk_metrics = extract_risk_metrics(risk)
+        risk_metrics = extract_risk_metrics(risk_dict)
         if risk_metrics:
             var95_val = risk_metrics["var95"]
             beta_val = risk_metrics["beta"]

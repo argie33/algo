@@ -216,14 +216,14 @@ class SignalTrendMixin:
 
         def _compute_rs(cur):
             try:
-                stock_ret = self._period_return(cur, symbol, eval_date, lookback)
+                stock_ret = self._period_return(cur, symbol, eval_date, lookback)  # type: ignore[attr-defined]
             except (ValueError, RuntimeError) as e:
                 raise ValueError(
                     f"Mansfield RS calculation failed for {symbol}: could not compute stock return: {e}"
                 ) from e
 
             try:
-                spy_ret = self._period_return(cur, "SPY", eval_date, lookback)
+                spy_ret = self._period_return(cur, "SPY", eval_date, lookback)  # type: ignore[attr-defined]
             except (ValueError, RuntimeError) as e:
                 raise ValueError(f"Mansfield RS calculation failed: could not compute SPY return: {e}") from e
 
@@ -240,7 +240,7 @@ class SignalTrendMixin:
                 "spy_return_pct": round(spy_ret * 100, 2),
             }
 
-        return self._with_cursor(_compute_rs)
+        return self._with_cursor(_compute_rs)  # type: ignore[attr-defined]
     def stage2_phase(self, symbol: str, eval_date) -> dict[str, Any]:
         """Alias for weinstein_stage() for backwards compatibility."""
         return self.weinstein_stage(symbol, eval_date)

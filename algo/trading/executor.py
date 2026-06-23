@@ -551,16 +551,16 @@ class TradeExecutor:
             logger.error(f"Alpaca API error getting portfolio value: {e}")
             raise DataUnavailableError(f"Cannot reach Alpaca: {e}") from e
 
-    def _cancel_bracket_orders(self, alpaca_order_id: str) -> dict[str, Any]:  # type: ignore[no-untyped-def]
+    def _cancel_bracket_orders(self, alpaca_order_id: str) -> dict[str, Any]:
         return self.order_manager.cancel_bracket_orders(alpaca_order_id)
 
-    def _verify_order_status(self, alpaca_order_id: str) -> str | None:  # type: ignore[no-untyped-def]
+    def _verify_order_status(self, alpaca_order_id: str) -> str | None:
         return self.order_manager.verify_order_status(alpaca_order_id)
 
-    def _get_order_filled_quantity(self, alpaca_order_id: str) -> float | None:  # type: ignore[no-untyped-def]
+    def _get_order_filled_quantity(self, alpaca_order_id: str) -> float | None:
         return self.order_manager.get_order_filled_quantity(alpaca_order_id)
 
-    def _send_alpaca_exit(self, symbol: str, shares: float) -> dict[str, Any]:  # type: ignore[no-untyped-def]
+    def _send_alpaca_exit(self, symbol: str, shares: float) -> dict[str, Any]:
         return self.order_manager.send_market_exit(symbol, shares, self.execution_mode)
 
     # ---------- Entry ----------
@@ -788,7 +788,7 @@ class TradeExecutor:
         exit_fraction: float = 1.0,
         exit_stage: str | None = None,
         new_stop_price: float | None = None,
-        cur: Any | None = None,  # type: ignore[name-defined]
+        cur: Any | None = None,
     ) -> dict[str, Any]:
         """Exit all or part of a position with guaranteed transaction atomicity.
 

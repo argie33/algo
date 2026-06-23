@@ -2,7 +2,7 @@
 
 import logging
 from datetime import date
-from typing import Any, Callable
+from typing import Any, Callable, cast
 
 import psycopg2
 
@@ -199,7 +199,7 @@ class RejectionTracker:
             result = self._with_cursor(_get_funnel)
             if result is None:
                 return {"total_signals": 0, "tiers": []}
-            return result
+            return cast(dict[str, Any], result)
         except (psycopg2.DatabaseError, psycopg2.OperationalError) as e:
             logger.error(f"Failed to get rejection funnel: {e}")
             raise RuntimeError(

@@ -29,11 +29,11 @@ class SwingComponentScorer:
     W_SECTOR = 8
     W_MULTI_TF = 5
 
-    def __init__(self, config, signals_computer):
+    def __init__(self, config: Any, signals_computer: Any) -> None:
         self.config = config
         self._signals = signals_computer
 
-    def _load_config_weights(self, cur) -> dict[str, int]:
+    def _load_config_weights(self, cur: Any) -> dict[str, int]:
         """Load swing score component weights from config table.
 
         Raises on database errors—configuration must be loaded fresh.
@@ -45,7 +45,7 @@ class SwingComponentScorer:
         except (psycopg2.DatabaseError, psycopg2.OperationalError) as e:
             raise RuntimeError(f"Failed to load swing weights from config: {e}") from e
 
-    def _load_config_val(self, key: str, default, cur=None):
+    def _load_config_val(self, key: str, default: Any, cur: Any | None = None) -> Any:
         """Load a single config value from database or return default.
 
         Raises on database errors—configuration must be loaded fresh.
@@ -85,44 +85,44 @@ class SwingComponentScorer:
         except (psycopg2.DatabaseError, psycopg2.OperationalError) as e:
             raise RuntimeError(f"Failed to load config key {key}: {e}") from e
 
-    def compute_setup_component(self, symbol: str, eval_date) -> tuple[float, dict[str, Any]]:
+    def compute_setup_component(self, symbol: str, eval_date: Any) -> tuple[float, dict[str, Any]]:
         """Compute setup quality component (25 pts max)."""
         setup_pts, setup_detail = self._setup_component(symbol, eval_date)
         return setup_pts, setup_detail
 
-    def compute_trend_component(self, symbol: str, eval_date, cur) -> tuple[float, dict[str, Any]]:
+    def compute_trend_component(self, symbol: str, eval_date: Any, cur: Any) -> tuple[float, dict[str, Any]]:
         """Compute trend quality component (20 pts max)."""
         trend_pts, trend_detail = self._trend_component(symbol, eval_date, cur)
         return trend_pts, trend_detail
 
-    def compute_momentum_component(self, symbol: str, eval_date, cur) -> tuple[float, dict[str, Any]]:
+    def compute_momentum_component(self, symbol: str, eval_date: Any, cur: Any) -> tuple[float, dict[str, Any]]:
         """Compute momentum/RS component (20 pts max)."""
         mom_pts, mom_detail = self._momentum_component(symbol, eval_date, cur)
         return mom_pts, mom_detail
 
-    def compute_volume_component(self, symbol: str, eval_date, cur) -> tuple[float, dict[str, Any]]:
+    def compute_volume_component(self, symbol: str, eval_date: Any, cur: Any) -> tuple[float, dict[str, Any]]:
         """Compute volume component (12 pts max)."""
         vol_pts, vol_detail = self._volume_component(symbol, eval_date, cur)
         return vol_pts, vol_detail
 
-    def compute_fundamentals_component(self, symbol: str, cur) -> tuple[float, dict[str, Any]]:
+    def compute_fundamentals_component(self, symbol: str, cur: Any) -> tuple[float, dict[str, Any]]:
         """Compute fundamentals component (10 pts max)."""
         fund_pts, fund_detail = self._fundamentals_component(symbol, cur)
         return fund_pts, fund_detail
 
-    def compute_sector_component(self, symbol: str, eval_date, sector, industry, cur) -> tuple[float, dict[str, Any]]:
+    def compute_sector_component(self, symbol: str, eval_date: Any, sector: Any, industry: Any, cur: Any) -> tuple[float, dict[str, Any]]:
         """Compute sector/industry component (8 pts max)."""
         sec_pts, sec_detail = self._sector_component(symbol, eval_date, sector, industry, cur)
         return sec_pts, sec_detail
 
-    def compute_multi_timeframe_component(self, symbol: str, eval_date, cur) -> tuple[float, dict[str, Any]]:
+    def compute_multi_timeframe_component(self, symbol: str, eval_date: Any, cur: Any) -> tuple[float, dict[str, Any]]:
         """Compute multi-timeframe component (5 pts max)."""
         mtf_pts, mtf_detail = self._multi_timeframe_component(symbol, eval_date, cur)
         return mtf_pts, mtf_detail
 
     # ============= Component Implementations =============
 
-    def _setup_component(self, symbol: str, eval_date) -> tuple[float, dict[str, Any]]:
+    def _setup_component(self, symbol: str, eval_date: Any) -> tuple[float, dict[str, Any]]:
         """Setup quality component: base type, breakout proximity, consolidation quality."""
         try:
             setup = self._signals.classify_base_type(symbol, eval_date)
@@ -208,7 +208,7 @@ class SwingComponentScorer:
             # Unexpected data structure error — convert to ValueError for consistency
             raise ValueError(f"{symbol}: Setup component data structure error: {e}") from e
 
-    def _trend_component(self, symbol: str, eval_date, cur) -> tuple[float, dict[str, Any]]:
+    def _trend_component(self, symbol: str, eval_date: Any, cur: Any) -> tuple[float, dict[str, Any]]:
         """Trend quality: Minervini score, Weinstein stage, 30wk MA slope.
 
         CRITICAL: Raises on missing trend data instead of defaulting to 0.
@@ -256,7 +256,7 @@ class SwingComponentScorer:
             logger.error(f"Trend component calculation error for {symbol}: {e}")
             raise ValueError(f"{symbol}: Trend component failed unexpectedly: {e}") from e
 
-    def _momentum_component(self, symbol: str, eval_date, cur) -> tuple[float, dict[str, Any]]:
+    def _momentum_component(self, symbol: str, eval_date: Any, cur: Any) -> tuple[float, dict[str, Any]]:
         """Momentum: RS percentile, 1m/3m/6m returns.
 
         CRITICAL: Raises on missing momentum data instead of defaulting to 0.
@@ -308,7 +308,7 @@ class SwingComponentScorer:
             logger.error(f"Momentum component calculation error for {symbol}: {e}")
             raise ValueError(f"{symbol}: Momentum component failed unexpectedly: {e}") from e
 
-    def _volume_component(self, symbol: str, eval_date, cur) -> tuple[float, dict[str, Any]]:
+    def _volume_component(self, symbol: str, eval_date: Any, cur: Any) -> tuple[float, dict[str, Any]]:
         """Volume: breakout confirmation, accumulation days.
 
         CRITICAL: Raises on missing volume data instead of defaulting to 0.
@@ -351,7 +351,7 @@ class SwingComponentScorer:
             logger.error(f"Volume component database error for {symbol}: {e}")
             raise ValueError(f"{symbol}: Volume component database error: {e}") from e
 
-    def _fundamentals_component(self, symbol: str, cur) -> tuple[float, dict[str, Any]]:
+    def _fundamentals_component(self, symbol: str, cur: Any) -> tuple[float, dict[str, Any]]:
         """Fundamentals: EPS growth, revenue growth, ROE.
 
         CRITICAL: Raises on missing fundamentals data instead of defaulting to 0.
@@ -399,7 +399,7 @@ class SwingComponentScorer:
             raise ValueError(f"{symbol}: Fundamentals component failed unexpectedly: {e}") from e
 
     def _sector_component(
-        self, symbol: str, eval_date, sector: str | None, industry: str | None, cur
+        self, symbol: str, eval_date: Any, sector: str | None, industry: str | None, cur: Any
     ) -> tuple[float, dict[str, Any]]:
         """Sector/Industry: industry rank vs sector rank.
 
@@ -449,7 +449,7 @@ class SwingComponentScorer:
             logger.error(f"Sector component calculation error for {symbol}: {e}")
             raise ValueError(f"{symbol}: Sector component failed unexpectedly: {e}") from e
 
-    def _multi_timeframe_component(self, symbol: str, eval_date, cur) -> tuple[float, dict[str, Any]]:
+    def _multi_timeframe_component(self, symbol: str, eval_date: Any, cur: Any) -> tuple[float, dict[str, Any]]:
         """Multi-timeframe: weekly + monthly alignment.
 
         CRITICAL: Raises on missing multi-timeframe data instead of defaulting to 0.

@@ -679,6 +679,7 @@ class DailyReconciliation:
                 "message": f"Reconciled {updated} exit fills with actual Alpaca prices",
             }
         except (
+            ValueError,
             requests.RequestException,
             json.JSONDecodeError,
             psycopg2.DatabaseError,

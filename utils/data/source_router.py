@@ -552,13 +552,13 @@ class DataSourceRouter:
         try:
             from utils.external import get_ticker
 
-            def fetch():
+            def fetch() -> Any:
                 # Use wrapper's get_ticker to ensure rate-limited access
                 ticker = get_ticker(symbol)
                 if not ticker:
                     return None
                 # earnings_dates API changed in newer yfinance — try calendar first
-                df = None
+                df: Any = None
                 try:
                     cal = ticker.calendar
                     if cal is not None and not (hasattr(cal, "empty") and cal.empty):
@@ -585,21 +585,21 @@ class DataSourceRouter:
         except TimeoutError as e:
             raise TimeoutError(f"yfinance earnings_dates timeout for {symbol}") from e
 
-    def _sec_eps(self, symbol: str):
+    def _sec_eps(self, symbol: str) -> Any:
         return self._sec_client().get_quarterly_concept(symbol, "EarningsPerShareDiluted")
 
-    def fetch_eps_revisions(self, symbol: str):
+    def fetch_eps_revisions(self, symbol: str) -> Any | None:
         """Fetch estimate revisions (up/down counts). yfinance only (no fallback)."""
         sources = [
             ("yfinance", lambda: self._fetch_yfinance_eps_revisions(symbol)),
         ]
         return self._try_chain(sources, f"EpsRevisions[{symbol}]")
 
-    def _fetch_yfinance_eps_revisions(self, symbol: str):
+    def _fetch_yfinance_eps_revisions(self, symbol: str) -> Any:
         try:
             from utils.external import get_ticker
 
-            def fetch():
+            def fetch() -> Any:
                 # Use wrapper's get_ticker to ensure rate-limited access
                 ticker = get_ticker(symbol)
                 if not ticker:
@@ -613,18 +613,18 @@ class DataSourceRouter:
         except TimeoutError as e:
             raise TimeoutError(f"yfinance eps_revisions timeout for {symbol}") from e
 
-    def fetch_eps_trend(self, symbol: str):
+    def fetch_eps_trend(self, symbol: str) -> Any | None:
         """Fetch estimate trends (historical estimate changes). yfinance only (no fallback)."""
         sources = [
             ("yfinance", lambda: self._fetch_yfinance_eps_trend(symbol)),
         ]
         return self._try_chain(sources, f"EpsTrend[{symbol}]")
 
-    def _fetch_yfinance_eps_trend(self, symbol: str):
+    def _fetch_yfinance_eps_trend(self, symbol: str) -> Any:
         try:
             from utils.external import get_ticker
 
-            def fetch():
+            def fetch() -> Any:
                 # Use wrapper's get_ticker to ensure rate-limited access
                 ticker = get_ticker(symbol)
                 if not ticker:
@@ -695,11 +695,14 @@ class DataSourceRouter:
             return False
 
         except TimeoutError as e:
-            raise TimeoutError(f"Market close data check timeout after {timeout_sec}s for {symbol}") from e
+            msg = f"Market close data check timeout after {timeout_sec}s for {symbol}"
+            raise TimeoutError(msg) from e
         except Exception as e:
-            raise RuntimeError(
-                f"Error checking market close data for {symbol}: {type(e).__name__}: {str(e)[:100]}"
-            ) from e
+            msg = (
+                f"Error checking market close data for {symbol}: "
+                f"{type(e).__name__}: {str(e)[:100]}"
+            )
+            raise RuntimeError(msg) from e
 
     # ============== HEALTH REPORT ==============
 

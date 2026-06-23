@@ -70,7 +70,7 @@ CIRCUIT_BREAKERS = [
 ]
 
 
-def compute_circuit_breaker_metrics(cur, today: date | None = None):
+def compute_circuit_breaker_metrics(cur: Any, today: date | None = None) -> dict[str, Any]:
     """Compute all circuit breaker metrics for today and store in database."""
     if today is None:
         # Use ET date, not UTC (AWS containers run in UTC but trading is ET-based)
@@ -149,7 +149,7 @@ def compute_circuit_breaker_metrics(cur, today: date | None = None):
         raise
 
 
-def _compute_drawdown(cur) -> float:
+def _compute_drawdown(cur: Any) -> float:
     """Calculate portfolio drawdown from peak."""
     cur.execute("""
         SELECT MAX(total_portfolio_value) AS peak,
@@ -168,7 +168,7 @@ def _compute_drawdown(cur) -> float:
     return round(dd, 2)
 
 
-def _compute_daily_loss(cur, today: date) -> float:
+def _compute_daily_loss(cur: Any, today: date) -> float:
     """Calculate today's loss %."""
     cur.execute(
         """
@@ -187,7 +187,7 @@ def _compute_daily_loss(cur, today: date) -> float:
     return round(loss, 2)
 
 
-def _compute_consecutive_losses(cur) -> int:
+def _compute_consecutive_losses(cur: Any) -> int:
     """Calculate consecutive losing trades from last 10 closed trades."""
     cur.execute("""
         SELECT profit_loss_pct FROM algo_trades
@@ -208,7 +208,7 @@ def _compute_consecutive_losses(cur) -> int:
     return streak
 
 
-def _compute_vix_level(cur) -> float | None:
+def _compute_vix_level(cur: Any) -> float | None:
     """Get latest VIX level from market_health_daily. Raises if not available."""
     cur.execute("""
         SELECT vix_level FROM market_health_daily
@@ -224,7 +224,7 @@ def _compute_vix_level(cur) -> float | None:
     return round(vix, 1)
 
 
-def _compute_weekly_loss(cur, today: date) -> float:
+def _compute_weekly_loss(cur: Any, today: date) -> float:
     """Calculate 7-day portfolio loss %."""
     cur.execute(
         """
@@ -261,7 +261,7 @@ def _compute_weekly_loss(cur, today: date) -> float:
     return round(loss, 2)
 
 
-def _compute_market_stage(cur) -> int | None:
+def _compute_market_stage(cur: Any) -> int | None:
     """Get latest market stage from market_health_daily. Returns None if not available (fail-closed)."""
     cur.execute("""
         SELECT market_stage FROM market_health_daily
@@ -276,7 +276,7 @@ def _compute_market_stage(cur) -> int | None:
     return stage
 
 
-def _compute_open_risk(cur) -> float:
+def _compute_open_risk(cur: Any) -> float:
     """Calculate total open risk % of portfolio."""
     cur.execute("""
         SELECT COALESCE(SUM(GREATEST(0, (t.entry_price - COALESCE(p.current_stop_price, t.stop_loss_price)) * p.quantity)), 0) AS total_risk
@@ -305,7 +305,7 @@ def _compute_open_risk(cur) -> float:
     return round(risk_pct, 2)
 
 
-def _compute_spy_change(cur, today: date) -> float:
+def _compute_spy_change(cur: Any, today: date) -> float:
     """Calculate SPY prior-day change %."""
     cur.execute(
         """
@@ -330,7 +330,7 @@ def _compute_spy_change(cur, today: date) -> float:
     return round(change, 2)
 
 
-def _compute_win_rate(cur) -> float:
+def _compute_win_rate(cur: Any) -> float:
     """Calculate win rate from last 30 closed trades."""
     cur.execute("""
         SELECT COUNT(*) FILTER (WHERE profit_loss_pct > 0) as wins,
@@ -357,7 +357,7 @@ def _compute_win_rate(cur) -> float:
     return round(win_rate, 1)
 
 
-def _check_any_triggered(metrics: dict) -> bool:
+def _check_any_triggered(metrics: dict[str, Any]) -> bool:
     """Check if any circuit breaker is triggered based on registry.
 
     If a required metric is missing or None, fail closed (return True).
@@ -366,7 +366,7 @@ def _check_any_triggered(metrics: dict) -> bool:
     return any(cb.is_triggered(metrics) for cb in CIRCUIT_BREAKERS)
 
 
-def _count_triggered(metrics: dict) -> int:
+def _count_triggered(metrics: dict[str, Any]) -> int:
     """Count how many circuit breakers are triggered.
 
     If a required metric is missing or None, fail closed (count as triggered).
@@ -375,7 +375,7 @@ def _count_triggered(metrics: dict) -> int:
     return sum(1 for cb in CIRCUIT_BREAKERS if cb.is_triggered(metrics))
 
 
-def _insert_circuit_breaker_status(cur, today: date, metrics: dict):
+def _insert_circuit_breaker_status(cur: Any, today: date, metrics: dict[str, Any]) -> None:
     """Insert or update circuit breaker status in database."""
     try:
         cur.execute(
@@ -420,7 +420,7 @@ def _insert_circuit_breaker_status(cur, today: date, metrics: dict):
         raise
 
 
-def main():
+def main() -> None:
     """Main entry point for the loader."""
     try:
         # Use ET date, not UTC (AWS containers run in UTC but trading is ET-based)
