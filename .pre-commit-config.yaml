@@ -43,6 +43,14 @@ repos:
         types: [python]
         stages: [commit]
 
+      - id: catch-unsafe-get-comparisons
+        name: Catch unsafe .get() comparisons without safe_float/safe_int
+        entry: bash -c 'python scripts/check_unsafe_comparisons.py'
+        language: system
+        pass_filenames: false
+        types: [python]
+        stages: [commit]
+
   # Comprehensive CI validation (ruff + basic syntax checks)
   - repo: local
     hooks:
