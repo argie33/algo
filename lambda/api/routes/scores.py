@@ -334,7 +334,7 @@ def _get_stock_scores(
         is_valid, error_msg = ResponseValidator.validate_endpoint_response("scores", result)
         if not is_valid:
             logger.error(f"Endpoint response validation failed: {error_msg}")
-            return error_response(500, "response_validation_error", error_msg)
+            return error_response(500, "response_validation_error", error_msg or "Scores validation failed")
         return result
     except (
         psycopg2.errors.UndefinedTable,

@@ -122,7 +122,16 @@ class CashFlowLoader(OptimalLoader):
             logger.info("%s: Fetched %d %s cash flow row(s)", symbol, len(rows), self.period)
 
             since_year = int(since.year) if since else 2000
-            filtered = [r for r in rows if r.get("fiscal_year", 0) > since_year]
+            filtered = []
+            for r in rows:
+                if "fiscal_year" not in r or r["fiscal_year"] is None:
+                    raise ValueError(
+                        f"Cash flow row missing required 'fiscal_year' field: {r}. "
+                        f"Cannot filter incremental data without fiscal_year."
+                    )
+                if r["fiscal_year"] > since_year:
+                    filtered.append(r)
+
             if len(filtered) < len(rows):
                 logger.debug(
                     f"{symbol}: Filtered {len(rows) - len(filtered)} row(s) with fiscal_year <= {since_year} "
@@ -180,12 +189,23 @@ class CashFlowLoader(OptimalLoader):
 
     def _validate_row(self, row: dict[str, Any]) -> bool:
         if not super()._validate_row(row):
-            return False
+            raise ValueError(
+                f"Cash flow row failed base validation (missing primary key): {row}. "
+                f"All cash flow records must have symbol and date."
+            )
+
         fy = row.get("fiscal_year")
         if not (fy and 1990 < fy < 2100):
-            return False
+            raise ValueError(
+                f"Cash flow row has invalid fiscal_year={fy}: {row}. "
+                f"Fiscal year must be between 1990 and 2100."
+            )
+
         if self.period == "quarterly" and row.get("fiscal_quarter") is None:
-            return False
+            raise ValueError(
+                f"Quarterly cash flow row missing fiscal_quarter: {row}. "
+                f"Quarterly data must include quarter information."
+            )
 
         # Reject rows where all key cash flow fields are NULL
         cash_fields = [
@@ -194,7 +214,10 @@ class CashFlowLoader(OptimalLoader):
             "financing_cash_flow",
         ]
         if all(row.get(field) is None for field in cash_fields):
-            return False
+            raise ValueError(
+                f"Cash flow row has all NULL cash flow fields: {row}. "
+                f"At least one of operating_cash_flow, investing_cash_flow, financing_cash_flow must be present."
+            )
 
         return True
 

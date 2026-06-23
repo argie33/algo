@@ -286,7 +286,7 @@ def get_api_version_headers() -> dict[str, str]:
     return {API_VERSION_HEADER: API_VERSION}
 
 
-def error_response(code: int, typ: str, msg: str) -> dict[str, Any]:
+def error_response(code: int, typ: str, msg: str | None) -> dict[str, Any]:
     """Standardized error response.
 
     Returns consistent error format with statusCode, errorType, message, and _error.
@@ -299,7 +299,7 @@ def error_response(code: int, typ: str, msg: str) -> dict[str, Any]:
     # Sanitize message to remove credentials, paths, SQL
     from utils.error_handlers import sanitize_error_message
 
-    msg = sanitize_error_message(msg)
+    msg = sanitize_error_message(msg or "")
 
     return {"statusCode": code, "errorType": typ, "message": msg, "_error": msg}
 
@@ -370,7 +370,7 @@ def extract_param(
     )
 
 
-def raise_api_error(status_code: int, error_type: str, message: str) -> NoReturn:
+def raise_api_error(status_code: int, error_type: str, message: str | None) -> NoReturn:
     """Raise APIException with explicit status code and error type.
 
     Selects the appropriate exception subclass based on status code.
@@ -393,7 +393,7 @@ def raise_api_error(status_code: int, error_type: str, message: str) -> NoReturn
     }
 
     exc_class = exception_map.get(status_code, ServiceUnavailable)
-    raise exc_class(message, error_type=error_type, status_code=status_code)
+    raise exc_class(message or "", error_type=error_type, status_code=status_code)
 
 
 def success_response(data: dict[str, Any], metadata: dict[str, Any] | None = None) -> dict[str, Any]:

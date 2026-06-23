@@ -135,7 +135,16 @@ class BalanceSheetLoader(OptimalLoader):
             logger.info("%s: Fetched %d %s balance sheet row(s)", symbol, len(rows), self.period)
 
             since_year = int(since.year) if since else 2000
-            filtered = [r for r in rows if r.get("fiscal_year", 0) > since_year]
+            filtered = []
+            for r in rows:
+                if "fiscal_year" not in r or r["fiscal_year"] is None:
+                    raise ValueError(
+                        f"Balance sheet row missing required 'fiscal_year' field: {r}. "
+                        f"Cannot filter incremental data without fiscal_year."
+                    )
+                if r["fiscal_year"] > since_year:
+                    filtered.append(r)
+
             if len(filtered) < len(rows):
                 logger.debug(
                     f"{symbol}: Filtered {len(rows) - len(filtered)} row(s) with fiscal_year <= {since_year} "

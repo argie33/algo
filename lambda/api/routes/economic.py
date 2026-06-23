@@ -384,7 +384,7 @@ def _get_leading_indicators(cur: cursor) -> dict[str, Any]:
         is_valid, error_msg = ResponseValidator.validate_endpoint_response("economic/indicators", result)
         if not is_valid:
             logger.error(f"Economic indicators response validation failed: {error_msg}")
-            return error_response(500, "response_validation_error", error_msg)
+            return error_response(500, "response_validation_error", error_msg or "Economic indicators validation failed")
 
         return json_response(200, result)
 
@@ -529,7 +529,7 @@ def _get_yield_curve_full(cur: cursor) -> dict[str, Any]:
         is_valid, error_msg = ResponseValidator.validate_endpoint_response("economic/yield-curve", result)
         if not is_valid:
             logger.error(f"Economic yield curve response validation failed: {error_msg}")
-            return error_response(500, "response_validation_error", error_msg)
+            return error_response(500, "response_validation_error", error_msg or "Yield curve validation failed")
 
         return json_response(200, result)
 

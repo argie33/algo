@@ -107,16 +107,18 @@ class OptimalLoader:
             self._stats.add_source(self.router.last_source)
 
         rows = self.transform(rows)
-        validated_rows = [r for r in rows if self._validate_row(r)]
-        dropped = len(rows) - len(validated_rows)
-        if dropped > 0:
-            logger.warning(f"Quality check: Dropped {dropped} invalid row(s)")
-        self._stats.increment("rows_quality_dropped", dropped)
-        rows = validated_rows
+        validated_rows = []
+        for i, r in enumerate(rows):
+            try:
+                self._validate_row(r)
+                validated_rows.append(r)
+            except ValueError as e:
+                raise ValueError(f"Row {i} failed validation: {e}") from e
 
-        if not rows:
+        if not validated_rows:
             return 0
 
+        rows = validated_rows
         new_wm = self.watermark_from_rows(rows)
         inserted = 0
         for chunk_start in range(0, len(rows), self.chunk_size):

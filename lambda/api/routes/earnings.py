@@ -72,7 +72,7 @@ def handle(
             is_valid, error_msg = ResponseValidator.validate_endpoint_response("earnings", result)
             if not is_valid:
                 logger.error(f"Earnings response validation failed: {error_msg}")
-                return error_response(500, "response_validation_error", error_msg)
+                return error_response(500, "response_validation_error", error_msg or "Earnings validation failed")
             return result
 
         limit = safe_limit(
@@ -108,7 +108,7 @@ def handle(
         is_valid, error_msg = ResponseValidator.validate_endpoint_response("earnings", result)
         if not is_valid:
             logger.error(f"Earnings response validation failed: {error_msg}")
-            return error_response(500, "response_validation_error", error_msg)
+            return error_response(500, "response_validation_error", error_msg or "Earnings validation failed")
         return result
     except (
         psycopg2.errors.UndefinedTable,

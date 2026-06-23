@@ -84,7 +84,7 @@ def handle(
             is_valid, error_msg = ResponseValidator.validate_endpoint_response("financials/key-metrics", result)
             if not is_valid:
                 logger.error(f"Endpoint response validation failed: {error_msg}")
-                return error_response(500, "response_validation_error", error_msg)
+                return error_response(500, "response_validation_error", error_msg or "Key metrics validation failed")
             return result
 
         if endpoint == "income-statement":
@@ -108,7 +108,7 @@ def handle(
             is_valid, error_msg = ResponseValidator.validate_endpoint_response("financials/income-statement", result)
             if not is_valid:
                 logger.error(f"Endpoint response validation failed: {error_msg}")
-                return error_response(500, "response_validation_error", error_msg)
+                return error_response(500, "response_validation_error", error_msg or "Income statement validation failed")
             return result
 
         if endpoint == "balance-sheet":
@@ -132,7 +132,7 @@ def handle(
             is_valid, error_msg = ResponseValidator.validate_endpoint_response("financials/balance-sheet", result)
             if not is_valid:
                 logger.error(f"Endpoint response validation failed: {error_msg}")
-                return error_response(500, "response_validation_error", error_msg)
+                return error_response(500, "response_validation_error", error_msg or "Balance sheet validation failed")
             return result
 
         if endpoint == "cash-flow":
@@ -165,7 +165,7 @@ def handle(
             is_valid, error_msg = ResponseValidator.validate_endpoint_response("financials/cash-flow", result)
             if not is_valid:
                 logger.error(f"Endpoint response validation failed: {error_msg}")
-                return error_response(500, "response_validation_error", error_msg)
+                return error_response(500, "response_validation_error", error_msg or "Cash flow validation failed")
             return result
 
         return error_response(404, "not_found", f"No financials handler for {path}")

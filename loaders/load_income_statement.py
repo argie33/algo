@@ -162,9 +162,16 @@ class IncomeStatementLoader(OptimalLoader):
             since_year = int(since.year) if since else 2000
             # Also include years already in DB where revenue is NULL (backfill ASC 606 gaps)
             null_revenue_years = self._get_null_revenue_years(symbol)
-            filtered = [
-                r for r in rows if r.get("fiscal_year", 0) > since_year or r.get("fiscal_year") in null_revenue_years
-            ]
+            filtered = []
+            for r in rows:
+                if "fiscal_year" not in r or r["fiscal_year"] is None:
+                    raise ValueError(
+                        f"Income statement row missing required 'fiscal_year' field: {r}. "
+                        f"Cannot filter incremental data without fiscal_year."
+                    )
+                if r["fiscal_year"] > since_year or r["fiscal_year"] in null_revenue_years:
+                    filtered.append(r)
+
             if len(filtered) < len(rows):
                 logger.debug(
                     f"{symbol}: Filtered {len(rows) - len(filtered)} row(s) with fiscal_year <= {since_year} "

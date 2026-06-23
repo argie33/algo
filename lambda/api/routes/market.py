@@ -57,7 +57,7 @@ def _handle_market_status(cur: cursor) -> dict[str, Any]:
     is_valid, error_msg = ResponseValidator.validate_endpoint_response("market/status", result)
     if not is_valid:
         logger.error(f"Market status response validation failed: {error_msg}")
-        raise_api_error(500, "response_validation_error", error_msg)
+        raise_api_error(500, "response_validation_error", error_msg or "Market status validation failed")
 
     return json_response(200, result, data_freshness=freshness)
 
