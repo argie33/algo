@@ -11,11 +11,23 @@ computation if trend_template_data is stale.
 import logging
 from typing import Any, cast
 
+import psycopg2
+
+from utils.db.context import DatabaseContext
+
 logger = logging.getLogger(__name__)
 
 
 class SignalTrendMixin:
     """Trend signal methods reading from pre-computed data and real-time calculations."""
+
+    def _with_cursor(self, operation: Any) -> Any:
+        """Execute an operation with a cursor via DatabaseContext."""
+        try:
+            with DatabaseContext("read") as cur:
+                return operation(cur)
+        except (psycopg2.DatabaseError, psycopg2.OperationalError) as e:
+            raise RuntimeError(f"Operation failed: {e}") from e
 
     @staticmethod
     def _is_valid_float(v) -> bool:

@@ -15,7 +15,7 @@ Handles:
 import json
 import logging
 from decimal import ROUND_HALF_UP, Decimal
-from typing import Any
+from typing import Any, cast
 
 from algo.reporting import TradeNotificationService
 from algo.trading.exceptions import (
@@ -82,6 +82,8 @@ class ExitHandler:
             return validation_error
 
         # After validation, we know exit_price is a valid float > 0
+        if exit_price is None or exit_price <= 0:
+            return {"success": False, "message": "Invalid exit price"}
         validated_exit_price = float(exit_price)
         # Main exit execution with transaction safety
         try:
@@ -108,7 +110,7 @@ class ExitHandler:
                     ),
                     acquire_locks=True,
                 )
-                return result
+                return cast(dict[str, Any], result)
         except AuditLogError as e:
             logger.critical(f"Audit log failure during exit (data integrity risk): {e}")
             return {"success": False, "message": f"Audit log failure: {e}"}
@@ -163,7 +165,7 @@ class ExitHandler:
             if cur is not None:
                 return _raise_stop(cur)
             else:
-                return self.context._with_cursor(_raise_stop)
+                return cast(dict[str, Any], self.context._with_cursor(_raise_stop))
         except DatabaseError as e:
             logger.error(f"Database error raising stop: {e}")
             return {"success": False, "message": f"Database error: {e}"}

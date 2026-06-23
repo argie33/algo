@@ -1,6 +1,9 @@
 """Market regime, internals, breadth, sentiment panel functions."""
 
 import logging
+from typing import cast
+
+from rich.console import ConsoleRenderable, RichCast
 
 logger = logging.getLogger(__name__)
 
@@ -161,7 +164,7 @@ def panel_market_full(mkt, sentiment=None):
 )
 def panel_market_expanded(mkt, sentiment=None):
     """Full-screen market internals — regime, breadth, sentiment, macro."""
-    rows = [
+    rows: list[Text | Rule | Table] = [
         Text.from_markup("[dim]press [/][bold blue]m[/][dim] to return to dashboard[/]"),
         Rule(style="dim"),
     ]
@@ -273,7 +276,7 @@ def panel_market_expanded(mkt, sentiment=None):
     rows.append(Text.from_markup(f"  [dim]Trading Halt:[/] [{hc}]{halt_s}[/]"))
 
     return Panel(
-        Group(*rows),
+        Group(*cast(list[ConsoleRenderable | RichCast | str], rows)),
         title="[bold blue]MARKET - EXPANDED[/]  [dim][m] return[/]",
         border_style="blue",
         padding=(0, 1),

@@ -1,6 +1,9 @@
 """Economic indicators and calendar panel functions."""
 
 import logging
+from typing import cast
+
+from rich.console import ConsoleRenderable, RichCast
 
 logger = logging.getLogger(__name__)
 
@@ -245,7 +248,7 @@ def panel_economic_expanded(eco, econ_cal=None):
     if err_panel:
         return err_panel
 
-    rows = [
+    rows: list[Text | Rule | Table | Group] = [
         Text.from_markup("[dim]press [/][bold bright_magenta]e[/][dim] to return to dashboard[/]"),
         Rule(style="dim"),
     ]
@@ -407,7 +410,7 @@ def panel_economic_expanded(eco, econ_cal=None):
     if not rows:
         rows.append(Text("[dim]no economic data[/]"))
     return Panel(
-        Group(*rows),
+        Group(*cast(list[ConsoleRenderable | RichCast | str], rows)),
         title="[bold bright_magenta]ECONOMIC INPUTS - EXPANDED[/]  [dim][e] return[/]",
         border_style="bright_magenta",
         padding=(0, 1),

@@ -159,7 +159,7 @@ class SignalMomentumMixin:
                 "combo_13_complete": combo_13_complete,
             }
 
-        return self._with_cursor(_fetch_data)
+        return cast(dict[str, Any], self._with_cursor(_fetch_data))
 
     def power_trend(self, symbol: str, eval_date: Any) -> dict[str, Any]:
         """
@@ -174,7 +174,7 @@ class SignalMomentumMixin:
                 "return_21d": round(ret_21 * 100, 2) if ret_21 is not None else None,
             }
 
-        return self._with_cursor(_compute)
+        return cast(dict[str, Any], self._with_cursor(_compute))
 
     def pivot_breakout(self, symbol: str, eval_date: Any) -> dict[str, Any]:
         """
@@ -215,7 +215,7 @@ class SignalMomentumMixin:
             }
 
         try:
-            return self._with_cursor(_check_pivot)
+            return cast(dict[str, Any], self._with_cursor(_check_pivot))
         except (ValueError, ZeroDivisionError, TypeError) as e:
             logger.debug(f"Pivot breakout check failed: {e}")
             return {"breakout": False}
@@ -298,7 +298,7 @@ class SignalMomentumMixin:
 
             return {"pocket_pivot": False}
 
-        return self._with_cursor(_check_pocket)
+        return cast(dict[str, Any], self._with_cursor(_check_pocket))
 
     def distribution_days(self, symbol: str, eval_date: Any, lookback: int = 25) -> int:
         """

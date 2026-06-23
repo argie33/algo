@@ -1,7 +1,9 @@
 """Recent trades and expanded trades panel functions."""
 
 import logging
-from typing import Any
+from typing import Any, cast
+
+from rich.console import ConsoleRenderable, RichCast
 
 logger = logging.getLogger(__name__)
 
@@ -199,7 +201,7 @@ def panel_trades_expanded(trades):
         tr for tr in trades_list if isinstance(tr, dict) and (safe_get_field(tr, "status", "")).lower() == "closed"
     ]
 
-    rows = [
+    rows: list[Text | Rule | Table] = [
         Text.from_markup("[dim]press [/][bold cyan]t[/][dim] to return to dashboard[/]"),
         Rule(style="dim"),
     ]
@@ -207,7 +209,7 @@ def panel_trades_expanded(trades):
     if not closed:
         rows.append(Text("no closed trades yet", style="dim"))
         return Panel(
-            Group(*rows),
+            Group(*cast(list[ConsoleRenderable | RichCast | str], rows)),
             title="[bold cyan]TRADE HISTORY - EXPANDED[/]  [dim][t] return[/]",
             border_style="cyan",
             padding=(0, 1),
@@ -345,7 +347,7 @@ def panel_trades_expanded(trades):
 
     age_s = f"  [dim]{fmt_age(trades_timestamp)}[/]" if trades_timestamp is not None else ""
     return Panel(
-        Group(*rows),
+        Group(*cast(list[ConsoleRenderable | RichCast | str], rows)),
         title=f"[bold cyan]TRADE HISTORY ({total} closed)[/]{age_s}  [dim][t] return[/]",
         border_style="cyan",
         padding=(0, 1),

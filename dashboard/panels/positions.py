@@ -144,7 +144,7 @@ def panel_positions(pos, compact=False, trades=None, extended=False):
         t.add_row(*row)
 
     # Build content (placeholder warning only if flagged — pending trades removed, see RECENT TRADES panel)
-    content_items = []
+    content_items: list[Text | Table] = []
     if is_placeholder:
         content_items.append(Text.from_markup("[bold red]📊 PLACEHOLDER DATA - Positions may not be accurate[/]"))
     content_items.append(t)

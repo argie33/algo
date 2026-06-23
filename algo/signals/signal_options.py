@@ -11,11 +11,23 @@ import logging
 from datetime import date as _date
 from typing import Any
 
+import psycopg2
+
+from utils.db.context import DatabaseContext
+
 logger = logging.getLogger(__name__)
 
 
 class SignalOptionsMixin:
     """Options-based signals for bonus alpha scoring."""
+
+    def _with_cursor(self, operation: Any) -> Any:
+        """Execute an operation with a cursor via DatabaseContext."""
+        try:
+            with DatabaseContext("read") as cur:
+                return operation(cur)
+        except (psycopg2.DatabaseError, psycopg2.OperationalError) as e:
+            raise RuntimeError(f"Operation failed: {e}") from e
 
     def iv_rank_signal(self, symbol: str, eval_date: _date) -> dict[str, Any]:
         def _fetch_iv(cur: Any) -> dict[str, Any]:
@@ -73,7 +85,7 @@ class SignalOptionsMixin:
                 "bonus_pts": bonus_pts,
             }
 
-        return self._with_cursor(_fetch_iv)  # type: ignore[no-any-return,attr-defined]
+        return self._with_cursor(_fetch_iv)  # type: ignore[no-any-return]
 
     def put_call_ratio_signal(self, symbol: str, eval_date: _date) -> dict[str, Any]:
         """
@@ -127,7 +139,7 @@ class SignalOptionsMixin:
                 "bonus_pts": bonus_pts,
             }
 
-        return self._with_cursor(_fetch_pc_ratio)  # type: ignore[no-any-return,attr-defined]
+        return self._with_cursor(_fetch_pc_ratio)  # type: ignore[no-any-return]
 
     def implied_move_signal(
         self,
@@ -213,7 +225,7 @@ class SignalOptionsMixin:
                 "bonus_pts": bonus_pts,
             }
 
-        return self._with_cursor(_fetch_implied_move)  # type: ignore[no-any-return,attr-defined]
+        return self._with_cursor(_fetch_implied_move)  # type: ignore[no-any-return]
 
     def options_signal(self, symbol: str, eval_date: _date) -> dict[str, Any]:
         """

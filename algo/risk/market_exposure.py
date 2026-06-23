@@ -60,16 +60,18 @@ import json
 import logging
 from collections.abc import Callable
 from datetime import date as _date
-from typing import Any
+from typing import Any, TypeVar
 
 import psycopg2
 from psycopg2 import sql as pgsql
-from psycopg2.extensions import cursor as PsycopgCursor
+from psycopg2.extensions import cursor as PsycopgCursor  # noqa: N812
 
 from algo.risk.market_factor_calculator import MarketFactorCalculator
 from utils.db import DatabaseContext
 
 logger = logging.getLogger(__name__)
+
+T = TypeVar("T")
 
 
 class MarketExposure:
@@ -92,7 +94,7 @@ class MarketExposure:
     def __init__(self) -> None:
         self.calculator = MarketFactorCalculator()
 
-    def _with_cursor(self, operation: Callable[[PsycopgCursor[Any]], Any]) -> Any:
+    def _with_cursor(self, operation: Callable[[PsycopgCursor[Any]], T]) -> T:
         """Execute an operation with a cursor via DatabaseContext."""
         try:
             with DatabaseContext("read") as cur:
@@ -110,7 +112,7 @@ class MarketExposure:
         if not eval_date:
             eval_date = _date.today()
 
-        def fetch_cached(cur: Any) -> dict[str, Any] | None:
+        def fetch_cached(cur: PsycopgCursor[Any]) -> dict[str, Any] | None:
             cur.execute(
                 """
                 SELECT raw_score, exposure_pct, regime, halt_reasons, distribution_days, factors, date
@@ -191,7 +193,7 @@ class MarketExposure:
         except Exception as e:
             raise RuntimeError(f"Operation failed: {e}") from e
 
-    def compute(self, eval_date=None, force_recompute=False):
+    def compute(self, eval_date: _date | None = None, force_recompute: bool = False) -> dict[str, Any]:
         """Compute full market exposure score. Returns dict.
 
         Args:
@@ -504,7 +506,7 @@ class MarketExposure:
     # ====== Factor implementations ======
 
     @staticmethod
-    def _wt_pts(factor, weight):
+    def _wt_pts(factor: dict[str, Any], weight: int) -> tuple[float, float]:
         """Return (pts, avail_weight) for a scoring factor.
 
         When score_factor is None (data missing), returns (0.0, 0.0) so the
@@ -515,7 +517,7 @@ class MarketExposure:
         sf = factor.get("score_factor")
         return (float(weight) * sf, float(weight)) if sf is not None else (0.0, 0.0)
 
-    def _spy_momentum(self, eval_date, cur):
+    def _spy_momentum(self, eval_date: _date, cur: PsycopgCursor[Any]) -> dict[str, Any]:
         """SPY 12-month price momentum — trailing return over ~252 trading days.
 
         Time-series momentum (TSMOM) is the most replicated signal in quantitative
@@ -565,7 +567,7 @@ class MarketExposure:
             "past_close_252d": round(past_close, 2),
         }
 
-    def _selling_pressure_factor(self, eval_date, cur):
+    def _selling_pressure_factor(self, eval_date: _date, cur: PsycopgCursor[Any]) -> dict[str, Any]:
         """Institutional selling pressure: heavy-volume down days in last 25 sessions.
 
         Counts sessions where the market closes down ≥0.2% on above-average volume —
@@ -593,7 +595,7 @@ class MarketExposure:
             "regime": ("clean" if dd_count <= 2 else ("caution" if dd_count <= 4 else "pressure")),
         }
 
-    def _distribution_days(self, eval_date, cur):
+    def _distribution_days(self, eval_date: _date, cur: PsycopgCursor[Any]) -> int:
         """Count heavy-volume down days over last 25 trading sessions on SPY.
 
         A qualifying session: close declines ≥0.2% AND volume is heavier than
@@ -620,7 +622,7 @@ class MarketExposure:
         row = cur.fetchone()
         return int(row[0]) if row is not None and row[0] is not None else 0
 
-    def _has_market_confirmation(self, eval_date, cur):
+    def _has_market_confirmation(self, eval_date: _date, cur: PsycopgCursor[Any]) -> bool:
         """Detect a volume-backed rally day in last 30 days.
 
         A qualifying day: index closes ≥1.7% on volume above prior day.
@@ -649,7 +651,7 @@ class MarketExposure:
         )
         return cur.fetchone() is not None
 
-    def _trend_30wk(self, eval_date, cur):
+    def _trend_30wk(self, eval_date: _date, cur: PsycopgCursor[Any]) -> dict[str, Any]:
         """SPY vs 30-week (150d) MA + slope over 30 trading days.
 
         Reads pre-computed sma_150 from technical_data_daily (indexed lookup, <1s)
@@ -702,7 +704,7 @@ class MarketExposure:
             "price_below_ma": cur_close < sma_now,
         }
 
-    def _pct_above_ma(self, eval_date, ma_days, cur):
+    def _pct_above_ma(self, eval_date: _date, ma_days: int, cur: PsycopgCursor[Any]) -> dict[str, Any]:
         """% of all stocks above their N-day MA.
 
         Reads pre-computed price_above_sma50 / price_above_sma200 boolean flags
@@ -743,7 +745,7 @@ class MarketExposure:
             "total": total,
         }
 
-    def _vix_regime(self, eval_date, cur):
+    def _vix_regime(self, eval_date: _date, cur: PsycopgCursor[Any]) -> dict[str, Any]:
         """VIX level + VIX3M/VIX term structure.
 
         VIX level captures current implied volatility / fear.
@@ -810,7 +812,7 @@ class MarketExposure:
         )
         return self._vix_score(vix, rising=rising, term_structure=term_structure)
 
-    def _vix_score(self, vix, rising, term_structure=None):
+    def _vix_score(self, vix: float, rising: bool, term_structure: float | None = None) -> dict[str, Any]:
         # Base score from VIX level
         if vix < 15:
             sf = 1.0
@@ -830,7 +832,7 @@ class MarketExposure:
             sf *= 0.75
 
         # Term structure adjustment
-        ts_detail = {}
+        ts_detail: dict[str, Any] = {}
         if term_structure is not None:
             if term_structure > 1.10:  # steep contango: market expects calm
                 sf = min(1.0, sf * 1.10)
@@ -852,7 +854,7 @@ class MarketExposure:
             **ts_detail,
         }
 
-    def _put_call_ratio(self, eval_date, cur):
+    def _put_call_ratio(self, eval_date: _date, cur: PsycopgCursor[Any]) -> dict[str, Any]:
         """Put/call ratio — options market sentiment (contrarian, daily signal).
 
         High P/C ratio (>1.1): elevated put buying = fear/hedging = contrarian bullish.
@@ -889,7 +891,7 @@ class MarketExposure:
 
         return {"score_factor": sf, "value": round(pc, 3)}
 
-    def _new_highs_lows(self, eval_date, cur):
+    def _new_highs_lows(self, eval_date: _date, cur: PsycopgCursor[Any]) -> dict[str, Any]:
         """52-week new highs vs new lows ratio.
 
         Reads pre-computed new_highs_count / new_lows_count from market_health_daily
@@ -924,7 +926,7 @@ class MarketExposure:
             "net": net,
         }
 
-    def _ad_line(self, eval_date, cur):
+    def _ad_line(self, eval_date: _date, cur: PsycopgCursor[Any]) -> dict[str, Any]:
         """A/D line: cumulative advancers - decliners vs SPY direction.
 
         Uses pre-computed advance_decline_ratio from market_health_daily and
@@ -1033,7 +1035,7 @@ class MarketExposure:
             "relation": relation,
         }
 
-    def _aaii(self, eval_date, cur):
+    def _aaii(self, eval_date: _date, cur: PsycopgCursor[Any]) -> dict[str, Any]:
         """AAII investor sentiment — contrarian at extremes only.
 
         Bull-bear spread (bullish% - bearish%) is the key metric.
@@ -1077,7 +1079,7 @@ class MarketExposure:
             "bearish_pct": round(bearish, 1),
         }
 
-    def _naaim(self, eval_date, cur):
+    def _naaim(self, eval_date: _date, cur: PsycopgCursor[Any]) -> dict[str, Any]:
         """NAAIM manager equity exposure — contrarian at extremes.
 
         Active manager exposure scale (0-100%):
@@ -1118,7 +1120,7 @@ class MarketExposure:
             "value": round(exposure, 1),
         }
 
-    def _credit_spread(self, eval_date, cur):
+    def _credit_spread(self, eval_date: _date, cur: PsycopgCursor[Any]) -> dict[str, Any]:
         """HY OAS credit spread (BAMLH0A0HYM2) — credit leads equity.
 
         Based on Apollo/Torsten Slok research: HY spreads widen 4-6 weeks
@@ -1169,7 +1171,7 @@ class MarketExposure:
             "widening_rapidly": widening_1pp,
         }
 
-    def _economic_regime_overlay(self, eval_date, cur):
+    def _economic_regime_overlay(self, eval_date: _date, cur: PsycopgCursor[Any]) -> dict[str, Any]:
         """Post-score macro stress penalty from yield curve, credit trend, jobless claims.
 
         Inspired by Yardeni/Slok/Goldman FCI methodology: when macro cycle signals
@@ -1291,7 +1293,7 @@ class MarketExposure:
             "signals": signals,
         }
 
-    def _persist(self, eval_date, result):
+    def _persist(self, eval_date: _date, result: dict[str, Any]) -> None:
         try:
             # Validate required fields FIRST (fail-fast, before using them)
             if "distribution_days" not in result:
@@ -1381,7 +1383,7 @@ class MarketExposure:
             logger.error(f"persist market_exposure failed for {eval_date}: {e}", exc_info=True)
 
 
-def read_market_regime(eval_date: _date) -> dict:
+def read_market_regime(eval_date: _date) -> dict[str, Any]:
     """Read market regime from market_exposure_daily (latest snapshot on or before eval_date).
 
     This is the canonical way for orchestrator phases to read market regime data.
@@ -1508,7 +1510,7 @@ if __name__ == "__main__":
         eval_d = _date.fromisoformat(args.date)
     else:
         # Use latest trading date in price_daily
-        def get_latest_date(cur):
+        def get_latest_date(cur: PsycopgCursor[Any]) -> Any:
             cur.execute("SELECT date FROM price_daily WHERE symbol='SPY' ORDER BY date DESC LIMIT 1")
             return cur.fetchone()
 

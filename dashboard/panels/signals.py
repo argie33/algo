@@ -192,7 +192,7 @@ def _build_grade_radar(sig_data: dict[str, Any]) -> list[Text]:
     return rows
 
 
-def _build_funnel_row(sig_eval_data: dict | None) -> list:
+def _build_funnel_row(sig_eval_data: dict | None) -> list[Text]:
     """Build funnel arrow chain row with avg score and top blockers.
 
     Returns empty list if input is missing or has errors.
@@ -248,7 +248,7 @@ def _build_funnel_row(sig_eval_data: dict | None) -> list:
     return rows
 
 
-def _build_buy_signals_table(scored_with_signals: list, buy_sig_details: dict) -> list:
+def _build_buy_signals_table(scored_with_signals: list, buy_sig_details: dict) -> list[Text | Table | Rule]:
     """Build active buy signals table section.
 
     Validates input is list and dict before accessing fields.
@@ -446,7 +446,8 @@ def panel_signals_compact(sig, sig_eval=None, scores=None):
     if not isinstance(buy_sigs, list):
         buy_sigs = []
 
-    rows, _, _ = _build_signal_header(sig, scores)
+    rows_text, _, _ = _build_signal_header(sig, scores)
+    rows: list[Text | Table | Rule] = cast(list[Text | Table | Rule], rows_text)
     rows.extend(_build_grade_radar(sig))
     rows.append(Rule(style="dim"))
     rows.extend(_build_funnel_row(sig_eval))
@@ -542,7 +543,7 @@ def panel_signals_expanded(sig, sig_eval=None, scores=None):
     gd_s = f"{gd}" if gd is not None else "--"
     buy_c = G if raw >= 5 else (Y if raw >= 1 else (DIM if total == 0 else R))
 
-    rows = [
+    rows: list[Text | Table | Rule] = [
         Text.from_markup(f"[{CY}][bold]SIGNAL OVERVIEW[/][/]"),
         Text.from_markup(
             f"[{buy_c}][bold]{raw} BUY SIGNALS[/][/]  [dim]from {total} screened  {ds}[/]  "
