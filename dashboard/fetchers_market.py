@@ -94,7 +94,8 @@ def _get_markets_cached() -> dict[str, Any]:
                         stale_data = dict(stale_data)
                         stale_data["_data_stale"] = True
                         logger.info("Using stale cached market data during API outage")
-                        _markets_cache["result"] = stale_data
+                        # DON'T cache stale data in _markets_cache - next call should retry API
+                        # Only return the stale data, so next refresh attempt will call api_call again
                         return stale_data
                 except Exception as e:
                     logger.warning(f"Stale cache fallback failed: {e}")
