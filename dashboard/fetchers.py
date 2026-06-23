@@ -259,8 +259,12 @@ def load_all() -> dict[str, Any]:
         Issue #40 FIX: Individual timeout per fetcher prevents one slow endpoint from
         blocking others. If fetcher exceeds timeout, immediately return error instead of
         waiting for global batch timeout.
+
+        Issue #41 FIX: Skip retry for transient 503 errors on optional fetchers to avoid
+        cascading delays when API is under load. Critical fetchers still retry since they're required.
         """
         start_time = time.monotonic()
+        is_critical = name in critical_fetchers
 
         for attempt in range(max_retries + 1):
             # Check if per-fetcher timeout has been exceeded
@@ -273,7 +277,17 @@ def load_all() -> dict[str, Any]:
                 return name, {"_error": timeout_msg}
 
             try:
-                return name, fn(None)
+                result = fn(None)
+                # If result is a dict with _is_transient_503 and we're optional, return immediately
+                # to avoid cascading delays when API is under load (mkt/exp_factors 503 scenario)
+                if (
+                    not is_critical
+                    and isinstance(result, dict)
+                    and result.get("_is_transient_503")
+                ):
+                    logger.warning(f"Fetcher {name} got transient 503, returning for optional fetcher (no retry)")
+                    return name, result
+                return name, result
             except Exception as e:
                 if attempt < max_retries:
                     base_backoff = (2**attempt) + random.random() * (2**attempt)

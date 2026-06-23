@@ -63,12 +63,17 @@ def _get_endpoint_path(fetcher_key: str, params: dict[str, Any] | None = None) -
 
 
 def _get_markets_cached() -> dict[str, Any]:
-    """Issue 14 FIX: Unified fetch for /api/algo/markets endpoint.
+    """Issue 14 FIX: Unified fetch for /api/algo/markets endpoint with 503 fallback.
 
     Both fetch_market and fetch_exp_factors need the same endpoint. This
     caches the result to avoid duplicate API calls when both are fetched
     in parallel. Thread-safe with lock to ensure single API call.
+
+    On transient 503 errors: Attempts to use stale cache from previous successful calls
+    to maintain dashboard stability during API service interruptions.
     """
+    from .api_data_layer import get_cached_response
+
     if "result" in _markets_cache:
         return cast(dict[str, Any], _markets_cache["result"])
 
@@ -78,6 +83,22 @@ def _get_markets_cached() -> dict[str, Any]:
 
         try:
             data = api_call("/api/algo/markets")
+
+            # On transient 503 errors, try to fall back to stale cache
+            if data.get("_is_transient_503"):
+                logger.warning("API /api/algo/markets returned 503, attempting stale cache fallback")
+                try:
+                    stale_data = get_cached_response("/api/algo/markets", mark_stale=True)
+                    if stale_data:
+                        # Mark as stale for dashboard display
+                        stale_data = dict(stale_data)
+                        stale_data["_data_stale"] = True
+                        logger.info("Using stale cached market data during API outage")
+                        _markets_cache["result"] = stale_data
+                        return stale_data
+                except Exception as e:
+                    logger.warning(f"Stale cache fallback failed: {e}")
+
             _markets_cache["result"] = data
             return data
         except Exception as e:

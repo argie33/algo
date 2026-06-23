@@ -237,7 +237,8 @@ def api_call(endpoint: str, params: dict[str, Any] | None = None, method: str = 
 
     Returns:
         Unwrapped response dict containing actual data fields (no statusCode wrapper),
-        or {"_error": message} on failure
+        or {"_error": message} on failure. On 503 errors, includes "_is_transient_503" flag
+        so callers can decide whether to use stale cache.
     """
     if not API_BASE_URL:
         logger.error("DASHBOARD_API_URL environment variable not set - cannot make API calls")
@@ -277,7 +278,11 @@ def api_call(endpoint: str, params: dict[str, Any] | None = None, method: str = 
                     continue
                 _record_api_failure()
                 max_att = API_MAX_RETRIES + 1
-                return {"_error": f"API error {resp.status_code} after {max_att} attempts"}
+                # Mark 503 Service Unavailable as transient so callers can use stale cache
+                error_result: dict[str, Any] = {"_error": f"API error {resp.status_code} after {max_att} attempts"}
+                if resp.status_code == 503:
+                    error_result["_is_transient_503"] = True
+                return error_result
 
             data = resp.json()
             if isinstance(data, dict) and int(data.get("statusCode", 200)) >= 400:
@@ -290,7 +295,10 @@ def api_call(endpoint: str, params: dict[str, Any] | None = None, method: str = 
                 status = data.get("statusCode", "unknown")
                 msg = data.get("message", "Unknown API error")
                 max_att = API_MAX_RETRIES + 1
-                return {"_error": f"API error {status} after {max_att} attempts: {msg}"}
+                error_result_json: dict[str, Any] = {"_error": f"API error {status} after {max_att} attempts: {msg}"}
+                if status == 503:
+                    error_result_json["_is_transient_503"] = True
+                return error_result_json
 
             cache_response(endpoint, data)
             _record_api_success()
