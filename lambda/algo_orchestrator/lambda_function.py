@@ -173,7 +173,7 @@ def lambda_handler(event, context):
 
         # F-02: Check Secrets Manager for intraday circuit breaker halt flag.
         # Set by algo-circuit-breaker Lambda when portfolio drawdown exceeds threshold.
-        # Fail-open: if Secrets Manager is unavailable, continue with current dry_run value.
+        # Fail-closed: if Secrets Manager is unavailable, halt trading to prevent catastrophic loss.
         if not dry_run:
             try:
                 import json as _json
@@ -188,9 +188,19 @@ def lambda_handler(event, context):
                     )
                     dry_run = True
             except (json.JSONDecodeError, ValueError) as _cb_err:
-                logger.warning(
-                    f"[F-02] Could not check circuit breaker state: {_cb_err} — continuing with dry_run={dry_run}"
+                logger.error(
+                    f"[F-02] CRITICAL: Could not check circuit breaker state: {_cb_err} — halting trading for safety"
                 )
+                return {
+                    "statusCode": 500,
+                    "body": json.dumps(
+                        {
+                            "status": "error",
+                            "message": f"Circuit breaker state verification failed: {_cb_err!s}. Halting trading to prevent catastrophic loss.",
+                            "source": source,
+                        }
+                    ),
+                }
 
         logger.info(
             f"Orchestrator invoked: source={source}, is_test={is_test}, dry_run={dry_run}, execution_mode={execution_mode}, run_identifier={run_identifier}"
@@ -213,7 +223,17 @@ def lambda_handler(event, context):
             try:
                 run_date = _date.fromisoformat(run_date_str)
             except (ValueError, TypeError):
-                logger.warning(f"Invalid date format: {run_date_str}, using today")
+                logger.error(f"Invalid date format: {run_date_str}. Cannot proceed with invalid execution date.")
+                return {
+                    "statusCode": 400,
+                    "body": json.dumps(
+                        {
+                            "status": "error",
+                            "message": f"Invalid date format: {run_date_str}. Expected ISO format (YYYY-MM-DD).",
+                            "source": source,
+                        }
+                    ),
+                }
 
         # Set execution_mode in environment before creating orchestrator
         # (orchestrator.__init__ will pick it up from ORCHESTRATOR_EXECUTION_MODE)
@@ -270,7 +290,17 @@ def lambda_handler(event, context):
                     cur.execute("CREATE INDEX IF NOT EXISTS idx_sector_ranking_date ON sector_ranking(date DESC)")
                     logger.info("[SCHEMA FIX] sector_ranking schema fixed successfully")
         except (psycopg2.DatabaseError, psycopg2.OperationalError) as e:
-            logger.warning(f"[SCHEMA FIX] Could not verify/fix sector_ranking schema: {e}. Continuing anyway...")
+            logger.error(f"[SCHEMA FIX] CRITICAL: Could not verify/fix sector_ranking schema: {e}")
+            return {
+                "statusCode": 500,
+                "body": json.dumps(
+                    {
+                        "status": "error",
+                        "message": f"Database schema verification failed: {e!s}. Cannot proceed with invalid schema.",
+                        "source": source,
+                    }
+                ),
+            }
         # Create orchestrator instance with explicit config dependency injection
         from algo.infrastructure import get_config
 

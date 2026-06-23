@@ -131,7 +131,14 @@ def _check_critical_table_freshness() -> dict:
                         "latest_date": str(max_date),
                     }
             except (psycopg2.DatabaseError, psycopg2.OperationalError) as table_err:
-                logger.warning(f"[FRESHNESS] Could not check {description}: {table_err}")
+                logger.error(f"[FRESHNESS] CRITICAL: Could not check {description}: {table_err}")
+                if table_name in _HALT_TABLES:
+                    logger.error(f"[FRESHNESS] Halt table {table_name} check failed — halting trading for safety")
+                    return {
+                        "status": "error",
+                        "error": f"Could not verify freshness of critical table {description}: {table_err}",
+                        "age_details": {},
+                    }
                 age_details[table_name] = {
                     "status": "error",
                     "reason": str(table_err)[:100],
@@ -177,26 +184,33 @@ def _set_halt_flag_atomically(reason: str) -> bool:
     """Set halt flag atomically in RDS (source of truth) and DynamoDB (cache).
 
     RDS is the source of truth. DynamoDB write failure is tolerable since reads
-    fall back to RDS. This prevents split-brain where one store succeeds and the
-    other fails, causing inconsistent state across orchestrator runs.
+    fall back to RDS. Raises on RDS failure (cannot proceed without halt flag).
     """
     now_utc = datetime.now(timezone.utc)
 
-    # Write to RDS first (source of truth)
-    rds_success = _set_halt_flag_rds(reason, now_utc)
+    # Write to RDS first (source of truth) - must succeed
+    try:
+        _set_halt_flag_rds(reason, now_utc)
+    except RuntimeError as e:
+        logger.error(f"[FRESHNESS] Failed to set halt flag in RDS (source of truth): {e}")
+        raise
 
     # Write to DynamoDB (cache) as best-effort if RDS succeeded
-    if rds_success:
-        ddb_success = _set_halt_flag_dynamodb(reason, now_utc)
-        logger.critical(f"[FRESHNESS] Halt flag set: RDS=True, DynamoDB={ddb_success}, reason={reason}")
-        return True
+    try:
+        _set_halt_flag_dynamodb(reason, now_utc)
+        ddb_success = True
+    except RuntimeError as e:
+        logger.warning(f"[FRESHNESS] DynamoDB cache update failed (RDS has halt flag): {e}")
+        ddb_success = False
 
-    logger.error(f"[FRESHNESS] Failed to set halt flag in RDS (source of truth): {reason}")
-    return False
+    logger.critical(
+        f"[FRESHNESS] Halt flag set in RDS (source of truth). DynamoDB cache={ddb_success}, reason={reason}"
+    )
+    return True
 
 
 def _set_halt_flag_rds(reason: str, now_utc: datetime) -> bool:
-    """Set halt flag in RDS. Returns True if successful."""
+    """Set halt flag in RDS. Returns True if successful. Raises on failure."""
     try:
         conn = _get_db_connection()
         cur = conn.cursor()
@@ -237,12 +251,12 @@ def _set_halt_flag_rds(reason: str, now_utc: datetime) -> bool:
         logger.debug(f"[FRESHNESS] Set halt flag in RDS: {reason}")
         return True
     except Exception as e:
-        logger.warning(f"[FRESHNESS] Failed to set halt flag in RDS: {e}")
-        return False
+        logger.critical(f"[FRESHNESS] CRITICAL: Failed to set halt flag in RDS (source of truth): {e}")
+        raise RuntimeError(f"Failed to set halt flag in RDS: {e}") from e
 
 
 def _set_halt_flag_dynamodb(reason: str, now_utc: datetime) -> bool:
-    """Set halt flag in DynamoDB (cache). Returns True if successful."""
+    """Set halt flag in DynamoDB (cache). Returns True if successful. Raises on failure."""
     table_name = os.environ.get("HALT_FLAG_TABLE", "algo_orchestrator_state")
     try:
         ddb = boto3.resource("dynamodb", region_name=os.environ.get("AWS_REGION", "us-east-1"))
@@ -259,8 +273,8 @@ def _set_halt_flag_dynamodb(reason: str, now_utc: datetime) -> bool:
         logger.debug(f"[FRESHNESS] Set halt flag in DynamoDB: {reason}")
         return True
     except Exception as e:
-        logger.warning(f"[FRESHNESS] Failed to set halt flag in DynamoDB: {e}")
-        return False
+        logger.critical(f"[FRESHNESS] CRITICAL: Failed to set halt flag in DynamoDB (cache): {e}")
+        raise RuntimeError(f"Failed to set halt flag in DynamoDB: {e}") from e
 
 
 def lambda_handler(event, context):
@@ -274,7 +288,20 @@ def lambda_handler(event, context):
     if halt_stale:
         logger.critical(f"[FRESHNESS] HALT-table staleness detected: {halt_stale}")
         reason = f"Critical pipeline data stale: {'; '.join(halt_stale[:3])}"
-        _set_halt_flag_atomically(reason)
+        try:
+            _set_halt_flag_atomically(reason)
+        except RuntimeError as e:
+            logger.critical(f"[FRESHNESS] CRITICAL: Could not set halt flag: {e}. Must halt all trading.")
+            return {
+                "statusCode": 500,
+                "body": json.dumps(
+                    {
+                        "status": "error",
+                        "error": f"Critical failure: could not set halt flag for stale data: {e}. Manual intervention required.",
+                        "timestamp": datetime.now(timezone.utc).isoformat(),
+                    }
+                ),
+            }
     elif freshness["status"] in ["degraded", "critical"]:
         logger.warning(f"[FRESHNESS] Warn-only staleness (no halt): {freshness.get('stale_tables')}")
 

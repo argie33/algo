@@ -717,7 +717,7 @@ class Orchestrator:
 
         # Concurrency lock — prevent two orchestrators running at once
         # which would risk duplicate trades or double-counting circuit breakers
-        # Skip lock check in dry-run mode (no actual trades) or when DynamoDB unavailable
+        # Skip lock check in dry-run mode (no actual trades)
         if not self.dry_run:
             lock_acquired = self._acquire_run_lock()
             if not lock_acquired:
@@ -726,10 +726,15 @@ class Orchestrator:
                     logger.error("\nABORT: Could not acquire run lock. Another orchestrator instance is running.")
                     return {"success": False, "error": "Lock acquisition failed"}
                 else:
-                    # DynamoDB unavailable (no permissions, network issue, etc.) - allow to continue with warning
-                    logger.warning(
-                        "[DEGRADED MODE] DynamoDB lock unavailable - running without distributed lock protection"
+                    # DynamoDB unavailable — FAIL CLOSED to prevent concurrent executions
+                    logger.critical(
+                        "\nABORT: DynamoDB lock unavailable. Cannot verify single orchestrator instance. "
+                        "Failing closed to prevent concurrent trades and duplicate order execution."
                     )
+                    return {
+                        "success": False,
+                        "error": "Distributed lock system unavailable. Cannot proceed with trading.",
+                    }
         else:
             logger.info("[DRY-RUN] Skipping distributed lock check (dry-run mode)")
 
