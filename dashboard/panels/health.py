@@ -936,10 +936,10 @@ def panel_status(
     if run_id_top or run_at_top:
         sts = (
             "[bold bright_green]✓ COMPLETED[/]"
-            if (run_valid and run.get("success") and not run.get("halted"))
+            if (run_valid and isinstance(run, dict) and run.get("success") and not run.get("halted"))
             else (
                 "[bold yellow]~ HALTED[/]"
-                if (run_valid and run.get("halted"))
+                if (run_valid and isinstance(run, dict) and run.get("halted"))
                 else ("[bold bright_red]✗ ERROR[/]" if (run_valid and run.get("errored")) else "[dim]RUN[/]")
             )
         )
