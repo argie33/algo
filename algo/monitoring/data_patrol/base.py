@@ -49,7 +49,7 @@ class BaseCheck(ABC):
         self.results: list[CheckResult] = []
 
     @abstractmethod
-    def run(self, cur) -> list[CheckResult]:
+    def run(self, cur: Any) -> list[CheckResult]:
         """Execute the check and return results.
 
         Args:

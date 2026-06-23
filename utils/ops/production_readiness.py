@@ -24,9 +24,9 @@ class ProductionReadinessCheck:
     """Comprehensive validation for production deployment."""
 
     def __init__(self) -> None:
-        self.checks_passed = []
-        self.checks_failed = []
-        self.checks_warnings = []
+        self.checks_passed: list[str] = []
+        self.checks_failed: list[str] = []
+        self.checks_warnings: list[str] = []
 
     def check_database_connectivity(self) -> bool:
         """Verify database is accessible and schema exists with correct column data types."""

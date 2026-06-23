@@ -131,7 +131,7 @@ class YFinanceWrapper:
         for attempt in range(max_retries):
             try:
 
-                def _make_ticker():
+                def _make_ticker() -> Any:
                     session = cls.get_session()
                     t = yf.Ticker(symbol, session=session) if session else yf.Ticker(symbol)
                     _ = t.info  # trigger auth check early

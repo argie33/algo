@@ -18,7 +18,7 @@ logger = logging.getLogger(__name__)
 class DynamoDBHealthCheck:
     """Monitor DynamoDB availability and state consistency."""
 
-    def __init__(self):
+    def __init__(self) -> None:
         self.table_name = os.getenv("HALT_FLAG_TABLE", "algo_orchestrator_state")
         self.region = os.getenv("AWS_REGION", "us-east-1")
 
@@ -182,7 +182,7 @@ class DynamoDBHealthCheck:
                 "error": str(e),
             }
 
-    def log_health_status(self):
+    def log_health_status(self) -> None:
         """Log comprehensive DynamoDB health status."""
         connected = self.check_dynamodb_connectivity()
 

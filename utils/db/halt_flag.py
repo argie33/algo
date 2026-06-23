@@ -39,7 +39,7 @@ class HaltFlagManager:
     """Manages halt flag with DynamoDB + RDS redundancy."""
 
     def __init__(self) -> None:
-        self._dynamodb_failure_times = []  # Track failure timestamps for circuit breaker
+        self._dynamodb_failure_times: list[float] = []  # Track failure timestamps for circuit breaker
         self._circuit_breaker_open = False
 
     def _record_dynamodb_failure(self) -> None:

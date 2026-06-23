@@ -491,7 +491,7 @@ class TradeExecutor:
 
         return True, "", None
 
-    def _process_validation_result(self, check_name: str, result: tuple) -> tuple[bool, str, dict | None]:
+    def _process_validation_result(self, check_name: str, result: tuple[Any, ...]) -> tuple[bool, str, dict[str, Any] | None]:
         """Process validation check result using strategy pattern.
 
         Delegates to handler that knows how to unpack each check type's result tuple.
@@ -590,8 +590,8 @@ class TradeExecutor:
         exposure_tier_at_entry: str | None = None,
         stop_method: str | None = None,
         stop_reasoning: str | None = None,
-        swing_components: dict | None = None,
-        advanced_components: dict | None = None,
+        swing_components: dict[str, Any] | None = None,
+        advanced_components: dict[str, Any] | None = None,
     ) -> dict[str, Any]:
         """Execute a new entry trade by delegating to EntryHandler.
 
@@ -716,7 +716,7 @@ class TradeExecutor:
         Returns: (success: bool, message: str or None)
         """
 
-        def do_update() -> None:
+        def do_update() -> bool:
             cur.execute(
                 "SELECT quantity, current_stop_price FROM algo_positions WHERE position_id = %s",
                 (position_id,),
@@ -760,7 +760,7 @@ class TradeExecutor:
 
                 cur.execute(update_sql, params)
 
-            return cur.rowcount > 0
+            return bool(cur.rowcount > 0)
 
         success = OptimisticLockRetry.retry_on_race_condition(
             do_update,
@@ -882,7 +882,7 @@ class TradeExecutor:
                 }
 
             # Check DB for this position
-            def _check_db_quantity(cur: Any) -> int:
+            def _check_db_quantity(cur: Any) -> int | None:
                 cur.execute(
                     """
                     SELECT entry_quantity FROM algo_trades
@@ -948,7 +948,6 @@ class TradeExecutor:
                         ),
                     ),
                 )
-                return True
 
             self._with_cursor(_correct_quantity)
             logger.warning(

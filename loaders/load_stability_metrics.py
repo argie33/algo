@@ -21,7 +21,7 @@ setup_imports()
 import logging
 import math
 from datetime import date, datetime, timezone
-from typing import Any
+from typing import Any, cast
 
 from loaders.runner import run_loader
 from utils.db.context import DatabaseContext
@@ -43,7 +43,7 @@ class StabilityMetricsLoader(OptimalLoader):
             metrics = self._compute_stability_metrics(symbol)
             if metrics:
                 return [metrics]
-            return None
+            return []
         except (psycopg2.DatabaseError, psycopg2.OperationalError) as e:
             raise RuntimeError(f"Operation failed: {e}") from e
 
@@ -143,9 +143,9 @@ class StabilityMetricsLoader(OptimalLoader):
         except (ValueError, ZeroDivisionError, TypeError) as e:
             raise RuntimeError(f"Operation failed: {e}") from e
 
-    def transform(self, rows) -> list[dict[str, Any]]:
+    def transform(self, rows: Any) -> list[dict[str, Any]]:
         """Rows are clean."""
-        return rows
+        return cast(list[dict[str, Any]], rows)
 
     def _validate_row(self, row: dict) -> bool:
         """Validate stability metrics row."""

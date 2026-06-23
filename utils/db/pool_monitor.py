@@ -30,7 +30,7 @@ class RDSPoolMonitor:
     ALERT_THRESHOLD_PCT = DB_POOL_ALERT_THRESHOLD_PCT
     CRITICAL_THRESHOLD_PCT = 90  # Critical if >90% full (configurable via constants)
 
-    def __init__(self):
+    def __init__(self) -> None:
         self.region = os.getenv("AWS_REGION", "us-east-1")
 
     def get_connection_pool_status(self) -> dict[str, Any]:
@@ -177,7 +177,7 @@ class RDSPoolMonitor:
             logger.error(f"Failed to get connection breakdown: {e}")
             raise
 
-    def log_pool_status(self):
+    def log_pool_status(self) -> None:
         """Log current connection pool status with details."""
         status = self.get_connection_pool_status()
 

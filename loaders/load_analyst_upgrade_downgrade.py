@@ -13,7 +13,7 @@ Run:
 import logging
 import sys
 from datetime import date
-from typing import Any
+from typing import Any, cast
 
 import pandas as pd
 import requests

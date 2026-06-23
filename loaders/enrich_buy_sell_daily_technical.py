@@ -19,6 +19,7 @@ sys.path.insert(0, str(Path(__file__).parent.parent))
 import argparse
 import logging
 from datetime import date, datetime, timedelta
+from typing import Any
 
 from utils.db.context import DatabaseContext
 
@@ -29,7 +30,7 @@ def enrich_technical_data(
     since: date | None = None,
     symbols: list[str] | None = None,
     min_success_rate: float = 0.95,
-) -> dict:
+) -> dict[str, Any]:
     """
     Enrich buy_sell_daily with technical data from technical_data_daily.
 
@@ -47,7 +48,7 @@ def enrich_technical_data(
     Raises:
         RuntimeError: If enrichment success rate < min_success_rate (fail-close)
     """
-    stats: dict = {"updated": 0, "checked": 0, "errors": [], "nulls_remaining": 0}
+    stats: dict[str, Any] = {"updated": 0, "checked": 0, "errors": [], "nulls_remaining": 0}
 
     if since is None:
         since = date.today() - timedelta(days=7)
@@ -56,7 +57,7 @@ def enrich_technical_data(
         with DatabaseContext("write") as cur:
             # Build WHERE clause
             where_parts = ["bsd.date >= %s"]
-            params: list = [since]
+            params: list[Any] = [since]
 
             if symbols:
                 placeholders = ",".join(["%s"] * len(symbols))
@@ -114,7 +115,7 @@ def enrich_technical_data(
 
                 # Build a nested dict: tech_data[symbol][date] = row_data
                 # No fallback to stale data: exact date match required for data integrity
-                tech_data_by_symbol_date: dict = {}
+                tech_data_by_symbol_date: dict[str, dict[Any, tuple[Any, ...]]] = {}
                 for row in cur.fetchall():
                     (
                         symbol,

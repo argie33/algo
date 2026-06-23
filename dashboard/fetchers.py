@@ -121,13 +121,13 @@ FETCHERS = {
 
 
 def _execute_fetcher_batch(
-    fetcher_set: set,
+    fetcher_set: set[str],
     max_workers: int,
     timeout_sec: float,
-    one_func: Callable,
-    fetcher_timeout_dict: dict,
+    one_func: Callable[[str, Callable[..., Any], float], tuple[str, Any]],
+    fetcher_timeout_dict: dict[str, float],
     batch_name: str,
-) -> dict:
+) -> dict[str, Any]:
     """Execute a batch of fetchers with thread pool and timeout handling."""
     out = {}
     with ThreadPoolExecutor(max_workers=max_workers) as pool:
@@ -166,7 +166,7 @@ def _execute_fetcher_batch(
     return out
 
 
-def load_all() -> dict:
+def load_all() -> dict[str, Any]:
     """Load all fetcher data with priority-based execution to prevent RDS connection exhaustion.
 
     FIXES APPLIED:
@@ -184,7 +184,7 @@ def load_all() -> dict:
     Issue 14 FIX: Consolidated duplicate /api/algo/markets fetches via shared cache.
     Issue #40 FIX: Per-fetcher timeout (critical: 8s, optional: 3s) prevents one slow endpoint from blocking refresh.
     """
-    out: dict = {}
+    out: dict[str, Any] = {}
     max_retries = 3
     batch_timeout = 200
 
@@ -252,7 +252,7 @@ def load_all() -> dict:
         "scores",
     }
 
-    def one(name, fn, timeout_sec):
+    def one(name: str, fn: Callable[..., Any], timeout_sec: float) -> tuple[str, Any]:
         """Execute fetcher with exponential backoff retry and per-fetcher timeout.
 
         Issue #40 FIX: Individual timeout per fetcher prevents one slow endpoint from

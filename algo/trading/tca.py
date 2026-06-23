@@ -17,7 +17,9 @@ This is what institutional traders use to validate their edge isn't eroded by fe
 import logging
 from datetime import date
 from decimal import ROUND_HALF_UP, Decimal
+from typing import Any
 
+from algo.infrastructure.config import AlgoConfig
 from utils.db import DatabaseContext
 
 logger = logging.getLogger(__name__)
@@ -26,7 +28,7 @@ logger = logging.getLogger(__name__)
 class TCAEngine:
     """Transaction Cost Analysis for every trade execution."""
 
-    def __init__(self, config):
+    def __init__(self, config: AlgoConfig | dict[str, Any]) -> None:
         self.config = config
 
     def record_fill(
